@@ -761,13 +761,15 @@ export function popupCard({ title, link = null, meta = '', warnings = [], body =
 }
 
 /**
- * A card's one action, centred on its own line (TJ, 2026-10-14): a lone button
- * left against the edge of a card the facts line made wider than it read as a
- * row that lost its label. One spelling for the clicked feature's add or
- * remove and the ranked result's remove, so the two cards place it alike.
+ * A card's one action, at its own width on the card's right edge (TJ,
+ * 2026-10-17, #714): Material's place for a card's action. It stood centred
+ * from 2026-10-14, because a lone button against the card's left edge read as
+ * a row that lost its label; the right edge avoids that too. One spelling for
+ * the clicked feature's add or remove and the ranked result's remove, so the
+ * two cards place it alike.
  */
 export function popupAction(button: string): string {
-  return `<div style="text-align:center">${button}</div>`
+  return `<div style="text-align:right">${button}</div>`
 }
 
 /**

@@ -210,13 +210,13 @@ interface Props {
   // The most positions a ring may carry (`limits.max_polygon_points`): the draw
   // tool places no point past it (#619).
   maxPolygonPoints: number
-  // The round slot at the right of a phone's search pill, which the locate
-  // button stands in (#696), or null at a desk's width, where it keeps the
-  // library's top-right corner. A DOM node held in state, so it is one
-  // identity for as long as the slot is mounted.
+  // The round slot at the right of the search pill, which the locate button
+  // stands in (#696, at both widths since #714), or null before the rows
+  // mount, when it keeps the library's top-right corner. A DOM node held in
+  // state, so it is one identity for as long as the slot is mounted.
   locateSlot: HTMLElement | null
-  // The slot at the right end of a phone's chip row, under the locate button,
-  // which the compass stands in (record 0147), or null at a desk's width.
+  // The slot at the right end of the chip row, under the locate button, which
+  // the compass stands in (record 0147), or null before the rows mount.
   compassSlot: HTMLElement | null
 }
 
@@ -280,8 +280,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const isDesktop = useIsDesktop()
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
-    // The library's locate button and its zoom and compass group, which a
-    // phone's width stands at the right of its two rows (`placeControl`).
+    // The library's locate button and its compass, which stand at the right
+    // of the map's two rows (`placeControl`).
     const controlsRef = useRef<MapControls | null>(null)
     const loadedRef = useRef(false)
     const ptsRef = useRef<[number, number][]>([])
@@ -584,9 +584,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         attributionControl: false,
       })
       mapRef.current = map
-      // Read once, like the attribution's `compact`: a pointer does not turn
-      // coarse under a session, where a window does change width.
-      controlsRef.current = addControls(map, window.matchMedia('(hover: none)').matches)
+      controlsRef.current = addControls(map)
       // Before `load`: a style that fails never gets there.
       const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
 
@@ -667,7 +665,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // The locate button and the compass follow their slots: into the rows
-    // while a phone's rows are up, back to the library's corner when they go.
+    // while they are up, back to the library's corner when they go.
     // After the map is built, which an effect declared above these has done.
     useEffect(() => {
       const map = mapRef.current

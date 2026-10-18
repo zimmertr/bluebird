@@ -134,11 +134,12 @@
   border-left-color: var(--popup-surface);
 }
 
-/* The library's own top-right stack — zoom, compass, geolocate — measured off
- * the same edge as the app's Controls/Layers column opposite it.
+/* The library's own top-right stack, measured off the same edge as the app's
+ * rows. It is empty once the compass and the locate button stand in the rows'
+ * slots (`MAP_SLOT`), which they do at both widths since #714, and holds them
+ * only for the moment before the rows mount.
  *
- * The vendor ships 10px here and the app's column stands at `MAP_EDGE`'s 12px,
- * so the two rows of buttons started a step apart across the top of the map.
+ * The vendor ships 10px here and the app's rows stand at `MAP_EDGE`'s 12px.
  * The number is not spelled here: `--map-edge-inset` is published on the map
  * wrapper by `styles.ts`, which is what keeps one inset in one place for
  * markup the design system can reach and markup it cannot.
@@ -153,23 +154,20 @@
   margin: var(--map-edge-inset) var(--map-edge-inset) 0 0;
 }
 
-/* On a phone the app's two rows span the map's top edge (#696), so the stack,
- * the compass alone there, starts below them: `--map-vendor-top` is published
- * by `MAP_EDGE.belowRows` (or `belowDrawBar` while a ring is drawn) on the
- * map wrapper at that width only, and every other width falls back to the
- * inset above. The first group alone, because the margin under it is the gap
- * between groups. */
+/* The app's two rows span the map's top edge (#696), so the stack starts
+ * below them: `--map-vendor-top` is published by `MAP_EDGE.belowRows` (or
+ * `belowDrawBar` while a ring is drawn) on the map wrapper. The first group
+ * alone, because the margin under it is the gap between groups. */
 .maplibregl-ctrl-top-right .maplibregl-ctrl:first-child {
   margin-top: var(--map-vendor-top, var(--map-edge-inset));
 }
 
-/* The map's buttons in the app's chrome (record 0147): the zoom pair, the
- * compass and the locate button, at both widths, each a 40px round button
+/* The map's buttons in the app's chrome (record 0147): the compass and the
+ * locate button, at both widths, each a 40px round button
  * (`MAP_ROUND_BUTTON` in styles.ts, which `map/controls.ts` hands to the
  * library's buttons). The library's group gives up its white box, its
- * shadow and its rules, and stands its buttons 4px apart, the gap of the
- * app's column opposite (`MAP_COL_GAP`); a second group below the first
- * keeps the same 4px. The glyphs, which the library draws dark for its
+ * shadow and its rules, and stands its buttons 4px apart; a second group
+ * below the first keeps the same 4px. The glyphs, which the library draws dark for its
  * white buttons, are drawn light on the dark theme's buttons: inverted, then
  * turned back round the hue circle so the tracking blue, the failure red and
  * the compass's red needle keep their hues. The light theme's buttons are
@@ -213,19 +211,12 @@
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2229%22%20height%3D%2229%22%20viewBox%3D%220%200%2029%2029%22%20stroke%3D%22%23475569%22%20stroke-width%3D%220.75%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20fill%3D%22%23ef4444%22%20d%3D%22m10.5%2014%204-8%204%208z%22%2F%3E%3Cpath%20fill%3D%22%23f8fafc%22%20d%3D%22m10.5%2016%204%208%204-8z%22%2F%3E%3C%2Fsvg%3E");
 }
 
-/* A phone's slots at the right of its two rows (`MAP_SLOT`, #696): the
- * locate button beside the search pill and the compass under it. The group
- * takes the slot's place, so the library's margin goes. The zoom pair, which
- * a fine pointer gets, stays out of the chip row at a phone's width, where
- * it would hang down over the map from the row's end: a wheel and a pinch
- * still zoom, and the compass is the row's alone (record 0147). */
+/* The slots at the right of the map's two rows (`MAP_SLOT`, #696, at both
+ * widths since #714): the locate button beside the search pill and the
+ * compass under it. The group takes the slot's place, so the library's
+ * margin goes. */
 .map-slot .maplibregl-ctrl-group {
   margin: 0;
-}
-
-.map-slot .maplibregl-ctrl-zoom-in,
-.map-slot .maplibregl-ctrl-zoom-out {
-  display: none;
 }
 
 /* The buttons' hit area on a coarse pointer (#696): 40px seen and 44
@@ -252,9 +243,8 @@
 /* The compass while the map is north-up and flat, when pressing it would do
    nothing (#687): `hideCompassWhileNorthUp` in map/controls.ts keeps the
    class on the button in step with the bearing and the pitch, on the button
-   because a phone stands it outside the map's container. Hidden rather than
-   disabled, because a greyed button in the corner still asks to be read.
-   Zoom in and out close up beneath it. */
+   because the rows stand it outside the map's container. Hidden rather than
+   disabled, because a greyed button in the row still asks to be read. */
 .maplibregl-ctrl-compass.compass-idle {
   display: none;
 }

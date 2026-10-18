@@ -1,21 +1,17 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { Place, SEARCH_LIMIT, parseCoordinates, searchPlaces } from '../utils/geocode'
 import {
-  ACCENT,
   ACCENT_RING,
   CAPTION_LIFTED,
   CONTROL_SIZE,
   ICON_ACTION,
   ICON_BUTTON,
-  MAP_COL_W,
   MAP_PILL,
   MAP_PILL_FIELD,
-  MAP_ROW_H,
   RADIUS,
   SEARCH_LIST,
   SPINNER,
   STATUS,
-  SURFACE_FLOATING,
   SURFACE_POPOVER,
   TAP,
   TEXT,
@@ -35,10 +31,10 @@ import { IconClose, IconSearch } from './icons'
 // severity the tint used to carry — amber-300 reads 7.15:1 on that fill,
 // measured 2026-09-14, where AA asks 4.5:1.
 //
-// Its width is the pill's on a phone (#696), where the field spans the map
-// and a list narrower than the box it hangs from would read as a second thing.
-const DROPDOWN = `${SURFACE_POPOVER} absolute left-0 top-full mt-1`
-const DROPDOWN_W = 'w-72 sm:w-80'
+// Its width is the pill's (#696, a desk's too since #714): a list narrower
+// than the field it hangs from would read as a second thing. Across the whole
+// row while it is open, the pill having widened over the locate button.
+const DROPDOWN = `${SURFACE_POPOVER} absolute left-0 top-full mt-1 w-full`
 
 interface Props {
   onSelect: (place: Place) => void
@@ -46,12 +42,8 @@ interface Props {
   // Map group, whose search-by-name control lives out here on the map rather
   // than in the panel. Purely a cue — nothing about the box's behavior changes.
   pointed?: boolean
-  // The pill in a phone's first row (#696) rather than the desk column's box:
-  // as wide and as tall as the slot it stands in, fully rounded, its list as
-  // wide as the pill.
-  pill?: boolean
   // Whether the field has the keyboard or its list or its notice is open,
-  // each time that changes. A phone's row widens the pill over the locate
+  // each time that changes. The map's row widens the pill over the locate
   // button and steps the chip row aside for as long as it is true.
   onExpandedChange?: (expanded: boolean) => void
 }
@@ -60,11 +52,12 @@ export interface SearchBoxHandle {
   focus: () => void
 }
 
-// Floating place search for the map. Fires on Enter rather than as-you-type —
+// Floating place search for the map, the pill in the map's first row (#696):
+// as wide and as tall as the slot it stands in, fully rounded. Fires on Enter rather than as-you-type —
 // Nominatim's usage policy forbids autocomplete — and coordinate pairs are
 // handled locally without ever reaching the geocoder. The × only clears the
 // text: searched places persist as pins, removed via their 📍 in the table.
-const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, pointed = false, pill = false, onExpandedChange }, ref) {
+const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, pointed = false, onExpandedChange }, ref) {
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<Place[] | null>(null)
   const [highlight, setHighlight] = useState(0)
@@ -190,26 +183,20 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
     }
   }
 
-  // The ring rides the wrapper, not the field: the field wears
-  // SURFACE_FLOATING's raised shadow, and the ring's glow is a shadow too. The
+  // The ring rides the wrapper, not the field: the pill wears a raised
+  // shadow, and the ring's glow is a shadow too. The
   // wrapper's box is exactly the field's (the dropdown below it is absolute),
   // so the outline lands where it looks like it should — and it holds the same
   // radius at all times, because only the ring may fade (see ACCENT_RING).
   return (
     <div
       ref={rootRef}
-      className={`relative ${pill ? 'h-full w-full' : MAP_COL_W} ${pill ? RADIUS.pill : RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
+      className={`relative h-full w-full ${RADIUS.pill} transition-shadow ${pointed ? ACCENT_RING : ''}`}
     >
-      {/* The box takes the height, not the input inside it: `MAP_ROW_H` is the
-          one row height every member of the map's left column wears, so the
-          field and the two buttons under it cannot land on three different
-          numbers. Sizing the input instead grew the box by its own padding and
-          overshot. */}
-      <div
-        className={
-          pill ? MAP_PILL : `${SURFACE_FLOATING} ${MAP_ROW_H} flex items-center gap-2 px-2.5 transition-colors ${ACCENT.edgeFocus}`
-        }
-      >
+      {/* The pill takes the height, not the input inside it: the row is 40px
+          (`MAP_ROWS`), and sizing the input instead grew the box by its own
+          padding and overshot. */}
+      <div className={MAP_PILL}>
         <IconSearch className={`flex-shrink-0 ${ICON_ACTION}`} />
         <input
           ref={inputRef}
@@ -241,10 +228,10 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           autoComplete="off"
           spellCheck={false}
           enterKeyHint="search"
-          // No width of its own: the box is `MAP_COL_W` and the input takes
-          // what the icon and the clear button leave. `min-w-0` is what lets
+          // No width of its own: the input takes what the icon and the clear
+          // button leave of the pill. `min-w-0` is what lets
           // it, a flex item's default `min-width:auto` being its content.
-          className={`${TEXT.control} min-w-0 flex-1 bg-transparent placeholder-ink-soft focus:outline-none ${pill ? MAP_PILL_FIELD : ''}`}
+          className={`${TEXT.control} min-w-0 flex-1 bg-transparent placeholder-ink-soft focus:outline-none ${MAP_PILL_FIELD}`}
         />
         {loading ? (
           // A picture of the wait, named as one: a label on an element with
@@ -271,7 +258,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           absolute dropdown it always was. */}
       <div role="status">
         {error && (
-          <div className={`${DROPDOWN} ${pill ? 'w-full' : DROPDOWN_W} ${CONTROL_SIZE} ${STATUS.warn} px-2.5 py-2`}>
+          <div className={`${DROPDOWN} ${CONTROL_SIZE} ${STATUS.warn} px-2.5 py-2`}>
             {error}
           </div>
         )}
@@ -283,18 +270,14 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           role="listbox"
           aria-label="Search results"
           // `DROPDOWN` (above) is the surface and the width. This is a menu the
-          // reader acts in, hanging over the buttons and legends below, and one
-          // step of fill plus the heavier shadow is what says so — the same
-          // separation the Layers popover takes against the same legends.
-          //
-          // It is the ONE thing in this column wider than `MAP_COL_W`, and
-          // deliberately so: bound to the column it clipped every second line,
-          // and a result reads "Mount Baker, Whatcom County, Washington" — the
-          // half that disambiguates it from the other three Mount Bakers is
-          // exactly the half that went (TJ, 2026-09-14, reversing the bind).
-          // It hangs past the column's right edge the way the model picker's
-          // listbox hangs past the panel's.
-          className={`${DROPDOWN} ${pill ? 'w-full' : DROPDOWN_W} ${SEARCH_LIST} divide-y divide-frame`}
+          // reader acts in, hanging over the chips and the legend below, and
+          // one step of fill plus the heavier shadow is what says so — the
+          // same separation the Layers menu takes against the same legend.
+          // A result reads "Mount Baker, Whatcom County, Washington", and the
+          // half that tells it from the other three Mount Bakers is the half
+          // a narrow list clips (TJ, 2026-09-14), which is why a desk's pill
+          // is the 320px the list was before it (`MAP_ROWS`).
+          className={`${DROPDOWN} ${SEARCH_LIST} divide-y divide-frame`}
         >
           {places.map((p, i) => (
             // The option is what a press picks, with no button inside it: an

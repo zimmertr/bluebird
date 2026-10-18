@@ -134,8 +134,8 @@ const FREEZE_INK: readonly string[] = ['#6e11b0', '#5d0ec0', '#372aac', '#193cb8
 //
 // Every scale has SIX bands, and the count is what `scaleTicks` in
 // `legendRamp.ts` reads the map legend's three tick positions off — its
-// bottom, middle and top boundary. It no longer costs the phone's legend
-// stack anything: the key is a one-line strip whatever its band count since
+// bottom, middle and top boundary. It no longer costs the legend
+// anything: the key is a one-line strip whatever its band count since
 // #454, where a row per band made a seventh band a re-measure of
 // `LEGEND_STACK_PX` in resultsSheet.ts.
 //

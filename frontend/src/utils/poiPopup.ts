@@ -63,8 +63,8 @@ function poiTypeFact(poi: BasemapPoi): string | null {
  */
 export function poiPopupHtml(poi: BasemapPoi, added: boolean, mapZoom?: number): string {
   // The button stands alone in the body, under the band's edge, with the
-  // body's own padding around it; it needs no gap of its own. It is centred
-  // the way every card's lone action is (`popupAction`).
+  // body's own padding around it; it needs no gap of its own. It stands at
+  // the card's right edge the way every card's lone action does (`popupAction`).
   const button = added
     ? popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis')
     : popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis')

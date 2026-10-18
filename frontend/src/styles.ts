@@ -378,6 +378,13 @@ export const UNFURLED = {
   // the outer one round where it stands free under the label.
   belowWide: 'rounded-tr-none',
   aboveWide: 'rounded-br-none',
+  /**
+   * Wider than the control the other way: the card's LEFT edge stays on the
+   * control's and it runs on to the right, so the corner under the control
+   * is the left one. A chip's menu on a desk (`MAP_CHIP_MENU`, #714), where
+   * the chip stands at the left of its row and the card reads down from it.
+   */
+  belowWideLeft: 'rounded-tl-none',
 } as const
 
 /**
@@ -1536,7 +1543,8 @@ export const MAP_ROUND_BUTTON =
   `transition-colors ${ACCENT.edgeHover} ${FOCUS_RING}`
 
 /**
- * Where a phone stands one of those buttons at a row's right end (#696): the
+ * Where the map stands one of those buttons at a row's right end (#696, at a
+ * desk's width too since #714): the
  * map moves its own control into the slot (`placeControl`), so the button
  * keeps the library's states and its permission prompt, and `map.css`, keyed
  * on `map-slot`, takes the library's margin off it.
@@ -1621,6 +1629,22 @@ const CHIP_FACE =
   `transition-colors ${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-raised ` +
   `aria-expanded:bg-accent aria-expanded:border-accent aria-expanded:text-on-fill ${FOCUS_RING}`
 export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
+
+/**
+ * A chip's menu on a desk (#714; record 0172): the Layers menu and the legend
+ * card, each unfurling out of its chip as one card with it (record 0134). A
+ * phone's open as bottom sheets instead (record 0136).
+ *
+ * The card is `MAP_MENU_W`, wider than its chip, so it is joined the way the
+ * model dropdown is to its row: its left edge on the chip's, its top border
+ * laid 1px over the chip's bottom one (`top-[calc(100%-1px)]`, the seam
+ * `listbox.ts` keeps for a wide card), and only the corner under the chip
+ * squared (`UNFURLED.belowWideLeft`). The chip wears `UNFURL_ANCHOR`, which
+ * squares its own bottom while the card is out. The surface is the caller's:
+ * the Layers menu is a menu over the map (`SURFACE_POPOVER`), the legend a
+ * key that stays open on it (`SURFACE_FLOATING`).
+ */
+export const MAP_CHIP_MENU = `absolute left-0 top-[calc(100%-1px)] ${MAP_MENU_W} ${UNFURLED.belowWideLeft} px-2.5 py-2`
 
 /**
  * The summary chip, `☰ Current · NOAA GFS`, which opens the drawer: a chip

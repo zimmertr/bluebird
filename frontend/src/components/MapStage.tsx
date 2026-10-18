@@ -4,10 +4,9 @@ import type { SearchBoxHandle } from './SearchBox'
 import TimelineTransport from './TimelineTransport'
 import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
-import MapButtonColumn from './MapButtonColumn'
 import MapLegend, { legendSections, type LegendInputs } from './MapLegend'
 import MapDrawBar from './MapDrawBar'
-import PhoneMapRows from './PhoneMapRows'
+import MapRows from './MapRows'
 import PhoneFoot from './PhoneFoot'
 import type { Analysis } from '../hooks/useAnalyze'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
@@ -116,7 +115,7 @@ export interface MapStageProps {
   onOpenControls: () => void
   /** Lowers a phone's Controls sheet from the chip that raised it. */
   onCloseControls: () => void
-  /** The phone's summary chip: the When arm and the model (`controlsSummary`). */
+  /** The summary chip's words: the When arm and the model (`controlsSummary`). */
   controlsSummary: string
   /**
    * Receives the band a phone's map holds the panel's notice block in while
@@ -147,8 +146,8 @@ export interface MapStageProps {
 }
 
 /**
- * The map column above the results: the map, the loading card, the legend,
- * the button column and the forecast player. MapView is memoized, so every
+ * The map column above the results: the map, the loading card, the two rows
+ * across its top with Layers and the legend in them, and the forecast player. MapView is memoized, so every
  * prop it gets here is a member of an input, never a value built in this
  * render (`map-stage-memo-props`).
  */
@@ -191,9 +190,9 @@ export default function MapStage({
   maxPolygonPoints,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
-  // The round slot at the right of a phone's search pill, which the map
-  // stands its own locate button in (#696). State rather than a ref, so the
-  // map hears the slot arrive and go.
+  // The round slot at the right of the search pill, which the map stands its
+  // own locate button in (#696, at a desk's width too since #714). State
+  // rather than a ref, so the map hears the slot arrive and go.
   const [locateSlot, setLocateSlot] = useState<HTMLDivElement | null>(null)
   // The compass's, under it at the chip row's right end (record 0147).
   const [compassSlot, setCompassSlot] = useState<HTMLDivElement | null>(null)
@@ -251,7 +250,7 @@ export default function MapStage({
   // every cell reads N/A, and a key of six height bands beside them would be
   // the only thing on screen claiming the field was measured.
   const rankedFieldHasValue = fieldHasValue(results, sortBy)
-  // What the legend keys: a desk's box on the map, a phone's Legend sheet.
+  // What the legend keys: a desk's card on the map, a phone's Legend sheet.
   const legendInputs: LegendInputs = { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }
   const legend = legendSections(legendInputs, smokeId)
 
@@ -268,9 +267,9 @@ export default function MapStage({
   const fabBottom = fabBottomPx(footLift, bandPx, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
-  // Layers is one component at both widths: a button in the desk's column
-  // with its menu unfurling out of it, or a chip in the phone's row with its
-  // menu a bottom sheet (#696).
+  // Layers and Legend are chips in the row under the search pill at both
+  // widths, each with its menu a card joined to the chip at a desk (#714) and
+  // a bottom sheet on a phone (#696).
   const layers = (
     <LayersPopover
       overlays={overlays}
@@ -280,6 +279,15 @@ export default function MapStage({
       coverage={coverage}
       forcedOpen={layersForcedOpen}
       sheet={!isDesktop}
+    />
+  )
+  const legendChip = (
+    <MapLegend
+      sections={legend}
+      sheet={!isDesktop}
+      sheetLiftPx={layout.sheetLiftPx}
+      timelineShown={timelineShown}
+      initiallyOpen={legendInitiallyOpen}
     />
   )
 
@@ -295,11 +303,10 @@ export default function MapStage({
     // map area keeps the whole column, so the canvas runs on behind the
     // sheet and its ResizeObserver sees no change on a drag.
     <div
-      // On a phone the library's stack, the compass alone there, starts under
-      // the app's two rows, and under the draw bar while a ring is drawn.
-      className={`flex-1 relative ${MAP_EDGE.publish} ${
-        isDesktop ? '' : drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows
-      }`}
+      // The library's stack, empty once its two buttons stand in the rows'
+      // slots, starts under the rows, and under the draw bar while a ring is
+      // drawn, for the moment before the slots arrive.
+      className={`flex-1 relative ${MAP_EDGE.publish} ${drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows}`}
       style={
         {
           // A phone's scale and (i) stand on the Analyze button's row
@@ -358,51 +365,20 @@ export default function MapStage({
         locateSlot={locateSlot}
         compassSlot={compassSlot}
       />
-      {/* The legends render BEFORE the button column below on purpose.
-          Both are map chrome at the same layer, so paint order is DOM
-          order, and the one that has to win is the one you can click:
-          the Layers popover opens downward into exactly this space, and
-          with the legends last it opened underneath them. Pushing the
-          legends further down instead only moved the collision, since a
-          popover is as tall as its contents. A phone draws no box: its
-          sections are the Legend sheet's (#696). The desk's box is the
-          column's Legend button and its card, which stand in this stack
-          for the same reason. */}
-      {isDesktop && (
-        <MapLegend
-          sections={legend}
-          sidebarOpen={sidebarOpen}
-          sheetLiftPx={layout.sheetLiftPx}
-          timelineShown={timelineShown}
-          initiallyOpen={legendInitiallyOpen}
-        />
-      )}
-      {isDesktop ? (
-        <MapButtonColumn
-          searchBoxRef={searchBoxRef}
-          onSearchSelect={handleSearchSelect}
-          searchPointed={searchPointed}
-          sidebarOpen={sidebarOpen}
-          onOpenControls={onOpenControls}
-          controlsSummary={controlsSummary}
-        >
-          {layers}
-        </MapButtonColumn>
-      ) : (
-        <PhoneMapRows
-          searchBoxRef={searchBoxRef}
-          onSearchSelect={handleSearchSelect}
-          searchPointed={searchPointed}
-          onLocateSlot={setLocateSlot}
-          onCompassSlot={setCompassSlot}
-          sidebarOpen={sidebarOpen}
-          onOpenControls={onOpenControls}
-          onCloseControls={onCloseControls}
-          controlsSummary={controlsSummary}
-          layers={layers}
-          legend={legend}
-        />
-      )}
+      <MapRows
+        searchBoxRef={searchBoxRef}
+        onSearchSelect={handleSearchSelect}
+        searchPointed={searchPointed}
+        onLocateSlot={setLocateSlot}
+        onCompassSlot={setCompassSlot}
+        desk={isDesktop}
+        sidebarOpen={sidebarOpen}
+        onOpenControls={onOpenControls}
+        onCloseControls={onCloseControls}
+        controlsSummary={controlsSummary}
+        layers={layers}
+        legend={legendChip}
+      />
       {/* The foot of a phone's map: the band the panel's notice block
           stands in while the drawer is shut (record 0140), which
           `PanelFooter` portals the one block it renders into, and the

@@ -1,14 +1,14 @@
 /**
- * The map's controls: the zoom and compass buttons, the geolocate button, the
- * scale, and the attribution, and the one MapLibre default this app turns off.
+ * The map's controls: the compass, the geolocate button, the scale, and the
+ * attribution, and the one MapLibre default this app turns off.
  *
- * `touch` is a coarse pointer (`(hover: none)`, the query the app's `touch`
- * variant compiles to), read once when the map is built. On one (#696) the
- * zoom buttons go, because a pinch zooms. The compass stays, shown only while
- * the map is turned or tilted. On a phone's width the locate button and the
- * compass leave the library's corner for the slots at the right of the two
- * rows: `MapView` moves the controls `addControls` returns there
- * (`placeControl`), and back when the width becomes a desk's.
+ * No zoom buttons, at either width: a phone dropped them first because a pinch
+ * zooms (#696), and a desk followed (#714, record 0172), where the wheel and a
+ * trackpad's pinch do the same and a reader meets one map at both widths. The
+ * compass stays, shown only while the map is turned or tilted. The locate
+ * button and the compass leave the library's corner for the slots at the right
+ * of the map's two rows: `MapView` moves the controls `addControls` returns
+ * there (`placeControl`).
  *
  * Every button wears the app's map button (`MAP_ROUND_BUTTON`, record 0147)
  * and the credit line the app's floating box (`MAP_CREDIT`): the markup is the
@@ -23,10 +23,10 @@ import {
 import type * as maplibregl from 'maplibre-gl'
 import { MAP_CREDIT, MAP_ROUND_BUTTON } from '../styles'
 
-/** The two controls `MapView` stands in a phone's slots. */
+/** The two controls `MapView` stands in the rows' slots. */
 export interface MapControls {
   locate: GeolocateControl
-  /** The zoom pair and the compass, or the compass alone on a coarse pointer. */
+  /** The compass, which the library builds as a navigation control with its zoom pair turned off. */
   nav: NavigationControl
 }
 
@@ -40,20 +40,20 @@ function dressButtons(container: HTMLElement | undefined): void {
   container?.querySelectorAll('button').forEach((button) => dress(button, MAP_ROUND_BUTTON))
 }
 
-export function addControls(map: maplibregl.Map, touch: boolean): MapControls {
+export function addControls(map: maplibregl.Map): MapControls {
   // Shift is the pinning modifier for popups (`isPinning` in map/popups.ts), and
   // MapLibre spends shift on box zoom by default — it starts a drag-zoom on
   // shift+mousedown and swallows the click that would have opened one. Box
   // zoom has no affordance and no discoverability; the scroll wheel, the
-  // +/- buttons and a pinch all do the same job, so the modifier is better
+  // a trackpad's pinch and a finger's all do the same job, so the modifier is better
   // spent on something the panel actually tells you about.
   map.boxZoom.disable()
-  const nav = new NavigationControl({ showZoom: !touch })
+  const nav = new NavigationControl({ showZoom: false })
   map.addControl(nav, 'top-right')
   dressButtons(nav._container)
   hideCompassWhileNorthUp(map, nav._container)
   // MapLibre's own geolocate button, not a hand-rolled control: it wears
-  // the same chrome as the zoom and compass buttons above it, and its
+  // the same chrome as the compass, and its
   // permission/error/busy states come with the library instead of being
   // re-implemented badly. Nothing asks for location until it is pressed.
   const locate = new GeolocateControl({ positionOptions: { enableHighAccuracy: true } })
@@ -61,8 +61,8 @@ export function addControls(map: maplibregl.Map, touch: boolean): MapControls {
   dressButtons(locate._container)
   // A corner each, which is what lets both sit in the one band the map's
   // bottom chrome reserves (`TRANSPORT_GAP_PX` in `utils/resultsSheet.ts`)
-  // rather than stacking into two. The scale takes the left, under the
-  // legend stack; the attribution takes the right, where the library puts
+  // rather than stacking into two. The scale takes the left; the attribution
+  // takes the right, where the library puts
   // it by default and where the OpenStreetMap guideline expects it. They
   // shared the right corner before, the scale floating above the licence
   // line, which made the pair as tall as both together.
@@ -72,12 +72,12 @@ export function addControls(map: maplibregl.Map, touch: boolean): MapControls {
 
 /**
  * Stands a control in `slot`, or back in the library's top-right corner when
- * there is none (a desk's width). The control's own element is moved rather
- * than a second button built, so its states and its permission prompt stay
- * the library's; the library keeps its handle on the element wherever it
- * stands, and removes it from wherever it is when the map goes. Back in the
- * corner it takes the place `addControls` gave it: the zoom and compass
- * group first, the locate button after it (`first`).
+ * there is none (the moment before the rows mount, or after they go). The
+ * control's own element is moved rather than a second button built, so its
+ * states and its permission prompt stay the library's; the library keeps its
+ * handle on the element wherever it stands, and removes it from wherever it
+ * is when the map goes. Back in the corner it takes the place `addControls`
+ * gave it: the compass first, the locate button after it (`first`).
  */
 export function placeControl(
   map: maplibregl.Map,

@@ -187,7 +187,7 @@ describe('resultPopupHtml remove', () => {
     expect(resultPopupHtml(base)).not.toContain(RESULT_ACTION_ATTR)
   })
 
-  it('offers the clicked feature\'s remove, centred under the numbers', () => {
+  it('offers the clicked feature\'s remove, at the right under the numbers', () => {
     const html = resultPopupHtml({ ...base, removable: true })
     const button = html.match(new RegExp(`<button ${RESULT_ACTION_ATTR}="remove"[^>]*>([^<]*)</button>`))
     expect(button?.[1]).toBe('Remove from analysis')
@@ -198,7 +198,7 @@ describe('resultPopupHtml remove', () => {
     // On a line of its own at the foot of the card, after the body the scroll
     // cap shortens rather than inside it, so a capped card keeps it in view.
     expect(html).toMatch(
-      new RegExp(`<div style="padding:8px 10px;border-top:1px solid ${escapeRegExp(HEADER_EDGE_COLOR)}"><div style="text-align:center"><button ${RESULT_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div>\\s*</div>$`),
+      new RegExp(`<div style="padding:8px 10px;border-top:1px solid ${escapeRegExp(HEADER_EDGE_COLOR)}"><div style="text-align:right"><button ${RESULT_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div>\\s*</div>$`),
     )
     expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(RESULT_ACTION_ATTR))
   })
@@ -211,7 +211,7 @@ describe('resultPopupHtml remove', () => {
     for (const compact of [false, true]) {
       const html = resultPopupHtml({ ...base, compact, removable: true, warning: fire })
       const warnings = html.match(/<div style="font-size:12px;display:flex;align-items:flex-start;padding:(\d+px) 0 (\d+px) 10px;border-bottom:([^"]+)">/)!
-      const action = html.match(new RegExp(`<div style="padding:(\\d+px) 10px;border-top:([^"]+)"><div style="text-align:center"><button ${RESULT_ACTION_ATTR}`))!
+      const action = html.match(new RegExp(`<div style="padding:(\\d+px) 10px;border-top:([^"]+)"><div style="text-align:right"><button ${RESULT_ACTION_ATTR}`))!
       expect(action[2]).toBe(warnings[3])
       expect(action[2]).toBe(SECTION_EDGE)
       expect([warnings[1], warnings[2]]).toEqual([SECTION_PAD_Y, SECTION_PAD_Y])
