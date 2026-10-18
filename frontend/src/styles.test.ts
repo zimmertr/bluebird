@@ -2106,10 +2106,11 @@ describe('the map rows', () => {
     // The rows yield their gaps; the stack must not hand them back.
     expect(MAP_ROWS.stack).not.toContain(YIELD_EMPTY)
     for (const row of [MAP_ROWS.row, MAP_ROWS.chips]) expect(row).toContain(YIELD_EMPTY)
-    // At a desk the rows stop at the pill's 320px, the gap and the locate
-    // button, so the map right of them stays the map's.
-    expect(tokens(MAP_ROWS.stack)).toEqual(expect.arrayContaining(['lg:right-auto', 'lg:w-92']))
-    expect(step(MAP_ROWS.stack.replace(/(^|\s)lg:/g, '$1'), 'w')).toBe(320 + GAP + ROW)
+    // At a desk the rows stop at the pill's 320px and two buttons, the
+    // locate button and the compass, each with the gap before it, so the map
+    // right of them stays the map's.
+    expect(tokens(MAP_ROWS.stack)).toEqual(expect.arrayContaining(['lg:right-auto', 'lg:w-104']))
+    expect(step(MAP_ROWS.stack.replace(/(^|\s)lg:/g, '$1'), 'w')).toBe(320 + 2 * (GAP + ROW))
     // The chips are 32px tall each, and 6px apart.
     expect(step(MAP_CHIP, 'h')).toBe(CHIPS)
     expect(step(MAP_ROWS.chips, 'gap')).toBe(6)
@@ -2122,15 +2123,24 @@ describe('the map rows', () => {
     expect(step(MAP_ROUND_BUTTON, 'size')).toBe(ROW)
     expect(step(MAP_PILL, 'h')).toBe(ROW)
     expect(step(MAP_ROWS.pill, 'right')).toBe(ROW + GAP)
+    // At a desk the pill leaves both buttons, and the locate button stands
+    // one button in from the compass at the row's end (TJ, 2026-10-18).
+    const desk = (recipe: string) => recipe.replace(/(^|\s)right-\d+(?=\s|$)/, '$1').replace(/(^|\s)lg:/g, '$1')
+    expect(step(desk(MAP_ROWS.pill), 'right')).toBe(2 * (ROW + GAP))
+    expect(step(desk(MAP_SLOT.locate), 'right')).toBe(ROW + GAP)
+    expect(tokens(MAP_SLOT.besideLocate)).toEqual(expect.arrayContaining(['absolute', 'right-0', 'top-0']))
+    expect(step(MAP_SLOT.besideLocate, 'size')).toBe(ROW)
     expect(MAP_ROWS.pillWide).toMatch(/(^|\s)right-0(\s|$)/)
     for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON]) expect(tokens(recipe)).toContain(RADIUS.pill)
     // The class map.css keys the vendor group's margin on.
     for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
     expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
     expect(mapRowsSource).toContain('<div ref={onLocateSlot} className={MAP_SLOT.locate} />')
-    // The compass's, the chip row's last member (record 0147): no size of its
-    // own, so a hidden compass leaves the row's end to the map.
-    expect(mapRowsSource).toContain('<div ref={onCompassSlot} className={MAP_SLOT.compass} />')
+    // A phone's compass, the chip row's last member (record 0147): no size of
+    // its own, so a hidden compass leaves the row's end to the map. A desk's
+    // stands beside the locate button.
+    expect(mapRowsSource).toContain('{!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}')
+    expect(mapRowsSource).toContain('{desk && <div ref={onCompassSlot} className={MAP_SLOT.besideLocate} />}')
     expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0'])
   })
 

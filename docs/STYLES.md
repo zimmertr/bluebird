@@ -656,10 +656,13 @@ built from that sum, and
 `styles.test.ts` holds each to it. The chips are 13px type with 12px a side,
 content-sized, and only the summary may shrink, by an ellipsis on its words.
 
-At a desk the rows stop 368px from the map's left edge: the pill's 320, the
-8px gap and the 40px locate button, so the rest of the map's top is the
-map's. The chip row holds Layers and Legend, with the summary chip at its
-front only while the panel is shut. Their menus unfurl as joined cards
+At a desk the rows stop 416px from the map's left edge: the pill's 320, then
+the locate button and the compass, 40px each with 8px before each, so the rest
+of the map's top is the map's. The compass stands beside the locate button
+rather than under it, since a desk's first row has the room
+(`MAP_SLOT.besideLocate`). The chip row holds Legend and then Layers at both
+widths, so the legend card, open by default, hangs over the map's left edge,
+with the summary chip at the row's front only while the panel is shut. Their menus unfurl as joined cards
 (`MAP_CHIP_MENU`), and the legend card scrolls inside the map's height under
 the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
 the panel, and there are no zoom buttons at either width.

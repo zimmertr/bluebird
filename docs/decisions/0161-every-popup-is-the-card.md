@@ -1,6 +1,6 @@
 # 0161. Every popup that describes a thing is the card: the band, the notices, the body and the action
 
-- Status: Accepted. Amended by 0174 (the lone action is content-sized at the card's right).
+- Status: Accepted
 - Date: 2026-10-16
 - Decider: TJ, in the session that filed #738 (2026-10-16)
 - Issues and PRs: #738, #741

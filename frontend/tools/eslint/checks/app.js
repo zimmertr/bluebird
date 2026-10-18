@@ -240,7 +240,7 @@ export const APP = [
   {
     // The map column draws what it is handed and runs no effect; the loading
     // card's clock is the card's own (analysis-overlay-clock). The rows render
-    // at both widths since #714 and carry the Layers and Legend chips handed
+    // at both widths since #714 and carry the Legend and Layers chips handed
     // to them, and the phone's foot renders once beside them.
     name: 'map-stage',
     files: ['src/components/MapStage.tsx'],

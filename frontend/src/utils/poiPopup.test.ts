@@ -107,12 +107,11 @@ describe('poiPopupHtml', () => {
     expect(html).not.toContain('peakbagger.com')
   })
 
-  // A lone action stands at the card's right edge (TJ, 2026-10-17, #714),
-  // Material's place for a card's action, not against the left edge where the
-  // facts line's width left it hanging.
-  it('stands the button at the body\'s right edge', () => {
+  // A lone action sits centred in the body (TJ, 2026-10-14), not against the
+  // card's left edge where the facts line's width left it hanging.
+  it('centres the button in the body', () => {
     const html = poiPopupHtml(RAINIER, false)
-    expect(html).toMatch(new RegExp(`<div style="text-align:right"><button ${POI_ACTION_ATTR}="add"`))
+    expect(html).toMatch(new RegExp(`<div style="text-align:center"><button ${POI_ACTION_ATTR}="add"`))
   })
 
   it('offers the way in, then the way back out', () => {

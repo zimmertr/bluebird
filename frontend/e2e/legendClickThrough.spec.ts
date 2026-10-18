@@ -66,8 +66,9 @@ test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is th
   await expect(legend).toBeEnabled()
   await expect(page.getByText('Active wildfire')).toHaveCount(0)
 
-  // About 20px at 360 wide, where the three chips take 316 of 336.
-  const end = await legend.evaluate((chip) => {
+  // About 20px at 360 wide, where the three chips take 316 of 336. Layers is
+  // the row's last chip, after Legend (TJ, 2026-10-18).
+  const end = await page.getByRole('button', { name: 'Layers', exact: true }).evaluate((chip) => {
     const row = chip.parentElement!.getBoundingClientRect()
     const right = chip.getBoundingClientRect().right
     const x = Math.round((right + row.right) / 2)

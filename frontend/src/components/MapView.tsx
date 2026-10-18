@@ -215,8 +215,9 @@ interface Props {
   // mount, when it keeps the library's top-right corner. A DOM node held in
   // state, so it is one identity for as long as the slot is mounted.
   locateSlot: HTMLElement | null
-  // The slot at the right end of the chip row, under the locate button, which
-  // the compass stands in (record 0147), or null before the rows mount.
+  // The slot the compass stands in: beside the locate button at a desk, at
+  // the right end of a phone's chip row under it (record 0147), or null
+  // before the rows mount.
   compassSlot: HTMLElement | null
 }
 

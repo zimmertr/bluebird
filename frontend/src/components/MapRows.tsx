@@ -14,7 +14,7 @@ interface MapRowsProps {
   searchPointed: boolean
   /** Receives the locate button's slot, which the map stands its own button in. */
   onLocateSlot: (slot: HTMLDivElement | null) => void
-  /** Receives the compass's slot, under the locate button at the chip row's end (record 0147). */
+  /** Receives the compass's slot: under the locate button at a phone's chip row's end (record 0147), beside it at a desk. */
   onCompassSlot: (slot: HTMLDivElement | null) => void
   /** A desk's width (#714): the panel is docked, so the summary chip stands only while it is shut. */
   desk: boolean
@@ -35,10 +35,12 @@ interface MapRowsProps {
 /**
  * The map's two rows across its top (#696; record 0135), at both widths since
  * #714 (record 0174): the search pill with the locate button at its right, and
- * the chip row under it, the controls summary, Layers and Legend. The row
+ * the chip row under it, the controls summary, Legend and Layers. The row
  * keeps that one shape from arrival to results: Legend greys until it has a
- * key to show rather than coming and going. The row's right end is the
- * compass's, under the locate button, while the map is turned.
+ * key to show rather than coming and going. The compass shows while the map
+ * is turned: at a phone's chip row's end, under the locate button, and at a
+ * desk beside the locate button, where the first row has the room (TJ,
+ * 2026-10-18).
  *
  * The summary chip opens the panel. A phone's raises the Controls sheet and
  * lowers it again, lit while it is up. A desk's panel is docked beside the map
@@ -83,6 +85,7 @@ export default function MapRows({
         {/* Empty here: the map stands its own locate button in it, so the
             button keeps the library's states and its permission prompt. */}
         <div ref={onLocateSlot} className={MAP_SLOT.locate} />
+        {desk && <div ref={onCompassSlot} className={MAP_SLOT.besideLocate} />}
       </div>
       {/* Hidden rather than unmounted while the pill is wide, so an open
           menu's chip and the panel's focus hand-off keep their state. */}
@@ -104,12 +107,14 @@ export default function MapRows({
             </span>
           </button>
         )}
-        {layers}
+        {/* Legend first, so its card, the one open by default, hangs over
+            the map's left edge and covers less of it (TJ, 2026-10-18). */}
         {legend}
-        {/* The compass's, the row's empty right end under the locate button
-            (record 0147): the map stands its own compass in it, which shows
-            only while the map is turned or tilted. */}
-        <div ref={onCompassSlot} className={MAP_SLOT.compass} />
+        {layers}
+        {/* The compass's on a phone, the row's empty right end under the
+            locate button (record 0147): the map stands its own compass in
+            it, which shows only while the map is turned or tilted. */}
+        {!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}
       </div>
     </div>
   )

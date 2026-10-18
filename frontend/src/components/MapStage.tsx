@@ -194,7 +194,8 @@ export default function MapStage({
   // own locate button in (#696, at a desk's width too since #714). State
   // rather than a ref, so the map hears the slot arrive and go.
   const [locateSlot, setLocateSlot] = useState<HTMLDivElement | null>(null)
-  // The compass's, under it at the chip row's right end (record 0147).
+  // The compass's: beside it at a desk, under it at a phone's chip row's end
+  // (record 0147).
   const [compassSlot, setCompassSlot] = useState<HTMLDivElement | null>(null)
   // The height of the phone's notice band, which the Analyze button rises
   // above (`PhoneFoot` measures it), 0 while it holds nothing.
@@ -267,7 +268,7 @@ export default function MapStage({
   const fabBottom = fabBottomPx(footLift, bandPx, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
-  // Layers and Legend are chips in the row under the search pill at both
+  // Legend and Layers are chips in the row under the search pill at both
   // widths, each with its menu a card joined to the chip at a desk (#714) and
   // a bottom sheet on a phone (#696).
   const layers = (

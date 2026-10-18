@@ -58,10 +58,12 @@ describe('MapRows', () => {
     expect(onCloseControls).toHaveBeenCalledOnce()
   })
 
-  it('stands the Layers and Legend chips it is handed after the summary', () => {
+  // Legend before Layers, so the card open by default hangs over the map's
+  // left edge (TJ, 2026-10-18).
+  it('stands the Legend and Layers chips it is handed after the summary', () => {
     render(rows())
     const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)
-    expect(names.slice(-3)).toEqual(['Open controls', 'Layers', 'Legend'])
+    expect(names.slice(-3)).toEqual(['Open controls', 'Legend', 'Layers'])
   })
 
   // Analyze is the panel's at a desk and the floating button's on a phone
@@ -88,9 +90,9 @@ describe('MapRows', () => {
     expect(onLocateSlot).toHaveBeenCalledWith(expect.any(HTMLDivElement))
   })
 
-  // The compass's, at the chip row's right end under the locate button
+  // A phone's compass, at the chip row's right end under the locate button
   // (record 0147).
-  it('hands up the compass\'s slot at the end of the chip row', () => {
+  it('hands up the compass\'s slot at the end of a phone\'s chip row', () => {
     const onCompassSlot = vi.fn()
     render(rows({ onCompassSlot }))
     const slot = onCompassSlot.mock.calls[0][0] as HTMLDivElement
@@ -131,10 +133,22 @@ describe('MapRows at a desk', () => {
     expect(onOpenControls).toHaveBeenCalledOnce()
   })
 
-  it('keeps Layers and Legend while the panel is open', () => {
+  it('keeps Legend and Layers while the panel is open', () => {
     render(rows({ desk: true, sidebarOpen: true }))
     const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)
-    expect(names.slice(-2)).toEqual(['Layers', 'Legend'])
+    expect(names.slice(-2)).toEqual(['Legend', 'Layers'])
+  })
+
+  // The compass stands beside the locate button, where a desk's first row
+  // has the room (TJ, 2026-10-18), not under it.
+  it('hands up the compass\'s slot beside the locate button', () => {
+    const onLocateSlot = vi.fn()
+    const onCompassSlot = vi.fn()
+    render(rows({ desk: true, onLocateSlot, onCompassSlot }))
+    const locate = onLocateSlot.mock.calls[0][0] as HTMLDivElement
+    const compass = onCompassSlot.mock.calls[0][0] as HTMLDivElement
+    expect(compass.parentElement).toBe(locate.parentElement)
+    expect(locate.nextElementSibling).toBe(compass)
   })
 
   // Closing the panel makes it inert under the keyboard that pressed its

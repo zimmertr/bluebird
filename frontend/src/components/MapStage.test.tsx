@@ -236,9 +236,10 @@ describe('MapStage', () => {
     expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)
   })
 
-  // The chip row holds Layers and then Legend at both widths (#714, record
-  // 0174), each handed to the rows rather than drawn beside them.
-  it('hands the rows Layers and then the Legend chip at both widths', () => {
+  // The chip row holds Legend and Layers at both widths (#714, record 0174),
+  // each handed to the rows rather than drawn beside them; their order is
+  // the rows' own (MapRows.test.tsx).
+  it('hands the rows the Legend and Layers chips at both widths', () => {
     const { rerender } = render(<MapStage {...props()} />)
     for (const desk of [true, false]) {
       rerender(<MapStage {...props({ isDesktop: desk, sidebarOpen: desk })} />)
@@ -247,7 +248,6 @@ describe('MapStage', () => {
       const layers = screen.getByTestId('layers')
       const legend = screen.getByTestId('legend')
       expect(rows.contains(layers) && rows.contains(legend)).toBe(true)
-      expect(layers.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
   })
 
