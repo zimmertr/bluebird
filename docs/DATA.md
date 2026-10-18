@@ -97,8 +97,8 @@ every named trailhead in the world, then every named crag, area, boulder and
 climbable stone, with the same clauses a polygon search uses, so what the map
 marks and what a search finds are one definition. A trailhead is the
 `highway=trailhead` tag or a parking lot with Trailhead in its name: Issaquah,
-which calls itself Trailhead City, tags 2 of its 14 named trailheads and maps
-the other 12 as lots, Poo Poo Trailhead among them (checked 2026-10-17), and
+which calls itself Trailhead City, tags 2 of the 14 named trailhead features
+in a box around it and maps the other 12 as lots, Poo Poo Trailhead among them (checked 2026-10-17), and
 the lots add about 3,540 features worldwide. Measured 2026-10-16 on
 `overpass-api.de`: the trailheads took 120 s and 2.8 MB for 12,954 features,
 the crags about 160 s and 9 MB for 14,630, and both in one query 192 s and
