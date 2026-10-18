@@ -13,7 +13,7 @@ import httpx
 import pytest
 from conftest import as_json
 
-from app import values
+from app import open_meteo, values
 from app.services import aggregation, errors, weather
 
 START = "2026-10-17T00:00"
@@ -199,3 +199,9 @@ def test_the_customer_hosts_want_a_key(client):
     assert keyed.content == _forecast(client, models="gfs_seamless").content
     for service in ("archive", "air-quality"):
         assert client.get(f"/open-meteo-customer/v1/{service}").status_code == 401
+
+
+def test_a_bad_parameter_gets_the_fixed_reason(client):
+    r = client.get("/open-meteo/v1/forecast", params={"latitude": "x", "longitude": "1"})
+    assert r.status_code == 400
+    assert r.json() == {"error": True, "reason": open_meteo.BAD_REQUEST_REASON}

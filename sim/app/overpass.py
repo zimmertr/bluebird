@@ -53,12 +53,13 @@ HOME_BOX = (45.0, -124.0, 49.0, -117.0)
 GENERATOR = "bluebird-forecast-sim"
 
 _STATEMENT = re.compile(r"\b(node|way|relation|nwr)((?:\s*(?:\[[^\]]*\]|\([^)]*\)))+)\s*;")
-_TAG = re.compile(r'\[\s*(!?)\s*"([^"]+)"\s*(?:(=|!=|~)\s*"([^"]*)"\s*)?\]')
+_TAG = re.compile(r'\[\s*(?:(!)\s*)?"([^"]+)"\s*(?:(=|!=|~)\s*"([^"]*)"\s*)?\]')
 _POLY = re.compile(r'\(\s*poly\s*:\s*"([^"]*)"\s*\)')
 _AROUND = re.compile(r"\(\s*around\s*:\s*([0-9.]+)\s*,\s*(-?[0-9.]+)\s*,\s*(-?[0-9.]+)\s*\)")
 _NUM = r"\s*(-?[0-9.]+)\s*"
 _BOX = re.compile(r"\(" + ",".join([_NUM] * 4) + r"\)")
 _GLOBAL_BOX = re.compile(r"\[\s*bbox\s*:" + ",".join([_NUM] * 4) + r"\]")
+_ALTERNATION = re.compile(r"\^\(?([A-Za-z_]+(?:\|[A-Za-z_]+)*)\)?\$")
 _TIMEOUT = re.compile(r"\[\s*timeout\s*:\s*(\d+)\s*\]")
 
 _TYPE_ORDER = {"node": 0, "way": 1, "relation": 2}
@@ -152,6 +153,24 @@ class _BadQuery(Exception):
     pass
 
 
+# The one body an unreadable query gets, in Overpass's own `static error` form;
+# the sim's log says what it could not read.
+BAD_QUERY_TEXT = "Error: static error: the sim could not read this query. Its log says why."
+
+
+def _alternatives(pattern: str) -> frozenset[str]:
+    """The words of a `~"^(a|b|c)$"` filter, the only regex form the pod sends.
+
+    Read as a set rather than run, because the pattern arrives in the request
+    and the sim has no business compiling a caller's regex. Any other form is a
+    query the sim cannot read.
+    """
+    match = _ALTERNATION.fullmatch(pattern)
+    if match is None:
+        raise _BadQuery(f"unsupported regex filter {pattern!r}")
+    return frozenset(match.group(1).split("|"))
+
+
 def _matches(filters: list[tuple[str, str, str | None, str | None]], tags: dict[str, str]) -> bool:
     for negated, key, op, value in filters:
         present = key in tags
@@ -162,7 +181,7 @@ def _matches(filters: list[tuple[str, str, str | None, str | None]], tags: dict[
         elif op == "!=":
             ok = tags.get(key) != value
         else:
-            ok = present and re.search(value or "", tags[key]) is not None
+            ok = present and tags[key] in _alternatives(value or "")
         if not ok:
             return False
     return True
@@ -357,5 +376,6 @@ async def interpreter(request: Request) -> Response:
     try:
         body = answer(await _query_text(request))
     except _BadQuery as exc:
-        return PlainTextResponse(f"Error: static error: {exc}", status_code=400)
+        log.warning("Refused an Overpass query: %s", exc)
+        return PlainTextResponse(BAD_QUERY_TEXT, status_code=400)
     return _json(body)

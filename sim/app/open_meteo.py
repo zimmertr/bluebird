@@ -17,6 +17,7 @@ the app's side to show the sim needs it too.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -37,8 +38,13 @@ _LEVEL = re.compile(r"^(temperature|wind_speed|relative_humidity)_(\d+)hPa$")
 
 # The customer hosts' refusals, in Open-Meteo's words. The pod's
 # `is_invalid_api_key` matches the second to answer a caller 401.
+log = logging.getLogger("sim.open_meteo")
+
 KEY_REQUIRED = {"reason": "API key required. Please add &apikey= to the URL.", "error": True}
 KEY_INVALID = {"reason": "The supplied API key is invalid.", "error": True}
+# Every parameter the sim cannot read gets this one reason; the sim's log names
+# the parameter.
+BAD_REQUEST_REASON = "The sim could not read this request. Its log names the parameter."
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,7 +198,11 @@ def answer(params: dict[str, str], service: str) -> Response:
         units = _units(params)
         columns = {name: _column(name, units, service, model) for name in names}
     except _BadRequest as e:
-        return _error(str(e))
+        # The detail goes to the log, not the wire: nothing the app runs reads
+        # a parameter error's wording, and an answer built from an exception
+        # is the habit CodeQL flags in code that does matter.
+        log.warning("Refused an Open-Meteo request: %s", e)
+        return _error(BAD_REQUEST_REASON)
 
     unixtime = params.get("timeformat") == "unixtime"
     times: list[int | str] = (

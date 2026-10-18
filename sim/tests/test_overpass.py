@@ -142,3 +142,12 @@ def test_the_same_query_is_the_same_bytes(client):
 
 def test_an_unreadable_query_is_a_400(client):
     assert client.post("/overpass/api/interpreter", data={"data": "out;"}).status_code == 400
+
+
+def test_a_regex_filter_is_read_as_words_never_run(client):
+    # The pod's two forms read as sets; anything else is refused, so the sim
+    # never compiles a pattern a request sent it.
+    assert overpass._alternatives("^(peak|volcano)$") == frozenset({"peak", "volcano"})
+    query = 'node["natural"~"(.*a){20}"](47.4,-121.8,47.5,-121.7);out;'
+    r = client.post("/overpass/api/interpreter", data={"data": query})
+    assert (r.status_code, r.text) == (400, overpass.BAD_QUERY_TEXT)

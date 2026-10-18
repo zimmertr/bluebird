@@ -454,18 +454,17 @@ def test_one_origin_for_all_six_upstreams_is_one_source(monkeypatch):
 
 def test_a_moved_host_replaces_its_origin_and_keeps_the_rest(monkeypatch):
     policy = _policy_under(monkeypatch, {"BROWSER_RADAR_URL": "http://localhost:8080/radar"})
-    assert "http://localhost:8080" in policy["connect-src"]
-    assert "http://localhost:8080" in policy["img-src"]
-    assert "https://mesonet.agron.iastate.edu" not in policy["connect-src"]
-    assert "https://mesonet.agron.iastate.edu" not in policy["img-src"]
-    assert "https://api.open-meteo.com" in policy["connect-src"]
+    connect, img = set(policy["connect-src"]), set(policy["img-src"])
+    assert {"http://localhost:8080", "https://api.open-meteo.com"} <= connect
+    assert {"http://localhost:8080"} <= img
+    assert {"https://mesonet.agron.iastate.edu"}.isdisjoint(connect | img)
     # Open-Meteo serves no images, so its hosts never reach img-src.
-    assert "https://api.open-meteo.com" not in policy["img-src"]
+    assert {"https://api.open-meteo.com"}.isdisjoint(img)
 
 
 def test_an_origin_carries_its_port_and_never_a_path_or_credentials(monkeypatch):
     policy = _policy_under(
         monkeypatch, {"BROWSER_MAP_TILES_URL": "https://user:secret@tiles.example:8443/base"}
     )
-    assert "https://tiles.example:8443" in policy["connect-src"]
+    assert {"https://tiles.example:8443"} <= set(policy["connect-src"])
     assert not any("secret" in source or "/base" in source for source in policy["connect-src"])
