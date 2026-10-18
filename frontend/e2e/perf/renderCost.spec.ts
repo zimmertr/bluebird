@@ -129,7 +129,7 @@ test('render cost of an overlay toggle, a keystroke and the live knobs at 946 de
   await page.getByRole('button', { name: 'Analyze' }).click()
   // The bar's title, not its screen-reader twin in the results' live region
   // (#576), which carries the same words.
-  await expect(page.getByText(`${DESTINATIONS} of ${DESTINATIONS})`, { exact: false }).filter({ visible: true })).toBeVisible()
+  await expect(page.getByText(`${DESTINATIONS} of ${DESTINATIONS})`, { exact: false }).and(page.locator(':not([role=status])'))).toBeVisible()
   await expect(resultRows(page)).toHaveCount(DESTINATIONS)
 
   const box = page.getByRole('textbox', { name: /Custom destination coordinates/ })
