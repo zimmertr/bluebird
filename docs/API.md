@@ -305,6 +305,13 @@ ignored. An empty set discovers nothing, which is how a request analyzes only
 its `custom_destinations`; `custom` is not a discoverable type and is rejected
 inside the list.
 
+`trailhead` and `crag` are answered from the worldwide set behind
+[`GET /api/landmarks`](#trailheads-and-crags) once the instance holds it, so a
+request for those two alone asks Overpass nothing and answers in milliseconds.
+The set is refreshed daily, so it can trail an OpenStreetMap edit by up to a
+day. For a few minutes after an instance starts, before the set has loaded,
+those kinds come from the live Overpass query like every other.
+
 `include_unnamed_peaks` widens the peak search to summits tagged with an
 elevation but no name, returned as `Peak 5961`. It defaults to false and is
 ignored unless `peak` is among the types: measured over one 8x10 km box, it

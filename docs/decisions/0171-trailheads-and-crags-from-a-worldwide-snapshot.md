@@ -1,6 +1,6 @@
 # 0171. The map's trailheads and crags come from a worldwide snapshot the pod fills at startup
 
-- Status: Accepted
+- Status: Accepted; the set also answers discovery since 0172
 - Date: 2026-10-16
 - Decider: the maintainer (TJ), on issue #734, 2026-10-16: option A worldwide, `ofm-climbing` dropped and routes kept off the map, both kinds from zoom 11, the signboard icon, always on, and the loader's shape (sequential kinds, infinite retries, exponential backoff, every step logged)
 - Issues and PRs: #734, #732 (climbing labels clickable from the tiles), #715 and PR #731 (the crag type), #119 (clickable peaks and lakes), #203 (the wildfire snapshot this copies the route from), #735 (the Overpass outage)

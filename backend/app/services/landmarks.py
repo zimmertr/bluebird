@@ -42,7 +42,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -285,7 +285,7 @@ class LandmarkLoader:
         return [k for k in dict.fromkeys(kinds) if k not in STAGES or self.held(k) is None]
 
     def discover_held(
-        self, ring: list[list[float]], kinds: list[DestinationType]
+        self, ring: Sequence[Sequence[float]], kinds: list[DestinationType]
     ) -> tuple[list[dict[str, Any]], list[DestinationType]]:
         """A polygon search's rows from the held set, and the kinds left over.
 
@@ -300,8 +300,9 @@ class LandmarkLoader:
         live = self.live_kinds(kinds)
         if not ring:
             return rows, list(dict.fromkeys(kinds))
-        lons = [p[0] for p in ring]
-        lats = [p[1] for p in ring]
+        points = [[float(p[0]), float(p[1])] for p in ring]
+        lons = [p[0] for p in points]
+        lats = [p[1] for p in points]
         west, east, south, north = min(lons), max(lons), min(lats), max(lats)
         for kind in dict.fromkeys(kinds):
             features = None if kind in live else self.held(kind)
@@ -309,7 +310,7 @@ class LandmarkLoader:
                 continue
             seen: set[str] = set()
             for f in features:
-                if not f.inside(west, south, east, north) or not _in_ring(f.lon, f.lat, ring):
+                if not f.inside(west, south, east, north) or not _in_ring(f.lon, f.lat, points):
                     continue
                 props = json.loads(f.blob)["properties"]
                 if props["name"] in seen:

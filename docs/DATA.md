@@ -56,10 +56,10 @@ whatever OSM does not know, you can paste.
 A drawn area's peaks and lakes are read from the basemap's own tiles rather
 than asked of Overpass ([Map tiles](#map-tiles) below): the zoom-14 tiles
 under the area carry every named summit with its elevation and OSM id, and
-every named water body, so the app has its answer in about a second and asks
-Overpass only for trailheads, which no tile carries, and crags, which the
-tiles cannot tell from routes, or for an area too large to read from the tiles
-quickly. Measured 2026-10-07 over three rings, the
+every named water body, so the app has its answer in about a second. The
+server answers trailheads and crags, which the tiles do not carry, from its own
+list ([below](#openstreetmap-and-overpass)), so a drawn area asks Overpass
+nothing unless it is too large to read from the tiles quickly. Measured 2026-10-07 over three rings, the
 peaks were exactly Overpass's (42 of 42, 28 of 28 and 16 of 16, the same
 ids). The lakes are broader than the API's: Overpass is asked for
 `natural=water` with `water=lake`, and the tiles carry tarns, ponds and
@@ -106,8 +106,12 @@ the crags about 160 s and 9 MB for 14,630, and both in one query 192 s and
 a minute to an hour, until it lands, and each kind is served as soon as it
 does. The list is refreshed once a day and served however old it is, because
 a trailhead does not move. A server that has just started shows no markers for
-a few minutes. The cost is about five minutes of one Overpass slot per server
-start, which that server's own capacity notice counts as heavy use; a query
+a few minutes. A polygon search reads the same list: once a kind has landed,
+the server answers a search's trailheads or crags from it, keeping the ones
+inside the area's outline, and asks Overpass for a kind only while it is still
+loading ([record 0172](decisions/0172-discovery-reads-trailheads-and-crags-from-the-landmarks-set.md)). So a search can be up to a day behind
+an edit in OpenStreetMap, where it used to be current. The cost is about five
+minutes of one Overpass slot per server start, which that server's own capacity notice counts as heavy use; a query
 per pan would spend the same server for every reader
 ([record 0171](decisions/0171-trailheads-and-crags-from-a-worldwide-snapshot.md)).
 
@@ -187,11 +191,15 @@ all three free instances with worldwide data were at capacity, timing out or
 answering errors at once, so a third mirror would not have saved anything.
 What an outage costs is therefore kept to what only Overpass can answer. A
 polygon search in the app reads its peaks and lakes from the map tiles (see
-[Map tiles](#map-tiles)), so when Overpass fails it ranks those and your own
-destinations, and the line under **Analyze** names the kinds it could not
-find. An area too large for the tiles asks Overpass for everything and still
-fails whole, and so do the API's `POST /api/destinations` and
-`POST /api/analyze`, which are one Overpass query each.
+[Map tiles](#map-tiles)) and its trailheads and crags from the server's list,
+so an outage does not reach it at all. The exceptions are a server in its
+first few minutes, which still asks Overpass for trailheads and crags (when
+that fails, the app ranks what it has and the line under **Analyze** names
+the kinds it could not find), and an area too large for the tiles, which asks
+Overpass for its peaks and lakes and fails whole. The API's
+`POST /api/destinations` and `POST /api/analyze` read trailheads and crags
+from the same list, and fail whole when Overpass cannot answer the kinds they
+still ask it for.
 
 ## Open-Meteo
 

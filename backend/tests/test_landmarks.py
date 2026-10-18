@@ -323,9 +323,11 @@ def _failures() -> float:
 # A ring around Index, closed, that holds the crag and the boulder but not
 # the Mailbox Peak trailhead 37 km south.
 INDEX = [[-121.7, 47.7], [-121.4, 47.7], [-121.4, 47.9], [-121.7, 47.9], [-121.7, 47.7]]
-# A triangle whose bounding box holds the boulder at (-121.56, 47.82) but
-# whose diagonal leaves it out, and keeps the crag at (-121.5555, 47.8208).
-TRIANGLE = [[-121.6, 47.7], [-121.5, 47.7], [-121.5, 47.9], [-121.6, 47.7]]
+# A triangle whose bounding box holds the boulder at (-121.56, 47.82) and
+# the crag at (-121.5555, 47.8208), and whose diagonal runs between the two:
+# it crosses 47.82 at -121.558, so the crag is east of it and inside, and the
+# boulder west of it and out.
+TRIANGLE = [[-121.608, 47.72], [-121.508, 47.72], [-121.508, 47.92], [-121.608, 47.72]]
 SAME_NAME = {
     "type": "node",
     "id": 4,

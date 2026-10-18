@@ -7,8 +7,7 @@ from fastapi.testclient import TestClient
 
 from app import ratelimit
 from app.main import app
-from app.models import MAX_ANALYZE_PEAKS
-from app.models import DestinationType
+from app.models import MAX_ANALYZE_PEAKS, DestinationType
 from app.services import landmarks
 from app.services import osm as osm_mod
 from app.services.errors import UpstreamError
