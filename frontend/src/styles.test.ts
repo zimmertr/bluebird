@@ -78,20 +78,19 @@ import {
   CHART_PLOT_TOUCH,
   CHART_TITLE,
   MAP_CHIP,
+  MAP_CHIP_MENU,
   MAP_CHIP_SUMMARY,
   MAP_CHIP_SUMMARY_TEXT,
   MAP_FAB,
   MAP_FAB_WORDS,
-  MAP_COL_GAP,
-  MAP_COL_W,
   MAP_ROUND_BUTTON,
   MAP_SLOT,
   MAP_CREDIT,
   MAP_NOTICE_BAND,
   MAP_PILL,
   MAP_PILL_FIELD,
+  MAP_MENU_W,
   MAP_ROWS,
-  MAP_ROW_H,
   SEARCH_LIST,
   MICRO_SIZE,
   MUTED,
@@ -149,9 +148,8 @@ import panelFooterSource from './components/PanelFooter.tsx?raw'
 import appSource from './App.tsx?raw'
 import searchBoxSource from './components/SearchBox.tsx?raw'
 import layersPopoverSource from './components/LayersPopover.tsx?raw'
-import mapButtonColumnSource from './components/MapButtonColumn.tsx?raw'
 import mapLegendSource from './components/MapLegend.tsx?raw'
-import phoneMapRowsSource from './components/PhoneMapRows.tsx?raw'
+import mapRowsSource from './components/MapRows.tsx?raw'
 import bottomSheetSource from './components/BottomSheet.tsx?raw'
 import phoneFootSource from './components/PhoneFoot.tsx?raw'
 import mapStageSource from './components/MapStage.tsx?raw'
@@ -1371,44 +1369,19 @@ describe('shared recipes', () => {
     expect(SURFACE_SHEET.match(/\bshadow-\S+/g)).toEqual([ELEVATION.none])
   })
 
-  // Everything in the map's left column is one width: the search field, its
-  // results, the Controls and Layers buttons, the Layers popover and the
-  // legend. They shipped as 301, 184, 128, 128, 192 and 192, which read as a
-  // ragged edge rather than as a column, so the width is one role and every
-  // member of the column wears it.
-  it('gives every member of the map column one width', () => {
-    // Who wears it, and what no call site spells beside it, are the
-    // style-map-column and style-search-box checks.
-    expect(MAP_COL_W).toBe('w-46')
+  // The chips' two menus are one width (#714, record 0172): the widest line
+  // either one carries is the legend's wait line at 176.8px, and the Layers
+  // menu's widest label is 130.0px, so 184px holds both with its padding.
+  it('gives the chip menus one width', () => {
+    expect(MAP_MENU_W).toBe('w-46')
+    expect(MAP_CHIP_MENU).toContain(MAP_MENU_W)
+    for (const source of [layersPopoverSource, mapLegendSource]) expect(source).toContain('${MAP_CHIP_MENU}')
   })
 
-  // The third part of the same decision: one gap between members, so the
-  // column's height and the inset that clears it are built from one number.
-  // The Layers menu took it too, as a margin, until it unfurled out of its
-  // button with no gap (record 0134).
-  it('gives the column one gap', () => {
-    expect(MAP_COL_GAP).toEqual({ gap: 'gap-1' })
-  })
-
-  // The other half of the same decision: one row height, so the field and the
-  // two buttons do not each solve for their own (34, 38 and 38 before this).
-  it('gives every row in that column one height', () => {
-    expect(MAP_ROW_H).toBe('h-9 touch:h-11')
-    const rows = [
-      ...(mapButtonColumnSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
-      ...(layersPopoverSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
-      ...(searchBoxSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
-    ]
-    // Both buttons and the search field, counted across the three files. A row
-    // that sets its own height beside the role is the style-map-column check.
-    expect(rows).toHaveLength(3)
-  })
-
-  // One type size for the whole column, which is what `CONTROL_SIZE` is doing
-  // on a map button: a 14px label beside the 12px field, results and legends
-  // read as a different kind of object rather than as a louder one
-  // (TJ, 2026-09-14).
-  it('reads the whole map column at one size', () => {
+  // The floating button is the skip link's now, at the control size the map
+  // column was set in (TJ, 2026-09-14): a 14px label beside 12px controls
+  // read as a different kind of object rather than as a louder one.
+  it('sets the floating button at the control size', () => {
     expect(sizes(BUTTON_FLOATING)).toEqual([CONTROL_SIZE])
     expect(sizes(BUTTON_FLOATING)).toEqual(sizes(TEXT.control))
     // Colorless on purpose: the label is white, and a second color utility
@@ -1608,6 +1581,16 @@ describe('every role', () => {
     // its step here, and a call site takes the finished surface; this file
     // asserts the steps are the three and that each surface wears its own.
     ELEVATION: 'the depth scale every surface in this file composes',
+    // The map's buttons left with the column in #714, so the skip link is the
+    // one recipe that composes the floating button, and the size it was set
+    // at is held here.
+    BUTTON_FLOATING: "the skip link's button, held at the control size",
+    // The chip menus' width, which `MAP_CHIP_MENU` composes so the two menus
+    // cannot be two widths.
+    MAP_MENU_W: 'the one width both chip menus wear',
+    // The rows hand the map their gaps through this, and `MAP_ROWS` is its
+    // one wearer since the legend stack became a card (#714).
+    YIELD_EMPTY: 'the rows yield their gaps to the map',
   }
 
   it('exports no role nothing imports', () => {
@@ -2066,15 +2049,9 @@ describe('the map edge inset', () => {
     expect(MICRO_SIZE).toBe(`text-[${published![1]}px]`)
   })
 
-  // The button column, the legend stack and the popover under them. The first
-  // two wear the role; the popover's offset parent IS the column, so it takes
-  // zero from the button it hangs under, which is the same edge. What none of
-  // them may do is spell an inset of its own — that is how the column came to
-  // sit 4px right of the legends. Written as alternation so no banned class
-  // appears verbatim: v4 scans this file as raw text.
-  // The library's top-right stack takes the same inset through `map.css`,
-  // which reads the property and spells no number of its own — the vendor's
-  // 10px is what put its buttons a step above the app's column opposite them.
+  // The library's top-right stack takes the map's inset through `map.css`,
+  // which reads the property and spells no number of its own. It stands there
+  // only until the rows mount and take its buttons into their slots.
   it('is the one inset the vendor stack takes too', () => {
     expect(mapCss).toContain('.maplibregl-ctrl-top-right .maplibregl-ctrl')
     const rule = mapCss.slice(
@@ -2097,11 +2074,12 @@ describe('the search result list', () => {
   })
 })
 
-// The phone's two rows across the map's top (#696; record 0135): the search
-// pill with the locate button at its right, and the chip row under it. Every
-// other anchor on a phone's top is built from the rows' four numbers, so this
-// holds each one to the sum rather than trusting a comment.
-describe('the phone rows', () => {
+// The map's two rows across its top (#696; record 0135), at both widths since
+// #714 (record 0172): the search pill with the locate button at its right, and
+// the chip row under it. Every other anchor on the map's top is built from the
+// rows' four numbers, so this holds each one to the sum rather than trusting a
+// comment.
+describe('the map rows', () => {
   const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
   // A spacing step is a quarter of a rem: 4px.
   const step = (recipe: string, prefix: string): number => {
@@ -2128,6 +2106,10 @@ describe('the phone rows', () => {
     // The rows yield their gaps; the stack must not hand them back.
     expect(MAP_ROWS.stack).not.toContain(YIELD_EMPTY)
     for (const row of [MAP_ROWS.row, MAP_ROWS.chips]) expect(row).toContain(YIELD_EMPTY)
+    // At a desk the rows stop at the pill's 320px, the gap and the locate
+    // button, so the map right of them stays the map's.
+    expect(tokens(MAP_ROWS.stack)).toEqual(expect.arrayContaining(['lg:right-auto', 'lg:w-92']))
+    expect(step(MAP_ROWS.stack.replace(/(^|\s)lg:/g, '$1'), 'w')).toBe(320 + GAP + ROW)
     // The chips are 32px tall each, and 6px apart.
     expect(step(MAP_CHIP, 'h')).toBe(CHIPS)
     expect(step(MAP_ROWS.chips, 'gap')).toBe(6)
@@ -2145,10 +2127,10 @@ describe('the phone rows', () => {
     // The class map.css keys the vendor group's margin on.
     for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
     expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
-    expect(phoneMapRowsSource).toContain('<div ref={onLocateSlot} className={MAP_SLOT.locate} />')
+    expect(mapRowsSource).toContain('<div ref={onLocateSlot} className={MAP_SLOT.locate} />')
     // The compass's, the chip row's last member (record 0147): no size of its
     // own, so a hidden compass leaves the row's end to the map.
-    expect(phoneMapRowsSource).toContain('<div ref={onCompassSlot} className={MAP_SLOT.compass} />')
+    expect(mapRowsSource).toContain('<div ref={onCompassSlot} className={MAP_SLOT.compass} />')
     expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0'])
   })
 
@@ -2192,7 +2174,8 @@ describe('the phone rows', () => {
   // A chip lit for its open sheet takes the accent fill as a variant, so the
   // lit and the resting fills never race on stylesheet order.
   it('lights a chip in the accent fill while its sheet is open', () => {
-    expect(phoneMapRowsSource).toContain('${MAP_CHIP} ${DISABLED}')
+    expect(mapLegendSource).toContain('${MAP_CHIP} ${UNFURL_ANCHOR} ${DISABLED}')
+    expect(layersPopoverSource).toContain('${MAP_CHIP} ${UNFURL_ANCHOR}')
     const fill = tokens(ACCENT.fill).find((t) => t.startsWith('bg-'))!
     expect(tokens(MAP_CHIP)).toContain(`aria-expanded:${fill}`)
     expect(tokens(MAP_CHIP)).toContain(`aria-expanded:${fill.replace(/^bg-/, 'border-')}`)
@@ -2244,7 +2227,7 @@ describe('the phone chrome\'s hit areas', () => {
     expect(tokens(MAP_PILL)).toContain('border')
     expect(seen - 2 + 2 * rim).toBe(44)
     expect(tokens(MAP_PILL_FIELD)).toContain('self-stretch')
-    expect(searchBoxSource).toContain('${pill ? MAP_PILL_FIELD : \'\'}')
+    expect(searchBoxSource).toContain('${MAP_PILL_FIELD}')
   })
 
   // The vendor's buttons, so map.css spells it, on the query `touch` is: every
@@ -2301,14 +2284,14 @@ describe('the phone chrome\'s hit areas', () => {
     const group = rule('.maplibregl-ctrl-group')
     for (const decl of ['background: transparent;', 'box-shadow: none;', 'gap: 4px;']) expect(group).toContain(decl)
     expect(rule('.maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl')).toContain('margin-top: 4px;')
-    expect(MAP_COL_GAP.gap).toBe('gap-1')
     expect(rule('.maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: invert(1) hue-rotate(180deg);')
     // The light theme's buttons are light, so its glyphs keep the library's
     // own dark drawing (#706).
     expect(rule(':root[data-theme="light"] .maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: none;')
     expect(rule('.maplibregl-ctrl-compass.compass-idle')).toContain('display: none;')
-    // A phone's chip row stands the compass alone, whatever the pointer.
-    expect(mapCss).toMatch(/\.map-slot \.maplibregl-ctrl-zoom-in,\s*\.map-slot \.maplibregl-ctrl-zoom-out \{\s*display: none;/)
+    // No zoom buttons at either width (record 0172), so map.css has none
+    // to hide.
+    expect(mapCss).not.toContain('maplibregl-ctrl-zoom-in')
   })
 
   // The credit line is the floating box, and its links read the way `LINK`
@@ -2667,20 +2650,20 @@ describe('the map legend sections', () => {
   })
 })
 
-// The stack spans the map's height to its derived floor whatever it holds, so
-// the band under the last section is empty and a click there belongs to the
-// map. The box yields; the sections it holds take the pointer back.
-describe('the legend stack', () => {
-  // The scroll box itself: the one element that wears the legend's top inset.
-  const stack = mapLegendSource.match(/className=\{`absolute \$\{MAP_EDGE\.left\}[^`]*LEGEND_TOP[^`]*`\}/)?.[0] ?? ''
+// At a desk the legend is the Legend chip's joined card (#714, record 0172).
+// It scrolls inside the map left below the rows, so a long legend never runs
+// under the timeline or off the map's foot.
+describe('the desk legend card', () => {
+  const card = mapLegendSource.match(/className=\{`\$\{SURFACE_FLOATING\} \$\{MAP_CHIP_MENU\}[^`]*`\}/)?.[0] ?? ''
 
-  it('found the stack', () => {
-    expect(stack).toContain('overflow-y-auto')
+  it('found the card', () => {
+    expect(card).not.toBe('')
   })
 
-  it('gives its empty area to the map and keeps it for its sections', () => {
-    expect(YIELD_EMPTY.split(' ')).toEqual(['pointer-events-none', '[&>*]:pointer-events-auto'])
-    expect(stack).toContain('${YIELD_EMPTY}')
+  it('scrolls inside a height the map reads off its own box', () => {
+    expect(card).toContain('overflow-y-auto')
+    expect(mapLegendSource).toContain('style={{ maxHeight: legendMaxCss(sheetLiftPx, timelineShown) }}')
+    expect(MAP_EDGE.publish).toContain('[container-type:size]')
   })
 })
 
@@ -3284,6 +3267,14 @@ describe('an unfurled menu', () => {
   it('squares only the corner under the control when it spans a row', () => {
     expect(UNFURLED.belowWide).toBe('rounded-tr-none')
     expect(UNFURLED.aboveWide).toBe('rounded-br-none')
+  })
+
+  // A chip's menu is wider than its chip and starts at the chip's left edge,
+  // so the corner it squares is the left one (#714, record 0172). It overlaps
+  // the chip by the 1px seam, where the chip's own edge is the line.
+  it("hangs a chip's menu from its left corner", () => {
+    expect(UNFURLED.belowWideLeft).toBe('rounded-tl-none')
+    expect(MAP_CHIP_MENU.split(' ')).toEqual(expect.arrayContaining(['absolute', 'left-0', 'top-[calc(100%-1px)]', UNFURLED.belowWideLeft]))
   })
 
   // The anchor squares the corners facing the card, on the side `usePopover`

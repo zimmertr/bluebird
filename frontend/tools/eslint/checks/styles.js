@@ -163,7 +163,8 @@ const titleCaption = (ref) =>
     .map((k) => `${exprIs(k, ref)}[quasis.${k + 1}.value.raw=" truncate"][quasis.${k + 1}.tail=true]`)
     .join(', ')})`
 
-const SEARCH_WIDTHS = ['4', '72', '80']
+// The spinner's square. The pill and its list take the row's width.
+const SEARCH_WIDTHS = ['4']
 
 const PLAYER_ROW = 'VariableDeclarator[id.name="MAP_LAYERS"] ObjectExpression:has(> Property[key.name="label"][value.value="Forecast player"])'
 
@@ -322,44 +323,41 @@ export const STYLES = [
     require: [{ selector: interp('SURFACE_PAGE'), message: 'Stand the page on SURFACE_PAGE.' }],
   },
   {
-    // The map's left column: one width, one gap, one row height, one inset.
-    // A width, gap or height spelled beside the role moves the column without
-    // moving what is derived from the role.
-    name: 'style-map-column',
+    // The map's chrome at both widths (#714, record 0172): the two rows, the
+    // chips and the menus that unfurl from them. A width, height or offset
+    // spelled beside a role moves one part without moving what is derived
+    // from the role, and an inset spelled at a call site is how the old
+    // column came to sit 4px right of the legends.
+    name: 'style-map-chrome',
     files: [
       'src/App.tsx',
       'src/components/AnalysisOverlay.tsx',
       'src/components/LayersPopover.tsx',
-      'src/components/MapButtonColumn.tsx',
+      'src/components/MapRows.tsx',
       'src/components/MapLegend.tsx',
     ],
     ban: [
-      { selector: ride('MAP_COL_W', String.raw`(^|\s)w-\S`), message: 'Spell no width beside MAP_COL_W.' },
+      {
+        selector: ride('MAP_CHIP_MENU', String.raw`(^|\s)(w-|top-|left-|right-)`),
+        message: 'Spell no width or offset beside MAP_CHIP_MENU.',
+      },
       {
         // A range rather than a list, so a step nobody thought of still fails,
         // and guarded so a max-w is not read as a width.
         selector: text(String.raw`(?<![-\w])w-(?:4\d|5\d)\b`),
-        message: 'Take the map column width from MAP_COL_W.',
+        message: 'Take the chip menu width from MAP_MENU_W.',
       },
       {
-        selector: ride('MAP_COL_GAP.gap', String.raw`(^|\s)(gap-|mt-)`),
-        message: 'Spell no gap beside MAP_COL_GAP.',
-      },
-      {
-        selector: ride('MAP_ROW_H', String.raw`(^|\s)(h-|min-h-|py-)`),
-        message: 'Spell no height or padding beside MAP_ROW_H.',
+        selector: ride('MAP_CHIP', String.raw`(^|\s)(h-|min-h-|px-|py-)`),
+        message: 'Spell no height or padding beside MAP_CHIP.',
       },
       { selector: text(String.raw`\btop-3\b`), message: 'Take the top inset from MAP_EDGE.top.' },
       { selector: text(String.raw`\bleft-(2|3)\b|\bleft-\[`), message: 'Take the left inset from MAP_EDGE.left.' },
     ],
   },
   {
-    // The map column's members are four files now (#409); each carries its
-    // share of the roles, and the counts add up to what App.tsx held: four
-    // MAP_COL_W, two MAP_COL_GAP.gap and two MAP_EDGE.left. The Layers menu's
-    // MAP_COL_GAP.top went with its gap when it unfurled (record 0134).
     // Everything inside the wrapper, which MapStage draws, inherits the one
-    // number.
+    // inset, and the legend card reads the wrapper's height (`100cqh`).
     name: 'style-map-wrapper',
     files: ['src/components/MapStage.tsx'],
     require: [
@@ -367,42 +365,41 @@ export const STYLES = [
     ],
   },
   {
-    // The legend box and the stack it scrolls in.
-    name: 'style-map-legend-column',
+    // The Legend chip and the card that unfurls out of it (#714, record 0172,
+    // and record 0134's join): the chip wears the chip and the anchor, the
+    // card wears the menu role.
+    name: 'style-map-legend-chip',
     files: ['src/components/MapLegend.tsx'],
     require: [
-      // The Legend button and the card that unfurls out of it (#696, record
-      // 0134's join): one width, and the join worn by both.
-      { selector: interp('MAP_COL_W'), count: 2, message: 'The Legend button and its card wear MAP_COL_W.' },
-      { selector: interp('UNFURLED.below'), count: 1, message: 'The legend card unfurls from its button with UNFURLED.below.' },
-      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Legend button wears UNFURL_ANCHOR.' },
-      { selector: interp('MAP_COL_GAP.gap'), count: 1, message: 'The legend stack spaces by MAP_COL_GAP.gap.' },
-      { selector: interp('MAP_EDGE.left'), count: 1, message: 'The legend stack stands off the left by MAP_EDGE.left.' },
+      { selector: interp('MAP_CHIP'), count: 1, message: 'The Legend chip wears MAP_CHIP.' },
+      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Legend chip wears UNFURL_ANCHOR.' },
+      { selector: interp('MAP_CHIP_MENU'), count: 1, message: 'The legend card wears MAP_CHIP_MENU.' },
     ],
   },
   {
-    // The button cluster and the Controls button it holds while the panel is
-    // closed. A stacking context orders only its own children, so the layer
-    // is useless unless the cluster itself wears it.
-    name: 'style-map-button-column',
-    files: ['src/components/MapButtonColumn.tsx'],
+    // The two rows: the pill and the locate button, then the chips and the
+    // compass. A stacking context orders only its own children, so the layer
+    // is useless unless the stack itself wears it.
+    name: 'style-map-rows',
+    files: ['src/components/MapRows.tsx'],
     require: [
-      { selector: interp('MAP_COL_W'), count: 1, message: 'The Controls button wears MAP_COL_W.' },
-      { selector: interp('MAP_COL_GAP.gap'), count: 1, message: 'The cluster spaces by MAP_COL_GAP.gap.' },
-      { selector: role('LAYER') + '[property.name="mapControls"]', message: 'The map controls cluster wears LAYER.mapControls.' },
-      { selector: interp('MAP_EDGE.top'), message: 'The column stands off the top by MAP_EDGE.top.' },
-      { selector: interp('MAP_EDGE.left'), count: 1, message: 'The cluster stands off the left by MAP_EDGE.left.' },
+      { selector: role('MAP_ROWS') + '[property.name="stack"]', message: 'The rows stand in MAP_ROWS.stack.' },
+      { selector: role('LAYER') + '[property.name="mapControls"]', message: 'The rows wear LAYER.mapControls.' },
+      { selector: role('MAP_SLOT') + '[property.name="locate"]', message: 'The pill row ends in MAP_SLOT.locate.' },
+      { selector: role('MAP_SLOT') + '[property.name="compass"]', message: 'The chip row ends in MAP_SLOT.compass.' },
     ],
   },
   {
-    // The Layers button and the menu that unfurls out of it (record 0134):
-    // one width, and the join on the button's bottom edge, worn by both.
-    name: 'style-map-layers-column',
+    // The Layers chip and the menu that unfurls out of it (record 0134). Its
+    // wrapper stands over the Legend chip's, so the menu opens over the
+    // legend card rather than under it.
+    name: 'style-map-layers-chip',
     files: ['src/components/LayersPopover.tsx'],
     require: [
-      { selector: interp('MAP_COL_W'), count: 2, message: 'The Layers button and its popover wear MAP_COL_W.' },
-      { selector: interp('UNFURLED.below'), count: 1, message: 'The Layers menu unfurls from the button with UNFURLED.below.' },
-      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Layers button wears UNFURL_ANCHOR.' },
+      { selector: interp('MAP_CHIP'), count: 1, message: 'The Layers chip wears MAP_CHIP.' },
+      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Layers chip wears UNFURL_ANCHOR.' },
+      { selector: interp('MAP_CHIP_MENU'), count: 1, message: 'The Layers menu wears MAP_CHIP_MENU.' },
+      { selector: text(String.raw`(^|\s)z-\[1\](\s|$)`), message: 'Stand the Layers menu over the legend card with z-[1].' },
     ],
   },
   {
@@ -502,18 +499,17 @@ export const STYLES = [
     ],
   },
   {
-    // The search field, its results and its message: one width, one opaque
-    // surface, and severity by STATUS colour rather than a panel notice box.
+    // The search pill, its results and its message: the row's width, one
+    // opaque surface, and severity by STATUS colour rather than a panel
+    // notice box.
     name: 'style-search-box',
     files: ['src/components/SearchBox.tsx'],
     ban: [
-      { selector: ride('MAP_COL_W', String.raw`(^|\s)w-\S`), message: 'Spell no width beside MAP_COL_W.' },
       {
-        // The one deliberate exception is the result list, wider than the
-        // column so a second line keeps the county and state. The single-digit
-        // step left is the spinner's square.
+        // The pill and its list are the row's width, so the one fixed width
+        // left is the spinner's square.
         selector: text(`(?<![-\\w])w-(?!(?:${SEARCH_WIDTHS.join('|')})(?:\\s|$))\\d`),
-        message: 'Pick no width in SearchBox beyond the result list and the spinner.',
+        message: 'Pick no width in SearchBox beyond the spinner.',
       },
       { selector: ride('DROPDOWN', String.raw`\sbg-`), message: 'Spell no surface beside DROPDOWN.' },
       {
@@ -523,13 +519,7 @@ export const STYLES = [
       },
     ],
     require: [
-      {
-        // Or the pill's whole slot in its place on a phone (#696), where the
-        // slot is the width: the two are one choice in one class list.
-        selector: `${interp('MAP_COL_W')}, TemplateLiteral > ConditionalExpression[alternate.name="MAP_COL_W"]`,
-        count: 1,
-        message: 'The search field wears MAP_COL_W.',
-      },
+      { selector: interp('MAP_PILL_FIELD'), count: 1, message: 'The search field wears MAP_PILL_FIELD.' },
       ...SEARCH_WIDTHS.map((w) => ({
         selector: text(`(?<![-\\w])w-${w}(?:\\s|$)`),
         message: `SearchBox keeps its w-${w}.`,

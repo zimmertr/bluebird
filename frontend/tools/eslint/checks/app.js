@@ -239,25 +239,18 @@ export const APP = [
   },
   {
     // The map column draws what it is handed and runs no effect; the loading
-    // card's clock is the card's own (analysis-overlay-clock). The legend
-    // renders before the button column because paint order is DOM order at
-    // one layer, and the Layers popover must open over the legend. A phone
-    // renders its rows in the column's place (#696), so the column is one arm
-    // of a choice and the order is read off the container that holds it.
+    // card's clock is the card's own (analysis-overlay-clock). The rows render
+    // at both widths since #714 and carry the Layers and Legend chips handed
+    // to them, and the phone's foot renders once beside them.
     name: 'map-stage',
     files: ['src/components/MapStage.tsx'],
     ban: [{ selector: EFFECT, message: 'Run no effect in MapStage.' }],
     require: [
-      ...['AnalysisOverlay', 'MapLegend', 'MapButtonColumn', 'PhoneMapRows', 'PhoneFoot', 'LayersPopover', 'TimelineTransport'].map((name) => ({
+      ...['AnalysisOverlay', 'MapLegend', 'MapRows', 'PhoneFoot', 'LayersPopover', 'TimelineTransport'].map((name) => ({
         selector: `JSXOpeningElement[name.name="${name}"]`,
         count: 1,
         message: `MapStage.tsx renders ${name} once.`,
       })),
-      {
-        selector:
-          ':matches(JSXElement:has(> JSXOpeningElement[name.name="MapLegend"]), JSXExpressionContainer:has(JSXOpeningElement[name.name="MapLegend"])) ~ :matches(JSXElement:has(> JSXOpeningElement[name.name="MapButtonColumn"]), JSXExpressionContainer:has(JSXOpeningElement[name.name="MapButtonColumn"]))',
-        message: 'Render MapLegend before MapButtonColumn, so the Layers popover paints over the legend.',
-      },
     ],
   },
   {
@@ -551,18 +544,17 @@ export const APP = [
     ],
   },
   {
-    // The legend stack hangs under the Layers button and grows down, so the
-    // overflow leaves through the edge a scroll can follow; a stack pushed to
-    // the bottom overflows past its start, where it cannot be reached. Every
-    // offset on the bottom edge is derived in resultsSheet.ts, and the corner
-    // band is published under the names map.css reads. The map wrapper that
-    // publishes the band is MapStage's; the stack is MapLegend's
-    // (map-legend-anchors).
+    // The legend card hangs under its chip and grows down, so the overflow
+    // leaves through the edge a scroll can follow; a box pushed to the bottom
+    // overflows past its start, where it cannot be reached. Every offset on
+    // the bottom edge is derived in resultsSheet.ts, and the corner band is
+    // published under the names map.css reads. The map wrapper that publishes
+    // the band is MapStage's; the card is MapLegend's (map-legend-anchors).
     name: 'map-stage-anchors',
     files: ['src/components/MapStage.tsx'],
     ban: [
-      { selector: text('\\bm[tb]-(?:auto)\\b'), message: 'Anchor the legend stack at the top, not with an auto margin.' },
-      { selector: text('\\bjustify-(?:end)\\b'), message: 'Anchor the legend stack at the top, not by justifying to the end.' },
+      { selector: text('\\bm[tb]-(?:auto)\\b'), message: 'Anchor the legend card at the top, not with an auto margin.' },
+      { selector: text('\\bjustify-(?:end)\\b'), message: 'Anchor the legend card at the top, not by justifying to the end.' },
       BOTTOM_OFFSET,
     ],
     require: [
@@ -575,21 +567,19 @@ export const APP = [
     ],
   },
   {
-    // The stack half of map-stage-anchors: the top inset clears the button
-    // column in both of its heights, and the floor is derived.
+    // The legend card hangs from its chip and grows down (#714): its floor is
+    // derived, so a long legend scrolls above the player and the sheet.
     name: 'map-legend-anchors',
     files: ['src/components/MapLegend.tsx'],
     ban: [
-      { selector: text('\\bm[tb]-(?:auto)\\b'), message: 'Anchor the legend stack at the top, not with an auto margin.' },
-      { selector: text('\\bjustify-(?:end)\\b'), message: 'Anchor the legend stack at the top, not by justifying to the end.' },
+      { selector: text('\\bm[tb]-(?:auto)\\b'), message: 'Anchor the legend card at the top, not with an auto margin.' },
+      { selector: text('\\bjustify-(?:end)\\b'), message: 'Anchor the legend card at the top, not by justifying to the end.' },
       BOTTOM_OFFSET,
     ],
     require: [
-      { selector: 'MemberExpression[object.name="LEGEND_TOP"][property.name="compact"]', message: 'Inset the legend with LEGEND_TOP.compact.' },
-      { selector: 'MemberExpression[object.name="LEGEND_TOP"][property.name="full"]', message: 'Inset the legend with LEGEND_TOP.full.' },
       {
-        selector: 'CallExpression[callee.name="legendBottomPx"][arguments.0.name="sheetLiftPx"]',
-        message: 'Place the legend with legendBottomPx(sheetLiftPx, ...).',
+        selector: 'CallExpression[callee.name="legendMaxCss"][arguments.0.name="sheetLiftPx"]',
+        message: 'Cap the legend card with legendMaxCss(sheetLiftPx, ...).',
       },
     ],
   },
@@ -757,7 +747,7 @@ export const APP = [
       'src/App.tsx',
       'src/components/MapStage.tsx',
       'src/components/LayersPopover.tsx',
-      'src/components/MapButtonColumn.tsx',
+      'src/components/MapRows.tsx',
       'src/components/AnalysisOverlay.tsx',
       'src/components/ResultsSheet.tsx',
       'src/components/ResultsBar.tsx',

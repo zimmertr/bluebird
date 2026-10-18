@@ -1,9 +1,9 @@
-// Must trip: the legend and the button column each rendered twice.
+// Must trip: the legend and the rows each rendered twice.
 export const Stage = () => (
   <div>
     <MapLegend />
-    <MapButtonColumn />
+    <MapRows />
     <MapLegend />
-    <MapButtonColumn />
+    <MapRows />
   </div>
 )

@@ -1,11 +1,6 @@
-// Must trip: an effect, the button column before the legend, and no overlay, popover or player.
+// Must trip: an effect, and no overlay, legend, rows, foot, popover or player.
 import { useEffect } from 'react'
 export const Stage = () => {
   useEffect(() => {}, [])
-  return (
-    <div>
-      <MapButtonColumn />
-      <MapLegend />
-    </div>
-  )
+  return <div />
 }

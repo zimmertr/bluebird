@@ -29,8 +29,8 @@ vi.mock('./MapView', () => ({
 }))
 vi.mock('./MapLegend', async (original) => ({
   ...(await original<typeof import('./MapLegend')>()),
-  default: (props: { sections: readonly unknown[] }) => (
-    <div data-testid="legend" data-sections={String(props.sections.length)} />
+  default: (props: { sections: readonly unknown[]; sheet: boolean }) => (
+    <div data-testid="legend" data-sections={String(props.sections.length)} data-sheet={String(props.sheet)} />
   ),
 }))
 vi.mock('./LayersPopover', () => ({
@@ -58,32 +58,24 @@ vi.mock('./PhoneFoot', () => ({
     </div>
   ),
 }))
-vi.mock('./MapButtonColumn', () => ({
-  default: (props: { onOpenControls: () => void; onSearchSelect: (place: Place) => void; children: ReactNode }) => (
-    <div data-testid="buttons">
-      <button onClick={props.onOpenControls}>Controls</button>
-      <button onClick={() => props.onSearchSelect(PLACE)}>Pick</button>
-      {props.children}
-    </div>
-  ),
-}))
-vi.mock('./PhoneMapRows', () => ({
+vi.mock('./MapRows', () => ({
   default: (props: {
+    desk: boolean
     onOpenControls: () => void
+    onSearchSelect: (place: Place) => void
     onLocateSlot: (slot: HTMLDivElement | null) => void
     onCompassSlot: (slot: HTMLDivElement | null) => void
     controlsSummary: string
-    legend: readonly unknown[]
     layers: ReactNode
+    legend: ReactNode
   }) => (
-    <div
-      data-testid="rows"
-      data-summary={props.controlsSummary}
-      data-legend={String(props.legend.length)}
-    >
+    <div data-testid="rows" data-desk={String(props.desk)} data-summary={props.controlsSummary}>
+      <button onClick={props.onOpenControls}>Controls</button>
+      <button onClick={() => props.onSearchSelect(PLACE)}>Pick</button>
       <div data-testid="locate" ref={props.onLocateSlot} />
-      <div data-testid="compass" ref={props.onCompassSlot} />
       {props.layers}
+      {props.legend}
+      <div data-testid="compass" ref={props.onCompassSlot} />
     </div>
   ),
 }))
@@ -208,9 +200,12 @@ describe('MapStage', () => {
   it('hands MapView the same value for every prop across renders', () => {
     seen.mapView.length = 0
     const { rerender } = render(<MapStage {...props()} />)
+    // The rows hand back their slots once they mount, which is a render of
+    // its own; the pair compared is the settled one and the next.
+    const settled = seen.mapView.length
     rerender(<MapStage {...props()} />)
-    expect(seen.mapView).toHaveLength(2)
-    const [first, second] = seen.mapView
+    expect(seen.mapView).toHaveLength(settled + 1)
+    const [first, second] = seen.mapView.slice(-2)
     expect(Object.keys(second).sort()).toEqual(Object.keys(first).sort())
     for (const key of Object.keys(first)) {
       expect(Object.is(second[key], first[key]), key).toBe(true)
@@ -241,13 +236,19 @@ describe('MapStage', () => {
     expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)
   })
 
-  // Paint order is DOM order at one layer, and the Layers popover must open
-  // over the legend rather than under it.
-  it('puts the legend before the button column', () => {
-    render(<MapStage {...props()} />)
-    const legend = screen.getByTestId('legend')
-    const buttons = screen.getByTestId('buttons')
-    expect(legend.compareDocumentPosition(buttons) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  // The chip row holds Layers and then Legend at both widths (#714, record
+  // 0172), each handed to the rows rather than drawn beside them.
+  it('hands the rows Layers and then the Legend chip at both widths', () => {
+    const { rerender } = render(<MapStage {...props()} />)
+    for (const desk of [true, false]) {
+      rerender(<MapStage {...props({ isDesktop: desk, sidebarOpen: desk })} />)
+      const rows = screen.getByTestId('rows')
+      expect(rows.dataset.desk).toBe(String(desk))
+      const layers = screen.getByTestId('layers')
+      const legend = screen.getByTestId('legend')
+      expect(rows.contains(layers) && rows.contains(legend)).toBe(true)
+      expect(layers.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
   })
 
   it('draws the player only while something spans time', () => {
@@ -320,52 +321,51 @@ describe('MapStage', () => {
     expect(flyToPlace.mock.invocationCallOrder[0]).toBeLessThan(registerPlace.mock.invocationCallOrder[0])
   })
 
-  // A phone gets the two rows (#696): the summary, Layers as a chip with its
-  // sheet, and the legend's sections for its Legend sheet. A desk keeps its
-  // column and its legend box.
-  it('hands the phone rows the summary, and Layers as a sheet', () => {
+  // The rows carry the summary, and Layers opens as a sheet on a phone and
+  // as a joined menu at a desk.
+  it('hands the rows the summary, and Layers as a sheet on a phone only', () => {
     const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(screen.queryByTestId('buttons')).toBeNull()
-    const rows = screen.getByTestId('rows')
-    expect(rows.dataset.summary).toBe('Current · NOAA GFS')
+    expect(screen.getByTestId('rows').dataset.summary).toBe('Current · NOAA GFS')
     expect(screen.getByTestId('layers').dataset.sheet).toBe('true')
     rerender(<MapStage {...props()} />)
-    expect(screen.queryByTestId('rows')).toBeNull()
+    expect(screen.getByTestId('rows').dataset.summary).toBe('Current · NOAA GFS')
     expect(screen.getByTestId('layers').dataset.sheet).toBe('false')
   })
 
-  // One answer for both surfaces: a desk's box draws the sections and a
-  // phone's map draws none, its Legend sheet holding them.
-  it('hands the legend\'s sections to the box on a desk and to the Legend sheet on a phone', () => {
+  // One answer for both widths: the Legend chip gets the sections, and opens
+  // them as a card at a desk and as a sheet on a phone.
+  it('hands the Legend chip the sections, as a card at a desk and a sheet on a phone', () => {
     const { rerender } = render(<MapStage {...props()} />)
     // The metric key over coloured markers, and the three layers that are on.
-    expect(screen.getByTestId('legend').dataset.sections).toBe('4')
-    // A phone draws no legend on its map, not even the desk's button: its key
-    // is the Legend sheet's.
+    const legend = () => screen.getByTestId('legend').dataset
+    expect(legend().sections).toBe('4')
+    expect(legend().sheet).toBe('false')
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(screen.queryByTestId('legend')).toBeNull()
-    expect(screen.getByTestId('rows').dataset.legend).toBe('4')
+    expect(legend().sections).toBe('4')
+    expect(legend().sheet).toBe('true')
   })
 
   // The locate button's slot reaches the map, which stands its own button in
-  // it, and goes when the rows do.
-  it('hands the map the locate slot on a phone', () => {
-    seen.mapView.length = 0
-    const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(seen.mapView[seen.mapView.length - 1].locateSlot).toBe(screen.getByTestId('locate'))
-    // And the compass's, under it (record 0147).
-    expect(seen.mapView[seen.mapView.length - 1].compassSlot).toBe(screen.getByTestId('compass'))
-    rerender(<MapStage {...props()} />)
-    expect(seen.mapView[seen.mapView.length - 1].locateSlot).toBeNull()
-    expect(seen.mapView[seen.mapView.length - 1].compassSlot).toBeNull()
+  // it, and the compass's under it (record 0147), at both widths since #714.
+  it('hands the map the locate and compass slots at both widths', () => {
+    for (const desk of [true, false]) {
+      seen.mapView.length = 0
+      const { unmount } = render(<MapStage {...props({ isDesktop: desk, sidebarOpen: desk })} />)
+      const last = seen.mapView[seen.mapView.length - 1]
+      expect(last.locateSlot).toBe(screen.getByTestId('locate'))
+      expect(last.compassSlot).toBe(screen.getByTestId('compass'))
+      unmount()
+    }
   })
 
-  // On a phone the vendor's stack, the compass alone there, starts under the
-  // rows, and under the draw bar while a ring is drawn.
-  it('publishes the vendor stack\'s top on a phone only', () => {
+  // The vendor's stack starts under the rows at both widths, and under a
+  // phone's draw bar while a ring is drawn.
+  it('publishes the vendor stack\'s top under the rows, or a phone\'s draw bar', () => {
     const { container, rerender } = render(<MapStage {...props()} />)
     const stage = () => container.firstElementChild as HTMLElement
-    expect(stage().className).not.toContain('--map-vendor-top')
+    expect(stage().className).toContain(MAP_EDGE.belowRows)
+    rerender(<MapStage {...props({ drawMode: { ...DRAW, drawing: true } })} />)
+    expect(stage().className).toContain(MAP_EDGE.belowRows)
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(stage().className).toContain(MAP_EDGE.belowRows)
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, drawMode: { ...DRAW, drawing: true } })} />)

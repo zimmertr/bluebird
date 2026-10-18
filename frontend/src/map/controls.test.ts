@@ -98,34 +98,31 @@ const buttonsOf = (control: unknown) => (control as { _container: Fake })._conta
 describe('addControls', () => {
   it('spends shift on pinning rather than box zoom, and puts each control in its corner', () => {
     const { map, added, boxZoom } = stub()
-    const { locate, nav } = addControls(map, false)
+    const { locate, nav } = addControls(map)
     expect(boxZoom.disable).toHaveBeenCalledTimes(1)
     expect(added.map(([, , at]) => at)).toEqual(['top-right', 'top-right', 'bottom-left'])
-    expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: true })
-    // The two it hands back, for a phone's rows to stand them in.
+    // The two it hands back, for the rows to stand them in.
     expect(nav).toBe(added[0][1])
     expect(locate).toBe(added[1][1])
   })
 
-  // A coarse pointer (#696): a pinch zooms, so the zoom buttons go and the
-  // compass alone is left.
-  it('drops the zoom buttons on touch', () => {
+  // No zoom buttons at either width (#696 on a phone, #714 at a desk): a
+  // pinch or a wheel zooms, and the compass alone is left.
+  it('draws no zoom buttons', () => {
     const { map, added } = stub()
-    addControls(map, true)
+    addControls(map)
     expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: false })
   })
 
   // The app's map button on every button the library drew (record 0147): the
-  // zoom pair, the compass and the locate button, at both widths.
+  // compass and the locate button.
   it('dresses every map button in the app\'s round button', () => {
-    for (const touch of [false, true]) {
-      const { map } = stub()
-      const { locate, nav } = addControls(map, touch)
-      const buttons = [...buttonsOf(nav), ...buttonsOf(locate)]
-      expect(buttons).toHaveLength(touch ? 2 : 4)
-      for (const button of buttons) {
-        for (const c of roleOf(MAP_ROUND_BUTTON)) expect(button.classes.has(c), c).toBe(true)
-      }
+    const { map } = stub()
+    const { locate, nav } = addControls(map)
+    const buttons = [...buttonsOf(nav), ...buttonsOf(locate)]
+    expect(buttons).toHaveLength(2)
+    for (const button of buttons) {
+      for (const c of roleOf(MAP_ROUND_BUTTON)) expect(button.classes.has(c), c).toBe(true)
     }
   })
 
@@ -133,18 +130,18 @@ describe('addControls', () => {
   // of the scale at this width.
   it('draws the scale no wider than the room map.css keeps for it', () => {
     const { map, added } = stub()
-    addControls(map, false)
+    addControls(map)
     const [, scale] = added.find(([, , at]) => at === 'bottom-left')!
     expect((scale as { options: Record<string, unknown> }).options).toEqual({ maxWidth: SCALE_MAX_WIDTH_PX })
   })
 })
 
 describe('the compass while north-up', () => {
-  // On the button itself, since a phone stands it outside the map's
+  // On the button itself, since the rows stand it outside the map's
   // container (record 0147).
   it('hides the compass while north-up and flat, and shows it once either moves', () => {
     const { map, handlers, camera } = stub()
-    const { nav } = addControls(map, true)
+    const { nav } = addControls(map)
     const compass = buttonsOf(nav)[0]
     expect(compass.classes.has('maplibregl-ctrl-compass')).toBe(true)
     expect(Object.keys(handlers).sort()).toEqual(['pitch', 'rotate'])
