@@ -3,7 +3,7 @@
 - Status: Accepted; amends 0118
 - Date: 2026-10-16
 - Decider: the maintainer (TJ), on issue #745, 2026-10-16: option A of the issue, the budget, 16 in flight under OpenFreeMap's terms of 2026-10-14, and the two additions (the touched tiles, the bar)
-- Issues and PRs: #745, #735 and PR #746 (the fallback this extends to larger rings), #675 and PR #677 (discovery from the tiles)
+- Issues and PRs: #745 and #760, which replaced it, PR #756, #735 and PR #746 (the fallback this extends to larger rings), #675 and PR #677 (discovery from the tiles)
 - Cited in code as: #745
 - Guide: root `CLAUDE.md`, Architecture step 2; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `tileDiscovery.ts`, `analysisPipeline.ts` and `analyzeOverlay.ts` bullets; [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), `useAnalysisRun.ts` and `useAnalyze.ts`; [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), `AnalysisOverlay.tsx` and `MapStage.tsx`; [`docs/USAGE.md`](../USAGE.md), What happens when you analyze; [`docs/DATA.md`](../DATA.md), Map tiles; [`docs/TRAFFIC.md`](../TRAFFIC.md), the OpenFreeMap row
 - Related: 0118 (discovery from the tiles, whose budget and count this changes), 0164 (a search keeps what needed no map server), 0115 (what the tiles are relied on for)

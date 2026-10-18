@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-17
 - Decider: the maintainer (TJ), 2026-10-17: the joint recommendation of the #734 and #745 sessions, and one PR and one issue for all three pieces
-- Issues and PRs: #734 (which #745 was folded into), #756
+- Issues and PRs: #760, which replaced #734 and #745, and PR #756
 - Cited in code as: #745
 - Guide: root `CLAUDE.md`, Architecture step 2; [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `services/landmarks.py`, `services/candidates.py` and `routes/destinations.py` bullets; [`docs/USAGE.md`](../USAGE.md), What happens when you analyze; [`docs/DATA.md`](../DATA.md), OpenStreetMap and Overpass; [`docs/API.md`](../API.md), Discovery without forecasts; [`docs/TRAFFIC.md`](../TRAFFIC.md), the Overpass row
 - Related: 0171 (the set this reads), 0170 and 0118 (peaks and lakes from the tiles), 0164 (a search keeps what needed no map server), 0011 (one union discovery query), 0103 (one discovery per address)
