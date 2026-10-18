@@ -127,7 +127,9 @@ test('render cost of an overlay toggle, a keystroke and the live knobs at 946 de
   await page.goto(`/?type=peak&limit=1500&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
-  await expect(page.getByText(`${DESTINATIONS} of ${DESTINATIONS})`, { exact: false })).toBeVisible()
+  // The bar's title, not its screen-reader twin in the results' live region
+  // (#576), which carries the same words.
+  await expect(page.getByText(`${DESTINATIONS} of ${DESTINATIONS})`, { exact: false }).filter({ visible: true })).toBeVisible()
   await expect(resultRows(page)).toHaveCount(DESTINATIONS)
 
   const box = page.getByRole('textbox', { name: /Custom destination coordinates/ })

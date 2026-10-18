@@ -3,7 +3,7 @@
  * attribution, and the one MapLibre default this app turns off.
  *
  * No zoom buttons, at either width: a phone dropped them first because a pinch
- * zooms (#696), and a desk followed (#714, record 0172), where the wheel and a
+ * zooms (#696), and a desk followed (#714, record 0174), where the wheel and a
  * trackpad's pinch do the same and a reader meets one map at both widths. The
  * compass stays, shown only while the map is turned or tilted. The locate
  * button and the compass leave the library's corner for the slots at the right

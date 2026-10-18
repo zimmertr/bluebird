@@ -323,7 +323,7 @@ export const STYLES = [
     require: [{ selector: interp('SURFACE_PAGE'), message: 'Stand the page on SURFACE_PAGE.' }],
   },
   {
-    // The map's chrome at both widths (#714, record 0172): the two rows, the
+    // The map's chrome at both widths (#714, record 0174): the two rows, the
     // chips and the menus that unfurl from them. A width, height or offset
     // spelled beside a role moves one part without moving what is derived
     // from the role, and an inset spelled at a call site is how the old
@@ -365,7 +365,7 @@ export const STYLES = [
     ],
   },
   {
-    // The Legend chip and the card that unfurls out of it (#714, record 0172,
+    // The Legend chip and the card that unfurls out of it (#714, record 0174,
     // and record 0134's join): the chip wears the chip and the anchor, the
     // card wears the menu role.
     name: 'style-map-legend-chip',

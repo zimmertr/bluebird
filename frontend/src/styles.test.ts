@@ -1369,7 +1369,7 @@ describe('shared recipes', () => {
     expect(SURFACE_SHEET.match(/\bshadow-\S+/g)).toEqual([ELEVATION.none])
   })
 
-  // The chips' two menus are one width (#714, record 0172): the widest line
+  // The chips' two menus are one width (#714, record 0174): the widest line
   // either one carries is the legend's wait line at 176.8px, and the Layers
   // menu's widest label is 130.0px, so 184px holds both with its padding.
   it('gives the chip menus one width', () => {
@@ -2075,7 +2075,7 @@ describe('the search result list', () => {
 })
 
 // The map's two rows across its top (#696; record 0135), at both widths since
-// #714 (record 0172): the search pill with the locate button at its right, and
+// #714 (record 0174): the search pill with the locate button at its right, and
 // the chip row under it. Every other anchor on the map's top is built from the
 // rows' four numbers, so this holds each one to the sum rather than trusting a
 // comment.
@@ -2289,7 +2289,7 @@ describe('the phone chrome\'s hit areas', () => {
     // own dark drawing (#706).
     expect(rule(':root[data-theme="light"] .maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: none;')
     expect(rule('.maplibregl-ctrl-compass.compass-idle')).toContain('display: none;')
-    // No zoom buttons at either width (record 0172), so map.css has none
+    // No zoom buttons at either width (record 0174), so map.css has none
     // to hide.
     expect(mapCss).not.toContain('maplibregl-ctrl-zoom-in')
   })
@@ -2650,7 +2650,7 @@ describe('the map legend sections', () => {
   })
 })
 
-// At a desk the legend is the Legend chip's joined card (#714, record 0172).
+// At a desk the legend is the Legend chip's joined card (#714, record 0174).
 // It scrolls inside the map left below the rows, so a long legend never runs
 // under the timeline or off the map's foot.
 describe('the desk legend card', () => {
@@ -3270,7 +3270,7 @@ describe('an unfurled menu', () => {
   })
 
   // A chip's menu is wider than its chip and starts at the chip's left edge,
-  // so the corner it squares is the left one (#714, record 0172). It overlaps
+  // so the corner it squares is the left one (#714, record 0174). It overlaps
   // the chip by the 1px seam, where the chip's own edge is the line.
   it("hangs a chip's menu from its left corner", () => {
     expect(UNFURLED.belowWideLeft).toBe('rounded-tl-none')

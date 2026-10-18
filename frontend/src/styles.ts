@@ -1463,7 +1463,7 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  * The map's two rows across its top (#696; record 0135, the maintainer's
  * approved mockup, 2026-10-14): the search pill with the locate button at its
  * right, and under it the chip row, the controls summary, Layers and Legend.
- * A desk has worn them too since #714 (record 0172), where they replaced a
+ * A desk has worn them too since #714 (record 0174), where they replaced a
  * column of boxed buttons so a reader meets one map at both widths.
  *
  * The geometry is four numbers, and every other anchor on the map's top is
@@ -1631,7 +1631,7 @@ const CHIP_FACE =
 export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 
 /**
- * A chip's menu on a desk (#714; record 0172): the Layers menu and the legend
+ * A chip's menu on a desk (#714; record 0174): the Layers menu and the legend
  * card, each unfurling out of its chip as one card with it (record 0134). A
  * phone's open as bottom sheets instead (record 0136).
  *

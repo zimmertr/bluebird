@@ -40,8 +40,8 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `SURFACE_PAGE` | The ground a full page stands on: the app's root, the standalone pages' frame, and the error boundary's fallback, which replaces the tree it guards and so cannot borrow a ground from it |
 | `ELEVATION` | The three shadows the app lifts a surface by: `none` for what stands on an edge, `raised` for what rests on the map, `overlay` for what opens above other chrome. Every surface below composes one (see The elevation scale below) |
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
-| `UNFURLED` | A menu card's half of the join to the control it unfurls out of: no border and square corners on the shared edge, keyed `below` or `above` by the side it took. `belowWide` and `aboveWide` for a card across its control's row, which keeps its border over the control's and squares only the corner under the control |
-| `UNFURL_ANCHOR` | The control's half: square corners facing the card and the card's slate-600 edge, read off the `data-unfurled` the card's hook writes while it is open. Worn by the results bar's group, the model dropdown's trigger and the Layers button |
+| `UNFURLED` | A menu card's half of the join to the control it unfurls out of: no border and square corners on the shared edge, keyed `below` or `above` by the side it took. `belowWide` and `aboveWide` for a card across its control's row, which keeps its border over the control's and squares only the corner under the control. `belowWideLeft` for a chip's menu, which starts at the chip's left edge and is wider than it, so the square corner is the top left |
+| `UNFURL_ANCHOR` | The control's half: square corners facing the card and the card's slate-600 edge, read off the `data-unfurled` the card's hook writes while it is open. Worn by the results bar's group, the model dropdown's trigger and the Layers and Legend chips |
 | `SURFACE_FLOATING` | Boxes floating over the map: search field, the legend, chart tooltip, the forecast player's transport bar |
 | `RECESSED_FILL` | The well every recessed surface composes: slate-900 fill, edged by a slate-500 border (`RECESSED_EDGE`, private to `styles.ts` since #687 because only roles compose it), which clears 3:1 against the panel. Fields, selects, segments and the legend all start here |
 | `SURFACE_POPOVER` | A floating box that is a menu rather than a key: the map's Layers popover and the search result list, lifted off the legend by one step of fill and a heavier shadow |
@@ -61,7 +61,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `ACTION_GROUP` / `ACTION_ITEM` | The results bar's Columns, Models, Removed and Download CSV as one group in the mode switch's look: the same bordered well, the same half and height, the same idle fill, a divider between each two, and a 6px inset so a glyph alone is 28px wide and passes target spacing on a fine pointer. They were underlined links, then ghost buttons that wrapped to three rows on a phone |
 | `BAR_LABEL` | Every word on the results bar, the switch's three and the buttons' four: shown only where the bar's content is 584px or wider, the measured line of both groups labelled with Removed showing; under it each control is its glyph, named by its word |
 | `DIALOG_FOOT` | The welcome dialog's actions, in a foot that sticks to the card's bottom edge while the body scrolls. `secondary` is the tutorial button, full width at the primary's height |
-| `BUTTON_FLOATING` | Pressable floating box: the Controls and Layers buttons, the map's only two |
+| `BUTTON_FLOATING` | Pressable floating box: the skip link's look since the map's buttons became chips (#714) |
 | `SKIP_LINK` | The page's first Tab stop, the floating button shown only while it has the keyboard. Transparent and unpressable while idle rather than `sr-only`, because `sr-only` sets a position of its own (#576) |
 | `BANNER_PREVIEW` | The preview-deployment banner, the one surface that is deliberately loud: white on red-600, 4.76:1 |
 
@@ -149,12 +149,10 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `TAP.grip` | Full-width drag handle: 24px height (AA floor, not 44) |
 | `CONTROL_W` | Single stacked panel control width: 118px, which is 2 x `METRIC_BOX_W` plus the Metrics grid gap, so the whole panel stands on the bound boxes' edges |
 | `CHART_METRIC_W` | The chart's metric select, 144px (w-36). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: `Freezing level (ft)` is 99.3px |
-| `MAP_COL_W` | Width of everything in the map's left column but one: the search field, the Controls, Layers and Legend buttons, the Layers popover and the legend card. 184px (w-46), governed within a pixel by two rows, the grid legend's wait line (176.8px) and the search field at rest (177.6px). The exception is the search RESULT list, deliberately wider (w-72/w-80): bound to the column it clipped the county and state that tell four places of one name apart |
-| `MAP_ROW_H` | Height of one row in that column: 36px, floored at 44px on a finger. Fixed, because the search field and the two buttons each solved for their own height and came out 34, 38 and 38 |
-| `MAP_COL_GAP` | The gap between members of that column: 4px, half the 8px they took before. A role rather than four call sites, because `LEGEND_TOP`'s arithmetic is built from it. `gap` for the members that sit in a flex column. Its `top`, the same gap as a margin for the Layers menu under its button, went when that menu unfurled out of the button (record 0134) |
+| `MAP_MENU_W` | Width of both chip menus, Layers and the desk's legend card: 184px (w-46). The legend's wait line needs 176.8px and the longest Layers row, `Forecast player`, 130.0px |
+| `MAP_CHIP_MENU` | Where a chip's menu stands at a desk: from the chip's left edge, 1px over its bottom edge, at `MAP_MENU_W`, joined by `UNFURLED.belowWideLeft`. The caller picks the surface: `SURFACE_POPOVER` for the Layers menu, `SURFACE_FLOATING` for the legend card |
 | `DRAW_BAR` | The draw bar on a phone: the polygon readout, Done and Cancel on the map while a ring is drawn, a floating box at the map's inset off both sides, standing where the player stands. A desk keeps them in the docked panel |
-| `LEGEND_TOP` | Where the legend stack hangs under that column, in four numbers: two pointer sizes, each with and without the Controls button, which stands in the column only while the panel is collapsed. `resultsSheet.ts` mirrors two of them as `LEGEND_TOP_PX` and `LEGEND_TOP_FINE_PX`, and `resultsSheet.test.ts` reads `styles.ts` as text to hold the pairs together |
-| `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack; `left` and `right` are the inset as utilities. The same publisher carries `--map-credit-size` at the ramp's smallest step, so `map.css` can size the library's credit line from the ramp |
+| `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the map's rows and MapLibre's own control stack; `left` and `right` are the inset as utilities. The same publisher carries `--map-credit-size` at the ramp's smallest step, so `map.css` can size the library's credit line from the ramp |
 | `MICRO_SIZE` | The ramp's smallest step as a utility, 11px since #687. `MAP_EDGE.publish` spells the same 11px a second time as a custom property, and `CHART_TICK_PX` a third as the number Recharts takes, because Tailwind compiles no interpolated class and the library's credit line has no call site; `styles.test.ts` holds the two to one number |
 | `METRICS_GRID` | The Metrics table: label, aggregate dropdown, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
 | `METRIC_BOX_W` | One bound box in the Metrics table: 56px (w-14), the widest the metric row's label budget allows. The results cap spans both box columns instead, so it wears `w-full` off the same shape |
@@ -348,7 +346,7 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | No component restates a shared recipe | `eslint.config.js` | Ban the three class lists a role already composes |
 | The panel sizes by pointer, not by viewport | `eslint.config.js` | Ban a breakpoint variant on padding, gap or height in `ControlPanel.tsx` and the section files it renders (`PANEL_FILES`) |
 | A panel heading takes a role | `eslint.config.js` | Ban a quoted class list on an `h1`-`h3` in the same files |
-| The map's edges are one inset | `checks/styles.js`, `styles.test.ts` | `style-map-column` bans a top or left inset at the map's chrome in `App.tsx` and the four map components (`MapLegend`, `LayersPopover`, `MapButtonColumn`, `AnalysisOverlay`); the test does the same for `map.css`, which ESLint does not read |
+| The map's edges are one inset | `checks/styles.js`, `styles.test.ts` | `style-map-chrome` bans a top or left inset at the map's chrome in `App.tsx` and the four map components (`MapLegend`, `LayersPopover`, `MapRows`, `AnalysisOverlay`); the test does the same for `map.css`, which ESLint does not read |
 | No component dims a placeholder | `eslint.config.js` | Ban placeholder utilities below AA contrast |
 | Every radio/checkbox uses the shared recipe | `styles.test.ts`, `checks/styles.js` | The test checks `CHOICE_INPUT` composition and counts one per `CHOICE_ROW` in each panel file; `style-call-site-classes` bans a size after `ACCENT.input` |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
@@ -365,10 +363,10 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
-| The map column is one width, gap, height and type size | `styles.test.ts`, `checks/styles.js` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member |
-| A phone's rows, sheets and Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
+| The chip menus are one width and hang one way | `styles.test.ts`, `checks/styles.js` | `MAP_MENU_W` inside `MAP_CHIP_MENU`, worn once by each menu; `style-map-chrome` fails a width, offset or chip height spelled beside the roles |
+| The map's rows, a phone's sheets and its Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
-| No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
+| No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend card |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 4.56, 4.06, 3.54, 3.17, 4.56 and the 6.45 hover |
 | Every light value is measured where it lands | `styles.test.ts`, `colors.test.ts`, `chartColors.test.ts` | The test parses both token blocks out of `index.css`, reads each dark token back to the slate or sky step it always was, and pins the light theme's ratios role by role (see The light theme below); the cell inks and chart lines per theme |
 | The theme is the switch's, never the operating system's | `checks/styles.js`, `styles.test.ts` | `style-no-os-theme` bans a `dark:` variant and `prefers-color-scheme` in any string or template under `src/`, tests aside, because either paints by the system's setting under a switch that may say the opposite; the test holds `index.css` and `map.css` to the same, since ESLint does not read CSS (#706) |
@@ -379,7 +377,7 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | Every glyph is hidden from assistive technology | `checks/accessibility.js` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
 | No component positions its own panel | `checks/styles.js` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and `map/` and in `App.tsx`, except `Popover.tsx` |
 | One place decides where a panel goes | `checks/styles.js` | `popoverBox` has exactly one caller, the `usePopover` hook |
-| Every menu unfurls out of its control | `checks/styles.js`, `styles.test.ts` | `style-menu-unfurls` fails a `usePopover` call whose `placement` is not `'unfurl'` (or the calendar's `'cover'`), and a `widthRef` on any other placement, and a `role="listbox"` outside the card `Popover.tsx` draws, `SearchBox.tsx` aside; `style-map-layers-column` requires `UNFURLED.below` and `UNFURL_ANCHOR` on the Layers menu and button; the test pins the two roles to each other |
+| Every menu unfurls out of its control | `checks/styles.js`, `styles.test.ts` | `style-menu-unfurls` fails a `usePopover` call whose `placement` is not `'unfurl'` (or the calendar's `'cover'`), and a `widthRef` on any other placement, and a `role="listbox"` outside the card `Popover.tsx` draws, `SearchBox.tsx` aside; `style-map-layers-chip` and `style-map-legend-chip` require `MAP_CHIP_MENU` and `UNFURL_ANCHOR` on each menu and its chip; the test pins the two roles to each other |
 | No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility, and since #706 the `rule` token's, everywhere under `components/` and `map/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
 | No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and `map/` and in `App.tsx`; `DISABLED`, `MUTED` and `DRAG.carried` are the three fades |
 | Nothing pressed reads at the micro step | `checks/styles.js` | `style-micro-not-pressed` bans `TEXT.micro` in the class of any `button` or `a` in the app's sources; `styles.test.ts` holds `MICRO_SIZE` at 11px and `GLYPH_SIZE` to the two swatch roles |
@@ -568,7 +566,7 @@ shadow sizes on eight surfaces with nothing deciding which got which.
 | Step | Utility | What wears it |
 |---|---|---|
 | `none` | `shadow-none` | What stands on an edge rather than floating: the phone's results sheet, the preview banner, the sliders' thumbs |
-| `raised` | `shadow-lg` | What rests on the map and is read past: the search field, the Controls and Layers buttons, the legend, the player, the chart tooltip, the phone's draw bar |
+| `raised` | `shadow-lg` | What rests on the map and is read past: the search pill, the chips, the legend card, the player, the chart tooltip, the phone's draw bar |
 | `overlay` | `shadow-2xl` | What opens above other chrome and is closed again: every menu (`SURFACE_POPOVER`), every card over a scrim (`SURFACE_CARD`), and a column being carried (`DRAG.ghost`) |
 
 `2xl` rather than `xl` for the top step, because `SURFACE_POPOVER` measured it:
@@ -646,9 +644,10 @@ The four actions are one `ACTION_GROUP` of `ACTION_ITEM` buttons, the mode switc
 
 The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 
-### Phone chrome
+### Map chrome
 
-A phone's map carries two rows across its top and one button at its foot
+The map carries two rows across its top at both widths, and a phone's map one
+button at its foot as well
 (`MAP_ROWS`, `MAP_PILL`, `MAP_ROUND_BUTTON`, `MAP_CHIP`, `MAP_FAB` in `styles.ts`).
 The rows are four numbers, the map's 12px inset, the 40px first row, 8px
 between and the 32px chip row, so they end 92px down; the draw bar, the
@@ -656,6 +655,15 @@ compass, the bottom sheet's card and the results sheet's highest stop are all
 built from that sum, and
 `styles.test.ts` holds each to it. The chips are 13px type with 12px a side,
 content-sized, and only the summary may shrink, by an ellipsis on its words.
+
+At a desk the rows stop 368px from the map's left edge: the pill's 320, the
+8px gap and the 40px locate button, so the rest of the map's top is the
+map's. The chip row holds Layers and Legend, with the summary chip at its
+front only while the panel is shut. Their menus unfurl as joined cards
+(`MAP_CHIP_MENU`), and the legend card scrolls inside the map's height under
+the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
+the panel, and there are no zoom buttons at either width.
+Record: [0174](decisions/0174-desk-map-rows.md)
 
 Seen and pressed are two sizes. On a coarse pointer a chip is 32px seen and
 44 pressed, by a pseudo-element 7px above and below it measured from inside
@@ -692,10 +700,10 @@ dashed lines, their labels and the top tick start under it. Measured
 Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
 
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
-the locate button, the compass and a desk's zoom pair, 40px round in the
-pill's dark chrome, handed to each by `map/controls.ts` because the library
-makes the markup. A phone stands the locate button and the compass in slots
-at the rows' right ends (`MAP_SLOT`). The credit line's (i) is the same dark
+the locate button and the compass, 40px round in the pill's chrome, handed to
+each by `map/controls.ts` because the library makes the markup. Both widths
+stand them in slots at the rows' right ends (`MAP_SLOT`), and neither draws
+the zoom pair. The credit line's (i) is the same dark
 round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
 is the floating card (`MAP_CREDIT.card`), its links dressed in `map.css` as
 `LINK` dresses the app's. The compass needle is redrawn rather than inverted,
@@ -1022,6 +1030,11 @@ Model row for the model dropdown, which then opens leftward under its label.
 The search box's results list is the one exception, a list of answers under a
 field rather than a menu.
 Record: [0134](decisions/0134-menus-unfurl-from-their-control.md)
+
+A chip's menu at a desk is wider than its chip, so it starts at the chip's left
+edge, keeps its border along the shared edge and squares only the corner under
+the chip (`MAP_CHIP_MENU`, `UNFURLED.belowWideLeft`).
+Record: [0174](decisions/0174-desk-map-rows.md)
 
 On a phone every menu is a sheet instead (`BottomSheet`, `BOTTOM_SHEET`): a
 card from the bottom edge over a dimmed map, with a grip, its heading and

@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures'
 import type { Page } from '@playwright/test'
 
-// At a desk the legend is a card under its chip (#714; record 0172), as tall
+// At a desk the legend is a card under its chip (#714; record 0174), as tall
 // as its sections and no taller, so the map under it is the map's: that is
 // the map's left side, where a reader draws a ring. A phone holds its keys in
 // the Legend sheet rather than on the map (#696; record 0136), so its case is

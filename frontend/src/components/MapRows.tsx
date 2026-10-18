@@ -34,7 +34,7 @@ interface MapRowsProps {
 
 /**
  * The map's two rows across its top (#696; record 0135), at both widths since
- * #714 (record 0172): the search pill with the locate button at its right, and
+ * #714 (record 0174): the search pill with the locate button at its right, and
  * the chip row under it, the controls summary, Layers and Legend. The row
  * keeps that one shape from arrival to results: Legend greys until it has a
  * key to show rather than coming and going. The row's right end is the

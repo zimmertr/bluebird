@@ -1,6 +1,6 @@
 # 0148. A desk's map column says what the panel holds and folds its legend under a Legend button
 
-- Status: Accepted. Amends 0048 at a desk (the legend box is a card under a `Legend` button in the column, folded or open as the reader last left it).
+- Status: Superseded by 0174. Amends 0048 at a desk (the legend box is a card under a `Legend` button in the column, folded or open as the reader last left it).
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696, 2026-10-14: the desk half of the #687 audit's M04, brought into PR #708 rather than left to #714
 - Issues and PRs: #696, #708, #687, #714

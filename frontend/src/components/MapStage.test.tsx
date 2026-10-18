@@ -237,7 +237,7 @@ describe('MapStage', () => {
   })
 
   // The chip row holds Layers and then Legend at both widths (#714, record
-  // 0172), each handed to the rows rather than drawn beside them.
+  // 0174), each handed to the rows rather than drawn beside them.
   it('hands the rows Layers and then the Legend chip at both widths', () => {
     const { rerender } = render(<MapStage {...props()} />)
     for (const desk of [true, false]) {
