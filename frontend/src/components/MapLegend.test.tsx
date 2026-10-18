@@ -145,15 +145,16 @@ describe('legendSections', () => {
   })
 })
 
-// A desk's legend is a chip in the map's row with its card unfurled out of it
-// (#714; record 0134's join), open until the reader folds it, and folded or
-// open again on the next visit.
+// A desk's legend is a chip in the map's row with its card standing under it
+// (#714), open until the reader folds it, and folded or open again on the
+// next visit. The chip keeps its pill whole and is lit while the card is out,
+// as a phone's is (TJ, 2026-10-18).
 describe('the desk\'s Legend chip', () => {
-  it('unfurls the card out of the chip, open by default', () => {
+  it('opens the card under the chip, open by default', () => {
     render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} />)
     const button = screen.getByRole('button', { name: 'Legend' })
     expect(button.getAttribute('aria-expanded')).toBe('true')
-    expect(button.getAttribute('data-unfurled')).toBe('below')
+    expect(button.getAttribute('data-unfurled')).toBeNull()
     expect(button.nextElementSibling!.textContent).toContain('Smoke')
   })
 

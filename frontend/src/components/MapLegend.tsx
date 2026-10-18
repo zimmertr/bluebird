@@ -21,7 +21,6 @@ import {
   SWATCH_RAMP_SCRIM,
   SWATCH_RAMP_TICK,
   TEXT,
-  UNFURL_ANCHOR,
 } from '../styles'
 import BottomSheet from './BottomSheet'
 import { writeViewPrefs } from '../utils/viewPrefs'
@@ -413,7 +412,7 @@ export function LegendSections({ sections }: { sections: readonly LegendSectionS
 interface MapLegendProps {
   /** What the card or the sheet holds (`legendSections`). */
   sections: readonly LegendSectionSpec[]
-  /** A phone (#696): the key is a bottom sheet, rather than a card joined to the chip. */
+  /** A phone (#696): the key is a bottom sheet, rather than a card under the chip. */
   sheet: boolean
   /** How far the results sheet stands over the map's bottom edge (0 at a desk). */
   sheetLiftPx: number
@@ -429,7 +428,7 @@ interface MapLegendProps {
  * no section has anything to key, so the row keeps one shape from arrival to
  * results.
  *
- * At a desk the key is a card joined to the chip (#714; record 0134), open
+ * At a desk the key is a card a row gap under the chip (#714; record 0174), open
  * until the reader folds it, and folded or open again on their next visit
  * (`viewPrefs.legendOpen`), because a key belongs on the map beside the
  * markers it explains. On a phone it is a bottom sheet (record 0136), shut
@@ -461,8 +460,7 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
       onClick={toggle}
       disabled={!shown}
       aria-expanded={open}
-      data-unfurled={open && !sheet ? 'below' : undefined}
-      className={`${MAP_CHIP} ${UNFURL_ANCHOR} ${DISABLED}`}
+      className={`${MAP_CHIP} ${DISABLED}`}
     >
       Legend
     </button>

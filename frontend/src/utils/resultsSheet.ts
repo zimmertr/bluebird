@@ -340,15 +340,22 @@ export function legendBottomPx(liftPx: number, timelineShown: boolean): number {
 }
 
 /**
- * The tallest a desk's legend card may be (#714): the map below the rows,
- * less the floor `legendBottomPx` keeps. A CSS length, because the card
- * hangs from its chip inside the rows and cannot see the map's height; the
- * map wrapper is a size container (`MAP_EDGE.publish`), so `100cqh` is it.
- * Past this the card scrolls inside itself. The card overlaps its chip by
- * the 1px seam, which this leaves out: a pixel of floor, not of key.
+ * The gap between a chip and the menu standing under it at a desk (#714):
+ * the 8px the pill and the chip row keep between them, repeated (TJ,
+ * 2026-10-18). `MAP_CHIP_MENU`'s `mt-2` in `styles.ts`; the test there holds
+ * the two to one number.
+ */
+export const CHIP_MENU_GAP_PX = 8
+
+/**
+ * The tallest a desk's legend card may be (#714): the map below the rows and
+ * the gap under its chip, less the floor `legendBottomPx` keeps. A CSS length,
+ * because the card hangs from its chip inside the rows and cannot see the
+ * map's height; the map wrapper is a size container (`MAP_EDGE.publish`), so
+ * `100cqh` is it. Past this the card scrolls inside itself.
  */
 export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
-  return `calc(100cqh - ${MAP_ROWS_PX + legendBottomPx(liftPx, timelineShown)}px)`
+  return `calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + legendBottomPx(liftPx, timelineShown)}px)`
 }
 
 /**

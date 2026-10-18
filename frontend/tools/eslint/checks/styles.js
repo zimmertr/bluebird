@@ -365,14 +365,14 @@ export const STYLES = [
     ],
   },
   {
-    // The Legend chip and the card that unfurls out of it (#714, record 0174,
-    // and record 0134's join): the chip wears the chip and the anchor, the
-    // card wears the menu role.
+    // The Legend chip and the card under it (#714, record 0174): the chip
+    // wears the chip and keeps its pill whole, unjoined, and the card wears
+    // the menu role (TJ, 2026-10-18).
     name: 'style-map-legend-chip',
     files: ['src/components/MapLegend.tsx'],
+    ban: [{ selector: 'Identifier[name="UNFURL_ANCHOR"], JSXAttribute[name.name="data-unfurled"]', message: 'Keep a map chip whole: no UNFURL_ANCHOR or data-unfurled on it.' }],
     require: [
       { selector: interp('MAP_CHIP'), count: 1, message: 'The Legend chip wears MAP_CHIP.' },
-      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Legend chip wears UNFURL_ANCHOR.' },
       { selector: interp('MAP_CHIP_MENU'), count: 1, message: 'The legend card wears MAP_CHIP_MENU.' },
     ],
   },
@@ -390,14 +390,14 @@ export const STYLES = [
     ],
   },
   {
-    // The Layers chip and the menu that unfurls out of it (record 0134). Its
-    // wrapper stands over the Legend chip's, so the menu opens over the
-    // legend card rather than under it.
+    // The Layers chip and the menu under it, unjoined like the legend's
+    // (record 0174). Its wrapper stands over the Legend chip's, so the menu
+    // opens over the legend card rather than under it.
     name: 'style-map-layers-chip',
     files: ['src/components/LayersPopover.tsx'],
+    ban: [{ selector: 'Identifier[name="UNFURL_ANCHOR"], JSXAttribute[name.name="data-unfurled"]', message: 'Keep a map chip whole: no UNFURL_ANCHOR or data-unfurled on it.' }],
     require: [
-      { selector: interp('MAP_CHIP'), count: 1, message: 'The Layers chip wears MAP_CHIP.' },
-      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Layers chip wears UNFURL_ANCHOR.' },
+      { selector: 'JSXExpressionContainer > Identifier[name="MAP_CHIP"]', count: 1, message: 'The Layers chip wears MAP_CHIP.' },
       { selector: interp('MAP_CHIP_MENU'), count: 1, message: 'The Layers menu wears MAP_CHIP_MENU.' },
       { selector: text(String.raw`(^|\s)z-\[1\](\s|$)`), message: 'Stand the Layers menu over the legend card with z-[1].' },
     ],

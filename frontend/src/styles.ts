@@ -378,13 +378,6 @@ export const UNFURLED = {
   // the outer one round where it stands free under the label.
   belowWide: 'rounded-tr-none',
   aboveWide: 'rounded-br-none',
-  /**
-   * Wider than the control the other way: the card's LEFT edge stays on the
-   * control's and it runs on to the right, so the corner under the control
-   * is the left one. A chip's menu on a desk (`MAP_CHIP_MENU`, #714), where
-   * the chip stands at the left of its row and the card reads down from it.
-   */
-  belowWideLeft: 'rounded-tl-none',
 } as const
 
 /**
@@ -1361,9 +1354,9 @@ export const CHART_TITLE = {
  * card, each unfurling out of its chip in the row under the search pill.
  *
  * A chip is its word's width, 65 to 70px, and both menus need more, so each is
- * wider than its chip and joined to it the way the model dropdown is to its
- * row (`MAP_CHIP_MENU`, record 0134). The two share the width so a reader who
- * opens one over the other sees one edge.
+ * wider than its chip and stands under it from its left edge (`MAP_CHIP_MENU`).
+ * The two share the width so a reader who opens one over the other sees one
+ * edge.
  *
  * ## The number
  *
@@ -1637,19 +1630,19 @@ export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 
 /**
  * A chip's menu on a desk (#714; record 0174): the Layers menu and the legend
- * card, each unfurling out of its chip as one card with it (record 0134). A
- * phone's open as bottom sheets instead (record 0136).
+ * card, each a whole card standing 8px under its chip from the chip's left
+ * edge. A phone's open as bottom sheets instead (record 0136).
  *
- * The card is `MAP_MENU_W`, wider than its chip, so it is joined the way the
- * model dropdown is to its row: its left edge on the chip's, its top border
- * laid 1px over the chip's bottom one (`top-[calc(100%-1px)]`, the seam
- * `listbox.ts` keeps for a wide card), and only the corner under the chip
- * squared (`UNFURLED.belowWideLeft`). The chip wears `UNFURL_ANCHOR`, which
- * squares its own bottom while the card is out. The surface is the caller's:
- * the Layers menu is a menu over the map (`SURFACE_POPOVER`), the legend a
- * key that stays open on it (`SURFACE_FLOATING`).
+ * Not joined to the chip the way every other menu is (record 0134): squaring
+ * a 32px pill's bottom corners left a dome, and the maintainer chose the pill
+ * kept whole and lit, as a phone's chip is, with the card set apart by the
+ * same 8px that stands between the pill and the chip row (TJ, 2026-10-18).
+ * `CHIP_MENU_GAP_PX` in `resultsSheet.ts` is that gap in pixels. The surface
+ * is the caller's: the Layers menu is a menu over the map
+ * (`SURFACE_POPOVER`), the legend a key that stays open on it
+ * (`SURFACE_FLOATING`).
  */
-export const MAP_CHIP_MENU = `absolute left-0 top-[calc(100%-1px)] ${MAP_MENU_W} ${UNFURLED.belowWideLeft} px-2.5 py-2`
+export const MAP_CHIP_MENU = `absolute left-0 top-full mt-2 ${MAP_MENU_W} px-2.5 py-2`
 
 /**
  * The summary chip, `☰ Current · NOAA GFS`, which opens the drawer: a chip

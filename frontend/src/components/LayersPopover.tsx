@@ -18,7 +18,6 @@ import {
   SLIDER,
   SR_ONLY,
   SURFACE_POPOVER,
-  UNFURL_ANCHOR,
 } from '../styles'
 import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
@@ -92,8 +91,8 @@ interface LayersPopoverProps {
   /** The tutorial holds the menu open for its Layers step (#536). */
   forcedOpen?: boolean
   /**
-   * A phone (#696): the menu is a bottom sheet, rather than a card unfurling
-   * out of the chip as it does at a desk (#714). The chip is the same at both.
+   * A phone (#696): the menu is a bottom sheet, rather than the card a desk
+   * stands under the chip (#714). The chip is the same at both.
    */
   sheet?: boolean
 }
@@ -350,7 +349,8 @@ export default function LayersPopover({
 
   // Layers is a chip in the row under the search pill at both widths. A
   // phone's menu is a bottom sheet over the dimmed map (#696; record 0136),
-  // and a desk's unfurls out of the chip as one card with it (#714). One
+  // and a desk's is a card a row gap under the chip, which stays whole (#714;
+  // record 0174), because a pill squared to join a card reads as a dome. One
   // button either way, so the tutorial's anchor is one element; the desk's
   // card is absolute, so the chip's box is the row member's. The tutorial
   // does not hold the sheet open: a modal sheet would take the keyboard from
@@ -360,12 +360,7 @@ export default function LayersPopover({
       ref={buttonRef}
       onClick={() => setLayersOpen((o) => !o)}
       aria-expanded={open}
-      // The desk's menu unfurls out of the chip's bottom edge as one card
-      // with it (record 0134). Written here rather than by `usePopover`,
-      // which this menu does not wear: it hangs in the map's row, not in a
-      // portal.
-      data-unfurled={open && !sheet ? 'below' : undefined}
-      className={`${MAP_CHIP} ${UNFURL_ANCHOR}`}
+      className={MAP_CHIP}
       data-tour="layers"
     >
       Layers

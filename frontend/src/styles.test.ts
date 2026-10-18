@@ -120,7 +120,7 @@ import { CHART_TICK_PX, LINE_LAYER_Z, LINE_RIM_FILTER_ID } from './utils/chartCo
 import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
+import { CHIP_MENU_GAP_PX, NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
 import { METRIC_SCALE } from './utils/colors'
 import {
   FINE_COLOR,
@@ -2184,8 +2184,10 @@ describe('the map rows', () => {
   // A chip lit for its open sheet takes the accent fill as a variant, so the
   // lit and the resting fills never race on stylesheet order.
   it('lights a chip in the accent fill while its sheet is open', () => {
-    expect(mapLegendSource).toContain('${MAP_CHIP} ${UNFURL_ANCHOR} ${DISABLED}')
-    expect(layersPopoverSource).toContain('${MAP_CHIP} ${UNFURL_ANCHOR}')
+    // A map chip keeps its pill whole while its menu is out (TJ, 2026-10-18).
+    expect(mapLegendSource).toContain('${MAP_CHIP} ${DISABLED}')
+    expect(layersPopoverSource).toContain('className={MAP_CHIP}')
+    for (const source of [mapLegendSource, layersPopoverSource]) expect(source).not.toMatch(/UNFURL_ANCHOR|data-unfurled/)
     const fill = tokens(ACCENT.fill).find((t) => t.startsWith('bg-'))!
     expect(tokens(MAP_CHIP)).toContain(`aria-expanded:${fill}`)
     expect(tokens(MAP_CHIP)).toContain(`aria-expanded:${fill.replace(/^bg-/, 'border-')}`)
@@ -3279,12 +3281,15 @@ describe('an unfurled menu', () => {
     expect(UNFURLED.aboveWide).toBe('rounded-br-none')
   })
 
-  // A chip's menu is wider than its chip and starts at the chip's left edge,
-  // so the corner it squares is the left one (#714, record 0174). It overlaps
-  // the chip by the 1px seam, where the chip's own edge is the line.
-  it("hangs a chip's menu from its left corner", () => {
-    expect(UNFURLED.belowWideLeft).toBe('rounded-tl-none')
-    expect(MAP_CHIP_MENU.split(' ')).toEqual(expect.arrayContaining(['absolute', 'left-0', 'top-[calc(100%-1px)]', UNFURLED.belowWideLeft]))
+  // A desk chip's menu is the one that does not join (#714, record 0174): a
+  // whole card from the chip's left edge, as far under it as the chip row
+  // stands under the pill (TJ, 2026-10-18).
+  it("stands a chip's menu a row gap under its chip", () => {
+    const tokens = MAP_CHIP_MENU.split(' ')
+    expect(tokens).toEqual(expect.arrayContaining(['absolute', 'left-0', 'top-full']))
+    expect(tokens.filter((t) => /^rounded/.test(t))).toEqual([])
+    expect(tokens).toContain(MAP_ROWS.stack.match(/(?:^|\s)gap-(\d+)/)![0].trim().replace('gap-', 'mt-'))
+    expect(tokens).toContain(`mt-${CHIP_MENU_GAP_PX / 4}`)
   })
 
   // The anchor squares the corners facing the card, on the side `usePopover`

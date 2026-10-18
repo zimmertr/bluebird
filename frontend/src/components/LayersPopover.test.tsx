@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { UNFURLED } from '../styles'
+import { MAP_CHIP_MENU } from '../styles'
 import type { ViewBounds } from '../utils/layerCoverage'
 
 // Every switch off, the grid allowed and off, and nothing spanning time.
@@ -94,20 +94,19 @@ describe('LayersPopover', () => {
     expect(screen.queryByRole('checkbox')).toBeNull()
   })
 
-  // The menu unfurls out of the chip's bottom edge as one card with it
-  // (record 0134). It is wider than the chip and starts at its left edge, so
-  // it squares the one corner under the chip (#714). The chip says so while
-  // the menu is open and not after.
-  it('joins the menu to the button only while it is open', () => {
+  // The menu stands under the chip as a whole card, 8px down, and the chip
+  // keeps its pill and is lit while it is out (#714; TJ, 2026-10-18).
+  it('lights the chip while its menu stands under it', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     const button = screen.getByRole('button', { name: 'Layers' })
-    expect(button.dataset.unfurled).toBeUndefined()
+    expect(button.getAttribute('aria-expanded')).toBe('false')
     open()
-    expect(button.dataset.unfurled).toBe('below')
-    const menu = screen.getByRole('checkbox', { name: 'Smoke' }).closest('[data-tour="layers-menu"]') as HTMLElement
-    expect(menu.classList).toContain(UNFURLED.belowWideLeft)
-    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(button.getAttribute('aria-expanded')).toBe('true')
     expect(button.dataset.unfurled).toBeUndefined()
+    const menu = screen.getByRole('checkbox', { name: 'Smoke' }).closest('[data-tour="layers-menu"]') as HTMLElement
+    for (const cls of MAP_CHIP_MENU.split(' ')) expect(menu.classList).toContain(cls)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(button.getAttribute('aria-expanded')).toBe('false')
   })
 
   // A press inside the popover is a choice, not a way out.

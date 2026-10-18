@@ -40,8 +40,8 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `SURFACE_PAGE` | The ground a full page stands on: the app's root, the standalone pages' frame, and the error boundary's fallback, which replaces the tree it guards and so cannot borrow a ground from it |
 | `ELEVATION` | The three shadows the app lifts a surface by: `none` for what stands on an edge, `raised` for what rests on the map, `overlay` for what opens above other chrome. Every surface below composes one (see The elevation scale below) |
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
-| `UNFURLED` | A menu card's half of the join to the control it unfurls out of: no border and square corners on the shared edge, keyed `below` or `above` by the side it took. `belowWide` and `aboveWide` for a card across its control's row, which keeps its border over the control's and squares only the corner under the control. `belowWideLeft` for a chip's menu, which starts at the chip's left edge and is wider than it, so the square corner is the top left |
-| `UNFURL_ANCHOR` | The control's half: square corners facing the card and the card's slate-600 edge, read off the `data-unfurled` the card's hook writes while it is open. Worn by the results bar's group, the model dropdown's trigger and the Layers and Legend chips |
+| `UNFURLED` | A menu card's half of the join to the control it unfurls out of: no border and square corners on the shared edge, keyed `below` or `above` by the side it took. `belowWide` and `aboveWide` for a card across its control's row, which keeps its border over the control's and squares only the corner under the control. |
+| `UNFURL_ANCHOR` | The control's half: square corners facing the card and the card's slate-600 edge, read off the `data-unfurled` the card's hook writes while it is open. Worn by the results bar's group and the model dropdown's trigger |
 | `SURFACE_FLOATING` | Boxes floating over the map: search field, the legend, chart tooltip, the forecast player's transport bar |
 | `RECESSED_FILL` | The well every recessed surface composes: slate-900 fill, edged by a slate-500 border (`RECESSED_EDGE`, private to `styles.ts` since #687 because only roles compose it), which clears 3:1 against the panel. Fields, selects, segments and the legend all start here |
 | `SURFACE_POPOVER` | A floating box that is a menu rather than a key: the map's Layers popover and the search result list, lifted off the legend by one step of fill and a heavier shadow |
@@ -150,7 +150,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `CONTROL_W` | Single stacked panel control width: 118px, which is 2 x `METRIC_BOX_W` plus the Metrics grid gap, so the whole panel stands on the bound boxes' edges |
 | `CHART_METRIC_W` | The chart's metric select, 144px (w-36). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: `Freezing level (ft)` is 99.3px |
 | `MAP_MENU_W` | Width of both chip menus, Layers and the desk's legend card: 184px (w-46). The legend's wait line needs 176.8px and the longest Layers row, `Forecast player`, 130.0px |
-| `MAP_CHIP_MENU` | Where a chip's menu stands at a desk: from the chip's left edge, 1px over its bottom edge, at `MAP_MENU_W`, joined by `UNFURLED.belowWideLeft`. The caller picks the surface: `SURFACE_POPOVER` for the Layers menu, `SURFACE_FLOATING` for the legend card |
+| `MAP_CHIP_MENU` | Where a chip's menu stands at a desk: a whole card from the chip's left edge, 8px under it, the gap between the pill and the chip row, at `MAP_MENU_W`. Not joined: the chip keeps its pill and is lit while the card is out. The caller picks the surface: `SURFACE_POPOVER` for the Layers menu, `SURFACE_FLOATING` for the legend card |
 | `DRAW_BAR` | The draw bar on a phone: the polygon readout, Done and Cancel on the map while a ring is drawn, a floating box at the map's inset off both sides, standing where the player stands. A desk keeps them in the docked panel |
 | `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the map's rows and MapLibre's own control stack; `left` and `right` are the inset as utilities. The same publisher carries `--map-credit-size` at the ramp's smallest step, so `map.css` can size the library's credit line from the ramp |
 | `MICRO_SIZE` | The ramp's smallest step as a utility, 11px since #687. `MAP_EDGE.publish` spells the same 11px a second time as a custom property, and `CHART_TICK_PX` a third as the number Recharts takes, because Tailwind compiles no interpolated class and the library's credit line has no call site; `styles.test.ts` holds the two to one number |
@@ -377,7 +377,7 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | Every glyph is hidden from assistive technology | `checks/accessibility.js` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
 | No component positions its own panel | `checks/styles.js` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and `map/` and in `App.tsx`, except `Popover.tsx` |
 | One place decides where a panel goes | `checks/styles.js` | `popoverBox` has exactly one caller, the `usePopover` hook |
-| Every menu unfurls out of its control | `checks/styles.js`, `styles.test.ts` | `style-menu-unfurls` fails a `usePopover` call whose `placement` is not `'unfurl'` (or the calendar's `'cover'`), and a `widthRef` on any other placement, and a `role="listbox"` outside the card `Popover.tsx` draws, `SearchBox.tsx` aside; `style-map-layers-chip` and `style-map-legend-chip` require `MAP_CHIP_MENU` and `UNFURL_ANCHOR` on each menu and its chip; the test pins the two roles to each other |
+| Every menu unfurls out of its control | `checks/styles.js`, `styles.test.ts` | `style-menu-unfurls` fails a `usePopover` call whose `placement` is not `'unfurl'` (or the calendar's `'cover'`), and a `widthRef` on any other placement, and a `role="listbox"` outside the card `Popover.tsx` draws, `SearchBox.tsx` aside; `style-map-layers-chip` and `style-map-legend-chip` require `MAP_CHIP_MENU` on each chip's menu and ban the join on the chip, the one exception; the test pins the two roles to each other |
 | No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility, and since #706 the `rule` token's, everywhere under `components/` and `map/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
 | No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and `map/` and in `App.tsx`; `DISABLED`, `MUTED` and `DRAG.carried` are the three fades |
 | Nothing pressed reads at the micro step | `checks/styles.js` | `style-micro-not-pressed` bans `TEXT.micro` in the class of any `button` or `a` in the app's sources; `styles.test.ts` holds `MICRO_SIZE` at 11px and `GLYPH_SIZE` to the two swatch roles |
@@ -662,8 +662,8 @@ of the map's top is the map's. The compass stands beside the locate button
 rather than under it, since a desk's first row has the room
 (`MAP_SLOT.besideLocate`). The chip row holds Legend and then Layers at both
 widths, so the legend card, open by default, hangs over the map's left edge,
-with the summary chip at the row's front only while the panel is shut. Their menus unfurl as joined cards
-(`MAP_CHIP_MENU`), and the legend card scrolls inside the map's height under
+with the summary chip at the row's front only while the panel is shut. Their menus open as whole cards 8px under
+the chip (`MAP_CHIP_MENU`), and the legend card scrolls inside the map's height under
 the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
 the panel, and there are no zoom buttons at either width.
 Record: [0174](decisions/0174-desk-map-rows.md)
@@ -1034,9 +1034,10 @@ The search box's results list is the one exception, a list of answers under a
 field rather than a menu.
 Record: [0134](decisions/0134-menus-unfurl-from-their-control.md)
 
-A chip's menu at a desk is wider than its chip, so it starts at the chip's left
-edge, keeps its border along the shared edge and squares only the corner under
-the chip (`MAP_CHIP_MENU`, `UNFURLED.belowWideLeft`).
+A chip's menu at a desk is the one exception. Squaring a 32px pill's bottom
+corners left a dome, so the chip stays a whole pill, lit while its card is
+out as a phone's is, and the card stands 8px under it from its left edge, the
+gap the chip row keeps under the pill (`MAP_CHIP_MENU`).
 Record: [0174](decisions/0174-desk-map-rows.md)
 
 On a phone every menu is a sheet instead (`BottomSheet`, `BOTTOM_SHEET`): a
