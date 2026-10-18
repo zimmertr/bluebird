@@ -26,6 +26,8 @@ PR #708 and PR #733 gave the phone a map of its own: a search pill with the loca
 
 Mockups of all three directions and of Analyze placed three ways in each were published to TJ as a private artifact on 2026-10-17, and the choices above are TJ's answers to them.
 
+Measured 2026-10-18 in the Playwright image's Chromium at 1440x900, panel shut: the pill 320 by 40 at the 12px inset, the locate button 40 round 8px right of it, the summary chip 160 by 32 at 60 down, Layers 65 wide and Legend 69.4, and the Layers menu 184 by 146 with its top 1px over the chip's bottom edge. The rows end 380px from the map's left edge. Two perf pairs at 946 destinations moved no interaction past the spread between passes, and the entry chunk shrank by 2,223 B raw and 439 B gzipped.
+
 ## Alternatives rejected
 
 - **B, restyling the column in place:** two layouts for one app would remain.
