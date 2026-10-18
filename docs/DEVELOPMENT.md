@@ -318,11 +318,10 @@ script also gives Dependabot something to bump. It installs on demand, so
 
 ## The supplier simulator
 
-Open-Meteo is fetched from your own browser against your own address, so a
-session of manual testing spends your quota, and the quota of everyone behind
-the same address. A long morning of it can leave the real app answering
-`Open-Meteo quota reached. Try again later.` for the rest of the hour, which
-looks the same as an outage.
+The browser fetches Open-Meteo from your own address, so manual testing
+spends your quota and the quota of everyone behind that address. A long
+morning of it leaves the real app answering `Open-Meteo quota reached. Try
+again later.` for the rest of the hour, which looks the same as an outage.
 
 The simulator under `sim/` stands in for every supplier the pod and the page
 call ([#224](https://github.com/zimmertr/bluebird/issues/224)). It is one
@@ -362,7 +361,7 @@ LOG_LEVEL=TRACE uvicorn app.main:app --reload --port 8000
 Then `npm run dev` in `frontend/` from a second shell. `sim/pod.env` points all
 seventeen upstream variables at `localhost:8080`, and
 [CONFIGURATION.md](CONFIGURATION.md) lists them. The dev server needs none of
-them: the page reads where to fetch from off the pod's `/api/config`.
+them, because the page asks the pod's `/api/config` where to fetch.
 
 ### Making it fail
 
@@ -408,10 +407,10 @@ curl -X PUT localhost:8080/control -H 'Content-Type: application/json' \
 
 `curl -X DELETE localhost:8080/control` clears whatever is left.
 
-Two traps cost time here. The browser keeps every forecast it fetched for 15
-minutes, in memory and across a reload, so a window you have already analyzed
-never reaches the simulator. Change the window, or clear the site's data,
-before you look for a fault. And aim a 429 at `forecast`. The air-quality fetch
+The browser keeps every forecast it fetched for 15 minutes, in memory and
+across a reload, so a window you have already analyzed never reaches the
+simulator. Change the window, or clear the site's data, before you look for a
+fault. Aim a 429 at `forecast`. The air-quality fetch
 runs beside the weather and stops at its own first 429 by design, so a 429 aimed
 there turns into empty AQI and the pacer never runs.
 

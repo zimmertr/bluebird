@@ -23,11 +23,20 @@ Seventeen hosts were module literals in seven backend modules and five frontend 
 
 - Measured 2026-10-16 on `main` at b6d1ade: no `import.meta.env` or `VITE_` anywhere under `frontend/`, and no base URL read from the environment anywhere under `backend/app/` (the issue's 2026-10-08 comment lists the eleven literals).
 - The unset CSP is held to `backend/edge_not_found.json` by `test_security_headers.py`, which did not change.
-- The cold-load cost of the map waiting for `/api/config` is recorded on the PR: one same-origin request the page already made, now awaited before the map constructs.
+- The map now waits for `/api/config`, one same-origin request the page already made. Measured 2026-10-17 with `make lighthouse`'s audit, three runs a side, on `main` at f971335 and on this change, same machine:
+
+  | | `main` | This change |
+  |---|---|---|
+  | First contentful paint | 3,751 to 3,806 ms | 3,676 to 3,771 ms |
+  | Largest contentful paint | 4,681 to 4,736 ms | 4,211 to 4,701 ms |
+  | Total blocking time | 173 to 525 ms | 146 to 216 ms |
+  | Script bytes | 632,023 | 632,325 |
+
+  No cost the audit can see. Both sides fail the script budget by the same margin, which predates this change.
 
 ## Alternatives rejected
 
-- **Build-time `VITE_` variables**, as the issue first wrote. A simulator-pointed stack would be a second image build, the policy would still need the env, and the dev server would need its own `.env`. Two sources of truth for one fact.
+- **Build-time `VITE_` variables**, as the issue first wrote. A simulator-pointed stack would be a second image build, the policy would still need the env, and the dev server would need its own `.env`, which puts one fact in three places.
 - **A single simulator base URL** that every host derives from. The acceptance line was every host configurable, and the chart convention is one declared variable per knob.
 - **Publishing the hosts on `/api/capabilities`.** That endpoint is the limits requests are validated against; `/api/config` is documented as deployment-specific settings the page reads on load, which is what these are.
 

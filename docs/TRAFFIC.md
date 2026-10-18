@@ -559,7 +559,7 @@ release.
 Every host in this table is an environment variable, read once at startup and
 defaulting to the address above. The pod's own calls each have one, and the
 browser's are published on `GET /api/config` for the web app to read. A local
-stack sets them all to the supplier sim, so nothing it does reaches a real
+stack sets them all to the supplier simulator, so nothing it does reaches a real
 provider. [`CONFIGURATION.md`](CONFIGURATION.md) lists them.
 
 Everything the browser fetches itself costs our egress IP nothing — that is
