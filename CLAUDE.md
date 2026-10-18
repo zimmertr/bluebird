@@ -53,6 +53,10 @@ Every check CI runs is a target in the root `Makefile` (`make test-frontend`,
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) names them beside the dev servers. The
 supplier simulator has its own four, `make sim`, `make sim-down`, `make test-sim`
 and `make typecheck-sim`, and that page is where its workflow lives (#224). Use
+the simulator to provoke failures and to work without spending quota, and verify
+anything a visitor sees on the PR preview, which calls the real suppliers: the
+simulator's tidy places, instant answers and unlabelled map hide what live data
+shows. Record: [0173](docs/decisions/0173-supplier-simulator-outside-the-correctness-path.md) Use
 the targets rather than a standard invocation, which gets two things wrong: **both
 test suites run inside Docker, never on the local machine**, with the repo root
 mounted, and `ruff check backend/` runs **from the repo root**, which is what CI

@@ -416,3 +416,14 @@ there turns into empty AQI and the pacer never runs.
 
 The simulator checks no number: pytest and
 `backend/tests/data/weather_vectors.json` say whether the aggregation is right.
+
+### What it cannot show you
+
+The simulator's places sit on a tidy grid with clean names, its weather is a
+smooth wave, it answers at once, and its map has no labels. Real suppliers send
+OSM tags in every spelling, models that answer nulls or cover part of the map,
+an Overpass that takes a minute, and a response format that can change under
+you. None of that reaches the simulator, and no timing taken on it means
+anything. Use it to provoke failures and to work without spending quota. Check
+anything a visitor sees on your PR's preview, which calls the real suppliers,
+before you call it done ([PR preview environments](CICD.md#pr-preview-environments)).

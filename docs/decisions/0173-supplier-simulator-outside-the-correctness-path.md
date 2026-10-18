@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-17
-- Decider: the maintainer (TJ), on issue #224: the simulator over record-and-replay fixtures and a caching proxy; Python under `sim/`; the basemap tiles simulated too, so nothing leaves the machine; a control endpoint for its failure modes; a compose overlay with `make` targets.
+- Decider: the maintainer (TJ), on issue #224: the simulator over record-and-replay fixtures and a caching proxy; Python under `sim/`; the basemap tiles simulated too, so nothing leaves the machine; a control endpoint for its failure modes; a compose overlay with `make` targets. The maintainer again, on 2026-10-18 in review of #758: nothing a visitor sees is verified on the simulator.
 - Issues and PRs: #224, #180 (the 2026-07-29 quota incident), #248 (the console stopgap this replaces), #692
 - Cited in code as: #224
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, "Every host the pod or the web app calls is an environment variable", and Development commands; [`sim/CLAUDE.md`](../../sim/CLAUDE.md); [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md), "The supplier simulator"
@@ -19,6 +19,7 @@ Open-Meteo meters each address at 600 weighted calls a minute and 10,000 a day, 
 - **The basemap is simulated too**, as a blank ground with the lattice's peaks and lakes and empty glyph answers, so the map draws no text. The maintainer took that over labels for a vendored glyph file, and over leaving the tiles live, because offline and deterministic was the point.
 - **Failure modes are a control document**, `GET`, `PUT` and `DELETE /control`: a fault per endpoint with a status, a reason, a `Retry-After`, a delay and a count, plus a forced candidate count for the over-cap refusal. Nothing fails on its own. A one-shot 429 is what the pacer's resume needs, and a persistent variable could not express it.
 - **It is a convenience, never an oracle.** No CI job points the app at it. CI runs the simulator's own suite in the Backend Tests job, so a pod change the simulator no longer satisfies fails the PR that makes it. Pytest and `weather_vectors.json` remain the aggregation's truth. The simulator's own tests push its bodies through the pod's real readers, which is the guard against a sim that lies by being plausible.
+- **Nothing a visitor sees is verified on it.** The simulator is for provoking failures and for working without spending quota. A change to what the page shows is checked on the PR preview, which calls the real suppliers, before anyone calls it verified. The simulator hides what that check is for: OSM's messy names and tags, models that answer nulls or cover part of the map, an Overpass that takes a minute, a supplier changing its format, and the real map's labels and terrain. Review of #758 found nothing that stopped an agent from checking a change on `make sim` and reporting it verified.
 - **A compose overlay and four `make` targets** start it: `make sim` brings the stack up pointed at it, `make sim-down` tears it down, `make test-sim` runs its tests and `make typecheck-sim` its mypy; `make lint-backend` covers `sim/` too. `sim/pod.env` carries the same seventeen variables for a uvicorn on the host.
 
 ## Evidence
@@ -41,4 +42,4 @@ Open-Meteo meters each address at 600 weighted calls a minute and 10,000 a day, 
 - `sim/tests/` holds every answer to the pod's own readers (unit check and aggregation, the Overpass classifier, the ArcGIS pager and error shape, `parse_kml`), to determinism, and to the control document's faults; `make test-sim` runs them in the same Python image as the backend's suite.
 - A sim test holds `sim/compose.yml`, `sim/pod.env` and the app's `env_url` reads to one set of seventeen names, so a host added to the app without a simulator entry fails.
 - The `docs/DEVELOPMENT.md` section on testing without quota is the simulator's; the console stub is gone.
-- What it costs: a second implementation of each supplier's contract, which drifts from reality by design and catches no real upstream schema change. The pytest stubs and the pinned vectors are where that is caught.
+- What it costs: a second implementation of each supplier's contract, which drifts from reality by design and catches no real upstream schema change. Nothing in CI catches one either: the pytest stubs and the browser suite's fixtures are written by hand too, so a supplier changing its format shows first on a PR preview or in production.

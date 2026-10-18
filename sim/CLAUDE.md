@@ -5,7 +5,9 @@ development stand-in for every data supplier the pod and the web app reach
 (issue #224, [record 0173](../docs/decisions/0173-supplier-simulator-outside-the-correctness-path.md)).
 It runs only through `sim/compose.yml` and never in the app's image. CI runs
 its own tests and nothing else: no CI job points the app at it, because it is
-not a correctness oracle. Pytest and the pinned vectors are.
+not a correctness oracle. Pytest and the pinned vectors are. Nor is it where a
+change a visitor sees is verified: that happens on the PR preview, against live
+data (`docs/DEVELOPMENT.md`, "What it cannot show you").
 Its package is called `app` like the backend's, and `tests/conftest.py`
 appends the backend's `app/` to its search path so the tests can read every
 answer with the pod's own parsers.
