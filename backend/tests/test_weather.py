@@ -5,7 +5,7 @@ import gc
 import inspect
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -889,6 +889,25 @@ async def test_fetch_weather_batch_keys_the_cache_by_elevation(monkeypatch):
     await fetch_weather_batch(raised, START, END)
 
     assert len(calls) == 2
+
+
+async def test_a_sea_level_row_is_cached_apart_from_an_unknown_elevation(monkeypatch):
+    # 0 ft is an elevation like any other, and the cloud walk inserts its 2 m
+    # point where an unknown elevation walks the levels alone, so a falsy-zero
+    # key would serve one row the other's deck.
+    calls = _stub_openmeteo(
+        monkeypatch,
+        [_payload([0.1]), _payload([0.1]), [_cloud_location()], [_cloud_location()]],
+    )
+    unknown = [dest(40.0, -120.0)]
+    sea_level = [dest(40.0, -120.0, elevation_ft=0.0)]
+
+    await fetch_weather_batch(unknown, START, END)
+    await fetch_weather_batch(sea_level, START, END)
+    await weather.fetch_cloud_batch(unknown, START, END)
+    await weather.fetch_cloud_batch(sea_level, START, END)
+
+    assert len(calls) == 4
 
 
 async def test_fetch_weather_batch_splits_into_batches_of_fifty(monkeypatch):
@@ -1857,6 +1876,49 @@ async def test_a_spanning_window_counts_a_repeated_hour_once(monkeypatch):
 
     assert results[0]["precip_total_in"] == 0.7  # 0.1 + 0.2 + 0.4
     assert len(results[0]["series"]["times"]) == 3
+
+
+@pytest.mark.parametrize(
+    "archive",
+    [
+        [{"hourly": [1]}],
+        [{"hourly": "x"}],
+        [{"hourly_units": ["x"], "hourly": {}}],
+        [None],
+    ],
+    ids=["hourly-array", "hourly-string", "units-array", "not-an-object"],
+)
+async def test_a_spanning_window_reads_a_malformed_half_as_one_that_answered_nothing(
+    monkeypatch, archive
+):
+    # The join runs outside every reader's degrade boundary, so a half it
+    # cannot read must not raise there: that would fail the whole analysis
+    # where the browser reads past the same body. The row is the forecast
+    # half's hours alone, as a half with no `hourly` at all gives.
+    _stub_openmeteo(monkeypatch, [archive, _forecast_half()])
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert results[0]["precip_total_in"] == 1.2  # 0.4 + 0.8
+    assert len(results[0]["series"]["times"]) == 2
+
+
+def test_a_spanning_window_splits_at_the_boundary_instant_in_any_zone():
+    # 23:00 to 03:00 at +02:00 is 21:00Z to 01:00Z, so the seam at 00:00Z is
+    # 02:00 on that clock. A seam relabelled into the zone rather than
+    # converted would start the forecast half two hours early, at 22:00Z.
+    plus_two = timezone(timedelta(hours=2))
+    start = datetime(2026, 7, 18, 23, 0, tzinfo=plus_two)
+    end = datetime(2026, 7, 19, 3, 0, tzinfo=plus_two)
+
+    archive, forecast = weather._fetch_spans("spanning", start, end, SEAM)
+
+    assert archive.archive and not forecast.archive
+    assert archive.start == start
+    assert archive.end == SEAM - timedelta(hours=1)
+    assert forecast.start == SEAM
+    assert forecast.end == end
 
 
 async def test_a_spanning_window_keys_the_cache_apart_from_either_half(monkeypatch):

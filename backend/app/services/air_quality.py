@@ -5,8 +5,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app import ratelimit, telemetry
+from app.limits import floor_hour
 from app.services import cache, http
-from app.services.aggregation import _aqi_metrics, _aqi_series
+from app.services.aggregation import _aqi_metrics, _aqi_series, _naive
 from app.services.openmeteo_fetch import (
     DEGRADED,
     BatchUnanswered,
@@ -61,13 +62,10 @@ async def fetch_aqi_batch(
     # shared aggregation; `AnalyzeRequest` has already converted both ends to
     # UTC, so dropping the zone loses nothing.
     end_cap = (
-        datetime.now(UTC).replace(tzinfo=None)
-        + timedelta(days=MAX_FORECAST_DAYS)
+        _naive(datetime.now(UTC)) + timedelta(days=MAX_FORECAST_DAYS)
     ).replace(hour=23, minute=0, second=0, microsecond=0)
-    req_start = start_dt.replace(tzinfo=None, minute=0, second=0, microsecond=0)
-    req_end = min(
-        end_dt.replace(tzinfo=None, minute=0, second=0, microsecond=0), end_cap
-    )
+    req_start = _naive(floor_hour(start_dt))
+    req_end = min(_naive(floor_hour(end_dt)), end_cap)
     if req_start > req_end:
         log.info("AQI window starts beyond the ~%dd forecast horizon — skipping fetch", MAX_FORECAST_DAYS)
         return [None] * len(destinations)
