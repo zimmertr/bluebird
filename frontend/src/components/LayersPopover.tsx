@@ -2,12 +2,14 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ElementType, t
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import BottomSheet from './BottomSheet'
+import { IconChevron } from './icons'
 import {
   ACCENT,
   CHOICE_INPUT,
   CHOICE_ROW,
   LIFTED_EDGE,
   MAP_CHIP,
+  MAP_CHIP_CHEVRON,
   MAP_CHIP_MENU,
   RADIUS,
   RECESSED_FILL,
@@ -349,7 +351,7 @@ export default function LayersPopover({
 
   // Layers is a chip in the row under the search pill at both widths. A
   // phone's menu is a bottom sheet over the dimmed map (#696; record 0136),
-  // and a desk's is a card a row gap under the chip, which stays whole (#714;
+  // and a desk's is a card 4px under the chip, which stays whole (#714;
   // record 0174), because a pill squared to join a card reads as a dome. One
   // button either way, so the tutorial's anchor is one element; the desk's
   // card is absolute, so the chip's box is the row member's. The tutorial
@@ -364,6 +366,7 @@ export default function LayersPopover({
       data-tour="layers"
     >
       Layers
+      {!sheet && <IconChevron up={open} className={MAP_CHIP_CHEVRON} />}
     </button>
   )
 

@@ -7,6 +7,8 @@ import { rankedScale } from '../utils/colors'
 import { SMOKE_DENSITIES } from '../utils/smoke'
 import { legendMaxCss } from '../utils/resultsSheet'
 import { readViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
+import { IconChevron } from './icons'
+import { MAP_CHIP_CHEVRON } from '../styles'
 
 const NONE = {
   showWildfires: false,
@@ -189,7 +191,28 @@ describe('the desk\'s Legend chip', () => {
     expect(screen.getByRole('button', { name: 'Legend' }).getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByText(/Smoke/)).toBeNull()
   })
+
+  // A desk's card drops from its chip, so the chip carries a chevron: up
+  // while the card is open, down while it is folded (TJ, 2026-10-18).
+  it('points its chevron up while the card is open and down while it is folded', () => {
+    render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} />)
+    const chevron = () => screen.getByRole('button', { name: 'Legend' }).querySelector('svg')!
+    expect(chevron().classList).toContain(MAP_CHIP_CHEVRON)
+    expect(chevron().getAttribute('aria-hidden')).toBe('true')
+    expect(chevron().querySelector('polyline')!.getAttribute('points')).toBe(chevronPoints(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
+    expect(chevron().querySelector('polyline')!.getAttribute('points')).toBe(chevronPoints(false))
+  })
 })
+
+// The points `IconChevron` draws for one direction, read off the icon itself
+// so the chip's tests do not restate its geometry.
+function chevronPoints(up: boolean): string | null {
+  const { container, unmount } = render(<IconChevron up={up} />)
+  const points = container.querySelector('polyline')!.getAttribute('points')
+  unmount()
+  return points
+}
 
 // A phone's key is a bottom sheet (#696; record 0136), shut until asked for
 // and never remembered.
@@ -201,6 +224,8 @@ describe('the phone\'s Legend chip', () => {
     const chip = screen.getByRole('button', { name: 'Legend' })
     expect(chip.getAttribute('aria-expanded')).toBe('false')
     expect(chip.getAttribute('data-unfurled')).toBeNull()
+    // A sheet rises from below, so a phone's chip carries no chevron.
+    expect(chip.querySelector('svg')).toBeNull()
     fireEvent.click(chip)
     const sheet = screen.getByRole('dialog', { name: 'Legend' })
     expect(sheet.textContent).toContain('Smoke')

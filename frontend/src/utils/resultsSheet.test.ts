@@ -104,11 +104,11 @@ describe('the map chrome anchors', () => {
     expect(RESTING_TOP_PX).toBeGreaterThan(MAP_ROWS_PX)
   })
 
-  // A desk's legend card hangs 8px under its chip and scrolls inside what is
+  // A desk's legend card hangs 4px under its chip and scrolls inside what is
   // left of the map under the rows and that gap, above the same floor the
   // stack kept.
   it('caps a desk\'s legend card at the map under the rows, less the floor', () => {
-    expect(CHIP_MENU_GAP_PX).toBe(8)
+    expect(CHIP_MENU_GAP_PX).toBe(4)
     expect(legendMaxCss(0, false)).toBe(`calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + LEGEND_GAP_PX}px)`)
     expect(legendMaxCss(0, true)).toBe(`calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + TRANSPORT_BAND_PX}px)`)
     expect(stylesSource).toContain('[container-type:size]')

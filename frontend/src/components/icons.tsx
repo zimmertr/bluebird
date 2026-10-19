@@ -68,7 +68,7 @@ export function IconClose({
   )
 }
 
-/** The collapse affordance on the results panels' header bars. */
+/** The collapse affordance on the results panels' header bars, and a desk map chip's open or shut cue (`MAP_CHIP_CHEVRON`). */
 export function IconChevron({ up, className }: IconProps & { up: boolean }): ReactNode {
   return (
     <svg

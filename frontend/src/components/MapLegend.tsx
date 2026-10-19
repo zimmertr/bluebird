@@ -9,6 +9,7 @@ import {
   DISABLED,
   LINK,
   MAP_CHIP,
+  MAP_CHIP_CHEVRON,
   MAP_CHIP_MENU,
   RADIUS,
   STATUS,
@@ -23,6 +24,7 @@ import {
   TEXT,
 } from '../styles'
 import BottomSheet from './BottomSheet'
+import { IconChevron } from './icons'
 import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
 import type { LabelledScale } from '../utils/colors'
@@ -428,7 +430,7 @@ interface MapLegendProps {
  * no section has anything to key, so the row keeps one shape from arrival to
  * results.
  *
- * At a desk the key is a card a row gap under the chip (#714; record 0174), open
+ * At a desk the key is a card 4px under the chip (#714; record 0174), open
  * until the reader folds it, and folded or open again on their next visit
  * (`viewPrefs.legendOpen`), because a key belongs on the map beside the
  * markers it explains. On a phone it is a bottom sheet (record 0136), shut
@@ -463,6 +465,7 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
       className={`${MAP_CHIP} ${DISABLED}`}
     >
       Legend
+      {!sheet && <IconChevron up={open} className={MAP_CHIP_CHEVRON} />}
     </button>
   )
   if (sheet) {

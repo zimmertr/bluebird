@@ -1630,19 +1630,35 @@ export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 
 /**
  * A chip's menu on a desk (#714; record 0174): the Layers menu and the legend
- * card, each a whole card standing 8px under its chip from the chip's left
+ * card, each a whole card standing 4px under its chip from the chip's left
  * edge. A phone's open as bottom sheets instead (record 0136).
  *
  * Not joined to the chip the way every other menu is (record 0134): squaring
  * a 32px pill's bottom corners left a dome, and the maintainer chose the pill
- * kept whole and lit, as a phone's chip is, with the card set apart by the
- * same 8px that stands between the pill and the chip row (TJ, 2026-10-18).
- * `CHIP_MENU_GAP_PX` in `resultsSheet.ts` is that gap in pixels. The surface
+ * kept whole and lit, as a phone's chip is, with the card set apart (TJ,
+ * 2026-10-18). Apart by 4px, the gap most menus keep from their trigger, and
+ * closer than the 8px between the pill and the chip row: at that same 8px the
+ * card read as a third row rather than as its chip's menu.
+ * `CHIP_MENU_GAP_PX` in `resultsSheet.ts` is the gap in pixels. The surface
  * is the caller's: the Layers menu is a menu over the map
  * (`SURFACE_POPOVER`), the legend a key that stays open on it
  * (`SURFACE_FLOATING`).
  */
-export const MAP_CHIP_MENU = `absolute left-0 top-full mt-2 ${MAP_MENU_W} px-2.5 py-2`
+export const MAP_CHIP_MENU = `absolute left-0 top-full mt-1 ${MAP_MENU_W} px-2.5 py-2`
+
+/**
+ * Where a desk chip's chevron stands (#714; record 0174): `IconChevron` after
+ * the Legend and Layers labels, pointing down while the card is shut and up
+ * while it is open, because a desk's card drops from its chip. A phone's chip
+ * carries none: its sheet rises from the bottom, so the arrow would point the
+ * wrong way, and the phone's row has no width to spare (TJ, 2026-10-18).
+ *
+ * `-mr-1` takes back the 4px of empty box past the stroke: the chevron's
+ * stroke spans the middle 8px of `ICON.control`'s 16px, so without it the
+ * glyph would stand 16px from the chip's right edge where the label stands
+ * 12px from its left.
+ */
+export const MAP_CHIP_CHEVRON = '-mr-1'
 
 /**
  * The summary chip, `☰ Current · NOAA GFS`, which opens the drawer: a chip

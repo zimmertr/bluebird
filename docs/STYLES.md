@@ -150,7 +150,8 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `CONTROL_W` | Single stacked panel control width: 118px, which is 2 x `METRIC_BOX_W` plus the Metrics grid gap, so the whole panel stands on the bound boxes' edges |
 | `CHART_METRIC_W` | The chart's metric select, 144px (w-36). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: `Freezing level (ft)` is 99.3px |
 | `MAP_MENU_W` | Width of both chip menus, Layers and the desk's legend card: 184px (w-46). The legend's wait line needs 176.8px and the longest Layers row, `Forecast player`, 130.0px |
-| `MAP_CHIP_MENU` | Where a chip's menu stands at a desk: a whole card from the chip's left edge, 8px under it, the gap between the pill and the chip row, at `MAP_MENU_W`. Not joined: the chip keeps its pill and is lit while the card is out. The caller picks the surface: `SURFACE_POPOVER` for the Layers menu, `SURFACE_FLOATING` for the legend card |
+| `MAP_CHIP_MENU` | Where a chip's menu stands at a desk: a whole card from the chip's left edge, 4px under it, at `MAP_MENU_W`. That is closer than the 8px between the pill and the chip row, so the card reads as its chip's menu and not as another row. Not joined: the chip keeps its pill and is lit while the card is out. The caller picks the surface: `SURFACE_POPOVER` for the Layers menu, `SURFACE_FLOATING` for the legend card |
+| `MAP_CHIP_CHEVRON` | Where a desk chip's chevron stands: `IconChevron` after the Legend and Layers labels, down while the card is shut and up while it is open, pulled 4px into the padding so it sits as far from the right edge as the label does from the left. A phone's chips have none, because their sheets rise from below |
 | `DRAW_BAR` | The draw bar on a phone: the polygon readout, Done and Cancel on the map while a ring is drawn, a floating box at the map's inset off both sides, standing where the player stands. A desk keeps them in the docked panel |
 | `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the map's rows and MapLibre's own control stack; `left` and `right` are the inset as utilities. The same publisher carries `--map-credit-size` at the ramp's smallest step, so `map.css` can size the library's credit line from the ramp |
 | `MICRO_SIZE` | The ramp's smallest step as a utility, 11px since #687. `MAP_EDGE.publish` spells the same 11px a second time as a custom property, and `CHART_TICK_PX` a third as the number Recharts takes, because Tailwind compiles no interpolated class and the library's credit line has no call site; `styles.test.ts` holds the two to one number |
@@ -662,8 +663,10 @@ of the map's top is the map's. The compass stands beside the locate button
 rather than under it, since a desk's first row has the room
 (`MAP_SLOT.besideLocate`). The chip row holds Legend and then Layers at both
 widths, so the legend card, open by default, hangs over the map's left edge,
-with the summary chip at the row's front only while the panel is shut. Their menus open as whole cards 8px under
-the chip (`MAP_CHIP_MENU`), and the legend card scrolls inside the map's height under
+with the summary chip at the row's front only while the panel is shut. Their menus open as whole cards 4px under
+the chip (`MAP_CHIP_MENU`), each chip carrying a chevron that points down while
+its card is shut and up while it is open (`MAP_CHIP_CHEVRON`). A phone's chips
+carry none, because a sheet rises from below. The legend card scrolls inside the map's height under
 the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
 the panel, and there are no zoom buttons at either width.
 Record: [0174](decisions/0174-desk-map-rows.md)
@@ -1036,8 +1039,9 @@ Record: [0134](decisions/0134-menus-unfurl-from-their-control.md)
 
 A chip's menu at a desk is the one exception. Squaring a 32px pill's bottom
 corners left a dome, so the chip stays a whole pill, lit while its card is
-out as a phone's is, and the card stands 8px under it from its left edge, the
-gap the chip row keeps under the pill (`MAP_CHIP_MENU`).
+out as a phone's is, and the card stands 4px under it from its left edge
+(`MAP_CHIP_MENU`). An 8px gap, the same as the one between the pill and the
+chip row, made the card read as a row of its own.
 Record: [0174](decisions/0174-desk-map-rows.md)
 
 On a phone every menu is a sheet instead (`BottomSheet`, `BOTTOM_SHEET`): a

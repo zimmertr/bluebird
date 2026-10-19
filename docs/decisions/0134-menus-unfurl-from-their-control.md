@@ -1,6 +1,6 @@
 # 0134. Every menu unfurls out of the control that opens it, as one card with it at its width
 
-- Status: Accepted. Amended by 0136 (on a phone every menu is a bottom sheet) and 0174 (a desk chip's menu stands 8px under its chip, unjoined).
+- Status: Accepted. Amended by 0136 (on a phone every menu is a bottom sheet) and 0174 (a desk chip's menu stands 4px under its chip, unjoined).
 - Date: 2026-10-13
 - Decider: the maintainer (TJ), on #709
 - Issues and PRs: #687, #709, #385, #707

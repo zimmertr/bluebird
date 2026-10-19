@@ -341,11 +341,11 @@ export function legendBottomPx(liftPx: number, timelineShown: boolean): number {
 
 /**
  * The gap between a chip and the menu standing under it at a desk (#714):
- * the 8px the pill and the chip row keep between them, repeated (TJ,
- * 2026-10-18). `MAP_CHIP_MENU`'s `mt-2` in `styles.ts`; the test there holds
- * the two to one number.
+ * 4px, half the 8px between the pill and the chip row, so the card reads as
+ * its chip's (TJ, 2026-10-18). `MAP_CHIP_MENU`'s `mt-1` in `styles.ts`; the
+ * test there holds the two to one number.
  */
-export const CHIP_MENU_GAP_PX = 8
+export const CHIP_MENU_GAP_PX = 4
 
 /**
  * The tallest a desk's legend card may be (#714): the map below the rows and

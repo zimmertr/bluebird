@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { MAP_CHIP_MENU } from '../styles'
+import { MAP_CHIP_CHEVRON, MAP_CHIP_MENU } from '../styles'
+import { IconChevron } from './icons'
 import type { ViewBounds } from '../utils/layerCoverage'
 
 // Every switch off, the grid allowed and off, and nothing spanning time.
@@ -70,6 +71,15 @@ const CONUS = {
 const open = () => fireEvent.click(screen.getByRole('button', { name: 'Layers' }))
 const rows = () => screen.getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)
 
+// The points `IconChevron` draws for one direction, read off the icon itself
+// so the chip's tests do not restate its geometry.
+function chevronPoints(up: boolean): string | null {
+  const { container, unmount } = render(<IconChevron up={up} />)
+  const points = container.querySelector('polyline')!.getAttribute('points')
+  unmount()
+  return points
+}
+
 describe('LayersPopover', () => {
   // The menu unmounts under a keyboard that was in it, so Escape hands the
   // focus back to the button that opened it rather than to the body (#576).
@@ -100,13 +110,19 @@ describe('LayersPopover', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     const button = screen.getByRole('button', { name: 'Layers' })
     expect(button.getAttribute('aria-expanded')).toBe('false')
+    const points = () => button.querySelector('svg polyline')!.getAttribute('points')
+    expect(button.querySelector('svg')!.classList).toContain(MAP_CHIP_CHEVRON)
+    expect(points()).toBe(chevronPoints(false))
     open()
     expect(button.getAttribute('aria-expanded')).toBe('true')
     expect(button.dataset.unfurled).toBeUndefined()
+    // The menu drops from the chip, and the chevron says so (TJ, 2026-10-18).
+    expect(points()).toBe(chevronPoints(true))
     const menu = screen.getByRole('checkbox', { name: 'Smoke' }).closest('[data-tour="layers-menu"]') as HTMLElement
     for (const cls of MAP_CHIP_MENU.split(' ')) expect(menu.classList).toContain(cls)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(button.getAttribute('aria-expanded')).toBe('false')
+    expect(points()).toBe(chevronPoints(false))
   })
 
   // A press inside the popover is a choice, not a way out.
@@ -216,6 +232,8 @@ describe('LayersPopover', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered sheet />)
     const chip = screen.getByRole('button', { name: 'Layers' })
     expect(chip.getAttribute('data-unfurled')).toBeNull()
+    // A sheet rises from below, so a phone's chip carries no chevron.
+    expect(chip.querySelector('svg')).toBeNull()
     open()
     expect(chip.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('dialog', { name: 'Layers' })).toBeTruthy()

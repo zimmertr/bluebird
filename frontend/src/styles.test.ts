@@ -78,6 +78,7 @@ import {
   CHART_PLOT_TOUCH,
   CHART_TITLE,
   MAP_CHIP,
+  MAP_CHIP_CHEVRON,
   MAP_CHIP_MENU,
   MAP_CHIP_SUMMARY,
   MAP_CHIP_SUMMARY_TEXT,
@@ -3282,14 +3283,27 @@ describe('an unfurled menu', () => {
   })
 
   // A desk chip's menu is the one that does not join (#714, record 0174): a
-  // whole card from the chip's left edge, as far under it as the chip row
-  // stands under the pill (TJ, 2026-10-18).
-  it("stands a chip's menu a row gap under its chip", () => {
+  // whole card from the chip's left edge, 4px under it. Closer than the chip
+  // row stands under the pill, or the card reads as a row of its own rather
+  // than its chip's menu (TJ, 2026-10-18).
+  it("stands a chip's menu closer under its chip than the rows stand apart", () => {
     const tokens = MAP_CHIP_MENU.split(' ')
     expect(tokens).toEqual(expect.arrayContaining(['absolute', 'left-0', 'top-full']))
     expect(tokens.filter((t) => /^rounded/.test(t))).toEqual([])
-    expect(tokens).toContain(MAP_ROWS.stack.match(/(?:^|\s)gap-(\d+)/)![0].trim().replace('gap-', 'mt-'))
+    expect(CHIP_MENU_GAP_PX).toBe(4)
     expect(tokens).toContain(`mt-${CHIP_MENU_GAP_PX / 4}`)
+    const rowGapPx = Number(MAP_ROWS.stack.match(/(?:^|\s)gap-(\d+)/)![1]) * 4
+    expect(CHIP_MENU_GAP_PX).toBeLessThan(rowGapPx)
+  })
+
+  // The chevron's stroke runs 6 to 18 of its 24-unit box, so at
+  // `ICON.control`'s 16px a quarter of the box (4px) is empty past it; the
+  // chip takes that back so the glyph stands where the label does from the
+  // other edge.
+  it("pulls a desk chip's chevron into the chip's padding by its empty box", () => {
+    expect(ICON.control).toBe('h-4 w-4')
+    expect(MAP_CHIP_CHEVRON).toBe(`-mr-${(16 * 6) / 24 / 4}`)
+    expect(MAP_CHIP).toContain('px-3')
   })
 
   // The anchor squares the corners facing the card, on the side `usePopover`
