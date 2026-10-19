@@ -1,4 +1,4 @@
-import { test, expect, resultRows } from '../fixtures'
+import { test, expect, resultRows, peak, destinationsAnswer } from '../fixtures'
 import type { Page } from '@playwright/test'
 
 // The two probes the memo rule in the root CLAUDE.md was measured with: an
@@ -33,14 +33,15 @@ const RING = '-121.9,47.4;-121.5,47.4;-121.5,47.7;-121.9,47.7'
 
 function field() {
   const columns = Math.ceil(Math.sqrt(DESTINATIONS))
-  return Array.from({ length: DESTINATIONS }, (_, i) => ({
-    name: `Probe ${i + 1}`,
-    type: 'peak',
-    latitude: Number((47.42 + Math.floor(i / columns) * 0.008).toFixed(5)),
-    longitude: Number((-121.88 + (i % columns) * 0.012).toFixed(5)),
-    elevation_ft: 3000 + ((i * 37) % 6000),
-    osm_id: `node/${10_000 + i}`,
-  }))
+  return Array.from({ length: DESTINATIONS }, (_, i) =>
+    peak({
+      name: `Probe ${i + 1}`,
+      latitude: Number((47.42 + Math.floor(i / columns) * 0.008).toFixed(5)),
+      longitude: Number((-121.88 + (i % columns) * 0.012).toFixed(5)),
+      elevation_ft: 3000 + ((i * 37) % 6000),
+      osm_id: `node/${10_000 + i}`,
+    }),
+  )
 }
 
 // The results cap the cut probe sets, and the one the page opens on.
@@ -121,7 +122,7 @@ test('render cost of an overlay toggle, a keystroke and the live knobs at 946 de
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ destinations, total: destinations.length, total_found: null, truncated: false }),
+      body: JSON.stringify(destinationsAnswer(destinations)),
     }),
   )
   await page.goto(`/?type=peak&limit=1500&poly=${RING}`)

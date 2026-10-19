@@ -1,16 +1,10 @@
-import { test, expect, resultRows } from './fixtures'
+import { test, expect, resultRows, isoDay } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A tap on the chart moves the map's playhead to the hour under it (#517).
 // Recharts names the hour from its hover state, and a touch tap sends no hover
 // before its click, so on a phone a tap did nothing. The playhead is read from
 // the transport's range input, which is the map's own record of the hour.
-
-function isoDay(offset: number): string {
-  const d = new Date()
-  d.setUTCDate(d.getUTCDate() + offset)
-  return d.toISOString().slice(0, 10)
-}
 
 test.use({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true })
 

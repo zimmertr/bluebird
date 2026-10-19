@@ -30,14 +30,14 @@ for (const width of [360, 390]) {
     await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
 
     const folded = await bottoms(page)
-    console.log(`corner ${width} px folded`, JSON.stringify(folded))
+    test.info().annotations.push({ type: `corner ${width} px folded`, description: JSON.stringify(folded) })
     expect(Math.abs(folded.scale - folded.fab)).toBeLessThanOrEqual(1)
     expect(Math.abs(folded.button - folded.fab)).toBeLessThanOrEqual(1)
 
     await page.locator('.maplibregl-ctrl-attrib-button').click()
     await expect(page.locator('.maplibregl-ctrl-attrib.maplibregl-compact-show')).toHaveCount(1)
     const opened = await bottoms(page)
-    console.log(`corner ${width} px opened`, JSON.stringify(opened))
+    test.info().annotations.push({ type: `corner ${width} px opened`, description: JSON.stringify(opened) })
     expect(Math.abs(opened.credit - opened.fab)).toBeLessThanOrEqual(1)
     // Taller than the row, so it grew up from the shared edge, and it stops
     // 8px short of the button.
@@ -49,9 +49,11 @@ for (const width of [360, 390]) {
 // The (i)'s glyph is centred on its round button (TJ, 2026-10-14): the
 // library's 24px drawing, whose circle is centred in it, placed on the
 // button's whole box rather than at the top left of the padding box the 1px
-// border shrinks. Read off the computed background, since the glyph is one.
+// border shrinks. Read off the computed background, since the glyph is one:
+// what this proves is that map.css's placement wins the cascade in a browser,
+// not where the drawn pixels land.
 for (const width of [360, 390]) {
-  test(`the (i)'s glyph is centred on its button at ${width} px`, async ({ page }) => {
+  test(`the (i) button's background is placed on its border box, centred, at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
     await page.goto('/')
     await expect(page.locator('.maplibregl-ctrl-attrib-button')).toBeVisible()
@@ -66,7 +68,7 @@ for (const width of [360, 390]) {
       const glyph = { x: origin.x + (origin.w - 24) * px + 12, y: origin.y + (origin.h - 24) * py + 12 }
       return { button: { x: r.left + r.width / 2, y: r.top + r.height / 2 }, glyph, repeat: cs.backgroundRepeat }
     })
-    console.log(`info glyph ${width} px`, JSON.stringify(at))
+    test.info().annotations.push({ type: `info glyph ${width} px`, description: JSON.stringify(at) })
     expect(at.glyph.x).toBeCloseTo(at.button.x, 1)
     expect(at.glyph.y).toBeCloseTo(at.button.y, 1)
     expect(at.repeat).toBe('no-repeat')
