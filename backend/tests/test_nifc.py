@@ -594,6 +594,55 @@ def test_route_answers_503_when_nothing_has_ever_been_fetched(monkeypatch):
     }
 
 
+# ArcGIS refuses a quota either way: HTTP 429, or 200 with the refusal in the
+# body. Both are one fact, so both answer the feed's own sentence and carry
+# ArcGIS's Retry-After when it sends one.
+QUOTA_REFUSAL = {"error": {"code": 429, "message": "Unable to perform query. Too many requests."}}
+ARCGIS_REFUSALS = [
+    pytest.param(429, {}, {"Retry-After": "120"}, "120", id="http-429-with-retry-after"),
+    pytest.param(429, {}, {}, "60", id="http-429"),
+    pytest.param(200, QUOTA_REFUSAL, {"Retry-After": "120"}, "120", id="inside-200-with-retry-after"),
+    pytest.param(200, QUOTA_REFUSAL, {}, "60", id="inside-200"),
+]
+
+
+def arcgis_answering(status: int, body: dict, headers: dict[str, str]) -> httpx.MockTransport:
+    """A transport whose every ArcGIS page is the same refusal."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status, json=body, headers=headers, request=request)
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.parametrize(("status", "body", "headers", "retry_after"), ARCGIS_REFUSALS)
+def test_an_arcgis_refusal_answers_the_feeds_own_sentence(
+    monkeypatch, status, body, headers, retry_after
+):
+    async def fetch() -> nifc.Snapshot:
+        transport = arcgis_answering(status, body, headers)
+        async with httpx.AsyncClient(transport=transport) as client:
+            full = await nifc._fetch_layer(client, None)
+        return nifc.Snapshot(fetched_at_ms=1, full=full, coarse=full)
+
+    monkeypatch.setattr(nifc, "PERIMETERS", nifc.perimeter_cache(fetch=fetch))
+    with TestClient(app) as client:
+        response = client.get("/api/wildfires", params={"bbox": "-122.5,46.0,-121.0,47.5"})
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Wildfire data is rate-limited. Try again later."
+    assert response.headers["Retry-After"] == retry_after
+
+
+def test_an_arcgis_503_status_keeps_its_own_sentence():
+    # Only the 429 is a refusal by quota; a 503 status is the service failing.
+    async def fetch() -> None:
+        async with httpx.AsyncClient(transport=arcgis_answering(503, {}, {})) as client:
+            await nifc._fetch_layer(client, None)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        asyncio.run(fetch())
+
+
 def test_capabilities_publishes_the_wildfire_bucket():
     with TestClient(app) as client:
         limits = client.get("/api/capabilities").json()["limits"]["rate"]

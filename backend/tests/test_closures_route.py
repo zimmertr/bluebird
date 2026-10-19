@@ -11,7 +11,7 @@ import zlib
 
 import pytest
 from fastapi.testclient import TestClient
-from test_nifc import counting_calls
+from test_nifc import ARCGIS_REFUSALS, arcgis_answering, counting_calls
 
 from app import ratelimit
 from app.main import app
@@ -181,6 +181,21 @@ def test_a_cold_cache_answers_503_with_retry_after():
     assert response.status_code == 503
     assert response.headers["Retry-After"]
     assert response.json()["error"] == {"code": "snapshot_unavailable", "retryable": True}
+
+
+@pytest.mark.parametrize(("status", "body", "headers", "retry_after"), ARCGIS_REFUSALS)
+def test_an_arcgis_refusal_answers_the_feeds_own_sentence(
+    monkeypatch, status, body, headers, retry_after
+):
+    async def fetch() -> usfs_closures.Snapshot:
+        return await usfs_closures.fetch_snapshot(arcgis_answering(status, body, headers))
+
+    monkeypatch.setattr(usfs_closures, "CLOSURES", usfs_closures.closure_cache(fetch=fetch))
+    with TestClient(app) as client:
+        response = client.get("/api/closures", params={"bbox": BOX, "kind": "area"})
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Closure data is rate-limited. Try again later."
+    assert response.headers["Retry-After"] == retry_after
 
 
 def test_the_closures_bucket_throttles_this_route_alone(served, monkeypatch):

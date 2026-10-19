@@ -76,6 +76,8 @@ from app.services.usfs_coverage import ALL_REGIONS, Kind
 log = logging.getLogger(__name__)
 
 PROVIDER = "US Forest Service (closure orders)"
+# How this overlay says ArcGIS refused it, in a 200 or as a 429 alike.
+RATE_LIMITED = "Closure data is rate-limited. Try again later."
 
 _ARCGIS_URL = "https://services1.arcgis.com/gGHDlz6USftL5Pau/arcgis/rest/services/"
 _SERVICE_URL = (
@@ -401,7 +403,7 @@ def _raise_for_arcgis_error(body: Any) -> None:
     arcgis.raise_for_arcgis_error(
         body,
         PROVIDER,
-        rate_limited="Closure data is rate-limited. Try again later.",
+        rate_limited=RATE_LIMITED,
         rejected="Closure data was rejected. Try again later.",
     )
 
@@ -461,6 +463,8 @@ async def _fetch_layer(
         page_size=PAGE_SIZE,
         max_pages=MAX_PAGES,
         label="Forest Service closures",
+        provider=PROVIDER,
+        rate_limited=RATE_LIMITED,
     )
 
 
@@ -643,6 +647,8 @@ async def fetch_forest_orders(
         page_size=PAGE_SIZE,
         max_pages=MAX_PAGES,
         label=f"Forest Service orders, {feed.label}",
+        provider=PROVIDER,
+        rate_limited=RATE_LIMITED,
     )
     attributes = {row["objectid"]: row for row in rows if isinstance(row.get("objectid"), int)}
     if not attributes:
@@ -670,6 +676,8 @@ async def fetch_forest_orders(
             page_size=PAGE_SIZE,
             max_pages=MAX_PAGES,
             label=f"Forest Service orders, {feed.label}",
+            provider=PROVIDER,
+            rate_limited=RATE_LIMITED,
         )
 
     full, coarse = await asyncio.gather(geometry(None), geometry(COARSE_OFFSET_DEG))

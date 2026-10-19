@@ -49,6 +49,8 @@ from app.services.http import HEADERS
 from app.services.snapshot import cache_factory
 
 PROVIDER = "NIFC (wildfire perimeters)"
+# How this overlay says ArcGIS refused it, in a 200 or as a 429 alike.
+RATE_LIMITED = "Wildfire data is rate-limited. Try again later."
 
 # WFIGS "Interagency Perimeters — Current", layer 0. The service already scopes
 # this view to incidents not yet declared contained/controlled/out, so recency
@@ -210,7 +212,7 @@ def _raise_for_arcgis_error(body: Any) -> None:
     arcgis.raise_for_arcgis_error(
         body,
         PROVIDER,
-        rate_limited="Wildfire data is rate-limited. Try again later.",
+        rate_limited=RATE_LIMITED,
         rejected="Wildfire data was rejected. Try again later.",
     )
 
@@ -242,6 +244,8 @@ async def _fetch_layer(client: httpx.AsyncClient, simplify_deg: float | None) ->
         page_size=PAGE_SIZE,
         max_pages=MAX_PAGES,
         label="NIFC",
+        provider=PROVIDER,
+        rate_limited=RATE_LIMITED,
     )
 
 
