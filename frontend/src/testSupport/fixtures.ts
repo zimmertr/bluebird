@@ -6,9 +6,9 @@ import type { Capabilities, ForecastModelOption } from '../hooks/useCapabilities
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import type { Place } from '../utils/geocode'
-import type { WeatherResult } from '../utils/openMeteo'
+import type { Coordinate, WeatherResult } from '../utils/openMeteo'
 import type { WeatherSeries } from '../utils/openMeteoAggregate'
-import type { CellBox, GridCell } from '../utils/forecastGridLattice'
+import type { CellBox, GridCell, GridSpec } from '../utils/forecastGridLattice'
 import type { FireWarning } from '../utils/fireProximity'
 import type { ClosureWarning } from '../utils/closureProximity'
 import type { PendingDestination } from '../utils/customList'
@@ -137,6 +137,94 @@ export function gridRow(over: Partial<DestinationResult> = {}): DestinationResul
 /** One sampled cell. `index` is the VIRTUAL lattice index, never an array position. */
 export function gridCell(box: CellBox, row: DestinationResult, index = 0): GridCell {
   return { index, box, row }
+}
+
+/**
+ * One forecast-grid lattice: by default a single kept sample at the centre of
+ * one 0.2° cell under Rainier, so a suite that cares about one sample's colour
+ * needs no geometry of its own and one that cares about the shape overrides it.
+ */
+export function gridSpec(over: Partial<GridSpec> = {}): GridSpec {
+  return {
+    points: [{ latitude: 46.4, longitude: -121.7 }],
+    cells: [[-121.8, 46.3, -121.6, 46.5]],
+    indices: [0],
+    distancesKm: [0],
+    cols: 1,
+    rows: 1,
+    west: -121.8,
+    south: 46.3,
+    latStep: 0.2,
+    lonStep: 0.2,
+    pitchKm: 13,
+    ...over,
+  }
+}
+
+/**
+ * A lattice spelled by its shape: `cols` by `rows` cells of one step from a
+ * south-west corner, keeping the VIRTUAL indices given (every cell by
+ * default), each sample at its cell's centre. For the raster's edge rules,
+ * which need a lattice of an exact shape that `buildGrid` would only reach by
+ * way of its own rounding.
+ */
+export function squareLattice({
+  cols,
+  rows,
+  west,
+  south,
+  step,
+  indices = Array.from({ length: cols * rows }, (_, v) => v),
+}: {
+  cols: number
+  rows: number
+  west: number
+  south: number
+  step: number
+  indices?: number[]
+}): GridSpec {
+  return gridSpec({
+    points: indices.map((v) => ({
+      latitude: south + (Math.floor(v / cols) + 0.5) * step,
+      longitude: west + ((v % cols) + 0.5) * step,
+    })),
+    cells: indices.map((v) => {
+      const w = west + (v % cols) * step
+      const s = south + Math.floor(v / cols) * step
+      return [w, s, w + step, s + step] as CellBox
+    }),
+    indices,
+    distancesKm: indices.map(() => 0),
+    cols,
+    rows,
+    west,
+    south,
+    latStep: step,
+    lonStep: step,
+  })
+}
+
+/** Destinations as coordinates alone, which is all of a result the lattice reads. */
+export function field(...points: [number, number][]): Coordinate[] {
+  return points.map(([latitude, longitude]) => ({ latitude, longitude }))
+}
+
+/** Rainier and Adams, about 80 km apart: the everyday polygon the grid was designed around. */
+export const CASCADES = field([46.8523, -121.7603], [46.2024, -121.4909])
+
+/**
+ * A filled mesh of destinations, `step` degrees apart over a box, the shape a
+ * polygon analysis produces: the reach disks overlap into one solid blob,
+ * where two corner points alone grid as two separate patches.
+ */
+export function mesh(latLo: number, latHi: number, lonLo: number, lonHi: number, step: number): Coordinate[] {
+  const out: Coordinate[] = []
+  for (let la = latLo; la <= latHi + 1e-9; la += step) {
+    for (let lo = lonLo; lo <= lonHi + 1e-9; lo += step) {
+      out.push({ latitude: la, longitude: lo })
+    }
+  }
+  return out
 }
 
 // `WeatherResult` is nullable, because a batch answers null for a location the

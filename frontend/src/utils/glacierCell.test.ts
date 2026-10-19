@@ -67,6 +67,11 @@ describe('cellOnGlacier', () => {
   it('reads only the landcover layer\'s ice', () => {
     const p = at(2048, 2048)
     expect(cellOnGlacier(p.lng, p.lat, decodeGlaciers(tileOf(glacier([square(2048, 2048, 300)], 'rock')), TILE))).toBe(false)
+  })
+})
+
+describe('decodeGlaciers', () => {
+  it('reads nothing out of an empty or unreadable tile', () => {
     expect(decodeGlaciers(encodeTile([]), TILE)).toEqual([])
     expect(decodeGlaciers(new Uint8Array([1, 2, 3]), TILE)).toEqual([])
   })

@@ -53,15 +53,10 @@ describe('clampSelection', () => {
     endDate,
   })
 
-  it('leaves a selection that still fits alone', () => {
-    expect(clampSelection(days('2026-07-15', '2026-07-16'), NOW, HRRR)).toBeNull()
-  })
-
   // Null rather than an equal value is what lets the caller warn only when
   // something moved; an equality check on the result would fire every time.
-  it('reports no change as null rather than as a copy', () => {
-    const sel = days('2026-07-15', '2026-07-16')
-    expect(clampSelection(sel, NOW, LONG)).toBeNull()
+  it('leaves a selection that still fits alone', () => {
+    expect(clampSelection(days('2026-07-15', '2026-07-16'), NOW, HRRR)).toBeNull()
   })
 
   it('trims an end that the new model no longer reaches', () => {
