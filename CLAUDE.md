@@ -56,7 +56,7 @@ mounted, and `ruff check backend/` runs **from the repo root**, which is what CI
 does. The Node major lives in `.node-version` alone; CI reads it through
 `setup-node`, and `backend/tests/test_node_version.py` holds the `Dockerfile`'s tag
 to it. Since #379 the rules live in `backend/ruff.toml` (E, F, I, B,
-UP) and `known-first-party = ["app"]` there makes the import order the same from
+UP, TID251 and BLE) and `known-first-party = ["app"]` there makes the import order the same from
 either working directory; without it isort reads `app` as third-party from the root
 and first-party from inside `backend/`. The backend's direct pins live in
 `backend/requirements.in`, and `requirements.txt` and `requirements-dev.txt` are
