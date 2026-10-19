@@ -7,6 +7,7 @@ from datetime import date
 
 import httpx
 import pytest
+from conftest import sleep_recorder
 
 from app import ratelimit
 from app.services import weather
@@ -23,18 +24,8 @@ class _Clock:
         return self.t
 
 
-def _sleep_recorder(monkeypatch):
-    slept: list[float] = []
-
-    async def fake_sleep(seconds: float) -> None:
-        slept.append(seconds)
-
-    monkeypatch.setattr(ratelimit.upstream.asyncio, "sleep", fake_sleep)
-    return slept
-
-
 async def test_burst_within_one_minute_of_budget_is_instant(monkeypatch):
-    slept = _sleep_recorder(monkeypatch)
+    slept = sleep_recorder(monkeypatch)
     budget = ratelimit.WeightedBudget("test", 600, clock=_Clock())
     for _ in range(12):
         await budget.acquire(50)  # exactly the full 600 capacity
@@ -46,7 +37,7 @@ async def test_no_sixty_seconds_spend_more_than_the_budget(monkeypatch):
     # the full rate, so an idle budget of 550 spent ~1,100 in its first minute
     # against a provider that counts 600 a minute. Every start a run of
     # acquires is booked at, and the window behind it, must hold the line.
-    _sleep_recorder(monkeypatch)
+    sleep_recorder(monkeypatch)
     clock = _Clock()
     budget = ratelimit.WeightedBudget("test", 550, max_wait_s=3600, clock=clock)
     starts: list[tuple[float, float]] = []
@@ -63,7 +54,7 @@ async def test_no_sixty_seconds_spend_more_than_the_budget(monkeypatch):
 
 
 async def test_a_full_window_waits_for_the_oldest_spend_to_leave(monkeypatch):
-    slept = _sleep_recorder(monkeypatch)
+    slept = sleep_recorder(monkeypatch)
     budget = ratelimit.WeightedBudget("test", 60, clock=_Clock())
     await budget.acquire(60)  # fills the window, instant
     await budget.acquire(30)  # fits only once the first spend is 60 s old
@@ -71,7 +62,7 @@ async def test_a_full_window_waits_for_the_oldest_spend_to_leave(monkeypatch):
 
 
 async def test_concurrent_callers_serialize_in_booking_order(monkeypatch):
-    slept = _sleep_recorder(monkeypatch)
+    slept = sleep_recorder(monkeypatch)
     budget = ratelimit.WeightedBudget("test", 60, clock=_Clock())
     await budget.acquire(60)
     await budget.acquire(40)
@@ -83,7 +74,7 @@ async def test_concurrent_callers_serialize_in_booking_order(monkeypatch):
 async def test_an_oversized_spend_holds_the_window_for_its_share(monkeypatch):
     # A batch priced above a whole minute's budget starts alone and keeps the
     # average at the budget: 120 against 60 a minute holds two minutes.
-    slept = _sleep_recorder(monkeypatch)
+    slept = sleep_recorder(monkeypatch)
     budget = ratelimit.WeightedBudget("test", 60, clock=_Clock())
     await budget.acquire(120)
     await budget.acquire(1)
@@ -91,7 +82,7 @@ async def test_an_oversized_spend_holds_the_window_for_its_share(monkeypatch):
 
 
 async def test_waits_beyond_max_wait_shed_instead(monkeypatch):
-    _sleep_recorder(monkeypatch)
+    sleep_recorder(monkeypatch)
     budget = ratelimit.WeightedBudget("test", 60, max_wait_s=15, clock=_Clock())
     await budget.acquire(60)
     with pytest.raises(ratelimit.BudgetExhausted) as exc:
@@ -105,7 +96,7 @@ async def test_a_shed_never_answers_retry_after_zero(monkeypatch):
     # A negative wait bound (UPSTREAM_WEIGHT_MAX_WAIT_S=-1 parses) sheds an
     # idle budget's zero wait, and a Retry-After of 0 asks to come straight
     # back. The gate rounds the same way.
-    _sleep_recorder(monkeypatch)
+    sleep_recorder(monkeypatch)
     budget = ratelimit.WeightedBudget("test", 100, max_wait_s=-1, clock=_Clock())
     with pytest.raises(ratelimit.BudgetExhausted) as shed:
         await budget.acquire(1)
@@ -118,7 +109,7 @@ async def test_a_shed_never_answers_retry_after_zero(monkeypatch):
 
 
 async def test_zero_per_minute_disables(monkeypatch):
-    slept = _sleep_recorder(monkeypatch)
+    slept = sleep_recorder(monkeypatch)
     budget = ratelimit.WeightedBudget("test", 0, clock=_Clock())
     await budget.acquire(10_000)
     assert slept == []
@@ -135,7 +126,7 @@ def test_wait_estimate_reads_without_spending():
 
 
 def test_a_spend_leaves_the_window_after_sixty_seconds(monkeypatch):
-    _sleep_recorder(monkeypatch)
+    sleep_recorder(monkeypatch)
     clock = _Clock()
     budget = ratelimit.WeightedBudget("test", 60, clock=clock)
     asyncio.run(budget.acquire(60))

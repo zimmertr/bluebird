@@ -2,16 +2,24 @@ from __future__ import annotations
 
 import asyncio
 import gc
-import inspect
 import logging
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 from typing import Any
 
 import httpx
 import pytest
-from conftest import FAKE_API_KEY, assert_no_key_logged, dest, fake_response
+from conftest import (
+    FAKE_API_KEY,
+    RecordingPacer,
+    assert_no_key_logged,
+    dest,
+    fake_response,
+    sleep_recorder,
+    stub_openmeteo,
+    weather_hourly,
+)
 
 from app import ratelimit
 from app.models import DEFAULT_FORECAST_MODEL, ForecastModel
@@ -33,47 +41,12 @@ from app.services.errors import (
 from app.services.openmeteo_weight import call_weight
 from app.services.weather import fetch_weather_batch
 
-
-def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m", snowfall=None):
-    hourly = {
-        "time": times,
-        "precipitation": precip,
-        "temperature_2m": temp,
-        "wind_speed_10m": wind,
-    }
-    # Every column is declared in the unit the request asked for, as a real
-    # response declares it: the aggregation refuses a number it cannot
-    # confirm the unit of.
-    units: dict[str, str] = {
-        "precipitation": "inch",
-        "snowfall": "inch",
-        "temperature_2m": "°F",
-        "wind_speed_10m": "mp/h",
-        **{name: "mp/h" for name, _ in aggregation._WIND_LEVELS},
-        **{name: "°F" for name, _ in aggregation._TEMP_LEVELS},
-    }
-    # Omitted rather than nulled by default: a payload with no
-    # `freezing_level_height` key at all is what five of the eight models
-    # return, so it is the shape most of these tests should exercise.
-    payload: dict[str, Any] = {"hourly": hourly, "hourly_units": units}
-    if freeze is not None:
-        hourly["freezing_level_height"] = freeze
-        # A real response always declares the unit, so the payload carries it
-        # whenever it carries the column. `freeze_unit=None` is the malformed
-        # body the aggregation must refuse rather than guess at.
-        if freeze_unit is not None:
-            units["freezing_level_height"] = freeze_unit
-    if snowfall is not None:
-        hourly["snowfall"] = snowfall
-    return payload
-
-
 START = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
 END = datetime(2026, 7, 21, 2, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
 
 
 def test_metrics_aggregates_full_window():
-    data = _hourly(
+    data = weather_hourly(
         ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"],
         [0.1, 0.2, 0.0],
         [50.0, 52.0, 54.0],
@@ -106,7 +79,7 @@ def test_metrics_aggregates_full_window():
 
 def test_metrics_excludes_timestamps_outside_window():
     # The 03:00 sample sits past END and must not contribute to the totals.
-    data = _hourly(
+    data = weather_hourly(
         ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00", "2026-07-21T03:00"],
         [0.1, 0.2, 0.0, 99.0],
         [50.0, 52.0, 54.0, 99.0],
@@ -122,7 +95,7 @@ def test_metrics_point_sample_window_hits_exactly_one_hour():
     # modes) to [floor(T), floor(T)+1min]. With the inclusive hour filter that
     # must catch exactly the requested hour's stamp — never the next one —
     # so every aggregate collapses to that single sample.
-    data = _hourly(
+    data = weather_hourly(
         ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"],
         [0.1, 0.2, 0.4],
         [50.0, 52.0, 54.0],
@@ -138,7 +111,7 @@ def test_metrics_point_sample_window_hits_exactly_one_hour():
 
 def test_metrics_skips_hours_with_missing_values():
     # Any hour with a None in precip/temp/wind is dropped whole.
-    data = _hourly(
+    data = weather_hourly(
         ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"],
         [0.1, None, 0.3],
         [50.0, 52.0, 54.0],
@@ -151,12 +124,12 @@ def test_metrics_skips_hours_with_missing_values():
 
 
 def test_metrics_empty_window_returns_none():
-    data = _hourly([], [], [], [])
+    data = weather_hourly([], [], [], [])
     assert _weather_metrics(data, START, END) is None
 
 
 def test_metrics_all_out_of_range_returns_none():
-    data = _hourly(["2020-01-01T00:00"], [0.1], [50.0], [5.0])
+    data = weather_hourly(["2020-01-01T00:00"], [0.1], [50.0], [5.0])
     assert _weather_metrics(data, START, END) is None
 
 
@@ -164,7 +137,7 @@ def test_metrics_rounding_precision():
     # Feed many-decimal inputs whose raw averages are NOT already at the target
     # precision, then assert each output is idempotent under a round to that
     # precision — i.e. the code truncated it (precip to 4 places, temp/wind to 1).
-    data = _hourly(
+    data = weather_hourly(
         ["2026-07-21T00:00", "2026-07-21T01:00"],
         [0.1234567, 0.7654321],
         [50.123456, 51.987654],
@@ -195,7 +168,7 @@ _TIMES_3H = ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"]
 
 
 def test_metrics_converts_the_freezing_level_to_whole_feet():
-    data = _hourly(
+    data = weather_hourly(
         _TIMES_3H, [0.0, 0.0, 0.0], [30.0, 31.0, 32.0], [5.0, 5.0, 5.0],
         freeze=[3000.0, 3100.0, 3050.0],
     )
@@ -209,8 +182,8 @@ def test_metrics_all_null_freezing_level_leaves_the_other_aggregates():
     # The five-model response shape: identical payloads but for the freezing
     # level, and every other figure must come out identical too.
     args = (_TIMES_3H, [0.1, 0.2, 0.0], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
-    nulled = _weather_metrics(_hourly(*args, freeze=[None, None, None]), START, END)
-    absent = _weather_metrics(_hourly(*args), START, END)
+    nulled = _weather_metrics(weather_hourly(*args, freeze=[None, None, None]), START, END)
+    absent = _weather_metrics(weather_hourly(*args), START, END)
 
     assert nulled == absent
     assert nulled["freeze_avg_ft"] is None
@@ -222,7 +195,7 @@ def test_metrics_all_null_freezing_level_leaves_the_other_aggregates():
 def test_metrics_skips_a_null_freezing_hour_without_dropping_it():
     # Contrast with the core metrics above, where a null drops the whole hour:
     # the middle hour's precipitation still counts.
-    data = _hourly(
+    data = weather_hourly(
         _TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0],
         freeze=[2000.0, None, 2200.0],
     )
@@ -234,7 +207,7 @@ def test_metrics_skips_a_null_freezing_hour_without_dropping_it():
 
 def test_metrics_freezing_level_zero_is_a_value_not_a_gap():
     # Open-Meteo clamps to 0.0 when the whole column is below freezing.
-    data = _hourly(
+    data = weather_hourly(
         ["2026-07-21T00:00"], [0.0], [10.0], [5.0], freeze=[0.0]
     )
     m = _weather_metrics(data, START, END)
@@ -244,7 +217,7 @@ def test_metrics_freezing_level_zero_is_a_value_not_a_gap():
 
 
 def test_series_carries_the_freezing_level_and_its_gaps():
-    data = _hourly(
+    data = weather_hourly(
         _TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0],
         freeze=[3000.0, None, 3100.0],
     )
@@ -253,7 +226,7 @@ def test_series_carries_the_freezing_level_and_its_gaps():
 
 
 def test_series_freezing_level_is_all_nulls_when_the_model_omits_it():
-    data = _hourly(_TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
+    data = weather_hourly(_TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
     s = _weather_series(data, START, END)
     assert s["freeze_ft"] == [None, None, None]
     assert s["precip_in"] == [0.1, 0.2, 0.3]
@@ -267,7 +240,7 @@ def test_series_freezing_level_is_all_nulls_when_the_model_omits_it():
 
 
 def test_metrics_reduce_snowfall_like_precipitation():
-    data = _hourly(
+    data = weather_hourly(
         _TIMES_3H, [0.1, 0.2, 0.0], [20.0, 22.0, 24.0], [5.0, 7.0, 9.0],
         snowfall=[0.5, 1.25, 0.0],
     )
@@ -279,7 +252,7 @@ def test_metrics_reduce_snowfall_like_precipitation():
 
 
 def test_metrics_skip_a_null_snowfall_hour_without_dropping_it():
-    data = _hourly(
+    data = weather_hourly(
         _TIMES_3H, [0.1, 0.2, 0.3], [20.0, 22.0, 24.0], [5.0, 7.0, 9.0],
         snowfall=[0.5, None, 1.0],
     )
@@ -292,20 +265,20 @@ def test_metrics_skip_a_null_snowfall_hour_without_dropping_it():
 
 def test_metrics_all_null_snowfall_leaves_the_other_aggregates():
     args = (_TIMES_3H, [0.1, 0.2, 0.0], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
-    nulled = _weather_metrics(_hourly(*args, snowfall=[None, None, None]), START, END)
-    absent = _weather_metrics(_hourly(*args), START, END)
+    nulled = _weather_metrics(weather_hourly(*args, snowfall=[None, None, None]), START, END)
+    absent = _weather_metrics(weather_hourly(*args), START, END)
     assert nulled == absent
     assert nulled["snowfall_total_in"] is None
 
 
 def test_series_carries_snowfall_and_its_gaps():
-    data = _hourly(
+    data = weather_hourly(
         _TIMES_3H, [0.1, 0.2, 0.3], [20.0, 22.0, 24.0], [5.0, 7.0, 9.0],
         snowfall=[0.12345, None, 0.4],
     )
     s = _weather_series(data, START, END)
     assert s["snowfall_in"] == [0.1235, None, 0.4]
-    absent = _weather_series(_hourly(_TIMES_3H, [0.1, 0.2, 0.3], [20.0] * 3, [5.0] * 3), START, END)
+    absent = _weather_series(weather_hourly(_TIMES_3H, [0.1, 0.2, 0.3], [20.0] * 3, [5.0] * 3), START, END)
     assert absent["snowfall_in"] == [None, None, None]
 
 
@@ -322,7 +295,7 @@ _RAINIER_END = datetime(2026, 9, 15, 12, 1)  # noqa: DTZ001 — naive, like the 
 
 
 def _rainier(freeze, freeze_unit="m"):
-    return _hourly(
+    return weather_hourly(
         [_RAINIER_HOUR], [0.0], [3.3], [10.0], freeze=freeze, freeze_unit=freeze_unit
     )
 
@@ -463,7 +436,7 @@ def test_an_unserved_column_needs_no_unit():
 async def test_a_batch_in_another_unit_fails_the_analysis(monkeypatch):
     block = _one_location()
     block["hourly_units"]["precipitation"] = "mm"
-    _stub_openmeteo(monkeypatch, [[block]])
+    stub_openmeteo(monkeypatch, [[block]])
     with pytest.raises(UpstreamError):
         await fetch_weather_batch(_dests(1), START, END)
 
@@ -579,7 +552,7 @@ async def test_fetch_weather_batch_empty_returns_empty():
 def test_series_keeps_every_hour_and_preserves_nulls_per_metric():
     # Unlike _metrics (which drops a whole hour on any null), _series keeps all
     # in-window hours and preserves each metric's nulls independently.
-    data = _hourly(
+    data = weather_hourly(
         ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"],
         [0.1, None, 0.3],
         [50.0, 52.0, None],
@@ -593,14 +566,14 @@ def test_series_keeps_every_hour_and_preserves_nulls_per_metric():
 
 
 def test_series_times_are_utc_epoch_ms():
-    data = _hourly(["2026-07-21T00:00"], [0.0], [50.0], [5.0])
+    data = weather_hourly(["2026-07-21T00:00"], [0.0], [50.0], [5.0])
     s = _weather_series(data, START, END)
     expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=UTC).timestamp() * 1000)
     assert s["times"] == [expected]
 
 
 def test_series_excludes_out_of_window():
-    data = _hourly(
+    data = weather_hourly(
         ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00", "2026-07-21T03:00"],
         [0.1, 0.2, 0.3, 99.0],
         [50.0, 51.0, 52.0, 99.0],
@@ -612,7 +585,7 @@ def test_series_excludes_out_of_window():
 
 
 def test_series_rounds_like_metrics():
-    data = _hourly(["2026-07-21T00:00"], [0.1234567], [50.123456], [5.111111])
+    data = weather_hourly(["2026-07-21T00:00"], [0.1234567], [50.123456], [5.111111])
     s = _weather_series(data, START, END)
     assert s["precip_in"] == [round(0.1234567, 4)]
     assert s["temp_f"] == [round(50.123456, 1)]
@@ -620,7 +593,7 @@ def test_series_rounds_like_metrics():
 
 
 def test_series_empty_window_returns_none():
-    assert _weather_series(_hourly([], [], [], []), START, END) is None
+    assert _weather_series(weather_hourly([], [], [], []), START, END) is None
 
 
 def test_series_malformed_payload_returns_none():
@@ -636,52 +609,9 @@ def test_series_malformed_payload_returns_none():
 # with the entire retry loop unexecuted.
 
 
-def _stub_openmeteo(
-    monkeypatch, behaviors: list[Any], urls: list[str] | None = None
-) -> list[dict[str, Any]]:
-    """Replay one scripted behavior per upstream GET, in call order.
-
-    A behavior is an Exception (raised), a ``(ticks, payload)`` pair (yields to
-    the event loop ``ticks`` times first, so completion order can be forced
-    independent of start order), a callable (handed the call's url and params,
-    so an error answer can be built on the request the service really made),
-    or a bare payload. Returns the list of params
-    each call was made with, so batching can be asserted. Running off the end
-    of the script is an IndexError, which is the point: a test that expects two
-    upstream calls fails loudly on a third.
-
-    Pass ``urls`` to collect the host each call went to as well, which is what
-    a keyed request has to get right.
-    """
-    calls: list[dict[str, Any]] = []
-
-    class _Client:
-        async def get(self, url, params=None):
-            behavior = behaviors[len(calls)]
-            calls.append(params or {})
-            if urls is not None:
-                urls.append(url)
-            if isinstance(behavior, Exception):
-                raise behavior
-            if callable(behavior):
-                answer = behavior(url, params or {})
-                # A coroutine behavior is one that takes real time to answer.
-                return await answer if inspect.isawaitable(answer) else answer
-            if isinstance(behavior, tuple):
-                ticks, payload = behavior
-                for _ in range(ticks):
-                    await asyncio.sleep(0)
-                return fake_response(payload)
-            return fake_response(behavior)
-
-    stub = _Client()
-    monkeypatch.setattr(weather.http, "client", lambda: stub)
-    return calls
-
-
 def _one_location(precip: float = 0.1) -> dict[str, Any]:
     """One location's hourly block, its precip total carrying `precip`."""
-    return _hourly(
+    return weather_hourly(
         ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"],
         [precip, 0.0, 0.0],
         [50.0, 52.0, 54.0],
@@ -715,7 +645,7 @@ async def test_the_request_asks_only_for_the_hours_the_window_needs(monkeypatch)
     # here threw the overhang away. Both bounds now floor to the hour, which
     # cannot drop a stamp the inclusive filter keeps — every kept stamp sits on
     # the hour inside the window, so it sits inside the floored bounds too.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
     start = datetime(2026, 7, 21, 9, 30)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
     end = datetime(2026, 7, 21, 14, 45)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
     await fetch_weather_batch(_dests(1), start, end)
@@ -731,7 +661,7 @@ async def test_a_point_sample_asks_for_a_single_hour(monkeypatch):
     # which the filters match with exactly one stamp. This is the window the
     # whole-day request wasted most on: measured 2026-08-23 over 50 locations,
     # 97.3 KB for the day against 32.8 KB for the hour.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
     moment = datetime(2026, 7, 21, 13, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
     await fetch_weather_batch(_dests(1), moment, moment + timedelta(minutes=1))
 
@@ -744,7 +674,7 @@ async def test_fetch_weather_batch_serves_a_repeat_analysis_from_cache(monkeypat
     # and window costs zero upstream calls. A second scripted payload is loaded
     # so a stray second fetch would return data rather than IndexError — the
     # call count is what proves it never happened.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1, 0.2]), _payload([9.9, 9.9])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1, 0.2]), _payload([9.9, 9.9])])
     dests = _dests(2)
 
     first = await fetch_weather_batch(dests, START, END)
@@ -757,7 +687,7 @@ async def test_fetch_weather_batch_serves_a_repeat_analysis_from_cache(monkeypat
 
 async def test_fetch_weather_batch_fetches_only_the_uncached_locations(monkeypatch):
     # A partially-overlapping polygon pays only for what actually changed.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1, 0.2]), _payload([0.3])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1, 0.2]), _payload([0.3])])
     await fetch_weather_batch(_dests(2), START, END)
     results = await fetch_weather_batch(_dests(3), START, END)
 
@@ -770,7 +700,7 @@ async def test_fetch_weather_batch_fetches_only_the_uncached_locations(monkeypat
 async def test_fetch_weather_batch_requests_the_level_winds_and_temperatures(
     monkeypatch,
 ):
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END)
 
     hourly = calls[0]["hourly"].split(",")
@@ -803,7 +733,7 @@ async def test_fetch_weather_batch_adjusts_wind_to_the_destinations_elevation(
             "wind_speed_500hPa": [50.0] * 3,
         }
     )
-    _stub_openmeteo(monkeypatch, [[block, dict(block)]])
+    stub_openmeteo(monkeypatch, [[block, dict(block)]])
     dests = _dests(2)
     dests[0]["elevation_ft"] = 8000.0
 
@@ -834,7 +764,7 @@ async def test_fetch_weather_batch_adjusts_temperature_to_the_destinations_eleva
             "temperature_500hPa": [-1.2] * 3,
         }
     )
-    _stub_openmeteo(monkeypatch, [[block, dict(block)]])
+    stub_openmeteo(monkeypatch, [[block, dict(block)]])
     dests = _dests(2)
     dests[0]["elevation_ft"] = 8000.0
 
@@ -864,7 +794,7 @@ async def test_a_null_temperature_level_never_drops_the_hour(monkeypatch):
             "temperature_500hPa": [-1.2] * 3,
         }
     )
-    _stub_openmeteo(monkeypatch, [[block]])
+    stub_openmeteo(monkeypatch, [[block]])
     dests = _dests(1)
     dests[0]["elevation_ft"] = 8000.0
 
@@ -882,7 +812,7 @@ async def test_fetch_weather_batch_keys_the_cache_by_elevation(monkeypatch):
     # coordinates claimed at a different height are a genuine miss — being
     # served the other row's numbers would be the model-sharing bug the model
     # key already guards against, one field over.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.1])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.1])])
     base = _dests(1)
     raised = [{**base[0], "elevation_ft": 8000.0}]
 
@@ -896,7 +826,7 @@ async def test_a_sea_level_row_is_cached_apart_from_an_unknown_elevation(monkeyp
     # 0 ft is an elevation like any other, and the cloud walk inserts its 2 m
     # point where an unknown elevation walks the levels alone, so a falsy-zero
     # key would serve one row the other's deck.
-    calls = _stub_openmeteo(
+    calls = stub_openmeteo(
         monkeypatch,
         [_payload([0.1]), _payload([0.1]), [_cloud_location()], [_cloud_location()]],
     )
@@ -912,7 +842,7 @@ async def test_a_sea_level_row_is_cached_apart_from_an_unknown_elevation(monkeyp
 
 
 async def test_fetch_weather_batch_splits_into_batches_of_fifty(monkeypatch):
-    calls = _stub_openmeteo(
+    calls = stub_openmeteo(
         monkeypatch, [_payload([0.1] * 50), _payload([0.2] * 50), _payload([0.3] * 20)]
     )
     results = await fetch_weather_batch(_dests(120), START, END)
@@ -927,7 +857,7 @@ async def test_batches_share_one_client_instead_of_one_each(monkeypatch):
     # httpx's connection pool every batch, so all thirty batches of a
     # 1,500-destination analysis pay their own TLS handshake. Constructing an
     # AsyncClient anywhere on this path is now the failure.
-    _stub_openmeteo(
+    stub_openmeteo(
         monkeypatch, [_payload([0.1] * 50), _payload([0.2] * 50), _payload([0.3] * 20)]
     )
 
@@ -986,7 +916,7 @@ async def _longest_stall(work: Any) -> float:
 
 
 async def test_a_batch_decodes_off_the_event_loop(monkeypatch):
-    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    stub_openmeteo(monkeypatch, [_payload([0.1])])
     monkeypatch.setattr(httpx.Response, "json", _slowly(httpx.Response.json))
 
     stall = await _longest_stall(fetch_weather_batch(_dests(1), START, END))
@@ -995,7 +925,7 @@ async def test_a_batch_decodes_off_the_event_loop(monkeypatch):
 
 
 async def test_a_batch_aggregates_off_the_event_loop(monkeypatch):
-    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    stub_openmeteo(monkeypatch, [_payload([0.1])])
     monkeypatch.setattr(weather, "_weather_metrics", _slowly(_weather_metrics))
     results: list[Any] = []
 
@@ -1010,7 +940,7 @@ async def test_a_batch_aggregates_off_the_event_loop(monkeypatch):
 
 
 async def test_a_cloud_batch_aggregates_off_the_event_loop(monkeypatch):
-    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    stub_openmeteo(monkeypatch, [_payload([0.1])])
     monkeypatch.setattr(weather, "_cloud_metrics", _slowly(lambda *args: None))
 
     stall = await _longest_stall(weather.fetch_cloud_batch(_dests(1), START, END))
@@ -1023,7 +953,7 @@ async def test_fetch_weather_batch_reassembles_by_index_not_arrival(monkeypatch)
     # order. The first batch is made to finish last to prove the reassembly
     # keys off each chunk's own index — otherwise a slow early batch would
     # silently hand every destination another location's forecast.
-    calls = _stub_openmeteo(
+    calls = stub_openmeteo(
         monkeypatch,
         [
             (4, _payload([0.1] * 50)),
@@ -1048,7 +978,7 @@ async def test_fetch_weather_batch_reports_progress_as_batches_land(monkeypatch)
     async def on_progress(processed, total, done, total_batches):
         seen.append((processed, total, done, total_batches))
 
-    _stub_openmeteo(monkeypatch, [_payload([0.1] * 50), _payload([0.2] * 10)])
+    stub_openmeteo(monkeypatch, [_payload([0.1] * 50), _payload([0.2] * 10)])
     await fetch_weather_batch(_dests(60), START, END, on_progress=on_progress)
 
     assert [s[2] for s in seen] == [1, 2]  # batches done, in order
@@ -1063,7 +993,7 @@ async def test_fetch_weather_batch_counts_cached_rows_in_the_first_progress_call
     async def on_progress(processed, total, done, total_batches):
         seen.append((processed, total, done, total_batches))
 
-    _stub_openmeteo(monkeypatch, [_payload([0.1, 0.2]), _payload([0.3])])
+    stub_openmeteo(monkeypatch, [_payload([0.1, 0.2]), _payload([0.3])])
     await fetch_weather_batch(_dests(2), START, END)
     await fetch_weather_batch(_dests(3), START, END, on_progress=on_progress)
 
@@ -1080,15 +1010,8 @@ async def test_fetch_weather_batch_narrates_a_long_pace_wait(monkeypatch):
     async def on_pace(seconds):
         paced.append(seconds)
 
-    class _SlowBudget:
-        def wait_estimate_s(self, weight):
-            return 12.4
-
-        async def acquire(self, weight):
-            return None
-
-    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", _SlowBudget())
-    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", RecordingPacer(12.4))
+    stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END, on_pace=on_pace)
 
     assert paced == [13]  # rounded up, so the countdown never finishes early
@@ -1100,15 +1023,9 @@ async def test_fetch_weather_batch_stays_quiet_for_a_short_pace_wait(monkeypatch
     async def on_pace(seconds):
         paced.append(seconds)
 
-    class _BriefBudget:
-        def wait_estimate_s(self, weight):
-            return 3.0  # at the threshold, not past it
-
-        async def acquire(self, weight):
-            return None
-
-    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", _BriefBudget())
-    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    # At the threshold, not past it.
+    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", RecordingPacer(3.0))
+    stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END, on_pace=on_pace)
 
     assert paced == []
@@ -1117,13 +1034,8 @@ async def test_fetch_weather_batch_stays_quiet_for_a_short_pace_wait(monkeypatch
 async def test_minutely_rate_limit_resumes_the_batch_once(monkeypatch):
     # The incident behavior: a minutely quota refills within the minute, so one
     # paced retry completes the batch instead of failing the whole analysis.
-    slept: list[float] = []
-
-    async def fake_sleep(seconds):
-        slept.append(seconds)
-
-    monkeypatch.setattr(openmeteo_fetch.asyncio, "sleep", fake_sleep)
-    calls = _stub_openmeteo(
+    slept = sleep_recorder(monkeypatch)
+    calls = stub_openmeteo(
         monkeypatch, [_rate_limited("minutely", retry_after=7), _payload([0.4])]
     )
     results = await fetch_weather_batch(_dests(1), START, END)
@@ -1135,11 +1047,8 @@ async def test_minutely_rate_limit_resumes_the_batch_once(monkeypatch):
 
 async def test_minutely_rate_limit_twice_gives_up(monkeypatch):
     # One resume, not a loop. A second 429 on the same batch is real exhaustion.
-    async def fake_sleep(seconds):
-        return None
-
-    monkeypatch.setattr(openmeteo_fetch.asyncio, "sleep", fake_sleep)
-    calls = _stub_openmeteo(
+    sleep_recorder(monkeypatch)
+    calls = stub_openmeteo(
         monkeypatch,
         [_rate_limited("minutely", retry_after=1), _rate_limited("minutely", retry_after=1)],
     )
@@ -1148,19 +1057,6 @@ async def test_minutely_rate_limit_twice_gives_up(monkeypatch):
 
     assert len(calls) == 2
     assert exc.value.scope == "minutely"
-
-
-class _CountingWeight:
-    """A weighted pacer that never waits and counts what it was asked to spend."""
-
-    def __init__(self) -> None:
-        self.spent: list[float] = []
-
-    def wait_estimate_s(self, weight: float) -> float:
-        return 0.0
-
-    async def acquire(self, weight: float) -> None:
-        self.spent.append(weight)
 
 
 async def test_a_minutely_resume_waits_outside_the_in_flight_slot(monkeypatch):
@@ -1175,7 +1071,7 @@ async def test_a_minutely_resume_waits_outside_the_in_flight_slot(monkeypatch):
 
     monkeypatch.setattr(ratelimit, "WEATHER_BUDGET", slots)
     monkeypatch.setattr(openmeteo_fetch.asyncio, "sleep", fake_sleep)
-    calls = _stub_openmeteo(
+    calls = stub_openmeteo(
         monkeypatch, [_rate_limited("minutely", retry_after=7), _payload([0.4])]
     )
     results = await fetch_weather_batch(_dests(1), START, END)
@@ -1188,32 +1084,23 @@ async def test_a_minutely_resume_waits_outside_the_in_flight_slot(monkeypatch):
 async def test_a_minutely_resume_pays_its_weight_again(monkeypatch):
     # The provider bills the repeated request like any other, so the pacer has
     # to hear about it, or the pod spends past the budget it believes it kept.
-    pacer = _CountingWeight()
-
-    async def fake_sleep(seconds):
-        return None
-
+    pacer = RecordingPacer()
     monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", pacer)
-    monkeypatch.setattr(openmeteo_fetch.asyncio, "sleep", fake_sleep)
-    _stub_openmeteo(
+    sleep_recorder(monkeypatch)
+    stub_openmeteo(
         monkeypatch, [_rate_limited("minutely", retry_after=7), _payload([0.4])]
     )
     await fetch_weather_batch(_dests(1), START, END)
 
     one_request = call_weight(1, START.date(), END.date(), weather.N_VARIABLES, n_models=1)
-    assert pacer.spent == [one_request, one_request]
+    assert pacer.acquired == [one_request, one_request]
 
 
 async def test_a_minutely_resume_caps_the_wait(monkeypatch):
     # A minutely quota refills within its minute. A Retry-After longer than
     # that is not one this resume can help, and it used to be slept in full.
-    slept: list[float] = []
-
-    async def fake_sleep(seconds):
-        slept.append(seconds)
-
-    monkeypatch.setattr(openmeteo_fetch.asyncio, "sleep", fake_sleep)
-    _stub_openmeteo(
+    slept = sleep_recorder(monkeypatch)
+    stub_openmeteo(
         monkeypatch, [_rate_limited("minutely", retry_after=3600), _payload([0.4])]
     )
     await fetch_weather_batch(_dests(1), START, END)
@@ -1222,11 +1109,8 @@ async def test_a_minutely_resume_caps_the_wait(monkeypatch):
 
 
 async def test_a_cloud_batch_resumes_a_minutely_429_too(monkeypatch):
-    async def fake_sleep(seconds):
-        return None
-
-    monkeypatch.setattr(openmeteo_fetch.asyncio, "sleep", fake_sleep)
-    calls = _stub_openmeteo(
+    sleep_recorder(monkeypatch)
+    calls = stub_openmeteo(
         monkeypatch, [_rate_limited("minutely", retry_after=7), [_cloud_location()]]
     )
     [row] = await weather.fetch_cloud_batch([dest(46.85, -121.76)], START, END)
@@ -1238,13 +1122,8 @@ async def test_a_cloud_batch_resumes_a_minutely_429_too(monkeypatch):
 async def test_hourly_rate_limit_stops_immediately(monkeypatch):
     # No wait we are willing to impose helps an hourly quota, so it must not
     # burn a retry (or a sleep) discovering that.
-    slept: list[float] = []
-
-    async def fake_sleep(seconds):
-        slept.append(seconds)
-
-    monkeypatch.setattr(openmeteo_fetch.asyncio, "sleep", fake_sleep)
-    calls = _stub_openmeteo(monkeypatch, [_rate_limited("hourly")])
+    slept = sleep_recorder(monkeypatch)
+    calls = stub_openmeteo(monkeypatch, [_rate_limited("hourly")])
     with pytest.raises(UpstreamRateLimited) as exc:
         await fetch_weather_batch(_dests(1), START, END)
 
@@ -1258,7 +1137,7 @@ async def test_a_non_429_status_error_is_an_upstream_error(monkeypatch):
     request = httpx.Request("GET", weather.FORECAST_URL)
     response = httpx.Response(500, request=request, text="upstream boom")
     failure = httpx.HTTPStatusError("500", request=request, response=response)
-    calls = _stub_openmeteo(monkeypatch, [failure])
+    calls = stub_openmeteo(monkeypatch, [failure])
 
     with pytest.raises(UpstreamError) as exc:
         await fetch_weather_batch(_dests(1), START, END)
@@ -1268,7 +1147,7 @@ async def test_a_non_429_status_error_is_an_upstream_error(monkeypatch):
 
 
 async def test_a_transport_failure_is_an_upstream_error(monkeypatch):
-    _stub_openmeteo(monkeypatch, [httpx.ConnectError("no route to host")])
+    stub_openmeteo(monkeypatch, [httpx.ConnectError("no route to host")])
     with pytest.raises(UpstreamError):
         await fetch_weather_batch(_dests(1), START, END)
 
@@ -1277,7 +1156,7 @@ async def test_a_body_that_is_not_json_is_an_upstream_error(monkeypatch):
     # Issue #630: an HTML page from something in front of the API, on a 200.
     # It fails the batch with the sentence every other unusable Open-Meteo
     # answer gets, rather than escaping as a JSONDecodeError.
-    _stub_openmeteo(monkeypatch, [lambda url, params: fake_response(None, text="<html>busy</html>")])
+    stub_openmeteo(monkeypatch, [lambda url, params: fake_response(None, text="<html>busy</html>")])
     with pytest.raises(UpstreamError) as exc:
         await fetch_weather_batch(_dests(1), START, END)
     assert exc.value.message == "Open-Meteo request failed. Try again later."
@@ -1292,7 +1171,7 @@ async def test_a_request_past_its_total_deadline_is_an_upstream_error(monkeypatc
         await asyncio.sleep(1)
         return fake_response(_payload([0.5]))
 
-    _stub_openmeteo(monkeypatch, [slow])
+    stub_openmeteo(monkeypatch, [slow])
     with pytest.raises(UpstreamError) as exc:
         await fetch_weather_batch(_dests(1), START, END)
     assert exc.value.message == "Open-Meteo took too long. Try again later."
@@ -1307,7 +1186,7 @@ async def test_a_request_past_its_total_deadline_logs_the_deadline(monkeypatch, 
         await asyncio.sleep(1)
         return fake_response(_payload([0.5]))
 
-    _stub_openmeteo(monkeypatch, [slow])
+    stub_openmeteo(monkeypatch, [slow])
     with caplog.at_level(logging.WARNING), pytest.raises(UpstreamError):
         await fetch_weather_batch(_dests(1), START, END, api_key=FAKE_API_KEY)
     assert any(
@@ -1325,7 +1204,7 @@ async def test_a_wedged_weather_budget_fails_the_batch_rather_than_degrading_it(
         raise ratelimit.BudgetExhausted("Open-Meteo (weather)")
 
     monkeypatch.setattr(ratelimit.WEATHER_WEIGHT, "acquire", shed)
-    calls = _stub_openmeteo(monkeypatch, [])
+    calls = stub_openmeteo(monkeypatch, [])
     with pytest.raises(ratelimit.BudgetExhausted):
         await fetch_weather_batch(_dests(1), START, END)
     assert calls == []
@@ -1334,11 +1213,11 @@ async def test_a_wedged_weather_budget_fails_the_batch_rather_than_degrading_it(
 async def test_a_failed_batch_does_not_poison_the_cache(monkeypatch):
     # A failure must leave nothing behind, or the outage outlives itself for
     # the length of the forecast TTL.
-    _stub_openmeteo(monkeypatch, [httpx.ConnectError("down")])
+    stub_openmeteo(monkeypatch, [httpx.ConnectError("down")])
     with pytest.raises(UpstreamError):
         await fetch_weather_batch(_dests(1), START, END)
 
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.5])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.5])])
     results = await fetch_weather_batch(_dests(1), START, END)
     assert len(calls) == 1
     assert results[0]["precip_total_in"] == 0.5
@@ -1346,7 +1225,7 @@ async def test_a_failed_batch_does_not_poison_the_cache(monkeypatch):
 
 async def test_a_single_location_response_object_is_normalized(monkeypatch):
     # Open-Meteo answers one location with an object and many with an array.
-    _stub_openmeteo(monkeypatch, [_one_location(0.6)])
+    stub_openmeteo(monkeypatch, [_one_location(0.6)])
     results = await fetch_weather_batch(_dests(1), START, END)
     assert len(results) == 1
     assert results[0]["precip_total_in"] == 0.6
@@ -1355,7 +1234,7 @@ async def test_a_single_location_response_object_is_normalized(monkeypatch):
 async def test_a_location_with_no_usable_hours_comes_back_none(monkeypatch):
     # Open-Meteo answered, but this location's window holds nothing — a real
     # None row, distinct from a fetch failure, and cached as such.
-    _stub_openmeteo(monkeypatch, [[_hourly([], [], [], [])]])
+    stub_openmeteo(monkeypatch, [[weather_hourly([], [], [], [])]])
     results = await fetch_weather_batch(_dests(1), START, END)
     assert results == [None]
 
@@ -1363,7 +1242,7 @@ async def test_a_location_with_no_usable_hours_comes_back_none(monkeypatch):
 async def test_the_response_carries_the_hourly_series_for_the_chart(monkeypatch):
     # One upstream fetch feeds both the aggregates and the chart; the route
     # must not have to re-query for the series.
-    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    stub_openmeteo(monkeypatch, [_payload([0.1])])
     results = await fetch_weather_batch(_dests(1), START, END)
     assert results[0]["series"]["precip_in"] == [0.1, 0.0, 0.0]
     assert len(results[0]["series"]["times"]) == 3
@@ -1374,7 +1253,7 @@ def _whole_day(day: str, count: int = 25):
     if count > 24:
         times.append("2026-07-22T00:00")
     n = len(times)
-    return _hourly(times, [0.1] * n, [50.0] * n, [5.0] * n)
+    return weather_hourly(times, [0.1] * n, [50.0] * n, [5.0] * n)
 
 
 # What a calendar day means on the wire (#166). One click on a day sends
@@ -1418,14 +1297,14 @@ async def test_the_chosen_model_reaches_the_wire(monkeypatch):
     # `models=` is always sent, never omitted. Omitting it takes Open-Meteo's
     # `best_match` blend, which picks per location and never reports its pick,
     # so two peaks in one response could come from two models unannounced.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
 
     assert calls[0]["models"] == "gfs_hrrr"
 
 
 async def test_every_request_names_a_model_even_at_the_default(monkeypatch):
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END)
 
     assert calls[0]["models"] == DEFAULT_FORECAST_MODEL.value
@@ -1435,7 +1314,7 @@ async def test_two_models_do_not_share_one_cache_entry(monkeypatch):
     # The bug this prevents is silent: models disagree, so a shared entry would
     # serve the second model asked for the first one's numbers, which is exactly
     # the thing choosing a model is supposed to make impossible.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.9])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.9])])
     first = await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.ecmwf_ifs025)
     second = await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_seamless)
 
@@ -1447,7 +1326,7 @@ async def test_two_models_do_not_share_one_cache_entry(monkeypatch):
 async def test_the_same_model_twice_still_serves_from_cache(monkeypatch):
     # The other half of the pair above: adding the model to the key must not
     # cost the repeat-analysis hit the cache exists for.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_seamless)
     await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_seamless)
 
@@ -1455,7 +1334,7 @@ async def test_the_same_model_twice_still_serves_from_cache(monkeypatch):
 
 
 async def test_a_point_outside_a_regional_model_raises_model_coverage(monkeypatch):
-    _stub_openmeteo(monkeypatch, [_out_of_domain()])
+    stub_openmeteo(monkeypatch, [_out_of_domain()])
     with pytest.raises(ModelCoverageError) as exc:
         await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
 
@@ -1470,7 +1349,7 @@ async def test_a_coverage_refusal_is_not_reported_as_a_generic_upstream_failure(
     # It subclasses UpstreamError so existing handlers still catch it, but the
     # route maps it to 400 rather than 502 — the upstream is healthy and
     # answered correctly, and only the caller can fix the request.
-    _stub_openmeteo(monkeypatch, [_out_of_domain()])
+    stub_openmeteo(monkeypatch, [_out_of_domain()])
     with pytest.raises(UpstreamError) as exc:
         await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
 
@@ -1482,7 +1361,7 @@ async def test_an_ordinary_400_stays_an_ordinary_upstream_error(monkeypatch):
     # other reason must not be blamed on the model.
     request = httpx.Request("GET", weather.FORECAST_URL)
     response = httpx.Response(400, request=request, json={"reason": "Invalid date"})
-    _stub_openmeteo(monkeypatch, [httpx.HTTPStatusError("400", request=request, response=response)])
+    stub_openmeteo(monkeypatch, [httpx.HTTPStatusError("400", request=request, response=response)])
     with pytest.raises(UpstreamError) as exc:
         await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
 
@@ -1490,21 +1369,6 @@ async def test_an_ordinary_400_stays_an_ordinary_upstream_error(monkeypatch):
 
 
 # ── a caller's own API key (issue #317) ────────────────────────────────────
-
-
-class _RecordingWeight:
-    """Stands in for the weighted pacer and records every acquire."""
-
-    def __init__(self) -> None:
-        self.acquired: list[float] = []
-        self.estimates: list[float] = []
-
-    def wait_estimate_s(self, weight: float) -> float:
-        self.estimates.append(weight)
-        return 99.0  # far past the 3s narration threshold
-
-    async def acquire(self, weight: float) -> None:
-        self.acquired.append(weight)
 
 
 def _invalid_key() -> httpx.HTTPStatusError:
@@ -1524,7 +1388,7 @@ def _invalid_key() -> httpx.HTTPStatusError:
 
 async def test_a_keyed_batch_goes_to_the_customer_host_carrying_the_key(monkeypatch):
     urls: list[str] = []
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
     await fetch_weather_batch(_dests(1), START, END, api_key="secret-key")
 
     assert urls == [weather.CUSTOMER_FORECAST_URL]
@@ -1533,7 +1397,7 @@ async def test_a_keyed_batch_goes_to_the_customer_host_carrying_the_key(monkeypa
 
 async def test_an_unkeyed_batch_stays_on_the_free_host_with_no_key(monkeypatch):
     urls: list[str] = []
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
     await fetch_weather_batch(_dests(1), START, END)
 
     assert urls == [weather.FORECAST_URL]
@@ -1543,14 +1407,16 @@ async def test_an_unkeyed_batch_stays_on_the_free_host_with_no_key(monkeypatch):
 async def test_a_keyed_batch_never_touches_the_weighted_pacer(monkeypatch):
     # The pacer meters this pod's free tier. A keyed batch spends the caller's
     # quota, so pacing it would queue one caller behind another's spend.
-    pacer = _RecordingWeight()
+    # An estimate far past the 3 s narration threshold, so a paced keyed
+    # batch would have to say so.
+    pacer = RecordingPacer(99.0)
     monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", pacer)
     paced: list[int] = []
 
     async def on_pace(seconds):
         paced.append(seconds)
 
-    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(
         _dests(1), START, END, on_pace=on_pace, api_key="secret-key"
     )
@@ -1561,9 +1427,9 @@ async def test_a_keyed_batch_never_touches_the_weighted_pacer(monkeypatch):
 
 
 async def test_an_unkeyed_batch_still_pays_the_weighted_pacer(monkeypatch):
-    pacer = _RecordingWeight()
+    pacer = RecordingPacer()
     monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", pacer)
-    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END)
 
     # One location over one day at 15 variables: 1 x 1 x 1.5 (#443, #678).
@@ -1582,14 +1448,14 @@ async def test_a_keyed_batch_still_takes_an_in_flight_slot(monkeypatch):
             return real_slot()
 
     monkeypatch.setattr(ratelimit, "WEATHER_BUDGET", _CountingBudget())
-    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END, api_key="secret-key")
 
     assert taken["n"] == 1
 
 
 async def test_a_refused_key_raises_invalid_api_key(monkeypatch):
-    _stub_openmeteo(monkeypatch, [_invalid_key()])
+    stub_openmeteo(monkeypatch, [_invalid_key()])
     with pytest.raises(InvalidApiKeyError) as exc:
         await fetch_weather_batch(_dests(1), START, END, api_key="bad-key")
 
@@ -1600,7 +1466,7 @@ async def test_a_refused_key_raises_invalid_api_key(monkeypatch):
 async def test_a_refused_key_is_not_classified_as_a_transient_failure(monkeypatch):
     # Left to classify_http_error it would reach the caller as a 502 "try
     # again later" for a request no retry can fix.
-    _stub_openmeteo(monkeypatch, [_invalid_key()])
+    stub_openmeteo(monkeypatch, [_invalid_key()])
     with pytest.raises(UpstreamError) as exc:
         await fetch_weather_batch(_dests(1), START, END, api_key="bad-key")
 
@@ -1656,7 +1522,7 @@ async def test_the_key_reaches_no_log_record(monkeypatch, caplog, answer, error)
     # The pod forwards a paid credential and must forget it. TRACE logs the
     # full request params, and raise_for_status builds its message out of the
     # request URL, so both are places the key could come to rest.
-    _stub_openmeteo(monkeypatch, [answer])
+    stub_openmeteo(monkeypatch, [answer])
     with caplog.at_level(5), pytest.raises(error):  # TRACE
         await fetch_weather_batch(_dests(1), START, END, api_key=FAKE_API_KEY)
     assert_no_key_logged(caplog.records)
@@ -1668,7 +1534,7 @@ async def test_a_second_failed_batch_logs_no_key_either(monkeypatch, caplog):
     # log it at ERROR with that traceback when the task is collected, unless
     # the pipeline's cancel marks it seen first.
     refused = _answered(400, {"error": True, "reason": "The supplied API key is invalid."})
-    _stub_openmeteo(monkeypatch, [refused, refused])
+    stub_openmeteo(monkeypatch, [refused, refused])
     with caplog.at_level(5):  # TRACE
         with pytest.raises(InvalidApiKeyError):
             await fetch_weather_batch(
@@ -1681,7 +1547,7 @@ async def test_a_second_failed_batch_logs_no_key_either(monkeypatch, caplog):
 async def test_a_keyed_and_an_unkeyed_request_share_one_cache_entry(monkeypatch):
     # Both hosts answer the same model the same way for the same location and
     # window, so the key is deliberately not part of the cache key.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
     first = await fetch_weather_batch(_dests(1), START, END, api_key="secret-key")
     second = await fetch_weather_batch(_dests(1), START, END)
 
@@ -1698,7 +1564,7 @@ async def test_a_keyed_and_an_unkeyed_request_share_one_cache_entry(monkeypatch)
 
 async def test_an_archive_window_goes_to_the_archive_endpoint(monkeypatch):
     urls: list[str] = []
-    _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
     await fetch_weather_batch(_dests(1), START, END, source="archive")
 
     assert urls == [weather.ARCHIVE_URL]
@@ -1710,7 +1576,7 @@ async def test_an_archive_window_names_no_model(monkeypatch):
     # Forwarding the picker's model would be worse than useless: the archive
     # accepts an unknown `models=` with a 200 and plausible data, so a name it
     # does not serve would be answered silently by something else.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(
         _dests(1), START, END, model=ForecastModel.gfs_hrrr, source="archive"
     )
@@ -1722,7 +1588,7 @@ async def test_an_archive_window_names_no_model(monkeypatch):
 
 
 async def test_a_forecast_window_still_names_its_model(monkeypatch):
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
 
     assert calls[0]["models"] == "gfs_hrrr"
@@ -1730,7 +1596,7 @@ async def test_a_forecast_window_still_names_its_model(monkeypatch):
 
 async def test_a_keyed_archive_window_goes_to_the_customer_archive_host(monkeypatch):
     urls: list[str] = []
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
     await fetch_weather_batch(
         _dests(1), START, END, api_key="secret-key", source="archive"
     )
@@ -1744,7 +1610,7 @@ async def test_fetch_weather_batch_keys_the_cache_by_endpoint(monkeypatch):
     # data, and the boundary between them moves with the clock — so a window
     # that changes sides while an entry is live must miss rather than be served
     # the other endpoint's numbers.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.2])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.2])])
 
     forecast = await fetch_weather_batch(_dests(1), START, END)
     archive = await fetch_weather_batch(_dests(1), START, END, source="archive")
@@ -1761,7 +1627,7 @@ async def test_an_archive_payload_with_no_level_winds_keeps_every_hour(monkeypat
     # core arrays, so a null level can only ever change a wind number.
     block = _one_location()
     block["hourly"].update({name: [None] * 3 for name, _ in aggregation._WIND_LEVELS})
-    _stub_openmeteo(monkeypatch, [[block]])
+    stub_openmeteo(monkeypatch, [[block]])
     dests = _dests(1)
     dests[0]["elevation_ft"] = 14000.0
 
@@ -1786,7 +1652,7 @@ SEAM = datetime(2026, 7, 19, 0, 0, tzinfo=UTC)
 
 def _half(times, precip):
     """One location's half-window, with the five levels answered null."""
-    block = _hourly(
+    block = weather_hourly(
         times,
         precip,
         [50.0] * len(times),
@@ -1806,7 +1672,7 @@ def _forecast_half():
 
 async def test_a_spanning_window_asks_each_endpoint_for_its_own_hours(monkeypatch):
     urls: list[str] = []
-    calls = _stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()], urls)
+    calls = stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()], urls)
     await fetch_weather_batch(
         _dests(1),
         SPAN_START,
@@ -1829,7 +1695,7 @@ async def test_a_spanning_window_asks_each_endpoint_for_its_own_hours(monkeypatc
 
 
 async def test_a_spanning_window_aggregates_both_halves_as_one_series(monkeypatch):
-    _stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()])
+    stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()])
     results = await fetch_weather_batch(
         _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
     )
@@ -1847,7 +1713,7 @@ async def test_a_spanning_window_drops_a_location_whose_halves_disagree_on_units
     # degrades to no forecast the way every unreadable payload here does.
     other = _forecast_half()
     other[0]["hourly_units"]["precipitation"] = "mm"
-    _stub_openmeteo(monkeypatch, [_archive_half(), other])
+    stub_openmeteo(monkeypatch, [_archive_half(), other])
     results = await fetch_weather_batch(
         _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
     )
@@ -1866,7 +1732,7 @@ async def test_a_spanning_window_joins_halves_whose_unserved_units_differ(
     archive[0]["hourly_units"]["wind_speed_500hPa"] = "undefined"
     forecast = _forecast_half()
     forecast[0]["hourly_units"]["wind_speed_500hPa"] = "mp/h"
-    _stub_openmeteo(monkeypatch, [archive, forecast])
+    stub_openmeteo(monkeypatch, [archive, forecast])
     results = await fetch_weather_batch(
         _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
     )
@@ -1887,7 +1753,7 @@ async def test_a_spanning_window_reads_the_freezing_level_in_the_served_unit(
     forecast = _forecast_half()
     forecast[0]["hourly_units"][aggregation._FREEZING_LEVEL] = "ft"
     forecast[0]["hourly"][aggregation._FREEZING_LEVEL] = [8000.0, 9000.0]
-    _stub_openmeteo(monkeypatch, [archive, forecast])
+    stub_openmeteo(monkeypatch, [archive, forecast])
     results = await fetch_weather_batch(
         _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
     )
@@ -1900,7 +1766,7 @@ async def test_a_spanning_window_reads_the_freezing_level_in_the_served_unit(
 async def test_a_spanning_window_counts_a_repeated_hour_once(monkeypatch):
     # The spans are disjoint, so this cannot come from the request — but a host
     # that answered one hour on both sides would otherwise double it.
-    _stub_openmeteo(
+    stub_openmeteo(
         monkeypatch,
         [_archive_half(), _half(["2026-07-18T23:00", "2026-07-19T00:00"], [9.9, 0.4])],
     )
@@ -1929,7 +1795,7 @@ async def test_a_spanning_window_reads_a_malformed_half_as_one_that_answered_not
     # cannot read must not raise there: that would fail the whole analysis
     # where the browser reads past the same body. The row is the forecast
     # half's hours alone, as a half with no `hourly` at all gives.
-    _stub_openmeteo(monkeypatch, [archive, _forecast_half()])
+    stub_openmeteo(monkeypatch, [archive, _forecast_half()])
     results = await fetch_weather_batch(
         _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
     )
@@ -1958,7 +1824,7 @@ def test_a_spanning_window_splits_at_the_boundary_instant_in_any_zone():
 async def test_a_spanning_window_keys_the_cache_apart_from_either_half(monkeypatch):
     # The joined series is a third answer at the same coordinates and window,
     # and it must not be served from — or serve — either endpoint alone.
-    calls = _stub_openmeteo(
+    calls = stub_openmeteo(
         monkeypatch,
         [_archive_half(), _forecast_half(), _archive_half(), _archive_half()],
     )
@@ -1976,23 +1842,22 @@ async def test_a_spanning_window_keys_the_cache_apart_from_either_half(monkeypat
 
 async def test_a_spanning_window_pays_for_both_halves(monkeypatch):
     # Two requests, two answers, so the pod's weighted budget is acquired for
-    # each span on its own hours rather than once for the whole window.
-    spent: list[float] = []
-
-    class _Budget:
-        async def acquire(self, weight):
-            spent.append(weight)
-
-        def wait_estimate_s(self, weight):
-            return 0
-
-    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", _Budget())
-    _stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()])
+    # each span on its own hours rather than once for the whole window. The
+    # archive half is eighteen days, past the fourteen a day factor of one
+    # covers, so its price differs from the whole window's and the forecast
+    # half's alike.
+    pacer = RecordingPacer()
+    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", pacer)
+    stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()])
+    long_start = datetime(2026, 7, 1, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
     await fetch_weather_batch(
-        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+        _dests(1), long_start, SPAN_END, source="spanning", boundary=SEAM
     )
 
-    assert len(spent) == 2
+    assert pacer.acquired == [
+        call_weight(1, date(2026, 7, 1), date(2026, 7, 18), weather.N_VARIABLES),
+        call_weight(1, date(2026, 7, 19), date(2026, 7, 19), weather.N_VARIABLES),
+    ]
 
 
 async def test_a_spanning_window_needs_the_boundary_that_classified_it():
@@ -2007,7 +1872,7 @@ async def test_a_spanning_window_with_one_empty_half_is_one_request(monkeypatch)
     # request, which converts both ends to UTC first; if one ever reaches the
     # service, the empty half is dropped, never requested backwards.
     urls: list[str] = []
-    _stub_openmeteo(monkeypatch, [_forecast_half()], urls)
+    stub_openmeteo(monkeypatch, [_forecast_half()], urls)
     await fetch_weather_batch(
         _dests(1),
         SEAM.replace(tzinfo=None),
@@ -2023,7 +1888,7 @@ async def test_fetch_weather_batch_fails_on_an_unreadable_unit(monkeypatch):
     # The raise has to clear both aggregation functions' degrade-to-None
     # handlers and the chunk loop, or an unreadable unit would quietly drop
     # every row in the batch instead of saying anything.
-    _stub_openmeteo(monkeypatch, [[_rainier([2560.0], "furlongs")]])
+    stub_openmeteo(monkeypatch, [[_rainier([2560.0], "furlongs")]])
     with pytest.raises(UpstreamError):
         await fetch_weather_batch(_dests(1), _RAINIER_START, _RAINIER_END)
 
@@ -2044,7 +1909,7 @@ def _cloud_location() -> dict[str, Any]:
 
 
 async def test_fetch_cloud_batch_asks_for_the_cloud_column_alone(monkeypatch):
-    calls = _stub_openmeteo(monkeypatch, [[_cloud_location()]])
+    calls = stub_openmeteo(monkeypatch, [[_cloud_location()]])
     await weather.fetch_cloud_batch([dest(46.85, -121.76, elevation_ft=2000.0)], START, END)
 
     hourly = calls[0]["hourly"].split(",")
@@ -2058,7 +1923,7 @@ async def test_fetch_cloud_batch_asks_for_the_cloud_column_alone(monkeypatch):
 
 
 async def test_fetch_cloud_batch_reads_the_deck_off_the_column(monkeypatch):
-    _stub_openmeteo(monkeypatch, [[_cloud_location()]])
+    stub_openmeteo(monkeypatch, [[_cloud_location()]])
     [row] = await weather.fetch_cloud_batch(
         [dest(46.85, -121.76, elevation_ft=2000.0)], START, END
     )
@@ -2075,7 +1940,7 @@ async def test_fetch_cloud_batch_reads_the_deck_off_the_column(monkeypatch):
 async def test_fetch_cloud_batch_is_cached_apart_from_the_weather(monkeypatch):
     # The same coordinates and window, two kinds of answer: the cloud entry
     # must never be served for a weather lookup, or the reverse.
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1]), [_cloud_location()]])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1]), [_cloud_location()]])
     dests = [dest(40.0, -120.0)]
     await fetch_weather_batch(dests, START, END)
     await weather.fetch_cloud_batch(dests, START, END)
@@ -2092,7 +1957,7 @@ async def test_fetch_cloud_batch_is_cached_apart_from_the_weather(monkeypatch):
 
 
 async def test_a_short_answer_fails_the_batch_instead_of_shifting_rows(monkeypatch):
-    calls = _stub_openmeteo(monkeypatch, [_payload([0.1, 0.2]), _payload([0.1, 0.2, 0.3])])
+    calls = stub_openmeteo(monkeypatch, [_payload([0.1, 0.2]), _payload([0.1, 0.2, 0.3])])
     dests = _dests(3)
     with pytest.raises(UpstreamError) as exc:
         await fetch_weather_batch(dests, START, END)
@@ -2106,13 +1971,13 @@ async def test_a_short_answer_fails_the_batch_instead_of_shifting_rows(monkeypat
 
 
 async def test_a_long_answer_fails_the_batch_too(monkeypatch):
-    _stub_openmeteo(monkeypatch, [_payload([0.1, 0.2, 0.3])])
+    stub_openmeteo(monkeypatch, [_payload([0.1, 0.2, 0.3])])
     with pytest.raises(UpstreamError):
         await fetch_weather_batch(_dests(2), START, END)
 
 
 async def test_a_short_half_fails_a_spanning_window(monkeypatch):
-    _stub_openmeteo(monkeypatch, [_archive_half(), []])
+    stub_openmeteo(monkeypatch, [_archive_half(), []])
     with pytest.raises(UpstreamError):
         await fetch_weather_batch(
             _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
@@ -2120,7 +1985,7 @@ async def test_a_short_half_fails_a_spanning_window(monkeypatch):
 
 
 async def test_a_short_cloud_answer_fails_the_batch(monkeypatch):
-    _stub_openmeteo(monkeypatch, [[_cloud_location()]])
+    stub_openmeteo(monkeypatch, [[_cloud_location()]])
     with pytest.raises(UpstreamError):
         await weather.fetch_cloud_batch(_dests(2), START, END)
 
