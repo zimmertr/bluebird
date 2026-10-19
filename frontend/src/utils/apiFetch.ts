@@ -95,14 +95,47 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
  * The `Retry-After` an answer carries, in seconds, or null.
  *
  * The overlays read it off a 503 or a 429 so a retry waits as long as the pod
- * asked (#580). Only the delta-seconds form: the pod and its rate limiter send
- * nothing else.
+ * asked (#580), and Open-Meteo's 429 reads it the same way. Only the
+ * delta-seconds form, which RFC 9110 defines as digits alone: the pod and its
+ * rate limiter send nothing else, and a value that is not one (`1.5`, `-5`, an
+ * HTTP date) is no wait at all, so each caller falls back to its own.
+ * Optional-chained, because a real Response always has headers and the
+ * minimal stubs some tests answer with do not.
  */
 export function retryAfterSeconds(res: Response): number | null {
-  const value = res.headers.get('Retry-After')
+  const value = res.headers?.get?.('Retry-After') ?? null
   if (value === null || !/^\d+$/.test(value.trim())) return null
   return Number(value.trim())
 }
+
+/**
+ * The FeatureCollection an overlay route answers with, or the overlay's own
+ * failure.
+ *
+ * Three overlays read their routes the same way, so the shape lives once:
+ * `unavailable` for an answer that is not `ok`, `unreadable` for a body that
+ * is no FeatureCollection, each the overlay's own approved sentence. A 429 is
+ * this client outpacing its own address limit and a 503 a pod that has never
+ * fetched from its source; both are marked `rateLimited`, because the next
+ * thing to do is wait rather than ask again, and `retryAfterS` is how long the
+ * pod asked for, which the overlay waits out (`map/overlays/recovery.ts`).
+ */
+export async function overlayFeatures<T>(res: Response, unavailable: string, unreadable: string): Promise<T> {
+  if (!res.ok) {
+    const err = new Error(unavailable) as OverlayFailure
+    err.rateLimited = res.status === 429 || res.status === 503
+    err.retryAfterS = retryAfterSeconds(res)
+    throw err
+  }
+  const data = await res.json()
+  if (!data || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
+    throw new Error(unreadable)
+  }
+  return data as T
+}
+
+/** What a failed overlay fetch throws: the sentence, and whether and how long to wait. */
+export type OverlayFailure = Error & { rateLimited?: boolean; retryAfterS?: number | null }
 
 /**
  * `apiFetch` for a caller with nothing to say about a status: any answer that

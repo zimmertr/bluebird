@@ -20,6 +20,8 @@
  * dropped, since a link naming an unknown model is still that reader's link.
  */
 
+import { clamp } from './numbers'
+
 /** The one field these rules read off a published model. */
 export interface OrderedModel {
   id: string
@@ -168,5 +170,5 @@ export function rankWith(
  */
 export function chipFocusAfterRemoval(removed: number, remaining: number): number {
   if (remaining <= 0) return 0
-  return Math.min(Math.max(removed, 0), remaining - 1)
+  return clamp(removed, 0, remaining - 1)
 }

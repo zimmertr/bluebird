@@ -11,12 +11,12 @@ import {
   smokePopupHtml,
   smokeSwatch,
 } from './smoke'
+import type { OverlayFailure } from './apiFetch'
 
 afterEach(() => vi.unstubAllGlobals())
 
 describe('fetchSmoke', () => {
   const run = () => fetchSmoke(new AbortController().signal)
-  type Failure = Error & { rateLimited?: boolean; retryAfterS?: number | null }
 
   it('returns the analysis as the pod sent it', async () => {
     const body = { type: 'FeatureCollection', features: [], fetched_at: 1, analysis_date: '2026-08-04' }
@@ -28,7 +28,7 @@ describe('fetchSmoke', () => {
   // that has never fetched from NOAA. The wait is the one the pod named.
   it.each([429, 503])('marks a %i as a wait, with its Retry-After', async (status) => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ detail: 'x' }, status, { 'Retry-After': '30' })))
-    const err = (await run().catch((e: unknown) => e)) as Failure
+    const err = (await run().catch((e: unknown) => e)) as OverlayFailure
     expect(err.message).toBe('Smoke data unavailable. Try again later.')
     expect(err.rateLimited).toBe(true)
     expect(err.retryAfterS).toBe(30)
@@ -36,7 +36,7 @@ describe('fetchSmoke', () => {
 
   it('leaves any other failure unmarked', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ detail: 'x' }, 500)))
-    const err = (await run().catch((e: unknown) => e)) as Failure
+    const err = (await run().catch((e: unknown) => e)) as OverlayFailure
     expect(err.message).toBe('Smoke data unavailable. Try again later.')
     expect(err.rateLimited).toBe(false)
     expect(err.retryAfterS).toBeNull()

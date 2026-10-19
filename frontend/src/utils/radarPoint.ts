@@ -28,6 +28,7 @@ import type { HeldTiles, Rgba } from './heldTiles'
 import { inBounds, type PointReading, type PointSection } from './pointReadout'
 import { escapeHtml, row, updatedLine } from './popupChrome'
 import { RADAR_EXTENTS } from './radar'
+import { clamp } from './numbers'
 
 /**
  * The N0Q composite's palette, 256 colours as RGB hex, index 0 first.
@@ -233,7 +234,7 @@ export const RADAR_TILE_PX = 256
  * maplibre-gl 6.13.0, read rather than assumed).
  */
 export function radarTileZoom(mapZoom: number): number {
-  return Math.max(0, Math.min(22, Math.round(mapZoom + 1)))
+  return clamp(Math.round(mapZoom + 1), 0, 22)
 }
 
 /** Where one frame's tiles are kept in `heldTiles.ts`. */

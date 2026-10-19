@@ -10,7 +10,7 @@ describe('a real abort in the DOM project', () => {
     const controller = new AbortController()
     controller.abort()
     const reason: unknown = controller.signal.reason
-    expect(reason instanceof DOMException).toBe(false)
+    expect(reason).not.toBeInstanceOf(DOMException)
     expect(isAbort(reason)).toBe(true)
     expect(analysisFailure(reason, []).kind).toBe('cancel')
   })

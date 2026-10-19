@@ -17,6 +17,8 @@
  * 256 px tile is 256 KB and the radar loop holds six frames of them.
  */
 
+import { clamp } from './numbers'
+
 /** One pixel of one web-mercator tile. */
 export interface TilePixel {
   z: number
@@ -33,9 +35,9 @@ export function tilePixel(lng: number, lat: number, z: number, size: number): Ti
   const fx = ((lng + 180) / 360) * n
   const sin = Math.sin((lat * Math.PI) / 180)
   const fy = (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * n
-  const x = Math.min(n - 1, Math.max(0, Math.floor(fx)))
-  const y = Math.min(n - 1, Math.max(0, Math.floor(fy)))
-  const pixel = (f: number, t: number) => Math.min(size - 1, Math.max(0, Math.floor((f - t) * size)))
+  const x = clamp(Math.floor(fx), 0, n - 1)
+  const y = clamp(Math.floor(fy), 0, n - 1)
+  const pixel = (f: number, t: number) => clamp(Math.floor((f - t) * size), 0, size - 1)
   return { z, x, y, px: pixel(fx, x), py: pixel(fy, y) }
 }
 

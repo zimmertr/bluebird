@@ -18,12 +18,22 @@
 // forecast endpoint has no data for is the archive's, and one that crosses
 // between them belongs to both, fetched from each and joined at the seam.
 
-// Exported rather than declared again in the two other modules that needed it
-// (#388). It lives here because this is the file that turns a forecast window
-// into hours; both readers are doing a piece of the same arithmetic.
+// The time units, exported rather than declared or spelled again in the
+// modules that need them (#388). They live here because this is the file that
+// turns a forecast window into hours; every reader is doing a piece of the
+// same arithmetic. The linter's `time-units-one-home` check fails the
+// milliseconds spelled anywhere else.
 export const HOUR_MS = 3_600_000
-const MINUTE_MS = 60_000
-const DAY_MS = 86_400_000
+export const MINUTE_MS = 60_000
+export const DAY_MS = 86_400_000
+
+/**
+ * An instant floored to the start of its hour. Toward zero rather than
+ * toward minus infinity, which differs only before 1970.
+ */
+export function floorHour(ms: number): number {
+  return ms - (ms % HOUR_MS)
+}
 
 // The three numbers below are FALLBACKS, not the values this module computes
 // with. Each one is published — `limits.max_past_days`, `limits.max_future_days`
@@ -234,7 +244,7 @@ export function isPointSample(startMs: number, endMs: number): boolean {
  */
 export function normalizeWindow(startMs: number, endMs: number): ResolvedWindow {
   if (startMs !== endMs) return { startMs, endMs }
-  const floored = startMs - (startMs % HOUR_MS)
+  const floored = floorHour(startMs)
   return { startMs: floored, endMs: floored + MINUTE_MS }
 }
 

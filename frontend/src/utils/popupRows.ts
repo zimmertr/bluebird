@@ -4,7 +4,7 @@ import { cellColor } from './resultsCells'
 import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
-import { isUnavailableKey, unavailableCellText } from './unavailableCell'
+import { NO_VALUE_MARK, isUnavailableKey, unavailableCellText } from './unavailableCell'
 import { isCloudDeckMark } from './cloudDeckMark'
 
 /**
@@ -108,7 +108,7 @@ function cellText(col: ColDef, row: DestinationResult): { text: string; linkable
   // "NaN", and both are a number the forecast never gave. The dash is what the
   // table's own cell draws. The link stays, matching the table, which links a
   // cell by its column rather than by whether the hour had a value.
-  if (raw == null) return { text: '—', linkable: true }
+  if (raw == null) return { text: NO_VALUE_MARK, linkable: true }
   return { text: col.format ? col.format(raw) : String(raw), linkable: true }
 }
 

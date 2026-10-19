@@ -556,6 +556,28 @@ describe('fetchWeather', () => {
     ).rejects.toMatchObject({ scope: 'hourly' })
   })
 
+  // The header is read by the pod's strict parser (`retryAfterSeconds`): a
+  // value that is not whole seconds falls to the quota's own floor, and a 0
+  // resumes after a second rather than at once.
+  it.each([
+    ['120', 120],
+    ['1.5', 900],
+    ['0', 1],
+  ])('waits out a Retry-After of %s as %i seconds', async (header, wait) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 429,
+        headers: { get: (h: string) => (h === 'Retry-After' ? header : null) },
+        json: async () => ({ error: true, reason: 'Hourly API request limit exceeded.' }),
+      })),
+    )
+    await expect(
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
+    ).rejects.toMatchObject({ scope: 'hourly', retryAfterS: wait })
+  })
+
   // Rate limit quotas across all scopes report the same message.
   it.each([
     ['Daily API request limit exceeded.', 'daily'],

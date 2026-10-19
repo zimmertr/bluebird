@@ -4,6 +4,7 @@ import type { CustomDestination } from '../types'
 import { elevationFtOf } from './basemapPoi'
 import { geoKey } from './points'
 import type { Identity } from './elevationLookup'
+import { isFiniteNumber } from './numbers'
 
 /**
  * The elevation lookup's first source (#673): the basemap's own vector tiles.
@@ -131,7 +132,7 @@ export function distanceM(lat1: number, lon1: number, lat2: number, lon2: number
 // reads the id.
 const ELEMENT_TYPES: Record<number, string> = { 1: 'node', 2: 'way', 3: 'relation' }
 export function osmIdOf(id: number | undefined): string | null {
-  if (id === undefined || !Number.isFinite(id)) return null
+  if (!isFiniteNumber(id)) return null
   const kind = ELEMENT_TYPES[id % 10]
   return kind ? `${kind}/${Math.floor(id / 10)}` : null
 }

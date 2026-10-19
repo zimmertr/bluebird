@@ -14,8 +14,10 @@
 // dataset (CC-BY 3.0), and outside the US an empty answer means "not covered",
 // not "nothing burning".
 import type { FeatureCollection, MultiPolygon } from 'geojson'
-import { apiFetch, retryAfterSeconds } from './apiFetch'
+import { apiFetch, overlayFeatures, type OverlayFailure } from './apiFetch'
 import { bodyLines, escapeHtml, factsLine, metaBand, popupCard, updatedAt, updatedLine } from './popupChrome'
+import { grouped, isFiniteNumber, roundTo } from './numbers'
+import { hexToRgb } from './colors'
 
 const WILDFIRES_URL = '/api/wildfires'
 
@@ -71,7 +73,7 @@ export const WILDFIRE_FILL_OPACITY = 0.3
  * this one.
  */
 export function wildfireSwatch(): { backgroundColor: string; borderColor: string } {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(WILDFIRE_FILL.slice(i, i + 2), 16))
+  const [r, g, b] = hexToRgb(WILDFIRE_FILL)
   return { backgroundColor: `rgba(${r},${g},${b},0.35)`, borderColor: WILDFIRE_EDGE }
 }
 
@@ -87,7 +89,7 @@ export const FIRE_LINK_ZOOM = 10
 // Deep-link the NIFC explore map, centered on a clicked fire. Coords are
 // rounded to ~1 m and zoom to 2 dp; order is lat,lon,zoom per the Hub param.
 export function nifcFireUrl(lng: number, lat: number, zoom: number): string {
-  const z = Math.round(zoom * 100) / 100
+  const z = roundTo(zoom, 2)
   return `${NIFC_EXPLORE_URL}?location=${lat.toFixed(5)},${lng.toFixed(5)},${z}`
 }
 
@@ -135,7 +137,7 @@ export function wildfireQueryUrl(bbox: BBox, detail: FireDetail): string {
 
 /** Is this failure one that retrying makes worse rather than better? */
 export function isRateLimited(err: unknown): boolean {
-  return (err as { rateLimited?: boolean } | null)?.rateLimited === true
+  return (err as OverlayFailure | null)?.rateLimited === true
 }
 
 /**
@@ -152,21 +154,11 @@ export async function fetchWildfires(
   signal: AbortSignal,
 ): Promise<WildfireResponse> {
   const res = await apiFetch(wildfireQueryUrl(bbox, detail), { signal })
-  if (!res.ok) {
-    const err = new Error('Wildfire data unavailable. Try again later.') as Error & {
-      rateLimited?: boolean
-      retryAfterS?: number | null
-    }
-    err.rateLimited = res.status === 429 || res.status === 503
-    // How long the pod asked for, which the overlay waits out before asking
-    // again (`map/overlays/recovery.ts`).
-    err.retryAfterS = retryAfterSeconds(res)
-    throw err
-  }
-  const data = await res.json()
-  if (!data || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
-    throw new Error('Wildfire data could not be read.')
-  }
+  const data = await overlayFeatures<WildfireResponse>(
+    res,
+    'Wildfire data unavailable. Try again later.',
+    'Wildfire data could not be read.',
+  )
   // The response also carries `fetched_at`, the age of the server's snapshot.
   // Nothing in the browser reads it: the cache serves an aged snapshot rather
   // than failing, so a visitor's answer no longer hinges on a fetch of their
@@ -175,17 +167,17 @@ export async function fetchWildfires(
   // know how current an answer is (see docs/API.md). `coverage`, the other
   // foreign member, IS read: useFireProximity tests the analyzed points
   // against it so an empty answer outside the US stops reading as all-clear.
-  return data as WildfireResponse
+  return data
 }
 
 export function formatAcres(acres: number | null | undefined): string {
-  if (acres == null || !Number.isFinite(acres)) return 'Size not reported'
+  if (!isFiniteNumber(acres)) return 'Size not reported'
   if (acres < 1) return '<1 acre'
-  return `${Math.round(acres).toLocaleString()} acres`
+  return `${grouped(Math.round(acres))} acres`
 }
 
 export function formatContainment(pct: number | null | undefined): string {
-  if (pct == null || !Number.isFinite(pct)) return 'Containment not reported'
+  if (!isFiniteNumber(pct)) return 'Containment not reported'
   return `${Math.round(pct)}% contained`
 }
 

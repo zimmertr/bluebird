@@ -21,6 +21,7 @@ import {
   hasPolygon,
   unescapeQueryText,
 } from './urlParams'
+import { clamp } from './numbers'
 
 // The window classifiers read the calendar band and live beside it. The
 // air-quality one is re-exported here because the panel imports it by this
@@ -135,7 +136,7 @@ const DEFAULT_TYPES: DiscoveryType[] = []
 // inline so the restore path, the knob, and the capabilities sync cannot drift
 // into three different ideas of the same clamp.
 export function clampLimit(value: number, maxLimit: number): number {
-  return Math.max(1, Math.min(maxLimit, value))
+  return clamp(value, 1, maxLimit)
 }
 
 /**

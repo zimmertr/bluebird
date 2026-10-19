@@ -43,6 +43,7 @@
  */
 
 import type { AqiResult, CloudResult, Coordinate, WeatherResult } from './openMeteo'
+import { MINUTE_MS } from './forecastWindow'
 
 export const STORAGE_KEY = 'bluebird_forecast_cache_v1'
 
@@ -182,7 +183,7 @@ function removeSnapshot(): void {
 // coordinate (including elevation downscaling), so a rounded key would serve
 // one peak its neighbor's forecast and silently change displayed values.
 // TTL sits under Open-Meteo's roughly hourly model-update cadence.
-const CACHE_TTL_MS = 15 * 60_000
+const CACHE_TTL_MS = 15 * MINUTE_MS
 const CACHE_MAX_ENTRIES = 5_000
 // "No data for this window" is a real cached answer, distinct from a miss.
 export const NO_DATA = 'NO_DATA'

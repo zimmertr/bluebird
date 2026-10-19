@@ -8,6 +8,7 @@ import { BLOCKER_SEVERITY, listPhrase, noticeKey, type FooterMessage } from './n
 import { archiveSeamPhrase } from './calendar'
 import type { WindowLimits, WindowSource } from './forecastWindow'
 import type { DiscoveryType } from '../types'
+import { grouped } from './numbers'
 
 // Which messages the panel shows under the Analyze button, and in what order.
 // A module of its own because that decision is pure data: the panel's state in,
@@ -77,7 +78,7 @@ function blockerText(
 ): string {
   switch (blocker) {
     case 'area':
-      return `The polygon is too large. The maximum supported size is ${maxAreaKm2.toLocaleString()} km².`
+      return `The polygon is too large. The maximum supported size is ${grouped(maxAreaKm2)} km².`
     case 'window':
       return 'Adjust the forecast window to continue.'
     case 'dates':

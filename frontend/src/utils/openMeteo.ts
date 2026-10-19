@@ -7,8 +7,10 @@
 // `openMeteoErrors.ts`; this module is the HTTP client and the pacing.
 
 import {
+  DAY_MS,
   FALLBACK_WINDOW_LIMITS,
   HOUR_MS,
+  MINUTE_MS,
   archiveSeamMs,
   windowSource,
   type WindowLimits,
@@ -47,6 +49,8 @@ import {
   TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
 import { isAbort } from './abort'
+import { utcDayKey } from './calendarDates'
+import { retryAfterSeconds } from './apiFetch'
 
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
 // Where a window older than the forecast endpoint's retention goes (#123).
@@ -94,7 +98,7 @@ export function callWeight(
 ): number {
   const days = Math.max(
     1,
-    Math.floor((Date.parse(utcDate(endMs)) - Date.parse(utcDate(startMs))) / 86_400_000) + 1,
+    Math.floor((Date.parse(utcDayKey(endMs)) - Date.parse(utcDayKey(startMs))) / DAY_MS) + 1,
   )
   return nLocations * Math.max(1, days / 14) * Math.max(1, (nVariables * nModels) / 10)
 }
@@ -105,7 +109,7 @@ export function callWeight(
 // states its own limit. This protects the visitor's own quota — the
 // server-side budgets protect the deployment's.
 const CLIENT_WEIGHT_PER_MINUTE = 550
-const WINDOW_MS = 60_000
+const WINDOW_MS = MINUTE_MS
 
 // Port of the backend's `ratelimit.WeightedBudget`, without its shed: the
 // browser has no stampede of other visitors to protect itself from. A
@@ -348,10 +352,6 @@ async function pooled<T>(
   return results
 }
 
-function utcDate(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10)
-}
-
 // The window's ends in the `start_hour`/`end_hour` shape (issue #212). Asking
 // for hours instead of whole days is what keeps a narrow window from fetching
 // the calendar days around it and discarding the overhang, which on this path
@@ -380,11 +380,9 @@ async function classify429(res: Response): Promise<OpenMeteoRateLimited> {
     // body unreadable; scope stays null
   }
   const floors: Record<string, number> = { minutely: 60, hourly: 900, daily: 3600, monthly: 3600 }
-  let retryAfterS = floors[scope ?? ''] ?? 60
-  // Optional-chained: a real Response always has headers, but keeping this
-  // tolerant costs nothing and minimal fetch stubs in tests omit them.
-  const header = res.headers?.get?.('Retry-After')
-  if (header && Number.isFinite(Number(header))) retryAfterS = Math.max(1, Math.ceil(Number(header)))
+  // The header when it names a wait, else the scope's floor, and never under a
+  // second, so a `Retry-After: 0` cannot resume into a loop.
+  const retryAfterS = Math.max(1, retryAfterSeconds(res) ?? floors[scope ?? ''] ?? 60)
   // Whose quota it is, named. These fetches leave the reader's own browser
   // against the reader's own address, so "your quota" is literally true and is
   // the fact that makes the wait make sense; "Open-Meteo has used up
@@ -959,7 +957,7 @@ export async function fetchAqi(
   // whole-day request this replaced already ended, so the clamp keeps its old
   // reach exactly. Both bounds are ISO hour strings, so the lexical
   // comparisons below order them the same way the dates did.
-  const endCap = `${utcDate(nowMs + aqiForecastDays * 86_400_000)}T23:00`
+  const endCap = `${utcDayKey(nowMs + aqiForecastDays * DAY_MS)}T23:00`
   const reqStart = utcHour(startMs)
   const reqEnd = utcHour(endMs) < endCap ? utcHour(endMs) : endCap
   if (reqStart > reqEnd) {

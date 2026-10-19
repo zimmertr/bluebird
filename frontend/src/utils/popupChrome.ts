@@ -25,6 +25,9 @@
 import { externalLinkMarkup } from '../iconPaths'
 import { AGGREGATE } from '../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
+import { clamp, isFiniteNumber } from './numbers'
+import { coordinateLabel } from './points'
+import { utcDayKey } from './calendarDates'
 
 /**
  * The popup's type ramp, and the face everything in it is set in.
@@ -222,7 +225,7 @@ export function updatedLine(when: string): string {
  * its line off rather than saying so on the card.
  */
 export function dateOfMs(ms: number | null | undefined): Date | null {
-  if (ms == null || !Number.isFinite(ms)) return null
+  if (!isFiniteNumber(ms)) return null
   const d = new Date(ms)
   return Number.isNaN(d.getTime()) ? null : d
 }
@@ -238,7 +241,7 @@ export function updatedAt(ms: number | null | undefined): string | null {
   try {
     return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
   } catch {
-    return d.toISOString().slice(0, 10)
+    return utcDayKey(d.getTime())
   }
 }
 
@@ -323,7 +326,7 @@ export function factsRow(
   longitude: number,
   href: string | null,
 ): string {
-  const pair = `<span style="${VALUE_FACE}">${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}</span>`
+  const pair = `<span style="${VALUE_FACE}">${coordinateLabel(latitude, longitude)}</span>`
   const coords = href ? popupLink(href, pair) : pair
   const parts = [
     type ? escapeHtml(type) : '',
@@ -648,7 +651,7 @@ export const POPUP_MAX_WIDTH_PX = 280
 export const RESULT_POPUP_MAX_WIDTH_PX = 366
 
 export function resultPopupWidth(canvasWidthPx: number): string {
-  return Math.max(180, Math.min(RESULT_POPUP_MAX_WIDTH_PX, canvasWidthPx - 20)) + 'px'
+  return clamp(canvasWidthPx - 20, 180, RESULT_POPUP_MAX_WIDTH_PX) + 'px'
 }
 
 /**
@@ -661,7 +664,7 @@ export function resultPopupWidth(canvasWidthPx: number): string {
  */
 export function popupWidth(canvasWidthPx: number): string {
   const share = Math.round(canvasWidthPx * 0.8)
-  return Math.max(180, Math.min(POPUP_MAX_WIDTH_PX, share)) + 'px'
+  return clamp(share, 180, POPUP_MAX_WIDTH_PX) + 'px'
 }
 
 /**

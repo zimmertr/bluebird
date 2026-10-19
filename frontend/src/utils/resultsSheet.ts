@@ -17,6 +17,7 @@
 // same three constants.
 
 import { resolvePanelHeights } from './layout'
+import { clamp } from './numbers'
 
 /**
  * The legend stack's own top inset (`LEGEND_TOP` in `styles.ts`, which spells
@@ -393,7 +394,7 @@ export function noticeBottomPx(liftPx: number): number {
 export function fabBottomPx(liftPx: number, bandPx: number, mapPx: number): number {
   const wanted = bandPx > 0 ? noticeBottomPx(liftPx) + bandPx + FAB_INSET_PX : liftPx + FAB_INSET_PX
   const highest = mapPx - PHONE_ROWS_PX - FAB_INSET_PX - FAB_PX
-  return Math.max(liftPx + FAB_INSET_PX, Math.min(wanted, highest))
+  return clamp(wanted, liftPx + FAB_INSET_PX, highest)
 }
 
 /**

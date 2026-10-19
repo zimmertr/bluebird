@@ -17,9 +17,12 @@
 // The status is the Forest Service's own. An order's end date is what the
 // order says, and nothing here decides whether a closure is still in force.
 import type { FeatureCollection, MultiPolygon } from 'geojson'
-import { apiFetch, retryAfterSeconds } from './apiFetch'
+import { apiFetch, overlayFeatures } from './apiFetch'
 import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard, warningLine } from './popupChrome'
 import { type BBox, type FireDetail, formatAcres } from './wildfires'
+import { isFiniteNumber } from './numbers'
+import { utcDayKey } from './calendarDates'
+import { hexToRgb } from './colors'
 
 const CLOSURES_URL = '/api/closures'
 
@@ -100,7 +103,7 @@ export const CLOSURE_EDGE = '#a21caf'
  * uses, so the two single-value keys read as the same kind of mark.
  */
 export function closureAreaSwatch(): { backgroundColor: string; borderColor: string } {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(CLOSURE_COLOR.slice(i, i + 2), 16))
+  const [r, g, b] = hexToRgb(CLOSURE_COLOR)
   return { backgroundColor: `rgba(${r},${g},${b},0.35)`, borderColor: CLOSURE_EDGE }
 }
 
@@ -130,22 +133,11 @@ export async function fetchClosures(
   signal: AbortSignal,
 ): Promise<ClosureResponse> {
   const res = await apiFetch(closureQueryUrl(bbox, kind, detail), { signal })
-  if (!res.ok) {
-    const err = new Error('Closure data unavailable. Try again later.') as Error & {
-      rateLimited?: boolean
-      retryAfterS?: number | null
-    }
-    err.rateLimited = res.status === 429 || res.status === 503
-    // How long the pod asked for, which the overlay waits out before asking
-    // again (`map/overlays/recovery.ts`).
-    err.retryAfterS = retryAfterSeconds(res)
-    throw err
-  }
-  const data = await res.json()
-  if (!data || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
-    throw new Error('Closure data could not be read.')
-  }
-  return data as ClosureResponse
+  return overlayFeatures<ClosureResponse>(
+    res,
+    'Closure data unavailable. Try again later.',
+    'Closure data could not be read.',
+  )
 }
 
 /** A property's text, trimmed, or '' when it is missing. */
@@ -165,7 +157,7 @@ function closureDate(ms: number | null | undefined): string | null {
   try {
     return d.toLocaleDateString(undefined, { dateStyle: 'medium' })
   } catch {
-    return d.toISOString().slice(0, 10)
+    return utcDayKey(d.getTime())
   }
 }
 
@@ -241,7 +233,7 @@ const CLOSURE_KIND: Record<ClosureKind, string> = {
 export function closurePopupHtml(props: ClosureProps, kind: ClosureKind): string {
   const forest = text(props.ForestUnit)
   const route = [text(props.RouteName), text(props.RouteNum)].filter(Boolean).join(' ')
-  const acres = props.GIS_Acres != null && Number.isFinite(props.GIS_Acres) ? formatAcres(props.GIS_Acres) : ''
+  const acres = isFiniteNumber(props.GIS_Acres) ? formatAcres(props.GIS_Acres) : ''
   const figure = kind === 'area' ? acres : route
   const dates = formatClosureDates(props.ClosureStartDate, props.ClosureEndDate)
   const reason = closureReason(props)

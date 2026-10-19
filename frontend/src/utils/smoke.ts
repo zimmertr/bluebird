@@ -19,8 +19,9 @@
 // Coverage is North America, which is what HMS analyzes. Outside it an empty
 // answer means "not covered", not "clear".
 import type { FeatureCollection } from 'geojson'
-import { apiFetch, retryAfterSeconds } from './apiFetch'
+import { apiFetch, overlayFeatures } from './apiFetch'
 import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard } from './popupChrome'
+import { hexToRgb } from './colors'
 
 const SMOKE_URL = '/api/smoke'
 
@@ -116,7 +117,7 @@ const BASEMAP_TONE: [number, number, number] = [239, 236, 230]
  */
 export function smokeSwatch(density: SmokeDensity): string {
   const alpha = SMOKE_OPACITY[density]
-  const fill = [1, 3, 5].map((i) => parseInt(SMOKE_FILL.slice(i, i + 2), 16))
+  const fill = hexToRgb(SMOKE_FILL)
   const [r, g, b] = fill.map((c, i) => Math.round(c * alpha + BASEMAP_TONE[i] * (1 - alpha)))
   return `rgb(${r},${g},${b})`
 }
@@ -144,27 +145,17 @@ export interface SmokeProps {
  */
 export async function fetchSmoke(signal: AbortSignal): Promise<FeatureCollection> {
   const res = await apiFetch(SMOKE_URL, { signal })
-  if (!res.ok) {
-    const err = new Error('Smoke data unavailable. Try again later.') as Error & {
-      rateLimited?: boolean
-      retryAfterS?: number | null
-    }
-    err.rateLimited = res.status === 429 || res.status === 503
-    // How long the pod asked for, which the overlay waits out before asking
-    // again (`map/overlays/recovery.ts`).
-    err.retryAfterS = retryAfterSeconds(res)
-    throw err
-  }
-  const data = await res.json()
-  if (!data || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
-    throw new Error('Smoke data could not be read.')
-  }
+  const data = await overlayFeatures<FeatureCollection>(
+    res,
+    'Smoke data unavailable. Try again later.',
+    'Smoke data could not be read.',
+  )
   // The response also carries `fetched_at` and `analysis_date`. Neither is
   // surfaced: the cache serves an aged snapshot rather than failing, so a
   // visitor's answer never hinges on a fetch of their own, and each plume
   // already states the window it was observed over — which is the date a reader
   // is actually asking about. Both stay in the payload for API callers.
-  return data as FeatureCollection
+  return data
 }
 
 /** The density a feature draws as, defaulting the way the backend does. */

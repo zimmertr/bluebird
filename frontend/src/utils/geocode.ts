@@ -12,6 +12,7 @@
 
 import { apiFetch } from './apiFetch'
 import { FEET_PER_METER } from './basemapPoi'
+import { onGlobe } from './points'
 
 export interface Place {
   label: string // short name for the pin and input ("Mount Whitney")
@@ -59,7 +60,7 @@ export function parseCoordinates(input: string): { lat: number; lon: number } | 
   if (!m) return null
   const lat = parseFloat(m[1])
   const lon = parseFloat(m[2])
-  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null
+  if (!onGlobe(lat, lon)) return null
   return { lat, lon }
 }
 

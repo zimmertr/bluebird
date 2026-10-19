@@ -139,9 +139,9 @@ export function clampSelection(
   if (!hasDates(selection)) return null
   const first = bandStart(now, band)
   const last = bandEnd(now, band)
-  const clamp = (day: string): string => (day < first ? first : day > last ? last : day)
-  const startDate = clamp(selection.startDate)
-  const endDate = clamp(selection.endDate)
+  const clampDay = (day: string): string => (day < first ? first : day > last ? last : day)
+  const startDate = clampDay(selection.startDate)
+  const endDate = clampDay(selection.endDate)
   if (startDate === selection.startDate && endDate === selection.endDate) return null
   return { ...selection, startDate, endDate }
 }

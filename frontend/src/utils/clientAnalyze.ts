@@ -84,7 +84,10 @@ export function analysisNoun(request: AnalyzeRequest): string {
 // Port of _cap_detail: the over-cap refusal states what is wrong, and
 // nothing else. It used to advise the remedies in play and quote the
 // computed elevation floor; TJ removed both (2026-08-22, #253's PR), and the
-// server's copy dropped them in the same change.
+// server's copy dropped them in the same change. The one number on screen
+// grouped in en-US rather than the reader's locale (`grouped`), because the
+// sentence mirrors the server's `f'{n:,}'` (mirror row 18) and the two must
+// read alike.
 export function capDetail(
   count: number,
   noun: string,

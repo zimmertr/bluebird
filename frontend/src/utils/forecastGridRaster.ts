@@ -6,6 +6,7 @@
 import { SortBy } from '../types'
 import { NO_VALUE, fillColor } from './resultFeatures'
 import type { GridCell, GridSpec } from './forecastGridLattice'
+import { hexToRgb } from './colors'
 
 /**
  * How the field is drawn. `blocks` is the default because it is the style that
@@ -68,9 +69,7 @@ export function gridRaster(
     const r = Math.floor(index / cols)
     const c = index % cols
     const p = ((rows - 1 - r) * cols + c) * 4
-    rgba[p] = parseInt(color.slice(1, 3), 16)
-    rgba[p + 1] = parseInt(color.slice(3, 5), 16)
-    rgba[p + 2] = parseInt(color.slice(5, 7), 16)
+    rgba.set(hexToRgb(color), p)
     rgba[p + 3] = style === 'smooth' ? edgeAlpha(r, c, cols, rows, kept) : 255
   }
 

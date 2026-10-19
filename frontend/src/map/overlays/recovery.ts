@@ -23,6 +23,8 @@
  * again and the pod's own backoff answers those cheaply.
  */
 
+import { isFiniteNumber } from '../../utils/numbers'
+
 export interface OverlayRecovery {
   /** A fetch failed; `retryAfterS` is the pod's `Retry-After`, or null. */
   failed(retryAfterS: number | null): void
@@ -106,5 +108,5 @@ export function overlayRecovery(
  */
 export function retryAfterOf(err: unknown): number | null {
   const value = (err as { retryAfterS?: unknown } | null)?.retryAfterS
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.max(1, value) : null
+  return isFiniteNumber(value) && value >= 0 ? Math.max(1, value) : null
 }
