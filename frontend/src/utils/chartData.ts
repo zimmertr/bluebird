@@ -11,7 +11,7 @@ import { TYPE_COL } from './tableColumns'
  */
 export type ChartMetric = MetricFamily
 
-export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
+const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
   temp: 'temp_f',
   wind: 'wind_mph',

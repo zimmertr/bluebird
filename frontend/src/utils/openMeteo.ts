@@ -246,7 +246,7 @@ export function fetchSpans(
  * the direction the wind blows FROM. Which way the arrow points is the map's
  * decision, not this function's.
  */
-export function windDirectionSeries(
+function windDirectionSeries(
   payload: HourlyPayload,
   startMs: number,
   endMs: number,

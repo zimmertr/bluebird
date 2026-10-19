@@ -49,7 +49,6 @@ import { nullsLast } from './sortResults'
 // present.ts, the panel and the URL codec read them by this module's name.
 export {
   NO_CONSTRAINTS,
-  constraintFields,
   constraintsFromRequest,
   filterConstraints,
   hasConstraints,
@@ -251,7 +250,7 @@ export function withCloud(
  * aggregates and the hourly column on the report's grid. For a held row whose
  * air quality failed the first time and was asked again (#580).
  */
-export function withAqi(row: DestinationResult, aqi: AqiResult, times: readonly number[]): DestinationResult {
+function withAqi(row: DestinationResult, aqi: AqiResult, times: readonly number[]): DestinationResult {
   return {
     ...row,
     aqi_avg: aqi?.aqi_avg ?? null,

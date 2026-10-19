@@ -46,7 +46,7 @@ import { usePacedFetch } from './usePacedFetch'
  * the same argument that put a line on the loading state. `idle` is different
  * and stays quiet: it means nothing was asked for.
  */
-export type ForecastGridStatus = 'idle' | 'loading' | 'ready' | 'failed'
+type ForecastGridStatus = 'idle' | 'loading' | 'ready' | 'failed'
 
 export interface ForecastGrid {
   status: ForecastGridStatus

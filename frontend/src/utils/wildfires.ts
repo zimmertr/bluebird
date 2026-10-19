@@ -223,7 +223,7 @@ export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string
 }
 
 /** What a screen reader hears for the title's link: the text link it replaced (#738). */
-export const FIRE_LINK_LABEL = 'View on NIFC map'
+const FIRE_LINK_LABEL = 'View on NIFC map'
 
 /** What a fire's facts line calls it: the Layers menu's row, singular. */
-export const FIRE_KIND = 'Wildfire'
+const FIRE_KIND = 'Wildfire'

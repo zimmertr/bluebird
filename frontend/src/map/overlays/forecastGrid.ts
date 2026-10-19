@@ -45,8 +45,8 @@ export const GRID_OPACITY = 0.5
  * measured on a 3 km lattice over Rainier, opacity alone still left the two
  * kinds of arrow reading as one field.
  */
-export const GRID_ARROW_OPACITY = 0.5
-export const GRID_ARROW_SIZE = 0.7
+const GRID_ARROW_OPACITY = 0.5
+const GRID_ARROW_SIZE = 0.7
 
 export interface GridDrawing {
   spec: GridSpec | null

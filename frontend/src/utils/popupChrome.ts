@@ -42,8 +42,8 @@ import type { PopupGrid, PopupGridCell } from './popupRows'
  */
 const POPUP_FACE = 'font-family:sans-serif;line-height:1.5'
 const POPUP_TITLE_SIZE = 'font-size:13px'
-export const POPUP_BODY_SIZE = 'font-size:12px'
-export const POPUP_FINE_SIZE = 'font-size:11px'
+const POPUP_BODY_SIZE = 'font-size:12px'
+const POPUP_FINE_SIZE = 'font-size:11px'
 
 /**
  * The face a value is set in. Monospace, because that is what the results table
@@ -66,7 +66,7 @@ export const POPUP_FINE_SIZE = 'font-size:11px'
  * The stack is spelled out rather than left to a bare `monospace` keyword
  * because this markup is handed to MapLibre's setHTML.
  */
-export const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'
+const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'
 
 /**
  * One "label: value" line.
@@ -119,7 +119,7 @@ export const LABEL_COLOR = 'color:var(--popup-label)'
  * than part of the name, and it reads better light between a weighted label
  * and a mono value than swept into either.
  */
-export function rowLabel(label: string): string {
+function rowLabel(label: string): string {
   return `<span style="${LABEL_COLOR}">${label}</span>`
 }
 
@@ -140,7 +140,7 @@ export function rowLabel(label: string): string {
  * whatever follows it becomes markup, so the link cannot leave it to every
  * caller to remember (#621). `inner` is markup the caller has already built.
  */
-export function popupLink(href: string, inner: string, extra = ''): string {
+function popupLink(href: string, inner: string, extra = ''): string {
   return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;${extra}">${inner}</a>`
 }
 
@@ -572,7 +572,7 @@ const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`
  * attribute that finds that body. `map.css` draws the scrollbar it keeps
  * visible; `openCard` in `map/mapPopups.ts` sets the height (`capPopupBody`).
  */
-export const POPUP_SCROLL_CLASS = 'popup-scroll'
+const POPUP_SCROLL_CLASS = 'popup-scroll'
 /**
  * The class every card wears, which `map.css` frames (`popupCard`). Put on by
  * `openCard` in `map/mapPopups.ts` rather than by each caller, so no card can
@@ -667,7 +667,7 @@ export function popupWidth(canvasWidthPx: number): string {
  * from numbers and OSM's own `type/id`, but a pin restored from a share link
  * carries its id from the link's text, and so does a place the geocoder named.
  */
-export function linkIcon({ href, label }: PopupCardLink): string {
+function linkIcon({ href, label }: PopupCardLink): string {
   return `<a href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" target="_blank" rel="noopener noreferrer" style="color:${HEADER_ICON_COLOR};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
 }
 
@@ -678,7 +678,7 @@ export function linkIcon({ href, label }: PopupCardLink): string {
  * cards' text links never did. Required with the url, so no card can link
  * out unnamed.
  */
-export interface PopupCardLink {
+interface PopupCardLink {
   href: string
   label: string
 }
@@ -792,7 +792,7 @@ const TITLE_TEXT = `min-width:0;${ONE_LINE}`
  */
 export const HEADER_BAND_COLOR = 'var(--popup-band)'
 export const HEADER_EDGE_COLOR = 'var(--popup-line)'
-export const HEADER_SHADOW_COLOR = 'var(--popup-shadow)'
+const HEADER_SHADOW_COLOR = 'var(--popup-shadow)'
 
 /**
  * The edge and the padding a result card's sections wear below the header:

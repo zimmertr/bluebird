@@ -10,9 +10,9 @@ import type * as maplibregl from 'maplibre-gl'
 //
 // Both projects may load it: it touches no DOM of its own.
 
-export type StubCall = [string, ...unknown[]]
+type StubCall = [string, ...unknown[]]
 
-export interface StubSource {
+interface StubSource {
   setData: (data: unknown) => void
   updateImage?: (options: unknown) => void
   data?: unknown

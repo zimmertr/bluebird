@@ -9,11 +9,11 @@ import { DATA_SOURCES } from '../utils/dataSources'
 // back. Only the list is shared, which is what stops a provider added to
 // dataSources.ts from showing up on one page and not the other.
 //
-// The license name is a link wherever dataSources.ts knows the URI. That is not
-// decoration: this list is the only place in the shipped app where a data
-// license's text is reachable, and both CC BY versions here ask for exactly
-// that (see the licenseHref doc comment). A source with a license but no URI
-// still renders, as plain text — CAMS names none worth linking.
+// The license name is a link to the license's text. That is not decoration:
+// this list is the only place in the shipped app where a data license's text
+// is reachable, and both CC BY versions here ask for exactly that (see the
+// licenseHref doc comment). dataSources.test.ts fails a source that names a
+// license without its URI, so there is no plain-text arm.
 export default function DataSourceList() {
   return (
     <ul className={`${PROSE.body} space-y-2`}>
@@ -25,13 +25,9 @@ export default function DataSourceList() {
           {source.license ? (
             <>
               {' ('}
-              {source.licenseHref ? (
-                <a href={source.licenseHref} target="_blank" rel="noreferrer" className={LINK}>
-                  {source.license}
-                </a>
-              ) : (
-                source.license
-              )}
+              <a href={source.licenseHref} target="_blank" rel="noreferrer" className={LINK}>
+                {source.license}
+              </a>
               {')'}
             </>
           ) : (

@@ -242,7 +242,7 @@ export function radarHeldLayer(offsetMin: number): string {
 }
 
 /** The reflectivity a held pixel paints, or null where it painted nothing. */
-export function dbzOfHeld(pixel: Rgba | null): number | null {
+function dbzOfHeld(pixel: Rgba | null): number | null {
   return pixel === null ? null : dbzOfPixel(...pixel)
 }
 

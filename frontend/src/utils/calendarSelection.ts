@@ -8,7 +8,7 @@ import { DAY_END, DAY_START, orderDays } from './calendarDates'
 import { type BandLimits, bandEnd, bandStart } from './calendarBand'
 
 /** Narrowed hours within a day selection, local, `HH:MM`. */
-export interface DayHours {
+interface DayHours {
   start: string
   end: string
 }

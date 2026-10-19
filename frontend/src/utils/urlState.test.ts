@@ -5,7 +5,6 @@ import {
   encodeState,
   decodeState as decodeWithLimits,
   type DecodeLimits,
-  classifyWindow,
   classifyAqiCoverage,
   clampLimit,
   decodeAutoAnalyze,
@@ -17,6 +16,7 @@ import {
   FUTURE_LIMIT_DAYS,
   ForecastSelection,
   bandEnd,
+  classifyWindow,
 } from './calendar'
 import { GeoPolygon } from '../types'
 import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'

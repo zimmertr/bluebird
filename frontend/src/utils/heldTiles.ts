@@ -55,7 +55,7 @@ export type TileDecoder = (image: Blob) => Promise<DecodedTile>
  * a colour lookup needs; every painted pixel measured in both layers is fully
  * opaque, where a canvas's own premultiplied storage loses nothing.
  */
-export const decodeTile: TileDecoder = async (image) => {
+const decodeTile: TileDecoder = async (image) => {
   const bitmap = await createImageBitmap(image, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
   try {
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)

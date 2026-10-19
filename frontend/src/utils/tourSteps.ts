@@ -21,7 +21,7 @@ export const TOUR_ATTR = 'data-tour'
  */
 export const TUTORIAL_PATH = '/tutorial'
 
-export type TourPlace = 'panel' | 'map'
+type TourPlace = 'panel' | 'map'
 
 /**
  * What a step has to bring on screen before it can point at it. `layers`
@@ -32,7 +32,7 @@ export type TourPlace = 'panel' | 'map'
  * window's middle hour, as a resting finger shows it (#696).
  * `marker` flies to one of that report's markers and opens its popup.
  */
-export type TourReveal = 'layers' | 'results' | 'chart' | 'marker'
+type TourReveal = 'layers' | 'results' | 'chart' | 'marker'
 
 /**
  * How the spotlight fits its target. `section` runs from the rule above the

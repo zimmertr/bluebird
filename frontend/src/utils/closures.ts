@@ -217,10 +217,10 @@ export function closureReason(props: ClosureProps): string | null {
 }
 
 /** What a screen reader hears for the title's link: the text link it replaced (#738). */
-export const CLOSURE_LINK_LABEL = 'View closure order'
+const CLOSURE_LINK_LABEL = 'View closure order'
 
 /** What a closure's facts line calls it: the Layers menu's row, singular. */
-export const CLOSURE_KIND: Record<ClosureKind, string> = {
+const CLOSURE_KIND: Record<ClosureKind, string> = {
   area: 'Area closure',
   trail: 'Trail closure',
 }
