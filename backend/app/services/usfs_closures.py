@@ -376,12 +376,17 @@ def collection_json(snapshot: Snapshot, closures: list[Closure], kind: Kind) -> 
     )
 
 
-def _to_closure(feature: dict[str, Any]) -> Closure | None:
+def _to_closure(feature: Any) -> Closure | None:
     """One ArcGIS feature as a stored ``Closure``, or None if it carries no shape.
 
     A closure without geometry cannot be drawn or tested against a row, so it
-    is dropped here rather than becoming a feature the browser has to skip.
+    is dropped here rather than becoming a feature the browser has to skip. A
+    list item that is not an object at all is dropped the same way, rather
+    than failing the page and with it the whole refresh; the page still
+    counts it, because the offset steps by what ArcGIS sent.
     """
+    if not isinstance(feature, dict):
+        return None
     geometry = feature.get("geometry")
     if not isinstance(geometry, dict):
         return None

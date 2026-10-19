@@ -56,6 +56,8 @@ def _snapshot(*features: dict, fetched_at_ms: int = 1_000) -> nifc.Snapshot:
 
 def test_to_fire_drops_a_feature_with_no_geometry():
     assert nifc._to_fire({"type": "Feature", "properties": {}, "geometry": None}) is None
+    # A geometry with no coordinates in it has no box to file it under either.
+    assert nifc._to_fire({"geometry": {"type": "Polygon", "coordinates": []}}) is None
 
 
 def test_to_fire_preserves_the_upstream_json_verbatim():
@@ -213,6 +215,43 @@ def test_parse_page_reads_a_page_the_way_the_pager_needs_it():
     # The offset step counts what ArcGIS SENT, not what survived, or paging
     # re-reads whatever the dropped features displaced.
     assert count == 2
+
+
+def test_a_page_skips_a_feature_that_is_not_an_object():
+    # One malformed item must not fail the whole page, and with it the refresh.
+    payload = json.dumps(
+        {"type": "FeatureCollection", "features": [None, _polygon(-120.0, 45.0, -119.9, 45.1)]}
+    ).encode()
+
+    fires, _, count = nifc._parse_page(payload)
+
+    assert len(fires) == 1
+    assert count == 2
+
+
+def test_a_page_with_no_features_list_is_an_upstream_error():
+    with pytest.raises(UpstreamError) as excinfo:
+        nifc._parse_page(b'{"type": "FeatureCollection"}')
+    assert excinfo.value.message == "Wildfire data could not be read."
+
+
+async def test_the_snapshot_holds_the_full_and_the_coarse_copy_from_one_fetch(monkeypatch):
+    # The map's low-zoom copy and the API's full one come from two queries in
+    # one refresh, and must land in their own fields.
+    asked: list[float | None] = []
+    full = (nifc._to_fire(_polygon(-120.0, 45.0, -119.0, 46.0, name="Full")),)
+    coarse = (nifc._to_fire(_polygon(-120.0, 45.0, -119.0, 46.0, name="Coarse")),)
+
+    async def fetch_layer(client, simplify_deg):
+        asked.append(simplify_deg)
+        return coarse if simplify_deg == nifc.COARSE_OFFSET_DEG else full
+
+    monkeypatch.setattr(nifc, "_fetch_layer", fetch_layer)
+    snapshot = await nifc.fetch_snapshot()
+
+    assert sorted(asked, key=lambda d: d is not None) == [None, nifc.COARSE_OFFSET_DEG]
+    assert snapshot.full == full
+    assert snapshot.coarse == coarse
 
 
 async def test_fetch_layer_stops_at_the_page_backstop(monkeypatch, caplog):

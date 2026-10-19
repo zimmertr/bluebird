@@ -156,6 +156,32 @@ async def test_a_cold_refresh_ends_at_its_deadline_with_the_timeout_sentence():
     assert _failures("Hanging upstream") == before + 1
 
 
+async def test_a_background_refresh_queued_behind_a_cold_fetch_does_not_fetch_again():
+    # An aged read schedules a refresh behind the request. Before it runs, the
+    # snapshot passes its age limit and a cold read fetches under the lock;
+    # the queued refresh then finds the cache fresh and asks nothing.
+    clock = _Clock()
+    clock.now = 0.0
+    fetched_at: list[float] = []
+
+    async def fetch() -> str:
+        fetched_at.append(clock.now)
+        return f"at {clock.now}"
+
+    cache = SnapshotCache(
+        label="test", fetch=fetch, ttl_s=10, retry_after_failure_s=60, clock=clock,
+        max_stale_s=100,
+    )
+    assert await cache.get() == "at 0.0"
+    clock.now = 50.0
+    assert await cache.get() == "at 0.0"  # aged: served, refresh scheduled
+    clock.now = 200.0
+    assert await cache.get() == "at 200.0"  # cold: fetched in front of the read
+    await cache.settle()
+
+    assert fetched_at == [0.0, 200.0]
+
+
 async def test_a_refresh_past_its_deadline_logs_the_deadline(caplog):
     # The deadline's TimeoutError carries no text of its own, so both the
     # refresh's line and the route's would otherwise end in nothing.

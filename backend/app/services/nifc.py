@@ -90,9 +90,12 @@ COARSE_OFFSET_DEG = 0.0005
 # ~1 m. Trims coordinate noise from the payload without touching shape.
 GEOMETRY_PRECISION = 5
 
-# A national full-resolution fetch moves ~16.5 MB, which is slow but not slow
-# enough to justify a partial answer.
-REQUEST_TIMEOUT_S = 120.0
+# One operation of a fetch (a connect, or a read between chunks), the USFS and
+# HMS value. It bounds a single operation inside `snapshot.REFRESH_DEADLINE_S`,
+# which ends every refresh first, so it cannot cut a full-resolution national
+# fetch (~16.5 MB) short of what the refresh allows. Never drop the argument:
+# httpx's own default is 5 s per operation.
+REQUEST_TIMEOUT_S = 60.0
 
 # Backstop on the paging loop. 232 fires burn nationally today and the worst
 # season on record would not approach this; it exists so a server that never
@@ -168,12 +171,17 @@ def collection_json(snapshot: Snapshot, fires: list[Fire]) -> str:
     )
 
 
-def _to_fire(feature: dict[str, Any]) -> Fire | None:
+def _to_fire(feature: Any) -> Fire | None:
     """One ArcGIS feature as a stored ``Fire``, or None if it carries no shape.
 
     A perimeter without geometry cannot be drawn or measured against, so it is
-    dropped here rather than becoming a feature the browser has to skip.
+    dropped here rather than becoming a feature the browser has to skip. A
+    list item that is not an object at all is dropped the same way, rather
+    than failing the page and with it the whole refresh; the page still
+    counts it, because the offset steps by what ArcGIS sent.
     """
+    if not isinstance(feature, dict):
+        return None
     geometry = feature.get("geometry")
     if not isinstance(geometry, dict):
         return None

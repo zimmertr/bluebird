@@ -63,12 +63,12 @@ def _attempt_timeout_s() -> float:
     The deadline is shorter than one mirror's own 25 s timeout, so without a
     slice it fired inside the first attempt and the backup was never asked
     (#655, measured 2026-10-06: a busy primary blanked every pasted list for
-    over an hour). With two mirrors this is 4 s each. The primary's 4 s keeps
-    the half of its healthy answers that land under 5 s (#545). The backup's
-    4 s is NOT measured: on 2026-10-06 it sent nothing back inside 8 s in three
-    tries, and no figure supports any other number either. The `path` label on
-    the Overpass metrics is what will retune both: the `enrichment` series give
-    each mirror's success rate inside its slice and its latency when it answers.
+    over an hour). With two mirrors each slice is 12 s, the time
+    `ENRICH_DEADLINE_S` gives a busy mirror, so a primary that runs out its
+    slice still leaves the backup one of the same length. No measurement says
+    what either slice should be on its own. The `path` label on the Overpass
+    metrics is what will retune both: the `enrichment` series give each
+    mirror's success rate inside its slice and its latency when it answers.
 
     Read at call time rather than bound at import, so the slices follow the
     deadline and the mirror table wherever either is set. The deadline stays
