@@ -42,9 +42,10 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
 | `UNFURLED` | A menu card's half of the join to the control it unfurls out of: no border and square corners on the shared edge, keyed `below` or `above` by the side it took. `belowWide` and `aboveWide` for a card across its control's row, which keeps its border over the control's and squares only the corner under the control. |
 | `UNFURL_ANCHOR` | The control's half: square corners facing the card and the card's slate-600 edge, read off the `data-unfurled` the card's hook writes while it is open. Worn by the results bar's group and the model dropdown's trigger |
-| `SURFACE_FLOATING` | Boxes floating over the map: search field, the legend, chart tooltip, the forecast player's transport bar |
-| `RECESSED_FILL` | The well every recessed surface composes: slate-900 fill, edged by a slate-500 border (`RECESSED_EDGE`, private to `styles.ts` since #687 because only roles compose it), which clears 3:1 against the panel. Fields, selects, segments and the legend all start here |
-| `SURFACE_POPOVER` | A floating box that is a menu rather than a key: the map's Layers popover and the search result list, lifted off the legend by one step of fill and a heavier shadow |
+| `SURFACE_FLOATING` | Boxes floating over the map: search field, chart tooltip, the forecast player's transport bar |
+| `RECESSED_FILL` | The well every recessed surface composes: slate-900 fill, edged by a slate-500 border (`RECESSED_EDGE`; both private to `styles.ts`, because only roles compose them), which clears 3:1 against the panel. Fields, selects, segments and the legend all start here |
+| `SURFACE_POPOVER` | The search results list, lifted off the pill it drops from by one step of fill and a heavier shadow |
+| `SURFACE_CHIP_CARD` | The two cards a desk's chips open, `key` for the legend card and `menu` for the Layers menu: one fill, the chips' own, and one outline, the structural slate-500 edge rather than the quiet frame, so where the menu opens across the legend card its edge parts the two (3.07:1 dark, 4.24:1 light). Only the shadow differs: `raised` for the legend, `overlay` for the menu over it |
 | `SURFACE_SHEET` | The results on a phone, standing on the map's bottom edge: the docked panel's fill, the map's floating edge, the surface radius on the top corners only |
 | `CALENDAR_FIELD` | The calendar's field under Dates: a `SELECT` that may wrap to two lines, the one panel control allowed to, because the longest window (an hourly one with a year) cannot fit its text room and an ellipsis cut off the end time. Top-aligned, with the arrow pinned to the first line, so one line looks like any other field (#687, record 0129) |
 | `CALENDAR_GROUND` | The calendar's ground inside its popover card: the recessed slate-900 fill without a border, since the card draws the edge, so `DAY.range` keeps its 1.28:1 against the ground where slate-800 would leave it 1.05:1 (#687, record 0129). It scrolls with `SCROLL_BARS` when a short window caps the card |
@@ -80,15 +81,13 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
 | `SEGMENT_FILL` | Segmented control sized by the box it is placed in, for a row whose column is not the panel's (the Metrics direction row) |
 | `SEGMENT_FLUID` | Segmented control outside the panel column, sized by content |
-| `SEGMENT_FLUID_LIFTED` | The same segment on `SURFACE_POPOVER`, wearing the edge that surface needs |
-| `LIFTED_EDGE` | A well's boundary on `SURFACE_POPOVER`: slate-400, since slate-500 clears 3:1 only against the panel |
 | `SEGMENT_IDLE` | Unchosen half of segmented control |
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
 | `SEGMENT_DIVIDER` | The rule between two segment halves |
 | `CONTROL_SIZE` | The one type size every control reads at (`text-xs`); `SLIDER.value` and `SLIDER.wordmark` compose it |
 | `SELECT_W_AGGREGATE` | The aggregate dropdown in a Metrics row: 72px (w-[4.5rem]), the widest aggregate word (28px) plus the field's 8px padding and the 24px `SELECT` reserves for its arrow, with 12px of deliberate slack because the width also sets a grid track |
 | `CAPTION_LIFTED` | `TEXT.caption` re-derived for the slate-700 fills: a search result's description on `SURFACE_POPOVER`, and the window caption on the results sheet's header bar. slate-300 (6.97:1) because slate-400 falls to 3.93:1 on that fill |
-| `SLIDER` | The parts of the two range inputs that are not the input itself, one object since #687: `overlay`, `value`, `wordmark` and `idle` are the coverage slider in the Layers popover (the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint), and `track` is the rail the map timeline's scrubber slides on |
+| `SLIDER` | The parts of the two range inputs that are not the input itself, one object since #687: `overlay`, `value`, `wordmark` and `idle` are the coverage slider in the Layers popover (the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint), `well` is the recessed well that slider's layers stack in, and `track` is the rail the map timeline's scrubber slides on |
 | `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint (the rule under the header, the one over the footer, and since #697 the panel's right edge against the map and the results), and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `PANEL_BODY` | The panel's scrolling body: `px-4 py-4`, the shared bar with its width kept (`scrollbar-gutter: stable`, so the column never jumps when a section opens), and both scroll shadows reaching across the padding |
 | `PANEL_HEADER` | The panel's header, 56px plus its rule: a 40px logo with 8px around it, and the title block at `py-2`. It was 81px (#687). `actions` is the top-right spot its round buttons share, the theme switch on the close button's left (#706) |
@@ -248,11 +247,11 @@ utilities and ride the same block as plain variables: the accent ring's glow
 | `panel` | slate-800 | `#eef2f9` | the panel, `SURFACE_SHEET`, `SURFACE_CARD`, the chart and table body |
 | `raised` / `raised-hover` | slate-700 / slate-600 | `#e1e6ee` / `#d4dae3` | `SURFACE_POPOVER`, the results bar, the table head, `BUTTON_SECONDARY`, `CHIP.rest`, `HEADER_BUTTON` |
 | `highlight` | slate-600 at 50% | `#d4dae3` | a search result under the keyboard |
-| `floating` | slate-800 | `#f8f9ff` | `SURFACE_FLOATING`, at 95% in both |
+| `floating` | slate-800 | `#f8f9ff` | `SURFACE_FLOATING` and `SURFACE_CHIP_CARD`, at 95% in both |
 | `recessed` | slate-900 | `#ffffff` | `RECESSED_FILL` and every well that composes it |
 | `rule` | slate-700 | `#c2c8d1` | `SURFACE_DIVIDER`, `PANEL_RULE`, `TABLE.row` at 50% |
 | `frame` | slate-600 | `#9aa0a8` | the outline round a floating, card, popover or sheet surface, `UNFURL_ANCHOR` |
-| `edge` / `edge-lifted` | slate-500 / slate-400 | `#72787f` / `#72787f` | `PANEL_EDGE`, `RECESSED_EDGE`, `SEGMENT_DIVIDER`, the scroll thumb; `LIFTED_EDGE` |
+| `edge` / `edge-lifted` | slate-500 / slate-400 | `#72787f` / `#72787f` | `PANEL_EDGE`, `RECESSED_EDGE`, `SEGMENT_DIVIDER`, `SURFACE_CHIP_CARD`, the scroll thumb; the marker popup's scroll thumb |
 | `ink-strong` / `ink` | white / slate-200 | `#181c21` / `#181c21` | headings and the primary text |
 | `ink-mid` | slate-300 | `#2d3238` | `LINK`, `TEXT.micro`, `CAPTION_LIFTED`, `TEXT.section` |
 | `ink-soft` | slate-400 | `#42474e` | captions, `SEGMENT_IDLE`, `ICON_ADORNMENT`, placeholders |
@@ -362,7 +361,7 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`, `MapLegend.tsx` and `ColumnsPicker.tsx` matches a `SR_ONLY` element |
 | A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
-| The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
+| The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_CHIP_CARD.key` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
 | The chip menus are one width and hang one way | `styles.test.ts`, `checks/styles.js` | `MAP_MENU_W` inside `MAP_CHIP_MENU`, worn once by each menu; `style-map-chrome` fails a width, offset or chip height spelled beside the roles |
 | The map's rows, a phone's sheets and its Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
@@ -378,7 +377,7 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | Every glyph is hidden from assistive technology | `checks/accessibility.js` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
 | No component positions its own panel | `checks/styles.js` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and `map/` and in `App.tsx`, except `Popover.tsx` |
 | One place decides where a panel goes | `checks/styles.js` | `popoverBox` has exactly one caller, the `usePopover` hook |
-| Every menu unfurls out of its control | `checks/styles.js`, `styles.test.ts` | `style-menu-unfurls` fails a `usePopover` call whose `placement` is not `'unfurl'` (or the calendar's `'cover'`), and a `widthRef` on any other placement, and a `role="listbox"` outside the card `Popover.tsx` draws, `SearchBox.tsx` aside; `style-map-layers-chip` and `style-map-legend-chip` require `MAP_CHIP_MENU` on each chip's menu and ban the join on the chip, the one exception; the test pins the two roles to each other |
+| Every menu unfurls out of its control | `checks/styles.js`, `styles.test.ts` | `style-menu-unfurls` fails a `usePopover` call whose `placement` is not `'unfurl'` (or the calendar's `'cover'`), and a `widthRef` on any other placement, and a `role="listbox"` outside the card `Popover.tsx` draws, `SearchBox.tsx` aside; `style-map-layers-chip` and `style-map-legend-chip` require `MAP_CHIP_MENU` and its `SURFACE_CHIP_CARD` recipe on each chip's menu and ban the join on the chip, the one exception; the test pins the two roles to each other |
 | No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility, and since #706 the `rule` token's, everywhere under `components/` and `map/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
 | No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and `map/` and in `App.tsx`; `DISABLED`, `MUTED` and `DRAG.carried` are the three fades |
 | Nothing pressed reads at the micro step | `checks/styles.js` | `style-micro-not-pressed` bans `TEXT.micro` in the class of any `button` or `a` in the app's sources; `styles.test.ts` holds `MICRO_SIZE` at 11px and `GLYPH_SIZE` to the two swatch roles |
@@ -568,7 +567,7 @@ shadow sizes on eight surfaces with nothing deciding which got which.
 |---|---|---|
 | `none` | `shadow-none` | What stands on an edge rather than floating: the phone's results sheet, the preview banner, the sliders' thumbs |
 | `raised` | `shadow-lg` | What rests on the map and is read past: the search pill, the chips, the legend card, the player, the chart tooltip, the phone's draw bar |
-| `overlay` | `shadow-2xl` | What opens above other chrome and is closed again: every menu (`SURFACE_POPOVER`), every card over a scrim (`SURFACE_CARD`), and a column being carried (`DRAG.ghost`) |
+| `overlay` | `shadow-2xl` | What opens above other chrome and is closed again: every menu (`SURFACE_POPOVER`, `SURFACE_CHIP_CARD.menu`), every card over a scrim (`SURFACE_CARD`), and a column being carried (`DRAG.ghost`) |
 
 `2xl` rather than `xl` for the top step, because `SURFACE_POPOVER` measured it:
 its single 0.25-alpha blur is the one of the two that still reads over the dark
@@ -666,7 +665,10 @@ widths, so the legend card, open by default, hangs over the map's left edge,
 with the summary chip at the row's front only while the panel is shut. Their menus open as whole cards 4px under
 the chip (`MAP_CHIP_MENU`), each chip carrying a chevron that points down while
 its card is shut and up while it is open (`MAP_CHIP_CHEVRON`). A phone's chips
-carry none, because a sheet rises from below. The legend card scrolls inside the map's height under
+carry none, because a sheet rises from below. The two cards wear one surface,
+the chips' fill with the structural edge (`SURFACE_CHIP_CARD`), so the Layers
+menu reads as the legend card's twin and its outline and deeper shadow part it
+from the legend where it opens across it. The legend card scrolls inside the map's height under
 the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
 the panel, and there are no zoom buttons at either width.
 Record: [0174](decisions/0174-desk-map-rows.md)

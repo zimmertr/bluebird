@@ -14,7 +14,7 @@ import {
   RADIUS,
   STATUS,
   SR_ONLY,
-  SURFACE_FLOATING,
+  SURFACE_CHIP_CARD,
   SWATCH_CHIP,
   SWATCH_EDGE,
   SWATCH_LINE,
@@ -488,7 +488,7 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
           // A popup keeps clear of this card (`resultsLayer.ts` finds every
           // `data-map-overlay`).
           data-map-overlay=""
-          className={`${SURFACE_FLOATING} ${MAP_CHIP_MENU} flex flex-col gap-1 overflow-y-auto overscroll-contain`}
+          className={`${SURFACE_CHIP_CARD.key} ${MAP_CHIP_MENU} flex flex-col gap-1 overflow-y-auto overscroll-contain`}
           // What is left of the map under the rows, less the floor the old
           // stack kept: the player's band while it is on screen and a plain
           // gap otherwise (`legendMaxPx`). A key too tall for that scrolls

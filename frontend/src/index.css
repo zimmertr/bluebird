@@ -106,12 +106,12 @@ body,
   --color-floating: var(--ui-floating);
   --color-recessed: var(--ui-recessed);
   /* Lines: the quiet rule, the outline round a surface, and the structural
-     edge a boundary owes 3:1 with, plus that edge re-derived on a raised
-     surface (`LIFTED_EDGE`). */
+     edge a boundary owes 3:1 with. `--ui-edge-lifted`, that edge re-derived
+     on a raised surface, has no utility: the marker popup's scroll thumb
+     reads it in `map.css`. */
   --color-rule: var(--ui-rule);
   --color-frame: var(--ui-frame);
   --color-edge: var(--ui-edge);
-  --color-edge-lifted: var(--ui-edge-lifted);
   /* Text and glyphs, brightest first in dark and darkest first in light. */
   --color-ink-strong: var(--ui-ink-strong);
   --color-ink: var(--ui-ink);

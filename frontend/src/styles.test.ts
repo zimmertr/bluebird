@@ -48,7 +48,6 @@ import {
   CONTROL_SIZE,
   SEGMENT,
   SEGMENT_FLUID,
-  SEGMENT_FLUID_LIFTED,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   DISABLED,
@@ -58,8 +57,6 @@ import {
   SPINNER,
   STATUS,
   TRANSPORT_AXIS_ITEM,
-  LIFTED_EDGE,
-  RECESSED_FILL,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
   DRAW_ROW,
@@ -103,6 +100,7 @@ import {
   SURFACE_CARD,
   SURFACE_DIVIDER,
   SURFACE_FLOATING,
+  SURFACE_CHIP_CARD,
   SURFACE_POPOVER,
   SURFACE_SHEET,
   SWATCH_CHIP,
@@ -286,10 +284,11 @@ const controlWPx = (): number => Number(CONTROL_W.match(/w-\[(\d+)px\]/)![1])
 const metricPairPx = (): number =>
   2 * stepPx(METRIC_BOX_W, 'w') + (Number(METRICS_GRID.match(/gap-x-([\d.]+)/)![1]) / 4) * 16
 
-// The two building blocks `styles.ts` no longer exports (#687), read back off
-// the roles that compose them, so every assertion below tests what a call site
-// is actually handed.
+// The building blocks `styles.ts` does not export (#687), read back off the
+// roles that compose them, so every assertion below tests what a call site is
+// actually handed.
 const RECESSED_EDGE = SEGMENT_FLUID.split(' ').filter((c) => c.startsWith('border')).join(' ')
+const RECESSED_FILL = SEGMENT_IDLE.split(' ').find((c) => c.startsWith('bg-'))!
 const TRANSPORT_AXIS_W = (TRANSPORT_AXIS_ITEM.match(/(?:^|\s)((?:touch:)?min-w-\[\d+px\])/g) ?? [])
   .map((c) => c.trim())
   .join(' ')
@@ -683,6 +682,7 @@ describe('grouping and segmenting', () => {
     expect(SEGMENT).toContain(RECESSED_EDGE)
     expect(SEGMENT_FILL).toContain(RECESSED_EDGE)
     expect(SLIDER.track).toContain(RECESSED_EDGE)
+    expect(SLIDER.well).toContain(RECESSED_EDGE)
   })
 
   // The fluid segment is the panel segment minus the panel's width: same edge,
@@ -895,6 +895,14 @@ describe('shared recipes', () => {
     expect(SLIDER.track).toContain(RECESSED_FILL)
     expect(SLIDER.track).toContain(RECESSED_EDGE)
     expect(SLIDER.track).toContain(RADIUS.pill)
+  })
+
+  // The coverage slider's well is the same recessed surface at the segment's
+  // corner, so the Blocks/Smooth segment above it and the well read as one
+  // pair of controls.
+  it("builds the coverage slider's well from the same surface at the segment's corner", () => {
+    expect(SLIDER.well).toBe(`${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`)
+    expect(SEGMENT_FLUID).toContain(RADIUS.control)
   })
 
   // The timeline's axis halves are the one segment whose labels the design
@@ -1401,13 +1409,12 @@ describe('shared recipes', () => {
     expect(sizes(CAPTION_LIFTED)).toEqual(sizes(TEXT.caption))
   })
 
-  // The Layers popover, separated from the legend boxes by elevation rather
-  // than by a heavier line: one slate step of fill and a heavier shadow, with
-  // the border the legends' and unchanged. It has to be spelled
-  // as its own recipe rather than composed onto the floating one, because two
-  // background utilities resolve by stylesheet order and the lighter fill would
-  // not reliably win.
-  it('lifts the Layers popover off the legends by elevation', () => {
+  // The search results list, lifted off the pill it drops from by one slate
+  // step of fill and a heavier shadow, with the pill's border. It has to be
+  // spelled as its own recipe rather than composed onto the floating one,
+  // because two background utilities resolve by stylesheet order and the
+  // lighter fill would not reliably win.
+  it('lifts the search results off the pill by elevation', () => {
     expect(darkStep(token(SURFACE_POPOVER, 'bg'))).toBe('slate-700')
     expect(SURFACE_POPOVER.split(' ')).toContain(`bg-${token(SURFACE_POPOVER, 'bg')}/95`)
     expect(darkStep(token(SURFACE_POPOVER, 'border'))).toBe('slate-600')
@@ -1418,20 +1425,33 @@ describe('shared recipes', () => {
     expect(SURFACE_POPOVER).not.toContain(SURFACE_FLOATING)
   })
 
-  // slate-500 carries the recessed boundary at 3.07:1 against the slate-800
-  // panel and only 2.17:1 against the popover's lighter fill, which would leave
-  // the segment and the coverage well without the outer half of their edge.
-  // slate-400 is 3.94:1 out and 7.0:1 against the slate-900 fill in, so both
-  // sides clear the 3:1 WCAG 1.4.11 asks of a component boundary.
-  it('re-derives the recessed edge for the lifted surface', () => {
-    expect(LIFTED_EDGE).toContain('border')
-    expect(darkStep(token(LIFTED_EDGE, 'border'))).toBe('slate-400')
-    expect(LIFTED_EDGE).not.toBe(RECESSED_EDGE)
-    // Only the edge varies: shape stays the fluid segment's, so the two cannot
-    // drift into different controls.
-    expect(SEGMENT_FLUID_LIFTED).toContain(LIFTED_EDGE)
-    expect(token(SEGMENT_FLUID_LIFTED, 'border')).not.toBe(token(RECESSED_EDGE, 'border'))
-    expect(SEGMENT_FLUID_LIFTED.replace(LIFTED_EDGE, RECESSED_EDGE)).toBe(SEGMENT_FLUID)
+  // A desk chip's two cards are twins (#714; record 0174): one fill, the
+  // chips' own, and one edge, the structural one, with only the shadow
+  // telling the menu that opens across the legend from the legend under it
+  // (TJ, 2026-10-18).
+  it("gives a desk chip's two cards one surface and parts them by shadow", () => {
+    const { key, menu } = SURFACE_CHIP_CARD
+    expect(token(key, 'bg')).toBe(token(menu, 'bg'))
+    expect(token(key, 'bg')).toBe(token(MAP_CHIP, 'bg'))
+    expect(key.split(' ')).toContain(`bg-${token(MAP_CHIP, 'bg')}/95`)
+    expect(token(key, 'border')).toBe(token(menu, 'border'))
+    expect(`border-${token(menu, 'border')}`).toBe(PANEL_EDGE)
+    for (const card of [key, menu]) expect(card).toContain(RADIUS.surface)
+    expect(key).toContain(ELEVATION.raised)
+    expect(menu).toContain(ELEVATION.overlay)
+    expect(key.replace(ELEVATION.raised, ELEVATION.overlay)).toBe(menu)
+  })
+
+  // Where the menu opens across the legend card, its outline is the boundary
+  // between them. Measured 2026-10-18 on the v4 oklch steps: slate-500 on the
+  // slate-800 card, where the frame both cards wore before read 1.93:1. The
+  // light theme's pair is measured in its own suite below.
+  it("draws a desk chip card's outline past 3:1 on the card it overlaps", () => {
+    const MEASURED = { dark: 3.07, frameWas: 1.93 }
+    expect(darkStep(token(SURFACE_CHIP_CARD.menu, 'border'))).toBe('slate-500')
+    expect(darkStep(token(SURFACE_CHIP_CARD.key, 'bg'))).toBe('slate-800')
+    expect(MEASURED.dark).toBeGreaterThanOrEqual(3)
+    expect(MEASURED.frameWas).toBeLessThan(3)
   })
 
   // Sky at rest means "this acts here". Anything that leaves for someone
@@ -2650,8 +2670,8 @@ describe('the map legend sections', () => {
 
   // One box, not two: the second cost a border, a gap and a backdrop on a map
   // that can be 161px tall.
-  it('draws them all in one floating box', () => {
-    expect((box.match(/\$\{SURFACE_FLOATING\}/g) ?? []).length).toBe(1)
+  it('draws them all in one box', () => {
+    expect((box.match(/\$\{SURFACE_CHIP_CARD\.key\}/g) ?? []).length).toBe(1)
   })
 
   // Every section, a chip row or a scale alike, is built by one function —
@@ -2663,11 +2683,11 @@ describe('the map legend sections', () => {
   })
 })
 
-// At a desk the legend is the Legend chip's joined card (#714, record 0174).
+// At a desk the legend is the card under the Legend chip (#714, record 0174).
 // It scrolls inside the map left below the rows, so a long legend never runs
 // under the timeline or off the map's foot.
 describe('the desk legend card', () => {
-  const card = mapLegendSource.match(/className=\{`\$\{SURFACE_FLOATING\} \$\{MAP_CHIP_MENU\}[^`]*`\}/)?.[0] ?? ''
+  const card = mapLegendSource.match(/className=\{`\$\{SURFACE_CHIP_CARD\.key\} \$\{MAP_CHIP_MENU\}[^`]*`\}/)?.[0] ?? ''
 
   it('found the card', () => {
     expect(card).not.toBe('')
@@ -2897,6 +2917,8 @@ describe('the elevation scale', () => {
     expect(SURFACE_FLOATING).toContain(ELEVATION.raised)
     expect(SURFACE_CARD).toContain(ELEVATION.overlay)
     expect(SURFACE_POPOVER).toContain(ELEVATION.overlay)
+    expect(SURFACE_CHIP_CARD.key).toContain(ELEVATION.raised)
+    expect(SURFACE_CHIP_CARD.menu).toContain(ELEVATION.overlay)
     expect(BANNER_PREVIEW).toContain(ELEVATION.none)
     expect(SURFACE_SHEET).toContain(ELEVATION.none)
   })
@@ -3188,7 +3210,7 @@ describe('the merged roles', () => {
   // parts, became one object each; the keys are the whole vocabulary.
   it('groups the drag and the slider parts', () => {
     expect(Object.keys(DRAG).sort()).toEqual(['carried', 'ghost', 'grip', 'gripActive', 'insert'])
-    expect(Object.keys(SLIDER).sort()).toEqual(['idle', 'overlay', 'track', 'value', 'wordmark'])
+    expect(Object.keys(SLIDER).sort()).toEqual(['idle', 'overlay', 'track', 'value', 'well', 'wordmark'])
   })
 
   // The marks under the scrubber stand over the thumb's centre, which the
@@ -3605,15 +3627,18 @@ describe('the light theme', () => {
   })
 
   // Icons and boundaries owe 3:1 (1.4.11): the faint icon ink on every
-  // surface, the recessed edge on both sides it separates, the lifted edge on
-  // the popover and its well, the checkbox mark and the focus ring.
+  // surface, the recessed edge on both sides it separates, a desk chip card's
+  // outline on the card it overlaps (the frame it replaced read 2.51:1), the
+  // checkbox mark and the focus ring.
   it('holds every icon and boundary at 3:1 or better', () => {
     const faint = hex(ICON_ACTION, 'text')
     expect([PANEL, RAISED, WELL].map((g) => ratio(faint, g))).toEqual([4.32, 3.87, 4.85])
     const edge = hex(RECESSED_EDGE, 'border')
     expect([PANEL, WELL].map((g) => ratio(edge, g))).toEqual([3.97, 4.46])
-    const lifted = hex(LIFTED_EDGE, 'border')
-    expect([RAISED, WELL].map((g) => ratio(lifted, g))).toEqual([3.56, 4.46])
+    // A desk chip card's outline on the card it overlaps (#714).
+    const card = hex(SURFACE_CHIP_CARD.menu, 'border')
+    expect(ratio(card, hex(SURFACE_CHIP_CARD.key, 'bg'))).toBe(4.24)
+    expect(ratio(hex(SURFACE_CARD, 'border'), FLOATING)).toBe(2.51)
     const mark = hex(ACCENT.input, 'accent')
     expect([PANEL, RAISED, WELL].map((g) => ratio(mark, g))).toEqual([4.06, 3.64, 4.56])
     expect(mark).toBe(hex(ACCENT.fill, 'bg'))

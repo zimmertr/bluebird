@@ -412,40 +412,29 @@ export const SURFACE_SHEET =
   `bg-panel border-t border-frame rounded-t-lg overflow-hidden ${ELEVATION.none}`
 
 /**
- * The map's Layers popover: the one floating box that is a menu rather than a
- * label, separated from the boxes around it by ELEVATION.
- *
- * `SURFACE_FLOATING` would make it byte-identical to the legend box a few
- * hundred pixels below it, so a thing the reader acts in would look like a key
- * the reader reads. What separates it here is the shadow and one step of fill;
- * the border stays exactly the legend's slate-600 so the difference is
- * elevation only.
+ * The search box's results list: a list of answers dropping from the floating
+ * pill, a step lighter than the pill and standing a step higher.
  *
  * ## Why `ELEVATION.overlay` (`shadow-2xl`) rather than `shadow-xl`
  *
  * Tailwind's `xl` is two layers at 0.1 black alpha; `2xl` is one 50px blur at
- * 0.25. Over the light basemap both register, but this popover also hangs over
- * the dark results sheet at the phone breakpoint, where 0.1 alpha on a near
- * black surface is nothing at all. 0.25 is the only one of the two that reads
- * on both grounds, which is why it is the overlay step every opened surface
- * takes, `SURFACE_CARD` included since #687.
+ * 0.25. Over the light basemap both register, but on a phone this list can
+ * hang over the dark results sheet, where 0.1 alpha on a near black surface is
+ * nothing at all. 0.25 is the only one of the two that reads on both grounds,
+ * which is why it is the overlay step every opened surface takes,
+ * `SURFACE_CARD` included since #687.
  *
  * ## Why slate-700, and what still clears AA on it
  *
- * One step up from the legend's slate-800, measured on the v4 oklch steps:
+ * One step up from the pill's slate-800, measured on the v4 oklch steps:
  * white 10.34:1, `TEXT.control`'s slate-200 8.40:1, `MICRO`'s slate-300
- * 6.97:1 — every text role in the popover past the 4.5:1 of WCAG 1.4.3.
- * `ACCENT.input`'s checked sky-500 fill reads 3.81:1 here (5.40:1 on
- * slate-800), past the 3:1 a control boundary owes under 1.4.11.
+ * 6.97:1 — every text role in the list past the 4.5:1 of WCAG 1.4.3. A
+ * result's description is the exception, which is why it wears
+ * `CAPTION_LIFTED`.
  *
- * The border is 1.37:1 on this fill where it was 1.94:1 on slate-800, and that
- * is fine for the same reason it was fine there: it has never been the boundary
- * doing the work — the shadow is, more so now.
- *
- * The one thing the lift genuinely breaks is `RECESSED_EDGE`, which carries
- * 3.07:1 on slate-800 and only 2.17:1 here, so the segment and the coverage
- * well inside the popover would lose the outer half of their boundary.
- * `LIFTED_EDGE` below re-derives it.
+ * The border is 1.37:1 on this fill where it is 1.94:1 on slate-800, and that
+ * is fine for the same reason it is fine there: the list overlaps nothing but
+ * the map, and the shadow is what lifts it off that.
  *
  * Spelled out rather than composed onto `SURFACE_FLOATING`: two background
  * utilities resolve by their order in the generated stylesheet, not by class
@@ -453,6 +442,36 @@ export const SURFACE_SHEET =
  */
 export const SURFACE_POPOVER =
   `bg-raised/95 border border-frame ${RADIUS.surface} ${ELEVATION.overlay} backdrop-blur-sm`
+
+/**
+ * The two cards a desk's map chips open (#714; record 0174): the legend card
+ * under Legend and the Layers menu under Layers. One fill and one edge for
+ * both, because they are twins: identical chips side by side, each opening a
+ * card of one width from its left edge, so a reader takes both as what that
+ * chip opened, and two looks would ask them to find a difference that is not
+ * there (TJ, 2026-10-18).
+ *
+ * The fill is the chips' own (`bg-floating`), since the cards hang from them.
+ * The edge is the structural one, `PANEL_EDGE`'s slate-500, rather than the
+ * quiet frame, because the Layers menu opens across the legend card and its
+ * outline is what separates the two there: slate-500 reads 3.07:1 on the
+ * slate-800 card and 4.24:1 on the light theme's, where the frame manages
+ * 1.93:1 and 2.51:1. Both clear the 3:1 a boundary owes (WCAG 1.4.11), and the
+ * segment and the coverage well inside the menu keep the recessed edge they
+ * wear on the panel, which was derived against this same slate-800.
+ *
+ * The shadow is what differs: the legend rests on the map with the chips
+ * (`ELEVATION.raised`), and the menu stands over it (`ELEVATION.overlay`), the
+ * step every menu takes. Two finished recipes rather than a base and a shadow
+ * added at the call site, so the linter can hold each card to its own.
+ */
+const CHIP_CARD_FACE = `bg-floating/95 border border-edge ${RADIUS.surface} backdrop-blur-sm`
+export const SURFACE_CHIP_CARD = {
+  /** The legend card, which rests on the map like the chips. */
+  key: `${CHIP_CARD_FACE} ${ELEVATION.raised}`,
+  /** The Layers menu, which opens over the legend card. */
+  menu: `${CHIP_CARD_FACE} ${ELEVATION.overlay}`,
+} as const
 
 /**
  * The accent, named by the jobs it does, because it does six.
@@ -898,9 +917,9 @@ export const SWATCH_RAMP_TICK =
  * the legend re-rendering: an inline `border-color` resolves `var()` the way a
  * class does. Its dark value is the v3 slate-600 it always was, and its light
  * value the light theme's outline (`--ui-swatch-edge` in `index.css`). It is
- * the same line `SURFACE_FLOATING` draws around the box the swatches
- * sit in — a swatch is chrome holding somebody else's colour, so its border is
- * the app's and its fill is not. It has to be a value because the fill beside
+ * the app's quiet outline, the line `SURFACE_FLOATING` draws — a swatch is
+ * chrome holding somebody else's colour, so its border is the app's and its
+ * fill is not. It has to be a value because the fill beside
  * it is one: Tailwind resolves two competing colour utilities by stylesheet
  * order, so a border colour class on a span carrying an inline
  * `borderColor` would be a race rather than a rule. It was this hex spelled at
@@ -1205,10 +1224,10 @@ export const DRAG = {
  * Binding them therefore raised the inputs to spec rather than lowering the
  * calendar to match them.
  */
-export const RECESSED_FILL = 'bg-recessed'
-// Not exported (#687): every surface that sinks into the panel composes it
-// here, and a call site takes the finished `FIELD`, `SEGMENT` or
-// `SLIDER.track`.
+// Neither is exported (#687): every surface that sinks into the panel
+// composes them here, and a call site takes the finished `FIELD`, `SEGMENT`,
+// `SEGMENT_IDLE`, `SLIDER.track` or `SLIDER.well`.
+const RECESSED_FILL = 'bg-recessed'
 const RECESSED_EDGE = 'border border-edge'
 
 // What a field looks like, without how big it is (#696): the control type in
@@ -1216,19 +1235,6 @@ const RECESSED_EDGE = 'border border-edge'
 // height and the focus edge; `CHART_TITLE` wears it at 28px with an invisible
 // 44px select over it, which is why the look and the size are two things.
 const FIELD_LOOK = `${TEXT.control} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`
-
-/**
- * The same boundary, re-derived for the one surface that is a step lighter than
- * the panel: `SURFACE_POPOVER`.
- *
- * A recessed edge owes 3:1 on both sides, and slate-500 only manages that
- * against slate-800. On the popover's slate-700 fill it falls to 2.17:1, so the
- * segment and the coverage well would read as fills with no boundary. slate-400
- * is 3.94:1 against that fill and 7.0:1 against the slate-900 well inside it, so
- * both sides clear. The fill it closes is unchanged — only the line moves, and
- * only where the surface behind it did.
- */
-export const LIFTED_EDGE = 'border border-edge-lifted'
 
 /**
  * `TEXT.caption` re-derived for that same fill: a search result's description.
@@ -1640,9 +1646,8 @@ export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
  * closer than the 8px between the pill and the chip row: at that same 8px the
  * card read as a third row rather than as its chip's menu.
  * `CHIP_MENU_GAP_PX` in `resultsSheet.ts` is the gap in pixels. The surface
- * is the caller's: the Layers menu is a menu over the map
- * (`SURFACE_POPOVER`), the legend a key that stays open on it
- * (`SURFACE_FLOATING`).
+ * is `SURFACE_CHIP_CARD`'s: one fill and edge for both cards, the menu's
+ * shadow a step over the legend's.
  */
 export const MAP_CHIP_MENU = `absolute left-0 top-full mt-1 ${MAP_MENU_W} px-2.5 py-2`
 
@@ -1800,18 +1805,6 @@ export const SELECT_W_AGGREGATE = 'w-[4.5rem]'
  */
 const SEGMENT_FLUID_SHAPE = `inline-flex ${RADIUS.control} overflow-hidden`
 export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
-
-/**
- * The same segment on `SURFACE_POPOVER`, which is a step lighter than the panel
- * the recessed edge was derived against.
- *
- * Shape and edge are split so the two cannot drift into different controls: the
- * only difference between them is `LIFTED_EDGE`, and `styles.test.ts` asserts
- * that. The divider BETWEEN the halves is untouched, because both of its sides
- * are well interior — the idle fill and the accent — so the surface behind the
- * popover never reaches it.
- */
-export const SEGMENT_FLUID_LIFTED = `${SEGMENT_FLUID_SHAPE} ${LIFTED_EDGE}`
 
 /**
  * The Metrics grid (#341): the ranking and the bounds in one table, one row
@@ -2852,6 +2845,12 @@ export const SLIDER = {
    * what the analysis progress bar already is.
    */
   track: `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pill}`,
+  /**
+   * The well the coverage slider's layers stack in: the same recessed fill
+   * and edge as every other well, at the control radius the segment above it
+   * wears. The caller sizes and positions it.
+   */
+  well: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`,
 } as const
 
 /**

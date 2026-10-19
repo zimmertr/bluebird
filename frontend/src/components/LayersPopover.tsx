@@ -7,19 +7,16 @@ import {
   ACCENT,
   CHOICE_INPUT,
   CHOICE_ROW,
-  LIFTED_EDGE,
   MAP_CHIP,
   MAP_CHIP_CHEVRON,
   MAP_CHIP_MENU,
-  RADIUS,
-  RECESSED_FILL,
   SEGMENT_DIVIDER,
-  SEGMENT_FLUID_LIFTED,
+  SEGMENT_FLUID,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SLIDER,
   SR_ONLY,
-  SURFACE_POPOVER,
+  SURFACE_CHIP_CARD,
 } from '../styles'
 import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
@@ -281,7 +278,7 @@ export default function LayersPopover({
           one gap bounds nothing. */}
       {layer.key === 'grid' && gridOn && (
         <>
-          <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
+          <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
             {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
               <button
                 key={value}
@@ -305,7 +302,7 @@ export default function LayersPopover({
               and commits on release, because each committed value
               is a refetch and a drag must not fetch per pixel. */}
           <div
-            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
+            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${SLIDER.well}`}
           >
             {(() => {
               const shown = gridReachDraft ?? gridReachFrac
@@ -385,12 +382,13 @@ export default function LayersPopover({
 
   return (
     // Raised over the Legend chip's card beside it, which it opens across:
-    // the menu is the thing a reader just asked for.
+    // the menu is the thing a reader just asked for. The two cards share one
+    // surface, so the menu's outline and its deeper shadow are what part them.
     <div ref={layersRef} className="relative z-[1] flex-shrink-0">
       {button}
       {open && (
         <div
-          className={`${SURFACE_POPOVER} ${MAP_CHIP_MENU}`}
+          className={`${SURFACE_CHIP_CARD.menu} ${MAP_CHIP_MENU}`}
           data-tour="layers-menu"
         >
           {rows}
