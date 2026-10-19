@@ -11,6 +11,7 @@
 // no autocomplete and ≤1 req/s — both satisfied by searching only on Enter.
 
 import { apiFetch } from './apiFetch'
+import { FEET_PER_METER } from './basemapPoi'
 
 export interface Place {
   label: string // short name for the pin and input ("Mount Whitney")
@@ -138,12 +139,12 @@ interface NominatimRow {
   extratags?: Record<string, string> | null // raw OSM tags (extratags=1)
 }
 
-// OSM `ele` is meters; mirror osm/query.py's parsing (plain float × 3.28084,
-// rounded) so a pinned peak and an Overpass row can't disagree.
+// OSM `ele` is meters; mirror osm/query.py's parsing (plain float times the
+// server's factor, rounded) so a pinned peak and an Overpass row can't disagree.
 function elevationFtFromEle(ele: string | undefined): number | undefined {
   if (!ele) return undefined
   const meters = Number(ele)
-  return Number.isFinite(meters) ? Math.round(meters * 3.28084) : undefined
+  return Number.isFinite(meters) ? Math.round(meters * FEET_PER_METER) : undefined
 }
 
 /**

@@ -3,7 +3,16 @@ import { PbfReader } from 'pbf'
 import type { Position } from 'geojson'
 import type { DiscoveredDestination, DiscoveryType } from '../types'
 import { pointInRing } from './fireProximity'
-import { PEAK_TILE_ZOOM, TILE_CONCURRENCY, decodePeaks, tileAt, tileKey, type FetchTile, type TileRef } from './peakTiles'
+import {
+  PEAK_TILE_ZOOM,
+  TILE_CONCURRENCY,
+  decodePeaks,
+  osmIdOf,
+  tileAt,
+  tileKey,
+  type FetchTile,
+  type TileRef,
+} from './peakTiles'
 
 /**
  * A ring's discovery from the basemap's own tiles (#675): the peaks and the
@@ -80,16 +89,6 @@ export interface TileLake {
   latitude: number
   longitude: number
   id: number
-}
-
-// Planetiler writes the feature id as the OSM id times ten plus the element
-// type: 1 a node, 2 a way, 3 a relation (OsmElement.java). A lake is any of
-// the three.
-const ELEMENT_TYPES: Record<number, string> = { 1: 'node', 2: 'way', 3: 'relation' }
-function osmIdOf(id: number | undefined): string | null {
-  if (id === undefined || !Number.isFinite(id)) return null
-  const kind = ELEMENT_TYPES[id % 10]
-  return kind ? `${kind}/${Math.floor(id / 10)}` : null
 }
 
 /**
