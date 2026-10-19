@@ -24,12 +24,26 @@ describe('the theme before the first paint (#706)', () => {
 
   // Light is the only value stored, and the only one the script acts on, so a
   // stray value reads as dark here as it does in `readTheme`.
+  // The script is run, with a stand-in storage and root, rather than read: a
+  // pattern over its text cannot tell `=== 'light'` from `=== 'light' || true`.
   it('marks the root light on the stored light and on nothing else', () => {
-    expect(script).toMatch(/=== 'light'/)
-    expect(script).toMatch(/document\.documentElement\.dataset\.theme = 'light'/)
+    const run = (getItem: (key: string) => string | null) => {
+      const doc = { documentElement: { dataset: {} as Record<string, string> } }
+      new Function('localStorage', 'document', script)({ getItem }, doc)
+      return doc.documentElement.dataset.theme
+    }
+    expect(run((key) => (key === THEME_KEY ? 'light' : null))).toBe('light')
+    expect(run(() => 'dark')).toBeUndefined()
+    expect(run(() => null)).toBeUndefined()
     // A storage that throws (a private window, blocked site data) leaves the
     // page dark rather than failing the load.
-    expect(script).toMatch(/try \{[\s\S]*\} catch/)
+    let theme: string | undefined = 'unset'
+    expect(() => {
+      theme = run(() => {
+        throw new Error('blocked')
+      })
+    }).not.toThrow()
+    expect(theme).toBeUndefined()
   })
 
   // Small, because it blocks the paint it exists to get ahead of.

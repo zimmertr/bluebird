@@ -18,7 +18,7 @@ import {
   resultsHeading,
   windowAggregate,
 } from './metrics'
-import { COLUMNS } from './utils/tableColumns'
+import { COLUMNS, LEAD_KEYS } from './utils/tableColumns'
 import { formatMetricValue } from './utils/chartData'
 import { SortBy } from './types'
 // `?raw` gives us each file's text without executing it, so the precision
@@ -47,15 +47,6 @@ import resultsCsvSource from './utils/resultsCsv.ts?raw'
 import tableColumnsSource from './utils/tableColumns.ts?raw'
 import freezingLevelSource from './utils/freezingLevel.ts?raw'
 
-const SORTS: SortBy[] = [
-  'precip_total_in',
-  'wind_avg_mph',
-  'temp_avg_f',
-  'freeze_min_ft',
-  'snowfall_total_in',
-  'aqi_avg',
-]
-
 describe('the rankable keys', () => {
   // Every aggregate column the table shows is rankable, and nothing else is:
   // the per-family lists mirror the table's column set, and the flat list is
@@ -79,6 +70,7 @@ describe('the rankable keys', () => {
       'snowfall_total_in',
     ])
     expect(FAMILY_KEYS.aqi).toEqual(['aqi_avg', 'aqi_max', 'aqi_min'])
+    expect(FAMILY_KEYS.cloud_deck).toEqual(['cloud_deck_avg_ft', 'cloud_deck_max_ft', 'cloud_deck_min_ft'])
     for (const family of RANKED_FAMILIES) {
       const words = FAMILY_KEYS[family].map(windowAggregate)
       expect(words).toEqual([...words].sort())
@@ -225,35 +217,10 @@ describe('the vocabulary', () => {
 })
 
 describe('familyOf', () => {
-  it('resolves every ranking key', () => {
-    expect(SORTS.map(familyOf)).toEqual(['precip', 'wind', 'temp', 'freeze', 'snowfall', 'aqi'])
-  })
-
   // Every column the results table can show, so a new field cannot reach a
   // header without this module having a name for it.
   it('resolves every result field the table renders', () => {
-    const fields = [
-      'precip_total_in',
-      'precip_avg_in_hr',
-      'precip_min_in_hr',
-      'precip_max_in_hr',
-      'temp_min_f',
-      'temp_max_f',
-      'temp_avg_f',
-      'wind_min_mph',
-      'wind_max_mph',
-      'wind_avg_mph',
-      'freeze_min_ft',
-      'freeze_max_ft',
-      'freeze_avg_ft',
-      'snowfall_total_in',
-      'snowfall_avg_in_hr',
-      'snowfall_min_in_hr',
-      'snowfall_max_in_hr',
-      'aqi_avg',
-      'aqi_min',
-      'aqi_max',
-    ]
+    const fields = COLUMNS.filter((c) => !LEAD_KEYS.has(c.key as string)).map((c) => c.key as string)
     for (const field of fields) expect(() => familyOf(field)).not.toThrow()
   })
 
