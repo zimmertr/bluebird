@@ -182,29 +182,39 @@ FORECAST_CACHE = TTLCache(
 GEOCODE_CACHE = TTLCache(GEOCODE_MAX_ENTRIES, GEOCODE_TTL_S)
 
 
+def point_key(lat: float, lon: float) -> str:
+    """A coordinate's ~1 m identity: both halves to 5 decimals.
+
+    The one spelling every cache key and every dedup by coordinate shares,
+    and the frontend's ``geoKey``. Text rather than rounded floats, because a
+    rounded float loses its sign at zero: -0.000001 and 0.000001 round to
+    -0.0 and 0.0, which compare equal, where ``geoKey`` keeps them apart.
+    """
+    return f"{lat:.5f},{lon:.5f}"
+
+
 def discovery_key(ring: Sequence[Sequence[float]], type_value: str) -> tuple:
     """Cache key for one discovery query.
 
-    Ring coordinates are rounded to 5 decimals (~1 m): enough that a
-    URL-restored polygon and its freshly-drawn twin collide, far too fine
-    for two genuinely different searches to. The elevation band is NOT part
-    of the key — discovery is cached unfiltered and each request re-applies
-    its own band, so one entry serves every band variation.
+    Each vertex is its ``point_key`` (~1 m): enough that a URL-restored
+    polygon and its freshly-drawn twin collide, far too fine for two
+    genuinely different searches to. The elevation band is NOT part of the
+    key — discovery is cached unfiltered and each request re-applies its own
+    band, so one entry serves every band variation.
     """
-    coords = tuple((round(lon, 5), round(lat, 5)) for lon, lat in ring)
+    coords = tuple(point_key(lat, lon) for lon, lat in ring)
     return (CACHE_VERSION, type_value, coords)
 
 
 def custom_enrich_key(points: list[tuple[float, float]]) -> tuple:
     """Cache key for one custom list's elevation lookup.
 
-    Coordinates are rounded to 5 decimals (~1 m), the same precision
-    ``discovery_key`` and the frontend's ``geoKey`` use, then sorted: the
-    question being asked is "what stands on this SET of points", so two
-    pastes of the same peaks in a different order must hit the same entry.
-    That is the reasoning behind ``pointsKey`` in ``fireProximity.ts`` too.
+    Each point is its ``point_key``, then sorted: the question being asked
+    is "what stands on this SET of points", so two pastes of the same peaks
+    in a different order must hit the same entry. That is the reasoning
+    behind ``pointsKey`` in ``fireProximity.ts`` too.
     """
-    coords = tuple(sorted((round(lat, 5), round(lon, 5)) for lat, lon in points))
+    coords = tuple(sorted(point_key(lat, lon) for lat, lon in points))
     return (CACHE_VERSION, "custom-enrich", coords)
 
 

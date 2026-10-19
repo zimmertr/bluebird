@@ -623,6 +623,58 @@ WEATHER_INPUTS = [
             snowfall=[0.123456],
         ),
     },
+    # ── A column answered as an explicit JSON null ────────────────────────
+    # Read as an empty column, the way an absent one is and the way the
+    # browser's `?? []` reads it, so a null column costs only its own figures.
+    {
+        "name": "null_freezing_level_column_leaves_the_other_metrics",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.1, 0.2, 0.0],
+            [50.0, 52.0, 54.0],
+            [5.0, 7.0, 9.0],
+            {"freezing_level_height": None},
+            units={"freezing_level_height": "ft"},
+        ),
+    },
+    {
+        "name": "null_snowfall_column_leaves_the_other_metrics",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.1, 0.2, 0.0],
+            [50.0, 52.0, 54.0],
+            [5.0, 7.0, 9.0],
+            {"snowfall": None},
+        ),
+    },
+    {
+        # 8,000 ft is 2438.4 m, between 850 hPa and 700 hPa: a null 700 hPa
+        # column sends every hour's wind back to 10 m and its temperature
+        # back to 2 m, and leaves the rest of the row as it was.
+        "name": "null_bracketing_level_column_falls_back_every_hour",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 8000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.1],
+            [40.0, 41.0],
+            [5.0, 6.0],
+            {
+                "wind_speed_925hPa": [7.0, 7.0],
+                "wind_speed_850hPa": [10.0, 12.0],
+                "wind_speed_700hPa": None,
+                "wind_speed_600hPa": [40.0, 40.0],
+                "wind_speed_500hPa": [50.0, 50.0],
+                "temperature_925hPa": [45.0, 45.0],
+                "temperature_850hPa": [38.0, 39.0],
+                "temperature_700hPa": None,
+                "temperature_600hPa": [20.0, 20.0],
+                "temperature_500hPa": [10.0, 10.0],
+            },
+        ),
+    },
 ]
 
 def _cl(times, rh2m, levels=None, units=None) -> dict:
@@ -798,6 +850,20 @@ CLOUD_INPUTS = [
         ),
     },
     {
+        # A level answered as an explicit JSON null is a level with no
+        # reading at any hour, which the walk skips like a null hour: at
+        # 3,000 ft the deck is interpolated between 1000 hPa and the 2 m
+        # point rather than lost.
+        "name": "null_level_column_is_skipped_every_hour",
+        "window": _win(H[0], H[2]),
+        "elevation_ft": 3000.0,
+        "payload": _cl(
+            H[:3],
+            [97.0, 96.0, 99.0],
+            {**_dry(3), "relative_humidity_925hPa": None},
+        ),
+    },
+    {
         "name": "empty_payload_is_null_null",
         "window": _win(H[0], H[2]),
         "elevation_ft": 5000.0,
@@ -835,6 +901,13 @@ AQI_INPUTS = [
         "name": "empty_payload_is_null_null",
         "window": _win(H[0], H[2]),
         "payload": _aq([], []),
+    },
+    {
+        # A null `us_aqi` reads as an empty column: no aggregates, and a
+        # series of nulls over the window's hours, as the browser reads it.
+        "name": "null_aqi_column_null_metrics_series_of_nulls",
+        "window": _win(H[0], H[1]),
+        "payload": _aq(H[:2], None),
     },
 ]
 

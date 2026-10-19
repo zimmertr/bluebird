@@ -56,6 +56,8 @@ def _snapshot(*features: dict, fetched_at_ms: int = 1_000) -> nifc.Snapshot:
 
 def test_to_fire_drops_a_feature_with_no_geometry():
     assert nifc._to_fire({"type": "Feature", "properties": {}, "geometry": None}) is None
+    # A geometry with no coordinates in it has no box to file it under either.
+    assert nifc._to_fire({"geometry": {"type": "Polygon", "coordinates": []}}) is None
 
 
 def test_to_fire_preserves_the_upstream_json_verbatim():
@@ -213,6 +215,43 @@ def test_parse_page_reads_a_page_the_way_the_pager_needs_it():
     # The offset step counts what ArcGIS SENT, not what survived, or paging
     # re-reads whatever the dropped features displaced.
     assert count == 2
+
+
+def test_a_page_skips_a_feature_that_is_not_an_object():
+    # One malformed item must not fail the whole page, and with it the refresh.
+    payload = json.dumps(
+        {"type": "FeatureCollection", "features": [None, _polygon(-120.0, 45.0, -119.9, 45.1)]}
+    ).encode()
+
+    fires, _, count = nifc._parse_page(payload)
+
+    assert len(fires) == 1
+    assert count == 2
+
+
+def test_a_page_with_no_features_list_is_an_upstream_error():
+    with pytest.raises(UpstreamError) as excinfo:
+        nifc._parse_page(b'{"type": "FeatureCollection"}')
+    assert excinfo.value.message == "Wildfire data could not be read."
+
+
+async def test_the_snapshot_holds_the_full_and_the_coarse_copy_from_one_fetch(monkeypatch):
+    # The map's low-zoom copy and the API's full one come from two queries in
+    # one refresh, and must land in their own fields.
+    asked: list[float | None] = []
+    full = (nifc._to_fire(_polygon(-120.0, 45.0, -119.0, 46.0, name="Full")),)
+    coarse = (nifc._to_fire(_polygon(-120.0, 45.0, -119.0, 46.0, name="Coarse")),)
+
+    async def fetch_layer(client, simplify_deg):
+        asked.append(simplify_deg)
+        return coarse if simplify_deg == nifc.COARSE_OFFSET_DEG else full
+
+    monkeypatch.setattr(nifc, "_fetch_layer", fetch_layer)
+    snapshot = await nifc.fetch_snapshot()
+
+    assert sorted(asked, key=lambda d: d is not None) == [None, nifc.COARSE_OFFSET_DEG]
+    assert snapshot.full == full
+    assert snapshot.coarse == coarse
 
 
 async def test_fetch_layer_stops_at_the_page_backstop(monkeypatch, caplog):
@@ -592,6 +631,55 @@ def test_route_answers_503_when_nothing_has_ever_been_fetched(monkeypatch):
         "code": "snapshot_unavailable",
         "retryable": True,
     }
+
+
+# ArcGIS refuses a quota either way: HTTP 429, or 200 with the refusal in the
+# body. Both are one fact, so both answer the feed's own sentence and carry
+# ArcGIS's Retry-After when it sends one.
+QUOTA_REFUSAL = {"error": {"code": 429, "message": "Unable to perform query. Too many requests."}}
+ARCGIS_REFUSALS = [
+    pytest.param(429, {}, {"Retry-After": "120"}, "120", id="http-429-with-retry-after"),
+    pytest.param(429, {}, {}, "60", id="http-429"),
+    pytest.param(200, QUOTA_REFUSAL, {"Retry-After": "120"}, "120", id="inside-200-with-retry-after"),
+    pytest.param(200, QUOTA_REFUSAL, {}, "60", id="inside-200"),
+]
+
+
+def arcgis_answering(status: int, body: dict, headers: dict[str, str]) -> httpx.MockTransport:
+    """A transport whose every ArcGIS page is the same refusal."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status, json=body, headers=headers, request=request)
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.parametrize(("status", "body", "headers", "retry_after"), ARCGIS_REFUSALS)
+def test_an_arcgis_refusal_answers_the_feeds_own_sentence(
+    monkeypatch, status, body, headers, retry_after
+):
+    async def fetch() -> nifc.Snapshot:
+        transport = arcgis_answering(status, body, headers)
+        async with httpx.AsyncClient(transport=transport) as client:
+            full = await nifc._fetch_layer(client, None)
+        return nifc.Snapshot(fetched_at_ms=1, full=full, coarse=full)
+
+    monkeypatch.setattr(nifc, "PERIMETERS", nifc.perimeter_cache(fetch=fetch))
+    with TestClient(app) as client:
+        response = client.get("/api/wildfires", params={"bbox": "-122.5,46.0,-121.0,47.5"})
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Wildfire data is rate-limited. Try again later."
+    assert response.headers["Retry-After"] == retry_after
+
+
+def test_an_arcgis_503_status_keeps_its_own_sentence():
+    # Only the 429 is a refusal by quota; a 503 status is the service failing.
+    async def fetch() -> None:
+        async with httpx.AsyncClient(transport=arcgis_answering(503, {}, {})) as client:
+            await nifc._fetch_layer(client, None)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        asyncio.run(fetch())
 
 
 def test_capabilities_publishes_the_wildfire_bucket():

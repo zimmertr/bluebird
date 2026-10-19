@@ -28,7 +28,8 @@ from app.models import (
 from app.routes.analyze.route import API_KEY_HEADER, _summarize_request
 from app.routes.analyze.sse import _sse
 from app.services import aggregation, air_quality, osm, ranking, weather
-from app.services.candidates import _coord_key, _filter_elevation, _merge_custom
+from app.services.cache import point_key
+from app.services.candidates import _filter_elevation, _merge_custom
 from app.services.errors import (
     InvalidApiKeyError,
     ModelCoverageError,
@@ -1031,8 +1032,14 @@ def test_merge_custom_keeps_a_repeated_custom_point_once():
 # The collision key is five decimals (~1 m), the frontend's geoKey precedent.
 # Coarser, and two distinct summits a ridge apart would merge into one row;
 # finer, and a pasted coordinate would miss the OSM node it names.
-def test_coord_key_is_five_decimals():
-    assert _coord_key({"latitude": 46.852894, "longitude": -121.760406}) == "46.85289,-121.76041"
+def test_point_key_is_five_decimals():
+    assert point_key(46.852894, -121.760406) == "46.85289,-121.76041"
+
+
+def test_point_key_keeps_the_sign_at_zero():
+    # The browser's geoKey keeps it, so two points a metre either side of the
+    # equator are two keys on both sides.
+    assert point_key(-0.000001, 10.0) != point_key(0.000001, 10.0)
 
 
 @pytest.mark.parametrize(

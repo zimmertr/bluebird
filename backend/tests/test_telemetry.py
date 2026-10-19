@@ -22,7 +22,7 @@ from app import ratelimit, telemetry
 from app.main import app
 from app.services import air_quality, cache, weather
 from app.services import osm as osm_mod
-from app.services.errors import UpstreamRateLimited
+from app.services.errors import UpstreamError, UpstreamRateLimited
 
 client = TestClient(app)
 
@@ -523,6 +523,37 @@ def test_aqi_failure_counts_a_degraded_batch(monkeypatch):
         )
         == err_before + 1
     )
+
+
+def test_a_read_timeout_counts_as_a_timeout(monkeypatch):
+    # The Overpass counter's vocabulary: a timeout is its own outcome rather
+    # than one more network error.
+    request = httpx.Request("GET", weather.FORECAST_URL)
+    _stub_openmeteo(monkeypatch, weather, [httpx.ReadTimeout("slow", request=request)])
+    labels = {"service": "weather", "outcome": "timeout", "quota": "pod"}
+    before = _value("bluebird_forecast_openmeteo_requests_total", labels)
+    cache.FORECAST_CACHE.clear()
+    with pytest.raises(UpstreamError):
+        asyncio.run(weather.fetch_weather_batch([dest(47.6, -121.6)], *WINDOW))
+    assert _value("bluebird_forecast_openmeteo_requests_total", labels) == before + 1
+
+
+def test_the_total_deadline_counts_as_a_timeout(monkeypatch):
+    # The request's own deadline ends in the builtin TimeoutError, which is
+    # the same fact as httpx timing out one read.
+    monkeypatch.setattr(weather.http, "TIMEOUT_S", 0.05)
+
+    class _Slow:
+        async def get(self, url, params=None):
+            await asyncio.sleep(1)
+
+    monkeypatch.setattr(weather.http, "client", lambda: _Slow())
+    labels = {"service": "weather", "outcome": "timeout", "quota": "pod"}
+    before = _value("bluebird_forecast_openmeteo_requests_total", labels)
+    cache.FORECAST_CACHE.clear()
+    with pytest.raises(UpstreamError):
+        asyncio.run(weather.fetch_weather_batch([dest(47.7, -121.7)], *WINDOW))
+    assert _value("bluebird_forecast_openmeteo_requests_total", labels) == before + 1
 
 
 def test_keyed_weather_batch_counts_against_the_callers_quota(monkeypatch):

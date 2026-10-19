@@ -40,7 +40,7 @@ from collections.abc import Awaitable, Callable
 
 from app import telemetry
 from app.error_codes import ApiError, ErrorCode
-from app.services.errors import UpstreamError, classify_http_error
+from app.services.errors import UpstreamError, classify_http_error, log_reason
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ MAX_STALE_S = 24 * 60 * 60
 # request to the parsed snapshot. A caller on a cold cache waits this long at
 # most, and Cloudflare closes a proxied request at 100 s (its 524), after which
 # the answer reaches nobody. Each upstream's own REQUEST_TIMEOUT_S bounds one
-# operation only (60 to 120 s), and a paged feed is several of them in series.
+# operation only (60 s each), and a paged feed is several of them in series.
 # Measured 2026-10-01 from a home network, cold, three runs each: perimeters
 # 1.2 to 5.5 s (6.7 s when #203 measured it), smoke 0.1 to 0.4 s, closures 0.5
 # to 1.1 s. 60 s is about ten times the slowest of those, and leaves the edge
@@ -111,7 +111,6 @@ class SnapshotCache[T]:
         self._fresh_until = 0.0
         self._refresh_task: asyncio.Task[None] | None = None
         self._last_error: Exception | None = None
-        self.refreshes = 0
         # Created at 0 so the first failure is an increase an alert can see,
         # for the reason `telemetry.init_canary_series` gives.
         telemetry.SNAPSHOT_REFRESH_FAILURES.labels(provider=label)
@@ -120,11 +119,6 @@ class SnapshotCache[T]:
     def label(self) -> str:
         """The upstream this cache speaks for, as a person reads it."""
         return self._label
-
-    @property
-    def snapshot_or_none(self) -> T | None:
-        """Whatever is held, without triggering a refresh. For diagnostics."""
-        return self._snapshot
 
     def _servable(self) -> T | None:
         """The held snapshot, unless it is older than `MAX_STALE_S`."""
@@ -214,8 +208,9 @@ class SnapshotCache[T]:
             self._last_error = exc
             self._fresh_until = self._clock() + self._retry_after_failure_s
             telemetry.SNAPSHOT_REFRESH_FAILURES.labels(provider=self._label).inc()
-            # A deadline's TimeoutError has no message of its own.
-            reason = str(exc) or f"no answer within {self._refresh_deadline_s:.0f}s"
+            # A deadline's TimeoutError has no message of its own, and nor
+            # does a reset connection, which must not read as the deadline.
+            reason = log_reason(exc, deadline_s=self._refresh_deadline_s)
             if self._snapshot is None:
                 log.warning("%s fetch failed with nothing cached to fall back on: %s", self._label, reason)
             elif self._servable() is None:
@@ -224,23 +219,16 @@ class SnapshotCache[T]:
                 log.warning("%s refresh failed (%s); still serving the last good snapshot", self._label, reason)
             return
         self._last_error = None
-        self.refreshes += 1
         self._snapshot = snapshot
         self._fetched_at = self._clock()
         self._fresh_until = self._fetched_at + self._ttl_s
         log.info("%s snapshot refreshed: %s", self._label, self._describe(snapshot))
 
     async def settle(self) -> None:
-        """Await any background refresh. For tests and for orderly shutdown."""
+        """Await any background refresh, so a test can read what it left."""
         task = self._refresh_task
         if task is not None:
             await asyncio.gather(task, return_exceptions=True)
-
-    def clear(self) -> None:
-        self._snapshot = None
-        self._fetched_at = 0.0
-        self._fresh_until = 0.0
-        self._last_error = None
 
 
 def cache_factory[T](
@@ -308,7 +296,9 @@ async def snapshot_or_503[T](cache: SnapshotCache[T], *, event: str) -> T:
         return await cache.get()
     except Exception as exc:
         retry_after = getattr(exc, "retry_after_s", DEFAULT_RETRY_AFTER_S)
-        log.warning("event=%s error=%s", event, exc)
+        log.warning(
+            "event=%s error=%s", event, log_reason(exc, deadline_s=cache._refresh_deadline_s)
+        )
         raise ApiError(
             status_code=503,
             detail=unavailable_message(exc, cache.label),

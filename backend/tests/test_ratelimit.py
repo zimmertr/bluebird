@@ -155,6 +155,36 @@ def test_eviction_keeps_depleted_buckets_when_possible():
     assert "hot" not in limiter._buckets
 
 
+def test_eviction_drops_the_least_recently_touched_half_when_no_bucket_is_full():
+    # Every bucket is mid-refill, so the fallback drops the half touched
+    # longest ago. "a" was created first and touched again since, so "b" is
+    # the one to go: a spoofed-address flood cannot grow the dict, and an
+    # address still knocking keeps its state.
+    clock = _Clock()
+    limiter = ratelimit.RateLimiter(60, 1, max_keys=2, clock=clock)
+    limiter.check("a")
+    clock.t = 0.2
+    limiter.check("b")
+    clock.t = 0.4
+    limiter.check("a")
+    clock.t = 0.5
+    limiter.check("c")
+    assert set(limiter._buckets) == {"a", "c"}
+
+
+def test_a_clock_that_runs_backwards_moves_no_time():
+    # Production reads a monotonic clock; the limiter takes any clock, and one
+    # that stepped back must not credit the same seconds again on the way up.
+    clock = _Clock(100.0)
+    limiter = ratelimit.RateLimiter(60, 1, clock=clock)
+    assert limiter.check("a")[0]
+    clock.t = 90.0
+    assert limiter.check("a") == (False, 1.0)
+    clock.t = 100.0
+    # Back at the instant it spent its token, and no time has passed since.
+    assert limiter.check("a") == (False, 1.0)
+
+
 def test_reset_clears_state():
     limiter = ratelimit.RateLimiter(60, 1)
     limiter.check("a")

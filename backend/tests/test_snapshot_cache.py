@@ -10,7 +10,9 @@ same backoff and then tries again.
 from __future__ import annotations
 
 import asyncio
+import logging
 
+import httpx
 import pytest
 from prometheus_client import REGISTRY
 
@@ -152,6 +154,63 @@ async def test_a_cold_refresh_ends_at_its_deadline_with_the_timeout_sentence():
     assert answered.value.status_code == 503
     assert answered.value.detail == "Hanging upstream took too long. Try again later."
     assert _failures("Hanging upstream") == before + 1
+
+
+async def test_a_background_refresh_queued_behind_a_cold_fetch_does_not_fetch_again():
+    # An aged read schedules a refresh behind the request. Before it runs, the
+    # snapshot passes its age limit and a cold read fetches under the lock;
+    # the queued refresh then finds the cache fresh and asks nothing.
+    clock = _Clock()
+    clock.now = 0.0
+    fetched_at: list[float] = []
+
+    async def fetch() -> str:
+        fetched_at.append(clock.now)
+        return f"at {clock.now}"
+
+    cache = SnapshotCache(
+        label="test", fetch=fetch, ttl_s=10, retry_after_failure_s=60, clock=clock,
+        max_stale_s=100,
+    )
+    assert await cache.get() == "at 0.0"
+    clock.now = 50.0
+    assert await cache.get() == "at 0.0"  # aged: served, refresh scheduled
+    clock.now = 200.0
+    assert await cache.get() == "at 200.0"  # cold: fetched in front of the read
+    await cache.settle()
+
+    assert fetched_at == [0.0, 200.0]
+
+
+async def test_a_refresh_past_its_deadline_logs_the_deadline(caplog):
+    # The deadline's TimeoutError carries no text of its own, so both the
+    # refresh's line and the route's would otherwise end in nothing.
+    async def hang() -> str:
+        await asyncio.sleep(30)
+        return "never"
+
+    cache = SnapshotCache(
+        label="Hanging upstream", fetch=hang, ttl_s=600, retry_after_failure_s=60,
+        refresh_deadline_s=0.05,
+    )
+    with caplog.at_level(logging.WARNING), pytest.raises(ApiError):
+        await asyncio.wait_for(snapshot_or_503(cache, event="test"), timeout=5)
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("nothing cached to fall back on: no answer within" in m for m in messages)
+    assert any(m.startswith("event=test error=no answer within") for m in messages)
+
+
+async def test_a_silent_refresh_failure_logs_its_type_not_the_deadline(caplog):
+    # A connection the server reset carries no message either, and it is not
+    # a timeout: read as one, it sends whoever reads the log the wrong way.
+    clock = _Clock()
+    cache, _ = _cache(clock, [httpx.ReadError("")])
+    with caplog.at_level(logging.WARNING), pytest.raises(ApiError):
+        await snapshot_or_503(cache, event="test")
+    messages = [r.getMessage() for r in caplog.records]
+    assert "test fetch failed with nothing cached to fall back on: ReadError" in messages
+    assert "event=test error=ReadError" in messages
+    assert not any("no answer within" in m for m in messages)
 
 
 async def test_a_background_refresh_past_its_deadline_keeps_serving_the_snapshot():

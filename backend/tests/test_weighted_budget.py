@@ -101,6 +101,22 @@ async def test_waits_beyond_max_wait_shed_instead(monkeypatch):
     assert budget.wait_estimate_s(30) == pytest.approx(60.0)
 
 
+async def test_a_shed_never_answers_retry_after_zero(monkeypatch):
+    # A negative wait bound (UPSTREAM_WEIGHT_MAX_WAIT_S=-1 parses) sheds an
+    # idle budget's zero wait, and a Retry-After of 0 asks to come straight
+    # back. The gate rounds the same way.
+    _sleep_recorder(monkeypatch)
+    budget = ratelimit.WeightedBudget("test", 100, max_wait_s=-1, clock=_Clock())
+    with pytest.raises(ratelimit.BudgetExhausted) as shed:
+        await budget.acquire(1)
+    assert shed.value.retry_after_s == 1
+
+    gate = ratelimit.MinIntervalGate("test", 10.0, max_wait_s=-1, clock=_Clock())
+    with pytest.raises(ratelimit.BudgetExhausted) as shed:
+        await gate.acquire()
+    assert shed.value.retry_after_s == 1
+
+
 async def test_zero_per_minute_disables(monkeypatch):
     slept = _sleep_recorder(monkeypatch)
     budget = ratelimit.WeightedBudget("test", 0, clock=_Clock())

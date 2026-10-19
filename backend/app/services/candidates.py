@@ -23,6 +23,7 @@ from app.models import (
     GeoPolygon,
 )
 from app.services import osm
+from app.services.cache import point_key
 from app.services.errors import UpstreamError
 from app.services.ranking import _cap_detail
 
@@ -103,10 +104,6 @@ async def _resolve_custom_reporting(
     return await osm.enrich_custom_reporting(rows)
 
 
-def _coord_key(dest) -> str:
-    return f"{dest['latitude']:.5f},{dest['longitude']:.5f}"
-
-
 def _distinct_by_coord(rows: list[dict]) -> list[dict]:
     """Each coordinate key once, as first written (#579).
 
@@ -118,7 +115,7 @@ def _distinct_by_coord(rows: list[dict]) -> list[dict]:
     seen: set[str] = set()
     unique: list[dict] = []
     for row in rows:
-        key = _coord_key(row)
+        key = point_key(row["latitude"], row["longitude"])
         if key not in seen:
             seen.add(key)
             unique.append(row)
@@ -145,8 +142,8 @@ def _merge_custom(discovered: list[dict], custom: list[dict]) -> list[dict]:
     (`_distinct_by_coord`), whoever built the list.
     """
     custom = _distinct_by_coord(custom)
-    coords = {_coord_key(c) for c in custom}
-    kept = [d for d in discovered if _coord_key(d) not in coords]
+    coords = {point_key(c["latitude"], c["longitude"]) for c in custom}
+    kept = [d for d in discovered if point_key(d["latitude"], d["longitude"]) not in coords]
     return kept + custom
 
 

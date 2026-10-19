@@ -7,7 +7,11 @@ target-version = "py314"
 line-length = 120
 
 [lint]
-select = ["E", "F", "I", "B", "UP", "TID251"]
+# BLE is the blind `except Exception`: one that neither re-raises nor logs the
+# traceback swallows whatever it catches, a programming error included. Every
+# broad catch that stays says why on its line, as `# noqa: BLE001 — reason`,
+# so the reason is read where the catch is.
+select = ["E", "F", "I", "B", "UP", "TID251", "BLE"]
 # UP042 wants `class X(str, Enum)` rewritten as `StrEnum`. These four enums
 # cross the wire: Pydantic serializes them, the OpenAPI snapshot publishes
 # them, and StrEnum changes what `str()` and an f-string produce for a member
