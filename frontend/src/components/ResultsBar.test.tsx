@@ -184,7 +184,7 @@ describe('ResultsBar', () => {
     expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('says the comparison wait on its own line', () => {
+  it('says the comparison wait on its own line with no notes', () => {
     render(<ResultsBar {...props({ compareWait: 'Waiting 12 s' })} />)
     expect(screen.getByText('Waiting 12 s')).toBeTruthy()
   })

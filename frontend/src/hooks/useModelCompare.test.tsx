@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type ModelCompareOptions, useModelCompare } from './useModelCompare'
 import { analyzedSnapshot, fetchedSeries, forecastModel, resultRow, series, weatherResult } from '../testSupport/fixtures'
@@ -31,7 +31,14 @@ fetched.mockImplementation(
     }),
 )
 
+// Each model is cut at now plus its reach, so the clock stands at the
+// snapshot's own instant rather than wherever the run date leaves it.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(SNAPSHOT.asOfMs)
+})
 afterEach(() => {
+  vi.useRealTimers()
   calls.length = 0
   fetched.mockClear()
 })

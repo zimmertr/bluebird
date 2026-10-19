@@ -133,7 +133,7 @@ describe('BottomSheet', () => {
       expect(card.style.height).toBe('')
     })
 
-    it('closes let go near the foot, or flicked down from anywhere', () => {
+    it('closes when let go near the foot', () => {
       const first = setup()
       first.drag(grip(), [600, 800 - SHEET_SNAP_PX])
       expect(first.onClose).toHaveBeenCalledOnce()

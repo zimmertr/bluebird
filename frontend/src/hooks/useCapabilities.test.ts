@@ -175,10 +175,6 @@ describe('parseCapabilities', () => {
     expect(models.find((m) => m.id === 'gem_seamless')!.blend).toBe(false)
   })
 
-  // An unknown model is an old link or a dropped model, and the calendar has to
-  // pick some reach for it. The shortest on offer, not the longest: a day drawn
-  // as available and returned empty is worse than one drawn as unavailable that
-  // would have worked.
   // The server's ranking is not a sort on anything the client can see, so the
   // client must not impose one of its own.
   it('preserves the published order rather than re-sorting', () => {
@@ -190,6 +186,10 @@ describe('parseCapabilities', () => {
     ])
   })
 
+  // An unknown model is an old link or a dropped model, and the calendar has to
+  // pick some reach for it. The shortest on offer, not the longest: a day drawn
+  // as available and returned empty is worse than one drawn as unavailable that
+  // would have worked.
   it('assumes the shortest reach for a model it does not recognize', () => {
     const models = parseCapabilities(body).forecastModels
     expect(modelForecastHours(models, 'ecmwf_ifs025')).toBe(336)
@@ -198,13 +198,9 @@ describe('parseCapabilities', () => {
 
   it('falls back per field, so an older deployment keeps the rest', () => {
     const partial = parseCapabilities({ limits: { max_limit: 800 } })
-    expect(partial.maxLimit).toBe(800)
-    // Not undefined: these feed Math.min, a polygon comparison, and the
-    // calendar's near edge.
-    expect(partial.maxDestinations).toBeGreaterThan(0)
-    expect(partial.maxPolygonAreaKm2).toBeGreaterThan(0)
-    expect(partial.archiveDays).toBeGreaterThan(0)
-    expect(partial.aqiForecastDays).toBeGreaterThan(0)
+    // Each missing field takes ITS fallback, not merely some number: these feed
+    // Math.min, a polygon comparison and the calendar's near edge.
+    expect(partial).toEqual({ ...parseCapabilities(null), maxLimit: 800 })
     // A deployment from before #619 publishes no ring cap; the draw tool and
     // the link parser stop at the browser's own copy of it.
     expect(partial.maxPolygonPoints).toBe(MAX_POLYGON_POINTS)

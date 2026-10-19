@@ -59,6 +59,7 @@ import {
   STATUS,
   TRANSPORT_AXIS_ITEM,
   LIFTED_EDGE,
+  LINE_EDGE,
   RECESSED_FILL,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
@@ -3687,6 +3688,14 @@ describe('the light theme', () => {
     expect(rule).not.toBeNull()
     expect([Number(rule![1]), rule![2]]).toEqual([LINE_LAYER_Z, LINE_RIM_FILTER_ID])
     expect(indexCss.match(/recharts-zIndex-layer_/g)).toHaveLength(1)
+  })
+
+  // A mark in a chart line's colour wears the line's rim in light, and the
+  // chart checkbox's half of it brings the app's focus ring: an author outline
+  // replaces the browser's own, which the box had relied on.
+  it('keeps a focus ring under the chart checkbox\'s rim', () => {
+    expect(LINE_EDGE.input).toContain(LINE_EDGE.swatch)
+    expect(LINE_EDGE.input).toContain(FOCUS_RING)
   })
 
   // The shade under a fixed edge: the ink at 12% stands 1.27:1 off the light

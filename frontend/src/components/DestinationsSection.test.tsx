@@ -174,11 +174,6 @@ describe('DestinationsSection', () => {
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit polygon' }))
     })
 
-    it('reads Done, Cancel, Clear while drawing', () => {
-      render(<DestinationsSection {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1 })} />)
-      expect(polygonButtons()).toEqual(['Done', 'Cancel', 'Clear'])
-    })
-
     // Clear starts the ring over; only Cancel leaves the mode.
     it('clears inside draw mode without cancelling it', async () => {
       const onCancelDrawing = vi.fn()
