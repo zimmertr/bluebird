@@ -1,8 +1,10 @@
 import { VectorTile } from '@mapbox/vector-tile'
 import { PbfReader } from 'pbf'
 import type { CustomDestination } from '../types'
+import { elevationFtOf } from './basemapPoi'
 import { geoKey } from './points'
 import type { Identity } from './elevationLookup'
+import { isFiniteNumber } from './numbers'
 
 /**
  * The elevation lookup's first source (#673): the basemap's own vector tiles.
@@ -125,11 +127,14 @@ export function distanceM(lat1: number, lon1: number, lat2: number, lon2: number
 }
 
 // Planetiler writes the feature id as the OSM id times ten plus the element
-// type, where a node is 1 (OsmElement.java). Only nodes are in this layer, so
-// an id that is not a node's is no id.
-function osmIdOf(id: number | undefined): string | null {
-  if (id === undefined || !Number.isFinite(id) || id % 10 !== 1) return null
-  return `node/${(id - 1) / 10}`
+// type: 1 a node, 2 a way, 3 a relation (OsmElement.java). One decoder for
+// every layer this app reads; a layer that holds only nodes says so where it
+// reads the id.
+const ELEMENT_TYPES: Record<number, string> = { 1: 'node', 2: 'way', 3: 'relation' }
+export function osmIdOf(id: number | undefined): string | null {
+  if (!isFiniteNumber(id)) return null
+  const kind = ELEMENT_TYPES[id % 10]
+  return kind ? `${kind}/${Math.floor(id / 10)}` : null
 }
 
 /**
@@ -157,12 +162,12 @@ export function decodePeaks(bytes: Uint8Array, tile: TileRef): TilePeak[] {
     if (!point) continue
     const longitude = ((tile.x + point.x / layer.extent) / n) * 360 - 180
     const latitude = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (tile.y + point.y / layer.extent)) / n))) * 180) / Math.PI
-    const ele = feature.properties.ele_ft
     const name = feature.properties.name
     out.push({
-      osm_id: osmIdOf(feature.id),
+      // Only nodes are in this layer, so an id that is not a node's is no id.
+      osm_id: feature.id !== undefined && feature.id % 10 === 1 ? osmIdOf(feature.id) : null,
       name: typeof name === 'string' && name !== '' ? name : null,
-      elevation_ft: typeof ele === 'number' && Number.isFinite(ele) ? ele : null,
+      elevation_ft: elevationFtOf(feature.properties) ?? null,
       latitude,
       longitude,
       id: feature.id ?? -1 - i,

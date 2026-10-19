@@ -28,7 +28,7 @@ import { isPartialRow, PARTIAL_COVERAGE_NOTE, type ModelEnd, type ModelRow } fro
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning } from './fireProximity'
 import type { ClosureWarning } from './closureProximity'
-import type { ResolvedWindow } from './forecastWindow'
+import { MINUTE_MS, type ResolvedWindow } from './forecastWindow'
 import { geoKey } from './points'
 
 /**
@@ -308,7 +308,7 @@ export function isoLocalMinute(ms: number, timeZone?: string): string {
   const wall = Date.UTC(year, month - 1, day, hour, minute, at('second'))
   // Whole seconds on both sides, or a window carrying milliseconds would push
   // the offset off a whole minute.
-  const offsetMin = Math.round((wall - Math.floor(ms / 1000) * 1000) / 60_000)
+  const offsetMin = Math.round((wall - Math.floor(ms / 1000) * 1000) / MINUTE_MS)
   const pad = (n: number) => String(Math.abs(n)).padStart(2, '0')
   const sign = offsetMin < 0 ? '-' : '+'
   const offset = `${sign}${pad(Math.trunc(offsetMin / 60))}:${pad(offsetMin % 60)}`

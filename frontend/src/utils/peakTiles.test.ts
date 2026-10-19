@@ -13,6 +13,7 @@ import {
   lookupPeaks,
   nearestPeak,
   normalizeName,
+  osmIdOf,
   peakByName,
   resetPeakTiles,
   tileAt,
@@ -78,6 +79,18 @@ describe('the tile under a point', () => {
   })
 })
 
+describe('osmIdOf', () => {
+  it('decodes a Planetiler feature id to the OSM element it was written from', () => {
+    expect(osmIdOf(17449034931)).toBe('node/1744903493')
+    expect(osmIdOf(1702136232)).toBe('way/170213623')
+    expect(osmIdOf(53)).toBe('relation/5')
+  })
+
+  it('is no id for an element type it does not know, or for no number', () => {
+    for (const id of [44, 10, 11.5, -19, NaN, Infinity, undefined]) expect(osmIdOf(id)).toBeNull()
+  })
+})
+
 describe('decodePeaks', () => {
   it('reads peaks and volcanoes with their place, elevation, name and OSM node', () => {
     const peaks = decodePeaks(TILE_BYTES, CENTRE_TILE)
@@ -86,6 +99,28 @@ describe('decodePeaks', () => {
     expect(peaks.map((p) => p.osm_id)).toEqual(['node/1744903493', 'node/3', 'node/4'])
     expect(peaks[0].latitude).toBeCloseTo(CENTRE.latitude, 5)
     expect(peaks[0].longitude).toBeCloseTo(CENTRE.longitude, 5)
+  })
+
+  it('reads a feature id that is not a node\'s as no id, the layer holding only nodes', () => {
+    const bytes = encodeTile([
+      { name: 'mountain_peak', points: [peak(1702136232, 2048, 2048, { class: 'peak', name: 'A Way', ele_ft: 5000 })] },
+    ])
+    expect(decodePeaks(bytes, CENTRE_TILE).map((p) => p.osm_id)).toEqual([null])
+  })
+
+  it('reads feet the way a click on the same summit does', () => {
+    // Metres alone convert at the server's factor, and fractional feet round,
+    // so a ring's row and a clicked peak name one summit alike (mirror row 20).
+    const bytes = encodeTile([
+      {
+        name: 'mountain_peak',
+        points: [
+          peak(61, 2048, 2048, { class: 'peak', name: 'Metres Only', ele: 2473 }),
+          peak(71, 2100, 2048, { class: 'peak', name: 'Fractional', ele_ft: 8113.6 }),
+        ],
+      },
+    ])
+    expect(decodePeaks(bytes, CENTRE_TILE).map((p) => p.elevation_ft)).toEqual([8114, 8114])
   })
 
   it('leaves out a saddle and every other layer', () => {

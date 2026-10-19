@@ -4,7 +4,7 @@ import { cellColor } from './resultsCells'
 import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
-import { isUnavailableKey, unavailableCellText } from './unavailableCell'
+import { NO_VALUE_MARK, isUnavailableKey, unavailableCellText } from './unavailableCell'
 import { isCloudDeckMark } from './cloudDeckMark'
 
 /**
@@ -24,7 +24,7 @@ import { isCloudDeckMark } from './cloudDeckMark'
  */
 
 /** One measurement in a group. */
-export type PopupValue = {
+type PopupValue = {
   /**
    * How the value was reduced, or `null` where the column carries no
    * aggregate — a point-sample collapse, or the elevation.
@@ -58,7 +58,7 @@ export type PopupValue = {
  * both are carried and `map.css` picks one, which keeps the markup free of
  * the theme and an open card right across a switch.
  */
-export type PopupTint = { fill: string; ink: { dark: string; light: string } }
+type PopupTint = { fill: string; ink: { dark: string; light: string } }
 
 /**
  * One label and its values.
@@ -108,7 +108,7 @@ function cellText(col: ColDef, row: DestinationResult): { text: string; linkable
   // "NaN", and both are a number the forecast never gave. The dash is what the
   // table's own cell draws. The link stays, matching the table, which links a
   // cell by its column rather than by whether the hour had a value.
-  if (raw == null) return { text: '—', linkable: true }
+  if (raw == null) return { text: NO_VALUE_MARK, linkable: true }
   return { text: col.format ? col.format(raw) : String(raw), linkable: true }
 }
 
@@ -279,7 +279,7 @@ const ELEVATION_UNIT = 'ft'
 export type PopupGridCell = { text: string; href: string | null; ranked: boolean; tint?: PopupTint | null }
 
 /** A value in the grid, or an aggregate the reader's columns leave out. */
-export type PopupCell = PopupGridCell | null
+type PopupCell = PopupGridCell | null
 
 /**
  * One line of the popup's grid (TJ, 2026-10-08).
@@ -289,7 +289,7 @@ export type PopupCell = PopupGridCell | null
  *   column, and a cloud deck that held at one bound all window.
  * - `aggregates`: one cell per column, the window total last.
  */
-export type PopupGridRow =
+type PopupGridRow =
   | { kind: 'value'; label: string; cell: PopupGridCell }
   | { kind: 'aggregates'; label: string; cells: PopupCell[] }
 

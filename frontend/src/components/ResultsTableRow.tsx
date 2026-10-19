@@ -3,6 +3,7 @@ import type { MouseEvent, ReactNode } from 'react'
 import type { DestinationResult } from '../types'
 import {
   CLOSURE_KEY,
+  ELEVATION_COL,
   MODEL_KEY,
   TERRAIN_HEIGHT_MARK,
   WILDFIRE_KEY,
@@ -38,6 +39,8 @@ import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
 import type { Theme } from '../utils/viewPrefs'
+import { NO_VALUE_MARK } from '../utils/unavailableCell'
+import { grouped } from '../utils/numbers'
 
 // One body row of the results table, ranked or pending. Apart from the table
 // and memoized because a report can hold a thousand rows and most changes to
@@ -401,7 +404,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
           ctx.widths,
           key,
           <>
-            {Number(row.terrain_ft).toLocaleString()}
+            {grouped(Number(row.terrain_ft))}
             <FootnoteMark glyph={TERRAIN_HEIGHT_MARK} target="terrain" />
           </>,
         )}
@@ -619,7 +622,7 @@ function PendingTableRow({
         <ChartToggle row={pendingChartRow(d)} on={charted} color={chartColor} box={chartBox} theme={theme} />
       )}
       <RankRemoveCell
-        rank="—"
+        rank={NO_VALUE_MARK}
         name={d.name}
         onRemove={onRemovePending && d.source === 'search' ? () => onRemovePending(d) : undefined}
       />
@@ -633,13 +636,13 @@ function PendingTableRow({
         if (key === 'elevation_ft') {
           return (
             <td key={key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
-              {sized(widths, 'elevation_ft', d.elevation_ft != null ? d.elevation_ft.toLocaleString() : '—')}
+              {sized(widths, 'elevation_ft', cellText(ELEVATION_COL, d.elevation_ft))}
             </td>
           )
         }
         return (
           <td key={key} className={`${TABLE.cell} whitespace-nowrap font-mono ${TEXT.caption}`}>
-            {sized(widths, key, '—')}
+            {sized(widths, key, NO_VALUE_MARK)}
           </td>
         )
       })}

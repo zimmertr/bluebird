@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  DAY_MS,
   FALLBACK_WINDOW_LIMITS,
+  HOUR_MS,
+  MINUTE_MS,
   FUTURE_LIMIT_SLACK_DAYS,
   PAST_DATA_DAYS,
   PAST_LIMIT_SLACK_DAYS,
   type WindowSource,
   archiveBoundaryMs,
   archiveSeamMs,
+  floorHour,
   hourlyStampCount,
   isPointSample,
   normalizeWindow,
@@ -343,3 +347,14 @@ describe('archiveSeamMs', () => {
   })
 })
 
+describe('the time units', () => {
+  it('are a minute, an hour and a day in milliseconds', () => {
+    expect([MINUTE_MS, HOUR_MS, DAY_MS]).toEqual([60_000, 3_600_000, 86_400_000])
+  })
+
+  it('floor an instant to the start of its hour, and leave one on the hour alone', () => {
+    const hour = Date.parse('2026-08-04T17:00:00Z')
+    expect(floorHour(hour + 59 * MINUTE_MS + 59_999)).toBe(hour)
+    expect(floorHour(hour)).toBe(hour)
+  })
+})

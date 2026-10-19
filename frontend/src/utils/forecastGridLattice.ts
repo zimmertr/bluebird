@@ -9,6 +9,7 @@ import type { Coordinate, WeatherResult, AqiResult, CloudResult } from './openMe
 import { assemble } from './clientAnalyze'
 import { alignRowToGrid } from './chartData'
 import type { WindowSource } from './forecastWindow'
+import { clamp } from './numbers'
 
 /** One cell's extent: `[west, south, east, north]` in degrees. */
 export type CellBox = [number, number, number, number]
@@ -118,7 +119,7 @@ export const GRID_REACH_DEFAULT_FRAC = 0.5
  */
 export function reachKmFor(modelPitchKm: number, frac: number): number {
   const pitch = modelPitchKm > 0 ? modelPitchKm : FALLBACK_PITCH_KM
-  const f = Math.min(1, Math.max(0, frac))
+  const f = clamp(frac, 0, 1)
   return pitch * (GRID_REACH_MIN_X + f * (GRID_REACH_MAX_X - GRID_REACH_MIN_X))
 }
 

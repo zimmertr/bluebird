@@ -303,6 +303,36 @@ describe('a storage that will not answer', () => {
     expect(() => setWelcomed()).not.toThrow()
   })
 
+  // Where site data is blocked, Chrome's getter throws a SecurityError on the
+  // read of `localStorage` itself, before any method is reached, and a
+  // `typeof` guard reads it too.
+  it('yields the defaults where reading the storage itself throws', () => {
+    const own = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('Access is denied for this document.', 'SecurityError')
+      },
+    })
+    try {
+      expect(hasWelcomed()).toBe(false)
+      expect(readTheme()).toBe('dark')
+      expect(readViewPrefs()).toEqual({
+        modeChosen: null,
+        columns: null,
+        modelColumn: null,
+        columnOrder: null,
+        legendOpen: null,
+      })
+      expect(() => writeViewPrefs({ modeChosen: 'both' })).not.toThrow()
+      expect(() => setWelcomed()).not.toThrow()
+      expect(() => writeTheme('light')).not.toThrow()
+    } finally {
+      delete (globalThis as { localStorage?: unknown }).localStorage
+      if (own) Object.defineProperty(globalThis, 'localStorage', own)
+    }
+  })
+
   it('yields the defaults on a stored value that is not JSON', () => {
     vi.stubGlobal('localStorage', fakeStorage({ [VIEW_KEY]: '{not json' }))
     expect(readViewPrefs().modeChosen).toBeNull()

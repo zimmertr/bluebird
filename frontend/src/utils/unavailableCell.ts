@@ -35,6 +35,13 @@ export function isUnavailableKey(key: string): boolean {
 export const UNAVAILABLE = 'N/A'
 
 /**
+ * The other mark: the dash a value prints where the forecast simply has none,
+ * a missing hour or a check with nothing to report. One spelling for every
+ * cell, popup row and placeholder that draws it.
+ */
+export const NO_VALUE_MARK = '—'
+
+/**
  * What an empty cell reads, or null when the cell has a number and the
  * column's own formatter should render it.
  *

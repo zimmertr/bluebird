@@ -21,11 +21,12 @@ import {
   hasPolygon,
   unescapeQueryText,
 } from './urlParams'
+import { clamp } from './numbers'
 
-// The two window classifiers read the calendar band and live beside it. They
-// are re-exported here because the panel, App.tsx and this module's own suite
-// import them by this name.
-export { classifyAqiCoverage, classifyWindow } from './calendar'
+// The window classifiers read the calendar band and live beside it. The
+// air-quality one is re-exported here because the panel imports it by this
+// module's name.
+export { classifyAqiCoverage } from './calendar'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
 // they're re-fetched fresh so a shared link never replays stale forecasts.
@@ -135,7 +136,7 @@ const DEFAULT_TYPES: DiscoveryType[] = []
 // inline so the restore path, the knob, and the capabilities sync cannot drift
 // into three different ideas of the same clamp.
 export function clampLimit(value: number, maxLimit: number): number {
-  return Math.max(1, Math.min(maxLimit, value))
+  return clamp(value, 1, maxLimit)
 }
 
 /**
@@ -230,12 +231,8 @@ const AUTO_ANALYZE_PARAM = 'analyze'
 
 /** Whether a link asks for its analysis to run on open. Only `analyze=1` does. */
 export function decodeAutoAnalyze(search: string): boolean {
-  try {
-    return new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
-      .get(AUTO_ANALYZE_PARAM) === '1'
-  } catch {
-    return false
-  }
+  return new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+    .get(AUTO_ANALYZE_PARAM) === '1'
 }
 
 /**
@@ -261,18 +258,13 @@ export interface DecodeLimits {
  */
 export function decodeState(search: string, limits: DecodeLimits): Partial<ShareableState> | null {
   const query = search.startsWith('?') ? search.slice(1) : search
-  let params: URLSearchParams
-  try {
-    params = new URLSearchParams(query)
-  } catch {
-    return null
-  }
+  const params = new URLSearchParams(query)
   const rawValues = rawQueryValues(query)
 
   const out: Partial<ShareableState> = {}
   for (const { key, escaped, decode } of URL_PARAMS) {
     const value = escaped ? rawValues.get(key) : params.get(key)
-    if (value !== undefined && value !== null) decode?.(value, out, limits)
+    if (value != null) decode?.(value, out, limits)
   }
   const selection = decodeSelection(params)
   if (selection) out.selection = selection

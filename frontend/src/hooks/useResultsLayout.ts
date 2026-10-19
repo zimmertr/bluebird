@@ -60,7 +60,7 @@ function useViewportHeight(): number {
 }
 
 /** What one resize grip is wired to. The shape `ResizeGrip` takes. */
-export interface GripHandlers {
+interface GripHandlers {
   onReset: () => void
   onDragStart: () => void
   onDrag: (up: number) => void

@@ -3,6 +3,8 @@ import { cloudDeckMark } from './cloudDeckMark'
 import { MetricFamily, UNIT, familyOf, formatPrecipRate, metricLabel } from '../metrics'
 import { setKey } from './points'
 import { TYPE_COL } from './tableColumns'
+import { clamp } from './numbers'
+import { HOUR_MS } from './forecastWindow'
 
 /**
  * The families this chart can plot, which is every one: each is an hourly
@@ -11,7 +13,7 @@ import { TYPE_COL } from './tableColumns'
  */
 export type ChartMetric = MetricFamily
 
-export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
+const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
   temp: 'temp_f',
   wind: 'wind_mph',
@@ -333,7 +335,7 @@ export function formatMetricValue(v: number, metric: ChartMetric): string {
 // Above this span an axis tick names the date instead of the weekday. Two days
 // is where a weekday stops identifying a day on its own: a 16-day range repeats
 // every name, so "Mon 3 PM" appears twice with a week between them.
-const AXIS_DATE_SPAN_MS = 48 * 3_600_000
+const AXIS_DATE_SPAN_MS = 48 * HOUR_MS
 
 /**
  * An x-axis tick, labelled for the span it sits in. `spanMs` is the whole grid's
@@ -443,7 +445,7 @@ export function computeYDomain(
       if (v > max) max = v
     }
   }
-  if (!isFinite(min) || !isFinite(max)) return [0, 1]
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 1]
   const floor = metric === 'temp' ? min : Math.min(0, min)
   if (min === max) {
     const lo = floor === max ? (metric === 'temp' ? floor - 1 : 0) : floor
@@ -544,7 +546,7 @@ export function pixelToTime(
   tMax: number,
 ): number {
   if (plotWidth <= 0) return tMin
-  const frac = Math.max(0, Math.min(1, (x - plotLeft) / plotWidth))
+  const frac = clamp((x - plotLeft) / plotWidth, 0, 1)
   return tMin + frac * (tMax - tMin)
 }
 
@@ -557,7 +559,7 @@ export function pixelToValue(
   yMax: number,
 ): number {
   if (plotHeight <= 0) return yMax
-  const frac = Math.max(0, Math.min(1, (y - plotTop) / plotHeight))
+  const frac = clamp((y - plotTop) / plotHeight, 0, 1)
   return yMax - frac * (yMax - yMin)
 }
 
@@ -605,5 +607,5 @@ export const TOOLTIP_MIN_ROWS = 1
 
 export function tooltipCapacity(plotHeightPx: number): number {
   const fits = Math.floor((plotHeightPx - TOOLTIP_CHROME_PX) / TOOLTIP_ROW_PX)
-  return Math.max(TOOLTIP_MIN_ROWS, Math.min(TOOLTIP_MAX_ROWS, fits))
+  return clamp(fits, TOOLTIP_MIN_ROWS, TOOLTIP_MAX_ROWS)
 }

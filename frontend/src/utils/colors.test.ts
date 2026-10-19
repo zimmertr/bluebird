@@ -5,6 +5,7 @@ import {
   VERDICT_RAMP,
   VERDICT_RAMP_REVERSED,
   cellStyle,
+  hexToRgb,
   hourlyScale,
   markerColor,
   rankedScale,
@@ -906,5 +907,13 @@ describe('the cloud deck ramp', () => {
       expect(rankedScale(key)).toBe(METRIC_SCALE.cloud_deck)
       expect(hourlyScale(key)).toBe(METRIC_SCALE.cloud_deck)
     }
+  })
+})
+
+describe('hexToRgb', () => {
+  it('reads a #rrggbb colour as its three channels', () => {
+    expect(hexToRgb('#000000')).toEqual([0, 0, 0])
+    expect(hexToRgb('#ffffff')).toEqual([255, 255, 255])
+    expect(hexToRgb('#0a84c6')).toEqual([10, 132, 198])
   })
 })

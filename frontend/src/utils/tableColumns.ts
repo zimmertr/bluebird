@@ -9,8 +9,9 @@ import {
   HEIGHT_FAMILIES,
   metricLabel,
 } from '../metrics'
-import { UNAVAILABLE } from './unavailableCell'
+import { NO_VALUE_MARK, UNAVAILABLE } from './unavailableCell'
 import { cloudDeckMark } from './cloudDeckMark'
+import { grouped } from './numbers'
 
 /**
  * One column of the results table.
@@ -18,11 +19,13 @@ import { cloudDeckMark } from './cloudDeckMark'
  * `format` renders a cell on screen; `csv` renders the same value into a file,
  * and exists only where the two genuinely differ. They differ for exactly one
  * reason: a display formatter is free to write for a human reading a row, and a
- * file has to be parseable. Elevation is the case — `toLocaleString()` puts a
+ * file has to be parseable. Elevation is the case — `grouped()` puts a
  * thousands separator inside a comma-separated cell. Everything else formats
  * through `toFixed`, which is already safe, so it has no `csv` and the exporter
  * falls back to `format`. Nulls never reach either one: `resultsCsv.ts` writes
- * `csvNull` before it would call a formatter, where the table writes a dash.
+ * `csvNull` before it would call a formatter, where the table writes a dash,
+ * and the parameter type says so, so a caller that forgot would fail the
+ * typecheck rather than print a missing value as 0.
  *
  * `csvNull` is that empty cell's text, and it is empty for every column but
  * the freezing level's three. A blank is how a spreadsheet spells "no value",
@@ -33,8 +36,8 @@ import { cloudDeckMark } from './cloudDeckMark'
 export type ColDef = {
   key: keyof DestinationResult | typeof WILDFIRE_KEY | typeof CLOSURE_KEY | typeof MODEL_KEY
   label: string
-  format?: (v: unknown) => string
-  csv?: (v: unknown) => string
+  format?: (v: NonNullable<unknown>) => string
+  csv?: (v: NonNullable<unknown>) => string
   csvNull?: string
   windyLayer?: string
   /**
@@ -181,7 +184,7 @@ export function withModelColumn(cols: readonly ColDef[], comparing: boolean): Co
 export const ELEVATION_COL: ColDef = {
   key: 'elevation_ft',
   label: 'Elevation (ft)',
-  format: (v) => (v != null ? Number(v).toLocaleString() : '—'),
+  format: (v) => grouped(Number(v)),
   csv: (v) => String(v),
 }
 
@@ -221,8 +224,7 @@ const SNOWFALL_RATE = `${UNIT.snowfall}/hr`
 // A cloud deck at either edge of the walk prints as a bound rather than as the
 // level's height (`cloudDeckMark`), on screen, in the popup that reads these
 // formatters, and in the downloaded file, which groups no thousands.
-const cloudDeckCell = (v: unknown): string =>
-  v == null ? '—' : (cloudDeckMark(v) ?? Number(v).toLocaleString())
+const cloudDeckCell = (v: unknown): string => cloudDeckMark(v) ?? grouped(Number(v))
 const cloudDeckCsv = (v: unknown): string => cloudDeckMark(v, false) ?? String(v)
 
 // What a row *is*, which stopped being obvious the moment one polygon
@@ -236,7 +238,7 @@ const cloudDeckCsv = (v: unknown): string => cloudDeckMark(v, false) ?? String(v
 export const TYPE_COL: ColDef = {
   key: 'type',
   label: 'Type',
-  format: (v) => (typeof v === 'string' && v ? v[0].toUpperCase() + v.slice(1) : '—'),
+  format: (v) => (typeof v === 'string' && v ? v[0].toUpperCase() + v.slice(1) : NO_VALUE_MARK),
   csv: (v) => (typeof v === 'string' ? v : ''),
 }
 
@@ -258,12 +260,12 @@ export const COLUMNS: ColDef[] = [
   // because the reading IS the comparison between the two. Null is the
   // five-model case (#295) and both surfaces draw it as N/A — the table with
   // the note in freezingLevel.ts, the file through `csvNull` — rather than the
-  // dash a genuine gap gets; the dash below is the fallback for a formatter
-  // called on a null anywhere else. Windy's own name for the layer is its
-  // zero-degree isotherm, `deg0`.
-  { key: 'freeze_min_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
-  { key: 'freeze_max_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
-  { key: 'freeze_avg_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
+  // dash a genuine gap gets; no formatter is handed a null, which `ColDef`'s
+  // type holds. Windy's own name for the layer is its zero-degree isotherm,
+  // `deg0`.
+  { key: 'freeze_min_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => grouped(Number(v)), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'freeze_max_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => grouped(Number(v)), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'freeze_avg_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.average), format: (v) => grouped(Number(v)), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
   // New snow over the window (#678), shaped like precipitation's group: a
   // total in inches, three rates in inches per hour, at precipitation's
   // digits. A null is an hour the forecast left blank (HRRR past its hour 45),
@@ -274,9 +276,9 @@ export const COLUMNS: ColDef[] = [
   { key: 'snowfall_avg_in_hr', unit: SNOWFALL_RATE, label: metricLabel('snowfall', AGGREGATE.average, SNOWFALL_RATE), format: formatPrecipRate, windyLayer: 'snowAccu' },
   { key: 'snowfall_min_in_hr', unit: SNOWFALL_RATE, label: metricLabel('snowfall', AGGREGATE.minimum, SNOWFALL_RATE), format: formatPrecipRate, windyLayer: 'snowAccu' },
   { key: 'snowfall_max_in_hr', unit: SNOWFALL_RATE, label: metricLabel('snowfall', AGGREGATE.maximum, SNOWFALL_RATE), format: formatPrecipRate, windyLayer: 'snowAccu' },
-  { key: 'aqi_avg', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
-  { key: 'aqi_min', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
-  { key: 'aqi_max', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
+  { key: 'aqi_avg', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.average), format: (v) => Number(v).toFixed(0), windyLayer: 'pm2p5' },
+  { key: 'aqi_min', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => Number(v).toFixed(0), windyLayer: 'pm2p5' },
+  { key: 'aqi_max', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => Number(v).toFixed(0), windyLayer: 'pm2p5' },
   // The family that joined last (#117, #670), last so the columns that came
   // before it keep the places they always had. The deck is
   // feet above sea level and grouped like the elevation it is read against;

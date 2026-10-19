@@ -66,7 +66,7 @@ function tileUnits(lng: number, lat: number, z: number): [number, number] {
 }
 
 /** The cell around a point, as its west-north and east-south corners in tile units. */
-export function cellBox(lng: number, lat: number, z = GLACIER_TILE_ZOOM) {
+function cellBox(lng: number, lat: number, z = GLACIER_TILE_ZOOM) {
   const half = SNOW_CELL_DEG / 2
   const [x0, y0] = tileUnits(lng - half, lat + half, z)
   const [x1, y1] = tileUnits(lng + half, lat - half, z)
@@ -109,7 +109,7 @@ function crosses(p: P, q: P, r: P, s: P): boolean {
  * the polygon, a vertex of the polygon inside the box, or an edge of one
  * crossing an edge of the other. A hole counts as outside.
  */
-export function boxTouches({ x0, y0, x1, y1 }: ReturnType<typeof cellBox>, rings: Rings): boolean {
+function boxTouches({ x0, y0, x1, y1 }: ReturnType<typeof cellBox>, rings: Rings): boolean {
   const corners: P[] = [
     [x0, y0],
     [x1, y0],

@@ -19,7 +19,7 @@ import { paceWaitLine } from './pacing'
 // Under the message, one secondary `detail` line can appear: during
 // retrieval, the live quota countdown while the pacer sleeps; during a long
 // search, a timer-staged reassurance.
-export type OverlayProgress = { processed: number; total: number; percent: number }
+type OverlayProgress = { processed: number; total: number; percent: number }
 
 export type OverlayView =
   | { visible: false }

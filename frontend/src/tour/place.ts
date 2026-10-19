@@ -1,4 +1,5 @@
 import type { TourSpot } from '../utils/tourSteps'
+import { clamp } from '../utils/numbers'
 
 /**
  * Where the tutorial card stands, as arithmetic over rectangles (#536). Pure,
@@ -177,8 +178,6 @@ export function spotlight(target: Box, pad = SPOTLIGHT_PAD): Box {
     height: target.height + 2 * pad,
   }
 }
-
-const clamp = (value: number, lo: number, hi: number): number => Math.min(Math.max(value, lo), hi)
 
 /** The card's top-left corner beside the spotlight, inside the viewport. */
 export function placeCard(light: Box, card: Size, viewport: Size): { top: number; left: number } {

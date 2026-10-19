@@ -27,6 +27,7 @@ import {
   row,
   updatedAt,
   updatedLine,
+  dateOfMs,
   widestName,
 } from './popupChrome'
 import { AGGREGATE } from '../metrics'
@@ -357,6 +358,18 @@ describe('the updated line', () => {
     expect(updatedAt(null)).toBeNull()
     expect(updatedAt(undefined)).toBeNull()
     expect(updatedAt(Number.NaN)).toBeNull()
+    expect(updatedAt(9e15)).toBeNull()
+  })
+})
+
+describe('dateOfMs', () => {
+  it('is the instant a finite stamp inside the range names', () => {
+    expect(dateOfMs(Date.UTC(2026, 9, 16, 12))?.toISOString()).toBe('2026-10-16T12:00:00.000Z')
+    expect(dateOfMs(0)?.getTime()).toBe(0)
+  })
+
+  it('is null for no stamp, a stamp that is no number, and one past the range', () => {
+    for (const ms of [null, undefined, Number.NaN, Infinity, 9e15, -9e15]) expect(dateOfMs(ms)).toBeNull()
   })
 })
 

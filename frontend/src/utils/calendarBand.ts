@@ -4,7 +4,8 @@
 // same functions, so a day the grid draws as unpickable and a window the
 // warning calls out of range can never be different sets.
 
-import { DAY_END, DAY_START, addDays, dayKey, isValidDatetimeLocal } from './calendarDates'
+import { DAY_END, DAY_START, addDays, dayKey, isValidDatetimeLocal, utcDayKey } from './calendarDates'
+import { DAY_MS, HOUR_MS } from './forecastWindow'
 
 // The servable band, as day offsets from today. These live here rather than in
 // urlState.ts because the calendar is what makes them visible: they are the
@@ -78,11 +79,6 @@ export function bandStart(now: Date, band: BandLimits): string {
   return addDays(dayKey(now), -band.pastDays)
 }
 
-/** The UTC calendar date an instant falls on, which is what the API is asked for. */
-function utcDayKey(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10)
-}
-
 /**
  * The instant the selected model's data runs out.
  *
@@ -94,7 +90,7 @@ function utcDayKey(ms: number): string {
  * purpose is tomorrow morning in the mountains is the same as not offering it.
  */
 export function modelEnd(now: Date, forecastHours: number): number {
-  return now.getTime() + forecastHours * 3_600_000
+  return now.getTime() + forecastHours * HOUR_MS
 }
 
 /**
@@ -123,7 +119,7 @@ export function modelEnd(now: Date, forecastHours: number): number {
  * the last one it covers end to end.
  */
 export function bandEnd(now: Date, band: BandLimits): string {
-  const utcLimit = utcDayKey(now.getTime() + FUTURE_LIMIT_DAYS * 86_400_000)
+  const utcLimit = utcDayKey(now.getTime() + FUTURE_LIMIT_DAYS * DAY_MS)
   let hard = addDays(dayKey(now), FUTURE_LIMIT_DAYS)
   while (utcDayKey(Date.parse(`${hard}T${DAY_END}`)) > utcLimit) {
     hard = addDays(hard, -1)

@@ -6,9 +6,12 @@ import {
   ApiUnreachable,
   apiFetch,
   apiJson,
+  overlayFeatures,
   postDestinations,
+  type OverlayFailure,
   retryAfterSeconds,
 } from './apiFetch'
+import { fakeResponse } from '../testSupport/fixtures'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -117,6 +120,46 @@ describe('retryAfterSeconds', () => {
     expect(retryAfterSeconds(answer())).toBeNull()
     expect(retryAfterSeconds(answer('Wed, 21 Oct 2026 07:28:00 GMT'))).toBeNull()
     expect(retryAfterSeconds(answer('-1'))).toBeNull()
+  })
+
+  // RFC 9110's delta-seconds is digits alone, so a value that is not one is no
+  // wait, and each caller falls back to its own: Open-Meteo's 429 used to read
+  // these leniently and waited 2 s, 1 s and 1000 s for them.
+  it('reads a decimal, a sign or an exponent as no wait, and 0 as 0', () => {
+    const answer = (value: string) => new Response('', { status: 429, headers: { 'Retry-After': value } })
+    expect(retryAfterSeconds(answer('1.5'))).toBeNull()
+    expect(retryAfterSeconds(answer('-5'))).toBeNull()
+    expect(retryAfterSeconds(answer('1e3'))).toBeNull()
+    expect(retryAfterSeconds(answer(''))).toBeNull()
+    expect(retryAfterSeconds(answer('0'))).toBe(0)
+  })
+
+  it('reads an answer with no headers at all as no wait', () => {
+    expect(retryAfterSeconds({ ok: false, status: 429 } as Response)).toBeNull()
+  })
+})
+
+describe('overlayFeatures', () => {
+  const read = (res: Response) => overlayFeatures(res, 'Probe data unavailable. Try again later.', 'Probe data could not be read.')
+
+  it('hands back a FeatureCollection as it came', async () => {
+    const body = { type: 'FeatureCollection', features: [], coverage: null }
+    expect(await read(fakeResponse(body))).toEqual(body)
+  })
+
+  it('marks a 429 or a 503 as a wait with its Retry-After, and any other refusal as neither', async () => {
+    for (const status of [429, 503]) {
+      const err = (await read(fakeResponse({}, status, { 'Retry-After': '30' })).catch((e: unknown) => e)) as OverlayFailure
+      expect(err).toMatchObject({ message: 'Probe data unavailable. Try again later.', rateLimited: true, retryAfterS: 30 })
+    }
+    const err = (await read(fakeResponse({}, 500)).catch((e: unknown) => e)) as OverlayFailure
+    expect(err).toMatchObject({ rateLimited: false, retryAfterS: null })
+  })
+
+  it('refuses a body that is no FeatureCollection with the unreadable sentence', async () => {
+    for (const body of [{ type: 'Feature' }, { type: 'FeatureCollection' }, null]) {
+      await expect(read(fakeResponse(body))).rejects.toThrow('Probe data could not be read.')
+    }
   })
 })
 
