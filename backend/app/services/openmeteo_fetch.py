@@ -36,6 +36,7 @@ from app.services.errors import (
     UpstreamRateLimited,
     classify_http_error,
     is_invalid_api_key,
+    log_reason,
     parse_rate_limit,
     rate_limit_message,
 )
@@ -443,7 +444,7 @@ async def request_openmeteo(
                 "%s rate limited (%s): %s",
                 provider,
                 scope or "unknown",
-                redacted_error(exc, api_key),
+                log_reason(exc, text=redacted_error(exc, api_key)),
             )
             raise UpstreamRateLimited(
                 provider, scope, retry_after, rate_limit_message(provider, scope)
@@ -451,7 +452,11 @@ async def request_openmeteo(
         telemetry.OPENMETEO_REQUESTS.labels(
             service=service, outcome="http_error", quota=quota
         ).inc()
-        log.warning("%s request failed: %s", provider, redacted_error(exc, api_key))
+        log.warning(
+            "%s request failed: %s",
+            provider,
+            log_reason(exc, text=redacted_error(exc, api_key), deadline_s=http.TIMEOUT_S),
+        )
         if on_error == "degrade":
             return DEGRADED
         raise UpstreamError(classify_http_error(exc, provider)) from exc
@@ -461,7 +466,11 @@ async def request_openmeteo(
         telemetry.OPENMETEO_REQUESTS.labels(
             service=service, outcome="network_error", quota=quota
         ).inc()
-        log.warning("%s request failed: %s", provider, redacted_error(exc, api_key))
+        log.warning(
+            "%s request failed: %s",
+            provider,
+            log_reason(exc, text=redacted_error(exc, api_key), deadline_s=http.TIMEOUT_S),
+        )
         if on_error == "degrade":
             return DEGRADED
         raise UpstreamError(classify_http_error(exc, provider)) from exc

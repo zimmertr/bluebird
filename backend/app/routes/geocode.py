@@ -11,7 +11,7 @@ from app import ratelimit
 from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.services import cache
-from app.services.errors import classify_http_error
+from app.services.errors import classify_http_error, log_reason
 from app.services.http import USER_AGENT
 
 log = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ async def geocode(
     # the 502 this route documents rather than an unhandled 500 (#630), and
     # `classify_http_error` words each one.
     except (httpx.HTTPError, TimeoutError, ValueError, RecursionError) as exc:
-        log.warning("Nominatim request failed: %s", str(exc) or type(exc).__name__)
+        log.warning("Nominatim request failed: %s", log_reason(exc, deadline_s=TIMEOUT_S))
         raise ApiError(
             status_code=502,
             detail=classify_http_error(exc, PROVIDER),

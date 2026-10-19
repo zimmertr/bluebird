@@ -67,7 +67,7 @@ import httpx
 
 from app.env import env_int
 from app.services import arcgis, usfs_coverage
-from app.services.errors import UpstreamError
+from app.services.errors import UpstreamError, log_reason
 from app.services.http import HEADERS
 from app.services.nifc import COARSE_OFFSET_DEG
 from app.services.snapshot import cache_factory
@@ -715,7 +715,7 @@ async def fetch_snapshot(transport: httpx.AsyncBaseTransport | None = None) -> S
             log.warning(
                 "Forest Service orders from the %s failed; serving the snapshot without them: %s",
                 feed.label,
-                result,
+                log_reason(result),
             )
             continue
         full, coarse = result

@@ -13,7 +13,7 @@ from typing import Any
 
 from app import ratelimit
 from app.services import cache
-from app.services.errors import UpstreamError
+from app.services.errors import UpstreamError, log_reason
 from app.services.osm import mirrors
 from app.services.osm.query import SERVER_TIMEOUT_TOKEN, _ele_ft
 
@@ -81,11 +81,6 @@ def _attempt_timeout_s() -> float:
 _EARTH_RADIUS_M = 6_371_000.0
 
 
-def _point_key(lat: float, lon: float) -> str:
-    """~1 m identity for a coordinate, matching the frontend's ``geoKey``."""
-    return f"{lat:.5f},{lon:.5f}"
-
-
 def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Great-circle metres between two coordinates."""
     dlat = math.radians(lat2 - lat1)
@@ -146,7 +141,7 @@ async def _lookup_peaks(points: list[dict[str, Any]]) -> dict[str, dict[str, Any
                     best, best_m = node, dist
             if best is None:
                 continue
-            matches[_point_key(d["latitude"], d["longitude"])] = {
+            matches[cache.point_key(d["latitude"], d["longitude"])] = {
                 "elevation_ft": _ele_ft(best.get("tags", {})),
                 "osm_id": f"node/{best['id']}",
             }
@@ -198,7 +193,7 @@ async def enrich_custom_reporting(
             # Ordinary weather for a donated upstream. Degrade quietly: the
             # rows come back exactly as sent, which is what they looked like
             # before any of this existed.
-            log.warning("Custom destination elevation lookup unavailable: %s", exc)
+            log.warning("Custom destination elevation lookup unavailable: %s", log_reason(exc))
             return [dict(d) for d in destinations], False
         except TimeoutError:
             # Only the deadline raises this here (httpx's own timeouts are a
@@ -225,7 +220,7 @@ async def enrich_custom_reporting(
     for d in destinations:
         row = dict(d)
         match = (
-            matches.get(_point_key(d["latitude"], d["longitude"]))
+            matches.get(cache.point_key(d["latitude"], d["longitude"]))
             if d.get("elevation_ft") is None
             else None
         )

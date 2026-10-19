@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import logging
-import math
 import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -21,6 +20,7 @@ from app import telemetry
 from app.env import env_int
 from app.error_codes import ApiError, ErrorCode
 from app.ratelimit.upstream import SHED_RETRY_AFTER_S, UPSTREAM_BUDGET_WAIT_S
+from app.services.errors import retry_after_seconds
 
 log = logging.getLogger("bluebird_forecast.ratelimit")
 
@@ -345,7 +345,7 @@ def _throttle(limiter: RateLimiter, request: Request) -> None:
     allowed, retry_after = limiter.check(key)
     if allowed:
         return
-    _refuse(limiter.name, request, key, max(1, math.ceil(retry_after)))
+    _refuse(limiter.name, request, key, retry_after_seconds(retry_after))
 
 
 def _refuse(bucket: str, request: Request, key: str, seconds: int) -> None:

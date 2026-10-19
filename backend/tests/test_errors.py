@@ -8,8 +8,11 @@ from app.services.errors import (
     PartialResultError,
     UpstreamError,
     classify_http_error,
+    finite_float,
     is_invalid_api_key,
     is_out_of_domain,
+    log_reason,
+    retry_after_seconds,
 )
 
 PROVIDER = "Test Provider"
@@ -97,3 +100,48 @@ def test_a_reason_that_is_not_a_string_matches_nothing(reads, reason):
     response = fake_response({"error": True, "reason": reason}, 400)
     exc = httpx.HTTPStatusError("400", request=response.request, response=response)
     assert reads(exc) is False
+
+
+# ── reading a number out of untrusted text ─────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("1000", 1000.0), ("-12.5", -12.5), (7, 7.0), ("nan", None), ("inf", None),
+     ("-Infinity", None), ("high", None), ("", None), (None, None), ([], None)],
+)
+def test_finite_float_reads_only_a_finite_number(value, expected):
+    assert finite_float(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("wait_s", "expected"), [(0.0, 1), (-3.0, 1), (0.2, 1), (1.0, 1), (1.01, 2), (59.5, 60)]
+)
+def test_a_retry_after_is_whole_seconds_and_at_least_one(wait_s, expected):
+    assert retry_after_seconds(wait_s) == expected
+
+
+# ── what a log line says a failure was ─────────────────────────────────────
+
+
+def test_a_failure_with_text_logs_its_text():
+    assert log_reason(httpx.ReadError("connection reset"), deadline_s=60) == "connection reset"
+
+
+def test_a_silent_failure_logs_its_type_rather_than_a_deadline():
+    # A reset connection carries no message and is not a timeout.
+    assert log_reason(httpx.ReadError(""), deadline_s=60) == "ReadError"
+
+
+def test_a_silent_deadline_logs_the_deadline_it_ran_out_of():
+    assert log_reason(TimeoutError(), deadline_s=60) == "no answer within 60s"
+    assert log_reason(TimeoutError()) == "TimeoutError"
+
+
+def test_a_replacement_text_is_logged_in_place_of_the_exception():
+    # The Open-Meteo sites hand in the redacted text; the raw one must not leak.
+    exc = httpx.ReadError("https://x.test/?apikey=secret")
+    assert log_reason(exc, text="https://x.test/?apikey=REDACTED") == (
+        "https://x.test/?apikey=REDACTED"
+    )
+    assert log_reason(TimeoutError(), text="", deadline_s=5) == "no answer within 5s"

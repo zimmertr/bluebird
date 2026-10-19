@@ -83,6 +83,14 @@ async def test_query_osm_bad_elevation_tag_is_ignored(monkeypatch):
     assert results[0]["elevation_ft"] is None
 
 
+@pytest.mark.parametrize("ele", ["nan", "NaN", "inf", "-inf", "Infinity"])
+def test_a_non_finite_elevation_tag_is_unparseable(ele):
+    # `float` reads every one of these, where the browser's `Number.isFinite`
+    # refuses them, and a non-finite height carried on would fail whatever
+    # rounds it next.
+    assert osm._ele_ft({"ele": ele}) is None
+
+
 async def test_query_osm_peak_query_includes_volcanoes(monkeypatch):
     # Regression: Cascade volcanoes (Baker, Rainier, ...) are tagged
     # natural=volcano, not natural=peak — the peak query must ask for both.
@@ -1030,6 +1038,30 @@ async def test_two_unnamed_peaks_at_one_height_are_two_destinations(monkeypatch)
 
     assert len(rows) == 2
     assert {r["osm_id"] for r in rows} == {"node/1", "node/2"}
+
+
+async def test_an_unnamed_summit_listed_twice_is_one_destination(monkeypatch):
+    # A generated name dedups by OSM id, the only identity it has, so the same
+    # node answered twice is one row and not two rows of one name.
+    async def fake_post(query, on_status=None, **_kwargs):
+        return {"elements": [_unnamed(1, "1000"), _unnamed(1, "1000")]}
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    rows = await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
+
+    assert [r["name"] for r in rows] == ["Peak 3281"]
+
+
+async def test_an_unnamed_peak_tagged_nan_is_skipped_rather_than_fatal(monkeypatch):
+    # Its name is its height rounded to an integer, which raises on a NaN, and
+    # one bad tag must not answer the whole discovery 502.
+    async def fake_post(query, on_status=None, **_kwargs):
+        return {"elements": [_unnamed(1, "nan"), _unnamed(2, "1000", 47.6)]}
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    rows = await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
+
+    assert [r["name"] for r in rows] == ["Peak 3281"]
 
 
 async def test_an_unnamed_peak_with_no_height_has_nothing_to_be_called(monkeypatch):

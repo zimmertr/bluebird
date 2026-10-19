@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import inspect
+import logging
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta, timezone
@@ -1295,6 +1296,25 @@ async def test_a_request_past_its_total_deadline_is_an_upstream_error(monkeypatc
     with pytest.raises(UpstreamError) as exc:
         await fetch_weather_batch(_dests(1), START, END)
     assert exc.value.message == "Open-Meteo took too long. Try again later."
+
+
+async def test_a_request_past_its_total_deadline_logs_the_deadline(monkeypatch, caplog):
+    # The deadline ends in a TimeoutError with no text, so without the
+    # deadline named the line would end at "request failed: ".
+    monkeypatch.setattr(weather.http, "TIMEOUT_S", 0.05)
+
+    async def slow(url, params):
+        await asyncio.sleep(1)
+        return fake_response(_payload([0.5]))
+
+    _stub_openmeteo(monkeypatch, [slow])
+    with caplog.at_level(logging.WARNING), pytest.raises(UpstreamError):
+        await fetch_weather_batch(_dests(1), START, END, api_key=FAKE_API_KEY)
+    assert any(
+        r.getMessage().startswith("Open-Meteo request failed: no answer within")
+        for r in caplog.records
+    )
+    assert_no_key_logged(caplog.records)
 
 
 async def test_a_failed_batch_does_not_poison_the_cache(monkeypatch):

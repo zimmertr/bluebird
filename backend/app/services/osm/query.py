@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from app.models import DestinationType, GeoPolygon
+from app.services.errors import finite_float
 
 # The Overpass clauses each destination type contributes, as *fragments*
 # rather than whole queries, because an analysis can now ask for several types
@@ -152,12 +153,13 @@ def _ele_ft(tags: dict[str, Any]) -> float | None:
     """Feet from an OSM ``ele`` tag (metres), or None if absent or unparseable.
 
     Shared by discovery and custom-list enrichment so the two cannot disagree
-    about what an elevation read off OSM means.
+    about what an elevation read off OSM means. A tag of ``nan`` or ``inf`` is
+    unparseable too, as the browser's `Number.isFinite` reads it: an unnamed
+    peak is named by rounding its feet to an integer, which raises on either
+    and would fail the whole discovery over one bad tag.
     """
     ele = tags.get("ele")
     if not ele:
         return None
-    try:
-        return round(float(ele) * 3.28084, 0)
-    except (ValueError, TypeError):
-        return None
+    metres = finite_float(ele)
+    return None if metres is None else round(metres * 3.28084, 0)

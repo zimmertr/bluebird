@@ -20,7 +20,7 @@ import httpx
 from app import ratelimit, telemetry
 from app.models import DestinationType, GeoPolygon
 from app.services import cache
-from app.services.errors import PartialResultError, UpstreamError, classify_http_error
+from app.services.errors import PartialResultError, UpstreamError, classify_http_error, log_reason
 from app.services.http import HEADERS
 from app.services.osm.query import (
     IMPLEMENTED_TYPES,
@@ -217,6 +217,10 @@ async def query_osm(
             # one destination rather than two spellings of it.
             if not include_unnamed_peaks or elevation_ft is None:
                 continue
+            # Unreachable for anything the unnamed clauses ask for, which is
+            # summits alone, and kept for `_classify`'s own reason: a mirror
+            # answering an element it was not asked for must not become a row
+            # named "Peak N" and typed as something else.
             if _classify(tags) != DestinationType.peak.value:
                 continue
             name = f"Peak {round(elevation_ft)}"
@@ -381,12 +385,11 @@ async def _post_with_fallback(
                 # neither does a connection the server reset (seen 2026-10-07
                 # from overpass-api.de), which is not a timeout and must not
                 # read as one in the log.
-                reason = str(exc) or (
-                    f"no answer within {timeout_s:.0f}s"
-                    if isinstance(exc, TimeoutError)
-                    else type(exc).__name__
+                log.warning(
+                    "Overpass endpoint %s failed: %s",
+                    mirror.url,
+                    log_reason(exc, deadline_s=timeout_s),
                 )
-                log.warning("Overpass endpoint %s failed: %s", mirror.url, reason)
                 last_exc = exc
             except asyncio.CancelledError:
                 # The caller ended this attempt, not the mirror's timeout, so it

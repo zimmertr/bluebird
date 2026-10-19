@@ -16,7 +16,6 @@ from app.services.osm.enrich import (
     ENRICH_DEADLINE_S,
     _distance_m,
     _lookup_peaks,
-    _point_key,
     enrich_custom,
     enrich_custom_reporting,
 )
@@ -65,7 +64,6 @@ __all__ = [
     "CUSTOM_ENRICH_CHUNK",
     "ENRICH_DEADLINE_S",
     "_EARTH_RADIUS_M",
-    "_point_key",
     "_distance_m",
     "_lookup_peaks",
     "enrich_custom",

@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 
 from app import telemetry
 from app.env import env_int
+from app.services.errors import retry_after_seconds
 
 log = logging.getLogger("bluebird_forecast.ratelimit")
 
@@ -193,7 +194,7 @@ class MinIntervalGate:
             telemetry.UPSTREAM_SHED.labels(
                 provider=self.provider, mechanism="gate"
             ).inc()
-            raise BudgetExhausted(self.provider, retry_after_s=math.ceil(wait))
+            raise BudgetExhausted(self.provider, retry_after_s=retry_after_seconds(wait))
         self._next_free = start + self._interval
         if wait > 0:
             telemetry.UPSTREAM_PACE_SECONDS.labels(provider=self.provider).inc(wait)
@@ -334,7 +335,7 @@ class WeightedBudget:
             telemetry.UPSTREAM_SHED.labels(
                 provider=self.provider, mechanism="weight"
             ).inc()
-            raise BudgetExhausted(self.provider, retry_after_s=math.ceil(wait))
+            raise BudgetExhausted(self.provider, retry_after_s=retry_after_seconds(wait))
         self._book(weight)
         telemetry.WEIGHT_SPENT.labels(provider=self.provider).inc(weight)
         if wait > 0:

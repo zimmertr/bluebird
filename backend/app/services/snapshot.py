@@ -40,7 +40,7 @@ from collections.abc import Awaitable, Callable
 
 from app import telemetry
 from app.error_codes import ApiError, ErrorCode
-from app.services.errors import UpstreamError, classify_http_error
+from app.services.errors import UpstreamError, classify_http_error, log_reason
 
 log = logging.getLogger(__name__)
 
@@ -214,8 +214,9 @@ class SnapshotCache[T]:
             self._last_error = exc
             self._fresh_until = self._clock() + self._retry_after_failure_s
             telemetry.SNAPSHOT_REFRESH_FAILURES.labels(provider=self._label).inc()
-            # A deadline's TimeoutError has no message of its own.
-            reason = str(exc) or f"no answer within {self._refresh_deadline_s:.0f}s"
+            # A deadline's TimeoutError has no message of its own, and nor
+            # does a reset connection, which must not read as the deadline.
+            reason = log_reason(exc, deadline_s=self._refresh_deadline_s)
             if self._snapshot is None:
                 log.warning("%s fetch failed with nothing cached to fall back on: %s", self._label, reason)
             elif self._servable() is None:
@@ -308,7 +309,9 @@ async def snapshot_or_503[T](cache: SnapshotCache[T], *, event: str) -> T:
         return await cache.get()
     except Exception as exc:
         retry_after = getattr(exc, "retry_after_s", DEFAULT_RETRY_AFTER_S)
-        log.warning("event=%s error=%s", event, exc)
+        log.warning(
+            "event=%s error=%s", event, log_reason(exc, deadline_s=cache._refresh_deadline_s)
+        )
         raise ApiError(
             status_code=503,
             detail=unavailable_message(exc, cache.label),
