@@ -681,6 +681,10 @@ def test_metrics_port_zero_disables_the_server(monkeypatch):
     monkeypatch.setattr(telemetry, "METRICS_PORT", 0)
     telemetry.start_metrics_server()
     assert telemetry._server is None
+    # The lifespan's shutdown stops the server it never started, so a
+    # deployment with metrics off must be able to shut down.
+    telemetry.stop_metrics_server()
+    assert telemetry._server is None
 
 
 def test_metrics_server_starts_and_serves_the_registry(monkeypatch):

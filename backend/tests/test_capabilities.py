@@ -94,16 +94,10 @@ def test_limits_mirror_the_constants_the_validators_enforce():
 
 
 def test_destination_types_are_the_discoverable_ones():
-    assert set(_capabilities()["destination_types"]) == {t.value for t in IMPLEMENTED_TYPES}
-
-
-def test_unimplemented_enum_members_are_not_advertised():
     # DestinationType models types Overpass cannot yet discover. Advertising one
     # would walk a caller straight into a 400, which is the exact confusion this
     # endpoint exists to remove.
-    advertised = set(_capabilities()["destination_types"])
-    unimplemented = {t.value for t in DestinationType if t not in IMPLEMENTED_TYPES}
-    assert advertised.isdisjoint(unimplemented)
+    assert set(_capabilities()["destination_types"]) == {t.value for t in IMPLEMENTED_TYPES}
 
 
 _POLYGON = {

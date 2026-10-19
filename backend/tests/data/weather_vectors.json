@@ -4876,6 +4876,93 @@
       }
     },
     {
+      "name": "cloud_hour_outside_window_skipped",
+      "window": {
+        "start": "2026-07-21T01:00",
+        "end": "2026-07-21T02:00"
+      },
+      "elevation_ft": 4000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "not-a-time",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "relative_humidity_2m": [
+            99.0,
+            99.0,
+            70.0,
+            70.0
+          ],
+          "relative_humidity_1000hPa": [
+            30.0,
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_925hPa": [
+            30.0,
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_850hPa": [
+            99.0,
+            99.0,
+            80.0,
+            90.0
+          ],
+          "relative_humidity_700hPa": [
+            99.0,
+            99.0,
+            99.0,
+            100.0
+          ],
+          "relative_humidity_600hPa": [
+            30.0,
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_500hPa": [
+            30.0,
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_400hPa": [
+            30.0,
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_300hPa": [
+            30.0,
+            30.0,
+            30.0,
+            30.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "cloud_deck_min_ft": 7331.0,
+        "cloud_deck_max_ft": 8808.0,
+        "cloud_deck_avg_ft": 8069.0
+      },
+      "expected_series": {
+        "times": [
+          1784595600000,
+          1784599200000
+        ],
+        "cloud_deck_ft": [
+          8808.0,
+          7331.0
+        ]
+      }
+    },
+    {
       "name": "empty_payload_is_null_null",
       "window": {
         "start": "2026-07-21T00:00",

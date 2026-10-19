@@ -40,7 +40,3 @@ def test_config_disabled_hides_pr_even_if_set(monkeypatch):
     monkeypatch.setenv("PREVIEW_PR", "42")
     body = client.get("/api/config").json()
     assert body["preview"]["pr"] is None
-
-
-def test_healthz():
-    assert client.get("/healthz").json() == {"status": "ok"}

@@ -254,13 +254,7 @@ def test_an_over_long_custom_list_keeps_its_approved_sentence(path, verb):
     )
 
 
-# --- what /api/capabilities and the schema say -----------------------------
-
-
-def test_capabilities_publishes_both_caps():
-    limits = client.get("/api/capabilities").json()["limits"]
-    assert limits["max_request_bytes"] == MAX_REQUEST_BYTES
-    assert limits["max_polygon_points"] == MAX_POLYGON_POINTS
+# --- what the schema says -----------------------------------------------------
 
 
 def _arrays(node: object, schemas: dict, seen: set[str], path: str = ""):

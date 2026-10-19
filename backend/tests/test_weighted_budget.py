@@ -187,6 +187,16 @@ def test_parse_rate_limit_reads_a_non_finite_retry_after_as_absent(header):
     assert retry == 900
 
 
+def test_parse_rate_limit_reads_a_dated_retry_after_as_absent():
+    # RFC 9110 lets Retry-After be an HTTP date. Nothing here reads one, so
+    # it is no number at all and the scope's own floor stands.
+    error = _http_429(
+        {"reason": "Minutely API request limit exceeded."},
+        headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"},
+    )
+    assert parse_rate_limit(error) == ("minutely", 60)
+
+
 def test_parse_rate_limit_reads_a_reason_that_is_not_a_string_as_absent():
     scope, retry = parse_rate_limit(_http_429({"error": True, "reason": 123}))
     assert scope is None

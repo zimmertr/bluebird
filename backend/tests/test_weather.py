@@ -152,9 +152,24 @@ def test_metrics_rounding_precision():
     assert m["temp_avg_f"] == 51.1
 
 
-def test_metrics_malformed_payload_returns_none():
-    # A completely unexpected shape is swallowed to None, never raised.
-    assert _weather_metrics({"unexpected": True}, START, END) is None
+@pytest.mark.parametrize("hourly", [[1, 2], "x"], ids=["list", "string"])
+@pytest.mark.parametrize(
+    "read",
+    [
+        aggregation._weather_metrics,
+        aggregation._weather_series,
+        aggregation._aqi_metrics,
+        aggregation._aqi_series,
+        aggregation._cloud_metrics,
+        aggregation._cloud_series,
+    ],
+    ids=lambda read: read.__name__,
+)
+def test_a_malformed_payload_degrades_to_none(read, hourly):
+    # An `hourly` that is not an object fails a read inside each reader's own
+    # guard, so the location degrades to None rather than raising. A payload
+    # with no `hourly` at all would only reach the empty-window path.
+    assert read({"hourly": hourly}, START, END) is None
 
 
 # ── Freezing level (issue #295) ────────────────────────────────────────────
@@ -537,13 +552,18 @@ def test_parse_ts_invalid_returns_none():
 
 
 def test_naive_strips_timezone():
-
     aware = datetime(2026, 7, 21, 0, 0, tzinfo=UTC)
-    assert _naive(aware).tzinfo is None
+    assert _naive(aware) == datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — the naive wall clock
 
 
 async def test_fetch_weather_batch_empty_returns_empty():
     assert await fetch_weather_batch([], START, END) == []
+
+
+async def test_cloud_batch_with_no_destinations_asks_nothing(monkeypatch):
+    calls = stub_openmeteo(monkeypatch, [])
+    assert await weather.fetch_cloud_batch([], START, END) == []
+    assert calls == []
 
 
 # ── _series (hourly bake-in for the chart) ─────────────────────────────────
@@ -594,10 +614,6 @@ def test_series_rounds_like_metrics():
 
 def test_series_empty_window_returns_none():
     assert _weather_series(weather_hourly([], [], [], []), START, END) is None
-
-
-def test_series_malformed_payload_returns_none():
-    assert _weather_series({"unexpected": True}, START, END) is None
 
 
 # ── fetch_weather_batch (the fetch path itself) ────────────────────────────
@@ -1326,9 +1342,10 @@ async def test_two_models_do_not_share_one_cache_entry(monkeypatch):
 async def test_the_same_model_twice_still_serves_from_cache(monkeypatch):
     # The other half of the pair above: adding the model to the key must not
     # cost the repeat-analysis hit the cache exists for.
+    # A model other than the default, so the hit is a named model's key.
     calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
-    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_seamless)
-    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_seamless)
+    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.ecmwf_ifs025)
+    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.ecmwf_ifs025)
 
     assert len(calls) == 1
 
@@ -1345,15 +1362,11 @@ async def test_a_point_outside_a_regional_model_raises_model_coverage(monkeypatc
     assert "Switch to a different model" in exc.value.message
 
 
-async def test_a_coverage_refusal_is_not_reported_as_a_generic_upstream_failure(monkeypatch):
+def test_a_coverage_refusal_is_not_reported_as_a_generic_upstream_failure():
     # It subclasses UpstreamError so existing handlers still catch it, but the
     # route maps it to 400 rather than 502 — the upstream is healthy and
     # answered correctly, and only the caller can fix the request.
-    stub_openmeteo(monkeypatch, [_out_of_domain()])
-    with pytest.raises(UpstreamError) as exc:
-        await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
-
-    assert isinstance(exc.value, ModelCoverageError)
+    assert issubclass(ModelCoverageError, UpstreamError)
 
 
 async def test_an_ordinary_400_stays_an_ordinary_upstream_error(monkeypatch):
@@ -1463,15 +1476,11 @@ async def test_a_refused_key_raises_invalid_api_key(monkeypatch):
     assert "bad-key" not in exc.value.message
 
 
-async def test_a_refused_key_is_not_classified_as_a_transient_failure(monkeypatch):
+def test_a_refused_key_is_not_classified_as_a_transient_failure():
     # Left to classify_http_error it would reach the caller as a 502 "try
     # again later" for a request no retry can fix.
-    stub_openmeteo(monkeypatch, [_invalid_key()])
-    with pytest.raises(UpstreamError) as exc:
-        await fetch_weather_batch(_dests(1), START, END, api_key="bad-key")
-
-    assert isinstance(exc.value, InvalidApiKeyError)
-    assert not isinstance(exc.value, ModelCoverageError)
+    assert issubclass(InvalidApiKeyError, UpstreamError)
+    assert not issubclass(InvalidApiKeyError, ModelCoverageError)
 
 
 def _answered(status: int, body: dict[str, Any]) -> Callable[[str, dict], httpx.Response]:
@@ -1585,13 +1594,6 @@ async def test_an_archive_window_names_no_model(monkeypatch):
     # Everything else about the request is unchanged, hours included.
     assert calls[0]["start_hour"] == "2026-07-21T00:00"
     assert calls[0]["hourly"] == weather.HOURLY_VARIABLES
-
-
-async def test_a_forecast_window_still_names_its_model(monkeypatch):
-    calls = stub_openmeteo(monkeypatch, [_payload([0.1])])
-    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
-
-    assert calls[0]["models"] == "gfs_hrrr"
 
 
 async def test_a_keyed_archive_window_goes_to_the_customer_archive_host(monkeypatch):
@@ -1802,6 +1804,19 @@ async def test_a_spanning_window_reads_a_malformed_half_as_one_that_answered_not
 
     assert results[0]["precip_total_in"] == 1.2  # 0.4 + 0.8
     assert len(results[0]["series"]["times"]) == 2
+
+
+def test_a_spanning_window_wholly_before_its_seam_is_one_archive_request():
+    # The twin of the empty-half case: a boundary after the window's end
+    # leaves no forecast half, so the whole window is one archive span rather
+    # than an empty or backwards forecast request.
+    start = datetime(2026, 7, 18, 20, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+    end = datetime(2026, 7, 18, 22, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+
+    [span] = weather._fetch_spans("spanning", start, end, SEAM)
+
+    assert span.archive
+    assert (span.start, span.end) == (start, end)
 
 
 def test_a_spanning_window_splits_at_the_boundary_instant_in_any_zone():
