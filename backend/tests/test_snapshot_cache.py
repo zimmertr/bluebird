@@ -1,10 +1,17 @@
-"""`SnapshotCache` on a pod that has never filled (review of #552), and on one
-whose refreshes have failed for a day or hang (#580).
+"""`SnapshotCache`, the stale-tolerant cache the wildfire, smoke and closure
+overlays are built on.
 
-A failed refresh sets a backoff, and `get()` honoured it only once a snapshot
-existed. On a cold pod every request during an outage became its own upstream
-attempt, in series behind the lock. These pin that the cold path waits out the
-same backoff and then tries again.
+Its generic behavior is tested here once, against a plain cache: a snapshot
+is refetched once it ages out and served while its refresh runs behind the
+caller, concurrent readers cost one upstream fetch, and a failed refresh backs
+off rather than retrying per request. Each overlay keeps one serve-stale case
+through its own factory.
+
+Then a pod that has never filled (review of #552), and one whose refreshes
+have failed for a day or hang (#580). A failed refresh sets a backoff, and
+`get()` honoured it only once a snapshot existed. On a cold pod every request
+during an outage became its own upstream attempt, in series behind the lock.
+These pin that the cold path waits out the same backoff and then tries again.
 """
 
 from __future__ import annotations
@@ -43,6 +50,120 @@ def _cache(clock: _Clock, answers: list[object]) -> tuple[SnapshotCache[str], li
         label="test", fetch=fetch, ttl_s=600, retry_after_failure_s=60, clock=clock
     )
     return cache, calls
+
+
+# ── Ageing, singleflight and backoff ─────────────────────────────────────────
+
+
+async def test_a_snapshot_is_refetched_once_it_ages_out():
+    clock = _Clock()
+    cache, calls = _cache(clock, ["first", "second"])
+    assert await cache.get() == "first"
+    clock.now += 599
+    assert await cache.get() == "first"
+    clock.now += 2
+    await cache.get()
+    await cache.settle()
+    assert await cache.get() == "second"
+    assert len(calls) == 2
+
+
+def _gated(release: asyncio.Event) -> tuple[SnapshotCache[str], list[int], _Clock]:
+    """A cache whose first fetch answers at once and whose later ones wait
+    for `release`, so a test can hold a refresh in flight."""
+    clock = _Clock()
+    calls: list[int] = []
+
+    async def fetch() -> str:
+        calls.append(1)
+        n = len(calls)
+        if n > 1:
+            await release.wait()
+        return f"fetch {n}"
+
+    cache = SnapshotCache(
+        label="test", fetch=fetch, ttl_s=600, retry_after_failure_s=60, clock=clock
+    )
+    return cache, calls, clock
+
+
+async def test_an_aged_snapshot_is_served_without_waiting_for_its_refresh():
+    # A national wildfire fetch measured 6.7 seconds against the live service.
+    # Blocking on it would hand that wait to one unlucky visitor every TTL, to
+    # tell them what the previous visitor already knew.
+    release = asyncio.Event()
+    cache, calls, clock = _gated(release)
+    assert await cache.get() == "fetch 1"
+
+    clock.now += 601
+    # Returns the aged copy while the refresh is still blocked on `release`.
+    # If get() waited on the refresh, this line would hang rather than fail.
+    assert await cache.get() == "fetch 1"
+
+    # One yield is enough for the scheduled refresh to reach its own await, so
+    # the caller was served ahead of an upstream fetch still in flight.
+    await asyncio.sleep(0)
+    assert len(calls) == 2
+
+    release.set()
+    await cache.settle()
+    assert await cache.get() == "fetch 2"
+
+
+async def test_concurrent_cold_misses_cost_one_upstream_fetch():
+    # The thundering herd this exists to stop: on a cold pod every visitor
+    # would otherwise be its own query against a quota shared with the rest
+    # of the internet.
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls: list[int] = []
+
+    async def fetch() -> str:
+        calls.append(1)
+        started.set()
+        await release.wait()
+        return "only"
+
+    cache = SnapshotCache(label="test", fetch=fetch, ttl_s=600, retry_after_failure_s=60)
+    waiters = [asyncio.create_task(cache.get()) for _ in range(5)]
+    await started.wait()
+    release.set()
+    results = await asyncio.gather(*waiters)
+
+    assert len(calls) == 1
+    assert all(r is results[0] for r in results)
+
+
+async def test_concurrent_aged_reads_schedule_one_background_refresh():
+    release = asyncio.Event()
+    cache, calls, clock = _gated(release)
+    await cache.get()
+
+    clock.now += 601
+    await asyncio.gather(*(cache.get() for _ in range(5)))
+    release.set()
+    await cache.settle()
+    assert len(calls) == 2
+
+
+async def test_a_failed_refresh_backs_off_instead_of_retrying_per_request():
+    clock = _Clock()
+    cache, calls = _cache(clock, ["first", UpstreamError("down"), "second"])
+    await cache.get()
+    clock.now += 601
+    await cache.get()
+    await cache.settle()  # the second fetch, which fails
+    for _ in range(3):
+        await cache.get()  # inside the backoff: must not become a third
+        await cache.settle()
+    assert len(calls) == 2
+    clock.now += 61
+    await cache.get()
+    await cache.settle()
+    assert len(calls) == 3
+
+
+# ── A pod that has never filled (review of #552) ─────────────────────────────
 
 
 async def test_a_cold_cache_waits_out_the_failure_backoff():
@@ -227,12 +348,13 @@ async def test_a_background_refresh_past_its_deadline_keeps_serving_the_snapshot
         label="Slow refresh", fetch=fetch, ttl_s=600, retry_after_failure_s=60,
         clock=clock, refresh_deadline_s=0.05,
     )
+    before = _failures("Slow refresh")
     assert await cache.get() == "first"
     clock.now += 601
     assert await cache.get() == "first"
     await asyncio.wait_for(cache.settle(), timeout=5)
     assert await cache.get() == "first"
-    assert _failures("Slow refresh") == 1
+    assert _failures("Slow refresh") == before + 1
 
 
 def test_a_new_cache_starts_its_failure_series_at_zero():
