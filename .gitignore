@@ -15,6 +15,12 @@ dist/
 # TypeScript's incremental state, written by a local `tsc` run.
 *.tsbuildinfo
 
+# Coverage reports, written by `make coverage-frontend` and `make coverage-backend`.
+frontend/coverage/
+backend/htmlcov/
+backend/.coverage
+backend/coverage.json
+
 # Python
 __pycache__/
 *.pyc

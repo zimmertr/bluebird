@@ -17,7 +17,7 @@ PIP_TOOLS_VERSION := 7.5.3
 # its own Chromium build, and the image carries the build for its own version.
 PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.64.0-noble
 
-.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lock-backend lighthouse browser perf
+.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lock-backend coverage-frontend coverage-backend check-unused lighthouse browser perf
 
 typecheck:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci --ignore-scripts && npx tsc --noEmit"
@@ -53,6 +53,23 @@ lint-backend:
 # unless asked; add --upgrade-package NAME to move one.
 lock-backend:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend python:3.14-alpine sh -c "pip install --root-user-action=ignore 'pip<26' pip-tools==$(PIP_TOOLS_VERSION) && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements.txt requirements.in && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-dev.txt requirements-dev.in"
+
+# Not checks: each prints line and branch coverage per module and writes an
+# HTML report (frontend/coverage/, backend/htmlcov/). No floor, on purpose: a
+# coverage threshold rewards tests that run a line without asserting on it.
+coverage-frontend:
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci --ignore-scripts && npx vitest run --coverage --coverage.reporter=text --coverage.reporter=html --coverage.reporter=json-summary"
+
+coverage-backend:
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend $(PYTHON_IMAGE) sh -c "pip install -r requirements-dev.txt && pytest --cov=app --cov-branch --cov-report=term-missing:skip-covered --cov-report=html --cov-report=json"
+
+# Unused files, exports and dependencies (Knip) and unused functions, classes
+# and fields (Vulture). Not in CI: run it before a refactor lands. Deliberate
+# exceptions live in frontend/tools/knip/knip.jsonc and
+# backend/vulture_allowlist.py, each with its reason.
+check-unused:
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci --ignore-scripts && (cd e2e && npm ci --ignore-scripts) && npm --prefix tools/eslint ci --ignore-scripts && npm --prefix tools/api-types ci --ignore-scripts && npm --prefix tools/knip ci --ignore-scripts && tools/knip/node_modules/.bin/knip --config tools/knip/knip.jsonc"
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend $(PYTHON_IMAGE) sh -c "pip install -r requirements-dev.txt && vulture app vulture_allowlist.py"
 
 # The one target that is several commands: the audit needs a built image
 # serving on a network that a Chromium container can reach. A failed audit
