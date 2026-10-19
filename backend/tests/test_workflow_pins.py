@@ -33,10 +33,11 @@ MAIN_ONLY = "github.ref == 'refs/heads/main'"
 
 @pytest.fixture(scope="module")
 def files() -> list[Path]:
-    # Skips where the repo root is not mounted, like test_node_version.py.
-    if not GITHUB.exists():
-        pytest.skip("repo root not visible")
-    return sorted([*GITHUB.glob("workflows/*.yml"), *GITHUB.glob("actions/*/action.yml")])
+    found = sorted([*GITHUB.glob("workflows/*.yml"), *GITHUB.glob("actions/*/action.yml")])
+    # A moved directory or a broken glob would otherwise pass every check
+    # below with nothing checked.
+    assert found, f"no workflow or action files under {GITHUB}"
+    return found
 
 
 def _uses_lines(path: Path) -> list[str]:
@@ -76,8 +77,6 @@ def test_no_expression_is_pasted_into_a_script(files):
 
 def test_every_release_job_runs_on_main_only():
     path = GITHUB / "workflows" / "release.yml"
-    if not path.exists():
-        pytest.skip("repo root not visible")
     jobs = yaml.safe_load(path.read_text())["jobs"]
     ungated = [name for name, job in jobs.items() if MAIN_ONLY not in str(job.get("if", ""))]
     assert ungated == []
@@ -85,8 +84,6 @@ def test_every_release_job_runs_on_main_only():
 
 def test_the_base_images_are_pinned_by_digest():
     path = REPO / "Dockerfile"
-    if not path.exists():
-        pytest.skip("repo root not visible")
     froms = re.findall(r"^FROM (?:--\S+ )*(\S+)", path.read_text(), re.MULTILINE)
     assert froms
     # tag@digest, so the tag stays readable (and test_node_version.py can read
