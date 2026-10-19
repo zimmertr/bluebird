@@ -20,7 +20,7 @@
 // answer means "not covered", not "clear".
 import type { FeatureCollection } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
-import { bodyLines, escapeHtml, factsLine, fineprint, metaBand, popupCard } from './popupChrome'
+import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard } from './popupChrome'
 
 const SMOKE_URL = '/api/smoke'
 
@@ -191,10 +191,10 @@ export function formatObserved(
   startMs: number | null | undefined,
   endMs: number | null | undefined,
 ): string | null {
-  if (startMs == null || !Number.isFinite(startMs)) return null
-  const start = new Date(startMs)
-  if (Number.isNaN(start.getTime())) return null
-  const end = endMs != null && Number.isFinite(endMs) ? new Date(endMs) : null
+  const start = dateOfMs(startMs)
+  if (start === null) return null
+  // An end that names no instant is no end, so the line states the start alone.
+  const end = dateOfMs(endMs)
   try {
     const sameDay = end !== null && start.toDateString() === end.toDateString()
     const time = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })

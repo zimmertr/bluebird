@@ -46,6 +46,7 @@ import {
   OpenMeteoUnreachable,
   TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
+import { isAbort } from './abort'
 
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
 // Where a window older than the forecast endpoint's retention goes (#123).
@@ -466,7 +467,7 @@ async function getJson(
     }
     return await res.json()
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') throw e
+    if (isAbort(e)) throw e
     if (e instanceof OpenMeteoRateLimited || e instanceof OpenMeteoHttpError) throw e
     if (e instanceof OpenMeteoModelCoverage) throw e
     if (e instanceof OpenMeteoUnreachable) throw e
@@ -1014,7 +1015,7 @@ export async function fetchAqi(
         cacheable: true,
       }
     } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') throw e
+      if (isAbort(e)) throw e
       if (e instanceof OpenMeteoRateLimited) rateLimited = true
       return { rows: chunk.map(() => null), cacheable: false }
     }

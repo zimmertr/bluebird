@@ -44,6 +44,7 @@ import {
 } from './openMeteo'
 import type { CloudSeries, HourlyPayload } from './openMeteoAggregate'
 import { nullsLast } from './sortResults'
+import { isAbort } from './abort'
 
 // The forecast bounds live in constraints.ts. They are re-exported here because
 // present.ts, the panel and the URL codec read them by this module's name.
@@ -784,7 +785,7 @@ export async function runClientAnalysis(
       windowLimits,
       onColumn: (k, column) => keepColumn(unforecastAt[k], column, 'cloud'),
     }).catch((e: unknown) => {
-      if (!(e instanceof DOMException && e.name === 'AbortError')) cloudFailure = e
+      if (!isAbort(e)) cloudFailure = e
       internal.abort()
       return null
     })

@@ -18,7 +18,7 @@
 // order says, and nothing here decides whether a closure is still in force.
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
-import { bodyLines, escapeHtml, factsLine, fineprint, metaBand, popupCard, warningLine } from './popupChrome'
+import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard, warningLine } from './popupChrome'
 import { type BBox, type FireDetail, formatAcres } from './wildfires'
 
 const CLOSURES_URL = '/api/closures'
@@ -160,9 +160,8 @@ export function closureName(props: ClosureProps): string {
 
 /** Epoch ms as a medium date, or null. Timezone-tolerant like `updatedAt`, so it never throws. */
 function closureDate(ms: number | null | undefined): string | null {
-  if (ms == null || !Number.isFinite(ms)) return null
-  const d = new Date(ms)
-  if (Number.isNaN(d.getTime())) return null
+  const d = dateOfMs(ms)
+  if (d === null) return null
   try {
     return d.toLocaleDateString(undefined, { dateStyle: 'medium' })
   } catch {

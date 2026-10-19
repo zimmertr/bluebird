@@ -215,14 +215,26 @@ export function updatedLine(when: string): string {
 }
 
 /**
+ * Epoch ms as a Date, or null where there is no instant to name: no stamp, a
+ * stamp that is not a finite number, or one past Date's range (9e15 is
+ * finite and still an Invalid Date, which prints as `Invalid Date` rather than
+ * throwing). Every card stamp is read through it, so an unreadable one leaves
+ * its line off rather than saying so on the card.
+ */
+export function dateOfMs(ms: number | null | undefined): Date | null {
+  if (ms == null || !Number.isFinite(ms)) return null
+  const d = new Date(ms)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/**
  * Epoch ms as the date and time an `updatedLine` carries, in the reader's own
  * zone and locale, or null to leave the line off. Falls back to a bare ISO
  * date where the locale cannot format it, so it never throws.
  */
 export function updatedAt(ms: number | null | undefined): string | null {
-  if (ms == null || !Number.isFinite(ms)) return null
-  const d = new Date(ms)
-  if (Number.isNaN(d.getTime())) return null
+  const d = dateOfMs(ms)
+  if (d === null) return null
   try {
     return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
   } catch {

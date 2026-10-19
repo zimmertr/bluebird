@@ -1,14 +1,52 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fakeResponse } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'
 import {
   SMOKE_DENSITIES,
   SMOKE_EXTENT,
   SMOKE_OPACITY,
   densityOf,
+  fetchSmoke,
   formatObserved,
   smokePopupHtml,
   smokeSwatch,
 } from './smoke'
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe('fetchSmoke', () => {
+  const run = () => fetchSmoke(new AbortController().signal)
+  type Failure = Error & { rateLimited?: boolean; retryAfterS?: number | null }
+
+  it('returns the analysis as the pod sent it', async () => {
+    const body = { type: 'FeatureCollection', features: [], fetched_at: 1, analysis_date: '2026-08-04' }
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(body)))
+    expect(await run()).toEqual(body)
+  })
+
+  // Both mean "wait": a 429 is this client over its own limit, a 503 a pod
+  // that has never fetched from NOAA. The wait is the one the pod named.
+  it.each([429, 503])('marks a %i as a wait, with its Retry-After', async (status) => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ detail: 'x' }, status, { 'Retry-After': '30' })))
+    const err = (await run().catch((e: unknown) => e)) as Failure
+    expect(err.message).toBe('Smoke data unavailable. Try again later.')
+    expect(err.rateLimited).toBe(true)
+    expect(err.retryAfterS).toBe(30)
+  })
+
+  it('leaves any other failure unmarked', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ detail: 'x' }, 500)))
+    const err = (await run().catch((e: unknown) => e)) as Failure
+    expect(err.message).toBe('Smoke data unavailable. Try again later.')
+    expect(err.rateLimited).toBe(false)
+    expect(err.retryAfterS).toBeNull()
+  })
+
+  it('refuses a body that is not a FeatureCollection', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ type: 'Feature' })))
+    await expect(run()).rejects.toThrow('Smoke data could not be read.')
+  })
+})
 
 describe('density', () => {
   it('reads the three HMS densities', () => {
@@ -97,6 +135,14 @@ describe('formatObserved', () => {
     expect(formatObserved(null, afternoon)).toBeNull()
     expect(formatObserved(undefined, undefined)).toBeNull()
     expect(formatObserved(Number.NaN, afternoon)).toBeNull()
+    // Finite, and still past the range a Date can hold.
+    expect(formatObserved(1e20, null)).toBeNull()
+  })
+
+  // Read like a missing end, so the line never says `Invalid Date`.
+  it('states the start alone when the end is past the range a Date can hold', () => {
+    expect(formatObserved(afternoon, 9e15)).toBe(formatObserved(afternoon, null))
+    expect(formatObserved(afternoon, 1e20)).toBe(formatObserved(afternoon, null))
   })
 })
 

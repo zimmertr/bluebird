@@ -96,8 +96,15 @@ export function overlayRecovery(
   }
 }
 
-/** The `Retry-After` a failed overlay fetch carried, in seconds, or null. */
+/**
+ * The `Retry-After` a failed overlay fetch carried, in seconds, or null.
+ *
+ * At least a second, so an answer that says `Retry-After: 0` cannot turn a
+ * timed recovery, or the proximity checks' silent attempts, into a loop as
+ * fast as the network. Every consumer reads the wait through here, so the
+ * floor is in one place.
+ */
 export function retryAfterOf(err: unknown): number | null {
   const value = (err as { retryAfterS?: unknown } | null)?.retryAfterS
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.max(1, value) : null
 }

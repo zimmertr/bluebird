@@ -98,4 +98,20 @@ describe('retryAfterOf', () => {
     expect(retryAfterOf(new Error('x'))).toBeNull()
     expect(retryAfterOf(null)).toBeNull()
   })
+
+  it('waits at least a second, so a Retry-After of 0 is not a loop', () => {
+    expect(retryAfterOf({ retryAfterS: 0 })).toBe(1)
+    expect(retryAfterOf({ retryAfterS: 0.25 })).toBe(1)
+    expect(retryAfterOf({ retryAfterS: -1 })).toBeNull()
+  })
+
+  it('keeps a timed recovery that is told 0 to one attempt a second', () => {
+    const { recovery, retry, advance } = setup(true)
+    retry.mockImplementation(() => recovery.failed(retryAfterOf({ retryAfterS: 0 })))
+    recovery.failed(retryAfterOf({ retryAfterS: 0 }))
+    advance(100)
+    expect(retry).not.toHaveBeenCalled()
+    advance(4_900)
+    expect(retry).toHaveBeenCalledTimes(5)
+  })
 })

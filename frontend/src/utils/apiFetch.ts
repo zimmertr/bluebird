@@ -1,4 +1,5 @@
 import type { DestinationsRequest } from '../types'
+import { isAbort } from './abort'
 
 /**
  * The one way the browser asks Bluebird Forecast's own API a question.
@@ -38,17 +39,6 @@ export class ApiUnreachable extends Error {
     super(message)
     this.name = 'ApiUnreachable'
   }
-}
-
-/**
- * An abort is the user's own doing, so it passes through untranslated.
- *
- * Read off the name rather than through `instanceof DOMException`: a rejected
- * fetch is a DOMException in every browser, but the polyfilled and test
- * environments this code also runs in are not bound to that.
- */
-function isAbort(e: unknown): boolean {
-  return (e as { name?: string } | null)?.name === 'AbortError'
 }
 
 /**
@@ -92,7 +82,8 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   try {
     return await fetch(path, { ...init, signal: controller.signal })
   } catch (e) {
-    // The caller's own cancel, whatever the error says, passes through.
+    // An abort is the user's own doing, so it passes through untranslated, as
+    // does the caller's own cancel whatever the error says.
     if (caller?.aborted || isAbort(e)) throw e
     throw new ApiUnreachable()
   } finally {

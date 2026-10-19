@@ -505,6 +505,12 @@ describe('runAnalysisPipeline', () => {
     expect(out.held.columns).toBe(held)
   })
 
+  it('hands the ranking the clock it was given, so the fetches read one time', async () => {
+    stubDestinations({ destinations: [CANDIDATE], total: 1 })
+    await runAnalysisPipeline(REQUEST, options())
+    expect(ranked.mock.calls[0][4]!.nowMs).toBe(NOW)
+  })
+
   it('hands a ring no lookup: discovery already answered', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     await runAnalysisPipeline(REQUEST, options())
