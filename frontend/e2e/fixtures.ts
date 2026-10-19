@@ -83,8 +83,8 @@ function hourlyBodies(url: URL, inputs: Record<string, unknown[]>, units: Record
 // freeze Date, and with it every elapsed-seconds readout). One instant and one
 // zone, the one Vitest pins, so "a window N days out" means the same day on
 // every runner whatever its own clock and zone say.
-export const START = Date.parse('2026-09-15T17:00:00Z')
-export const TIME_ZONE = 'America/Los_Angeles'
+const START = Date.parse('2026-09-15T17:00:00Z')
+const TIME_ZONE = 'America/Los_Angeles'
 
 const DAY_MS = 86_400_000
 const localDay = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE })
