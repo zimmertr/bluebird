@@ -1317,6 +1317,20 @@ async def test_a_request_past_its_total_deadline_logs_the_deadline(monkeypatch, 
     assert_no_key_logged(caplog.records)
 
 
+async def test_a_wedged_weather_budget_fails_the_batch_rather_than_degrading_it(monkeypatch):
+    # Weather raises where air quality degrades: a ranking with no weather in
+    # it is not a ranking, so a shed pacer is the route's 503 and not a table
+    # of null rows.
+    async def shed(weight):
+        raise ratelimit.BudgetExhausted("Open-Meteo (weather)")
+
+    monkeypatch.setattr(ratelimit.WEATHER_WEIGHT, "acquire", shed)
+    calls = _stub_openmeteo(monkeypatch, [])
+    with pytest.raises(ratelimit.BudgetExhausted):
+        await fetch_weather_batch(_dests(1), START, END)
+    assert calls == []
+
+
 async def test_a_failed_batch_does_not_poison_the_cache(monkeypatch):
     # A failure must leave nothing behind, or the outage outlives itself for
     # the length of the forecast TTL.

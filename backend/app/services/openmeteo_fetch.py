@@ -200,9 +200,6 @@ async def fetch_batched(
     must give up its in-flight slot while it waits and pay its weight again
     before it asks again, and both belong to this loop.
     """
-    if not destinations:
-        return []
-
     # Serve repeats from the per-location cache first, then fetch only the
     # misses. A repeat Analyze on the same polygon and window costs zero
     # upstream calls; a partially-overlapping polygon pays only for what
@@ -462,9 +459,14 @@ async def request_openmeteo(
         raise UpstreamError(classify_http_error(exc, provider)) from exc
     except (httpx.HTTPError, TimeoutError) as exc:
         # The deadline above ends in the builtin TimeoutError, which is not an
-        # httpx error; `classify_http_error` words it as the timeout it is.
+        # httpx error; `classify_http_error` words it as the timeout it is, and
+        # it counts as one beside httpx's own, timeouts read first the way the
+        # Overpass counter's `_attempt_outcome` reads them.
+        timed_out = isinstance(exc, (httpx.TimeoutException, TimeoutError))
         telemetry.OPENMETEO_REQUESTS.labels(
-            service=service, outcome="network_error", quota=quota
+            service=service,
+            outcome="timeout" if timed_out else "network_error",
+            quota=quota,
         ).inc()
         log.warning(
             "%s request failed: %s",
