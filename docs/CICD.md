@@ -271,8 +271,8 @@ declares and the planet fill's CronJob. The Kustomization inflates it with
 `skipTests: true`, so the subchart's test hook is not run as a Job on every
 sync. The operator that runs the `Cluster` is an Argo CD app of its own,
 `misc/cloudnative-pg` (chart 0.29.1). Sync waves order the rest: the
-database's static volume at -2, the database at -1, the app at 0, because the
-app's pods read the Secret the operator writes for the database. The rollout
+database at -1, the app at 0, because the app's pods read the Secret the
+operator writes for the database. The rollout
 itself is a four-step canary — a scale step that starts one canary pod at zero
 user traffic, then three blocking analyses, then promotion in a single cutover — described
 in [Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
