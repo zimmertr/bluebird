@@ -3,7 +3,6 @@ import { act, renderHook } from '@testing-library/react'
 import type { AnalyzeRequest, DestinationResult, GeoPolygon } from '../types'
 import { useAnalyze } from './useAnalyze'
 import { runClientAnalysis, type HeldColumns } from '../utils/clientAnalyze'
-import { discoverFromTiles, tileDiscoverable } from '../utils/tileDiscovery'
 import { discoveryKeys } from '../utils/present'
 import { discovered, fakeResponse, resultRow } from '../testSupport/fixtures'
 import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
@@ -11,18 +10,6 @@ import { geoKey } from '../utils/points'
 
 // The ranking is clientAnalyze.ts's and has its own suite. A spy here shows
 // what the hook hands it: above all, whether a held field rides along.
-// A ring's tiles are tileDiscovery.ts's and the pipeline's to test; here the
-// pod's answers ride a stubbed fetch the tiles would otherwise read too.
-vi.mock('../utils/tileDiscovery', async (actual) => ({
-  ...(await actual<typeof import('../utils/tileDiscovery')>()),
-  tileDiscoverable: vi.fn(() => false),
-  discoverFromTiles: vi.fn(async () => null),
-}))
-vi.mock('../utils/peakTiles', async (actual) => ({
-  ...(await actual<typeof import('../utils/peakTiles')>()),
-  tileTemplate: vi.fn(async () => 'https://tiles.test/{z}/{x}/{y}.pbf'),
-  fetchTileWith: vi.fn(() => async () => new Uint8Array()),
-}))
 vi.mock('../utils/clientAnalyze', async (actual) => ({
   ...(await actual<typeof import('../utils/clientAnalyze')>()),
   runClientAnalysis: vi.fn(),
@@ -159,26 +146,6 @@ describe('one analysis', () => {
       outcomes.push(await result.current.analyze(REQUEST))
     })
     expect(outcomes).toEqual([true, false])
-  })
-
-  // #735: the map server failed the trailheads, so the report is the ring's
-  // peaks alone. It commits, its snapshot names what it is without, and the
-  // click is told the commit was partial so it records no discovery.
-  it('commits a report without the kinds the map server failed, and says so', async () => {
-    const peak = discovered({ name: 'Alpha', type: 'peak', latitude: 47.45, longitude: -121.8, osm_id: 'node/1' })
-    vi.mocked(tileDiscoverable).mockReturnValueOnce(true)
-    vi.mocked(discoverFromTiles).mockResolvedValueOnce([peak])
-    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ detail: 'OpenStreetMap is not available. Try again later.' }, 502)))
-    const ring: GeoPolygon = { type: 'Polygon', coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
-    const onCommit = vi.fn()
-    const { result } = renderHook(() => useAnalyze())
-    const committed = await act(() =>
-      result.current.analyze({ ...REQUEST, polygon: ring, destination_types: ['peak', 'trailhead'], custom_destinations: [] }, 'days', { onCommit }),
-    )
-    expect(committed).toBe(true)
-    expect(ranked.mock.calls[0][1]).toEqual([peak])
-    expect(result.current.analyzed?.missingTypes).toEqual(['trailhead'])
-    expect(onCommit).toHaveBeenCalledWith({ partial: true })
   })
 
   // The click's bookkeeping runs with the commit, not with the click, so a

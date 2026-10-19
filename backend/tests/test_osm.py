@@ -28,15 +28,19 @@ def test_polygon_to_overpass_orders_lat_lon():
 async def test_query_osm_parses_dedups_and_skips(monkeypatch):
     canned = {
         "elements": [
-            {"type": "node", "id": 1, "lat": 47.5, "lon": -121.5, "tags": {"name": "Peak A", "ele": "1000"}},
-            # Duplicate name — dropped.
-            {"type": "node", "id": 2, "lat": 47.6, "lon": -121.6, "tags": {"name": "Peak A"}},
+            {"type": "node", "id": 1, "lat": 47.5, "lon": -121.5,
+             "tags": {"name": "Peak A", "natural": "peak", "ele": "1000"}},
+            # The same summit mapped twice, 111 m apart: one destination (#760).
+            {"type": "node", "id": 2, "lat": 47.501, "lon": -121.5001,
+             "tags": {"name": "Peak A", "natural": "peak"}},
             # Way with a center rather than lat/lon on the element.
-            {"type": "way", "id": 3, "center": {"lat": 47.7, "lon": -121.7}, "tags": {"name": "Lake B"}},
+            {"type": "way", "id": 3, "center": {"lat": 47.7, "lon": -121.7},
+             "tags": {"name": "Lake B", "natural": "water", "water": "lake"}},
             # No name — dropped.
-            {"type": "node", "id": 4, "lat": 47.8, "lon": -121.8, "tags": {}},
+            {"type": "node", "id": 4, "lat": 47.8, "lon": -121.8, "tags": {"natural": "peak"}},
             # Missing coordinates — dropped.
-            {"type": "node", "id": 5, "lat": None, "lon": -121.9, "tags": {"name": "NoCoord"}},
+            {"type": "node", "id": 5, "lat": None, "lon": -121.9,
+             "tags": {"name": "NoCoord", "natural": "peak"}},
             # One name, two types: a crag named for the peak it stands on is
             # a second destination (#715), so both are kept.
             {"type": "node", "id": 6, "lat": 47.4, "lon": -121.4,
@@ -50,7 +54,9 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
         return canned
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
-    results = await osm.query_osm(POLY, [DestinationType.peak, DestinationType.crag])
+    results = await osm.query_osm(
+        POLY, [DestinationType.peak, DestinationType.lake, DestinationType.crag]
+    )
 
     names = [r["name"] for r in results]
     assert names == ["Peak A", "Lake B", "The Tooth", "The Tooth"]
@@ -61,7 +67,8 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
 
 
 async def test_query_osm_converts_elevation_meters_to_feet(monkeypatch):
-    canned = {"elements": [{"type": "node", "id": 1, "lat": 1.0, "lon": 2.0, "tags": {"name": "X", "ele": "1000"}}]}
+    canned = {"elements": [{"type": "node", "id": 1, "lat": 1.0, "lon": 2.0,
+                            "tags": {"name": "X", "natural": "peak", "ele": "1000"}}]}
 
     async def fake_post(query, on_status=None, **_kwargs):
         return canned
@@ -73,7 +80,8 @@ async def test_query_osm_converts_elevation_meters_to_feet(monkeypatch):
 
 
 async def test_query_osm_bad_elevation_tag_is_ignored(monkeypatch):
-    canned = {"elements": [{"type": "node", "id": 1, "lat": 1.0, "lon": 2.0, "tags": {"name": "X", "ele": "high"}}]}
+    canned = {"elements": [{"type": "node", "id": 1, "lat": 1.0, "lon": 2.0,
+                            "tags": {"name": "X", "natural": "peak", "ele": "high"}}]}
 
     async def fake_post(query, on_status=None, **_kwargs):
         return canned
@@ -122,16 +130,16 @@ async def test_several_types_are_one_query_not_one_each(monkeypatch):
     query = calls[0]
     assert 'node["natural"="peak"]["name"]' in query
     assert 'node["natural"="volcano"]["name"]' in query
-    assert 'relation["natural"="water"]["water"="lake"]["name"]' in query
+    assert 'nwr["natural"="water"]["water"="lake"]["name"]' in query
     # Trailheads and crags were not asked for and must not ride along.
     assert "trailhead" not in query
     assert "climbing" not in query
 
 
-async def test_crags_add_three_clauses_and_never_bare_sport_climbing(monkeypatch):
-    # Crags come as nodes, ways and relations alike, and every clause must
-    # narrow sport=climbing: bare, it would make every route a row. A boulder
-    # comes subtyped, or as a stone with no subtype at all.
+async def test_crag_clauses_never_take_a_bare_sport_climbing(monkeypatch):
+    # Bare `sport=climbing` also tags every route, so each clause that asks for
+    # it narrows it: by a subtype, by the rock it is on, or by a climbing site
+    # (#760). Which features each clause takes is test_osm_rules.py's table.
     calls = []
 
     async def fake_post(query, on_status=None, **_kwargs):
@@ -142,11 +150,15 @@ async def test_crags_add_three_clauses_and_never_bare_sport_climbing(monkeypatch
     await osm.query_osm(POLY, [DestinationType.peak, DestinationType.crag])
 
     [query] = calls
-    for kind in ("node", "way", "relation"):
-        assert f'{kind}["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"]' in query
-    for kind in ("node", "way"):
-        assert f'{kind}["natural"="stone"]["sport"="climbing"][!"climbing"]["name"]' in query
-    assert query.count('["sport"="climbing"]') == 5
+    lines = [line for line in query.splitlines() if '["sport"="climbing"]' in line]
+    assert len(lines) == 5
+    assert all(
+        '["climbing"~' in line or '[!"climbing"]' in line for line in lines
+    )
+    assert all(
+        '["climbing"~' in line or '["natural"' in line or '["type"="site"]' in line
+        for line in lines
+    )
     assert 'node["natural"="peak"]["name"]' in query
 
 
@@ -166,8 +178,8 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
             # An area is often a relation, read from its center like a lake.
             {"type": "relation", "id": 6, "center": {"lat": 6.0, "lon": 6.0},
              "tags": {"name": "F", "sport": "climbing", "climbing": "area"}},
-            # The clause never asks for a route, but one that arrives anyway
-            # degrades to an unbadged row rather than passing as a crag.
+            # The clause never asks for a route, and one that arrives anyway
+            # is no destination: the places table would never hold it (#760).
             {"type": "node", "id": 7, "lat": 7.0, "lon": 7.0,
              "tags": {"name": "G", "sport": "climbing", "climbing": "route"}},
             # A boulder is a crag row, whether subtyped or a bare climbable
@@ -191,9 +203,74 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
     )
 
     assert [r["type"] for r in results] == [
-        "peak", "peak", "lake", "trailhead", "crag", "crag", "custom", "crag", "crag", "custom"
+        "peak", "peak", "lake", "trailhead", "crag", "crag", "crag", "crag"
     ]
+    assert "G" not in [r["name"] for r in results]
+    assert "J" not in [r["name"] for r in results]
     assert (results[5]["latitude"], results[5]["longitude"]) == (6.0, 6.0)
+
+
+async def test_a_trailhead_beside_its_lot_is_one_row_and_the_node_stands_for_it(monkeypatch):
+    # Much of the US maps a trailhead as a node beside the lot named for it,
+    # and the node is where the trail starts, whichever Overpass sends first.
+    canned = {
+        "elements": [
+            {"type": "way", "id": 20, "center": {"lat": 47.5, "lon": -121.5},
+             "tags": {"name": "Poo Poo Trailhead", "amenity": "parking"}},
+            {"type": "node", "id": 21, "lat": 47.5015, "lon": -121.5,
+             "tags": {"name": "Poo Poo Trailhead", "highway": "trailhead"}},
+        ]
+    }
+
+    async def fake_post(query, on_status=None, **_kwargs):
+        return canned
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    rows = await osm.query_osm(POLY, [DestinationType.trailhead])
+
+    assert [(r["osm_id"], r["type"]) for r in rows] == [("node/21", "trailhead")]
+
+
+async def test_two_places_sharing_a_name_far_apart_are_two_rows(monkeypatch):
+    # Every Lost Lake is its own lake: the name joins rows only within
+    # rules.MERGE_RADIUS_M.
+    canned = {
+        "elements": [
+            {"type": "way", "id": 30, "center": {"lat": 47.5, "lon": -121.5},
+             "tags": {"name": "Lost Lake", "natural": "water", "water": "lake"}},
+            {"type": "way", "id": 31, "center": {"lat": 47.504, "lon": -121.5},
+             "tags": {"name": "Lost Lake", "natural": "water", "water": "lake"}},
+        ]
+    }
+
+    async def fake_post(query, on_status=None, **_kwargs):
+        return canned
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    rows = await osm.query_osm(POLY, [DestinationType.lake])
+
+    assert [r["osm_id"] for r in rows] == ["way/30", "way/31"]
+
+
+async def test_a_row_of_a_kind_nobody_asked_for_is_left_out(monkeypatch):
+    # A summit node carrying a crag's tags is a peak, so a crags-only ring
+    # leaves it out, as the places table does.
+    canned = {
+        "elements": [
+            {"type": "node", "id": 40, "lat": 47.5, "lon": -121.5,
+             "tags": {"name": "Spire", "natural": "peak", "sport": "climbing", "climbing": "crag"}},
+            {"type": "node", "id": 41, "lat": 47.6, "lon": -121.5,
+             "tags": {"name": "Wall", "sport": "climbing", "climbing": "crag"}},
+        ]
+    }
+
+    async def fake_post(query, on_status=None, **_kwargs):
+        return canned
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    rows = await osm.query_osm(POLY, [DestinationType.crag])
+
+    assert [r["name"] for r in rows] == ["Wall"]
 
 
 async def test_type_order_does_not_change_the_query_or_the_cache_key(monkeypatch):
@@ -760,13 +837,68 @@ async def test_enrich_custom_queries_peaks_and_volcanoes_within_the_radius(monke
     await _enrich_custom([_row(47.123456, -121.654321)])
     [query] = spy
     # The literal, not the interpolated constant. Written the old way this
-    # assertion moved with any edit to CUSTOM_MATCH_RADIUS_M, so it could not
-    # notice the radius changing at all.
-    assert "around:150" in query
+    # assertion moved with any edit to either radius, so it could not notice
+    # one changing at all. 300 is the name match's reach, the wider of the two.
+    assert "around:300" in query
     assert "47.123456,-121.654321" in query
     # Volcanoes are unioned in for the same reason discovery does it: OSM tags
     # Rainier and Baker as volcano rather than peak.
     assert "volcano" in query
+
+
+# 0.0025 degrees of latitude is 278 m: past the coordinate match, inside the
+# name match.
+_NAME_DEG = 0.0025
+
+
+def _summit(node_id: int, lat: float, lon: float, name: str, ele: str | None = "1000") -> dict:
+    node = _node(node_id, lat, lon, ele)
+    node["tags"]["name"] = name
+    return node
+
+
+async def test_a_summit_of_the_rows_name_places_a_point_the_coordinate_missed(monkeypatch):
+    # Buck Mountain's OSM node stands 174 m from its listed coordinate, which
+    # the 150 m coordinate match never reaches.
+    _stub_overpass(monkeypatch, [_summit(1, 47.0 + _NAME_DEG, -121.0, "Buck Mountain")])
+    [row] = await _enrich_custom([_row(47.0, -121.0, "1. Buck Mountain")])
+    assert (row["elevation_ft"], row["osm_id"]) == (3281.0, "node/1")
+
+
+async def test_the_name_match_needs_the_same_name_and_a_short_reach(monkeypatch):
+    _stub_overpass(
+        monkeypatch,
+        [
+            _summit(1, 47.0 + _NAME_DEG, -121.0, "Buck Ridge"),
+            # 500 m reached the wrong Reynolds Peak, so 334 m reaches nothing.
+            _summit(2, 47.003, -121.0, "Reynolds Peak"),
+        ],
+    )
+    rows = await _enrich_custom([_row(47.0, -121.0, "Buck Mountain"), _row(47.0, -121.0, "Reynolds Peak")])
+    assert [r["osm_id"] for r in rows] == [None, None]
+
+
+async def test_a_named_summit_with_an_elevation_beats_a_nearer_one_without(monkeypatch):
+    _stub_overpass(
+        monkeypatch,
+        [_node(7, 47.0, -121.0, ele=None), _summit(8, 47.0 + _NAME_DEG, -121.0, "Buck Mountain")],
+    )
+    [row] = await _enrich_custom([_row(47.0, -121.0, "Buck Mountain")])
+    assert (row["elevation_ft"], row["osm_id"]) == (3281.0, "node/8")
+    # With no summit of its name in reach, the row keeps the nearer one's identity.
+    cache.ENRICH_CACHE.clear()
+    [row] = await _enrich_custom([_row(47.0, -121.0, "Somewhere Else")])
+    assert (row["elevation_ft"], row["osm_id"]) == (None, "node/7")
+
+
+def test_the_enrichment_cache_keys_each_point_by_its_name_too():
+    a = cache.custom_enrich_key([(47.0, -121.0, "buck mountain")])
+    b = cache.custom_enrich_key([(47.0, -121.0, "other")])
+    assert a != b
+
+
+def test_the_name_match_reaches_the_measured_300_m():
+    assert osm.NAME_MATCH_RADIUS_M == 300.0
 
 
 def test_enrich_deadline_is_twelve_seconds_a_mirror():

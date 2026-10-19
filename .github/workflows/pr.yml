@@ -80,7 +80,9 @@ jobs:
       # Pin ruff: its default rule set changes between releases, so an unpinned
       # install can turn a green lint red with no code change on our side.
       - run: pip install ruff==0.16.0
-      - run: ruff check backend/
+      # fill/ruff.toml extends backend/ruff.toml, for the Python the fill
+      # image runs rather than the app's.
+      - run: ruff check backend/ fill/
 
   # Run the backend unit suite: pure logic (aggregation, validation, sorting,
   # error mapping) plus route behavior with the upstream APIs stubbed.
@@ -117,6 +119,112 @@ jobs:
       - name: Check OpenAPI snapshot is current
         run: python scripts/generate_openapi.py --check
         working-directory: backend
+
+  # The tests marked `db` (#760): the shared cache's schema, its readers and
+  # its writers, against the PostgreSQL with PostGIS that `make
+  # test-backend-db` starts. A job of its own so Backend Tests keeps its time,
+  # with the database building in the background while Python installs; the
+  # image jobs beside it take minutes, so it adds nothing to a PR's wait.
+  backend-db:
+    name: Database Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Start the database in the background
+        run: |
+          (docker build -q -t bluebird:test-db backend/tests/db \
+            && docker run -d --rm --name db-test -p 5432:5432 -e POSTGRES_PASSWORD=test bluebird:test-db) \
+            > db.log 2>&1 &
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - run: pip install -r requirements-dev.txt
+        working-directory: backend
+      # Over TCP, because the image's first start runs a server on its socket
+      # alone while it initialises and then restarts it.
+      - name: Wait for the database
+        run: |
+          for _ in $(seq 120); do
+            docker exec db-test pg_isready -q -h localhost -U postgres 2>/dev/null && exit 0
+            sleep 1
+          done
+          cat db.log
+          echo "::error::The test database did not start. See its log above."
+          exit 1
+      - run: pytest -m db -q
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:test@localhost/postgres
+
+  # The planet fill's image and suite (#760). A job of its own, in parallel
+  # with the rest: the fill is a second image with its own Dockerfile, and its
+  # end-to-end test needs a PostgreSQL with PostGIS that no other job starts.
+  #
+  # No GitHub Actions layer cache, unlike Docker Build. The repository's cache
+  # is already over GitHub's 10 GB limit and evicting the app's layers, and
+  # both builds here are one apt install each, which the background start
+  # below hides behind each other anyway.
+  fill:
+    name: Planet Fill
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: fill/Dockerfile
+      # The database builds and starts in the background while the fill image
+      # builds, so the job waits for the slower of the two rather than both.
+      # The same steps as `make test-fill`.
+      - name: Build the image and run the suite
+        run: |
+          docker network create fill-net
+          (docker build -q -t bluebird:test-db backend/tests/db \
+            && docker run -d --rm --name fill-db --network fill-net -e POSTGRES_PASSWORD=test bluebird:test-db) \
+            > db.log 2>&1 &
+          db=$!
+          docker build -f fill/Dockerfile -t bluebird:fill .
+          docker build -f fill/Dockerfile --target test -t bluebird:fill-test .
+          if ! wait "$db"; then
+            cat db.log
+            echo "::error::The test database did not start. See its log above."
+            exit 1
+          fi
+          docker run --rm --network fill-net \
+            -e TEST_DATABASE_URL=postgresql://postgres:test@fill-db/postgres bluebird:fill-test
+
+      # The same gate Docker Build applies to the app's image, with the same
+      # trivy.yaml, so the release scan of the pushed fill image holds no
+      # surprise. No PR comment: the app's sticky comment is the one place
+      # people look, and this job's summary carries the table when it fails.
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: bluebird:fill
+          format: json
+          output: trivy.json
+          ignore-unfixed: true
+          trivy-config: trivy.yaml
+
+      - name: Count Critical/High vulnerabilities
+        id: crit
+        uses: ./.github/actions/trivy-crit-high
+        with:
+          report: trivy.json
+
+      - name: Fail on fixable Critical/High vulnerabilities
+        env:
+          CRIT_HIGH: ${{ steps.crit.outputs.count }}
+        run: |
+          if [ "$CRIT_HIGH" -gt 0 ]; then
+            trivy convert --format table trivy.json >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in the fill image. See the job summary."
+            exit 1
+          fi
 
   # Validate the Dockerfile builds end-to-end without pushing the image, then
   # scan the result for vulnerabilities. amd64-only on purpose: this gate

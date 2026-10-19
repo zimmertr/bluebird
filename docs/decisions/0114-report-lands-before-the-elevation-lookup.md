@@ -1,6 +1,6 @@
 # 0114. The elevation lookup starts when the coordinates box is filled, reads the basemap's tiles first and the map server second, and no analysis waits for it
 
-- Status: Accepted
+- Status: Accepted. Amended by 0176 (the lookup reads the pod alone, the places table and then Overpass, where it read the basemap's tiles first).
 - Date: 2026-10-07
 - Decider: the maintainer (TJ), on issue #673 and PR #674: start at paste time, never block, 24 s; then "think outside the box, no design change is out of the question" toward three goals, an analysis as fast as possible, as accurate as possible, and one that succeeds every time
 - Issues and PRs: #673, #643, #655, #207, #545, #546

@@ -2,11 +2,11 @@
 
 | Source | Usage | Cost | Auth |
 |---|---|---|---|
-| [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
+| [OpenStreetMap](https://www.openstreetmap.org), from the server's own copy, or via [Overpass API](https://overpass-api.de) without one | Destination names, coordinates, elevation | Free | None |
 | [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level, the humidity column behind the cloud deck, and (in the browser only) the wind bearing the map's playback arrows draw | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | Hourly precipitation, 2 m temperature and 10 m wind for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
-| [OpenFreeMap](https://openfreemap.org) | Vector map tiles, and the peak a pasted coordinate stands on | Free | None |
+| [OpenFreeMap](https://openfreemap.org) | Vector map tiles, and the glaciers the snow card names | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
@@ -53,25 +53,66 @@ by region in exactly the way volunteer mapping is uneven.
 [Coordinate search](USAGE.md#d-coordinate-search) exists for that gap:
 whatever OSM does not know, you can paste.
 
-A drawn area's peaks and lakes are read from the basemap's own tiles rather
-than asked of Overpass ([Map tiles](#map-tiles) below): the zoom-14 tiles
-under the area carry every named summit with its elevation and OSM id, and
-every named water body, so the app has its answer in about a second and asks
-Overpass only for trailheads, which no tile carries, and crags, which the
-tiles cannot tell from routes, or for an area too large to read from the tiles
-quickly. Measured 2026-10-07 over three rings, the
-peaks were exactly Overpass's (42 of 42, 28 of 28 and 16 of 16, the same
-ids). The lakes are broader than the API's: Overpass is asked for
-`natural=water` with `water=lake`, and the tiles carry tarns, ponds and
-reservoirs under the one class `lake` with no subtype to tell them apart, so
-the app finds every named water body where the API finds the lakes alone (46
-to 40, 16 to 3 and 23 to 4 on the same three rings). A lake from the tiles
-carries no elevation, so its Elevation cell shows the terrain height marked
+A drawn area is searched in Bluebird Forecast's own copy of OpenStreetMap
+rather than asked of Overpass (#760). The server keeps a table of every place
+discovery can find, worldwide, filled from OpenStreetMap's planet file and kept
+current from its daily change files, so a search of any size answers in
+milliseconds whether Overpass is up or not. Filled from Washington's extract on
+2026-10-18, the table matched Overpass place for place, every position 0.0 m
+apart: 3,349 peaks, 2,031 lakes, 1,136 trailheads and 188 crags. The
+selectors and the classifier live in one module,
+`backend/app/services/osm/rules.py`, which the fill, the daily update and the
+Overpass query all read, so a deployment without the table, or with one still
+filling, asks Overpass for exactly what the table would hold. Record:
+[0176](decisions/0176-places-from-the-planet-and-daily-changes.md)
+
+Three things differ from asking Overpass:
+
+- **The copy trails OpenStreetMap by up to a day.** The change files come
+  daily, so an edit made today reaches a search tomorrow, or later while the
+  files cannot be fetched, and a missed day is applied, in order, the next
+  time one can be. A shape whose edit arrives without the points needed to
+  place it keeps its old point until OpenStreetMap's API sends it whole,
+  usually the same day (below).
+- **A place is inside a ring when its point is.** Each place stands at one
+  point: a node's position, or the centre of a way's or relation's bounding
+  box, which is where Overpass's `out center` puts it. Overpass asks whether
+  any part of a shape touches the ring, so a lake whose shore crosses the edge
+  while its centre stays outside was a row there and is not one here, which is
+  also where its marker would have stood.
+- **One kind and one name within 300 m is one place.** OSM maps a summit
+  twice, or a trailhead as a node beside the parking lot named for it, and
+  those are one destination, the node kept over its lot. Places that only
+  share a name are a row each, so a search of Washington lists every Lost
+  Lake, where before #760 a search kept one row per kind and name across the
+  whole ring. Measured over Washington's extract on 2026-10-18, 105 same-named
+  trailhead pairs stood within 300 m, 70 of them a node beside its lot, and
+  the next nearest were 342 m apart; lakes, peaks and crags added 40, 5 and 4
+  pairs. Record: [0177](decisions/0177-one-place-per-kind-and-name-within-300-m.md)
+
+A lake is `natural=water` with `water=lake`, in the app as through the API.
+Until #760 the app read a ring's lakes from the basemap's tiles, which carry
+tarns, ponds and reservoirs under the one class `lake`, so it found every
+named water body; it now finds the lakes alone. A lake with no `ele` tag shows
+the terrain height in its Elevation cell, marked
 ([record 0116](decisions/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
+A trailhead is `highway=trailhead`, or a named parking lot whose name says it
+is one, because much of the US maps the lot and never adds the node: in a box
+around Issaquah on 2026-10-17, 2 of 14 named trailhead features carried the
+tag.
 
 A crag is `sport=climbing` with `climbing=crag`, `climbing=area` or
 `climbing=boulder`, or a climbable stone (`natural=stone` with
-`sport=climbing` and no `climbing=` tag), and nothing wider. Climbers tag
+`sport=climbing` and no `climbing=` tag). Since #760 it is also a
+`climbing=crag`, `area` or `boulder` with no `sport` tag (Hag Crag), a
+`natural=cliff`, `bare_rock` or `rock` with `sport=climbing` (Ozone Wall,
+Icicle Buttress), or a climbing site relation (`type=site` with
+`sport=climbing`, as K Cliff and Ozone are). Those wider rules take nothing
+tagged `leisure`, `building`, `shop`, `club`, `amenity` or `tourism`, which in
+Washington were 40 climbing gyms and attractions, and none of them takes a
+bare `sport=climbing`, which is often a single route. Over Washington's
+extract on 2026-10-18 they added 37 crags to the 188, a fifth more. Record:
+[0178](decisions/0178-crag-rule-widened.md) Climbers tag
 every route `sport=climbing` too: measured 2026-10-15 over 47.0 to 48.0 N,
 121.8 to 120.8 W, 183 named features carried it, of which 82 were crags, 22
 areas and 4 boulders, and 67 routes and 5 route bottoms would each have been a
@@ -80,10 +121,16 @@ rows a few metres apart, and a boulder mapped as a bare stone counts too
 (Midnite Boulder at Index is one). Areas are in
 because some places are mapped only as one, and an area holds the crags inside
 it, so a ring can list both: Index is an area, and Lower Town Wall inside it is
-a crag. The basemap's tiles cannot stand in for the query: they carry
-`sport=climbing` points with no `climbing=` subtype, and crags mapped as
-relations are missing, so in the zoom-14 tile over Index, measured
-2026-10-15, 33 of OSM's 36 named routes were there and 3 of its 12 crags. A
+a crag. An area stands at the centre of its own crags and outlines, where
+Overpass puts it. One made only of other areas (Leavenworth, Snoqualmie Pass,
+the Inner Walls at Index; 27 in Washington) gets no position from Overpass at
+all, so the table places it at the centre of the areas it holds, following the
+nesting down; on the Overpass path such an area is still missing. Record:
+[0179](decisions/0179-relations-stand-at-their-own-points.md) The basemap's
+tiles cannot stand in for the query: they carry `sport=climbing` points with
+no `climbing=` subtype, and crags mapped as relations are missing, so in the
+zoom-14 tile over Index, measured 2026-10-15, 33 of OSM's 36 named routes
+were there and 3 of its 12 crags. A
 crag named for the peak it stands on is its own row beside the peak,
 typed Crag: 6 of the 104 in that box share a name with a peak. None of the 104 in that box carried an `ele` tag, so a crag reads the
 plain near-ground values the way a lake or trailhead with no elevation does.
@@ -92,19 +139,20 @@ there, and an obscure crag may not be
 ([record 0159](decisions/0159-crags-destination-type.md)).
 
 OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
-name and a point and nothing else, so each one is matched to the nearest mapped
-peak within about 150 metres and takes that peak's `ele` tag. The app asks two
-sources the same question, in order. First the basemap's own vector tiles: at
-zoom 14 OpenFreeMap's peak layer carries every OSM peak and volcano node with
-its elevation and its node id, so the browser reads the handful of tiles
-around each pasted point, static files served from a cache, and places almost
-every summit in well under a second, with the same number and the same OSM
-node Overpass would give (measured 2026-10-07 on the 100-peak Washington
-list: 96 placed, every elevation and node identical). A row the tiles leave,
-because the nearest node carries no elevation or the point stands on a node
-mapped since the tiles were last built, goes to the server's Overpass lookup
-described below, which is the only source for a direct API caller. Three
-things follow from that, all of them visible in the Elevation column:
+name and a point and nothing else, so the server matches each one to a mapped
+summit and takes that summit's `ele` tag: the nearest within about 150 metres,
+or, when that one has no elevation or there is none, the nearest summit of the
+row's own name within 300 metres that has one. The name match is there because
+a guidebook's coordinate and OSM's node for one summit can sit a few hundred
+metres apart: Buck Mountain's node stands 174 m from its listed coordinate
+(2026-10-07), and a 500 m reach took the wrong Reynolds Peak, 514 m away. It
+reads names without case, punctuation or a leading list number. The server
+asks its own copy of OpenStreetMap first, which answers in milliseconds, and
+Overpass only when the copy cannot answer, and one rule picks from either
+answer. Until #760 the browser read the basemap's tiles first and kept the
+name match to itself; the web app and a direct API caller now get the same
+lookup. Three things follow from that, all of them visible in the Elevation
+column:
 
 - **A point with no mapped peak beside it shows the terrain height, marked.**
   Against the bundled 100-peak Washington lists the match rate is 97%; the
@@ -118,17 +166,15 @@ things follow from that, all of them visible in the Elevation column:
 - **The number is OSM's, not your guidebook's.** Where the two disagree, the
   column shows what OSM says, which is the same figure a polygon search shows
   for that peak. Agreement between the two ways of asking is the point;
-  agreement with any particular book is not on offer. The tiles are rebuilt
-  weekly, so an `ele` tag edited in the last week or so reaches a pasted row
-  only through the Overpass lookup, which is asked only about the rows the
-  tiles could not place.
+  agreement with any particular book is not on offer. The copy follows OSM a
+  day behind, so an `ele` tag edited today reaches a pasted row tomorrow.
 - **It is best-effort.** If neither source can be reached the rows simply
   keep a blank elevation and the analysis runs regardless, so a blank means
   "nobody could say" rather than "something broke". The server's response
   says which it was: `elevation_lookup_complete` is false when its lookup
   gave up, so the app asks once more a little later, and true when a blank
-  means no peak within the radius. That lookup stops waiting at a deadline,
-  split evenly between the two mirrors described below, so a busy first mirror
+  means no peak within the radius. On the Overpass path that lookup stops
+  waiting at a deadline, split evenly between the two mirrors described below, so a busy first mirror
   leaves the second its turn rather than the whole wait. No row waits on
   either source: the app asks as soon as the coordinates box holds rows, an
   analysis sends the server the elevations it has learned and asks it for no
@@ -165,13 +211,33 @@ not cached, so the next analysis asks again.
 The public mirrors fail together. Between 02:12 and 02:16 UTC on 2026-10-16
 all three free instances with worldwide data were at capacity, timing out or
 answering errors at once, so a third mirror would not have saved anything.
-What an outage costs is therefore kept to what only Overpass can answer. A
-polygon search in the app reads its peaks and lakes from the map tiles (see
-[Map tiles](#map-tiles)), so when Overpass fails it ranks those and your own
-destinations, and the line under **Analyze** names the kinds it could not
-find. An area too large for the tiles asks Overpass for everything and still
-fails whole, and so do the API's `POST /api/destinations` and
-`POST /api/analyze`, which are one Overpass query each.
+That is why the server keeps its own copy: once it is filled, an Overpass
+outage costs a search nothing. A deployment without the copy, or one still
+filling it, fails a search whole when the mirrors do, in the app and through
+the API's `POST /api/destinations` and `POST /api/analyze` alike.
+
+Keeping the copy costs OpenStreetMap's own servers two things. The planet
+file, 95.4 GB on 2026-10-15 and republished weekly, is downloaded once per
+fill: the first, and again only when a rule changes what the table keeps
+([ARCHITECTURE.md](ARCHITECTURE.md#the-planet-fill) has the fill). The day
+change files, 100 to 116 MB each, are read once a day by one pod for the whole
+deployment.
+
+A day file edits some ways and relations without the points needed to place
+them: on day 5149 (2026-10-17), 1,510 shapes, 1,147 of them moved. The update
+does not ask OpenStreetMap's own API for those. Its
+[usage policy](https://operations.osmfoundation.org/policies/api/) says the API
+is there to edit the map, not for read-only projects (read 2026-10-18), and it
+points read-only users at Overpass. So each hourly run sends Overpass one query
+naming every waiting shape by id, with `out center`. That is the point the fill
+would give them, since Overpass boxes a relation around its own nodes and ways
+as the fill does. An area made only of other areas has no centre there, and a
+second query brings the areas inside it. A run Overpass does not answer leaves
+the shapes at their old points for the next. Two other options were declined:
+fetching nothing, which leaves a redrawn lake at its old centre until the next
+fill, and keeping a copy of every point on the planet, about 4 GB by estimate
+and a second dataset to keep in step. Record:
+[0185](decisions/0185-redrawn-shapes-from-overpass-by-id.md)
 
 ## Open-Meteo
 
@@ -701,7 +767,11 @@ requires an identifying `User-Agent`, a header browsers refuse to let a page
 set, which is why this one lookup is proxied through Bluebird Forecast's server instead
 of running in your browser the way the weather fetch does. The policy also asks
 callers to cache results, so the server keeps each answer for about ten minutes
-and a repeat of the same search is answered without asking Nominatim again. A
+and a repeat of the same search is answered without asking Nominatim again,
+from whichever pod it lands on while the database is up. With the database
+the server spaces its calls 1.2 s apart in one queue for all its pods; without
+it each pod keeps 10 s between its own, so ten pods still stay under the policy
+(#760, [record 0181](decisions/0181-shared-limits-and-nominatim-intervals.md)). A
 search that has not finished in ten seconds, or that comes back as something
 other than Nominatim's JSON, is reported as a failed search rather than left
 waiting.
@@ -717,29 +787,26 @@ arrives through the tile server's own TileJSON and is drawn in the map's corner
 control rather than by the app. The tiles carry OpenStreetMap data under the
 ODbL, which is why that credit links to OpenStreetMap's copyright page.
 
-The same tiles are also what a drawn area is searched from (every zoom-14
-tile under its bounding box, up to a budget of a few hundred, past which the
-area goes to the map server), and the first source of a pasted coordinate's
-elevation ([above](#openstreetmap)): when the coordinates box holds rows, the browser
-reads the zoom-14 tile under each point and any neighbour within the match
-radius, and decodes the peak layer itself. That is one to four small static
-files a row, the same files the map would load if you zoomed to the point,
-read from the dated tile path the TileJSON names so a repeat comes from the
-browser's cache; a 100-row list reads about 135 tiles and 350 KB. It is the
-reader's own use of the map data, not a bulk collection of it, and the
-elevation it yields is the same OSM number the map already draws beside the
-summit. If the TileJSON or a tile cannot be read the rows go to the server's
-lookup instead, and nothing is said about it. What the lookup relies on in
-those tiles, and what happens when OpenFreeMap changes one of those things, is
-[record 0115](decisions/0115-elevation-lookup-depends-on-openfreemap-zoom-14-peaks.md).
+Until #760 the same tiles were also what a drawn area's peaks and lakes were
+searched from, and the first source of a pasted coordinate's elevation. The
+server's own copy of OpenStreetMap answers both now
+([above](#openstreetmap-and-overpass)), so no search reads a tile. Beyond
+drawing the map, the app reads the tiles for the clicked labels below and for
+the glacier the snow card names ([Snow depth](#snow-depth)).
 
 A click on the map reads the same tiles, so it costs no request: a peak comes
-from the `mountain_peak` layer, a lake from `water_name`, a city, town, village
-or hamlet from `place`, and a crag or route from `poi`, class `climbing`. That
-class is all the tiles say about a climbing feature: OSM's `climbing=` tag is
-dropped, so a crag and a single route look the same. Trailheads are in none of
-these layers, which is why a trailhead cannot be clicked
-([record 0157](decisions/0157-places-and-climbing-labels-are-selectable.md)).
+from the `mountain_peak` layer, a lake from `water_name`, and a city, town,
+village or hamlet from `place`. Trailheads and crags do not come from the
+tiles. No tile carries a trailhead, and the `poi` layer drops OSM's
+`climbing=` tag, so a crag and a single route look the same there and a crag
+mapped as a relation is missing. So the map draws both as markers of its own
+from zoom 11, read from the server's copy of OpenStreetMap
+(`GET /api/landmarks`), and a clicked crag is a crag, with the type and link a
+polygon search gives it. The tiles' own climbing labels, which
+[record 0157](decisions/0157-places-and-climbing-labels-are-selectable.md)
+made selectable, are no longer drawn. A deployment without the database draws
+no trailhead or crag markers. Record:
+[0180](decisions/0180-trailhead-and-crag-markers-from-the-places-table.md)
 
 If the style document cannot be fetched, the map stays blank and an error under
 Analyze says the map could not load. The page asks for the style again each
@@ -759,9 +826,10 @@ burned during those dates.
 
 Both read from **Bluebird Forecast's copy of the dataset, not from NIFC directly**. The
 server holds one snapshot of every active perimeter in the country and refreshes
-it on a timer, so the number of requests reaching NIFC is a fixed handful per
-hour no matter how many people are looking at maps, and no visitor's warning
-depends on a request of their own succeeding.
+it on a timer, one pod for every pod since #760, so the number of requests
+reaching NIFC is a fixed handful per hour no matter how many people are looking
+at maps or how many pods serve them, and no visitor's warning depends on a
+request of their own succeeding.
 
 That indirection exists because of how the upstream quota works. NIFC meters a
 **request quota belonging to its own ArcGIS organization**, shared by
@@ -808,8 +876,8 @@ Both features remain best-effort, and a failed check is not silent. Every
 row's **Wildfire (mi)** cell reads `N/A` with the reason as its hover text, a
 warning under Analyze says NIFC is unreachable, and a downloaded CSV omits its
 wildfire column rather than leaving it blank on every row. Reaching that state
-now requires a server that has never once completed a fetch since it started,
-rather than a single unlucky request. A blank cell in that column means the
+now requires that no fetch has completed yet, or that every refresh has failed
+for a day, rather than a single unlucky request. A blank cell in that column means the
 check ran and found nothing within the radius; an absent column means no
 destination was checked at all. The distinction matters more in a file than on
 screen, because a file is read later, somewhere else, with nothing beside it to
@@ -981,7 +1049,7 @@ carried none (2026-09-30). Some area closures carry no acreage either. Nothing
 here fills in either gap.
 
 The server fetches all three regions and holds them, the way it holds wildfire
-perimeters: one copy per server rather than one fetch per visitor, because the
+perimeters: one copy for every server pod rather than one fetch per visitor, because the
 quota belongs to the Forest Service's ArcGIS organization and is shared with
 every other consumer of its public layers. It refreshes every 30 minutes, since
 the orders are edited by hand a few times a week, and it keeps serving the last

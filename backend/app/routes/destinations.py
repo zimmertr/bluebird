@@ -149,13 +149,14 @@ async def destinations(
         )
 
     # One discovery per client address at a time, shared with the analyze
-    # routes (#627, #660), held around what asks Overpass and nothing else: a
-    # polygon's discovery, and a custom list's lookup when the request asks
-    # for one and a row needs it. A request that asks the map server nothing
-    # (the web app's own analysis, which sends `elevation_lookup: false` and
+    # routes (#627, #660), held around what may ask Overpass: a polygon's
+    # discovery, and a custom list's lookup when the request asks for one and
+    # a row needs it. While the places table answers (#760) neither does, and
+    # the slot is held for milliseconds. A request with neither (the web app's
+    # analysis of a list alone, which sends `elevation_lookup: false` and
     # every elevation it has learned) is answered with the rows as sent and
-    # takes no slot, so it never waits behind that address's
-    # lookup in flight (#673).
+    # takes no slot, so it never waits behind that address's lookup in
+    # flight (#673).
     needs_lookup = bool(request.custom_destinations) and request.elevation_lookup and any(
         d.elevation_ft is None for d in request.custom_destinations or []
     )

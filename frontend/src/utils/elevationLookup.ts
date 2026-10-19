@@ -5,12 +5,11 @@ import { geoKey } from './points'
 
 /**
  * What a lookup says about a coordinate the reader supplied (#673): the peak
- * within the match radius, or that there is none. Two sources answer, the
- * basemap's tiles first (`peakTiles.ts`) and the pod's map-server lookup for
- * whatever they leave, and an answer reads the same from either. Keyed by
- * `geoKey` wherever it is held. A null elevation here is an answer, not a
- * gap: the pod's lookup finished and found no peak, so the row is never asked
- * about again.
+ * within the match radius, or that there is none. The pod answers it, from
+ * its own copy of OpenStreetMap or, on a deployment without one, the map
+ * server (#760). Keyed by `geoKey` wherever it is held. A null elevation here
+ * is an answer, not a gap: the pod's lookup finished and found no peak, so
+ * the row is never asked about again.
  */
 export interface Identity {
   elevation_ft: number | null
@@ -62,9 +61,7 @@ export function unanswered(
  * The identities after a lookup's answer: every row that came back is an
  * answer, a null elevation included, EXCEPT when the lookup did not finish,
  * where a null elevation says nothing and the row stays unanswered so it can
- * be asked again. A row that came back placed is learned either way. The
- * tiles answer only placed rows, under `complete`, so a row they leave is
- * one the pod is asked about.
+ * be asked again. A row that came back placed is learned either way.
  */
 export function learn(
   identity: IdentityMap,
@@ -110,9 +107,8 @@ export function withLearnedElevation(
 
 /**
  * The rows among `rows` that `identity` places, as the pod would have
- * answered them: what a committed report takes through `placeHeld`, whether
- * the tiles placed the row, the pod did, or the row's answer arrived while
- * the run that holds it was still fetching.
+ * answered them: what a committed report takes through `placeHeld` when a
+ * row's answer arrived while the run that holds it was still fetching.
  */
 export function answered(rows: readonly Locatable[], identity: IdentityMap): DiscoveredDestination[] {
   const out: DiscoveredDestination[] = []

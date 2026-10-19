@@ -33,8 +33,6 @@ import { logoUrl } from '../logo'
 // it draws, and every message the panel shows is composed in
 // `utils/panelMessages.ts` and drawn by `PanelFooter`, below the Analyze button.
 
-const NONE_MISSING: readonly DiscoveryType[] = []
-
 // Each field that one section alone draws is described on that section's own
 // props, beside the code that reads it.
 interface Props {
@@ -158,9 +156,6 @@ interface Props {
   closureCheckFailed?: boolean
   // The basemap style is failing to load (#580).
   basemapFailed?: boolean
-  // The ticked kinds the report on screen is without, because the map server
-  // failed to answer them (#735).
-  missingTypes?: readonly DiscoveryType[]
   // Where the footer's notice block stands on a phone (record 0140), handed
   // to `PanelFooter`; null keeps it under the button.
   noticeHome?: HTMLElement | null
@@ -231,7 +226,6 @@ export default function ControlPanel({
   wildfireCheckFailed,
   closureCheckFailed,
   basemapFailed,
-  missingTypes = NONE_MISSING,
   noticeHome = null,
   phone = false,
 }: Props) {
@@ -339,7 +333,6 @@ export default function ControlPanel({
     aqiForecastDays,
     windowLimits,
     hasReport: resultCount !== undefined,
-    missingTypes,
     aqiAllNull: Boolean(aqiAllNull),
     wildfireCheckFailed: Boolean(wildfireCheckFailed),
     closureCheckFailed: Boolean(closureCheckFailed),

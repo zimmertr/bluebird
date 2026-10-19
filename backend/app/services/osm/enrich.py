@@ -1,7 +1,9 @@
 """Elevation and OSM identity for caller-supplied destinations.
 
-Apart from discovery because it asks Overpass a different question (the peak
-nearest each pasted point) and degrades to the rows as sent rather than failing.
+Apart from discovery because it asks a different question (the summit each
+pasted point stands on) and degrades to the rows as sent rather than failing.
+The places table answers it when it is filled (#760), Overpass otherwise, and
+`_pick` is the one rule over either answer.
 """
 
 from __future__ import annotations
@@ -9,13 +11,16 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from app import ratelimit
-from app.services import cache
+from app.services import cache, places
 from app.services.errors import UpstreamError
 from app.services.osm import mirrors
 from app.services.osm.query import SERVER_TIMEOUT_TOKEN, _ele_ft
+from app.services.places import Summit
 
 # The service's one logger name, kept across the split so a log query written
 # against it still matches every line.
@@ -35,6 +40,18 @@ log = logging.getLogger("app.services.osm")
 # for it. Re-measure before changing.
 CUSTOM_MATCH_RADIUS_M = 150.0
 
+# How far a summit of the SAME name may stand, for a row the coordinate match
+# left without an elevation. A guidebook's coordinate and OSM's node for one
+# summit can sit a few hundred metres apart (Buck Mountain, 174 m on
+# 2026-10-07), where the coordinate match reaches nothing. 500 m reached the
+# wrong Reynolds Peak (a named 8,350 ft node 514 m from the 8,510 ft summit),
+# so the reach stays short. The browser held this rule until #760 sent every
+# lookup here.
+NAME_MATCH_RADIUS_M = 300.0
+
+# Both lookups gather every summit this close and `_pick` decides.
+_REACH_M = max(CUSTOM_MATCH_RADIUS_M, NAME_MATCH_RADIUS_M)
+
 # One Overpass request per this many points. A realistic list is a single
 # query (the bundled examples are 100 rows each); only a list approaching the
 # analysis cap splits, and those chunks run in sequence rather than racing
@@ -48,12 +65,11 @@ CUSTOM_ENRICH_CHUNK = 500
 # the time and says "too busy" only after 8-16s, so 8s kept the fast answers
 # and dropped the wait on a busy server, which used to reach a minute. Since
 # #673 no row waits on this lookup (the report lands when the forecasts do and
-# takes the answer when it comes), and the web app sends only the rows the
-# basemap's own tiles could not place, a few per list, so the deadline bounds
-# how long those rows' elevation cells tick rather than how long the reader
-# waits for any row, and 24s gives each of the two mirrors (#655) the 12s a
-# busy one measured at (15.3s, 11.4s and 9s on 2026-10-06) rather than a
-# slice neither met.
+# takes the answer when it comes), so the deadline bounds how long a row's
+# elevation cells tick rather than how long the reader waits for any row, and
+# 24s gives each of the two mirrors (#655) the 12s a busy one measured at
+# (15.3s, 11.4s and 9s on 2026-10-06) rather than a slice neither met. Once
+# the places table is filled (#760) it answers before any mirror is asked.
 ENRICH_DEADLINE_S = 24.0
 
 
@@ -99,8 +115,63 @@ def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * _EARTH_RADIUS_M * math.asin(math.sqrt(a))
 
 
+def _normal_name(name: str | None) -> str:
+    """A name as the name match compares it: lower case, no leading list number, no punctuation."""
+    if not name:
+        return ""
+    name = re.sub(r"^[0-9]+[.)]?\s*", "", name.lower())
+    return re.sub(r"[^a-z0-9]+", " ", name).strip()
+
+
+def _pick(point: Mapping[str, Any], summits: Iterable[Summit]) -> Summit | None:
+    """The summit a pasted point stands on.
+
+    The nearest within CUSTOM_MATCH_RADIUS_M, with or without an elevation.
+    When that one has none, or there is none, the nearest summit of the row's
+    own name within NAME_MATCH_RADIUS_M that has one, since an elevation is
+    what the row was sent for. Failing that, the coordinate match alone, which
+    still says which summit this is.
+    """
+    lat, lon = point["latitude"], point["longitude"]
+    want = _normal_name(point.get("name"))
+    nearest: tuple[float, Summit] | None = None
+    named: tuple[float, Summit] | None = None
+    for summit in summits:
+        dist = _distance_m(lat, lon, summit.latitude, summit.longitude)
+        if dist <= CUSTOM_MATCH_RADIUS_M and (nearest is None or dist < nearest[0]):
+            nearest = (dist, summit)
+        if (
+            want
+            and dist <= NAME_MATCH_RADIUS_M
+            and summit.elevation_ft is not None
+            and _normal_name(summit.name) == want
+            and (named is None or dist < named[0])
+        ):
+            named = (dist, summit)
+    if nearest is not None and nearest[1].elevation_ft is not None:
+        return nearest[1]
+    if named is not None:
+        return named[1]
+    return nearest[1] if nearest is not None else None
+
+
+def _matches(
+    points: Sequence[Mapping[str, Any]], near: Sequence[Iterable[Summit]]
+) -> dict[str, dict[str, Any]]:
+    """Each point's pick, keyed by its coordinate key, the points with none left out."""
+    matches: dict[str, dict[str, Any]] = {}
+    for point, summits in zip(points, near, strict=True):
+        best = _pick(point, summits)
+        if best is not None:
+            matches[_point_key(point["latitude"], point["longitude"])] = {
+                "elevation_ft": best.elevation_ft,
+                "osm_id": best.osm_id,
+            }
+    return matches
+
+
 async def _lookup_peaks(points: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """The nearest peak node within the match radius of each point.
+    """Each point's summit, asked of Overpass.
 
     Keyed by the point's own coordinate key, so a caller looks its answer up
     by where it asked rather than by position in a list.
@@ -112,7 +183,7 @@ async def _lookup_peaks(points: list[dict[str, Any]]) -> dict[str, dict[str, Any
         # discovery query does it: OSM tags volcanic summits as volcano
         # INSTEAD of peak, so Rainier, Baker and Adams are invisible without it.
         clauses = "".join(
-            f"  node(around:{CUSTOM_MATCH_RADIUS_M:.0f},"
+            f"  node(around:{_REACH_M:.0f},"
             f'{d["latitude"]:.6f},{d["longitude"]:.6f})'
             '["natural"~"^(peak|volcano)$"];\n'
             for d in chunk
@@ -127,29 +198,21 @@ async def _lookup_peaks(points: list[dict[str, Any]]) -> dict[str, dict[str, Any
             )
 
         # Overpass returns the union of every around clause, deduplicated, so
-        # the nearest node per point has to be picked back out here.
-        nodes = [
-            e
+        # each point's summit has to be picked back out of the whole answer.
+        summits = [
+            Summit(
+                e["lat"],
+                e["lon"],
+                e.get("tags", {}).get("name"),
+                _ele_ft(e.get("tags", {})),
+                f"node/{e['id']}",
+            )
             for e in data.get("elements", [])
             if e.get("type") == "node"
             and e.get("lat") is not None
             and e.get("lon") is not None
         ]
-        for d in chunk:
-            best: dict[str, Any] | None = None
-            best_m = math.inf
-            for node in nodes:
-                dist = _distance_m(
-                    d["latitude"], d["longitude"], node["lat"], node["lon"]
-                )
-                if dist <= CUSTOM_MATCH_RADIUS_M and dist < best_m:
-                    best, best_m = node, dist
-            if best is None:
-                continue
-            matches[_point_key(d["latitude"], d["longitude"])] = {
-                "elevation_ft": _ele_ft(best.get("tags", {})),
-                "osm_id": f"node/{best['id']}",
-            }
+        matches.update(_matches(chunk, [summits] * len(chunk)))
     return matches
 
 
@@ -187,9 +250,18 @@ async def enrich_custom_reporting(
         return [dict(d) for d in destinations], True
 
     cache_key = cache.custom_enrich_key(
-        [(d["latitude"], d["longitude"]) for d in pending]
+        [(d["latitude"], d["longitude"], _normal_name(d.get("name"))) for d in pending]
     )
     matches = cache.ENRICH_CACHE.get(cache_key)
+    if matches is None:
+        # The places table answers in milliseconds when it is filled (#760),
+        # and is not cached here: it is already the shared copy.
+        near = await places.summits_near(pending, _REACH_M)
+        if near is not None:
+            matches = _matches(pending, near)
+            log.info(
+                "Places table resolved %d of %d custom destination(s)", len(matches), len(pending)
+            )
     if matches is None:
         log.info("Resolving elevation for %d custom destination(s) via OSM", len(pending))
         try:

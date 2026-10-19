@@ -263,3 +263,36 @@ def test_plan_never_touches_the_live_budget():
 
 def test_a_disabled_budget_plans_no_wait():
     assert ratelimit.WeightedBudget("test", 0).plan_max_wait_s([[10_000]], 4) == 0.0
+
+
+# ── The start, as a pure function (#760) ───────────────────────────────────
+#
+# The per-pod budget and the shared one both call `earliest_start`, the second
+# over bookings it reads from the database, so these cases hold both.
+
+
+def test_an_empty_window_starts_now():
+    assert ratelimit.upstream.earliest_start(10.0, [], 60, 60) == 10.0
+
+
+def test_a_full_window_starts_when_enough_has_left():
+    booked = [(0.0, 60.0, 40.0), (5.0, 65.0, 20.0)]
+    # 30 fits once the 40 has left at 60; the 20 alone leaves room for it.
+    assert ratelimit.upstream.earliest_start(10.0, booked, 30, 60) == 60.0
+    # 50 needs both gone.
+    assert ratelimit.upstream.earliest_start(10.0, booked, 50, 60) == 65.0
+
+
+def test_a_start_is_never_before_the_last_booking():
+    # Room now, but a caller booked earlier starts later; order is kept.
+    assert ratelimit.upstream.earliest_start(0.0, [(30.0, 90.0, 1.0)], 1, 60) == 30.0
+
+
+def test_an_oversized_booking_waits_for_an_empty_window():
+    booked = [(0.0, 60.0, 1.0), (1.0, 61.0, 1.0)]
+    assert ratelimit.upstream.earliest_start(2.0, booked, 120, 60) == 61.0
+
+
+def test_a_booking_holds_a_minute_or_its_share():
+    assert ratelimit.upstream.held_s(30, 60) == 60.0
+    assert ratelimit.upstream.held_s(150, 60) == 150.0

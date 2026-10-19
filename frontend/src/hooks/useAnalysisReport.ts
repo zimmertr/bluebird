@@ -122,7 +122,7 @@ export function useAnalysisReport() {
   // built again at the patch. The same objects stand everywhere else, so a row the lookup
   // left alone redraws nothing. No sequence moves: the report is the one that
   // committed, with some of its numbers filled in. Answers land a few rows at
-  // a time (the tiles, then the pod, then a retry), so only the rows placed
+  // a time (the pod's lookup, then its one retry), so only the rows placed
   // stop waiting.
   function patch(rows: readonly DestinationResult[], view: AnalyzedView) {
     const was = committedRef.current

@@ -1,6 +1,6 @@
 # 0115. The elevation lookup depends on OpenFreeMap's zoom-14 peak layer as published, with the pod's lookup behind it and nothing watching for a change
 
-- Status: Accepted
+- Status: Superseded by 0176
 - Date: 2026-10-07
 - Decider: the maintainer (TJ), on PR #674, told that the lookup now rests on the tile schema with no canary: "is fine, just document it as an ADR"
 - Issues and PRs: #673, #674, #581 (a clicked summit reads `ele_ft` off the same layer), #118 and #119 (the map's own summit labels do too)

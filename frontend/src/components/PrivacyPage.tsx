@@ -37,13 +37,11 @@ export default function PrivacyPage() {
             server so it can find destinations. When you press Analyze, it receives the area you
             draw, the kinds of destination you pick, and the coordinates of any place you paste,
             search for or click on the map, and it checks each destination for nearby fires and
-            closures. A coordinate you paste or click is looked up as soon as it is in the box:
-            your browser reads the map tiles around it from OpenFreeMap, and sends the server any
-            it could not place. Destination searches are answered by public OpenStreetMap
-            servers: one run by FOSSGIS in Germany and, when it is unavailable, one run by VK
-            (maps.mail.ru). A place name you type in the search box goes to the server too, which
-            looks it up with Nominatim. The fire and closure layers send the server the area on
-            screen.
+            closures. A coordinate you paste or click goes to the server as soon as it is in the
+            box, so it can find the summit it stands on. The server answers that and every
+            destination search from its own copy of OpenStreetMap. A place name you type in the
+            search box goes to the server too, which looks it up with Nominatim. The trailhead and
+            crag markers, and the fire and closure layers, send the server the area on screen.
           </li>
           <li>
             <span className={PROSE.strong}>The page's address</span> holds what is on screen:
@@ -60,13 +58,15 @@ export default function PrivacyPage() {
           </li>
           <li>
             <span className={PROSE.strong}>Nothing is stored about you.</span> Searches
-            aren't saved to a database or tied to your identity. Server logs record your IP
+            aren't tied to your identity. A place name you search for is kept in the server's
+            database for up to 20 minutes with its results, so a repeat search does not ask
+            Nominatim again, and nothing records who searched for it. Server logs record your IP
             address with each request to the server's API, and the place names you search for,
             but not the page's address or anything else you enter. They are kept only for
             debugging and are deleted when the server is next updated, typically within days.
-            They are never archived or shared. Your address is also counted in memory to apply rate
-            limits, which is what keeps the free data providers available to everyone; those
-            counters expire on their own and are gone whenever the server restarts.
+            They are never archived or shared. Your address is also counted in the server's
+            database to apply rate limits, which is what keeps the free data providers available
+            to everyone; each count is deleted within an hour of your last request.
           </li>
           <li>
             <span className={PROSE.strong}>On your device</span>, Bluebird Forecast saves five
@@ -112,7 +112,7 @@ export default function PrivacyPage() {
         <ContactBody />
       </Section>
 
-      <p className={`${PROSE.note} mt-6`}>Last updated 15 October 2026.</p>
+      <p className={`${PROSE.note} mt-6`}>Last updated 18 October 2026.</p>
     </PageShell>
   )
 }

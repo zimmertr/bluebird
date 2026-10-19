@@ -35,11 +35,6 @@ export type AnalyzeCommandInputs = Omit<AnalyzeInputs, 'kind' | 'window' | 'poly
  * field under the new ring's name and never search it, and clearing the
  * removals would undo the reader's work for a report that never arrived.
  *
- * A report missing a kind the map server failed to answer (#735) commits
- * like any other, but records no discovery: a record would claim the kind
- * was searched, and the next Analyze would refresh the weather of the rows
- * on screen rather than ask for it again.
- *
  * `handleAnalyze` is a plain function rather than a callback: `analyze` is a
  * new function on every render, so a memo keyed on it would never hold, and
  * the panel that takes it is not memoized.
@@ -119,9 +114,9 @@ export function useAnalyzeCommand(inputs: AnalyzeCommandInputs) {
     // What the commit changes. Run by the commit itself (useAnalyze), in the
     // render that puts the new report up, and again by a retry's commit,
     // which answers for this click.
-    const commitEffects = ({ partial }: { partial: boolean }) => {
+    const commitEffects = () => {
       clearRemovalsForScope(plan.removalScope)
-      if (record) discoveryRef.current = partial ? null : record.value
+      if (record) discoveryRef.current = record.value
     }
 
     if (run) {
@@ -138,7 +133,7 @@ export function useAnalyzeCommand(inputs: AnalyzeCommandInputs) {
     } else {
       // Nothing to rank (unreachable through the gate, which requires an
       // input, but kept as a safety net): drop any stale report.
-      commitEffects({ partial: false })
+      commitEffects()
       if (!willRank) reset()
     }
 

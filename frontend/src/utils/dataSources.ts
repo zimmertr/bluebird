@@ -60,7 +60,7 @@ export const DATA_SOURCES: readonly DataSource[] = [
     name: 'OpenStreetMap',
     href: 'https://www.openstreetmap.org/copyright',
     provides:
-      'Destination names, coordinates, and elevations, queried through the Overpass API.',
+      'Destination names, coordinates, and elevations, from a copy the server keeps current daily, or the Overpass API when that copy cannot answer.',
     license: 'ODbL',
     licenseHref: 'https://opendatacommons.org/licenses/odbl/1-0/',
   },
@@ -85,7 +85,7 @@ export const DATA_SOURCES: readonly DataSource[] = [
   {
     name: 'OpenFreeMap',
     href: 'https://openfreemap.org',
-    provides: 'The vector tiles the basemap is drawn from, and the peaks a pasted coordinate is matched to.',
+    provides: 'The vector tiles the basemap is drawn from, and the glaciers the snow card names.',
   },
   {
     name: 'Nominatim',

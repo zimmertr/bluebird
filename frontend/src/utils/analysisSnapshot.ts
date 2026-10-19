@@ -1,4 +1,4 @@
-import type { AnalyzeRequest, DiscoveryType } from '../types'
+import type { AnalyzeRequest } from '../types'
 import type { AnalyzedView } from '../hooks/analyzeTypes'
 import type { SelectionKind } from './calendar'
 import { constraintsFromRequest } from './clientAnalyze'
@@ -17,12 +17,7 @@ export interface RecordedFacts {
   // carries no polygon and the caller passes the panel's keys instead.
   discovery: DiscoveryKeys
   compareModels: readonly string[]
-  // The kinds the map server failed to answer (#735), known once discovery
-  // settles, so a snapshot built before then has none.
-  missingTypes?: readonly DiscoveryType[]
 }
-
-const NONE_MISSING: readonly DiscoveryType[] = []
 
 /**
  * The snapshot of one report. `nowMs` is the commit's moment: it classifies
@@ -51,7 +46,6 @@ export function analyzedView(
     polygonKey: facts.discovery.polygonKey,
     typesKey: facts.discovery.typesKey,
     compareModels: facts.compareModels,
-    missingTypes: facts.missingTypes ?? NONE_MISSING,
     asOfMs: nowMs,
   }
 }

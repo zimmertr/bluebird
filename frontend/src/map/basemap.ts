@@ -15,7 +15,7 @@ import type { ExpressionSpecification, FilterSpecification, SymbolLayerSpecifica
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
 import type { FeatureCollection } from 'geojson'
-import { CLIMBING_CLASS, LAKE_CLASS, PLACE_CLASSES, PLACE_LAYERS } from '../utils/basemapPoi'
+import { LAKE_CLASS, PLACE_CLASSES, PLACE_LAYERS } from '../utils/basemapPoi'
 import { polygonsOf } from '../utils/drawGeometry'
 import { widestPole } from '../utils/polylabel'
 
@@ -37,24 +37,13 @@ export const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
 const POI_MINZOOM = 9
 
 /**
- * The zoom the climbing labels start at (#710).
+ * The label treatment every clickable destination marker wears.
  *
- * The first zoom whose tiles carry them. Measured 2026-10-15 at Index's Lower
- * Town Wall: the z12 and z13 tiles there hold no `poi` feature at all, and
- * the z14 tile holds 58 climbing features, 57 of them named, so a lower floor
- * would draw nothing more. Routes on one wall stand metres apart, so the
- * layer lets collision hide icons (see `ofm-climbing`) and a wall shows one
- * or two until the reader zooms in.
- */
-const CLIMBING_MINZOOM = 14
-
-/**
- * The label treatment every clickable basemap destination wears.
- *
- * Composed by both `ofm-peaks` and `ofm-lakes` rather than spelled twice: a
- * lake and a peak are the same kind of thing to this app, one click away from
- * being the same kind of row, so they get one look. Peaks add an elevation
- * line and a prominence sort key on top of this; lakes add nothing.
+ * Composed by the peaks, the lakes and the trailhead and crag markers
+ * (`map/landmarks.ts`) rather than spelled for each: they are the same kind
+ * of thing to this app, one click away from being the same kind of row, so
+ * they get one look. Peaks add an elevation line and a prominence sort key on
+ * top of this; the others add their name alone.
  *
  * `icon-allow-overlap` keeps every marker on screen even where labels collide,
  * and `text-optional` then drops only the text, so a crowded ridge still shows
@@ -73,7 +62,7 @@ export function poiLabelLayout(icon: string): SymbolLayerSpecification['layout']
   }
 }
 
-const POI_LABEL_PAINT: SymbolLayerSpecification['paint'] = {
+export const POI_LABEL_PAINT: SymbolLayerSpecification['paint'] = {
   'text-color': '#5c4530',
   'text-halo-color': '#f8f4ef',
   'text-halo-width': 1.4,
@@ -91,6 +80,12 @@ const STYLE_DOT = 'circle_11_black'
 // us, so a style that renamed it would cost the pole rather than the feature —
 // see lakeAnchor's fallback.
 const WATER_FILL_LAYER = 'water'
+
+// The `poi` class the tiles give every climbing point, a crag and a single
+// route alike, since they drop OSM's `climbing=` subtype. Filtered off the
+// style's own labels so routes stay hidden, the maintainer's choice on
+// 2026-10-16 (#734).
+const STYLE_CLIMBING_CLASS = 'climbing'
 
 // The halo drawn under every clickable feature while the panel's Map search
 // group is hovered, beside the ring that group puts around the search box.
@@ -122,13 +117,18 @@ function makeGlowImage(): ImageData | null {
 
 // The climbing icon (#715): a rock face with a climber cut out of it, which
 // the maintainer picked on 2026-10-15 from nine drawn in the sprite's own disc.
-// The sprite has no climbing glyph, so the layer wore the generic stroked
+// The sprite has no climbing glyph, so climbing wore the generic stroked
 // circle until then. Drawn here like the glow rather than shipped as a file,
 // at the sprite's @2x size so it stands at the same 17px as `mountain_11`.
-// It marks every climbing point the tiles carry, routes included, because
-// the tile drops the `climbing=` subtype (`CLIMBING_CLASS`).
+// The crag markers wear it (`map/landmarks.ts`, #734).
 export const CLIMBING_IMAGE = 'ofm-climbing-icon'
 const CLIMBING_ICON_PX = 34
+
+// The trailhead icon (#734): a roofed signboard on two legs, the kiosk a
+// trailhead stands at, which the maintainer picked on 2026-10-16. The sprite
+// has no trailhead glyph either, so it is drawn like the climber, in the same
+// disc at the same size.
+export const TRAILHEAD_IMAGE = 'ofm-trailhead-icon'
 
 // The sprite's disc icons, read off `mountain_11` and `water_11` at @2x on
 // 2026-10-15: a white disc, a grey ring a pixel wide, and the brown the lake
@@ -174,6 +174,44 @@ function makeClimbingImage(): ImageData | null {
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   ctx.stroke(new Path2D(CLIMBER_LIMBS))
+  return ctx.getImageData(0, 0, CLIMBING_ICON_PX, CLIMBING_ICON_PX)
+}
+
+function makeTrailheadImage(): ImageData | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = CLIMBING_ICON_PX
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const c = CLIMBING_ICON_PX / 2
+  ctx.beginPath()
+  ctx.arc(c, c, c - 0.5, 0, Math.PI * 2)
+  ctx.fillStyle = SPRITE_DISC
+  ctx.fill()
+  ctx.lineWidth = 1
+  ctx.strokeStyle = SPRITE_RING
+  ctx.stroke()
+
+  // The climber's grid and scale, so the two glyphs fill their discs alike.
+  ctx.translate(c, c)
+  ctx.scale(0.8, 0.8)
+  ctx.translate(-c, -c)
+  ctx.fillStyle = SPRITE_GLYPH
+  ctx.beginPath()
+  ctx.moveTo(6, 11)
+  ctx.lineTo(17, 5)
+  ctx.lineTo(28, 11)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillRect(8, 11, 18, 10)
+  ctx.strokeStyle = SPRITE_GLYPH
+  ctx.lineWidth = 2.6
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(11, 21)
+  ctx.lineTo(11, 30)
+  ctx.moveTo(23, 21)
+  ctx.lineTo(23, 30)
+  ctx.stroke()
   return ctx.getImageData(0, 0, CLIMBING_ICON_PX, CLIMBING_ICON_PX)
 }
 
@@ -318,13 +356,17 @@ export function enhanceBasemap(map: maplibregl.Map) {
   // unknown icon and only warns.
   const glow = makeGlowImage()
   if (glow && !map.hasImage(POI_GLOW_IMAGE)) map.addImage(POI_GLOW_IMAGE, glow)
-  // A browser with no 2D canvas keeps the stroked circle, which the sprite
-  // carries, rather than drawing climbing points with no icon at all.
+  // The trailhead and crag markers' icons, registered here for the layers
+  // `map/landmarks.ts` adds next. With no 2D canvas neither is registered,
+  // and those layers wear the sprite's stroked circle instead.
   const climbingIcon = makeClimbingImage()
   if (climbingIcon && !map.hasImage(CLIMBING_IMAGE)) {
     map.addImage(CLIMBING_IMAGE, climbingIcon, { pixelRatio: 2 })
   }
-  const climbingIconId = climbingIcon ? CLIMBING_IMAGE : 'circle_stroked_11'
+  const trailheadIcon = makeTrailheadImage()
+  if (trailheadIcon && !map.hasImage(TRAILHEAD_IMAGE)) {
+    map.addImage(TRAILHEAD_IMAGE, trailheadIcon, { pixelRatio: 2 })
+  }
 
   // Trails: OSM class=path/track. Liberty only draws these from z14, too late
   // for orienting while drawing a polygon — show them from z11 in a trail hue.
@@ -453,33 +495,6 @@ export function enhanceBasemap(map: maplibregl.Map) {
       },
       paint: POI_LABEL_PAINT,
     },
-    // Climbing: crags and single routes, which the tile cannot tell apart
-    // (`CLIMBING_CLASS`), wearing the drawn climber (`CLIMBING_IMAGE`). Named
-    // features only, so every icon drawn is one a click can add.
-    {
-      id: 'ofm-climbing',
-      type: 'symbol',
-      source: 'openmaptiles',
-      'source-layer': 'poi',
-      minzoom: CLIMBING_MINZOOM,
-      filter: [
-        'all',
-        ['==', ['get', 'class'], CLIMBING_CLASS],
-        ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
-        ['has', 'name'],
-      ],
-      layout: {
-        ...poiLabelLayout(climbingIconId),
-        'text-field': ['get', 'name'],
-        // The one clickable layer whose icons collide away. Routes on one
-        // wall stand metres apart, so with overlap allowed z14 drew each wall
-        // as a pile of circles (measured at Index, 2026-10-15). The
-        // maintainer chose to show one or two until the reader zooms in, and
-        // accepted that a hidden icon cannot be clicked until it draws.
-        'icon-allow-overlap': false,
-      },
-      paint: POI_LABEL_PAINT,
-    },
   ]
 
   // Each label goes on with its halo underneath it: the glow is added first so
@@ -527,12 +542,13 @@ export function enhanceBasemap(map: maplibregl.Map) {
     map.setFilter(id, existing ? (['all', existing, notOurs] as FilterSpecification) : notOurs)
   }
 
-  // The style's own `poi` labels lose the climbing class for the same reason,
-  // since `ofm-climbing` labels it from z14 and these from z15 up.
+  // The style's own `poi` labels lose climbing, which would otherwise label
+  // every route from z15 with no icon: the maintainer keeps routes off the
+  // map, and the crags are the landmark markers' (`map/landmarks.ts`, #734).
   for (const id of ['poi_r1', 'poi_r7', 'poi_r20']) {
     if (!map.getLayer(id)) continue
     const existing = map.getFilter(id) as FilterSpecification | undefined
-    const notOurs: FilterSpecification = ['!=', ['get', 'class'], CLIMBING_CLASS]
+    const notOurs: FilterSpecification = ['!=', ['get', 'class'], STYLE_CLIMBING_CLASS]
     map.setFilter(id, existing ? (['all', existing, notOurs] as FilterSpecification) : notOurs)
   }
 }
