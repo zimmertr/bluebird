@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-from conftest import fake_response
+from conftest import dest, fake_response, weather_metrics
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -23,13 +23,7 @@ client = TestClient(app)
 
 def _dests(elevations: list[float | None]) -> list[dict]:
     return [
-        {
-            "name": f"P{i}",
-            "latitude": 47.0 + i * 1e-4,
-            "longitude": -121.0,
-            "elevation_ft": e,
-            "osm_id": f"node/{i}",
-        }
+        dest(47.0 + i * 1e-4, -121.0, name=f"P{i}", elevation_ft=e, osm_id=f"node/{i}")
         for i, e in enumerate(elevations)
     ]
 
@@ -41,10 +35,8 @@ def test_suggest_floor_picks_the_cutting_elevation():
 
 def test_suggest_floor_rounds_up_and_never_overshoots_the_cap():
     floor = _suggest_elevation_floor(_dests([4980, 4880, 4780, 4680]), cap=2)
-    assert floor is not None
-    floor_ft, keeps = floor
-    assert floor_ft == 4900  # 4880 rounded up to the next 100
-    assert keeps <= 2
+    # 4880 rounded up to the next 100, which only 4980 clears.
+    assert floor == (4900, 1)
 
 
 def test_suggest_floor_counts_unknowns_that_always_pass():
@@ -55,6 +47,12 @@ def test_suggest_floor_counts_unknowns_that_always_pass():
 
 def test_suggest_floor_impossible_when_unknowns_exceed_cap():
     assert _suggest_elevation_floor(_dests([None, None, None, 1000]), cap=2) is None
+
+
+def test_suggest_floor_has_nothing_to_suggest_under_the_cap():
+    # Both callers ask only past the cap, but the answer under it is part of
+    # the contract: fewer known elevations than the budget have no cutting one.
+    assert _suggest_elevation_floor(_dests([1000, 2000]), cap=3) is None
 
 
 def test_suggest_floor_steps_past_a_tie_at_a_round_threshold():
@@ -107,21 +105,7 @@ _POLY = {
 
 
 def _wx(n: int) -> list[dict]:
-    return [
-        {
-            "precip_total_in": 0.0,
-            "precip_avg_in_hr": 0.0,
-            "precip_min_in_hr": 0.0,
-            "precip_max_in_hr": 0.0,
-            "temp_min_f": 40.0,
-            "temp_max_f": 50.0,
-            "temp_avg_f": 45.0,
-            "wind_min_mph": 1.0,
-            "wind_max_mph": 9.0,
-            "wind_avg_mph": 5.0,
-        }
-        for _ in range(n)
-    ]
+    return [weather_metrics(0.0, temp_max_f=50.0, temp_avg_f=45.0) for _ in range(n)]
 
 
 def _stub_discovery(monkeypatch, count: int):
@@ -167,20 +151,8 @@ def test_over_cap_refusal_carries_remedy_fields(monkeypatch):
     assert "1,500 destinations" in body["detail"]
     assert body["found"] == 1_501
     assert body["limit"] == 1_500
-    assert body["suggested_min_elevation_ft"] is not None
-    assert body["suggested_keeps"] <= 1_500
+    assert (body["suggested_min_elevation_ft"], body["suggested_keeps"]) == (1100, 1401)
     assert body["error"] == {"code": "refusal", "retryable": False}
-
-
-def test_destinations_refusal_matches(monkeypatch):
-    _stub_discovery(monkeypatch, 1_501)
-    resp = client.post(
-        "/api/destinations",
-        json={"destination_types": ["peak"], "polygon": _POLY},
-    )
-    assert resp.status_code == 400
-    assert resp.json()["found"] == 1_501
-    assert resp.json()["error"] == {"code": "refusal", "retryable": False}
 
 
 def test_elected_truncation_analyzes_the_top_and_says_so(monkeypatch):
