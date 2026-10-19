@@ -50,7 +50,7 @@ ENTRYPOINT ["python3", "/app/fill.py"]
 # The suite, kept out of what ships: pytest, the app's migrations for the
 # end-to-end test's database, and services/http.py for the one identity check.
 FROM runtime AS test
-USER root
+USER 0
 # hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3-pytest \
