@@ -160,12 +160,13 @@ class _TokenBucket:
         self.updated = now
 
     def _refill(self, now: float) -> None:
-        # Elapsed time is clamped at zero: the production clock is monotonic,
-        # but a clock that ever ran backwards would otherwise DRAIN tokens and
-        # punish clients for time that never passed.
-        self.tokens = min(
-            self.capacity, self.tokens + max(0.0, now - self.updated) * self.rate_per_s
-        )
+        # A high-water mark, the weighted pacer's: a reading earlier than the
+        # last one moves no time and does not move `updated` back. The
+        # production clock is monotonic, but a clock that ever ran backwards
+        # would otherwise drain tokens for time that never passed, or credit
+        # the same seconds twice once it caught up again.
+        now = max(now, self.updated)
+        self.tokens = min(self.capacity, self.tokens + (now - self.updated) * self.rate_per_s)
         self.updated = now
 
     def try_acquire(self, now: float) -> bool:
@@ -178,9 +179,7 @@ class _TokenBucket:
     def retry_after_s(self, now: float) -> float:
         """Seconds until a full token is available again."""
         self._refill(now)
-        if self.tokens >= 1.0:
-            return 0.0
-        return (1.0 - self.tokens) / self.rate_per_s
+        return max(0.0, (1.0 - self.tokens) / self.rate_per_s)
 
     def is_full(self, now: float) -> bool:
         self._refill(now)
@@ -250,11 +249,14 @@ class RateLimiter:
         self._buckets.clear()
 
     def _evict(self, now: float) -> None:
+        # Read before the full-bucket scan, which refills every bucket to
+        # `now` and so rewrites the very stamp the fallback sorts on.
+        touched = {key: bucket.updated for key, bucket in self._buckets.items()}
         for key in [k for k, b in self._buckets.items() if b.is_full(now)]:
             del self._buckets[key]
         if len(self._buckets) < self._max_keys:
             return
-        oldest_first = sorted(self._buckets, key=lambda k: self._buckets[k].updated)
+        oldest_first = sorted(self._buckets, key=touched.__getitem__)
         for key in oldest_first[: max(1, len(oldest_first) // 2)]:
             del self._buckets[key]
 
@@ -275,7 +277,7 @@ class InFlightLimiter:
     spent on. A request past the share waits for one of its own to finish, up
     to ``wait_s``, and is refused after that. A key's lane exists only while
     something holds or awaits it, so memory follows the requests in flight
-    rather than every address ever seen. A ``per_client`` of 0 disables it.
+    rather than every address ever seen.
     """
 
     def __init__(self, per_client: int, *, name: str = "", wait_s: float | None = None) -> None:
@@ -284,16 +286,9 @@ class InFlightLimiter:
         self._wait_s = float(UPSTREAM_BUDGET_WAIT_S if wait_s is None else wait_s)
         self._lanes: dict[str, _Lane] = {}
 
-    @property
-    def enabled(self) -> bool:
-        return self._per_client > 0
-
     @asynccontextmanager
     async def slot(self, key: str) -> AsyncIterator[bool]:
         """Hold one of ``key``'s slots; yields False when the wait ran out."""
-        if not self.enabled:
-            yield True
-            return
         lane = self._lanes.get(key)
         if lane is None:
             lane = self._lanes[key] = _Lane(asyncio.Semaphore(self._per_client))
