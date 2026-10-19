@@ -84,11 +84,18 @@ API, not in git; if it changes, change this table in the same breath.
 
 ## App-layer limits
 
-Two mechanisms in `backend/app/ratelimit/`, both in-memory and per pod.
-With R replicas the effective ceiling is about R times the configured number;
-that slop is accepted (the goal is a bound, not precision), and the shared
-datastore planned in [#65](https://github.com/zimmertr/bluebird/issues/65)
-can make both exact later. All knobs are env vars, documented in the
+Two mechanisms in `backend/app/ratelimit/`. While the database is up and
+writable, the per-client buckets, the Nominatim gate and the Open-Meteo
+weighted budgets count in it, so each is one limit for the whole deployment
+([#760](https://github.com/zimmertr/bluebird/issues/760), which replaced
+[#65](https://github.com/zimmertr/bluebird/issues/65)). Everywhere else they
+count in each pod's memory as they always did: with no database, on a
+read-only preview, and for any call the database does not answer within
+0.5 s, after which that pod leaves the database alone for 30 s. Per pod, with
+R replicas the effective ceiling is about R times the configured number, and
+that slop is accepted (the goal is a bound, not precision). The discovery slot
+and the in-flight caps stay per pod either way. Record:
+[0181](decisions/0181-shared-limits-and-nominatim-intervals.md) All knobs are env vars, documented in the
 [CONFIGURATION.md table](CONFIGURATION.md#configuration); the per-client
 buckets are also published to clients by `GET /api/capabilities`, under
 `limits.rate`.
@@ -104,9 +111,11 @@ buckets are also published to clients by `GET /api/capabilities`, under
 | wildfires | `GET /api/wildfires` |
 | smoke | `GET /api/smoke` |
 | closures | `GET /api/closures` |
+| landmarks | `GET /api/landmarks` |
 
 Each bucket's rate and burst are published under `limits.rate`; the three
-overlay buckets are the loosest, because a pan costs no upstream call. What a
+overlay buckets and the landmarks bucket are the loosest, because a pan costs
+no upstream call. What a
 pan does cost is the pod's CPU, and the largest answer is the whole country:
 a box that takes in every wildfire perimeter, or every closure of a kind, gets
 a gzipped copy built once per snapshot and held
@@ -120,27 +129,30 @@ Destinations is deliberately its own bucket (issue #180): discovery is one
 map query with no forecasts, and sharing the analyze bucket let the browser
 flow starve real analyses.
 
-A bucket bounds how often an address starts a request, not how much of a
-pod-wide upstream budget it holds while the request runs, so two buckets are
+A bucket bounds how often an address starts a request, not how much of an
+upstream budget it holds while the request runs, so two buckets are
 sized against the budget behind them rather than against the request's own
 cost ([#627](https://github.com/zimmertr/bluebird/issues/627), record
 [0103](decisions/0103-ipv6-by-64-and-one-discovery-per-address.md)):
 
-- **Geocode** sits in front of the Nominatim gate, which every visitor on a
-  pod shares and which sheds a search booked more than 5 s out. The bucket's
+- **Geocode** sits in front of the Nominatim gate, which every visitor shares
+  and which sheds a search booked more than 5 s out. The bucket's
   first minute, its burst plus a minute's refill, books fewer gate slots than
   the gate opens in a minute, so one address can no longer keep the gate
-  booked ahead and shed everybody else's search. The search box searches on
-  submit only, so a person never meets it.
+  booked ahead and shed everybody else's search. That sum is the shared
+  gate's. A pod that runs its own gate (no database, a preview, or a call the
+  database failed) opens six slots a minute, which one address's first minute can fill on that pod: the price of
+  the fallback staying under Nominatim's policy at ten replicas (#760). The
+  search box searches on submit only, so a person never meets it.
 - **Destinations** also holds one discovery in flight per address
-  (`DISCOVERY_IN_FLIGHT_PER_CLIENT`, not an env knob). An Overpass query runs
+  (`DISCOVERY_IN_FLIGHT_PER_CLIENT`, not an env knob), on each pod. The places
+  table answers in milliseconds, but where it cannot, an Overpass query runs
   5 to 25 s against two slots per mirror that the whole pod shares, and an
   address inside its bucket could otherwise hold all of them. A second
   discovery from the same address waits for the first, up to
   `UPSTREAM_BUDGET_WAIT_S`, and then gets the bucket's own `429`; another
   address's discovery is never behind it. The web app sends at most one discovery per
-  Analyze, so a person never has two, and since #675 a ring without
-  trailheads or crags sends none, its peaks and lakes coming from the basemap's tiles. A cancelled Analyze leaves its request
+  Analyze, so a person never has two. A cancelled Analyze leaves its request
   running on the pod, which is why the second one waits rather than being
   refused outright. The two analyze routes run the same discovery and take the
   same slot, so one address has one discovery in flight across all three
@@ -150,7 +162,8 @@ cost ([#627](https://github.com/zimmertr/bluebird/issues/627), record
   analysis spends the caller's own Open-Meteo quota, and holding it longer
   would make one address's analyses queue for no saving to the pod, and a
   destinations request that asks Overpass nothing (`elevation_lookup: false`
-  and no polygon, which is what the web app's analysis sends since
+  and no polygon, which is what the web app's analysis of a list without a
+  polygon sends since
   [#673](https://github.com/zimmertr/bluebird/issues/673)) takes no slot at
   all, so it is answered at once while that address's own
   elevation lookup waits on a busy map server. A wait that runs out is the same `429` on
@@ -253,8 +266,9 @@ before.
 
 ## Request logs and how long they last
 
-The access log above is the one place the pod writes a client address, and the
-geocode route adds the place names it proxies. The privacy page promises those
+The access log above is where the pod writes a client address, and the
+geocode route adds the place names it proxies; the database keeps its own
+short-lived copies of both, covered at the end of this section. The privacy page promises those
 lines are "deleted when the server is next updated, typically within days"
 ([#612](https://github.com/zimmertr/bluebird/issues/612)). Measured
 2026-10-02, read-only:
@@ -309,6 +323,19 @@ information as long as its business purposes need. **Not verified for this
 zone:** the API token used here cannot list Logpush jobs or read the zone's
 analytics retention, so whether a job exists and how far back the dashboard's
 analytics reach are open.
+
+**The database** keeps two more traces of a visitor while it is up (#760),
+and the privacy page promises when each goes. A per-address bucket is a row
+keyed by the address it counts (an IPv6 address by its /64), written each time
+a request spends from it. The sweep deletes a bucket 45 minutes after the last
+request it let through, and runs every nine minutes, so the row is gone within
+the hour the page promises. A place search is a row keyed by the words
+searched, holding Nominatim's answer and nothing about who asked, kept ten
+minutes and deleted by the same sweep, so within the page's 20 minutes. A
+sweep can start up to a refresh tick late, and both sums leave room for it;
+`frontend/src/legal.test.ts` holds them to the page's words. Both tables are
+unlogged, so neither row is written to the database's write-ahead log. A
+read-only preview writes neither, keeping its counts in its own memory.
 
 ## Security response headers
 
@@ -539,23 +566,26 @@ release.
 
 | Provider | Called by | From | Policy | Governor |
 | --- | --- | --- | --- | --- |
-| [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) (`overpass-api.de`, `maps.mail.ru`) | backend (`services/osm/`), 1 query per discovery/analysis (since #675 the web app's ring asks for one only when trailheads or crags are ticked or the ring is over the tile budget; its peaks and lakes come from the basemap's tiles) plus 1 to resolve a custom list's coordinates (batched, so one query covers a whole 100-row paste; since #673 the web app sends only the rows the basemap's tiles could not place, a few per list), 2-mirror failover. Discovery gives each mirror its 25 s; the coordinate lookup splits its 24 s deadline evenly across the mirrors, so it asks the second one inside that deadline and each attempt asks the server for no more than its own share | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
-| [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for unkeyed API callers | each visitor's own IP; cluster egress IP for the server path | **weighted calls** per IP: 600/min, 5,000/hr, 10,000/day (see accounting below), non-commercial | browser: a pacer that spends at most ~550 weighted calls in any 60 seconds on the visitor's own quota, a 15-min per-location result cache, one automatic minutely-429 resume, and abort-on-first-failure so nothing spends after the outcome is decided. Server path: `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER=550` per pod, held the same way to any 60 seconds — the full safe rate on **every** pod, not a per-replica share, because one analysis runs end to end on one pod and must cover its whole fan-out. The cluster can therefore exceed 550/min when several pods fetch at once; accepted, since this path is the exception and the per-minute pacer never bounded the hourly or daily quotas anyway (issue #65's shared store is the exact fix) + in-flight cap 4 + the same cache |
-| [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths. The **browser** fetches AQI for the whole field alongside the weather, because air quality is metered as its own per-visitor quota and an AQI ranking must be a live knob; the **server** path fetches it lazily, for the displayed rows only, unless the ranking key or a bound is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=550` per pod, undivided for the same reason), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
+| [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) (`overpass-api.de`, `maps.mail.ru`) | backend (`services/osm/`), only while the places table cannot answer: no database, a first fill not finished, or a search the database dropped (#760). Then 1 query per discovery/analysis plus 1 to resolve a custom list's coordinates (batched, so one query covers a whole 100-row paste), 2-mirror failover. With the table, the daily update (`services/places/update.py`) sends at most 1 query an hour, naming by id every shape a day file could not place (up to 2,000; 1,147 that could have moved on day 5149, 2026-10-17), and a second only for an area made only of other areas. Discovery gives each mirror its 25 s; the coordinate lookup splits its 24 s deadline evenly across the mirrors, so it asks the second one inside that deadline and each attempt asks the server for no more than its own share | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
+| [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for unkeyed API callers | each visitor's own IP; cluster egress IP for the server path | **weighted calls** per IP: 600/min, 5,000/hr, 10,000/day (see accounting below), non-commercial | browser: a pacer that spends at most ~550 weighted calls in any 60 seconds on the visitor's own quota, a 15-min per-location result cache, one automatic minutely-429 resume, and abort-on-first-failure so nothing spends after the outcome is decided. Server path: `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER=550`, held the same way to any 60 seconds, in one window for the whole deployment while the database holds it (#760). Without it each pod gets the full safe rate, not a per-replica share, because one analysis runs end to end on one pod and must cover its whole fan-out, so the cluster can exceed 550/min when several pods fetch at once; accepted, since this path is the exception and the per-minute pacer never bounded the hourly or daily quotas anyway + in-flight cap 4 per pod + the same cache |
+| [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths. The **browser** fetches AQI for the whole field alongside the weather, because air quality is metered as its own per-visitor quota and an AQI ranking must be a live knob; the **server** path fetches it lazily, for the displayed rows only, unless the ranking key or a bound is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=550`, shared the same way, and undivided per pod without the database for the same reason), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
 | [Open-Meteo archive](https://open-meteo.com/en/docs/historical-weather-api) (`archive-api.open-meteo.com`, and `customer-archive-api` for a keyed caller) | the same two callers as the row above, for a window older than `limits.past_data_days` (issue #123). A window that crosses that boundary is fetched from both, one request per endpoint per batch, so it costs two calls where an ordinary window costs one | same split | same weighted accounting, and the same quota the forecast endpoint spends | identical to the row above: the same pacer, the same in-flight cap, and the same 15-min per-location cache, which keys on WHICH endpoint answered so the two cannot serve each other's rows |
 | [Open-Meteo forecast, customer host](https://open-meteo.com) (`customer-api.open-meteo.com`) | backend (`weather.py`) for an API caller that sent `X-Open-Meteo-Key`, same batching and cache as the free host | cluster egress IP, but the quota owner is the **caller** | the key's own plan, whatever the caller bought | no weighted pacer, because the pod's budget meters the pod's quota and this spends the caller's. The in-flight cap of 4 and the per-client analyze bucket still apply, and so does the 15-min per-location cache, which is shared with the free-tier path |
 | [Open-Meteo air quality, customer host](https://open-meteo.com/en/docs/air-quality-api) (`customer-air-quality-api.open-meteo.com`) | same, from `air_quality.py` | cluster egress IP, quota owner the **caller** | the key's own plan, metered separately from forecast | same as the row above; a refused key is the one AQI failure that does not degrade to null |
-| [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) (`nominatim.openstreetmap.org`) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=3500` spacing per pod (~0.86/s aggregate at 3 replicas, and over the policy once the autoscaler passes 3, since the gate is per pod; the previous 2s ≈ 1.5/s quietly exceeded it at 3) + a 10-min per-pod cache per query and limit, which the policy asks for and which answers a repeat before the gate + per-client geocode bucket |
-| [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (`services3.arcgis.com`; wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country), on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600` per pod, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure for up to 24 hours, a 60 s deadline on the whole refresh, `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client wildfires bucket |
-| [US Forest Service Regions 3, 4 and 6](https://www.fs.usda.gov/) (`services1.arcgis.com`; the two closure layers) | backend (`usfs_closures.py`), three feeds and 11 queries per refresh: Region 6's 5 (the closed sites once, and the closed trails and roads and the closed areas each at full resolution and simplified), and 3 for each of Regions 3 and 4 (every live order's attributes, then the geometry of the orders that close an area to entry, once per fidelity; none when no order passes), on demand and never when idle. Region 6's trail lines page, so today the 11 queries are 13 requests (1,536 lines at 1,000 a page, measured 2026-09-30) | cluster egress IP | per-minute request-unit quota belonging to the Forest Service's ArcGIS organization, shared with every other consumer of its public layers | `CLOSURE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure for up to 24 hours, a 60 s deadline on the whole refresh, `CLOSURE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client closures bucket |
-| [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) (`satepsanone.nesdis.noaa.gov`; smoke overlay) | backend (`hms.py`), 1 file per refresh (the whole day's national analysis), on demand and never when idle | cluster egress IP | none published; a static file server with no quota to exhaust | `SMOKE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure for up to 24 hours, a 60 s deadline on the whole refresh, `SMOKE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client smoke bucket |
+| [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) (`nominatim.openstreetmap.org`) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=1200` spacing in one gate for the whole deployment while the database holds it, 50 a minute whatever the replica count, and `NOMINATIM_POD_MIN_INTERVAL_MS=10000` per pod when it does not, one a second at ten replicas (#760; the previous 3.5 s per pod went over the policy once the autoscaler passed 3) + a 10-min cache per query and limit, shared by every pod while the database is up, which the policy asks for and which answers a repeat before the gate + per-client geocode bucket |
+| [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (`services3.arcgis.com`; wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country): with the database, by one pod for every pod on a timer (below); without it, by each pod on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600`, for the deployment with the database and per pod without, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure for up to 24 hours, a deadline on the whole refresh (60 s on a pod's own, 120 s on the shared one, which nobody waits on), and `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed per-pod refresh is retried, where the shared one backs off from a minute to an hour + per-client wildfires bucket |
+| [US Forest Service Regions 3, 4 and 6](https://www.fs.usda.gov/) (`services1.arcgis.com`; the two closure layers) | backend (`usfs_closures.py`), three feeds and 11 queries per refresh: Region 6's 5 (the closed sites once, and the closed trails and roads and the closed areas each at full resolution and simplified), and 3 for each of Regions 3 and 4 (every live order's attributes, then the geometry of the orders that close an area to entry, once per fidelity; none when no order passes), on demand and never when idle. Region 6's trail lines page, so today the 11 queries are 13 requests (1,536 lines at 1,000 a page, measured 2026-09-30). With the database, one pod refreshes for every pod on a timer instead (below) | cluster egress IP | per-minute request-unit quota belonging to the Forest Service's ArcGIS organization, shared with every other consumer of its public layers | `CLOSURE_CACHE_TTL_S=1800`, shared or per pod as for wildfires, one refresh at a time, refreshed behind the request, last good snapshot served on failure for up to 24 hours, the wildfire row's deadlines and backoff, `CLOSURE_RETRY_AFTER_FAILURE_S=60` before a failed per-pod refresh is retried + per-client closures bucket |
+| [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) (`satepsanone.nesdis.noaa.gov`; smoke overlay) | backend (`hms.py`), 1 file per refresh (the whole day's national analysis), on demand and never when idle, or with the database by one pod for every pod on a timer (below) | cluster egress IP | none published; a static file server with no quota to exhaust | `SMOKE_CACHE_TTL_S=1800`, shared or per pod as for wildfires, one refresh at a time, refreshed behind the request, last good snapshot served on failure for up to 24 hours, the wildfire row's deadlines and backoff, `SMOKE_RETRY_AFTER_FAILURE_S=60` before a failed per-pod refresh is retried + per-client smoke bucket |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) (rain radar overlay) | **browser**, raster tiles per visible frame | visitor IP | none published; IEM asks that applications with thousands of simultaneous users self-host | off by default, one frame's tiles on toggle and the rest only as the loop reaches them, plus IEM's own `max-age=300` edge cache. The map loads its tiles through the app (`map/heldTileProtocol.ts`), which keeps a copy of each as it arrives, so a click on an echo, the pointer over one, and an open card following the player ask IEM for nothing (#737, #748) |
 | [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) (`mapservices.weather.noaa.gov`; snow depth overlay) | **browser**, one server-side render per visible tile | visitor IP | none published; a public National Weather Service GIS endpoint with no key | off by default, and the service refuses caching (`max-age=0, must-revalidate`) so every pan re-renders. Bounded by a 512 px tile rather than 256, which is four times fewer renders per screen at the same ~0.46 s each; by the source's `bounds`, so nothing is requested outside the analysis extent; and by a zoom cap at the point the 1 km analysis has no more detail to give, past which MapLibre magnifies what it holds. The tiles load through the app, which keeps a copy of each, so the pointer over painted snow asks for nothing; a click on it is one `identify` request of about 0.8 s, asked once more only after an ArcGIS error inside a 200 (#737), plus, for the glacier check, the zoom-12 basemap tile under the click from `tiles.openfreemap.org`, one to four of them, kept for the next click nearby (#748) |
+| [OpenStreetMap planet](https://planet.openstreetmap.org/) (`planet.openstreetmap.org/pbf/`) | the planet fill (`fill/fill.py`, a daily CronJob), one download of the planet file (95.4 GB on 2026-10-15) and its `.md5` per fill: the first, and one per change to the rules. A run that finds the table current downloads nothing | cluster egress IP | none published; the planet is what OpenStreetMap offers bulk users in place of its API | one fill at a time (an advisory lock and `concurrencyPolicy: Forbid`), the digest checked, a dropped connection resumed where it stopped rather than started over |
+| [OpenStreetMap replication](https://planet.openstreetmap.org/replication/day/) (`planet.openstreetmap.org/replication/day`) | backend (`services/places/update.py`), one pod for every pod: `state.txt` once an hour, and each new day file (about 110 MB) once. The fill reads `state.txt` once per fill | cluster egress IP | none published | one refresh an hour for the whole deployment, chosen by an advisory lock, and a shared backoff from a minute to an hour after a failure |
 | Open-Meteo forecast + air quality (forecast grid overlay) | **browser** (`useForecastGrid.ts`), 1 lattice of ≤ 600 points per analysis while the layer is on, weather, the cloud column and AQI concurrently | visitor IP | same weighted accounting as the rows above, on the same per-visitor quota | off by default, and the toggle is the spend gate: nothing is fetched until it is on with an analysis held. Sequenced behind the ranked report by construction, so it can never delay a ranking; capped at 600 cells by coarsening the lattice; shares the ranked fetch's ~550 weighted/min pacer and its 15-min per-location cache, so a re-toggle or a second analysis over the same ground costs ~0 |
 
 Everything the browser fetches itself costs our egress IP nothing — that is
 [#170](https://github.com/zimmertr/bluebird/issues/170): the web app calls
-`POST /api/destinations` (one Overpass query) and attaches forecasts itself,
+`POST /api/destinations` (one read of the places table, or one Overpass query
+on a deployment without it) and attaches forecasts itself,
 so a browser analysis spends the visitor's Open-Meteo quota, not ours. A
 custom-CSV analysis makes that one call too, to resolve its coordinates
 against OSM for the elevation a coordinate pair cannot carry
@@ -578,6 +608,17 @@ dataset. Per-visitor requests were therefore not spreading load, they were
 crowding one pool nobody involved could see, and losing at random. One pod-side
 snapshot serves everyone, so the cost upstream is now a fixed handful of
 requests per hour rather than a multiple of traffic.
+
+With the database up (#760) that handful no longer grows with the replica
+count either. Each of the three snapshots is fetched by one pod for every pod,
+on its own interval, chosen by an advisory lock: wildfires every 10 minutes
+at 2 queries a refresh, about 12 an hour; closures every 30 minutes at 13
+requests a refresh, about 26 an hour; and smoke every 30 minutes at 1 or 2
+requests a refresh. The cadence no longer follows traffic, so an idle deployment
+refreshes as often as a busy one. Every pod serves the row, and none calls the
+upstream while the database answers. A new deployment answers each overlay's
+`503` until its first refresh lands, which starts at the first refresh tick,
+24 to 36 s after a pod starts. Record: [0182](decisions/0182-shared-snapshots.md)
 
 The two overlays added in
 [#121](https://github.com/zimmertr/bluebird/issues/121) split on that same
@@ -654,10 +695,12 @@ separately metered air-quality quota, fetched concurrently so the two waits
 overlap rather than stack; on the server path AQI is lazy and costs at most the
 `limit`. A repeat of the same analysis inside the cache TTL
 costs ~0. For a browser analysis all of that lands on the visitor's own IP
-and the server pays 1 Overpass query (or 0, within the 10-minute discovery
-cache). The full spend lands on the cluster egress IP only for a direct API
-caller, and then only an unkeyed one, where the per-pod weighted budgets
-(550/min per service, the full safe rate on every pod) pace it. A keyed caller
+and the server pays one read of the places table, or on a deployment without
+one, 1 Overpass query (or 0, within the 10-minute discovery cache). The full
+spend lands on the cluster egress IP only for a direct API caller, and then
+only an unkeyed one, where the weighted budgets (550/min per service, for the
+whole deployment while the database holds them and on every pod otherwise)
+pace it. A keyed caller
 spends its own quota, so its analysis leaves the egress IP unpaced and the
 pod's budget untouched.
 
@@ -672,11 +715,13 @@ the worst case above is unchanged for the numbers a user is waiting on.
 The overlay exists only in the browser, so it never lands on the cluster
 egress IP at all. The
 per-client buckets bound one address to the analyze and discovery rates
-`limits.rate` publishes, per pod; the in-flight caps (4+4+2-per-mirror) bound burst
-concurrency. Multiply by replicas for the cluster ceiling — and note that
-replica count is now autoscaled (3 to 10) rather than fixed, on top of a
-canary roughly doubling it for a rollout's duration, so the cluster ceiling is
-a range, not a number. That looseness is why these budgets are deliberately
-per-pod ceilings rather than a rationed share; issue #65's shared store is
-what would make the cluster figure exact. Re-derive this paragraph if any
-constant in it changes.
+`limits.rate` publishes, across the deployment while the database holds them
+and per pod otherwise; the in-flight caps (4+4+2-per-mirror) bound burst
+concurrency per pod. With the database (#760) the buckets and the weighted
+budgets are one figure for the cluster, and only the in-flight caps multiply
+by replicas. Without it everything multiplies, and the replica count is
+autoscaled (3 to 10) rather than fixed, on top of a canary roughly doubling it
+for a rollout's duration, so the cluster ceiling is a range, not a number.
+That looseness is why the budgets are full per-pod ceilings in that mode
+rather than a rationed share. Re-derive this paragraph if any constant in it
+changes.

@@ -1,4 +1,4 @@
-"""Per-client rate limits and pod-wide upstream budgets (issue #75).
+"""Per-client rate limits and upstream budgets (issue #75).
 
 Every analysis fans out to shared free APIs (Overpass, Open-Meteo) and the
 search box proxies Nominatim, all from one egress IP. These guards bound how
@@ -12,22 +12,26 @@ Two mechanisms:
 - ``RateLimiter``: per-client-address token buckets, enforced as route
   dependencies on the expensive endpoints only. Over the limit: 429 with a
   ``Retry-After`` header.
-- ``UpstreamBudget`` / ``MinIntervalGate``: pod-wide caps on in-flight calls
-  (or call spacing) per upstream operator, shared by every concurrent
-  request in the pod. Overpass gets one budget per mirror (built in osm/mirrors.py
+- ``UpstreamBudget`` / ``MinIntervalGate``: caps on in-flight calls (or call
+  spacing) per upstream operator, shared by every concurrent request.
+  Overpass gets one budget per mirror (built in osm/mirrors.py
   next to the mirror table, since each mirror is a separate operator with
   its own per-IP policy). Saturation queues briefly, then sheds with
   ``BudgetExhausted`` (surfaced as 503, or degraded to null for best-effort
   air quality).
 
-Both are in-memory and per-pod on purpose: with R replicas the effective
-ceiling is about R times the configured value, and a restart forgets
-history. The goal is a bound, not precision; the shared datastore planned in
-#65 can make them exact later. Every knob reads its env var once at import,
-mirroring how LOG_LEVEL works.
+Where the shared cache is available and writable (#760), the per-client
+buckets, the Nominatim gate and the Open-Meteo weighted budgets count in it,
+so each is one limit for the whole deployment. Everywhere else (no database,
+a read-only preview, a call the database cannot answer) they count in the
+pod's memory as they always have: with R replicas the effective ceiling is
+about R times the configured value, and a restart forgets history. The
+in-flight caps stay per pod either way. ``shared`` holds what the two modes
+have in common. Every knob reads its env var once at import, mirroring how
+LOG_LEVEL works.
 
 The two live in ``client`` and ``upstream`` beside this file, and this file
-re-exports them so ``ratelimit.X`` keeps working, with one exception: the six
+re-exports them so ``ratelimit.X`` keeps working, with one exception: the seven
 per-client limiters, and the per-client in-flight share beside them, are read
 only as ``ratelimit.client.X``. The route
 dependencies read them inside ``client``, so a limiter patched here would never
@@ -47,6 +51,8 @@ from app.ratelimit.client import (
     RATE_LIMIT_DESTINATIONS_PER_MINUTE,
     RATE_LIMIT_GEOCODE_BURST,
     RATE_LIMIT_GEOCODE_PER_MINUTE,
+    RATE_LIMIT_LANDMARKS_BURST,
+    RATE_LIMIT_LANDMARKS_PER_MINUTE,
     RATE_LIMIT_SMOKE_BURST,
     RATE_LIMIT_SMOKE_PER_MINUTE,
     RATE_LIMIT_WILDFIRES_BURST,
@@ -63,6 +69,7 @@ from app.ratelimit.client import (
     destinations_rate_limit,
     discovery_in_flight,
     geocode_rate_limit,
+    landmarks_rate_limit,
     smoke_rate_limit,
     wildfires_rate_limit,
 )
@@ -71,6 +78,7 @@ from app.ratelimit.upstream import (
     AQI_WEIGHT,
     NOMINATIM_GATE,
     NOMINATIM_MIN_INTERVAL_MS,
+    NOMINATIM_POD_MIN_INTERVAL_MS,
     SHED_RETRY_AFTER_S,
     UPSTREAM_BUDGET_WAIT_S,
     UPSTREAM_CONCURRENCY_AQI,
@@ -100,10 +108,13 @@ __all__ = [
     "RATE_LIMIT_SMOKE_BURST",
     "RATE_LIMIT_CLOSURES_PER_MINUTE",
     "RATE_LIMIT_CLOSURES_BURST",
+    "RATE_LIMIT_LANDMARKS_PER_MINUTE",
+    "RATE_LIMIT_LANDMARKS_BURST",
     "UPSTREAM_CONCURRENCY_WEATHER",
     "UPSTREAM_CONCURRENCY_AQI",
     "UPSTREAM_CONCURRENCY_OVERPASS",
     "NOMINATIM_MIN_INTERVAL_MS",
+    "NOMINATIM_POD_MIN_INTERVAL_MS",
     "UPSTREAM_WEIGHT_PER_MINUTE_WEATHER",
     "UPSTREAM_WEIGHT_PER_MINUTE_AQI",
     "UPSTREAM_WEIGHT_MAX_WAIT_S",
@@ -132,4 +143,5 @@ __all__ = [
     "wildfires_rate_limit",
     "smoke_rate_limit",
     "closures_rate_limit",
+    "landmarks_rate_limit",
 ]

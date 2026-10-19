@@ -17,7 +17,7 @@ PIP_TOOLS_VERSION := 7.5.3
 # its own Chromium build, and the image carries the build for its own version.
 PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.64.0-noble
 
-.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lock-backend lighthouse browser perf
+.PHONY: typecheck lint-frontend test-frontend check-api test-backend test-backend-db test-fill check-openapi typecheck-backend lint-backend lock-backend lighthouse browser perf
 
 typecheck:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci --ignore-scripts && npx tsc --noEmit"
@@ -34,6 +34,32 @@ check-api:
 test-backend:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend $(PYTHON_IMAGE) sh -c "pip install -r requirements-dev.txt && pytest"
 
+# The tests marked `db`, against a throwaway PostgreSQL with PostGIS (#760).
+# `make test-backend` skips them: they need the database this starts. One
+# shell, as in test-fill below, so the database and its network take names
+# unique to this run and the trap removes both, pass or fail.
+test-backend-db:
+	docker build -q -t bluebird:test-db backend/tests/db
+	@set -e; name=db-test-$$(od -An -N4 -tu4 /dev/urandom | tr -d ' '); \
+	trap 'docker rm -f $$name >/dev/null 2>&1; docker network rm $$name-net >/dev/null 2>&1' EXIT; \
+	docker network create $$name-net >/dev/null; \
+	docker run -d --rm --name $$name --network $$name-net -e POSTGRES_PASSWORD=test bluebird:test-db >/dev/null; \
+	docker run --rm --network $$name-net -v "$(CURDIR)":/repo -w /repo/backend -e TEST_DATABASE_URL=postgresql://postgres:test@$$name/postgres $(PYTHON_IMAGE) sh -c "pip install -r requirements-dev.txt && pytest -m db"
+
+# The planet fill's suite (#760): the fill image's test stage, which the image
+# that ships leaves out, against a throwaway PostgreSQL with PostGIS. One shell,
+# so the database and its network take names unique to this run (two sessions
+# running it at once do not collide) and the trap removes both, pass or fail.
+test-fill:
+	docker build -q -f fill/Dockerfile -t bluebird:fill .
+	docker build -q -f fill/Dockerfile --target test -t bluebird:fill-test .
+	docker build -q -t bluebird:test-db backend/tests/db
+	@set -e; name=fill-test-$$(od -An -N4 -tu4 /dev/urandom | tr -d ' '); \
+	trap 'docker rm -f $$name >/dev/null 2>&1; docker network rm $$name-net >/dev/null 2>&1' EXIT; \
+	docker network create $$name-net >/dev/null; \
+	docker run -d --rm --name $$name --network $$name-net -e POSTGRES_PASSWORD=test bluebird:test-db >/dev/null; \
+	docker run --rm --network $$name-net -e TEST_DATABASE_URL=postgresql://postgres:test@$$name/postgres bluebird:fill-test
+
 check-openapi:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend $(PYTHON_IMAGE) sh -c "pip install -r requirements-dev.txt && python scripts/generate_openapi.py --check"
 
@@ -43,9 +69,9 @@ typecheck-backend:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend $(PYTHON_IMAGE) sh -c "pip install -r requirements-dev.txt && mypy app"
 
 # From the repo root, which is what CI does; backend/ruff.toml makes the
-# import order the same from either directory.
+# import order the same from either directory. fill/ruff.toml extends it.
 lint-backend:
-	docker run --rm -v "$(CURDIR)":/repo -w /repo $(PYTHON_IMAGE) sh -c "pip install ruff==$(RUFF_VERSION) && ruff check backend/"
+	docker run --rm -v "$(CURDIR)":/repo -w /repo $(PYTHON_IMAGE) sh -c "pip install ruff==$(RUFF_VERSION) && ruff check backend/ fill/"
 
 # Not a check: rewrites the two hashed locks from requirements.in and
 # requirements-dev.in. On the image's own base, so every marker resolves for the

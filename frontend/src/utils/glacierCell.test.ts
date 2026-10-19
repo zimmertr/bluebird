@@ -1,14 +1,19 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  FALLBACK_TILE_TEMPLATE,
   GLACIER_TILE_ZOOM,
   SNOW_CELL_DEG,
+  TILEJSON_URL,
   cellOnGlacier,
   cellTiles,
   decodeGlaciers,
+  fetchTileWith,
   glacierCheck,
+  resetTileTemplate,
+  tileTemplate,
+  type TileRef,
 } from './glacierCell'
 import { encodeTile, type MvtPolygon } from '../testSupport/mvt'
-import type { TileRef } from './peakTiles'
 
 const EXTENT = 4096
 // The zoom-12 tile over Mount Rainier's summit.
@@ -100,5 +105,56 @@ describe('glacierCheck', () => {
     const check = glacierCheck(async () => async () => null)
     expect(await check.ask(p.lng, p.lat, new AbortController().signal)).toBe(false)
     expect(check.now(p.lng, p.lat)).toBeUndefined()
+  })
+})
+
+describe('the tile host', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetTileTemplate()
+  })
+
+  it('reads the template once from the TileJSON', async () => {
+    const fetchJson = vi.fn(async () => ({ tiles: ['https://tiles.openfreemap.org/planet/20261005_001001_pt/{z}/{x}/{y}.pbf'] }))
+    expect(await tileTemplate(fetchJson)).toBe('https://tiles.openfreemap.org/planet/20261005_001001_pt/{z}/{x}/{y}.pbf')
+    expect(await tileTemplate(fetchJson)).toBe('https://tiles.openfreemap.org/planet/20261005_001001_pt/{z}/{x}/{y}.pbf')
+    expect(fetchJson).toHaveBeenCalledTimes(1)
+    expect(fetchJson).toHaveBeenCalledWith(TILEJSON_URL)
+  })
+
+  it('falls back to the current build when the TileJSON is unreadable or not one', async () => {
+    expect(await tileTemplate(async () => ({ not: 'tilejson' }))).toBe(FALLBACK_TILE_TEMPLATE)
+    resetTileTemplate()
+    expect(await tileTemplate(async () => Promise.reject(new SyntaxError('not JSON')))).toBe(FALLBACK_TILE_TEMPLATE)
+  })
+
+  it('fetches a tile at the template, and reads a refusal as a tile that could not be read', async () => {
+    const bytes = tileOf(glacier([square(2048, 2048, 300)]))
+    const fetch = vi.fn(async (url: string) =>
+      url.endsWith(`/${TILE.z}/${TILE.x}/${TILE.y}.pbf`)
+        ? { ok: true, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) }
+        : { ok: false, status: 403 },
+    )
+    vi.stubGlobal('fetch', fetch)
+    const fetchTile = fetchTileWith('https://tiles.example/{z}/{x}/{y}.pbf')
+    expect(await fetchTile(TILE)).toEqual(bytes)
+    expect(fetch.mock.calls[0][0]).toBe(`https://tiles.example/${TILE.z}/${TILE.x}/${TILE.y}.pbf`)
+    expect(await fetchTile({ z: TILE.z, x: 1, y: 1 })).toBeNull()
+  })
+
+  it('aborts a tile fetch with the caller', async () => {
+    let signal: AbortSignal | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init: RequestInit) => {
+        signal = init.signal ?? undefined
+        return new Promise(() => {})
+      }),
+    )
+    const controller = new AbortController()
+    void fetchTileWith('https://tiles.example/{z}/{x}/{y}.pbf', controller.signal)(TILE)
+    expect(signal?.aborted).toBe(false)
+    controller.abort()
+    expect(signal?.aborted).toBe(true)
   })
 })

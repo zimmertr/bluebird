@@ -26,9 +26,9 @@ class SmokeCollection(BaseModel):
     )
     fetched_at: int = Field(
         description=(
-            "When this instance last fetched from NOAA, in epoch milliseconds. "
+            "When Bluebird Forecast last fetched from NOAA, in epoch milliseconds. "
             "A GeoJSON foreign member, which map libraries ignore. Plumes are "
-            "cached per instance and served past their refresh deadline when "
+            "cached and served past their refresh deadline when "
             "NOAA is unreachable, so this is the only honest statement of how "
             "current the shapes are."
         )
@@ -68,13 +68,13 @@ class SmokeCollection(BaseModel):
         "The whole analysis comes back in one response and there is no bounding "
         "box to send: a busy day measured under half a megabyte, so filtering "
         "would cost a parameter and save nothing.\n\n"
-        "This instance fetches the dated file from NOAA on a timer and serves "
+        "Bluebird Forecast fetches the dated file from NOAA on a timer and serves "
         "it to everyone, and serves it past its refresh deadline when NOAA is "
         "unreachable — smoke traced this morning is the only tracing there will "
         "be until the next pass. Read `fetched_at` and `analysis_date` to see "
-        "how current the answer is. An instance answers 503 when it has never "
-        "completed a fetch, or when every refresh has failed for more than 24 "
-        "hours since its last good one.\n\n"
+        "how current the answer is. It answers 503 when no fetch has completed "
+        "yet, or when every refresh has failed for more than 24 hours since "
+        "the last good one.\n\n"
         "Coverage is North America, which is what HMS analyzes. An empty result "
         "elsewhere means \"not covered\", not \"clear air\"."
     ),
@@ -92,9 +92,9 @@ class SmokeCollection(BaseModel):
         503: {
             "model": ErrorResponse,
             "description": (
-                "This instance has never completed a fetch from NOAA, or every "
-                "refresh has failed for more than 24 hours since its last good "
-                "one, so it has nothing it will serve. Transient; `Retry-After` "
+                "No fetch from NOAA has completed yet, or every refresh has "
+                "failed for more than 24 hours since the last good one, so "
+                "there is nothing to serve. Transient; `Retry-After` "
                 "says when to retry."
             ),
         },

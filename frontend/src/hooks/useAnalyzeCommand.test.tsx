@@ -37,7 +37,7 @@ function recorder(over: Partial<AnalyzeCommandInputs> = {}) {
   const requests: AnalyzeRequest[] = []
   const scopes: string[] = []
   const options: AnalyzeOptions[] = []
-  const waiting: ((committed: boolean, partial: boolean) => void)[] = []
+  const waiting: ((committed: boolean) => void)[] = []
   const map = { finishDrawing: vi.fn(() => RING) }
   const inputs: AnalyzeCommandInputs = {
     selection: { kind: 'now' },
@@ -67,8 +67,8 @@ function recorder(over: Partial<AnalyzeCommandInputs> = {}) {
       requests.push(request)
       options.push(opts)
       return new Promise<boolean>((resolve) => {
-        waiting.push((committed, partial) => {
-          if (committed) opts.onCommit?.({ partial })
+        waiting.push((committed) => {
+          if (committed) opts.onCommit?.()
           resolve(committed)
         })
       })
@@ -90,9 +90,7 @@ function recorder(over: Partial<AnalyzeCommandInputs> = {}) {
     scopes,
     options,
     map,
-    // `partial`: the report committed without a kind the map server failed (#735).
-    finish: (committed = true, partial = false) =>
-      act(async () => waiting.splice(0).forEach((settle) => settle(committed, partial))),
+    finish: (committed = true) => act(async () => waiting.splice(0).forEach((settle) => settle(committed))),
   }
 }
 
@@ -171,7 +169,7 @@ describe('useAnalyzeCommand', () => {
     await act(() => failed)
     expect(r.scopes).toEqual([])
 
-    act(() => r.options[0].onCommit?.({ partial: false }))
+    act(() => r.options[0].onCommit?.())
     expect(r.scopes).toHaveLength(1)
     const next = result.current.handleAnalyze()
     await r.finish()
@@ -191,21 +189,6 @@ describe('useAnalyzeCommand', () => {
     await r.finish()
     await act(() => second)
     expect(r.requests.map((q) => (q.polygon ? 'discovery' : 'refresh'))).toEqual(['discovery', 'refresh'])
-  })
-
-  // A report without a kind the map server failed records no discovery, so
-  // the next identical click asks for that kind again rather than refreshing
-  // the weather of the rows on screen (#735). Once a run finds everything,
-  // the click after it is a refresh as usual.
-  it('discovers again after a report missing a kind, and refreshes once nothing is missing', async () => {
-    const r = recorder()
-    const { result } = renderHook(() => useAnalyzeCommand(r.inputs))
-    for (const partial of [true, false, false]) {
-      const run = result.current.handleAnalyze()
-      await r.finish(true, partial)
-      await act(() => run)
-    }
-    expect(r.requests.map(branch)).toEqual(['discovery', 'discovery', 'refresh'])
   })
 
   // A click made while the first discovery is still running finds no record

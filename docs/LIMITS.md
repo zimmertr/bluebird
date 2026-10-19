@@ -34,7 +34,11 @@ sidebar shows the estimated area as you draw and disables Analyze past the cap;
 the backend validates it again and answers `422`, so a bypassed frontend gains
 nothing. The figure shown is a bounding-box approximation rather than true
 polygon area, so an irregular shape often queries less terrain than the number
-suggests.
+suggests. A deployment with its database filled answers discovery from its own
+copy of OpenStreetMap, where a ring at the cap reads in about 20 ms (#760,
+measured 2026-10-18 on a table of the planet's size). The cap stays where
+Overpass put it, because a deployment without that copy, or with one still
+filling, asks Overpass, and so does a search the database drops.
 
 **Points in a polygon.** The area cap measures only the box around a ring, and
 every point of the ring is copied into each clause of the map query, so a dense
@@ -122,11 +126,14 @@ Open-Meteo key never does either, because a keyed request skips the pacer. [API.
 body.
 
 **Request pacing.** Analyze, discovery, search, wildfire perimeters, smoke
-plumes, and closure orders hold separate per-address budgets, so a burst of map searches cannot
+plumes, closure orders, and the map's trailhead and crag markers hold separate per-address budgets, so a burst of map searches cannot
 starve somebody's analysis. Past one you get a `429` with `Retry-After`. They are sized
-so a person iterating on a map never meets them. An IPv6 address counts by its
+so a person iterating on a map never meets them. Each is one budget for the
+whole deployment while its database is up and writable, however many pods your
+requests land on. Without the database each pod keeps its own, and the real
+ceiling is roughly the published number times the replica count. An IPv6 address counts by its
 /64, the smallest block an IPv6 connection is assigned, so the addresses inside
-one block share one budget. Discovery also runs one at a time per address: a second
+one block share one budget. Discovery also runs one at a time per address on each pod: a second
 discovery from the same address waits for the first, and gets the same `429` if
 it waits too long, while another address's goes ahead. A script should stay well under
 them anyway, and can sidestep them entirely by running its own container, where
@@ -141,11 +148,13 @@ to it. The per-address analyze budget above holds, and so does one discovery
 at a time; the cap on in-flight upstream calls holds, and the candidate cap, the destination-hour cap, the
 polygon cap, and the row cap are all unchanged. A key buys a quota, not an exemption.
 
-The wildfire, smoke and closure budgets are the loosest, because the requests they pace
-are the cheapest the service answers: all three come from a snapshot the instance
+The wildfire, smoke, closure and landmark budgets are the loosest, because the requests they pace
+are the cheapest the service answers: all four come from a copy the instance
 already holds, so a pan costs no upstream call at all. What those budgets
 protect is this instance's own bandwidth, not the providers' quotas, which are
-bounded instead by how often each snapshot refreshes.
+bounded instead by how often each snapshot refreshes. With the database up, one
+pod refreshes each snapshot for every pod, so that cost does not grow with the
+replica count.
 
 The rain-radar and snow-depth overlays appear in none of this, and deliberately.
 Their images go from Iowa Environmental Mesonet and from NOAA straight to the
@@ -166,7 +175,7 @@ is and whether waiting helps:
 | `422` | A field would not parse or failed a bound: a polygon over the area cap, a ring with too many points, a list longer than its maximum, a `limit` out of range, a window outside the horizon, a malformed `bbox`. Only the caller can change the outcome. |
 | `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis, or the edge rate rule in front of `bluebirdforecast.com` refused the request before the pod saw it (see [TRAFFIC.md](TRAFFIC.md)). `Retry-After` is honest in every case. |
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
-| `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires`, `GET /api/smoke` and `GET /api/closures` it means something narrower: this instance has never once fetched that dataset successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |
+| `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires`, `GET /api/smoke` and `GET /api/closures` it means something narrower: no fetch of that dataset has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve, not even stale. From `GET /api/landmarks` it means the instance has no copy of OpenStreetMap to answer from: it runs without the database, or the first fill has not finished. Transient either way, and carries `Retry-After`. |
 
 Each of these carries a machine-readable `error.code` beside the sentence, so a
 program can tell a failure it caused from one worth retrying without reading

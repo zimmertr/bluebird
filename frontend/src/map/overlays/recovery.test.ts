@@ -63,6 +63,20 @@ describe('overlayRecovery', () => {
     expect(retry).toHaveBeenCalledTimes(1)
   })
 
+  it('says it is waiting only while a failure’s Retry-After runs', () => {
+    const { recovery, advance } = setup(false)
+    expect(recovery.waiting()).toBe(false)
+    recovery.failed(30)
+    expect(recovery.waiting()).toBe(true)
+    advance(30_000)
+    expect(recovery.waiting()).toBe(false)
+    recovery.failed(30)
+    recovery.succeeded()
+    expect(recovery.waiting()).toBe(false)
+    recovery.failed(null)
+    expect(recovery.waiting()).toBe(false)
+  })
+
   it('ignores a reconnect with nothing outstanding', () => {
     const { recovery, retry, goOnline, advance } = setup(true)
     goOnline()

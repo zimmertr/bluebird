@@ -3,14 +3,18 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
+import psycopg
+import pytest
 from conftest import dest, fake_response
 from fastapi import Request
 from fastapi.testclient import TestClient
 
-from app import ratelimit
+from app import db, ratelimit
 from app.main import app
+from app.ratelimit import shared
 from app.routes import geocode as geocode_mod
 from app.services import air_quality as aqi_mod
 from app.services import osm as osm_mod
@@ -475,6 +479,30 @@ def test_gate_sheds_when_queue_exceeds_max_wait():
     assert exc.retry_after_s == 10
 
 
+def test_a_gate_without_the_shared_cache_spaces_calls_by_its_pod_interval():
+    # Per pod, every replica runs a gate of its own, so the spacing that keeps
+    # the deployment under Nominatim's policy is the pod's, not the shared one.
+    async def scenario():
+        gate = ratelimit.MinIntervalGate("test", 0.01, pod_interval_s=10.0, max_wait_s=0.05)
+        await gate.acquire()
+        try:
+            await gate.acquire()
+        except ratelimit.BudgetExhausted as exc:
+            return exc
+        return None
+
+    exc = asyncio.run(scenario())
+    assert isinstance(exc, ratelimit.BudgetExhausted)
+    assert exc.retry_after_s == 10
+
+
+def test_the_nominatim_gate_stays_under_the_policy_either_way():
+    # 1 a second is the policy; the per-pod spacing has to cover the most
+    # replicas the production autoscaler runs (maxReplicas 10, 2026-10-18).
+    assert ratelimit.upstream.NOMINATIM_MIN_INTERVAL_MS >= 1000
+    assert ratelimit.upstream.NOMINATIM_POD_MIN_INTERVAL_MS >= 10 * 1000
+
+
 def test_gate_zero_interval_is_a_noop():
     async def scenario():
         gate = ratelimit.MinIntervalGate("test", 0.0)
@@ -495,6 +523,7 @@ def test_capabilities_publishes_live_limiter_values(monkeypatch):
     monkeypatch.setattr(ratelimit.client, "WILDFIRES_LIMITER", ratelimit.RateLimiter(90, 30))
     monkeypatch.setattr(ratelimit.client, "SMOKE_LIMITER", ratelimit.RateLimiter(90, 30))
     monkeypatch.setattr(ratelimit.client, "CLOSURES_LIMITER", ratelimit.RateLimiter(90, 30))
+    monkeypatch.setattr(ratelimit.client, "LANDMARKS_LIMITER", ratelimit.RateLimiter(90, 30))
     rate = client.get("/api/capabilities").json()["limits"]["rate"]
     assert rate == {
         "analyze_per_minute": 12,
@@ -509,6 +538,8 @@ def test_capabilities_publishes_live_limiter_values(monkeypatch):
         "smoke_burst": 30,
         "closures_per_minute": 90,
         "closures_burst": 30,
+        "landmarks_per_minute": 90,
+        "landmarks_burst": 30,
     }
 
 
@@ -535,3 +566,154 @@ def test_env_overrides_and_bad_values_fall_back(monkeypatch):
         monkeypatch.delenv("RATE_LIMIT_ANALYZE_PER_MINUTE", raising=False)
         monkeypatch.delenv("UPSTREAM_CONCURRENCY_OVERPASS", raising=False)
         _reload_ratelimit()
+
+
+# ── The shared cache's fallbacks (#760) ────────────────────────────────────
+#
+# The shared path itself is tested against a real database in
+# test_ratelimit_shared.py. These hold what needs none: when a guard must not
+# ask the database at all, and what it does when the database cannot answer.
+
+
+@pytest.fixture
+def shared_cache_down(monkeypatch):
+    """A writable shared cache whose every connection fails; yields the attempts."""
+    attempts: list[str] = []
+
+    @asynccontextmanager
+    async def down():
+        attempts.append("connect")
+        raise db.DatabaseUnavailable("the shared cache is down")
+        yield  # never reached; makes this a generator
+
+    monkeypatch.setattr(db, "writable", lambda: True)
+    monkeypatch.setattr(db, "connection", down)
+    shared.reset()
+    yield attempts
+    shared.reset()
+
+
+@pytest.fixture
+def shared_cache_forbidden(monkeypatch):
+    """A writable shared cache that fails the test if anything connects to it."""
+
+    @asynccontextmanager
+    async def forbidden():
+        raise AssertionError("a guard asked the database when it must not")
+        yield  # never reached; makes this a generator
+
+    monkeypatch.setattr(db, "writable", lambda: True)
+    monkeypatch.setattr(db, "connection", forbidden)
+    shared.reset()
+    yield
+    shared.reset()
+
+
+async def test_disabled_guards_never_ask_the_database(shared_cache_forbidden):
+    # The suite's autouse fixture disables every guard this way, so a database
+    # call here would put one on every route test that has a database.
+    assert await ratelimit.RateLimiter(0, 1).take("a") == (True, 0.0)
+    await ratelimit.MinIntervalGate("test", 0.0).acquire()
+    await ratelimit.WeightedBudget("test", 0).acquire(10_000)
+
+
+async def test_a_read_only_pod_counts_on_its_own(monkeypatch):
+    @asynccontextmanager
+    async def forbidden():
+        raise AssertionError("a read-only pod asked to write a counter")
+        yield  # never reached; makes this a generator
+
+    monkeypatch.setattr(db, "writable", lambda: False)
+    monkeypatch.setattr(db, "connection", forbidden)
+    limiter = ratelimit.RateLimiter(60, 1)
+    assert (await limiter.take("a"))[0]
+    assert not (await limiter.take("a"))[0]
+
+
+async def test_an_unanswerable_database_falls_back_to_the_pods_own_bucket(shared_cache_down):
+    limiter = ratelimit.RateLimiter(60, 1, name="test")
+    assert await limiter.take("a") == (True, 0.0)
+    allowed, retry_after = await limiter.take("a")
+    assert not allowed and retry_after > 0
+    # The first failure pauses the shared path, so an outage costs one
+    # request the wait rather than every request.
+    assert shared_cache_down == ["connect"]
+
+
+def test_an_unanswerable_database_never_answers_500(shared_cache_down, monkeypatch):
+    monkeypatch.setattr(ratelimit.client, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
+    assert client.post("/api/analyze", json=_analyze_payload()).status_code == 400
+    assert client.post("/api/analyze", json=_analyze_payload()).status_code == 429
+
+
+async def test_a_statement_the_database_refuses_falls_back(monkeypatch):
+    class _Refusing:
+        async def execute(self, *args, **kwargs):
+            raise psycopg.errors.UndefinedTable('relation "rate_buckets" does not exist')
+
+    @asynccontextmanager
+    async def refusing():
+        yield _Refusing()
+
+    monkeypatch.setattr(db, "writable", lambda: True)
+    monkeypatch.setattr(db, "connection", refusing)
+    shared.reset()
+    try:
+        assert (await ratelimit.RateLimiter(60, 1).take("a"))[0]
+    finally:
+        shared.reset()
+
+
+async def test_a_slow_database_falls_back_within_the_bound(monkeypatch):
+    @asynccontextmanager
+    async def hanging():
+        await asyncio.sleep(10)
+        yield None
+
+    monkeypatch.setattr(db, "writable", lambda: True)
+    monkeypatch.setattr(db, "connection", hanging)
+    monkeypatch.setattr(shared, "TIMEOUT_S", 0.01)
+    shared.reset()
+    try:
+        assert (await ratelimit.RateLimiter(60, 1).take("a"))[0]
+    finally:
+        shared.reset()
+
+
+async def test_the_gate_falls_back_to_this_pods_spacing(shared_cache_down):
+    gate = ratelimit.MinIntervalGate("test", 10.0, max_wait_s=0.0)
+    await gate.acquire()
+    with pytest.raises(ratelimit.BudgetExhausted) as exc:
+        await gate.acquire()
+    assert exc.value.retry_after_s == 10
+
+
+async def test_the_budget_falls_back_to_this_pods_window(shared_cache_down):
+    clock = _Clock()
+    budget = ratelimit.WeightedBudget("test", 60, max_wait_s=15, clock=clock)
+    await budget.acquire(60)
+    with pytest.raises(ratelimit.BudgetExhausted) as exc:
+        await budget.acquire(30)
+    assert exc.value.retry_after_s == 60
+
+
+def test_geocode_falls_back_to_this_pods_cache(shared_cache_down, monkeypatch):
+    calls: list[str] = []
+
+    class _FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def get(self, url, params=None, headers=None):
+            calls.append(params["q"])
+            return fake_response([{"display_name": "Mount Baker"}])
+
+    monkeypatch.setattr(geocode_mod.httpx, "AsyncClient", lambda *a, **k: _FakeClient())
+    first = client.get("/api/geocode", params={"q": "Baker"})
+    second = client.get("/api/geocode", params={"q": "Baker"})
+    assert first.status_code == second.status_code == 200
+    assert second.json() == [{"display_name": "Mount Baker"}]
+    assert calls == ["Baker"]

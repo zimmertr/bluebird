@@ -2,7 +2,8 @@
  * Every feature on the map, mounted in the order its layers stack, lowest
  * first, when the map loads.
  *
- * The basemap patch goes under the style's own labels. Above the style: the
+ * The basemap patch goes under the style's own labels, and the trailhead and
+ * crag markers over it, still under those labels. Above the style: the
  * forecast grid, which is the ground everything else is read against, then
  * smoke, then the fire perimeters, then the closures over the fires that
  * caused them (the closed ground under the closed trails, so a trail reads on
@@ -28,6 +29,7 @@ import { mountCamera } from './camera'
 import type { MapController } from './controller'
 import { mountDrawRing, type DrawRing } from './drawRing'
 import { serveHeldTiles } from './heldTileProtocol'
+import { mountLandmarks, type LandmarkLayer } from './landmarks'
 import { mountMapPopups } from './mapPopups'
 import { mountClosures, type ClosureOverlay } from './overlays/closures'
 import { mountForecastGrid, type ForecastGridOverlay } from './overlays/forecastGrid'
@@ -41,6 +43,7 @@ import { mountResultsLayer, type ResultsLayer } from './resultsLayer'
 
 export interface MapFeatures {
   grid: ForecastGridOverlay
+  landmarks: LandmarkLayer
   smoke: SmokeOverlay
   wildfires: WildfireOverlay
   areaClosures: ClosureOverlay
@@ -83,6 +86,8 @@ export function mountFeatures(
   // they painted (#737).
   serveHeldTiles(addProtocol)
   enhanceBasemap(map)
+  // After the basemap patch, which registers the icons its layers name.
+  const landmarks = mountLandmarks(map, {})
   const grid = mountForecastGrid(map)
   const smoke = mountSmoke(map, { popups: mapPopups })
   const wildfires = mountWildfires(map, { popups: mapPopups })
@@ -99,9 +104,9 @@ export function mountFeatures(
     onDrawUpdate: deps.onDrawUpdate,
   })
   const results = mountResultsLayer(map, { controller, popups: mapPopups })
-  const pois = mountPoiPopups(map, { controller, popups: mapPopups })
+  const pois = mountPoiPopups(map, { controller, popups: mapPopups, landmarks })
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })
-  return { grid, smoke, wildfires, areaClosures, trailClosures, snow, radar, drawRing, results, pois }
+  return { grid, landmarks, smoke, wildfires, areaClosures, trailClosures, snow, radar, drawRing, results, pois }
 }

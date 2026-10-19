@@ -11,7 +11,8 @@ services the data comes from, and the software bundled into the shipped image.
      same PR. -->
 
 - [OpenStreetMap](https://www.openstreetmap.org/copyright): destination names,
-  coordinates, and elevations, queried through the Overpass API. The data is
+  coordinates, and elevations, from a copy the server keeps current daily, or
+  the Overpass API when that copy cannot answer. The data is
   © OpenStreetMap contributors, under the
   [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/).
   Credited in the map's corner attribution control, and below the data in
@@ -34,8 +35,8 @@ services the data comes from, and the software bundled into the shipped image.
   licence.
 - [OpenFreeMap](https://openfreemap.org): serves the basemap's vector tiles,
   which are drawn from OpenStreetMap data in the OpenMapTiles schema, and
-  which the app also reads to match a pasted coordinate to the peak it stands
-  on. The map corner credits OpenFreeMap, OpenMapTiles, and OpenStreetMap
+  which the app also reads for the glaciers the snow card names. The map
+  corner credits OpenFreeMap, OpenMapTiles, and OpenStreetMap
   through the attribution the tile metadata declares.
 - [Nominatim](https://nominatim.org): place lookup for the map search box. Its
   results derive from OpenStreetMap data, under the same ODbL.
@@ -112,14 +113,17 @@ Backend (pip), installed into the image:
 | httpx | BSD-3-Clause |
 | pydantic | MIT |
 | prometheus-client | Apache-2.0 AND BSD-2-Clause |
+| psycopg | LGPL-3.0-only |
+| psycopg-pool | LGPL-3.0-only |
 
 Vendored: [swagger-ui-dist](https://www.npmjs.com/package/swagger-ui-dist)
 (Apache-2.0), copied into `static/swagger-ui/` at build time so `/docs` loads
 nothing from a CDN.
 
 Their transitive dependencies are all under permissive MIT, ISC, and
-BSD-family licenses, with two exceptions worth naming: `certifi` (MPL-2.0)
-and `typing_extensions` (PSF-2.0). `victory-vendor` (MIT AND ISC, through
+BSD-family licenses, with three exceptions worth naming: `certifi` (MPL-2.0),
+`typing_extensions` (PSF-2.0), and `psycopg-binary` (LGPL-3.0-only), the
+build of psycopg that carries its own copy of PostgreSQL's client library. `victory-vendor` (MIT AND ISC, through
 recharts) ships no license file of its own, so its text is copied from the
 Victory repository into `frontend/plugins/licenses/`. The base image's OS
 packages and the Python interpreter are covered by the SBOM and by the base
@@ -129,4 +133,25 @@ local build:
 ```bash
 docker build -t bluebird-forecast:local .
 docker run --rm bluebird-forecast:local cat static/third-party-licenses.txt
+```
+
+The planet fill is a second image, `zimmertr/bluebird-fill` (#760). Its
+software is Debian's own packages on `trixie-slim`, each with its license text
+in the image at `/usr/share/doc/<package>/copyright`, so it carries no
+`third-party-licenses.txt`. The release attaches an SBOM to this image too:
+
+| Package | License |
+|---|---|
+| osmium-tool | GPL-3.0-or-later |
+| python3-pyosmium | BSD-2-Clause |
+| python3-psycopg2 | LGPL-3.0-or-later, with an exception for linking OpenSSL |
+
+The libraries they load come from Debian the same way, `libpq5` (PostgreSQL
+License) among them, with their texts in the same place. `fill.py` and the `rules.py`
+it reads are this repository's code under its license, which the image
+carries as `/app/LICENSE`. To read a package's text from a local build:
+
+```bash
+docker build -f fill/Dockerfile -t bluebird-fill:local .
+docker run --rm --entrypoint cat bluebird-fill:local /usr/share/doc/osmium-tool/copyright
 ```

@@ -1,6 +1,6 @@
 # 0157. Cities, towns, villages, hamlets and climbing labels are selectable on the map
 
-- Status: Accepted; the climbing icon superseded by [0159](0159-crags-destination-type.md)
+- Status: Accepted; the climbing icon superseded by [0159](0159-crags-destination-type.md); the climbing labels superseded by [0180](0180-trailhead-and-crag-markers-from-the-places-table.md)
 - Date: 2026-10-15
 - Decider: the maintainer (TJ), on issue #710, 2026-10-15
 - Issues and PRs: #710, #119, #715

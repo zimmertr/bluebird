@@ -40,9 +40,11 @@ class DataSource(BaseModel):
 class RateLimits(BaseModel):
     """Per-client request pacing on the expensive endpoints.
 
-    Enforced per backend instance, so behind a multi-replica deployment the
-    effective ceiling is roughly the number shown times the replica count.
-    Requests past a limit receive 429 with a `Retry-After` header.
+    Enforced across every backend instance while the deployment's shared
+    cache is up, and per backend instance otherwise, where behind a
+    multi-replica deployment the effective ceiling is roughly the number shown
+    times the replica count. Requests past a limit receive 429 with a
+    `Retry-After` header.
     """
 
     analyze_per_minute: int = Field(
@@ -127,6 +129,21 @@ class RateLimits(BaseModel):
             "How many closure requests an idle client can send back-to-back "
             "before the per-minute pace applies. Sized for a map pan with both "
             "closure layers on."
+        )
+    )
+    landmarks_per_minute: int = Field(
+        description=(
+            "Sustained `GET /api/landmarks` requests per client address per "
+            "minute. As loose as the wildfire bucket and for the same reason: "
+            "it answers from the places table and reaches no upstream. 0 means "
+            "the limit is disabled."
+        )
+    )
+    landmarks_burst: int = Field(
+        description=(
+            "How many landmark requests an idle client can send back-to-back "
+            "before the per-minute pace applies. Sized for a map pan, which "
+            "refetches on a 400 ms debounce from zoom 11 up."
         )
     )
 
@@ -442,6 +459,8 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
                 smoke_burst=ratelimit.client.SMOKE_LIMITER.burst,
                 closures_per_minute=ratelimit.client.CLOSURES_LIMITER.per_minute,
                 closures_burst=ratelimit.client.CLOSURES_LIMITER.burst,
+                landmarks_per_minute=ratelimit.client.LANDMARKS_LIMITER.per_minute,
+                landmarks_burst=ratelimit.client.LANDMARKS_LIMITER.burst,
             ),
         ),
         # The same static geometries the overlay routes ride, read from the
@@ -454,9 +473,13 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
         ),
         data_sources=[
             DataSource(
-                name="OpenStreetMap via Overpass",
-                url="https://overpass-api.de",
-                provides="Named destinations inside the polygon",
+                name="OpenStreetMap",
+                url="https://www.openstreetmap.org/copyright",
+                provides=(
+                    "Named destinations inside the polygon, from a copy the server "
+                    "keeps current daily, or the Overpass API when that copy cannot "
+                    "answer"
+                ),
             ),
             DataSource(
                 name="Open-Meteo",

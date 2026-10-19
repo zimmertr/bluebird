@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  CLIMBING_CLASS,
   isPoiFeature,
   LAKE_CLASS,
   PLACE_CLASSES,
@@ -13,9 +12,11 @@ import {
   samePoi,
 } from './basemapPoi'
 import { isPeakKind } from './geocode'
-// `?raw` gives the map module's text without executing it, so this stays a pure
-// node test with no DOM and no MapLibre.
+import { LANDMARK_LAYERS } from './landmarks'
+// `?raw` gives the map modules' text without executing them, so this stays a
+// pure node test with no DOM and no MapLibre.
 import basemapSource from '../map/basemap.ts?raw'
+import landmarksSource from '../map/landmarks.ts?raw'
 
 const RAINIER: [number, number] = [-121.7604, 46.8529]
 
@@ -125,27 +126,57 @@ describe('poiFromFeature', () => {
   })
 })
 
-// Climbing labels (#710). At Index, z14/2659/5707, a crag (`Foodbar Crag`)
-// and a single route (`Thin Fingers`) carry the same properties, and one
-// climbing feature has no name at all (2026-10-15).
-describe('poiFromFeature on a climbing label', () => {
-  const INDEX: [number, number] = [-121.557, 47.8203]
+// The pod's trailheads and crags (#734), as `GET /api/landmarks` answers
+// them: OSM's own coordinates, the object's id, and an elevation or null.
+describe('poiFromFeature on a landmark', () => {
+  const MAILBOX: [number, number] = [-121.7437, 47.4875]
+  const trailhead = { name: 'Mailbox Peak Trailhead', kind: 'trailhead', osm_id: 'node/4578891234', elevation_ft: null }
+  const crag = { name: 'Lower Town Wall', kind: 'crag', osm_id: 'relation/1234', elevation_ft: null }
 
-  it('accepts a named crag or route as climbing, with no elevation', () => {
-    for (const name of ['Foodbar Crag', 'Thin Fingers']) {
-      expect(
-        poiFromFeature('ofm-climbing', { name, class: CLIMBING_CLASS, subclass: 'climbing', rank: 3 }, INDEX),
-      ).toEqual({ name, kind: 'climbing', lat: 47.8203, lon: -121.557 })
-    }
+  it('reads a trailhead with its OSM id, and no elevation where the route sends none', () => {
+    expect(poiFromFeature('landmark-trailheads', trailhead, MAILBOX)).toEqual({
+      name: 'Mailbox Peak Trailhead',
+      kind: 'trailhead',
+      lat: 47.4875,
+      lon: -121.7437,
+      osmId: 'node/4578891234',
+    })
   })
 
-  it('refuses an unnamed one, and any other poi class', () => {
-    expect(poiFromFeature('ofm-climbing', { class: CLIMBING_CLASS, subclass: 'climbing', rank: 9 }, INDEX)).toBeNull()
-    expect(poiFromFeature('ofm-climbing', { name: 'Mount Si Trailhead', class: 'bus' }, INDEX)).toBeNull()
+  it('reads an elevation where the route carries one', () => {
+    expect(poiFromFeature('landmark-trailheads', { ...trailhead, elevation_ft: 820 }, MAILBOX)?.elevationFt).toBe(820)
   })
 
-  it('is one of the layers a click reads', () => {
-    expect(POI_LAYERS).toContain('ofm-climbing')
+  // A crag's link is Mountain Project's, by name (`destinationUrl`), so the
+  // kind is the type that link keys on.
+  it('reads a crag as a crag', () => {
+    expect(poiFromFeature('landmark-crags', crag, MAILBOX)).toEqual({
+      name: 'Lower Town Wall',
+      kind: 'crag',
+      lat: 47.4875,
+      lon: -121.7437,
+      osmId: 'relation/1234',
+    })
+  })
+
+  // Each layer filters on its own kind, so this fires only if the filter and
+  // this module come out of step.
+  it('refuses a kind its layer does not draw, and an unnamed one', () => {
+    expect(poiFromFeature('landmark-crags', trailhead, MAILBOX)).toBeNull()
+    expect(poiFromFeature('landmark-trailheads', crag, MAILBOX)).toBeNull()
+    expect(poiFromFeature('landmark-trailheads', { ...trailhead, kind: undefined }, MAILBOX)).toBeNull()
+    expect(poiFromFeature('landmark-trailheads', { ...trailhead, name: ' ' }, MAILBOX)).toBeNull()
+  })
+
+  it('carries the OSM id through to the place a pin keeps', () => {
+    const place = poiToPlace(poiFromFeature('landmark-trailheads', { ...trailhead, elevation_ft: 820 }, MAILBOX)!)
+    expect(place.osmId).toBe('node/4578891234')
+    expect(place.elevationFt).toBe(820)
+    expect(place.kind).toBe('trailhead')
+  })
+
+  it('is two of the layers a click reads', () => {
+    for (const layer of LANDMARK_LAYERS) expect(POI_LAYERS).toContain(layer)
   })
 })
 
@@ -210,14 +241,15 @@ describe('poiToPlace', () => {
     })
   })
 
-  it('omits elevation entirely rather than carrying an undefined one', () => {
+  it('omits elevation and the OSM id entirely rather than carrying undefined ones', () => {
     const place = poiToPlace({ name: 'Snow Lake', kind: 'lake', lat: 47.4, lon: -121.4 })
     expect('elevationFt' in place).toBe(false)
+    expect('osmId' in place).toBe(false)
   })
 })
 
 // The map is the other half of this module: it draws the layers whose features
-// arrive here, in `map/basemap.ts`. Vitest has no DOM and cannot instantiate
+// arrive here, in `map/basemap.ts` and `map/landmarks.ts`. Vitest has no DOM and cannot instantiate
 // MapLibre, so the pair is checked by reading that module as text, the same
 // `?raw` idiom metrics.test.ts uses to keep a vocabulary from drifting out of
 // its surfaces. What the file must say on its own is the `map-basemap-layers`
@@ -225,13 +257,17 @@ describe('poiToPlace', () => {
 // module's exports, or measures it.
 describe('the layers this module reads', () => {
   // The place labels are the style's own, so the map adds a glow under each
-  // and no label; every other layer here is one it adds.
+  // and no label; the landmark layers are added from their list by id; every
+  // other layer here is one the basemap patch spells.
   it('are the ones the map actually adds', () => {
     for (const layer of POI_LAYERS) {
       if ((PLACE_LAYERS as readonly string[]).includes(layer)) continue
+      if ((LANDMARK_LAYERS as readonly string[]).includes(layer)) continue
       expect(basemapSource).toContain(`id: '${layer}'`)
     }
     expect(basemapSource).toContain('for (const id of PLACE_LAYERS)')
+    expect(landmarksSource).toContain('for (const id of LANDMARK_LAYERS)')
+    expect(landmarksSource).toMatch(/\{\s*id,\s*type: 'symbol'/)
   })
 
   // Line placement will not honour the shared `top` anchor, so the line layer

@@ -284,12 +284,12 @@ def test_rejected_analyze_observes_nothing(stub_upstreams):
 # ── Throttles, sheds, pacing ───────────────────────────────────────────────
 
 
-def test_throttle_increments_the_named_bucket():
+async def test_throttle_increments_the_named_bucket():
     limiter = ratelimit.RateLimiter(1, 1, name="test-bucket")
     before = _value("bluebird_forecast_ratelimit_throttled_total", {"bucket": "test-bucket"})
-    ratelimit._throttle(limiter, _request())
+    await ratelimit._throttle(limiter, _request())
     with pytest.raises(HTTPException) as exc_info:
-        ratelimit._throttle(limiter, _request())
+        await ratelimit._throttle(limiter, _request())
     assert exc_info.value.status_code == 429
     assert (
         _value("bluebird_forecast_ratelimit_throttled_total", {"bucket": "test-bucket"})

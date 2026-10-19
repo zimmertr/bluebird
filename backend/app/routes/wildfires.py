@@ -29,9 +29,9 @@ class WildfireCollection(BaseModel):
     )
     fetched_at: int = Field(
         description=(
-            "When this instance last fetched perimeters from NIFC, in epoch "
+            "When Bluebird Forecast last fetched perimeters from NIFC, in epoch "
             "milliseconds. A GeoJSON foreign member, which map libraries ignore. "
-            "Perimeters are cached per instance and served past their refresh "
+            "Perimeters are cached and served past their refresh "
             "deadline when NIFC is unreachable, so this is the only honest "
             "statement of how current the shapes are. It is not when any "
             "individual fire was last surveyed: that is the per-feature "
@@ -70,8 +70,8 @@ class WildfireCollection(BaseModel):
         "This exists because NIFC's ArcGIS quota belongs to *their* "
         "organization and is shared by every consumer of the public dataset, so "
         "a browser calling NIFC directly competes with the rest of the internet "
-        "for it and loses at random. This instance fetches the national set on a "
-        "timer and serves it to everyone, which reduces Bluebird Forecast's contribution "
+        "for it and loses at random. Bluebird Forecast fetches the national set on a "
+        "timer and serves it to everyone, which reduces its contribution "
         "to that quota to a fixed handful of requests per hour no matter how "
         "many people are looking at maps.\n\n"
         "Coverage is the United States only: NIFC does not publish perimeters "
@@ -80,9 +80,9 @@ class WildfireCollection(BaseModel):
         "Perimeters are served past their refresh deadline when NIFC is "
         "unreachable, because a shape measured an hour ago still answers a "
         "10-mile proximity question correctly. Read `fetched_at` to see how "
-        "current the answer is. An instance answers 503 when it has never "
-        "completed a fetch, or when every refresh has failed for more than 24 "
-        "hours since its last good one."
+        "current the answer is. It answers 503 when no fetch has completed "
+        "yet, or when every refresh has failed for more than 24 hours since "
+        "the last good one."
     ),
     response_description="Perimeters intersecting the box, with the fetch timestamp.",
     response_model=WildfireCollection,
@@ -102,9 +102,9 @@ class WildfireCollection(BaseModel):
         503: {
             "model": ErrorResponse,
             "description": (
-                "This instance has never completed a fetch from NIFC, or every "
-                "refresh has failed for more than 24 hours since its last good "
-                "one, so it has nothing it will serve. Transient; `Retry-After` says "
+                "No fetch from NIFC has completed yet, or every refresh has "
+                "failed for more than 24 hours since the last good one, so "
+                "there is nothing to serve. Transient; `Retry-After` says "
                 "when to retry."
             ),
         },

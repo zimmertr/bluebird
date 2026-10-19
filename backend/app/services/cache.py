@@ -15,10 +15,12 @@ twice within minutes:
   time against a 600/minute budget.
 - Nominatim place searches, keyed by (query, limit): Nominatim's usage policy
   asks callers to cache results, and every search otherwise waits its turn
-  behind a per-pod gate set to their ~1 request per second (issue #571).
+  behind the gate set to their ~1 request per second (issue #571).
 
-All of these caches are per pod and in-memory on purpose, like everything in
-ratelimit: the goal is absorbing repeats, not exactness across replicas.
+These are per pod and in-memory on purpose: the goal is absorbing repeats,
+not exactness across replicas. The one exception is the place search, which
+`routes/geocode.py` keeps in the shared cache when it can (#760), with the
+same TTL and with this store as its per-pod path.
 Entries expire by TTL (OSM data, from Overpass or Nominatim, drifts on a
 human timescale; Open-Meteo
 model runs update roughly hourly, so 15 minutes is conservative) and the
@@ -35,6 +37,7 @@ send bit-identical coordinates, which is the hit pattern that matters.
 
 from __future__ import annotations
 
+import json
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
@@ -195,7 +198,7 @@ def discovery_key(ring: Sequence[Sequence[float]], type_value: str) -> tuple:
     return (CACHE_VERSION, type_value, coords)
 
 
-def custom_enrich_key(points: list[tuple[float, float]]) -> tuple:
+def custom_enrich_key(points: list[tuple[float, float, str]]) -> tuple:
     """Cache key for one custom list's elevation lookup.
 
     Coordinates are rounded to 5 decimals (~1 m), the same precision
@@ -203,8 +206,10 @@ def custom_enrich_key(points: list[tuple[float, float]]) -> tuple:
     question being asked is "what stands on this SET of points", so two
     pastes of the same peaks in a different order must hit the same entry.
     That is the reasoning behind ``pointsKey`` in ``fireProximity.ts`` too.
+    Each point carries its row's name as the lookup compares it, because the
+    name match can place a point the coordinate match left (#760).
     """
-    coords = tuple(sorted((round(lat, 5), round(lon, 5)) for lat, lon in points))
+    coords = tuple(sorted((round(lat, 5), round(lon, 5), name) for lat, lon, name in points))
     return (CACHE_VERSION, "custom-enrich", coords)
 
 
@@ -218,6 +223,15 @@ def geocode_key(query: str, limit: int) -> tuple:
     cannot answer a request for a longer one.
     """
     return (CACHE_VERSION, "geocode", query, limit)
+
+
+def shared_key(key: tuple) -> str:
+    """A key as text, for an entry the shared cache holds.
+
+    JSON, so a query holding any separator still makes one unambiguous string,
+    and ``CACHE_VERSION`` rides along as it does in memory.
+    """
+    return json.dumps(key)
 
 
 # Cached values are per-WINDOW results (aggregates and series computed over
