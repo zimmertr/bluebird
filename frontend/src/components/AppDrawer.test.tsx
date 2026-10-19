@@ -281,7 +281,7 @@ describe('AppDrawer', () => {
       // clock: frozen, the two presses are a double press by construction
       // rather than by how fast the steps between them ran.
       vi.useFakeTimers({ toFake: ['Date', 'performance'] })
-      onTestFinished(() => vi.useRealTimers())
+      onTestFinished(() => void vi.useRealTimers())
       const onSheetPx = vi.fn()
       render(drawer(true, NOOP, false, { isDesktop: false, sheetPx: 540, sheetRestPx: 540, sheetFullPx: 700, onSheetPx }))
       const title = screen.getByRole('heading', { name: 'Controls' })
