@@ -66,6 +66,15 @@ def test_the_bare_prefix_is_a_json_404_not_the_static_page(static_mount, method,
         assert response.json() == not_found_body(path)
 
 
+def test_a_missed_page_is_answered_with_the_html_not_found_page(static_mount):
+    # StaticFiles(html=True) serves the build's 404.html for a path it has no
+    # file for, which is the page the image relies on outside /api.
+    response = client.get("/no-such-page")
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("text/html")
+    assert "<title>Not found</title>" in response.text
+
+
 def test_the_body_is_one_builder_with_the_path_in_it():
     # The gateway's copy is this builder with a phrase for the path, so the
     # route must not grow a field the builder does not carry.
