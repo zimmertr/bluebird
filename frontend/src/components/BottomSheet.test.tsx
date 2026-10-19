@@ -56,6 +56,21 @@ describe('BottomSheet', () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
+  // Done is the card's first stop and the checkbox its last, so Tab wraps
+  // between them; Enter in a field is the field's, not a close.
+  it('keeps Tab inside the sheet, both ways', () => {
+    const onClose = sheet()
+    const done = screen.getByRole('button', { name: 'Done' })
+    const box = screen.getByRole('checkbox')
+    box.focus()
+    expect(fireEvent.keyDown(document, { key: 'Tab' })).toBe(false)
+    expect(document.activeElement).toBe(done)
+    expect(fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })).toBe(false)
+    expect(document.activeElement).toBe(box)
+    fireEvent.keyDown(document, { key: 'Enter' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   // The dim catches a press outside the card; a press inside the card is
   // the card's.
   it('closes on a press on the dimmed map and not on one inside the card', () => {

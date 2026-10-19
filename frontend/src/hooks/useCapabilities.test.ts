@@ -126,6 +126,15 @@ describe('parseCapabilities', () => {
     expect(parseCapabilities({ ...body, coverage: null }).coverage).toEqual({})
   })
 
+  it('keeps all three outlines when all three are MultiPolygons', () => {
+    const outline = { type: 'MultiPolygon', coordinates: [[[[-125, 42], [-116, 42], [-116, 49], [-125, 42]]]] }
+    const parsed = parseCapabilities({
+      ...body,
+      coverage: { wildfires: outline, area_closures: outline, trail_closures: outline },
+    })
+    expect(parsed.coverage).toEqual({ wildfires: outline, areaClosures: outline, trailClosures: outline })
+  })
+
   // The regression this pair caught while it was being written: the model
   // fields are spread over the parsed limits, so a body publishing ceilings but
   // no models must not have those ceilings replaced by compiled fallbacks.
@@ -163,6 +172,14 @@ describe('parseCapabilities', () => {
     expect(parsed.defaultForecastModel).toBe('good')
     // And a missing label reads as the id rather than as a gap.
     expect(parsed.forecastModels[0].label).toBe('good')
+  })
+
+  // A list whose every entry is unusable is no list: the stand-in, and still
+  // told apart from a published one.
+  it('falls back to the stand-in when no published model is usable', () => {
+    const parsed = parseCapabilities({ limits: {}, forecast_models: [{ id: 'no_hours' }] })
+    expect(parsed.forecastModels).toEqual([FALLBACK_FORECAST_MODEL])
+    expect(publishesModels(parsed.forecastModels)).toBe(false)
   })
 
   // The chart marks a blended line, because a blend changes model partway
