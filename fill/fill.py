@@ -1,7 +1,7 @@
 """The planet fill: the shared cache's places table, built from OpenStreetMap (#760).
 
-A daily CronJob runs this in its own image (fill/Dockerfile) with a scratch
-volume at SCRATCH_DIR. On most days it only checks: the places table was filled
+A weekly CronJob runs this in its own image (fill/Dockerfile) with a scratch
+volume at SCRATCH_DIR. On most runs it only checks: the places table was filled
 under this release's `rules.RULES_VERSION`, so it exits without downloading
 anything. Otherwise it fills: it downloads the planet file, keeps what the app's
 own rules keep, and swaps a new table in under the live one in one transaction,

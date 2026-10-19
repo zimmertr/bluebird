@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-18
-- Decider: the maintainer (TJ), on issue #760, 2026-10-18: option A (one PostgreSQL with PostGIS holding what the app asks upstream for over and over), CloudNativePG with its operator installed once in Kubernetes-Manifests and its `cluster` chart a bluebird-helm subchart behind values, on by default, a `proxmox-flashpool` volume, one refresher per source chosen by an advisory lock, a backoff doubling from a minute to an hour, the forecast cache kept per pod, and CI run with the database off. The three modes, the pool size, the single instance and leaving the Istio sidecar on are Claude's, building #760, for the maintainer's review on the pull request.
+- Decider: the maintainer (TJ), on issue #760, 2026-10-18: option A (one PostgreSQL with PostGIS holding what the app asks upstream for over and over), CloudNativePG with its operator installed once in Kubernetes-Manifests and its `cluster` chart a bluebird-helm subchart behind values, on by default, a `proxmox-flashpool` volume, one refresher per source chosen by an advisory lock, a backoff doubling from a minute to an hour, the forecast cache kept per pod, and CI run with the database off. The three modes, the pool size, the single instance and leaving the database's Istio sidecar on are Claude's, building #760, for the maintainer's review on the pull request. The maintainer moved the operator out of Bluebird Forecast's app into one of its own under `misc/`, on the pull request, 2026-10-18.
 - Issues and PRs: #760, #65 (share caches and budgets across the pods), #734, #745
 - Cited in code as: #760
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture; [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `app/db/` bullet; [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md); [`docs/CONFIGURATION.md`](../CONFIGURATION.md)
@@ -14,7 +14,7 @@ Production runs three to ten replicas, all leaving through one address, and each
 
 ## Decision
 
-**One PostgreSQL 17 with PostGIS 3.5 is the cache every pod shares.** CloudNativePG runs it. Kubernetes-Manifests installs the operator once (chart `cloudnative-pg` 0.29.1, in `bluebird-system`), because its CRDs and webhooks are cluster-wide. bluebird-helm carries the operator's `cluster` chart 0.9.0 as a subchart aliased `database`, on by default (`database.enabled`). It runs one instance with no PodDisruptionBudget: the database is a cache the fill can rebuild, and a replica would double its disk for nothing. The pod reads `DATABASE_URL` from the `uri` key of the Secret the operator writes for the cluster (`<release>-database-app`). Production's data sits on a static FlashPool volume pre-bound to the operator's claim, so it outlives the pod.
+**One PostgreSQL 17 with PostGIS 3.5 is the cache every pod shares.** CloudNativePG runs it. Kubernetes-Manifests installs the operator once, as an Argo CD app of its own (`misc/cloudnative-pg`, chart `cloudnative-pg` 0.29.1, namespace `cnpg-system`), because its CRDs and webhooks are cluster-wide. bluebird-helm carries the operator's `cluster` chart 0.9.0 as a subchart aliased `database`, on by default (`database.enabled`). It runs one instance with no PodDisruptionBudget: the database is a cache the fill can rebuild, and a replica would double its disk for nothing. The pod reads `DATABASE_URL` from the `uri` key of the Secret the operator writes for the cluster (`<release>-database-app`). Production's data sits on a static FlashPool volume pre-bound to the operator's claim, so it outlives the pod.
 
 **It holds what the app asked upstream for again and again**: the places table (0176), the wildfire, closure and smoke snapshots (0182), the counters behind the rate limits, the Nominatim gate and the Open-Meteo budgets (0181), and the place-search cache. The schema is `backend/app/db/migrations/0001_cache.sql`. A pod applies it at start under an advisory lock, each file in its own transaction. The forecast cache stays per pod: only keyed API callers use it, so sharing it would change nothing a visitor sees.
 
@@ -24,7 +24,7 @@ Production runs three to ten replicas, all leaving through one address, and each
 
 **A pod's pool holds at most `DATABASE_POOL_MAX` connections, 10 by default, and the chart sets `max_connections` to 200**: ten replicas at ten each, the previews, and room.
 
-**The operator and the database take the namespace's Istio sidecar like every other pod.** The mesh runs native sidecars, so the database's init Job still completes. The cluster has no PeerAuthentication (read 2026-10-18), so mTLS is permissive and the API server reaches the operator's webhook through the sidecar. The Kubernetes-Manifests kustomization says a STRICT PeerAuthentication would need an exception for that webhook.
+**The database takes the namespace's Istio sidecar like every other pod, and the operator runs outside the mesh.** The mesh runs native sidecars, so the database's init Job still completes. `cnpg-system` carries no injection label, so the API server reaches the operator's webhooks directly. The operator reaches each database pod's status port through the sidecar: the cluster has no PeerAuthentication (read 2026-10-18), so mTLS is permissive. The operator's kustomization says a STRICT PeerAuthentication in `bluebird-system` would need a port exception for that.
 
 ## Evidence
 
@@ -36,7 +36,8 @@ The per-pod costs above are from #760's problem statement (2026-10-18). CloudNat
 - **Self-host Overpass** (option C). A few hundred GB of disk and a service to keep current, for one feature.
 - **A hand-built PostgreSQL.** The maintainer asked for CloudNativePG's charts and images.
 - **Opt the database's pods out of the sidecar.** Nothing needed it while mTLS is permissive.
+- **Install the operator in Bluebird Forecast's own app.** The first draft did, which put cluster-wide CRDs and webhooks in one app's sync and took two patches to give them a sync wave. The maintainer moved it to `misc/` on the pull request.
 
 ## Consequences
 
-The cluster gains a stateful component and an operator. Argo CD syncs the operator and the volume first (wave -2), the database next (-1) and the app last (0), because the app's pods read the Secret the operator writes. `database.enabled: false` installs the app as it ran before: Overpass discovery, per-pod snapshots and counts, and no trailhead or crag markers. A database outage sends each request to its per-pod path. The `db` tests run in a CI job of their own (0184).
+The cluster gains a stateful component and an operator. The operator's app syncs on its own. Within Bluebird Forecast's app, Argo CD syncs the volume first (wave -2), the database next (-1) and the app last (0), because the app's pods read the Secret the operator writes. `database.enabled: false` installs the app as it ran before: Overpass discovery, per-pod snapshots and counts, and no trailhead or crag markers. A database outage sends each request to its per-pod path. The `db` tests run in a CI job of their own (0184).

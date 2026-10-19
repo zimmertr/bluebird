@@ -1,5 +1,5 @@
 # The planet fill (#760): builds the shared cache's places table from the
-# OpenStreetMap planet file. A daily CronJob runs it; most days it finds the
+# OpenStreetMap planet file. A weekly CronJob runs it; most weeks it finds the
 # table current and exits. See fill/fill.py.
 #
 # Built from the repository root, because it carries the app's own

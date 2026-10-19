@@ -1,8 +1,8 @@
-# 0184. The planet fill runs as a daily CronJob from an image of its own, which every release builds, pushes and scans beside the app's
+# 0184. The planet fill runs as a weekly CronJob from an image of its own, which every release builds, pushes and scans beside the app's
 
 - Status: Accepted
 - Date: 2026-10-18
-- Decider: the maintainer (TJ), on issue #760, 2026-10-18: the first fill from the planet file in a Kubernetes job with a temporary 120 GB scratch volume deleted after, the app's own rules imported rather than copied, and CI run with the database off, the database code tested in a job that runs in parallel. The daily check, the image, the CronJob's settings, the scratch StorageClass and the CI and release jobs are Claude's, building #760, for the maintainer's review on the pull request.
+- Decider: the maintainer (TJ), on issue #760, 2026-10-18: the first fill from the planet file in a Kubernetes job with a temporary 120 GB scratch volume deleted after, the app's own rules imported rather than copied, and CI run with the database off, the database code tested in a job that runs in parallel. A weekly check rather than a daily one is the maintainer's too (2026-10-18), because every check creates and deletes the 120Gi scratch volume and only a release that changes the rules needs a refill. The image, the CronJob's settings, the scratch StorageClass and the CI and release jobs are Claude's, building #760, for the maintainer's review on the pull request.
 - Issues and PRs: #760
 - Cited in code as: #760
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Development commands, and the Python and TypeScript mirrors (`fill.lock_key` and `fill.USER_AGENT`); the [`fill/`](../../fill/CLAUDE.md) guide; [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md); [`docs/CICD.md`](../CICD.md); [`docs/CONFIGURATION.md`](../CONFIGURATION.md); [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md)
@@ -20,7 +20,7 @@ The planet file was 95.4 GB on 2026-10-15 (`planet-latest.osm.pbf`), republished
 
 **It fills only when it must**: on the first run, when the table was filled under another `RULES_VERSION`, or with `FORCE_FILL`. Otherwise it checks and exits. It holds the `planet-fill` advisory lock for the whole run, waits up to ten minutes for the app's migrations on a new database, and refuses a download the scratch volume cannot hold. It verifies the planet's MD5, reading the `.md5` once more on a mismatch since the planet is republished weekly under one name, and resumes a dropped download with a Range request, up to five attempts. It records the day file to resume from as one day before the planet's own timestamp: replaying a change rewrites a row, where missing one leaves it wrong.
 
-**The chart runs it as a CronJob** (`fill.*`, rendered only with `database.enabled`): `17 9 * * *`, `concurrencyPolicy: Forbid`, no retry within the day, a 12-hour deadline, 500m CPU and 4Gi requested with a 6Gi limit, and an ephemeral 120Gi scratch volume created and deleted with its pod. Production puts that volume on `proxmox-datapool-scratch`, a new StorageClass on DataPool whose volumes are deleted with their claim.
+**The chart runs it as a CronJob** (`fill.*`, rendered only with `database.enabled`): `17 9 * * 0` (Sundays), `concurrencyPolicy: Forbid`, no retry within the week, a 12-hour deadline, 500m CPU and 4Gi requested with a 6Gi limit, and an ephemeral 120Gi scratch volume created and deleted with its pod. Production puts that volume on `proxmox-datapool-scratch`, a new StorageClass on DataPool whose volumes are deleted with their claim.
 
 **Every release builds it.** `release.yml` builds and pushes it beside the app's image at the same version for amd64 and arm64, and the release scan covers both images on both platforms, so a fixable finding in either holds production (0105). `image-scan.yml` scans both every week. The image has no layer cache, so each release installs what Debian publishes that day, as the app's `apk upgrade` layer does (0126). The repository on Docker Hub must be public, because the scan job does not log in.
 
@@ -53,4 +53,4 @@ The planet's run is not measured yet. Scaled from Washington by size, the valida
 
 ## Consequences
 
-Every release builds, pushes and scans two images, and a finding in the fill's holds production like one in the app's. The CronJob runs daily and exits in seconds on most days. A failed fill leaves the table as it was, and the next day's run starts again with a fresh download, since the scratch volume goes with its pod. A rule change costs a refill: a 95 GB download and the whole pipeline.
+Every release builds, pushes and scans two images, and a finding in the fill's holds production like one in the app's. The CronJob runs weekly and exits in seconds on most weeks, so a release that changes the rules waits up to a week for its refill unless one is started by hand (`kubectl create job --from=cronjob/bluebird-fill`). A failed fill leaves the table as it was, and the next week's run starts again with a fresh download, since the scratch volume goes with its pod. A rule change costs a refill: a 95 GB download and the whole pipeline.

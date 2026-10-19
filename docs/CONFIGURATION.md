@@ -74,7 +74,7 @@ table for what each knob means:
 ## The planet fill
 
 The planet fill (`fill/fill.py`) is a second image, `zimmertr/bluebird-fill`,
-which the chart runs as a daily CronJob to build the places table. It reads
+which the chart runs as a weekly CronJob to build the places table. It reads
 variables of its own. The chart sets `DATABASE_URL` and `SCRATCH_DIR`; the rest
 are for a run by hand.
 

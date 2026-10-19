@@ -18,7 +18,7 @@ three repositories and the supporting services that automate the path.
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` and `Validate Terraform` checks. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-fill` (the planet fill, released beside each app image at the same version), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
-| **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`; since #760 the CloudNativePG operator in `bluebird-system`, the PostgreSQL it runs for the app, and the planet fill's CronJob. |
+| **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`; since #760 the CloudNativePG operator (an app of its own, in `cnpg-system`), the PostgreSQL it runs for the app in `bluebird-system`, and the planet fill's CronJob. |
 
 Everything consumes the chart **OCI-natively** (kustomize `helmCharts` and an
 Argo CD `repoURL: oci://…`); nothing uses a classic Helm repo index.
@@ -267,12 +267,12 @@ manual dispatch, which the same ref check confines to `main`):
 the image via `images.newTag`. The chart renders an **Argo Rollout** plus the
 Istio `VirtualService`/`Gateway`; cert-manager terminates TLS. Since #760 the
 chart also renders the CloudNativePG `Cluster` its `database` subchart
-declares and the planet fill's CronJob, and the same Kustomization inflates
-the CloudNativePG operator's own chart (0.29.1) beside it, with
-`skipTests: true` so the subchart's test hook is not run as a Job on every
-sync. Sync waves order them: the operator and the database's static volume at
--2, the database at -1, the app at 0, because the app's pods read the Secret
-the operator writes for the database. The rollout
+declares and the planet fill's CronJob. The Kustomization inflates it with
+`skipTests: true`, so the subchart's test hook is not run as a Job on every
+sync. The operator that runs the `Cluster` is an Argo CD app of its own,
+`misc/cloudnative-pg` (chart 0.29.1). Sync waves order the rest: the
+database's static volume at -2, the database at -1, the app at 0, because the
+app's pods read the Secret the operator writes for the database. The rollout
 itself is a four-step canary — a scale step that starts one canary pod at zero
 user traffic, then three blocking analyses, then promotion in a single cutover — described
 in [Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
