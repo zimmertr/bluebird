@@ -14,7 +14,7 @@
 # digest says which build of it, so a rebuild cannot pull a different image
 # than the one last reviewed. Dependabot moves both, and opens a PR when the
 # image under an unchanged tag is rebuilt.
-FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80 AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:6f08a523443ddedf52941874c203475b0ad503e859ad70cb26ab8be9a517dbd5 AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # Cache mount keeps npm's download cache out of the layer but warm across
