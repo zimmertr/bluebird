@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-18
 - Decider: the maintainer (TJ), on issue #688, 2026-10-18, answering the audit's question on number grouping: the reader's locale everywhere, the over-cap refusal kept at `en-US`.
-- Issues and PRs: #688, #380 (mirror row 18), #PRNUM
+- Issues and PRs: #688, #380 (mirror row 18), #772
 - Cited in code as: #690
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `numbers.ts` bullet
 

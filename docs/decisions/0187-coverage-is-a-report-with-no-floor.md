@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-17
 - Decider: the maintainer (TJ), on issue #690, 2026-10-17: option A, a one-time run and triage, over the issue's recommended option B, a scheduled run. Mutation testing follows in its own pull request.
-- Issues and PRs: #690, #688, #PRNUM
+- Issues and PRs: #690, #688, #772
 - Cited in code as: #690
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Development commands; [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md), Coverage and unused code
 

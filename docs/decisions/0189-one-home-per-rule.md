@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-17
 - Decider: the maintainer (TJ), on issue #688, 2026-10-17: any rule spelled in more than one shape consolidates, even at two copies. The issue had recommended leaving duplicated edge cases to review.
-- Issues and PRs: #688, #690, #388 (`test_single_home.py`), #PRNUM
+- Issues and PRs: #688, #690, #388 (`test_single_home.py`), #772
 - Cited in code as: #690
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `numbers.ts` bullet; [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `errors.py` bullet; [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md), Where a source check lives
 

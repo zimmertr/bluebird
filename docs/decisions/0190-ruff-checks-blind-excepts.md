@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-18
 - Decider: the maintainer (TJ), on issue #688, 2026-10-18, answering the audit's question on broad catches: select ruff's `BLE` rules.
-- Issues and PRs: #688, #379 (the rules in `backend/ruff.toml`), #PRNUM
+- Issues and PRs: #688, #379 (the rules in `backend/ruff.toml`), #772
 - Cited in code as: none
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Development commands, the sentence naming the selected rule sets; [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md), Where a source check lives
 

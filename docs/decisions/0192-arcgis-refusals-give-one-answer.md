@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-18
 - Decider: the maintainer (TJ), on issue #688, 2026-10-18, answering the audit's question on ArcGIS refusals: one sentence for both, and honor ArcGIS's `Retry-After`.
-- Issues and PRs: #688, #203 (the national wildfire snapshot), #550 (the closure feed), #PRNUM
+- Issues and PRs: #688, #203 (the national wildfire snapshot), #550 (the closure feed), #772
 - Cited in code as: none
 - Guide: [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `arcgis.py` bullet
 

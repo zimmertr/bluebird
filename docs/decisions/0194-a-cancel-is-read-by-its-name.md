@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-18
 - Decider: the maintainer (TJ), approving the audit's confirmed items on issue #688, 2026-10-18.
-- Issues and PRs: #688, #690, #494 (the pin this reverses), #PRNUM
+- Issues and PRs: #688, #690, #494 (the pin this reverses), #772
 - Cited in code as: #688
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `abort.ts` bullet
 

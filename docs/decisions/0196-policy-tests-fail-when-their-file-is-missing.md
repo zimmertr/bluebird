@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-18
 - Decider: the maintainer (TJ), on issue #690, 2026-10-18, answering the audit's question on the "repo root not visible" skips: they become failures, and `test_workflow_pins.py` fails on an empty file list. The CSP host check, which the question did not name, joined them as the same shape.
-- Issues and PRs: #690, #PRNUM
+- Issues and PRs: #690, #772
 - Cited in code as: none
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Development commands; [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md), Tests and Checks, "Every container mounts the repo root"
 

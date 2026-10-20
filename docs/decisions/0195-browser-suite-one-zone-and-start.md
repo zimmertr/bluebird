@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-18
 - Decider: the maintainer (TJ), on issue #690, 2026-10-18, answering the audit's question on the Playwright suite's dates: one `timezoneId` and a fixed start that still runs forward, with one shared date helper.
-- Issues and PRs: #690, #412 (the browser suite), #PRNUM
+- Issues and PRs: #690, #412 (the browser suite), #772
 - Cited in code as: none
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Development commands, the browser suite; [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md), The browser suite
 

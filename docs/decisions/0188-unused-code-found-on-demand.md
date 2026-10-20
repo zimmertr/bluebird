@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-17
 - Decider: the maintainer (TJ), on issue #688, 2026-10-17: option B, the tools in one pass, over the issue's recommended option C, the tools as CI gates.
-- Issues and PRs: #688, #690, #PRNUM
+- Issues and PRs: #688, #690, #772
 - Cited in code as: #688
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Development commands; [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md), Coverage and unused code
 

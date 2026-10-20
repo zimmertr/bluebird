@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-18
 - Decider: the maintainer (TJ), on issue #688, 2026-10-18, answering the audit's question on the Open-Meteo request counter.
-- Issues and PRs: #688, #77 (the metrics), #630 (the Overpass attempt's own deadline), #PRNUM
+- Issues and PRs: #688, #77 (the metrics), #630 (the Overpass attempt's own deadline), #772
 - Cited in code as: none
 - Guide: [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `openmeteo_fetch.py` bullet
 
