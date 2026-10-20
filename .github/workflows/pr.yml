@@ -389,7 +389,7 @@ jobs:
           curl -fsS localhost:8000/third-party-licenses.txt > notices.txt || true
           unlisted=""
           for name in $(jq -r '.dependencies | keys[]' frontend/package.json) \
-                      $(sed -E 's/[][<>=!~ ].*//' backend/requirements.in); do
+                      $(sed -E '/^[[:space:]]*(#|-|$)/d; s/[][<>=!~ ].*//' backend/requirements.in); do
             # Python names compare the way pip does: case, `-`, `_` and `.` alike.
             pattern="^$(printf '%s' "$name" | sed -E 's/[-_.]+/[-_.]+/g') [^ ]+$"
             grep -qiE "$pattern" notices.txt || unlisted="$unlisted $name"
