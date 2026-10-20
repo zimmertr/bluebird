@@ -54,9 +54,11 @@ describe('MetricsTable', () => {
 
   it('draws one row per ranked metric, in order', () => {
     render(<MetricsTable {...props()} />)
-    expect(screen.getAllByRole('radio').map((r) => r.parentElement?.textContent)).toEqual(
-      RANKED_FAMILIES.map((f) => NOUN[f]),
-    )
+    // By identity per index: toEqual compares DOM nodes structurally, and the
+    // radios are alike, so it would pass a reversed list.
+    const radios = screen.getAllByRole('radio')
+    expect(radios).toHaveLength(RANKED_FAMILIES.length)
+    RANKED_FAMILIES.forEach((f, i) => expect(radios[i]).toBe(screen.getByRole('radio', { name: NOUN[f] })))
   })
 
   it('ranks by a new aggregate from the dropdown', () => {

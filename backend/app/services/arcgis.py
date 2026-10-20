@@ -17,6 +17,10 @@ already cost an investigation when it was read wrong:
 - **Paging is by offset,** stepped by what the page SENT rather than by what
   survived parsing, or the features a dropped one displaced are read twice.
 
+A refusal that does come as an HTTP 429 is the same fact as the one inside a
+200, so both raise the caller's own rate-limited sentence and carry the
+`Retry-After` ArcGIS sent, if it sent one.
+
 Everything here is pure or takes the caller's client, so each service keeps its
 own client, its own messages and its own knobs.
 """
@@ -31,9 +35,13 @@ from typing import Any
 
 import httpx
 
-from app.services.errors import UpstreamError, UpstreamRateLimited
+from app.services.errors import UpstreamError, UpstreamRateLimited, retry_after_header
 
 log = logging.getLogger(__name__)
+
+# The wait a refusal is answered with when it sends no `Retry-After` of its
+# own: what the refusal's text asks for ("Retry after 60 sec.", below).
+RETRY_AFTER_S = 60
 
 
 def raise_for_arcgis_error(body: Any, provider: str, *, rate_limited: str, rejected: str) -> None:
@@ -56,7 +64,7 @@ def raise_for_arcgis_error(body: Any, provider: str, *, rate_limited: str, rejec
     code = error.get("code") if isinstance(error.get("code"), int) else None
     # 503 arrives in the same envelope when the service is merely overloaded.
     if code in (429, 503):
-        raise UpstreamRateLimited(provider, "minutely", 60, rate_limited)
+        raise UpstreamRateLimited(provider, "minutely", RETRY_AFTER_S, rate_limited)
     raise UpstreamError(rejected)
 
 
@@ -111,6 +119,8 @@ async def fetch_pages[T](
     page_size: int,
     max_pages: int,
     label: str,
+    provider: str,
+    rate_limited: str,
 ) -> tuple[T, ...]:
     """Every feature one query matches, page by page.
 
@@ -126,6 +136,11 @@ async def fetch_pages[T](
     ``max_pages`` is a backstop, so a server that never clears the flag cannot
     spin forever. Reaching it serves what arrived and logs, rather than failing
     a snapshot that is merely large.
+
+    ``provider`` and ``rate_limited`` are what the caller hands
+    ``raise_for_arcgis_error``, because an HTTP 429 says what the refusal
+    inside a 200 says. Only an HTTP 429 joins it: a 503 status keeps
+    ``classify_http_error``'s own sentence.
     """
     items: list[T] = []
     offset = 0
@@ -140,8 +155,21 @@ async def fetch_pages[T](
             "resultRecordCount": page_size,
         }
         response = await client.get(url, params=page_params)
+        if response.status_code == 429:
+            raise UpstreamRateLimited(
+                provider,
+                "minutely",
+                retry_after_header(response) or RETRY_AFTER_S,
+                rate_limited,
+            )
         response.raise_for_status()
-        kept, more, count = await asyncio.to_thread(parse, response.content)
+        try:
+            kept, more, count = await asyncio.to_thread(parse, response.content)
+        except UpstreamRateLimited as refusal:
+            # The refusal inside a 200 is read off the body, which never sees
+            # the headers, so a wait the response did send is laid on here.
+            refusal.retry_after_s = retry_after_header(response) or refusal.retry_after_s
+            raise
         items.extend(kept)
         if not more or not count:
             return tuple(items)

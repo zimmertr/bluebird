@@ -11,7 +11,7 @@
  * anyone remembering to. A press that ends a text selection is a reader
  * copying a name or a number, and opens nothing either.
  */
-export const ROW_CONTROLS = 'a, button, input, select, textarea, label, summary, [role="button"]'
+const ROW_CONTROLS = 'a, button, input, select, textarea, label, summary, [role="button"]'
 
 export function rowTapOpens(target: EventTarget | null, row: Element, selection = ''): boolean {
   if (selection !== '') return false

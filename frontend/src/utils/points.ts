@@ -34,6 +34,31 @@ export function geoKey(lat: number, lon: number): string {
 }
 
 /**
+ * Whether a coordinate is on the globe: finite, with |lat| <= 90 and
+ * |lon| <= 180.
+ *
+ * The one bound every route holds a coordinate to: a link's view, ring, pins
+ * and removals, a pasted CSV row and a coordinate typed into the search box.
+ * MapLibre throws on a latitude past a pole, and a restored ring or pin is
+ * framed in the map's load handler, so one such value in a link left the map
+ * with no markers, no drawing and no overlays on every load of it (#622). A
+ * pasted pair outside it is as unusable as a non-numeric one: kept, it would
+ * ride into every request built from the list, and the wildfire and closure
+ * routes refuse a box that spans it. Latitude first, like `geoKey`.
+ */
+export function onGlobe(lat: number, lon: number): boolean {
+  return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
+}
+
+/**
+ * A coordinate as a reader sees it, `lat, lon` at five decimals (~1 m): the
+ * name a bare coordinate gets, and the pair a popup's facts line links.
+ */
+export function coordinateLabel(lat: number, lon: number): string {
+  return `${lat.toFixed(5)}, ${lon.toFixed(5)}`
+}
+
+/**
  * Identity of a SET of items, independent of their order.
  *
  * Every caller is an effect dependency rather than a lookup. The arrays these

@@ -39,7 +39,8 @@ vi.mock('maplibre-gl', () => ({
   },
 }))
 
-import { createMapController, type MapInputs } from './controller'
+import { createMapController } from './controller'
+import { mapInputs } from '../testSupport/fixtures'
 import { mountMapPopups, type MapPointTarget, type MapPopupTarget } from './mapPopups'
 import { createPopupBoard, popupOptions } from './popups'
 import { stubMap, type StubFeature } from '../testSupport/stubMap'
@@ -51,7 +52,7 @@ const LAYERS = ['fire-fill', 'marker', 'heavy', 'light', 'trail', 'vertices']
 function setup({ drawing = false, layers = LAYERS } = {}) {
   made.length = 0
   const stub = stubMap({ layers, canvasWidth: 800 })
-  const controller = createMapController({ drawing } as MapInputs)
+  const controller = createMapController(mapInputs({ drawing }))
   const addPoint = vi.fn()
   const board = createPopupBoard()
   const popups = mountMapPopups(stub.map, { controller, board, addPoint })
@@ -116,7 +117,7 @@ describe('mountMapPopups', () => {
       rendered: (_p, o) => (asked.push((o as { layers: string[] }).layers), []),
     })
     const popups = mountMapPopups(stub.map, {
-      controller: createMapController({ drawing: false } as MapInputs),
+      controller: createMapController(mapInputs()),
       board: createPopupBoard(),
       addPoint: vi.fn(),
     })
@@ -131,7 +132,7 @@ describe('mountMapPopups', () => {
     const asked: unknown[] = []
     const stub = stubMap({ layers: ['marker', 'trail'], rendered: (at) => (asked.push(at), []) })
     const popups = mountMapPopups(stub.map, {
-      controller: createMapController({ drawing: false } as MapInputs),
+      controller: createMapController(mapInputs()),
       board: createPopupBoard(),
       addPoint: vi.fn(),
     })
@@ -237,7 +238,7 @@ describe('mountMapPopups cursor', () => {
     let asked = 0
     const stub = stubMap({ layers: ['fire-fill'], rendered: () => (asked++, [{ layer: { id: 'fire-fill' } }]) })
     const popups = mountMapPopups(stub.map, {
-      controller: createMapController({ drawing: false } as MapInputs),
+      controller: createMapController(mapInputs()),
       board: createPopupBoard(),
       addPoint: vi.fn(),
     })
@@ -304,24 +305,24 @@ describe('mountMapPopups openCard and openBare', () => {
 
   // One framework for every card (#738): a fire's card is fitted and panned
   // exactly as a destination's is, where an overlay's used to open wherever
-  // it was clicked and could stand under the search pill or the sheet.
-  it.each(['fire', 'closure-area', 'smoke', 'poi', 'result'] as const)(
-    'pans the map to show a %s card standing over the results sheet',
-    (owner) => {
-      const stub = stubMap({ canvasWidth: 800, canvasHeight: 900, markerAt: { x: 400, y: 880 } })
-      const controller = createMapController({ drawing: false, cameraPadBottomPx: 500 } as MapInputs)
-      const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint: vi.fn() })
-      const placed = popups.openCard([0, 0], '<p>card</p>', { owner })
-      expect(placed.dy).toBeLessThan(0)
-      expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([
-        ['panBy', [0, -placed.dy], { duration: POPUP_PAN_MS }],
-      ])
-    },
-  )
+  // it was clicked and could stand under the search pill or the sheet. The
+  // owner feeds the board alone, so one owner proves the fit; that every
+  // overlay opens through `openCard` is the linter's, which bans `new Popup`
+  // anywhere but map/mapPopups.ts.
+  it('pans the map to show a card standing over the results sheet', () => {
+    const stub = stubMap({ canvasWidth: 800, canvasHeight: 900, markerAt: { x: 400, y: 880 } })
+    const controller = createMapController(mapInputs({ cameraPadBottomPx: 500 }))
+    const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint: vi.fn() })
+    const placed = popups.openCard([0, 0], '<p>card</p>', { owner: 'fire' })
+    expect(placed.dy).toBeLessThan(0)
+    expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([
+      ['panBy', [0, -placed.dy], { duration: POPUP_PAN_MS }],
+    ])
+  })
 
   it('hands the move back instead of panning when asked to', () => {
     const stub = stubMap({ canvasWidth: 800, canvasHeight: 900, markerAt: { x: 400, y: 880 } })
-    const controller = createMapController({ drawing: false, cameraPadBottomPx: 500 } as MapInputs)
+    const controller = createMapController(mapInputs({ cameraPadBottomPx: 500 }))
     const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint: vi.fn() })
     expect(popups.openCard([0, 0], '<p>card</p>', { owner: 'result', pan: false }).dy).toBeLessThan(0)
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
@@ -538,22 +539,31 @@ describe('mountMapPopups point target cursor', () => {
     expect(stub.canvas.style.cursor).toBe('')
   })
 
-  it('asks no picture over a shape, while drawing, or for a layer switched off', () => {
-    const { stub, popups, register, under, move, controller } = setup()
+  it('asks no picture for a layer switched off', () => {
+    const { popups, move } = setup()
     const paints = vi.fn(() => true)
     popups.registerPoint(pointTarget('snow', paints, () => false))
     move()
     expect(paints).not.toHaveBeenCalled()
-    const on = vi.fn(() => true)
-    popups.registerPoint(pointTarget('radar', on))
+  })
+
+  it('asks no picture over a shape', () => {
+    const { popups, register, under, move } = setup()
+    const paints = vi.fn(() => true)
+    popups.registerPoint(pointTarget('radar', paints))
     register('fire', ['fire-fill'])
     under('fire-fill')
     move()
-    expect(on).not.toHaveBeenCalled()
-    under()
+    expect(paints).not.toHaveBeenCalled()
+  })
+
+  it('asks no picture while drawing and keeps the crosshair', () => {
+    const { stub, popups, move, controller } = setup()
+    const paints = vi.fn(() => true)
+    popups.registerPoint(pointTarget('radar', paints))
     controller.update({ ...controller.inputs, drawing: true })
     move()
-    expect(on).not.toHaveBeenCalled()
+    expect(paints).not.toHaveBeenCalled()
     expect(stub.canvas.style.cursor).toBe('crosshair')
   })
 })

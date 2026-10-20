@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  DAY_MS,
   FALLBACK_WINDOW_LIMITS,
+  HOUR_MS,
+  MINUTE_MS,
   FUTURE_LIMIT_SLACK_DAYS,
   PAST_DATA_DAYS,
   PAST_LIMIT_SLACK_DAYS,
   type WindowSource,
   archiveBoundaryMs,
   archiveSeamMs,
+  floorHour,
   hourlyStampCount,
   isPointSample,
   normalizeWindow,
@@ -15,8 +19,6 @@ import {
 } from './forecastWindow'
 
 const NOW = Date.parse('2026-07-21T12:00:00Z')
-const HOUR = 3_600_000
-const DAY = 86_400_000
 
 describe('resolveWindow', () => {
   it('passes an ordered window through unchanged', () => {
@@ -53,29 +55,28 @@ describe('resolveWindow', () => {
   })
 
   it('rejects a start beyond the history horizon', () => {
-    // Both ends in the archive's range, so this fails on the horizon rather
-    // than on the boundary check below: the horizon is what is under test.
-    const past = new Date(NOW - 400 * DAY).toISOString()
-    const alsoPast = new Date(NOW - 399 * DAY).toISOString()
+    // Both ends past the history horizon, so nothing but the horizon can be
+    // what refuses it.
+    const past = new Date(NOW - 400 * DAY_MS).toISOString()
+    const alsoPast = new Date(NOW - 399 * DAY_MS).toISOString()
     expect(() => resolveWindow(past, alsoPast, NOW)).toThrow(
       /one-year history limit/,
     )
   })
 
   it('rejects an end beyond the forecast horizon', () => {
-    const future = new Date(NOW + 18 * DAY).toISOString()
+    const future = new Date(NOW + 18 * DAY_MS).toISOString()
     expect(() => resolveWindow(new Date(NOW).toISOString(), future, NOW)).toThrow(
       /16-day forecast horizon/,
     )
   })
 
   it('accepts windows just inside both horizons', () => {
-    // Inside the forecast endpoint's own data as well as its accept edge, so
-    // this window crosses no boundary: one that did would be refused (#123).
-    const start = new Date(NOW - 50 * DAY).toISOString()
-    const end = new Date(NOW + 16 * DAY).toISOString()
+    // Inside both horizons, which is all resolveWindow asks of a window.
+    const start = new Date(NOW - 50 * DAY_MS).toISOString()
+    const end = new Date(NOW + 16 * DAY_MS).toISOString()
     const w = resolveWindow(start, end, NOW)
-    expect(w.endMs - w.startMs).toBe(66 * DAY)
+    expect(w.endMs - w.startMs).toBe(66 * DAY_MS)
   })
 
   // What #393 changed: the accept bounds are the deployment's, published by
@@ -83,8 +84,8 @@ describe('resolveWindow', () => {
   // window a tighter deployment refuses is one this one accepts, so the two
   // halves of this pair must disagree.
   it('refuses against the bounds it is given rather than the compiled ones', () => {
-    const start = new Date(NOW - 100 * DAY).toISOString()
-    const end = new Date(NOW - 99 * DAY).toISOString()
+    const start = new Date(NOW - 100 * DAY_MS).toISOString()
+    const end = new Date(NOW - 99 * DAY_MS).toISOString()
     expect(resolveWindow(start, end, NOW).startMs).toBe(Date.parse(start))
     expect(() =>
       resolveWindow(start, end, NOW, {
@@ -96,7 +97,7 @@ describe('resolveWindow', () => {
   })
 
   it('accepts a far window a longer-reaching deployment allows', () => {
-    const end = new Date(NOW + 20 * DAY).toISOString()
+    const end = new Date(NOW + 20 * DAY_MS).toISOString()
     const now = new Date(NOW).toISOString()
     expect(() => resolveWindow(now, end, NOW)).toThrow(/16-day forecast horizon/)
     expect(
@@ -157,13 +158,6 @@ describe('normalizeWindow', () => {
     expect(normalizeWindow(Date.parse(moment), Date.parse(moment))).toEqual(
       resolveWindow(moment, moment, NOW),
     )
-  })
-})
-
-describe('resolveWindow parity with the hour filter', () => {
-  it(`${HOUR} keeps epoch math honest`, () => {
-    // UTC hours align with epoch-hour multiples; the floor relies on it.
-    expect(Date.parse('2026-07-21T12:00:00Z') % HOUR).toBe(0)
   })
 })
 
@@ -248,15 +242,15 @@ describe('windowSource', () => {
   })
 
   it('puts the boundary at the forecast endpoint own data edge', () => {
-    const justInside = SOURCE_NOW - PAST_DATA_DAYS * DAY
+    const justInside = SOURCE_NOW - PAST_DATA_DAYS * DAY_MS
     expect(windowSource(justInside, justInside, SOURCE_NOW)).toBe('forecast')
-    const older = SOURCE_NOW - (PAST_DATA_DAYS + 2) * DAY
+    const older = SOURCE_NOW - (PAST_DATA_DAYS + 2) * DAY_MS
     expect(windowSource(older, older, SOURCE_NOW)).toBe('archive')
   })
 
   it('accepts a window that crosses the boundary, for both endpoints to answer', () => {
-    const start = new Date(NOW - (PAST_DATA_DAYS + 10) * DAY).toISOString()
-    const end = new Date(NOW - (PAST_DATA_DAYS - 10) * DAY).toISOString()
+    const start = new Date(NOW - (PAST_DATA_DAYS + 10) * DAY_MS).toISOString()
+    const end = new Date(NOW - (PAST_DATA_DAYS - 10) * DAY_MS).toISOString()
     const w = resolveWindow(start, end, NOW)
     expect(windowSource(w.startMs, w.endMs, NOW)).toBe('spanning')
   })
@@ -285,8 +279,8 @@ describe('windowSource', () => {
   })
 
   it('accepts a window wholly inside the archive range', () => {
-    const start = new Date(NOW - 200 * DAY).toISOString()
-    const end = new Date(NOW - 199 * DAY).toISOString()
+    const start = new Date(NOW - 200 * DAY_MS).toISOString()
+    const end = new Date(NOW - 199 * DAY_MS).toISOString()
     const w = resolveWindow(start, end, NOW)
     expect(windowSource(w.startMs, w.endMs, NOW)).toBe('archive')
   })
@@ -337,9 +331,20 @@ describe('archiveSeamMs', () => {
   it('stays within a day of the boundary at both ends of the clock', () => {
     for (const zone of ['Pacific/Kiritimati', 'Etc/GMT+12']) {
       const seam = inZone(zone, () => archiveSeamMs(SEAM_NOW))
-      expect(archiveBoundaryMs(SEAM_NOW) - seam, zone).toBeLessThanOrEqual(DAY)
+      expect(archiveBoundaryMs(SEAM_NOW) - seam, zone).toBeLessThanOrEqual(DAY_MS)
       expect(archiveBoundaryMs(SEAM_NOW) - seam, zone).toBeGreaterThanOrEqual(0)
     }
   })
 })
 
+describe('the time units', () => {
+  it('are a minute, an hour and a day in milliseconds', () => {
+    expect([MINUTE_MS, HOUR_MS, DAY_MS]).toEqual([60_000, 3_600_000, 86_400_000])
+  })
+
+  it('floor an instant to the start of its hour, and leave one on the hour alone', () => {
+    const hour = Date.parse('2026-08-04T17:00:00Z')
+    expect(floorHour(hour + 59 * MINUTE_MS + 59_999)).toBe(hour)
+    expect(floorHour(hour)).toBe(hour)
+  })
+})

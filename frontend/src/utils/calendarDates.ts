@@ -21,6 +21,14 @@ export function dayKey(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/**
+ * The UTC calendar date an instant falls on, `YYYY-MM-DD`: the day an
+ * Open-Meteo request is asked for by, where `dayKey` is the reader's own.
+ */
+export function utcDayKey(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10)
+}
+
 /** `YYYY-MM-DD` as local midnight on that day. */
 export function dayDate(key: string): Date {
   const [y, m, d] = key.split('-').map(Number)

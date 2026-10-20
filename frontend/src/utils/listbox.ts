@@ -8,6 +8,8 @@
  * only the wiring: measure, call these, apply.
  */
 
+import { clamp } from './numbers'
+
 /** Just the parts of a DOMRect the placement math reads. */
 export interface Rect {
   left: number
@@ -95,10 +97,6 @@ export interface PopoverOptions {
 // A spanned card keeps its top border and lays it over the control's bottom
 // one, so the two edges draw one line: `SURFACE_CARD`'s 1px.
 const SEAM_PX = 1
-
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(Math.max(value, low), Math.max(low, high))
-}
 
 /**
  * Where to put a panel hanging off `trigger`.

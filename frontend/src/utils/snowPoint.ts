@@ -43,6 +43,9 @@ import { inBounds, layerFetch, type PointReading, type PointSection } from './po
 import { escapeHtml, pendingValue, row, updatedAt, updatedLine } from './popupChrome'
 import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_SERVICE_URL } from './snowDepth'
 import { GLACIERS, type GlacierCheck } from './glacierCell'
+import { clamp, grouped } from './numbers'
+import { hexToRgb } from './colors'
+import { UNAVAILABLE } from './unavailableCell'
 
 const METRES_TO_INCHES = 1 / 0.0254
 const MM_TO_INCHES = 1 / 25.4
@@ -58,7 +61,7 @@ export const SNOW_HELD_LAYER = 'snow'
  * source's `maxzoom`, past which it magnifies the tiles it holds.
  */
 export function snowTileZoom(mapZoom: number): number {
-  return Math.max(0, Math.min(SNOW_MAX_ZOOM, Math.round(mapZoom)))
+  return clamp(Math.round(mapZoom), 0, SNOW_MAX_ZOOM)
 }
 
 /**
@@ -87,10 +90,7 @@ export function snowWord(inches: number): string {
 
 /** Each painted legend colour, as `r,g,b`, to the band that wears it. */
 const BAND_OF_COLOR: ReadonlyMap<string, { from: number }> = new Map(
-  SNOW_BANDS.filter((b) => b.color !== null).map((b) => {
-    const hex = b.color!.slice(1)
-    return [[0, 2, 4].map((at) => parseInt(hex.slice(at, at + 2), 16)).join(','), b] as const
-  }),
+  SNOW_BANDS.filter((b) => b.color !== null).map((b) => [hexToRgb(b.color!).join(','), b] as const),
 )
 
 /** The name a held pixel's band takes, or null where the field painted nothing there. */
@@ -180,7 +180,7 @@ export function parseSnowIdentify(body: unknown): SnowReading | null {
  * thousands of inches (`docs/DATA.md`).
  */
 export function formatInches(inches: number): string {
-  return inches < 10 ? `${inches.toFixed(1)} in` : `${Math.round(inches).toLocaleString('en-US')} in`
+  return inches < 10 ? `${inches.toFixed(1)} in` : `${grouped(Math.round(inches))} in`
 }
 
 /** What the card names the snow analysis as, on its band. */
@@ -202,7 +202,7 @@ export const SNOW_FAILED = 'NOAA snow analysis failed. Try again later.'
 export const GLACIER_TITLE = 'Glacier'
 
 /** What a snow row NOAA cannot fill reads: the table's own mark for a value it does not have. */
-const NO_VALUE = 'N/A'
+const NO_VALUE = UNAVAILABLE
 
 /**
  * The snow's section the moment it is clicked: its name, and a bar for each

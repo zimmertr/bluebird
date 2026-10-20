@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CustomDestination, DestinationResult } from '../types'
-import { Place } from './geocode'
+import type { Place } from './geocode'
 import { pendingDestinations } from './customList'
 import { geoKey } from './points'
 import {
@@ -10,7 +10,7 @@ import {
   recordRemoval,
   restorePlace,
 } from './removals'
-import { resultRow } from '../testSupport/fixtures'
+import { place as fixturePlace, resultRow } from '../testSupport/fixtures'
 
 // The coordinates match `place` below and the SCOPE string: a removal is keyed
 // by coordinate, so the row and its backing place have to sit on one point.
@@ -18,16 +18,14 @@ function row(name: string, over: Partial<DestinationResult> = {}): DestinationRe
   return resultRow({ name, latitude: 46.85, longitude: -121.76, series: null, ...over })
 }
 
-function place(over: Partial<Place> = {}): Place {
-  return {
+const place = (over: Partial<Place> = {}) =>
+  fixturePlace({
     label: 'Mount Rainier',
     description: 'Mount Rainier, Pierce County, Washington',
-    kind: 'peak',
     lat: 46.85,
     lon: -121.76,
     ...over,
-  }
-}
+  })
 
 const NONE: ReadonlySet<string> = new Set()
 

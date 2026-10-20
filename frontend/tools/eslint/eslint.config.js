@@ -203,6 +203,22 @@ export default [
     },
   },
 
+  {
+    // The coercing globals read '5' as 5 and '' as 0, where every caller here
+    // means the number it was handed: ESLint's own recipe for them. And `==`
+    // only beside null, which is how this code asks "null or undefined" in one
+    // comparison; any other loose comparison is a coercion nobody meant.
+    files: ['src/**/*.{ts,tsx}', 'e2e/**/*.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'isNaN', message: 'Use Number.isNaN, which does not coerce.' },
+        { name: 'isFinite', message: 'Use Number.isFinite, which does not coerce.' },
+      ],
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
+    },
+  },
+
   // Rule options replace rather than merge, so the three blocks below hand each
   // file the WHOLE list it needs: class bans, metric ban, or both.
   { files: COMPONENTS, rules: { 'no-restricted-syntax': ['error', ...CLASS_BANS] } },

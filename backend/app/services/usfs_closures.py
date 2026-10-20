@@ -70,7 +70,7 @@ import httpx
 from app.db import refresh
 from app.env import env_int
 from app.services import arcgis, usfs_coverage
-from app.services.errors import UpstreamError
+from app.services.errors import UpstreamError, log_reason
 from app.services.http import HEADERS
 from app.services.nifc import COARSE_OFFSET_DEG
 from app.services.snapshot import Shared, cache_factory
@@ -79,6 +79,8 @@ from app.services.usfs_coverage import ALL_REGIONS, Kind
 log = logging.getLogger(__name__)
 
 PROVIDER = "US Forest Service (closure orders)"
+# How this overlay says ArcGIS refused it, in a 200 or as a 429 alike.
+RATE_LIMITED = "Closure data is rate-limited. Try again later."
 
 _ARCGIS_URL = "https://services1.arcgis.com/gGHDlz6USftL5Pau/arcgis/rest/services/"
 _SERVICE_URL = (
@@ -377,12 +379,17 @@ def collection_json(snapshot: Snapshot, closures: list[Closure], kind: Kind) -> 
     )
 
 
-def _to_closure(feature: dict[str, Any]) -> Closure | None:
+def _to_closure(feature: Any) -> Closure | None:
     """One ArcGIS feature as a stored ``Closure``, or None if it carries no shape.
 
     A closure without geometry cannot be drawn or tested against a row, so it
-    is dropped here rather than becoming a feature the browser has to skip.
+    is dropped here rather than becoming a feature the browser has to skip. A
+    list item that is not an object at all is dropped the same way, rather
+    than failing the page and with it the whole refresh; the page still
+    counts it, because the offset steps by what ArcGIS sent.
     """
+    if not isinstance(feature, dict):
+        return None
     geometry = feature.get("geometry")
     if not isinstance(geometry, dict):
         return None
@@ -404,7 +411,7 @@ def _raise_for_arcgis_error(body: Any) -> None:
     arcgis.raise_for_arcgis_error(
         body,
         PROVIDER,
-        rate_limited="Closure data is rate-limited. Try again later.",
+        rate_limited=RATE_LIMITED,
         rejected="Closure data was rejected. Try again later.",
     )
 
@@ -464,6 +471,8 @@ async def _fetch_layer(
         page_size=PAGE_SIZE,
         max_pages=MAX_PAGES,
         label="Forest Service closures",
+        provider=PROVIDER,
+        rate_limited=RATE_LIMITED,
     )
 
 
@@ -646,6 +655,8 @@ async def fetch_forest_orders(
         page_size=PAGE_SIZE,
         max_pages=MAX_PAGES,
         label=f"Forest Service orders, {feed.label}",
+        provider=PROVIDER,
+        rate_limited=RATE_LIMITED,
     )
     attributes = {row["objectid"]: row for row in rows if isinstance(row.get("objectid"), int)}
     if not attributes:
@@ -673,6 +684,8 @@ async def fetch_forest_orders(
             page_size=PAGE_SIZE,
             max_pages=MAX_PAGES,
             label=f"Forest Service orders, {feed.label}",
+            provider=PROVIDER,
+            rate_limited=RATE_LIMITED,
         )
 
     full, coarse = await asyncio.gather(geometry(None), geometry(COARSE_OFFSET_DEG))
@@ -718,7 +731,7 @@ async def fetch_snapshot(transport: httpx.AsyncBaseTransport | None = None) -> S
             log.warning(
                 "Forest Service orders from the %s failed; serving the snapshot without them: %s",
                 feed.label,
-                result,
+                log_reason(result),
             )
             continue
         full, coarse = result

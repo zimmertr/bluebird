@@ -110,18 +110,22 @@ describe('useAnalysisRun', () => {
     expect(outcomes).toEqual([true, false, false])
   })
 
-  it('clears the last error and refusal as the next run starts, so an identical one shows again', async () => {
-    const { result } = renderHook(() => useAnalysisRun(MODELS))
-    await act(() => result.current.run('s', async () => Promise.reject(new Error('Broken.')), hooks()))
-    let release!: () => void
-    let done!: Promise<boolean>
-    act(() => {
-      done = result.current.run('s', () => new Promise<void>((r) => (release = r)), hooks())
-    })
-    expect(result.current.error).toBeNull()
-    await act(async () => {
-      release()
-      await done
-    })
+  it('clears the last error and refusal as the next run starts', async () => {
+    for (const failure of [new Error('Broken.'), new AnalysisRefusalError('Too many.')]) {
+      const { result } = renderHook(() => useAnalysisRun(MODELS))
+      await act(() => result.current.run('s', async () => Promise.reject(failure), hooks()))
+      expect(result.current.error ?? result.current.refusal, failure.message).not.toBeNull()
+      let release!: () => void
+      let done!: Promise<boolean>
+      act(() => {
+        done = result.current.run('s', () => new Promise<void>((r) => (release = r)), hooks())
+      })
+      expect(result.current.error, failure.message).toBeNull()
+      expect(result.current.refusal, failure.message).toBeNull()
+      await act(async () => {
+        release()
+        await done
+      })
+    }
   })
 })

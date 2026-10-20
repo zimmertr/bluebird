@@ -89,17 +89,16 @@ import { makeArrowImage, mountResultsLayer, RESULT_MARKER_LAYER } from './result
 import { POPUP_PAN_MS } from '../utils/popupFit'
 import { createMapController, type MapInputs } from './controller'
 import { mountTestPopups } from '../testSupport/mapPopups'
-import { pendingFC } from '../utils/mapFeatures'
+import { featureRow, pendingFC } from '../utils/mapFeatures'
 import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
 import { POPUP_TINT_ATTR } from '../utils/popupChrome'
 import { displayedColumns } from '../utils/tableColumns'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
-import { closureWarning, resultRow } from '../testSupport/fixtures'
+import { closureWarning, mapInputs, resultRow } from '../testSupport/fixtures'
 import { closurePopupText } from '../utils/closureProximity'
 import { geoKey } from '../utils/points'
 import { stubMap } from '../testSupport/stubMap'
 import { MARKER_LABEL_PAINT, MARKER_PAINT, PENDING_COLOR } from './mapStyles'
-import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 
 // A full card's size, and a map tall enough to hold one below a centred marker.
 const CARD_W = 280
@@ -126,25 +125,13 @@ afterEach(() => {
 
 function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }, canvasWidth = MAP_W) {
   const stub = stubMap({ canvasWidth, canvasHeight: MAP_H, markerAt, zoom: MAP_ZOOM })
-  const inputs: MapInputs = {
-    drawing: false,
+  const inputs = mapInputs({
     results,
     modelId: 'gfs_seamless',
-    times: [],
-    modelFallbackLabel: null,
-    popupColumns: [],
-    pointSample: false,
-    sortBy: 'aqi_avg',
-    fireWarnings: new Map(),
-    closureWarnings: new Map(),
-    searchedPlaces: [],
     onAddPoi: vi.fn(),
     onRemovePoi: vi.fn(),
     onRemoveResult: vi.fn(),
-    cameraPadBottomPx: 0,
-    onCameraMove: () => {},
-    maxPolygonPoints: MAX_POLYGON_POINTS,
-  }
+  })
   const controller = createMapController(inputs)
   const { popups: board, click } = mountTestPopups(stub, controller)
   const layer = mountResultsLayer(stub.map, { controller, popups: board })
@@ -244,6 +231,37 @@ describe('mountResultsLayer', () => {
     )
   })
 
+  // The guard behind the match: a marker whose coordinates the controller
+  // holds no row for opens on the feature's own properties, which carry no
+  // aggregates, so each metric cell reads the dash rather than nothing or
+  // another row's numbers.
+  it("opens a card from the marker's own properties when no row matches it", () => {
+    const { controller, clickMarker } = setup()
+    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'aqi_avg') })
+    const ghost = { ...RAINIER, name: 'Ghost Peak', latitude: 45.1, longitude: -119.9 }
+    clickMarker(ghost, 5)
+    const live = controller.inputs
+    const props = { rank: 5, name: ghost.name, lat: ghost.latitude, lon: ghost.longitude }
+    expect(popups).toHaveLength(1)
+    expect(popups[0].html).toBe(
+      resultPopupHtml({
+        rank: 5,
+        row: featureRow(props, ghost.latitude, ghost.longitude),
+        columns: live.popupColumns,
+        warning: null,
+        modelId: live.modelId,
+        times: live.times,
+        modelFallbackLabel: null,
+        rankedBy: live.sortBy,
+        compact: false,
+        mapZoom: MAP_ZOOM,
+        removable: true,
+      }),
+    )
+    expect(popups[0].html).toContain('—')
+    for (const name of [ADAMS.name, RAINIER.name]) expect(popups[0].html).not.toContain(name)
+  })
+
   // The popup's closure line reads the same map the table's Closure column
   // does, keyed on the marker's exact coordinates (#550).
   it('names the closure a clicked destination stands inside', () => {
@@ -341,10 +359,12 @@ describe('mountResultsLayer', () => {
   // which side the card is built on, and what the map is told to do.
   // The table hands over a copy of the row stamped with its rank (#579),
   // which is not among the map's rows; the card still names the rank.
+  // A rank Rainier's place among the rows cannot produce, so a copy looked up
+  // by its coordinates rather than read by its stamp would print the wrong one.
   it('ranks a table row by the stamp it carries', () => {
     const { layer } = setup()
-    layer.openPopup({ ...RAINIER, rank: 2 } as typeof RAINIER)
-    expect(popups[0].html).toContain('#2 Mount Rainier')
+    layer.openPopup({ ...RAINIER, rank: 7 } as typeof RAINIER)
+    expect(popups[0].html).toContain('#7 Mount Rainier')
   })
 
   it('hangs the card below a centred marker and moves nothing', () => {
@@ -396,15 +416,20 @@ describe('mountResultsLayer', () => {
     expect(layer.openPopup(RAINIER, { markerAt: { x: 640, y: 200 } })).toEqual({ dx: 0, dy: -178 })
   })
 
-  it('pans by what the fit asked for on a marker click, marker and card together', () => {
+  // A marker click may pan where `openPopup` never does, so these are the
+  // one check that a click whose card fits pans nothing.
+  it('moves nothing on a marker click whose card fits, below or above the marker', () => {
     const { stub, clickMarker } = setup([ADAMS, RAINIER], { x: 640, y: 40 })
     clickMarker(RAINIER, 2)
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
-    stub.calls.length = 0
     const { stub: low, clickMarker: clickLow } = setup([ADAMS, RAINIER], { x: 640, y: 880 })
     clickLow(RAINIER, 2)
-    // Above the marker fits whole, so no pan; a marker over the sheet does need one.
+    // Above the marker fits whole, so no pan.
     expect(low.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+  })
+
+  // A marker over the sheet does need one, marker and card together.
+  it('pans by what the fit asked for on a marker click', () => {
     const { stub: buried, controller, clickMarker: clickBuried } = setup([ADAMS, RAINIER], { x: 640, y: 880 })
     controller.update({ ...controller.inputs, cameraPadBottomPx: 500 })
     clickBuried(RAINIER, 2)

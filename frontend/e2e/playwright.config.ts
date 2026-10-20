@@ -14,6 +14,8 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['github'], ['html', { open: 'never' }]] : [['list']],
   use: {
     baseURL: process.env.BASE_URL ?? 'http://localhost:8000',
+    // The zone Vitest pins and the suite's isoDay counts days in.
+    timezoneId: 'America/Los_Angeles',
     viewport: { width: 1280, height: 720 },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

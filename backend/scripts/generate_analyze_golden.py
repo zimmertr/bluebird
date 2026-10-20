@@ -42,6 +42,7 @@ from conftest import dest, fake_response  # noqa: E402 — after the sys.path in
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app import ratelimit  # noqa: E402
+from app.limits import floor_hour  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import MAX_ANALYZE_PEAKS, PAST_DATA_DAYS  # noqa: E402
 from app.services import air_quality, cache, http, osm, weather  # noqa: E402
@@ -175,12 +176,8 @@ class Case:
     headers: dict[str, str] = field(default_factory=dict)
 
 
-def _hour(t: datetime) -> datetime:
-    return t.replace(minute=0, second=0, microsecond=0)
-
-
 def _window(now: datetime, **extra: Any) -> dict:
-    start = _hour(now)
+    start = floor_hour(now)
     return {
         "start_datetime": start.isoformat(),
         "end_datetime": (start + timedelta(days=1)).isoformat(),
@@ -221,7 +218,7 @@ CASES = [
         "bad_window",
         lambda now: {
             **_custom()(now),
-            "start_datetime": _hour(now + timedelta(days=2)).isoformat(),
+            "start_datetime": floor_hour(now + timedelta(days=2)).isoformat(),
         },
     ),
     Case("nothing_to_analyze", lambda now: _window(now, destination_types=[])),
@@ -256,8 +253,8 @@ CASES = [
         "spanning_window",
         lambda now: {
             **_custom()(now),
-            "start_datetime": _hour(now - timedelta(days=PAST_DATA_DAYS + 2)).isoformat(),
-            "end_datetime": _hour(now).isoformat(),
+            "start_datetime": floor_hour(now - timedelta(days=PAST_DATA_DAYS + 2)).isoformat(),
+            "end_datetime": floor_hour(now).isoformat(),
         },
     ),
     Case("series_off_with_bound", _peaks(include_series=False, max_wind_mph=18, limit=2), discovered=PEAKS),

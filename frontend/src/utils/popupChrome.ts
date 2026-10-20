@@ -25,6 +25,9 @@
 import { externalLinkMarkup } from '../iconPaths'
 import { AGGREGATE } from '../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
+import { clamp, isFiniteNumber } from './numbers'
+import { coordinateLabel } from './points'
+import { utcDayKey } from './calendarDates'
 
 /**
  * The popup's type ramp, and the face everything in it is set in.
@@ -42,8 +45,8 @@ import type { PopupGrid, PopupGridCell } from './popupRows'
  */
 const POPUP_FACE = 'font-family:sans-serif;line-height:1.5'
 const POPUP_TITLE_SIZE = 'font-size:13px'
-export const POPUP_BODY_SIZE = 'font-size:12px'
-export const POPUP_FINE_SIZE = 'font-size:11px'
+const POPUP_BODY_SIZE = 'font-size:12px'
+const POPUP_FINE_SIZE = 'font-size:11px'
 
 /**
  * The face a value is set in. Monospace, because that is what the results table
@@ -66,7 +69,7 @@ export const POPUP_FINE_SIZE = 'font-size:11px'
  * The stack is spelled out rather than left to a bare `monospace` keyword
  * because this markup is handed to MapLibre's setHTML.
  */
-export const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'
+const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'
 
 /**
  * One "label: value" line.
@@ -119,7 +122,7 @@ export const LABEL_COLOR = 'color:var(--popup-label)'
  * than part of the name, and it reads better light between a weighted label
  * and a mono value than swept into either.
  */
-export function rowLabel(label: string): string {
+function rowLabel(label: string): string {
   return `<span style="${LABEL_COLOR}">${label}</span>`
 }
 
@@ -140,7 +143,7 @@ export function rowLabel(label: string): string {
  * whatever follows it becomes markup, so the link cannot leave it to every
  * caller to remember (#621). `inner` is markup the caller has already built.
  */
-export function popupLink(href: string, inner: string, extra = ''): string {
+function popupLink(href: string, inner: string, extra = ''): string {
   return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;${extra}">${inner}</a>`
 }
 
@@ -215,18 +218,30 @@ export function updatedLine(when: string): string {
 }
 
 /**
+ * Epoch ms as a Date, or null where there is no instant to name: no stamp, a
+ * stamp that is not a finite number, or one past Date's range (9e15 is
+ * finite and still an Invalid Date, which prints as `Invalid Date` rather than
+ * throwing). Every card stamp is read through it, so an unreadable one leaves
+ * its line off rather than saying so on the card.
+ */
+export function dateOfMs(ms: number | null | undefined): Date | null {
+  if (!isFiniteNumber(ms)) return null
+  const d = new Date(ms)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/**
  * Epoch ms as the date and time an `updatedLine` carries, in the reader's own
  * zone and locale, or null to leave the line off. Falls back to a bare ISO
  * date where the locale cannot format it, so it never throws.
  */
 export function updatedAt(ms: number | null | undefined): string | null {
-  if (ms == null || !Number.isFinite(ms)) return null
-  const d = new Date(ms)
-  if (Number.isNaN(d.getTime())) return null
+  const d = dateOfMs(ms)
+  if (d === null) return null
   try {
     return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
   } catch {
-    return d.toISOString().slice(0, 10)
+    return utcDayKey(d.getTime())
   }
 }
 
@@ -311,7 +326,7 @@ export function factsRow(
   longitude: number,
   href: string | null,
 ): string {
-  const pair = `<span style="${VALUE_FACE}">${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}</span>`
+  const pair = `<span style="${VALUE_FACE}">${coordinateLabel(latitude, longitude)}</span>`
   const coords = href ? popupLink(href, pair) : pair
   const parts = [
     type ? escapeHtml(type) : '',
@@ -572,7 +587,7 @@ const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`
  * attribute that finds that body. `map.css` draws the scrollbar it keeps
  * visible; `openCard` in `map/mapPopups.ts` sets the height (`capPopupBody`).
  */
-export const POPUP_SCROLL_CLASS = 'popup-scroll'
+const POPUP_SCROLL_CLASS = 'popup-scroll'
 /**
  * The class every card wears, which `map.css` frames (`popupCard`). Put on by
  * `openCard` in `map/mapPopups.ts` rather than by each caller, so no card can
@@ -636,7 +651,7 @@ export const POPUP_MAX_WIDTH_PX = 280
 export const RESULT_POPUP_MAX_WIDTH_PX = 366
 
 export function resultPopupWidth(canvasWidthPx: number): string {
-  return Math.max(180, Math.min(RESULT_POPUP_MAX_WIDTH_PX, canvasWidthPx - 20)) + 'px'
+  return clamp(canvasWidthPx - 20, 180, RESULT_POPUP_MAX_WIDTH_PX) + 'px'
 }
 
 /**
@@ -649,7 +664,7 @@ export function resultPopupWidth(canvasWidthPx: number): string {
  */
 export function popupWidth(canvasWidthPx: number): string {
   const share = Math.round(canvasWidthPx * 0.8)
-  return Math.max(180, Math.min(POPUP_MAX_WIDTH_PX, share)) + 'px'
+  return clamp(share, 180, POPUP_MAX_WIDTH_PX) + 'px'
 }
 
 /**
@@ -667,7 +682,7 @@ export function popupWidth(canvasWidthPx: number): string {
  * from numbers and OSM's own `type/id`, but a pin restored from a share link
  * carries its id from the link's text, and so does a place the geocoder named.
  */
-export function linkIcon({ href, label }: PopupCardLink): string {
+function linkIcon({ href, label }: PopupCardLink): string {
   return `<a href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" target="_blank" rel="noopener noreferrer" style="color:${HEADER_ICON_COLOR};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
 }
 
@@ -678,7 +693,7 @@ export function linkIcon({ href, label }: PopupCardLink): string {
  * cards' text links never did. Required with the url, so no card can link
  * out unnamed.
  */
-export interface PopupCardLink {
+interface PopupCardLink {
   href: string
   label: string
 }
@@ -792,7 +807,7 @@ const TITLE_TEXT = `min-width:0;${ONE_LINE}`
  */
 export const HEADER_BAND_COLOR = 'var(--popup-band)'
 export const HEADER_EDGE_COLOR = 'var(--popup-line)'
-export const HEADER_SHADOW_COLOR = 'var(--popup-shadow)'
+const HEADER_SHADOW_COLOR = 'var(--popup-shadow)'
 
 /**
  * The edge and the padding a result card's sections wear below the header:

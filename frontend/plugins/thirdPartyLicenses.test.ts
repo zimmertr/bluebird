@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   NOTICE_FILE,
   VENDORED_FILES,
@@ -14,9 +14,17 @@ import {
 
 const FRONTEND = join(import.meta.dirname, '..')
 
+// Every root `tree` makes, removed after its test, so a run on a host leaves
+// no directories in its temp folder.
+const roots: string[] = []
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
 /** Writes `files` (path relative to the root, then contents) under a fresh root. */
 function tree(files: Record<string, string>): string {
   const root = mkdtempSync(join(tmpdir(), 'notices-'))
+  roots.push(root)
   for (const [path, body] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true })
     writeFileSync(join(root, path), body)

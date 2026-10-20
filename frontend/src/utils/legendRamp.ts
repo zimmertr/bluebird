@@ -1,4 +1,5 @@
 import { ColorScale, LabelledScale } from './colors'
+import { grouped } from './numbers'
 
 /**
  * A colour scale drawn as one strip with its numbers inside it (#454).
@@ -159,14 +160,12 @@ export function scaleTicks(scale: LabelledScale): RampTick[] {
       .filter(({ i }) => i % 2 === 0 || i === last)
       .map(({ value, i }) => ({
         at: i + 1,
-        // en-US rather than the reader's locale: every other number this app
-        // prints is formatted the same way, and a strip whose ticks grouped on
-        // a different separator from the table beside it would read as two
-        // scales.
-        text: value.toLocaleString('en-US', {
-          minimumFractionDigits: digits,
-          maximumFractionDigits: digits,
-        }),
+        // A whole tick is grouped in the reader's locale, as every whole
+        // number on screen is; a decimal tick keeps toFixed's point, as the
+        // table's and the popup's decimal cells do, so the strip and the
+        // table beside it read as one scale. Every decimal tick is under
+        // 1,000, so none of them loses a separator.
+        text: digits === 0 ? grouped(value) : value.toFixed(digits),
       })),
   )
 }

@@ -144,8 +144,6 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy, 
     setColorByKey((cbk) => allocateColors(cbk, keys))
   }, [])
 
-  const clear = useCallback(() => setSelectedKeys([]), [])
-
   return {
     selectedRows,
     isSelected,
@@ -154,7 +152,6 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy, 
     colorFor,
     colorByKey,
     rememberColors,
-    clear,
     metric,
     setMetric,
   }

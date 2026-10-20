@@ -3,6 +3,7 @@ import { CLOUD_DECK_CEILING_SHOWN_FT, CLOUD_DECK_FLOOR_FT, cloudDeckMark, isClou
 import { CLOUD_DECK_CEILING_FT } from './openMeteoAggregate'
 import { COLUMNS } from './tableColumns'
 import { formatTooltipValue } from './chartData'
+import { cellText } from './resultsCells'
 
 // The two edges of the cloud deck's walk print as bounds (TJ, 2026-10-08):
 // the ceiling, a column that never saturated, and the floor, a saturated
@@ -45,7 +46,7 @@ describe('cloudDeckMark', () => {
       expect(col.format!(30066)).toBe('≥30,000')
       expect(col.format!(364)).toBe('≤364')
       expect(col.format!(4210)).toBe('4,210')
-      expect(col.format!(null)).toBe('—')
+      expect(cellText(col, null)).toBe('—')
       expect(col.csv!(30066)).toBe('≥30000')
       expect(col.csv!(4210)).toBe('4210')
     }

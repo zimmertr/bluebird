@@ -17,7 +17,6 @@ from app.services.osm.enrich import (
     NAME_MATCH_RADIUS_M,
     _distance_m,
     _lookup_peaks,
-    _point_key,
     enrich_custom,
     enrich_custom_reporting,
 )
@@ -67,7 +66,6 @@ __all__ = [
     "ENRICH_DEADLINE_S",
     "NAME_MATCH_RADIUS_M",
     "_EARTH_RADIUS_M",
-    "_point_key",
     "_distance_m",
     "_lookup_peaks",
     "enrich_custom",

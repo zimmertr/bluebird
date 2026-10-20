@@ -218,6 +218,9 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
   const { response, universe, aqiFailed, columns, late } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
     signal,
     resolving,
+    // The one clock the window and the reuse check above read, so the
+    // fetches' horizon clamps cannot disagree with them.
+    nowMs: now(),
     maxDestinations: options.maxDestinations,
     windowLimits: options.windowLimits,
     aqiForecastDays: options.aqiForecastDays,

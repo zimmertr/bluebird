@@ -162,8 +162,6 @@ describe('wildfirePopupHtml', () => {
   })
 })
 
-// Drives whether the hover popup stays anchored (same fire, so it can be moved
-// onto) or re-anchors (a different fire under the cursor).
 // A 429 is this client outpacing its own address limit; a 503 is a server that
 // has never completed a fetch. Neither resolves inside a backoff a UI can hold.
 describe('isRateLimited', () => {

@@ -6,9 +6,12 @@ import {
   ApiUnreachable,
   apiFetch,
   apiJson,
+  overlayFeatures,
   postDestinations,
+  type OverlayFailure,
   retryAfterSeconds,
 } from './apiFetch'
+import { fakeResponse } from '../testSupport/fixtures'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -57,14 +60,14 @@ describe('apiFetch', () => {
   // judgements stay with the caller, so a failing status must come back rather
   // than throw here.
   it('hands a failing status back to the caller', async () => {
-    stubFetch(() => Promise.resolve(new Response('{}', { status: 429 })))
+    stubFetch(() => Promise.resolve(fakeResponse({}, 429)))
     const res = await apiFetch('/api/wildfires')
     expect(res.ok).toBe(false)
     expect(res.status).toBe(429)
   })
 
   it('returns a successful response unchanged', async () => {
-    const spy = stubFetch(() => Promise.resolve(new Response('ok', { status: 200 })))
+    const spy = stubFetch(() => Promise.resolve(fakeResponse({ raw: 'ok' })))
     const res = await apiFetch('/api/smoke', { headers: { Accept: 'application/json' } })
     expect(res.ok).toBe(true)
     expect(spy).toHaveBeenCalledWith(
@@ -100,7 +103,7 @@ describe('apiFetch', () => {
 
   it('stops the clock once the answer has started', async () => {
     vi.useFakeTimers()
-    const spy = stubFetch(() => Promise.resolve(new Response('ok', { status: 200 })))
+    const spy = stubFetch(() => Promise.resolve(fakeResponse({ raw: 'ok' })))
     await apiFetch('/api/smoke')
     const signal = (spy.mock.calls[0][1] as RequestInit).signal as AbortSignal
     await vi.advanceTimersByTimeAsync(API_DEADLINE_MS * 2)
@@ -111,22 +114,58 @@ describe('apiFetch', () => {
 describe('retryAfterSeconds', () => {
   it('reads the seconds form and nothing else', () => {
     const answer = (value?: string) =>
-      new Response('', { status: 503, headers: value === undefined ? {} : { 'Retry-After': value } })
+      fakeResponse({ raw: '' }, 503, value === undefined ? {} : { 'Retry-After': value })
     expect(retryAfterSeconds(answer('60'))).toBe(60)
     expect(retryAfterSeconds(answer(' 5 '))).toBe(5)
     expect(retryAfterSeconds(answer())).toBeNull()
     expect(retryAfterSeconds(answer('Wed, 21 Oct 2026 07:28:00 GMT'))).toBeNull()
     expect(retryAfterSeconds(answer('-1'))).toBeNull()
   })
+
+  // RFC 9110's delta-seconds is digits alone, so a value that is not one is no
+  // wait, and each caller falls back to its own: Open-Meteo's 429 used to read
+  // these leniently and waited 2 s, 1 s and 1000 s for them.
+  it('reads a decimal, a sign or an exponent as no wait, and 0 as 0', () => {
+    const answer = (value: string) => fakeResponse({ raw: '' }, 429, { 'Retry-After': value })
+    expect(retryAfterSeconds(answer('1.5'))).toBeNull()
+    expect(retryAfterSeconds(answer('-5'))).toBeNull()
+    expect(retryAfterSeconds(answer('1e3'))).toBeNull()
+    expect(retryAfterSeconds(answer(''))).toBeNull()
+    expect(retryAfterSeconds(answer('0'))).toBe(0)
+  })
+
+  it('reads an answer with no headers at all as no wait', () => {
+    expect(retryAfterSeconds({ ok: false, status: 429 } as Response)).toBeNull()
+  })
+})
+
+describe('overlayFeatures', () => {
+  const read = (res: Response) => overlayFeatures(res, 'Probe data unavailable. Try again later.', 'Probe data could not be read.')
+
+  it('hands back a FeatureCollection as it came', async () => {
+    const body = { type: 'FeatureCollection', features: [], coverage: null }
+    expect(await read(fakeResponse(body))).toEqual(body)
+  })
+
+  it('marks a 429 or a 503 as a wait with its Retry-After, and any other refusal as neither', async () => {
+    for (const status of [429, 503]) {
+      const err = (await read(fakeResponse({}, status, { 'Retry-After': '30' })).catch((e: unknown) => e)) as OverlayFailure
+      expect(err).toMatchObject({ message: 'Probe data unavailable. Try again later.', rateLimited: true, retryAfterS: 30 })
+    }
+    const err = (await read(fakeResponse({}, 500)).catch((e: unknown) => e)) as OverlayFailure
+    expect(err).toMatchObject({ rateLimited: false, retryAfterS: null })
+  })
+
+  it('refuses a body that is no FeatureCollection with the unreadable sentence', async () => {
+    for (const body of [{ type: 'Feature' }, { type: 'FeatureCollection' }, null]) {
+      await expect(read(fakeResponse(body))).rejects.toThrow('Probe data could not be read.')
+    }
+  })
 })
 
 describe('apiJson', () => {
   it('parses the body of an answer that succeeded', async () => {
-    stubFetch(() =>
-      Promise.resolve(
-        new Response(JSON.stringify({ limits: { max_limit: 500 } }), { status: 200 }),
-      ),
-    )
+    stubFetch(() => Promise.resolve(fakeResponse({ limits: { max_limit: 500 } })))
     await expect(apiJson('/api/capabilities')).resolves.toEqual({ limits: { max_limit: 500 } })
   })
 
@@ -134,7 +173,7 @@ describe('apiJson', () => {
   // has nothing to say about a status, so an error body must not reach it
   // looking like an answer.
   it('throws on a failing status rather than parsing it', async () => {
-    stubFetch(() => Promise.resolve(new Response('{"detail":"nope"}', { status: 503 })))
+    stubFetch(() => Promise.resolve(fakeResponse({ detail: 'nope' }, 503)))
     await expect(apiJson('/api/capabilities')).rejects.toThrow('HTTP 503')
   })
 
@@ -146,7 +185,7 @@ describe('apiJson', () => {
 
 describe('postDestinations', () => {
   it('posts the request as JSON to the one path, with the caller signal', async () => {
-    const spy = stubFetch(() => Promise.resolve(new Response('{"destinations":[]}', { status: 200 })))
+    const spy = stubFetch(() => Promise.resolve(fakeResponse({ destinations: [] })))
     const controller = new AbortController()
     const body: DestinationsRequest = { destination_types: ['peak'] }
     await postDestinations(body, controller.signal)

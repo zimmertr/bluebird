@@ -38,7 +38,7 @@ export interface HeldTileRequest {
 }
 
 /** What a loader answers MapLibre with: the image's bytes and the server's cache headers. */
-export interface HeldTileResponse {
+interface HeldTileResponse {
   data: ArrayBuffer
   cacheControl?: string | null
   expires?: string | null

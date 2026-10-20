@@ -35,4 +35,8 @@ def test_manifest_is_byte_for_byte_what_the_script_writes():
     # The file says it is generated and not to be hand-edited. Comparing the
     # parsed values alone would let a re-indent or a reordered key stand, and
     # the next regeneration would then land as a diff nobody meant to make.
-    assert MANIFEST.read_text() == render()
+    assert MANIFEST.read_text() == render(), (
+        "backend/tests/data/mirrored_constants.json is not what the script writes.\n"
+        "Regenerate it:\n"
+        "    cd backend && python scripts/generate_mirrored_constants.py"
+    )

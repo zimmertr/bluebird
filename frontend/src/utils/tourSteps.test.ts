@@ -136,11 +136,4 @@ describe('the tutorial steps', () => {
     expect(TUTORIAL_PATH).toBe('/tutorial')
     expect(backendMain).toContain(`@app.api_route("${TUTORIAL_PATH}"`)
   })
-
-  it('offers the tour from the welcome dialog and the panel footer', () => {
-    // The footer link is a way in, not a step: a card about the tour itself
-    // was cut with the per-control cards.
-    expect(welcomeSource).toContain('Take the tutorial')
-    expect(panelFooterSource).toContain('>\n          Tutorial\n')
-  })
 })

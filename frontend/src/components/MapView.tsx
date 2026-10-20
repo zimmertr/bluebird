@@ -38,7 +38,7 @@ import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 
 /** Where the map stands, enough to put it back (#536). */
 /** A rectangle in viewport pixels, the shape `getBoundingClientRect` answers. */
-export interface ViewportRect {
+interface ViewportRect {
   top: number
   bottom: number
   left: number

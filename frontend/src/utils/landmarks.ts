@@ -36,7 +36,7 @@ export type LandmarkKind = 'trailhead' | 'crag'
  */
 export const LANDMARK_LAYERS = ['landmark-trailheads', 'landmark-crags'] as const
 
-export type LandmarkLayerId = (typeof LANDMARK_LAYERS)[number]
+type LandmarkLayerId = (typeof LANDMARK_LAYERS)[number]
 
 const KIND_OF: Record<LandmarkLayerId, LandmarkKind> = {
   'landmark-trailheads': 'trailhead',
@@ -49,7 +49,7 @@ export function landmarkKindOf(layerId: string): LandmarkKind | null {
 }
 
 /** One marker's properties, as the route answers them. */
-export interface LandmarkProps {
+interface LandmarkProps {
   name: string
   kind: LandmarkKind
   /** The backend's osm_id format, `node/4578891234`. */

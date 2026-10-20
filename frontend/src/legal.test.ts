@@ -387,7 +387,7 @@ describe('the privacy copy, held to the code', () => {
     expect(forecastStore).toMatch(/sessionStorage\?\.setItem\(STORAGE_KEY/)
     expect(mainEntry).toMatch(/reloadOnStaleChunk\(\{[\s\S]*?storage: \(\) => window\.sessionStorage/)
     // The page's "last 15 minutes".
-    expect(forecastStore).toMatch(/const CACHE_TTL_MS = 15 \* 60_000/)
+    expect(forecastStore).toMatch(/const CACHE_TTL_MS = 15 \* MINUTE_MS/)
   })
 
   // The browser's own third-party surface is the CSP's list, so the page's

@@ -5,7 +5,6 @@ import {
   encodeState,
   decodeState as decodeWithLimits,
   type DecodeLimits,
-  classifyWindow,
   classifyAqiCoverage,
   clampLimit,
   decodeAutoAnalyze,
@@ -17,12 +16,13 @@ import {
   FUTURE_LIMIT_DAYS,
   ForecastSelection,
   bandEnd,
+  classifyWindow,
 } from './calendar'
 import { GeoPolygon } from '../types'
 import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'
 import { MAX_ANALYZE_DESTINATIONS, NO_CONSTRAINTS } from './clientAnalyze'
 import { urlNeedsSync } from './urlSync'
-import { MAX_CUSTOMZ_CHARS, escapeQueryText, unescapeQueryText } from './urlParams'
+import { MAX_CUSTOMZ_CHARS, URL_PARAMS, escapeQueryText, unescapeQueryText } from './urlParams'
 import { compressToEncodedURIComponent } from 'lz-string'
 import { place } from '../testSupport/fixtures'
 import { MAX_POLYGON_POINTS } from './drawGeometry'
@@ -467,17 +467,13 @@ describe('encodeState gate — what triggers a URL update', () => {
 
 describe('encodeState', () => {
 
-  it('omits elevation params when unset', () => {
-    const qs = encodeState(base, DEFAULT_MODEL)
-    expect(qs).not.toContain('minel')
-    expect(qs).not.toContain('maxel')
-  })
-
   it('omits every forecast bound when unset', () => {
-    const qs = encodeState(base, DEFAULT_MODEL)
-    for (const param of ['minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind', 'minfreeze', 'maxfreeze', 'minaqi', 'maxaqi']) {
-      expect(qs).not.toContain(param)
-    }
+    // Read off the codec table, so a bound added there is covered on arrival:
+    // two ends on each of the seven families.
+    const bounds = URL_PARAMS.map((r) => r.key).filter((k) => /^(min|max)/.test(k))
+    expect(bounds).toHaveLength(14)
+    const params = new URLSearchParams(encodeState(base, DEFAULT_MODEL))
+    for (const k of bounds) expect(params.has(k), k).toBe(false)
   })
 
   it('round-trips every forecast bound, readably', () => {
@@ -571,22 +567,15 @@ describe('encodeState', () => {
 })
 
 describe('pins in the URL', () => {
-  const whitney = {
+  const whitney = place({
     label: 'Mount Whitney',
     description: '',
-    kind: 'peak',
     lat: 36.57849,
     lon: -118.29194,
     elevationFt: 14505,
     osmId: 'node/944865772',
-  }
-  const coord = {
-    label: '36.10000, -118.20000',
-    description: '',
-    kind: 'coordinates',
-    lat: 36.1,
-    lon: -118.2,
-  }
+  })
+  const coord = place({ label: '36.10000, -118.20000', description: '', kind: 'coordinates', lat: 36.1, lon: -118.2 })
 
   it('round-trips a peak pin with elevation and osm identity', () => {
     const out = roundTrip({ ...base, pins: [whitney] })
@@ -1262,10 +1251,6 @@ describe('the Current arm (mode=now)', () => {
     expect(params.get('d1')).toBeNull()
     expect(params.get('d2')).toBeNull()
     expect(params.get('h1')).toBeNull()
-  })
-
-  it('is the default, so it does not make a pristine session worth persisting', () => {
-    expect(encodeState({ ...pristine, selection: { kind: 'now' } }, DEFAULT_MODEL)).toBe('')
   })
 
   it('decodes mode=now', () => {

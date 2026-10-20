@@ -1,0 +1,31 @@
+// Read by `make check-unused`. Every exception below carries its reason, so a
+// new one is a decision someone wrote down rather than a warning someone hid.
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  "workspaces": {
+    ".": {
+      // The `!` marks what ships, for a `--production` run: that pass treats
+      // tests as absent and so finds code only its own test still calls.
+      "entry": ["src/{main,privacy,terms,notfound}.tsx!", "plugins/*.ts!"],
+      "project": ["src/**/*.{ts,tsx,css}!", "plugins/**/*.ts!", "*.{ts,js}"],
+      // The Dockerfile copies swagger-ui-dist's files into static/ for /docs;
+      // no module imports it.
+      "ignoreDependencies": ["swagger-ui-dist"]
+    },
+    "e2e": {
+      // `make perf` passes this config by path.
+      "entry": ["perf/playwright.config.ts"],
+      "project": ["**/*.ts"]
+    },
+    "tools/eslint": {
+      "project": ["**/*.js"]
+    },
+    "tools/api-types": {},
+    "tools/knip": {}
+  },
+  "ignoreIssues": {
+    // Each type here is a compile-time assertion against the generated
+    // schema. Exporting it is what keeps tsc from calling it unused.
+    "src/api-compat.ts": ["types"]
+  }
+}

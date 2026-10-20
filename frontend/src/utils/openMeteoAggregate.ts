@@ -401,7 +401,7 @@ export function joinHours(
 // vector-pinned aggregates. Every gap degrades to the 10 m wind: no
 // elevation, an elevation under the lowest level (a valley destination IS
 // sheltered), or a null at a needed level.
-export function windAtElevation(
+function windAtElevation(
   w10: number,
   elevationFt: number | null | undefined,
   levels: readonly (number | null)[],

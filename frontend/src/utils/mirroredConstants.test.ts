@@ -125,3 +125,30 @@ describe('the model-coverage sentence', () => {
     expect(COVERAGE_PHRASE).toBe(firstSentence)
   })
 })
+
+// The manifest holds nothing this file does not read: a value the backend adds
+// to it is a pair with no browser half until a test above names it.
+describe('the manifest', () => {
+  const CHECKED = [
+    'ARCHIVE_STRADDLE_DAYS',
+    'BATCH_SIZE',
+    'CLOUD_DECK_CEILING_FT',
+    'CLOUD_SATURATION_RH',
+    'COARSE_OFFSET_DEG',
+    'FUTURE_LIMIT_SLACK_DAYS',
+    'ISA_HEIGHT_M',
+    'MAX_ANALYZE_PEAKS',
+    'MAX_CONCURRENT_BATCHES',
+    'MAX_POLYGON_POINTS',
+    'N_CLOUD_VARIABLES',
+    'N_VARIABLES',
+    'PAST_DATA_DAYS',
+    'PAST_LIMIT_SLACK_DAYS',
+  ]
+  const CHECKED_STRINGS = ['model_coverage_message']
+
+  it('carries no constant this side leaves unmatched', () => {
+    expect(Object.keys(constants).sort()).toEqual([...CHECKED].sort())
+    expect(Object.keys(strings).sort()).toEqual([...CHECKED_STRINGS].sort())
+  })
+})

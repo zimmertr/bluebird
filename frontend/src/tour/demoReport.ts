@@ -2,6 +2,8 @@ import type { AnalyzedView } from '../hooks/analyzeTypes'
 import { CLOUD_DECK_CEILING_FT } from '../utils/openMeteoAggregate'
 import { analyzedSnapshot, resultRow, series } from '../testSupport/fixtures'
 import type { AnalyzeResponse, DestinationResult } from '../types'
+import { roundTo } from '../utils/numbers'
+import { HOUR_MS } from '../utils/forecastWindow'
 
 /**
  * The report the tutorial's last step shows (#536). A first-visit tour runs
@@ -17,13 +19,12 @@ export interface DemoReport {
   analyzed: AnalyzedView
 }
 
-const HOUR_MS = 3_600_000
 /** Hours in the demonstration window: a day out, dawn to dusk. */
 const HOURS = 13
 
 /** A smooth hourly curve between two values, so the chart draws a line rather than a step. */
 function ramp(from: number, to: number, n = HOURS): number[] {
-  return Array.from({ length: n }, (_, i) => Math.round((from + ((to - from) * i) / (n - 1)) * 10) / 10)
+  return Array.from({ length: n }, (_, i) => roundTo(from + ((to - from) * i) / (n - 1), 1))
 }
 
 interface Summit {
@@ -77,15 +78,15 @@ export function demoReport(now = Date.now()): DemoReport {
       longitude: s.longitude,
       elevation_ft: s.elevation_ft,
       precip_total_in: s.precip,
-      precip_avg_in_hr: Math.round(perHour * 1000) / 1000,
+      precip_avg_in_hr: roundTo(perHour, 3),
       precip_min_in_hr: 0,
-      precip_max_in_hr: Math.round(perHour * 2 * 1000) / 1000,
+      precip_max_in_hr: roundTo(perHour * 2, 3),
       temp_min_f: s.temp[0],
       temp_max_f: s.temp[1],
-      temp_avg_f: Math.round(((s.temp[0] + s.temp[1]) / 2) * 10) / 10,
+      temp_avg_f: roundTo((s.temp[0] + s.temp[1]) / 2, 1),
       wind_min_mph: s.wind[0],
       wind_max_mph: s.wind[1],
-      wind_avg_mph: Math.round(((s.wind[0] + s.wind[1]) / 2) * 10) / 10,
+      wind_avg_mph: roundTo((s.wind[0] + s.wind[1]) / 2, 1),
       aqi_min: s.aqi[0],
       aqi_max: s.aqi[1],
       aqi_avg: Math.round((s.aqi[0] + s.aqi[1]) / 2),
@@ -96,18 +97,18 @@ export function demoReport(now = Date.now()): DemoReport {
       freeze_max_ft: s.freeze[1],
       freeze_avg_ft: Math.round((s.freeze[0] + s.freeze[1]) / 2),
       snowfall_total_in: s.snowfall,
-      snowfall_avg_in_hr: Math.round(snowPerHour * 1000) / 1000,
+      snowfall_avg_in_hr: roundTo(snowPerHour, 3),
       snowfall_min_in_hr: 0,
-      snowfall_max_in_hr: Math.round(snowPerHour * 4 * 1000) / 1000,
+      snowfall_max_in_hr: roundTo(snowPerHour * 4, 3),
       cloud_deck_min_ft: s.deck[0],
       cloud_deck_max_ft: s.deck[1],
       cloud_deck_avg_ft: Math.round((s.deck[0] + s.deck[1]) / 2),
       series: series({
-        precip_in: times.map((_, i) => (i % 4 === 3 ? Math.round(perHour * 4 * 1000) / 1000 : 0)),
+        precip_in: times.map((_, i) => (i % 4 === 3 ? roundTo(perHour * 4, 3) : 0)),
         temp_f: temp,
         wind_mph: wind,
         freeze_ft: ramp(s.freeze[0], s.freeze[1]).map(Math.round),
-        snowfall_in: times.map((_, i) => (i % 4 === 3 ? Math.round(snowPerHour * 4 * 1000) / 1000 : 0)),
+        snowfall_in: times.map((_, i) => (i % 4 === 3 ? roundTo(snowPerHour * 4, 3) : 0)),
         cloud_deck_ft: ramp(s.deck[0], s.deck[1]).map(Math.round),
         aqi: aqi.map(Math.round),
       }),

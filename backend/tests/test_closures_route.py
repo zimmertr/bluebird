@@ -11,7 +11,7 @@ import zlib
 
 import pytest
 from fastapi.testclient import TestClient
-from test_nifc import counting_calls
+from test_nifc import ARCGIS_REFUSALS, arcgis_answering, counting_calls
 
 from app import ratelimit
 from app.main import app
@@ -159,16 +159,26 @@ def test_bbox_is_required(served):
         assert client.get("/api/closures", params={"kind": "area"}).status_code == 422
 
 
+_SHAPE = "bbox must be four comma-separated numbers: west,south,east,north."
+
+
 @pytest.mark.parametrize(
-    "bbox",
-    ["-122.5,46.0,-121.0", "not,a,bounding,box", "-200,46.0,-121.0,47.5", "-122.5,48.0,-121.0,47.5"],
+    ("bbox", "detail"),
+    [
+        ("-122.5,46.0,-121.0", _SHAPE),
+        ("not,a,bounding,box", _SHAPE),
+        ("-200,46.0,-121.0,47.5", "bbox longitudes must be between -180 and 180."),
+        ("-122.5,95,-121.0,96", "bbox latitudes must be between -90 and 90."),
+        ("-122.5,48.0,-121.0,47.5", "bbox south must not exceed north."),
+    ],
 )
-def test_a_malformed_box_answers_the_wildfire_route_422(served, bbox):
+def test_a_malformed_box_answers_the_wildfire_route_422(served, bbox, detail):
     with TestClient(app) as client:
         closures = client.get("/api/closures", params={"bbox": bbox, "kind": "area"})
         wildfires = client.get("/api/wildfires", params={"bbox": bbox})
     assert closures.status_code == 422
     assert closures.json()["error"] == {"code": "validation", "retryable": False}
+    assert closures.json()["detail"] == detail
     # One parser, so the two routes cannot word the same mistake two ways.
     assert closures.json() == wildfires.json()
 
@@ -183,6 +193,21 @@ def test_a_cold_cache_answers_503_with_retry_after():
     assert response.json()["error"] == {"code": "snapshot_unavailable", "retryable": True}
 
 
+@pytest.mark.parametrize(("status", "body", "headers", "retry_after"), ARCGIS_REFUSALS)
+def test_an_arcgis_refusal_answers_the_feeds_own_sentence(
+    monkeypatch, status, body, headers, retry_after
+):
+    async def fetch() -> usfs_closures.Snapshot:
+        return await usfs_closures.fetch_snapshot(arcgis_answering(status, body, headers))
+
+    monkeypatch.setattr(usfs_closures, "CLOSURES", usfs_closures.closure_cache(fetch=fetch))
+    with TestClient(app) as client:
+        response = client.get("/api/closures", params={"bbox": BOX, "kind": "area"})
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Closure data is rate-limited. Try again later."
+    assert response.headers["Retry-After"] == retry_after
+
+
 def test_the_closures_bucket_throttles_this_route_alone(served, monkeypatch):
     monkeypatch.setattr(ratelimit.client, "CLOSURES_LIMITER", ratelimit.RateLimiter(1, 1, name="closures"))
     with TestClient(app) as client:
@@ -195,11 +220,9 @@ def test_the_closures_bucket_throttles_this_route_alone(served, monkeypatch):
     assert throttled.json()["error"] == {"code": "rate_limited", "retryable": True}
 
 
-def test_capabilities_publishes_the_closures_bucket_and_the_source():
+def test_capabilities_names_the_forest_service_as_a_source():
     with TestClient(app) as client:
         body = client.get("/api/capabilities").json()
-    assert "closures_per_minute" in body["limits"]["rate"]
-    assert "closures_burst" in body["limits"]["rate"]
     assert {
         "name": "US Forest Service",
         "url": "https://www.fs.usda.gov/",

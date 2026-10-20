@@ -261,11 +261,15 @@ describe('useTableView', () => {
     expect(result.current.tableRows.map((r) => r.name)).toEqual(['Near', 'Far', 'Clear'])
   })
 
-  it('shows the Closure column last and by default, lists it in the picker, and hides it on untick', () => {
+  it('shows the Closure column last and by default, and lists it in the picker', () => {
     const { result } = renderHook(() => useTableView(inputs()))
     expect(keys(result.current.tableColumns).slice(-2)).toEqual([WILDFIRE_KEY, CLOSURE_KEY])
     expect(keys(result.current.allColumns)).toContain(CLOSURE_KEY)
     expect(result.current.pickerVisibleKeys.has(CLOSURE_KEY)).toBe(true)
+  })
+
+  it('hides the Closure column on untick, keeps the Wildfire one, and stores the choice', () => {
+    const { result } = renderHook(() => useTableView(inputs()))
     const without = new Set(result.current.pickerVisibleKeys)
     without.delete(CLOSURE_KEY)
     act(() => result.current.handleVisibilityChange(without))

@@ -24,6 +24,24 @@ const OPEN_METEO = ['src/utils/openMeteo.ts', 'src/utils/openMeteoAggregate.ts',
 
 const DRAG_SURFACES = ['src/components/ResultsTableHeader.tsx', 'src/components/ColumnsPicker.tsx']
 
+// The app's code without its tests, for the one-home checks below: a suite
+// spells a rule out on purpose, to hold the helper to the arithmetic it
+// replaced or to build the input a helper reads.
+const APP_CODE = ['src/**/*.{ts,tsx}']
+const TESTS = ['src/**/*.test.{ts,tsx}', 'src/testSupport/**']
+
+// A call of `Math.<fn>` or `Number.<fn>`, `fn` a name or a regex.
+const mathCall = (fn) => `CallExpression[callee.object.name="Math"][callee.property.name=${fn}]`
+const numberCall = (fn) => `CallExpression[callee.object.name="Number"][callee.property.name=${fn}]`
+const MIN_MAX = mathCall('/^(min|max)$/')
+const IS_FINITE = numberCall('"isFinite"')
+// A test that a value is there, or is a number: the half of a finite check
+// that exists only because `Number.isFinite`'s lib type narrows nothing. The
+// undefined arm names its type, because esquery reads an absent `name` as the
+// string "undefined".
+const PRESENCE_TEST =
+  'BinaryExpression[operator=/^[!=]==?$/]:matches([right.raw="null"], [right.type="Identifier"][right.name="undefined"], [left.operator="typeof"])'
+
 export const DATA = [
   {
     // The unreachable message is decided at the primitive, which only holds
@@ -417,6 +435,191 @@ export const DATA = [
     files: ['src/styles.ts'],
     require: [
       { selector: text('pointer-events-none fixed'), message: 'Keep the drag ghost pointer-events-none fixed.' },
+    ],
+  },
+  // The checks below hold a rule that was spelled in several shapes to the one
+  // helper that owns it (#690), so a new site imports it rather than spelling
+  // a seventh shape. Each spares the helper's own module.
+  {
+    // Three private clamps answered an inverted range two ways, and 21 inline
+    // ones in 15 files a third. `clamp` in utils/numbers.ts is the rule; a
+    // Math.min that is a direct argument of a Math.max (or the reverse) is a
+    // clamp spelled again. calendarSelection.ts clamps a day key between two
+    // strings, which is not this rule, and is `clampDay` so it reads apart.
+    name: 'clamp-one-home',
+    files: APP_CODE,
+    ignores: [...TESTS, 'src/utils/numbers.ts'],
+    probe: 'src/utils/layout.ts',
+    ban: [
+      {
+        selector: `${MIN_MAX} > ${MIN_MAX}.arguments`,
+        message: 'Bound a number with clamp() from utils/numbers.ts rather than nesting Math.min and Math.max.',
+      },
+      {
+        selector: 'FunctionDeclaration[id.name="clamp"], VariableDeclarator[id.name="clamp"]',
+        message: 'Import clamp() from utils/numbers.ts rather than declaring another.',
+      },
+    ],
+  },
+  {
+    // `x != null && Number.isFinite(x)` and its three siblings were the same
+    // test spelled for the type checker. isFiniteNumber narrows once. Matched
+    // by shape alone, since a selector cannot tell that both halves name one
+    // value; a plain Number.isFinite on a value already typed number stays.
+    name: 'finite-number-one-home',
+    files: APP_CODE,
+    ignores: [...TESTS, 'src/utils/numbers.ts'],
+    probe: 'src/utils/smoke.ts',
+    ban: [
+      {
+        selector:
+          `LogicalExpression:has(> ${PRESENCE_TEST}):has(> :matches(${IS_FINITE}, UnaryExpression[operator="!"]:has(> ${IS_FINITE})))`,
+        message: 'Test a value with isFiniteNumber() from utils/numbers.ts rather than a null test beside Number.isFinite.',
+      },
+    ],
+  },
+  {
+    // Grouped numbers take the reader's locale everywhere through grouped(),
+    // so one session never prints 1.500 beside 1,500. The over-cap refusal
+    // spells en-US because its sentence mirrors the backend's (mirror row 18).
+    // Every date call here passes arguments, so a bare call is a number.
+    name: 'number-format-one-home',
+    files: APP_CODE,
+    ignores: [...TESTS, 'src/utils/numbers.ts', 'src/utils/clientAnalyze.ts'],
+    probe: 'src/utils/panelMessages.ts',
+    ban: [
+      {
+        selector: 'CallExpression[callee.property.name="toLocaleString"][arguments.length=0]',
+        message: 'Group a number with grouped() from utils/numbers.ts rather than a bare toLocaleString().',
+      },
+      {
+        selector: 'CallExpression[callee.property.name="toLocaleString"][arguments.0.value="en-US"]',
+        message: 'Group a number in the reader\'s locale with grouped(); only the over-cap refusal spells en-US.',
+      },
+    ],
+  },
+  {
+    // `Math.round(x * 10 ** n) / 10 ** n` rounds a negative tie toward zero.
+    // roundTo rounds the magnitude, so a tie goes the same way either side of
+    // zero. openMeteoAggregate.ts's roundHalfEven mirrors Python's round and
+    // spells no division.
+    name: 'round-one-home',
+    files: APP_CODE,
+    ignores: [...TESTS, 'src/utils/numbers.ts'],
+    probe: 'src/utils/urlParams.ts',
+    ban: [
+      {
+        selector: `BinaryExpression[operator="/"] > ${mathCall('"round"')}.left`,
+        message: 'Round to decimal places with roundTo() from utils/numbers.ts.',
+      },
+    ],
+  },
+  {
+    // The server's metres-to-feet factor for an OSM `ele` (mirror row 20).
+    // FT_TO_M in openMeteoAggregate.ts is the exact ISA factor, a different
+    // number, and stays.
+    name: 'feet-per-meter-one-home',
+    files: APP_CODE,
+    ignores: ['src/utils/basemapPoi.ts'],
+    probe: 'src/utils/geocode.ts',
+    ban: [
+      {
+        selector: 'Literal[value=3.28084]',
+        message: 'Read FEET_PER_METER from utils/basemapPoi.ts rather than spelling the factor.',
+      },
+    ],
+  },
+  {
+    // A coordinate on the globe is one bound, |lat| <= 90 and |lon| <= 180,
+    // which onGlobe in utils/points.ts owns. MapLibre's Mercator latitude in
+    // mapView.ts is another rule, and spells 85.05.
+    name: 'globe-one-home',
+    files: APP_CODE,
+    ignores: [...TESTS, 'src/utils/points.ts'],
+    probe: 'src/utils/customDestinations.ts',
+    ban: [
+      {
+        selector: `BinaryExpression:has(> ${mathCall('"abs"')}):matches([right.value=90], [right.value=180], [left.value=90], [left.value=180])`,
+        message: 'Ask onGlobe() in utils/points.ts whether a coordinate is on the globe.',
+      },
+    ],
+  },
+  {
+    // The mark a missing value prints, beside UNAVAILABLE, the other one.
+    name: 'missing-mark-one-home',
+    files: APP_CODE,
+    ignores: [...TESTS, 'src/utils/unavailableCell.ts'],
+    probe: 'src/utils/tableColumns.ts',
+    ban: [
+      {
+        selector: 'Literal[value="\u2014"], JSXText[value=/^\\s*\u2014\\s*$/]',
+        message: 'Print a missing value with NO_VALUE_MARK from utils/unavailableCell.ts.',
+      },
+    ],
+  },
+  {
+    // The mark an unavailable value prints, beside NO_VALUE_MARK. The Wildfire
+    // and Closure columns, the file and the point cards spelled it four more
+    // times. A test still spells it, because a test pins what the reader sees.
+    name: 'unavailable-mark-one-home',
+    files: APP_CODE,
+    ignores: [...TESTS, 'src/utils/unavailableCell.ts'],
+    probe: 'src/utils/resultsCsv.ts',
+    ban: [
+      {
+        selector: 'Literal[value="N/A"]',
+        message: 'Print an unavailable value with UNAVAILABLE from utils/unavailableCell.ts.',
+      },
+    ],
+  },
+  {
+    // An instant floored to its hour, and the time units, are forecastWindow.ts's.
+    name: 'time-units-one-home',
+    files: APP_CODE,
+    ignores: [...TESTS, 'src/utils/forecastWindow.ts'],
+    probe: 'src/utils/modelCompare.ts',
+    ban: [
+      {
+        selector: 'BinaryExpression[operator="%"][right.name="HOUR_MS"]',
+        message: 'Floor an instant with floorHour() from utils/forecastWindow.ts.',
+      },
+      {
+        selector: 'Literal[value=3600000], Literal[value=86400000]',
+        message: 'Read HOUR_MS or DAY_MS from utils/forecastWindow.ts rather than spelling the milliseconds.',
+      },
+    ],
+  },
+  {
+    // One parser of the header, strict to RFC 9110's delta-seconds; Open-Meteo
+    // composes it with its own floor.
+    name: 'retry-after-one-home',
+    files: APP_CODE,
+    ignores: [...TESTS, 'src/utils/apiFetch.ts'],
+    probe: 'src/utils/openMeteo.ts',
+    ban: [
+      {
+        selector: 'Literal[value=/^retry-after$/i]',
+        message: 'Read Retry-After with retryAfterSeconds() from utils/apiFetch.ts.',
+      },
+    ],
+  },
+  {
+    // A cancel is read off its name (utils/abort.ts): in Vitest's jsdom project
+    // a real abort is no instance of the global DOMException. Tests are in,
+    // because a suite that asked instanceof would pass for the wrong realm.
+    name: 'abort-test-one-home',
+    files: [...APP_CODE, 'e2e/**/*.ts'],
+    ignores: ['src/utils/abort.ts'],
+    probe: 'src/utils/analysisFailure.ts',
+    ban: [
+      {
+        selector: 'BinaryExpression[operator=/^[!=]==?$/]:matches([right.value="AbortError"], [left.value="AbortError"])',
+        message: 'Ask isAbort() from utils/abort.ts rather than comparing a name to AbortError.',
+      },
+      {
+        selector: 'BinaryExpression[operator="instanceof"][right.name="DOMException"]',
+        message: 'Ask isAbort() from utils/abort.ts rather than instanceof DOMException, which fails across realms.',
+      },
     ],
   },
 ]

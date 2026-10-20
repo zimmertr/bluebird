@@ -2,6 +2,7 @@
 // state that stands in for it while the samples are still arriving.
 
 import { SEP } from '../metrics'
+import { roundTo } from './numbers'
 
 /**
  * The pitch as a distance, formatted the way the model picker formats the same
@@ -14,7 +15,7 @@ import { SEP } from '../metrics'
  * check against the picker.
  */
 export function pitchLabel(pitchKm: number): string {
-  const km = pitchKm < 10 ? Math.round(pitchKm * 10) / 10 : Math.round(pitchKm)
+  const km = pitchKm < 10 ? roundTo(pitchKm, 1) : Math.round(pitchKm)
   return `${km} km`
 }
 
