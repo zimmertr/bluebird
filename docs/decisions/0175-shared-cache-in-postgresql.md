@@ -1,6 +1,6 @@
 # 0175. Every pod shares one PostgreSQL with PostGIS, run by CloudNativePG, and the app runs as before without it
 
-- Status: Accepted
+- Status: Accepted. The single instance and the static volume are superseded by 0186: three instances, each on a dynamically provisioned volume, under two operator replicas.
 - Date: 2026-10-18
 - Decider: the maintainer (TJ), on issue #760, 2026-10-18: option A (one PostgreSQL with PostGIS holding what the app asks upstream for over and over), CloudNativePG with its operator installed once in Kubernetes-Manifests and its `cluster` chart a bluebird-helm subchart behind values, on by default, a `proxmox-flashpool` volume, one refresher per source chosen by an advisory lock, a backoff doubling from a minute to an hour, the forecast cache kept per pod, and CI run with the database off. The three modes, the pool size, the single instance and leaving the database's Istio sidecar on are Claude's, building #760, for the maintainer's review on the pull request. The maintainer moved the operator out of Bluebird Forecast's app into one of its own under `misc/`, on the pull request, 2026-10-18.
 - Issues and PRs: #760, #65 (share caches and budgets across the pods), #734, #745
