@@ -864,6 +864,21 @@ CLOUD_INPUTS = [
         ),
     },
     {
+        # One hour before the window and one stamp neither port can read
+        # (`datetime.fromisoformat` and `Date.parse` with a Z appended both
+        # refuse it): both drop out, and the in-window hours aggregate alone.
+        # Both outside hours are saturated at 2 m, so either one let in would
+        # bring the deck down to the destination and move every aggregate.
+        "name": "cloud_hour_outside_window_skipped",
+        "window": _win(H[1], H[2]),
+        "elevation_ft": 4000.0,
+        "payload": _cl(
+            [H[0], "not-a-time", H[1], H[2]],
+            [99.0, 99.0, 70.0, 70.0],
+            _dry(4, p850=[99.0, 99.0, 80.0, 90.0], p700=[99.0, 99.0, 99.0, 100.0]),
+        ),
+    },
+    {
         "name": "empty_payload_is_null_null",
         "window": _win(H[0], H[2]),
         "elevation_ft": 5000.0,

@@ -157,6 +157,20 @@ def test_parse_drops_lon_lat_alt_down_to_lon_lat_and_trims_precision():
     assert ring[0] == [-123.18073, 41.42071]
 
 
+def test_parse_skips_a_coordinate_it_cannot_read_and_keeps_the_ring():
+    # A one-number triple and a non-numeric one among the square's points
+    # cost only themselves, never the plume or the day around them.
+    corners = _SQUARE.split()
+    coordinates = " ".join([corners[0], "-123.5", corners[1], "x,y,0", *corners[2:]])
+    [feature] = hms.parse_kml(_kml(_placemark(coordinates=coordinates)))
+    assert feature["geometry"]["coordinates"][0] == [
+        [-123.18073, 41.42071],
+        [-122.18073, 41.42071],
+        [-122.18073, 42.42071],
+        [-123.18073, 41.42071],
+    ]
+
+
 def test_parse_drops_a_placemark_with_no_drawable_ring():
     assert hms.parse_kml(_kml(_placemark(coordinates="-123.0,41.0,0 -122.0,41.0,0"))) == []
 
@@ -369,10 +383,3 @@ def test_route_answers_503_when_nothing_has_ever_been_fetched():
         "code": "snapshot_unavailable",
         "retryable": True,
     }
-
-
-def test_capabilities_publishes_the_smoke_bucket():
-    with TestClient(app) as client:
-        limits = client.get("/api/capabilities").json()["limits"]["rate"]
-    assert "smoke_per_minute" in limits
-    assert "smoke_burst" in limits

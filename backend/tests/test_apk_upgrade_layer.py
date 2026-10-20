@@ -23,9 +23,6 @@ REPO = Path(__file__).parents[2]
 @pytest.fixture
 def instructions() -> list[str]:
     path = REPO / "Dockerfile"
-    # Skips where the repo root is not mounted, like the CSP allowlist test.
-    if not path.exists():
-        pytest.skip("repo root not visible")
     # One entry per instruction: continuation lines fold into the line above.
     joined = re.sub(r"\\\n\s*", " ", path.read_text())
     return [line for line in joined.splitlines() if line and not line.startswith("#")]

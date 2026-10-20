@@ -19,9 +19,8 @@ PROVIDER = "Test Provider"
 
 
 def _status_error(code: int) -> httpx.HTTPStatusError:
-    request = httpx.Request("GET", "https://example.test")
-    response = httpx.Response(code, request=request)
-    return httpx.HTTPStatusError("boom", request=request, response=response)
+    response = fake_response({}, code)
+    return httpx.HTTPStatusError("boom", request=response.request, response=response)
 
 
 def test_upstream_error_carries_message():
@@ -32,53 +31,51 @@ def test_upstream_error_carries_message():
 
 def test_timeout_message():
     msg = classify_http_error(httpx.TimeoutException("slow"), PROVIDER)
-    assert PROVIDER in msg
-    assert "too long" in msg
+    assert msg == f"{PROVIDER} took too long. Try again later."
 
 
 def test_rate_limit_429():
+    # A 429 that gives no reason has no scope to name.
     msg = classify_http_error(_status_error(429), PROVIDER)
-    assert "rate-limiting" in msg
+    assert msg == f"{PROVIDER} is rate-limiting. Try again later."
 
 
 @pytest.mark.parametrize("code", [401, 403])
-def test_auth_errors(code):
+def test_a_401_or_403_reads_as_rejected(code):
     msg = classify_http_error(_status_error(code), PROVIDER)
-    assert "rejected the request" in msg
+    assert msg == f"{PROVIDER} rejected the request. Try again later."
 
 
 @pytest.mark.parametrize("code", [500, 502, 503])
-def test_server_errors(code):
+def test_a_5xx_names_its_status(code):
     msg = classify_http_error(_status_error(code), PROVIDER)
-    assert f"HTTP {code}" in msg
-    assert "failed" in msg
+    assert msg == f"{PROVIDER} failed (HTTP {code}). Try again later."
 
 
-def test_other_status_code():
+def test_an_unlisted_status_names_its_status():
     msg = classify_http_error(_status_error(418), PROVIDER)
-    assert "error (HTTP 418)" in msg
+    assert msg == f"{PROVIDER} error (HTTP 418). Try again later."
 
 
 def test_connect_error():
     msg = classify_http_error(httpx.ConnectError("no route"), PROVIDER)
-    assert "Cannot reach" in msg
+    assert msg == f"Cannot reach {PROVIDER}. Try again later."
 
 
 def test_generic_request_error():
     # A RequestError that is neither a timeout nor a connect error.
     msg = classify_http_error(httpx.RequestError("weird"), PROVIDER)
-    assert "request failed" in msg
+    assert msg == f"{PROVIDER} request failed. Try again later."
 
 
 def test_partial_result_message():
     msg = classify_http_error(PartialResultError("runtime error: Query timed out"), PROVIDER)
-    assert PROVIDER in msg
-    assert "partial results" in msg
+    assert msg == f"{PROVIDER} partial results. Try again later."
 
 
 def test_non_httpx_exception_falls_through():
     msg = classify_http_error(ValueError("nope"), PROVIDER)
-    assert "request failed" in msg
+    assert msg == f"{PROVIDER} request failed. Try again later."
 
 
 def test_an_asyncio_deadline_reads_as_a_timeout():
@@ -100,6 +97,13 @@ def test_a_reason_that_is_not_a_string_matches_nothing(reads, reason):
     response = fake_response({"error": True, "reason": reason}, 400)
     exc = httpx.HTTPStatusError("400", request=response.request, response=response)
     assert reads(exc) is False
+
+
+def test_a_400_that_is_not_json_is_not_a_bad_key():
+    # A proxy's HTML page in front of the API is not the caller's key.
+    response = fake_response(None, 400, text="<html>Bad Request</html>")
+    exc = httpx.HTTPStatusError("400", request=response.request, response=response)
+    assert is_invalid_api_key(exc) is False
 
 
 # ── reading a number out of untrusted text ─────────────────────────────────

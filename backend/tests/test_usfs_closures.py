@@ -926,15 +926,17 @@ def test_the_sentence_scan_is_linear_in_the_descriptions_length(unit):
 
 
 def test_the_permit_exception_is_linear_in_a_line_that_repeats_unless():
-    # About 60 KB in one sentence on one line, with an "unless" every word and
-    # no permit after any of them. Read from every "unless" to the end of the
-    # line, this was quadratic: 0.22 s here and 0.86 s at twice the length in
-    # the backend test container (measured 2026-10-06). The whole scan now
-    # takes about 3 ms, so the bound holds on a slow runner too.
-    text = "Closed to entry " + "unless " * (60_000 // len("unless "))
+    # About 120 KB in one sentence on one line, with an "unless" every word
+    # and no permit after any of them. Read from every "unless" to the end of
+    # the line, this was quadratic: 0.22 s at 60 KB and 0.86 s at this length
+    # in the backend test container (measured 2026-10-06). The linear scan
+    # takes 6.4 ms here and 3.1 ms at 60 KB (python:3.14-slim on a Mac,
+    # 2026-10-18), so the bound has about 40x headroom over it on a slow
+    # runner and still sits 3.4x under the quadratic one.
+    text = "Closed to entry " + "unless " * (120_000 // len("unless "))
     started = time.perf_counter()
     assert usfs_closures._entry_sentences(text) == ["closed"]
-    assert time.perf_counter() - started < 0.05
+    assert time.perf_counter() - started < 0.25
 
 
 # The pattern before #660, kept only to hold the linear one to its answers.

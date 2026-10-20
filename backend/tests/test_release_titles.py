@@ -22,9 +22,6 @@ SCRIPT = REPO / ".github" / "scripts" / "check_pr_title.py"
 
 @pytest.fixture(scope="module")
 def check():
-    # Skips where the repo root is not mounted, like test_node_version.py.
-    if not SCRIPT.exists():
-        pytest.skip("repo root not visible")
     spec = importlib.util.spec_from_file_location("check_pr_title", SCRIPT)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

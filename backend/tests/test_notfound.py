@@ -142,11 +142,6 @@ def test_head_on_a_get_only_endpoint_reports_the_allowed_verb():
     assert client.get("/api/config").status_code == 200
 
 
-def test_catch_all_does_not_shadow_real_routes():
-    for path in ("/api/version", "/api/capabilities", "/api/config"):
-        assert client.get(path).status_code == 200, path
-
-
 def test_catch_all_is_absent_from_the_schema():
     # It answers every path under /api; documenting it would bury the real
     # endpoints under a wildcard.
@@ -207,9 +202,10 @@ def test_the_plain_analyze_path_still_reaches_the_route(analyses):
 @pytest.mark.parametrize(
     "path", ["/api/version", "/api/capabilities", "/api/config", "/healthz", "/api/version?q=a%2Fb"]
 )
-def test_plain_paths_are_untouched_by_the_encoded_slash_rule(path):
-    # The query string is not the path: a geocode search for "a/b" carries
-    # `%2F` there, and must still reach its route.
+def test_real_paths_reach_their_routes_past_the_catch_all_and_the_encoded_slash_rule(path):
+    # The /api catch-all answers every unknown path, so it must never shadow
+    # a known one. The query string is not the path: a geocode search for
+    # "a/b" carries `%2F` there, and must still reach its route.
     assert client.get(path).status_code == 200
 
 

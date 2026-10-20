@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 import json
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from conftest import dest, fake_response
 from fastapi import Request
 from fastapi.testclient import TestClient
+from test_geocode import _patch_client
 
 from app import ratelimit
 from app.main import app
-from app.routes import geocode as geocode_mod
 from app.services import air_quality as aqi_mod
 from app.services import osm as osm_mod
 from app.services import weather as weather_mod
@@ -242,17 +245,7 @@ def test_ipv4_keys_stay_whole_addresses():
 def test_ipv6_addresses_in_one_slash_64_share_one_bucket(monkeypatch):
     monkeypatch.setattr(ratelimit.client, "GEOCODE_LIMITER", ratelimit.RateLimiter(60, 1))
 
-    class _FakeClient:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *exc):
-            return False
-
-        async def get(self, url, params=None, headers=None):
-            return fake_response([])
-
-    monkeypatch.setattr(geocode_mod.httpx, "AsyncClient", lambda *a, **k: _FakeClient())
+    _patch_client(monkeypatch, fake_response([]))
 
     def search(address: str, q: str) -> int:
         return client.get(
@@ -310,17 +303,7 @@ def test_geocode_bucket_independent_of_analyze(monkeypatch):
     monkeypatch.setattr(ratelimit.client, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
     monkeypatch.setattr(ratelimit.client, "GEOCODE_LIMITER", ratelimit.RateLimiter(60, 1))
 
-    class _FakeClient:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *exc):
-            return False
-
-        async def get(self, url, params=None, headers=None):
-            return fake_response([])
-
-    monkeypatch.setattr(geocode_mod.httpx, "AsyncClient", lambda *a, **k: _FakeClient())
+    _patch_client(monkeypatch, fake_response([]))
 
     # Drain the analyze bucket; geocode must still have its own token.
     assert client.post("/api/analyze", json=_analyze_payload()).status_code == 400
@@ -393,17 +376,7 @@ def test_geocode_503_when_gate_queue_is_full(monkeypatch):
     gate = ratelimit.MinIntervalGate("Nominatim (place search)", 10.0, max_wait_s=0.0)
     monkeypatch.setattr(ratelimit, "NOMINATIM_GATE", gate)
 
-    class _FakeClient:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *exc):
-            return False
-
-        async def get(self, url, params=None, headers=None):
-            return fake_response([])
-
-    monkeypatch.setattr(geocode_mod.httpx, "AsyncClient", lambda *a, **k: _FakeClient())
+    _patch_client(monkeypatch, fake_response([]))
 
     assert client.get("/api/geocode", params={"q": "Baker"}).status_code == 200
     # A different place, because a repeat of the first is answered from the
@@ -545,23 +518,34 @@ def test_capabilities_publishes_live_limiter_values(monkeypatch):
 # ── Env config ─────────────────────────────────────────────────────────────
 
 
-def _reload_ratelimit() -> None:
-    # The knobs are read where they are defined, so each half re-reads its env
-    # vars on its own reload, and the package reloads last to re-export them.
-    importlib.reload(ratelimit.client)
-    importlib.reload(ratelimit.upstream)
-    importlib.reload(ratelimit)
-
-
-def test_env_overrides_and_bad_values_fall_back(monkeypatch):
-    monkeypatch.setenv("RATE_LIMIT_ANALYZE_PER_MINUTE", "99")
-    monkeypatch.setenv("UPSTREAM_CONCURRENCY_OVERPASS", "not-a-number")
-    try:
-        _reload_ratelimit()
-        assert ratelimit.RATE_LIMIT_ANALYZE_PER_MINUTE == 99
-        assert ratelimit.client.ANALYZE_LIMITER.per_minute == 99
-        assert ratelimit.UPSTREAM_CONCURRENCY_OVERPASS == 2  # default kept
-    finally:
-        monkeypatch.delenv("RATE_LIMIT_ANALYZE_PER_MINUTE", raising=False)
-        monkeypatch.delenv("UPSTREAM_CONCURRENCY_OVERPASS", raising=False)
-        _reload_ratelimit()
+def test_env_overrides_and_bad_values_fall_back():
+    # The knobs are read at import, so a fresh interpreter reads them the way
+    # a starting pod does. Reloading the package in this process instead would
+    # swap every class it defines (BudgetExhausted among them) under the tests
+    # that built instances of the one before, and fail them by run order.
+    probe = (
+        "import json\n"
+        "from app import ratelimit\n"
+        "print(json.dumps([\n"
+        "    ratelimit.RATE_LIMIT_ANALYZE_PER_MINUTE,\n"
+        "    ratelimit.client.ANALYZE_LIMITER.per_minute,\n"
+        "    ratelimit.UPSTREAM_CONCURRENCY_OVERPASS,\n"
+        "]))\n"
+    )
+    env = {
+        **os.environ,
+        "RATE_LIMIT_ANALYZE_PER_MINUTE": "99",
+        "UPSTREAM_CONCURRENCY_OVERPASS": "not-a-number",
+    }
+    ran = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    per_minute, limiter_per_minute, overpass = json.loads(ran.stdout.splitlines()[-1])
+    assert per_minute == 99
+    assert limiter_per_minute == 99
+    assert overpass == 2  # default kept
