@@ -26,6 +26,7 @@ import type { BBox } from '../../utils/wildfires'
 import { MARKER_STROKE } from '../mapStyles'
 import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
+import { isAbort } from '../../utils/abort'
 
 /** Each kind's source id. */
 export const CLOSURE_SOURCES: Record<ClosureKind, string> = {
@@ -167,7 +168,7 @@ export function mountClosures(
       setSource(map, source, fc)
       recovery.succeeded()
     } catch (err) {
-      if (ac.signal.aborted || (err as Error).name === 'AbortError') return
+      if (ac.signal.aborted || isAbort(err)) return
       console.warn('Closure overlay fetch failed', err)
       recovery.failed(retryAfterOf(err))
     }

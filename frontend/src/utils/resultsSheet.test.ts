@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { clampPanelHeight, resolvePanelHeights } from './layout'
 import {
+  DEFAULT_PANEL_HEIGHT,
   DRAGGED_MAP_PX,
   FAB_GAP_PX,
   FAB_INSET_PX,
@@ -48,7 +49,6 @@ import {
 // which is the trap `styles.test.ts` documents. What App.tsx,
 // useResultsLayout.ts and TimelineTransport.tsx spell is held by the `app-` checks in
 // tools/eslint/checks/app.js.
-import layoutSource from '../hooks/useResultsLayout.ts?raw'
 import stylesSource from '../styles.ts?raw'
 
 describe('sheetHeightPx', () => {
@@ -394,13 +394,12 @@ describe('the camera padding', () => {
   })
 })
 
-/** What `useResultsLayout.ts` opens both panels at; asserted against the source below. */
-const DEFAULT_PANEL_PX = 220
-
 // The desktop half of the same question: the results are docked below the map
 // rather than parked over it, so nothing is covered — but the bar and the grips
 // come out of the same column, and `resolvePanelHeights` clamps only the panels.
 describe('dockedMapFloorPx', () => {
+  // It replaces `resolvePanelHeights`' own default, which was 280 — a number
+  // that predates the legend stack and is under half of what the stack needs.
   it('is the fine-pointer reserve plus the chrome the panels are stacked under', () => {
     expect(dockedMapFloorPx(0)).toBe(
       LEGEND_TOP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX + RESULTS_BAR_PX,
@@ -412,26 +411,20 @@ describe('dockedMapFloorPx', () => {
     expect(dockedMapFloorPx(2) - dockedMapFloorPx(1)).toBe(dockedMapFloorPx(1) - dockedMapFloorPx(0))
   })
 
-  // It replaces `resolvePanelHeights`' own default, which was 280 — a number
-  // that predates the legend stack and is under half of what the stack needs.
-  it('reserves far more than the fixed default it replaced', () => {
-    expect(dockedMapFloorPx(2)).toBeGreaterThan(280)
-  })
-
   // The acceptance criterion for the desktop half, at the viewport the change
   // was measured on: both panels open at their default height, and the map
   // still holds the whole legend stack above the transport's band.
   it('leaves the whole stack on screen at 1440x1000 in Both mode', () => {
     const VIEWPORT = 1000
     const gripCount = 2
-    const { chart, table } = resolvePanelHeights(DEFAULT_PANEL_PX, DEFAULT_PANEL_PX, {
+    const { chart, table } = resolvePanelHeights(DEFAULT_PANEL_HEIGHT, DEFAULT_PANEL_HEIGHT, {
       chartShown: true,
       tableShown: true,
       availPx: VIEWPORT,
       mapMinPx: dockedMapFloorPx(gripCount),
     })
     // Nothing is clamped: the defaults are chosen to fit this window.
-    expect({ chart, table }).toEqual({ chart: DEFAULT_PANEL_PX, table: DEFAULT_PANEL_PX })
+    expect({ chart, table }).toEqual({ chart: DEFAULT_PANEL_HEIGHT, table: DEFAULT_PANEL_HEIGHT })
     const visibleMap = VIEWPORT - RESULTS_BAR_PX - gripCount * 8 - chart - table
     // The FINE inset: a docked layout is the pointer case, which is the whole
     // reason `dockedMapFloorPx` reads that one rather than the phone's.
@@ -440,17 +433,12 @@ describe('dockedMapFloorPx', () => {
   })
 })
 
-// The panel defaults, asserted against the component that holds them rather
-// than restated: they are one number now, and the number is what Both mode can
-// spend on a 1000px window under the floor above.
+// The panel defaults are one number, and the number is what Both mode can
+// spend on a 1000px window under the floor above. That both panels read it is
+// the `results-layout-hook` check.
 describe('the default panel heights', () => {
-  // That both panels read DEFAULT_PANEL_HEIGHT is the `results-layout-hook` check.
-  it('open at the number measured here', () => {
-    expect(layoutSource).toContain(`const DEFAULT_PANEL_HEIGHT = ${DEFAULT_PANEL_PX}`)
-  })
-
   it('fit inside the docked floor on the window they were measured at', () => {
-    expect(2 * DEFAULT_PANEL_PX).toBeLessThanOrEqual(1000 - dockedMapFloorPx(2))
+    expect(2 * DEFAULT_PANEL_HEIGHT).toBeLessThanOrEqual(1000 - dockedMapFloorPx(2))
   })
 })
 

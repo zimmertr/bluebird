@@ -13,6 +13,7 @@
 // its oklch steps (#687); the light ones are the light theme's tokens in
 // `index.css`, spelled as the hexes they are there.
 import type { Theme } from './viewPrefs'
+import { clamp } from './numbers'
 
 /** The chart's chrome in one theme. */
 export interface ChartChrome {
@@ -153,7 +154,7 @@ function hslToHex(h: number, s: number, l: number): string {
   const k = (n: number) => (n + h / 30) % 12
   const a = s * Math.min(l, 1 - l)
   const f = (n: number) => {
-    const c = l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))
+    const c = l - a * clamp(Math.min(k(n) - 3, 9 - k(n)), -1, 1)
     return Math.round(255 * c)
       .toString(16)
       .padStart(2, '0')

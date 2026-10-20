@@ -33,7 +33,7 @@ PROVIDER = "Open-Meteo"
 
 def _parse_ts(s: str) -> datetime | None:
     try:
-        return datetime.fromisoformat(s).replace(tzinfo=None)
+        return _naive(datetime.fromisoformat(s))
     except Exception:  # noqa: BLE001 — unparseable timestamp degrades to None
         return None
 
@@ -288,13 +288,25 @@ def _join_hours(
     """
     if len(parts) == 1:
         return parts[0]
-    declared = [part.get("hourly_units") or {} for part in parts]
+    # This runs outside every reader's degrade boundary, so a half that is not
+    # an object, or whose `hourly` or `hourly_units` is not one, reads as a
+    # half that answered nothing, the way an absent `hourly` already does.
+    # Raising here would fail the whole analysis over one malformed body, where
+    # the browser's `joinHours` reads past it and a one-span window degrades
+    # only its own row.
+    halves = [part if isinstance(part, dict) else {} for part in parts]
+    declared = [
+        units if isinstance(units := part.get("hourly_units"), dict) else {}
+        for part in halves
+    ]
     if not _units_agree(declared):
         return {}
     joined: dict[str, list[Any]] = {key: [] for key in keys}
     seen: set[Any] = set()
-    for part in parts:
-        hourly = part.get("hourly") or {}
+    for part in halves:
+        hourly = part.get("hourly")
+        if not isinstance(hourly, dict):
+            hourly = {}
         for i, ts in enumerate(hourly.get("time") or []):
             if ts in seen:
                 continue
@@ -302,7 +314,7 @@ def _join_hours(
             joined["time"].append(ts)
             for key in keys[1:]:
                 joined[key].append(_at(hourly.get(key) or [], i))
-    return {**parts[0], "hourly_units": _join_units(declared), "hourly": joined}
+    return {**halves[0], "hourly_units": _join_units(declared), "hourly": joined}
 
 
 def _wind_at_elevation(
@@ -386,11 +398,11 @@ def _temp_at_elevation(
 
 
 def _level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
-    return [hourly.get(name, []) for name, _ in _WIND_LEVELS]
+    return [hourly.get(name) or [] for name, _ in _WIND_LEVELS]
 
 
 def _temp_level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
-    return [hourly.get(name, []) for name, _ in _TEMP_LEVELS]
+    return [hourly.get(name) or [] for name, _ in _TEMP_LEVELS]
 
 
 def _freeze_unit(data: dict[str, Any]) -> str | None:
@@ -439,7 +451,7 @@ def _freeze_ft_in_window(
     """
     return [
         _freeze_to_ft(v, unit)
-        for ts, v in zip(hourly.get("time", []), hourly.get(_FREEZING_LEVEL, []), strict=False)
+        for ts, v in zip(hourly.get("time") or [], hourly.get(_FREEZING_LEVEL) or [], strict=False)
         if v is not None
         and (parsed := _parse_ts(ts)) is not None
         and start <= parsed <= end
@@ -460,7 +472,7 @@ def _snowfall_in_window(
     """
     return [
         v
-        for ts, v in zip(hourly.get("time", []), hourly.get(_SNOWFALL, []), strict=False)
+        for ts, v in zip(hourly.get("time") or [], hourly.get(_SNOWFALL) or [], strict=False)
         if v is not None
         and (parsed := _parse_ts(ts)) is not None
         and start <= parsed <= end
@@ -480,7 +492,7 @@ def _check_units(data: dict[str, Any], expected: dict[str, str]) -> None:
     freezing level does. The whole column is read rather than the window, which
     is the stricter of the two and keeps the two ports trivially equal.
     """
-    hourly = data.get("hourly", {})
+    hourly = data.get("hourly") or {}
     units = data.get("hourly_units")
     declared = units if isinstance(units, dict) else {}
     for name, unit in expected.items():
@@ -500,11 +512,11 @@ def _weather_metrics(
 ) -> dict[str, Any] | None:
     try:
         _check_units(data, _DECLARED_UNITS)
-        hourly = data.get("hourly", {})
-        times = hourly.get("time", [])
-        precip = hourly.get("precipitation", [])
-        temp = hourly.get("temperature_2m", [])
-        wind = hourly.get("wind_speed_10m", [])
+        hourly = data.get("hourly") or {}
+        times = hourly.get("time") or []
+        precip = hourly.get("precipitation") or []
+        temp = hourly.get("temperature_2m") or []
+        wind = hourly.get("wind_speed_10m") or []
         levels = _level_arrays(hourly)
         t_levels = _temp_level_arrays(hourly)
 
@@ -590,14 +602,14 @@ def _weather_series(
     """
     try:
         _check_units(data, _DECLARED_UNITS)
-        hourly = data.get("hourly", {})
-        times = hourly.get("time", [])
-        precip = hourly.get("precipitation", [])
-        temp = hourly.get("temperature_2m", [])
-        wind = hourly.get("wind_speed_10m", [])
-        freeze = hourly.get(_FREEZING_LEVEL, [])
+        hourly = data.get("hourly") or {}
+        times = hourly.get("time") or []
+        precip = hourly.get("precipitation") or []
+        temp = hourly.get("temperature_2m") or []
+        wind = hourly.get("wind_speed_10m") or []
+        freeze = hourly.get(_FREEZING_LEVEL) or []
         freeze_unit = _freeze_unit(data)
-        snowfall = hourly.get(_SNOWFALL, [])
+        snowfall = hourly.get(_SNOWFALL) or []
         levels = _level_arrays(hourly)
         t_levels = _temp_level_arrays(hourly)
 
@@ -667,12 +679,12 @@ def _aqi_metrics(
     end_dt: datetime,
 ) -> dict[str, Any] | None:
     try:
-        hourly = data.get("hourly", {})
-        times = hourly.get("time", [])
-        aqi = hourly.get("us_aqi", [])
+        hourly = data.get("hourly") or {}
+        times = hourly.get("time") or []
+        aqi = hourly.get("us_aqi") or []
 
-        start = start_dt.replace(tzinfo=None)
-        end = end_dt.replace(tzinfo=None)
+        start = _naive(start_dt)
+        end = _naive(end_dt)
 
         vals = [
             v
@@ -707,12 +719,12 @@ def _aqi_series(
     the window contains no hours.
     """
     try:
-        hourly = data.get("hourly", {})
-        times = hourly.get("time", [])
-        aqi = hourly.get("us_aqi", [])
+        hourly = data.get("hourly") or {}
+        times = hourly.get("time") or []
+        aqi = hourly.get("us_aqi") or []
 
-        start = start_dt.replace(tzinfo=None)
-        end = end_dt.replace(tzinfo=None)
+        start = _naive(start_dt)
+        end = _naive(end_dt)
 
         grid: list[int] = []
         out: list[int | None] = []
@@ -721,7 +733,7 @@ def _aqi_series(
             if parsed is None or not (start <= parsed <= end):
                 continue
             grid.append(_epoch_ms(parsed))
-            v = aqi[i] if i < len(aqi) else None
+            v = _at(aqi, i)
             out.append(round(v) if v is not None else None)
 
         if not grid:
@@ -777,7 +789,7 @@ def _cloud_deck_ft(
 
 
 def _cloud_level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
-    return [hourly.get(name, []) for name, _ in _CLOUD_LEVELS]
+    return [hourly.get(name) or [] for name, _ in _CLOUD_LEVELS]
 
 
 def _cloud_deck_ft_at(
@@ -788,7 +800,7 @@ def _cloud_deck_ft_at(
 ) -> float | None:
     return _cloud_deck_ft(
         elevation_ft,
-        _at(hourly.get(_CLOUD_RH_2M, []), i),
+        _at(hourly.get(_CLOUD_RH_2M) or [], i),
         [_at(arr, i) for arr in levels],
     )
 
@@ -807,8 +819,8 @@ def _cloud_metrics(
     reports null aggregates.
     """
     try:
-        hourly = data.get("hourly", {})
-        times = hourly.get("time", [])
+        hourly = data.get("hourly") or {}
+        times = hourly.get("time") or []
         levels = _cloud_level_arrays(hourly)
 
         start = _naive(start_dt)
@@ -847,8 +859,8 @@ def _cloud_series(
 ) -> dict[str, Any] | None:
     """Per-hour cloud deck over the window, nulls kept."""
     try:
-        hourly = data.get("hourly", {})
-        times = hourly.get("time", [])
+        hourly = data.get("hourly") or {}
+        times = hourly.get("time") or []
         levels = _cloud_level_arrays(hourly)
 
         start = _naive(start_dt)

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { nowLocal } from './datetimeLocal'
 
 describe('nowLocal', () => {
@@ -14,6 +14,12 @@ describe('nowLocal', () => {
   })
 
   it('reads the clock when handed no moment', () => {
-    expect(nowLocal()).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date(2026, 6, 24, 23, 5))
+      expect(nowLocal()).toBe('2026-07-24T23:05')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

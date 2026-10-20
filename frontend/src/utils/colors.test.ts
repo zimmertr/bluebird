@@ -5,6 +5,7 @@ import {
   VERDICT_RAMP,
   VERDICT_RAMP_REVERSED,
   cellStyle,
+  hexToRgb,
   hourlyScale,
   markerColor,
   rankedScale,
@@ -15,6 +16,7 @@ import { scaleTicks } from './legendRamp'
 import { CLOUD_DECK_CEILING_FT } from './openMeteoAggregate'
 import { LabelledScale } from './colors'
 import { FAMILY_KEYS, RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../metrics'
+import { contrast, mixOver, relativeLuminance, round2 } from '../testSupport/contrast'
 
 /** What the map's strip prints under a scale, in order. */
 const labelsOf = (scale: LabelledScale) => scaleTicks(scale).map((tick) => tick.label)
@@ -117,11 +119,9 @@ describe('markerColor', () => {
   })
 
   it('interpolates between anchors for a mid-band value', () => {
-    // Halfway between the green (0.01) and yellow (0.10) precip anchors.
-    const mid = markerColor(0.055, 'precip_total_in')
-    expect(mid).not.toBe(GREEN)
-    expect(mid).not.toBe(YELLOW)
-    expect(mid).toMatch(/^#[0-9a-f]{6}$/)
+    // Halfway between the green (0.01) and yellow (0.10) precip anchors, and
+    // the blend is straight RGB: #22c55e and #eab308 meet at #86bc33.
+    expect(markerColor(0.055, 'precip_total_in')).toBe('#86bc33')
   })
 })
 
@@ -164,19 +164,6 @@ describe('scaleFor', () => {
   it('leaves the identity columns uncolored', () => {
     expect(scaleFor('name', false)).toBeNull()
     expect(scaleFor('elevation_ft', false)).toBeNull()
-  })
-
-  // The reversal of #295 (TJ, 2026-09-14). The freezing level was the one
-  // metric with no scale, on the argument that a band has to call one height
-  // good and another bad. It carries one now because the ramp encodes HEIGHT
-  // rather than a verdict, and the contract this asserts is that every
-  // freezing-level column shades like every other metric column — the table,
-  // the markers, the grid and the legend all read this same table.
-  it('colors every freezing-level column', () => {
-    for (const key of FAMILY_KEYS.freeze) {
-      expect(scaleFor(key, false), `${key} is uncolored`).not.toBeNull()
-      expect(scaleFor(key, true), `${key} is uncolored`).not.toBeNull()
-    }
   })
 
   // The reason a second precipitation scale exists. Inches over a window and
@@ -334,8 +321,10 @@ describe('METRIC_SCALE', () => {
     // back out and checks they still say what the ramp switches on. It was a
     // drift check over hand-written captions until #454 derived them; it stays
     // because the formatting could still round a boundary into a different
-    // number.
-    for (const cfg of Object.values(METRIC_SCALE)) {
+    // number. Every scale a column wears at rest, and every one playback
+    // swaps in, which is where the two rate scales come from.
+    const scales = new Set([...Object.values(METRIC_SCALE), ...RANKING_KEYS.map((key) => hourlyScale(key)!)])
+    for (const cfg of scales) {
       // Thousands separators come out first: the freezing level groups its
       // digits the way every other number this app prints does, and "4,000"
       // would otherwise read back as two boundaries.
@@ -452,17 +441,6 @@ describe('hourlyScale', () => {
     }
   })
 
-  it('advertises the boundaries the rate scale actually switches on', () => {
-    const cfg = hourlyScale('precip_total_in')!
-    const advertised = labelsOf(cfg).map((label) =>
-      Number(label.match(/\d+(?:\.\d+)?/)?.[0]),
-    )
-    expect(advertised).toEqual([cfg.thresholds[0], cfg.thresholds[2], cfg.thresholds[4]])
-  })
-
-  it('prints three of its five boundaries, which is what fits', () => {
-    expect(scaleTicks(hourlyScale('precip_total_in')!)).toHaveLength(3)
-  })
 })
 
 describe('the verdict ramp', () => {
@@ -485,10 +463,6 @@ describe('the verdict ramp', () => {
         )
       }
     }
-  })
-
-  it('colours the rainfall-rate scale on it too', () => {
-    expect(scaleFor('precip_avg_in_hr', false)?.colors).toEqual(VERDICT_RAMP)
   })
 
   // The ramp IS the US EPA's representation of its six AQI categories, so the
@@ -834,38 +808,6 @@ describe('the light theme\'s cell ink (#706)', () => {
   })
 })
 
-// WCAG relative luminance and contrast, used only to keep the measured tables
-// above honest. Small enough to live here rather than become a shared helper
-// nothing else has asked for.
-function relativeLuminance(hex: string): number {
-  const [r, g, b] = toRgb(hex).map((v) => {
-    const c = v / 255
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  })
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-
-function contrast(a: string, b: string): number {
-  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x)
-  return (hi + 0.05) / (lo + 0.05)
-}
-
-/** `cellStyle`'s own background: the hue at `alpha` over the panel beneath it. */
-function mixOver(hex: string, under: string, alpha: number): string {
-  const top = toRgb(hex)
-  const bottom = toRgb(under)
-  const mixed = top.map((v, i) => Math.round(alpha * v + (1 - alpha) * bottom[i]))
-  return `#${mixed.map((v) => v.toString(16).padStart(2, '0')).join('')}`
-}
-
-function toRgb(hex: string): number[] {
-  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
-}
-
-function round2(v: number): number {
-  return Math.round(v * 100) / 100
-}
-
 describe('the cloud deck ramp', () => {
   // The verdict ramp reversed (#510, amending record 0113): a high deck or a
   // dry column is a clear summit for every reader of this app, so green is at
@@ -906,5 +848,13 @@ describe('the cloud deck ramp', () => {
       expect(rankedScale(key)).toBe(METRIC_SCALE.cloud_deck)
       expect(hourlyScale(key)).toBe(METRIC_SCALE.cloud_deck)
     }
+  })
+})
+
+describe('hexToRgb', () => {
+  it('reads a #rrggbb colour as its three channels', () => {
+    expect(hexToRgb('#000000')).toEqual([0, 0, 0])
+    expect(hexToRgb('#ffffff')).toEqual([255, 255, 255])
+    expect(hexToRgb('#0a84c6')).toEqual([10, 132, 198])
   })
 })

@@ -1236,7 +1236,7 @@ flowchart LR
   build itself fails before that when a bundled or installed package has no
   license text, so this job is where a missing notice turns a PR red.
 - `pr.yml`'s **Database Tests** job (#760) runs the backend tests marked `db`,
-  the shared cache's schema, readers and writers, against a PostgreSQL 17 with
+  the shared cache's schema, readers and writers, against a PostgreSQL 18 with
   PostGIS built from `backend/tests/db/Dockerfile`. The database builds and
   starts in the background while Python installs, and the job waits for it
   over TCP for up to two minutes. It is a job of its own so `Backend Tests`
@@ -1441,7 +1441,7 @@ Alpine published into that gap stayed out of every release until someone ran
 1.3.2-r1 already in Alpine's index and the base the newest published (alert
 39, CVE-2026-85091, 2026-10-14). **The remedy is the next merge to `main`**:
 its release rebuilds the layer and ships the fix, and nothing needs clearing.
-Record: [0126](decisions/0126-apk-upgrade-on-every-build.md)
+Record: [0197](decisions/0197-apk-upgrade-on-every-build.md)
 
 This job scans a published image rather than a checkout, so its `actions/checkout`
 step exists purely to read `trivy.yaml`. That is deliberate: without the PR gate's
@@ -1506,7 +1506,7 @@ images are pinned as `tag@digest`, with the tags floating at the minor
 (`python:3.14-alpine`, `node:26-alpine`): a new minor or major is a runtime
 bump that waits for review, and a rebuild of the image under the same tag
 arrives as a digest PR. The fill's `debian:trixie-slim` and the test
-database's `postgres:17-trixie` are pinned the same way (#760). A Node major bump also fails `Backend Tests` until the
+database's `postgres:18-trixie` are pinned the same way (#760). The test database's PostGIS package names its major (`postgresql-18-postgis-3`), so a major bump of that tag moves the package in the same PR. A Node major bump also fails `Backend Tests` until the
 same PR moves `.node-version` to match, which is what keeps CI on the image's
 runtime. Base-OS *patch* fixes no longer arrive unannounced at the next build:
 they come as that digest PR. The merge PAT is intentionally scoped to Contents +

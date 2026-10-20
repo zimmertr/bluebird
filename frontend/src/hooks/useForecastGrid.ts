@@ -12,6 +12,7 @@ import { canonicalTimes } from '../utils/clientAnalyze'
 import { normalizeWindow, type WindowLimits } from '../utils/forecastWindow'
 import { GridCell, GridSpec, buildGrid, gridView, pairCells, reachKmFor } from '../utils/forecastGrid'
 import { usePacedFetch } from './usePacedFetch'
+import { isAbort } from '../utils/abort'
 
 // The forecast grid's fetch (#246), modelled on useFireProximity: one query per
 // analysis, best-effort, and entirely beside the ranking.
@@ -46,7 +47,7 @@ import { usePacedFetch } from './usePacedFetch'
  * the same argument that put a line on the loading state. `idle` is different
  * and stays quiet: it means nothing was asked for.
  */
-export type ForecastGridStatus = 'idle' | 'loading' | 'ready' | 'failed'
+type ForecastGridStatus = 'idle' | 'loading' | 'ready' | 'failed'
 
 export interface ForecastGrid {
   status: ForecastGridStatus
@@ -362,7 +363,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
         repaint()
         await air
       } catch (err) {
-        if (cancelled || (err as Error).name === 'AbortError') return
+        if (cancelled || isAbort(err)) return
         // Best-effort, like every overlay: whatever painted stays, and one line
         // in the console. There is no on-screen failure state because there is
         // no claim to withdraw — an ungridded map is the map.

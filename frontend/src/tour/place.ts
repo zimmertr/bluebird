@@ -1,4 +1,5 @@
 import type { TourSpot } from '../utils/tourSteps'
+import { clamp } from '../utils/numbers'
 
 /**
  * Where the tutorial card stands, as arithmetic over rectangles (#536). Pure,
@@ -37,7 +38,8 @@ export const VIEWPORT_MARGIN = 16
 /**
  * Below this width the card is a sheet along one edge rather than a box
  * beside its target. The number is where the box stops fitting beside the
- * docked panel: 360px of panel, the gap, 320px of card and the margin. Above
+ * docked panel: 360px of panel, the spotlight's pad, the gap, 320px of card
+ * and the margin, 716px in all. Above
  * it the card has ONE place, to the right of what it frames; below it, one
  * edge. It is not the app's desktop breakpoint, because at 1000px the box
  * still fits and a sheet there hides the map for nothing.
@@ -177,8 +179,6 @@ export function spotlight(target: Box, pad = SPOTLIGHT_PAD): Box {
     height: target.height + 2 * pad,
   }
 }
-
-const clamp = (value: number, lo: number, hi: number): number => Math.min(Math.max(value, lo), hi)
 
 /** The card's top-left corner beside the spotlight, inside the viewport. */
 export function placeCard(light: Box, card: Size, viewport: Size): { top: number; left: number } {

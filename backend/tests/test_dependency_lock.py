@@ -90,8 +90,6 @@ def test_every_locked_package_carries_a_hash(lock):
 
 
 def test_the_image_installs_the_lock_and_requires_its_hashes():
-    if not (REPO / "Dockerfile").exists():
-        pytest.skip("repo root not visible")
     dockerfile = (REPO / "Dockerfile").read_text()
     assert "COPY backend/requirements.txt ./" in dockerfile
     assert re.search(r"pip install --require-hashes -r requirements\.txt\b", dockerfile)
@@ -117,8 +115,6 @@ def _npm_ci_sites() -> list[tuple[str, str]]:
 
 
 def test_no_npm_ci_runs_install_scripts():
-    if not (REPO / "Dockerfile").exists():
-        pytest.skip("repo root not visible")
     sites = _npm_ci_sites()
     # Dockerfile 1, Makefile 4, package.json 3, pr.yml 2 when this was written:
     # a pattern that stopped matching would otherwise pass on an empty list.
@@ -128,8 +124,6 @@ def test_no_npm_ci_runs_install_scripts():
 
 def test_every_npm_and_pip_update_waits_a_cooldown():
     config = REPO / ".github" / "dependabot.yml"
-    if not config.exists():
-        pytest.skip("repo root not visible")
     entries = [
         entry
         for entry in yaml.safe_load(config.read_text())["updates"]

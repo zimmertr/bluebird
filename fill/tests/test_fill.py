@@ -8,6 +8,7 @@ import http.server
 import itertools
 import re
 import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -274,3 +275,56 @@ def test_content_total():
     assert fill.content_total({"Content-Length": "100"}, 0) == 100
     assert fill.content_total({"Content-Range": "bytes 40-99/100", "Content-Length": "60"}, 40) == 100
     assert fill.content_total({}, 0) is None
+
+
+class _Recorder:
+    """A psycopg2 connection as KeepAlive sees it: cursors that record, or fail."""
+
+    def __init__(self, fail: Exception | None = None) -> None:
+        self.statements: list[str] = []
+        self.fail = fail
+
+    def cursor(self) -> _Cursor:
+        return _Cursor(self)
+
+
+class _Cursor:
+    def __init__(self, conn: _Recorder) -> None:
+        self.conn = conn
+
+    def __enter__(self) -> _Cursor:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def execute(self, sql: str) -> None:
+        if self.conn.fail is not None:
+            raise self.conn.fail
+        self.conn.statements.append(sql)
+
+
+def test_the_keep_alive_sends_a_statement_on_its_interval_and_stops_with_the_block():
+    conn = _Recorder()
+    with fill.KeepAlive(conn, every_s=0.01):
+        time.sleep(0.1)
+    sent = len(conn.statements)
+    assert sent >= 3 and set(conn.statements) == {"SELECT 1"}
+    time.sleep(0.05)
+    assert len(conn.statements) == sent
+
+
+def test_a_keep_alive_that_fails_raises_when_the_block_ends():
+    conn = _Recorder(fail=OSError("SSL SYSCALL error: EOF detected"))
+    with pytest.raises(fill.FillError, match="connection was lost") as caught:
+        with fill.KeepAlive(conn, every_s=0.01):
+            time.sleep(0.05)
+    assert isinstance(caught.value.__cause__, OSError)
+
+
+def test_the_block_s_own_failure_wins_over_the_keep_alive_s():
+    conn = _Recorder(fail=OSError("EOF"))
+    with pytest.raises(ValueError, match="the pipeline"):
+        with fill.KeepAlive(conn, every_s=0.01):
+            time.sleep(0.05)
+            raise ValueError("the pipeline's own failure")

@@ -20,6 +20,7 @@ import {
   poiLabelLayout,
   setSource,
 } from './basemap'
+import { isAbort } from '../utils/abort'
 import { LANDMARK_LAYERS, LANDMARK_MINZOOM, fetchLandmarks, landmarkKindOf } from '../utils/landmarks'
 import type { BBox } from '../utils/wildfires'
 import { FIRE_REFETCH_DEBOUNCE_MS } from './overlays/wildfires'
@@ -116,7 +117,7 @@ export function mountLandmarks(
       setSource(map, LANDMARK_SOURCE, fc)
       recovery.succeeded()
     } catch (err) {
-      if (ac.signal.aborted || (err as Error).name === 'AbortError') return
+      if (ac.signal.aborted || isAbort(err)) return
       console.warn('Landmark fetch failed', err)
       recovery.failed(retryAfterOf(err))
     }

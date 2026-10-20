@@ -130,15 +130,15 @@ describe('LayersPopover', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={ARCHIVE} playerOffered={false} />)
     open()
     expect(rows()).toHaveLength(8)
-    const grid = screen.getByRole('checkbox', { name: /^Forecast grid/ })
+    // The reason is what a reader hears with the row, since its title does
+    // not exist on touch.
+    const grid = screen.getByRole('checkbox', {
+      name: /^Forecast grid/,
+      description: 'The forecast grid is not available for archival data.',
+    })
     expect((grid as HTMLInputElement).disabled).toBe(true)
-    expect(grid.getAttribute('aria-describedby')).toBe('layer-grid-note')
-    expect(document.getElementById('layer-grid-note')?.textContent).toBe(
-      'The forecast grid is not available for archival data.',
-    )
-    const player = screen.getByRole('checkbox', { name: 'Forecast player' })
+    const player = screen.getByRole('checkbox', { name: 'Forecast player', description: '' })
     expect((player as HTMLInputElement).disabled).toBe(true)
-    expect(player.getAttribute('aria-describedby')).toBeNull()
   })
 
   // Each row drives its own layer, and no label carries a coverage note: the

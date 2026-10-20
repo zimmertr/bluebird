@@ -1,32 +1,23 @@
 import { describe, expect, it, vi } from 'vitest'
-import type * as maplibregl from 'maplibre-gl'
 import { watchView } from './viewWatch'
+import { stubMap } from '../testSupport/stubMap'
+import type { ViewBounds } from '../utils/layerCoverage'
 
-// Enough of a map to be watched: bounds to read, and the one event.
-function fakeMap() {
-  const handlers = new Set<() => void>()
-  const bounds = { getWest: () => -125, getSouth: () => 45, getEast: () => -116, getNorth: () => 49 }
-  const map = {
-    getBounds: () => bounds,
-    on: vi.fn((_event: string, handler: () => void) => handlers.add(handler)),
-    off: vi.fn((_event: string, handler: () => void) => handlers.delete(handler)),
-  }
-  return { map: map as unknown as maplibregl.Map, bounds, settle: () => handlers.forEach((h) => h()) }
-}
+const edges = (view: ViewBounds) => [view.getWest(), view.getSouth(), view.getEast(), view.getNorth()]
 
 describe('watchView', () => {
   it('reports the view at once and after each settled move, until let go', () => {
-    const { map, bounds, settle } = fakeMap()
+    const stub = stubMap({ bounds: { west: -125, south: 45, east: -116, north: 49 } })
     const onBounds = vi.fn()
-    const stop = watchView(map, onBounds)
+    const stop = watchView(stub.map, onBounds)
     expect(onBounds).toHaveBeenCalledTimes(1)
-    expect(onBounds).toHaveBeenLastCalledWith(bounds)
-    settle()
+    expect(edges(onBounds.mock.lastCall![0])).toEqual([-125, 45, -116, 49])
+    stub.fire('moveend')
     expect(onBounds).toHaveBeenCalledTimes(2)
+    expect(edges(onBounds.mock.lastCall![0])).toEqual([-125, 45, -116, 49])
     stop()
-    settle()
+    expect(stub.handlerCount('moveend')).toBe(0)
+    stub.fire('moveend')
     expect(onBounds).toHaveBeenCalledTimes(2)
-    expect(map.on).toHaveBeenCalledWith('moveend', expect.any(Function))
-    expect(map.off).toHaveBeenCalledWith('moveend', expect.any(Function))
   })
 })

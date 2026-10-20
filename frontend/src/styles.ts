@@ -42,9 +42,10 @@
  * This step lands on three background lightnesses — the slate-900/85 map
  * legends, the slate-800/95 chart tooltip, and the slate-700 table header bar
  * — and two of its sites are attributions a license requires people to be
- * able to read. slate-300 is the dimmest step clearing 4.5:1 on all three
- * (7.0 / 9.9 / 12.0); slate-400, where these sites had drifted, manages only
- * 4.0:1 on the header bar.
+ * able to read. slate-300 is the dimmest step clearing 4.5:1 on all three:
+ * 6.97:1 on the header bar, the lightest, and 7.65 and 8.45 on the other two
+ * even over white. slate-400, where these sites had drifted, manages only
+ * 3.94:1 on the header bar.
  *
  * The color has to live here rather than at the call site. Tailwind resolves
  * two competing color utilities by their order in the generated stylesheet,
@@ -96,7 +97,7 @@ const GLYPH_SIZE = 'text-[10px]'
  * The base size, stepped back: secondary text that is read, not scanned.
  *
  * This step lands on the slate-800 panel, cards and dialogs. slate-400 is the
- * dimmest step clearing 4.5:1 there (5.7, and 7.0 on slate-900 fields);
+ * dimmest step clearing 4.5:1 there (5.56, and 6.78 on slate-900 fields);
  * slate-500, where this tier sat through #159, managed 3.1:1 — receding on
  * purpose, but past what AA permits for text. Brightening it made the tagline
  * under the app title the same recipe, so what had been two roles is one, and
@@ -108,7 +109,7 @@ const CAPTION = 'text-xs text-ink-soft'
 export const TEXT = {
   /**
    * The panel's section headings: Destinations, Forecast, Metrics. slate-300
-   * (9.85:1 on the slate-800 panel) rather than the slate-400 (5.71:1) it wore
+   * (9.83:1 on the slate-800 panel) rather than the slate-400 (5.56:1) it wore
    * until #687, where it read dimmer than the slate-200 subheading under it
    * and a heading outranked by its own sub-block is no heading. It keeps the
    * 14px size, the weight and the tracking that already set it above the
@@ -438,7 +439,7 @@ export const SURFACE_SHEET =
  * `ACCENT.input`'s checked sky-500 fill reads 3.81:1 here (5.40:1 on
  * slate-800), past the 3:1 a control boundary owes under 1.4.11.
  *
- * The border is 1.37:1 on this fill where it was 1.94:1 on slate-800, and that
+ * The border is 1.37:1 on this fill where it was 1.93:1 on slate-800, and that
  * is fine for the same reason it was fine there: it has never been the boundary
  * doing the work — the shadow is, more so now.
  *
@@ -475,8 +476,8 @@ export const SURFACE_POPOVER =
  * range would sink into the band between them.
  *
  * So the accent fill is `sky-650`, defined in `index.css` — the midpoint of
- * that window, which is where the derivation lives. White reads 4.57:1 on it,
- * and it holds 3.21:1 on the panel, 3.04:1 on `DAY.range` and 3.91:1 on the
+ * that window, which is where the derivation lives. White reads 4.56:1 on it,
+ * and it holds 3.20:1 on the panel, 3.04:1 on `DAY.range` and 3.91:1 on the
  * segment track. Resting states pass; the one that does not is the hover, for
  * a reason recorded on `fillHover` below.
  *
@@ -570,9 +571,9 @@ export const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-
  * loses its top edge to the box's clip, the first column loses its left edge
  * the same way, and the bottom edge lands on the first row, whose metric
  * cells wear band fills this role cannot measure against. Drawn inside, the
- * whole ring stands on the bar's own slate-700, where sky-400 is 4.74:1. The
+ * whole ring stands on the bar's own slate-700, where sky-400 is 4.75:1. The
  * ring never reaches a row, so a hovered one (slate-700 at 30% over the
- * slate-800 sheet, 6.08:1) cannot hide it either. Same width and colour as
+ * slate-800 sheet, 6.10:1) cannot hide it either. Same width and colour as
  * `FOCUS_RING`, so a keyboard reader meets one indicator in two placements.
  */
 export const FOCUS_RING_INSET =
@@ -678,7 +679,7 @@ export const DRAW_ROW = {
  * the app you cannot press, and growing it to 44px would make it look like the
  * one thing in its row that you can.
  *
- * `ACCENT.fill`'s white on `--color-sky-650` measures 4.57:1, so the label
+ * `ACCENT.fill`'s white on `--color-sky-650` measures 4.56:1, so the label
  * clears AA at this size without the fill needing a shade of its own.
  *
  * The type is spelled out rather than composed from `TEXT.overline`, for the
@@ -714,13 +715,13 @@ const CHIP_SHAPE = `inline-flex max-w-full items-center ${RADIUS.control} pr-1 t
  * about the same kind of set. `rest` is every other selected member.
  *
  * Colour is not the only channel separating them, and it cannot be: the accent
- * fill against the neutral chip beside it measures 2.2:1, under the 3:1 that
+ * fill against the neutral chip beside it measures 2.27:1, under the 3:1 that
  * WCAG 1.4.11 asks of a boundary carrying meaning on its own. A resting chip
  * SHOWS its remove ×, an active one shows the same slot empty, and the row
  * carries a header naming what the highlight means, so the state survives a
  * reader the fill does not reach. The labels are above the text floor in both
- * states — white on `--color-sky-650` is 4.57:1 (the derivation is in
- * `index.css`) and slate-200 on slate-700 is 8.2:1.
+ * states — white on `--color-sky-650` is 4.56:1 (the derivation is in
+ * `index.css`) and slate-200 on slate-700 is 8.4:1.
  *
  * The size is spelled bare rather than composed from `TEXT.control`, for the
  * reason `BADGE_ACCENT` above spells its own: that role carries slate-200,
@@ -877,7 +878,7 @@ export const SWATCH_RAMP =
  * single ink clears AA across it: white measures 1.45:1 on `#67e8f9` and
  * slate-900 measures 2.04:1 on `#5720c3` (2026-09-17, over all five metric
  * ramps and the eleven snow bands). A scrim is what gives every number one
- * ground to be read against — slate-200 on this one measures **6.49:1** at its
+ * ground to be read against — slate-200 on this one measures **6.48:1** at its
  * worst, on that same cyan-300, where a text-shadow would be carrying the
  * legibility and no test could measure it.
  *
@@ -1210,8 +1211,8 @@ export const DRAG = {
  *
  * The edge is slate-500 rather than the slate-600 the inputs used to carry,
  * because a component boundary owes 3:1 on **both** sides it separates
- * (WCAG 1.4.11) and slate-600 clears neither: 1.94:1 against the slate-800
- * panel outside and 2.36:1 against the slate-900 fill inside. slate-500 reads
+ * (WCAG 1.4.11) and slate-600 clears neither: 1.93:1 against the slate-800
+ * panel outside and 2.35:1 against the slate-900 fill inside. slate-500 reads
  * 3.07:1 and 3.74:1. The fill step alone is 1.22:1, nowhere near enough to
  * carry the boundary by itself, so this is the line doing the work.
  *
@@ -1727,9 +1728,9 @@ export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 export const MAP_CHIP_SUMMARY = `${CHIP_FACE} min-w-0`
 /**
  * The summary's words: one line, cut at its end, in the slate-400 the mockup
- * reads them in (5.71:1 on the chip). White while the chip is lit, since the
+ * reads them in (5.56:1 on the chip). White while the chip is lit, since the
  * Controls sheet it raises is up (record 0141): slate-400 on the accent fill
- * fails AA, where white is the 4.57:1 every label on that fill reads at.
+ * fails AA, where white is the 4.56:1 every label on that fill reads at.
  */
 export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-ink-soft in-aria-expanded:text-on-fill'
 
@@ -1756,7 +1757,7 @@ const MAP_FAB_PRESSED =
  * right edge, a 16px corner rather than the capsule the chips wear, and the
  * label in the call to action's 14px semibold. The accent fill is
  * `BUTTON_PRIMARY`'s, `ACCENT.fill` on `--color-sky-650`, so the white label
- * keeps the 4.57:1 record 0008 measured; the call site adds `DISABLED`, the
+ * keeps its 4.56:1 (record 0008); the call site adds `DISABLED`, the
  * panel's grey, because the gate is the panel's. The deepest shadow, since it
  * stands over the map and over the sheet's edge alike.
  *
@@ -2162,8 +2163,8 @@ export const NOTICE_DIVIDER = {
  * boundary, and owes no ratio — the glyph is the icon and it does. The
  * glyph inherits its box's `STATUS` voice (a slate X would read as chrome
  * that escaped into a status message). Measured on the resting pill
- * backdrop (fill + white/5 over the panel): amber-300 9.10:1, red-400
- * 5.00:1, sky-300 7.45:1, all past the 3:1 a UI glyph owes; the hover's
+ * backdrop (fill + white/5 over the panel): amber-300 9.06:1, red-400
+ * 4.83:1, sky-300 7.47:1, all past the 3:1 a UI glyph owes; the hover's
  * white on the `white/15` hover fill is 8.9:1+. Pinned in styles.test.ts
  * so a fill or `STATUS` change forces a re-measurement.
  */
@@ -2238,7 +2239,7 @@ export const NOTICE_DISMISS = {
  *
  * Three things it settles:
  *
- * - **The weight.** slate-600 at 1.94:1 read heavy once the gutters
+ * - **The weight.** slate-600 at 1.93:1 read heavy once the gutters
  *   tightened, so it was half-opacity slate-600 for a while, compositing to
  *   1.37:1. That is `SURFACE_DIVIDER`'s 1.41:1 by eye, so since #687 it is
  *   that colour: one quiet line in the app rather than two that only a
@@ -2762,9 +2763,9 @@ export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
  *
  * 60 is the lowest multiple of ten that keeps a muted label legible. WCAG exempts
  * only INACTIVE controls from 1.4.3, and these still work, so their text owes
- * 4.5:1. At 50% the slate-200 label measured 4.11:1 on the slate-800 panel
- * (Include unnamed peaks), 4.58:1 on an idle metric row's select, and 4.22:1
- * on an unplotted chart chip; at 60% the three are 5.25, 5.96 and 5.43.
+ * 4.5:1. At 50% the slate-200 label measured 4.14:1 on the slate-800 panel
+ * (Include unnamed peaks), 4.61:1 on an idle metric row's select, and 4.23:1
+ * on an unplotted chart chip; at 60% the three are 5.26, 5.98 and 5.41.
  *
  * Three sites spelled it before it had a name (#390). No colour of its own,
  * for the same reason `DISABLED` carries none: it composes over whatever role

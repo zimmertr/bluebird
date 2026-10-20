@@ -13,6 +13,7 @@ import hashlib
 import os
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -212,3 +213,19 @@ def test_no_schema_is_waited_for_and_then_a_failure(bare_database, planet, tmp_p
     assert done.returncode == 1
     assert "the osm_state table does not exist yet" in done.stderr
     assert "Downloaded" not in done.stderr
+
+
+def test_the_keep_alive_leaves_a_real_connection_usable_and_outside_a_transaction(database):
+    from psycopg2.extensions import STATUS_READY
+
+    conn = fill.connect(database)
+    try:
+        with fill.KeepAlive(conn, every_s=0.02):
+            time.sleep(0.1)
+        # Autocommit, so no statement left a transaction open behind the lock.
+        assert conn.status == STATUS_READY
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            assert cur.fetchone() == (1,)
+    finally:
+        conn.close()

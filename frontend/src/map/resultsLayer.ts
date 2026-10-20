@@ -81,7 +81,7 @@ export function makeArrowImage(): ImageData | null {
 }
 
 /** Set the markers to these rows, coloured for this ranking and this hour. */
-export function updateResults(
+function updateResults(
   map: maplibregl.Map,
   results: DestinationResult[],
   sortBy: SortBy,
@@ -90,7 +90,7 @@ export function updateResults(
   setSource(map, 'results', resultsFeatureCollection(results, sortBy, true, hourIndex))
 }
 
-export interface ResultsDrawing {
+interface ResultsDrawing {
   results: DestinationResult[]
   sortBy: SortBy
   // The hour the markers are coloured for, or null for the window aggregate.
@@ -127,7 +127,7 @@ export interface ResultsLayer {
 }
 
 /** How far the marker, and its popup with it, should move across the screen. */
-export interface PopupPlacement {
+interface PopupPlacement {
   dx: number
   dy: number
 }

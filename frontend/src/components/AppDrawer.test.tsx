@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import { type ComponentProps, createRef } from 'react'
 import AppDrawer from './AppDrawer'
@@ -277,6 +277,11 @@ describe('AppDrawer', () => {
     // Its grip and title drag it the way a menu's do (record 0146), with the
     // heights App holds: the button and the band ride its edge.
     it('hands App the height a drag on its title holds it at, and its own back on a double press', () => {
+      // The gesture reads each press's timeStamp, which jsdom stamps from the
+      // clock: frozen, the two presses are a double press by construction
+      // rather than by how fast the steps between them ran.
+      vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+      onTestFinished(() => void vi.useRealTimers())
       const onSheetPx = vi.fn()
       render(drawer(true, NOOP, false, { isDesktop: false, sheetPx: 540, sheetRestPx: 540, sheetFullPx: 700, onSheetPx }))
       const title = screen.getByRole('heading', { name: 'Controls' })

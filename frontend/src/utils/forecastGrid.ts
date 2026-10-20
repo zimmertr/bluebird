@@ -13,14 +13,14 @@
 // Both styles are therefore defensible, and they say different true things,
 // which is why the panel offers both rather than this file choosing:
 //
-// - `blocks` (the default) draws each sample as its own square. It shows you
-//   where the samples ARE, so the model's resolution is a thing you can see
-//   and count rather than a number in the legend. Its edges are the only
-//   dishonest part: the model has no discontinuity there.
-// - `smooth` draws the field between samples. It reads the way every other
-//   forecast map reads, and it is the honest shape of a field the model
-//   already treats as continuous. What it hides is how few samples are under
-//   it.
+// - `blocks` draws each sample as its own square. It shows you where the
+//   samples ARE, so the model's resolution is a thing you can see and count
+//   rather than a number in the legend. Its edges are the only dishonest
+//   part: the model has no discontinuity there.
+// - `smooth` (the default since #460) draws the field between samples. It
+//   reads the way every other forecast map reads, and it is the honest shape
+//   of a field the model already treats as continuous. What it hides is how
+//   few samples are under it.
 //
 // They are ONE raster drawn with two magnification filters, not two drawings:
 // `raster-resampling` is `nearest` for blocks and `linear` for smooth. Nothing

@@ -14,6 +14,7 @@ import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
 import DrawReadout from './DrawReadout'
+import { grouped } from '../utils/numbers'
 
 // Above this drawn area, an informational note warns that dense regions can
 // exceed the destination limit and searches slow down. Advisory only: the hard
@@ -235,8 +236,8 @@ export default function DestinationsSection({
               <DrawReadout drawing={drawing} drawPointCount={drawPointCount} pointsNeeded={pointsNeeded} whole />
               {polygonAreaKm2 !== null && (
                 <p className={`${areaTooLarge ? STATUS.error : TEXT.caption} whitespace-nowrap`}>
-                  ~{Math.round(polygonAreaKm2).toLocaleString()} km²
-                  {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
+                  ~{grouped(Math.round(polygonAreaKm2))} km²
+                  {areaTooLarge && ` (max ${grouped(maxAreaKm2)} km²)`}
                 </p>
               )}
             </div>

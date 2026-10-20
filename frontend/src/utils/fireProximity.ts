@@ -6,6 +6,8 @@
 import type { FeatureCollection, Feature, Geometry, MultiPolygon, Position } from 'geojson'
 import { geoKey, setKey } from './points'
 import type { BBox, WildfireProps } from './wildfires'
+import { clamp } from './numbers'
+import { NO_VALUE_MARK, UNAVAILABLE } from './unavailableCell'
 
 export const FIRE_WARN_MILES = 10
 
@@ -167,7 +169,7 @@ function originToSegmentMiles(ax: number, ay: number, bx: number, by: number): n
   const lenSq = dx * dx + dy * dy
   if (lenSq === 0) return Math.hypot(ax, ay)
   let t = -(ax * dx + ay * dy) / lenSq
-  t = Math.max(0, Math.min(1, t))
+  t = clamp(t, 0, 1)
   return Math.hypot(ax + t * dx, ay + t * dy)
 }
 
@@ -257,7 +259,7 @@ function featureFireName(props: WildfireProps | null): string {
  */
 export function fireCellText(warning: FireWarning | undefined, uncovered: boolean): string {
   if (warning) return `⚠️ ${warning.miles.toFixed(1)}`
-  return uncovered ? 'N/A' : '—'
+  return uncovered ? UNAVAILABLE : NO_VALUE_MARK
 }
 
 /**

@@ -71,6 +71,24 @@ describe('ResultsBar', () => {
     expect(chooseResultsMode).toHaveBeenCalledWith('chart')
   })
 
+  it('switches the view from the segment, pressing the one it shows', () => {
+    const chooseResultsMode = vi.fn()
+    const { rerender } = render(<ResultsBar {...props({ resultsMode: 'chart', chooseResultsMode })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show table only' }))
+    expect(chooseResultsMode).toHaveBeenLastCalledWith('table')
+    fireEvent.click(screen.getByRole('button', { name: 'Show both chart and table' }))
+    expect(chooseResultsMode).toHaveBeenLastCalledWith('both')
+    const pressed = screen
+      .getAllByRole('button', { pressed: true })
+      .map((b) => b.getAttribute('aria-label'))
+    expect(pressed).toEqual(['Show chart only'])
+    // Both chevrons, the folded bar's and the wide one, say the same thing.
+    expect(screen.getAllByRole('button', { name: 'Collapse results' })).toHaveLength(2)
+    rerender(<ResultsBar {...props({ resultsMode: 'chart', resultsCollapsed: true })} />)
+    expect(screen.getAllByRole('button', { name: 'Expand results' })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: 'Collapse results' })).toBeNull()
+  })
+
   it('shows Removed only with something to restore, and Download only with a row', () => {
     const { rerender } = render(<ResultsBar {...props({ canDownload: false })} />)
     expect(screen.queryByRole('button', { name: /Removed/ })).toBeNull()

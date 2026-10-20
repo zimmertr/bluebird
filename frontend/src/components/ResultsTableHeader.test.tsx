@@ -265,12 +265,6 @@ describe('sorting from the keyboard', () => {
     // One copy of the sentence, however many headers point at it.
     expect(screen.getAllByText('Press Enter or Space to sort.', { ignore: false })).toHaveLength(1)
   })
-
-  it('keeps the column label as the name and puts the # header in the tab order', () => {
-    renderHeader(props())
-    expect(header(/^Name/).getAttribute('tabindex')).toBe('0')
-    expect(screen.getByRole('columnheader', { name: '#' }).getAttribute('tabindex')).toBe('0')
-  })
 })
 
 describe('moving a column', () => {

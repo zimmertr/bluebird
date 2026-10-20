@@ -20,10 +20,11 @@ import { GRID_REACH_DEFAULT_FRAC, isGridStyle } from './forecastGrid'
 import { type ForecastSelection, isDayKey, isTimeOfDay, orderDays } from './calendar'
 import type { Place } from './geocode'
 import { decodeView, encodeView } from './mapView'
-import { geoKey } from './points'
+import { coordinateLabel, geoKey, onGlobe } from './points'
 import { isSortKey } from './tableColumns'
 import { parseCustomCsv } from './customDestinations'
 import type { DecodeLimits, ShareableState } from './urlState'
+import { clamp, roundTo } from './numbers'
 
 /**
  * One query parameter.
@@ -114,15 +115,6 @@ const MODEL_ID = /^[a-z0-9_]+$/
 
 const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
 
-// Whether a link's coordinate is on the globe: the bounds `view` and `removed`
-// hold theirs to, and the ones the CSV parser holds a pasted row to. MapLibre
-// throws on a latitude past a pole, and a restored ring or pin is framed in the
-// map's load handler, so one such value left the map with no markers, no
-// drawing and no overlays on every load of the link (#622).
-function onGlobe(lng: number, lat: number): boolean {
-  return Number.isFinite(lng) && Number.isFinite(lat) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
-}
-
 // An OSM id in the shape the app writes one (`node/349018340`): the popup's
 // link-out puts it in the path of an openstreetmap.org url, so an id from a
 // link's text is held to what discovery and the geocoder produce (#621).
@@ -135,10 +127,8 @@ const OSM_ID = /^(node|way|relation)\/\d+$/
 // which the row's type shows as `custom`.
 const PLACE_KIND = /^[\p{L}\p{N} ]*$/u
 
-function round(n: number): number {
-  const f = 10 ** POLY_PRECISION
-  return Math.round(n * f) / f
-}
+// A link's coordinates, at the precision it writes them.
+const round = (n: number): number => roundTo(n, POLY_PRECISION)
 
 /** Whether the state holds a ring worth writing: three corners at least. */
 export function hasPolygon(state: ShareableState): boolean {
@@ -178,7 +168,7 @@ function decodePolygon(raw: string, maxPoints: number): GeoPolygon | null {
     const lat = Number(latStr)
     // A vertex off the globe drops the ring, as a malformed one does: dropping
     // the vertex alone would restore a different shape than the one shared.
-    if (lngStr === undefined || latStr === undefined || !onGlobe(lng, lat)) return null
+    if (lngStr === undefined || latStr === undefined || !onGlobe(lat, lng)) return null
     pts.push([lng, lat])
   }
   if (pts.length < 3) return null
@@ -241,10 +231,10 @@ function decodePinList(raw: string): Place[] {
     const [lonStr, latStr, kind, elevStr, osmId, label] = parts as string[]
     const lon = Number(lonStr)
     const lat = Number(latStr)
-    if (!onGlobe(lon, lat)) continue
+    if (!onGlobe(lat, lon)) continue
     const elev = Number(elevStr)
     out.push({
-      label: label || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+      label: label || coordinateLabel(lat, lon),
       description: '',
       kind: PLACE_KIND.test(kind) ? kind : '',
       lat,
@@ -595,7 +585,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     decode: (raw, out) => {
       if (out.gridStyle === undefined) return
       const reach = Number(raw)
-      if (Number.isFinite(reach)) out.gridReachFrac = Math.min(100, Math.max(0, reach)) / 100
+      if (Number.isFinite(reach)) out.gridReachFrac = clamp(reach, 0, 100) / 100
     },
   },
   // Written only once the reader has touched the switch, and then in both
@@ -638,7 +628,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
         if (extra !== undefined || !lngStr || !latStr) continue
         const lng = Number(lngStr)
         const lat = Number(latStr)
-        if (!Number.isFinite(lng) || !Number.isFinite(lat) || Math.abs(lat) > 90 || Math.abs(lng) > 180) continue
+        if (!onGlobe(lat, lng)) continue
         const key = geoKey(lat, lng)
         if (!keys.includes(key)) keys.push(key)
       }

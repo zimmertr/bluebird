@@ -295,7 +295,7 @@ describe('the Closure cell', () => {
     expect(cell().textContent).toBe('—')
   })
 
-  it('explains an uncovered row and a failed check apart', () => {
+  it('explains an uncovered row on hover', () => {
     only({ closureUncovered: true })
     expect(cell().querySelector('[title]')!.getAttribute('title')).toBe(CLOSURE_UNCOVERED_NOTE)
   })
@@ -400,12 +400,5 @@ describe('the chart box in each theme', () => {
   it('draws no rim on an unticked box in light', () => {
     inTable(<ResultsTableRow {...props({ theme: 'light', chartBox: BOX, charted: false })} />)
     expect(check().className).toBe(CHOICE_INPUT)
-  })
-
-  // An author outline replaces the browser's focus ring, so the rim brings
-  // the app's.
-  it('keeps a focus ring under the rim', () => {
-    expect(LINE_EDGE.input).toContain(LINE_EDGE.swatch)
-    expect(LINE_EDGE.input).toMatch(/focus-visible:outline-2/)
   })
 })

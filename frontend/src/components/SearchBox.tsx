@@ -21,6 +21,7 @@ import {
   TEXT,
 } from '../styles'
 import { IconClose, IconSearch } from './icons'
+import { coordinateLabel } from '../utils/points'
 
 // The panel under the field, in both of the states it has: the list of places,
 // and the line that says why there is no list. One recipe, because they are one
@@ -138,7 +139,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
     const coords = parseCoordinates(q)
     if (coords) {
       pick({
-        label: `${coords.lat.toFixed(5)}, ${coords.lon.toFixed(5)}`,
+        label: coordinateLabel(coords.lat, coords.lon),
         description: '',
         kind: 'coordinates',
         ...coords,

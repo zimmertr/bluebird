@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen } from '@testing-library/react'
 import PhoneFoot from './PhoneFoot'
 import BottomSheet from './BottomSheet'
@@ -40,6 +40,11 @@ function stubResizeObserver() {
   return () => callbacks.forEach((cb) => cb())
 }
 const button = () => screen.getByRole('button', { name: /^(Analyz|Try again)/ }) as HTMLButtonElement
+
+// In an afterEach so a failed assertion cannot leave the fake observer behind.
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('PhoneFoot', () => {
   it('is lit while the gate is open, and runs the panel\'s command', () => {
@@ -105,7 +110,6 @@ describe('PhoneFoot', () => {
     placeAt(band, { left: 12, top: 600, width: 366, height: 52 })
     act(() => fire())
     expect(onBandPx).toHaveBeenLastCalledWith(52)
-    vi.unstubAllGlobals()
   })
 
   // The opened credit line stops short of the button, so its width is
@@ -117,7 +121,6 @@ describe('PhoneFoot', () => {
     placeAt(button(), { left: 254, top: 674, width: 120.1, height: 56 })
     act(() => fire())
     expect(onFabPx).toHaveBeenLastCalledWith(120.1)
-    vi.unstubAllGlobals()
   })
 
   // Material's rule for a floating button under a modal sheet: it hides under

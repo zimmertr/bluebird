@@ -7,7 +7,8 @@ import useTourSource from './useTour.ts?raw'
 // and the app's root can whenever a positioned descendant stretches its
 // overflow: over a 101-row report each step pushed the whole page further up
 // and the end of the tour left it there (2026-10-06). The node suite reads
-// the source, since the overlay itself needs a page to render.
+// the source, since an ancestor's scroll needs a page that lays out, which
+// jsdom is not; `Tour.test.tsx` renders the overlay for the rest.
 describe('Tour', () => {
   it('never scrolls every ancestor into view', () => {
     // The call, not the word: the source names it to say why it is absent.
@@ -28,34 +29,5 @@ describe('Tour', () => {
     const focusCalls = useTourSource.match(/\.focus\([^)]*\)/g) ?? []
     expect(focusCalls.length).toBeGreaterThan(0)
     for (const call of focusCalls) expect(call).toBe('.focus({ preventScroll: true })')
-  })
-
-  // The light's pad and corners come off the target it frames (#696), so the
-  // phone's Analyze button sits 8px inside a light rounded 16 + 8.
-  it("draws the light's corners from the target's own", () => {
-    expect(tourSource).toContain('borderRadius: spotRadius(targetRadius, pad)')
-    expect(tourSource).toContain('const pad = spotPad(step.spot, targetRadius)')
-    expect(tourSource).toContain('setTargetRadius(radius)')
-  })
-
-  // The overlay measured every frame for the whole tour, a frame and a commit
-  // every vsync over a page with nothing moving (#696, traced 2026-10-14). It
-  // follows a target only until it holds still for SETTLE_FRAMES, and a scroll
-  // or a resize wakes it.
-  it('stops measuring once the target holds still', () => {
-    expect(tourSource).toContain('const SETTLE_FRAMES = 10')
-    expect(tourSource).toContain('frame = box !== null && still >= SETTLE_FRAMES ? 0 : requestAnimationFrame(follow)')
-    expect(tourSource).toContain("window.addEventListener('resize', wake)")
-    expect(tourSource).toContain("document.addEventListener('scroll', wake, true)")
-  })
-
-  // The spotlight lit the Forecast section with the Controls sheet's top
-  // shade lying across it (#696): while a tour runs, every shade stands down.
-  it('hides every scroll shadow while it runs', () => {
-    const TOURING_ATTR = 'data-touring'
-    expect(tourSource).toContain(`const TOURING_ATTR = '${TOURING_ATTR}'`)
-    expect(tourSource).toContain('document.documentElement.setAttribute(TOURING_ATTR')
-    expect(tourSource).toContain('document.documentElement.removeAttribute(TOURING_ATTR)')
-    // The rule that reads it is index.css's, held in styles.test.ts.
   })
 })

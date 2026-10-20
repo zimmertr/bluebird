@@ -3,6 +3,8 @@
 // Pure, so the rules are tested off the pointer; `hooks/useSheetDrag.ts`
 // wires them to `useGripDrag`, the gesture the results sheet's grips use.
 
+import { clamp } from './numbers'
+
 /**
  * How near a stop a release has to land to be taken to it: a slip of the
  * thumb, well short of any sheet's height. It was the distance a swipe down
@@ -31,7 +33,7 @@ export interface SheetStops {
 
 /** The height a drag that began at `startPx` holds the sheet at, `upPx` up. */
 export function sheetDragPx(startPx: number, upPx: number, fullPx: number): number {
-  return Math.min(fullPx, Math.max(0, startPx + upPx))
+  return clamp(startPx + upPx, 0, fullPx)
 }
 
 /** Where a release leaves a sheet: closed, back at its own height, or held. */

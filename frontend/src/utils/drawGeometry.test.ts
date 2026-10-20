@@ -172,6 +172,8 @@ describe('makeDrawData', () => {
     [2, 2],
   ]
 
+  // Vertices come last so they render on top of the midpoints: both are grab
+  // targets and the vertex is the one that has to win.
   it('draws a closed polygon with a handle per vertex and per segment', () => {
     const data = makeDrawData(ring)
     expect(kinds(data)).toEqual([
@@ -186,13 +188,6 @@ describe('makeDrawData', () => {
     // The ring the fill draws repeats its first point, which is what closes it.
     const polygon = featuresOf(data)[0]
     expect(polygon.geometry.coordinates).toEqual([[[0, 0], [2, 0], [2, 2], [0, 0]]])
-  })
-
-  // Vertices are pushed last so they render on top of the midpoints: both are
-  // grab targets and the vertex is the one that has to win.
-  it('puts every vertex after every midpoint', () => {
-    const order = kinds(makeDrawData(ring))
-    expect(order.lastIndexOf('midpoint')).toBeLessThan(order.indexOf('vertex'))
   })
 
   it('closes the midpoint ring, so the last segment has a handle too', () => {

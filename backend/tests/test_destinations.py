@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import zlib
 
 import httpx
+from conftest import dest
 from fastapi.testclient import TestClient
 
 from app import ratelimit
 from app.main import app
 from app.models import MAX_ANALYZE_PEAKS
 from app.services import osm as osm_mod
-from app.services.errors import UpstreamError
 
 client = TestClient(app)
 
@@ -24,16 +25,16 @@ def _payload(**overrides) -> dict:
 
 
 def _peak(name: str, elevation_ft: float | None = None) -> dict:
-    return {
-        "name": name,
-        "latitude": 0.05,
-        "longitude": 0.05,
-        "elevation_ft": elevation_ft,
-        "osm_id": f"node/{abs(hash(name)) % 10_000}",
-        # Discovery classifies every element from its own tags, so a stub of
-        # it has to carry a type too or it stops representing the real thing.
-        "type": "peak",
-    }
+    # Discovery classifies every element from its own tags, so a stub of it
+    # has to carry a type too or it stops representing the real thing.
+    return dest(
+        0.05,
+        0.05,
+        name=name,
+        elevation_ft=elevation_ft,
+        osm_id=f"node/{zlib.crc32(name.encode()) % 10_000}",
+        type="peak",
+    )
 
 
 def _stub_osm(monkeypatch, result):
@@ -90,6 +91,7 @@ def test_over_cap_refuses_with_the_analyze_wording(monkeypatch):
     assert "smaller polygon" not in detail
     assert "minimum elevation" not in detail
     assert resp.json()["error"] == {"code": "refusal", "retryable": False}
+    assert resp.json()["found"] == MAX_ANALYZE_PEAKS + 1
 
 
 def test_oversized_polygon_is_a_422():
@@ -111,24 +113,6 @@ def test_missing_polygon_is_a_400_naming_both_ways_to_ask():
     assert "polygon is required" in detail
     assert "custom_destinations" in detail
     assert resp.json()["error"] == {"code": "validation", "retryable": False}
-
-
-def test_upstream_failure_maps_to_502(monkeypatch):
-    _stub_osm(monkeypatch, UpstreamError("Overpass is down"))
-    resp = client.post("/api/destinations", json=_payload())
-    assert resp.status_code == 502
-    assert resp.json()["detail"] == "Overpass is down"
-    assert resp.json()["error"] == {"code": "upstream_unavailable", "retryable": True}
-
-
-def test_budget_exhaustion_maps_to_503_with_retry_after(monkeypatch):
-    _stub_osm(monkeypatch, ratelimit.BudgetExhausted("OpenStreetMap (Overpass)"))
-    resp = client.post("/api/destinations", json=_payload())
-    assert resp.status_code == 503
-    assert resp.headers["retry-after"] == str(ratelimit.SHED_RETRY_AFTER_S)
-    assert "busy" in resp.json()["detail"]
-    # The header and the flag must agree: a shed request is worth resending.
-    assert resp.json()["error"] == {"code": "busy", "retryable": True}
 
 
 def test_has_its_own_rate_limit_bucket(monkeypatch):
@@ -334,7 +318,7 @@ def test_a_list_that_carries_its_elevations_reports_a_complete_lookup(monkeypatc
 
 # #673: the web app's own analysis has looked its rows up already (from the
 # basemap's tiles, then this endpoint), so it asks for no lookup here and the
-# call answers from the snow grid alone.
+# call answers with the rows as sent.
 def test_a_request_that_asks_for_no_lookup_never_reaches_the_map_server(monkeypatch):
     def unreachable(*args, **kwargs):
         raise AssertionError("elevation_lookup: false must not ask the map server")

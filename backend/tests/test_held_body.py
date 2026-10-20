@@ -9,6 +9,9 @@ from __future__ import annotations
 import asyncio
 import gc
 import gzip
+import threading
+
+import pytest
 
 from app.main import app
 from app.services import held_body
@@ -66,3 +69,27 @@ async def test_a_failed_build_is_retried_rather_than_held():
     else:
         raise AssertionError("the build's failure was swallowed")
     assert gzip.decompress(await holder.gzipped(owner, "full", lambda: "ok")) == b"ok"
+
+
+async def test_a_waiter_cancelled_mid_build_leaves_the_build_for_the_others():
+    # A client that goes away mid-build cancels its own wait only: the build
+    # is shared, so the next waiter still gets the body, built once.
+    started, release = threading.Event(), threading.Event()
+    builds: list[int] = []
+
+    def text() -> str:
+        builds.append(1)
+        started.set()
+        release.wait(timeout=5)
+        return "body"
+
+    holder, owner = held_body.HeldBodies(), _Snapshot()
+    first = asyncio.create_task(holder.gzipped(owner, "full", text))
+    second = asyncio.create_task(holder.gzipped(owner, "full", text))
+    assert await asyncio.to_thread(started.wait, 5)
+    first.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await first
+    release.set()
+    assert gzip.decompress(await second) == b"body"
+    assert builds == [1]

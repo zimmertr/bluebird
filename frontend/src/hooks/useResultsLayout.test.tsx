@@ -400,9 +400,10 @@ describe('useResultsLayout', () => {
     const banded = renderHook(() => useResultsLayout({ ...closed, safeBottomPx: 34 })).result.current
     expect(bare.sheetLiftPx).toBe(0)
     expect(banded.sheetLiftPx).toBe(34)
-    // The sheet it is about to open rests the band higher, with the same panels less the band.
-    expect(banded.sheetPadBottomPx - bare.sheetPadBottomPx).toBeLessThanOrEqual(34)
-    expect(banded.sheetPadBottomPx).toBeGreaterThan(bare.sheetPadBottomPx - 34)
+    // The sheet it is about to open rests the band higher, with the same panels
+    // less the band. 844px leaves the resting lift short of its clamp, so the
+    // whole band shows.
+    expect(banded.sheetPadBottomPx).toBe(bare.sheetPadBottomPx + 34)
     const desk = renderHook(() => useResultsLayout({ ...DESKTOP, showTable: false, safeBottomPx: 34 })).result.current
     expect(desk.sheetLiftPx).toBe(0)
   })

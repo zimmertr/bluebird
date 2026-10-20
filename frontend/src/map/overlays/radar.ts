@@ -23,6 +23,7 @@ import type { MapPopups } from '../mapPopups'
 import { radarHeldUrl, radarLayerId, radarOffsets } from '../../utils/radar'
 import { radarPaints, readRadarAt, rereadRadarAt } from '../../utils/radarPoint'
 import { SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
+import { clampIndex } from '../../utils/timeline'
 
 /**
  * How solid the radar frame on screen is drawn.
@@ -51,7 +52,7 @@ export const RADAR_WARM_MS = 500
 
 /** The frame a playhead index lands on, clamped to the loop's ends. */
 export function activeOffset(offsets: readonly number[], index: number): number {
-  return offsets[Math.max(0, Math.min(offsets.length - 1, index))]
+  return offsets[clampIndex(index, offsets.length)]
 }
 
 export interface RadarOverlay {

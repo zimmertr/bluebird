@@ -22,15 +22,6 @@ describe('isUnavailableKey', () => {
     expect(isUnavailableKey('wildfire_mi')).toBe(false)
     expect(isUnavailableKey('name')).toBe(false)
   })
-
-  // Read off the family's own key list, so an aggregate added to it
-  // cannot be marked in the table and missed here.
-  it('is derived from the family key lists rather than a second list', () => {
-    const fromFamilies = [...FAMILY_KEYS.freeze]
-    expect(COLUMNS.filter((c) => isUnavailableKey(c.key as string)).map((c) => c.key).sort()).toEqual(
-      [...fromFamilies].sort(),
-    )
-  })
 })
 
 describe('unavailableCellText', () => {

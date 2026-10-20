@@ -1,6 +1,7 @@
 import { AnalysisRefusalError } from './clientAnalyze'
 import { COVERAGE_MESSAGE_TAIL, OpenMeteoModelCoverage } from './openMeteoErrors'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
+import { isAbort } from './abort'
 
 // What a failed analysis tells the reader. Apart from the hook that runs an
 // analysis because the decision is pure: which box a failure lands in, and the
@@ -16,7 +17,7 @@ export type AnalysisFailure =
   | { kind: 'error'; message: string; retry: boolean }
 
 export function analysisFailure(e: unknown, models: readonly ForecastModelOption[]): AnalysisFailure {
-  if (e instanceof DOMException && e.name === 'AbortError') return { kind: 'cancel' }
+  if (isAbort(e)) return { kind: 'cancel' }
   if (e instanceof AnalysisRefusalError) return { kind: 'refusal', message: e.message }
   if (e instanceof OpenMeteoModelCoverage) {
     // The label comes from the models list, because only the caller has it.

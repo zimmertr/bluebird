@@ -10,6 +10,7 @@ import {
   isTimeOfDay,
   monthKey,
   orderDays,
+  utcDayKey,
 } from './calendarDates'
 
 // The two 2026 transitions in the timezone vitest.config.ts pins. A local
@@ -109,5 +110,15 @@ describe('hour adjustment helper', () => {
     expect(addOneHour('23:00')).toBe('23:59')
     expect(addOneHour('23:59')).toBe('23:59')
     expect(addOneHour('14:30')).toBe('15:30')
+  })
+})
+
+describe('utcDayKey', () => {
+  // The day a request is asked for by, which a reader west of Greenwich
+  // reaches before their own day ends: 17:00 Pacific is already tomorrow in UTC.
+  it('is the UTC date an instant falls on, where dayKey is the local one', () => {
+    const evening = new Date(2026, 7, 4, 17, 0)
+    expect(dayKey(evening)).toBe('2026-08-04')
+    expect(utcDayKey(evening.getTime())).toBe('2026-08-05')
   })
 })

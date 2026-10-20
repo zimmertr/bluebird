@@ -78,40 +78,12 @@ describe('commitNeeded', () => {
     ])
   })
 
-  it('still names the window when only the window moved', () => {
-    expect(commitNeeded({ ...ANALYZED }, changed({ window: true }))).toEqual(['window-changed'])
-  })
-
-  it('is silent for sort, direction and limit changes over a held field', () => {
-    const analyzed = { ...ANALYZED }
-    expect(commitNeeded(analyzed, changed())).toEqual([])
-    expect(commitNeeded(analyzed, changed())).toEqual([])
-    expect(commitNeeded(analyzed, changed())).toEqual([])
-  })
-
-  it('is silent for a forecast bound over a held field', () => {
-    // A bound can only re-read rows the browser already has, so loosening one
-    // is as live as tightening it and neither is ever a reason to commit.
-    expect(commitNeeded({ ...ANALYZED }, changed())).toEqual([])
-  })
-
-  it('is silent for an AQI ranking, which the eager AQI fetch already covers', () => {
-    expect(commitNeeded({ ...ANALYZED }, changed())).toEqual([])
-  })
-
   // The forecast window is a data knob, so this one is not a comparison of held
   // knobs at all: the caller decides, and the answer is always "commit". Worth a
   // cue since the calendar made changing days a click rather than two typed
   // datetimes (#166).
-  it('asks for an Analyze when the forecast window is not the one behind the rows', () => {
+  it('still names the window when only the window moved', () => {
     expect(commitNeeded({ ...ANALYZED }, changed({ window: true }))).toEqual(['window-changed'])
-  })
-
-  it('reports both when both went stale, model first', () => {
-    expect(commitNeeded({ ...ANALYZED }, changed({ window: true, model: true }))).toEqual([
-      'model-changed',
-      'window-changed',
-    ])
   })
 
   it('says nothing about a window before the first analysis', () => {
@@ -233,6 +205,20 @@ describe('panelCommitCues', () => {
     expect(panelCommitCues(report, panel({ comparedModels: ['icon_seamless'] }))).toEqual(['model-changed'])
     const compared = analyzedSnapshot({ ...report, compareModels: ['icon_seamless'] })
     expect(panelCommitCues(compared, panel())).toEqual([])
+  })
+
+  // A ranking re-presents the field already held; the panel carries no
+  // direction or limit, so the sort is the one ranking knob it can say. An AQI
+  // ranking is no different, because the eager AQI fetch already covered it.
+  it('is silent for a ranking change over a held field', () => {
+    expect(panelCommitCues(report, panel({ sortBy: 'temp_avg_f' }))).toEqual([])
+    expect(panelCommitCues(report, panel({ sortBy: 'aqi_max' }))).toEqual([])
+  })
+
+  // A bound can only re-read rows the browser already has, so loosening one is
+  // as live as tightening it and neither is ever a reason to commit.
+  it('is silent for a forecast bound over a held field', () => {
+    expect(panelCommitCues(report, panel({ constraints: { ...NO_CONSTRAINTS, maxPrecipTotalIn: 0.1 } }))).toEqual([])
   })
 
   it('reads the unnamed-peaks switch as a change of types', () => {

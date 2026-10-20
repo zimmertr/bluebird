@@ -24,6 +24,10 @@ import type { Theme } from '../utils/viewPrefs'
 // No compared model came back empty: one identity, so the bar is handed the
 // same empty list on every render where there is nothing to say.
 const NO_NOTES: readonly CompareNote[] = []
+// No analysis yet, so nothing is fetchable. One identity for the same reason:
+// a fresh [] per render re-derived the comparison's lines, which reach the
+// memoized TimeSeriesChart, on every App render before the first commit.
+const NO_MODELS: readonly string[] = []
 
 /** One compared model's note, keyed by the model it is about. */
 export interface CompareNote {
@@ -227,7 +231,7 @@ export function useChartCompare({
     arriving,
     models,
     picked: comparedModels,
-    fetchable: analyzed?.compareModels ?? [],
+    fetchable: analyzed?.compareModels ?? NO_MODELS,
     hidden: hiddenModels,
     colors: chartedPairColors,
     times,

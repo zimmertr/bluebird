@@ -68,6 +68,17 @@ beforeEach(() => {
 })
 
 describe('useChartCompare', () => {
+  // Before the first analysis nothing is fetchable, and the comparison's
+  // lines reach the memoized chart: a fresh [] per render re-derived them on
+  // every App render.
+  it('hands the comparison one empty fetchable list while nothing is analyzed', () => {
+    const { rerender } = renderHook(() => useChartCompare(inputs({ analyzed: null })))
+    const first = last().fetchable
+    rerender()
+    expect(first).toEqual([])
+    expect(last().fetchable).toBe(first)
+  })
+
   // The ranking model's line is the destination's own colour, so a chart with
   // nothing compared draws as it always did. A compared model's line has a
   // colour of its own, and the table row for it wears the same one.

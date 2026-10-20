@@ -34,7 +34,7 @@ function withYear(text: string, ms: number, year: boolean): string {
 }
 
 /** A month and day, as the seam notice names the two days it falls between. */
-export function monthDay(ms: number, year = false): string {
+function monthDay(ms: number, year = false): string {
   return withYear(
     new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric' }),
     ms,

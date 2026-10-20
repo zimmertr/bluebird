@@ -58,7 +58,7 @@ export interface AnalyzeInputs {
   previous: DiscoveryRecord | null
 }
 
-export type AnalyzeBranch = 'refresh' | 'discovery' | 'custom' | 'nothing'
+type AnalyzeBranch = 'refresh' | 'discovery' | 'custom' | 'nothing'
 
 /**
  * The discovery scope removals are kept under: the ring and the authored list.

@@ -59,7 +59,7 @@ for (const theme of ['dark', 'light']) {
         }
       })
     }, LABELS)
-    console.log(`scale labels, ${theme}`, JSON.stringify(fits))
+    test.info().annotations.push({ type: `scale labels, ${theme}`, description: JSON.stringify(fits) })
     for (const { label, room, height } of fits) {
       expect(room, label).toBeGreaterThanOrEqual(0)
       // The vendor's 20px line and its 2px bottom edge: one line.

@@ -4,18 +4,20 @@ import ast
 import asyncio
 import gc
 import json
+import logging
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
 import pytest
-from conftest import FAKE_API_KEY, assert_no_key_logged, fake_response
+from conftest import FAKE_API_KEY, assert_no_key_logged, dest, fake_response, weather_metrics
 from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
 from test_destinations import _held_discovery, _offset_payload, _until
 
 from app import models, ratelimit
+from app.error_codes import INTERNAL_DETAIL, RETRYABLE, ErrorCode, error_object
 from app.main import app
 from app.models import (
     PAST_DATA_DAYS,
@@ -25,10 +27,13 @@ from app.models import (
     GeoPolygon,
     SortBy,
 )
+from app.routes.analyze import route as analyze_route
+from app.routes.analyze.events import Status
 from app.routes.analyze.route import API_KEY_HEADER, _summarize_request
 from app.routes.analyze.sse import _sse
 from app.services import aggregation, air_quality, osm, ranking, weather
-from app.services.candidates import _coord_key, _filter_elevation, _merge_custom
+from app.services.cache import point_key
+from app.services.candidates import _filter_elevation, _merge_custom
 from app.services.errors import (
     InvalidApiKeyError,
     ModelCoverageError,
@@ -346,8 +351,23 @@ def test_summarize_request_polygon_includes_area():
         polygon=GeoPolygon(type="Polygon", coordinates=[[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]]),
     )
     summary = _summarize_request(req)
-    assert "polygon=" in summary
-    assert "area=" in summary
+    # The 0.1-degree square at the equator is 123 km2 by bbox_area_km2.
+    assert "polygon=4pts" in summary
+    assert "area=123km2" in summary
+
+
+def test_summarize_request_names_both_ends_of_an_elevation_band():
+    req = AnalyzeRequest(
+        destination_types=[],
+        start_datetime=datetime.now(UTC),
+        end_datetime=datetime.now(UTC) + timedelta(days=1),
+        custom_destinations=[{"name": "A", "latitude": 1.0, "longitude": 2.0}],
+        min_elevation_ft=4000,
+        max_elevation_ft=9000,
+    )
+    summary = _summarize_request(req)
+    assert "min_elev_ft=4000" in summary
+    assert "max_elev_ft=9000" in summary
 
 
 def test_summarize_request_union_includes_polygon_and_custom():
@@ -384,12 +404,7 @@ def test_summarize_request_names_a_dropped_series_only_when_dropped():
 
 def _wx(precip):
     """A complete weather-metrics dict with a controllable precip total."""
-    return {
-        "precip_total_in": precip, "precip_avg_in_hr": precip,
-        "precip_min_in_hr": precip, "precip_max_in_hr": precip,
-        "temp_min_f": 40.0, "temp_max_f": 60.0, "temp_avg_f": 50.0,
-        "wind_min_mph": 1.0, "wind_max_mph": 9.0, "wind_avg_mph": 5.0,
-    }
+    return weather_metrics(precip)
 
 
 def _window():
@@ -624,12 +639,12 @@ def test_analyze_elevation_band_can_empty_results(stub_upstreams):
     }
 
 
-def test_analyze_over_peak_cap_is_400(monkeypatch, stub_upstreams):
+def test_an_over_cap_field_with_no_known_elevations_suggests_no_floor(monkeypatch, stub_upstreams):
     from app.models import MAX_ANALYZE_PEAKS
 
     async def flood(polygon, destination_types, on_status=None, **_):
         return [
-            {"name": f"p{i}", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": None}
+            dest(1.0, 2.0, name=f"p{i}", elevation_ft=None, osm_id=None)
             for i in range(MAX_ANALYZE_PEAKS + 1)
         ]
 
@@ -644,6 +659,9 @@ def test_analyze_over_peak_cap_is_400(monkeypatch, stub_upstreams):
     assert "analysis limit" in resp.json()["detail"]
     # An over-cap refusal is the caller's to fix, so no retry is promised.
     assert resp.json()["error"] == {"code": "refusal", "retryable": False}
+    # No candidate has an elevation, so no floor can cut the field.
+    assert resp.json()["suggested_min_elevation_ft"] is None
+    assert resp.json()["suggested_keeps"] is None
 
 
 def _year_long(count: int) -> dict:
@@ -768,8 +786,8 @@ def test_analyze_stream_custom_happy_path_emits_result(stub_upstreams):
 def test_analyze_stream_polygon_searches_then_announces_count(monkeypatch, stub_upstreams):
     async def two_peaks(polygon, destination_types, on_status=None, **_):
         return [
-            {"name": "a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1", "type": "peak"},
-            {"name": "b", "latitude": 2.0, "longitude": 3.0, "elevation_ft": None, "osm_id": "node/2", "type": "peak"},
+            dest(1.0, 2.0, name="a", elevation_ft=None, osm_id="node/1", type="peak"),
+            dest(2.0, 3.0, name="b", elevation_ft=None, osm_id="node/2", type="peak"),
         ]
 
     monkeypatch.setattr(osm, "query_osm", two_peaks)
@@ -800,9 +818,7 @@ def test_analyze_stream_mirror_failover_rides_the_detail_field(monkeypatch, stub
     async def failing_over(polygon, destination_types, on_status=None, **_):
         if on_status is not None:
             await on_status("Trying backup map server 2 of 3…")
-        return [
-            {"name": "a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1", "type": "peak"},
-        ]
+        return [dest(1.0, 2.0, name="a", elevation_ft=None, osm_id="node/1", type="peak")]
 
     monkeypatch.setattr(osm, "query_osm", failing_over)
     start, end = _window()
@@ -841,10 +857,8 @@ def _union_body(start, end, custom):
 def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstreams):
     async def two_peaks(polygon, destination_types, on_status=None, **_):
         return [
-            {"name": "pk_a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None,
-             "osm_id": "node/1", "type": "peak"},
-            {"name": "pk_b", "latitude": 3.0, "longitude": 4.0, "elevation_ft": None,
-             "osm_id": "node/2", "type": "peak"},
+            dest(1.0, 2.0, name="pk_a", elevation_ft=None, osm_id="node/1", type="peak"),
+            dest(3.0, 4.0, name="pk_b", elevation_ft=None, osm_id="node/2", type="peak"),
         ]
 
     monkeypatch.setattr(osm, "query_osm", two_peaks)
@@ -868,8 +882,7 @@ def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstr
 # name at different coordinates are two places, Custom and Peak.
 def test_analyze_union_same_name_elsewhere_keeps_both(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "Shared", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 5000,
-                 "osm_id": "node/1", "type": "peak"}]
+        return [dest(1.0, 2.0, name="Shared", elevation_ft=5000, osm_id="node/1", type="peak")]
 
     monkeypatch.setattr(osm, "query_osm", one_peak)
     start, end = _window()
@@ -886,8 +899,12 @@ def test_analyze_union_same_name_elsewhere_keeps_both(monkeypatch, stub_upstream
 
 def test_analyze_union_dedup_by_coord_custom_wins(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "Discovered", "latitude": 46.852890, "longitude": -121.760410,
-                 "elevation_ft": None, "osm_id": "node/1", "type": "peak"}]
+        return [
+            dest(
+                46.852890, -121.760410,
+                name="Discovered", elevation_ft=None, osm_id="node/1", type="peak",
+            )
+        ]
 
     monkeypatch.setattr(osm, "query_osm", one_peak)
     start, end = _window()
@@ -932,8 +949,7 @@ def test_analyze_stream_union_with_empty_discovery_still_analyzes_custom(monkeyp
 
 def test_analyze_stream_union_emits_search_then_mixed_result(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None,
-                 "osm_id": "node/1", "type": "peak"}]
+        return [dest(1.0, 2.0, name="pk", elevation_ft=None, osm_id="node/1", type="peak")]
 
     monkeypatch.setattr(osm, "query_osm", one_peak)
     start, end = _window()
@@ -956,7 +972,7 @@ def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
         # Distinct coords/names — collisions with the custom rows would dedup
         # away before the cap.
         return [
-            {"name": f"p{i}", "latitude": i * 0.001, "longitude": 0.0, "elevation_ft": None, "osm_id": None}
+            dest(i * 0.001, 0.0, name=f"p{i}", elevation_ft=None, osm_id=None)
             for i in range(MAX_ANALYZE_PEAKS - 5)
         ]
 
@@ -979,8 +995,7 @@ def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
 
 def test_analyze_union_elevation_filter_applies_to_custom_rows(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 9000,
-                 "osm_id": "node/1", "type": "peak"}]
+        return [dest(1.0, 2.0, name="pk", elevation_ft=9000, osm_id="node/1", type="peak")]
 
     monkeypatch.setattr(osm, "query_osm", one_peak)
     start, end = _window()
@@ -1031,8 +1046,14 @@ def test_merge_custom_keeps_a_repeated_custom_point_once():
 # The collision key is five decimals (~1 m), the frontend's geoKey precedent.
 # Coarser, and two distinct summits a ridge apart would merge into one row;
 # finer, and a pasted coordinate would miss the OSM node it names.
-def test_coord_key_is_five_decimals():
-    assert _coord_key({"latitude": 46.852894, "longitude": -121.760406}) == "46.85289,-121.76041"
+def test_point_key_is_five_decimals():
+    assert point_key(46.852894, -121.760406) == "46.85289,-121.76041"
+
+
+def test_point_key_keeps_the_sign_at_zero():
+    # The browser's geoKey keeps it, so two points a metre either side of the
+    # equator are two keys on both sides.
+    assert point_key(-0.000001, 10.0) != point_key(0.000001, 10.0)
 
 
 @pytest.mark.parametrize(
@@ -1054,8 +1075,12 @@ def test_merge_custom_collides_at_five_decimals(custom_lat, custom_lon, merges):
 
 def test_a_pasted_row_replaces_the_discovered_row_at_its_point(monkeypatch, stub_upstreams):
     async def one_summit(polygon, destination_types, on_status=None, **_):
-        return [{"name": "Colfax Peak", "latitude": 48.79052, "longitude": -121.79921,
-                 "elevation_ft": 9443.0, "osm_id": "node/1", "type": "peak"}]
+        return [
+            dest(
+                48.79052, -121.79921,
+                name="Colfax Peak", elevation_ft=9443.0, osm_id="node/1", type="peak",
+            )
+        ]
 
     monkeypatch.setattr(osm, "query_osm", one_summit)
     start, end = _window()
@@ -1083,7 +1108,7 @@ def test_aligned_aqi_maps_matching_hours_and_trails_null():
 
 
 def _dest(name, lat):
-    return {"name": name, "latitude": lat, "longitude": 0.0, "elevation_ft": None, "osm_id": None}
+    return dest(lat, 0.0, name=name, elevation_ft=None, osm_id=None)
 
 
 def _wx_series(precip_total, times, precip, temp, wind, freeze=None):
@@ -1299,9 +1324,11 @@ def test_the_hours_are_most_of_a_maximal_response(monkeypatch):
 
     async def at_the_cap(polygon, destination_types, on_status=None, **_):
         return [
-            {"name": f"Some Mountain {i}", "latitude": 47.0 + i * 0.0001,
-             "longitude": -121.0 - i * 0.0001, "elevation_ft": 5961.0 + i,
-             "osm_id": f"node/{100000000 + i}"}
+            dest(
+                47.0 + i * 0.0001, -121.0 - i * 0.0001,
+                name=f"Some Mountain {i}", elevation_ft=5961.0 + i,
+                osm_id=f"node/{100000000 + i}",
+            )
             for i in range(MAX_ANALYZE_PEAKS)
         ]
 
@@ -1410,7 +1437,7 @@ def test_analyze_rejects_a_model_this_deployment_does_not_serve():
 
 @pytest.fixture
 def record_key(monkeypatch):
-    """Capture the api_key both fetch layers were called with."""
+    """Capture the api_key every fetch layer was called with."""
     seen: dict[str, list] = {"weather": [], "aqi": [], "cloud": []}
 
     async def fake_wx(
@@ -1444,7 +1471,7 @@ def _custom_body():
     }
 
 
-def test_the_header_reaches_both_fetch_layers(record_key):
+def test_the_header_reaches_every_fetch_layer(record_key):
     resp = client.post(
         "/api/analyze",
         json=_custom_body(),
@@ -1458,7 +1485,7 @@ def test_the_header_reaches_both_fetch_layers(record_key):
     assert record_key["cloud"] == ["secret-key"]
 
 
-def test_the_header_reaches_both_fetch_layers_on_the_stream(record_key):
+def test_the_header_reaches_every_fetch_layer_on_the_stream(record_key):
     resp = client.post(
         "/api/analyze/stream",
         json=_custom_body(),
@@ -1467,6 +1494,7 @@ def test_the_header_reaches_both_fetch_layers_on_the_stream(record_key):
     assert resp.status_code == 200
     assert record_key["weather"] == ["secret-key"]
     assert record_key["aqi"] == ["secret-key"]
+    assert record_key["cloud"] == ["secret-key"]
 
 
 def test_no_header_leaves_the_unkeyed_path_alone(record_key):
@@ -1662,7 +1690,7 @@ def test_the_key_reaches_no_log_record_from_the_route(record_key, caplog):
 
 # ── A side fetch that fails before the weather does ────────────────────────
 #
-# An AQI or cloud ranking fetches its column beside the weather. When the side
+# The cloud column and an eager AQI fetch run beside the weather. When the side
 # task fails first and the weather fails after it, the analysis answers the
 # weather's failure, and the side task's exception is one nobody awaited unless
 # the phase collects it. asyncio would log it at ERROR, and its traceback chains
@@ -1762,9 +1790,9 @@ def _archive_window():
     return start.isoformat(), (start + timedelta(hours=6)).isoformat()
 
 
-def test_analyze_serves_a_window_that_crosses_the_archive_boundary(stub_upstreams):
-    # Both endpoints answer it, split at the boundary and joined per location
-    # before the aggregation — so the caller sees one window, not a refusal.
+def test_analyze_accepts_a_window_that_crosses_the_archive_boundary(stub_upstreams):
+    # A spanning window is accepted rather than refused; the split and join
+    # are test_weather.py's test_a_spanning_window_*.
     start, end = _spanning_window()
     resp = client.post("/api/analyze", json={
         "destination_types": [], "start_datetime": start, "end_datetime": end,
@@ -1845,15 +1873,19 @@ def test_analyze_passes_the_boundary_it_classified_against(monkeypatch):
     monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
     start, end = _spanning_window()
+    # The route reads the clock itself, so the boundary is the one either side
+    # of the request: a run that crosses UTC midnight sees two.
+    before = models.archive_boundary(datetime.now(UTC))
     resp = client.post("/api/analyze", json={
         "destination_types": [],
         "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
         "start_datetime": start, "end_datetime": end,
     })
+    after = models.archive_boundary(datetime.now(UTC))
     assert resp.status_code == 200
     source, boundary = seen[0]
     assert source == "spanning"
-    assert boundary == models.archive_boundary(datetime.now(UTC))
+    assert boundary in {before, after}
 
 
 # ── One discovery in flight per address, on the analyze routes too (#660) ──
@@ -1943,10 +1975,7 @@ async def test_the_forecast_fetch_does_not_hold_the_discovery_slot(monkeypatch):
     # (record 0103).
     async def one_peak(polygon, destination_types, on_status=None, **_):
         entered.append(polygon.coordinates[0][0][0])
-        return [
-            {"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None,
-             "osm_id": "node/1", "type": "peak"}
-        ]
+        return [dest(1.0, 2.0, name="pk", elevation_ft=None, osm_id="node/1", type="peak")]
 
     weather_started = asyncio.Event()
     weather_release = asyncio.Event()
@@ -2082,9 +2111,12 @@ def test_discovery_failure_answers_the_same_on_destinations(_failing_discovery, 
     })
     assert resp.status_code == status
     assert resp.json()["detail"] == detail
-    assert resp.json()["error"]["code"] == code
-    # A shed budget is the one cause that can say when a retry is worthwhile.
+    assert resp.json()["error"] == {"code": code, "retryable": RETRYABLE[ErrorCode(code)]}
+    # A shed budget is the one cause that can say when a retry is worthwhile,
+    # and the header and the flag must agree.
     assert bool(resp.headers.get("retry-after")) is (status == 503)
+    if status == 503:
+        assert resp.headers["retry-after"] == str(ratelimit.SHED_RETRY_AFTER_S)
 
 
 @pytest.mark.parametrize(
@@ -2177,6 +2209,28 @@ def test_weather_failure_on_the_stream(_failing_weather, status, code, detail, e
         assert events[-1][key] == value
 
 
+def test_the_stream_ends_an_unexpected_failure_with_an_internal_error_event(monkeypatch, caplog):
+    # The stream is open before the analysis runs, so a bug in it cannot be a
+    # 500: the last event says something went wrong, and the traceback goes
+    # to the log rather than to the caller.
+    async def broken(request, api_key, http_request):
+        yield Status("Searching for destinations…")
+        raise RuntimeError("a bug nobody planned for")
+
+    monkeypatch.setattr(analyze_route, "_run_analysis", broken)
+    with caplog.at_level(logging.ERROR, logger="app.routes.analyze"):
+        resp = client.post("/api/analyze/stream", json=_weather_failure_body())
+    assert resp.status_code == 200
+    events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
+    assert events[0]["type"] == "status"
+    assert events[-1] == {
+        "type": "error", "message": INTERNAL_DETAIL, "error": error_object(ErrorCode.internal),
+    }
+    assert "a bug nobody planned for" not in resp.text
+    [record] = [r for r in caplog.records if r.getMessage() == "Unexpected error in analyze_stream"]
+    assert record.exc_info is not None
+
+
 def test_the_over_cap_refusal_is_the_same_body_on_both_routes(monkeypatch, stub_upstreams):
     # The stream spreads the refusal body into its error event with `detail`
     # renamed to `message`, so the remedy fields a client prefills from must
@@ -2185,8 +2239,7 @@ def test_the_over_cap_refusal_is_the_same_body_on_both_routes(monkeypatch, stub_
 
     async def flood(polygon, destination_types, on_status=None, **_):
         return [
-            {"name": f"p{i}", "latitude": 1.0, "longitude": 2.0,
-             "elevation_ft": float(1000 + i), "osm_id": None, "type": "peak"}
+            dest(1.0, 2.0, name=f"p{i}", elevation_ft=float(1000 + i), osm_id=None, type="peak")
             for i in range(MAX_ANALYZE_PEAKS + 1)
         ]
 
@@ -2213,8 +2266,10 @@ def test_both_routes_rank_the_same_field_the_same_way(monkeypatch, stub_upstream
     # switches endpoints must not get a different report.
     async def five_peaks(polygon, destination_types, on_status=None, **_):
         return [
-            {"name": f"p{i}", "latitude": float(i), "longitude": 2.0,
-             "elevation_ft": float(1000 * i), "osm_id": f"node/{i}", "type": "peak"}
+            dest(
+                float(i), 2.0,
+                name=f"p{i}", elevation_ft=float(1000 * i), osm_id=f"node/{i}", type="peak",
+            )
             for i in range(1, 6)
         ]
 
@@ -2302,7 +2357,7 @@ def test_analyze_refuses_the_retired_snow_depth_fields(stub_upstreams, overrides
     assert resp.status_code == 422
 
 
-# ── Cloud fields, fetched only when asked (issues #117 and #670) ────────────
+# ── Cloud fields, fetched on every analysis (#117, #670, #683) ─────────────
 
 
 def _cloud(deck):
@@ -2351,12 +2406,11 @@ def test_analyze_fetches_the_cloud_column_for_every_candidate(cloud_calls):
     assert not any(k.startswith(("cloud_base", "cloud_cover")) for k in rows[0])
 
 
-def test_analyze_cloud_ranking_fetches_every_candidate(cloud_calls):
+def test_analyze_ranks_by_cloud_deck_min(cloud_calls):
     resp = client.post(
         "/api/analyze", json=_cloud_body(sort_by="cloud_deck_min_ft", sort_desc=True)
     )
     assert resp.status_code == 200
-    assert cloud_calls == [5]
     assert [r["name"] for r in resp.json()["results"]] == ["e", "d"]
 
 
@@ -2379,10 +2433,9 @@ def test_a_dry_column_ranks_first_under_highest_deck_min(monkeypatch, stub_upstr
     assert rows[0]["cloud_deck_min_ft"] == 30066
 
 
-def test_analyze_cloud_bound_fetches_every_candidate(cloud_calls):
+def test_analyze_bounds_the_field_on_cloud_deck(cloud_calls):
     resp = client.post("/api/analyze", json=_cloud_body(min_cloud_deck_ft=3500))
     assert resp.status_code == 200
-    assert cloud_calls == [5]
     # Decks are 1,000 to 5,000 ft, so only d and e clear a 3,500 ft floor.
     assert resp.json()["total_matched"] == 2
 

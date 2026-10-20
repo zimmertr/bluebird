@@ -381,10 +381,6 @@ def _frontend_hosts() -> dict[str, set[str]]:
     return found
 
 
-@pytest.mark.skipif(
-    not _FRONTEND_SRC.is_dir(),
-    reason="frontend sources are not mounted; CI runs pytest from the repo root",
-)
 def test_every_host_the_frontend_names_is_classified():
     """A new host in the browser bundle is a CSP decision, not a silent one.
 
@@ -392,6 +388,7 @@ def test_every_host_the_frontend_names_is_classified():
     contract can only be checked where both trees are present: CI, and any
     local run that mounts the repository rather than backend/ alone.
     """
+    assert _FRONTEND_SRC.is_dir(), f"{_FRONTEND_SRC} is not mounted: run pytest from the repo root"
     fetched = {origin.removeprefix("https://") for origin in security_headers.BROWSER_FETCH_ORIGINS}
     assert not fetched & LINK_ONLY_HOSTS, "a host cannot be both fetched and link-only"
 

@@ -3,10 +3,11 @@ import { screen } from '@testing-library/react'
 import ErrorBoundary from './ErrorBoundary'
 import { render } from '../testSupport/render'
 
-// The catch itself, which only a real render can prove: `ErrorBoundary.test.ts`
-// tests the parts the boundary decides and pins every entry's wiring, and this
-// file proves React hands a render error to it and that Try again mounts the
-// children again.
+// The linter's `entries-inside-boundary` check pins that every entry renders
+// inside it. This file proves the rest through a real render: what the boundary
+// draws while nothing fails and after a child throws, that it writes the error
+// and the component stack to the console once, and that Try again mounts the
+// same children again.
 
 // A child whose failure the test switches off, so a retry can show that the
 // same children come back rather than the fallback drawing itself again.
@@ -36,11 +37,15 @@ describe('ErrorBoundary', () => {
       'Bluebird Forecast hit an error. Try again later.',
     )
     expect(screen.getAllByRole('button')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Try again' }).getAttribute('type')).toBe('button')
     expect(screen.queryByText('healthy')).toBeNull()
   })
 
-  it('writes the error and the component stack to the console', () => {
+  // The console is the whole record: no telemetry endpoint exists for the
+  // browser, so the stack must reach it. React's own dev log calls
+  // console.error too, with a format string first and the error second, so the
+  // count is of the calls that lead with the error.
+  it('writes the error and the component stack to the console once', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     render(
       <ErrorBoundary>
@@ -49,6 +54,7 @@ describe('ErrorBoundary', () => {
     )
 
     expect(log).toHaveBeenCalledWith(boom, expect.stringContaining('Thrower'))
+    expect(log.mock.calls.filter(([first]) => first === boom)).toHaveLength(1)
   })
 
   it('mounts the children again when Try again is pressed', async () => {
@@ -68,13 +74,15 @@ describe('ErrorBoundary', () => {
 
   it('draws the children and nothing else while nothing fails', () => {
     failure.on = false
-    render(
+    const { container } = render(
       <ErrorBoundary>
         <Thrower />
       </ErrorBoundary>,
     )
 
-    expect(screen.getByText('healthy')).toBeTruthy()
+    // Exactly the children: every entry renders inside the boundary, so a
+    // wrapper of its own would stand between the root and every page's layout.
+    expect(container.innerHTML).toBe('<p>healthy</p>')
     expect(screen.queryByRole('button')).toBeNull()
   })
 })

@@ -11,6 +11,8 @@
 // A column absent from the map keeps its natural auto-layout width, so the
 // table never needs a seeding pass over every column.
 
+import { clamp } from './numbers'
+
 /**
  * The floor a drag or an auto-fit can reach. Below ~3ch a numeric column
  * shows nothing but its ellipsis, which reads as data loss rather than a
@@ -22,7 +24,7 @@ export const MIN_COL_PX = 48
 export const MAX_COL_PX = 640
 
 export function clampColWidth(px: number): number {
-  return Math.max(MIN_COL_PX, Math.min(Math.round(px), MAX_COL_PX))
+  return clamp(Math.round(px), MIN_COL_PX, MAX_COL_PX)
 }
 
 /** A drag in progress: the width it started from plus the pointer's travel. */
@@ -58,7 +60,7 @@ export function autoFitWidth(contentWidths: readonly number[]): number {
   // column by up to a pixel. A tenth still clears the true content width,
   // so the ellipsis cannot fire on an engine that rounds the wrapper.
   const need = Math.ceil(Math.max(0, ...contentWidths) * 10) / 10
-  return Math.max(FIT_MIN_PX, Math.min(need, MAX_COL_PX))
+  return clamp(need, FIT_MIN_PX, MAX_COL_PX)
 }
 
 /**

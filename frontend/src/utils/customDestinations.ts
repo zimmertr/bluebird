@@ -1,4 +1,5 @@
 import { CustomDestination } from '../types'
+import { onGlobe } from './points'
 
 // Parses the "Custom (CSV)" textarea: one "Lat,Lon[,Name]" row per line, with
 // blank lines and "#" comments skipped and malformed rows silently dropped. A
@@ -25,13 +26,12 @@ export function parseCustomCsv(csv: string): CustomDestination[] {
     if (parts.length < 2) continue
     const lat = parseFloat(parts[0].trim())
     const lon = parseFloat(parts[1].trim())
-    if (isNaN(lat) || isNaN(lon)) continue
-    // The same bounds every route holds a coordinate to. A pair outside them is
-    // as unusable as a non-numeric one, and kept it would ride into every
-    // request built from the list: the wildfire and closure boxes span it, so
-    // those routes refuse the whole box and every valid row loses its check
-    // along with the bad one.
-    if (Math.abs(lat) > 90 || Math.abs(lon) > 180) continue
+    // Not a number, or off the globe: the same bounds every route holds a
+    // coordinate to. Kept, an off-globe pair would ride into every request
+    // built from the list: the wildfire and closure boxes span it, so those
+    // routes refuse the whole box and every valid row loses its check along
+    // with the bad one.
+    if (!onGlobe(lat, lon)) continue
     const name = parts.slice(2).join(',').trim() || `${lat}, ${lon}`
     results.push({ name, latitude: lat, longitude: lon })
   }

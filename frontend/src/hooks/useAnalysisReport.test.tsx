@@ -127,14 +127,24 @@ describe('useAnalysisReport', () => {
     expect(result.current.universe?.[0]).toBe(patched)
   })
 
-  it('clears the waiting rows with the report, and takes no patch over no report', () => {
+  it('clears the waiting rows with the report', () => {
     const { result } = renderHook(() => useAnalysisReport())
     act(() => result.current.commit(DATA, ROWS, VIEW, new Set(['a'])))
+    expect(result.current.pendingHeights.size).toBe(1)
     act(() => result.current.clear())
     expect(result.current.pendingHeights.size).toBe(0)
+  })
+
+  it('takes no patch over no report', () => {
+    const { result } = renderHook(() => useAnalysisReport())
     act(() => result.current.patch([ROWS[0]], VIEW))
     expect(result.current.universe).toBeNull()
+  })
+
+  it('settles the waiting rows', () => {
+    const { result } = renderHook(() => useAnalysisReport())
     act(() => result.current.commit(DATA, ROWS, VIEW, new Set(['a'])))
+    expect(result.current.pendingHeights.size).toBe(1)
     act(() => result.current.settleHeights())
     expect(result.current.pendingHeights.size).toBe(0)
   })

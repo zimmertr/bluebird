@@ -4,6 +4,8 @@
 // file declares no helpers and runs in no test, and apart from `urlParams.ts`
 // because the map module that reports the camera reads the classifier too.
 
+import { roundTo } from './numbers'
+
 /** A settled camera: the centre in degrees and the zoom level. */
 export interface CameraView {
   lng: number
@@ -25,8 +27,8 @@ const MAX_ZOOM = 22
 export const DEFAULT_CAMERA: CameraView = { lng: -120.5, lat: 47.5, zoom: 7 }
 
 function fixed(n: number, decimals: number): string {
-  // Number() drops trailing zeros, so 7.00 reads `7`.
-  return String(Number(n.toFixed(decimals)))
+  // A number rather than a padded string, so 7.00 reads `7`.
+  return String(roundTo(n, decimals))
 }
 
 export function encodeView(view: CameraView): string {
