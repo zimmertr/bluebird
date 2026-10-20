@@ -94,12 +94,20 @@ async def start() -> None:
     if not configured():
         log.info("No DATABASE_URL: running without the shared cache")
         return
+    # `check` proves each connection on its way out of the pool. The mesh's
+    # sidecars close a connection idle for an hour, and the pool's kept one
+    # can sit that long: a read-only preview runs no refresh loop to wake it.
+    # Without it, the next request meets the dead one, raises
+    # DatabaseUnavailable and takes its per-pod path. The cost is one
+    # round trip per checkout: 0.08 ms on a local PostgreSQL 17 (2026-10-20),
+    # about what a shared check costs (0181).
     _pool = AsyncConnectionPool(
         DATABASE_URL,
         min_size=1,
         max_size=POOL_MAX,
         open=False,
         kwargs={"autocommit": True},
+        check=AsyncConnectionPool.check_connection,
     )
     await _pool.open(wait=False)
     _connector = asyncio.create_task(_connect(), name="db-connect")
