@@ -22,7 +22,15 @@ Neither suite ran a coverage tool, so nobody knew which modules no test reached.
 
 Measured on the frontend at f971335 plus the tooling, 2026-10-17: about 97% of lines and 90.5% of branches before the `?raw` fix, 91.9% and 86.0% after it. The difference was the modules no test ran, each reported as 0 of 0.
 
-COVERAGE_TABLE
+Measured again at the audit's head, 2026-10-20, after the merge of #761:
+
+| Suite | Lines | Branches |
+|---|---|---|
+| Frontend, Vitest | 94.8% (7,926 of 8,358) | 89.2% (6,017 of 6,748) |
+| Backend, pytest without a database | 92.9% (4,534 of 4,878) | 90.7% (1,047 of 1,154) |
+| Backend, leaving out `app/db/` and `app/services/places/` | 97.6% | 96.4% |
+
+What the frontend report leaves unrun is `App.tsx` and `MapView.tsx`, which need MapLibre and a real canvas, so the browser suite runs them, plus the one-line page entries. What the backend report leaves low is the shared database: `make coverage-backend` runs with no database, so the tests marked `db` skip and `make test-backend-db` is what runs that code.
 
 ## Alternatives rejected
 
