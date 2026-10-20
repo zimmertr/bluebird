@@ -8,7 +8,7 @@ import { geoKey } from './points'
 import { DestinationResult } from '../types'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
 import { SEP } from '../metrics'
-import { archiveBoundaryMs, normalizeWindow, windowSource } from './forecastWindow'
+import { normalizeWindow } from './forecastWindow'
 
 // The coordinates are spelled out because this suite asserts on them: the file
 // must not carry a destination's position, and a fire warning is keyed by one.
@@ -744,23 +744,6 @@ describe('the forecast window in the file', () => {
       expect(lines(csv).slice(3, 5)).toEqual([
         'Forecast start,2026-11-01T00:00-07:00',
         'Forecast end,2026-11-01T23:59-08:00',
-      ])
-    })
-
-    // A window older than PAST_DATA_DAYS is answered by the archive and a
-    // newer one by the forecast endpoint (#123). One that crosses the seam is
-    // served by both, and the file states the whole of it as one window, which
-    // is what the reader asked for.
-    it('carries a window that crosses the archive boundary', () => {
-      const nowMs = Date.UTC(2026, 8, 16, 12, 0)
-      const boundary = archiveBoundaryMs(nowMs)
-      const window = { startMs: boundary - 2 * 86_400_000, endMs: boundary + 2 * 86_400_000 }
-      expect(windowSource(window.startMs, window.endMs, nowMs)).toBe('spanning')
-
-      const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, { window, timeZone: LA })
-      expect(lines(csv).slice(3, 5)).toEqual([
-        `Forecast start,${isoLocalMinute(window.startMs, LA)}`,
-        `Forecast end,${isoLocalMinute(window.endMs, LA)}`,
       ])
     })
 

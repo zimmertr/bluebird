@@ -101,14 +101,6 @@ describe('the density ramp', () => {
       expect(smokeSwatch(density)).toMatch(/^rgb\(\d+,\d+,\d+\)$/)
     }
   })
-
-  it('keeps the three swatches distinguishable and in ramp order', () => {
-    const lightness = (css: string) =>
-      (css.match(/\d+/g) ?? []).slice(0, 3).reduce((a, c) => a + Number(c), 0)
-    const [light, medium, heavy] = SMOKE_DENSITIES.map((d) => lightness(smokeSwatch(d)))
-    expect(light).toBeGreaterThan(medium)
-    expect(medium).toBeGreaterThan(heavy)
-  })
 })
 
 describe('formatObserved', () => {

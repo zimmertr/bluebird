@@ -62,7 +62,7 @@ describe('resultsFeatureCollection', () => {
 
   it('greys a marker whose sort metric is null', () => {
     const props = resultsFeatureCollection([result({ aqi_avg: null })], 'aqi_avg').features[0].properties!
-    expect(props.color).toBe('#64748b')
+    expect(props.color).toBe(NO_VALUE)
   })
 
   // ── Playback (#121) ────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ describe('resultsFeatureCollection', () => {
 
   const hourly = (overrides: Partial<DestinationResult> = {}) =>
     result({
-      series: {
+      series: series({
         // A dry hour, then a downpour, then dry again.
         precip_in: [0, 0.4, 0],
         temp_f: [50, 52, 51],
@@ -83,7 +83,7 @@ describe('resultsFeatureCollection', () => {
         snowfall_in: [0.1, 2.5, null],
         aqi: [40, null, 45],
         wind_dir_deg: [0, 90, null],
-      },
+      }),
       ...overrides,
     })
 
@@ -109,7 +109,7 @@ describe('resultsFeatureCollection', () => {
 
   it('greys an hour with no value rather than scoring it as zero', () => {
     const props = resultsFeatureCollection([hourly()], 'aqi_avg', true, 1).features[0].properties!
-    expect(props.color).toBe('#64748b')
+    expect(props.color).toBe(NO_VALUE)
   })
 
   it('points the wind arrow downwind, the way the wind is going', () => {
@@ -121,14 +121,14 @@ describe('resultsFeatureCollection', () => {
   })
 
   it('omits the bearing where there is none, so the arrow layer draws nothing', () => {
-    // A gap in the series, and a row from the SSE fallback which never fetched
-    // direction at all. A 0 here would draw a confident arrow pointing north.
+    // A gap in the series, and a series with no bearings at all. A 0 here
+    // would draw a confident arrow pointing north.
     const gap = resultsFeatureCollection([hourly()], 'wind_avg_mph', true, 2).features[0]
     expect(gap.properties!.bearing).toBeUndefined()
     const serverRow = resultsFeatureCollection(
       [
         hourly({
-          series: { precip_in: [0], temp_f: [50], wind_mph: [3], freeze_ft: [9000], snowfall_in: [0], aqi: [40] },
+          series: series({ precip_in: [0], temp_f: [50], wind_mph: [3], freeze_ft: [9000], snowfall_in: [0], aqi: [40] }),
         }),
       ],
       'wind_avg_mph',
@@ -152,7 +152,7 @@ describe('resultsFeatureCollection', () => {
     // No "#N" — searched destinations sit outside the sort and the limit.
     expect(fc.features.map((f) => f.properties!.rank)).toEqual(['', ''])
     // Still metric-colored like ranked results.
-    expect(fc.features[0].properties!.color).not.toBe('#64748b')
+    expect(fc.features[0].properties!.color).not.toBe(NO_VALUE)
   })
 })
 

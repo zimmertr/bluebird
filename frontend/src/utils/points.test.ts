@@ -23,6 +23,9 @@ describe('setKey', () => {
   it('reads the projection, not the order or the objects carrying it', () => {
     const idOf = (item: { id: string }) => item.id
     expect(setKey([{ id: 'b' }, { id: 'a' }], idOf)).toBe(setKey([{ id: 'a' }, { id: 'b' }], idOf))
+    // And a different set is a different key: one more member, or another one.
+    expect(setKey([{ id: 'a' }], idOf)).not.toBe(setKey([{ id: 'a' }, { id: 'b' }], idOf))
+    expect(setKey([{ id: 'a' }], idOf)).not.toBe(setKey([{ id: 'b' }], idOf))
   })
 })
 

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fakeResponse } from '../testSupport/fixtures'
 import { encodeTile, type MvtPoint } from '../testSupport/mvt'
 import {
   FALLBACK_TILE_TEMPLATE,
@@ -274,8 +275,8 @@ describe('the tile host', () => {
   it('fetches a tile at the template, and reads a refusal as a tile that could not be read', async () => {
     const fetch = vi.fn(async (url: string) =>
       url.endsWith('/14/2650/5770.pbf')
-        ? { ok: true, arrayBuffer: async () => TILE_BYTES.buffer.slice(TILE_BYTES.byteOffset, TILE_BYTES.byteOffset + TILE_BYTES.byteLength) }
-        : { ok: false, status: 403 },
+        ? new Response(new Uint8Array(TILE_BYTES), { status: 200 })
+        : fakeResponse({}, 403),
     )
     vi.stubGlobal('fetch', fetch)
     const fetchTile = fetchTileWith('https://tiles.example/{z}/{x}/{y}.pbf')

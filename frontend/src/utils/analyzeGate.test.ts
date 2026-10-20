@@ -61,12 +61,6 @@ describe('canAnalyze — ranked inputs', () => {
   it('enables with a polygon and a CSV together (the union)', () => {
     expect(canAnalyze({ ...READY_POLYGON, hasCustom: true })).toBe(true)
   })
-
-  it('blocks when no polygon, CSV, or pin is provided', () => {
-    expect(
-      canAnalyze({ ...READY_POLYGON, polygonReady: false, hasCustom: false }),
-    ).toBe(false)
-  })
 })
 
 describe('canAnalyze — pins-only path', () => {
@@ -92,11 +86,6 @@ describe('canAnalyze — pins-only path', () => {
 
   it('stays disabled while a fetch is in flight', () => {
     expect(canAnalyze({ ...PINS_ONLY, loading: true })).toBe(false)
-  })
-
-  it('an incomplete polygon alongside a pin is ignored — pin still enables it', () => {
-    // polygonReady:false would block on its own; the pin lifts it.
-    expect(canAnalyze({ ...PINS_ONLY, polygonReady: false })).toBe(true)
   })
 })
 

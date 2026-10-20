@@ -2,42 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { buildGrid, type GridCell, type GridSpec } from './forecastGridLattice'
 import { gridRaster } from './forecastGridRaster'
 import { resultsFeatureCollection } from './resultFeatures'
-import { gridCell, gridRow, series } from '../testSupport/fixtures'
-
-// A field of destinations, as coordinates — the only part of a result the
-// lattice reads.
-function field(...points: [number, number][]) {
-  return points.map(([latitude, longitude]) => ({ latitude, longitude }))
-}
-
-// Rainier and Adams: ~80 km apart, which is the everyday polygon this feature
-// was designed around.
-const CASCADES = field([46.8523, -121.7603], [46.2024, -121.4909])
+import { CASCADES, field, gridCell, gridRow, gridSpec, mesh, series, squareLattice } from '../testSupport/fixtures'
 
 // Every kept sample answered: cells built the way pairCells builds them, with
 // the VIRTUAL lattice index from spec.indices — a position-as-index shortcut
 // here is exactly the conflation the sparse lattice forbids.
 function allCells(spec: GridSpec): GridCell[] {
   return spec.points.map((_, i) => gridCell(spec.cells[i], gridRow(), spec.indices[i]))
-}
-
-// A filled mesh of destinations, the shape a polygon analysis produces: the
-// reach disks overlap into one solid blob, which is what the dense-lattice
-// tests need now that two corner points alone grid as two separate patches.
-function mesh(
-  latLo: number,
-  latHi: number,
-  lonLo: number,
-  lonHi: number,
-  step: number,
-): { latitude: number; longitude: number }[] {
-  const out: { latitude: number; longitude: number }[] = []
-  for (let la = latLo; la <= latHi + 1e-9; la += step) {
-    for (let lo = lonLo; lo <= lonHi + 1e-9; lo += step) {
-      out.push({ latitude: la, longitude: lo })
-    }
-  }
-  return out
 }
 
 // The alpha of the pixel a VIRTUAL lattice index paints to, row flip included.
@@ -61,21 +32,8 @@ function virtualIndexAt(spec: GridSpec, latitude: number, longitude: number): nu
 }
 
 // A 1x1 lattice, for the derivations that only care about one sample's colour.
-function oneSpec(box: [number, number, number, number]): GridSpec {
-  return {
-    points: [{ latitude: (box[1] + box[3]) / 2, longitude: (box[0] + box[2]) / 2 }],
-    cells: [box],
-    indices: [0],
-    distancesKm: [0],
-    cols: 1,
-    rows: 1,
-    west: box[0],
-    south: box[1],
-    latStep: box[3] - box[1],
-    lonStep: box[2] - box[0],
-    pitchKm: 13,
-  }
-}
+const ONE = gridSpec()
+const box = ONE.cells[0]
 
 // The RGB of a raster pixel, as the '#rrggbb' the colour scales speak.
 function pixelHex(raster: { width: number; rgba: Uint8ClampedArray }, x = 0, y = 0): string {
@@ -135,25 +93,7 @@ describe('gridRaster', () => {
     // image's NORTH edge. Getting this backwards mirrors the whole field
     // about its own centre, which on smooth terrain looks plausible and is
     // completely wrong.
-    const spec: GridSpec = {
-      points: [
-        { latitude: 46.0, longitude: -122 },
-        { latitude: 47.0, longitude: -122 },
-      ],
-      cells: [
-        [-122.5, 45.5, -121.5, 46.5],
-        [-122.5, 46.5, -121.5, 47.5],
-      ],
-      indices: [0, 1],
-      distancesKm: [0, 0],
-      cols: 1,
-      rows: 2,
-      west: -122.5,
-      south: 45.5,
-      latStep: 1,
-      lonStep: 1,
-      pitchKm: 13,
-    }
+    const spec = squareLattice({ cols: 1, rows: 2, west: -122.5, south: 45.5, step: 1 })
     const south = gridRow({ temp_avg_f: 80 })
     const north = gridRow({ temp_avg_f: 20 })
     const raster = gridRaster(
@@ -162,14 +102,11 @@ describe('gridRaster', () => {
       'temp_avg_f',
       null,
     )!
-    // Row 0 of the image is the north sample, which is the cold one.
-    expect(pixelHex(raster, 0, 0)).toBe(pixelHex(raster, 0, 0))
-    const rowTop = raster.rgba[3 * 0]
-    expect(rowTop).toBeDefined()
-    // Green channel is higher on the cold (green) end than the hot (red) end.
-    const topGreen = raster.rgba[1]
-    const bottomGreen = raster.rgba[1 * 4 + 1]
-    expect(topGreen).toBeGreaterThan(bottomGreen)
+    // Row 0 of the image is the north sample, and row 1 the south one.
+    const colorOf = (row: typeof north) =>
+      resultsFeatureCollection([row], 'temp_avg_f').features[0].properties!.color
+    expect(pixelHex(raster, 0, 0)).toBe(colorOf(north))
+    expect(pixelHex(raster, 0, 1)).toBe(colorOf(south))
   })
 
   it('colours a sample exactly as the marker standing on it', () => {
@@ -182,9 +119,8 @@ describe('gridRaster', () => {
       precip_total_in: 0.3,
       series: series({ precip_in: [0, 0.4], temp_f: [40, 60], wind_mph: [1, 9], freeze_ft: [9000, 9500], aqi: [10, 20] }),
     })
-    const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]
     for (const hour of [null, 0, 1]) {
-      const raster = gridRaster(oneSpec(box), [gridCell(box, row)], 'precip_total_in', hour)!
+      const raster = gridRaster(ONE, [gridCell(box, row)], 'precip_total_in', hour)!
       const markerColor = resultsFeatureCollection([row], 'precip_total_in', true, hour)
         .features[0].properties!.color
       expect(pixelHex(raster)).toBe(markerColor)
@@ -195,8 +131,7 @@ describe('gridRaster', () => {
     // A marker has to stay on screen — it is a place the user asked about — so
     // it goes grey. The field is background, and a grey patch over terrain
     // would assert something the app does not know.
-    const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]
-    const raster = gridRaster(oneSpec(box), [gridCell(box, gridRow({ aqi_avg: null }))], 'aqi_avg', null)!
+    const raster = gridRaster(ONE, [gridCell(box, gridRow({ aqi_avg: null }))], 'aqi_avg', null)!
     expect(raster.rgba[3]).toBe(0)
   })
 
@@ -205,25 +140,7 @@ describe('gridRaster', () => {
     // a hole left at rgba(0,0,0,0) drags every neighbouring blend toward black
     // and rings the gap in exactly the place the field knows nothing about.
     // Opacity still says "no data"; only the colour is borrowed.
-    const spec: GridSpec = {
-      points: [
-        { latitude: 46, longitude: -122 },
-        { latitude: 46, longitude: -121 },
-      ],
-      cells: [
-        [-122.5, 45.5, -121.5, 46.5],
-        [-121.5, 45.5, -120.5, 46.5],
-      ],
-      indices: [0, 1],
-      distancesKm: [0, 0],
-      cols: 2,
-      rows: 1,
-      west: -122.5,
-      south: 45.5,
-      latStep: 1,
-      lonStep: 1,
-      pitchKm: 13,
-    }
+    const spec = squareLattice({ cols: 2, rows: 1, west: -122.5, south: 45.5, step: 1 })
     // Only the second sample answered.
     const raster = gridRaster(spec, [gridCell(spec.cells[1], gridRow(), 1)], 'temp_avg_f', null)!
     expect(raster.rgba[3]).toBe(0)
@@ -249,29 +166,7 @@ describe('gridRaster', () => {
     // A hand-built three-by-three patch — the reach floor of two pitches
     // means buildGrid never makes one this small, but a lattice can still be
     // all edge, and fading it would fade the data.
-    const latStep = 0.1
-    const lonStep = 0.1
-    const smallIndices = Array.from({ length: 9 }, (_, v) => v)
-    const small: GridSpec = {
-      points: smallIndices.map((v) => ({
-        latitude: 46 + (Math.floor(v / 3) + 0.5) * latStep,
-        longitude: -122 + ((v % 3) + 0.5) * lonStep,
-      })),
-      cells: smallIndices.map((v) => {
-        const w = -122 + (v % 3) * lonStep
-        const s = 46 + Math.floor(v / 3) * latStep
-        return [w, s, w + lonStep, s + latStep] as [number, number, number, number]
-      }),
-      indices: smallIndices,
-      distancesKm: smallIndices.map(() => 0),
-      cols: 3,
-      rows: 3,
-      west: -122,
-      south: 46,
-      latStep,
-      lonStep,
-      pitchKm: 13,
-    }
+    const small = squareLattice({ cols: 3, rows: 3, west: -122, south: 46, step: 0.1 })
     const smallRaster = gridRaster(small, allCells(small), 'temp_avg_f', null, 'smooth')!
     for (const v of small.indices) {
       expect(pixelAlpha(smallRaster, small, v)).toBe(255)
@@ -289,29 +184,7 @@ describe('gridRaster', () => {
     // boundary. The shape is the one a north-south ridge line produces.
     const cols = 4
     const rows = 10
-    const latStep = 0.1
-    const lonStep = 0.1
-    const indices = Array.from({ length: cols * rows }, (_, v) => v)
-    const tall: GridSpec = {
-      points: indices.map((v) => ({
-        latitude: 46 + (Math.floor(v / cols) + 0.5) * latStep,
-        longitude: -122 + ((v % cols) + 0.5) * lonStep,
-      })),
-      cells: indices.map((v) => {
-        const w = -122 + (v % cols) * lonStep
-        const s = 46 + Math.floor(v / cols) * latStep
-        return [w, s, w + lonStep, s + latStep] as [number, number, number, number]
-      }),
-      indices,
-      distancesKm: indices.map(() => 0),
-      cols,
-      rows,
-      west: -122,
-      south: 46,
-      latStep,
-      lonStep,
-      pitchKm: 13,
-    }
+    const tall = squareLattice({ cols, rows, west: -122, south: 46, step: 0.1 })
     const raster = gridRaster(tall, allCells(tall), 'temp_avg_f', null, 'smooth')!
     // The top row fades (ten rows have room); a mid-height cell in column 0
     // stays at full strength even though its western neighbour is missing,
@@ -325,31 +198,8 @@ describe('gridRaster', () => {
     // PREVIOUS row's last cell — so an index-only check believes the western
     // neighbour exists. Three full rows in a five-wide lattice: the row-ends
     // must fade even though the wrapped index is kept.
-    const cols = 5
-    const rows = 5
     const indices = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
-    const latStep = 0.1
-    const lonStep = 0.1
-    const spec: GridSpec = {
-      points: indices.map((v) => ({
-        latitude: 46 + (Math.floor(v / cols) + 0.5) * latStep,
-        longitude: -122 + ((v % cols) + 0.5) * lonStep,
-      })),
-      cells: indices.map((v) => {
-        const w = -122 + (v % cols) * lonStep
-        const s = 46 + Math.floor(v / cols) * latStep
-        return [w, s, w + lonStep, s + latStep] as [number, number, number, number]
-      }),
-      indices,
-      distancesKm: indices.map(() => 0),
-      cols,
-      rows,
-      west: -122,
-      south: 46,
-      latStep,
-      lonStep,
-      pitchKm: 13,
-    }
+    const spec = squareLattice({ cols: 5, rows: 5, west: -122, south: 46, step: 0.1, indices })
     const raster = gridRaster(spec, allCells(spec), 'temp_avg_f', null, 'smooth')!
     // Cell (2, 0): row above and below kept, west out of the lattice — fades.
     // An index-arithmetic check reads kept cell 9 (row 1's LAST cell) as its
@@ -376,10 +226,9 @@ describe('gridRaster', () => {
   it('colours a sample the same whichever style asks', () => {
     // One raster, two magnification filters. If the styles differed in colour,
     // flipping the segment would look like the forecast had changed.
-    const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]
     const row = gridRow({ temp_avg_f: 51 })
-    const blocks = gridRaster(oneSpec(box), [gridCell(box, row)], 'temp_avg_f', null, 'blocks')!
-    const smooth = gridRaster(oneSpec(box), [gridCell(box, row)], 'temp_avg_f', null, 'smooth')!
+    const blocks = gridRaster(ONE, [gridCell(box, row)], 'temp_avg_f', null, 'blocks')!
+    const smooth = gridRaster(ONE, [gridCell(box, row)], 'temp_avg_f', null, 'smooth')!
     expect(pixelHex(blocks)).toBe(pixelHex(smooth))
   })
 

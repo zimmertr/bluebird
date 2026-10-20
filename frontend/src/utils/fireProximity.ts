@@ -7,7 +7,7 @@ import type { FeatureCollection, Feature, Geometry, MultiPolygon, Position } fro
 import { geoKey, setKey } from './points'
 import type { BBox, WildfireProps } from './wildfires'
 import { clamp } from './numbers'
-import { NO_VALUE_MARK } from './unavailableCell'
+import { NO_VALUE_MARK, UNAVAILABLE } from './unavailableCell'
 
 export const FIRE_WARN_MILES = 10
 
@@ -259,7 +259,7 @@ function featureFireName(props: WildfireProps | null): string {
  */
 export function fireCellText(warning: FireWarning | undefined, uncovered: boolean): string {
   if (warning) return `⚠️ ${warning.miles.toFixed(1)}`
-  return uncovered ? 'N/A' : NO_VALUE_MARK
+  return uncovered ? UNAVAILABLE : NO_VALUE_MARK
 }
 
 /**

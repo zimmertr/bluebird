@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnalyzeRequest, DestinationResult, DiscoveredDestination, GeoPolygon } from '../types'
 import {
+  AnalysisRefusalError,
   MAX_ANALYZE_DESTINATIONS,
   alignAqi,
   alignCloud,
@@ -24,8 +25,17 @@ import {
 } from './clientAnalyze'
 import { geoKey } from './points'
 import { WeatherResult, fetchAqi, resetOpenMeteoState } from './openMeteo'
+import { OpenMeteoHttpError } from './openMeteoErrors'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
-import { fakeResponse, place, resultRow, series, WEATHER_UNITS, weatherResult } from '../testSupport/fixtures'
+import {
+  discovered,
+  fakeResponse,
+  place,
+  resultRow,
+  series,
+  WEATHER_UNITS,
+  weatherResult,
+} from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -45,20 +55,12 @@ describe('alignAqi vectors', () => {
 
 // ── resolveCustomOnly (the custom-only path's one server call) ─────────────
 
-function discovered(name: string, lat = 47.5, lon = -121.9): DiscoveredDestination {
-  return { name, type: 'peak', latitude: lat, longitude: lon, elevation_ft: null, osm_id: 'node/1' }
-}
-
-function resolved(name: string, elevationFt: number): DiscoveredDestination {
-  return {
-    name,
-    type: 'custom',
-    latitude: 47.5,
-    longitude: -121.9,
-    elevation_ft: elevationFt,
-    osm_id: 'node/1',
-  }
-}
+// A discovered peak with no elevation, so nothing adjusts its wind or
+// temperature, and the pasted row the pod answers with the elevation it found.
+const candidate = (name: string, latitude = 47.5, longitude = -121.9) =>
+  discovered({ name, latitude, longitude, elevation_ft: null })
+const resolved = (name: string, elevation_ft: number) =>
+  discovered({ name, type: 'custom', latitude: 47.5, longitude: -121.9, elevation_ft })
 
 describe('resolveCustomOnly', () => {
   const ROWS = [{ name: 'McClellan Butte', latitude: 47.5, longitude: -121.9 }]
@@ -78,20 +80,14 @@ describe('resolveCustomOnly', () => {
   }
 
   it('returns the elevations the server resolved', async () => {
-    stubFetch(() => ({
-      ok: true,
-      json: async () => ({ destinations: [resolved('McClellan Butte', 5165)], total: 1 }),
-    }))
+    stubFetch(() => fakeResponse({ destinations: [resolved('McClellan Butte', 5165)], total: 1 }))
     const out = await resolveCustomOnly(ROWS)
     expect(out.destinations.map((d) => d.elevation_ft)).toEqual([5165])
     expect(out.destinations[0].osm_id).toBe('node/1')
   })
 
   it('asks for a resolve, never a discovery, and says whether the pod may look up', async () => {
-    const spy = stubFetch(() => ({
-      ok: true,
-      json: async () => ({ destinations: [resolved('McClellan Butte', 5165)], total: 1 }),
-    }))
+    const spy = stubFetch(() => fakeResponse({ destinations: [resolved('McClellan Butte', 5165)], total: 1 }))
     await resolveCustomOnly(ROWS)
     const body = sentBody(spy)
     expect(body.destination_types).toEqual([])
@@ -106,7 +102,7 @@ describe('resolveCustomOnly', () => {
   })
 
   it('falls back to unresolved rows when the server refuses', async () => {
-    stubFetch(() => ({ ok: false, status: 503, json: async () => ({}) }))
+    stubFetch(() => fakeResponse({}, 503))
     const out = await resolveCustomOnly(ROWS)
     expect(out.destinations.map((d) => d.name)).toEqual(['McClellan Butte'])
     expect(out.destinations[0].elevation_ft).toBeNull()
@@ -121,7 +117,7 @@ describe('resolveCustomOnly', () => {
   })
 
   it('falls back when the server answers with a different number of rows', async () => {
-    stubFetch(() => ({ ok: true, json: async () => ({ destinations: [], total: 0 }) }))
+    stubFetch(() => fakeResponse({ destinations: [], total: 0 }))
     const out = await resolveCustomOnly(ROWS)
     expect(out.destinations.map((d) => d.name)).toEqual(['McClellan Butte'])
   })
@@ -132,11 +128,11 @@ describe('resolveCustomOnly', () => {
       controller.abort()
       throw new DOMException('Aborted', 'AbortError')
     })
-    await expect(resolveCustomOnly(ROWS, controller.signal)).rejects.toThrow()
+    await expect(resolveCustomOnly(ROWS, controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it('makes no call at all for an empty list', async () => {
-    const spy = stubFetch(() => ({ ok: true, json: async () => ({ destinations: [] }) }))
+    const spy = stubFetch(() => fakeResponse({ destinations: [] }))
     expect(await resolveCustomOnly([])).toEqual({ destinations: [], lookupComplete: true })
     expect(spy).not.toHaveBeenCalled()
   })
@@ -147,10 +143,7 @@ describe('resolveCustomOnly', () => {
   // back, because the pod still merges the list and answers it in
   // milliseconds when no lookup is asked for.
   it('still asks when every row already knows its elevation', async () => {
-    const spy = stubFetch(() => ({
-      ok: true,
-      json: async () => ({ destinations: [resolved('Pinned', 6000)], total: 1 }),
-    }))
+    const spy = stubFetch(() => fakeResponse({ destinations: [resolved('Pinned', 6000)], total: 1 }))
     const out = await resolveCustomOnly([
       { name: 'Pinned', latitude: 47.5, longitude: -121.9, elevation_ft: 6000 },
     ])
@@ -159,13 +152,9 @@ describe('resolveCustomOnly', () => {
   })
 
   it('still asks when only some rows know their elevation', async () => {
-    const spy = stubFetch(() => ({
-      ok: true,
-      json: async () => ({
-        destinations: [resolved('Pinned', 6000), resolved('Pasted', 5165)],
-        total: 2,
-      }),
-    }))
+    const spy = stubFetch(() =>
+      fakeResponse({ destinations: [resolved('Pinned', 6000), resolved('Pasted', 5165)], total: 2 }),
+    )
     await resolveCustomOnly([
       { name: 'Pinned', latitude: 47.5, longitude: -121.9, elevation_ft: 6000 },
       { name: 'Pasted', latitude: 47.4, longitude: -121.6 },
@@ -273,7 +262,7 @@ const WX: WeatherResult = weatherResult({
 
 describe('assemble', () => {
   it('drops rows whose weather came back null and keeps alignment', () => {
-    const dests = [discovered('Gone'), discovered('Kept')]
+    const dests = [candidate('Gone'), candidate('Kept')]
     const { results, times } = assemble(dests, [null, WX], [null, null])
     expect(results.map((r) => r.name)).toEqual(['Kept'])
     expect(times).toEqual(WX.series!.times)
@@ -288,7 +277,7 @@ describe('assemble', () => {
       aqi_max: 80,
       series: { times: [1784592000000], aqi: [60] },
     }
-    const { results } = assemble([discovered('A')], [WX], [aqi])
+    const { results } = assemble([candidate('A')], [WX], [aqi])
     expect(results[0].aqi_avg).toBe(60)
     expect(results[0].series?.aqi).toEqual([60, null])
   })
@@ -296,7 +285,7 @@ describe('assemble', () => {
   // Snowfall is Open-Meteo's like every aggregate above (#678), where the snow
   // depth it replaced rode on the discovered row.
   it('copies the snowfall off the weather answer', () => {
-    const { results } = assemble([discovered('Snowy')], [WX], [null])
+    const { results } = assemble([candidate('Snowy')], [WX], [null])
     expect(results[0].snowfall_total_in).toBe(1.2)
     expect(results[0].snowfall_max_in_hr).toBe(0.7)
     expect(results[0].series?.snowfall_in).toEqual([0.5, 0.7])
@@ -319,9 +308,12 @@ describe('capDetail', () => {
     )
   })
 
-  it('formats counts with separators and names the unit like the backend', () => {
-    expect(capDetail(1601, 'peak')).toContain('1,601 peaks')
-    expect(capDetail(1601, 'peak')).toContain('1,500 destinations')
+  // A union's noun, a count under a thousand, and a cap other than the
+  // compiled one, which is what a deployment's published cap reaches it as.
+  it('speaks of destinations under any cap it is handed', () => {
+    expect(capDetail(3, 'destination', 2)).toBe(
+      'This search covers 3 destinations. The analysis limit is 2 destinations.',
+    )
   })
 })
 
@@ -391,14 +383,11 @@ function stubOpenMeteo(precips: number[]) {
     vi.fn(async (url: string) => {
       const isWeather = new URL(url).hostname === 'api.open-meteo.com'
       const count = new URL(url).searchParams.get('latitude')!.split(',').length
-      return {
-        ok: true,
-        status: 200,
-        json: async () =>
-          isWeather
-            ? weatherBody(precips.slice(0, count))
-            : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
-      }
+      return fakeResponse(
+        isWeather
+          ? weatherBody(precips.slice(0, count))
+          : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+      )
     }),
   )
 }
@@ -532,14 +521,11 @@ describe('runClientAnalysis', () => {
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
         const isWeather = new URL(url).hostname === 'api.open-meteo.com'
         if (!isWeather) aqiCounts.push(count)
-        return {
-          ok: true,
-          status: 200,
-          json: async () =>
-            isWeather
-              ? weatherBody(THREE_PRECIPS.slice(0, count))
-              : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
-        }
+        return fakeResponse(
+          isWeather
+            ? weatherBody(THREE_PRECIPS.slice(0, count))
+            : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+        )
       }),
     )
     const startMs = Date.parse('2026-07-21T00:00:00Z')
@@ -568,17 +554,9 @@ describe('runClientAnalysis', () => {
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
         if (host === 'api.open-meteo.com') {
           await weatherGate
-          return {
-            ok: true,
-            status: 200,
-            json: async () => weatherBody(THREE_PRECIPS.slice(0, count)),
-          }
+          return fakeResponse(weatherBody(THREE_PRECIPS.slice(0, count)))
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
-        }
+        return fakeResponse(Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })))
       }),
     )
     const startMs = Date.parse('2026-07-21T00:00:00Z')
@@ -598,11 +576,7 @@ describe('runClientAnalysis', () => {
         const isWeather = new URL(url).hostname === 'api.open-meteo.com'
         if (!isWeather) throw new TypeError('Failed to fetch')
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
-        return {
-          ok: true,
-          status: 200,
-          json: async () => weatherBody(THREE_PRECIPS.slice(0, count)),
-        }
+        return fakeResponse(weatherBody(THREE_PRECIPS.slice(0, count)))
       }),
     )
     const startMs = Date.parse('2026-07-21T00:00:00Z')
@@ -630,9 +604,9 @@ describe('runClientAnalysis', () => {
 
 
   it('reuses a held forecast instead of buying it again', async () => {
-    // Widening the elevation band is what this exists for: the field grows by
-    // a few destinations, and before this every forecast already on screen was
-    // re-bought to add them.
+    // A field that grows is what this exists for (a ring stretched, a place
+    // added, unnamed peaks ticked): before it, every forecast already on
+    // screen was bought again to add the few new ones.
     stubOpenMeteo(THREE_PRECIPS)
     const startMs = Date.parse('2026-07-21T00:00:00Z')
     const endMs = Date.parse('2026-07-21T02:00:00Z')
@@ -651,16 +625,13 @@ describe('runClientAnalysis', () => {
         const isWeather = new URL(url).hostname === 'api.open-meteo.com'
         const isCloud = isCloudRequest(url)
         if (isWeather && !isCloud) asked.push(count)
-        return {
-          ok: true,
-          status: 200,
-          json: async () =>
-            isCloud
-              ? cloudBody(new Array(count).fill(50))
-              : isWeather
-                ? weatherBody([0.05])
-                : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
-        }
+        return fakeResponse(
+          isCloud
+            ? cloudBody(new Array(count).fill(50))
+            : isWeather
+              ? weatherBody([0.05])
+              : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+        )
       }),
     )
     const widened = [...THREE, { name: 'New', latitude: 4, longitude: 4 }]
@@ -788,9 +759,9 @@ describe('runClientAnalysis', () => {
           { name: 'Pasted', latitude: 1, longitude: 1 },
           { name: 'Low', latitude: 2, longitude: 2, elevation_ft: 1000 },
         ]),
-        { ...discovered('Nameless', 3, 3), elevation_ft: null },
-        { ...discovered('Tarn', 4, 4), type: 'lake' },
-        { ...discovered('Lot', 5, 5), type: 'trailhead' },
+        { ...candidate('Nameless', 3, 3), elevation_ft: null },
+        { ...candidate('Tarn', 4, 4), type: 'lake' },
+        { ...candidate('Lot', 5, 5), type: 'trailhead' },
       ],
       startMs,
       endMs,
@@ -892,7 +863,7 @@ function stubWithCloud(precips: number[], rh925s: number[], cloudCounts: number[
       } else {
         body = weatherBody(precips.slice(0, count))
       }
-      return { ok: true, status: 200, json: async () => body }
+      return fakeResponse(body)
     }),
   )
 }
@@ -925,7 +896,7 @@ function stubTerrain() {
           },
         }))
       }
-      return { ok: true, status: 200, json: async () => body }
+      return fakeResponse(body)
     }),
   )
 }
@@ -961,7 +932,7 @@ describe('the kind of a place the server calls custom (#545)', () => {
 
   it('types only the rows the server called custom', () => {
     const known = { [geoKey(1, 1)]: 'lake', [geoKey(9, 9)]: 'lake' }
-    const typed = withKnownTypes([...echoed, discovered('Found', 9, 9)], known)
+    const typed = withKnownTypes([...echoed, candidate('Found', 9, 9)], known)
     expect(typed.map((d) => d.type)).toEqual(['lake', 'custom', 'custom', 'peak'])
   })
 
@@ -1111,16 +1082,13 @@ describe('runClientAnalysis and the cloud column', () => {
       'fetch',
       vi.fn(async (url: string) => {
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
-        if (isCloudRequest(url)) return { ok: false, status: 500, json: async () => ({ reason: 'x' }), text: async () => '' }
+        if (isCloudRequest(url)) return fakeResponse({ reason: 'x' }, 500)
         const host = new URL(url).hostname
-        return {
-          ok: true,
-          status: 200,
-          json: async () =>
-            host === 'api.open-meteo.com'
-              ? weatherBody(THREE_PRECIPS.slice(0, count))
-              : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
-        }
+        return fakeResponse(
+          host === 'api.open-meteo.com'
+            ? weatherBody(THREE_PRECIPS.slice(0, count))
+            : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+        )
       }),
     )
     const err = await runClientAnalysis(
@@ -1130,8 +1098,9 @@ describe('runClientAnalysis and the cloud column', () => {
       endMs,
       { nowMs: startMs },
     ).catch((e: unknown) => e)
-    expect(err).toBeInstanceOf(Error)
-    expect((err as Error).name).not.toBe('AbortError')
+    // Only the cloud request answers 500 here, so its class and status name it.
+    expect(err).toBeInstanceOf(OpenMeteoHttpError)
+    expect((err as OpenMeteoHttpError).status).toBe(500)
   })
 })
 
@@ -1156,8 +1125,9 @@ describe('refreshEchoRows', () => {
   })
 
   it('falls back to the displayed rows when no universe is held', () => {
-    // The server SSE path sends only its trimmed rows, so it keeps the old
-    // approximation rather than pretending to a field it never received.
+    // Null-tolerance only: since #240 every committed report holds its field,
+    // so a refresh with no universe cannot happen; the fallback keeps the old
+    // approximation if one ever did.
     expect(refreshEchoRows(null, displayed, new Set()).map((r) => r.name)).toEqual(['Dry', 'Mid'])
   })
 
@@ -1340,11 +1310,7 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
             wind_speed_500hPa: [50.0, 50.0],
           },
         }))
-        return {
-          ok: true,
-          status: 200,
-          json: async () => (isWeather ? bodies : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } }))),
-        }
+        return fakeResponse(isWeather ? bodies : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })))
       }),
     )
   }
@@ -1482,13 +1448,13 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
 
   it('refuses an over-cap list without waiting for the lookup', async () => {
     stubWindy(THREE_PRECIPS)
-    await expect(
-      runClientAnalysis(REQUEST, SENT, startMs, endMs, {
-        nowMs: startMs,
-        maxDestinations: 2,
-        resolving: new Promise(() => {}),
-      }),
-    ).rejects.toThrow(/3/)
+    const refused = runClientAnalysis(REQUEST, SENT, startMs, endMs, {
+      nowMs: startMs,
+      maxDestinations: 2,
+      resolving: new Promise(() => {}),
+    })
+    await expect(refused).rejects.toBeInstanceOf(AnalysisRefusalError)
+    await expect(refused).rejects.toThrow(capDetail(3, analysisNoun(REQUEST), 2))
     expect(openMeteoCalls()).toBe(0)
   })
 

@@ -124,8 +124,9 @@ import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RIS
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
-import { METRIC_SCALE } from './utils/colors'
+import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { SNOW_RAMP } from './utils/snowDepth'
+import { contrast, mixOver, relativeLuminance, round2 } from './testSupport/contrast'
 import {
   FINE_COLOR,
   GRID_BAND_COLOR,
@@ -237,7 +238,7 @@ function oklchHex(l: number, c: number, h: number): string {
  */
 function mixOklab(a: string, w: number, b: string): string {
   const oklab = (hex: string) => {
-    const [r, g, bl] = rgb(hex).map((v) => {
+    const [r, g, bl] = hexToRgb(hex).map((v) => {
       const c = v / 255
       return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
     })
@@ -256,21 +257,9 @@ function mixOklab(a: string, w: number, b: string): string {
   const [L, A, B] = x.map((v, i) => w * v + (1 - w) * y[i])
   return oklchHex(L, Math.hypot(A, B), (Math.atan2(B, A) * 180) / Math.PI)
 }
-// WCAG 2 relative luminance and contrast over a hex, for the light theme's
-// measurements and the accent's light half.
-const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
-const lum = (hex: string) => {
-  const [r, g, b] = rgb(hex).map((v) => {
-    const c = v / 255
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  })
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-const contrast = (a: string, b: string) => {
-  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
-  return (hi + 0.05) / (lo + 0.05)
-}
-const ratio = (a: string, b: string) => Math.round(contrast(a, b) * 100) / 100
+// The WCAG 2 ratio of two hexes at the two places the measured tables are
+// written at, for the light theme's measurements and the accent's light half.
+const ratio = (a: string, b: string) => round2(contrast(a, b))
 
 // Tailwind's own palette, read off the disk for the reason the stylesheets
 // above are, so the dark theme's steps are measured rather than copied.
@@ -293,11 +282,7 @@ function paletteHex(name: string): string {
  * `top` at `alpha` over `under`, the way an opacity or a `/NN` composites,
  * to the 8-bit hex the browser paints.
  */
-const over = (top: string, alpha: number, under: string) =>
-  `#${rgb(top)
-    .map((v, i) => Math.round(alpha * v + (1 - alpha) * rgb(under)[i]))
-    .map((v) => v.toString(16).padStart(2, '0'))
-    .join('')}`
+const over = (top: string, alpha: number, under: string) => mixOver(top, under, alpha)
 /**
  * The hex a token paints in the dark theme, measured the way the light theme
  * is: on the 8-bit hex the browser paints. A token that is a step at a
@@ -3249,16 +3234,12 @@ describe('the popup card', () => {
   // over white.
   it('reads every coloured number above AA on the card, in both themes', () => {
     expect(paint(SURFACE, 'dark')).toBe(paint('var(--ui-panel)', 'dark'))
-    const tintOver = (band: string, under: string) =>
-      `#${rgb(band)
-        .map((v, i) => Math.round(0.2 * v + 0.8 * rgb(under)[i]))
-        .map((v) => v.toString(16).padStart(2, '0'))
-        .join('')}`
+    const tintOver = (band: string, under: string) => mixOver(band, under, 0.2)
     const white = paint(SURFACE, 'light')
     const lightest = Math.min(
       ...Object.values(METRIC_SCALE).flatMap((scale) => scale.colors.map((band, i) => contrast(scale.ink[i], tintOver(band, white)))),
     )
-    expect(Math.round(lightest * 100) / 100).toBe(6)
+    expect(round2(lightest)).toBe(6)
     expect(mapCss).toMatch(/\.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-dark\);/)
     expect(mapCss).toMatch(/:root\[data-theme="light"\] \.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-light\);/)
   })
@@ -3606,7 +3587,7 @@ describe('the light theme', () => {
       expect(contrast(fill, edge)).toBeGreaterThanOrEqual(3)
     }
     // Darker than the rest, where the dark theme's hover lightens.
-    expect(lum(hex(ACCENT.fillHover, 'hover:bg'))).toBeLessThan(lum(fill))
+    expect(relativeLuminance(hex(ACCENT.fillHover, 'hover:bg'))).toBeLessThan(relativeLuminance(fill))
     // Every label the fill carries: a button's, a lit chip's glyph and the
     // welcome dialog's step badge, all the label-on-fill ink.
     for (const recipe of [BUTTON_PRIMARY, BADGE_STEP]) {
@@ -3641,14 +3622,14 @@ describe('the light theme', () => {
       for (const ground of [PAGE, PANEL, RAISED, WELL, FLOATING]) {
         const r = contrast(ink, ground)
         expect(r, `${recipe} on ${ground}`).toBeGreaterThanOrEqual(4.5)
-        lowest[ink] = Math.min(lowest[ink] ?? Infinity, Math.round(r * 100) / 100)
+        lowest[ink] = Math.min(lowest[ink] ?? Infinity, round2(r))
       }
     }
     // The secondary ink is the floor: 7.47 on the raised surface.
     expect(lowest[light('ink-soft')]).toBe(7.47)
     // The middle ink sits between the primary and the secondary.
-    expect(lum(light('ink-mid'))).toBeGreaterThan(lum(light('ink')))
-    expect(lum(light('ink-mid'))).toBeLessThan(lum(light('ink-soft')))
+    expect(relativeLuminance(light('ink-mid'))).toBeGreaterThan(relativeLuminance(light('ink')))
+    expect(relativeLuminance(light('ink-mid'))).toBeLessThan(relativeLuminance(light('ink-soft')))
   })
 
   it('keeps the placeholder, the pickable days and the micro step legible', () => {
@@ -3694,8 +3675,8 @@ describe('the light theme', () => {
     const frame = hex(SURFACE_CARD, 'border')
     expect(ratio(frame, PANEL)).toBe(2.35)
     // Derived halfway between the quiet rule and the structural edge.
-    const mid = rgb(light('rule')).map((v, i) => Math.floor((v + rgb(light('edge'))[i]) / 2))
-    expect(rgb(frame)).toEqual(mid)
+    const mid = hexToRgb(light('rule')).map((v, i) => Math.floor((v + hexToRgb(light('edge'))[i]) / 2))
+    expect(hexToRgb(frame)).toEqual(mid)
     expect(ratio(hex(PANEL_EDGE, 'border'), FLOATING)).toBe(4.24)
   })
 

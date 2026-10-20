@@ -558,6 +558,21 @@ export const DATA = [
     ],
   },
   {
+    // The mark an unavailable value prints, beside NO_VALUE_MARK. The Wildfire
+    // and Closure columns, the file and the point cards spelled it four more
+    // times. A test still spells it, because a test pins what the reader sees.
+    name: 'unavailable-mark-one-home',
+    files: APP_CODE,
+    ignores: [...TESTS, 'src/utils/unavailableCell.ts'],
+    probe: 'src/utils/resultsCsv.ts',
+    ban: [
+      {
+        selector: 'Literal[value="N/A"]',
+        message: 'Print an unavailable value with UNAVAILABLE from utils/unavailableCell.ts.',
+      },
+    ],
+  },
+  {
     // An instant floored to its hour, and the time units, are forecastWindow.ts's.
     name: 'time-units-one-home',
     files: APP_CODE,

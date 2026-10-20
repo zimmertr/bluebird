@@ -232,13 +232,21 @@ describe('fetchSnowAt', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('fails after a second error, on a status that is not a success, and on no depth', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => fakeResponse(SERVICE_ERROR)))
-    await expect(fetchSnowAt(-105.6, 40.25, signal())).rejects.toThrow()
+  it('fails after a second error inside a 200', async () => {
+    const fetch = vi.fn().mockImplementation(async () => fakeResponse(SERVICE_ERROR))
+    vi.stubGlobal('fetch', fetch)
+    await expect(fetchSnowAt(-105.6, 40.25, signal())).rejects.toThrow('The snow analysis answered with an error')
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('fails on a status that is not a success', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({}, 503)))
     await expect(fetchSnowAt(-105.6, 40.25, signal())).rejects.toThrow('HTTP 503')
+  })
+
+  it('fails when NOAA answers no depth', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ results: [] })))
-    await expect(fetchSnowAt(-105.6, 40.25, signal())).rejects.toThrow()
+    await expect(fetchSnowAt(-105.6, 40.25, signal())).rejects.toThrow('The snow analysis held no depth at a painted point')
   })
 })
 

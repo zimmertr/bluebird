@@ -14,7 +14,7 @@
 import type { Feature, FeatureCollection } from 'geojson'
 import { type ClosureProps, closureName, closureUrl } from './closures'
 import { type FireProximityStatus, featureCenter, pointInRing, polygonsOf } from './fireProximity'
-import { NO_VALUE_MARK } from './unavailableCell'
+import { NO_VALUE_MARK, UNAVAILABLE } from './unavailableCell'
 
 /** The closure a destination stands inside, as the table and the popup need it. */
 export interface ClosureWarning {
@@ -77,7 +77,7 @@ export function closurePopupText(w: ClosureWarning): string {
  */
 export function closureCellText(warning: ClosureWarning | undefined, uncovered: boolean): string {
   if (warning) return `⚠️ ${warning.name}`
-  return uncovered ? 'N/A' : NO_VALUE_MARK
+  return uncovered ? UNAVAILABLE : NO_VALUE_MARK
 }
 
 /**

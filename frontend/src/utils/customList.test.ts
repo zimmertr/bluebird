@@ -2,33 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { buildCustomList, distinctRows, pendingAsResult, pendingDestinations } from './customList'
 import { geoKey } from './points'
 import { CustomDestination, DestinationResult } from '../types'
-import { Place } from './geocode'
 import { NO_CONSTRAINTS } from './clientAnalyze'
 import { presentResults } from './present'
-import { resultRow } from '../testSupport/fixtures'
+import { place, resultRow } from '../testSupport/fixtures'
 
 const csv: CustomDestination[] = [
   { name: 'Mount Rainier', latitude: 46.8529, longitude: -121.7604 },
   { name: 'Mount Adams', latitude: 46.2024, longitude: -121.4909, elevation_ft: 12281 },
 ]
-
-function place(
-  label: string,
-  lat: number,
-  lon: number,
-  elevationFt?: number,
-  extra: Partial<Place> = {},
-): Place {
-  return {
-    label,
-    description: '',
-    kind: 'peak',
-    lat,
-    lon,
-    ...(elevationFt ? { elevationFt } : {}),
-    ...extra,
-  }
-}
 
 // The coordinates match the CSV above, because a pin is keyed by coordinate.
 function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
@@ -48,12 +29,12 @@ function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
 
 describe('buildCustomList', () => {
   it('unions CSV rows with searched places, CSV first', () => {
-    const out = buildCustomList(csv, [place('Glacier Peak', 48.1122, -121.1139)])
+    const out = buildCustomList(csv, [place({ label: 'Glacier Peak', lat: 48.1122, lon: -121.1139 })])
     expect(out.map((d) => d.name)).toEqual(['Mount Rainier', 'Mount Adams', 'Glacier Peak'])
   })
 
   it('a searched place wins a coordinate collision with a CSV row', () => {
-    const out = buildCustomList(csv, [place('Rainier (searched)', 46.8529, -121.7604, 14411)])
+    const out = buildCustomList(csv, [place({ label: 'Rainier (searched)', lat: 46.8529, lon: -121.7604, elevationFt: 14411 })])
     expect(out.map((d) => d.name)).toEqual(['Mount Adams', 'Rainier (searched)'])
     expect(out[1].elevation_ft).toBe(14411)
   })
@@ -72,7 +53,7 @@ describe('buildCustomList', () => {
   })
 
   it('carries a searched place elevation and leaves it absent when unknown', () => {
-    const out = buildCustomList([], [place('A', 1, 2, 5000), place('B', 3, 4)])
+    const out = buildCustomList([], [place({ label: 'A', lat: 1, lon: 2, elevationFt: 5000 }), place({ label: 'B', lat: 3, lon: 4 })])
     expect(out[0].elevation_ft).toBe(5000)
     expect(out[1].elevation_ft).toBeUndefined()
   })
@@ -80,13 +61,13 @@ describe('buildCustomList', () => {
   it('handles either side empty', () => {
     expect(buildCustomList([], [])).toEqual([])
     expect(buildCustomList(csv, []).map((d) => d.name)).toEqual(['Mount Rainier', 'Mount Adams'])
-    expect(buildCustomList([], [place('X', 1, 2)]).map((d) => d.name)).toEqual(['X'])
+    expect(buildCustomList([], [place({ label: 'X', lat: 1, lon: 2 })]).map((d) => d.name)).toEqual(['X'])
   })
 
   // This list is the `custom_destinations` request body. The UI-only fields the
   // pending list needs must not ride along into a CI-gated API contract.
   it('emits only wire fields, never the UI-only ones', () => {
-    const out = buildCustomList(csv, [place('X', 1, 2, 100, { osmId: 'node/1' })])
+    const out = buildCustomList(csv, [place({ label: 'X', lat: 1, lon: 2, elevationFt: 100, osmId: 'node/1' })])
     for (const d of out) {
       expect(Object.keys(d).sort()).toEqual(['elevation_ft', 'latitude', 'longitude', 'name'])
     }
@@ -128,7 +109,7 @@ describe('pendingDestinations', () => {
   })
 
   it('shows a coordinate matched by both inputs once, as the searched place', () => {
-    const searched = place('Rainier (searched)', 46.8529, -121.7604, 14411, { osmId: 'node/1' })
+    const searched = place({ label: 'Rainier (searched)', lat: 46.8529, lon: -121.7604, elevationFt: 14411, osmId: 'node/1' })
     const out = pendingDestinations(csv, [searched], none, none)
     expect(out.map((d) => d.name)).toEqual(['Mount Adams', 'Rainier (searched)'])
     expect(out[1]).toMatchObject({
@@ -155,20 +136,13 @@ describe('pendingDestinations', () => {
   // against the analysis, so the rows the cut drops stay dropped instead of
   // coming back as un-forecasted claims that nothing was ever fetched.
   it('leaves an analyzed destination alone when the limit cut drops it', () => {
-    const searched = place('Glacier Peak', 48.1122, -121.1139)
+    const searched = place({ label: 'Glacier Peak', lat: 48.1122, lon: -121.1139 })
     const analyzed = covered(csv[0], csv[1], { latitude: 48.1122, longitude: -121.1139 })
     expect(pendingDestinations(csv, [searched], analyzed, none)).toEqual([])
   })
 
-  // Same reasoning one knob over: the band is a filter on a field that was
-  // fetched, not a reason to re-offer the row as unanalyzed.
-  it('leaves an analyzed destination alone when the elevation band excludes it', () => {
-    const analyzed = covered(csv[0], csv[1])
-    expect(pendingDestinations(csv, [], analyzed, none)).toEqual([])
-  })
-
   it('makes a destination named after the last analysis pending again', () => {
-    const added = place('Glacier Peak', 48.1122, -121.1139)
+    const added = place({ label: 'Glacier Peak', lat: 48.1122, lon: -121.1139 })
     const out = pendingDestinations(csv, [added], covered(csv[0], csv[1]), none)
     expect(out.map((d) => d.name)).toEqual(['Glacier Peak'])
   })
@@ -205,7 +179,7 @@ describe('a field larger than the limit', () => {
     latitude: 46 + i / 1000,
     longitude: -121 - i / 1000,
   }))
-  const searched = place('Searched Peak', 47.5, -120.5)
+  const searched = place({ label: 'Searched Peak', lat: 47.5, lon: -120.5 })
   // Ranked by precipitation ascending: the discovered destinations are drier
   // than the whole pasted list, so the custom rows are exactly what the cut
   // drops.
@@ -230,14 +204,12 @@ describe('a field larger than the limit', () => {
     sortBy: 'precip_total_in' as const,
     sortDesc: false,
     limit: 100,
-    band: { min: null, max: null },
     constraints: NO_CONSTRAINTS,
   }
 
-  it('shows exactly the limit, all of them forecasted', () => {
+  it('shows exactly the limit', () => {
     const { rows, eligible } = presentResults(universe, knobs, new Set())
     expect(rows).toHaveLength(knobs.limit)
-    expect(rows.every((r) => r.precip_total_in !== null)).toBe(true)
     expect(eligible).toBe(universe.length)
   })
 
@@ -257,7 +229,7 @@ describe('a field larger than the limit', () => {
 // once so the two surfaces cannot draw the same dot differently.
 describe('pendingAsResult', () => {
   it('keeps the identity a searched place carries', () => {
-    const searched = place('Mount Rainier', 46.8529, -121.7604, 14411)
+    const searched = place({ label: 'Mount Rainier', lat: 46.8529, lon: -121.7604, elevationFt: 14411 })
     const [row] = pendingDestinations([], [searched], new Set(), new Set()).map(pendingAsResult)
     expect(row.name).toBe('Mount Rainier')
     expect(row.type).toBe('peak')

@@ -45,6 +45,7 @@ import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_SERVICE_URL } from './snow
 import { GLACIERS, type GlacierCheck } from './glacierCell'
 import { clamp, grouped } from './numbers'
 import { hexToRgb } from './colors'
+import { UNAVAILABLE } from './unavailableCell'
 
 const METRES_TO_INCHES = 1 / 0.0254
 const MM_TO_INCHES = 1 / 25.4
@@ -201,7 +202,7 @@ export const SNOW_FAILED = 'NOAA snow analysis failed. Try again later.'
 export const GLACIER_TITLE = 'Glacier'
 
 /** What a snow row NOAA cannot fill reads: the table's own mark for a value it does not have. */
-const NO_VALUE = 'N/A'
+const NO_VALUE = UNAVAILABLE
 
 /**
  * The snow's section the moment it is clicked: its name, and a bar for each

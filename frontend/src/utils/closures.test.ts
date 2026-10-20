@@ -12,6 +12,7 @@ import {
   fetchClosures,
   formatClosureDates,
 } from './closures'
+import { fineprint } from './popupChrome'
 import { isRateLimited } from './wildfires'
 import { closureFeature, fakeResponse } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'
@@ -101,11 +102,15 @@ describe('closurePopupHtml', () => {
     expect(textOf(bandOf(html))).toContain('Trail closure|Eagle Creek 440')
     expect(textOf(bodyOf(html))).toContain('Columbia River Gorge NSA')
     expect(textOf(bodyOf(html))).toContain(`Effective: ${medium(START)} to ${medium(END)}`)
+    expect(html).not.toContain('🚫')
+  })
+
+  it('links the order from the title glyph', () => {
+    const html = closurePopupHtml(props(), 'trail')
     expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
     expect(html).toContain('target="_blank" rel="noopener noreferrer"')
     expect(textOf(html)).not.toContain('View closure order')
     expect(html).toContain('aria-label="View closure order"')
-    expect(html).not.toContain('🚫')
   })
 
   // The span ends the body in the fire card's fine print, so the three
@@ -114,9 +119,7 @@ describe('closurePopupHtml', () => {
     const html = closurePopupHtml(props(), 'area')
     const dates = `Effective: ${medium(START)} to ${medium(END)}`
     expect(html.indexOf(dates)).toBeGreaterThan(html.indexOf('Columbia River Gorge NSA'))
-    const line = html.slice(html.lastIndexOf('<span', html.indexOf(dates)))
-    expect(line).toContain('font-style:italic')
-    expect(line).toContain('font-size:11px')
+    expect(html).toContain(fineprint(dates))
     const forest = html.slice(html.lastIndexOf('<', html.indexOf('Columbia River Gorge NSA')))
     expect(forest.slice(0, forest.indexOf('Columbia'))).not.toContain('italic')
   })

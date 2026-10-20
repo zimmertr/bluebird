@@ -20,7 +20,7 @@ import {
   closureWarningText,
 } from './closureProximity'
 import { FREEZE_UNAVAILABLE_NOTE, isFreezeKey } from './freezingLevel'
-import { NO_VALUE_MARK, isUnavailableKey, unavailableCellText } from './unavailableCell'
+import { NO_VALUE_MARK, UNAVAILABLE, isUnavailableKey, unavailableCellText } from './unavailableCell'
 import { extremeHourMs, windyUrl } from './windy'
 import { isPeakKind } from './geocode'
 import type { PendingDestination } from './customList'
@@ -48,7 +48,7 @@ export function fireCell(
         : status === 'ready' && uncovered
           ? FIRE_UNCOVERED_NOTE
           : null
-  const text = status === 'unavailable' ? 'N/A' : fireCellText(warning, uncovered)
+  const text = status === 'unavailable' ? UNAVAILABLE : fireCellText(warning, uncovered)
   return { text, note }
 }
 
@@ -69,7 +69,7 @@ export function closureCell(
         : status === 'ready' && uncovered
           ? CLOSURE_UNCOVERED_NOTE
           : null
-  const text = status === 'unavailable' ? 'N/A' : closureCellText(warning, uncovered)
+  const text = status === 'unavailable' ? UNAVAILABLE : closureCellText(warning, uncovered)
   return { text, note }
 }
 

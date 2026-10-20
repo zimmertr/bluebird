@@ -29,6 +29,7 @@ import { inBounds, type PointReading, type PointSection } from './pointReadout'
 import { escapeHtml, row, updatedLine } from './popupChrome'
 import { RADAR_EXTENTS } from './radar'
 import { clamp } from './numbers'
+import { UNAVAILABLE } from './unavailableCell'
 
 /**
  * The N0Q composite's palette, 256 colours as RGB hex, index 0 first.
@@ -176,7 +177,7 @@ export function radarUpdated(offsetMin: number): string {
 export const RADAR_SOURCE = 'NEXRAD radar'
 
 /** What a radar row the frame cannot fill reads: the table's own mark for a value it does not have. */
-const NO_VALUE = 'N/A'
+const NO_VALUE = UNAVAILABLE
 
 /**
  * The radar's section of the card, for a painted reflectivity on one frame.
