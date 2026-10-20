@@ -89,9 +89,13 @@ in [TRAFFIC.md](TRAFFIC.md#security-response-headers).
 
 ## The shared cache
 
-Since #760 every pod reads one PostgreSQL 17 database with PostGIS 3.5
+Since #760 every pod reads one PostgreSQL 18 database with PostGIS 3.6
 (`backend/app/db/`), which holds what the app would otherwise ask an upstream
 for again and again. Record: [0175](decisions/0175-shared-cache-in-postgresql.md)
+A new major is a new cluster rather than an upgrade in place: the operator
+upgrades only between images on one OS, and everything in the database is a
+cache the fill and the refreshes rebuild. Record:
+[0198](decisions/0198-a-new-postgres-major-is-a-new-cluster.md)
 
 - **Places.** Every place discovery can find, worldwide, one row per
   OpenStreetMap element, each at one point: a node's position, or the centre
@@ -201,10 +205,14 @@ Record: [0179](decisions/0179-relations-stand-at-their-own-points.md)
 
 On Washington's extract (364.8 MB) the fill took 8 s and peaked at 3.8 GB, all
 but 0.2 GB of it in `osmium getid -r`, whose memory follows OpenStreetMap's
-highest ids rather than the extract's size. The planet's time and memory are
-not measured yet. Scaled by size from Washington the fill takes about 40
-minutes on the maintainer's Mac, and the cluster's workers are probably slower;
-the CronJob allows 12 hours, requests 4 GiB and stops at 6 GiB.
+highest ids rather than the extract's size. On the cluster, the planet took 82
+minutes to reach the load on 2026-10-20: 24 minutes of download at 62 MB/s, 13
+of `tags-filter`, 31 of `getid -r`, which peaked at 4.4 GB, and 12 of placing
+1.24 million places. The CronJob allows 12 hours, requests 4 GiB and stops at
+6 GiB. That run died at the load's first statement: its connection had sat
+idle through the pipeline, and Istio's sidecar closes a connection that
+carries no bytes for an hour. The fill now sends a statement every five
+minutes while the pipeline runs.
 
 ## Metrics
 
