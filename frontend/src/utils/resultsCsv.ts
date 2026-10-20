@@ -30,6 +30,7 @@ import { FireWarning } from './fireProximity'
 import type { ClosureWarning } from './closureProximity'
 import { MINUTE_MS, type ResolvedWindow } from './forecastWindow'
 import { geoKey } from './points'
+import { UNAVAILABLE } from './unavailableCell'
 
 /**
  * The leading position column, named rather than numbered.
@@ -181,7 +182,7 @@ function fireCell(
   uncovered: ReadonlySet<string>,
 ): string {
   const key = geoKey(row.latitude, row.longitude)
-  if (uncovered.has(key)) return 'N/A'
+  if (uncovered.has(key)) return UNAVAILABLE
   const warning = warnings.get(key)
   return warning ? warning.miles.toFixed(1) : ''
 }
@@ -198,7 +199,7 @@ function closureCell(
   uncovered: ReadonlySet<string>,
 ): string {
   const key = geoKey(row.latitude, row.longitude)
-  if (uncovered.has(key)) return 'N/A'
+  if (uncovered.has(key)) return UNAVAILABLE
   return warnings.get(key)?.name ?? ''
 }
 
