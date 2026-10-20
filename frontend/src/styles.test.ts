@@ -83,6 +83,8 @@ import {
   MAP_FAB_WORDS,
   MAP_ROUND_BUTTON,
   MAP_SLOT,
+  MAP_CORNER,
+  MAP_ZOOM_PAIR,
   MAP_CREDIT,
   MAP_NOTICE_BAND,
   MAP_PILL,
@@ -2166,9 +2168,9 @@ describe('the map rows', () => {
   // One floating chrome for the pill, the locate button and the chips: the
   // floating box's fill, edge, shadow and blur, at a capsule's radius rather
   // than the box's.
-  it('dresses the pill, the locate button and the chips in the floating box\'s chrome', () => {
+  it('dresses the pill, the map buttons and the chips in the floating box\'s chrome', () => {
     const chrome = tokens(SURFACE_FLOATING).filter((t) => t !== RADIUS.surface)
-    for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON, MAP_CHIP, MAP_CHIP_SUMMARY]) {
+    for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON, MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out, MAP_CHIP, MAP_CHIP_SUMMARY]) {
       for (const t of chrome) expect(tokens(recipe), `${t} in ${recipe}`).toContain(t)
       expect(tokens(recipe)).not.toContain(RADIUS.surface)
     }
@@ -2222,11 +2224,6 @@ describe('the map rows', () => {
     expect(drawBarTop).toBe(BOTTOM + GAP)
     const vendor = (cls: string) => Number(cls.match(/--map-vendor-top:(\d+)px/)![1])
     expect(vendor(MAP_EDGE.belowRows)).toBe(BOTTOM + INSET)
-    // A desk's rows stand at the map's left, so its stack of map buttons
-    // starts at the inset, level with the pill (record 0174). A desk draws
-    // no ring in a bar, so `belowDrawBar` has no desk value.
-    expect(tokens(MAP_EDGE.belowRows)).toContain('lg:[--map-vendor-top:var(--map-edge-inset)]')
-    expect(MAP_EDGE.belowDrawBar).not.toContain('lg:')
     // The draw bar: its 44px buttons (`TAP`) and its 6px of padding a side.
     const drawBarPx = 44 + 2 * step(DRAW_BAR, 'py')
     expect(drawBarPx).toBe(56)
@@ -2324,14 +2321,28 @@ describe('the phone chrome\'s hit areas', () => {
     // The light theme's buttons are light, so its glyphs keep the library's
     // own dark drawing (#706).
     expect(rule(':root[data-theme="light"] .maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: none;')
-    // A phone's compass hides while north-up, and its zoom pair always,
-    // in the chip row's slot; a desk's corner keeps all three, the idle
-    // compass greyed by `DISABLED` alone rather than by the library's own
-    // fade of its glyph as well (record 0174).
+    // A phone's compass hides while north-up in the chip row's slot, and a
+    // desk's corner keeps it, greyed by `DISABLED` alone rather than by the
+    // library's own fade of its glyph as well, as a disabled zoom half is
+    // (record 0174).
     expect(rule('.map-slot .maplibregl-ctrl-compass.compass-idle')).toContain('display: none;')
-    expect(rule('.map-slot .maplibregl-ctrl-zoom-in,\n.map-slot .maplibregl-ctrl-zoom-out')).toContain('display: none;')
-    expect(rule('.maplibregl-ctrl-compass:disabled .maplibregl-ctrl-icon')).toContain('opacity: 1;')
-    expect(mapCss).not.toMatch(/^\.maplibregl-ctrl-zoom-(in|out)\b/m)
+    expect(
+      rule(
+        '.maplibregl-ctrl-compass:disabled .maplibregl-ctrl-icon,\n' +
+          '.maplibregl-ctrl-zoom-in:disabled .maplibregl-ctrl-icon,\n' +
+          '.maplibregl-ctrl-zoom-out:disabled .maplibregl-ctrl-icon',
+      ),
+    ).toContain('opacity: 1;')
+    // The zoom pair's halves meet, and the pair shows nowhere but a desk's
+    // corner: the one rule that hides it is keyed on the library's corner,
+    // where a phone leaves it.
+    const pair = '.maplibregl-ctrl-group:has(> .maplibregl-ctrl-zoom-in)'
+    expect(rule(pair)).toContain('gap: 0;')
+    const hiding = [...mapCss.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+      .map(([, selector, body]) => [selector.slice(selector.lastIndexOf('*/') + 1).replace(/^\/?\s*/, '').trim(), body])
+      .filter(([selector, body]) => selector.includes('zoom') && body.includes('display: none'))
+      .map(([selector]) => selector)
+    expect(hiding).toEqual([`.maplibregl-ctrl-top-right ${pair}`])
   })
 
   // The credit line is the floating box, and its links read the way `LINK`
@@ -2945,6 +2956,91 @@ describe('the elevation scale', () => {
 // The compass hides under a class map/controls.ts keeps on the map's container
 // while the map is north-up and flat (#687); controls.test.ts holds the name.
 
+// A desk's map corner (record 0174), laid out as Google Maps lays out its own
+// (TJ, 2026-10-20): the credit line flush in the corner with the scale at its
+// end, and over it the compass, the locate button and the zoom pair, 24px in
+// from the map's right edge, 6px apart and 10px above the line.
+describe('a desk\'s map corner', () => {
+  const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
+  // A spacing step is a quarter of a rem: 4px.
+  const step = (recipe: string, prefix: string): number => {
+    const m = recipe.match(new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`))
+    expect(m, `${prefix} in ${recipe}`).not.toBeNull()
+    return Number(m![1]) * 4
+  }
+  const rule = (selector: string) => {
+    const at = mapCss.indexOf(`${selector} {`)
+    expect(at, selector).toBeGreaterThanOrEqual(0)
+    return mapCss.slice(at, mapCss.indexOf('}', at))
+  }
+  // Read as text: the controls module imports maplibre-gl, which this node
+  // suite does not load.
+  const SCALE_MAX_WIDTH_PX = Number(
+    readFileSync(new URL('./map/controls.ts', import.meta.url), 'utf8').match(/SCALE_MAX_WIDTH_PX = (\d+)/)?.[1],
+  )
+
+  it('stands the column 24px in, its buttons 6px apart and 10px above the line', () => {
+    expect(step(MAP_CORNER.stack, 'mr')).toBe(24)
+    expect(step(MAP_CORNER.stack, 'gap')).toBe(6)
+    expect(step(MAP_CORNER.box, 'gap')).toBe(10)
+    expect(tokens(MAP_CORNER.box)).toEqual(
+      expect.arrayContaining(['absolute', 'right-0', 'flex-col', 'items-end', 'pointer-events-none', LAYER.base]),
+    )
+    // On the lift the library's bottom corners ride, which is 0 at a desk.
+    expect(tokens(MAP_CORNER.box)).toContain('bottom-[var(--map-corner-lift,0px)]')
+  })
+
+  // Flush against the map's right edge and the results' top, so its two outer
+  // edges are off and its one inner corner is the floating box's radius.
+  it('draws the credit line as the floating box against two edges, with no shadow', () => {
+    const credit = tokens(MAP_CORNER.credit)
+    const floating = tokens(SURFACE_FLOATING)
+    for (const t of floating.filter((t) => t.startsWith('bg-') || t.startsWith('backdrop-') || t === 'border-frame')) {
+      expect(credit, t).toContain(t)
+    }
+    expect(credit).toEqual(expect.arrayContaining(['border-t', 'border-l', RADIUS.surface.replace('rounded-', 'rounded-tl-')]))
+    expect(credit).not.toContain('border')
+    expect(credit).not.toContain(ELEVATION.raised)
+    expect(credit.filter((t) => t.startsWith('shadow'))).toEqual([])
+  })
+
+  // The scale's box is as wide as the bar can draw, the bar at its right, so
+  // the credits stay put while the bar changes with the zoom.
+  it('holds the scale in a box as wide as its widest bar', () => {
+    expect(step(MAP_CORNER.scale, 'w')).toBe(SCALE_MAX_WIDTH_PX)
+    expect(tokens(MAP_CORNER.scale)).toEqual(expect.arrayContaining(['flex', 'justify-end']))
+    expect(MAP_CORNER.slot).toBe('contents')
+  })
+
+  // map.css keys on the corner: the library's margins come off every control
+  // in it, and the box `MAP_CREDIT.card` gives the attribution comes off it
+  // inside the line, which is that box itself.
+  it('takes the library\'s margins and the credit\'s own box off inside it', () => {
+    for (const part of [MAP_CORNER.stack, MAP_CORNER.credit]) expect(tokens(part)).toContain('map-corner')
+    expect(rule('.map-corner .maplibregl-ctrl')).toContain('margin: 0;')
+    const attrib = rule('.map-corner .maplibregl-ctrl-attrib')
+    for (const decl of ['padding: 0;', 'background: none;', 'border-width: 0;', 'border-radius: 0;', 'box-shadow: none;', 'backdrop-filter: none;']) {
+      expect(attrib).toContain(decl)
+    }
+  })
+
+  // The pair is the map button's chrome joined (TJ, 2026-10-20): a capsule
+  // with the lower half's top edge for the rule, a raised fill under the
+  // pointer rather than the sky edge, which only one half's border could take.
+  it('joins the zoom pair into one capsule, each half a map button', () => {
+    const shape = new Set<string>([RADIUS.pill, ACCENT.edgeHover])
+    for (const half of [MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out]) {
+      for (const t of tokens(MAP_ROUND_BUTTON).filter((t) => !shape.has(t))) expect(tokens(half), t).toContain(t)
+      expect(tokens(half)).not.toContain(RADIUS.pill)
+      expect(half).not.toContain(ACCENT.edgeHover)
+      expect(tokens(half)).toContain('enabled:hover:bg-raised')
+    }
+    expect(tokens(MAP_ZOOM_PAIR.in)).toEqual(expect.arrayContaining(['border-b-0', 'rounded-t-full']))
+    expect(tokens(MAP_ZOOM_PAIR.out)).toContain('rounded-b-full')
+    expect(tokens(MAP_ZOOM_PAIR.out)).not.toContain('border-t-0')
+  })
+})
+
 // The credit line on a phone, opened, wraps short of the scale bar rather than
 // covering it (#687): map.css caps the bottom-right corner at the map's width
 // less the scale's room, which these vendor numbers and the scale's widest
@@ -3038,6 +3134,25 @@ describe('the scale bar', () => {
     expect(darkStep(ink)).toBe('slate-200')
     expect(measure(dark)).toEqual([5.35, 15.39])
     expect(measure(light)).toEqual([17.12, 8.16])
+    for (const r of [...measure(dark), ...measure(light)]) expect(r).toBeGreaterThanOrEqual(4.5)
+  })
+
+  // In a desk's credit line (record 0174) it stands on the line's floating
+  // surface instead, so it sheds the scrim and draws its ends in its ink in
+  // both themes. Measured 2026-10-20: the ink on the line's 95% fill over a
+  // white map and a black one, dark theme then light, for the label and the
+  // ends alike.
+  it('stands on the credit line\'s surface in a desk\'s corner, its ends in its ink', () => {
+    const corner = mapCss.match(/\n\.map-corner \.maplibregl-ctrl-scale \{[^}]*\}/)?.[0] ?? ''
+    expect(corner).toContain('background-color: transparent;')
+    expect(corner).toContain(`border-color: var(--ui-${ink});`)
+    // After the scale's own rule, which it ties on specificity.
+    expect(mapCss.indexOf(corner)).toBeGreaterThan(mapCss.indexOf(rule))
+    const floating = token(SURFACE_FLOATING, 'bg')
+    const measure = (hex: (name: string) => string) =>
+      ['#ffffff', '#000000'].map((map) => ratio(hex(ink), over(hex(floating), 0.95, map)))
+    expect(measure(dark)).toEqual([10.19, 12.16])
+    expect(measure(light)).toEqual([16.29, 14.64])
     for (const r of [...measure(dark), ...measure(light)]) expect(r).toBeGreaterThanOrEqual(4.5)
   })
 

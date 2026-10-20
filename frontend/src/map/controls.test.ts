@@ -47,9 +47,10 @@ vi.mock('maplibre-gl', () => {
     NavigationControl: class extends Control {
       constructor(options: Record<string, unknown>) {
         super(options)
+        // The library's defaults: both halves of the group unless told not.
         this._container.buttons = [
-          ...(options.showZoom ? [fakeElement('maplibregl-ctrl-zoom-in'), fakeElement('maplibregl-ctrl-zoom-out')] : []),
-          fakeElement('maplibregl-ctrl-compass'),
+          ...(options.showZoom === false ? [] : [fakeElement('maplibregl-ctrl-zoom-in'), fakeElement('maplibregl-ctrl-zoom-out')]),
+          ...(options.showCompass === false ? [] : [fakeElement('maplibregl-ctrl-compass')]),
         ]
       }
     },
@@ -67,7 +68,7 @@ import {
   placeControl,
   withOpenMeteo,
 } from './controls'
-import { DISABLED, MAP_CREDIT, MAP_ROUND_BUTTON } from '../styles'
+import { DISABLED, MAP_CREDIT, MAP_ROUND_BUTTON, MAP_ZOOM_PAIR, RADIUS } from '../styles'
 
 type Fake = ReturnType<typeof fakeElement>
 const roleOf = (role: string) => role.split(/\s+/).filter(Boolean)
@@ -77,21 +78,13 @@ function stub() {
   const removed: string[] = []
   const handlers: Record<string, () => void> = {}
   const camera = { bearing: 0, pitch: 0 }
-  // What the corners were asked for and were marked with.
-  const corners: Record<string, Record<string, string>> = {}
   const canvas = { focus: vi.fn() }
   const map = {
     boxZoom: { disable: vi.fn() },
     addControl: (control: { constructor: { name: string } }, at: string) =>
       added.push([Object.getPrototypeOf(control).constructor.name, control, at]),
     getContainer: () => ({
-      querySelector: (selector: string) => {
-        const attributes = (corners[selector] ??= {})
-        return {
-          classList: { remove: (c: string) => removed.push(c) },
-          setAttribute: (name: string, value: string) => void (attributes[name] = value),
-        }
-      },
+      querySelector: () => ({ classList: { remove: (c: string) => removed.push(c) } }),
     }),
     getCanvas: () => canvas,
     getBearing: () => camera.bearing,
@@ -100,7 +93,7 @@ function stub() {
       handlers[event] = fn
     },
   }
-  return { map: map as unknown as maplibregl.Map, added, removed, boxZoom: map.boxZoom, handlers, camera, corners, canvas }
+  return { map: map as unknown as maplibregl.Map, added, removed, boxZoom: map.boxZoom, handlers, camera, canvas }
 }
 
 const buttonsOf = (control: unknown) => (control as { _container: Fake })._container.buttons
@@ -108,38 +101,43 @@ const buttonsOf = (control: unknown) => (control as { _container: Fake })._conta
 describe('addControls', () => {
   it('spends shift on pinning rather than box zoom, and puts each control in its corner', () => {
     const { map, added, boxZoom } = stub()
-    const { locate, nav } = addControls(map)
+    const { compass, locate, zoom, scale } = addControls(map)
     expect(boxZoom.disable).toHaveBeenCalledTimes(1)
-    expect(added.map(([, , at]) => at)).toEqual(['top-right', 'top-right', 'bottom-left'])
-    // The two it hands back, for the rows to stand them in.
-    expect(nav).toBe(added[0][1])
-    expect(locate).toBe(added[1][1])
+    expect(added.map(([, , at]) => at)).toEqual(['top-right', 'top-right', 'top-right', 'bottom-left'])
+    // The four it hands back, for the rows and a desk's corner to stand them in.
+    expect(added.map(([, control]) => control)).toEqual([compass, locate, zoom, scale])
   })
 
-  // The zoom pair in the compass's group, which a desk shows in its corner
-  // and `map.css` hides in a phone's slot (record 0174).
-  it('draws the zoom pair with the compass', () => {
-    const { map, added } = stub()
-    addControls(map)
-    expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: true })
-  })
-
-  // A popup keeps clear of a desk's stack as it does of the rows.
-  it('marks the top-right corner as something a popup stands clear of', () => {
-    const { map, corners } = stub()
-    addControls(map)
-    expect(corners['.maplibregl-ctrl-top-right']).toEqual({ 'data-map-overlay': '' })
-  })
-
-  // The app's map button on every button the library drew (record 0147): the
-  // zoom pair, the compass and the locate button.
-  it('dresses every map button in the app\'s round button', () => {
+  // Two controls where the library would draw one group, so the compass and
+  // the zoom pair each stand in a slot of their own (record 0174).
+  it('draws the compass and the zoom pair as two controls', () => {
     const { map } = stub()
-    const { locate, nav } = addControls(map)
-    const buttons = [...buttonsOf(nav), ...buttonsOf(locate)]
-    expect(buttons).toHaveLength(4)
+    const { compass, zoom } = addControls(map)
+    expect((compass as unknown as { options: Record<string, unknown> }).options).toEqual({ showZoom: false })
+    expect((zoom as unknown as { options: Record<string, unknown> }).options).toEqual({ showCompass: false })
+    expect(buttonsOf(compass).map((b) => [...b.classes][0])).toEqual(['maplibregl-ctrl-compass'])
+    expect(buttonsOf(zoom).map((b) => [...b.classes][0])).toEqual(['maplibregl-ctrl-zoom-in', 'maplibregl-ctrl-zoom-out'])
+  })
+
+  // The app's map button on the compass and the locate button (record 0147).
+  it('dresses the compass and the locate button in the app\'s round button', () => {
+    const { map } = stub()
+    const { compass, locate } = addControls(map)
+    const buttons = [...buttonsOf(compass), ...buttonsOf(locate)]
+    expect(buttons).toHaveLength(2)
     for (const button of buttons) {
       for (const c of roleOf(MAP_ROUND_BUTTON)) expect(button.classes.has(c), c).toBe(true)
+    }
+  })
+
+  // The zoom pair joined, each half greyed as the idle compass is when the
+  // library disables it at either end of the zoom (record 0174).
+  it('dresses the zoom pair as one capsule, each half greyed while disabled', () => {
+    const { map } = stub()
+    const [zoomIn, zoomOut] = buttonsOf(addControls(map).zoom)
+    for (const [half, role] of [[zoomIn, MAP_ZOOM_PAIR.in], [zoomOut, MAP_ZOOM_PAIR.out]] as const) {
+      for (const c of [...roleOf(role), ...roleOf(DISABLED)]) expect(half.classes.has(c), c).toBe(true)
+      expect(half.classes.has(RADIUS.pill)).toBe(false)
     }
   })
 
@@ -154,7 +152,7 @@ describe('addControls', () => {
 })
 
 describe('the compass while north-up', () => {
-  const compassOf = (nav: unknown) => buttonsOf(nav).find((b) => b.classes.has('maplibregl-ctrl-compass'))! as Fake & {
+  const compassOf = (control: unknown) => buttonsOf(control).find((b) => b.classes.has('maplibregl-ctrl-compass'))! as Fake & {
     disabled?: boolean
     ownerDocument?: { activeElement: unknown }
   }
@@ -164,8 +162,7 @@ describe('the compass while north-up', () => {
   // it under the class, and a desk's corner greys it by `DISABLED`.
   it('idles the compass while north-up and flat, and wakes it once either moves', () => {
     const { map, handlers, camera } = stub()
-    const { nav } = addControls(map)
-    const compass = compassOf(nav)
+    const compass = compassOf(addControls(map).compass)
     for (const c of roleOf(DISABLED)) expect(compass.classes.has(c), c).toBe(true)
     expect(Object.keys(handlers).sort()).toEqual(['pitch', 'rotate'])
     const idle = () => [compass.classes.has(COMPASS_IDLE_CLASS), compass.disabled]
@@ -189,8 +186,7 @@ describe('the compass while north-up', () => {
   // the page.
   it('hands the keyboard to the map when it idles under it', () => {
     const { map, handlers, camera, canvas } = stub()
-    const { nav } = addControls(map)
-    const compass = compassOf(nav)
+    const compass = compassOf(addControls(map).compass)
     camera.bearing = 12
     handlers.rotate()
     compass.ownerDocument = { activeElement: compass }
@@ -236,8 +232,8 @@ describe('addAttribution', () => {
 })
 
 // The library's own controls, moved rather than rebuilt (#696): into a
-// phone's slots at the right of its rows, and back to the top-right corner,
-// the zoom and compass group first.
+// phone's slots at the right of its rows or a desk's corner, and back to the
+// library corner each was added in, the compass first in the top right.
 describe('placeControl', () => {
   // No DOM in this project, so the boxes are the few members the move reads:
   // where a control stands, and an append and a prepend that move it.
@@ -264,34 +260,51 @@ describe('placeControl', () => {
     }
     return b
   }
+  const mapWith = (corners: Record<string, Box>, selectors: string[]) =>
+    ({
+      getContainer: () => ({
+        querySelector: (selector: string) => {
+          selectors.push(selector)
+          return corners[selector] ?? null
+        },
+      }),
+    }) as unknown as maplibregl.Map
+  const control = (element: Box) => ({ _container: element as unknown as HTMLElement })
 
   it('stands each control in its slot and back in the corner, in its place there', () => {
     const corner = box()
     const locateSlot = box()
     const compassSlot = box()
-    const navEl = box()
+    const compassEl = box()
     const locateEl = box()
-    corner.appendChild(navEl)
+    corner.appendChild(compassEl)
     corner.appendChild(locateEl)
     const selectors: string[] = []
-    const map = {
-      getContainer: () => ({
-        querySelector: (selector: string) => {
-          selectors.push(selector)
-          return corner
-        },
-      }),
-    } as unknown as maplibregl.Map
-    const locate = { _container: locateEl } as unknown as maplibregl.GeolocateControl
-    const nav = { _container: navEl } as unknown as maplibregl.NavigationControl
-    placeControl(map, locate, locateSlot as unknown as HTMLElement)
-    placeControl(map, nav, compassSlot as unknown as HTMLElement, true)
+    const map = mapWith({ '.maplibregl-ctrl-top-right': corner }, selectors)
+    placeControl(map, control(locateEl), locateSlot as unknown as HTMLElement)
+    placeControl(map, control(compassEl), compassSlot as unknown as HTMLElement, { first: true })
     expect(locateEl.parentElement).toBe(locateSlot)
-    expect(navEl.parentElement).toBe(compassSlot)
-    placeControl(map, locate, null)
-    placeControl(map, nav, null, true)
-    expect(corner.children).toEqual([navEl, locateEl])
+    expect(compassEl.parentElement).toBe(compassSlot)
+    placeControl(map, control(locateEl), null)
+    placeControl(map, control(compassEl), null, { first: true })
+    expect(corner.children).toEqual([compassEl, locateEl])
     expect(selectors).toEqual(['.maplibregl-ctrl-top-right', '.maplibregl-ctrl-top-right'])
+  })
+
+  // The scale and the attribution have bottom corners of their own, which a
+  // desk's corner takes them out of and gives them back to.
+  it('puts a control back in the corner it is named', () => {
+    const bottomLeft = box()
+    const slot = box()
+    const scaleEl = box()
+    bottomLeft.appendChild(scaleEl)
+    const selectors: string[] = []
+    const map = mapWith({ '.maplibregl-ctrl-bottom-left': bottomLeft }, selectors)
+    placeControl(map, control(scaleEl), slot as unknown as HTMLElement, { corner: 'bottom-left' })
+    expect(scaleEl.parentElement).toBe(slot)
+    placeControl(map, control(scaleEl), null, { corner: 'bottom-left' })
+    expect(scaleEl.parentElement).toBe(bottomLeft)
+    expect(selectors).toEqual(['.maplibregl-ctrl-bottom-left'])
   })
 })
 

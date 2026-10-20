@@ -359,15 +359,26 @@ describe('MapStage', () => {
     }
   })
 
-  // The vendor's stack starts under a phone's rows and level with a desk's
-  // pill (`belowRows` says both), and under a phone's draw bar while a ring
-  // is drawn.
-  it('publishes the vendor stack\'s top under the rows, or a phone\'s draw bar', () => {
+  // A desk's buttons, credit line and scale stand in the map's bottom-right
+  // corner (record 0174), whose slots reach the map together; a phone's map
+  // has no corner.
+  it('hands the map a desk\'s corner, and none on a phone', () => {
+    seen.mapView.length = 0
+    const { container, rerender } = render(<MapStage {...props()} />)
+    const corner = seen.mapView[seen.mapView.length - 1].cornerSlots as Record<string, HTMLElement>
+    expect(Object.keys(corner)).toEqual(['compass', 'locate', 'zoom', 'credit', 'scale'])
+    for (const slot of Object.values(corner)) expect(container.contains(slot)).toBe(true)
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
+    expect(seen.mapView[seen.mapView.length - 1].cornerSlots).toBeNull()
+    expect(container.querySelector('.map-corner')).toBeNull()
+  })
+
+  // On a phone the vendor's stack, the compass alone there, starts under the
+  // rows, and under the draw bar while a ring is drawn.
+  it('publishes the vendor stack\'s top on a phone only', () => {
     const { container, rerender } = render(<MapStage {...props()} />)
     const stage = () => container.firstElementChild as HTMLElement
-    expect(stage().className).toContain(MAP_EDGE.belowRows)
-    rerender(<MapStage {...props({ drawMode: { ...DRAW, drawing: true } })} />)
-    expect(stage().className).toContain(MAP_EDGE.belowRows)
+    expect(stage().className).not.toContain('--map-vendor-top')
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(stage().className).toContain(MAP_EDGE.belowRows)
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, drawMode: { ...DRAW, drawing: true } })} />)

@@ -658,9 +658,13 @@ content-sized, and only the summary may shrink, by an ellipsis on its words.
 
 At a desk the pill stands alone on the first row, 320px wide, and the rows
 are as wide as the wider of it and the chip row, so the rest of the map's top
-is the map's. The map's buttons stand in its top-right corner instead: zoom
-in, zoom out, the compass and the locate button, in the library's order, the
-first level with the pill. The chip row holds Legend and then Layers at both
+is the map's. The map's buttons stand in its bottom-right corner instead, as
+Google Maps stands its own (`MAP_CORNER`): the credit line flush in the corner
+with the scale at its end, and over it the compass, the locate button and the
+zoom pair, 24px in, 6px apart and 10px above the line. The zoom pair is one
+capsule (`MAP_ZOOM_PAIR`), whose halves take the raised fill under the pointer
+rather than the sky edge, since the rule between them is the lower half's edge
+alone. The chip row holds Legend and then Layers at both
 widths, so the legend card, open by default, hangs over the map's left edge,
 with the summary chip at the row's front only while the panel is shut. Their menus open as whole cards 4px under
 the chip (`MAP_CHIP_MENU`), each chip carrying a chevron that points down while
@@ -708,15 +712,17 @@ dashed lines, their labels and the top tick start under it. Measured
 Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
 
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
-the zoom pair, the compass and the locate button, 40px round in the pill's
-chrome and 4px apart, handed to each by `map/controls.ts` because the library
-makes the markup. A desk stands them in the library's top-right corner. A
-phone stands the locate button and the compass in slots at the rows' right
-ends (`MAP_SLOT`), where `map.css` hides the zoom pair. While the map is
-north-up and flat the compass is disabled: greyed by `DISABLED` at a desk, so
-the stack keeps one shape, and hidden in a phone's chip row. The credit line's (i) is the same dark
+the compass and the locate button, 40px round in the pill's chrome, handed to
+each by `map/controls.ts` because the library makes the markup, and a desk's
+zoom pair the same chrome joined (`MAP_ZOOM_PAIR`). A desk stands them in its
+corner (`MAP_CORNER`). A phone stands the locate button and the compass in
+slots at the rows' right ends (`MAP_SLOT`) and leaves its zoom pair hidden in
+the library's corner. While the map is north-up and flat the compass is
+disabled: greyed by `DISABLED` at a desk, so the column keeps one shape, and
+hidden in a phone's chip row. The credit line's (i) is the same dark
 round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
-is the floating card (`MAP_CREDIT.card`), its links dressed in `map.css` as
+is the floating card (`MAP_CREDIT.card`), which a desk's credit line in the
+corner is itself, so the line sheds the card it would otherwise wear; its links dressed in `map.css` as
 `LINK` dresses the app's. The compass needle is redrawn rather than inverted,
 red-500 north and slate-50 south edged in slate-600, and the (i)'s glyph is
 centred on its button's whole box. The scale bar is a ruler on the map, not a
@@ -724,7 +730,9 @@ control, so it wears none of that chrome.
 Record: [0147](decisions/0147-map-buttons-wear-the-app-chrome.md) It stands on
 the legend ramp's scrim in the ramp's ink instead, so it follows the theme
 (5.35:1 over a white map in the dark theme, its worst), with its ends dark in
-both themes because the basemap is light in both, and its label keeps the
+both themes because the basemap is light in both. In a desk's credit line it
+stands on the line instead, so there it takes no scrim and draws its ends in
+its ink (record 0174). Its label keeps the
 vendor's 10px, under the floor, because at 11px `1000 km` on its narrowest bar
 ran past the bar's end (`e2e/scaleBar.spec.ts`).
 Record: [0162](decisions/0162-scale-bar-on-the-theme-ground.md)

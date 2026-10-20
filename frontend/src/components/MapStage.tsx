@@ -7,6 +7,7 @@ import LayersPopover from './LayersPopover'
 import MapLegend, { legendSections, type LegendInputs } from './MapLegend'
 import MapDrawBar from './MapDrawBar'
 import MapRows from './MapRows'
+import MapCorner from './MapCorner'
 import PhoneFoot from './PhoneFoot'
 import type { Analysis } from '../hooks/useAnalyze'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
@@ -37,6 +38,7 @@ import { fieldHasValue } from '../utils/present'
 import type { CameraView } from '../utils/mapView'
 import type { UrlSync } from '../hooks/useUrlSync'
 import type { LayerCoverage } from '../utils/layerCoverage'
+import type { CornerSlots } from '../map/controls'
 import type { ActionWord } from '../utils/analyzeGate'
 
 export interface MapStageProps {
@@ -193,10 +195,13 @@ export default function MapStage({
   // The round slot at the right of a phone's search pill, which the map
   // stands its own locate button in (#696). State rather than a ref, so the
   // map hears the slot arrive and go; at a desk there is none, and the button
-  // stands in the map's top-right corner (record 0174).
+  // stands in the map's corner (`cornerSlots`).
   const [locateSlot, setLocateSlot] = useState<HTMLDivElement | null>(null)
   // The compass's, under it at a phone's chip row's end (record 0147).
   const [compassSlot, setCompassSlot] = useState<HTMLDivElement | null>(null)
+  // A desk's corner (`MapCorner`, record 0174), which stands the compass, the
+  // locate button, the zoom pair, the credit line and the scale.
+  const [cornerSlots, setCornerSlots] = useState<CornerSlots | null>(null)
   // The height of the phone's notice band, which the Analyze button rises
   // above (`PhoneFoot` measures it), 0 while it holds nothing.
   const [bandPx, setBandPx] = useState(0)
@@ -304,10 +309,11 @@ export default function MapStage({
     // map area keeps the whole column, so the canvas runs on behind the
     // sheet and its ResizeObserver sees no change on a drag.
     <div
-      // The library's stack, empty once its two buttons stand in the rows'
-      // slots, starts under the rows, and under the draw bar while a ring is
-      // drawn, for the moment before the slots arrive.
-      className={`flex-1 relative ${MAP_EDGE.publish} ${drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows}`}
+      // On a phone the library's stack, the compass alone there, starts under
+      // the app's two rows, and under the draw bar while a ring is drawn.
+      className={`flex-1 relative ${MAP_EDGE.publish} ${
+        isDesktop ? '' : drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows
+      }`}
       style={
         {
           // A phone's scale and (i) stand on the Analyze button's row
@@ -365,6 +371,7 @@ export default function MapStage({
         maxPolygonPoints={maxPolygonPoints}
         locateSlot={locateSlot}
         compassSlot={compassSlot}
+        cornerSlots={cornerSlots}
       />
       <MapRows
         searchBoxRef={searchBoxRef}
@@ -380,6 +387,9 @@ export default function MapStage({
         layers={layers}
         legend={legendChip}
       />
+      {/* A desk's map buttons, credit line and scale, in the map's
+          bottom-right corner (record 0174). */}
+      {isDesktop && <MapCorner onSlots={setCornerSlots} />}
       {/* The foot of a phone's map: the band the panel's notice block
           stands in while the drawer is shut (record 0140), which
           `PanelFooter` portals the one block it renders into, and the

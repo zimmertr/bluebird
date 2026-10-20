@@ -39,8 +39,8 @@ interface MapRowsProps {
  * results: Legend greys until it has a key to show rather than coming and
  * going. On a phone the locate button stands at the pill's right and the
  * compass, while the map is turned, at the chip row's end under it. A desk's
- * map buttons stand in the map's top-right corner with the zoom pair instead,
- * so a desk's rows have no slots (record 0174).
+ * map buttons stand in the map's bottom-right corner instead (`MapCorner`), so
+ * a desk's rows have no slots (record 0174).
  *
  * The summary chip opens the panel. A phone's raises the Controls sheet and
  * lowers it again, lit while it is up. A desk's panel is docked beside the map

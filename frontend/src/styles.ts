@@ -1421,13 +1421,11 @@ export const MAP_EDGE = {
    * vendor's stack, which is the compass alone there, starts one inset below
    * them rather than beside the pill: 92 + 12. While a ring is drawn the draw
    * bar stands under the rows (`MAP_ROWS.drawBar`, 58px tall at 100), so the
-   * stack starts one inset under it instead: 100 + 58 + 12; a desk draws no
-   * bar. A desk's rows stand at the map's left, so there the stack of map
-   * buttons starts at the inset, level with the pill (record 0174).
-   * `map.css` reads `--map-vendor-top` as the stack's top margin, and
-   * `styles.test.ts` holds the numbers to the rows' geometry.
+   * stack starts one inset under it instead: 100 + 58 + 12. `map.css` reads
+   * `--map-vendor-top` as the stack's top margin, and `styles.test.ts` holds
+   * both numbers to the rows' geometry.
    */
-  belowRows: '[--map-vendor-top:104px] lg:[--map-vendor-top:var(--map-edge-inset)]',
+  belowRows: '[--map-vendor-top:104px]',
   belowDrawBar: '[--map-vendor-top:170px]',
 } as const
 
@@ -1475,8 +1473,8 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  *
  * A phone's rows span the map. A desk's are as wide as the wider of the pill
  * and the chip row (`lg:w-max`, no narrower than the pill's `lg:min-w-80`),
- * because a desk's map buttons stand in the map's top-right corner (record
- * 0174) and the first row holds the pill alone. The pill is 320, the width its
+ * because a desk's map buttons stand in the map's bottom-right corner
+ * (`MAP_CORNER`, record 0174) and the first row holds the pill alone. The pill is 320, the width its
  * results list opened at beside the old column, searching or not: a map 1080px
  * wide does not need a search field across it.
  *
@@ -1531,30 +1529,31 @@ export const MAP_PILL =
 export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
 
 /**
- * A map button: the locate button and the compass, at both
- * widths (TJ, 2026-10-14; record 0147). 40px and round, in the pill's dark
- * chrome, with the floating buttons' sky edge on hover and the app's focus
- * ring. The buttons are MapLibre's own, so their states (asking, tracking,
- * failed; a compass that resets north) stay the library's: `map/controls.ts`
- * hands each of them this role when the map is built, the one way a class
- * reaches markup the library makes, and `map.css` draws their glyphs light
- * and gives each a 44px rim on a coarse pointer. They stood in the library's
- * white box until then, which the audit's M01 kept; the maintainer reversed
- * that for the buttons on 2026-10-14.
+ * A map button: the locate button and the compass, at both widths (TJ,
+ * 2026-10-14; record 0147). 40px and round, in the pill's dark chrome, with
+ * the floating buttons' sky edge on hover and the app's focus ring. The
+ * buttons are MapLibre's own, so their states (asking, tracking, failed; a
+ * compass that resets north) stay the library's: `map/controls.ts` hands each
+ * of them this role when the map is built, the one way a class reaches markup
+ * the library makes, and `map.css` draws their glyphs light and gives each a
+ * 44px rim on a coarse pointer. They stood in the library's white box until
+ * then, which the audit's M01 kept; the maintainer reversed that for the
+ * buttons on 2026-10-14. A desk's zoom buttons wear the same chrome joined
+ * into one capsule instead (`MAP_ZOOM_PAIR`).
  */
 export const MAP_ROUND_BUTTON =
   `size-10 bg-floating/95 border border-frame ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `transition-colors ${ACCENT.edgeHover} ${FOCUS_RING}`
 
 /**
- * Where a phone's map stands one of those buttons at a row's right end
- * (#696): the map moves its own control into the slot (`placeControl`), so
- * the button keeps the library's states and its permission prompt, and
- * `map.css`, keyed on `map-slot`, takes the library's margin off it. A desk
- * has no slots: its buttons stand in the map's top-right corner (record 0174).
+ * Where a phone stands one of those buttons at a row's right end (#696): the
+ * map moves its own control into the slot (`placeControl`), so the button
+ * keeps the library's states and its permission prompt, and `map.css`, keyed
+ * on `map-slot`, takes the library's margin off it. A desk's rows have no
+ * slots: its buttons stand in the map's bottom-right corner (`MAP_CORNER`).
  *
- * `locate` is a 40px box at the end of the first row, beside the search pill.
- * `compass` is the chip row's last member, under the locate button (record 0147), and takes no room of
+ * `locate` is a 40px box beside the search pill. `compass` is the chip row's
+ * last member, under the locate button (record 0147), and takes no room of
  * its own: while the map is north-up the compass is hidden and the slot is
  * nothing, so the row's empty end stays the map's, about 20px at 360 wide.
  * While it shows, the slot is the button's 40px and the summary chip, the one
@@ -1564,6 +1563,57 @@ export const MAP_ROUND_BUTTON =
 export const MAP_SLOT = {
   locate: 'map-slot absolute right-0 top-0 size-10',
   compass: 'map-slot ml-auto flex-shrink-0',
+} as const
+
+/**
+ * A desk's map corner (record 0174), laid out as Google Maps lays out its own
+ * (TJ, 2026-10-20): the credit line flush in the map's bottom-right corner,
+ * on the results' edge, with the scale at its end, and over it a column of
+ * the compass, the locate button and the zoom pair, 24px in from the map's
+ * right edge, 6px apart and 10px above the line. A phone keeps its two
+ * buttons in its rows (`MAP_SLOT`) and has no zoom pair.
+ *
+ * Each piece is the library's own control, moved into a slot here
+ * (`placeControl`), so it keeps the library's states. `box` rides the lift
+ * the library's bottom corners ride, 0 at a desk, and takes no press of its
+ * own. `stack` is the column and `credit` the line, each a surface a popup
+ * stands clear of (`MapCorner` marks them), and each keyed `map-corner` for
+ * `map.css`, which takes the library's margins off what stands in them and
+ * the floating box off the credit line inside this one. The line is the
+ * floating box's fill, edge and blur, its two outer edges off and its one
+ * inner corner rounded because it stands against two edges, with no shadow,
+ * which would fall on the results under it. `slot` holds a control in its
+ * row as if the slot were not there. `scale` is a box as wide as the bar can
+ * draw (`SCALE_MAX_WIDTH_PX`), the bar flush at its right, so the credits
+ * stay put while the bar grows and shrinks with the zoom.
+ */
+export const MAP_CORNER = {
+  box: `absolute right-0 bottom-[var(--map-corner-lift,0px)] flex flex-col items-end gap-2.5 pointer-events-none ${LAYER.base}`,
+  stack: 'map-corner mr-6 flex flex-col items-end gap-1.5',
+  credit:
+    'map-corner flex items-center gap-2.5 py-0.5 pl-2.5 pr-2 ' +
+    'bg-floating/95 border-t border-l border-frame rounded-tl-lg backdrop-blur-sm',
+  slot: 'contents',
+  scale: 'flex w-25 justify-end',
+} as const
+
+/**
+ * A desk's zoom buttons, joined into one capsule with a rule between them, as
+ * Google Maps draws its own (TJ, 2026-10-20; record 0174): each half is a
+ * 40px map button with the capsule's end for its outer edge and no edge where
+ * the halves meet but the lower half's top, which is the rule. They are the
+ * one pair of map buttons that does not take the sky edge on hover, because
+ * the rule is the lower half's alone and could not light for the upper one,
+ * so each half takes the raised fill under the pointer instead, while it is
+ * enabled: the library disables a half at either end of the map's zoom, and
+ * `map/controls.ts` greys it then as it greys the idle compass (`DISABLED`).
+ */
+const MAP_ZOOM_HALF =
+  `size-10 bg-floating/95 border border-frame ${ELEVATION.raised} backdrop-blur-sm ` +
+  `transition-colors enabled:hover:bg-raised ${FOCUS_RING}`
+export const MAP_ZOOM_PAIR = {
+  in: `${MAP_ZOOM_HALF} border-b-0 rounded-t-full`,
+  out: `${MAP_ZOOM_HALF} rounded-b-full`,
 } as const
 
 /**

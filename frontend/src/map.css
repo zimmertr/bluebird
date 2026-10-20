@@ -135,10 +135,9 @@
 }
 
 /* The library's own top-right stack, measured off the same edge as the app's
- * rows. At a desk it holds the map's buttons: zoom in, zoom out, the compass
- * and the locate button (record 0174). On a phone it is empty once the compass
- * and the locate button stand in the rows' slots (`MAP_SLOT`), and holds them
- * only for the moment before the rows mount.
+ * rows. It holds the map's buttons only until a phone's rows or a desk's
+ * corner mount and stand them in their slots (`MAP_SLOT`, `MAP_CORNER`), and
+ * a phone's zoom pair, hidden, for good (below).
  *
  * The vendor ships 10px here and the app's rows stand at `MAP_EDGE`'s 12px.
  * The number is not spelled here: `--map-edge-inset` is published on the map
@@ -157,20 +156,19 @@
 
 /* A phone's two rows span the map's top edge (#696), so the stack starts
  * below them: `--map-vendor-top` is published by `MAP_EDGE.belowRows` (or
- * `belowDrawBar` while a ring is drawn) on the map wrapper. A desk's rows
- * stand at the left, so there `belowRows` publishes the inset and the stack's
- * top lines up with the pill's. The first group alone, because the margin
- * under it is the gap between groups. */
+ * `belowDrawBar` while a ring is drawn) on the map wrapper. The first group
+ * alone, because the margin under it is the gap between groups. */
 .maplibregl-ctrl-top-right .maplibregl-ctrl:first-child {
   margin-top: var(--map-vendor-top, var(--map-edge-inset));
 }
 
-/* The map's buttons in the app's chrome (record 0147): the zoom pair, the
- * compass and the locate button, each a 40px round button
- * (`MAP_ROUND_BUTTON` in styles.ts, which `map/controls.ts` hands to the
- * library's buttons). The library's group gives up its white box, its
- * shadow and its rules, and stands its buttons 4px apart; a second group
- * below the first keeps the same 4px. The glyphs, which the library draws dark for its
+/* The map's buttons in the app's chrome (record 0147): the compass, the
+ * locate button and a desk's zoom pair, each a 40px button
+ * (`MAP_ROUND_BUTTON` in styles.ts, and `MAP_ZOOM_PAIR` for the pair, which
+ * `map/controls.ts` hands to the library's buttons). The library's group
+ * gives up its white box, its shadow and its rules, and stands its buttons
+ * 4px apart; a second group below the first keeps the same 4px. The glyphs,
+ * which the library draws dark for its
  * white buttons, are drawn light on the dark theme's buttons: inverted, then
  * turned back round the hue circle so the tracking blue, the failure red and
  * the compass's red needle keep their hues. The light theme's buttons are
@@ -188,6 +186,20 @@
 
 .maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl {
   margin-top: 4px;
+}
+
+/* The zoom pair is one capsule (`MAP_ZOOM_PAIR`, record 0174): its halves
+ * meet, and the lower one's top edge is the rule between them. */
+.maplibregl-ctrl-group:has(> .maplibregl-ctrl-zoom-in) {
+  gap: 0;
+}
+
+/* A phone shows no zoom pair: a pinch zooms there (#696), and the pair would
+ * hang over the map from the chip row's end. So it stays in the library's
+ * corner, where nothing shows it; only a desk's corner stands it
+ * (`MAP_CORNER`). */
+.maplibregl-ctrl-top-right .maplibregl-ctrl-group:has(> .maplibregl-ctrl-zoom-in) {
+  display: none;
 }
 
 .maplibregl-ctrl-group .maplibregl-ctrl-icon {
@@ -242,29 +254,41 @@
   }
 }
 
-/* On a phone the navigation group stands in the chip row's slot (record
-   0147), where the zoom pair would hang down over the map from the row's
-   end: a pinch zooms there (#696), and the compass is the slot's alone. A
-   desk's group stands in the corner, the pair included (record 0174). */
-.map-slot .maplibregl-ctrl-zoom-in,
-.map-slot .maplibregl-ctrl-zoom-out {
-  display: none;
-}
-
 /* The compass while the map is north-up and flat, when pressing it would do
    nothing (#687): `idleCompassWhileNorthUp` in map/controls.ts keeps the
    class on the button in step with the bearing and the pitch, on the button
    because a phone's rows stand it outside the map's container. In a phone's
    slot it is hidden, because a greyed button in the chip row still asks to
-   be read. In a desk's stack it stays, disabled and greyed by `DISABLED`, so
-   the stack keeps one shape (record 0174); the library's own fade of a
-   disabled button's glyph goes, so the role's 40% is the only one. */
+   be read. In a desk's corner it stays, disabled and greyed by `DISABLED`, so
+   the column keeps one shape (record 0174). The library's own fade of a
+   disabled button's glyph goes from it, and from a zoom half the library
+   disables at either end of the zoom, which `DISABLED` greys the same way, so
+   the role's 40% is the only fade. */
 .map-slot .maplibregl-ctrl-compass.compass-idle {
   display: none;
 }
 
-.maplibregl-ctrl-compass:disabled .maplibregl-ctrl-icon {
+.maplibregl-ctrl-compass:disabled .maplibregl-ctrl-icon,
+.maplibregl-ctrl-zoom-in:disabled .maplibregl-ctrl-icon,
+.maplibregl-ctrl-zoom-out:disabled .maplibregl-ctrl-icon {
   opacity: 1;
+}
+
+/* A desk's corner (`MAP_CORNER`, record 0174) takes the library's margins off
+ * every control standing in it, as a phone's slots do. The credit line there
+ * is the floating box itself, so the attribution in it sheds the box
+ * `MAP_CREDIT.card` gives it everywhere else, and its padding with it. */
+.map-corner .maplibregl-ctrl {
+  margin: 0;
+}
+
+.map-corner .maplibregl-ctrl-attrib {
+  padding: 0;
+  background: none;
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 /* The popup's close button, for the same reason as the controls above:
@@ -438,6 +462,16 @@
 }
 
 :root[data-theme="light"] .maplibregl-ctrl.maplibregl-ctrl-scale {
+  border-color: var(--ui-ink);
+}
+
+/* In a desk's credit line (`MAP_CORNER`, record 0174) the scale stands on the
+ * line's own surface rather than on the map, so it takes no scrim, and its
+ * ends are drawn in its label's ink in both themes: the dark theme's ends,
+ * drawn dark to stand on the light basemap, all but vanished on the dark line
+ * (2026-10-20). The ink on that surface is measured in `styles.test.ts`. */
+.map-corner .maplibregl-ctrl-scale {
+  background-color: transparent;
   border-color: var(--ui-ink);
 }
 
