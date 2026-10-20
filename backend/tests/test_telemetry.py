@@ -13,7 +13,14 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
-from conftest import dest, fake_response, stub_openmeteo, weather_hourly, weather_metrics
+from conftest import (
+    dest,
+    fake_response,
+    status_error,
+    stub_openmeteo,
+    weather_hourly,
+    weather_metrics,
+)
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
@@ -395,11 +402,7 @@ def test_cache_collector_reads_the_existing_counters():
 
 
 def _rate_limited(url: str, scope: str) -> httpx.HTTPStatusError:
-    request = httpx.Request("GET", url)
-    response = httpx.Response(
-        429, request=request, json={"reason": f"{scope} API request limit exceeded"}
-    )
-    return httpx.HTTPStatusError("429", request=request, response=response)
+    return status_error(429, {"reason": f"{scope} API request limit exceeded"}, url=url)
 
 
 WINDOW = (
@@ -565,15 +568,12 @@ def test_attempt_outcome_classification():
     from app.services.errors import PartialResultError
 
     request = httpx.Request("POST", "https://overpass-api.de/api/interpreter")
-    response = httpx.Response(504, request=request)
     assert osm_mod._attempt_outcome(PartialResultError("remark")) == "partial"
     assert (
         osm_mod._attempt_outcome(httpx.ConnectTimeout("t", request=request)) == "timeout"
     )
     assert (
-        osm_mod._attempt_outcome(
-            httpx.HTTPStatusError("504", request=request, response=response)
-        )
+        osm_mod._attempt_outcome(status_error(504, url="https://overpass-api.de/api/interpreter"))
         == "http_error"
     )
     assert (

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from conftest import fake_response
+from conftest import status_error
 
 from app.services.errors import (
     PartialResultError,
@@ -18,11 +18,6 @@ from app.services.errors import (
 PROVIDER = "Test Provider"
 
 
-def _status_error(code: int) -> httpx.HTTPStatusError:
-    response = fake_response({}, code)
-    return httpx.HTTPStatusError("boom", request=response.request, response=response)
-
-
 def test_upstream_error_carries_message():
     err = UpstreamError("something friendly")
     assert err.message == "something friendly"
@@ -36,24 +31,24 @@ def test_timeout_message():
 
 def test_rate_limit_429():
     # A 429 that gives no reason has no scope to name.
-    msg = classify_http_error(_status_error(429), PROVIDER)
+    msg = classify_http_error(status_error(429, {}), PROVIDER)
     assert msg == f"{PROVIDER} is rate-limiting. Try again later."
 
 
 @pytest.mark.parametrize("code", [401, 403])
 def test_a_401_or_403_reads_as_rejected(code):
-    msg = classify_http_error(_status_error(code), PROVIDER)
+    msg = classify_http_error(status_error(code, {}), PROVIDER)
     assert msg == f"{PROVIDER} rejected the request. Try again later."
 
 
 @pytest.mark.parametrize("code", [500, 502, 503])
 def test_a_5xx_names_its_status(code):
-    msg = classify_http_error(_status_error(code), PROVIDER)
+    msg = classify_http_error(status_error(code, {}), PROVIDER)
     assert msg == f"{PROVIDER} failed (HTTP {code}). Try again later."
 
 
 def test_an_unlisted_status_names_its_status():
-    msg = classify_http_error(_status_error(418), PROVIDER)
+    msg = classify_http_error(status_error(418, {}), PROVIDER)
     assert msg == f"{PROVIDER} error (HTTP 418). Try again later."
 
 
@@ -94,16 +89,12 @@ _NOT_A_STRING = [123, ["The supplied API key is invalid."], {"text": "x"}, True]
 @pytest.mark.parametrize("reason", _NOT_A_STRING, ids=repr)
 @pytest.mark.parametrize("reads", [is_invalid_api_key, is_out_of_domain])
 def test_a_reason_that_is_not_a_string_matches_nothing(reads, reason):
-    response = fake_response({"error": True, "reason": reason}, 400)
-    exc = httpx.HTTPStatusError("400", request=response.request, response=response)
-    assert reads(exc) is False
+    assert reads(status_error(400, {"error": True, "reason": reason})) is False
 
 
 def test_a_400_that_is_not_json_is_not_a_bad_key():
     # A proxy's HTML page in front of the API is not the caller's key.
-    response = fake_response(None, 400, text="<html>Bad Request</html>")
-    exc = httpx.HTTPStatusError("400", request=response.request, response=response)
-    assert is_invalid_api_key(exc) is False
+    assert is_invalid_api_key(status_error(400, text="<html>Bad Request</html>")) is False
 
 
 # ── reading a number out of untrusted text ─────────────────────────────────

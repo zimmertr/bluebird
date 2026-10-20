@@ -1,5 +1,5 @@
 """Shared fixtures, the builders every upstream stub is made of (an HTTP
-answer, a destination, one location's weather metrics and an Open-Meteo hourly
+answer and its refusal, a destination, one location's weather metrics and an Open-Meteo hourly
 block), the one Open-Meteo client stub and the pacer and sleep doubles the
 fetch tests share, and the made-up key the keyed tests send.
 
@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -46,6 +47,7 @@ def fake_response(
     url: str = "https://stub.invalid",
     params: dict[str, Any] | None = None,
     text: str | None = None,
+    headers: dict[str, str] | None = None,
 ) -> httpx.Response:
     """The answer an HTTP stub hands back where the real client would.
 
@@ -63,8 +65,31 @@ def fake_response(
     """
     request = httpx.Request("GET", url, params=params)
     if text is not None:
-        return httpx.Response(status, text=text, request=request)
-    return httpx.Response(status, json=payload, request=request)
+        return httpx.Response(status, text=text, headers=headers, request=request)
+    return httpx.Response(status, json=payload, headers=headers, request=request)
+
+
+def status_error(status: int, payload: Any = None, **answer: Any) -> httpx.HTTPStatusError:
+    """`fake_response`'s refusal as the client raises it.
+
+    Raised by `raise_for_status` itself, so its text names the request the way
+    the client's does. `answer` is `fake_response`'s keywords.
+    """
+    response = fake_response(payload, status, **answer)
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        return exc
+    raise AssertionError(f"HTTP {status} is not an error status")
+
+
+def answered(status: int, body: dict[str, Any]) -> Callable[[str, dict[str, Any]], httpx.Response]:
+    """A `stub_openmeteo` step that answers on the request the service made.
+
+    The service's own `raise_for_status` then reads it, and the text it gives
+    names the keyed URL the way a real one does.
+    """
+    return lambda url, params: fake_response(body, status, url=url, params=params)
 
 
 # A caller's Open-Meteo key for tests, made up. It holds `+`, `/` and `=`

@@ -13,10 +13,12 @@ import pytest
 from conftest import (
     FAKE_API_KEY,
     RecordingPacer,
+    answered,
     assert_no_key_logged,
     dest,
     fake_response,
     sleep_recorder,
+    status_error,
     stub_openmeteo,
     weather_hourly,
 )
@@ -646,14 +648,12 @@ def _dests(n: int, offset: int = 0) -> list[dict[str, Any]]:
 
 
 def _rate_limited(scope: str, retry_after: int | None = None) -> httpx.HTTPStatusError:
-    request = httpx.Request("GET", weather.FORECAST_URL)
-    response = httpx.Response(
+    return status_error(
         429,
-        request=request,
-        json={"reason": f"{scope} API request limit exceeded"},
-        headers={"Retry-After": str(retry_after)} if retry_after else {},
+        {"reason": f"{scope} API request limit exceeded"},
+        url=weather.FORECAST_URL,
+        headers={"Retry-After": str(retry_after)} if retry_after else None,
     )
-    return httpx.HTTPStatusError("429", request=request, response=response)
 
 
 async def test_the_request_asks_only_for_the_hours_the_window_needs(monkeypatch):
@@ -1150,9 +1150,7 @@ async def test_hourly_rate_limit_stops_immediately(monkeypatch):
 
 
 async def test_a_non_429_status_error_is_an_upstream_error(monkeypatch):
-    request = httpx.Request("GET", weather.FORECAST_URL)
-    response = httpx.Response(500, request=request, text="upstream boom")
-    failure = httpx.HTTPStatusError("500", request=request, response=response)
+    failure = status_error(500, text="upstream boom", url=weather.FORECAST_URL)
     calls = stub_openmeteo(monkeypatch, [failure])
 
     with pytest.raises(UpstreamError) as exc:
@@ -1300,13 +1298,11 @@ def _out_of_domain() -> httpx.HTTPStatusError:
 
     Measured 2026-08-01: `models=gfs_hrrr` at 46.5,8.0 answers exactly this.
     """
-    request = httpx.Request("GET", weather.FORECAST_URL)
-    response = httpx.Response(
+    return status_error(
         400,
-        request=request,
-        json={"error": True, "reason": "No data is available for this location"},
+        {"error": True, "reason": "No data is available for this location"},
+        url=weather.FORECAST_URL,
     )
-    return httpx.HTTPStatusError("400", request=request, response=response)
 
 
 async def test_the_chosen_model_reaches_the_wire(monkeypatch):
@@ -1372,9 +1368,8 @@ def test_a_coverage_refusal_is_not_reported_as_a_generic_upstream_failure():
 async def test_an_ordinary_400_stays_an_ordinary_upstream_error(monkeypatch):
     # Only the "no data for this location" body means coverage. A 400 for any
     # other reason must not be blamed on the model.
-    request = httpx.Request("GET", weather.FORECAST_URL)
-    response = httpx.Response(400, request=request, json={"reason": "Invalid date"})
-    stub_openmeteo(monkeypatch, [httpx.HTTPStatusError("400", request=request, response=response)])
+    refused = status_error(400, {"reason": "Invalid date"}, url=weather.FORECAST_URL)
+    stub_openmeteo(monkeypatch, [refused])
     with pytest.raises(UpstreamError) as exc:
         await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
 
@@ -1390,13 +1385,11 @@ def _invalid_key() -> httpx.HTTPStatusError:
     Measured 2026-09-11: HTTP 400, not a 401, which is why the reason text is
     what has to be recognised.
     """
-    request = httpx.Request("GET", weather.CUSTOMER_FORECAST_URL)
-    response = httpx.Response(
+    return status_error(
         400,
-        request=request,
-        json={"error": True, "reason": "The supplied API key is invalid."},
+        {"error": True, "reason": "The supplied API key is invalid."},
+        url=weather.CUSTOMER_FORECAST_URL,
     )
-    return httpx.HTTPStatusError("400", request=request, response=response)
 
 
 async def test_a_keyed_batch_goes_to_the_customer_host_carrying_the_key(monkeypatch):
@@ -1483,12 +1476,6 @@ def test_a_refused_key_is_not_classified_as_a_transient_failure():
     assert not issubclass(InvalidApiKeyError, ModelCoverageError)
 
 
-def _answered(status: int, body: dict[str, Any]) -> Callable[[str, dict], httpx.Response]:
-    """An error answer built on the request the service made, so the text
-    `raise_for_status` gives it names the keyed URL the way a real one does."""
-    return lambda url, params: fake_response(body, status, url=url, params=params)
-
-
 def _unreachable(url: str, params: dict) -> httpx.Response:
     # httpx's own transport messages name no URL today. This one does, so the
     # branch is held to redacting whatever its error says rather than to
@@ -1500,18 +1487,18 @@ def _unreachable(url: str, params: dict) -> httpx.Response:
 # Every branch of `request_openmeteo` that logs, each answered on a keyed URL.
 _KEYED_FAILURES = [
     pytest.param(
-        _answered(400, {"error": True, "reason": "The supplied API key is invalid."}),
+        answered(400, {"error": True, "reason": "The supplied API key is invalid."}),
         InvalidApiKeyError,
         id="refused-key",
     ),
     pytest.param(
-        _answered(429, {"reason": "Hourly API request limit exceeded"}),
+        answered(429, {"reason": "Hourly API request limit exceeded"}),
         UpstreamRateLimited,
         id="rate-limit",
     ),
-    pytest.param(_answered(502, {}), UpstreamError, id="upstream-error"),
+    pytest.param(answered(502, {}), UpstreamError, id="upstream-error"),
     pytest.param(
-        _answered(400, {"error": True, "reason": "No data is available for this location"}),
+        answered(400, {"error": True, "reason": "No data is available for this location"}),
         ModelCoverageError,
         id="model-coverage",
     ),
@@ -1519,7 +1506,7 @@ _KEYED_FAILURES = [
     # A refusal whose reason is not a string: read as no reason, so it is the
     # ordinary upstream error rather than a TypeError raised mid-handling.
     pytest.param(
-        _answered(400, {"error": True, "reason": 123}),
+        answered(400, {"error": True, "reason": 123}),
         UpstreamError,
         id="reason-not-a-string",
     ),
@@ -1542,7 +1529,7 @@ async def test_a_second_failed_batch_logs_no_key_either(monkeypatch, caplog):
     # awaits the second. Its exception chains the keyed URL, and asyncio would
     # log it at ERROR with that traceback when the task is collected, unless
     # the pipeline's cancel marks it seen first.
-    refused = _answered(400, {"error": True, "reason": "The supplied API key is invalid."})
+    refused = answered(400, {"error": True, "reason": "The supplied API key is invalid."})
     stub_openmeteo(monkeypatch, [refused, refused])
     with caplog.at_level(5):  # TRACE
         with pytest.raises(InvalidApiKeyError):

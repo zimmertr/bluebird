@@ -7,7 +7,7 @@ from datetime import date
 
 import httpx
 import pytest
-from conftest import sleep_recorder
+from conftest import sleep_recorder, status_error
 
 from app import ratelimit
 from app.services import weather
@@ -137,12 +137,10 @@ def test_a_spend_leaves_the_window_after_sixty_seconds(monkeypatch):
 
 
 def _http_429(body: dict | str, headers: dict | None = None) -> httpx.HTTPStatusError:
-    request = httpx.Request("GET", "https://api.open-meteo.com/v1/forecast")
+    url = "https://api.open-meteo.com/v1/forecast"
     if isinstance(body, dict):
-        response = httpx.Response(429, json=body, headers=headers, request=request)
-    else:
-        response = httpx.Response(429, text=body, headers=headers, request=request)
-    return httpx.HTTPStatusError("429", request=request, response=response)
+        return status_error(429, body, url=url, headers=headers)
+    return status_error(429, text=body, url=url, headers=headers)
 
 
 def test_parse_rate_limit_reads_the_scope_word():

@@ -17,6 +17,7 @@ from datetime import UTC, date, datetime
 
 import httpx
 import pytest
+from conftest import fake_response
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -199,7 +200,7 @@ def test_collection_json_carries_the_fetch_time_and_the_analysis_date():
 
 def _transport(responses: dict[str, httpx.Response]) -> httpx.MockTransport:
     def handler(request: httpx.Request) -> httpx.Response:
-        return responses.get(str(request.url), httpx.Response(404, text="not found"))
+        return responses.get(str(request.url), fake_response(None, 404, text="not found"))
 
     return httpx.MockTransport(handler)
 
@@ -229,7 +230,7 @@ def served_kml(monkeypatch):
 
 async def test_fetch_uses_todays_file(served_kml):
     today = date(2026, 8, 4)
-    asked = served_kml({hms.kml_url(today): httpx.Response(200, text=_kml(_placemark()))})
+    asked = served_kml({hms.kml_url(today): fake_response(None, text=_kml(_placemark()))})
     snapshot = await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
     assert asked == [hms.kml_url(today)]
     assert snapshot.analysis_date == "2026-08-04"
@@ -261,7 +262,7 @@ async def test_the_kml_parse_runs_off_the_event_loop(served_kml, monkeypatch):
             ticks += 1
 
     today = date(2026, 8, 4)
-    served_kml({hms.kml_url(today): httpx.Response(200, text=_kml(_placemark()))})
+    served_kml({hms.kml_url(today): fake_response(None, text=_kml(_placemark()))})
     beat = asyncio.create_task(heartbeat())
     await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
     beat.cancel()
@@ -274,7 +275,7 @@ async def test_fetch_falls_back_a_day_before_the_first_pass_lands(served_kml):
     # The morning state, not an outage: HMS's first analysis lands around late
     # morning Eastern, so the dated file simply does not exist before it.
     yesterday = date(2026, 8, 3)
-    asked = served_kml({hms.kml_url(yesterday): httpx.Response(200, text=_kml(_placemark()))})
+    asked = served_kml({hms.kml_url(yesterday): fake_response(None, text=_kml(_placemark()))})
     snapshot = await hms.fetch_snapshot(datetime(2026, 8, 4, 13, 0, tzinfo=UTC))
     assert asked == [hms.kml_url(date(2026, 8, 4)), hms.kml_url(yesterday)]
     # Labelled with the day it really came from, which is what keeps the
@@ -291,7 +292,7 @@ async def test_fetch_gives_up_when_neither_day_exists(served_kml):
 async def test_a_server_error_is_not_swallowed_as_a_missing_day(served_kml):
     # 500 is an outage and must surface; only 404 means "not published yet".
     today = date(2026, 8, 4)
-    asked = served_kml({hms.kml_url(today): httpx.Response(500, text="oops")})
+    asked = served_kml({hms.kml_url(today): fake_response(None, 500, text="oops")})
     with pytest.raises(httpx.HTTPStatusError):
         await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
     assert asked == [hms.kml_url(today)]

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from conftest import FAKE_API_KEY
+from conftest import FAKE_API_KEY, fake_response
 
 from app import ratelimit
 from app.main import _client_ip, app
@@ -75,7 +75,7 @@ async def test_httpx_logs_no_request_line_at_any_level(caplog):
     # request carries the caller's key in its query string. `main.py` holds
     # the httpx logger at WARNING so that line never reaches the log, even
     # with the root logger at TRACE.
-    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    transport = httpx.MockTransport(lambda request: fake_response(None))
     with caplog.at_level(5):  # TRACE
         async with httpx.AsyncClient(transport=transport) as http_client:
             await http_client.get(

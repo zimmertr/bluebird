@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -10,6 +9,7 @@ import pytest
 from conftest import (
     FAKE_API_KEY,
     RecordingPacer,
+    answered,
     assert_no_key_logged,
     dest,
     fake_response,
@@ -160,20 +160,13 @@ def _dests(n: int) -> list[dict[str, Any]]:
     return [dest(40.0 + i * 0.1, -120.0) for i in range(n)]
 
 
-def _answered(status: int, body: dict[str, Any]) -> Callable[[str, dict], httpx.Response]:
-    """An answer built on the request the service made, so the service's own
-    `raise_for_status` reads it and the text it gives names the keyed URL the
-    way a real one does."""
-    return lambda url, params: fake_response(body, status, url=url, params=params)
-
-
 async def test_a_rate_limit_skips_the_remaining_batches(monkeypatch):
     # 250 destinations = 5 batches against an in-flight gate of 4. The first
     # four overlap and all see the 429; the fifth only acquires a slot once one
     # of them has finished and set the flag, so it returns nulls without ever
     # reaching the network. The script holds four behaviors, so a fifth
     # upstream call would IndexError rather than pass quietly.
-    rate_limited = _answered(429, {"reason": "minutely API request limit exceeded"})
+    rate_limited = answered(429, {"reason": "minutely API request limit exceeded"})
     calls = stub_openmeteo(monkeypatch, [rate_limited] * 4, overlap=True)
     results = await fetch_aqi_batch(_dests(250), START, END)
 
@@ -184,7 +177,7 @@ async def test_a_rate_limit_skips_the_remaining_batches(monkeypatch):
 async def test_rate_limited_nulls_are_not_cached(monkeypatch):
     # Those Nones mean "unknown", not "no data for this window". Caching them
     # would freeze the outage in place for the length of the forecast TTL.
-    rate_limited = _answered(429, {"reason": "minutely API request limit exceeded"})
+    rate_limited = answered(429, {"reason": "minutely API request limit exceeded"})
     stub_openmeteo(monkeypatch, [rate_limited] * 4, overlap=True)
     assert await fetch_aqi_batch(_dests(250), START, END) == [None] * 250
 
@@ -221,7 +214,7 @@ async def test_a_failed_request_degrades_and_is_not_cached(monkeypatch):
     # The same rule for a batch the provider failed outright (a 5xx): null for
     # this analysis, asked again by the next.
     one = _hourly(["2026-07-21T00:00"], [80])
-    calls = stub_openmeteo(monkeypatch, [_answered(502, {}), [one]])
+    calls = stub_openmeteo(monkeypatch, [answered(502, {}), [one]])
     assert await fetch_aqi_batch(_dests(1), START, END) == [None]
 
     results = await fetch_aqi_batch(_dests(1), START, END)
@@ -322,7 +315,7 @@ async def test_a_refused_key_raises_instead_of_degrading_to_nulls(monkeypatch):
     # The one air-quality failure that is not best-effort: the same key rides
     # every batch, so nulls here would report no air quality for a reason the
     # caller could have fixed.
-    stub_openmeteo(monkeypatch, [_answered(400, _INVALID_KEY_BODY)])
+    stub_openmeteo(monkeypatch, [answered(400, _INVALID_KEY_BODY)])
     with pytest.raises(InvalidApiKeyError) as exc:
         await fetch_aqi_batch(_dests(1), START, END, api_key="bad-key")
 
@@ -331,7 +324,7 @@ async def test_a_refused_key_raises_instead_of_degrading_to_nulls(monkeypatch):
 
 async def test_an_ordinary_400_still_degrades_to_nulls(monkeypatch):
     # Only the invalid-key reason raises. Every other 400 stays best-effort.
-    stub_openmeteo(monkeypatch, [_answered(400, {"reason": "Invalid date"})])
+    stub_openmeteo(monkeypatch, [answered(400, {"reason": "Invalid date"})])
     assert await fetch_aqi_batch(_dests(1), START, END) == [None]
 
 
@@ -349,14 +342,14 @@ def _unreachable(url: str, params: dict) -> httpx.Response:
     ("answer", "error"),
     [
         pytest.param(
-            _answered(400, _INVALID_KEY_BODY),
+            answered(400, _INVALID_KEY_BODY),
             InvalidApiKeyError,
             id="refused-key",
         ),
         pytest.param(
-            _answered(429, {"reason": "Hourly API request limit exceeded"}), None, id="rate-limit"
+            answered(429, {"reason": "Hourly API request limit exceeded"}), None, id="rate-limit"
         ),
-        pytest.param(_answered(502, {}), None, id="upstream-error"),
+        pytest.param(answered(502, {}), None, id="upstream-error"),
         pytest.param(_unreachable, None, id="unreachable"),
     ],
 )

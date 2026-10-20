@@ -534,7 +534,7 @@ def arcgis_answering(status: int, body: dict, headers: dict[str, str]) -> httpx.
     """A transport whose every ArcGIS page is the same refusal."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(status, json=body, headers=headers, request=request)
+        return fake_response(body, status, url=str(request.url), headers=headers)
 
     return httpx.MockTransport(handler)
 
