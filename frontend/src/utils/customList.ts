@@ -19,9 +19,8 @@ export interface PendingDestination extends CustomDestination {
  * bought twice and the place ranked against itself. The count under the
  * coordinates box reads the same answer, so it says how many destinations the
  * list is rather than how many lines it has. `_merge_custom` in
- * backend/app/services/candidates.py applies the rule to an API caller's list,
- * and a polygon run whose map-server kinds failed applies it here to the rows
- * it would have sent there (#735).
+ * backend/app/services/candidates.py applies the same rule to every list the
+ * pod is sent.
  */
 export function distinctRows<T extends { latitude: number; longitude: number }>(rows: readonly T[]): T[] {
   const seen = new Set<string>()

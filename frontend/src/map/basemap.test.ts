@@ -9,8 +9,10 @@ import {
   POI_GLOW_IMAGE,
   setSource,
   townMarker,
+  TRAILHEAD_IMAGE,
 } from './basemap'
-import { CLIMBING_CLASS, POI_LAYERS, LAKE_CLASS, PLACE_LAYERS } from '../utils/basemapPoi'
+import { POI_LAYERS, LAKE_CLASS, PLACE_LAYERS } from '../utils/basemapPoi'
+import { LANDMARK_LAYERS } from '../utils/landmarks'
 import { stubMap } from '../testSupport/stubMap'
 
 // The node project has no DOM. A canvas with no 2D context is what a browser
@@ -48,18 +50,18 @@ describe('enhanceBasemap', () => {
       ['addLayer', 'ofm-lakes', 'road_label'],
       ['addLayer', 'ofm-lakes-line-glow', 'road_label'],
       ['addLayer', 'ofm-lakes-line', 'road_label'],
-      ['addLayer', 'ofm-climbing-glow', 'road_label'],
-      ['addLayer', 'ofm-climbing', 'road_label'],
     ])
   })
 
   // The place labels are the style's own: the map adds their glow, not them.
+  // The trailheads and crags are map/landmarks.ts's.
   it('adds every layer the click handler reads that the style does not carry', () => {
     const { map, calls } = stubMap({ styleLayers })
     enhanceBasemap(map)
     const added = calls.filter((c) => c[0] === 'addLayer').map((c) => c[1])
+    const elsewhere: readonly string[] = [...PLACE_LAYERS, ...LANDMARK_LAYERS]
     for (const id of POI_LAYERS) {
-      if ((PLACE_LAYERS as readonly string[]).includes(id)) expect(added).not.toContain(id)
+      if (elsewhere.includes(id)) expect(added).not.toContain(id)
       else expect(added).toContain(id)
     }
   })
@@ -81,8 +83,8 @@ describe('enhanceBasemap', () => {
     ])
   })
 
-  // The style's `poi` labels draw a climbing feature from z15 with no icon
-  // (the sprite has none), under the one `ofm-climbing` draws from z14.
+  // The style's `poi` labels draw every climbing route from z15 with no icon,
+  // and the maintainer keeps routes off the map (2026-10-16, #734).
   it('takes climbing off the style\'s poi labels without replacing their filter', () => {
     const rank = ['>=', ['get', 'rank'], 20]
     const { map, calls } = stubMap({
@@ -91,41 +93,12 @@ describe('enhanceBasemap', () => {
       filters: { poi_r20: rank },
     })
     enhanceBasemap(map)
-    const notOurs = ['!=', ['get', 'class'], CLIMBING_CLASS]
+    const notOurs = ['!=', ['get', 'class'], 'climbing']
     expect(calls.filter((c) => c[0] === 'setFilter' && String(c[1]).startsWith('poi_'))).toEqual([
       ['setFilter', 'poi_r1', notOurs],
       ['setFilter', 'poi_r7', notOurs],
       ['setFilter', 'poi_r20', ['all', rank, notOurs]],
     ])
-  })
-
-  // Named features only, as points, of the one class, from the zoom the
-  // tiles' `poi` layer is complete at, with a glow that lights the same set.
-  it('draws the named climbing features from z14, with a twin of the same filter', () => {
-    const added: Record<string, { filter?: unknown; minzoom?: number; layout?: Record<string, unknown> }> = {}
-    const { map } = stubMap({ styleLayers })
-    const addLayer = map.addLayer.bind(map)
-    map.addLayer = ((layer: (typeof added)[string] & { id: string }, before?: string) => {
-      added[layer.id] = layer
-      return addLayer(layer as never, before)
-    }) as typeof map.addLayer
-    enhanceBasemap(map)
-    const climbing = added['ofm-climbing']
-    expect(climbing.minzoom).toBe(14)
-    expect(climbing.filter).toEqual([
-      'all',
-      ['==', ['get', 'class'], CLIMBING_CLASS],
-      ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
-      ['has', 'name'],
-    ])
-    // No 2D canvas here, so the sprite's circle stands in for the drawn climber.
-    expect(climbing.layout?.['icon-image']).toBe('circle_stroked_11')
-    // Routes on one wall pile up at z14, so climbing alone lets collision
-    // hide icons; every other clickable layer keeps each marker.
-    expect(climbing.layout?.['icon-allow-overlap']).toBe(false)
-    expect(added['ofm-peaks'].layout?.['icon-allow-overlap']).toBe(true)
-    expect(added['ofm-climbing-glow'].filter).toEqual(climbing.filter)
-    expect(added['ofm-climbing-glow'].minzoom).toBe(14)
   })
 
   // The peak layer's source also holds cliffs and ridges, most of them with
@@ -154,11 +127,13 @@ describe('enhanceBasemap', () => {
     expect(calls.filter((c) => c[0] === 'setFilter')).toEqual([])
   })
 
-  // The climbing points wear the drawn climber (#715) at the sprite's @2x
-  // size, so it stands at the 17px the peak's icon does. The canvas here is a
-  // recorder: what matters is that a drawable icon is registered before the
-  // layer names it, and that the rock and the climber are both drawn.
-  it('registers the climber icon at pixel ratio 2 and draws climbing with it', () => {
+  // The crag and trailhead markers wear the drawn climber (#715) and the
+  // drawn signboard (#734) at the sprite's @2x size, so each stands at the
+  // 17px the peak's icon does. The canvas here is a recorder: what matters is
+  // that both are registered before map/landmarks.ts names them, and that
+  // each glyph is drawn: the rock and climber from paths, the signboard's
+  // roof, board and legs by hand.
+  it('registers the climber and the signboard at pixel ratio 2', () => {
     const drawn: string[] = []
     const ctx = new Proxy({} as Record<string, unknown>, {
       get: (_t, key: string) =>
@@ -172,20 +147,17 @@ describe('enhanceBasemap', () => {
     vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => ctx }) })
     vi.stubGlobal('Path2D', class { constructor(public d: string) {} })
     const images: [string, unknown][] = []
-    const added: Record<string, { layout?: Record<string, unknown> }> = {}
     const { map } = stubMap({ styleLayers })
     map.addImage = ((id: string, _img: unknown, opts?: unknown) => images.push([id, opts])) as unknown as typeof map.addImage
-    const addLayer = map.addLayer.bind(map)
-    map.addLayer = ((layer: (typeof added)[string] & { id: string }, before?: string) => {
-      added[layer.id] = layer
-      return addLayer(layer as never, before)
-    }) as typeof map.addLayer
     enhanceBasemap(map)
     expect(images).toContainEqual([CLIMBING_IMAGE, { pixelRatio: 2 }])
-    expect(added['ofm-climbing'].layout?.['icon-image']).toBe(CLIMBING_IMAGE)
+    expect(images).toContainEqual([TRAILHEAD_IMAGE, { pixelRatio: 2 }])
     // The rock is filled from a path and the climber's limbs stroked from one.
     expect(drawn).toContain('fill:1')
     expect(drawn).toContain('stroke:1')
+    // The signboard: a roof as a closed path, the board as one rectangle.
+    expect(drawn).toContain('closePath:0')
+    expect(drawn).toContain('fillRect:4')
   })
 
   // MapLibre draws nothing for an unknown icon and only warns, so a canvas
@@ -194,7 +166,7 @@ describe('enhanceBasemap', () => {
     const { map, calls } = stubMap({ styleLayers })
     enhanceBasemap(map)
     expect(calls.filter((c) => c[0] === 'addImage')).toEqual([])
-    expect(calls.filter((c) => c[0] === 'addLayer')).toHaveLength(9)
+    expect(calls.filter((c) => c[0] === 'addLayer')).toHaveLength(7)
   })
 })
 

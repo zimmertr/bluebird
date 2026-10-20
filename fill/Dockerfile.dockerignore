@@ -1,0 +1,12 @@
+# BuildKit reads this in place of the root .dockerignore for fill/Dockerfile.
+# The context is the repository root, for rules.py, and without this every
+# build would send the whole repository, node_modules included, to copy six
+# files.
+*
+!LICENSE
+!backend/app/services/osm/rules.py
+!backend/app/services/http.py
+!backend/app/db/migrations/
+!fill/fill.py
+!fill/tests/
+**/__pycache__/

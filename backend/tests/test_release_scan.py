@@ -72,14 +72,25 @@ def test_the_release_scans_after_the_push(jobs):
     assert "build-and-push" in _needs(job)
 
 
+# Each image the release pushes, by the job that pushes it (#760 added the
+# planet fill's).
+PUSHED = {"bluebird": "build-and-push", "bluebird-fill": "build-and-push-fill"}
+
+
 def test_the_scan_reads_the_pushed_digest_not_a_tag(jobs):
     # The build step's own digest, so the scanned bytes are the pushed bytes.
-    assert "outputs.digest" in str(jobs["build-and-push"].get("outputs", {}).get("digest", ""))
     _, job = _scan(jobs)
+    matrix = job.get("strategy", {}).get("matrix", {})
+    assert set(matrix.get("image", [])) == set(PUSHED)
+    digests = {entry["image"]: entry.get("digest") for entry in matrix.get("include", [])}
+    for image, pusher in PUSHED.items():
+        assert "outputs.digest" in str(jobs[pusher].get("outputs", {}).get("digest", ""))
+        assert pusher in _needs(job)
+        assert digests[image] == f"${{{{ needs.{pusher}.outputs.digest }}}}"
     trivy = [s for s in job["steps"] if _uses(s, "aquasecurity/trivy-action")]
     assert len(trivy) == 1
     ref = trivy[0]["with"]["image-ref"]
-    assert "@${{ needs.build-and-push.outputs.digest }}" in ref
+    assert ref == "zimmertr/${{ matrix.image }}@${{ matrix.digest }}"
     assert "semVer" not in ref
     # trivy.yaml holds the exclusions the PR gate and the weekly scan apply.
     assert trivy[0]["with"].get("trivy-config") == "trivy.yaml"

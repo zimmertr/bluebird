@@ -1,4 +1,4 @@
-"""NOAA HMS smoke plumes, fetched once per pod instead of once per visitor.
+"""NOAA HMS smoke plumes, fetched by the server instead of once per visitor.
 
 HMS is the Hazard Mapping System: analysts at NOAA look at GOES imagery and
 trace the visible smoke by hand, classing each plume Light, Medium or Heavy.
@@ -28,6 +28,10 @@ so it is what is read here. Note the trap this replaced: the KML at
 ``ospo.noaa.gov/data/land/fire/smoke.kml`` is advertised as current and is
 frozen at 2026-07-18 — one day before the numeric-to-named density switch, so
 it does not even parse the same way.
+
+Each pod fetches the file for itself unless the shared cache is on (#760),
+when one pod at a time does and every pod reads the snapshot from the
+database (``snapshot.py``).
 """
 
 from __future__ import annotations
@@ -39,15 +43,17 @@ import re
 import time
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
 
 import httpx
 
+from app.db import refresh
 from app.env import env_int
 from app.services.errors import UpstreamError
 from app.services.http import HEADERS
-from app.services.snapshot import cache_factory
+from app.services.snapshot import Shared, cache_factory
 
 log = logging.getLogger(__name__)
 
@@ -113,7 +119,7 @@ class Snapshot:
     request would be work with no question behind it. ``fetched_at_ms`` is wall
     time because it is shown to a person; freshness is tracked separately on the
     monotonic clock, which is the one that must not move when the host's clock
-    is corrected.
+    is corrected, or with the shared cache on from the age of its row.
     """
 
     fetched_at_ms: int
@@ -293,6 +299,29 @@ async def fetch_snapshot(now: datetime | None = None) -> Snapshot:
     raise UpstreamError("Smoke data is unavailable. Try again later.")
 
 
+def _encode(snapshot: Snapshot) -> dict[str, Any]:
+    return {
+        "fetched_at_ms": snapshot.fetched_at_ms,
+        "analysis_date": snapshot.analysis_date,
+        "plumes": snapshot.plumes,
+        "body": snapshot.body,
+    }
+
+
+def _decode(data: dict[str, Any]) -> Snapshot:
+    return Snapshot(
+        fetched_at_ms=data["fetched_at_ms"],
+        analysis_date=data["analysis_date"],
+        plumes=data["plumes"],
+        body=data["body"],
+    )
+
+
+# The snapshot as the shared cache's `snapshots` row holds it (#760), the
+# finished body as a string so a reader serves it without re-encoding. Bump
+# `format` whenever `_encode` changes shape.
+SHARED = Shared(source="smoke", format=1, encode=_encode, decode=_decode)
+
 # The shared snapshot cache, wired to this module's fetch and knobs.
 smoke_cache = cache_factory(
     label=PROVIDER,
@@ -300,6 +329,10 @@ smoke_cache = cache_factory(
     ttl_s=TTL_S,
     retry_after_failure_s=RETRY_AFTER_FAILURE_S,
     describe=lambda s: f"{s.plumes} plumes analyzed {s.analysis_date}",
+    shared=SHARED,
 )
 
 PLUMES = smoke_cache()
+
+# With the shared cache on, the one fetch every pod reads (#760).
+refresh.register(PLUMES.source())

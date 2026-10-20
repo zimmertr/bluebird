@@ -1,9 +1,10 @@
 """The candidate set both discovery routes build.
 
 `POST /api/analyze` and `POST /api/destinations` turn a request into the same
-list of destinations: Overpass discovery with its one mapping from failures to
-API errors, the caller's own list resolved against OSM and merged in, the
-elevation band, and the over-cap refusal with its elevation-floor suggestion.
+list of destinations: discovery from the places table, or from Overpass while
+the table cannot answer, with its one mapping from failures to API errors; the
+caller's own list resolved against OSM and merged in; the elevation band; and
+the over-cap refusal with its elevation-floor suggestion.
 One module, so the two routes cannot answer the same request two ways.
 """
 
@@ -22,7 +23,7 @@ from app.models import (
     DestinationType,
     GeoPolygon,
 )
-from app.services import osm
+from app.services import osm, places
 from app.services.cache import point_key
 from app.services.errors import UpstreamError
 from app.services.ranking import _cap_detail
@@ -130,13 +131,10 @@ def _merge_custom(discovered: list[dict], custom: list[dict]) -> list[dict]:
     else. The user's own rows always survive; near-misses simply coexist as two
     rows.
 
-    A name used to claim a row too, and that dropped a crag whenever the basemap
-    peak of the same name rode in as a custom row, which is how the browser
-    sends the peaks it read from the tiles (#715). So a pasted row and a
+    A name used to claim a row too, and that dropped a crag whenever a peak of
+    the same name rode in as a custom row (#715). So a pasted row and a
     discovered row of one name at different coordinates are two rows, Custom
-    and Peak, as the maintainer accepted on 2026-10-15; that is already what
-    the browser does for the tile types, where both arrive as custom rows and
-    `_distinct_by_coord` reads coordinates alone.
+    and Peak, as the maintainer accepted on 2026-10-15.
 
     A custom row repeated at one coordinate key is kept once
     (`_distinct_by_coord`), whoever built the list.
@@ -213,7 +211,12 @@ async def discover(
     include_unnamed_peaks: bool = False,
     on_status: osm.StatusCallback | None = None,
 ) -> list[dict]:
-    """Overpass discovery, with the one mapping from its failures to API errors.
+    """Discovery, with the one mapping from its failures to API errors.
+
+    The places table answers when it is filled (#760), and Overpass when it is
+    not: a deployment with no database, one whose first fill has not finished,
+    or a database that dropped mid-search. The table cannot fail the request,
+    so the ladder below is Overpass's.
 
     Four causes, four answers, and the sentence an unrecognized failure gives a
     caller is as much the contract as the code beside it. Every route that
@@ -226,6 +229,11 @@ async def discover(
     None.
     """
     try:
+        held = await places.discover(
+            polygon, destination_types, include_unnamed_peaks=include_unnamed_peaks
+        )
+        if held is not None:
+            return held
         return await osm.query_osm(
             polygon,
             destination_types,

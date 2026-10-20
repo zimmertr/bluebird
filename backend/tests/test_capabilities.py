@@ -89,6 +89,8 @@ def test_limits_mirror_the_constants_the_validators_enforce():
             "smoke_burst": ratelimit.client.SMOKE_LIMITER.burst,
             "closures_per_minute": ratelimit.client.CLOSURES_LIMITER.per_minute,
             "closures_burst": ratelimit.client.CLOSURES_LIMITER.burst,
+            "landmarks_per_minute": ratelimit.client.LANDMARKS_LIMITER.per_minute,
+            "landmarks_burst": ratelimit.client.LANDMARKS_LIMITER.burst,
         },
     }
 

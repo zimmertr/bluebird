@@ -47,17 +47,17 @@ export const DATA = [
     // The unreachable message is decided at the primitive, which only holds
     // while the primitive is the only door. Open-Meteo keeps its own, because
     // its failures are about a quota and a model domain rather than our pod,
-    // and so does the tile host the elevation lookup reads (#673), whose
-    // failure is no message at all: the pod's lookup takes the rows. The
-    // point readings a click on the radar or the snow takes (#737) have one
-    // door of their own for the same reason: a failed reading is no message.
+    // and so does the tile host the glacier check reads (#748), whose failure
+    // is no message at all: the snow card keeps its depth word. The point
+    // readings a click on the radar or the snow takes (#737) have one door of
+    // their own for the same reason: a failed reading is no message.
     name: 'one-api-door',
     files: ['src/**/*.{ts,tsx}'],
     ignores: [
       'src/**/*.test.{ts,tsx}',
       'src/utils/apiFetch.ts',
+      'src/utils/glacierCell.ts',
       'src/utils/openMeteo.ts',
-      'src/utils/peakTiles.ts',
       'src/utils/pointReadout.ts',
     ],
     probe: 'src/App.tsx',

@@ -1,28 +1,15 @@
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
-  CustomDestination,
   DestinationResult,
   DestinationsRequest,
   DestinationsResponse,
   DiscoveredDestination,
-  DiscoveryType,
   RefusalFields,
 } from '../types'
-import {
-  AnalysisRefusalError,
-  analysisNoun,
-  capDetail,
-  customRows,
-  resolveCustomOnly,
-  runClientAnalysis,
-  truncateTopElevation,
-  withKnownTypes,
-} from './clientAnalyze'
+import { AnalysisRefusalError, customRows, resolveCustomOnly, runClientAnalysis, withKnownTypes } from './clientAnalyze'
 import type { LatePatch } from './clientAnalyze'
-import { type Identity, NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
-import { geoKey } from './points'
-import { distinctRows } from './customList'
+import { type IdentityMap, NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
 import type { ElevationLookup } from '../hooks/useElevationLookup'
 import { postDestinations } from './apiFetch'
 import { resolveWindow, type WindowLimits } from './forecastWindow'
@@ -36,15 +23,16 @@ import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecast
 // ranking applied. No React here: the hook that calls it owns the state.
 //
 // The primary path (#170): the browser does the analysis itself. The
-// candidate list is the only server call (POST /api/destinations, one
-// Overpass query), and the forecasts come straight from Open-Meteo on the
-// visitor's own IP and quota, paced under it. Throws OpenMeteoUnreachable
-// when the forecast API can't be reached (network/CORS); since #240 that
-// fails the analysis with its own message, and nothing retries it through
-// the pod's shared quota. A rate limit is NOT that class: the quota is per
-// IP, and for a deployment sharing its egress with the visitor a same-IP
-// retry only deepens the exhaustion (issue #180). Those surface honestly
-// instead.
+// candidate list is the only server call (POST /api/destinations, answered
+// from the pod's own copy of OpenStreetMap, or by one Overpass query on a
+// deployment without it, #760), and the forecasts come straight from
+// Open-Meteo on the visitor's own IP and quota, paced under it. Throws
+// OpenMeteoUnreachable when the forecast API can't be reached (network/CORS);
+// since #240 that fails the analysis with its own message, and nothing
+// retries it through the pod's shared quota. A rate limit is NOT that class:
+// the quota is per IP, and for a deployment sharing its egress with the
+// visitor a same-IP retry only deepens the exhaustion (issue #180). Those
+// surface honestly instead.
 
 /**
  * What a discovery failure with no readable body says (#579, approved by the
@@ -81,32 +69,32 @@ export async function readErrorBody(res: Response): Promise<{ message: string; r
   return { message: message || fallback, refusal }
 }
 
-/**
- * A discovery the map server could not answer: the pod's own 5xx or 429, or
- * an edge's page in place of it. Its own class so a polygon run can keep the
- * rows that needed no map server (#735), where a refusal or a malformed
- * request still fails the run, since asking again cannot change either.
- */
-export class DiscoveryUnavailableError extends Error {}
-
 /** The field an analysis will forecast, and what finding it reported. */
 export interface Discovered {
   candidates: DiscoveredDestination[]
   // Server-side truncation, which happened at discovery.
   totalFound: number | null
   truncated: boolean
-  // The ticked kinds the map server failed to answer, which the field is
-  // therefore without (#735). Empty for every run that found what it asked.
-  missingTypes: readonly DiscoveryType[]
 }
-
-const NONE_MISSING: readonly DiscoveryType[] = []
 
 // A polygon run's one server call: what is in here? A run with no polygon
 // never comes this way. Its field is the list it was sent, and
 // `runAnalysisPipeline` resolves that list beside the forecasts instead
 // (`resolveCustomOnly`, #643).
-export async function discoverCandidates(request: AnalyzeRequest, signal: AbortSignal): Promise<Discovered> {
+//
+// `known` is what the browser's own lookup has learned about the reader's
+// list (#673). The list rides with those elevations and with
+// `elevation_lookup` off, so the pod answers its rows as sent rather than
+// asking again about rows the lookup already placed, which on a deployment
+// without the database is a second Overpass query in front of the run; a row
+// still unknown takes the lookup's answer when it lands (`placeHeld`). The
+// rows come back typed `custom` and without an OSM id, so what the lookup
+// learned is put back on them here.
+export async function discoverCandidates(
+  request: AnalyzeRequest,
+  signal: AbortSignal,
+  known: IdentityMap = NO_IDENTITY,
+): Promise<Discovered> {
   const customList = request.custom_destinations ?? []
   const discoveryRequest: DestinationsRequest = {
     polygon: request.polygon,
@@ -120,14 +108,15 @@ export async function discoverCandidates(request: AnalyzeRequest, signal: AbortS
     // The user's own list rides along with whatever discovery found: the union
     // proceeds even when the polygon itself found nothing. The server owns
     // this merge, because resolving those rows and merging them are one trip.
-    ...(customList.length ? { custom_destinations: customList } : {}),
+    ...(customList.length
+      ? { custom_destinations: withLearnedElevation(customList, known), elevation_lookup: false }
+      : {}),
   }
   const discovered = await discoveryAnswer(await postDestinations(discoveryRequest, signal))
   return {
-    candidates: discovered.destinations,
+    candidates: withIdentity(discovered.destinations, known),
     totalFound: discovered.total_found ?? null,
     truncated: discovered.truncated ?? false,
-    missingTypes: NONE_MISSING,
   }
 }
 
@@ -136,120 +125,9 @@ async function discoveryAnswer(res: Response): Promise<DestinationsResponse> {
   if (!res.ok) {
     const { message, refusal } = await readErrorBody(res)
     if (refusal) throw new AnalysisRefusalError(message)
-    if (res.status >= 500 || res.status === 429) throw new DiscoveryUnavailableError(message)
     throw new Error(message)
   }
   return (await res.json()) as DestinationsResponse
-}
-
-/**
- * A polygon run's discovery from the basemap's tiles first (#675, decision
- * 0118). The peaks and lakes inside the ring are read from the zoom-14 tiles
- * under it (`tileDiscovery.ts`), in well under a second from a warm edge,
- * and the pod is sent what the tiles cannot answer: the trailheads, which no
- * tile carries, and the crags, which no tile tells from a route, discovered
- * through the map server as before. The
- * tile rows and the reader's own list ride as `custom_destinations` with
- * `elevation_lookup: false`, so the call takes no map-server slot and
- * answers in milliseconds unless trailheads or crags are ticked; the rows come back
- * typed `custom`, so their kinds and OSM ids are put back here from what the
- * tiles said. The cap is applied before the call, as the pod would apply it
- * to the union: a refusal below the opt-in, the highest kept above it.
- *
- * When the call fails upstream, the run keeps what needed no map server
- * (#735, decision 0164): the tile rows and the reader's list are the field,
- * and the kinds the pod was asked to find ride on it as `missingTypes` for
- * the panel to name (none, when the tiles answered every kind and only the
- * pod itself failed). The rows are the ones the pod would have answered,
- * since a call with `elevation_lookup: false` echoes what it is sent with
- * each coordinate kept once, so that rule (`distinctRows`) stands in for the
- * call rather than a second request to a pod that may be what failed. A run
- * with no such rows has nothing to rank and fails with the map server's
- * message as before.
- *
- * Null when the tiles cannot answer the ring, and the run takes the map
- * server's path (`discoverCandidates`) as before: a request for trailheads
- * or crags alone, a ring over `DISCOVERY_TILE_BUDGET`, a tile that could not be read,
- * or the decoder's chunk failing to load. The decoder and the tile library
- * load on the first polygon run, so the cold load the Lighthouse gate
- * measures carries neither.
- */
-async function discoverFromTilesFirst(
-  request: AnalyzeRequest,
-  options: PipelineOptions,
-  signal: AbortSignal,
-): Promise<Discovered | null> {
-  const ring = request.polygon?.coordinates[0] ?? []
-  const types = request.destination_types
-  let tiles: typeof import('./tileDiscovery')
-  let peakTiles: typeof import('./peakTiles')
-  try {
-    ;[tiles, peakTiles] = await Promise.all([import('./tileDiscovery'), import('./peakTiles')])
-  } catch {
-    return null
-  }
-  if (!tiles.tileDiscoverable(ring, types)) return null
-  const fetchTile = peakTiles.fetchTileWith(await peakTiles.tileTemplate(), signal)
-  const found = await tiles.discoverFromTiles(ring, types, request.include_unnamed_peaks ?? false, fetchTile)
-  if (found === null) return null
-
-  const known = options.identity?.latest() ?? NO_IDENTITY
-  let rows: DiscoveredDestination[] = [...found, ...withIdentity(customRows(request.custom_destinations ?? []), known)]
-  const cap = options.maxDestinations
-  let totalFound: number | null = null
-  let truncated = false
-  if (rows.length > cap) {
-    if (!(request.top_by_elevation ?? false)) throw new AnalysisRefusalError(capDetail(rows.length, analysisNoun(request), cap))
-    totalFound = rows.length
-    rows = truncateTopElevation(rows, cap)
-    truncated = true
-  }
-  // What the pod will not say back: each row's kind and OSM id, by position.
-  const kinds: Record<string, string> = { ...(options.knownTypes ?? {}) }
-  const identity = new Map<string, Identity>()
-  for (const r of rows) {
-    const key = geoKey(r.latitude, r.longitude)
-    if (r.type !== 'custom') kinds[key] = r.type
-    identity.set(key, { elevation_ft: r.elevation_ft, osm_id: r.osm_id })
-  }
-  const sent: CustomDestination[] = rows.map((r) => ({
-    name: r.name,
-    latitude: r.latitude,
-    longitude: r.longitude,
-    ...(r.elevation_ft != null ? { elevation_ft: r.elevation_ft } : {}),
-  }))
-  const server = tiles.splitTypes(types).server
-  let answer: DestinationsResponse
-  try {
-    answer = await discoveryAnswer(
-      await postDestinations(
-        {
-          polygon: request.polygon,
-          destination_types: server,
-          include_unnamed_peaks: request.include_unnamed_peaks ?? false,
-          min_elevation_ft: request.min_elevation_ft,
-          max_elevation_ft: request.max_elevation_ft,
-          top_by_elevation: request.top_by_elevation ?? false,
-          custom_destinations: sent,
-          elevation_lookup: false,
-        },
-        signal,
-      ),
-    )
-  } catch (e) {
-    if (!(e instanceof DiscoveryUnavailableError) || rows.length === 0) throw e
-    return { candidates: distinctRows(rows), totalFound, truncated, missingTypes: server }
-  }
-  // The pod truncates the union it saw, tile rows included, and reports what
-  // it saw; otherwise the count is this side's, over the tile rows and the
-  // list before the cut.
-  const podTruncated = answer.truncated ?? false
-  return {
-    candidates: withIdentity(withKnownTypes(answer.destinations, kinds), identity),
-    totalFound: podTruncated ? (answer.total_found ?? null) : totalFound,
-    truncated: truncated || podTruncated,
-    missingTypes: NONE_MISSING,
-  }
 }
 
 export interface PipelineOptions {
@@ -298,9 +176,6 @@ export interface PipelineResult {
   // the rows it changed (each reduced again at its height) and the columns
   // still worth holding. Rejects only on abort.
   late: Promise<LatePatch> | null
-  // The ticked kinds the map server failed to answer, which this report is
-  // without (#735). A committed report all the same, so the run commits.
-  missingTypes: readonly DiscoveryType[]
 }
 
 export async function runAnalysisPipeline(request: AnalyzeRequest, options: PipelineOptions): Promise<PipelineResult> {
@@ -316,7 +191,7 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
   let found: Discovered
   let resolving: Promise<readonly DiscoveredDestination[]> | undefined
   if (request.polygon) {
-    found = typed((await discoverFromTilesFirst(request, options, signal)) ?? (await discoverCandidates(request, signal)))
+    found = typed(await discoverCandidates(request, signal, options.identity?.latest() ?? NO_IDENTITY))
   } else {
     // A run with no polygon discovers nothing: its field is the list it was
     // sent, with the elevations the browser's own lookup has learned. So the
@@ -330,7 +205,7 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     // the pod to look up what is still missing, the way every custom run
     // once did.
     const custom = request.custom_destinations ?? []
-    const listed = { totalFound: null, truncated: false, missingTypes: NONE_MISSING }
+    const listed = { totalFound: null, truncated: false }
     const known = options.identity?.latest() ?? NO_IDENTITY
     found = typed({ ...listed, candidates: withIdentity(customRows(custom), known) })
     const lookup = (request.top_by_elevation ?? false) && custom.length > options.maxDestinations
@@ -374,6 +249,5 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     // those rows have nothing left to wait for.
     pending: late ? new Set(columns.keys()) : new Set(),
     late,
-    missingTypes: found.missingTypes,
   }
 }

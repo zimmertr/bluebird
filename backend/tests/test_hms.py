@@ -298,6 +298,23 @@ async def test_a_server_error_is_not_swallowed_as_a_missing_day(served_kml):
     assert asked == [hms.kml_url(today)]
 
 
+async def test_a_snapshot_reads_back_from_the_shared_cache_as_the_same_answer(served_kml):
+    # A day with every density and an unrecognized style, so the body carries
+    # the raw value too; what every pod serves is the body, byte for byte.
+    today = date(2026, 8, 4)
+    kml = _kml(
+        _placemark(style="#Smoke_Light_style"),
+        _placemark(style="#Smoke_Medium_style", satellite="GOES-EAST"),
+        _placemark(style="#Smoke_Heavy_style", start="not a stamp"),
+        _placemark(style="#Smoke_Extreme_style"),
+    )
+    served_kml({hms.kml_url(today): httpx.Response(200, text=kml)})
+    snapshot = await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
+    read_back = hms.SHARED.unpack(hms.SHARED.pack(snapshot))
+    assert read_back == snapshot
+    assert read_back.body == snapshot.body
+
+
 # ── The cache ─────────────────────────────────────────────────────────────────
 #
 # The mechanics are SnapshotCache's and are exercised against the fire overlay

@@ -32,6 +32,11 @@ export interface OverlayRecovery {
   succeeded(): void
   /** The overlay is off or gone: drop the timer and the listener. */
   stop(): void
+  /**
+   * Whether the last failure's `Retry-After` is still running. A layer that
+   * is always on asks this before a pan's fetch (`map/landmarks.ts`).
+   */
+  waiting(): boolean
 }
 
 export interface OverlayRecoveryOptions {
@@ -94,6 +99,9 @@ export function overlayRecovery(
       failing = false
       clearTimer()
       listen(false)
+    },
+    waiting() {
+      return failing && now() < notBefore
     },
   }
 }

@@ -22,13 +22,14 @@ from app.models import DestinationType, GeoPolygon
 from app.services import cache
 from app.services.errors import PartialResultError, UpstreamError, classify_http_error, log_reason
 from app.services.http import HEADERS
+from app.services.osm import rules
 from app.services.osm.query import (
-    IMPLEMENTED_TYPES,
     SERVER_TIMEOUT_TOKEN,
     _build_query,
     _classify,
     _ele_ft,
     _polygon_to_overpass,
+    check_implemented,
 )
 
 # The service's one logger name, kept across the split so a log query written
@@ -43,7 +44,7 @@ PROVIDER = "OpenStreetMap (Overpass)"
 StatusCallback = Callable[[str], Awaitable[None]]
 
 # Which question a chain is asking, as the Overpass metrics label it.
-OverpassPath = Literal["discovery", "enrichment"]
+OverpassPath = Literal["discovery", "enrichment", "update"]
 
 
 @dataclass(frozen=True)
@@ -163,11 +164,7 @@ async def query_osm(
     types = sorted(set(destination_types), key=lambda t: t.value)
     if not types:
         return []
-    for t in types:
-        if t not in IMPLEMENTED_TYPES:
-            raise NotImplementedError(
-                f"Destination type '{t.value}' is not yet implemented."
-            )
+    check_implemented(types)
 
     # Discovery is cached post-parse for ~10 minutes: the browser flow calls
     # /api/destinations and its server fallback re-runs the identical query
@@ -201,44 +198,38 @@ async def query_osm(
     # chain, so a failover releases mirror A before it queues on mirror B.
     data = await _post_with_fallback(query, on_status, path="discovery")
 
+    asked = {t.value for t in types}
     results: list[dict[str, Any]] = []
-    seen_names: set[tuple[str, str]] = set()
+    order: list[tuple[Any, ...]] = []
+    mergeable: list[bool] = []
     seen_generated: set[Any] = set()
 
     for element in data.get("elements", []):
         tags = element.get("tags", {})
+        classified = _classify(element["type"], tags)
+        # A feature the rules do not recognise is no destination, and one they
+        # read as a kind nobody asked for is not this search's: a summit node
+        # that also carries a crag's tags is a peak, and a crags-only ring
+        # leaves it out, the same answer the places table gives (#760).
+        if classified is None or classified[0] not in asked:
+            continue
+        kind, named = classified
         elevation_ft = _ele_ft(tags)
-        name = tags.get("name")
-        generated = False
-        if not name:
+        if named:
+            name = tags["name"]
+        else:
             # An unnamed summit is named for the height it is drawn with, the
             # same way the map labels it and the same string the browser builds
-            # for a clicked one (basemapPoi.ts) — so a peak added both ways is
-            # one destination rather than two spellings of it.
+            # for a clicked one (basemapPoi.ts), so a peak added both ways is
+            # one destination rather than two spellings of it. Its OSM id is
+            # its only identity: every unnamed 5,961 ft peak in a range shares
+            # the name.
             if not include_unnamed_peaks or elevation_ft is None:
                 continue
-            # Unreachable for anything the unnamed clauses ask for, which is
-            # summits alone, and kept for `_classify`'s own reason: a mirror
-            # answering an element it was not asked for must not become a row
-            # named "Peak N" and typed as something else.
-            if _classify(tags) != DestinationType.peak.value:
-                continue
-            name = f"Peak {round(elevation_ft)}"
-            generated = True
-        # Type and name are the identity rule for mapped features. The name
-        # has to stay in it: OSM carries duplicate nodes for the same summit.
-        # The type joined it in #715: a crag named for the peak it stands on
-        # (The Tooth, Chair Peak) is a second destination, and the Type column
-        # is what tells the two apart. The rule cannot apply to a generated
-        # name, though — every unnamed 5,961 ft peak in a range would collapse
-        # into one row — so those dedup by OSM id, which is the only identity
-        # they actually have.
-        kind = _classify(tags)
-        if generated:
             if element["id"] in seen_generated:
                 continue
-        elif (kind, name) in seen_names:
-            continue
+            seen_generated.add(element["id"])
+            name = f"Peak {round(elevation_ft)}"
 
         if element["type"] == "node":
             lat = element.get("lat")
@@ -251,10 +242,6 @@ async def query_osm(
         if lat is None or lon is None:
             continue
 
-        if generated:
-            seen_generated.add(element["id"])
-        else:
-            seen_names.add((kind, name))
         results.append(
             {
                 "name": name,
@@ -268,7 +255,16 @@ async def query_osm(
                 "osm_id": f"{element['type']}/{element['id']}",
             }
         )
+        order.append((rules.preference(tags), rules.ELEMENT_ORDER[element["type"]], element["id"]))
+        mergeable.append(named)
         log.trace("  OSM element: %s (%.4f, %.4f) ele=%s", name, lat, lon, elevation_ft)  # type: ignore[attr-defined]
+
+    # Type, name and place are the identity rule for a mapped feature (#760):
+    # OSM carries a summit twice, or a trailhead as a node beside the lot named
+    # for it, and those are one destination; two places that only share a name
+    # are two. A crag named for the peak it stands on stays a second row (#715),
+    # since the type is part of the rule.
+    results = rules.merge_neighbours(results, order, mergeable)
 
     log.info("OSM returned %d named destination(s)", len(results))
     # Deep copy on store too: the fresh path returns `results` to its caller,

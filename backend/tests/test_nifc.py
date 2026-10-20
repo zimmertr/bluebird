@@ -351,6 +351,32 @@ def test_collection_json_carries_the_coverage_member():
     assert len(body["coverage"]["coordinates"]) >= 4
 
 
+# ── The shared cache's row (#760) ─────────────────────────────────────────────
+
+
+def test_a_snapshot_reads_back_from_the_shared_cache_as_the_same_answer():
+    # Two fidelities that differ, as a real refresh's do, and a name with the
+    # characters JSON escapes. What matters is the answer: every pod reading
+    # the row must serve the bytes the fetching pod would have.
+    full = [
+        _polygon(-121.9, 46.7, -121.5, 47.0, name='The "Goat Rocks" Fire'),
+        _polygon(-150.2, 61.1, -149.8, 61.4, name="Fire\\Line 9, Chugach été"),
+    ]
+    coarse = [_polygon(-121.9, 46.7, -121.5, 47.0, name="Goat Rocks coarse")]
+    snapshot = nifc.Snapshot(
+        fetched_at_ms=1_722_470_000_123,
+        full=tuple(f for f in map(nifc._to_fire, full) if f is not None),
+        coarse=tuple(f for f in map(nifc._to_fire, coarse) if f is not None),
+    )
+    read_back = nifc.SHARED.unpack(nifc.SHARED.pack(snapshot))
+    assert read_back == snapshot
+    for coarse_copy in (False, True):
+        box = (-180.0, -90.0, 180.0, 90.0)
+        assert nifc.collection_json(read_back, read_back.within(box, coarse=coarse_copy)) == (
+            nifc.collection_json(snapshot, snapshot.within(box, coarse=coarse_copy))
+        )
+
+
 # ── The route ─────────────────────────────────────────────────────────────────
 
 

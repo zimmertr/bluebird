@@ -1,6 +1,6 @@
 # 0164. A polygon search keeps what needed no map server when the map server fails, and names the kinds it is without
 
-- Status: Accepted
+- Status: Superseded by 0176
 - Date: 2026-10-16
 - Decider: the maintainer (TJ), on issue #735, 2026-10-16: option B (one call, and on failure the rows already held), option C dropped to #745, and the warn line's wording
 - Issues and PRs: #735, #745 (the oversized ring), #715 and #731 (crags, which take the same path), #675 (discovery from the tiles), #560 (an uncommitted run changes nothing), #734

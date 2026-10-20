@@ -1,23 +1,19 @@
-// Turning a labeled basemap feature into a destination (#119, #710).
+// Turning a clicked map label into a destination (#119, #710, #734).
 //
-// Every clickable label on the map comes from the OpenMapTiles vector tiles:
-// the peaks, lakes and climbing features the app draws itself, and the
-// cities, towns, villages and hamlets the style already labels. So the name
-// and elevation a click needs are sitting in the feature's properties: no
+// The peaks and lakes the app draws itself, and the cities, towns, villages
+// and hamlets the style already labels, come from the OpenMapTiles vector
+// tiles. The trailheads and crags come from the pod's own copy of
+// OpenStreetMap (`GET /api/landmarks`, `utils/landmarks.ts`), because the
+// tiles carry no trailhead and cannot tell a crag from a route. Either way the
+// name and elevation a click needs are sitting in the feature's properties: no
 // lookup, no network call.
 // The job here is only to decide which features are destinations at all, and
-// to normalize the tile's fields into the `Place` the searched-destinations
+// to normalize their fields into the `Place` the searched-destinations
 // pipeline already carries end to end (map dot → `pins` URL param →
 // `custom_destinations` on the next Analyze).
-//
-// Trailheads are deliberately absent even though the app discovers them: it
-// finds them as `highway=trailhead`, and OpenMapTiles' `poi` layer does not
-// source that tag, so there is nothing on the basemap to click (measured
-// 2026-10-15 at Mount Si: its trailhead is in the tile only as a bus stop and
-// a parking lot). Adding them would mean shipping a second data source for a
-// layer the map does not draw.
 
 import { Place } from './geocode'
+import { LANDMARK_LAYERS, landmarkKindOf } from './landmarks'
 
 /**
  * The lake label layers.
@@ -31,19 +27,6 @@ import { Place } from './geocode'
  * from either id.
  */
 export const LAKE_LAYERS = ['ofm-lakes', 'ofm-lakes-line'] as const
-
-/**
- * The `poi` class the app draws as a climbing label and accepts (#710).
- *
- * One class for a crag and a single route alike: the tile drops OSM's
- * `climbing=` tag, so `Foodbar Crag` and the route `Thin Fingers` carry the
- * same properties (measured 2026-10-15 at Index, z14/2659/5707) and both are
- * selectable. The crag type #715 discovers by Overpass (crags, areas and
- * boulders, never routes) therefore cannot be matched from a click, which the maintainer
- * accepted on 2026-10-15. `ofm-climbing` filters on this class and the
- * style's own `poi` labels are filtered off it, so nothing is labelled twice.
- */
-export const CLIMBING_CLASS = 'climbing'
 
 /**
  * The style's own place labels, which a click takes where the style draws
@@ -70,7 +53,7 @@ export const PLACE_LAYERS = [
 export const PLACE_CLASSES = ['city', 'town', 'village', 'hamlet'] as const
 
 /** The basemap layers a click can turn into a destination. */
-export const POI_LAYERS = ['ofm-peaks', ...LAKE_LAYERS, 'ofm-climbing', ...PLACE_LAYERS] as const
+export const POI_LAYERS = ['ofm-peaks', ...LAKE_LAYERS, ...LANDMARK_LAYERS, ...PLACE_LAYERS] as const
 
 function isLakeLayer(layerId: string): boolean {
   return (LAKE_LAYERS as readonly string[]).includes(layerId)
@@ -150,6 +133,9 @@ export interface BasemapPoi {
   lat: number
   lon: number
   elevationFt?: number
+  // The backend's osm_id format, `node/4578891234`. Only the pod's landmarks
+  // carry one: OpenMapTiles drops the source id from every layer read here.
+  osmId?: string
 }
 
 // The tile's name fields, in the order the Liberty style itself prefers. A
@@ -235,12 +221,23 @@ export function poiFromFeature(
     return { name, kind: LAKE_CLASS, lat, lon }
   }
 
-  if (layerId === 'ofm-climbing') {
-    // The layer draws named features only and the tile has unnamed ones, so
-    // the name check above is what refuses them here. No elevation: `poi`
-    // carries none.
-    if (rawClass !== CLIMBING_CLASS) return null
-    return { name, kind: CLIMBING_CLASS, lat, lon }
+  const landmark = landmarkKindOf(layerId)
+  if (landmark !== null) {
+    // The layer filters on the kind, so a disagreement here is that filter
+    // and this module out of step, the pair the lake class keeps too.
+    if (props.kind !== landmark) return null
+    // The route sends `null` for an untagged elevation, and a feature
+    // property can arrive without it, so only a number counts.
+    const ele = props.elevation_ft
+    const osmId = props.osm_id
+    return {
+      name,
+      kind: landmark,
+      lat,
+      lon,
+      ...(typeof ele === 'number' && Number.isFinite(ele) ? { elevationFt: Math.round(ele) } : {}),
+      ...(typeof osmId === 'string' && osmId !== '' ? { osmId } : {}),
+    }
   }
 
   if (isPlaceLayer(layerId)) {
@@ -274,9 +271,10 @@ export function poiToPlace(poi: BasemapPoi): Place {
     lat: poi.lat,
     lon: poi.lon,
     ...(poi.elevationFt !== undefined ? { elevationFt: poi.elevationFt } : {}),
-    // No `osmId`: OpenMapTiles drops the source id from `mountain_peak` and
-    // `water_name`. The backend fills it in on the next Analyze by resolving
-    // the coordinate against OSM.
+    // A tile label has none to carry, and the backend fills it in on the next
+    // Analyze by resolving the coordinate against OSM. A landmark brings its
+    // own, so the pin and its row link to the same object from the start.
+    ...(poi.osmId !== undefined ? { osmId: poi.osmId } : {}),
   }
 }
 

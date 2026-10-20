@@ -14,18 +14,20 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import os
 from collections.abc import Callable
 from typing import Any
 
 import httpx
 import pytest
 
+from app import db, ratelimit
+
 # Imported for its import-time side effect: main.py is where the custom TRACE
 # level is attached to logging.Logger, and services call log.trace freely. Most
 # test modules import the app anyway and got this for free, so a single-file
 # run like `pytest tests/test_osm.py` used to fail on the missing attribute.
 from app import main as _main  # noqa: F401
-from app import ratelimit
 from app.services import aggregation, cache, hms, http, nifc, osm, usfs_closures
 
 # The loop's own sleep, held before any test patches `asyncio.sleep`: the stub
@@ -276,6 +278,7 @@ def _rate_limiting_off(monkeypatch):
     monkeypatch.setattr(ratelimit.client, "WILDFIRES_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(ratelimit.client, "SMOKE_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(ratelimit.client, "CLOSURES_LIMITER", ratelimit.RateLimiter(0, 1))
+    monkeypatch.setattr(ratelimit.client, "LANDMARKS_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(
         ratelimit,
         "NOMINATIM_GATE",
@@ -369,3 +372,38 @@ def _mirror_health_clear():
     osm.mirrors.reset_mirror_health()
     yield
     osm.mirrors.reset_mirror_health()
+
+
+# ── The shared cache (#760) ─────────────────────────────────────────────────
+
+# Every table the app writes, emptied before each test that takes the database
+# so no test sees another's rows. The schema itself is migrated once and kept.
+_DB_TABLES = (
+    "places", "places_pending", "snapshots", "refresh_state",
+    "rate_buckets", "gates", "weight_bookings", "geocode_cache",
+)
+
+
+@pytest.fixture
+async def database(monkeypatch):
+    """The app's `db` module, connected to the suite's PostgreSQL.
+
+    Skips without TEST_DATABASE_URL, which `make test-backend-db` and the
+    Database Tests CI job set; plain `make test-backend` has no database, and
+    every test that takes this fixture is marked `db` as well.
+    """
+    url = os.environ.get("TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("needs TEST_DATABASE_URL (make test-backend-db)")
+    monkeypatch.setattr(db, "DATABASE_URL", url)
+    monkeypatch.setattr(db, "READ_ONLY", False)
+    await db.start()
+    assert await db.wait_ready(60), "the test database never became ready"
+    async with db.connection() as conn:
+        await conn.execute(f"TRUNCATE {', '.join(_DB_TABLES)}")
+        await conn.execute(
+            "UPDATE osm_state SET filled_at = NULL, planet_timestamp = NULL,"
+            " rules_version = NULL, sequence = NULL, updated_at = NULL"
+        )
+    yield db
+    await db.stop()

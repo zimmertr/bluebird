@@ -19,6 +19,7 @@
 // direction is honest, the comment says why.
 import type { components } from './api-schema'
 import type { PreviewInfo } from './hooks/usePreview'
+import type { LandmarkResponse } from './utils/landmarks'
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
@@ -278,6 +279,17 @@ export type ClosureCoverageIsPublished = Assert<
   Extends<'coverage', keyof Schema['ClosureCollection']>
 >
 
+// The trailhead and crag markers (#734, #760). The schema declares the
+// feature bag free-form, so what can be held is the envelope `fetchLandmarks`
+// checks before it draws and the `fetched_at` its type names. A marker's
+// properties are pinned by the route's test in backend/tests/test_places.py.
+export type LandmarkEnvelopeIsReadable = Assert<
+  Extends<
+    Pick<Schema['LandmarkCollection'], 'type' | 'fetched_at'>,
+    Required<Pick<LandmarkResponse, 'type' | 'fetched_at'>>
+  >
+>
+
 // ---------------------------------------------------------------------------
 // Every schema is accounted for. A model added to the backend fails this until
 // it is either asserted above or listed as unmirrored with a reason, which is
@@ -308,6 +320,7 @@ type Mirrored =
   | 'GeoPolygon'
   | 'HTTPValidationError'
   | 'HourlySeries'
+  | 'LandmarkCollection'
   | 'Limits'
   | 'PreviewConfig'
   | 'SortBy'

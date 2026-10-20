@@ -6,10 +6,13 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, Query
+from psycopg import AsyncConnection
+from psycopg.types.json import Jsonb
 
-from app import ratelimit
+from app import db, ratelimit
 from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
+from app.ratelimit import shared
 from app.services import cache
 from app.services.errors import classify_http_error, log_reason
 from app.services.http import USER_AGENT
@@ -30,6 +33,56 @@ PROVIDER = "Nominatim (place search)"
 # slowly was never cut off (#630). A visitor is waiting on this one, so it is
 # short beside the other upstreams'.
 TIMEOUT_S = 10.0
+
+
+# ── The search cache ──────────────────────────────────────────────────────────
+#
+# One for the whole deployment while the shared cache can hold it (#760),
+# because a repeat search is as likely to land on another pod as on this one,
+# and Nominatim's policy asks for the repeat not to reach them. This pod's
+# `GEOCODE_CACHE` otherwise: no database, a read-only preview (whose login
+# cannot write the table), or a call the database cannot answer.
+
+
+async def _read_shared(conn: AsyncConnection, key: str) -> list[Any] | None:
+    row = await (
+        await conn.execute(
+            "SELECT body FROM geocode_cache WHERE key = %s AND expires_at > now()", (key,)
+        )
+    ).fetchone()
+    return None if row is None else row[0]
+
+
+async def _write_shared(conn: AsyncConnection, key: str, rows: list[Any]) -> None:
+    await conn.execute(
+        "INSERT INTO geocode_cache (key, body, expires_at)"
+        " VALUES (%s, %s, now() + make_interval(secs => %s))"
+        " ON CONFLICT (key) DO UPDATE SET body = excluded.body, expires_at = excluded.expires_at",
+        (key, Jsonb(rows), cache.GEOCODE_TTL_S),
+    )
+
+
+async def _cached(key: tuple) -> list[Any] | None:
+    if shared.usable():
+        try:
+            return await shared.run(
+                "geocode cache", lambda conn: _read_shared(conn, cache.shared_key(key))
+            )
+        except db.DatabaseUnavailable:
+            pass
+    return cache.GEOCODE_CACHE.get(key)
+
+
+async def _remember(key: tuple, rows: list[Any]) -> None:
+    if shared.usable():
+        try:
+            await shared.run(
+                "geocode cache", lambda conn: _write_shared(conn, cache.shared_key(key), rows)
+            )
+            return
+        except db.DatabaseUnavailable:
+            pass
+    cache.GEOCODE_CACHE.put(key, rows)
 
 
 @router.get(
@@ -87,7 +140,7 @@ async def geocode(
     # Checked before the gate, so a repeat search neither calls Nominatim nor
     # waits in the queue behind other visitors' searches.
     cache_key = cache.geocode_key(q, limit)
-    cached = cache.GEOCODE_CACHE.get(cache_key)
+    cached = await _cached(cache_key)
     if cached is not None:
         log.debug("Geocode query %r served from cache", q)
         return cached
@@ -140,5 +193,5 @@ async def geocode(
     log.info("Geocode query %r returned %d place(s)", q, len(rows))
     # An empty list is a real answer and is cached too; failures above never
     # reach here, so a transient error is not held for the TTL.
-    cache.GEOCODE_CACHE.put(cache_key, rows)
+    await _remember(cache_key, rows)
     return rows

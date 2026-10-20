@@ -170,7 +170,7 @@ async def test_query_osm_serves_repeat_from_cache(monkeypatch):
         calls += 1
         return {
             "elements": [
-                {"type": "node", "id": 1, "lat": 0.05, "lon": 0.05, "tags": {"name": "A"}}
+                {"type": "node", "id": 1, "lat": 0.05, "lon": 0.05, "tags": {"name": "A", "natural": "peak"}}
             ]
         }
 
@@ -203,7 +203,7 @@ async def test_partial_results_are_never_cached(monkeypatch):
             raise PartialResultError("runtime error: query timed out")
         return {
             "elements": [
-                {"type": "node", "id": 1, "lat": 0.05, "lon": 0.05, "tags": {"name": "A"}}
+                {"type": "node", "id": 1, "lat": 0.05, "lon": 0.05, "tags": {"name": "A", "natural": "peak"}}
             ]
         }
 

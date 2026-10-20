@@ -645,7 +645,6 @@ export default function App() {
         tutorialWaits={tourWaits}
         response={response}
         results={results}
-        missingTypes={analyzed?.missingTypes}
         fireStatus={fire.status}
         closureStatus={closure.status}
         showWildfires={showWildfires}

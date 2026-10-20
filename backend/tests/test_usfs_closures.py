@@ -893,6 +893,29 @@ async def test_the_cache_serves_the_last_good_snapshot_after_a_failed_refresh():
     assert await cache.get() is first
 
 
+@pytest.mark.parametrize("regions", [usfs_coverage.ALL_REGIONS, frozenset({"R06", "R04"})])
+async def test_a_snapshot_reads_back_from_the_shared_cache_as_the_same_answer(regions):
+    # A whole fetch, every region and both kinds at both fidelities, and the
+    # snapshot a failed order feed leaves, whose area outline is narrower.
+    fetched = await usfs_closures.fetch_snapshot(httpx.MockTransport(_region(_orders_answers())))
+    snapshot = usfs_closures.Snapshot(
+        fetched_at_ms=fetched.fetched_at_ms,
+        areas_full=fetched.areas_full,
+        areas_coarse=fetched.areas_coarse,
+        trails_full=fetched.trails_full,
+        trails_coarse=fetched.trails_coarse,
+        regions=regions,
+    )
+    read_back = usfs_closures.SHARED.unpack(usfs_closures.SHARED.pack(snapshot))
+    assert read_back == snapshot
+    box = (-180.0, -90.0, 180.0, 90.0)
+    for kind in ("area", "trail"):
+        for coarse in (False, True):
+            assert usfs_closures.collection_json(
+                read_back, read_back.within(box, kind, coarse=coarse), kind
+            ) == usfs_closures.collection_json(snapshot, snapshot.within(box, kind, coarse=coarse), kind)
+
+
 def test_the_cache_ttl_is_half_an_hour_by_default():
     # The orders are edited by hand a few times a week (#550).
     assert usfs_closures.TTL_S == 1800

@@ -2,36 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import type { CustomDestination } from '../types'
 import { useElevationLookup } from './useElevationLookup'
-import { LOOKUP_DEBOUNCE_MS, LOOKUP_RETRY_MS, type Identity } from '../utils/elevationLookup'
-import { lookupPeaks } from '../utils/peakTiles'
+import { LOOKUP_DEBOUNCE_MS, LOOKUP_RETRY_MS } from '../utils/elevationLookup'
 import { discovered, fakeResponse } from '../testSupport/fixtures'
 import { geoKey } from '../utils/points'
-
-// The tiles are peakTiles.ts's and have their own suite. A spy here says
-// which rows they were asked about and places whatever a test says.
-vi.mock('../utils/peakTiles', async (actual) => ({
-  ...(await actual<typeof import('../utils/peakTiles')>()),
-  lookupPeaks: vi.fn(),
-  tileTemplate: vi.fn(async () => 'https://tiles.example/{z}/{x}/{y}.pbf'),
-}))
-const tiles = vi.mocked(lookupPeaks)
 
 const A: CustomDestination = { name: 'A', latitude: 47.1, longitude: -121.1 }
 const B: CustomDestination = { name: 'B', latitude: 47.2, longitude: -121.2 }
 const KEY_A = geoKey(A.latitude, A.longitude)
 const KEY_B = geoKey(B.latitude, B.longitude)
 const NO_PLACES: never[] = []
-
-// What the tiles answer: the named rows placed at 7000 ft.
-function tilesPlace(...names: string[]) {
-  tiles.mockImplementation(async (rows) => {
-    const placed = new Map<string, Identity>()
-    for (const r of rows) if (names.includes(r.name)) placed.set(geoKey(r.latitude, r.longitude), { elevation_ft: 7000, osm_id: 'node/7' })
-    return placed
-  })
-}
-// The rows each tile lookup was asked about.
-const tiled = () => tiles.mock.calls.map((c) => c[0].map((r) => r.name))
 
 // What the pod answers: each row sent, placed at 5000 ft or left as sent.
 function answer(placed: boolean, complete = true) {
@@ -54,8 +33,6 @@ async function still(ms: number) {
 
 beforeEach(() => {
   vi.useFakeTimers()
-  tiles.mockReset()
-  tilesPlace()
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -63,41 +40,23 @@ afterEach(() => {
 })
 
 describe('useElevationLookup', () => {
-  it('asks the tiles once the box has been still, then the pod about what they left, and keeps both answers', async () => {
-    tilesPlace('A')
+  // The pod is the one source (#760): every row goes to it in one call, with
+  // the lookup asked for, and nothing reads the basemap's tiles.
+  it('asks the pod about every row once the box has been still, and keeps its answers', async () => {
     vi.stubGlobal('fetch', vi.fn(answer(true)))
     const { result } = renderHook(() => useElevationLookup({ csvRows: [A, B], places: NO_PLACES, cap: 100 }))
     await still(LOOKUP_DEBOUNCE_MS - 1)
-    expect(tiles).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
     await still(1)
-    expect(tiled()).toEqual([['A', 'B']])
-    expect(sent()).toEqual([['B']])
+    expect(sent()).toEqual([['A', 'B']])
     expect(bodies()[0].elevation_lookup).toBe(true)
-    expect(result.current.identity.get(KEY_A)).toEqual({ elevation_ft: 7000, osm_id: 'node/7' })
+    expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toEqual(['/api/destinations'])
+    expect(result.current.identity.get(KEY_A)).toEqual({ elevation_ft: 5000, osm_id: 'node/1' })
     expect(result.current.identity.get(KEY_B)).toEqual({ elevation_ft: 5000, osm_id: 'node/1' })
     expect(result.current.inquiring.size).toBe(0)
     // Nothing more to ask.
     await still(LOOKUP_DEBOUNCE_MS * 2)
-    expect(tiles).toHaveBeenCalledTimes(1)
     expect(fetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('never asks the pod when the tiles placed every row', async () => {
-    tilesPlace('A', 'B')
-    vi.stubGlobal('fetch', vi.fn(answer(true)))
-    const { result } = renderHook(() => useElevationLookup({ csvRows: [A, B], places: NO_PLACES, cap: 100 }))
-    await still(LOOKUP_DEBOUNCE_MS)
-    expect(fetch).not.toHaveBeenCalled()
-    expect(result.current.identity.size).toBe(2)
-  })
-
-  it('asks the pod about every row when the tiles cannot be read', async () => {
-    tiles.mockRejectedValue(new Error('chunk failed'))
-    vi.stubGlobal('fetch', vi.fn(answer(true)))
-    const { result } = renderHook(() => useElevationLookup({ csvRows: [A], places: NO_PLACES, cap: 100 }))
-    await still(LOOKUP_DEBOUNCE_MS)
-    expect(sent()).toEqual([['A']])
-    expect(result.current.identity.get(KEY_A)).toEqual({ elevation_ft: 5000, osm_id: 'node/1' })
   })
 
   it('asks about an added row alone, and nothing for a removed one', async () => {
@@ -108,7 +67,6 @@ describe('useElevationLookup', () => {
     await still(LOOKUP_DEBOUNCE_MS)
     rerender({ rows: [A, B] })
     await still(LOOKUP_DEBOUNCE_MS)
-    expect(tiled()).toEqual([['A'], ['B']])
     expect(sent()).toEqual([['A'], ['B']])
     rerender({ rows: [B] })
     await still(LOOKUP_DEBOUNCE_MS * 2)
@@ -139,7 +97,7 @@ describe('useElevationLookup', () => {
     expect(sent()).toEqual([['A'], ['B']])
   })
 
-  it('asks a set the pod gave up on once more after the retry delay, tiles first, and then leaves it', async () => {
+  it('asks a set the pod gave up on once more after the retry delay, and then leaves it', async () => {
     vi.stubGlobal('fetch', vi.fn(answer(false, false)))
     const { result } = renderHook(() => useElevationLookup({ csvRows: [A], places: NO_PLACES, cap: 100 }))
     await still(LOOKUP_DEBOUNCE_MS)
@@ -150,7 +108,6 @@ describe('useElevationLookup', () => {
     await still(LOOKUP_RETRY_MS - 1)
     expect(fetch).toHaveBeenCalledTimes(1)
     await still(1)
-    expect(tiles).toHaveBeenCalledTimes(2)
     expect(fetch).toHaveBeenCalledTimes(2)
     // Given up on: nothing more is coming for the row.
     expect(result.current.inquiring.size).toBe(0)
@@ -183,26 +140,31 @@ describe('useElevationLookup', () => {
   })
 
   it('reads the latest identities as of the call, not the render', async () => {
-    tilesPlace('A')
     vi.stubGlobal('fetch', vi.fn(answer(true)))
     const { result } = renderHook(() => useElevationLookup({ csvRows: [A], places: NO_PLACES, cap: 100 }))
     const before = result.current
     await still(LOOKUP_DEBOUNCE_MS)
-    expect(before.latest().get(KEY_A)).toEqual({ elevation_ft: 7000, osm_id: 'node/7' })
+    expect(before.latest().get(KEY_A)).toEqual({ elevation_ft: 5000, osm_id: 'node/1' })
     expect(before.identity.has(KEY_A)).toBe(false)
   })
 
-  it('hands the rows each source placed to onPlaced, as they land', async () => {
-    tilesPlace('A')
+  it('hands the rows the pod placed to onPlaced as they land, and none it could not', async () => {
     vi.stubGlobal('fetch', vi.fn(answer(true)))
     const onPlaced = vi.fn()
     renderHook(() => useElevationLookup({ csvRows: [A, B], places: NO_PLACES, cap: 100, onPlaced }))
     await still(LOOKUP_DEBOUNCE_MS)
-    expect(onPlaced).toHaveBeenCalledTimes(2)
+    expect(onPlaced).toHaveBeenCalledOnce()
     expect(onPlaced.mock.calls[0][0]).toEqual([
-      { name: 'A', type: 'custom', latitude: A.latitude, longitude: A.longitude, elevation_ft: 7000, osm_id: 'node/7' },
+      { name: 'A', type: 'custom', latitude: A.latitude, longitude: A.longitude, elevation_ft: 5000, osm_id: 'node/1' },
+      { name: 'B', type: 'custom', latitude: B.latitude, longitude: B.longitude, elevation_ft: 5000, osm_id: 'node/1' },
     ])
-    expect(onPlaced.mock.calls[1][0].map((d: { name: string }) => d.name)).toEqual(['B'])
+
+    vi.stubGlobal('fetch', vi.fn(answer(false, true)))
+    const unplaced = vi.fn()
+    renderHook(() => useElevationLookup({ csvRows: [A], places: NO_PLACES, cap: 100, onPlaced: unplaced }))
+    await still(LOOKUP_DEBOUNCE_MS)
+    expect(fetch).toHaveBeenCalledOnce()
+    expect(unplaced).not.toHaveBeenCalled()
   })
 
   it('asks nothing above the cap, and nothing for an empty box', async () => {
@@ -210,7 +172,6 @@ describe('useElevationLookup', () => {
     const over = renderHook(() => useElevationLookup({ csvRows: [A, B], places: NO_PLACES, cap: 1 }))
     renderHook(() => useElevationLookup({ csvRows: [], places: NO_PLACES, cap: 100 }))
     await still(LOOKUP_DEBOUNCE_MS * 2)
-    expect(tiles).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
     expect(over.result.current.inquiring.size).toBe(0)
   })

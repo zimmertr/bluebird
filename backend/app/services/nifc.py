@@ -1,4 +1,4 @@
-"""Active US wildfire perimeters, fetched once per pod instead of once per visitor.
+"""Active US wildfire perimeters, fetched by the server instead of once per visitor.
 
 Every browser used to query NIFC's ArcGIS feature service directly: once per
 analysis for the proximity check, and again on every debounced map pan for the
@@ -30,6 +30,11 @@ Features are held as the JSON text NIFC sent rather than as parsed objects.
 serving a viewport would then mean re-encoding them on a 250m-CPU pod. Keeping
 the bytes alongside a per-feature bounding box makes a request a filter and a
 join instead.
+
+Each pod fetches the snapshot for itself unless the shared cache is on (#760),
+when one pod at a time fetches it and writes it to the database, and every pod
+reads it from there (``snapshot.py``). The row keeps the feature text as text
+for the same reason.
 """
 
 from __future__ import annotations
@@ -42,11 +47,12 @@ from typing import Any
 
 import httpx
 
+from app.db import refresh
 from app.env import env_int
 from app.services import arcgis, wfigs_coverage
 from app.services.errors import UpstreamError
 from app.services.http import HEADERS
-from app.services.snapshot import cache_factory
+from app.services.snapshot import Shared, cache_factory
 
 PROVIDER = "NIFC (wildfire perimeters)"
 # How this overlay says ArcGIS refused it, in a 200 or as a 429 alike.
@@ -136,7 +142,8 @@ class Snapshot:
 
     ``fetched_at_ms`` is wall time because it is shown to a person ("retrieved
     4 min ago"). Freshness is tracked separately on the monotonic clock, which
-    is the one that must not move when the host's clock is corrected.
+    is the one that must not move when the host's clock is corrected, or with
+    the shared cache on from the age of its row (``snapshot.py``).
     """
 
     fetched_at_ms: int
@@ -272,6 +279,28 @@ async def fetch_snapshot() -> Snapshot:
     return Snapshot(fetched_at_ms=int(time.time() * 1000), full=full, coarse=coarse)
 
 
+def _encode(snapshot: Snapshot) -> dict[str, Any]:
+    return {
+        "fetched_at_ms": snapshot.fetched_at_ms,
+        "full": [[f.west, f.south, f.east, f.north, f.blob] for f in snapshot.full],
+        "coarse": [[f.west, f.south, f.east, f.north, f.blob] for f in snapshot.coarse],
+    }
+
+
+def _decode(data: dict[str, Any]) -> Snapshot:
+    return Snapshot(
+        fetched_at_ms=data["fetched_at_ms"],
+        full=tuple(Fire(*row) for row in data["full"]),
+        coarse=tuple(Fire(*row) for row in data["coarse"]),
+    )
+
+
+# The snapshot as the shared cache's `snapshots` row holds it (#760): each fire
+# its bbox and its feature text, the text as a JSON string rather than nested
+# JSON, so reading the row back parses no coordinate. Bump `format` whenever
+# `_encode` changes shape.
+SHARED = Shared(source="wildfires", format=1, encode=_encode, decode=_decode)
+
 # The shared snapshot cache, wired to this module's fetch and knobs.
 perimeter_cache = cache_factory(
     label=PROVIDER,
@@ -279,6 +308,10 @@ perimeter_cache = cache_factory(
     ttl_s=TTL_S,
     retry_after_failure_s=RETRY_AFTER_FAILURE_S,
     describe=lambda s: f"{len(s.full)} perimeters ({len(s.coarse)} coarse)",
+    shared=SHARED,
 )
 
 PERIMETERS = perimeter_cache()
+
+# With the shared cache on, the one fetch every pod reads (#760).
+refresh.register(PERIMETERS.source())

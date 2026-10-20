@@ -3,7 +3,7 @@ import { paceWaitLine } from './pacing'
 // Composes the full-screen loading overlay for an Analyze operation — a single
 // ranked analysis (searched places and CSV rows ride inside it as custom
 // destinations). Two destination-type-agnostic phases:
-//   1. "Searching for destinations…"  — Overpass discovery (backend status).
+//   1. "Searching for destinations…"  — the pod's discovery (backend status).
 //      A run with no polygon has no such phase and opens on the next one
 //   2. "Retrieving {N} forecasts…"    — the weather fetch (a lone forecast
 //        reads "Retrieving forecast…")

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AQI_NOTE_KEY, missingTypesText, panelMessages, type PanelMessageInputs } from './panelMessages'
+import { AQI_NOTE_KEY, panelMessages, type PanelMessageInputs } from './panelMessages'
 import type { AnalyzeBlocker } from './analyzeGate'
 import type { CommitReason } from './present'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
@@ -38,7 +38,6 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     aqiForecastDays: 5,
     windowLimits: FALLBACK_WINDOW_LIMITS,
     hasReport: false,
-    missingTypes: [],
     aqiAllNull: false,
     wildfireCheckFailed: false,
     closureCheckFailed: false,
@@ -302,35 +301,6 @@ describe('panelMessages', () => {
     })
   })
 
-  // #735: the map server failed some ticked kinds, and the report ranks
-  // without them. The wording is the maintainer's (2026-10-16).
-  describe('the kinds a report is without', () => {
-    const partial = { hasReport: true, missingTypes: ['trailhead'] } as const
-
-    it('warns in one line, naming the kind', () => {
-      expect(only(partial)).toEqual({
-        key: 'discovery:missing:trailhead',
-        text: 'Trailheads could not be found. Try again later.',
-        severity: 'warn',
-      })
-    })
-
-    it('names trailheads before crags, whatever order they were ticked in', () => {
-      expect(missingTypesText(['crag', 'trailhead'])).toBe('Trailheads and crags not found. Try again later.')
-      expect(keys({ hasReport: true, missingTypes: ['crag', 'trailhead'] })).toEqual(['discovery:missing:crag,trailhead'])
-    })
-
-    it.each([
-      ['there is no report', { hasReport: false }],
-      ['an analysis runs', { loading: true }],
-      ['the run failed', { error: { message: 'boom' } }],
-      ['the run was refused', { refusal: { message: 'Too many.' } }],
-      ['nothing is missing', { missingTypes: [] }],
-    ] as [string, Partial<PanelMessageInputs>][])('stays quiet when %s', (_case, over) => {
-      expect(keys({ ...partial, ...over }).filter((k) => k.startsWith('discovery:'))).toEqual([])
-    })
-  })
-
   // The fixed order within the list: why the last run failed, why the report
   // is stale, what the window costs, why the button is disabled, then what a
   // delivered report is missing. `noticeBoxes` then splits it by severity and
@@ -376,8 +346,10 @@ describe('panelMessages', () => {
       'closure:unavailable',
       'refusal:Too many.',
     ])
-    expect(
-      keys({ hasReport: true, aqiAllNull: true, aqiCoverage: 'partial', blockers: ['types'], missingTypes: ['trailhead'] }),
-    ).toEqual(['window:aqi-horizon', 'blocker:types', 'discovery:missing:trailhead', AQI_NOTE_KEY])
+    expect(keys({ hasReport: true, aqiAllNull: true, aqiCoverage: 'partial', blockers: ['types'] })).toEqual([
+      'window:aqi-horizon',
+      'blocker:types',
+      AQI_NOTE_KEY,
+    ])
   })
 })

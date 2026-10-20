@@ -297,7 +297,8 @@ describe('the privacy copy', () => {
     const text = copy(privacyPage)
 
     expect(text).toMatch(/rate limit/i)
-    expect(text).toMatch(/in memory/i)
+    // Since #760 the counters are the shared database's, not each pod's memory.
+    expect(text).toMatch(/counted in the server's\s+database/i)
   })
 
   // #174 moved forecast fetches into the browser while this copy still routed
@@ -346,7 +347,7 @@ describe('the privacy copy, held to the code', () => {
   )
 
   it('dates the policy to the change that last corrected it', () => {
-    expect(privacyPage).toMatch(/Last updated 15 October 2026\./)
+    expect(privacyPage).toMatch(/Last updated 18 October 2026\./)
   })
 
   // The page names each key by what it keeps, and says how many there are.
@@ -457,46 +458,59 @@ describe('the privacy copy, held to the code', () => {
     expect(text).toMatch(/but not the page's address or anything else you enter/)
   })
 
-  // A drawn area and a pasted place reach Overpass through a chain of public
-  // mirrors, and each mirror is a separate operator who sees that area. A
-  // mirror added to the chain fails here until the page names who runs it.
-  it('names the operator of every Overpass mirror the server can reach', () => {
-    const mirrors = repoFile('backend/app/services/osm/mirrors.py')
-    const table = mirrors.slice(mirrors.indexOf('OVERPASS_MIRRORS = ['), mirrors.indexOf('\n]\n', mirrors.indexOf('OVERPASS_MIRRORS = [')))
-    const hosts = [...table.matchAll(/url="https:\/\/([^/"]+)\//g)].map((match) => match[1])
-    expect(hosts.length).toBeGreaterThan(0)
-
-    const OPERATOR_BY_HOST: Record<string, RegExp> = {
-      'overpass-api.de': /one run by FOSSGIS in Germany/,
-      'maps.mail.ru': /one run by VK \(maps\.mail\.ru\)/,
+  // The two retention promises rest on constants in three Python modules: an
+  // address's bucket is deleted IDLE_BUCKET_S after its last spend, at the
+  // next sweep, and a search's cache row GEOCODE_TTL_S after it was written,
+  // at the next sweep. A sweep can start a refresh tick late (TICK_S, jittered
+  // by a fifth).
+  it('keeps the database\'s retention inside what the page promises', () => {
+    const seconds = (path: string, name: string) => {
+      const value = repoFile(path).match(new RegExp(`^${name} = ([0-9_. *]+)$`, 'm'))?.[1]
+      expect(value, `${name} in ${path}`).toBeDefined()
+      return (value ?? '0').split('*').reduce((product, factor) => product * Number(factor.replace(/_/g, '')), 1)
     }
-    for (const host of hosts) {
-      const operator = OPERATOR_BY_HOST[host]
-      expect(operator, `no operator named for ${host}`).toBeDefined()
-      if (operator) expect(text).toMatch(operator)
-    }
+    const sweep = seconds('backend/app/ratelimit/shared.py', 'SWEEP_INTERVAL_S') + seconds('backend/app/db/refresh.py', 'TICK_S') * 1.2
+    expect(seconds('backend/app/ratelimit/shared.py', 'IDLE_BUCKET_S') + sweep).toBeLessThanOrEqual(60 * 60)
+    expect(seconds('backend/app/services/cache.py', 'GEOCODE_TTL_S') + sweep).toBeLessThanOrEqual(20 * 60)
 
-    // The sentence counts its servers, so it cannot name fewer than the chain holds.
-    const sentence = text.match(/Destination searches are answered by public OpenStreetMap servers: (.+?)\. /)?.[1]
-    expect(sentence).toBeDefined()
-    expect((sentence ?? '').match(/\bone run by\b/g)?.length).toBe(hosts.length)
+    expect(text).toMatch(/A place name you search for is kept in the server's database for up to 20 minutes/)
+    expect(text).toMatch(/each count is deleted within an hour of your last request\./)
   })
 
-  // #673 looks a pasted coordinate up as soon as the box holds it, from the
-  // basemap's tiles and then the server, so the server receives coordinates
-  // before Analyze is pressed and OpenFreeMap receives tile requests for
-  // places that are not on screen. The sentence is held to the hook that
-  // watches the box, the host it reads and the rows it sends on.
-  it('says a pasted coordinate is looked up before Analyze, from the tiles and then the server', () => {
-    const hook = appSources['./hooks/useElevationLookup.ts']
-    const tiles = appSources['./utils/peakTiles.ts']
-    expect(hook).toMatch(/LOOKUP_DEBOUNCE_MS/)
-    expect(hook).toMatch(/tiles\.lookupPeaks\(rows,/)
-    expect(hook).toMatch(/resolveCustomOnly\(left, controller\.signal, true\)/)
-    expect(tiles).toMatch(/TILEJSON_URL = 'https:\/\/tiles\.openfreemap\.org\/planet'/)
+  // Since #760 the server answers from its own copy of OpenStreetMap, which
+  // is what the page says. The public Overpass mirrors stay as the fallback
+  // for a server whose copy cannot answer, and the maintainer chose on
+  // 2026-10-18 not to name them on the page.
+  it('says destination searches are answered from the server\'s own copy', () => {
+    const discovery = repoFile('backend/app/services/candidates.py')
+    expect(discovery.indexOf('places.discover(')).toBeGreaterThan(-1)
+    expect(discovery.indexOf('places.discover(')).toBeLessThan(discovery.indexOf('osm.query_osm('))
+    expect(repoFile('backend/app/services/osm/enrich.py')).toMatch(/places\.summits_near\(/)
 
     expect(text).toMatch(
-      /A coordinate you paste or click is looked up as soon as it is in the box: your browser reads the map tiles around it from OpenFreeMap, and sends the server any it could not place\./,
+      /The server answers that and every destination search from its own copy of OpenStreetMap\./,
+    )
+  })
+
+  // The markers have no switch, so every reader who zooms in sends the
+  // server the box on screen (#734).
+  it('says the markers send the server the area on screen', () => {
+    expect(appSources['./map/landmarks.ts']).toMatch(/fetchLandmarks\(bbox,/)
+    expect(text).toMatch(
+      /The trailhead and crag markers, and the fire and closure layers, send the server the area on screen\./,
+    )
+  })
+
+  // #673 looks a pasted coordinate up as soon as the box holds it, so the
+  // server receives coordinates before Analyze is pressed. The sentence is
+  // held to the hook that watches the box and the rows it sends on.
+  it('says a pasted coordinate is looked up before Analyze', () => {
+    const hook = appSources['./hooks/useElevationLookup.ts']
+    expect(hook).toMatch(/LOOKUP_DEBOUNCE_MS/)
+    expect(hook).toMatch(/resolveCustomOnly\(rows, controller\.signal, true\)/)
+
+    expect(text).toMatch(
+      /A coordinate you paste or click goes to the server as soon as it is in the box, so it can find the summit it stands on\./,
     )
   })
 

@@ -1,4 +1,4 @@
-"""Forest Service closure orders, fetched once per pod.
+"""Forest Service closure orders, fetched by the server once for every visitor.
 
 Three regions publish their orders on the same ArcGIS organization, under two
 schemas, and this module holds all of them the way ``nifc.py`` holds fire
@@ -49,7 +49,9 @@ through as the Forest Service sent it rather than filled in. Regions 3 and 4
 have no status to trust, so there the dates decide: see ``ORDER_WHERE``.
 
 Features are held as JSON text plus a bounding box, as in ``nifc.py``, so a
-request is a filter and a join rather than a re-encode.
+request is a filter and a join rather than a re-encode. Each pod fetches them
+for itself unless the shared cache is on (#760), when one pod at a time does
+and every pod reads the snapshot from the database (``snapshot.py``).
 """
 
 from __future__ import annotations
@@ -65,12 +67,13 @@ from typing import Any
 
 import httpx
 
+from app.db import refresh
 from app.env import env_int
 from app.services import arcgis, usfs_coverage
 from app.services.errors import UpstreamError, log_reason
 from app.services.http import HEADERS
 from app.services.nifc import COARSE_OFFSET_DEG
-from app.services.snapshot import cache_factory
+from app.services.snapshot import Shared, cache_factory
 from app.services.usfs_coverage import ALL_REGIONS, Kind
 
 log = logging.getLogger(__name__)
@@ -745,6 +748,43 @@ async def fetch_snapshot(transport: httpx.AsyncBaseTransport | None = None) -> S
     )
 
 
+def _rows(closures: tuple[Closure, ...]) -> list[list[Any]]:
+    return [[c.west, c.south, c.east, c.north, c.blob] for c in closures]
+
+
+def _closures(rows: list[list[Any]]) -> tuple[Closure, ...]:
+    return tuple(Closure(*row) for row in rows)
+
+
+def _encode(snapshot: Snapshot) -> dict[str, Any]:
+    return {
+        "fetched_at_ms": snapshot.fetched_at_ms,
+        "areas_full": _rows(snapshot.areas_full),
+        "areas_coarse": _rows(snapshot.areas_coarse),
+        "trails_full": _rows(snapshot.trails_full),
+        "trails_coarse": _rows(snapshot.trails_coarse),
+        "regions": sorted(snapshot.regions),
+    }
+
+
+def _decode(data: dict[str, Any]) -> Snapshot:
+    return Snapshot(
+        fetched_at_ms=data["fetched_at_ms"],
+        areas_full=_closures(data["areas_full"]),
+        areas_coarse=_closures(data["areas_coarse"]),
+        trails_full=_closures(data["trails_full"]),
+        trails_coarse=_closures(data["trails_coarse"]),
+        regions=frozenset(data["regions"]),
+    )
+
+
+# The snapshot as the shared cache's `snapshots` row holds it (#760), shaped
+# like `nifc.SHARED`'s for the same reason. The closed-site points sit in both
+# trail sets, so the row carries them twice: 174 points, against the cost of a
+# shape that knows which rows are shared. Bump `format` whenever `_encode`
+# changes shape.
+SHARED = Shared(source="closures", format=1, encode=_encode, decode=_decode)
+
 # The shared snapshot cache, wired to this module's fetch and knobs.
 closure_cache = cache_factory(
     label=PROVIDER,
@@ -754,6 +794,10 @@ closure_cache = cache_factory(
     describe=lambda s: (
         f"{len(s.areas_full)} areas from {', '.join(sorted(s.regions))}, {len(s.trails_full)} trails and sites"
     ),
+    shared=SHARED,
 )
 
 CLOSURES = closure_cache()
+
+# With the shared cache on, the one fetch every pod reads (#760).
+refresh.register(CLOSURES.source())

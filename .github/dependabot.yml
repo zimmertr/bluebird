@@ -99,9 +99,14 @@ updates:
   # tag@digest, so a rebuild of the image under the same tag arrives here as
   # a digest PR rather than silently at the next build. These PRs are also the
   # standing remediation path when the scheduled image scan flags a fixable
-  # CVE in the released image.
+  # CVE in the released image. The planet fill's Debian base and the test
+  # database's postgres base (#760) are pinned the same way, in their own
+  # directories.
   - package-ecosystem: docker
-    directory: /
+    directories:
+      - /
+      - /fill
+      - /backend/tests/db
     schedule:
       interval: weekly
     open-pull-requests-limit: 5

@@ -156,7 +156,7 @@ export default function DestinationsSection({
           drawn: about 316px of room there, 305.6px for this sentence and
           318.9px with `any` (12px italic, 2026-10-15). It names no kind of
           destination: the map labels and lets you select peaks, lakes,
-          places and climbing features, and prose that lists the types is a
+          places, trailheads and crags, and prose that lists the types is a
           string every new type would have to reopen. Hovering the group rings the search box
           AND glows the selectable features, so the reader is shown where
           both live instead of told. Hover-only is fine here because it adds
@@ -286,11 +286,10 @@ export default function DestinationsSection({
           </button>
         </div>
         {/* Checkboxes, not radios: one polygon can look for several kinds
-            at once. Peaks and lakes come from the basemap's tiles (#675)
-            and whatever the map server is asked for comes back from a
-            single Overpass query, so asking for trailheads and crags
-            together costs what trailheads alone would. The "Find:" label
-            that used to lead this row is gone —
+            at once. Every kind comes back from one discovery call, read from
+            the pod's own copy of OpenStreetMap (#760) or a single Overpass
+            query without it, so asking for more kinds costs what one would.
+            The "Find:" label that used to lead this row is gone —
             the checkboxes under the Polygon search heading are not ambiguous
             about what they do. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">

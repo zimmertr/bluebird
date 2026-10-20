@@ -71,6 +71,7 @@ function setup({
   drawing = false,
   searchedPlaces = [] as Place[],
   glow = true,
+  landmarks = undefined as { pointOf: (osmId: string) => [number, number] | null } | undefined,
 } = {}) {
   const stub = stubMap({
     zoom: MAP_ZOOM,
@@ -79,7 +80,7 @@ function setup({
   const inputs = mapInputs({ drawing, searchedPlaces, onAddPoi: vi.fn(), onRemovePoi: vi.fn(), onRemoveResult: vi.fn() })
   const controller = createMapController(inputs)
   const { popups: mapPopups, click } = mountTestPopups(stub, controller)
-  const pois = mountPoiPopups(stub.map, { controller, popups: mapPopups })
+  const pois = mountPoiPopups(stub.map, { controller, popups: mapPopups, landmarks })
   // A click on the summit, with whatever else is drawn there under it.
   const peakClick = (shiftKey = false, also: { layer: { id: string } }[] = []) =>
     click([{ layer: { id: PEAK_LAYER }, geometry: { type: 'Point', coordinates: SUMMIT }, properties: PEAK_PROPS }, ...also], {
@@ -159,6 +160,46 @@ describe('mountPoiPopups', () => {
     expect(popups[0].html).toBe(poiPopupHtml(poiFromFeature('label_town', town, NORTH_BEND)!, false, MAP_ZOOM))
     placeClick('label_other', { name: 'Capitol Hill', class: 'suburb' })
     expect(popups).toHaveLength(1)
+  })
+
+  // The pod's trailheads (#734): the card a peak opens, at the marker's
+  // point, carrying the OSM id into the place it adds.
+  it('offers a clicked trailhead with its OSM object', () => {
+    const MAILBOX: [number, number] = [-121.7437, 47.4875]
+    const props = { name: 'Mailbox Peak Trailhead', kind: 'trailhead', osm_id: 'node/4578891234', elevation_ft: null }
+    const { click, inputs } = setup()
+    click([{ layer: { id: 'landmark-trailheads' }, geometry: { type: 'Point', coordinates: MAILBOX }, properties: props }], {
+      lngLat: { lng: -121.74, lat: 47.48 },
+    })
+    const poi = poiFromFeature('landmark-trailheads', props, MAILBOX)!
+    expect(popups).toHaveLength(1)
+    expect(popups[0].html).toBe(poiPopupHtml(poi, false, MAP_ZOOM))
+    expect(popups[0].html).toContain('openstreetmap.org/node/4578891234')
+    vi.runAllTimers()
+    popups[0].press()
+    expect(inputs.onAddPoi).toHaveBeenCalledWith(expect.objectContaining({ osmId: 'node/4578891234', lat: 47.4875 }))
+  })
+
+  // A GeoJSON source is tiled, so the drawn point is snapped to the tile
+  // grid; the pod merges a clicked place into a polygon's row by coordinate
+  // alone, so the card and the place take the point the layer fetched.
+  it('anchors a clicked crag at the exact point the layer fetched, not the drawn one', () => {
+    const EXACT: [number, number] = [-121.5555, 47.8208]
+    const DRAWN: [number, number] = [-121.55552, 47.82078]
+    const props = { name: 'Lower Town Wall', kind: 'crag', osm_id: 'relation/1234', elevation_ft: null }
+    const { click, inputs } = setup({ landmarks: { pointOf: (id) => (id === 'relation/1234' ? EXACT : null) } })
+    click([{ layer: { id: 'landmark-crags' }, geometry: { type: 'Point', coordinates: DRAWN }, properties: props }], {
+      lngLat: { lng: DRAWN[0], lat: DRAWN[1] },
+    })
+    expect(popups[0].html).toBe(poiPopupHtml(poiFromFeature('landmark-crags', props, EXACT)!, false, MAP_ZOOM))
+    vi.runAllTimers()
+    popups[0].press()
+    expect(inputs.onAddPoi).toHaveBeenCalledWith(expect.objectContaining({ lon: EXACT[0], lat: EXACT[1] }))
+    // A marker the layer no longer holds keeps the drawn point rather than opening nothing.
+    click([{ layer: { id: 'landmark-crags' }, geometry: { type: 'Point', coordinates: DRAWN }, properties: { ...props, osm_id: 'way/9' } }], {
+      lngLat: { lng: DRAWN[0], lat: DRAWN[1] },
+    })
+    expect(popups[1].html).toBe(poiPopupHtml(poiFromFeature('landmark-crags', { ...props, osm_id: 'way/9' }, DRAWN)!, false, MAP_ZOOM))
   })
 
   it('replaces the open popup on a click and keeps it on a shift-click', () => {

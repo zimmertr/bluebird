@@ -1,6 +1,5 @@
 import { VectorTile } from '@mapbox/vector-tile'
 import { PbfReader } from 'pbf'
-import { fetchTileWith, tileKey, tileTemplate, type FetchTile, type TileRef } from './peakTiles'
 
 /**
  * Whether the snow analysis's cell under a point lies on a glacier (#748).
@@ -25,7 +24,86 @@ import { fetchTileWith, tileKey, tileTemplate, type FetchTile, type TileRef } fr
  *
  * Where OSM has mapped no glacier, the check says no and the card keeps its
  * depth word.
+ *
+ * The tile host's door is here too (`tileTemplate`, `fetchTileWith`),
+ * because the glaciers are the one thing the app reads out of the basemap's
+ * tiles itself: every destination, its elevation included, is the pod's to
+ * answer (#760).
  */
+
+export interface TileRef {
+  z: number
+  x: number
+  y: number
+}
+
+export const tileKey = (t: TileRef) => `${t.z}/${t.x}/${t.y}`
+
+/** One tile's bytes, or null when it could not be read. */
+export type FetchTile = (tile: TileRef) => Promise<Uint8Array | null>
+
+export const TILEJSON_URL = 'https://tiles.openfreemap.org/planet'
+// Served as the current build when the TileJSON cannot be read.
+export const FALLBACK_TILE_TEMPLATE = 'https://tiles.openfreemap.org/planet/latest/{z}/{x}/{y}.pbf'
+// A tile the edge serves answers in well under a second (135 zoom-14 tiles
+// took 0.2 to 0.7 s together on 2026-10-07), so one not back in this long is
+// a host that is not answering, and the card keeps its depth word.
+export const TILE_DEADLINE_MS = 5_000
+
+let templatePromise: Promise<string> | null = null
+
+/**
+ * The tile URL template, read once per session from the TileJSON: a dated,
+ * immutable path, so a tile the map already drew is served from the browser's
+ * cache. Anything but a readable TileJSON falls back to the `latest` path,
+ * which the host answers with the current build.
+ */
+export function tileTemplate(fetchJson: (url: string) => Promise<unknown> = fetchTileJson): Promise<string> {
+  templatePromise ??= fetchJson(TILEJSON_URL)
+    .then((body) => {
+      const tiles = (body as { tiles?: unknown } | null)?.tiles
+      const first = Array.isArray(tiles) ? tiles[0] : null
+      return typeof first === 'string' && first.includes('{z}') ? first : FALLBACK_TILE_TEMPLATE
+    })
+    .catch(() => FALLBACK_TILE_TEMPLATE)
+  return templatePromise
+}
+
+async function fetchTileJson(url: string): Promise<unknown> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(TILE_DEADLINE_MS) })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
+// The deadline and the caller's own signal as one, without `AbortSignal.any`,
+// which openMeteo.ts notes is not in every browser the app runs in.
+function withDeadline(signal: AbortSignal | undefined): AbortSignal {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TILE_DEADLINE_MS)
+  const onAbort = () => {
+    clearTimeout(timer)
+    controller.abort()
+  }
+  if (signal?.aborted) onAbort()
+  else signal?.addEventListener('abort', onAbort, { once: true })
+  controller.signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
+  return controller.signal
+}
+
+/** A fetcher for one tile's bytes from the live host, null when it cannot be read. */
+export function fetchTileWith(template: string, signal?: AbortSignal): FetchTile {
+  return async (t) => {
+    const url = template.replace('{z}', String(t.z)).replace('{x}', String(t.x)).replace('{y}', String(t.y))
+    const res = await fetch(url, { signal: withDeadline(signal) })
+    if (!res.ok) return null
+    return new Uint8Array(await res.arrayBuffer())
+  }
+}
+
+/** Forget the memoized template (tests). */
+export function resetTileTemplate(): void {
+  templatePromise = null
+}
 
 /** The zoom the glaciers are read at: one tile usually covers a cell, and the outlines matched zoom 14's. */
 export const GLACIER_TILE_ZOOM = 12

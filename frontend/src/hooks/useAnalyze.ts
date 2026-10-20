@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { geoKey } from '../utils/points'
-import type { AnalyzeRequest, DiscoveredDestination, DiscoveryType } from '../types'
+import type { AnalyzeRequest, DiscoveredDestination } from '../types'
 import { RETRIEVING_MESSAGE, SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
@@ -58,7 +58,7 @@ export function useAnalyze(
   const viewRef = useRef<(() => AnalyzedView) | null>(null)
 
   // The paste-time lookup's answer landed on the committed report (#673):
-  // rows the tiles or the pod placed after the run had read what was known.
+  // rows the pod placed after the run had read what was known.
   // Each row it placed is reduced again from the column the run kept for it,
   // and the held field takes the same rows.
   function placeHeld(resolved: readonly DiscoveredDestination[]) {
@@ -118,10 +118,7 @@ export function useAnalyze(
         discovery ?? discoveryKeys(request.polygon ?? null, request.destination_types, request.include_unnamed_peaks),
       compareModels,
     }
-    // Known once discovery settles, and before any partial row is shown, so
-    // every snapshot of this run's report says which kinds it is without.
-    let missingTypes: readonly DiscoveryType[] = []
-    const view = () => analyzedView(request, kind, { ...facts, missingTypes }, Date.now(), windowLimits)
+    const view = () => analyzedView(request, kind, facts, Date.now(), windowLimits)
     viewRef.current = view
     // Seed the first-phase label so nothing generic ("Starting…") flashes in
     // the click-to-first-event gap: a polygon run opens on discovery, and a
@@ -146,7 +143,6 @@ export function useAnalyze(
           knownTypes: options.knownTypes,
           identity,
           onDiscovered: (found) => {
-            missingTypes = found.missingTypes
             run.announce(found.candidates.length)
             report.publishCandidates(found.candidates.map((c) => ({ latitude: c.latitude, longitude: c.longitude })))
           },
@@ -160,7 +156,7 @@ export function useAnalyze(
         // In the same render as the commit, so the report never shows a
         // frame under the bookkeeping of the one before it, and inside the
         // run rather than after the click, so a retry's commit applies it too.
-        onCommit?.({ partial: out.missingTypes.length > 0 })
+        onCommit?.()
         // The lookup may have placed a waiting row while the run was
         // fetching, after the run had read what was known: that answer
         // reached no report, so the commit takes it now (#673).
