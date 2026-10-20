@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
+import psycopg
 import pytest
 
 from app import db
@@ -65,6 +67,28 @@ async def test_a_held_lock_turns_a_second_pod_away(database):
     assert await refresh.run_if_due(source) is False
     release.set()
     assert await first is True
+
+
+async def test_a_connection_the_server_dropped_is_not_handed_out(database):
+    # The mesh closes a connection idle for an hour, and a preview's pool keeps
+    # one with nothing to wake it. pg_terminate_backend plays the mesh for every
+    # connection the pool holds, so none of them can answer the next caller.
+    async with db.connection() as conn:
+        row = await (await conn.execute("SELECT pg_backend_pid()")).fetchone()
+    assert row
+    async with await psycopg.AsyncConnection.connect(os.environ["TEST_DATABASE_URL"], autocommit=True) as other:
+        cut = await (
+            await other.execute(
+                "SELECT pid, pg_terminate_backend(pid, 5000) FROM pg_stat_activity"
+                " WHERE datname = current_database() AND backend_type = 'client backend'"
+                " AND pid <> pg_backend_pid()"
+            )
+        ).fetchall()
+    assert (row[0], True) in cut and all(done for _, done in cut)
+    # The pool's check finds them dead and hands out a new one.
+    async with db.connection() as conn:
+        after = await (await conn.execute("SELECT pg_backend_pid()")).fetchone()
+    assert after and after[0] not in {pid for pid, _ in cut}
 
 
 def test_backoff_doubles_from_a_minute_to_an_hour():
