@@ -1,4 +1,4 @@
-# 0189. Ruff checks blind excepts: a broad catch re-raises, logs its traceback, or says why
+# 0190. Ruff checks blind excepts: a broad catch re-raises, logs its traceback, or says why
 
 - Status: Accepted
 - Date: 2026-10-18

@@ -1,4 +1,4 @@
-# 0193. A cancel is any error named `AbortError`, and `isAbort` is the one place that says so
+# 0194. A cancel is any error named `AbortError`, and `isAbort` is the one place that says so
 
 - Status: Accepted
 - Date: 2026-10-18

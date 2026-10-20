@@ -1,4 +1,4 @@
-# 0195. A backend test that reads a file outside `backend/` fails when it cannot see it, rather than skipping
+# 0196. A backend test that reads a file outside `backend/` fails when it cannot see it, rather than skipping
 
 - Status: Accepted
 - Date: 2026-10-18

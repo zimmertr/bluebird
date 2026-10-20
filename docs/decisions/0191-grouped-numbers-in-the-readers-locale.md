@@ -1,4 +1,4 @@
-# 0190. Grouped numbers follow the reader's locale, except the over-cap refusal, which mirrors the backend in en-US
+# 0191. Grouped numbers follow the reader's locale, except the over-cap refusal, which mirrors the backend in en-US
 
 - Status: Accepted
 - Date: 2026-10-18

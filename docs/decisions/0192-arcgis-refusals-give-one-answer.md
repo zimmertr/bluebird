@@ -1,4 +1,4 @@
-# 0191. ArcGIS's two quota refusals give one answer: the feed's own sentence, and ArcGIS's Retry-After
+# 0192. ArcGIS's two quota refusals give one answer: the feed's own sentence, and ArcGIS's Retry-After
 
 - Status: Accepted
 - Date: 2026-10-18

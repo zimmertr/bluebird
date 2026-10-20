@@ -1,4 +1,4 @@
-# 0188. A rule the code spells in more than one shape has one home, and a check holds every site to it
+# 0189. A rule the code spells in more than one shape has one home, and a check holds every site to it
 
 - Status: Accepted
 - Date: 2026-10-17
@@ -27,7 +27,7 @@ The audit ran 2026-10-17 to 2026-10-18 at f971335. Of the frontend's rules, 24 h
 |---|---|
 | Clamp | Three private clamps and the inline ones gave two answers to an inverted range |
 | Round to N places | `Math.round(x * 10 ** n) / 10 ** n` rounds a negative tie toward zero; `roundTo` rounds the magnitude |
-| Is this a cancel | Five sites asked `instanceof DOMException`, which a real abort fails in Vitest's jsdom project (record 0193) |
+| Is this a cancel | Five sites asked `instanceof DOMException`, which a real abort fails in Vitest's jsdom project (record 0194) |
 | A coordinate's cache key | Four backend spellings disagreed at a signed zero |
 | An elevation in a cache key | The weather and cloud keys folded 0 ft into "unknown", which give different cloud decks |
 | An OSM `ele` | Python's `float` reads `nan` and `inf`, and an unnamed peak's name then failed the discovery with a 502; the browser refuses both |

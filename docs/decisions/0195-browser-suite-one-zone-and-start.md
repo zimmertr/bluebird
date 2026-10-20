@@ -1,4 +1,4 @@
-# 0194. The browser suite runs in one time zone from one fixed start, and its clock runs on from there
+# 0195. The browser suite runs in one time zone from one fixed start, and its clock runs on from there
 
 - Status: Accepted
 - Date: 2026-10-18

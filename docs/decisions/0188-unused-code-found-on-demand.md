@@ -1,4 +1,4 @@
-# 0187. Unused code is found on demand by Knip and Vulture, and every exception carries its reason
+# 0188. Unused code is found on demand by Knip and Vulture, and every exception carries its reason
 
 - Status: Accepted
 - Date: 2026-10-17

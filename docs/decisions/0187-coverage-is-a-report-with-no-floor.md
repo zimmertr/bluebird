@@ -1,4 +1,4 @@
-# 0186. Coverage is a report run on demand, with no floor and no CI gate
+# 0187. Coverage is a report run on demand, with no floor and no CI gate
 
 - Status: Accepted
 - Date: 2026-10-17
