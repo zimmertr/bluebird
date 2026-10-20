@@ -46,9 +46,10 @@ vi.mock('maplibre-gl', () => ({
 
 import { mountDrawRing } from './drawRing'
 import { mountTestPopups } from '../testSupport/mapPopups'
-import { createMapController, type MapInputs } from './controller'
+import { createMapController } from './controller'
+import { mapInputs } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
-import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
+import { MAX_POLYGON_POINTS, makeDrawData } from '../utils/drawGeometry'
 
 type Pts = [number, number][]
 const TRI: Pts = [
@@ -76,25 +77,7 @@ afterEach(() => {
 
 function setup(points: Pts = TRI, drawing = true, maxPolygonPoints = MAX_POLYGON_POINTS) {
   const stub = stubMap()
-  const inputs: MapInputs = {
-    drawing,
-    results: [],
-    modelId: null,
-    times: [],
-    modelFallbackLabel: null,
-    popupColumns: [],
-    pointSample: false,
-    sortBy: 'aqi_avg',
-    fireWarnings: new Map(),
-    closureWarnings: new Map(),
-    searchedPlaces: [],
-    onAddPoi: () => {},
-    onRemovePoi: () => {},
-    onRemoveResult: () => {},
-    cameraPadBottomPx: 0,
-    onCameraMove: () => {},
-    maxPolygonPoints,
-  }
+  const inputs = mapInputs({ drawing, maxPolygonPoints })
   const ring = { current: points }
   const controller = createMapController(inputs)
   const { popups, click } = mountTestPopups(stub, controller)
@@ -127,16 +110,22 @@ describe('mountDrawRing', () => {
 
   // A hidden handle fires no event, which is what makes draw mode real.
   it('opens with the handles shown only in draw mode', () => {
-    expect(setup(TRI, true).stub.layout['draw-vertices'].visibility).toBe('visible')
-    expect(setup(TRI, false).stub.layout['draw-midpoints'].visibility).toBe('none')
+    for (const [drawing, visibility] of [
+      [true, 'visible'],
+      [false, 'none'],
+    ] as const) {
+      const { layout } = setup(TRI, drawing).stub
+      expect(layout['draw-vertices'].visibility, `vertices, drawing ${drawing}`).toBe(visibility)
+      expect(layout['draw-midpoints'].visibility, `midpoints, drawing ${drawing}`).toBe(visibility)
+    }
   })
 
+  // The source's data, not just its presence: makeDrawData's own shape is
+  // pinned in drawGeometry.test.ts.
   it('draws a ring the component already holds', () => {
-    const { stub } = setup()
-    expect(stub.calls.find((c) => c[0] === 'addSource')?.[2]).toMatchObject({
-      data: { type: 'FeatureCollection' },
-    })
-    expect(setup([]).stub.sources.draw).toBeDefined()
+    const spec = (stub: ReturnType<typeof stubMap>) => stub.calls.find((c) => c[0] === 'addSource')?.[2] as { data: unknown }
+    expect(spec(setup().stub).data).toEqual(makeDrawData(TRI))
+    expect(spec(setup([]).stub).data).toEqual({ type: 'FeatureCollection', features: [] })
   })
 
   it('commits a point placed by a click', () => {

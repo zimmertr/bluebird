@@ -96,6 +96,17 @@ const ROWS = [resultRow({ name: 'Mount Alpha', series: series({ aqi: TIMES.map((
 const colorFor = () => '#000000'
 const noop = () => {}
 
+// The chart draws a Now seam from the clock. A month after TIMES there is
+// none, so a test sees the same lines whatever day it runs; one that wants the
+// seam moves the clock into the window itself.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(T0 + 30 * 24 * HOUR)
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 function props(over: Partial<Props> = {}): Props {
   return {
     times: TIMES,
@@ -134,7 +145,7 @@ describe('TimeSeriesChart click', () => {
     expect(onPlayheadChange).toHaveBeenCalledWith(TIMES[15])
   })
 
-  it('reads a second tap from its own pixel, not the label the first one left', () => {
+  it('reads a tap from its own pixel over a stale label', () => {
     const onPlayheadChange = vi.fn()
     const { container } = render(<TimeSeriesChart {...props({ onPlayheadChange })} />)
     placePlot(container, 360)
@@ -346,13 +357,8 @@ describe('TimeSeriesChart extreme line', () => {
   // extreme value share one label, so all three carry it, and the extreme
   // value's keeps it through the flip.
   it('halos every chrome label in the panel colour', () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(TIMES[20])
-    try {
-      renderChart({ ...WIND, modelEnds: [{ label: 'NOAA HRRR', endMs: TIMES[30] }] })
-    } finally {
-      vi.useRealTimers()
-    }
+    renderChart({ ...WIND, modelEnds: [{ label: 'NOAA HRRR', endMs: TIMES[30] }] })
     const labels = (chart.lines as LineProps[]).map((p) => p.label)
     expect(labels.map((l) => l?.value)).toEqual(['Now', 'NOAA HRRR', '75.4 mph'])
     for (const label of labels) {

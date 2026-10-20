@@ -55,7 +55,6 @@ for (const viewport of [{ width: 1280, height: 720 }]) {
     await expect.poll(async () => (await probe(page)).hit).not.toBe('other')
     const measured = await probe(page)
     testInfo.annotations.push({ type: `probe ${viewport.width} px`, description: JSON.stringify(measured) })
-    console.log(`probe ${viewport.width} px`, JSON.stringify(measured))
     // A band too thin to click in would pass this test for the wrong reason.
     expect(measured.band).toBeGreaterThan(40)
 

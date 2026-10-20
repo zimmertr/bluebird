@@ -77,20 +77,49 @@ function hourlyBodies(url: URL, inputs: Record<string, unknown[]>, units: Record
   })
 }
 
+// The instant every page's clock starts at. `page.clock.install` starts the
+// page's Date here and lets it run on in real time, with timers, intervals,
+// animation frames and `performance` firing as they would (setFixedTime would
+// freeze Date, and with it every elapsed-seconds readout). One instant and one
+// zone, the one Vitest pins, so "a window N days out" means the same day on
+// every runner whatever its own clock and zone say.
+const START = Date.parse('2026-09-15T17:00:00Z')
+const TIME_ZONE = 'America/Los_Angeles'
+
+const DAY_MS = 86_400_000
+const localDay = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE })
+
+/** The local calendar day `offset` days from START, as a link's `d1`/`d2` spell it. */
+export function isoDay(offset: number): string {
+  return localDay.format(new Date(START + offset * DAY_MS))
+}
+
+/** One discovered peak, in the shape `POST /api/destinations` answers with. */
+export function peak(row: { name: string; latitude: number; longitude: number; elevation_ft: number; osm_id: string }) {
+  return { ...row, type: 'peak' }
+}
+
+/** The whole `POST /api/destinations` answer around those destinations. */
+export function destinationsAnswer<T>(destinations: T[]) {
+  return { destinations, total: destinations.length, total_found: null, truncated: false }
+}
+
 function destinationsBody(route: Route) {
   const req = route.request().postDataJSON() as { polygon?: { coordinates: number[][][] } }
   const ring = req.polygon?.coordinates?.[0] ?? [[-121.9, 47.5]]
   const cx = ring.reduce((a, p) => a + p[0], 0) / ring.length
   const cy = ring.reduce((a, p) => a + p[1], 0) / ring.length
-  const destinations = DESTINATION_NAMES.map((name, i) => ({
-    name,
-    type: 'peak',
-    latitude: Number((cy + (i - 2) * 0.004).toFixed(5)),
-    longitude: Number((cx + (((i * 2) % 5) - 2) * 0.004).toFixed(5)),
-    elevation_ft: 4000 + i * 350,
-    osm_id: `node/${1000 + i}`,
-  }))
-  return { destinations, total: destinations.length, total_found: null, truncated: false }
+  return destinationsAnswer(
+    DESTINATION_NAMES.map((name, i) =>
+      peak({
+        name,
+        latitude: Number((cy + (i - 2) * 0.004).toFixed(5)),
+        longitude: Number((cx + (((i * 2) % 5) - 2) * 0.004).toFixed(5)),
+        elevation_ft: 4000 + i * 350,
+        osm_id: `node/${1000 + i}`,
+      }),
+    ),
+  )
 }
 
 export const DESTINATION_NAMES = ['Mount Alpha', 'Beta Peak', 'Gamma Butte', 'Delta Point', 'Epsilon Ridge']
@@ -156,6 +185,12 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
 }
 
 export const test = base.extend<{ traffic: Traffic }>({
+  // Before the test's first goto, so the app's first read of the clock is
+  // START's.
+  page: async ({ page }, use) => {
+    await page.clock.install({ time: START })
+    await use(page)
+  },
   traffic: [
     async ({ page, baseURL }, use, testInfo) => {
       await page.addInitScript(() => localStorage.setItem('bluebird_forecast_welcomed', '1'))

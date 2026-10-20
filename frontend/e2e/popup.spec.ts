@@ -1,4 +1,4 @@
-import { test, expect, DESTINATION_NAMES, resultRows } from './fixtures'
+import { test, expect, DESTINATION_NAMES, resultRows, isoDay } from './fixtures'
 import type { Locator } from '@playwright/test'
 
 // A result popup is built from the report it opened over, so a new report
@@ -9,12 +9,6 @@ import type { Locator } from '@playwright/test'
 
 // The window the readiness review saw the bar cover a card's last rows at.
 test.use({ viewport: { width: 1478, height: 812 } })
-
-function isoDay(offset: number): string {
-  const d = new Date()
-  d.setUTCDate(d.getUTCDate() + offset)
-  return d.toISOString().slice(0, 10)
-}
 
 async function box(locator: Locator) {
   const b = await locator.boundingBox()

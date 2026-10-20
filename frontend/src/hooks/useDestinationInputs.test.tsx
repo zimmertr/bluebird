@@ -61,6 +61,16 @@ describe('useDestinationInputs', () => {
     expect(result.current.destinationNamed).toBe(false)
   })
 
+  // The same feature found again is the same destination, with what the
+  // search knows about it now.
+  it('re-searching a place refreshes it rather than listing it twice', () => {
+    const { result } = renderHook(() => useDestinationInputs(null))
+    const baker = place()
+    act(() => result.current.addPlace(baker))
+    act(() => result.current.addPlace({ ...baker, label: 'Mount Baker (Koma Kulshan)' }))
+    expect(result.current.places).toEqual([{ ...baker, label: 'Mount Baker (Koma Kulshan)' }])
+  })
+
   // The removal scope is the authored inputs: a new kind or a new line moves
   // it, and a searched place does not.
   it('moves the authored scope with the kinds and the lines, not the searched places', () => {

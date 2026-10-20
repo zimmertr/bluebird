@@ -11,7 +11,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | Role | Purpose |
 |---|---|
 | `TEXT.appTitle` | Panel identity in the header |
-| `TEXT.section` | Panel section headings: 14px bold uppercase in slate-300 (9.85:1 on the panel), brighter than any caption so a heading no longer reads dimmer than the slate-200 subheading under it (#687) |
+| `TEXT.section` | Panel section headings: 14px bold uppercase in slate-300 (9.83:1 on the panel), brighter than any caption so a heading no longer reads dimmer than the slate-200 subheading under it (#687) |
 | `TEXT.subheading` | Named sub-blocks and field labels |
 | `TEXT.cta` | Single call-to-action text, step up from body |
 | `TEXT.control` | Anything you read or type in a control |
@@ -73,7 +73,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `FIELD_NUMERIC` | Number input with browser spinners suppressed |
 | `SELECT` | Native dropdown, recessed fill with suppressed platform chrome |
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
-| `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.25:1 on the panel, 5.96:1 on an idle metric select and 5.43:1 on an unplotted chart chip, where 50% was 4.11, 4.58 and 4.22. The fade is the `--ui-muted` token, 65% in light, where 60% leaves the dark ink at 4.31, 4.50 and 4.38 and 65% measures 5.07, 5.34 and 5.10 (#706) |
+| `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.26:1 on the panel, 5.98:1 on an idle metric select and 5.41:1 on an unplotted chart chip, where 50% was 4.14, 4.61 and 4.23. The fade is the `--ui-muted` token, 65% in light, where 60% leaves the dark ink at 4.31, 4.50 and 4.38 and 65% measures 5.07, 5.34 and 5.10 (#706) |
 | `SR_ONLY` | Text for assistive technology only: the twin of an approved tooltip, the one sentence a row's metric links are described by, and a live region that must exist before it speaks |
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
@@ -114,7 +114,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `ACCENT.edgeHover` | Border reaching for accent on hover |
 | `ACCENT.edgeFocus` | Border on focus-within |
 | `FOCUS_RING` | Visible keyboard-focus outline |
-| `FOCUS_RING_INSET` | The same outline drawn inside the edge: the results table's sticky headers, where an outer ring is clipped by the scroll box and lands on the first row (sky-400 is 4.74:1 on the slate-700 bar) |
+| `FOCUS_RING_INSET` | The same outline drawn inside the edge: the results table's sticky headers, where an outer ring is clipped by the scroll box and lands on the first row (sky-400 is 4.75:1 on the slate-700 bar) |
 | `ACCENT_RING` | Ring pointing at a control from across the screen |
 | `BADGE_ACCENT` | Word marking a row: "Recommended" badge |
 | `CHIP.rest` | A selected member of a set that is not the one in force: a compared forecast model |
@@ -369,7 +369,7 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | A phone's rows, sheets and Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
-| The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 4.56, 4.06, 3.54, 3.17, 4.56 and the 6.45 hover |
+| The accent ratios are pinned | `styles.test.ts` | 4.56, 3.20, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 4.56, 4.06, 3.54, 3.17, 4.56 and the 6.45 hover |
 | Every light value is measured where it lands | `styles.test.ts`, `colors.test.ts`, `chartColors.test.ts` | The test parses both token blocks out of `index.css`, reads each dark token back to the slate or sky step it always was, and pins the light theme's ratios role by role (see The light theme below); the cell inks and chart lines per theme |
 | The theme is the switch's, never the operating system's | `checks/styles.js`, `styles.test.ts` | `style-no-os-theme` bans a `dark:` variant and `prefers-color-scheme` in any string or template under `src/`, tests aside, because either paints by the system's setting under a switch that may say the opposite; the test holds `index.css` and `map.css` to the same, since ESLint does not read CSS (#706) |
 | A stored light theme paints before React does | `theme.test.ts` | `public/theme.js` reads `THEME_KEY`, stays under 400 bytes, and is in the head of all four HTML entries before the module script, with no inline script anywhere |
@@ -447,13 +447,13 @@ why. CI runs the same script in the `Frontend Typecheck & Tests` job.
 The accent fill answers four measured constraints at once and must pass WCAG AA on each. On a white-on-blue design, those constraints are tight.
 
 - `--color-sky-650` is defined in `frontend/src/index.css` and used throughout as the custom token
-- White on `sky-650` measures **4.57:1** against 4.5:1 WCAG 1.4.3 (text contrast)
-- Against the slate-800 panel it reads **3.21:1** against 3:1 WCAG 1.4.11 (UI boundary)
+- White on `sky-650` measures **4.56:1** against 4.5:1 WCAG 1.4.3 (text contrast)
+- Against the slate-800 panel it reads **3.20:1** against 3:1 WCAG 1.4.11 (UI boundary)
 - On `DAY.range` (sky-950 background) it measures **3.04:1** (the binding edge)
 - On the segment track it measures **3.91:1**
 - The hover state (`sky-600`, white label) is **4.02:1** — deliberate exception, documented below
 
-**Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint: sky-600 sits above it (white reads 4.02:1) and sky-700 below it (the fill drops to 2.37:1 on the range band, so the ends of a selected range sink into it). Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected: 4.02 is below AA, and the resting state is the one a reader looks at, so the custom shade lifts it to 4.57 and leaves only the hover short). The hover at 4.02:1 is kept because with a white label every lightening costs contrast — a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
+**Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint: sky-600 sits above it (white reads 4.02:1) and sky-700 below it (the fill drops to 2.37:1 on the range band, so the ends of a selected range sink into it). Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected: 4.02 is below AA, and the resting state is the one a reader looks at, so the custom shade lifts it to 4.56 and leaves only the hover short). The hover at 4.02:1 is kept because with a white label every lightening costs contrast — a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
 
 **Re-measure condition:** if `DAY.range` ever changes, re-derive this shade. The binding edge is `DAY.range` at 3.04:1, so the selected day must still be findable against the range band beside it.
 
@@ -472,15 +472,15 @@ reads 4.06:1 on the light panel, under the 4.5 text owes, so links,
 
 | What | On | Light | Dark, for comparison |
 |---|---|---|---|
-| White label on the accent fill | the fill | **4.56:1** | 4.57 |
-| The fill | the panel | **4.06:1** | 3.21 |
+| White label on the accent fill | the fill | **4.56:1** | 4.56 |
+| The fill | the panel | **4.06:1** | 3.20 |
 | The fill | `DAY.range` | **3.54:1** | 3.04 |
 | The fill | the segment track | **4.56:1** | 3.91 |
 | The fill | `DAY.range`'s hover | **3.17:1** | |
 | White label on the hover | `#00639b` | **6.45:1** | 4.02 |
 
-The 4.56 is the dark 4.57 taken on the hex the browser paints rather than on
-the oklch value, and it is every label on the fill: a button's, a lit map
+The 4.56 is taken on the hex the browser paints rather than on the oklch
+value, in both themes, and it is every label on the fill: a button's, a lit map
 chip's and its glyph, and the welcome dialog's step badge.
 
 The rest of the theme, role by role, each pinned as a literal:
@@ -510,7 +510,7 @@ The rest of the theme, role by role, each pinned as a literal:
 - **Decoration.** `DAY.unservable` reads 2.45:1 on the well, as the dark
   theme's does under 3: a day nothing can be served for is not a control.
 - **The legend strip's numbers** read 15.12 and 9.79 on the strip's lightest and darkest
-  bands under the light scrim, where dark's read 6.49.
+  bands under the light scrim, where dark's read 6.48.
 - **The slider thumb** is the ink rather than white, because a white thumb
   would vanish on the white well; it reads 3.75:1 on the mark beside the
   dark white thumb's 2.71 on its own.
@@ -919,7 +919,7 @@ clears AA over a ramp that runs the whole hue circle: white measures 1.45:1 on
 the freezing level's cyan-300 and slate-900 measures 2.04:1 on its purple, and every
 metric ramp and all eleven snow bands have an end like each of those. So the
 numbers sit on a `bg-slate-900/70` band along the strip's bottom edge, where
-slate-200 measures **6.49:1** against the worst band under it. A text shadow was
+slate-200 measures **6.48:1** against the worst band under it. A text shadow was
 the alternative and is not measurable, which is the whole reason this one is
 pinned in `styles.test.ts` as `RAMP_INK` — change the ramp colours or the scrim's
 opacity and the number has to be taken again.

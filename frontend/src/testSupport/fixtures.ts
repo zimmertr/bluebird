@@ -14,6 +14,7 @@ import type { ClosureWarning } from '../utils/closureProximity'
 import type { PendingDestination } from '../utils/customList'
 import type { Feature, Geometry } from 'geojson'
 import type { ClosureProps } from '../utils/closures'
+import type { MapInputs } from '../map/controller'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
@@ -394,5 +395,34 @@ export function snowIdentify({
       },
       { layerId: 7, layerName: 'Image', attributes: { 'Service Pixel Value': sweMm, 'Classify.Class value': '3' } },
     ],
+  }
+}
+
+/**
+ * What the map's controller holds (`map/controller.ts`): no drawing, no rows,
+ * no warnings, no camera pad and no-op callbacks. A test that needs a spy or
+ * a row passes it, so a new input is one edit here rather than one per map
+ * suite, and no suite casts a partial past the type checker.
+ */
+export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
+  return {
+    drawing: false,
+    results: [],
+    modelId: null,
+    times: [],
+    modelFallbackLabel: null,
+    popupColumns: [],
+    pointSample: false,
+    sortBy: 'aqi_avg',
+    fireWarnings: new Map(),
+    closureWarnings: new Map(),
+    searchedPlaces: [],
+    onAddPoi: () => {},
+    onRemovePoi: () => {},
+    onRemoveResult: () => {},
+    cameraPadBottomPx: 0,
+    onCameraMove: () => {},
+    maxPolygonPoints: MAX_POLYGON_POINTS,
+    ...over,
   }
 }

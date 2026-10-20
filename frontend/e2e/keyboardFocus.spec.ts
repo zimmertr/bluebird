@@ -26,18 +26,27 @@ async function analyzeFromTheKeyboard(page: Page) {
   return analyze
 }
 
-test('the keyboard comes back to Analyze, and reaches a row remove and a value by its name', async ({ page }) => {
+test('the keyboard comes back to Analyze after a run', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 })
   const analyze = await analyzeFromTheKeyboard(page)
   // Disabled under the press while the run was up, and handed back after.
   await expect(analyze).toBeFocused()
+})
 
+test('a value link is named by its value and described', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await analyzeFromTheKeyboard(page)
   // The value is the link's name, and the sentence its description.
   const value = resultRows(page).first().locator('a[href*="windy.com"]').first()
   await expect(value).toHaveAccessibleName((await value.textContent()) ?? '')
   await expect(value).toHaveAccessibleDescription(/ on Windy\. Opens in a new tab\.$/)
+})
 
-  // Hidden with `invisible`, the remove was never a Tab stop.
+test("Tab reaches a row's remove and shows it", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await analyzeFromTheKeyboard(page)
+  // Hidden with `invisible`, the remove was never a Tab stop. The walk starts
+  // from Analyze, where the run hands the keyboard back.
   const remove = `Remove ${DESTINATION_NAMES[0]}`
   await tabUntil(page, remove)
   const button = page.getByRole('button', { name: remove })

@@ -45,14 +45,14 @@ vi.mock('maplibre-gl', () => ({
 }))
 
 import { mountPoiPopups } from './poiPopup'
-import { createMapController, type MapInputs } from './controller'
+import { createMapController } from './controller'
+import { mapInputs } from '../testSupport/fixtures'
 import { RESULT_MARKER_LAYER } from './resultsLayer'
 import { mountTestPopups } from '../testSupport/mapPopups'
 import { POI_LAYERS, poiFromFeature, poiToPlace } from '../utils/basemapPoi'
 import { poiPopupHtml } from '../utils/poiPopup'
 import type { Place } from '../utils/geocode'
 import { stubMap } from '../testSupport/stubMap'
-import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 
 const PEAK_LAYER = 'ofm-peaks'
 const SUMMIT: [number, number] = [-121.76, 46.85]
@@ -76,25 +76,7 @@ function setup({
     zoom: MAP_ZOOM,
     layers: glow ? [...POI_LAYERS, ...POI_LAYERS.map((id) => `${id}-glow`)] : [...POI_LAYERS],
   })
-  const inputs: MapInputs = {
-    drawing,
-    results: [],
-    modelId: null,
-    times: [],
-    modelFallbackLabel: null,
-    popupColumns: [],
-    pointSample: false,
-    sortBy: 'aqi_avg',
-    fireWarnings: new Map(),
-    closureWarnings: new Map(),
-    searchedPlaces,
-    onAddPoi: vi.fn(),
-    onRemovePoi: vi.fn(),
-    onRemoveResult: vi.fn(),
-    cameraPadBottomPx: 0,
-    onCameraMove: () => {},
-    maxPolygonPoints: MAX_POLYGON_POINTS,
-  }
+  const inputs = mapInputs({ drawing, searchedPlaces, onAddPoi: vi.fn(), onRemovePoi: vi.fn(), onRemoveResult: vi.fn() })
   const controller = createMapController(inputs)
   const { popups: mapPopups, click } = mountTestPopups(stub, controller)
   const pois = mountPoiPopups(stub.map, { controller, popups: mapPopups })
@@ -144,10 +126,15 @@ describe('mountPoiPopups', () => {
     expect(popups[0].html).toBe(poiPopupHtml(PEAK, true, MAP_ZOOM))
   })
 
-  // A marker on an analyzed summit outranks the label under it
-  // (`utils/mapClick.ts`), and while drawing a label is scenery.
-  it('opens nothing while drawing, or where a marker takes the click', () => {
+  // While drawing a label is scenery.
+  it('opens nothing while drawing', () => {
     setup({ drawing: true }).peakClick()
+    expect(popups).toHaveLength(0)
+  })
+
+  // A marker on an analyzed summit outranks the label under it
+  // (`utils/mapClick.ts`).
+  it('lets a marker over a label take the click', () => {
     const marked = setup()
     marked.stub.map.addLayer({ id: RESULT_MARKER_LAYER } as never)
     const markerOpened = vi.fn()

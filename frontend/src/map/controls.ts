@@ -118,7 +118,7 @@ export const COMPASS_IDLE_CLASS = 'compass-idle'
  * button carries a class and `map.css` does the hiding: the markup is the
  * library's, and a stylesheet is the one place that reaches it.
  */
-export function hideCompassWhileNorthUp(map: maplibregl.Map, container: HTMLElement | undefined): void {
+function hideCompassWhileNorthUp(map: maplibregl.Map, container: HTMLElement | undefined): void {
   const compass = container?.querySelector('.maplibregl-ctrl-compass')
   if (!compass) return
   const sync = () => compass.classList.toggle(COMPASS_IDLE_CLASS, map.getBearing() === 0 && map.getPitch() === 0)
