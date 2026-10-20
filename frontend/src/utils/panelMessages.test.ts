@@ -210,6 +210,9 @@ describe('panelMessages', () => {
       })
     })
 
+    // The text counts down as the user draws ("2 more points" to "1 more
+    // point"), but the key stays `blocker:polygon`, so a dismissal holds
+    // through the countdown instead of resurfacing per click.
     it('counts the points still needed in the plural', () => {
       expect(only({ blockers: ['polygon'], pointsNeeded: 2 }).text).toBe(
         'Add at least 2 more points to the polygon to continue.',

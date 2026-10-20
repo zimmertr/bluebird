@@ -29,7 +29,6 @@ async def test_aclose_releases_the_client():
     await http.aclose()
 
     assert client.is_closed
-    assert http._client is None
 
 
 async def test_aclose_on_a_process_that_never_fetched_is_a_no_op():

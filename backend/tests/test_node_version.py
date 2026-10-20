@@ -21,9 +21,6 @@ NODE_VERSION = REPO / ".node-version"
 
 @pytest.fixture
 def node_major() -> str:
-    # Skips where the repo root is not mounted, like the CSP allowlist test.
-    if not NODE_VERSION.exists():
-        pytest.skip("repo root not visible")
     return NODE_VERSION.read_text().strip()
 
 

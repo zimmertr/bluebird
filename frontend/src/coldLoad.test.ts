@@ -6,9 +6,7 @@ import { dirname, join } from 'path'
 // @ts-expect-error node builtin, untyped in this project
 import { fileURLToPath } from 'url'
 
-// Same `?raw` idiom legal.test.ts and styles.test.ts use: the map module is
-// read as text so the style's host can be compared with index.html.
-import basemap from './map/basemap.ts?raw'
+import { STYLE } from './map/basemap'
 import { AIR_QUALITY_URL, FORECAST_URL } from './utils/openMeteo'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -18,12 +16,10 @@ const indexHtml = readFileSync(repoFile('index.html'), 'utf-8')
 // What the entry document promises to warm. Pulled out of the sources rather
 // than spelled here, so moving an endpoint fails this test instead of quietly
 // leaving a hint pointed at a host nothing calls (issue #337, finding 1).
-const styleUrl = /const STYLE = '([^']+)'/.exec(basemap)?.[1]
 
 describe('preconnect hints', () => {
   it('warms every host the first screen and the first analysis need', () => {
-    expect(styleUrl).toBeTruthy()
-    const hosts = [styleUrl!, FORECAST_URL, AIR_QUALITY_URL].map((u) => new URL(u).origin)
+    const hosts = [STYLE, FORECAST_URL, AIR_QUALITY_URL].map((u) => new URL(u).origin)
     for (const origin of hosts) {
       // crossorigin is not decoration: all three are read with `fetch`, which
       // opens an anonymous CORS connection, and a preconnect without the

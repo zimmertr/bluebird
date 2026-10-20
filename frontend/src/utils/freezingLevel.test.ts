@@ -76,10 +76,17 @@ describe('which models can answer a freezing-level ranking', () => {
 
   // The list and the sentence that names the same three models must not
   // drift: the note is what a reader sees, the set is what the panel acts on.
+  // Every id in the set has the short name the note calls it by, so a model
+  // added to the set fails here until the sentence names it too.
   it('agrees with the note that names them', () => {
-    expect(FREEZE_MODEL_IDS.size).toBe(3)
-    for (const word of ['GFS Seamless', 'HRRR', 'ICON']) {
-      expect(FREEZE_UNAVAILABLE_NOTE).toContain(word)
+    const NOTE_NAME: Record<string, string> = {
+      gfs_seamless: 'GFS Seamless',
+      gfs_hrrr: 'HRRR',
+      icon_seamless: 'ICON',
+    }
+    for (const id of FREEZE_MODEL_IDS) {
+      expect(NOTE_NAME[id], `${id} has no name in the note`).toBeDefined()
+      expect(FREEZE_UNAVAILABLE_NOTE).toContain(NOTE_NAME[id])
     }
   })
 })

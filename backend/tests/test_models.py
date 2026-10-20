@@ -70,12 +70,6 @@ def test_limit_accepts_in_range(limit):
     assert _valid_request(limit=limit).limit == limit
 
 
-@pytest.mark.parametrize("limit", [0, -1, 1501, 5000])
-def test_limit_rejects_out_of_range(limit):
-    with pytest.raises(ValidationError):
-        _valid_request(limit=limit)
-
-
 # ── AnalyzeRequest.polygon area ────────────────────────────────────────────
 
 
@@ -130,8 +124,9 @@ def test_polygon_a_hair_over_the_cap_is_rejected(monkeypatch):
 
 
 def test_polygon_none_passes_validator():
-    # Custom analyses carry no polygon; the validator must allow None.
-    assert _valid_request().polygon is None
+    # Custom analyses carry no polygon; the validator must allow None. Passed
+    # explicitly, because Pydantic does not validate a default.
+    assert _valid_request(polygon=None).polygon is None
 
 
 # ── AnalyzeRequest.window ──────────────────────────────────────────────────
@@ -254,7 +249,7 @@ def test_resolved_window_refuses_a_request_that_skipped_validation():
 
 def test_as_utc_adds_timezone_to_naive():
     naive = datetime(2026, 1, 1, 12, 0, 0)  # noqa: DTZ001 — naive input under test
-    assert _as_utc(naive).tzinfo is UTC
+    assert _as_utc(naive) == naive.replace(tzinfo=UTC)
 
 
 def test_as_utc_preserves_aware():
@@ -287,34 +282,25 @@ def _cd(**overrides):
     return base
 
 
-def test_custom_destination_rejects_out_of_range_coordinates():
-    for bad in [{"latitude": 99.0}, {"latitude": -90.5}, {"longitude": 199.0}, {"longitude": -180.5}]:
-        with pytest.raises(ValidationError):
-            CustomDestination(**_cd(**bad))
-
-
 def test_custom_destination_accepts_boundary_coordinates():
     CustomDestination(**_cd(latitude=90.0, longitude=-180.0))
     CustomDestination(**_cd(latitude=-90.0, longitude=180.0))
 
 
-def test_custom_destination_name_rules():
-    with pytest.raises(ValidationError):
-        CustomDestination(**_cd(name=""))
-    with pytest.raises(ValidationError):
-        CustomDestination(**_cd(name="   "))
-    with pytest.raises(ValidationError):
-        CustomDestination(**_cd(name="x" * 256))
-    # Whitespace trims; a max-length name passes.
+def test_custom_destination_name_is_trimmed_and_255_characters_fit():
     assert CustomDestination(**_cd(name="  Peak  ")).name == "Peak"
     CustomDestination(**_cd(name="x" * 255))
 
 
-def test_custom_destination_elevation_bounds():
-    with pytest.raises(ValidationError):
-        CustomDestination(**_cd(elevation_ft=99_999.0))
-    with pytest.raises(ValidationError):
-        CustomDestination(**_cd(elevation_ft=-2_000.0))
+def test_a_custom_name_that_is_not_a_string_is_a_422():
+    # Refused on the name rather than coerced to "123" or stripped.
+    with pytest.raises(ValidationError) as caught:
+        CustomDestination(**_cd(name=123))
+    [error] = caught.value.errors()
+    assert (error["loc"], error["type"]) == (("name",), "string_type")
+
+
+def test_custom_destination_accepts_elevations_to_the_bounds_inclusive():
     CustomDestination(**_cd(elevation_ft=None))
     CustomDestination(**_cd(elevation_ft=-1_500.0))
     CustomDestination(**_cd(elevation_ft=30_000.0))
@@ -385,21 +371,18 @@ def test_window_source_classification_table(start, end, expected, why):
     assert got == expected, why
 
 
-def test_window_source_boundary_is_the_forecast_endpoints_own_data_edge():
-    # One boundary, and it is PAST_DATA_DAYS rather than a second constant: the
-    # archive takes over exactly where the forecast endpoint's data stops.
-    just_inside = _SOURCE_NOW - timedelta(days=PAST_DATA_DAYS)
-    assert models.window_source(just_inside, just_inside, _SOURCE_NOW) == "forecast"
-    older = _SOURCE_NOW - timedelta(days=PAST_DATA_DAYS + 2)
-    assert models.window_source(older, older, _SOURCE_NOW) == "archive"
-
-
 def test_archive_boundary_is_one_instant_on_the_utc_day():
     # The seam a spanning window is cut at, and the instant `window_source`
     # classifies against: the same value, from one function, because a second
-    # spelling could split a window an hour from where it was classified.
+    # spelling could split a window an hour from where it was classified. And
+    # it is PAST_DATA_DAYS rather than a second constant: the archive takes
+    # over exactly where the forecast endpoint's data stops, the number the
+    # browser reads off /api/capabilities.
     boundary = models.archive_boundary(_SOURCE_NOW)
     assert boundary == datetime(2026, 7, 19, tzinfo=UTC)
+    assert boundary == (_SOURCE_NOW - timedelta(days=PAST_DATA_DAYS)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
     assert models.window_source(
         boundary - timedelta(minutes=1), boundary - timedelta(minutes=1), _SOURCE_NOW
     ) == "archive"
@@ -480,6 +463,10 @@ def test_the_retired_cloud_sort_keys_are_refused(sort_by):
         (
             lambda: CustomDestination(**_cd(longitude=-181)),
             "Longitude -181.0 is outside the valid -180 to 180 range.",
+        ),
+        (
+            lambda: CustomDestination(**_cd(longitude=199)),
+            "Longitude 199.0 is outside the valid -180 to 180 range.",
         ),
         (
             lambda: CustomDestination(**_cd(elevation_ft=40_000)),

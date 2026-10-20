@@ -1,11 +1,22 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useForecastSelection } from './useForecastSelection'
 import { FALLBACK_FORECAST_MODELS } from './useCapabilities'
 import { capabilities, forecastModel } from '../testSupport/fixtures'
 import { type ForecastSelection, addDays, dayKey } from '../utils/calendar'
 
-const TODAY = dayKey(new Date())
+// The hook reads the clock at render, so the selections are built from the
+// same fixed local noon rather than from an import-time read a run across
+// midnight would leave a day behind.
+let TODAY = ''
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 9, 18, 12))
+  TODAY = dayKey(new Date())
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
 const days = (from: number, to: number): ForecastSelection => ({
   kind: 'days',
   startDate: addDays(TODAY, from),

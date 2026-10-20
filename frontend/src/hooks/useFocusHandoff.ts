@@ -31,7 +31,7 @@ function unusable(el: Element): boolean {
 }
 
 /** Focus was on something a reader put it on, and that thing can no longer hold it. */
-export function focusOrphaned(): boolean {
+function focusOrphaned(): boolean {
   const active = document.activeElement
   if (active && active !== document.body && !unusable(active)) return false
   return lastFocused !== null && (active === lastFocused || unusable(lastFocused))

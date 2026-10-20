@@ -65,6 +65,7 @@ function props(over: Partial<Props> = {}): Props {
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('rows', () => {
@@ -401,8 +402,7 @@ describe('a footnote mark', () => {
     ['*', NOTE],
     ['†', TERRAIN_HEIGHT_NOTE],
   ])('%s links to its note, and a click lands the reader on it without moving the address', (glyph, text) => {
-    const scrolled = vi.fn()
-    Element.prototype.scrollIntoView = scrolled
+    const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
     render(<ResultsTable {...props({ results: rows, columns: withModelColumn(COLUMNS, true), partialNote: NOTE })} />)
     const note = screen.getByText(text)
     expect(note.id).not.toBe('')

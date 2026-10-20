@@ -29,7 +29,6 @@ PEAK = "peak"
 TRAILHEAD = "trailhead"
 LAKE = "lake"
 CRAG = "crag"
-KINDS = (PEAK, TRAILHEAD, LAKE, CRAG)
 
 # A trailhead is also a named parking lot whose name says so: much of the US
 # maps the lot and never adds the node (Issaquah, 2026-10-17: 2 of 14 named
@@ -177,9 +176,14 @@ def ele_ft(tags: Mapping[str, str]) -> float | None:
     if not ele:
         return None
     try:
-        return round(float(ele) * 3.28084, 0)
+        metres = float(ele)
     except (ValueError, TypeError):
         return None
+    # `float` reads "nan" and "inf", which the browser's Number.isFinite
+    # refuses, and an unnamed peak is named by rounding its feet to an integer,
+    # which raises on either. `errors.finite_float` says the same, but this
+    # module stays standard library only for the fill image.
+    return round(metres * 3.28084, 0) if math.isfinite(metres) else None
 
 
 def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

@@ -51,34 +51,16 @@ vi.mock('../../utils/smoke', async (importOriginal) => ({
 
 import { mountSmoke } from './smoke'
 import { createMapController } from '../controller'
+import { mapInputs } from '../../testSupport/fixtures'
 import { SMOKE_CLICK_ORDER, SMOKE_DENSITIES, smokeLayerId, smokePopupHtml, type SmokeDensity, type SmokeProps } from '../../utils/smoke'
 import { mountTestPopups } from '../../testSupport/mapPopups'
 import { stubMap } from '../../testSupport/stubMap'
-import { MAX_POLYGON_POINTS } from '../../utils/drawGeometry'
 
 const PLUME = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {} }] }
 
 function setup(drawing = false, online: EventTarget | null = null) {
   const stub = stubMap({ canvasWidth: 800 })
-  const controller = createMapController({
-    drawing,
-    results: [],
-    modelId: null,
-    times: [],
-    modelFallbackLabel: null,
-    popupColumns: [],
-    pointSample: false,
-    sortBy: 'aqi_avg',
-    fireWarnings: new Map(),
-    closureWarnings: new Map(),
-    searchedPlaces: [],
-    onAddPoi: () => {},
-    onRemovePoi: () => {},
-    onRemoveResult: () => {},
-    cameraPadBottomPx: 0,
-    onCameraMove: () => {},
-    maxPolygonPoints: MAX_POLYGON_POINTS,
-  })
+  const controller = createMapController(mapInputs({ drawing }))
   const { popups, click } = mountTestPopups(stub, controller)
   const smoke = mountSmoke(stub.map, { popups, online })
   return { stub, smoke, click }

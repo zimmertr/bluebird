@@ -25,6 +25,7 @@ import {
   smokePopupHtml,
   type SmokeProps,
 } from '../../utils/smoke'
+import { isAbort } from '../../utils/abort'
 
 export interface SmokeOverlay {
   update(next: { show: boolean }): void
@@ -95,7 +96,7 @@ export function mountSmoke(
         recovery.succeeded()
       })
       .catch((err) => {
-        if (ac.signal.aborted || (err as Error).name === 'AbortError') return
+        if (ac.signal.aborted || isAbort(err)) return
         console.warn('Smoke overlay fetch failed', err)
         recovery.failed(retryAfterOf(err))
       })

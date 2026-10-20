@@ -185,11 +185,6 @@ describe('the codec table against the links it wrote before', () => {
 })
 
 describe('the codec table', () => {
-  it('names each key once', () => {
-    const keys = URL_PARAMS.map((row) => row.key)
-    expect(new Set(keys).size).toBe(keys.length)
-  })
-
   it('holds one row per key, in the order a link writes them', () => {
     expect(URL_PARAMS.map((row) => row.key)).toEqual([
       'type',

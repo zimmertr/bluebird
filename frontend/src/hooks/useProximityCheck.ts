@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { overlayRecovery, retryAfterOf } from '../map/overlays/recovery'
 import { type FireProximityStatus, pointsBbox, pointsKey } from '../utils/fireProximity'
 import { type BBox, isRateLimited } from '../utils/wildfires'
+import { isAbort } from '../utils/abort'
 
 // The lifecycle the Wildfire and Closure columns' checks share: one lookup per
 // analysis over the candidate field, the quick retries, and what happens after
@@ -138,7 +139,7 @@ export function useProximityCheck<W>(
         setState({ status: 'ready', ...found })
       } catch (err) {
         // An abort is the caller changing its mind, not a failure to report.
-        if (cancelled || (err as Error).name === 'AbortError') return
+        if (cancelled || isAbort(err)) return
         // The one diagnostic. The failure the retries exist for was
         // reproducible only in the wild, where the console is the only
         // instrument anyone has; naming the caught error is what tells the
@@ -164,10 +165,9 @@ export function useProximityCheck<W>(
             ? prev
             : { status: 'unavailable', warnings: EMPTY as Map<string, W>, uncovered: NONE },
         )
-        // At least a second, so an answer that says `Retry-After: 0` cannot
-        // turn the silent attempts into a loop as fast as the network.
-        const named = retryAfterOf(err)
-        const wait = named === null ? null : Math.max(1, named)
+        // `retryAfterOf` floors the wait at a second, so `Retry-After: 0`
+        // cannot turn the silent attempts into a loop.
+        const wait = retryAfterOf(err)
         recovery.failed(wait)
         if (wait === null) timer = setTimeout(askAgain, RECOVERY_S * 1000)
       } finally {

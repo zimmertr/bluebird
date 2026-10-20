@@ -30,9 +30,19 @@ export function isUnavailableKey(key: string): boolean {
 }
 
 /**
- * The mark itself, shared with the wildfire column's own two absences.
+ * The mark itself, which every surface printing an unavailable value reads:
+ * these cells, the Wildfire and Closure columns' unchecked and uncovered rows
+ * on screen and in the file, and a point card's row its source left unfilled.
+ * The linter's `unavailable-mark-one-home` check fails a second spelling.
  */
 export const UNAVAILABLE = 'N/A'
+
+/**
+ * The other mark: the dash a value prints where the forecast simply has none,
+ * a missing hour or a check with nothing to report. One spelling for every
+ * cell, popup row and placeholder that draws it.
+ */
+export const NO_VALUE_MARK = '—'
 
 /**
  * What an empty cell reads, or null when the cell has a number and the

@@ -15,9 +15,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from conftest import fake_response
+from conftest import fake_response, weather_hourly
 from fastapi.testclient import TestClient
-from test_weather import _hourly
 
 from app.limits import PAST_LIMIT_SLACK_DAYS
 from app.main import app
@@ -52,7 +51,7 @@ def upstream(monkeypatch) -> list[tuple[str, dict[str, Any]]]:
                 return fake_response([{"hourly": {"time": times, "us_aqi": [10 + h for h in hour]}}])
             return fake_response(
                 [
-                    _hourly(
+                    weather_hourly(
                         times,
                         [h / 100 for h in hour],
                         [30.0 + h for h in hour],

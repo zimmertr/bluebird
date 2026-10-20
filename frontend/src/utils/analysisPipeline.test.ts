@@ -9,7 +9,7 @@ import {
   type PipelineOptions,
 } from './analysisPipeline'
 import { AnalysisRefusalError, runClientAnalysis } from './clientAnalyze'
-import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
+import { FALLBACK_WINDOW_LIMITS, HOUR_MS } from './forecastWindow'
 import { FORECAST_REUSE_MS, type HeldForecasts } from './forecastReuse'
 import { geoKey } from './points'
 import { discovered, fakeResponse, resultRow } from '../testSupport/fixtures'
@@ -21,8 +21,8 @@ vi.mock('./clientAnalyze', async (actual) => ({
   runClientAnalysis: vi.fn(),
 }))
 const ranked = vi.mocked(runClientAnalysis)
+type RankedResult = Awaited<ReturnType<typeof runClientAnalysis>>
 
-const HOUR = 3_600_000
 const NOW = Date.parse('2026-07-20T12:00:00Z')
 const RING: GeoPolygon = { type: 'Polygon', coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
 const REQUEST: AnalyzeRequest = {
@@ -73,9 +73,26 @@ function options(over: Partial<PipelineOptions> = {}): PipelineOptions {
   }
 }
 
+// What the ranking answers: nothing ranked, unless a test says otherwise.
+function rankedResult(over: Partial<RankedResult> = {}): RankedResult {
+  return {
+    response: { results: [], total_queried: 0, total_matched: 0 },
+    universe: [],
+    aqiFailed: new Set<string>(),
+    columns: new Map(),
+    late: null,
+    ...over,
+  }
+}
+
 beforeEach(() => {
   ranked.mockReset()
-  ranked.mockResolvedValue({ response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] }, universe: ROWS, aqiFailed: new Set(), columns: new Map(), late: null })
+  ranked.mockResolvedValue(
+    rankedResult({
+      response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] },
+      universe: ROWS,
+    }),
+  )
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -110,7 +127,7 @@ describe('a polygon run', () => {
   const MINE = { name: 'Mine', latitude: 47, longitude: -121 }
   const found = () => {
     const seen: Awaited<ReturnType<typeof discoverCandidates>>[] = []
-    ranked.mockResolvedValue({ response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null })
+    ranked.mockResolvedValue(rankedResult())
     return { seen, onDiscovered: (f: (typeof seen)[number]) => seen.push(f) }
   }
 
@@ -210,7 +227,7 @@ describe('runAnalysisPipeline', () => {
     ranked.mockImplementation(async (_r, candidates, _s, _e, cb) => {
       order.push(`ranked ${candidates.map((c) => `${c.name}:${c.elevation_ft}`).join()}`)
       handed = cb!.resolving
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
+      return rankedResult()
     })
     await runAnalysisPipeline(
       { ...REQUEST, polygon: undefined, custom_destinations: custom },
@@ -246,13 +263,13 @@ describe('runAnalysisPipeline', () => {
       ),
     )
     const patched = resultRow({ name: 'Mine', latitude: 47, longitude: -121, elevation_ft: 6000 })
-    ranked.mockImplementation(async (_r, _c, _s, _e, cb) => ({
-      response: { results: [], total_queried: 1, total_matched: 1 },
-      universe: [],
-      aqiFailed: new Set<string>(),
-      columns: new Map([[geoKey(47, -121), { weather: { hourly: { time: [] } } }]]),
-      late: cb!.resolving!.then(() => ({ rows: [patched], columns: new Map() })),
-    }))
+    ranked.mockImplementation(async (_r, _c, _s, _e, cb) =>
+      rankedResult({
+        response: { results: [], total_queried: 1, total_matched: 1 },
+        columns: new Map([[geoKey(47, -121), { weather: { hourly: { time: [] } } }]]),
+        late: cb!.resolving!.then(() => ({ rows: [patched], columns: new Map() })),
+      }),
+    )
     const out = await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options())
     expect([...out.pending]).toEqual([geoKey(47, -121)])
     expect(out.held.columns?.size).toBe(1)
@@ -283,7 +300,7 @@ describe('runAnalysisPipeline', () => {
     ranked.mockImplementation(async (_r, candidates, _s, _e, cb) => {
       order.push(`ranked ${candidates.map((c) => String(c.elevation_ft)).join()}`)
       await cb!.resolving
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
+      return rankedResult()
     })
     await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options({ identity }))
     // The field carries what was learned from the start.
@@ -305,7 +322,7 @@ describe('runAnalysisPipeline', () => {
         return fakeResponse({ destinations: custom.map((c) => discovered({ ...c, type: 'custom' })), total: 3 })
       }),
     )
-    ranked.mockResolvedValue({ response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null })
+    ranked.mockResolvedValue(rankedResult())
     await runAnalysisPipeline(
       { ...REQUEST, polygon: undefined, custom_destinations: custom, top_by_elevation: true },
       options({ maxDestinations: 2 }),
@@ -316,18 +333,20 @@ describe('runAnalysisPipeline', () => {
   it('names no row as waiting when the ranking already waited for the lookup', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     const held = new Map([[geoKey(47, -121), { weather: { hourly: { time: [] } } }]])
-    ranked.mockResolvedValueOnce({
-      response: { results: [], total_queried: 1, total_matched: 1 },
-      universe: [],
-      aqiFailed: new Set<string>(),
-      columns: held,
-      late: null,
-    })
+    ranked.mockResolvedValueOnce(
+      rankedResult({ response: { results: [], total_queried: 1, total_matched: 1 }, columns: held }),
+    )
     const out = await runAnalysisPipeline(REQUEST, options())
     expect(out.pending.size).toBe(0)
     expect(out.late).toBeNull()
     // The columns are still held for a later run's lookup.
     expect(out.held.columns).toBe(held)
+  })
+
+  it('hands the ranking the clock it was given, so the fetches read one time', async () => {
+    stubDestinations({ destinations: [CANDIDATE], total: 1 })
+    await runAnalysisPipeline(REQUEST, options())
+    expect(ranked.mock.calls[0][4]!.nowMs).toBe(NOW)
   })
 
   it('hands a ring no lookup: discovery already answered', async () => {
@@ -341,7 +360,7 @@ describe('runAnalysisPipeline', () => {
     const order: string[] = []
     ranked.mockImplementation(async () => {
       order.push('ranked')
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
+      return rankedResult()
     })
     await runAnalysisPipeline(REQUEST, options({ onDiscovered: (f) => order.push(`found ${f.candidates.length}`) }))
     expect(order).toEqual(['found 1', 'ranked'])
@@ -351,7 +370,7 @@ describe('runAnalysisPipeline', () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     ranked.mockImplementation(async (_r, _c, _s, _e, cb) => {
       cb!.onPartial!(ROWS, [7])
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
+      return rankedResult()
     })
     const onPartial = vi.fn()
     await runAnalysisPipeline(REQUEST, options({ onPartial }))
@@ -372,17 +391,17 @@ describe('runAnalysisPipeline', () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     const startMs = Date.parse(REQUEST.start_datetime)
     const held: HeldForecasts = {
-      rows: ROWS, times: [1], startMs, endMs: startMs + 2 * HOUR, model: 'gfs_seamless', fetchedAtMs: NOW - 60_000,
+      rows: ROWS, times: [1], startMs, endMs: startMs + 2 * HOUR_MS, model: 'gfs_seamless', fetchedAtMs: NOW - 60_000,
       aqiFailed: new Set(['held']),
     }
     const stillFailed = new Set(['still'])
-    ranked.mockResolvedValueOnce({
-      response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] },
-      universe: ROWS,
-      aqiFailed: stillFailed,
-      columns: new Map(),
-      late: null,
-    })
+    ranked.mockResolvedValueOnce(
+      rankedResult({
+        response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] },
+        universe: ROWS,
+        aqiFailed: stillFailed,
+      }),
+    )
     const out = await runAnalysisPipeline(REQUEST, options({ held }))
     // The rows whose air quality failed go to the run that may ask again
     // (#580), and the ones that failed again come back to be held.
@@ -396,7 +415,7 @@ describe('runAnalysisPipeline', () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     const startMs = Date.parse(REQUEST.start_datetime)
     const held: HeldForecasts = {
-      rows: ROWS, times: [1], startMs, endMs: startMs + 2 * HOUR, model: 'gfs_seamless', fetchedAtMs: NOW - FORECAST_REUSE_MS,
+      rows: ROWS, times: [1], startMs, endMs: startMs + 2 * HOUR_MS, model: 'gfs_seamless', fetchedAtMs: NOW - FORECAST_REUSE_MS,
     }
     const out = await runAnalysisPipeline(REQUEST, options({ held }))
     expect(ranked.mock.calls[0][4]!.reuse).toBeNull()

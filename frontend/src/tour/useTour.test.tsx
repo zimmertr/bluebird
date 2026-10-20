@@ -1,12 +1,17 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
+import type { MapCamera, MapViewHandle } from '../components/MapView'
 import { useTour } from './useTour'
+import { sheetKeepOut, SPOTLIGHT_PAD } from './place'
+import { placeAt } from '../testSupport/render'
+import { TOUR_ATTR, TOUR_STEPS, TUTORIAL_PATH } from '../utils/tourSteps'
 
-// The tour's card takes the keyboard for its whole run and then unmounts, so
-// the focus would fall to the body when it ends. These pin where it goes back
-// to (#576). The rest of the tour is driven end to end in the browser suite.
+// The tour's state, driven through the hook. The browser suite walks the
+// whole tour end to end; these pin what it leaves behind.
 
-function setup() {
+type Args = Parameters<typeof useTour>[0]
+
+function setup(over: Partial<Args> = {}) {
   return renderHook(() =>
     useTour({
       isDesktop: true,
@@ -14,15 +19,36 @@ function setup() {
       setSidebarOpen: () => {},
       mapRef: { current: null },
       tourLayer: { shown: false, show: () => {} },
+      ...over,
     }),
   )
 }
 
+/** An element the test puts on the page, taken off again however the test ends. */
+function append<T extends HTMLElement>(el: T, parent: HTMLElement = document.body): T {
+  parent.appendChild(el)
+  onTestFinished(() => el.remove())
+  return el
+}
+
+// `end` goes back over the entry `start` pushed, and jsdom lands that
+// traversal as a popstate some time later, which would end whichever tour the
+// next test had started by then. No test here reads where Back goes, so it
+// goes nowhere, and every test starts from the app's own path.
+beforeEach(() => {
+  vi.spyOn(window.history, 'back').mockImplementation(() => {})
+})
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  window.history.replaceState(null, '', '/')
+})
+
 describe('the tour hands the keyboard back', () => {
   it('to the control that started it', () => {
-    const link = document.body.appendChild(document.createElement('a'))
+    const link = append(document.createElement('a'))
     link.href = '/tutorial'
-    const card = document.body.appendChild(document.createElement('button'))
+    const card = append(document.createElement('button'))
     link.focus()
     const { result } = setup()
     act(() => result.current.start())
@@ -30,8 +56,6 @@ describe('the tour hands the keyboard back', () => {
     card.focus()
     act(() => result.current.end())
     expect(document.activeElement).toBe(link)
-    link.remove()
-    card.remove()
   })
 
   it('to nothing when that control has left the page', () => {
@@ -73,9 +97,6 @@ describe('the tour opens the results for their steps', () => {
 // (#696): no pointer is drawn and nothing sweeps, the hour simply stands.
 describe('the chart readout under the tour', () => {
   it('stands on the demonstration\'s middle hour through the results steps, and lets go at the end', async () => {
-    // An earlier test's tour went back over its own history entry, and that
-    // traversal's popstate would end this one: let it land first.
-    await new Promise((resolve) => setTimeout(resolve, 50))
     const { result } = setup()
     act(() => result.current.start())
     const anchor = () => result.current.steps[result.current.index!].anchor
@@ -136,5 +157,116 @@ describe('the Layers step on a phone', () => {
     toStep(result, 'layers')
     act(() => result.current.end())
     expect(show).not.toHaveBeenCalled()
+  })
+})
+
+// Ending, by any route, puts back what the tour moved: the camera, the
+// drawer and the panel's scroll.
+describe('the tour puts the page back', () => {
+  it('puts the camera, the drawer and the panel\'s scroll back when it ends', () => {
+    const scroller = append(document.createElement('div'))
+    scroller.style.overflowY = 'auto'
+    Object.defineProperty(scroller, 'scrollHeight', { value: 2000 })
+    Object.defineProperty(scroller, 'clientHeight', { value: 600 })
+    Object.defineProperty(scroller, 'scrollTop', { value: 120, writable: true })
+    const section = append(document.createElement('section'), scroller)
+    section.setAttribute(TOUR_ATTR, TOUR_STEPS[0].anchor)
+    const camera = { center: [-121.7, 46.9], zoom: 9 } as unknown as MapCamera
+    const setCamera = vi.fn()
+    const setSidebarOpen = vi.fn()
+    const mapRef = { current: { getCamera: () => camera, setCamera } as unknown as MapViewHandle }
+    const { result } = setup({ mapRef, setSidebarOpen })
+    act(() => result.current.start())
+    // The tour scrolls the panel to each step's section.
+    scroller.scrollTop = 300
+    act(() => result.current.end())
+    expect(setCamera).toHaveBeenCalledWith(camera)
+    expect(setSidebarOpen).toHaveBeenLastCalledWith(true)
+    expect(scroller.scrollTop).toBe(120)
+  })
+
+  it('steps back, but not past the first card', () => {
+    const { result } = setup()
+    act(() => result.current.start())
+    act(() => result.current.prev())
+    expect(result.current.index).toBe(0)
+    act(() => result.current.next())
+    act(() => result.current.next())
+    act(() => result.current.prev())
+    expect(result.current.index).toBe(1)
+  })
+
+  // Back lands on the entry under the one `start` pushed, whose path is not
+  // the tour's.
+  it('ends on the browser\'s Back, and not on a traversal that stays on the tour', () => {
+    const { result } = setup()
+    act(() => result.current.start())
+    expect(window.location.pathname).toBe(TUTORIAL_PATH)
+    act(() => void window.dispatchEvent(new PopStateEvent('popstate')))
+    expect(result.current.index).toBe(0)
+    window.history.replaceState(null, '', '/')
+    act(() => void window.dispatchEvent(new PopStateEvent('popstate')))
+    expect(result.current.index).toBeNull()
+  })
+})
+
+// The marker step opens the first demonstration row's popup, after two
+// frames so the results have collapsed, with the card's keep-out on a phone,
+// and takes it down when the step is left.
+describe('the marker step', () => {
+  // Frames the test runs by hand.
+  function frames() {
+    const queue: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => queue.push(cb))
+    vi.stubGlobal('cancelAnimationFrame', () => {})
+    return () => act(() => void queue.shift()?.(0))
+  }
+
+  async function toMarker(width: number) {
+    const was = Object.getOwnPropertyDescriptor(window, 'innerWidth')
+    Object.defineProperty(window, 'innerWidth', { value: width, configurable: true })
+    onTestFinished(() => {
+      if (was) Object.defineProperty(window, 'innerWidth', was)
+      else delete (window as { innerWidth?: number }).innerWidth
+    })
+    const frame = frames()
+    const focusResult = vi.fn()
+    const closePopups = vi.fn()
+    const mapRef = { current: { getCamera: () => null, focusResult, closePopups } as unknown as MapViewHandle }
+    const hook = setup({ mapRef })
+    act(() => hook.result.current.start())
+    while (hook.result.current.steps[hook.result.current.index!].anchor !== 'marker') {
+      act(() => hook.result.current.next())
+    }
+    // The demonstration is a chunk of its own: let its import land inside act.
+    await act(async () => {
+      await import('./demoReport')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    return { ...hook, frame, focusResult, closePopups }
+  }
+
+  it('opens the first row\'s popup after two frames, and closes it at the end', async () => {
+    const { result, frame, focusResult, closePopups } = await toMarker(1280)
+    frame()
+    expect(focusResult).not.toHaveBeenCalled()
+    frame()
+    expect(focusResult).toHaveBeenCalledWith(result.current.demo!.universe[0], { instant: true, avoid: [] })
+    act(() => result.current.end())
+    expect(closePopups).toHaveBeenCalled()
+  })
+
+  it('keeps the popup out of a phone\'s card', async () => {
+    const card = append(document.createElement('div'))
+    card.setAttribute('data-tour-card', '')
+    placeAt(card, { left: 0, top: 560, width: 390, height: 180 })
+    const { result, frame, focusResult } = await toMarker(390)
+    frame()
+    frame()
+    const box = card.getBoundingClientRect()
+    expect(focusResult).toHaveBeenCalledWith(result.current.demo!.universe[0], {
+      instant: true,
+      avoid: [sheetKeepOut(box, box.height, window.innerHeight, SPOTLIGHT_PAD)],
+    })
   })
 })

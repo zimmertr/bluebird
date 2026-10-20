@@ -35,8 +35,7 @@ const LEAD = new Set(['name', 'type', 'elevation_ft'])
 // table that had gained or lost a column. It is a module export now (the CSV
 // export writes the same columns), so the fixture can be the thing itself.
 const KEYS = COLUMNS.map((c) => c.key)
-// The three columns a report carries only when it was asked for them (#117,
-// #670), last in the canonical order.
+// The cloud deck's three columns (#670), last in the canonical order.
 const CLOUD_KEYS = ['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft']
 
 // Snowfall's four (#678), in precipitation's shape, where the snow depth
@@ -61,14 +60,12 @@ describe('COLUMNS', () => {
   })
 
   // Only where a display formatter would be unparseable or would editorialize.
-  // Elevation is the first case — a grouped number puts a comma inside a
-  // comma-separated cell. Type is the second and a different one: the file
-  // keeps OSM's own word, lower-case, because a caller re-importing it wants
-  // the value the API uses rather than the one the table title-cases for
-  // reading. Adding a third means a file cell changed shape.
-  // Elevation is the first case — a grouped number puts a comma inside a
-  // comma-separated cell — and the three freezing-level columns are the same
-  // case for the same reason, being grouped numbers formatted the same way.
+  // Type keeps OSM's own word, lower-case, because a caller re-importing the
+  // file wants the value the API uses rather than the one the table
+  // title-cases for reading. Elevation, the three freezing-level columns and
+  // the three cloud-deck columns are grouped numbers, and a grouped number
+  // puts a comma inside a comma-separated cell. Adding another means a file
+  // cell changed shape.
   it('overrides the display formatter for exactly the columns that need it', () => {
     expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual([
       'type',

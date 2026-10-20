@@ -1,6 +1,6 @@
-# 0126. The runtime stage's `apk upgrade` runs on every build
+# 0197. The runtime stage's `apk upgrade` runs on every build
 
-- Status: Accepted
+- Status: Accepted. Issued as 0126, a number `0126-chart-marks-the-extreme-hour.md` already held, and moved to 0197 on 2026-10-20 (#772)
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), who asked for a PR against code scanning alert 39; the placement is the author's (git is the source)
 - Issues and PRs: #717, code scanning alert 39

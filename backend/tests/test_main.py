@@ -4,8 +4,10 @@ import logging
 from types import SimpleNamespace
 
 import httpx
-from conftest import FAKE_API_KEY
+import pytest
+from conftest import FAKE_API_KEY, fake_response
 
+from app import ratelimit
 from app.main import _client_ip, app
 
 
@@ -16,21 +18,24 @@ def _request(headers=None, client_host="10.0.0.1"):
     )
 
 
-def test_client_ip_prefers_cf_connecting_ip():
-    # Cloudflare overwrites this header, so for proxied traffic it is the one
-    # identity a client cannot rotate.
-    req = _request(
-        headers={"cf-connecting-ip": "203.0.113.5", "x-forwarded-for": "8.8.8.8, 10.0.0.6"},
-        client_host="127.0.0.6",
-    )
-    assert _client_ip(req) == "203.0.113.5"
-
-
-def test_client_ip_takes_rightmost_forwarded_hop():
-    # The log prints what rate limiting counts: the rightmost XFF hop (the peer
-    # our edge saw), never the client-typed leftmost one.
-    req = _request(headers={"x-forwarded-for": "203.0.113.5, 10.0.0.6"}, client_host="127.0.0.6")
-    assert _client_ip(req) == "10.0.0.6"
+@pytest.mark.parametrize(
+    "req",
+    [
+        _request(
+            headers={"cf-connecting-ip": "203.0.113.5", "x-forwarded-for": "8.8.8.8, 10.0.0.6"},
+            client_host="127.0.0.6",
+        ),
+        _request(headers={"x-forwarded-for": "203.0.113.5, 10.0.0.6"}, client_host="127.0.0.6"),
+        _request(client_host="192.168.1.1"),
+        _request(client_host=None),
+    ],
+    ids=["cf-connecting-ip", "rightmost-forwarded-hop", "socket-peer", "no-peer"],
+)
+def test_the_log_names_the_address_the_bucket_counts(req):
+    # The rules for which address a request came from are test_ratelimit.py's
+    # client_key tests. The log prints what rate limiting counts, and for an
+    # IPv4 client the bucket is the address itself.
+    assert _client_ip(req) == ratelimit.client_key(req)
 
 
 def test_client_ip_prints_the_whole_ipv6_address():
@@ -38,14 +43,6 @@ def test_client_ip_prints_the_whole_ipv6_address():
     # names the address that sent the request.
     req = _request(headers={"cf-connecting-ip": "2001:db8::1:2:3:4"})
     assert _client_ip(req) == "2001:db8::1:2:3:4"
-
-
-def test_client_ip_falls_back_to_peer():
-    assert _client_ip(_request(client_host="192.168.1.1")) == "192.168.1.1"
-
-
-def test_client_ip_handles_missing_client():
-    assert _client_ip(_request(client_host=None)) == "-"
 
 
 def test_the_api_description_states_the_key_requirement():
@@ -78,7 +75,7 @@ async def test_httpx_logs_no_request_line_at_any_level(caplog):
     # request carries the caller's key in its query string. `main.py` holds
     # the httpx logger at WARNING so that line never reaches the log, even
     # with the root logger at TRACE.
-    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    transport = httpx.MockTransport(lambda request: fake_response(None))
     with caplog.at_level(5):  # TRACE
         async with httpx.AsyncClient(transport=transport) as http_client:
             await http_client.get(

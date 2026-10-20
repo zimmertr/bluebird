@@ -43,6 +43,7 @@
  */
 
 import type { AqiResult, CloudResult, Coordinate, WeatherResult } from './openMeteo'
+import { MINUTE_MS } from './forecastWindow'
 
 export const STORAGE_KEY = 'bluebird_forecast_cache_v1'
 
@@ -58,7 +59,7 @@ export const STORAGE_KEY = 'bluebird_forecast_cache_v1'
 export const MAX_BYTES = 2_000_000
 
 /** One entry as it is stored: the key, the value, and the ms it had left. */
-export interface StoredEntry {
+interface StoredEntry {
   k: string
   v: unknown
   /** Milliseconds of freshness remaining at the moment of the write. */
@@ -110,7 +111,7 @@ export function buildSnapshot(
 }
 
 /** Whether `snapshot` was written by `build`. A snapshot with no stamp was not. */
-export function snapshotFromBuild(snapshot: unknown, build: string): boolean {
+function snapshotFromBuild(snapshot: unknown, build: string): boolean {
   return !!snapshot && typeof snapshot === 'object' && (snapshot as Partial<StoredSnapshot>).build === build
 }
 
@@ -146,7 +147,7 @@ export function readSnapshot(
 }
 
 /** The raw snapshot in storage, or null. Never throws. */
-export function loadSnapshot(): unknown {
+function loadSnapshot(): unknown {
   try {
     const raw = globalThis.sessionStorage?.getItem(STORAGE_KEY)
     return raw ? JSON.parse(raw) : null
@@ -156,7 +157,7 @@ export function loadSnapshot(): unknown {
 }
 
 /** Write the snapshot, or do nothing at all. Never throws. */
-export function saveSnapshot(snapshot: StoredSnapshot): void {
+function saveSnapshot(snapshot: StoredSnapshot): void {
   try {
     globalThis.sessionStorage?.setItem(STORAGE_KEY, JSON.stringify(snapshot))
   } catch {
@@ -167,7 +168,7 @@ export function saveSnapshot(snapshot: StoredSnapshot): void {
 }
 
 /** Remove the snapshot, or do nothing at all. Never throws. */
-export function removeSnapshot(): void {
+function removeSnapshot(): void {
   try {
     globalThis.sessionStorage?.removeItem(STORAGE_KEY)
   } catch {
@@ -182,7 +183,7 @@ export function removeSnapshot(): void {
 // coordinate (including elevation downscaling), so a rounded key would serve
 // one peak its neighbor's forecast and silently change displayed values.
 // TTL sits under Open-Meteo's roughly hourly model-update cadence.
-const CACHE_TTL_MS = 15 * 60_000
+const CACHE_TTL_MS = 15 * MINUTE_MS
 const CACHE_MAX_ENTRIES = 5_000
 // "No data for this window" is a real cached answer, distinct from a miss.
 export const NO_DATA = 'NO_DATA'

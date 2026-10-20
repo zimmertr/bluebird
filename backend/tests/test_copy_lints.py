@@ -4,11 +4,11 @@ import re
 from pathlib import Path
 
 
-def test_no_defect_2_remedy_phrases():
-    """L5: No 'analyze a smaller area' / 'draw a smaller area' phrases.
-
-    The defect-2 remedy has been replaced with more specific suggestions.
-    This test scans backend/app/**/*.py source for those phrases.
+def test_no_smaller_area_remedy_in_app_copy():
+    """'Analyze a smaller area' and 'draw a smaller area' were the remedy the
+    Open-Meteo rate-limit messages carried (#181) until the string audit
+    removed it (#238). A message states what is wrong and names a remedy only
+    where it works (docs/STYLES.md).
     """
     backend_root = Path(__file__).parent.parent / "app"
 
@@ -28,5 +28,5 @@ def test_no_defect_2_remedy_phrases():
                 found_violations.append(str(py_file))
 
     assert not found_violations, (
-        f"Found defect-2 remedy phrases in: {', '.join(found_violations)}"
+        f"Found the old smaller-area remedy in: {', '.join(found_violations)}"
     )

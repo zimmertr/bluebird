@@ -1,11 +1,5 @@
-import { test, expect, DESTINATION_NAMES, resultRows } from './fixtures'
+import { test, expect, DESTINATION_NAMES, resultRows, isoDay } from './fixtures'
 import type { Page } from '@playwright/test'
-
-function isoDay(offset: number): string {
-  const d = new Date()
-  d.setUTCDate(d.getUTCDate() + offset)
-  return d.toISOString().slice(0, 10)
-}
 
 test('a share link restores the ring, the types, the window and the model', async ({ page, request }) => {
   // The model and its label come from the image, so the test follows the

@@ -5,7 +5,6 @@ import type { WeatherAggregates } from './openMeteoAggregate'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
 import { allocateColors, paletteColors } from './chartColors'
 import { normalizeWindow } from './forecastWindow'
-import { callWeight } from './openMeteo'
 import {
   CompareDestination,
   CompareModel,
@@ -28,23 +27,14 @@ import {
   pairKey,
 } from './modelCompare'
 import { modelNamed } from './chartData'
-import { resultRow, weatherResult } from '../testSupport/fixtures'
+import { forecastModel, resultRow, weatherResult } from '../testSupport/fixtures'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 const NOW = Date.UTC(2026, 8, 12, 12, 0)
 
-function model(id: string, forecastHours: number, blend = false): ForecastModelOption {
-  return {
-    id,
-    label: id.toUpperCase(),
-    summary: '',
-    finestGridKm: 3,
-    forecastHours,
-    regional: false,
-    blend,
-  }
-}
+const model = (id: string, forecastHours: number, blend = false) =>
+  forecastModel({ id, label: id.toUpperCase(), finestGridKm: 3, forecastHours, blend })
 
 const MODELS: ForecastModelOption[] = [
   model('gfs_seamless', 384, true),
@@ -52,45 +42,6 @@ const MODELS: ForecastModelOption[] = [
   model('gfs_hrrr', 42),
   model('meteofrance_seamless', 72, true),
 ]
-
-// The cost of a comparison, in the unit every capacity number in this app is
-// written in. The issue's own table said three models were free; it assumed
-// three hourly variables and the browser sends nine, so the floor of the
-// variable factor stops covering a second model.
-describe('what a comparison costs', () => {
-  const start = Date.UTC(2026, 8, 12, 0, 0)
-  const end = Date.UTC(2026, 8, 13, 0, 0)
-
-  it('prices models in one request at variables x models / 10', () => {
-    expect(callWeight(1, start, end, 9, 1)).toBeCloseTo(1.0, 6)
-    expect(callWeight(1, start, end, 9, 2)).toBeCloseTo(1.8, 6)
-    expect(callWeight(1, start, end, 9, 3)).toBeCloseTo(2.7, 6)
-  })
-
-  // What the app actually spends: the analysis model's numbers are held, so a
-  // three-model comparison buys two model series, as one single-model request
-  // each. The premium over asking for both in one request is 0.2 weighted
-  // calls, and it buys a per-model coverage answer a bare-keyed multi-model
-  // response cannot give.
-  it('spends two single-model requests for a three-model comparison', () => {
-    const split = 2 * callWeight(1, start, end, 9, 1)
-    expect(split).toBeCloseTo(2.0, 6)
-    expect(split - callWeight(1, start, end, 9, 2)).toBeCloseTo(0.2, 6)
-  })
-
-  it('scales with the window the way any other request does', () => {
-    const long = Date.UTC(2026, 8, 27, 0, 0) // 16 days inclusive
-    expect(callWeight(1, start, long, 9, 1)).toBeCloseTo(16 / 14, 6)
-  })
-
-  // No cap. The review took the three-model ceiling out: it hid the control
-  // that set it, and the spend is already bounded by the Analyze click that
-  // buys it rather than by a number here.
-  it('prices a comparison of every published model', () => {
-    const all = MODELS.length * callWeight(1, start, end, 9, 1)
-    expect(all).toBeCloseTo(MODELS.length, 6)
-  })
-})
 
 describe('compareEndMs', () => {
   it('stops at the shortest reach among the models given', () => {

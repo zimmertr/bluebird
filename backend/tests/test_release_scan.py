@@ -38,9 +38,6 @@ DOWNSTREAM = ("create-release", "update-manifests", "bump-chart-appversion")
 
 def _workflow(name: str) -> dict:
     path = WORKFLOWS / name
-    # Skips where the repo root is not mounted, like test_workflow_pins.py.
-    if not path.exists():
-        pytest.skip("repo root not visible")
     return yaml.safe_load(path.read_text())
 
 

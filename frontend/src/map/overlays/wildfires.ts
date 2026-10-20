@@ -24,6 +24,7 @@ import {
 } from '../../utils/wildfires'
 import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
+import { isAbort } from '../../utils/abort'
 
 // How long a pan or zoom must settle before the viewport is asked about again.
 export const FIRE_REFETCH_DEBOUNCE_MS = 400
@@ -121,7 +122,7 @@ export function mountWildfires(
       setSource(map, 'wildfires', fc)
       recovery.succeeded()
     } catch (err) {
-      if (ac.signal.aborted || (err as Error).name === 'AbortError') return
+      if (ac.signal.aborted || isAbort(err)) return
       console.warn('Wildfire overlay fetch failed', err)
       recovery.failed(retryAfterOf(err))
     }

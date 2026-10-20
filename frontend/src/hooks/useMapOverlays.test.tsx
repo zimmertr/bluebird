@@ -6,7 +6,7 @@ import { useMapOverlays } from './useMapOverlays'
 const LINK = { showRadar: true, showGrid: true, showPlayer: false, showTrailClosures: true }
 
 describe('useMapOverlays', () => {
-  it('starts every overlay off, and restores what a link carried', () => {
+  it('starts every overlay off', () => {
     const fresh = renderHook(() => useMapOverlays(null, true)).result.current
     expect([
       fresh.showWildfires,
@@ -17,6 +17,9 @@ describe('useMapOverlays', () => {
       fresh.showSnow,
       fresh.showGrid,
     ]).toEqual([false, false, false, false, false, false, false])
+  })
+
+  it('restores what a link carried', () => {
     const linked = renderHook(() => useMapOverlays(LINK, true)).result.current
     expect([linked.showRadar, linked.showGrid, linked.playerShown]).toEqual([true, true, false])
     expect([linked.showAreaClosures, linked.showTrailClosures]).toEqual([false, true])

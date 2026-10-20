@@ -74,8 +74,10 @@ describe('metricForSort', () => {
   })
 })
 
-function line(key: string, over: Partial<HourlySeries>): ChartLine {
-  return { key, label: key, color: '#38bdf8', series: seriesOf(over) }
+// A drawn line on the chart's grid. Ranked unless said otherwise, as every
+// plain row the chart builds is.
+function line(key: string, over: Partial<HourlySeries>, ranked = true): ChartLine {
+  return { key, label: key, color: '#38bdf8', series: seriesOf(over), ...(ranked ? { ranked } : {}) }
 }
 
 describe('valueAt / buildChartData', () => {
@@ -124,12 +126,6 @@ describe('gridRemapper', () => {
 })
 
 describe('extremeValue', () => {
-  // A drawn line on the chart's grid. Ranked unless said otherwise, as every
-  // plain row the chart builds is.
-  function line(key: string, over: Partial<HourlySeries>, ranked = true): ChartLine {
-    return { key, label: key, color: '#000000', series: seriesOf(over), ...(ranked ? { ranked } : {}) }
-  }
-
   it('finds the largest hour when the ranking is highest first', () => {
     const lines = [line('a', { wind_mph: [5, 30, 12, 8] }), line('b', { wind_mph: [40, 9, 2, 1] })]
     expect(extremeValue(lines, 'wind', true)).toBe(40)
@@ -471,9 +467,10 @@ describe('axisTimeLabel', () => {
   const t = Date.parse('2026-07-21T15:00:00Z')
   const HOURS = 3_600_000
 
+  // 15:00Z on 2026-07-21 is Tuesday 08:00 in the pinned Pacific zone.
   it('names the weekday and the hour inside a two-day span', () => {
     expect(axisTimeLabel(t, 24 * HOURS)).not.toMatch(/Jul/)
-    expect(axisTimeLabel(t, 24 * HOURS)).toMatch(/\d/)
+    expect(axisTimeLabel(t, 24 * HOURS)).toMatch(/^Tue\b.*\d/)
   })
 
   it('swaps the weekday for the date once the span passes two days', () => {
@@ -490,13 +487,13 @@ describe('axisTimeLabel', () => {
   })
 
   it('holds the weekday form exactly at the threshold', () => {
-    expect(axisTimeLabel(t, 48 * HOURS)).not.toMatch(/Jul/)
+    expect(axisTimeLabel(t, 48 * HOURS)).toMatch(/^Tue\b/)
   })
 
   // A one-timestamp grid has no span, so it keeps the weekday-and-hour form —
   // which is what a single moment wants to be read as anyway.
   it('keeps the hour form for a point sample, which has no span', () => {
-    expect(axisTimeLabel(t, 0)).not.toMatch(/Jul/)
+    expect(axisTimeLabel(t, 0)).toMatch(/^Tue\b/)
   })
 })
 
@@ -618,7 +615,7 @@ describe('comparedLineLabel', () => {
 
   // The ranking model's own lines take it too, which is what makes two entries
   // for one destination comparable at a glance.
-  it('distinguishes two models at one destination', () => {
+  it("names the ranking model's own line the same way", () => {
     expect(comparedLineLabel(1, 'Mount Rainier', 'ECMWF IFS')).toBe(
       '1. Mount Rainier (ECMWF IFS)',
     )

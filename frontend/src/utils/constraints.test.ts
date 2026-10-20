@@ -73,6 +73,17 @@ describe('filterConstraints', () => {
     ])
   })
 
+  it('reads the calmest hour for a wind floor', () => {
+    // Both rows average 6 mph; only one of them blows at least 5 mph all window.
+    const rows = [
+      boundRow('steady', { wind_min_mph: 5, wind_max_mph: 8, wind_avg_mph: 6 }),
+      boundRow('lulls', { wind_min_mph: 1, wind_max_mph: 12, wind_avg_mph: 6 }),
+    ]
+    expect(filterConstraints(rows, bounded({ minWindMph: 5 })).map((r) => r.name)).toEqual([
+      'steady',
+    ])
+  })
+
   it('reads the windiest hour for a wind ceiling', () => {
     const rows = [
       boundRow('calm', { wind_min_mph: 2, wind_max_mph: 12, wind_avg_mph: 6 }),
@@ -200,16 +211,9 @@ describe('filterConstraints', () => {
 
 describe('constraint round trips', () => {
   it('carries every bound out to the wire fields and back', () => {
-    const c = bounded({
-      maxPrecipTotalIn: 0.1,
-      minTempF: 20,
-      maxWindMph: 20,
-      minFreezeFt: 6000,
-      maxFreezeFt: 12000,
-      maxAqi: 100,
-      minCloudDeckFt: 5000,
-      maxCloudDeckFt: 20000,
-    })
+    // Every key, each with its own value, so a dropped mapping or a min and a
+    // max swapped on the way out cannot come back looking right.
+    const c = Object.fromEntries(Object.keys(NO_CONSTRAINTS).map((k, i) => [k, i + 1])) as unknown as Constraints
     expect(constraintsFromRequest({ ...REQUEST, ...constraintFields(c) })).toEqual(c)
   })
 

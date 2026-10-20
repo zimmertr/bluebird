@@ -59,13 +59,6 @@ def _table(heading: str) -> dict[str, str]:
     return rows
 
 
-@pytest.fixture(autouse=True)
-def _repo_root():
-    # Skips where the repo root is not mounted, like the Node version test.
-    if not NOTICES.exists():
-        pytest.skip("repo root not visible")
-
-
 def test_the_npm_table_names_exactly_the_runtime_dependencies():
     declared = set(json.loads(PACKAGE_JSON.read_text())["dependencies"])
     assert set(_table("Frontend (npm)")) == declared

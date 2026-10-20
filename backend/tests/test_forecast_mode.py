@@ -40,10 +40,12 @@ def test_at_samples_the_hour_containing_its_moment():
 
 
 def test_at_accepts_a_moment_in_the_past():
-    # The reason this mode is not called "future": the weather API serves
-    # roughly 90 days of history, so a backdated sample is legitimate.
-    request = _request(forecast_mode="at", start_datetime=_now() - timedelta(days=30))
+    # The reason this mode is not called "future": the archive serves a year
+    # of history, so a backdated sample is legitimate.
+    moment = _now() - timedelta(days=30)
+    request = _request(forecast_mode="at", start_datetime=moment)
     assert request.forecast_mode is ForecastMode.at
+    assert request.start_datetime == moment.replace(minute=0, second=0, microsecond=0)
 
 
 def test_window_keeps_the_span_it_was_given():

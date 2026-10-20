@@ -1,20 +1,30 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
-from conftest import FAKE_API_KEY, assert_no_key_logged, dest, fake_response
+from conftest import (
+    FAKE_API_KEY,
+    RecordingPacer,
+    answered,
+    assert_no_key_logged,
+    dest,
+    fake_response,
+    stub_openmeteo,
+)
 
 from app.services import air_quality
 from app.services.aggregation import _aqi_metrics, _aqi_series, _parse_ts
 from app.services.air_quality import fetch_aqi_batch
 from app.services.errors import InvalidApiKeyError
 
+# A fixed window in the past. fetch_aqi_batch skips only a window that starts
+# past the ~5-day horizon and fetches any older one
+# (test_an_archive_era_window_is_still_fetched), so these tests never meet the
+# clamp.
 START = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
 END = datetime(2026, 7, 21, 2, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
 
@@ -58,7 +68,7 @@ def test_metrics_result_is_integer_index():
     assert m["aqi_avg"] == 80
 
 
-def test_metrics_malformed_payload_returns_none():
+def test_metrics_with_no_hourly_read_as_an_empty_window():
     assert _aqi_metrics({"nope": 1}, START, END) is None
 
 
@@ -83,7 +93,7 @@ async def test_fetch_batch_beyond_horizon_skips_without_network():
 async def test_the_request_asks_only_for_the_hours_the_window_needs(monkeypatch):
     # Issue #212, the air-quality half. Same flooring rule as the weather
     # service, and it has to respect the CAMS clamp below.
-    calls = _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T10:00"], [80])]])
+    calls = stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T10:00"], [80])]])
     start = datetime(2026, 7, 21, 9, 30)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
     end = datetime(2026, 7, 21, 14, 45)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
     await fetch_aqi_batch([dest(47.0, -121.0)], start, end)
@@ -98,14 +108,15 @@ async def test_the_horizon_clamp_ends_at_the_last_hour_of_the_cap_day(monkeypatc
     # The whole-day request this replaced ended at 23:00 on the cap day, so the
     # hour bound has to end there too. Clamping to the instant instead would
     # quietly drop most of a day of real AQI.
-    calls = _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T10:00"], [80])]])
+    calls = stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T10:00"], [80])]])
+    # The service reads the clock for its own cap, so the cap day is either
+    # side of the call: a run that crosses UTC midnight sees two.
     start = datetime.now(UTC)
-    cap_day = (start + timedelta(days=air_quality.MAX_FORECAST_DAYS)).date()
-    await fetch_aqi_batch(
-        [dest(47.0, -121.0)], start, start + timedelta(days=15)
-    )
+    await fetch_aqi_batch([dest(47.0, -121.0)], start, start + timedelta(days=15))
+    after = datetime.now(UTC)
+    cap_days = {(t + timedelta(days=air_quality.MAX_FORECAST_DAYS)).date() for t in (start, after)}
 
-    assert calls[0]["end_hour"] == f"{cap_day.isoformat()}T23:00"
+    assert calls[0]["end_hour"] in {f"{d.isoformat()}T23:00" for d in cap_days}
 
 
 # ── _series (hourly bake-in for the chart) ─────────────────────────────────
@@ -145,50 +156,8 @@ def test_series_empty_returns_none():
 # next minute's budget mid-fallback. The guard against that had no test.
 
 
-def _stub_openmeteo(
-    monkeypatch, behaviors: list[Any], urls: list[str] | None = None
-) -> list[dict[str, Any]]:
-    """Replay one behavior per upstream GET; running off the end is an
-    IndexError, which is how "this batch never fired" gets asserted.
-
-    Pass ``urls`` to collect the host each call went to as well. A callable
-    behavior is handed the call's url and params, so an error answer can be
-    built on the request the service really made."""
-    calls: list[dict[str, Any]] = []
-
-    class _Client:
-        async def get(self, url, params=None):
-            # Yield once so concurrent batches actually overlap. Without it a
-            # batch runs start-to-finish before its siblings begin, and the
-            # short-circuit below would look stronger than it is.
-            await asyncio.sleep(0)
-            behavior = behaviors[len(calls)]
-            calls.append(params or {})
-            if urls is not None:
-                urls.append(url)
-            if isinstance(behavior, Exception):
-                raise behavior
-            if callable(behavior):
-                answer = behavior(url, params or {})
-                # A coroutine behavior is one that takes real time to answer.
-                return await answer if inspect.isawaitable(answer) else answer
-            return fake_response(behavior)
-
-    stub = _Client()
-    monkeypatch.setattr(air_quality.http, "client", lambda: stub)
-    return calls
-
-
 def _dests(n: int) -> list[dict[str, Any]]:
     return [dest(40.0 + i * 0.1, -120.0) for i in range(n)]
-
-
-def _rate_limited(scope: str = "minutely") -> httpx.HTTPStatusError:
-    request = httpx.Request("GET", air_quality.AIR_QUALITY_URL)
-    response = httpx.Response(
-        429, request=request, json={"reason": f"{scope} API request limit exceeded"}
-    )
-    return httpx.HTTPStatusError("429", request=request, response=response)
 
 
 async def test_a_rate_limit_skips_the_remaining_batches(monkeypatch):
@@ -197,7 +166,8 @@ async def test_a_rate_limit_skips_the_remaining_batches(monkeypatch):
     # of them has finished and set the flag, so it returns nulls without ever
     # reaching the network. The script holds four behaviors, so a fifth
     # upstream call would IndexError rather than pass quietly.
-    calls = _stub_openmeteo(monkeypatch, [_rate_limited()] * 4)
+    rate_limited = answered(429, {"reason": "minutely API request limit exceeded"})
+    calls = stub_openmeteo(monkeypatch, [rate_limited] * 4, overlap=True)
     results = await fetch_aqi_batch(_dests(250), START, END)
 
     assert len(calls) == 4
@@ -207,10 +177,11 @@ async def test_a_rate_limit_skips_the_remaining_batches(monkeypatch):
 async def test_rate_limited_nulls_are_not_cached(monkeypatch):
     # Those Nones mean "unknown", not "no data for this window". Caching them
     # would freeze the outage in place for the length of the forecast TTL.
-    _stub_openmeteo(monkeypatch, [_rate_limited()] * 4)
+    rate_limited = answered(429, {"reason": "minutely API request limit exceeded"})
+    stub_openmeteo(monkeypatch, [rate_limited] * 4, overlap=True)
     assert await fetch_aqi_batch(_dests(250), START, END) == [None] * 250
 
-    calls = _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]])
+    calls = stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]])
     results = await fetch_aqi_batch(_dests(1), START, END)
     assert len(calls) == 1  # asked again rather than serving the outage
     assert results[0]["aqi_avg"] == 80
@@ -219,7 +190,7 @@ async def test_rate_limited_nulls_are_not_cached(monkeypatch):
 async def test_a_real_answer_is_still_cached(monkeypatch):
     # The counterpart: a successful fetch does populate the cache, so the
     # no-caching rule above is specific to the rate-limited path.
-    calls = _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]])
+    calls = stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]])
     first = await fetch_aqi_batch(_dests(1), START, END)
     second = await fetch_aqi_batch(_dests(1), START, END)
     assert len(calls) == 1
@@ -231,7 +202,7 @@ async def test_a_miscounted_answer_degrades_and_is_not_cached(monkeypatch):
     # analysis, as before, but they mean "unknown", so the next analysis asks
     # again instead of reading "no data" out of the cache for fifteen minutes.
     one = _hourly(["2026-07-21T00:00"], [80])
-    calls = _stub_openmeteo(monkeypatch, [[one, one], [one, one, one]])
+    calls = stub_openmeteo(monkeypatch, [[one, one], [one, one, one]])
     assert await fetch_aqi_batch(_dests(3), START, END) == [None] * 3
 
     results = await fetch_aqi_batch(_dests(3), START, END)
@@ -242,12 +213,8 @@ async def test_a_miscounted_answer_degrades_and_is_not_cached(monkeypatch):
 async def test_a_failed_request_degrades_and_is_not_cached(monkeypatch):
     # The same rule for a batch the provider failed outright (a 5xx): null for
     # this analysis, asked again by the next.
-    request = httpx.Request("GET", air_quality.AIR_QUALITY_URL)
-    error = httpx.HTTPStatusError(
-        "502", request=request, response=httpx.Response(502, request=request)
-    )
     one = _hourly(["2026-07-21T00:00"], [80])
-    calls = _stub_openmeteo(monkeypatch, [error, [one]])
+    calls = stub_openmeteo(monkeypatch, [answered(502, {}), [one]])
     assert await fetch_aqi_batch(_dests(1), START, END) == [None]
 
     results = await fetch_aqi_batch(_dests(1), START, END)
@@ -260,7 +227,7 @@ async def test_a_body_that_is_not_json_degrades_and_is_not_cached(monkeypatch):
     # decode is a null row like any other failed batch, never an exception
     # that fails the analysis around it.
     one = _hourly(["2026-07-21T00:00"], [80])
-    calls = _stub_openmeteo(
+    calls = stub_openmeteo(
         monkeypatch, [lambda url, params: fake_response(None, text="<html>busy</html>"), [one]]
     )
     assert await fetch_aqi_batch(_dests(1), START, END) == [None]
@@ -277,7 +244,7 @@ async def test_a_request_past_its_total_deadline_degrades(monkeypatch):
         await asyncio.sleep(1)
         return fake_response([_hourly(["2026-07-21T00:00"], [80])])
 
-    _stub_openmeteo(monkeypatch, [slow])
+    stub_openmeteo(monkeypatch, [slow])
     assert await fetch_aqi_batch(_dests(1), START, END) == [None]
 
 
@@ -285,7 +252,7 @@ async def test_one_unusable_batch_leaves_its_siblings_cached(monkeypatch):
     # 60 destinations are two batches. The second answers short; the first is
     # a real answer and is cached, so the next ask fetches only the second.
     one = _hourly(["2026-07-21T00:00"], [80])
-    calls = _stub_openmeteo(monkeypatch, [[one] * 50, [one] * 9, [one] * 10])
+    calls = stub_openmeteo(monkeypatch, [[one] * 50, [one] * 9, [one] * 10], overlap=True)
     first = await fetch_aqi_batch(_dests(60), START, END)
     assert first[:50] == [first[0]] * 50 and first[0] is not None
     assert first[50:] == [None] * 10
@@ -299,34 +266,14 @@ async def test_one_unusable_batch_leaves_its_siblings_cached(monkeypatch):
 # ── a caller's own API key (issue #317) ────────────────────────────────────
 
 
-class _RecordingWeight:
-    """Stands in for the weighted pacer and records every acquire."""
-
-    def __init__(self) -> None:
-        self.acquired: list[float] = []
-
-    def wait_estimate_s(self, weight: float) -> float:
-        return 0.0
-
-    async def acquire(self, weight: float) -> None:
-        self.acquired.append(weight)
-
-
-def _invalid_key() -> httpx.HTTPStatusError:
-    """How the air-quality customer host refuses a bad key (measured
-    2026-09-11): a 400 whose reason names the key, not a 401."""
-    request = httpx.Request("GET", air_quality.CUSTOMER_AIR_QUALITY_URL)
-    response = httpx.Response(
-        400,
-        request=request,
-        json={"error": True, "reason": "The supplied API key is invalid."},
-    )
-    return httpx.HTTPStatusError("400", request=request, response=response)
+# How the air-quality customer host refuses a bad key (measured 2026-09-11):
+# a 400 whose reason names the key, not a 401.
+_INVALID_KEY_BODY = {"error": True, "reason": "The supplied API key is invalid."}
 
 
 async def test_a_keyed_chunk_goes_to_the_customer_host_carrying_the_key(monkeypatch):
     urls: list[str] = []
-    calls = _stub_openmeteo(
+    calls = stub_openmeteo(
         monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]], urls
     )
     await fetch_aqi_batch(_dests(1), START, END, api_key="secret-key")
@@ -337,7 +284,7 @@ async def test_a_keyed_chunk_goes_to_the_customer_host_carrying_the_key(monkeypa
 
 async def test_an_unkeyed_chunk_stays_on_the_free_host_with_no_key(monkeypatch):
     urls: list[str] = []
-    calls = _stub_openmeteo(
+    calls = stub_openmeteo(
         monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]], urls
     )
     await fetch_aqi_batch(_dests(1), START, END)
@@ -347,18 +294,18 @@ async def test_an_unkeyed_chunk_stays_on_the_free_host_with_no_key(monkeypatch):
 
 
 async def test_a_keyed_chunk_never_touches_the_weighted_pacer(monkeypatch):
-    pacer = _RecordingWeight()
+    pacer = RecordingPacer()
     monkeypatch.setattr(air_quality.ratelimit, "AQI_WEIGHT", pacer)
-    _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]])
+    stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]])
     await fetch_aqi_batch(_dests(1), START, END, api_key="secret-key")
 
     assert pacer.acquired == []
 
 
 async def test_an_unkeyed_chunk_still_pays_the_weighted_pacer(monkeypatch):
-    pacer = _RecordingWeight()
+    pacer = RecordingPacer()
     monkeypatch.setattr(air_quality.ratelimit, "AQI_WEIGHT", pacer)
-    _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]])
+    stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]])
     await fetch_aqi_batch(_dests(1), START, END)
 
     assert pacer.acquired == [1.0]
@@ -368,7 +315,7 @@ async def test_a_refused_key_raises_instead_of_degrading_to_nulls(monkeypatch):
     # The one air-quality failure that is not best-effort: the same key rides
     # every batch, so nulls here would report no air quality for a reason the
     # caller could have fixed.
-    _stub_openmeteo(monkeypatch, [_invalid_key()])
+    stub_openmeteo(monkeypatch, [answered(400, _INVALID_KEY_BODY)])
     with pytest.raises(InvalidApiKeyError) as exc:
         await fetch_aqi_batch(_dests(1), START, END, api_key="bad-key")
 
@@ -377,19 +324,8 @@ async def test_a_refused_key_raises_instead_of_degrading_to_nulls(monkeypatch):
 
 async def test_an_ordinary_400_still_degrades_to_nulls(monkeypatch):
     # Only the invalid-key reason raises. Every other 400 stays best-effort.
-    request = httpx.Request("GET", air_quality.AIR_QUALITY_URL)
-    response = httpx.Response(400, request=request, json={"reason": "Invalid date"})
-    _stub_openmeteo(
-        monkeypatch,
-        [httpx.HTTPStatusError("400", request=request, response=response)],
-    )
+    stub_openmeteo(monkeypatch, [answered(400, {"reason": "Invalid date"})])
     assert await fetch_aqi_batch(_dests(1), START, END) == [None]
-
-
-def _answered(status: int, body: dict[str, Any]) -> Callable[[str, dict], httpx.Response]:
-    """An error answer built on the request the service made, so the text
-    `raise_for_status` gives it names the keyed URL the way a real one does."""
-    return lambda url, params: fake_response(body, status, url=url, params=params)
 
 
 def _unreachable(url: str, params: dict) -> httpx.Response:
@@ -406,19 +342,19 @@ def _unreachable(url: str, params: dict) -> httpx.Response:
     ("answer", "error"),
     [
         pytest.param(
-            _answered(400, {"error": True, "reason": "The supplied API key is invalid."}),
+            answered(400, _INVALID_KEY_BODY),
             InvalidApiKeyError,
             id="refused-key",
         ),
         pytest.param(
-            _answered(429, {"reason": "Hourly API request limit exceeded"}), None, id="rate-limit"
+            answered(429, {"reason": "Hourly API request limit exceeded"}), None, id="rate-limit"
         ),
-        pytest.param(_answered(502, {}), None, id="upstream-error"),
+        pytest.param(answered(502, {}), None, id="upstream-error"),
         pytest.param(_unreachable, None, id="unreachable"),
     ],
 )
 async def test_the_key_reaches_no_log_record(monkeypatch, caplog, answer, error):
-    _stub_openmeteo(monkeypatch, [answer])
+    stub_openmeteo(monkeypatch, [answer])
     with caplog.at_level(5):  # TRACE
         if error is None:
             assert await fetch_aqi_batch(_dests(1), START, END, api_key=FAKE_API_KEY) == [None]
@@ -439,7 +375,7 @@ async def test_an_archive_era_window_is_still_fetched(monkeypatch):
         minute=0, second=0, microsecond=0
     )
     stamp = old_start.strftime("%Y-%m-%dT%H:00")
-    calls = _stub_openmeteo(monkeypatch, [[_hourly([stamp], [42])]])
+    calls = stub_openmeteo(monkeypatch, [[_hourly([stamp], [42])]])
 
     results = await fetch_aqi_batch(
         [dest(47.0, -121.0)], old_start, old_start + timedelta(hours=1)

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import WelcomeModal from './WelcomeModal'
 import { render } from '../testSupport/render'
 import { BUTTON_PRIMARY, DIALOG_FOOT } from '../styles'
@@ -34,6 +34,19 @@ describe('WelcomeModal', () => {
     await user.click(screen.getByRole('button', { name: 'Take the tutorial' }))
     expect(onDismiss).toHaveBeenCalledOnce()
     expect(onTutorial).toHaveBeenCalledOnce()
+  })
+
+  // Enter against the card is the "I have read this" key; on a button it is
+  // that button's own click, so the dialog leaves it alone.
+  it('dismisses on Enter against the card, and leaves Enter on a button to the button', () => {
+    const onDismiss = vi.fn()
+    render(<WelcomeModal onDismiss={onDismiss} onTutorial={() => {}} />)
+    expect(document.activeElement).toBe(screen.getByRole('dialog'))
+    fireEvent.keyDown(document, { key: 'Enter' })
+    expect(onDismiss).toHaveBeenCalledOnce()
+    screen.getByRole('button', { name: 'Take the tutorial' }).focus()
+    fireEvent.keyDown(document, { key: 'Enter' })
+    expect(onDismiss).toHaveBeenCalledOnce()
   })
 
   it('holds the tour while a draw or a run is under way', () => {

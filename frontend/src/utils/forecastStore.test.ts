@@ -1,13 +1,17 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_BYTES,
+  NO_DATA,
   STORAGE_KEY,
   buildSnapshot,
   cacheGet,
+  cachePut,
   hydrateForecastCache,
+  keepForecastsAcrossReload,
   readSnapshot,
   resetForecastCache,
 } from './forecastStore'
+import { MINUTE_MS } from './forecastWindow'
 
 // `performance.now()` readings in the tests below are arbitrary: what matters
 // is that the in-memory expiry is measured against one clock and the stored one
@@ -106,6 +110,10 @@ describe('readSnapshot', () => {
     expect(readSnapshot({ build: BUILD, savedAt: NOW, entries: [null, { k: 1 }, { ttl: 1 }] }, 0, NOW, BUILD)).toEqual(
       [],
     )
+    // A stamp written as text: subtraction would coerce it into a working
+    // number, so only the type test refuses it.
+    const textStamp = { build: BUILD, savedAt: String(NOW - 1_000), entries: [{ k: 'a', ttl: 60_000, v: 1 }] }
+    expect(readSnapshot(textStamp, 0, NOW, BUILD)).toEqual([])
   })
 
   it('reads nothing out of another build, or out of a snapshot with no build', () => {
@@ -118,26 +126,27 @@ describe('readSnapshot', () => {
   })
 })
 
-describe('hydrateForecastCache', () => {
-  // The node project has no sessionStorage, so the one the module reads is a
-  // Map behind the same three calls.
-  function stubStorage(stored: unknown) {
-    const items = new Map<string, string>()
-    if (stored !== undefined) items.set(STORAGE_KEY, JSON.stringify(stored))
-    vi.stubGlobal('sessionStorage', {
-      getItem: (k: string) => items.get(k) ?? null,
-      setItem: (k: string, v: string) => void items.set(k, v),
-      removeItem: (k: string) => void items.delete(k),
-    })
-    return items
-  }
+// The node project has no sessionStorage, so the one the module reads is a
+// Map behind the same three calls.
+function stubStorage(stored: unknown) {
+  const items = new Map<string, string>()
+  if (stored !== undefined) items.set(STORAGE_KEY, JSON.stringify(stored))
+  vi.stubGlobal('sessionStorage', {
+    getItem: (k: string) => items.get(k) ?? null,
+    setItem: (k: string, v: string) => void items.set(k, v),
+    removeItem: (k: string) => void items.delete(k),
+  })
+  return items
+}
 
-  // Written a minute ago with ten minutes left, so a restore has five to nine
-  // minutes of freshness whatever `performance.now()` reads.
-  function stored(build?: string) {
-    const snapshot = buildSnapshot([['weather|1', entry(10 * 60_000)]], PERF, Date.now() - 60_000, build ?? BUILD)
-    return build !== undefined ? snapshot : { savedAt: snapshot.savedAt, entries: snapshot.entries }
-  }
+// Written a minute ago with ten minutes left, so a restore has five to nine
+// minutes of freshness whatever `performance.now()` reads.
+function stored(build?: string) {
+  const snapshot = buildSnapshot([['weather|1', entry(10 * 60_000)]], PERF, Date.now() - 60_000, build ?? BUILD)
+  return build !== undefined ? snapshot : { savedAt: snapshot.savedAt, entries: snapshot.entries }
+}
+
+describe('hydrateForecastCache', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -162,6 +171,106 @@ describe('hydrateForecastCache', () => {
     const items = stubStorage(stored())
     hydrateForecastCache(BUILD)
     expect(cacheGet('weather|1')).toBeUndefined()
+    expect(items.has(STORAGE_KEY)).toBe(false)
+  })
+})
+
+describe('the in-memory cache', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    resetForecastCache()
+  })
+
+  it('forgets an entry once its fifteen minutes are up', () => {
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(PERF)
+    cachePut('weather|1', NO_DATA)
+    clock.mockReturnValue(PERF + 14 * MINUTE_MS)
+    expect(cacheGet('weather|1')).toBe(NO_DATA)
+    clock.mockReturnValue(PERF + 15 * MINUTE_MS)
+    expect(cacheGet('weather|1')).toBeUndefined()
+  })
+
+  it('drops the oldest entry past five thousand', () => {
+    for (let i = 0; i <= 5_000; i++) cachePut(`weather|${i}`, NO_DATA)
+    expect(cacheGet('weather|0')).toBeUndefined()
+    expect(cacheGet('weather|1')).toBe(NO_DATA)
+    expect(cacheGet('weather|5000')).toBe(NO_DATA)
+  })
+})
+
+describe('keepForecastsAcrossReload', () => {
+  // Node has neither a window nor a document, so each is an EventTarget the
+  // test dispatches on, fresh per test so no listener outlives its own.
+  let page: EventTarget
+  let doc: EventTarget & { visibilityState: DocumentVisibilityState }
+
+  beforeEach(() => {
+    page = new EventTarget()
+    doc = Object.assign(new EventTarget(), { visibilityState: 'visible' as DocumentVisibilityState })
+    vi.stubGlobal('window', page)
+    vi.stubGlobal('document', doc)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetForecastCache()
+  })
+
+  const hide = () => page.dispatchEvent(new Event('pagehide'))
+  const writtenBuild = (items: Map<string, string>) => JSON.parse(items.get(STORAGE_KEY)!).build
+
+  it('writes the snapshot when the page hides, only after something changed', () => {
+    const items = stubStorage(undefined)
+    keepForecastsAcrossReload(BUILD)
+    expect(cacheGet('weather|1')).toBeUndefined()
+
+    hide()
+    expect(items.has(STORAGE_KEY)).toBe(false)
+
+    cachePut('weather|1', NO_DATA)
+    hide()
+    expect(writtenBuild(items)).toBe(BUILD)
+
+    // Nothing changed since that write, so a second hide writes nothing.
+    items.delete(STORAGE_KEY)
+    hide()
+    expect(items.has(STORAGE_KEY)).toBe(false)
+  })
+
+  it('writes on a hidden visibilitychange, and on no other', () => {
+    const items = stubStorage(undefined)
+    keepForecastsAcrossReload(BUILD)
+    cachePut('weather|1', NO_DATA)
+    doc.dispatchEvent(new Event('visibilitychange'))
+    expect(items.has(STORAGE_KEY)).toBe(false)
+    doc.visibilityState = 'hidden'
+    doc.dispatchEvent(new Event('visibilitychange'))
+    expect(writtenBuild(items)).toBe(BUILD)
+  })
+
+  // The corrupt value stays until the next write replaces it.
+  it('loads a stored value that is not JSON as no snapshot', () => {
+    const items = stubStorage(undefined)
+    items.set(STORAGE_KEY, 'not json {')
+    expect(() => keepForecastsAcrossReload(BUILD)).not.toThrow()
+    expect(cacheGet('weather|1')).toBeUndefined()
+  })
+
+  it('leaves no snapshot behind when storage refuses the write', () => {
+    // A snapshot this build wrote, which the hydrate leaves in place, so only
+    // the refused write can be what removes it.
+    const items = stubStorage(stored(BUILD))
+    vi.stubGlobal('sessionStorage', {
+      getItem: (k: string) => items.get(k) ?? null,
+      setItem: () => {
+        throw new DOMException('full', 'QuotaExceededError')
+      },
+      removeItem: (k: string) => void items.delete(k),
+    })
+    keepForecastsAcrossReload(BUILD)
+    expect(items.has(STORAGE_KEY)).toBe(true)
+    cachePut('weather|2', NO_DATA)
+    expect(hide).not.toThrow()
     expect(items.has(STORAGE_KEY)).toBe(false)
   })
 })

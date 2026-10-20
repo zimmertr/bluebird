@@ -159,6 +159,15 @@ def _as_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
+def floor_hour(dt: datetime) -> datetime:
+    """`dt` at the top of its hour, in the zone it came in.
+
+    The one spelling of the floor every hourly reader shares: a point sample's
+    hour, the hours a window holds, and the air-quality request's ends.
+    """
+    return dt.replace(minute=0, second=0, microsecond=0)
+
+
 def window_hours(start: datetime, end: datetime) -> int:
     """How many hourly stamps fall inside a window, both ends inclusive.
 
@@ -167,10 +176,10 @@ def window_hours(start: datetime, end: datetime) -> int:
     half of `MAX_ANALYZE_DESTINATION_HOURS`. A point sample, which the request
     validator turns into one minute from the top of its hour, counts one.
     """
-    first = start.replace(minute=0, second=0, microsecond=0)
+    first = floor_hour(start)
     if first < start:
         first += timedelta(hours=1)
-    last = end.replace(minute=0, second=0, microsecond=0)
+    last = floor_hour(end)
     return max(0, (last - first) // timedelta(hours=1) + 1)
 
 

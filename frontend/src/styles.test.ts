@@ -59,6 +59,7 @@ import {
   STATUS,
   TRANSPORT_AXIS_ITEM,
   LIFTED_EDGE,
+  LINE_EDGE,
   RECESSED_FILL,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
@@ -122,7 +123,10 @@ import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
-import { METRIC_SCALE } from './utils/colors'
+import { SCALE_MAX_WIDTH_PX } from './map/controls'
+import { METRIC_SCALE, hexToRgb } from './utils/colors'
+import { SNOW_RAMP } from './utils/snowDepth'
+import { contrast, mixOver, relativeLuminance, round2 } from './testSupport/contrast'
 import {
   FINE_COLOR,
   GRID_BAND_COLOR,
@@ -206,10 +210,7 @@ const darkStep = (name: string): string => DARK_TOKENS[name].match(/^var\(--colo
  */
 const light = (name: string): string => {
   const own = LIGHT_TOKENS[name].match(/^var\(--color-([\w-]+)\)$/)
-  if (!own) return LIGHT_TOKENS[name]
-  const decl = indexCss.match(new RegExp(`--color-${own[1]}: oklch\\(([\\d.]+) ([\\d.]+) ([\\d.]+)\\);`))
-  if (!decl) throw new Error(`no oklch declaration for --color-${own[1]} in index.css`)
-  return oklchHex(Number(decl[1]), Number(decl[2]), Number(decl[3]))
+  return own ? paletteHex(own[1]) : LIGHT_TOKENS[name]
 }
 /** CSS Color 4's oklch to sRGB, gamut-clipped, as the hex a browser paints. */
 function oklchHex(l: number, c: number, h: number): string {
@@ -237,7 +238,7 @@ function oklchHex(l: number, c: number, h: number): string {
  */
 function mixOklab(a: string, w: number, b: string): string {
   const oklab = (hex: string) => {
-    const [r, g, bl] = rgb(hex).map((v) => {
+    const [r, g, bl] = hexToRgb(hex).map((v) => {
       const c = v / 255
       return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
     })
@@ -256,21 +257,50 @@ function mixOklab(a: string, w: number, b: string): string {
   const [L, A, B] = x.map((v, i) => w * v + (1 - w) * y[i])
   return oklchHex(L, Math.hypot(A, B), (Math.atan2(B, A) * 180) / Math.PI)
 }
-// WCAG 2 relative luminance and contrast over a hex, for the light theme's
-// measurements and the accent's light half.
-const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
-const lum = (hex: string) => {
-  const [r, g, b] = rgb(hex).map((v) => {
-    const c = v / 255
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  })
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+// The WCAG 2 ratio of two hexes at the two places the measured tables are
+// written at, for the light theme's measurements and the accent's light half.
+const ratio = (a: string, b: string) => round2(contrast(a, b))
+
+// Tailwind's own palette, read off the disk for the reason the stylesheets
+// above are, so the dark theme's steps are measured rather than copied.
+const palette: string = readFileSync(new URL('../node_modules/tailwindcss/theme.css', import.meta.url), 'utf8')
+/**
+ * The hex a palette step paints: one of Tailwind's (`slate-700`, an oklch in
+ * percent in its theme.css), one of this app's own (`sky-650`, an oklch in
+ * `index.css`), or white and black, which the palette spells as hexes.
+ */
+function paletteHex(name: string): string {
+  if (name === 'white') return '#ffffff'
+  if (name === 'black') return '#000000'
+  const stock = palette.match(new RegExp(String.raw`--color-${name}: oklch\(([\d.]+)% ([\d.]+) ([\d.]+)\);`))
+  if (stock) return oklchHex(Number(stock[1]) / 100, Number(stock[2]), Number(stock[3]))
+  const own = indexCss.match(new RegExp(String.raw`--color-${name}: oklch\(([\d.]+) ([\d.]+) ([\d.]+)\);`))
+  if (own) return oklchHex(Number(own[1]), Number(own[2]), Number(own[3]))
+  throw new Error(`no oklch declaration for --color-${name} in tailwindcss/theme.css or index.css`)
 }
-const contrast = (a: string, b: string) => {
-  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
-  return (hi + 0.05) / (lo + 0.05)
+/**
+ * `top` at `alpha` over `under`, the way an opacity or a `/NN` composites,
+ * to the 8-bit hex the browser paints.
+ */
+const over = (top: string, alpha: number, under: string) => mixOver(top, under, alpha)
+/**
+ * The hex a token paints in the dark theme, measured the way the light theme
+ * is: on the 8-bit hex the browser paints. A token that is a step at a
+ * fraction (`color-mix(in oklab, var(--color-red-950) 40%, transparent)`, a
+ * notice tint) is that step composited over the ground it lands on, which
+ * the caller names.
+ */
+function dark(name: string, ground?: string): string {
+  const value = DARK_TOKENS[name]
+  if (/^#[0-9a-f]{6}$/i.test(value)) return value
+  const mix = value.match(/^color-mix\(in oklab, var\(--color-([\w-]+)\) (\d+)%, transparent\)$/)
+  if (!mix) return paletteHex(darkStep(name))
+  if (ground === undefined) throw new Error(`--ui-${name} is translucent; name the ground it lands on`)
+  return over(paletteHex(mix[1]), Number(mix[2]) / 100, ground)
 }
-const ratio = (a: string, b: string) => Math.round(contrast(a, b) * 100) / 100
+/** The alpha a recipe's `/NN` puts on one utility, `bg` or `hover:bg`. */
+const alphaOf = (recipe: string, utility: string): number =>
+  Number(recipe.match(new RegExp(String.raw`(?:^|\s)${utility}-[\w-]+/(\d+)(?:\s|$)`))![1]) / 100
 
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
@@ -333,10 +363,10 @@ describe('the compact tier', () => {
     expect(TEXT.helper.split(' ').filter((c) => c !== 'italic')).toEqual(TEXT.caption.split(' '))
   })
 
-  // The 10px step lands on three background lightnesses, the lightest of them
+  // The 11px step lands on three background lightnesses, the lightest of them
   // the slate-700 table header bar carrying a required CC-BY credit. slate-300
-  // is the dimmest step clearing 4.5:1 on all three (7.0 / 9.9 / 12.0);
-  // slate-400 manages 4.0:1 on that bar and slate-500 only 2.2:1. Dimming this
+  // is the dimmest step clearing 4.5:1 on all three (6.97:1 on that bar);
+  // slate-400 manages 3.94:1 there and slate-500 only 2.17:1. Dimming this
   // role is not a style change, it is an accessibility regression, and a call
   // site cannot undo it: Tailwind resolves competing color utilities by
   // stylesheet order, not class-list order.
@@ -353,18 +383,22 @@ describe('the compact tier', () => {
     expect(darkStep(token(TEXT.caption, 'text'))).toBe('slate-400')
   })
 
-  // A section heading was slate-400 (5.71:1 on the slate-800 panel) over a
-  // slate-200 subheading, so DESTINATIONS read dimmer than the Polygon under
-  // it (#687). slate-300 is 9.85:1 and sits between the two steps it orders:
-  // brighter than any caption, and still a step under the subheading's
-  // brightness so the size, weight and case carry the rank, not a glare.
+  // A section heading was slate-400, the caption's step (5.56:1 on the
+  // slate-800 panel), over a slate-200 subheading, so DESTINATIONS read dimmer
+  // than the Polygon under it (#687). slate-300 is 9.83:1 and sits between the
+  // two steps it orders: brighter than any caption, and still a step under the
+  // subheading's brightness so the size, weight and case carry the rank, not
+  // a glare.
   it('brightens the section heading past the caption and keeps its size', () => {
-    const MEASURED = { section: 9.85, wasBefore: 5.71 }
+    const MEASURED = { section: 9.83, wasBefore: 5.56 }
     const step = (c: string) => Number(darkStep(token(c, 'text')).match(/slate-(\d+)/)![1])
     expect(darkStep(token(TEXT.section, 'text'))).toBe('slate-300')
     expect(TEXT.section).toContain('text-sm')
     expect(step(TEXT.section)).toBeLessThan(step(TEXT.caption))
     expect(step(TEXT.section)).toBeGreaterThan(step(TEXT.subheading))
+    const panel = dark('panel')
+    expect(ratio(dark(token(TEXT.section, 'text')), panel)).toBe(MEASURED.section)
+    expect(ratio(dark(token(TEXT.caption, 'text')), panel)).toBe(MEASURED.wasBefore)
     expect(MEASURED.section).toBeGreaterThan(MEASURED.wasBefore)
     expect(MEASURED.section).toBeGreaterThanOrEqual(4.5)
   })
@@ -697,14 +731,20 @@ describe('grouping and segmenting', () => {
   })
 
   // The edge separates two surfaces and owes 3:1 against BOTH (WCAG 1.4.11).
-  // slate-600, which the inputs used to carry, reads 1.94:1 against the
-  // slate-800 panel and 2.36:1 against the slate-900 fill; slate-500 reads
+  // slate-600, which the inputs used to carry, reads 1.93:1 against the
+  // slate-800 panel and 2.35:1 against the slate-900 fill; slate-500 reads
   // 3.07 and 3.74. The fill step alone is 1.22:1 and cannot carry it. Binding
   // the three therefore raised the inputs to spec rather than lowering the
   // calendar to meet them — pinned so a later 'tidy-up' has to re-measure.
   it('keeps that edge on the step that clears both sides', () => {
-    const MEASURED = { panel: 3.07, fill: 3.74, wasBefore: { panel: 1.94, fill: 2.36 } }
+    const MEASURED = { panel: 3.07, fill: 3.74, wasBefore: { panel: 1.93, fill: 2.35 } }
     expect(darkStep(token(RECESSED_EDGE, 'border'))).toBe('slate-500')
+    const [panel, fill] = [dark('panel'), dark(token(FIELD, 'bg'))]
+    const edge = dark(token(RECESSED_EDGE, 'border'))
+    expect({ panel: ratio(edge, panel), fill: ratio(edge, fill) }).toEqual({ panel: MEASURED.panel, fill: MEASURED.fill })
+    const was = paletteHex('slate-600')
+    expect({ panel: ratio(was, panel), fill: ratio(was, fill) }).toEqual(MEASURED.wasBefore)
+    expect(ratio(fill, panel)).toBe(1.22)
     expect(Math.min(MEASURED.panel, MEASURED.fill)).toBeGreaterThanOrEqual(3)
     expect(Math.max(MEASURED.wasBefore.panel, MEASURED.wasBefore.fill)).toBeLessThan(3)
   })
@@ -753,16 +793,6 @@ describe('grouping and segmenting', () => {
     expect(ACCENT_RING).not.toContain(RADIUS.surface)
     expect(ACCENT_RING).not.toMatch(/\brounded\b/)
   })
-
-  // Three severities, one shape. The error box used to run a heavier fill and a
-  // brighter border than the two beside it in the same panel.
-  it('builds every notice on one shape and differs only in hue', () => {
-    const shape = (recipe: string) => recipe.replace(/-(warn|danger|info)-/g, '-*-')
-    expect(shape(NOTICE.error)).toBe(shape(NOTICE.warn))
-    expect(shape(NOTICE.info)).toBe(shape(NOTICE.warn))
-    expect(NOTICE.warn).toContain(RADIUS.control)
-  })
-
 })
 
 describe('shared recipes', () => {
@@ -1051,13 +1081,25 @@ describe('shared recipes', () => {
   // WCAG exempts only inactive controls from 1.4.3, and a muted control still
   // works, so its text owes 4.5:1. The slate-200 label composited at the
   // role's opacity, measured on each surface it lands on: the panel (Include
-  // unnamed peaks), an idle metric row's select, and an unplotted chart chip.
-  // 50% failed two of the three, which is what axe found in the browser suite.
+  // unnamed peaks), an idle metric row's select (the row fades as a whole, so
+  // the select's fill fades over the panel with its label), and an unplotted
+  // chart chip (the panel at 50% over the page at 50% over the panel, the
+  // label alone faded). 50% failed two of the three, which is what axe found
+  // in the browser suite.
   it('keeps a muted label above the text floor on every surface it fades on', () => {
     const MEASURED = {
-      at60: { panel: 5.25, select: 5.96, chip: 5.43 },
-      at50: { panel: 4.11, select: 4.58, chip: 4.22 },
+      at60: { panel: 5.26, select: 5.98, chip: 5.41 },
+      at50: { panel: 4.14, select: 4.61, chip: 4.23 },
     }
+    const [panel, ink, fill] = [dark('panel'), dark(token(TEXT.control, 'text')), dark(token(SELECT, 'bg'))]
+    const chip = over(panel, 0.5, over(dark('page'), 0.5, panel))
+    const at = (a: number) => ({
+      panel: ratio(over(ink, a, panel), panel),
+      select: ratio(over(ink, a, panel), over(fill, a, panel)),
+      chip: ratio(over(ink, a, chip), chip),
+    })
+    expect(at(0.6)).toEqual(MEASURED.at60)
+    expect(at(0.5)).toEqual(MEASURED.at50)
     expect(MUTED).toBe('opacity-(--ui-muted)')
     expect(DARK_TOKENS.muted).toBe('0.6')
     expect(Math.min(...Object.values(MEASURED.at60))).toBeGreaterThanOrEqual(4.5)
@@ -1264,9 +1306,19 @@ describe('shared recipes', () => {
   // ring would have reached (the sheet, and a hovered row over it).
   it('draws the header ring inside the edge, on a bar it clears', () => {
     expect(FOCUS_RING_INSET).toBe(FOCUS_RING.replace('outline-offset-2', '-outline-offset-2'))
-    const MEASURED = { headerBar: 4.74, sheet: 6.71, hoveredRow: 6.08 }
-    for (const [ground, ratio] of Object.entries(MEASURED)) {
-      expect(ratio, `the ring on ${ground} must clear the 3:1 asked of a focus indicator`).toBeGreaterThanOrEqual(3)
+    const MEASURED = { headerBar: 4.75, sheet: 6.71, hoveredRow: 6.1 }
+    const ring = dark(token(FOCUS_RING_INSET, 'focus-visible:outline'))
+    const sheet = dark(token(SURFACE_SHEET, 'bg'))
+    const grounds = {
+      headerBar: dark(token(STYLES.TABLE.stickyNameHead, 'bg')),
+      sheet,
+      hoveredRow: over(dark(token(STYLES.TABLE.row, 'hover:bg')), alphaOf(STYLES.TABLE.row, 'hover:bg'), sheet),
+    }
+    for (const [ground, hex] of Object.entries(grounds)) {
+      expect(ratio(ring, hex), ground).toBe(MEASURED[ground as keyof typeof MEASURED])
+    }
+    for (const [ground, r] of Object.entries(MEASURED)) {
+      expect(r, `the ring on ${ground} must clear the 3:1 asked of a focus indicator`).toBeGreaterThanOrEqual(3)
     }
   })
 
@@ -1662,17 +1714,27 @@ describe('the accent', () => {
   const MEASURED = {
     fill: 'sky-650',
     labelOn: 'white',
-    label: 4.57, // white on sky-650
-    edges: { panel: 3.21, rangeBand: 3.04, segmentTrack: 3.91 },
+    label: 4.56, // white on sky-650
+    edges: { panel: 3.2, rangeBand: 3.04, segmentTrack: 3.91 },
   }
 
   it('rests on the one shade that clears the label and every edge at once', () => {
     expect(darkStep(token(ACCENT.fill, 'bg'))).toBe(MEASURED.fill)
     expect(darkStep(token(ACCENT.fill, 'text'))).toBe(MEASURED.labelOn)
     expect(ACCENT.fill.split(' ')).toHaveLength(2)
+    const fill = dark(token(ACCENT.fill, 'bg'))
+    expect(ratio(dark(token(ACCENT.fill, 'text')), fill)).toBe(MEASURED.label)
+    const grounds = {
+      panel: dark('panel'),
+      rangeBand: dark(token(DAY.range, 'bg')),
+      segmentTrack: dark(token(SEGMENT_IDLE, 'bg')),
+    }
+    for (const [edge, ground] of Object.entries(grounds)) {
+      expect(ratio(fill, ground), edge).toBe(MEASURED.edges[edge as keyof typeof MEASURED.edges])
+    }
     expect(MEASURED.label).toBeGreaterThanOrEqual(4.5)
-    for (const [edge, ratio] of Object.entries(MEASURED.edges)) {
-      expect(ratio, `${edge} must clear the 3:1 asked of a UI boundary`).toBeGreaterThanOrEqual(3)
+    for (const [edge, r] of Object.entries(MEASURED.edges)) {
+      expect(r, `${edge} must clear the 3:1 asked of a UI boundary`).toBeGreaterThanOrEqual(3)
     }
   })
 
@@ -1718,11 +1780,15 @@ describe('the accent', () => {
   // have to darken — making the app's one primary action the only control that
   // dims under the pointer. 4.02:1 is what the *resting* fill measured before
   // #167, so no state is worse than what already shipped.
+  // The hover before #167 was sky-500, at 2.71:1.
   const HOVER = { step: 'sky-600', ratio: 4.02, wasBefore: 2.71 }
 
   it('hovers lighter, at a contrast cost taken knowingly', () => {
     expect(darkStep(token(ACCENT.fillHover, 'hover:bg'))).toBe(HOVER.step)
     expect(ACCENT.fillHover.split(' ')).toHaveLength(1)
+    const label = dark(token(ACCENT.fill, 'text'))
+    expect(ratio(label, dark(token(ACCENT.fillHover, 'hover:bg')))).toBe(HOVER.ratio)
+    expect(ratio(label, paletteHex('sky-500'))).toBe(HOVER.wasBefore)
     expect(HOVER.ratio).toBeLessThan(4.5)
     expect(HOVER.ratio).toBeGreaterThan(HOVER.wasBefore)
     expect(HOVER.ratio).toBeLessThan(MEASURED.label)
@@ -1791,6 +1857,7 @@ describe('status and notices', () => {
 
     expect(new Set(Object.values(NOTICE).map(shape)).size).toBe(1)
     expect(Object.values(NOTICE)).toHaveLength(3)
+    expect(NOTICE.warn).toContain(RADIUS.control)
   })
 
   // #253. The dismiss X inherits its box's STATUS color, so neither part of
@@ -1799,13 +1866,19 @@ describe('status and notices', () => {
   // resting pill backdrop (box fill + white/5 over the panel); literals so
   // a fill, STATUS or pill change fails here and forces a re-measurement
   // rather than inheriting a stale claim.
-  const DISMISS_MEASURED = { warn: 9.1, error: 5.0, info: 7.45 }
+  const DISMISS_MEASURED = { warn: 9.06, error: 4.83, info: 7.47 }
 
   it('dismisses in the voice of the box it sits in', () => {
     expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)text-/)
     expect(NOTICE_DISMISS.pill).not.toMatch(/(^|\s)text-/)
-    for (const [tone, ratio] of Object.entries(DISMISS_MEASURED)) {
-      expect(ratio, `${tone} glyph must clear the 3:1 asked of a UI glyph`).toBeGreaterThanOrEqual(3)
+    const panel = dark('panel')
+    const lift = Number(NOTICE_DISMISS.pill.match(/(?:^|\s)bg-lift\/(\d+)(?:\s|$)/)![1]) / 100
+    for (const tone of ['warn', 'error', 'info'] as const) {
+      const pill = over(dark('lift'), lift, dark(token(NOTICE[tone], 'bg'), panel))
+      expect(ratio(dark(token(STATUS[tone], 'text')), pill), tone).toBe(DISMISS_MEASURED[tone])
+    }
+    for (const [tone, r] of Object.entries(DISMISS_MEASURED)) {
+      expect(r, `${tone} glyph must clear the 3:1 asked of a UI glyph`).toBeGreaterThanOrEqual(3)
     }
   })
 
@@ -2249,16 +2322,24 @@ describe('the phone chrome\'s hit areas', () => {
 
   // The vendor's buttons, so map.css spells it, on the query `touch` is: every
   // map button 40px seen and 44 pressed (record 0147), and the credit's 24px
-  // (i) the same 44.
+  // (i) the same 44. An absolute ::before insets from the padding box, so each
+  // button's size counts less its two borders before the rim is added.
   it('presses the 40px map buttons and the 24px (i) as 44, by a rim on a coarse pointer', () => {
-    expect(steps(MAP_ROUND_BUTTON, /(?:^|\s)size-(\d+)(?:\s|$)/)).toBe(40)
+    const size = (recipe: string) => steps(recipe, /(?:^|\s)size-(\d+)(?:\s|$)/)
+    // Tailwind's bare `border` is 1px.
+    const border = (recipe: string) => (tokens(recipe).includes('border') ? 1 : 0)
+    const rim = (css: string, selector: string) =>
+      Number(css.match(new RegExp(String.raw`${selector}::before \{\s*content: '';\s*position: absolute;\s*inset: -(\d+)px;`))![1])
     const block = mapCss.slice(mapCss.indexOf('@media (hover: none) {\n  .maplibregl-ctrl-group,'))
-    expect(block.slice(0, block.indexOf('\n}\n'))).toMatch(/\.maplibregl-ctrl-group button::before \{\s*content: '';\s*position: absolute;\s*inset: -3px;/)
-    // 40 less its two 1px borders, plus 3 either side.
-    expect(40 - 2 + 2 * 3).toBe(44)
-    expect(steps(MAP_CREDIT.button, /(?:^|\s)size-(\d+)(?:\s|$)/)).toBe(24)
-    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib-button::before \{\s*content: '';\s*position: absolute;\s*inset: -10px;/)
-    expect(24 + 2 * 10).toBe(44)
+    const buttons = [
+      { recipe: MAP_ROUND_BUTTON, seen: 40, inset: rim(block.slice(0, block.indexOf('\n}\n')), String.raw`\.maplibregl-ctrl-group button`) },
+      { recipe: MAP_CREDIT.button, seen: 24, inset: rim(mapCss, String.raw`\.maplibregl-ctrl-attrib-button`) },
+    ]
+    for (const { recipe, seen, inset } of buttons) {
+      expect(size(recipe)).toBe(seen)
+      expect(border(recipe), recipe).toBe(1)
+      expect(size(recipe) - 2 * border(recipe) + 2 * inset, recipe).toBe(44)
+    }
   })
 
   // The (i)'s glyph is centred on its button's whole box (TJ, 2026-10-14):
@@ -2275,7 +2356,8 @@ describe('the phone chrome\'s hit areas', () => {
   // The compass needle is redrawn, not inverted (TJ, 2026-10-14): inverting
   // the library's dark south half put it dark on the dark button. North red,
   // south light, both edged so a light button can carry it too. Measured
-  // ratios, pinned so a colour change forces a re-measurement.
+  // ratios, pinned so a colour change forces a re-measurement; the button's
+  // fill is taken as opaque, as it nearly is at 95% over the map.
   it('draws the compass needle red to the north and light to the south, unfiltered', () => {
     const at = mapCss.indexOf('.maplibregl-ctrl-group .maplibregl-ctrl-compass .maplibregl-ctrl-icon {')
     expect(at).toBeGreaterThan(-1)
@@ -2286,8 +2368,18 @@ describe('the phone chrome\'s hit areas', () => {
     expect(svg).toContain('<path fill="#f8fafc" d="m10.5 16 4 8 4-8z"/>')
     expect(svg).toContain('stroke="#475569"')
     expect(svg).toContain('viewBox="0 0 29 29"')
-    const MEASURED = { northOnButton: 3.89, northOnWhite: 3.76, southOnButton: 13.98, edgeOnWhite: 7.58 }
-    for (const [pair, ratio] of Object.entries(MEASURED)) expect(ratio, pair).toBeGreaterThanOrEqual(3)
+    const MEASURED = { northOnButton: 3.88, northOnWhite: 3.76, southOnButton: 13.97, edgeOnWhite: 7.58 }
+    const fill = (d: string) => svg.match(new RegExp(String.raw`<path fill="(#[0-9a-f]{6})" d="${d}"/>`))![1]
+    const [north, south] = [fill('m10.5 14 4-8 4 8z'), fill('m10.5 16 4 8 4-8z')]
+    const edge = svg.match(/stroke="(#[0-9a-f]{6})"/)![1]
+    const button = dark(token(MAP_ROUND_BUTTON, 'bg'))
+    expect({
+      northOnButton: ratio(north, button),
+      northOnWhite: ratio(north, '#ffffff'),
+      southOnButton: ratio(south, button),
+      edgeOnWhite: ratio(edge, '#ffffff'),
+    }).toEqual(MEASURED)
+    for (const [pair, r] of Object.entries(MEASURED)) expect(r, pair).toBeGreaterThanOrEqual(3)
   })
 
   // The library's white box comes off its buttons (record 0147): a group is
@@ -2306,6 +2398,8 @@ describe('the phone chrome\'s hit areas', () => {
     // The light theme's buttons are light, so its glyphs keep the library's
     // own dark drawing (#706).
     expect(rule(':root[data-theme="light"] .maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: none;')
+    // The idle compass hides by a class on the button itself (record 0147),
+    // since a phone stands it outside the map's container.
     expect(rule('.maplibregl-ctrl-compass.compass-idle')).toContain('display: none;')
     // A phone's chip row stands the compass alone, whatever the pointer.
     expect(mapCss).toMatch(/\.map-slot \.maplibregl-ctrl-zoom-in,\s*\.map-slot \.maplibregl-ctrl-zoom-out \{\s*display: none;/)
@@ -2467,11 +2561,8 @@ describe('the safe area', () => {
   // line 16px above the foot, and the Layers sheet's next-to-last label 15px
   // above its rule and the last one 15px above the foot; with a 34px band
   // emulated, each last line stands those 16 and 15px plus the 34 above it.
-  const MEASURED = {
-    controls: { 0: { above: 16, under: 16 }, 34: { above: 16, under: 50 } },
-    layers: { 0: { above: 15, under: 15 }, 34: { above: 15, under: 49 } },
-  }
-
+  // Those are browser pixels, which this file cannot take; what it holds is
+  // the padding that produced them.
   it('ends every sheet scroller the band above the foot, and pads no sheet card', () => {
     for (const recipe of [BOTTOM_SHEET.card, CONTROLS_SHEET.card]) expect(recipe).not.toContain('safe-area')
     expect(words(BOTTOM_SHEET.body)).toContain(SAFE_AREA.pad)
@@ -2481,11 +2572,6 @@ describe('the safe area', () => {
     ])
     // The Controls body's 16px is the stack's gap above each rule.
     expect(words(PANEL_RULE)).toContain('[&>*+*]:mt-4')
-    for (const sheet of Object.values(MEASURED)) {
-      expect(sheet[0].under).toBe(sheet[0].above)
-      expect(sheet[34].under).toBe(sheet[0].under + 34)
-      expect(sheet[34].above).toBe(sheet[0].above)
-    }
   })
 
   // The end shade stands on the scroller's padding, so a scroller that pads
@@ -2726,11 +2812,23 @@ describe('the legend ramp', () => {
   // The numbers moved INSIDE the strip (TJ, 2026-09-17), which saves a line per
   // scale and costs a contrast rule: a metric ramp runs cyan-300 to purple-500,
   // so no single ink clears AA across it and a ground is what makes one
-  // measurable. These are the measured ratios over all five metric ramps and
-  // the eleven snow bands; a change to the scrim or the ink re-measures them.
-  const RAMP_INK = { straightWhite: 1.45, straightDark: 2.04, onScrim: 6.49 }
+  // measurable. These are the worst ratios over every metric ramp and the
+  // eleven snow bands: white and the scrim's slate-900 straight on a band, and
+  // the tick's ink on the scrim over one; a change to the scrim, the ink or a
+  // band re-measures them.
+  const RAMP_INK = { straightWhite: 1.45, straightDark: 2.04, onScrim: 6.48 }
 
   it('stands its numbers on a ground rather than on the ramp', () => {
+    const bands = [...Object.values(METRIC_SCALE).flatMap((s) => s.colors), ...SNOW_RAMP.map((b) => b.color!)]
+    const scrim = dark(token(SWATCH_RAMP_SCRIM, 'bg'))
+    const ink = dark(token(SWATCH_RAMP_TICK, 'text'))
+    const alpha = alphaOf(SWATCH_RAMP_SCRIM, 'bg')
+    const worst = (on: (band: string) => number) => Math.min(...bands.map(on))
+    expect({
+      straightWhite: worst((band) => ratio('#ffffff', band)),
+      straightDark: worst((band) => ratio(scrim, band)),
+      onScrim: worst((band) => ratio(ink, over(scrim, alpha, band))),
+    }).toEqual(RAMP_INK)
     expect(RAMP_INK.straightWhite).toBeLessThan(4.5)
     expect(RAMP_INK.straightDark).toBeLessThan(4.5)
     expect(RAMP_INK.onScrim).toBeGreaterThanOrEqual(4.5)
@@ -2763,14 +2861,21 @@ describe('the selection chip', () => {
     expect(CHIP.rest).not.toContain(ACCENT.fill)
   })
 
-  // The accent fill against the neutral chip beside it measures 2.2:1, under
+  // The accent fill against the neutral chip beside it measures 2.27:1, under
   // the 3:1 WCAG 1.4.11 asks of a boundary carrying meaning alone — so the
   // state is carried by shape as well, the × that a resting chip has and an
-  // active one never does. Recorded here so a change to either fill is forced
-  // through a re-measurement rather than inheriting this sentence.
-  const MEASURED = { activeVsRest: 2.2, restLabel: 8.2, activeLabel: 4.57 }
+  // active one never does (`chipRemovable`, held in
+  // `utils/modelSelection.test.ts`). Measured here so a change to either fill
+  // is forced through a re-measurement rather than inheriting this sentence.
+  const MEASURED = { activeVsRest: 2.27, restLabel: 8.4, activeLabel: 4.56 }
 
   it('carries its state on a second channel, because colour alone is short', () => {
+    const [active, rest] = [dark(token(CHIP.active, 'bg')), dark(token(CHIP.rest, 'bg'))]
+    expect({
+      activeVsRest: ratio(active, rest),
+      restLabel: ratio(dark(token(CHIP.rest, 'text')), rest),
+      activeLabel: ratio(dark(token(CHIP.active, 'text')), active),
+    }).toEqual(MEASURED)
     expect(MEASURED.activeVsRest).toBeLessThan(3)
     expect(MEASURED.restLabel).toBeGreaterThanOrEqual(4.5)
     expect(MEASURED.activeLabel).toBeGreaterThanOrEqual(4.5)
@@ -2928,11 +3033,6 @@ describe('the attribution beside the scale', () => {
   const SCALE_MARGIN_PX = 10 // the vendor's bottom-left control margin
   const ATTRIB_MARGIN_PX = 10 // the vendor's compact attribution margin
   const CLEAR_PX = 8
-  // Read as text: the controls module imports maplibre-gl, which this node
-  // suite does not load.
-  const SCALE_MAX_WIDTH_PX = Number(
-    readFileSync(new URL('./map/controls.ts', import.meta.url), 'utf8').match(/SCALE_MAX_WIDTH_PX = (\d+)/)?.[1],
-  )
 
   it('caps the corner where the room the scale bar takes ends', () => {
     const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-right \{[^}]*max-width[^}]*\}/)?.[0] ?? ''
@@ -2975,20 +3075,6 @@ describe('the scale bar', () => {
   const scrim = token(SWATCH_RAMP_SCRIM, 'bg')
   const alpha = Number(SWATCH_RAMP_SCRIM.match(/\/(\d+)/)![1])
   const ink = token(SWATCH_RAMP_TICK, 'text')
-  // Tailwind's own palette, read off the disk for the reason preflight is
-  // above, so the dark theme's steps are measured rather than copied.
-  const palette: string = readFileSync(new URL('../node_modules/tailwindcss/theme.css', import.meta.url), 'utf8')
-  const dark = (name: string): string => {
-    const decl = palette.match(new RegExp(String.raw`--color-${darkStep(name)}: oklch\(([\d.]+)% ([\d.]+) ([\d.]+)\);`))
-    if (!decl) throw new Error(`no oklch declaration for ${darkStep(name)} in tailwindcss/theme.css`)
-    return oklchHex(Number(decl[1]) / 100, Number(decl[2]), Number(decl[3]))
-  }
-  /** `top` at `a` over `under`, the way the browser composites the scrim. */
-  const over = (top: string, a: number, under: string) =>
-    `#${rgb(top)
-      .map((v, i) => Math.round(a * v + (1 - a) * rgb(under)[i]))
-      .map((v) => v.toString(16).padStart(2, '0'))
-      .join('')}`
 
   it('stands on the legend scrim in the legend ink, and wears no chrome', () => {
     expect(rule).toContain(`background-color: color-mix(in oklab, var(--ui-${scrim}) ${alpha}%, transparent);`)
@@ -3040,15 +3126,6 @@ describe('the popup card', () => {
     dark: popupBlock(':root'),
     light: popupBlock(String.raw`:root\[data-theme="light"\]`),
   }
-  // Tailwind's own palette, read off the disk as the scale bar's is.
-  const palette: string = readFileSync(new URL('../node_modules/tailwindcss/theme.css', import.meta.url), 'utf8')
-  const step = (name: string): string => {
-    // White and black are hexes in the palette, every other step an oklch.
-    if (name === 'white') return '#ffffff'
-    const decl = palette.match(new RegExp(String.raw`--color-${name}: oklch\(([\d.]+)% ([\d.]+) ([\d.]+)\);`))
-    if (!decl) throw new Error(`no oklch declaration for ${name} in tailwindcss/theme.css`)
-    return oklchHex(Number(decl[1]) / 100, Number(decl[2]), Number(decl[3]))
-  }
   /** The hex a value paints in a theme: a popup value, a theme token, a step, a mix. */
   const paint = (value: string, theme: Theme): string => {
     const v = value.replace(/^color:/, '').trim()
@@ -3061,7 +3138,7 @@ describe('the popup card', () => {
     const ui = v.match(/^var\(--ui-([\w-]+)\)$/)
     if (ui) return theme === 'light' ? light(ui[1]) : paint(DARK_TOKENS[ui[1]], theme)
     const own = v.match(/^var\(--color-([\w-]+)\)$/)
-    if (own) return own[1] === 'sky-650' ? light('accent') : step(own[1])
+    if (own) return paletteHex(own[1])
     const mix = v.match(/^color-mix\(in oklab, (.+) (\d+)%, (.+)\)$/)
     if (mix) return mixOklab(paint(mix[1], theme), Number(mix[2]) / 100, paint(mix[3], theme))
     throw new Error(`cannot resolve ${v}`)
@@ -3157,16 +3234,12 @@ describe('the popup card', () => {
   // over white.
   it('reads every coloured number above AA on the card, in both themes', () => {
     expect(paint(SURFACE, 'dark')).toBe(paint('var(--ui-panel)', 'dark'))
-    const tintOver = (band: string, under: string) =>
-      `#${rgb(band)
-        .map((v, i) => Math.round(0.2 * v + 0.8 * rgb(under)[i]))
-        .map((v) => v.toString(16).padStart(2, '0'))
-        .join('')}`
+    const tintOver = (band: string, under: string) => mixOver(band, under, 0.2)
     const white = paint(SURFACE, 'light')
     const lightest = Math.min(
       ...Object.values(METRIC_SCALE).flatMap((scale) => scale.colors.map((band, i) => contrast(scale.ink[i], tintOver(band, white)))),
     )
-    expect(Math.round(lightest * 100) / 100).toBe(6)
+    expect(round2(lightest)).toBe(6)
     expect(mapCss).toMatch(/\.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-dark\);/)
     expect(mapCss).toMatch(/:root\[data-theme="light"\] \.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-light\);/)
   })
@@ -3175,15 +3248,6 @@ describe('the popup card', () => {
   // firmer rule under the grid's heads.
   it('draws the dark lines a step and two off the surface', () => {
     expect([HEADER_EDGE_COLOR, GRID_LINE_COLOR, RULE_COLOR].map((l) => measure(l, SURFACE, 'dark'))).toEqual([1.41, 1.41, 1.93])
-  })
-})
-
-describe('the idle compass', () => {
-  it('is hidden by map.css under the class the controls module sets', () => {
-    // On the button itself (record 0147), since a phone stands it outside the
-    // map's container.
-    const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-compass.compass-idle'))
-    expect(rule).toMatch(/^\.maplibregl-ctrl-compass\.compass-idle \{\s*display: none;/)
   })
 })
 
@@ -3306,6 +3370,12 @@ describe('the panel frame', () => {
   // slate-900, where SURFACE_DIVIDER's 1.41:1 left the two one block.
   it("closes the panel's right edge with the structural rule", () => {
     const MEASURED = { panel: 3.07, page: 3.74, wasBefore: 1.41 }
+    const edge = dark(token(PANEL_EDGE, 'border'))
+    expect({
+      panel: ratio(edge, dark('panel')),
+      page: ratio(edge, dark('page')),
+      wasBefore: ratio(dark(token(SURFACE_DIVIDER, 'border')), dark('panel')),
+    }).toEqual(MEASURED)
     expect(appDrawerSource).toMatch(/border-r \$\{PANEL_EDGE\}/)
     expect(appDrawerSource).not.toMatch(/SURFACE_DIVIDER/)
     expect(Math.min(MEASURED.panel, MEASURED.page)).toBeGreaterThanOrEqual(3)
@@ -3468,12 +3538,6 @@ describe('the calendar field wraps', () => {
 // outline, the range band's hover, the shade, the thumb and the muted fade)
 // are each held to the floor they owe. Measured 2026-10-15.
 describe('the light theme', () => {
-  /** `top` at `alpha` over `under`, the way an opacity or a `/NN` composites. */
-  const over = (top: string, alpha: number, under: string) =>
-    `#${rgb(top)
-      .map((v, i) => Math.round(alpha * v + (1 - alpha) * rgb(under)[i]))
-      .map((v) => v.toString(16).padStart(2, '0'))
-      .join('')}`
   // A role's light hex through one of its utilities.
   const hex = (recipe: string, utility: string) => light(token(recipe, utility))
 
@@ -3523,7 +3587,7 @@ describe('the light theme', () => {
       expect(contrast(fill, edge)).toBeGreaterThanOrEqual(3)
     }
     // Darker than the rest, where the dark theme's hover lightens.
-    expect(lum(hex(ACCENT.fillHover, 'hover:bg'))).toBeLessThan(lum(fill))
+    expect(relativeLuminance(hex(ACCENT.fillHover, 'hover:bg'))).toBeLessThan(relativeLuminance(fill))
     // Every label the fill carries: a button's, a lit chip's glyph and the
     // welcome dialog's step badge, all the label-on-fill ink.
     for (const recipe of [BUTTON_PRIMARY, BADGE_STEP]) {
@@ -3558,14 +3622,14 @@ describe('the light theme', () => {
       for (const ground of [PAGE, PANEL, RAISED, WELL, FLOATING]) {
         const r = contrast(ink, ground)
         expect(r, `${recipe} on ${ground}`).toBeGreaterThanOrEqual(4.5)
-        lowest[ink] = Math.min(lowest[ink] ?? Infinity, Math.round(r * 100) / 100)
+        lowest[ink] = Math.min(lowest[ink] ?? Infinity, round2(r))
       }
     }
     // The secondary ink is the floor: 7.47 on the raised surface.
     expect(lowest[light('ink-soft')]).toBe(7.47)
     // The middle ink sits between the primary and the secondary.
-    expect(lum(light('ink-mid'))).toBeGreaterThan(lum(light('ink')))
-    expect(lum(light('ink-mid'))).toBeLessThan(lum(light('ink-soft')))
+    expect(relativeLuminance(light('ink-mid'))).toBeGreaterThan(relativeLuminance(light('ink')))
+    expect(relativeLuminance(light('ink-mid'))).toBeLessThan(relativeLuminance(light('ink-soft')))
   })
 
   it('keeps the placeholder, the pickable days and the micro step legible', () => {
@@ -3611,8 +3675,8 @@ describe('the light theme', () => {
     const frame = hex(SURFACE_CARD, 'border')
     expect(ratio(frame, PANEL)).toBe(2.35)
     // Derived halfway between the quiet rule and the structural edge.
-    const mid = rgb(light('rule')).map((v, i) => Math.floor((v + rgb(light('edge'))[i]) / 2))
-    expect(rgb(frame)).toEqual(mid)
+    const mid = hexToRgb(light('rule')).map((v, i) => Math.floor((v + hexToRgb(light('edge'))[i]) / 2))
+    expect(hexToRgb(frame)).toEqual(mid)
     expect(ratio(hex(PANEL_EDGE, 'border'), FLOATING)).toBe(4.24)
   })
 
@@ -3687,6 +3751,14 @@ describe('the light theme', () => {
     expect(rule).not.toBeNull()
     expect([Number(rule![1]), rule![2]]).toEqual([LINE_LAYER_Z, LINE_RIM_FILTER_ID])
     expect(indexCss.match(/recharts-zIndex-layer_/g)).toHaveLength(1)
+  })
+
+  // A mark in a chart line's colour wears the line's rim in light, and the
+  // chart checkbox's half of it brings the app's focus ring: an author outline
+  // replaces the browser's own, which the box had relied on.
+  it('keeps a focus ring under the chart checkbox\'s rim', () => {
+    expect(LINE_EDGE.input).toContain(LINE_EDGE.swatch)
+    expect(LINE_EDGE.input).toContain(FOCUS_RING)
   })
 
   // The shade under a fixed edge: the ink at 12% stands 1.27:1 off the light

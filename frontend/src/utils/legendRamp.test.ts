@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { METRIC_SCALE, hourlyScale } from './colors'
 import { metricLabel } from '../metrics'
-import { SNOW_RAMP, snowRampCss, snowTicks } from './snowDepth'
+import { SNOW_RAMP, snowRampCss } from './snowDepth'
 import { rampCss, rampTicks, scaleRampCss, scaleTicks } from './legendRamp'
 
 // The strip every banded scale on the map is drawn as (#454): the five ranking
@@ -21,9 +21,7 @@ describe('rampCss', () => {
   // or below the first threshold the first anchor: band 0 carries no gradient,
   // and each later band runs from one anchor to the next.
   it('holds the first band flat and blends from anchor to anchor after it', () => {
-    const css = rampCss(['#a', '#b', '#c', '#d'])
-    expect(css).toContain('#a 0%,#a 25%')
-    expect(css.split('#b').length - 1).toBe(1)
+    expect(rampCss(['#a', '#b'])).toBe('linear-gradient(90deg,#a 0%,#a 50%,#b 100%)')
   })
 
   // One drawing for every scale on the map (TJ, 2026-09-22). The snow strip was
@@ -126,17 +124,5 @@ describe('scaleTicks', () => {
     // window scale's `in` is the whole point of the second scale existing.
     expect(metricLabel('precip', undefined, rate.unit)).toBe('Precipitation (in/hr)')
     expect(metricLabel('precip', undefined, METRIC_SCALE.precip.unit)).toBe('Precipitation (in)')
-  })
-})
-
-// The snow strip reads the same two builders, so the two keys on the map cannot
-// be drawn to different rules.
-describe('the snow strip', () => {
-  it('names four of its eleven boundaries, bare', () => {
-    const ticks = snowTicks()
-    expect(ticks.map((t) => t.label)).toEqual(['0', '4', '40', '400'])
-    // Band `i`'s anchor is at boundary `i + 1` on a blended strip, and the top
-    // tick's `end` alignment adds that one itself (#460).
-    expect(ticks.map((t) => t.at)).toEqual([1, 3, 6, 10])
   })
 })

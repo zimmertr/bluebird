@@ -56,9 +56,14 @@ describe('analysisFailure', () => {
     )
   })
 
-  it('treats an abort-shaped plain error as an error, not a cancel', () => {
-    const fake = new Error('aborted')
-    fake.name = 'AbortError'
-    expect(analysisFailure(fake, MODELS).kind).toBe('error')
+  // A cancel is read off the name, because not every realm this runs in hands
+  // back the global DOMException (`abort.ts`), so any error named AbortError
+  // is a cancel. A deadline is not: it is a failure the reader is told about.
+  it('reads any error named AbortError as a cancel, and a timeout as an error', () => {
+    const named = new Error('aborted')
+    named.name = 'AbortError'
+    expect(analysisFailure(named, MODELS).kind).toBe('cancel')
+    expect(analysisFailure(new DOMException('late', 'TimeoutError'), MODELS).kind).toBe('error')
+    expect(analysisFailure(null, MODELS).kind).toBe('error')
   })
 })

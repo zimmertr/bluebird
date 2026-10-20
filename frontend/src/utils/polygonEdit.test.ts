@@ -32,14 +32,10 @@ describe('insertionIndex', () => {
     expect(insertionIndex(SQUARE, [0.5, -0.1])).toBe(1)
     expect(insertionIndex(SQUARE, [1.1, 0.5])).toBe(2)
     expect(insertionIndex(SQUARE, [0.5, 1.1])).toBe(3)
+    // The closing edge (last vertex back to first) is a real edge and gets its
+    // own index, which is what "append" accidentally got right and everything
+    // else got wrong.
     expect(insertionIndex(SQUARE, [-0.1, 0.5])).toBe(4)
-  })
-
-  // The closing edge (last vertex back to first) is a real edge and gets its
-  // own index, which is what "append" accidentally got right and everything
-  // else got wrong.
-  it('treats the closing edge like any other', () => {
-    expect(insertionIndex(SQUARE, [-0.01, 0.5])).toBe(SQUARE.length)
   })
 
   // A perpendicular foot beyond the end of a segment is why detour beats

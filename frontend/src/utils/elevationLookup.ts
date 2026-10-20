@@ -11,7 +11,7 @@ import { geoKey } from './points'
  * is an answer, not a gap: the pod's lookup finished and found no peak, so
  * the row is never asked about again.
  */
-export interface Identity {
+interface Identity {
   elevation_ft: number | null
   osm_id: string | null
 }

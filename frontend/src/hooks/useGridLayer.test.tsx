@@ -67,8 +67,11 @@ describe('useGridLayer', () => {
     panel = 'ecmwf_ifs025'
     rerender()
     expect(last()).toMatchObject({ model: 'gfs_seamless', pitchKm: 3, enabled: true, window: REPORT.window })
-    // Before any report, only the slider's quote reads the panel's model.
     expect(result.current.gridReachPitchKm).toBe(3)
+  })
+
+  // Before any report, only the slider's quote reads the panel's model.
+  it("quotes the panel model's pitch, and fetches nothing, before any report", () => {
     const before = renderHook(() =>
       useGridLayer(inputs({ analyzed: null, universe: null, forecastModel: 'ecmwf_ifs025' })),
     )

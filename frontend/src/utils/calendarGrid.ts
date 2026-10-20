@@ -9,7 +9,7 @@ import { type BandLimits, aqiHorizon, inBand, modelEnd } from './calendarBand'
  * booleans because the three states are exclusive, and a cell that claimed to be
  * both unservable and air-quality-limited would be a bug the types allowed.
  */
-export type DayAvailability =
+type DayAvailability =
   /** Every hour, both weather and air quality. */
   | 'full'
   /**

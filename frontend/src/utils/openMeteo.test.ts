@@ -32,9 +32,9 @@ import {
   OpenMeteoUnreachable,
   TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
-import { archiveBoundaryMs, windowSource } from './forecastWindow'
+import { DAY_MS, archiveBoundaryMs, windowSource } from './forecastWindow'
 import type { HourlyPayload } from './openMeteoAggregate'
-import { cloudAnswer, WEATHER_UNITS } from '../testSupport/fixtures'
+import { cloudAnswer, fakeResponse, WEATHER_UNITS } from '../testSupport/fixtures'
 // `?raw` gives a file's text without executing it, the drift-guard idiom
 // `styles.test.ts` and `metrics.test.ts` use. Both surfaces that say the
 // model-coverage sentence compose it inside a React hook, which a node-env
@@ -86,18 +86,14 @@ function rainierMetrics(freeze: (number | null)[], unit: string | null) {
 }
 
 describe('freezing level unit', () => {
+  // Dividing feet by 0.3048 would read 27,556 ft over a 14,409 ft summit,
+  // which looks like a forecast rather than a fault.
   it('reads the unit the response declares', () => {
     const meters = rainierMetrics([2560.0], 'm')
     const feet = rainierMetrics([8398.95], 'ft')
     expect(meters?.freeze_min_ft).toBe(8399)
     expect(feet?.freeze_min_ft).toBe(8399)
     expect(feet).toEqual(meters)
-  })
-
-  it('does not convert a response already in feet', () => {
-    // Dividing feet by 0.3048 reads 27,556 ft over a 14,409 ft summit, which
-    // looks like a forecast rather than a fault.
-    expect(rainierMetrics([8398.95], 'ft')?.freeze_max_ft).toBe(8399)
   })
 
   it('reads the unit in the series too', () => {
@@ -215,7 +211,7 @@ describe('weather units', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
-        jsonResponse([{ ...hourlyPayload(), hourly_units: { ...WEATHER_UNITS, precipitation: 'mm' } }]),
+        fakeResponse([{ ...hourlyPayload(), hourly_units: { ...WEATHER_UNITS, precipitation: 'mm' } }]),
       ),
     )
     await expect(
@@ -243,10 +239,6 @@ function hourlyPayload() {
   }
 }
 
-function jsonResponse(body: unknown): Response {
-  return { ok: true, status: 200, json: async () => body } as unknown as Response
-}
-
 afterEach(() => {
   vi.unstubAllGlobals()
   // Module-level state (per-location cache, pacer buckets) must not let one
@@ -267,7 +259,7 @@ const OPTS = { model: MODEL, nowMs: NOW_MS }
 
 describe('fetchWeather', () => {
   it('normalizes the single-location object payload to one result', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(hourlyPayload())))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(hourlyPayload())))
     const out = await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
       WINDOW.startMs,
@@ -279,7 +271,7 @@ describe('fetchWeather', () => {
   })
 
   it('serves an identical repeat from the cache without refetching', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     const coords = [{ latitude: 47.5, longitude: -121.9 }]
     await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, OPTS)
@@ -289,7 +281,7 @@ describe('fetchWeather', () => {
   })
 
   it('requests the level winds, the level temperatures and the freezing level alongside the surface variables', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
@@ -327,14 +319,15 @@ describe('fetchWeather', () => {
     // batch instead of saying anything.
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonResponse(rainierPayload([2560.0], 'furlongs'))),
+      vi.fn(async () => fakeResponse(rainierPayload([2560.0], 'furlongs'))),
     )
     await expect(
       fetchWeather(
         [{ latitude: 46.85, longitude: -121.76 }],
         RAINIER_WINDOW.startMs,
         RAINIER_WINDOW.endMs,
-        { model: MODEL },
+        // The clock at the window, so it is the forecast endpoint's whatever the day.
+        { model: MODEL, nowMs: RAINIER_WINDOW.startMs },
       ),
     ).rejects.toThrow(OpenMeteoBadBody)
   })
@@ -343,7 +336,7 @@ describe('fetchWeather', () => {
     // The request used to name whole calendar days and the aggregation threw
     // the overhang away, in the visitor's own memory. Both bounds floor to the
     // hour, which cannot drop a stamp the inclusive filter keeps.
-    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
@@ -363,7 +356,7 @@ describe('fetchWeather', () => {
     // `Date.parse`. Measured over 540,000 stamps, which is a maximal
     // 1,500-destination analysis of a 15-day window: 63 ms of parsing became
     // 4 ms, and the raw response lost 11% of its bytes.
-    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
@@ -381,7 +374,7 @@ describe('fetchWeather', () => {
     // The window every Current analysis resolves to, and the one the whole-day
     // request wasted most on: measured 2026-08-23 over 50 locations, 97.3 KB
     // for the day against 32.8 KB for the hour.
-    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     const moment = Date.parse('2026-07-21T13:00:00Z')
     await fetchWeather(
@@ -404,7 +397,7 @@ describe('fetchWeather', () => {
       wind_speed_600hPa: [40.0, 40.0],
       wind_speed_500hPa: [50.0, 50.0],
     })
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(payload)))
     const out = await fetchWeather(
       // 8,000 ft between 850 hPa (1457 m) and 700 hPa (3012 m):
       // 10 + 20 * (981.4 / 1555) = 22.6226... → 22.6 at every hour.
@@ -429,7 +422,7 @@ describe('fetchWeather', () => {
       wind_speed_600hPa: [40.0, 40.0],
       wind_speed_500hPa: [50.0, 50.0],
     })
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(payload)))
     const out = await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
       WINDOW.startMs,
@@ -463,7 +456,7 @@ describe('fetchWeather', () => {
       wind_speed_600hPa: [40.0, 40.0],
       wind_speed_500hPa: [50.0, 50.0],
     })
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(payload)))
     const out = await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9, elevation_ft: 8000 }],
       WINDOW.startMs,
@@ -487,7 +480,7 @@ describe('fetchWeather', () => {
       wind_speed_600hPa: [40.0, 40.0],
       wind_speed_500hPa: [50.0, 50.0],
     })
-    const fetchSpy = vi.fn(async () => jsonResponse(payload))
+    const fetchSpy = vi.fn(async () => fakeResponse(payload))
     vi.stubGlobal('fetch', fetchSpy)
     const peak = await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9, terrainFallback: true }],
@@ -514,7 +507,7 @@ describe('fetchWeather', () => {
   })
 
   it('keys the cache by elevation, so a lattice point never reads a summit entry', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9, elevation_ft: 8000 }],
@@ -535,25 +528,30 @@ describe('fetchWeather', () => {
     // scope-less 429 must throw immediately, with no fallback trigger.
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}) })),
+      vi.fn(async () => fakeResponse({}, 429)),
     )
     await expect(
       fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
     ).rejects.toBeInstanceOf(OpenMeteoRateLimited)
   })
 
-  it('reads the tripped quota scope from the 429 body', async () => {
+  // The header is read by the pod's strict parser (`retryAfterSeconds`): a
+  // value that is not whole seconds falls to the quota's own floor, and a 0
+  // resumes after a second rather than at once.
+  it.each([
+    ['120', 120],
+    ['1.5', 900],
+    ['0', 1],
+  ])('waits out a Retry-After of %s as %i seconds', async (header, wait) => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({
-        ok: false,
-        status: 429,
-        json: async () => ({ error: true, reason: 'Hourly API request limit exceeded.' }),
-      })),
+      vi.fn(async () =>
+        fakeResponse({ error: true, reason: 'Hourly API request limit exceeded.' }, 429, { 'Retry-After': header }),
+      ),
     )
     await expect(
       fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
-    ).rejects.toMatchObject({ scope: 'hourly' })
+    ).rejects.toMatchObject({ scope: 'hourly', retryAfterS: wait })
   })
 
   // Rate limit quotas across all scopes report the same message.
@@ -564,7 +562,7 @@ describe('fetchWeather', () => {
   ])('reports quota reached for a %s refusal', async (reason, scope) => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: false, status: 429, json: async () => ({ error: true, reason }) })),
+      vi.fn(async () => fakeResponse({ error: true, reason }, 429)),
     )
     await expect(
       fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
@@ -579,13 +577,10 @@ describe('fetchWeather', () => {
     try {
       const fetchSpy = vi
         .fn()
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 429,
-          headers: { get: (h: string) => (h === 'Retry-After' ? '1' : null) },
-          json: async () => ({ error: true, reason: 'Minutely API request limit exceeded.' }),
-        })
-        .mockResolvedValueOnce(jsonResponse(hourlyPayload()))
+        .mockResolvedValueOnce(
+          fakeResponse({ error: true, reason: 'Minutely API request limit exceeded.' }, 429, { 'Retry-After': '1' }),
+        )
+        .mockResolvedValueOnce(fakeResponse(hourlyPayload()))
       vi.stubGlobal('fetch', fetchSpy)
       const pending = fetchWeather(
         [{ latitude: 0, longitude: 0 }],
@@ -614,15 +609,12 @@ describe('fetchWeather', () => {
         vi.fn(async (url: string) => {
           if (first) {
             first = false
-            return {
-              ok: false,
-              status: 429,
-              headers: { get: (h: string) => (h === 'Retry-After' ? '1' : null) },
-              json: async () => ({ error: true, reason: 'Minutely API request limit exceeded.' }),
-            }
+            return fakeResponse({ error: true, reason: 'Minutely API request limit exceeded.' }, 429, {
+              'Retry-After': '1',
+            })
           }
           const count = new URL(url).searchParams.get('latitude')!.split(',').length
-          return jsonResponse(Array.from({ length: count }, hourlyPayload))
+          return fakeResponse(Array.from({ length: count }, hourlyPayload))
         }),
       )
       const places = (n: number, lon: number) =>
@@ -646,13 +638,10 @@ describe('fetchWeather', () => {
     try {
       const fetchSpy = vi
         .fn()
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 429,
-          headers: { get: (h: string) => (h === 'Retry-After' ? '3600' : null) },
-          json: async () => ({ error: true, reason: 'Minutely API request limit exceeded.' }),
-        })
-        .mockResolvedValueOnce(jsonResponse(hourlyPayload()))
+        .mockResolvedValueOnce(
+          fakeResponse({ error: true, reason: 'Minutely API request limit exceeded.' }, 429, { 'Retry-After': '3600' }),
+        )
+        .mockResolvedValueOnce(fakeResponse(hourlyPayload()))
       vi.stubGlobal('fetch', fetchSpy)
       const onPace = vi.fn()
       const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
@@ -673,7 +662,7 @@ describe('fetchWeather', () => {
     // instead of triggering a doomed fallback.
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })),
+      vi.fn(async () => fakeResponse({}, 500)),
     )
     await expect(
       fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
@@ -711,7 +700,7 @@ describe('fetchWeather', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonResponse([hourlyPayload(), hourlyPayload()])),
+      vi.fn(async () => fakeResponse([hourlyPayload(), hourlyPayload()])),
     )
     await expect(
       fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
@@ -726,7 +715,7 @@ describe('fetchWeather', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonResponse([hourlyPayload(), hourlyPayload()])),
+      vi.fn(async () => fakeResponse([hourlyPayload(), hourlyPayload()])),
     )
     const failing = fetchWeather(
       [{ latitude: 0, longitude: 0 }],
@@ -749,7 +738,7 @@ describe('fetchWeather', () => {
       'fetch',
       vi.fn(async (url: string) => {
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
-        return jsonResponse(Array.from({ length: count }, () => hourlyPayload()))
+        return fakeResponse(Array.from({ length: count }, () => hourlyPayload()))
       }),
     )
     const seen: Array<[number, number]> = []
@@ -771,7 +760,7 @@ describe('fetchWeather', () => {
       'fetch',
       vi.fn(async (url: string) => {
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
-        return jsonResponse(Array.from({ length: count }, () => hourlyPayload()))
+        return fakeResponse(Array.from({ length: count }, () => hourlyPayload()))
       }),
     )
     const rounds: Array<{ answers: number; settled: number }> = []
@@ -801,7 +790,7 @@ describe('the forecast model on the browser path', () => {
   const coords = [{ latitude: 47.5, longitude: -121.9 }]
 
   it('names the model on every request', async () => {
-    const fetchSpy = vi.fn(async (_url: string) => jsonResponse(hourlyPayload()))
+    const fetchSpy = vi.fn(async (_url: string) => fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'gfs_hrrr' })
 
@@ -810,7 +799,7 @@ describe('the forecast model on the browser path', () => {
   })
 
   it('does not let two models share one cache entry', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'ecmwf_ifs025' })
     await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'gfs_seamless' })
@@ -829,14 +818,7 @@ describe('the forecast model on the browser path', () => {
   it('classifies a regional model refusing a location as its own failure', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({
-        ok: false,
-        status: 400,
-        clone: () => ({
-          json: async () => ({ error: true, reason: 'No data is available for this location' }),
-        }),
-        json: async () => ({ error: true, reason: 'No data is available for this location' }),
-      })),
+      vi.fn(async () => fakeResponse({ error: true, reason: 'No data is available for this location' }, 400)),
     )
     await expect(
       fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'gfs_hrrr' }),
@@ -846,12 +828,7 @@ describe('the forecast model on the browser path', () => {
   it('leaves an ordinary 400 as an ordinary HTTP error', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({
-        ok: false,
-        status: 400,
-        clone: () => ({ json: async () => ({ reason: 'Invalid date' }) }),
-        json: async () => ({ reason: 'Invalid date' }),
-      })),
+      vi.fn(async () => fakeResponse({ reason: 'Invalid date' }, 400)),
     )
     await expect(
       fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'gfs_hrrr' }),
@@ -863,24 +840,16 @@ describe('fetchAqi', () => {
   it('degrades any failure to nulls instead of throwing', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })),
+      vi.fn(async () => fakeResponse({}, 500)),
     )
-    const out = await fetchAqi(
-      [{ latitude: 0, longitude: 0 }],
-      WINDOW.startMs,
-      WINDOW.endMs,
-    )
+    const out = await fetchAqi([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
     // Flagged, so a re-analysis knows to ask again (#580).
     expect(out).toEqual({ results: [null], failed: [true] })
   })
 
   it('degrades a miscounted response to nulls', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse([{}, {}])))
-    const out = await fetchAqi(
-      [{ latitude: 0, longitude: 0 }],
-      WINDOW.startMs,
-      WINDOW.endMs,
-    )
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse([{}, {}])))
+    const out = await fetchAqi([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
     expect(out).toEqual({ results: [null], failed: [true] })
   })
 
@@ -893,8 +862,8 @@ describe('fetchAqi', () => {
       vi.fn(async (url: string) => {
         const size = new URL(url).searchParams.get('latitude')!.split(',').length
         return size === 50
-          ? jsonResponse(coords.slice(0, 50).map(() => ({ hourly: {} })))
-          : { ok: false, status: 500, json: async () => ({}) }
+          ? fakeResponse(coords.slice(0, 50).map(() => ({ hourly: {} })))
+          : fakeResponse({}, 500)
       }),
     )
     const out = await fetchAqi(coords, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
@@ -927,7 +896,7 @@ describe('fetchAqi', () => {
       'fetch',
       vi.fn(async (url: string) => {
         requested = new URL(url).searchParams.get('end_hour')
-        return jsonResponse({ hourly: { time: [], us_aqi: [] } })
+        return fakeResponse({ hourly: { time: [], us_aqi: [] } })
       }),
     )
     const now = Date.parse('2026-07-21T00:00:00Z')
@@ -949,7 +918,7 @@ describe('fetchAqi', () => {
       'fetch',
       vi.fn(async (url: string) => {
         requested = new URL(url).searchParams.get('end_hour')
-        return jsonResponse({ hourly: { time: [], us_aqi: [] } })
+        return fakeResponse({ hourly: { time: [], us_aqi: [] } })
       }),
     )
     const now = Date.parse('2026-07-21T00:00:00Z')
@@ -966,7 +935,7 @@ describe('fetchAqi', () => {
       'fetch',
       vi.fn(async (url: string) => {
         params = new URL(url).searchParams
-        return jsonResponse({ hourly: { time: [], us_aqi: [] } })
+        return fakeResponse({ hourly: { time: [], us_aqi: [] } })
       }),
     )
     const now = Date.parse('2026-07-21T00:00:00Z')
@@ -981,7 +950,7 @@ describe('fetchAqi', () => {
       'fetch',
       vi.fn(async (url: string) => {
         params = new URL(url).searchParams
-        return jsonResponse({ hourly: { time: [], us_aqi: [] } })
+        return fakeResponse({ hourly: { time: [], us_aqi: [] } })
       }),
     )
     const now = Date.parse('2026-07-21T00:00:00Z')
@@ -1104,7 +1073,7 @@ describe('a window older than the forecast endpoint holds', () => {
   }
 
   it('goes to the archive endpoint and names no model', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(archivePayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(archivePayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(coords, ARCHIVE_WINDOW.startMs, ARCHIVE_WINDOW.endMs, {
       ...OPTS,
@@ -1123,7 +1092,7 @@ describe('a window older than the forecast endpoint holds', () => {
   })
 
   it('keeps a recent window on the forecast endpoint', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, OPTS)
 
@@ -1136,7 +1105,7 @@ describe('a window older than the forecast endpoint holds', () => {
     // They answer the same coordinates from different data, and the boundary
     // between them moves with the clock, so an entry has to belong to the
     // endpoint that produced it.
-    const fetchSpy = vi.fn(async () => jsonResponse(archivePayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(archivePayload()))
     vi.stubGlobal('fetch', fetchSpy)
     const window = [ARCHIVE_WINDOW.startMs, ARCHIVE_WINDOW.endMs] as const
 
@@ -1152,7 +1121,7 @@ describe('a window older than the forecast endpoint holds', () => {
   })
 
   it('falls back to the 10 m wind where the levels come back null', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(archivePayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(archivePayload()))
     vi.stubGlobal('fetch', fetchSpy)
     const out = await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9, elevation_ft: 14_000 }],
@@ -1202,7 +1171,7 @@ describe('a window that crosses the archive boundary', () => {
 
   function bothHalves() {
     const bodies = [archiveHalf(), forecastHalf()]
-    return vi.fn(async () => jsonResponse(bodies.shift()))
+    return vi.fn(async () => fakeResponse(bodies.shift()))
   }
 
   it('classifies the window as spanning at the pinned clock', () => {
@@ -1266,7 +1235,7 @@ describe('a window that crosses the archive boundary', () => {
     // A total of inches and millimetres is a number with no meaning, so the row
     // degrades to no forecast the way every unreadable payload does.
     const bodies = [archiveHalf(), { ...forecastHalf(), hourly_units: { ...WEATHER_UNITS, precipitation: 'mm' } }]
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(bodies.shift())))
     const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
 
     expect(out).toEqual([null])
@@ -1280,7 +1249,7 @@ describe('a window that crosses the archive boundary', () => {
       { ...archiveHalf(), hourly_units: { ...WEATHER_UNITS, wind_speed_500hPa: 'undefined' } },
       { ...forecastHalf(), hourly_units: { ...WEATHER_UNITS, wind_speed_500hPa: 'mp/h' } },
     ]
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(bodies.shift())))
     const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
 
     expect(out[0]?.precip_total_in).toBe(1.5)
@@ -1303,7 +1272,7 @@ describe('a window that crosses the archive boundary', () => {
         hourly: { ...forecast.hourly, freezing_level_height: [8000, 9000] },
       },
     ]
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(bodies.shift())))
     const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
 
     expect(out[0]?.precip_total_in).toBe(1.5)
@@ -1313,7 +1282,7 @@ describe('a window that crosses the archive boundary', () => {
 
   it('counts a repeated hour once', async () => {
     const bodies = [archiveHalf(), half(['2026-05-25T23:00', '2026-05-27T00:00'], [9.9, 0.4])]
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(bodies.shift())))
     const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
 
     expect(out[0]?.precip_total_in).toBe(0.7) // 0.1 + 0.2 + 0.4
@@ -1321,7 +1290,7 @@ describe('a window that crosses the archive boundary', () => {
   })
 
   it('keys the joined series apart from either half alone', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(archiveHalf()))
+    const fetchSpy = vi.fn(async () => fakeResponse(archiveHalf()))
     vi.stubGlobal('fetch', fetchSpy)
 
     await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
@@ -1337,18 +1306,40 @@ describe('a window that crosses the archive boundary', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(3) // two for the split, one for the half
   })
 
-  it('prices each half on its own hours', () => {
+  it('prices each half on its own hours', async () => {
     // Two requests are two answers, so a spanning window spends twice — and
     // pricing it on the whole window would bill the archive half's months for
-    // the forecast half as well.
-    const spans = fetchSpans(SPANNING.startMs, SPANNING.endMs, NOW_MS)
-    expect(spans).toHaveLength(2)
-    const total = spans.reduce(
-      (sum, s) => sum + callWeight(50, s.startMs, s.endMs, 9, 1),
-      0,
-    )
-    expect(total).toBe(100)
+    // the forecast half as well. Measured through the pacer: fifty places over
+    // forty days and one past the boundary book about 310 of the 550 a minute
+    // priced per half, so a hundred places for a day (160) go straight out,
+    // where the whole window priced on both halves would book 480 and hold them.
     expect(fetchSpans(WINDOW.startMs, WINDOW.endMs, NOW_MS)).toHaveLength(1)
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          const count = new URL(url).searchParams.get('latitude')!.split(',').length
+          return fakeResponse(Array.from({ length: count }, hourlyPayload))
+        }),
+      )
+      const places = (n: number, lon: number) =>
+        Array.from({ length: n }, (_, i) => ({ latitude: i / 1000, longitude: lon }))
+      const boundary = archiveBoundaryMs(NOW_MS)
+      const startMs = boundary - 40 * DAY_MS
+      const endMs = boundary + DAY_MS
+      expect(windowSource(startMs, endMs, NOW_MS)).toBe('spanning')
+      await fetchWeather(places(50, 0), startMs, endMs, OPTS)
+
+      const onPace = vi.fn()
+      const next = fetchWeather(places(100, 1), WINDOW.startMs, WINDOW.startMs + DAY_MS, { ...OPTS, onPace })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(onPace).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(120_000)
+      await next
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -1413,7 +1404,7 @@ describe('fetchCloud', () => {
       'fetch',
       vi.fn(async (url: string) => {
         urls.push(new URL(url))
-        return { ok: true, status: 200, json: async () => body(2) }
+        return fakeResponse(body(2))
       }),
     )
     const coords = [
@@ -1431,7 +1422,7 @@ describe('fetchCloud', () => {
   })
 
   it('answers a second ask from the cache', async () => {
-    const spy = vi.fn(async () => ({ ok: true, status: 200, json: async () => body(1) }))
+    const spy = vi.fn(async () => fakeResponse(body(1)))
     vi.stubGlobal('fetch', spy)
     const coords = [{ latitude: 1, longitude: 1, elevation_ft: 328 }]
     await fetchCloud(coords, startMs, endMs, { model: 'gfs_seamless', nowMs: startMs })
@@ -1488,7 +1479,7 @@ describe('the per-request deadline', () => {
     const fetchSpy = vi
       .fn()
       .mockImplementationOnce(hang)
-      .mockResolvedValueOnce(jsonResponse(hourlyPayload()))
+      .mockResolvedValueOnce(fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS)
 
@@ -1570,7 +1561,7 @@ describe('fetchAqi pacing', () => {
   })
 
   it('reports a deficit in its own budget through onPace', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(FIFTY.map(() => ({ hourly: {} })))))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(FIFTY.map(() => ({ hourly: {} })))))
     const onPace = vi.fn()
     const pending = fetchAqi(HUNDRED, LONG.startMs, LONG.endMs, { nowMs: NOW_MS, onPace })
 
@@ -1586,7 +1577,7 @@ describe('fetchAqi pacing', () => {
     // one minute's budget and no wait; priced on all 31 days they were 1,218,
     // and the last batches waited out a minute for spend that never happened.
     const many = Array.from({ length: 550 }, (_, i) => ({ latitude: i / 1000, longitude: 2 }))
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(FIFTY.map(() => ({ hourly: {} })))))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(FIFTY.map(() => ({ hourly: {} })))))
     const onPace = vi.fn()
     const pending = fetchAqi(many, NOW_MS, NOW_MS + 30 * 86_400_000, { nowMs: NOW_MS, onPace })
 
@@ -1601,7 +1592,7 @@ describe('fetchAqi pacing', () => {
     // 600 in six seconds, and 1,100 in the first minute. The next batch now
     // waits for the first minute's spend to leave the window.
     const many = Array.from({ length: 550 }, (_, i) => ({ latitude: i / 1000, longitude: 3 }))
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(FIFTY.map(() => ({ hourly: {} })))))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(FIFTY.map(() => ({ hourly: {} })))))
     await fetchAqi(many, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
     const onPace = vi.fn()
     const pending = fetchAqi(FIFTY, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS, onPace })
@@ -1613,7 +1604,7 @@ describe('fetchAqi pacing', () => {
   })
 
   it('says nothing when the budget covers the batch', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse([{ hourly: {} }])))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse([{ hourly: {} }])))
     const onPace = vi.fn()
     await fetchAqi([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
       nowMs: NOW_MS,
@@ -1651,7 +1642,7 @@ describe('columns kept for a lookup still out (#673)', () => {
   it('hands each fetched column to onColumn by index, beside the row reduced at what is known', async () => {
     const fetchSpy = vi.fn(async (url: string) => {
       const count = new URL(url).searchParams.get('latitude')!.split(',').length
-      return jsonResponse(Array.from({ length: count }, () => windyPayload()))
+      return fakeResponse(Array.from({ length: count }, () => windyPayload()))
     })
     vi.stubGlobal('fetch', fetchSpy)
     const places = [PLACE[0], { latitude: 47.6, longitude: -121.9 }]
@@ -1668,7 +1659,7 @@ describe('columns kept for a lookup still out (#673)', () => {
   })
 
   it('reduces a kept column again at the height the lookup returns, and caches it there', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(windyPayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(windyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     let kept: HourlyPayload | undefined
     const out = await fetchWeather(PLACE, WINDOW.startMs, WINDOW.endMs, { ...OPTS, onColumn: (_, c) => (kept = c) })
@@ -1682,7 +1673,7 @@ describe('columns kept for a lookup still out (#673)', () => {
   })
 
   it('skips the cache for a place with no elevation when its column is wanted, and reads it for one that has', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(windyPayload()))
+    const fetchSpy = vi.fn(async () => fakeResponse(windyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(PLACE, WINDOW.startMs, WINDOW.endMs, OPTS)
     // A cached row has no column to hand over, so the place is asked again.
@@ -1699,7 +1690,7 @@ describe('columns kept for a lookup still out (#673)', () => {
   })
 
   it('falls back to the terrain height where the lookup found nothing', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(windyPayload(2438.4))))
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(windyPayload(2438.4))))
     const place = { ...PLACE[0], terrainFallback: true }
     let kept: HourlyPayload | undefined
     const out = await fetchWeather([place], WINDOW.startMs, WINDOW.endMs, { ...OPTS, onColumn: (_, c) => (kept = c) })
@@ -1709,7 +1700,7 @@ describe('columns kept for a lookup still out (#673)', () => {
 
   it('holds the cloud column to the same rules', async () => {
     const cloudBody = [cloudAnswer(['2026-07-21T00:00', '2026-07-21T01:00'])]
-    const fetchSpy = vi.fn(async () => jsonResponse(cloudBody))
+    const fetchSpy = vi.fn(async () => fakeResponse(cloudBody))
     vi.stubGlobal('fetch', fetchSpy)
     const cloudOpts = { model: 'gfs_seamless', nowMs: WINDOW.startMs }
     let kept: HourlyPayload | undefined

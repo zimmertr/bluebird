@@ -7,15 +7,18 @@ import { GRID_STYLES, isGridStyle } from './forecastGrid'
 // What useGridLayer.ts wires is the `grid-layer-hook` check, and the Layers row
 // App.tsx keeps is `app-grid-gate`, both in tools/eslint/checks/app.js.
 
-// One drawing for every scale on the map (TJ, 2026-09-22). The grid painted a
-// hard rectangle per sample while `blocks` was the default, where the markers
-// standing on it take a continuous colour from `interpolateRgb`.
-describe('the grid opens as a field rather than as blocks', () => {
+// The grid opens as a field rather than as blocks (TJ, 2026-09-22), one
+// drawing for every scale on the map: it painted a hard rectangle per sample
+// while `blocks` was the default, where the markers standing on it take a
+// continuous colour from `interpolateRgb`. That default lives in useGridLayer.ts
+// and is pinned by hooks/useGridLayer.test.tsx.
+describe('both grid styles stay reachable from a link', () => {
   // The segment stays, and so does the parameter behind it. `grid=blocks` is a
   // link somebody has already shared, and the blocks view is the one that shows
   // how few samples are under the field, which is worth keeping reachable.
   it('keeps both styles reachable and shareable', () => {
     expect(GRID_STYLES).toEqual(['blocks', 'smooth'])
     expect(isGridStyle('blocks')).toBe(true)
+    expect(isGridStyle('nearest')).toBe(false)
   })
 })

@@ -6,6 +6,7 @@ import {
   BASE_PALETTE_SIZE,
   CHART_CHROME,
 } from './chartColors'
+import { contrast, relativeLuminance, round2 } from '../testSupport/contrast'
 
 const THEMES = ['dark', 'light'] as const
 
@@ -26,10 +27,6 @@ describe('colorForIndex', () => {
     }
   })
 
-  it('is deterministic for a given index', () => {
-    expect(colorForIndex(20, 'dark')).toBe(colorForIndex(20, 'dark'))
-  })
-
   // The light walk is the dark one's hue at lightness 78 rather than 64
   // (PR #733): a generated line keeps its hue across a switch and takes the
   // light theme's pastel, drawn over its edge.
@@ -38,7 +35,7 @@ describe('colorForIndex', () => {
       const dark = colorForIndex(index, 'dark')
       const light = colorForIndex(index, 'light')
       expect(hue(light)).toBeCloseTo(hue(dark), -1)
-      expect(luminance(light)).toBeGreaterThan(luminance(dark))
+      expect(relativeLuminance(light)).toBeGreaterThan(relativeLuminance(dark))
     }
   })
 })
@@ -65,13 +62,13 @@ describe('the palette in each theme (#706)', () => {
       Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => contrast(colorForIndex(i, theme), ground))
     const dark = ratios('dark', CHART_CHROME.dark.surface)
     for (const ratio of dark) expect(ratio, 'dark').toBeGreaterThanOrEqual(3)
-    expect(round(Math.min(...dark))).toBe(5.52)
+    expect(round2(Math.min(...dark))).toBe(5.52)
     const light = ratios('light', CHART_CHROME.light.lineEdge!)
     for (const ratio of light) expect(ratio, 'light').toBeGreaterThanOrEqual(3)
-    expect([round(Math.min(...light)), round(Math.max(...light))]).toEqual([5.14, 7.21])
+    expect([round2(Math.min(...light)), round2(Math.max(...light))]).toEqual([5.14, 7.21])
     // Why the edge exists: no light line clears 3:1 on the panel alone.
     const bare = ratios('light', CHART_CHROME.light.surface)
-    expect([round(Math.min(...bare)), round(Math.max(...bare))]).toEqual([1.16, 1.62])
+    expect([round2(Math.min(...bare)), round2(Math.max(...bare))]).toEqual([1.16, 1.62])
   })
 
   // The chart draws a line per displayed row, hundreds of them, so the
@@ -87,8 +84,8 @@ describe('the palette in each theme (#706)', () => {
     for (const ratio of dark) expect(ratio, 'dark').toBeGreaterThanOrEqual(3)
     for (const ratio of light) expect(ratio, 'light').toBeGreaterThanOrEqual(3)
     const generated = (xs: number[]) => xs.slice(BASE_PALETTE_SIZE)
-    expect([round(Math.min(...generated(dark))), round(Math.max(...generated(dark)))]).toEqual([3.08, 10.74])
-    expect([round(Math.min(...generated(light))), round(Math.max(...generated(light)))]).toEqual([3.9, 7.75])
+    expect([round2(Math.min(...generated(dark))), round2(Math.max(...generated(dark)))]).toEqual([3.08, 10.74])
+    expect([round2(Math.min(...generated(light))), round2(Math.max(...generated(light)))]).toEqual([3.9, 7.75])
   })
 
   // The edge itself is what stands a light line off the panel, so it owes
@@ -96,7 +93,7 @@ describe('the palette in each theme (#706)', () => {
   // Dark lines carry no edge.
   it('draws the light lines over an edge that stands off the panel, and the dark ones over none', () => {
     expect(CHART_CHROME.light.lineEdge).toBe(CHART_CHROME.light.axis)
-    expect(round(contrast(CHART_CHROME.light.lineEdge!, CHART_CHROME.light.surface))).toBe(8.34)
+    expect(round2(contrast(CHART_CHROME.light.lineEdge!, CHART_CHROME.light.surface))).toBe(8.34)
     expect(CHART_CHROME.dark.lineEdge).toBeNull()
   })
 
@@ -189,9 +186,9 @@ describe('chart chrome contrast', () => {
   it('sets the chrome labels at 4.5:1 or better on their halo', () => {
     const ratio = contrast(CHART_CHROME.dark.axis, CHART_CHROME.dark.surface)
     expect(ratio).toBeGreaterThanOrEqual(4.5)
-    expect(Math.round(ratio * 100) / 100).toBe(5.56)
+    expect(round2(ratio)).toBe(5.56)
     const light = contrast(CHART_CHROME.light.axis, CHART_CHROME.light.surface)
-    expect(Math.round(light * 100) / 100).toBe(8.34)
+    expect(round2(light)).toBe(8.34)
   })
 
   // Each theme's chrome is that theme's tokens: an unassigned line reads as
@@ -202,8 +199,6 @@ describe('chart chrome contrast', () => {
     expect(CHART_CHROME.light.surface).toBe('#eef2f9')
   })
 })
-
-const round = (x: number) => Math.round(x * 100) / 100
 
 function rgbOf(hex: string): number[] {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
@@ -216,23 +211,4 @@ function hue(hex: string): number {
   if (d === 0) return 0
   const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
   return (h * 60 + 360) % 360
-}
-
-function luminance(hex: string): number {
-  const [r, g, b] = rgbOf(hex).map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-
-// WCAG relative luminance and contrast. Kept here, as `colors.test.ts` and
-// `styles.test.ts` keep theirs, because no shared helper exists to reuse.
-function contrast(a: string, b: string): number {
-  const lum = (hex: string) => {
-    const [r, g, bl] = [1, 3, 5].map((i) => {
-      const c = parseInt(hex.slice(i, i + 2), 16) / 255
-      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-    })
-    return 0.2126 * r + 0.7152 * g + 0.0722 * bl
-  }
-  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
-  return (hi + 0.05) / (lo + 0.05)
 }

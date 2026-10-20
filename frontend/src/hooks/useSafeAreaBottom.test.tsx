@@ -20,7 +20,9 @@ describe('useSafeAreaBottom', () => {
     probeHeight(() => px)
     const { result, unmount } = renderHook(() => useSafeAreaBottom())
     expect(result.current).toBe(34)
-    expect(document.querySelectorAll(`[aria-hidden="true"]`).length).toBeGreaterThan(0)
+    expect(
+      [...document.body.children].some((el) => el.className === SAFE_AREA.probe && el.getAttribute('aria-hidden') === 'true'),
+    ).toBe(true)
     px = 21
     act(() => {
       window.dispatchEvent(new Event('resize'))

@@ -10,6 +10,7 @@ answer outside the coverage can be told apart from a clear one.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import random
 import re
@@ -21,7 +22,7 @@ import pytest
 from conftest import fake_response
 
 from app.services import nifc, usfs_closures, usfs_coverage
-from app.services.errors import UpstreamRateLimited
+from app.services.errors import UpstreamError, UpstreamRateLimited
 
 
 def _feature(geometry: dict, name: str, **properties) -> dict:
@@ -214,6 +215,29 @@ def test_a_feature_without_geometry_is_dropped_but_still_counted():
     # The offset step counts what ArcGIS SENT, or paging re-reads the rows the
     # dropped feature displaced.
     assert count == 2
+
+
+def test_a_layer_page_skips_a_feature_that_is_not_an_object():
+    # One malformed item must not fail the whole page, and with it the refresh.
+    payload = json.dumps(_collection(None, _area(-122.08, 45.58, -122.07, 45.59, "Eagle Creek"))).encode()
+    closures, _, count = usfs_closures._parse_page(payload)
+    assert _names(closures) == ["Eagle Creek"]
+    assert count == 2
+
+
+@pytest.mark.parametrize(
+    "parse",
+    [
+        usfs_closures._parse_page,
+        usfs_closures._parse_order_attributes,
+        lambda payload: usfs_closures._parse_order_geometry(payload, {}, "R03"),
+    ],
+    ids=["layer-page", "order-attributes", "order-geometry"],
+)
+def test_every_page_parser_refuses_a_body_with_no_features_list(parse):
+    with pytest.raises(UpstreamError) as excinfo:
+        parse(b"{}")
+    assert excinfo.value.message == "Closure data could not be read."
 
 
 # ── Regions 3 and 4 ───────────────────────────────────────────────────────────
@@ -635,6 +659,40 @@ def test_a_geometry_page_joins_by_id_and_skips_what_phase_one_did_not_keep():
     assert count == 2
 
 
+def test_order_geometry_skips_what_it_cannot_join_or_draw():
+    attributes = {
+        101: _order(101, "No shape", cfr="36 CFR 261.53(e)")["attributes"],
+        102: _order(102, "Kept", cfr="36 CFR 261.53(e)")["attributes"],
+    }
+    shapeless = _shape(101, -111.2, 34.0, -111.1, 34.1)
+    shapeless["geometry"]["coordinates"] = []
+    unjoined = _shape(999, -111.0, 34.2, -110.9, 34.3)
+    nothing = json.dumps(_collection(None, unjoined, shapeless)).encode()
+    one = json.dumps(_collection(None, unjoined, shapeless, _shape(102, -111.2, 34.0, -111.1, 34.1))).encode()
+
+    assert usfs_closures._parse_order_geometry(nothing, attributes, "R03")[0] == []
+    closures, _, count = usfs_closures._parse_order_geometry(one, attributes, "R03")
+    assert _names(closures) == ["Kept"]
+    assert count == 4
+
+
+async def test_a_cancelled_order_feed_cancels_the_refresh(monkeypatch, caplog):
+    # A feed's failure drops its region with a warning; a cancellation is not
+    # a feed failing, and serving the snapshot without that region would hide
+    # that the refresh itself was told to stop.
+    async def fetch_forest_orders(client, feed):
+        if feed.source == "R03":
+            raise asyncio.CancelledError
+        return (), ()
+
+    monkeypatch.setattr(usfs_closures, "fetch_forest_orders", fetch_forest_orders)
+    with caplog.at_level("WARNING", logger="app.services.usfs_closures"), pytest.raises(
+        asyncio.CancelledError
+    ):
+        await usfs_closures.fetch_snapshot(httpx.MockTransport(_region()))
+    assert not any("failed" in record.getMessage() for record in caplog.records)
+
+
 # ── Filtering and assembly ────────────────────────────────────────────────────
 
 
@@ -891,15 +949,17 @@ def test_the_sentence_scan_is_linear_in_the_descriptions_length(unit):
 
 
 def test_the_permit_exception_is_linear_in_a_line_that_repeats_unless():
-    # About 60 KB in one sentence on one line, with an "unless" every word and
-    # no permit after any of them. Read from every "unless" to the end of the
-    # line, this was quadratic: 0.22 s here and 0.86 s at twice the length in
-    # the backend test container (measured 2026-10-06). The whole scan now
-    # takes about 3 ms, so the bound holds on a slow runner too.
-    text = "Closed to entry " + "unless " * (60_000 // len("unless "))
+    # About 120 KB in one sentence on one line, with an "unless" every word
+    # and no permit after any of them. Read from every "unless" to the end of
+    # the line, this was quadratic: 0.22 s at 60 KB and 0.86 s at this length
+    # in the backend test container (measured 2026-10-06). The linear scan
+    # takes 6.4 ms here and 3.1 ms at 60 KB (python:3.14-slim on a Mac,
+    # 2026-10-18), so the bound has about 40x headroom over it on a slow
+    # runner and still sits 3.4x under the quadratic one.
+    text = "Closed to entry " + "unless " * (120_000 // len("unless "))
     started = time.perf_counter()
     assert usfs_closures._entry_sentences(text) == ["closed"]
-    assert time.perf_counter() - started < 0.05
+    assert time.perf_counter() - started < 0.25
 
 
 # The pattern before #660, kept only to hold the linear one to its answers.

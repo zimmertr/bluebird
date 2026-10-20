@@ -92,7 +92,9 @@ describe('useColumnDrag', () => {
     act(() => result.current.begin(press(ths[0], 50), 'name'))
     const removed = vi.spyOn(document, 'removeEventListener')
     unmount()
-    expect(removed.mock.calls.map((c) => c[0])).toEqual(['pointermove', 'pointerup', 'pointercancel'])
+    // Sorted: the order cleanup detaches them in is no one's business, but a
+    // leaked pointermove has no visible effect, so only the spy can see one.
+    expect(removed.mock.calls.map((c) => c[0]).sort()).toEqual(['pointercancel', 'pointermove', 'pointerup'])
     fireEvent.pointerMove(document, { clientX: 250, clientY: 12, pointerType: 'mouse' })
     fireEvent.pointerUp(document)
     expect(onColumnMove).not.toHaveBeenCalled()
@@ -130,11 +132,6 @@ describe('useColumnDrag', () => {
     act(() => result.current.begin(press(ths[0], 50), 'name'))
     act(() => void fireEvent.pointerMove(document, { clientX: 250, clientY: 12, pointerType: 'mouse' }))
     expect(result.current.carry).toBeNull()
-  })
-
-  it('returns the names the header reads, in order', () => {
-    const { result } = renderHook(() => useColumnDrag(COLUMNS, vi.fn()))
-    expect(Object.keys(result.current)).toEqual(['begin', 'endedDrag', 'carry', 'insert'])
   })
 
   it('hands back the same callbacks across renders', () => {

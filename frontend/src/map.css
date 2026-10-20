@@ -204,7 +204,7 @@
  * reading, at the library's own size and paths, each edged in slate-600 so
  * the light half still has an outline on a light button, which is what the
  * light theme's button is (#706), so the one drawing serves both. Red-500 stands at
- * 3.89:1 on the button's slate-800 and 3.76:1 on white, slate-50 at 13.98:1
+ * 3.88:1 on the button's slate-800 and 3.76:1 on white, slate-50 at 13.97:1
  * on slate-800 and its slate-600 edge at 7.58:1 on white, each over the 3:1
  * a graphic owes. The library
  * turns the icon by an inline transform, which a background leaves alone. */
@@ -391,11 +391,13 @@
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%232d3238%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E");
 }
 
+/* The (i)'s 44px rim on a coarse pointer: 11px, because the rim stands
+   inside the button's 1px border (22px), and 22 plus 22 is 44. */
 @media (hover: none) {
   .maplibregl-ctrl-attrib-button::before {
     content: '';
     position: absolute;
-    inset: -10px;
+    inset: -11px;
   }
 }
 

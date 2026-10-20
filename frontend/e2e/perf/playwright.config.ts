@@ -12,6 +12,8 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: process.env.BASE_URL ?? 'http://localhost:8000',
+    // The zone Vitest pins and the suite's isoDay counts days in.
+    timezoneId: 'America/Los_Angeles',
     viewport: { width: 1280, height: 1000 },
   },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],

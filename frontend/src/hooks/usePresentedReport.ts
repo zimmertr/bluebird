@@ -9,6 +9,7 @@ import { geoKey } from '../utils/points'
 import { type PresentationKnobs, presentResults } from '../utils/present'
 import { isRankingOrder } from '../utils/sortResults'
 import type { SortDir, SortKey } from '../utils/tableColumns'
+import { grouped } from '../utils/numbers'
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
 // A module constant rather than an inline `new Set()`, which would be a fresh
@@ -231,15 +232,15 @@ export function usePresentedReport({
     // than a second line or a box, because the count is the thing that is
     // provisional.
     const tail = arriving ? ' so far' : ''
-    const shown = `${results.length.toLocaleString()} of ${presented.eligible.toLocaleString()}${tail}`
+    const shown = `${grouped(results.length)} of ${grouped(presented.eligible)}${tail}`
     // Comma-joined rather than parenthesized: the bar already wraps the whole
     // thing in parentheses, and a nested pair reads as a typo.
     if (presented.excluded > 0) {
-      const analyzedCount = (presented.eligible + presented.excluded).toLocaleString()
+      const analyzedCount = grouped(presented.eligible + presented.excluded)
       return `${shown} matching, ${analyzedCount} analyzed`
     }
     if (response.truncated && response.total_found != null) {
-      return `${shown}, ${response.total_found.toLocaleString()} found`
+      return `${shown}, ${grouped(response.total_found)} found`
     }
     return shown
   }, [response, results.length, presented.eligible, presented.excluded, arriving])
@@ -251,9 +252,7 @@ export function usePresentedReport({
   const emptyReason = useMemo(() => {
     if (response === null || results.length > 0) return null
     if (presented.excluded > 0 && presented.eligible === 0) {
-      return `No destinations match these filters. ${(
-        presented.eligible + presented.excluded
-      ).toLocaleString()} were analyzed.`
+      return `No destinations match these filters. ${grouped(presented.eligible + presented.excluded)} were analyzed.`
     }
     if (removedKeys.size > 0) {
       return 'All rows have been removed from this analysis. Use Removed above to restore them.'
