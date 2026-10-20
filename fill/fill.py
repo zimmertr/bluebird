@@ -46,6 +46,7 @@ import resource
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -95,6 +96,14 @@ OSM_TYPES = {"n": "node", "w": "way", "r": "relation"}
 # covers a pod still pulling its image.
 SCHEMA_WAIT_S = 600.0
 SCHEMA_POLL_S = 10.0
+# How often KeepAlive sends a statement on the lock's connection while the
+# pipeline runs. Istio's sidecar closes a TCP connection that carries no bytes
+# for an hour, the mesh's default idle timeout, and the TCP keepalives
+# `connect` sets carry none. The first production fill, 2026-10-20, held the
+# connection idle from the state read to the load, 82 minutes, and died at the
+# load's first statement: SSL SYSCALL error: EOF detected. Five minutes is far
+# under the hour and costs nothing.
+KEEPALIVE_S = 300.0
 
 DOWNLOAD_ATTEMPTS = 5
 DOWNLOAD_CHUNK = 8 << 20
@@ -534,8 +543,10 @@ def place_elements(ours: Path, index_path: Path, rows_path: Path) -> tuple[Count
 def connect(url: str) -> Any:
     import psycopg2
 
-    # Keepalives because the lock's connection sits idle while the pipeline
-    # runs, and a connection a middlebox forgets is a lock let go.
+    # Keepalives for the hours the lock's connection sits idle while the
+    # pipeline runs: a connection a middlebox forgets is a lock let go. Not
+    # enough on their own, since a keepalive carries no bytes and a mesh proxy
+    # counts bytes (KeepAlive below).
     conn = psycopg2.connect(
         url,
         connect_timeout=10,
@@ -577,6 +588,43 @@ def wait_for_schema(url: str, wait_s: float) -> Any:
             )
         log.info("Waiting for the shared cache's schema (%s)", reason)
         time.sleep(min(SCHEMA_POLL_S, remaining))
+
+
+class KeepAlive:
+    """`SELECT 1` on `conn` every `every_s` seconds, on a thread, until the block ends.
+
+    psycopg2 serializes the statements on a connection and the block runs none
+    on this one, so the thread has it to itself. A statement that fails ends
+    the thread, and the failure is raised when the block ends, unless the
+    block raised first: the connection, and the lock it held, are gone either
+    way, and the load would find that out an hour of osmium later.
+    """
+
+    def __init__(self, conn: Any, every_s: float = KEEPALIVE_S) -> None:
+        self._conn = conn
+        self._every_s = every_s
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="fill-keepalive", daemon=True)
+        self.error: Exception | None = None
+
+    def __enter__(self) -> KeepAlive:
+        self._thread.start()
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        self._stop.set()
+        self._thread.join()
+        if self.error is not None and exc is None:
+            raise FillError("the database connection was lost while the planet was processed") from self.error
+
+    def _run(self) -> None:
+        while not self._stop.wait(self._every_s):
+            try:
+                with self._conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+            except Exception as exc:  # noqa: BLE001  raised on the main thread when the block ends
+                self.error = exc
+                return
 
 
 def read_state(conn: Any) -> tuple[datetime | None, int | None]:
@@ -702,41 +750,42 @@ def fill(conn: Any, config: Config) -> None:
         # Read first: it costs nothing, and a replication server that is down
         # fails the run before an hour of download rather than after it.
         latest_sequence, latest_ts = fetch_state(config.replication_url)
-        planet = work / "planet.osm.pbf"
-        with step("download"):
-            download_planet(config.planet_url, planet)
-        planet_ts = planet_timestamp(planet)
-        sequence = resume_sequence(latest_sequence, latest_ts, planet_ts)
-        log.info("The planet is current to %s; the daily update resumes after %d", planet_ts.isoformat(), sequence)
+        with KeepAlive(conn):
+            planet = work / "planet.osm.pbf"
+            with step("download"):
+                download_planet(config.planet_url, planet)
+            planet_ts = planet_timestamp(planet)
+            sequence = resume_sequence(latest_sequence, latest_ts, planet_ts)
+            log.info("The planet is current to %s; the daily update resumes after %d", planet_ts.isoformat(), sequence)
 
-        candidates = work / "candidates.osm.pbf"
-        run_tool(
-            "candidates",
-            ["osmium", "tags-filter", "--no-progress", "--overwrite", "-R", str(planet),
-             *CANDIDATE_FILTERS, "-o", str(candidates)],
-        )
-        ids = work / "ids.txt"
-        with step("rules"):
-            kept = keep_ids(candidates, ids)
-        log.info("Rules keep %s", summary(kept))
-        if not kept:
-            raise FillError("the rules kept nothing from the planet; refusing to empty the places table")
+            candidates = work / "candidates.osm.pbf"
+            run_tool(
+                "candidates",
+                ["osmium", "tags-filter", "--no-progress", "--overwrite", "-R", str(planet),
+                 *CANDIDATE_FILTERS, "-o", str(candidates)],
+            )
+            ids = work / "ids.txt"
+            with step("rules"):
+                kept = keep_ids(candidates, ids)
+            log.info("Rules keep %s", summary(kept))
+            if not kept:
+                raise FillError("the rules kept nothing from the planet; refusing to empty the places table")
 
-        ours = work / "ours.osm.pbf"
-        run_tool(
-            "getid",
-            ["osmium", "getid", "--no-progress", "--overwrite", "-r", str(planet), "-i", str(ids),
-             "-o", str(ours)],
-            missing_ok=True,
-        )
-        planet.unlink()
+            ours = work / "ours.osm.pbf"
+            run_tool(
+                "getid",
+                ["osmium", "getid", "--no-progress", "--overwrite", "-r", str(planet), "-i", str(ids),
+                 "-o", str(ours)],
+                missing_ok=True,
+            )
+            planet.unlink()
 
-        rows_path = work / "places.csv"
-        with step("centres"):
-            kinds, notes = place_elements(ours, work / "nodes.idx", rows_path)
-        log.info("Placed %s", summary(kinds))
-        if notes:
-            log.info("Of those: %s", summary(notes))
+            rows_path = work / "places.csv"
+            with step("centres"):
+                kinds, notes = place_elements(ours, work / "nodes.idx", rows_path)
+            log.info("Placed %s", summary(kinds))
+            if notes:
+                log.info("Of those: %s", summary(notes))
 
         with step("load"):
             count = load_and_swap(conn, rows_path, planet_ts, sequence)
