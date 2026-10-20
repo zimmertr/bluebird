@@ -263,7 +263,12 @@ describe('nextActiveIndex', () => {
     expect(nextActiveIndex(3, 'ArrowUp', 8)).toBe(2)
   })
 
-  // Deliberately not wrapping: Home and End are how you reach the ends.
+  // Deliberately not wrapping: Home and End are how you reach the ends. The
+  // popover carries a chip row above the list (#232) and its chips are
+  // deliberately NOT options: arrow keys here move a selection, and walking a
+  // chip as a ninth row would point `aria-activedescendant` at something with
+  // no `role="option"`. `count` stays the number of options, so the walk stops
+  // at the last one and Tab is what crosses to the chips.
   it('stops at the ends rather than wrapping', () => {
     expect(nextActiveIndex(7, 'ArrowDown', 8)).toBe(7)
     expect(nextActiveIndex(0, 'ArrowUp', 8)).toBe(0)
@@ -272,16 +277,6 @@ describe('nextActiveIndex', () => {
   it('jumps to either end', () => {
     expect(nextActiveIndex(5, 'Home', 8)).toBe(0)
     expect(nextActiveIndex(2, 'End', 8)).toBe(7)
-  })
-
-  // The popover carries a chip row above the list (#232) and its chips are
-  // deliberately NOT options: arrow keys here move a selection, and walking a
-  // chip as a ninth row would point `aria-activedescendant` at something with
-  // no `role="option"`. `count` stays the number of options, so the walk stops
-  // at the last one and Tab is what crosses to the chips.
-  it('never walks past the last option into the popover’s chip row', () => {
-    expect(nextActiveIndex(7, 'ArrowDown', 8)).toBe(7)
-    expect(nextActiveIndex(7, 'End', 8)).toBe(7)
   })
 
   // The horizontal axis belongs to the chip row alone, or one press would move

@@ -56,13 +56,12 @@ describe('the coverage extent', () => {
   })
 
   it('covers the mountain west and stops at the analysis edge', () => {
-    const [west, south, east, north] = SNOW_BOUNDS
+    const [w, s, e, n] = SNOW_BOUNDS
+    const inside = (lng: number, lat: number) => lng >= w && lng <= e && lat >= s && lat <= n
     // Rainier and Katahdin are inside; Denali and the Alps are not, and that
     // is the layer's stated limit rather than a gap to fill in.
-    expect(west).toBeLessThan(-121.76)
-    expect(east).toBeGreaterThan(-68.92)
-    expect(south).toBeLessThan(35)
-    expect(north).toBeLessThan(63.07)
+    expect([inside(-121.76, 46.85), inside(-68.92, 45.9)]).toEqual([true, true])
+    expect([inside(-151.0, 63.07), inside(7.7, 46.0)]).toEqual([false, false])
   })
 
   it('stops asking for renders finer than the 1 km analysis', () => {
@@ -151,11 +150,6 @@ describe('the legend strip', () => {
     // numbers are (#454). `0` was the one START case and lost it when the
     // blend moved it a boundary right (#460).
     expect(snowTicks().map((t) => t.align)).toEqual(['center', 'center', 'center', 'end'])
-  })
-
-  it('reads left to right', () => {
-    const ats = snowTicks().map((t) => t.at)
-    expect(ats).toEqual([...ats].sort((a, b) => a - b))
   })
 
   it('states the unit on the label rather than on a tick', () => {

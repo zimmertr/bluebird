@@ -366,7 +366,8 @@ describe('the theme (#706)', () => {
     expect(stored(storage)).toEqual({ legendOpen: true })
   })
 
-  it('answers dark and writes nothing when there is no storage, or it refuses', () => {
+  it('answers dark and does not throw when there is no storage, or it refuses', () => {
+    vi.stubGlobal('localStorage', undefined)
     expect(readTheme()).toBe('dark')
     expect(() => writeTheme('light')).not.toThrow()
     vi.stubGlobal('localStorage', {

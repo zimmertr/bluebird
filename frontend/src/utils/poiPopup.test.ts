@@ -14,20 +14,19 @@ import {
 const RAINIER = { name: 'Mount Rainier', kind: 'volcano', lat: 46.8529, lon: -121.7604, elevationFt: 14410 }
 
 describe('poiPopupHtml', () => {
-  it('names the feature and its elevation', () => {
-    const html = poiPopupHtml(RAINIER, false)
-    expect(html).toContain('Mount Rainier')
-    expect(html).toContain('14,410')
-  })
-
   // The same card a ranked result wears (#712): the kind, the elevation and
   // the coordinates on one facts line under the name, the kind in the word the
   // Type column will use once the place is analyzed, so OSM's "volcano" reads
-  // as the table's "Peak".
+  // as the table's "Peak". Both cards describe the same mountain, so they say
+  // its height one way: "14,410 ft" on the facts line, as a result card says
+  // it, and never the "Elevation (ft): 14,410" row this card used to carry
+  // under a rule.
   it('says what the feature is on the facts line, in the Type column\'s word', () => {
     const html = poiPopupHtml(RAINIER, false)
+    expect(html).toContain('Mount Rainier')
     expect(factsText(html)).toBe('Peak | 14,410 ft | 46.85290, -121.76040')
     expect(html).not.toContain('volcano')
+    expect(html).not.toContain(ELEVATION_COL.label)
   })
 
   // The glyph shows no site, so its link's name says which (#738).
@@ -75,15 +74,6 @@ describe('poiPopupHtml', () => {
     expect(html).toContain('peakbagger.com')
     expect(html.indexOf('46.85290, -121.76040')).toBeLessThan(html.indexOf(POPUP_BODY_ATTR))
     expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(`${POI_ACTION_ATTR}="add"`))
-  })
-
-  // Both cards describe the same mountain, so they must say its height one
-  // way: "14,410 ft" on the facts line, as a result card says it, and never
-  // the "Elevation (ft): 14,410" row this card used to carry under a rule.
-  it('says the elevation the way a result card does', () => {
-    const html = poiPopupHtml(RAINIER, false)
-    expect(factsText(html)).toContain('14,410 ft')
-    expect(html).not.toContain(ELEVATION_COL.label)
   })
 
   // A latitude and a longitude are one value in two halves; breaking between

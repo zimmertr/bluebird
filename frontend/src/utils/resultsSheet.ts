@@ -234,6 +234,23 @@ export function dockedMapFloorPx(gripCount: number): number {
   return reserve + RESULTS_BAR_PX + gripCount * DOCKED_GRIP_PX
 }
 
+/**
+ * The chart and the table open at the same height, and at the height that
+ * leaves the map its whole legend stack.
+ *
+ * One number for both, because they are two halves of one answer and an 8px
+ * difference between them read as a mistake. The value is what Both mode can
+ * spend on a 1000px-tall window: 1000 less the docked map floor
+ * (`dockedMapFloorPx`, 541 with two grips) is 459, and two panels of 220 fit
+ * inside it with the map a few pixels clear of its floor. They were 288 and
+ * 280, chosen before the legend stack had a number, and at those heights the
+ * bottom of the stack sat under the results bar on exactly this window.
+ *
+ * Shared with the phone, where the sheet's own floors take over; they are the
+ * starting heights either way, and the reader's drag replaces them.
+ */
+export const DEFAULT_PANEL_HEIGHT = 220
+
 /** The sheet's own chrome: the header bar plus each grip it renders. */
 export function sheetChromePx(gripCount: number): number {
   return SHEET_HEADER_PX + gripCount * GRIP_PX

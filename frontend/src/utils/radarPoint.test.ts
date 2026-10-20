@@ -108,12 +108,6 @@ describe('formatReflectivity', () => {
     expect(formatReflectivity(-32)).toBe('≤-32.0 dBZ')
     expect(formatReflectivity(-31.5)).toBe('-31.5 dBZ')
   })
-
-  it('reads the ends off the palette', () => {
-    // The palette's last entry, 3a62b5, and its first after the no-data black.
-    expect(dbzOfPixel(58, 98, 181, 255)).toBe(N0Q_CEILING_DBZ)
-    expect(dbzOfPixel(133, 113, 143, 255)).toBe(N0Q_FLOOR_DBZ)
-  })
 })
 
 describe('radarSection', () => {

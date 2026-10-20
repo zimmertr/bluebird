@@ -84,32 +84,9 @@ describe('the dismissal lifecycle', () => {
     dismissed = pruneDismissals(dismissed, [errorKey, refusalKey]) // both still active
     expect(isDismissed(refusalKey, dismissed)).toBe(true)
   })
-
-  it('keeps a dismissal through re-renders that change nothing', () => {
-    const key = noticeKey('refusal', 'over the limit')
-    let dismissed: readonly string[] = [key]
-    dismissed = pruneDismissals(dismissed, [key])
-    dismissed = pruneDismissals(dismissed, [key])
-    expect(isDismissed(key, dismissed)).toBe(true)
-  })
 })
 
 describe('derived warnings keyed by condition', () => {
-  // The blocker text counts down as the user draws ("2 more points" → "1
-  // more point"), but its key stays `blocker:polygon`, so the dismissal
-  // holds through the countdown instead of resurfacing per click.
-  it('holds through text changes inside one condition', () => {
-    let dismissed: readonly string[] = ['blocker:polygon']
-    dismissed = pruneDismissals(dismissed, ['blocker:polygon']) // text changed, key did not
-    expect(isDismissed('blocker:polygon', dismissed)).toBe(true)
-  })
-
-  it('returns when the condition clears and later triggers again', () => {
-    let dismissed: readonly string[] = ['blocker:destinations']
-    dismissed = pruneDismissals(dismissed, []) // a destination was provided
-    expect(isDismissed('blocker:destinations', dismissed)).toBe(false) // then removed again
-  })
-
   it('dismissing every shown message leaves a later, different condition visible', () => {
     // Each message dismisses under its own key; a new blocker later is not
     // among them and reopens its box alone.

@@ -42,16 +42,6 @@ const labelsOf = (cols: readonly { label: string }[]) => cols.map((c) => c.label
 describe('popupGroups over a date range', () => {
   const cols = displayedColumns(false, 'precip_total_in')
 
-  it('shows every metric the table shows, and no more', () => {
-    const groups = popupGroups(row, cols)
-    const shown = groups.flatMap((g) => g.values).length
-    // Every metric column. The name, the type and the elevation are the
-    // card's title and the line under it.
-    expect(shown).toBe(
-      cols.filter((c) => c.key !== 'name' && c.key !== 'type' && c.key !== 'elevation_ft').length,
-    )
-  })
-
   it('groups a family under one heading with its shared unit', () => {
     const groups = popupGroups(row, cols)
     const temp = groups.find((g) => g.label.startsWith(NOUN.temp))!

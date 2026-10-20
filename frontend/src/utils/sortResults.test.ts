@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { DestinationResult } from '../types'
 import { rankComparator } from './clientAnalyze'
 import { compareValues } from './sortResults'
+import { resultRow } from '../testSupport/fixtures'
 
 describe('compareValues', () => {
   it('orders numbered names naturally, not lexicographically', () => {
@@ -47,7 +47,7 @@ describe('compareValues', () => {
 // the pair: if either side re-derives the rule, the two stop agreeing here
 // before a user finds nulls at the top of a descending column.
 describe('null placement, shared with the ranking comparator', () => {
-  const row = (aqi_max: number | null) => ({ aqi_max }) as DestinationResult
+  const row = (aqi_max: number | null) => resultRow({ aqi_max })
 
   it('agrees with rankComparator in both directions', () => {
     for (const desc of [false, true]) {

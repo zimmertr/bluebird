@@ -20,15 +20,10 @@ describe('the paced-fetch reducer', () => {
     expect(second).toBe(NOW + 6_000)
   })
 
+  // An abort arrives at the same action: a cancelled analysis and a finished
+  // one leave the reader in the same place, with nothing left to wait for.
   it('clears when the fetch completes', () => {
     const paced = paceReducer(null, { kind: 'pace', seconds: 30, nowMs: NOW })
-    expect(paceReducer(paced, { kind: 'clear' })).toBeNull()
-  })
-
-  it('clears when the fetch is aborted mid-wait', () => {
-    // Abort arrives at the same action: a cancelled analysis and a finished one
-    // leave the reader in the same place, with nothing left to wait for.
-    const paced = paceReducer(null, { kind: 'pace', seconds: 600, nowMs: NOW })
     expect(paceReducer(paced, { kind: 'clear' })).toBeNull()
   })
 
