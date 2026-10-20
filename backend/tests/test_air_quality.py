@@ -68,7 +68,7 @@ def test_metrics_result_is_integer_index():
     assert m["aqi_avg"] == 80
 
 
-def test_metrics_malformed_payload_returns_none():
+def test_metrics_with_no_hourly_read_as_an_empty_window():
     assert _aqi_metrics({"nope": 1}, START, END) is None
 
 
