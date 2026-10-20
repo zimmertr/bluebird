@@ -8,7 +8,7 @@ The welcome dialog offers a guided tutorial, the `Tutorial` link at the bottom o
 
 ## At a desk
 
-The controls panel docks at the left, beside the map. The search box stands at the top left of the map with the locate button at its right, and under it sit **Legend** and **Layers**. Close the panel and the chip that names the forecast window and the model (`☰ Current · NOAA GFS`) joins the front of that row; press it to bring the panel back. **Analyze** lives in the panel, so closing the panel puts it away too. There are no zoom buttons: scroll, pinch or double-click to zoom. Turn the map and a compass appears beside the locate button; press it to put north back up.
+The controls panel docks at the left, beside the map. The search box stands at the top left of the map, and under it sit **Legend** and **Layers**. Close the panel and the chip that names the forecast window and the model (`☰ Current · NOAA GFS`) joins the front of that row; press it to bring the panel back. **Analyze** lives in the panel, so closing the panel puts it away too. The zoom buttons stand at the top right of the map, with the compass and the locate button under them, and scroll, pinch or double-click zoom too. The compass is greyed out while north is up; turn the map and press it to put north back up.
 
 ## On a phone
 

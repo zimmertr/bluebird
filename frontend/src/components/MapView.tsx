@@ -210,14 +210,14 @@ interface Props {
   // The most positions a ring may carry (`limits.max_polygon_points`): the draw
   // tool places no point past it (#619).
   maxPolygonPoints: number
-  // The round slot at the right of the search pill, which the locate button
-  // stands in (#696, at both widths since #714), or null before the rows
-  // mount, when it keeps the library's top-right corner. A DOM node held in
-  // state, so it is one identity for as long as the slot is mounted.
+  // The round slot at the right of a phone's search pill, which the locate
+  // button stands in (#696), or null at a desk and before the rows mount,
+  // when it keeps the library's top-right corner (record 0174). A DOM node
+  // held in state, so it is one identity for as long as the slot is mounted.
   locateSlot: HTMLElement | null
-  // The slot the compass stands in: beside the locate button at a desk, at
-  // the right end of a phone's chip row under it (record 0147), or null
-  // before the rows mount.
+  // The slot the navigation group stands in, at the right end of a phone's
+  // chip row (record 0147), where only its compass shows; null at a desk and
+  // before the rows mount, when the group keeps the corner with its zoom pair.
   compassSlot: HTMLElement | null
 }
 
@@ -281,8 +281,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const isDesktop = useIsDesktop()
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
-    // The library's locate button and its compass, which stand at the right
-    // of the map's two rows (`placeControl`).
+    // The library's locate button and its navigation group, which stand at
+    // the right of a phone's two rows (`placeControl`) and in the map's
+    // top-right corner at a desk.
     const controlsRef = useRef<MapControls | null>(null)
     const loadedRef = useRef(false)
     const ptsRef = useRef<[number, number][]>([])
@@ -666,8 +667,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // identity changed, losing the camera and every layer with it.
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // The locate button and the compass follow their slots: into the rows
-    // while they are up, back to the library's corner when they go.
+    // The locate button and the compass follow their slots: into a phone's
+    // rows while they are up, back to the library's corner when they go and
+    // at a desk, which has none.
     // After the map is built, which an effect declared above these has done.
     useEffect(() => {
       const map = mapRef.current

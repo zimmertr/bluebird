@@ -135,8 +135,9 @@
 }
 
 /* The library's own top-right stack, measured off the same edge as the app's
- * rows. It is empty once the compass and the locate button stand in the rows'
- * slots (`MAP_SLOT`), which they do at both widths since #714, and holds them
+ * rows. At a desk it holds the map's buttons: zoom in, zoom out, the compass
+ * and the locate button (record 0174). On a phone it is empty once the compass
+ * and the locate button stand in the rows' slots (`MAP_SLOT`), and holds them
  * only for the moment before the rows mount.
  *
  * The vendor ships 10px here and the app's rows stand at `MAP_EDGE`'s 12px.
@@ -154,16 +155,18 @@
   margin: var(--map-edge-inset) var(--map-edge-inset) 0 0;
 }
 
-/* The app's two rows span the map's top edge (#696), so the stack starts
+/* A phone's two rows span the map's top edge (#696), so the stack starts
  * below them: `--map-vendor-top` is published by `MAP_EDGE.belowRows` (or
- * `belowDrawBar` while a ring is drawn) on the map wrapper. The first group
- * alone, because the margin under it is the gap between groups. */
+ * `belowDrawBar` while a ring is drawn) on the map wrapper. A desk's rows
+ * stand at the left, so there `belowRows` publishes the inset and the stack's
+ * top lines up with the pill's. The first group alone, because the margin
+ * under it is the gap between groups. */
 .maplibregl-ctrl-top-right .maplibregl-ctrl:first-child {
   margin-top: var(--map-vendor-top, var(--map-edge-inset));
 }
 
-/* The map's buttons in the app's chrome (record 0147): the compass and the
- * locate button, at both widths, each a 40px round button
+/* The map's buttons in the app's chrome (record 0147): the zoom pair, the
+ * compass and the locate button, each a 40px round button
  * (`MAP_ROUND_BUTTON` in styles.ts, which `map/controls.ts` hands to the
  * library's buttons). The library's group gives up its white box, its
  * shadow and its rules, and stands its buttons 4px apart; a second group
@@ -211,10 +214,9 @@
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2229%22%20height%3D%2229%22%20viewBox%3D%220%200%2029%2029%22%20stroke%3D%22%23475569%22%20stroke-width%3D%220.75%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20fill%3D%22%23ef4444%22%20d%3D%22m10.5%2014%204-8%204%208z%22%2F%3E%3Cpath%20fill%3D%22%23f8fafc%22%20d%3D%22m10.5%2016%204%208%204-8z%22%2F%3E%3C%2Fsvg%3E");
 }
 
-/* The slots at the right of the map's two rows (`MAP_SLOT`, #696, at both
- * widths since #714): the locate button beside the search pill and the
- * compass under it. The group takes the slot's place, so the library's
- * margin goes. */
+/* The slots at the right of a phone's two rows (`MAP_SLOT`, #696): the
+ * locate button beside the search pill and the compass under it. The group
+ * takes the slot's place, so the library's margin goes. */
 .map-slot .maplibregl-ctrl-group {
   margin: 0;
 }
@@ -240,13 +242,29 @@
   }
 }
 
-/* The compass while the map is north-up and flat, when pressing it would do
-   nothing (#687): `hideCompassWhileNorthUp` in map/controls.ts keeps the
-   class on the button in step with the bearing and the pitch, on the button
-   because the rows stand it outside the map's container. Hidden rather than
-   disabled, because a greyed button in the row still asks to be read. */
-.maplibregl-ctrl-compass.compass-idle {
+/* On a phone the navigation group stands in the chip row's slot (record
+   0147), where the zoom pair would hang down over the map from the row's
+   end: a pinch zooms there (#696), and the compass is the slot's alone. A
+   desk's group stands in the corner, the pair included (record 0174). */
+.map-slot .maplibregl-ctrl-zoom-in,
+.map-slot .maplibregl-ctrl-zoom-out {
   display: none;
+}
+
+/* The compass while the map is north-up and flat, when pressing it would do
+   nothing (#687): `idleCompassWhileNorthUp` in map/controls.ts keeps the
+   class on the button in step with the bearing and the pitch, on the button
+   because a phone's rows stand it outside the map's container. In a phone's
+   slot it is hidden, because a greyed button in the chip row still asks to
+   be read. In a desk's stack it stays, disabled and greyed by `DISABLED`, so
+   the stack keeps one shape (record 0174); the library's own fade of a
+   disabled button's glyph goes, so the role's 40% is the only one. */
+.map-slot .maplibregl-ctrl-compass.compass-idle {
+  display: none;
+}
+
+.maplibregl-ctrl-compass:disabled .maplibregl-ctrl-icon {
+  opacity: 1;
 }
 
 /* The popup's close button, for the same reason as the controls above:

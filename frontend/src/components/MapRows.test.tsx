@@ -139,16 +139,14 @@ describe('MapRows at a desk', () => {
     expect(names.slice(-2)).toEqual(['Legend', 'Layers'])
   })
 
-  // The compass stands beside the locate button, where a desk's first row
-  // has the room (TJ, 2026-10-18), not under it.
-  it('hands up the compass\'s slot beside the locate button', () => {
+  // A desk's map buttons stand in the map's top-right corner with the zoom
+  // pair (record 0174), so its rows hand up no slot for either.
+  it('hands up no slot for the locate button or the compass', () => {
     const onLocateSlot = vi.fn()
     const onCompassSlot = vi.fn()
     render(rows({ desk: true, onLocateSlot, onCompassSlot }))
-    const locate = onLocateSlot.mock.calls[0][0] as HTMLDivElement
-    const compass = onCompassSlot.mock.calls[0][0] as HTMLDivElement
-    expect(compass.parentElement).toBe(locate.parentElement)
-    expect(locate.nextElementSibling).toBe(compass)
+    expect(onLocateSlot).not.toHaveBeenCalledWith(expect.any(HTMLDivElement))
+    expect(onCompassSlot).not.toHaveBeenCalledWith(expect.any(HTMLDivElement))
   })
 
   // Closing the panel makes it inert under the keyboard that pressed its

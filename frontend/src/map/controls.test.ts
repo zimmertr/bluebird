@@ -67,7 +67,7 @@ import {
   placeControl,
   withOpenMeteo,
 } from './controls'
-import { MAP_CREDIT, MAP_ROUND_BUTTON } from '../styles'
+import { DISABLED, MAP_CREDIT, MAP_ROUND_BUTTON } from '../styles'
 
 type Fake = ReturnType<typeof fakeElement>
 const roleOf = (role: string) => role.split(/\s+/).filter(Boolean)
@@ -77,20 +77,30 @@ function stub() {
   const removed: string[] = []
   const handlers: Record<string, () => void> = {}
   const camera = { bearing: 0, pitch: 0 }
+  // What the corners were asked for and were marked with.
+  const corners: Record<string, Record<string, string>> = {}
+  const canvas = { focus: vi.fn() }
   const map = {
     boxZoom: { disable: vi.fn() },
     addControl: (control: { constructor: { name: string } }, at: string) =>
       added.push([Object.getPrototypeOf(control).constructor.name, control, at]),
     getContainer: () => ({
-      querySelector: () => ({ classList: { remove: (c: string) => removed.push(c) } }),
+      querySelector: (selector: string) => {
+        const attributes = (corners[selector] ??= {})
+        return {
+          classList: { remove: (c: string) => removed.push(c) },
+          setAttribute: (name: string, value: string) => void (attributes[name] = value),
+        }
+      },
     }),
+    getCanvas: () => canvas,
     getBearing: () => camera.bearing,
     getPitch: () => camera.pitch,
     on: (event: string, fn: () => void) => {
       handlers[event] = fn
     },
   }
-  return { map: map as unknown as maplibregl.Map, added, removed, boxZoom: map.boxZoom, handlers, camera }
+  return { map: map as unknown as maplibregl.Map, added, removed, boxZoom: map.boxZoom, handlers, camera, corners, canvas }
 }
 
 const buttonsOf = (control: unknown) => (control as { _container: Fake })._container.buttons
@@ -106,21 +116,28 @@ describe('addControls', () => {
     expect(locate).toBe(added[1][1])
   })
 
-  // No zoom buttons at either width (#696 on a phone, #714 at a desk): a
-  // pinch or a wheel zooms, and the compass alone is left.
-  it('draws no zoom buttons', () => {
+  // The zoom pair in the compass's group, which a desk shows in its corner
+  // and `map.css` hides in a phone's slot (record 0174).
+  it('draws the zoom pair with the compass', () => {
     const { map, added } = stub()
     addControls(map)
-    expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: false })
+    expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: true })
+  })
+
+  // A popup keeps clear of a desk's stack as it does of the rows.
+  it('marks the top-right corner as something a popup stands clear of', () => {
+    const { map, corners } = stub()
+    addControls(map)
+    expect(corners['.maplibregl-ctrl-top-right']).toEqual({ 'data-map-overlay': '' })
   })
 
   // The app's map button on every button the library drew (record 0147): the
-  // compass and the locate button.
+  // zoom pair, the compass and the locate button.
   it('dresses every map button in the app\'s round button', () => {
     const { map } = stub()
     const { locate, nav } = addControls(map)
     const buttons = [...buttonsOf(nav), ...buttonsOf(locate)]
-    expect(buttons).toHaveLength(2)
+    expect(buttons).toHaveLength(4)
     for (const button of buttons) {
       for (const c of roleOf(MAP_ROUND_BUTTON)) expect(button.classes.has(c), c).toBe(true)
     }
@@ -137,32 +154,54 @@ describe('addControls', () => {
 })
 
 describe('the compass while north-up', () => {
-  // On the button itself, since the rows stand it outside the map's
-  // container (record 0147).
-  it('hides the compass while north-up and flat, and shows it once either moves', () => {
+  const compassOf = (nav: unknown) => buttonsOf(nav).find((b) => b.classes.has('maplibregl-ctrl-compass'))! as Fake & {
+    disabled?: boolean
+    ownerDocument?: { activeElement: unknown }
+  }
+
+  // On the button itself, since a phone's rows stand it outside the map's
+  // container (record 0147). Disabled at both widths: a phone's slot hides
+  // it under the class, and a desk's corner greys it by `DISABLED`.
+  it('idles the compass while north-up and flat, and wakes it once either moves', () => {
     const { map, handlers, camera } = stub()
     const { nav } = addControls(map)
-    const compass = buttonsOf(nav)[0]
-    expect(compass.classes.has('maplibregl-ctrl-compass')).toBe(true)
+    const compass = compassOf(nav)
+    for (const c of roleOf(DISABLED)) expect(compass.classes.has(c), c).toBe(true)
     expect(Object.keys(handlers).sort()).toEqual(['pitch', 'rotate'])
-    expect(compass.classes.has(COMPASS_IDLE_CLASS)).toBe(true)
+    const idle = () => [compass.classes.has(COMPASS_IDLE_CLASS), compass.disabled]
+    expect(idle()).toEqual([true, true])
 
     camera.bearing = 12
     handlers.rotate()
-    expect(compass.classes.has(COMPASS_IDLE_CLASS)).toBe(false)
+    expect(idle()).toEqual([false, false])
 
     camera.bearing = 0
     handlers.rotate()
-    expect(compass.classes.has(COMPASS_IDLE_CLASS)).toBe(true)
+    expect(idle()).toEqual([true, true])
 
     camera.pitch = 30
     handlers.pitch()
-    expect(compass.classes.has(COMPASS_IDLE_CLASS)).toBe(false)
+    expect(idle()).toEqual([false, false])
+  })
+
+  // A press on the compass from the keyboard turns the map north, which
+  // disables the button under the keyboard; the map takes it rather than
+  // the page.
+  it('hands the keyboard to the map when it idles under it', () => {
+    const { map, handlers, camera, canvas } = stub()
+    const { nav } = addControls(map)
+    const compass = compassOf(nav)
+    camera.bearing = 12
+    handlers.rotate()
+    compass.ownerDocument = { activeElement: compass }
+    camera.bearing = 0
+    handlers.rotate()
+    expect(canvas.focus).toHaveBeenCalledOnce()
   })
 
   // The hiding is map.css's, since the compass is the library's markup;
   // styles.test.ts, which reads that file, holds the rule to this name.
-  it('names the class map.css hides the compass under', () => {
+  it('names the class map.css hides a phone\'s compass under', () => {
     expect(COMPASS_IDLE_CLASS).toBe('compass-idle')
   })
 })

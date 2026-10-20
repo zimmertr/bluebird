@@ -1,14 +1,16 @@
 /**
- * The map's controls: the compass, the geolocate button, the scale, and the
- * attribution, and the one MapLibre default this app turns off.
+ * The map's controls: the zoom pair and the compass, the geolocate button, the
+ * scale, and the attribution, and the one MapLibre default this app turns off.
  *
- * No zoom buttons, at either width: a phone dropped them first because a pinch
- * zooms (#696), and a desk followed (#714, record 0174), where the wheel and a
- * trackpad's pinch do the same and a reader meets one map at both widths. The
- * compass stays, shown only while the map is turned or tilted. The locate
- * button and the compass leave the library's corner for the slots at the right
- * of the map's two rows: `MapView` moves the controls `addControls` returns
- * there (`placeControl`).
+ * A desk has zoom buttons and a phone does not (record 0174). A pinch zooms on
+ * a phone (#696), where the map's top is the rows'. At a desk they zoom by a
+ * click, which a mouse without a wheel needs, and the map's right edge has the
+ * room (TJ, 2026-10-20). The library draws the pair in the compass's group,
+ * and `map.css` hides the pair in a phone's slot. At a desk the
+ * group stands in the library's top-right corner with the locate button under
+ * it: zoom in, zoom out, the compass and locate, in the library's own order.
+ * On a phone `MapView` moves the compass and the locate button into the slots
+ * at the right of the map's two rows (`placeControl`).
  *
  * Every button wears the app's map button (`MAP_ROUND_BUTTON`, record 0147)
  * and the credit line the app's floating box (`MAP_CREDIT`): the markup is the
@@ -21,12 +23,12 @@ import {
   ScaleControl,
 } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
-import { MAP_CREDIT, MAP_ROUND_BUTTON } from '../styles'
+import { DISABLED, MAP_CREDIT, MAP_ROUND_BUTTON } from '../styles'
 
 /** The two controls `MapView` stands in the rows' slots. */
 export interface MapControls {
   locate: GeolocateControl
-  /** The compass, which the library builds as a navigation control with its zoom pair turned off. */
+  /** The zoom pair and the compass, which the library builds as one navigation control. */
   nav: NavigationControl
 }
 
@@ -48,10 +50,10 @@ export function addControls(map: maplibregl.Map): MapControls {
   // a trackpad's pinch and a finger's all do the same job, so the modifier is better
   // spent on something the panel actually tells you about.
   map.boxZoom.disable()
-  const nav = new NavigationControl({ showZoom: false })
+  const nav = new NavigationControl({ showZoom: true })
   map.addControl(nav, 'top-right')
   dressButtons(nav._container)
-  hideCompassWhileNorthUp(map, nav._container)
+  idleCompassWhileNorthUp(map, nav._container)
   // MapLibre's own geolocate button, not a hand-rolled control: it wears
   // the same chrome as the compass, and its
   // permission/error/busy states come with the library instead of being
@@ -67,6 +69,10 @@ export function addControls(map: maplibregl.Map): MapControls {
   // shared the right corner before, the scale floating above the licence
   // line, which made the pair as tall as both together.
   map.addControl(new ScaleControl({ maxWidth: SCALE_MAX_WIDTH_PX }), 'bottom-left')
+  // A popup keeps clear of the stack at a desk the way it keeps clear of the
+  // rows (`data-map-overlay`, read by `mapPopups.ts`). On a phone the corner
+  // is empty, since both controls stand in the rows.
+  map.getContainer().querySelector('.maplibregl-ctrl-top-right')?.setAttribute('data-map-overlay', '')
   return { locate, nav }
 }
 
@@ -102,7 +108,7 @@ export function placeControl(
 export const SCALE_MAX_WIDTH_PX = 100
 
 /**
- * The class `map.css` hides the compass under, set on the compass button
+ * The class `map.css` hides a phone's compass under, set on the compass button
  * itself while the map is north-up and flat (#687). On the button rather than
  * on the map's container, because on a phone the button stands outside the
  * container, in the chip row (record 0147). Exported so the test names the
@@ -111,17 +117,26 @@ export const SCALE_MAX_WIDTH_PX = 100
 export const COMPASS_IDLE_CLASS = 'compass-idle'
 
 /**
- * Hides the compass while pressing it would do nothing. MapLibre's compass
+ * Idles the compass while pressing it would do nothing. MapLibre's compass
  * resets the bearing and the pitch, so at bearing 0 and pitch 0 it is a button
- * with no effect standing in the corner, and it shows again the moment a
- * rotate or a tilt gives it one. The library has no option for this, so the
- * button carries a class and `map.css` does the hiding: the markup is the
- * library's, and a stylesheet is the one place that reaches it.
+ * with no effect, and it wakes the moment a rotate or a tilt gives it one.
+ * Idle, it is disabled at both widths and greyed at a desk (`DISABLED`), where
+ * it keeps its place in the stack so the stack keeps one shape (record 0174).
+ * On a phone `map.css` hides it under `COMPASS_IDLE_CLASS`, so the chip row's
+ * end stays the map's. A compass that idles under the keyboard, as a press on
+ * it does, hands the keyboard to the map rather than dropping it on the page.
+ * The library has no option for any of this; the markup is the library's.
  */
-export function hideCompassWhileNorthUp(map: maplibregl.Map, container: HTMLElement | undefined): void {
-  const compass = container?.querySelector('.maplibregl-ctrl-compass')
+export function idleCompassWhileNorthUp(map: maplibregl.Map, container: HTMLElement | undefined): void {
+  const compass = container?.querySelector<HTMLButtonElement>('.maplibregl-ctrl-compass')
   if (!compass) return
-  const sync = () => compass.classList.toggle(COMPASS_IDLE_CLASS, map.getBearing() === 0 && map.getPitch() === 0)
+  dress(compass, DISABLED)
+  const sync = () => {
+    const idle = map.getBearing() === 0 && map.getPitch() === 0
+    if (idle && compass.ownerDocument?.activeElement === compass) map.getCanvas().focus()
+    compass.classList.toggle(COMPASS_IDLE_CLASS, idle)
+    compass.disabled = idle
+  }
   map.on('rotate', sync)
   map.on('pitch', sync)
   sync()

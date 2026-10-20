@@ -12,9 +12,9 @@ interface MapRowsProps {
   onSearchSelect: (place: Place) => void
   /** The panel's Map group is hovered, so the field wears a ring. */
   searchPointed: boolean
-  /** Receives the locate button's slot, which the map stands its own button in. */
+  /** Receives a phone's locate button slot, which the map stands its own button in; null at a desk. */
   onLocateSlot: (slot: HTMLDivElement | null) => void
-  /** Receives the compass's slot: under the locate button at a phone's chip row's end (record 0147), beside it at a desk. */
+  /** Receives a phone's compass slot, under the locate button at the chip row's end (record 0147); null at a desk. */
   onCompassSlot: (slot: HTMLDivElement | null) => void
   /** A desk's width (#714): the panel is docked, so the summary chip stands only while it is shut. */
   desk: boolean
@@ -34,22 +34,22 @@ interface MapRowsProps {
 
 /**
  * The map's two rows across its top (#696; record 0135), at both widths since
- * #714 (record 0174): the search pill with the locate button at its right, and
- * the chip row under it, the controls summary, Legend and Layers. The row
- * keeps that one shape from arrival to results: Legend greys until it has a
- * key to show rather than coming and going. The compass shows while the map
- * is turned: at a phone's chip row's end, under the locate button, and at a
- * desk beside the locate button, where the first row has the room (TJ,
- * 2026-10-18).
+ * #714 (record 0174): the search pill, and the chip row under it, the controls
+ * summary, Legend and Layers. The row keeps that one shape from arrival to
+ * results: Legend greys until it has a key to show rather than coming and
+ * going. On a phone the locate button stands at the pill's right and the
+ * compass, while the map is turned, at the chip row's end under it. A desk's
+ * map buttons stand in the map's top-right corner with the zoom pair instead,
+ * so a desk's rows have no slots (record 0174).
  *
  * The summary chip opens the panel. A phone's raises the Controls sheet and
  * lowers it again, lit while it is up. A desk's panel is docked beside the map
  * with its own close button, so its chip stands only while the panel is shut,
  * as the one way back to it from the map.
  *
- * While the field has the keyboard or its list is open the pill takes the
- * whole first row, over the locate button, and the chip row steps aside, so
- * the list hangs over the map rather than over the chips.
+ * While the field has the keyboard or its list is open, a phone's pill takes
+ * the whole first row, over the locate button, and the chip row steps aside
+ * at both widths, so the list hangs over the map rather than over the chips.
  */
 export default function MapRows({
   searchBoxRef,
@@ -84,8 +84,7 @@ export default function MapRows({
         </div>
         {/* Empty here: the map stands its own locate button in it, so the
             button keeps the library's states and its permission prompt. */}
-        <div ref={onLocateSlot} className={MAP_SLOT.locate} />
-        {desk && <div ref={onCompassSlot} className={MAP_SLOT.besideLocate} />}
+        {!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}
       </div>
       {/* Hidden rather than unmounted while the pill is wide, so an open
           menu's chip and the panel's focus hand-off keep their state. */}

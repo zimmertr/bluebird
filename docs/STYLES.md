@@ -656,11 +656,11 @@ built from that sum, and
 `styles.test.ts` holds each to it. The chips are 13px type with 12px a side,
 content-sized, and only the summary may shrink, by an ellipsis on its words.
 
-At a desk the rows stop 416px from the map's left edge: the pill's 320, then
-the locate button and the compass, 40px each with 8px before each, so the rest
-of the map's top is the map's. The compass stands beside the locate button
-rather than under it, since a desk's first row has the room
-(`MAP_SLOT.besideLocate`). The chip row holds Legend and then Layers at both
+At a desk the pill stands alone on the first row, 320px wide, and the rows
+are as wide as the wider of it and the chip row, so the rest of the map's top
+is the map's. The map's buttons stand in its top-right corner instead: zoom
+in, zoom out, the compass and the locate button, in the library's order, the
+first level with the pill. The chip row holds Legend and then Layers at both
 widths, so the legend card, open by default, hangs over the map's left edge,
 with the summary chip at the row's front only while the panel is shut. Their menus open as whole cards 4px under
 the chip (`MAP_CHIP_MENU`), each chip carrying a chevron that points down while
@@ -670,7 +670,7 @@ the chips' fill with the structural edge (`SURFACE_CHIP_CARD`), so the Layers
 menu reads as the legend card's twin and its outline and deeper shadow part it
 from the legend where it opens across it. The legend card scrolls inside the map's height under
 the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
-the panel, and there are no zoom buttons at either width.
+the panel. A phone draws no zoom pair, since a pinch zooms there.
 Record: [0174](decisions/0174-desk-map-rows.md)
 
 Seen and pressed are two sizes. On a coarse pointer a chip is 32px seen and
@@ -708,10 +708,13 @@ dashed lines, their labels and the top tick start under it. Measured
 Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
 
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
-the locate button and the compass, 40px round in the pill's chrome, handed to
-each by `map/controls.ts` because the library makes the markup. Both widths
-stand them in slots at the rows' right ends (`MAP_SLOT`), and neither draws
-the zoom pair. The credit line's (i) is the same dark
+the zoom pair, the compass and the locate button, 40px round in the pill's
+chrome and 4px apart, handed to each by `map/controls.ts` because the library
+makes the markup. A desk stands them in the library's top-right corner. A
+phone stands the locate button and the compass in slots at the rows' right
+ends (`MAP_SLOT`), where `map.css` hides the zoom pair. While the map is
+north-up and flat the compass is disabled: greyed by `DISABLED` at a desk, so
+the stack keeps one shape, and hidden in a phone's chip row. The credit line's (i) is the same dark
 round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
 is the floating card (`MAP_CREDIT.card`), its links dressed in `map.css` as
 `LINK` dresses the app's. The compass needle is redrawn rather than inverted,

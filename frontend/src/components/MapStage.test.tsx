@@ -345,9 +345,10 @@ describe('MapStage', () => {
     expect(legend().sheet).toBe('true')
   })
 
-  // The locate button's slot reaches the map, which stands its own button in
-  // it, and the compass's under it (record 0147), at both widths since #714.
-  it('hands the map the locate and compass slots at both widths', () => {
+  // Whatever slot the rows hand up reaches the map, which stands its own
+  // button in it (record 0147). Which width has slots is the rows' to say
+  // (`MapRows.test.tsx`): a phone's, and none at a desk (record 0174).
+  it('hands the map the slots the rows hand up', () => {
     for (const desk of [true, false]) {
       seen.mapView.length = 0
       const { unmount } = render(<MapStage {...props({ isDesktop: desk, sidebarOpen: desk })} />)
@@ -358,8 +359,9 @@ describe('MapStage', () => {
     }
   })
 
-  // The vendor's stack starts under the rows at both widths, and under a
-  // phone's draw bar while a ring is drawn.
+  // The vendor's stack starts under a phone's rows and level with a desk's
+  // pill (`belowRows` says both), and under a phone's draw bar while a ring
+  // is drawn.
   it('publishes the vendor stack\'s top under the rows, or a phone\'s draw bar', () => {
     const { container, rerender } = render(<MapStage {...props()} />)
     const stage = () => container.firstElementChild as HTMLElement

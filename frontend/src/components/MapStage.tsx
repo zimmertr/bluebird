@@ -190,12 +190,12 @@ export default function MapStage({
   maxPolygonPoints,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
-  // The round slot at the right of the search pill, which the map stands its
-  // own locate button in (#696, at a desk's width too since #714). State
-  // rather than a ref, so the map hears the slot arrive and go.
+  // The round slot at the right of a phone's search pill, which the map
+  // stands its own locate button in (#696). State rather than a ref, so the
+  // map hears the slot arrive and go; at a desk there is none, and the button
+  // stands in the map's top-right corner (record 0174).
   const [locateSlot, setLocateSlot] = useState<HTMLDivElement | null>(null)
-  // The compass's: beside it at a desk, under it at a phone's chip row's end
-  // (record 0147).
+  // The compass's, under it at a phone's chip row's end (record 0147).
   const [compassSlot, setCompassSlot] = useState<HTMLDivElement | null>(null)
   // The height of the phone's notice band, which the Analyze button rises
   // above (`PhoneFoot` measures it), 0 while it holds nothing.

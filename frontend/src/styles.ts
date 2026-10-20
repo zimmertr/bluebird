@@ -1421,11 +1421,13 @@ export const MAP_EDGE = {
    * vendor's stack, which is the compass alone there, starts one inset below
    * them rather than beside the pill: 92 + 12. While a ring is drawn the draw
    * bar stands under the rows (`MAP_ROWS.drawBar`, 58px tall at 100), so the
-   * stack starts one inset under it instead: 100 + 58 + 12. `map.css` reads
-   * `--map-vendor-top` as the stack's top margin, and `styles.test.ts` holds
-   * both numbers to the rows' geometry.
+   * stack starts one inset under it instead: 100 + 58 + 12; a desk draws no
+   * bar. A desk's rows stand at the map's left, so there the stack of map
+   * buttons starts at the inset, level with the pill (record 0174).
+   * `map.css` reads `--map-vendor-top` as the stack's top margin, and
+   * `styles.test.ts` holds the numbers to the rows' geometry.
    */
-  belowRows: '[--map-vendor-top:104px]',
+  belowRows: '[--map-vendor-top:104px] lg:[--map-vendor-top:var(--map-edge-inset)]',
   belowDrawBar: '[--map-vendor-top:170px]',
 } as const
 
@@ -1460,8 +1462,9 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
 
 /**
  * The map's two rows across its top (#696; record 0135, the maintainer's
- * approved mockup, 2026-10-14): the search pill with the locate button at its
- * right, and under it the chip row, the controls summary, Legend and Layers.
+ * approved mockup, 2026-10-14): the search pill, with the locate button at its
+ * right on a phone, and under it the chip row, the controls summary, Legend
+ * and Layers.
  * A desk has worn them too since #714 (record 0174), where they replaced a
  * column of boxed buttons so a reader meets one map at both widths.
  *
@@ -1470,12 +1473,12 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  * between the rows and the 32px chip row. So the rows end 92px down the map at
  * both widths, and `styles.test.ts` holds each anchor below to that sum.
  *
- * A phone's rows span the map. A desk's stop at 416px (`lg:w-104`): the pill
- * takes 320, the width its results list opened at beside the old column, then
- * the locate button and the compass, 40 each with 8px before each (TJ,
- * 2026-10-18: the compass beside the locate button rather than under it,
- * where a desk's first row has the room). A map 1080px wide does not need a
- * search field across it.
+ * A phone's rows span the map. A desk's are as wide as the wider of the pill
+ * and the chip row (`lg:w-max`, no narrower than the pill's `lg:min-w-80`),
+ * because a desk's map buttons stand in the map's top-right corner (record
+ * 0174) and the first row holds the pill alone. The pill is 320, the width its
+ * results list opened at beside the old column, searching or not: a map 1080px
+ * wide does not need a search field across it.
  *
  * `MAP_ROWS.stack` stands both rows one inset off the top and both sides and
  * takes no press itself; each row yields every press that lands between its
@@ -1486,17 +1489,17 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  * hangs from its left edge and the locate button from its right.
  */
 export const MAP_ROWS = {
-  stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-104 flex flex-col gap-2 pointer-events-none`,
+  stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-max lg:min-w-80 flex flex-col gap-2 pointer-events-none`,
   row: `relative h-10 ${YIELD_EMPTY}`,
   /**
-   * Where the pill stands: across the row less the locate button and the 8px
-   * between them (`right-12`, 40 + 8) at rest, less the compass too at a desk
-   * (`lg:right-24`), and across the whole row while the field has the
-   * keyboard or its list is open, over the buttons.
+   * Where the pill stands: on a phone across the row less the locate button
+   * and the 8px between them (`right-12`, 40 + 8) at rest, and across the
+   * whole row while the field has the keyboard or its list is open, over the
+   * button. At a desk 320px either way (`lg:w-80`), with no button beside it.
    * Raised so its results list paints over the chip row and the map.
    */
-  pill: 'absolute inset-y-0 left-0 right-12 lg:right-24 z-10',
-  pillWide: 'absolute inset-y-0 left-0 right-0 z-10',
+  pill: 'absolute inset-y-0 left-0 right-12 lg:right-auto lg:w-80 z-10',
+  pillWide: 'absolute inset-y-0 left-0 right-0 lg:right-auto lg:w-80 z-10',
   /** The second row: one line of chips, 6px apart, never wrapping. */
   chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
   /**
@@ -1544,16 +1547,14 @@ export const MAP_ROUND_BUTTON =
   `transition-colors ${ACCENT.edgeHover} ${FOCUS_RING}`
 
 /**
- * Where the map stands one of those buttons at a row's right end (#696, at a
- * desk's width too since #714): the
- * map moves its own control into the slot (`placeControl`), so the button
- * keeps the library's states and its permission prompt, and `map.css`, keyed
- * on `map-slot`, takes the library's margin off it.
+ * Where a phone's map stands one of those buttons at a row's right end
+ * (#696): the map moves its own control into the slot (`placeControl`), so
+ * the button keeps the library's states and its permission prompt, and
+ * `map.css`, keyed on `map-slot`, takes the library's margin off it. A desk
+ * has no slots: its buttons stand in the map's top-right corner (record 0174).
  *
- * `locate` is a 40px box beside the search pill, one button in from the
- * row's end at a desk, where the compass takes the end (`besideLocate`, TJ,
- * 2026-10-18). On a phone `compass` is the chip row's
- * last member, under the locate button (record 0147), and takes no room of
+ * `locate` is a 40px box at the end of the first row, beside the search pill.
+ * `compass` is the chip row's last member, under the locate button (record 0147), and takes no room of
  * its own: while the map is north-up the compass is hidden and the slot is
  * nothing, so the row's empty end stays the map's, about 20px at 360 wide.
  * While it shows, the slot is the button's 40px and the summary chip, the one
@@ -1561,9 +1562,8 @@ export const MAP_ROUND_BUTTON =
  * button, which stands 4px proud of it top and bottom, centred on it.
  */
 export const MAP_SLOT = {
-  locate: 'map-slot absolute right-0 lg:right-12 top-0 size-10',
+  locate: 'map-slot absolute right-0 top-0 size-10',
   compass: 'map-slot ml-auto flex-shrink-0',
-  besideLocate: 'map-slot absolute right-0 top-0 size-10',
 } as const
 
 /**
