@@ -7,7 +7,7 @@
 # The Node major lives in .node-version alone. CI reads it through setup-node,
 # and a backend test fails when the Dockerfile's base image disagrees with it.
 NODE_IMAGE := node:$(shell cat .node-version)-alpine
-PYTHON_IMAGE := python:3.14-slim
+PYTHON_IMAGE := python:3.15-slim
 # Pinned because ruff's default rule set changes between releases.
 RUFF_VERSION := 0.16.0
 # The pip-compile Dependabot runs, so a lock written here and one Dependabot
@@ -78,7 +78,7 @@ lint-backend:
 # platform that installs the lock. pip-compile keeps every pin it already has
 # unless asked; add --upgrade-package NAME to move one.
 lock-backend:
-	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend python:3.14-alpine sh -c "pip install --root-user-action=ignore 'pip<26' pip-tools==$(PIP_TOOLS_VERSION) && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements.txt requirements.in && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-dev.txt requirements-dev.in"
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend python:3.15-alpine sh -c "pip install --root-user-action=ignore 'pip<26' pip-tools==$(PIP_TOOLS_VERSION) && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements.txt requirements.in && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-dev.txt requirements-dev.in"
 
 # Not checks: each prints line and branch coverage per module and writes an
 # HTML report (frontend/coverage/, backend/htmlcov/). No floor, on purpose: a

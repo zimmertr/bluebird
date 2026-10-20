@@ -63,7 +63,11 @@ and first-party from inside `backend/`. Record: [0190](docs/decisions/0190-ruff-
 `backend/requirements.in`, and `requirements.txt` and `requirements-dev.txt` are
 pip-compile's hashed locks of them, which the image installs with
 `--require-hashes`: a pin changes in the `.in` file, and `make lock-backend`
-rewrites both locks in the same PR. Every `npm ci` passes `--ignore-scripts`,
+rewrites both locks in the same PR. The pins name uvicorn, httptools and uvloop
+separately rather than asking for uvicorn's `[standard]` extra, which would pull
+in four packages the app never imports, one of them without a wheel for the
+image's Python. Record: [0200](docs/decisions/0200-uvicorn-extras-pinned-directly.md)
+Every `npm ci` passes `--ignore-scripts`,
 and every npm and pip Dependabot entry waits seven days before proposing a
 release (#633). Record: [0099](docs/decisions/0099-locked-installs-no-install-scripts.md)
 
@@ -148,7 +152,7 @@ Three things here are deliberately **not** mirrors and must not become ones. Row
 
 Single container, multi-stage Docker build:
 - Stage 1: `node:26-alpine` builds the React SPA (`npm run build`) and provides the vendored `swagger-ui-dist` assets copied into `static/swagger-ui/`, so `/docs` loads nothing from a CDN
-- Stage 2: `python:3.14-alpine` runs uvicorn and serves the built SPA as static files at `/` (alpine over slim so the shipped image carries none of Debian's perpetual no-fix CVEs) Record: [0001](docs/decisions/0001-alpine-base-image.md)
+- Stage 2: `python:3.15-alpine` runs uvicorn and serves the built SPA as static files at `/` (alpine over slim so the shipped image carries none of Debian's perpetual no-fix CVEs) Record: [0001](docs/decisions/0001-alpine-base-image.md)
 - Both stages write `third-party-licenses.txt`, the license text of every npm package the build ships and every Python distribution the image installs, which the pod serves at `/third-party-licenses.txt`: the first from the bundle's module graph (`frontend/plugins/thirdPartyLicenses.ts`), the second from installed metadata (`backend/scripts/write_third_party_licenses.py`). A package with no license text fails the build rather than leaving the notice silently short (#571). Record: [0086](docs/decisions/0086-license-notices-built-into-the-image.md)
 - The planet fill is a second image, `zimmertr/bluebird-fill` from `fill/Dockerfile`: Debian with osmium-tool and pyosmium and none of the app's dependencies, run by the chart as a weekly CronJob, and built, pushed and scanned by `release.yml` beside the app's ([`fill/CLAUDE.md`](fill/CLAUDE.md), #760). Record: [0184](docs/decisions/0184-planet-fill-cronjob-and-image.md)
 

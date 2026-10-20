@@ -76,7 +76,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.14'
+          python-version: '3.15'
       # Pin ruff: its default rule set changes between releases, so an unpinned
       # install can turn a green lint red with no code change on our side.
       - run: pip install ruff==0.16.0
@@ -100,7 +100,7 @@ jobs:
       # the cache was never paying for a slow download (issue #368).
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.14'
+          python-version: '3.15'
       - run: pip install -r requirements-dev.txt
         working-directory: backend
       # The type check lives here rather than in Python Lint because the
@@ -139,7 +139,7 @@ jobs:
             > db.log 2>&1 &
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.14'
+          python-version: '3.15'
       - run: pip install -r requirements-dev.txt
         working-directory: backend
       # Over TCP, because the image's first start runs a server on its socket

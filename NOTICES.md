@@ -110,6 +110,8 @@ Backend (pip), installed into the image:
 |---|---|
 | fastapi | MIT |
 | uvicorn | BSD-3-Clause |
+| httptools | MIT |
+| uvloop | MIT License |
 | httpx | BSD-3-Clause |
 | pydantic | MIT |
 | prometheus-client | Apache-2.0 AND BSD-2-Clause |
