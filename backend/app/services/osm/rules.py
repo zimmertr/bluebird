@@ -29,7 +29,6 @@ PEAK = "peak"
 TRAILHEAD = "trailhead"
 LAKE = "lake"
 CRAG = "crag"
-KINDS = (PEAK, TRAILHEAD, LAKE, CRAG)
 
 # A trailhead is also a named parking lot whose name says so: much of the US
 # maps the lot and never adds the node (Issaquah, 2026-10-17: 2 of 14 named

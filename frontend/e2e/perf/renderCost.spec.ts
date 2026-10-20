@@ -128,7 +128,9 @@ test('render cost of an overlay toggle, a keystroke and the live knobs at 946 de
   await page.goto(`/?type=peak&limit=1500&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
-  await expect(page.getByText(`${DESTINATIONS} of ${DESTINATIONS})`, { exact: false })).toBeVisible()
+  // The heading's words appear twice, in the bar and in the status region
+  // that announces them, so the wait reads the announcement.
+  await expect(page.getByRole('status').filter({ hasText: `${DESTINATIONS} of ${DESTINATIONS})` })).toHaveCount(1)
   await expect(resultRows(page)).toHaveCount(DESTINATIONS)
 
   const box = page.getByRole('textbox', { name: /Custom destination coordinates/ })
