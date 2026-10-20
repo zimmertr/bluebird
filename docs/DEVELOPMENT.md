@@ -125,7 +125,7 @@ Six things that shape follows from:
 
 `make test-backend` runs without a database, the way CI's `Backend Tests`
 does, and skips every test marked `db` (#760). `make test-backend-db` builds
-`backend/tests/db/Dockerfile`, PostgreSQL 17 with PostGIS from PGDG, starts it
+`backend/tests/db/Dockerfile`, PostgreSQL 18 with PostGIS from PGDG, starts it
 on a Docker network, runs `pytest -m db` against it through
 `TEST_DATABASE_URL`, and removes it, pass or fail. The image is built here
 rather than pulled as `postgis/postgis` because that one has no arm64 build. A
