@@ -58,7 +58,7 @@ does. The Node major lives in `.node-version` alone; CI reads it through
 to it. Since #379 the rules live in `backend/ruff.toml` (E, F, I, B,
 UP, TID251 and BLE) and `known-first-party = ["app"]` there makes the import order the same from
 either working directory; without it isort reads `app` as third-party from the root
-and first-party from inside `backend/`. The backend's direct pins live in
+and first-party from inside `backend/`. Record: [0189](docs/decisions/0189-ruff-checks-blind-excepts.md) The backend's direct pins live in
 `backend/requirements.in`, and `requirements.txt` and `requirements-dev.txt` are
 pip-compile's hashed locks of them, which the image installs with
 `--require-hashes`: a pin changes in the `.in` file, and `make lock-backend`
@@ -66,7 +66,16 @@ rewrites both locks in the same PR. Every `npm ci` passes `--ignore-scripts`,
 and every npm and pip Dependabot entry waits seven days before proposing a
 release (#633). Record: [0099](docs/decisions/0099-locked-installs-no-install-scripts.md)
 
-Two suites: the frontend under Vitest, in two projects split by file extension, pure logic in node (`frontend/src/utils/*.test.ts`, e.g. URL state serialization in `urlState.ts` and marker colors in `colors.ts`) and components in jsdom (`frontend/src/components/*.test.tsx`, which render a component and drive it with Testing Library), and the backend under pytest (`backend/tests/`, covering weather/AQI aggregation, request validation, ranking/elevation filtering, upstream-error mapping, and the routes with the external APIs stubbed). A third suite operates the built image in a browser: Playwright under `frontend/e2e/`, a package of its own with its own lockfile, which draws a ring, analyzes, opens a share link, clicks the map under the legend stack and runs axe on three states in each theme with every third-party host answered from fixtures (#412). Its local run uses the pinned Playwright image and is in `docs/DEVELOPMENT.md` too. CI validates via TypeScript typecheck, ESLint (`npm run lint`, over `src` and `e2e`), the Vitest unit tests, mypy over `backend/app` (settings in `backend/mypy.ini`), pytest, Python ruff lint, a full Docker build followed by a Trivy vulnerability scan of the built image, Lighthouse budgets and accessibility score on the cold load, and the browser suite.
+Three targets measure rather than check, and CI runs none of them. `make coverage-frontend`
+and `make coverage-backend` print line and branch coverage per module with no floor,
+because a floor rewards a test that runs a line without asserting on it. Record: [0186](docs/decisions/0186-coverage-is-a-report-with-no-floor.md)
+`make check-unused` runs Knip over `frontend/` and Vulture over `backend/app`, before a
+refactor lands, and every exception sits beside its reason in `frontend/tools/knip/knip.jsonc`
+or `backend/vulture_allowlist.py`. Record: [0187](docs/decisions/0187-unused-code-found-on-demand.md)
+A backend test that reads a file outside `backend/` fails when it cannot see it, rather than
+skipping, because a skip passes the rule unread. Record: [0195](docs/decisions/0195-policy-tests-fail-when-their-file-is-missing.md)
+
+Two suites: the frontend under Vitest, in two projects split by file extension, pure logic in node (`frontend/src/utils/*.test.ts`, e.g. URL state serialization in `urlState.ts` and marker colors in `colors.ts`) and components in jsdom (`frontend/src/components/*.test.tsx`, which render a component and drive it with Testing Library), and the backend under pytest (`backend/tests/`, covering weather/AQI aggregation, request validation, ranking/elevation filtering, upstream-error mapping, and the routes with the external APIs stubbed). A third suite operates the built image in a browser: Playwright under `frontend/e2e/`, a package of its own with its own lockfile, which draws a ring, analyzes, opens a share link, clicks the map under the legend stack and runs axe on three states in each theme with every third-party host answered from fixtures (#412). Every page runs in Vitest's zone, `America/Los_Angeles`, on a clock installed at one fixed instant that then runs on, and `isoDay` in `e2e/fixtures.ts` names every day a spec needs, so a window some days out lands on the same day on any runner. Record: [0194](docs/decisions/0194-browser-suite-one-zone-and-start.md) Its local run uses the pinned Playwright image and is in `docs/DEVELOPMENT.md` too. CI validates via TypeScript typecheck, ESLint (`npm run lint`, over `src` and `e2e`), the Vitest unit tests, mypy over `backend/app` (settings in `backend/mypy.ini`), pytest, Python ruff lint, a full Docker build followed by a Trivy vulnerability scan of the built image, Lighthouse budgets and accessibility score on the cold load, and the browser suite.
 
 ## Rules for every change
 

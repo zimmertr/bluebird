@@ -66,14 +66,14 @@ One Vitest run covers two projects, split by file extension: `node` runs every
 rendered in jsdom and driven with Testing Library). Add `-- --project dom` (or
 `node`) to the `npm test` above to run one of them.
 
-Five things that shape follows from:
+Six things that shape follows from:
 
 - **Every container mounts the repo root**, never `frontend/` or `backend/`
   alone. Two browser suites read the manifests the backend commits under
-  `backend/tests/data/`, the API type check reads `backend/openapi.json`, one
-  backend test reads `frontend/src` to check the CSP allowlist against the
-  hosts the browser actually fetches (it skips where it cannot see them), and
-  a bare `frontend/` mount lets Tailwind scan a stale `dist/`.
+  `backend/tests/data/`, the API type check reads `backend/openapi.json`, the
+  backend tests that read `frontend/src`, the workflows, the `Dockerfile` and
+  the license notices fail without the root, and a bare `frontend/` mount lets
+  Tailwind scan a stale `dist/`.
 - **The Node major lives in `.node-version` alone.** The Makefile reads it for
   every container and CI reads it through `setup-node`, so the checks run on
   the runtime the image builds the app with. The `Dockerfile` cannot read a
@@ -97,6 +97,38 @@ Five things that shape follows from:
   ship their binaries as optional dependencies. `test_dependency_lock.py` fails
   an `npm ci` without the flag in the `Dockerfile`, the `Makefile`, a workflow
   or `frontend/package.json`.
+
+### Coverage and unused code
+
+Three more targets measure the code rather than check it. CI runs none of
+them, and none has a floor:
+
+| Target | What it runs |
+|---|---|
+| `make coverage-frontend` | Vitest with V8 coverage: lines and branches per module, and an HTML report in `frontend/coverage/` |
+| `make coverage-backend` | pytest with branch coverage over `app`: the lines no test reached, and an HTML report in `backend/htmlcov/` |
+| `make check-unused` | Knip over `frontend/` and Vulture over `backend/app` |
+
+A coverage report says which lines no test runs. It cannot say whether a test
+that runs a line would fail if the line broke, and a floor rewards the tests
+that would not. Read the report for the modules a change touches, and add a
+test where a branch you wrote shows up unreached.
+
+The Vitest config serves every `?raw` import from a virtual module of its own.
+V8 otherwise counts a source that a test reads as text as loaded with no
+statements, and `branding.test.ts` reads every file under `src/` that way, so
+every module no test ran reported 0 of 0 lines.
+
+`make check-unused` fails on an export nothing imports, a file nothing
+reaches, a dependency nothing uses, and a backend function, class or field
+that Vulture finds no reader for. Each deliberate exception carries its reason
+beside it, in `frontend/tools/knip/knip.jsonc` and
+`backend/vulture_allowlist.py`. A name a framework calls (a route, a
+validator, a Pydantic field) goes in the allowlist under the comment that says
+why: regenerate the entries with `vulture app --make-whitelist` and keep the
+groups. Knip is a package apart under `frontend/tools/knip`, like the linter,
+and the target installs every package Knip reads before it runs. Run it before
+a refactor lands.
 
 ### The backend's dependency lock
 
@@ -149,27 +181,34 @@ needs to know:
 - **A few text tests stay by decision**, named below.
 - On the backend, a banned import is a ruff rule: `TID251` in
   `backend/ruff.toml` fails a bare `HTTPException` wherever a request is
-  answered.
+  answered. `BLE` fails a broad `except` that neither re-raises nor logs its
+  traceback, unless its `noqa` says why.
+- A helper the backend defines once is a case in
+  `backend/tests/test_single_home.py`, which fails naming the file that grew a
+  second copy.
 
 The per-file checks, by module:
 
 | Module | Checks | What they hold |
 |---|---|---|
 | `checks/accessibility.js` | `glyphs-hidden`, `markup-glyph-hidden`, `new-tab-anchors-named`, `model-picker-roles`, `compare-notes-no-control`, `disabled-reason-twin` | Every glyph is `aria-hidden`; a new-tab link says so; the model picker's roles and names; the chart's notes carry no control; every `aria-describedby` has an `SR_ONLY` twin |
-| `checks/app.js` | `app-effect-keys`, `app-drawer`, `app-chart-selection`, `app-memoized`, `results-panels-memo-props`, `app-run-on-open`, `app-panel-point-sample`, `app-arriving-field`, `app-resize-grips`, `app-results-mode` | `App.tsx`'s effects and memoized children: no effect keyed on a per-keystroke array, stable props on the three memoized components, the Metrics table's one-hour flag read off the panel and the results table's off the report, one `ResizeGrip` spelling, the results bar and mode control |
-| `checks/app.js` | `forecast-selection-hook`, `ranking-knobs-hook`, `results-layout-hook`, `destination-inputs-hook`, `draw-mode-hook`, `presented-report-hook`, `report-csv-rows-keys`, `analyze-command-hook`, `timeline-hook`, `chart-compare-hook`, `table-view-hook`, `url-sync-hook`, `results-view-hook`, `run-on-open-hook`, `export-csv-fire-gate` | The hooks cut out of `App.tsx` (#409): each carries the requirements its subject took with it, and a count of the effects it took, so `app-effect-keys`' floor for `App.tsx` and the hook counts add up to the effects there were |
+| `checks/app.js` | `app-effect-keys`, `app-drawer`, `app-chart-selection`, `app-memoized`, `results-panels-memo-props`, `app-run-on-open`, `app-panel-point-sample`, `app-arriving-field`, `app-resize-grips`, `app-results-mode`, `table-row-memo-props`, `table-pending-row-memoized` | `App.tsx`'s effects and memoized children: no effect keyed on a per-keystroke array, stable props on the three memoized components and on the table's memoized rows, the Metrics table's one-hour flag read off the panel and the results table's off the report, one `ResizeGrip` spelling, the results bar and mode control |
+| `checks/app.js` | `forecast-selection-hook`, `ranking-knobs-hook`, `results-layout-hook`, `destination-inputs-hook`, `draw-mode-hook`, `presented-report-hook`, `report-csv-rows-keys`, `analyze-command-hook`, `timeline-hook`, `chart-compare-hook`, `table-view-hook`, `url-sync-hook`, `results-view-hook`, `run-on-open-hook`, `export-csv-fire-gate`, `export-csv-closure-gate` | The hooks cut out of `App.tsx` (#409): each carries the requirements its subject took with it, and a count of the effects it took, so `app-effect-keys`' floor for `App.tsx` and the hook counts add up to the effects there were |
 | `checks/app.js` | `app-map-stage`, `map-stage`, `map-stage-memo-props`, `analysis-overlay-clock`, `map-stage-anchors`, `chrome-bottom-offsets`, `map-legend-anchors`, `layers-popover-dismiss`, `app-transport-anchor`, `app-docked-panels` | App renders the map column once through `MapStage` and builds nothing for it; `MapStage` runs no effect, draws the legend before the buttons, and hands `MapView` only members of its inputs; the loading card runs its own clock; no bottom offset or bottom-anchored legend spelled in a component; the Layers popover closes on a click away and on Escape; the docked panel defaults and floors |
 | `checks/app.js` | `grid-layer-hook`, `app-grid-gate`, `app-grid-asked-once`, `app-grid-pixels`, `app-paced-fetch`, `app-grid-pace`, `app-compare-pace`, `app-compare-pace-bar` | One flag gates the forecast grid; the grid gets decoded pixels; every paced fetch hands over `onPace` and clears its wait |
 | `checks/app.js` | `app-url-writes`, `app-no-storage`, `app-pair-color`, `app-pair-color-index`, `app-pair-color-rows` | `useUrlSync.ts` writes history in one place, and `App.tsx` and its hooks name no storage; one allocator gives every comparison colour |
 | `checks/data.js` | `one-api-door`, `schema-types-only`, `entries-inside-boundary`, `chart-lazy`, `chart-never-static`, `logo-hashed` | One module calls `fetch`; the generated schema is imported for types; every entry renders inside the boundary; the chart loads lazily; the logo is the hashed asset |
 | `checks/data.js` | `area-cap-published`, `archive-reach-published`, `aqi-horizon-published`, `panel-limit-props`, `calendar-limit-args`, `aqi-fetch-horizon-arg` | A published limit is read from `/api/capabilities` and reaches a surface as a prop or an argument, never as a number |
 | `checks/data.js` | `open-meteo-throw-tail`, `open-meteo-copy`, `comparison-blocker-copy` | Error copy ends on the standing tail and avoids the retired phrases; the approved blocker lines |
-| `checks/data.js` | `column-drag-shared`, `column-drag-header`, `column-drag-picker`, `drag-ghost-inert` | Both surfaces that reorder columns use the shared gesture module |
+| `checks/data.js` | `column-drag-shared`, `column-drag-header`, `column-drag-picker`, `drag-ghost-inert`, `column-drag-draw`, `column-gesture-document`, `column-resize-handle` | Both surfaces that reorder columns use the shared gesture module and draw a drag the same way; both header gestures track the document, and the resize handle's press reaches neither the reorder nor the sort |
 | `checks/data.js` | `terrain-elevation-fallback` | A fetch of places decides the terrain-height fallback per place, from its type, never for the whole fetch |
-| `checks/map.js` | `map-view-wiring`, `map-shared-rules`, `map-home-basemap`, `map-home-popups`, `map-home-results` | `MapView.tsx` declares no helper, adds no source or layer, listens for `load` alone, opens no popup, mounts every feature once through `mountFeatures`, seeds no ref from a prop, reads the restored ring only on load, writes the controller in one effect, is exported as `memo(MapView)` and imports `map.css`; every map helper has one home |
-| `checks/map.js` | `map-basemap-layers`, `map-basemap-declares`, `map-grid-declares`, `map-results-declares`, `map-poi-declares`, `map-popups-declares`, `map-attribution-folded`, `map-grid-layer` | The clickable peaks and lakes share one floor, one look and one lake class, and each halo is built from its label; the top-level functions each map module may declare; the attribution folds on add; the grid switches its style by one filter and leaves the map by its layer's visibility |
+| `checks/data.js` | `clamp-one-home`, `finite-number-one-home`, `number-format-one-home`, `round-one-home`, `feet-per-meter-one-home`, `globe-one-home`, `missing-mark-one-home`, `time-units-one-home`, `retry-after-one-home`, `abort-test-one-home`, `unavailable-mark-one-home` | A rule the frontend once spelled several ways is spelled only in its home: a clamp, a finite-number test, a grouped number, a rounding, the feet-per-metre factor, the globe's bounds, the missing-value dash and the `N/A` mark, the time units and the hour floor, a `Retry-After`, and a cancel |
+| `checks/map.js` | `map-view-wiring`, `map-shared-rules`, `map-home-basemap`, `map-home-popups`, `map-home-results`, `map-popups-owned`, `map-drag-owned` | `MapView.tsx` declares no helper, adds no source or layer, listens for `load` alone, opens no popup, mounts every feature once through `mountFeatures`, seeds no ref from a prop, reads the restored ring only on load, writes the controller in one effect, is exported as `memo(MapView)` and imports `map.css`; every map helper has one home; every popup the map opens, and every listener that could open one, goes through `mapPopups.ts`, and only the ring's handles start a drag |
+| `checks/map.js` | `map-basemap-layers`, `map-basemap-declares`, `map-grid-declares`, `map-results-declares`, `map-poi-declares`, `map-popups-declares`, `map-popups-system-declares`, `map-attribution-folded`, `map-grid-layer` | The clickable peaks and lakes share one floor, one look and one lake class, and each halo is built from its label; the top-level functions each map module may declare; the attribution folds on add; the grid switches its style by one filter and leaves the map by its layer's visibility |
 | `checks/styles.js` | `style-call-site-classes`, `style-own-glyphs`, `style-icon-module`, `style-own-popover`, `style-popover-shell`, `style-one-placement`, `style-placement-caller`, `style-placement-module`, `style-page-ground`, `style-micro-not-pressed` | No call site re-widths a segment, sizes an icon or a choice, draws a glyph, positions a panel, spells the page ground or sets a button or a link at the micro step |
 | `checks/styles.js` | `style-map-column`, `style-map-wrapper`, `style-map-legend-column`, `style-map-button-column`, `style-map-layers-column`, `style-results-bar`, `style-app-micro`, `style-legend-ramp`, `style-layer-rows`, `style-search-box`, `style-chart-metric`, `style-axis-item`, `style-rank-cell` | The map column, the results bar, the legend strip, the Layers rows, the search box, the chart select and the rank cell wear their roles |
+| `checks/styles.js` | `value-hex`, `value-inline-style`, `map-paint-named` | A colour, a popup's type size and an app layer's paint number are written only in their owners: `colors.ts`, `chartColors.ts`, `popupChrome.ts`, `map/mapStyles.ts` and each overlay's pure module |
+| `checks/styles.js` | `style-menu-unfurls`, `style-popup-card`, `style-no-os-theme` | Every menu unfurls out of its control as one card; every popup is `popupCard`'s card; nothing paints by the operating system's theme under the app's own switch |
 | `checks/styles.js` | `style-metrics-table`, `style-panel-messages`, `style-footer-notice`, `style-footer-notice-once`, `style-panel-no-status`, `style-draw-counter`, `style-draw-readout`, `style-model-picker-quiet`, `style-window-messages`, `style-popup-glyph` | The Metrics grid's boxes and buttons; every notice renders once, below Analyze; the draw counter is the one bare `STATUS`, its point count in `DrawReadout`; the popup draws no glyph |
 
 The text tests that stay, and why:
@@ -184,12 +223,12 @@ The text tests that stay, and why:
 | `styles.test.ts` | `MapButtonColumn.tsx`, `LayersPopover.tsx`, `SearchBox.tsx`, `MapLegend.tsx` | The `MAP_ROW_H` count across three files, the order of the Layers rows, and the legend box, a region bounded by a comment rather than by a node |
 | `styles.test.ts` | `index.css`, `map.css` | CSS, which ESLint does not parse |
 | `legal.test.ts` | the pages and the provider list | The pages' claims against `LICENSE` and `dataSources.ts` |
-| `coldLoad.test.ts` | `map/basemap.ts` | The style host against the preconnect hints in `index.html` |
+| `coldLoad.test.ts` | `index.html` | The preconnect hints against the hosts the modules export |
 | `api-compat.test.ts` | `tools/api-types/package.json` | The generator's manifest against the frontend scripts |
 | `hooks/useCapabilities.test.ts` | `forecastWindow.ts` | Each window bound against the value the module exports |
 | `utils/openMeteo.test.ts` | the two hooks, the three Open-Meteo modules | The coverage sentence and the unreadable-body sentence against the constants the modules export |
 | `utils/openMeteoAggregate.test.ts` | `openMeteoAggregate.ts`, `aggregation.py` | The TypeScript port against the Python it mirrors |
-| `utils/resultsSheet.test.ts` | `hooks/useResultsLayout.ts`, `styles.ts` | The `LEGEND_TOP` classes and the panel default against the numbers the arithmetic uses |
+| `utils/resultsSheet.test.ts` | `styles.ts` | The `LEGEND_TOP` classes against the numbers the arithmetic uses |
 | `utils/basemapPoi.test.ts` | `map/basemap.ts` | The clickable layers against the ids `POI_LAYERS` exports, and the line-placed lake's label offset against the peak's: a comparison with a module's own constants, and a measurement |
 
 ### The cold-load budgets
@@ -223,7 +262,10 @@ implements), serves fixed radar frames and holds an open radar card to one
 width and the right name while the player steps back (`radarCard.spec.ts`),
 and runs axe on the panel, the results,
 and the Layers popover, once in each theme. Every third-party host is answered from fixtures in
-`frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota.
+`frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota. Every page runs in
+Los Angeles time, the zone Vitest pins, on a clock that starts at one fixed
+instant and then runs on, so a window some days out lands on the same day on
+every runner.
 `make browser` runs it locally: it builds the image, serves it on a docker
 network, and runs the suite from the pinned Playwright image with the repo
 root mounted (the fixtures read `backend/tests/data/weather_vectors.json`). A
