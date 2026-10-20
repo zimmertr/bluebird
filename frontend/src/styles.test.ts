@@ -378,10 +378,10 @@ describe('the compact tier', () => {
     expect(TEXT.helper.split(' ').filter((c) => c !== 'italic')).toEqual(TEXT.caption.split(' '))
   })
 
-  // The 10px step lands on three background lightnesses, the lightest of them
+  // The 11px step lands on three background lightnesses, the lightest of them
   // the slate-700 table header bar carrying a required CC-BY credit. slate-300
-  // is the dimmest step clearing 4.5:1 on all three (7.0 / 9.9 / 12.0);
-  // slate-400 manages 4.0:1 on that bar and slate-500 only 2.2:1. Dimming this
+  // is the dimmest step clearing 4.5:1 on all three (6.97:1 on that bar);
+  // slate-400 manages 3.94:1 there and slate-500 only 2.17:1. Dimming this
   // role is not a style change, it is an accessibility regression, and a call
   // site cannot undo it: Tailwind resolves competing color utilities by
   // stylesheet order, not class-list order.

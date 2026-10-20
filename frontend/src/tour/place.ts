@@ -38,7 +38,8 @@ export const VIEWPORT_MARGIN = 16
 /**
  * Below this width the card is a sheet along one edge rather than a box
  * beside its target. The number is where the box stops fitting beside the
- * docked panel: 360px of panel, the gap, 320px of card and the margin. Above
+ * docked panel: 360px of panel, the spotlight's pad, the gap, 320px of card
+ * and the margin, 716px in all. Above
  * it the card has ONE place, to the right of what it frames; below it, one
  * edge. It is not the app's desktop breakpoint, because at 1000px the box
  * still fits and a sheet there hides the map for nothing.

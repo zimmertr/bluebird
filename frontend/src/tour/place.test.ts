@@ -86,7 +86,7 @@ describe('the sheet', () => {
   })
 
   it('leaves room for a box beside the docked panel at the breakpoint', () => {
-    expect(SHEET_MAX_W).toBeGreaterThanOrEqual(360 + CARD_GAP + card.width + VIEWPORT_MARGIN)
+    expect(SHEET_MAX_W).toBeGreaterThanOrEqual(360 + SPOTLIGHT_PAD + CARD_GAP + card.width + VIEWPORT_MARGIN)
   })
 
   it('takes the bottom edge unless the target stands there', () => {

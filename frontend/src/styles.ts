@@ -42,9 +42,10 @@
  * This step lands on three background lightnesses — the slate-900/85 map
  * legends, the slate-800/95 chart tooltip, and the slate-700 table header bar
  * — and two of its sites are attributions a license requires people to be
- * able to read. slate-300 is the dimmest step clearing 4.5:1 on all three
- * (7.0 / 9.9 / 12.0); slate-400, where these sites had drifted, manages only
- * 4.0:1 on the header bar.
+ * able to read. slate-300 is the dimmest step clearing 4.5:1 on all three:
+ * 6.97:1 on the header bar, the lightest, and 7.65 and 8.45 on the other two
+ * even over white. slate-400, where these sites had drifted, manages only
+ * 3.94:1 on the header bar.
  *
  * The color has to live here rather than at the call site. Tailwind resolves
  * two competing color utilities by their order in the generated stylesheet,
@@ -96,7 +97,7 @@ const GLYPH_SIZE = 'text-[10px]'
  * The base size, stepped back: secondary text that is read, not scanned.
  *
  * This step lands on the slate-800 panel, cards and dialogs. slate-400 is the
- * dimmest step clearing 4.5:1 there (5.7, and 7.0 on slate-900 fields);
+ * dimmest step clearing 4.5:1 there (5.56, and 6.78 on slate-900 fields);
  * slate-500, where this tier sat through #159, managed 3.1:1 — receding on
  * purpose, but past what AA permits for text. Brightening it made the tagline
  * under the app title the same recipe, so what had been two roles is one, and
