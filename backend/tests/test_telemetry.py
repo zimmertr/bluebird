@@ -508,11 +508,10 @@ def test_the_total_deadline_counts_as_a_timeout(monkeypatch):
     # the same fact as httpx timing out one read.
     monkeypatch.setattr(weather.http, "TIMEOUT_S", 0.05)
 
-    class _Slow:
-        async def get(self, url, params=None):
-            await asyncio.sleep(1)
+    async def slow(url, params):
+        await asyncio.sleep(1)
 
-    monkeypatch.setattr(weather.http, "client", lambda: _Slow())
+    stub_openmeteo(monkeypatch, [slow])
     labels = {"service": "weather", "outcome": "timeout", "quota": "pod"}
     before = _value("bluebird_forecast_openmeteo_requests_total", labels)
     cache.FORECAST_CACHE.clear()
