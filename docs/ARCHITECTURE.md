@@ -208,7 +208,7 @@ but 0.2 GB of it in `osmium getid -r`, whose memory follows OpenStreetMap's
 highest ids rather than the extract's size. On the cluster, the planet took 82
 minutes to reach the load on 2026-10-20: 24 minutes of download at 62 MB/s, 13
 of `tags-filter`, 31 of `getid -r`, which peaked at 4.4 GB, and 12 of placing
-1.24 million places. The CronJob allows 12 hours, requests 4 GiB and stops at
+1.24 million places. The CronJob allows 12 hours, requests 5 GiB and stops at
 6 GiB. That run died at the load's first statement: its connection had sat
 idle through the pipeline, and Istio's sidecar closes a connection that
 carries no bytes for an hour. The fill now sends a statement every five
