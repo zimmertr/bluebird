@@ -1441,7 +1441,7 @@ Alpine published into that gap stayed out of every release until someone ran
 1.3.2-r1 already in Alpine's index and the base the newest published (alert
 39, CVE-2026-85091, 2026-10-14). **The remedy is the next merge to `main`**:
 its release rebuilds the layer and ships the fix, and nothing needs clearing.
-Record: [0126](decisions/0126-apk-upgrade-on-every-build.md)
+Record: [0197](decisions/0197-apk-upgrade-on-every-build.md)
 
 This job scans a published image rather than a checkout, so its `actions/checkout`
 step exists purely to read `trivy.yaml`. That is deliberate: without the PR gate's

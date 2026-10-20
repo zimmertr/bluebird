@@ -7,7 +7,7 @@ and v0.105.0 shipped zlib 1.3.2-r0 with 1.3.2-r1 already published (alert 39,
 2026-10-14). BuildKit keys a ``RUN`` on every build argument in scope, and
 ``APP_COMMIT`` changes with every commit, so the layer now sits after the
 ``APP_*`` arguments and before ``USER``, where a rebuild repeats no other work.
-Record: docs/decisions/0126-apk-upgrade-on-every-build.md
+Record: docs/decisions/0197-apk-upgrade-on-every-build.md
 """
 
 from __future__ import annotations
