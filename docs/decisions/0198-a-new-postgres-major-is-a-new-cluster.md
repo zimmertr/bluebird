@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-20
 - Decider: the maintainer (TJ), 2026-10-20, choosing to recreate the cluster on 18 and refill it, over a blue/green import, a maintained 17 image, and leaving it.
-- Issues and PRs: #760 (the shared cache), #763 (the test database's move to 18), #772 (its PostGIS package), #PRNUM, bluebird-helm#395
+- Issues and PRs: #760 (the shared cache), #763 (the test database's move to 18), #772 (its PostGIS package), #774, bluebird-helm#395
 - Cited in code as: `charts/bluebird/values.yaml` in bluebird-helm, `database.cluster.imageName`
 - Guide: [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md), The shared cache
 
@@ -18,7 +18,7 @@ The operator upgrades a major in place only between images on one OS distributio
 - The chart names the image outright, `database.cluster.imageName`, pinned to the image index's digest, and keeps `database.version` at 18 and 3.6 for the record. The `standard` flavour carries every extension the subchart's bootstrap creates; `system` adds nothing this chart needs.
 - The test database (`backend/tests/db/Dockerfile`) runs the same major, so the `db` suites test the Postgres production runs.
 - A new major is a new cluster. The cutover, in order:
-  1. Release the fill that keeps its connection alive (#PRNUM), so the refill can finish.
+  1. Release the fill that keeps its connection alive (#774), so the refill can finish.
   2. Annotate the live Cluster `cnpg.io/reconciliationLoop=disabled`, so the chart bump cannot start an in-place upgrade on the bullseye data directory.
   3. Merge the chart PR; its Kubernetes-Manifests bump syncs the new image onto the Cluster, which the operator now ignores.
   4. Delete the Cluster. Its pods, volumes and the app's connection Secret go with it, and Argo CD's self-heal recreates it from the manifest, on 18, with a new Secret.
