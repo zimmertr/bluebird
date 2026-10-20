@@ -18,11 +18,32 @@ permissions:
 
 jobs:
   scan:
-    name: Scan released image
+    name: Scan released image (${{ matrix.image }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write  # SARIF upload to the Security tab
+    strategy:
+      # Report both images even when one fails, so one look covers both.
+      fail-fast: false
+      matrix:
+        include:
+          # The app's category stays what it was, so its alert history holds.
+          - image: bluebird
+            category: trivy-released-image
+            remedy: >-
+              Merge the open Dependabot base-image PR and release. If there is
+              none, the base tag is current and the packages under it are not:
+              the next merge to main rebuilds the apk upgrade layer against
+              Alpine's current index and releases it. See docs/CICD.md.
+          # The planet fill (#760), released beside the app at the same version.
+          - image: bluebird-fill
+            category: trivy-released-fill-image
+            remedy: >-
+              Merge the open Dependabot base-image PR for fill/Dockerfile and
+              release. If there is none, the next merge to main rebuilds the
+              fill image without a layer cache, taking Debian's current
+              security fixes, and releases it. See docs/CICD.md.
     steps:
       # This job scans a published image, not a checkout, so the only thing
       # wanted from the repo is trivy.yaml: the same file-level exclusions the
@@ -35,15 +56,16 @@ jobs:
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ matrix.image }}
         run: |
           TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
           echo "semver=${TAG#v}" >> "$GITHUB_OUTPUT"
-          echo "Scanning zimmertr/bluebird:${TAG#v}"
+          echo "Scanning zimmertr/${IMAGE}:${TAG#v}"
 
       - name: Scan image (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: zimmertr/bluebird:${{ steps.release.outputs.semver }}
+          image-ref: zimmertr/${{ matrix.image }}:${{ steps.release.outputs.semver }}
           format: sarif
           output: trivy.sarif
           ignore-unfixed: true
@@ -53,17 +75,18 @@ jobs:
         uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           sarif_file: trivy.sarif
-          category: trivy-released-image
+          category: ${{ matrix.category }}
 
       # Rendered from the SARIF's source scan re-run as JSON so the gate uses
       # the same ignore-unfixed filtering; trivy is on PATH via the action above.
       - name: Re-scan as JSON
         env:
           SEMVER: ${{ steps.release.outputs.semver }}
+          IMAGE: ${{ matrix.image }}
         run: |
           trivy image --format json --output trivy.json --ignore-unfixed \
             --config trivy.yaml \
-            "zimmertr/bluebird:${SEMVER}"
+            "zimmertr/${IMAGE}:${SEMVER}"
 
       - name: Count Critical/High vulnerabilities
         id: crit
@@ -75,9 +98,11 @@ jobs:
         env:
           CRIT_HIGH: ${{ steps.crit.outputs.count }}
           SEMVER: ${{ steps.release.outputs.semver }}
+          IMAGE: ${{ matrix.image }}
+          REMEDY: ${{ matrix.remedy }}
         run: |
           if [ "$CRIT_HIGH" -gt 0 ]; then
-            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/bluebird:${SEMVER}. Merge the open Dependabot base-image PR and release. If there is none, the base tag is current and the packages under it are not: the next merge to main rebuilds the apk upgrade layer against Alpine's current index and releases it. See docs/CICD.md."
+            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/${IMAGE}:${SEMVER}. ${REMEDY}"
             exit 1
           fi
           echo "No fixable Critical/High vulnerabilities." >> "$GITHUB_STEP_SUMMARY"

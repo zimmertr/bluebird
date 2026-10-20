@@ -11,69 +11,23 @@ from collections.abc import Sequence
 from typing import Any
 
 from app.models import DestinationType, GeoPolygon
+from app.services.osm import rules
 
 # The Overpass clauses each destination type contributes, as *fragments*
-# rather than whole queries, because an analysis can now ask for several types
-# at once and the union has to be one request.
-#
-# That is the whole reason for the shape: Overpass is a donated public API and
-# the query is the slowest step of an analysis, so three checked boxes must
-# cost one request rather than three. Overpass unions natively — `( … );` — so
+# rather than whole queries, because an analysis can ask for several types at
+# once and the union has to be one request: Overpass is a donated public API
+# and the query is the slowest step of an analysis, so three checked boxes must
+# cost one request rather than three. Overpass unions natively, `( … );`, so
 # combining types is concatenating their clauses.
 #
-# Peaks are nodes only: the vast majority of OSM peaks are nodes, and node-only
-# clauses are significantly faster on the public API. natural=volcano is in
-# because OSM tags volcanic summits as volcano INSTEAD of peak — without it,
-# Baker, Rainier, Glacier Peak, Adams and St. Helens are all invisible to a
-# Cascades search.
+# The selectors themselves are `rules.CLAUSES`, the one definition the planet
+# fill and the daily update read too (#760), so a deployment without the
+# shared cache asks Overpass for exactly what the cache holds. This path is
+# that deployment's, and the cache's while it is filling.
 _CLAUSES: dict[DestinationType, tuple[str, ...]] = {
-    DestinationType.peak: (
-        'node["natural"="peak"]["name"](poly:"{poly}");',
-        'node["natural"="volcano"]["name"](poly:"{poly}");',
-    ),
-    DestinationType.trailhead: (
-        'node["highway"="trailhead"]["name"](poly:"{poly}");',
-        'way["highway"="trailhead"]["name"](poly:"{poly}");',
-    ),
-    DestinationType.lake: (
-        'node["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
-        'way["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
-        'relation["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
-    ),
-    # A crag is `sport=climbing` with `climbing=crag`, `area` or `boulder`, or
-    # a climbable stone with no `climbing=` key at all, and nothing wider. Bare
-    # `sport=climbing` also tags every route: measured 2026-10-15 over 47.0 to
-    # 48.0 N, 121.8 to 120.8 W, it found 183 named features, of which 82 were
-    # crags, 22 areas and 4 boulders, and 67 routes and 5 route bottoms would
-    # each have become a row. Areas stay in because some places are mapped
-    # only as one (Index is an area holding Lower Town Wall). Boulders are in
-    # because the maintainer wants them as destinations, however many a
-    # boulder field adds (2026-10-15). A boulder is as often a
-    # `natural=stone` with `sport=climbing` and no subtype (Midnite Boulder at
-    # Index), which the last two clauses take; `[!"climbing"]` keeps a stone
-    # tagged as a route out. All three element kinds for the subtyped
-    # clauses, because the 104 crags and areas in that box were 45 nodes, 9
-    # ways and 50 relations; a stone is a node or, rarely, a way.
-    DestinationType.crag: (
-        'node["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"](poly:"{poly}");',
-        'way["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"](poly:"{poly}");',
-        'relation["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"](poly:"{poly}");',
-        'node["natural"="stone"]["sport"="climbing"][!"climbing"]["name"](poly:"{poly}");',
-        'way["natural"="stone"]["sport"="climbing"][!"climbing"]["name"](poly:"{poly}");',
-    ),
+    DestinationType(kind): clauses for kind, clauses in rules.CLAUSES.items()
 }
-
-# The same summits without the name filter, for callers that opt in. Kept apart
-# from the clauses above rather than folded into them because this is a
-# different question with a different cost: measured over one 8x10 km box in
-# the Alpine Lakes, 7 peaks are named and 13 are not, so asking for both roughly
-# triples the candidate count — and every candidate is a weighted Open-Meteo
-# call and a step closer to the analysis cap. `["ele"]` is required because an
-# unnamed summit with no elevation has nothing to call itself.
-_UNNAMED_PEAK_CLAUSES: tuple[str, ...] = (
-    'node["natural"="peak"]["ele"](poly:"{poly}");',
-    'node["natural"="volcano"]["ele"](poly:"{poly}");',
-)
+_UNNAMED_PEAK_CLAUSES: tuple[str, ...] = rules.UNNAMED_PEAK_CLAUSES
 
 # Stands where a query's server timeout goes. The number belongs to the mirror
 # that sends the query, not to the query, so the mirror chain fills it in per
@@ -95,41 +49,34 @@ out center;
 )
 
 
+def _inside(clause: str, poly_str: str) -> str:
+    """The selector with the polygon filter in front of its semicolon."""
+    return f'{clause[:-1]}(poly:"{poly_str}");'
+
+
 def _build_query(
     types: Sequence[DestinationType], poly_str: str, include_unnamed_peaks: bool = False
 ) -> str:
     """One Overpass document covering every requested type."""
     clauses = [
-        "  " + clause.format(poly=poly_str)
+        "  " + _inside(clause, poly_str)
         # Sorted so the same set of types always produces the same query text,
         # which is what lets the cache key below be order-independent.
         for t in sorted(types, key=lambda t: t.value)
         for clause in _CLAUSES[t]
     ]
     if include_unnamed_peaks and DestinationType.peak in types:
-        clauses += ["  " + c.format(poly=poly_str) for c in _UNNAMED_PEAK_CLAUSES]
+        clauses += ["  " + _inside(c, poly_str) for c in _UNNAMED_PEAK_CLAUSES]
     return _QUERY.format(clauses="\n".join(clauses))
 
 
-# Which type a returned element actually is. A single-type query could assume
-# the answer from the request; a union cannot, and the row's type decides its
-# badge and where its name links. Read from the same tags the
-# clauses above match on, so the two cannot disagree.
-def _classify(tags: dict[str, Any]) -> str:
-    natural = tags.get("natural")
-    if natural in ("peak", "volcano"):
-        return DestinationType.peak.value
-    if tags.get("highway") == "trailhead":
-        return DestinationType.trailhead.value
-    if natural == "water" and tags.get("water") == "lake":
-        return DestinationType.lake.value
-    if tags.get("sport") == "climbing":
-        climbing = tags.get("climbing")
-        if climbing in ("crag", "area", "boulder") or (climbing is None and natural == "stone"):
-            return DestinationType.crag.value
-    # Unreachable for anything the clauses asked for, but a tagging change
-    # upstream should degrade to an unbadged row rather than raise.
-    return DestinationType.custom.value
+# Which type a returned element actually is, and whether it is named. A
+# single-type query could assume the answer from the request; a union cannot,
+# and the row's type decides its badge and where its name links. None for an
+# element no clause asked for, which a tagging change upstream could hand back.
+def _classify(element_type: str, tags: dict[str, Any]) -> tuple[str, bool] | None:
+    return rules.classify(element_type, tags)
+
 
 # Public because GET /api/capabilities publishes it: DestinationType carries
 # every type the API models, but only these are actually discoverable via
@@ -142,22 +89,17 @@ IMPLEMENTED_TYPES = {
 }
 
 
+def check_implemented(types: Sequence[DestinationType]) -> None:
+    """Refuse a type discovery does not carry, the same way on either path."""
+    for t in types:
+        if t not in IMPLEMENTED_TYPES:
+            raise NotImplementedError(f"Destination type '{t.value}' is not yet implemented.")
+
+
 def _polygon_to_overpass(polygon: GeoPolygon) -> str:
     # GeoJSON coordinates are [lon, lat]; Overpass expects "lat lon lat lon ..."
     coords = polygon.coordinates[0]
     return " ".join(f"{lat} {lon}" for lon, lat in coords)
 
 
-def _ele_ft(tags: dict[str, Any]) -> float | None:
-    """Feet from an OSM ``ele`` tag (metres), or None if absent or unparseable.
-
-    Shared by discovery and custom-list enrichment so the two cannot disagree
-    about what an elevation read off OSM means.
-    """
-    ele = tags.get("ele")
-    if not ele:
-        return None
-    try:
-        return round(float(ele) * 3.28084, 0)
-    except (ValueError, TypeError):
-        return None
+_ele_ft = rules.ele_ft

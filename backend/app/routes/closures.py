@@ -31,9 +31,9 @@ class ClosureCollection(BaseModel):
     )
     fetched_at: int = Field(
         description=(
-            "When this instance last fetched closure orders from the Forest "
+            "When Bluebird Forecast last fetched closure orders from the Forest "
             "Service, in epoch milliseconds. A GeoJSON foreign member, which map "
-            "libraries ignore. Closures are cached per instance and served past "
+            "libraries ignore. Closures are cached and served past "
             "their refresh deadline when the Forest Service is unreachable, so "
             "this is the only honest statement of how current the answer is. It "
             "is not when any order was issued or last edited."
@@ -52,7 +52,7 @@ class ClosureCollection(BaseModel):
             "land borders. An empty `features` array for a bbox outside this "
             "geometry means the feeds cannot see that area, not that nothing is "
             "closed there. The trail outline is static per release. The area "
-            "outline leaves out Region 3 or Region 4 when this instance's last "
+            "outline leaves out Region 3 or Region 4 when the last "
             "fetch from that region failed, because the snapshot then holds "
             "none of its orders."
         )
@@ -106,13 +106,13 @@ class ClosureCollection(BaseModel):
         "to entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or "
         "its name or description says entry is prohibited in a sentence that "
         "names no permit as the way in.\n\n"
-        "This instance fetches every region on a timer and serves it to "
+        "Bluebird Forecast fetches every region on a timer and serves it to "
         "everyone, and serves it past its refresh deadline when the Forest "
         "Service is unreachable, because an order is edited by hand a few "
         "times a week and one fetched an hour ago is almost always still the "
-        "order. Read `fetched_at` to see how current the answer is. An "
-        "instance answers 503 when it has never completed a fetch, or when "
-        "every refresh has failed for more than 24 hours since its last good "
+        "order. Read `fetched_at` to see how current the answer is. It "
+        "answers 503 when no fetch has completed yet, or when "
+        "every refresh has failed for more than 24 hours since the last good "
         "one."
     ),
     response_description="Closures of the requested kind intersecting the box, with the fetch timestamp.",
@@ -137,9 +137,9 @@ class ClosureCollection(BaseModel):
         503: {
             "model": ErrorResponse,
             "description": (
-                "This instance has never completed a fetch from the Forest "
-                "Service, or every refresh has failed for more than 24 hours "
-                "since its last good one, so it has nothing it will serve. Transient; "
+                "No fetch from the Forest Service has completed yet, or every "
+                "refresh has failed for more than 24 hours since the last good "
+                "one, so there is nothing to serve. Transient; "
                 "`Retry-After` says when to retry."
             ),
         },

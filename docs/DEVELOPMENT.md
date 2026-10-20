@@ -15,6 +15,20 @@ While it runs, Prometheus metrics are served at `http://localhost:9464/metrics`
 [ARCHITECTURE.md](ARCHITECTURE.md#metrics)); set `METRICS_PORT=0` to turn that
 off.
 
+With no `DATABASE_URL` the backend runs without the shared cache, as the
+backend suite does: discovery asks Overpass, each overlay fetches for itself,
+and every limit counts in the process
+([ARCHITECTURE.md](ARCHITECTURE.md#the-shared-cache)). To try it with one, run
+the database `make test-backend-db` builds and point `DATABASE_URL` at it. The
+backend applies its migrations on start. The places table stays empty until a
+fill, so discovery still asks Overpass.
+
+```bash
+docker build -t bluebird:test-db tests/db
+docker run -d --rm --name bluebird-dev-db -p 5432:5432 -e POSTGRES_PASSWORD=test bluebird:test-db
+DATABASE_URL=postgresql://postgres:test@localhost/postgres LOG_LEVEL=TRACE uvicorn app.main:app --reload --port 8000
+```
+
 Frontend:
 
 ```bash
@@ -33,6 +47,9 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
+Compose starts no database, so the app runs without the shared cache, as the
+backend does above with no `DATABASE_URL`.
+
 ## Tests and Checks
 
 CI runs all of these on every PR, so run the ones your change touches first.
@@ -46,10 +63,12 @@ inside Docker, so nothing needs installing on the host beyond Docker and
 | `make lint-frontend` | `npm run lint` (ESLint), then the self-test that proves the rules are not vacuous |
 | `make test-frontend` | `npm ci --ignore-scripts && npm test` (Vitest) |
 | `make check-api` | `npm run check:api`: the frontend API types still match the committed OpenAPI snapshot |
-| `make test-backend` | `pytest` |
+| `make test-backend` | `pytest`, which skips the tests marked `db` |
+| `make test-backend-db` | `pytest -m db`: the shared cache's tests, against a throwaway PostgreSQL with PostGIS |
+| `make test-fill` | the planet fill's suite, in the fill image's test stage, against the same kind of throwaway database |
 | `make check-openapi` | `python scripts/generate_openapi.py --check`: the committed snapshot still matches the app |
 | `make typecheck-backend` | `mypy app` at the version `requirements-dev.txt` pins, with the settings in `backend/mypy.ini` |
-| `make lint-backend` | `ruff check backend/` at the version CI pins |
+| `make lint-backend` | `ruff check backend/ fill/` at the version CI pins |
 | `make lighthouse` | the cold-load audit below |
 | `make browser` | the browser suite below |
 
@@ -66,14 +85,16 @@ One Vitest run covers two projects, split by file extension: `node` runs every
 rendered in jsdom and driven with Testing Library). Add `-- --project dom` (or
 `node`) to the `npm test` above to run one of them.
 
-Five things that shape follows from:
+Six things that shape follows from:
 
 - **Every container mounts the repo root**, never `frontend/` or `backend/`
   alone. Two browser suites read the manifests the backend commits under
   `backend/tests/data/`, the API type check reads `backend/openapi.json`, one
   backend test reads `frontend/src` to check the CSP allowlist against the
   hosts the browser actually fetches (it skips where it cannot see them), and
-  a bare `frontend/` mount lets Tailwind scan a stale `dist/`.
+  a bare `frontend/` mount lets Tailwind scan a stale `dist/`. The one
+  container that mounts nothing is `make test-fill`'s, whose image carries
+  every file its suite reads.
 - **The Node major lives in `.node-version` alone.** The Makefile reads it for
   every container and CI reads it through `setup-node`, so the checks run on
   the runtime the image builds the app with. The `Dockerfile` cannot read a
@@ -90,6 +111,9 @@ Five things that shape follows from:
   live in `backend/ruff.toml`, and `known-first-party = ["app"]` there is what
   makes the import order the same from either working directory. Ruff is
   pinned because its default rule set changes between releases.
+  `fill/ruff.toml` extends those rules for the Python the fill image runs,
+  Debian's 3.13, so a fix ruff suggests never needs syntax that image cannot
+  parse.
 - **Every `npm ci` passes `--ignore-scripts`**, here, in CI and in the image
   build (#633). No package in the four lockfiles needs its install script on
   Linux: the app's has two, `fsevents` (macOS only) and `@scarf/scarf`, which
@@ -97,6 +121,26 @@ Five things that shape follows from:
   ship their binaries as optional dependencies. `test_dependency_lock.py` fails
   an `npm ci` without the flag in the `Dockerfile`, the `Makefile`, a workflow
   or `frontend/package.json`.
+
+### The shared cache's tests
+
+`make test-backend` runs without a database, the way CI's `Backend Tests`
+does, and skips every test marked `db` (#760). `make test-backend-db` builds
+`backend/tests/db/Dockerfile`, PostgreSQL 17 with PostGIS from PGDG, starts it
+on a Docker network, runs `pytest -m db` against it through
+`TEST_DATABASE_URL`, and removes it, pass or fail. The image is built here
+rather than pulled as `postgis/postgis` because that one has no arm64 build. A
+test takes the database through the `database` fixture in
+`backend/tests/conftest.py`, which empties every table first, so no test sees
+another's rows. The database and its network take names unique to the run,
+so two sessions can run the target at once.
+
+`make test-fill` builds the fill image twice, once as it ships and once as its
+`test` stage, which adds pytest, the app's migrations and `services/http.py`.
+It starts the same database under a name unique to the run, runs the suite in
+the test stage against it, and removes both on the way out. The suite holds
+the fill's copies of `lock_key` and `USER_AGENT` to the app's, and fills a
+fixture planet end to end.
 
 ### The backend's dependency lock
 
@@ -382,7 +426,8 @@ state and interaction, never for judging a forecast.
 ```
 
 Reload the page to remove it. Two things it will not do: the destination search
-still goes to the pod (and through it to Overpass), and the per-location cache
+still goes to the pod (and through it to the places table, or to Overpass when
+the table cannot answer), and the per-location cache
 means a window you have already fetched is served from memory rather than from
 the stub, so change the dates if you need a fresh fetch.
 

@@ -1,7 +1,11 @@
 """Per-client token buckets, enforced as route dependencies.
 
 Apart from the upstream budgets because the two answer different questions:
-these bound one client address, and those bound the whole pod's spend.
+these bound one client address, and those bound the upstream spend.
+
+A bucket lives in the shared cache when it can (#760), so one address meets
+one limit however many pods its requests land on, and in this pod's memory
+otherwise (``shared.py`` says when).
 """
 
 from __future__ import annotations
@@ -16,10 +20,12 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from fastapi import Request
+from psycopg import AsyncConnection
 
-from app import telemetry
+from app import db, telemetry
 from app.env import env_int
 from app.error_codes import ApiError, ErrorCode
+from app.ratelimit import shared
 from app.ratelimit.upstream import SHED_RETRY_AFTER_S, UPSTREAM_BUDGET_WAIT_S
 
 log = logging.getLogger("bluebird_forecast.ratelimit")
@@ -34,14 +40,17 @@ RATE_LIMIT_ANALYZE_PER_MINUTE = env_int("RATE_LIMIT_ANALYZE_PER_MINUTE", 12)
 RATE_LIMIT_ANALYZE_BURST = env_int("RATE_LIMIT_ANALYZE_BURST", 6)
 RATE_LIMIT_DESTINATIONS_PER_MINUTE = env_int("RATE_LIMIT_DESTINATIONS_PER_MINUTE", 30)
 RATE_LIMIT_DESTINATIONS_BURST = env_int("RATE_LIMIT_DESTINATIONS_BURST", 10)
-# Geocode is sized under the pod-wide Nominatim gate it sits in front of, not
-# by how cheap the request is. The gate opens one slot per
-# NOMINATIM_MIN_INTERVAL_MS (about 17 a minute at 3.5 s) and sheds a caller
-# booked more than 5 s out, so a bucket that let one address spend faster than
-# the gate serves let that address keep it booked ahead and shed every other
-# visitor's search on the pod (#627). A bucket's first minute spends its burst
-# plus a minute's refill, 13 here, which leaves the gate a third of its slots
-# for everyone else. The search box searches on submit only, so a person
+# Geocode is sized under the Nominatim gate it sits in front of, not by how
+# cheap the request is. The gate opens one slot per NOMINATIM_MIN_INTERVAL_MS
+# (50 a minute at 1.2 s, for the whole deployment while the shared cache holds
+# it) and sheds a caller booked more than 5 s out, so a bucket that let one
+# address spend faster than the gate serves let that address keep it booked
+# ahead and shed every other visitor's search (#627). A bucket's first minute
+# spends its burst plus a minute's refill, 13 here, about a quarter of the
+# gate's slots. Without the shared cache each pod's gate opens 6 a minute
+# (NOMINATIM_POD_MIN_INTERVAL_MS), which one address's first minute can fill on
+# its pod; that is the price of the fallback staying under the policy at ten
+# replicas (#760). The search box searches on submit only, so a person
 # typing place names never meets 10 a minute; the burst of 3 covers a quick
 # retype. Decided by the maintainer, 2026-10-06 (record 0103).
 RATE_LIMIT_GEOCODE_PER_MINUTE = env_int("RATE_LIMIT_GEOCODE_PER_MINUTE", 10)
@@ -68,6 +77,12 @@ RATE_LIMIT_SMOKE_BURST = env_int("RATE_LIMIT_SMOKE_BURST", 30)
 # times (issue #550).
 RATE_LIMIT_CLOSURES_PER_MINUTE = env_int("RATE_LIMIT_CLOSURES_PER_MINUTE", 90)
 RATE_LIMIT_CLOSURES_BURST = env_int("RATE_LIMIT_CLOSURES_BURST", 30)
+# The trailhead and crag markers refetch on every pan from zoom 11 up, so they
+# are as loose as the overlays. Their own bucket because they are always on: a
+# reader panning with every overlay lit must not spend the fire layer's budget
+# on the trailheads under it (#760, carried from #734).
+RATE_LIMIT_LANDMARKS_PER_MINUTE = env_int("RATE_LIMIT_LANDMARKS_PER_MINUTE", 90)
+RATE_LIMIT_LANDMARKS_BURST = env_int("RATE_LIMIT_LANDMARKS_BURST", 30)
 
 # Discoveries one client key may have in flight at once. A bucket bounds how
 # often an address starts a discovery, not how many it holds open, and one
@@ -187,6 +202,53 @@ class _TokenBucket:
         return self.tokens >= self.capacity
 
 
+# The shared bucket's refill, the same arithmetic as `_TokenBucket._refill`:
+# its tokens plus what has refilled since it last spent, capped at the burst.
+# Elapsed time is clamped at zero here too, and here it matters: a statement
+# that waited on the row's lock reads its own start time, which is earlier
+# than the spend it waited behind, and must not drain tokens for it.
+_REFILLED = (
+    "least(%(burst)s, b.tokens"
+    " + greatest(0, extract(epoch FROM now() - b.updated))::float8 * %(rate)s)"
+)
+
+# One statement per check, so the database adds one round trip to a request.
+# A new key's bucket is born full and spends its first token in the INSERT; an
+# existing one spends only when a token has refilled, and the conflict holds
+# the row's lock, so two pods checking one address at once take turns rather
+# than both spending the last token. A refusal writes nothing: the refill is a
+# function of the stored tokens and time, so leaving the row as it was loses
+# no state, and a client hammering past its limit costs the database a read.
+# The refusal's wait comes from the second branch, which reads the row as it
+# stood when the statement began; a row another request created in that
+# instant is not there yet, which `_take_token` answers with one token's wait.
+_TAKE_TOKEN = f"""
+WITH taken AS (
+    INSERT INTO rate_buckets AS b (bucket, key, tokens, updated)
+    VALUES (%(bucket)s, %(key)s, %(burst)s - 1, now())
+    ON CONFLICT (bucket, key) DO UPDATE
+        SET tokens = {_REFILLED} - 1, updated = greatest(b.updated, now())
+        WHERE {_REFILLED} >= 1
+    RETURNING 1
+)
+SELECT true, 0::float8 FROM taken
+UNION ALL
+SELECT false, (1 - {_REFILLED}) / %(rate)s
+FROM rate_buckets AS b
+WHERE b.bucket = %(bucket)s AND b.key = %(key)s AND NOT EXISTS (SELECT 1 FROM taken)
+"""
+
+
+async def _take_token(
+    conn: AsyncConnection, bucket: str, key: str, burst: float, rate_per_s: float
+) -> tuple[bool, float]:
+    params = {"bucket": bucket, "key": key, "burst": burst, "rate": rate_per_s}
+    row = await (await conn.execute(_TAKE_TOKEN, params)).fetchone()
+    if row is None:
+        return False, 1.0 / rate_per_s
+    return bool(row[0]), float(row[1])
+
+
 class RateLimiter:
     """Token buckets keyed by client address; in-memory, bounded in size.
 
@@ -199,6 +261,11 @@ class RateLimiter:
 
     No locking: mutation is synchronous within one event-loop callback, and
     uvicorn runs a single loop per process.
+
+    ``take`` is what the routes call: the same bucket in the shared cache when
+    it can (#760), keyed by ``name`` and the client key, so ``name`` is the
+    bucket's identity across pods, and ``check`` (this pod's bucket) when it
+    cannot.
     """
 
     def __init__(
@@ -231,8 +298,26 @@ class RateLimiter:
     def enabled(self) -> bool:
         return self._per_minute > 0
 
+    async def take(self, key: str) -> tuple[bool, float]:
+        """Spend one token for ``key`` from the bucket every pod shares.
+
+        Returns ``(allowed, retry_after_s)``, as ``check`` does, and is
+        ``check`` whenever the shared cache is off, read-only or cannot answer.
+        A disabled limiter asks the database nothing.
+        """
+        if self.enabled and shared.usable():
+            burst, rate = float(self._burst), self._per_minute / 60.0
+            try:
+                return await shared.run(
+                    f"bucket {self.name}",
+                    lambda conn: _take_token(conn, self.name, key, burst, rate),
+                )
+            except db.DatabaseUnavailable:
+                pass
+        return self.check(key)
+
     def check(self, key: str) -> tuple[bool, float]:
-        """Spend one token for ``key``. Returns ``(allowed, retry_after_s)``."""
+        """Spend one token for ``key`` in this pod. Returns ``(allowed, retry_after_s)``."""
         if not self.enabled:
             return True, 0.0
         now = self._clock()
@@ -332,6 +417,9 @@ SMOKE_LIMITER = RateLimiter(RATE_LIMIT_SMOKE_PER_MINUTE, RATE_LIMIT_SMOKE_BURST,
 CLOSURES_LIMITER = RateLimiter(
     RATE_LIMIT_CLOSURES_PER_MINUTE, RATE_LIMIT_CLOSURES_BURST, name="closures"
 )
+LANDMARKS_LIMITER = RateLimiter(
+    RATE_LIMIT_LANDMARKS_PER_MINUTE, RATE_LIMIT_LANDMARKS_BURST, name="landmarks"
+)
 DESTINATIONS_IN_FLIGHT = InFlightLimiter(
     DISCOVERY_IN_FLIGHT_PER_CLIENT, name="destinations_in_flight"
 )
@@ -340,9 +428,9 @@ DESTINATIONS_IN_FLIGHT = InFlightLimiter(
 # ── Route dependencies ────────────────────────────────────────────────────────
 
 
-def _throttle(limiter: RateLimiter, request: Request) -> None:
+async def _throttle(limiter: RateLimiter, request: Request) -> None:
     key = client_key(request)
-    allowed, retry_after = limiter.check(key)
+    allowed, retry_after = await limiter.take(key)
     if allowed:
         return
     _refuse(limiter.name, request, key, max(1, math.ceil(retry_after)))
@@ -375,7 +463,7 @@ def _refusal(bucket: str, request: Request, key: str, seconds: int) -> ApiError:
 
 async def analyze_rate_limit(request: Request) -> None:
     """Route dependency: one shared per-address bucket for both analyze endpoints."""
-    _throttle(ANALYZE_LIMITER, request)
+    await _throttle(ANALYZE_LIMITER, request)
 
 
 async def destinations_rate_limit(request: Request) -> None:
@@ -385,7 +473,7 @@ async def destinations_rate_limit(request: Request) -> None:
     browser flow (discover, then fetch Open-Meteo itself) should never eat
     the analyze budget of someone running full server-side analyses.
     """
-    _throttle(DESTINATIONS_LIMITER, request)
+    await _throttle(DESTINATIONS_LIMITER, request)
 
 
 @asynccontextmanager
@@ -411,19 +499,24 @@ async def discovery_in_flight(request: Request) -> AsyncIterator[ApiError | None
 
 async def geocode_rate_limit(request: Request) -> None:
     """Route dependency: the geocode bucket, independent of analyze."""
-    _throttle(GEOCODE_LIMITER, request)
+    await _throttle(GEOCODE_LIMITER, request)
 
 
 async def wildfires_rate_limit(request: Request) -> None:
     """Route dependency: the wildfire-overlay bucket, independent of analyze."""
-    _throttle(WILDFIRES_LIMITER, request)
+    await _throttle(WILDFIRES_LIMITER, request)
 
 
 async def smoke_rate_limit(request: Request) -> None:
     """Route dependency: the smoke-overlay bucket, independent of wildfires."""
-    _throttle(SMOKE_LIMITER, request)
+    await _throttle(SMOKE_LIMITER, request)
 
 
 async def closures_rate_limit(request: Request) -> None:
     """Route dependency: the closure-overlay bucket, independent of the other overlays."""
-    _throttle(CLOSURES_LIMITER, request)
+    await _throttle(CLOSURES_LIMITER, request)
+
+
+async def landmarks_rate_limit(request: Request) -> None:
+    """Route dependency: the map markers' bucket, independent of the overlays."""
+    await _throttle(LANDMARKS_LIMITER, request)

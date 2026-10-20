@@ -6,7 +6,8 @@ upstreams, on purpose:
 
 - The fetch layers (``osm``, ``weather.py``, ``air_quality.py``) use short
   slugs: ``service`` is ``weather``/``aqi``, ``mirror`` is the Overpass host,
-  and ``path`` is ``discovery``/``enrichment``, the question Overpass was asked.
+  and ``path`` is ``discovery``/``enrichment``/``update``, the question Overpass
+  was asked.
 - The pacing layer (``ratelimit``) uses each budget's ``provider`` string
   verbatim ("Open-Meteo (air quality)", …). Those strings already uniquely
   name every budget instance, and mapping them to slugs here would be a
@@ -128,10 +129,11 @@ DESTINATIONS_RETURNED = Histogram(
     buckets=_FIELD_BUCKETS,
 )
 
-# ── Overpass (discovery and the elevation lookup) ─────────────────────────────
+# ── Overpass (discovery, the elevation lookup and the daily update) ───────────
 
 # `path` says which question was asked: `discovery` for a polygon's features,
-# `enrichment` for the peak beside each pasted point (osm/enrich.py). The two
+# `enrichment` for the peak beside each pasted point (osm/enrich.py), `update`
+# for the shapes a day file could not place (places/update.py, #760). The
 # queries differ in size and in how long the asker waits, and the lookup's
 # per-mirror slices are retuned from its own series alone (#655).
 OVERPASS_REQUESTS = Counter(
@@ -193,6 +195,16 @@ SNAPSHOT_REFRESH_FAILURES = Counter(
     "bluebird_forecast_snapshot_refresh_failures_total",
     "Snapshot refreshes that failed or outran their deadline, by provider.",
     ["provider"],
+)
+
+# One per refresh of a source the shared cache keeps (#760): the overlay
+# snapshots, the OpenStreetMap update and the counters' sweep. `cache` is a
+# refresh name from the fixed set app/db/refresh.py registers, `outcome`
+# success or failure.
+REFRESHES = Counter(
+    "bluebird_forecast_cache_refreshes_total",
+    "Refreshes of a shared-cache source, by source and outcome.",
+    ["cache", "outcome"],
 )
 
 # ── Pacing, budgets, and per-client limits (ratelimit wires these) ───────────

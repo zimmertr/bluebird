@@ -13,12 +13,12 @@ three repositories and the supporting services that automate the path.
 
 | System | Role |
 | --- | --- |
-| **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image. |
+| **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image, plus a second image for the planet fill that builds the shared cache's places table (`fill/`, #760). |
 | **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set. That flag only labels the version on Artifact Hub; the `ignore` entry in `artifacthub-repo.yml` is what keeps PR builds off the listing, so Artifact Hub never offers one as the default version. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Lint & render` that walk does block a PR, because it reads the chart alone. Its `pr-title.yml` is the same `PR Title` check as this repo's. |
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` and `Validate Terraform` checks. |
-| **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
+| **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-fill` (the planet fill, released beside each app image at the same version), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
-| **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`. |
+| **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`; since #760 the CloudNativePG operator (an app of its own, in `postgres-system`), the PostgreSQL it runs for the app in `bluebird-system`, and the planet fill's CronJob. |
 
 Everything consumes the chart **OCI-natively** (kustomize `helmCharts` and an
 Argo CD `repoURL: oci://…`); nothing uses a classic Helm repo index.
@@ -56,6 +56,7 @@ flowchart TD
 
     subgraph DH["Docker Hub"]
         dhImage["zimmertr/bluebird:SemVer"]
+        dhFill["zimmertr/bluebird-fill:SemVer"]
         dhChart["OCI chart<br/>zimmertr/bluebird-helm"]
     end
 
@@ -64,15 +65,19 @@ flowchart TD
     subgraph CL["Cluster"]
         argocd["Argo CD"]
         rollout["Argo Rollout<br/>canary + Istio"]
+        db["CloudNativePG operator<br/>+ PostgreSQL"]
+        fillJob["CronJob: planet fill<br/>at the chart's appVersion"]
         prod(["bluebirdforecast.com"])
     end
 
     dev -.->|merge app PR| bbMain
     bbMain --> bbRel
     bbRel -->|GitVersion, then build| dhImage
+    bbRel -->|build beside it| dhFill
     bbRel --> bbScan
     bbScan -->|passed| ghRelease
     dhImage -.->|pushed digest, both platforms| bbScan
+    dhFill -.->|pushed digest, both platforms| bbScan
     bbScan -->|passed: open/update PR: image newTag| kmImagePR
     bbScan -->|passed: open/update PR| helmPR
 
@@ -95,8 +100,13 @@ flowchart TD
     kmStable --> argocd
     dhChart -->|OCI pull| argocd
     argocd -->|sync + kustomize inflate| rollout
+    argocd -->|sync waves -2 and -1, before the app| db
+    argocd -->|sync| fillJob
     dhImage -->|image pull| rollout
+    dhFill -->|image pull| fillJob
     rollout --> prod
+    rollout -.->|reads| db
+    fillJob -->|fills places| db
 ```
 
 **Path 1 — App release** (`bluebird/release.yml`, on merge to `main` or a
@@ -154,8 +164,19 @@ the newest release (#632).
    before `USER`. `APP_BUILT_AT` changes on every build, so declaring them any
    earlier would invalidate the `pip install` layer every time and throw away
    the build cache.
-3. **Scan Pushed Image** — Trivy, once per platform (`linux/amd64` and
-   `linux/arm64`), against `zimmertr/bluebird@<digest>` from step 2, with the
+
+   **Build & Push Fill** (#760) runs beside it rather than after it: the same
+   multi-arch build with SBOM and provenance, from `fill/Dockerfile`, pushed as
+   `zimmertr/bluebird-fill:<semver>`, with the same re-run check on the
+   image's revision label. It pushes no git tag, which stays Build & Push's
+   alone, and it keeps no layer cache: the image is one `apt-get install`, and
+   the repository's Actions cache is already over its limit, so every release
+   installs Debian's packages as they stand that day. The chart runs the fill
+   at its `appVersion`, so every release needs one. Record:
+   [0184](decisions/0184-planet-fill-cronjob-and-image.md)
+3. **Scan Pushed Image** — Trivy, once per image and platform
+   (`zimmertr/bluebird` and `zimmertr/bluebird-fill`, each on `linux/amd64`
+   and `linux/arm64`), against each image's digest from step 2, with the
    same `trivy.yaml` and `.github/actions/trivy-crit-high` as the PR gate and
    the weekly scan. It fails on a fixable Critical/High finding. Steps 4, 5
    and 6 all need it, so production, the chart's default image and the GitHub
@@ -244,7 +265,14 @@ manual dispatch, which the same ref check confines to `main`):
 `values.yml`, overlays the namespace and the three `AnalysisTemplate`s
 (`api-test`, `error-rate` and `version-check`), and pins
 the image via `images.newTag`. The chart renders an **Argo Rollout** plus the
-Istio `VirtualService`/`Gateway`; cert-manager terminates TLS. The rollout
+Istio `VirtualService`/`Gateway`; cert-manager terminates TLS. Since #760 the
+chart also renders the CloudNativePG `Cluster` its `database` subchart
+declares and the planet fill's CronJob. The Kustomization inflates it with
+`skipTests: true`, so the subchart's test hook is not run as a Job on every
+sync. The operator that runs the `Cluster` is an Argo CD app of its own,
+`misc/cloudnative-pg` (chart 0.29.1). Sync waves order the rest: the
+database's static volume at -2, the database at -1, the app at 0, because the
+app's pods read the Secret the operator writes for the database. The rollout
 itself is a four-step canary — a scale step that starts one canary pod at zero
 user traffic, then three blocking analyses, then promotion in a single cutover — described
 in [Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
@@ -258,7 +286,7 @@ chart release in `bluebird-helm` recovers the same way, by re-running its
 
 1. **Re-run the run.** "Re-run all jobs" or "Re-run failed jobs" on the failed
    `release.yml` run. Each job makes only what is still missing, in order: the
-   image, the tag, the scan, the release, then the two bump PRs. This is the whole
+   two images, the tag, the scan, the release, then the two bump PRs. This is the whole
    recovery when the failure was transient. A scan that failed on a finding is
    not transient; see [The release scan](#the-release-scan).
 2. **If the tag push itself keeps failing**, push the tag by hand at the run's
@@ -306,17 +334,20 @@ only, up to a week later. So `Scan Pushed Image` scans the release's own push
 before production moves (#634):
 
 - **By digest.** The image ref is `zimmertr/bluebird@<digest>`, from
-  `Build & Push`'s `digest` output, so the bytes scanned are the bytes
+  `Build & Push`'s `digest` output, and `zimmertr/bluebird-fill@<digest>` from
+  `Build & Push Fill`'s, so the bytes scanned are the bytes
   pushed rather than whatever a name resolves to when the scan runs.
-- **Once per platform.** A matrix over `linux/amd64` and `linux/arm64`, with
-  `fail-fast: false` so both report. The digest names the multi-platform
-  index; `TRIVY_PLATFORM` picks the half each leg reads, and without it both
-  legs would read amd64.
+- **Once per image and platform.** A matrix over the two images and
+  `linux/amd64` and `linux/arm64`, with `fail-fast: false` so all four legs
+  report; each reports as `Scan Pushed Image (<image>, <platform>)`. The
+  digest names the multi-platform index; `TRIVY_PLATFORM` picks the half each
+  leg reads, and without it both platforms would read amd64.
 - **One definition of a failure.** The same `trivy-action` pin,
   `ignore-unfixed`, `trivy.yaml` and `.github/actions/trivy-crit-high` as the
   PR gate and the weekly scan, so the three judge an image alike.
-- **No credential.** The image is public, so the job does not log in to
-  Docker Hub and holds nothing a scanner could read.
+- **No credential.** Both images are public, so the job does not log in to
+  Docker Hub and holds nothing a scanner could read. `zimmertr/bluebird-fill`
+  has to be made public by hand on Docker Hub, or its two legs cannot pull it.
 
 `Create GitHub Release`, `Update Kubernetes Manifests` and `Bump Helm Chart
 appVersion` all need the scan. A scan that fails therefore leaves production
@@ -326,7 +357,9 @@ failure after the push. The release is held as well as the two bumps because
 `bluebird-helm`'s own release resolves the chart's `appVersion` from
 `releases/latest` at package time: a failed version marked Latest would
 become the chart's default image at the next chart release, whatever the
-bump job did (maintainer, 2026-10-06). The fix is
+bump job did (maintainer, 2026-10-06). A finding in the fill image holds the
+release the same way, since the chart runs the fill at the version it
+releases. The fix is
 the next release, the same remedy as the [scheduled image
 scan](#scheduled-image-scan): merge the open Dependabot base-image PR, or if
 there is none, clear the buildx cache and release. Re-running the run does
@@ -351,6 +384,12 @@ job merged is the first measurement.
 - **Chart version (preview)** — Path 2, a self-merging PR
   (`chore/bluebird-preview-chart`); ephemeral per-PR environments only, so it
   never touches prod.
+
+The planet fill has no knob of its own. The chart runs
+`zimmertr/bluebird-fill` at its `appVersion`, and the Kustomization's
+`images` entry names `zimmertr/bluebird` alone, so the fill reaches production
+with Path 1 step 6's bump and the chart release that follows, a step behind
+the app's image.
 
 A routine code change ships via the image tag alone; the chart version only
 moves when the chart itself changes (or its default `appVersion` is bumped).
@@ -495,7 +534,11 @@ applied to *object* metadata, while the Rollout's pod template uses
 `bluebird.selectorLabels`, which omits it; and `bluebird.image` does default to
 `.Chart.AppVersion`, but KM's `images:` transformer pins an explicit `newTag`
 that wins. The pod template is unchanged, so merging such a bump triggers no
-canary at all.
+canary at all. Since #760 one object does move: the planet fill's CronJob,
+whose image follows `.Chart.AppVersion` because `images:` names
+`zimmertr/bluebird` alone. That is how a release's fill reaches production,
+and it starts no canary either, since the CronJob is not the Rollout's pod
+template.
 
 A chart release that *does* change prod — a new default, a new resource — rolls
 out as a canary like any other pod-template change, and `Validate manifests` has
@@ -974,6 +1017,12 @@ and a name it requires that no longer reports strands every open pull request.
 `Aggregation vectors in sync` was required too from 2026-09-15 until #380 deleted
 the job, and it had to leave the required list in the same change.
 
+`Database Tests` and `Planet Fill` joined `pr.yml` with #760, after that read,
+so neither is on the list, and neither has been timed in CI yet. Locally the
+fill's two image builds took 19 s cold, in parallel, and its suite 4.6 s. Both
+start with the other jobs, so they stay off the critical path while each
+finishes inside `Docker Build` and `Lighthouse Budgets`.
+
 ### The repository's Actions cache
 
 Measured 2026-09-15, and the single largest source of variance in every build
@@ -1024,6 +1073,9 @@ gh cache list --limit 100 --json id,ref --jq '.[] | select(.ref | startswith("re
 `Scan Pushed Image` (#634) is newer than these runs and is not in the table;
 it runs between `Build & Push` and every later job, so its time adds to the
 whole run and to the first segment of [Merge to live](#merge-to-live).
+`Build & Push Fill` (#760) is newer still. It runs beside `Build & Push`, and
+the scan waits for both, so it lengthens a release only when it is the slower
+of the two.
 
 `Build & Push` is the multi-arch build, and within it one step dominates.
 In release run `34916818009` the **arm64 `npm run build` took 35.6 s against
@@ -1096,7 +1148,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, mypy, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets, browser smoke + axe"]
+        checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, mypy, pytest, OpenAPI + API-type drift,<br/>database tests against PostGIS, planet fill build + suite + Trivy,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets, browser smoke + axe"]
         title["pr-title.yml<br/>PR Title: GitVersion reads the title<br/>(also on a title edit)"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
@@ -1183,6 +1235,23 @@ flowchart LR
   and `backend/requirements.in`, and `/app/LICENSE` is in the image. The
   build itself fails before that when a bundled or installed package has no
   license text, so this job is where a missing notice turns a PR red.
+- `pr.yml`'s **Database Tests** job (#760) runs the backend tests marked `db`,
+  the shared cache's schema, readers and writers, against a PostgreSQL 17 with
+  PostGIS built from `backend/tests/db/Dockerfile`. The database builds and
+  starts in the background while Python installs, and the job waits for it
+  over TCP for up to two minutes. It is a job of its own so `Backend Tests`
+  keeps its time; `Backend Tests` skips those tests, since it has no database.
+  `make test-backend-db` is the same run locally.
+- `pr.yml`'s **Planet Fill** job (#760) lints `fill/Dockerfile` with hadolint,
+  builds the fill image and its test stage while the same test database starts
+  in the background, runs the fill's suite against it (unit tests, and an end
+  to end fill of a small fixture planet), and scans the fill image with Trivy
+  under the same `trivy.yaml` and the same fixable Critical/High gate as
+  `Docker Build`. It posts no PR comment: the app's sticky comment stays the
+  one place to look, and this job's summary carries the table when it fails.
+  It keeps no Actions layer cache, for the reason `Build & Push Fill` keeps
+  none. `make test-fill` is the same run locally, and `Python Lint` checks
+  `fill/` beside `backend/`.
 - `pr.yml`'s **Lighthouse Budgets** job runs after `docker-build`, rebuilds from
   that job's warm Actions cache, serves the real image, and audits `/` three
   times with **Lighthouse CI**. It fails the PR when the first screen crosses a
@@ -1257,6 +1326,16 @@ flowchart LR
   (surfaced by `/api/config` → the SPA banner) plus `LOG_LEVEL=TRACE`. Closing
   the PR prunes the environment, and `cache-cleanup.yml` deletes that PR's
   Actions caches.
+- **A preview reads production's database and runs none of its own** (#760).
+  The `ApplicationSet` sets `database.enabled: false`, `existingSecret:
+  bluebird-database-preview` and `readOnly: true`, so the chart renders no
+  database and no fill, and the pod connects with `bluebird_preview`, a login
+  that can only read (`pg_read_all_data`). A preview therefore shows real
+  places and overlays with no fill of its own, and keeps its counters in its
+  own memory. The maintainer accepted this on one condition (2026-10-18): only
+  while that database holds nothing but public data the fill can rebuild. If
+  it ever holds anything else, previews must stop reading it. Record:
+  [0183](decisions/0183-previews-read-production-read-only.md)
 - **A preview lives for as long as its PR carries `create pr container`.** It
   has no age limit. The maintainer ends one by removing the label or closing the
   PR; the generator then stops templating `bluebird-pr-<N>` on its next poll, the
@@ -1288,7 +1367,7 @@ produce. The next two sections give the details.
 flowchart LR
     subgraph SCAN["Weekly image re-scan"]
         cron["image-scan.yml<br/>cron, Trivy"]
-        released["Docker Hub<br/>latest released image"]
+        released["Docker Hub<br/>latest released images"]
         sarif["Security tab<br/>SARIF alerts"]
         email["failure email<br/>fixable Crit/High only"]
     end
@@ -1321,7 +1400,13 @@ flowchart LR
 PR-time scanning gates what gets *published*, but CVEs are disclosed after
 images ship. The released image rots while nothing rebuilds it.
 `image-scan.yml` (weekly cron + `workflow_dispatch`) re-scans the **latest
-released** `zimmertr/bluebird:<semver>` with Trivy:
+released** `zimmertr/bluebird:<semver>` with Trivy, and since #760
+`zimmertr/bluebird-fill:<semver>` beside it, one matrix leg each with
+`fail-fast: false`. The app's alerts keep the `trivy-released-image` category,
+so their history holds, and the fill's land under `trivy-released-fill-image`.
+For the fill, the remedy is the Dependabot base-image PR for
+`fill/Dockerfile`, or with none, the next merge to `main`, whose release
+rebuilds the fill without a layer cache and takes Debian's current fixes:
 
 The moment of release is covered by [the release scan](#the-release-scan),
 which scans both platforms of the pushed digest before production moves. This
@@ -1369,8 +1454,8 @@ the Hub dashboard; the cron's failure email is the push-based signal.
 ## Dependabot auto-merge
 
 Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend`,
-`/frontend/tools/api-types` and `/frontend/tools/eslint`, `github-actions` and
-`docker` base images in `/`).
+`/frontend/tools/api-types` and `/frontend/tools/eslint`, `github-actions`, and
+`docker` base images in `/`, `/fill` and `/backend/tests/db`).
 The type generator's package ignores TypeScript **major** bumps: it is pinned to
 5 because `openapi-typescript` loads the compiler API and peers on `^5.x`, which
 is why it is a package apart from the app in the first place. The linter's
@@ -1420,7 +1505,8 @@ wait for a person, for the `Workflows` reason below. The Dockerfile's base
 images are pinned as `tag@digest`, with the tags floating at the minor
 (`python:3.14-alpine`, `node:26-alpine`): a new minor or major is a runtime
 bump that waits for review, and a rebuild of the image under the same tag
-arrives as a digest PR. A Node major bump also fails `Backend Tests` until the
+arrives as a digest PR. The fill's `debian:trixie-slim` and the test
+database's `postgres:17-trixie` are pinned the same way (#760). A Node major bump also fails `Backend Tests` until the
 same PR moves `.node-version` to match, which is what keeps CI on the image's
 runtime. Base-OS *patch* fixes no longer arrive unannounced at the next build:
 they come as that digest PR. The merge PAT is intentionally scoped to Contents +
@@ -1453,8 +1539,8 @@ sequenceDiagram
     participant ARGO as Argo CD
 
     Dev->>BB: merge PR to main
-    BB->>DH: push bluebird:0.21.1
-    BB->>DH: scan the pushed digest, amd64 and arm64 (Trivy)
+    BB->>DH: push bluebird:0.21.1 and bluebird-fill:0.21.1
+    BB->>DH: scan both pushed digests, amd64 and arm64 (Trivy)
     BB->>KM: open/update image newTag=0.21.1 PR + arm auto-merge
     BB->>HELM: open/update appVersion bump PR + arm auto-merge
     KM->>KM: auto-merge image PR (after required checks)
@@ -1467,7 +1553,7 @@ sequenceDiagram
     KM->>KM: auto-merge preview PR (after required checks)
     KM->>KM: auto-merge stable PR (after required checks)
     KM->>ARGO: auto-sync
-    ARGO->>ARGO: no canary — the chart change only moves object-metadata labels
+    ARGO->>ARGO: no canary, since the chart change moves only labels and the fill CronJob's image
 ```
 
 That last step is specific to an `appVersion`-only chart release, where the pod

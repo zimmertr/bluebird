@@ -579,7 +579,7 @@
         "properties": {
           "coverage": {
             "additionalProperties": true,
-            "description": "The area the feeds behind the requested `kind` cover, as a GeoJSON MultiPolygon geometry riding as a second foreign member. It differs by kind. For `area` it outlines the Forest Service's Regions 3, 4 and 6: Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington, less two Region 5 areas in Nevada. For `trail` it outlines Region 6 alone, Oregon and Washington, because only Region 6 publishes closed trails and sites. Every outline is coarse and biased about 0.2\u00b0 outward on land borders. An empty `features` array for a bbox outside this geometry means the feeds cannot see that area, not that nothing is closed there. The trail outline is static per release. The area outline leaves out Region 3 or Region 4 when this instance's last fetch from that region failed, because the snapshot then holds none of its orders.",
+            "description": "The area the feeds behind the requested `kind` cover, as a GeoJSON MultiPolygon geometry riding as a second foreign member. It differs by kind. For `area` it outlines the Forest Service's Regions 3, 4 and 6: Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington, less two Region 5 areas in Nevada. For `trail` it outlines Region 6 alone, Oregon and Washington, because only Region 6 publishes closed trails and sites. Every outline is coarse and biased about 0.2\u00b0 outward on land borders. An empty `features` array for a bbox outside this geometry means the feeds cannot see that area, not that nothing is closed there. The trail outline is static per release. The area outline leaves out Region 3 or Region 4 when the last fetch from that region failed, because the snapshot then holds none of its orders.",
             "title": "Coverage",
             "type": "object"
           },
@@ -593,7 +593,7 @@
             "type": "array"
           },
           "fetched_at": {
-            "description": "When this instance last fetched closure orders from the Forest Service, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Closures are cached per instance and served past their refresh deadline when the Forest Service is unreachable, so this is the only honest statement of how current the answer is. It is not when any order was issued or last edited.",
+            "description": "When Bluebird Forecast last fetched closure orders from the Forest Service, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Closures are cached and served past their refresh deadline when the Forest Service is unreachable, so this is the only honest statement of how current the answer is. It is not when any order was issued or last edited.",
             "title": "Fetched At",
             "type": "integer"
           },
@@ -1070,7 +1070,7 @@
           },
           "elevation_lookup": {
             "default": true,
-            "description": "Whether to look up the elevation and OSM id of each `custom_destinations` row sent without an `elevation_ft`. `false` skips the map server: those rows come back as sent, in milliseconds, and a request that also discovers nothing takes no discovery slot. The bundled web app sends `false` from an analysis, because it looks its rows up itself as they are pasted, from the basemap's own tiles first and this endpoint second, and `elevation_lookup_complete` is then true only when no row needed a lookup.",
+            "description": "Whether to look up the elevation and OSM id of each `custom_destinations` row sent without an `elevation_ft`. `false` skips the lookup: those rows come back as sent, in milliseconds, and a request that also discovers nothing takes no discovery slot. The bundled web app sends `false` from an analysis, because it has already looked its rows up through this endpoint as they were pasted, and `elevation_lookup_complete` is then true only when no row needed a lookup.",
             "title": "Elevation Lookup",
             "type": "boolean"
           },
@@ -1561,6 +1561,38 @@
         "title": "HourlySeries",
         "type": "object"
       },
+      "LandmarkCollection": {
+        "description": "A GeoJSON FeatureCollection of named trailheads and crags, plus how current it is.\n\nDeclared for the schema only: the handler returns the text it builds.",
+        "properties": {
+          "features": {
+            "description": "Point features inside the requested bounding box. Each carries `name`, `kind` (`trailhead` or `crag`), `osm_id` (`node/123`, `way/123` or `relation/123`) and `elevation_ft`, an integer or null. The geometry is the OSM node's position, or the centre of a way or relation. Features of one kind and one name within 300 m are one place, as in a polygon search, so a marker is the row a polygon around it returns.",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "fetched_at": {
+            "description": "When this instance's copy of OpenStreetMap was last brought up to date, in epoch milliseconds: the last daily change file applied, or the planet file it was filled from. A GeoJSON foreign member, which map libraries ignore.",
+            "title": "Fetched At",
+            "type": "integer"
+          },
+          "type": {
+            "const": "FeatureCollection",
+            "description": "Always `FeatureCollection`, so the body drops straight into a map library.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "fetched_at",
+          "features"
+        ],
+        "title": "LandmarkCollection",
+        "type": "object"
+      },
       "Limits": {
         "description": "Hard bounds every request is validated against.",
         "properties": {
@@ -1689,7 +1721,7 @@
         "type": "object"
       },
       "RateLimits": {
-        "description": "Per-client request pacing on the expensive endpoints.\n\nEnforced per backend instance, so behind a multi-replica deployment the\neffective ceiling is roughly the number shown times the replica count.\nRequests past a limit receive 429 with a `Retry-After` header.",
+        "description": "Per-client request pacing on the expensive endpoints.\n\nEnforced across every backend instance while the deployment's shared\ncache is up, and per backend instance otherwise, where behind a\nmulti-replica deployment the effective ceiling is roughly the number shown\ntimes the replica count. Requests past a limit receive 429 with a\n`Retry-After` header.",
         "properties": {
           "analyze_burst": {
             "description": "How many analyze requests an idle client can send back-to-back before the per-minute pace applies.",
@@ -1731,6 +1763,16 @@
             "title": "Geocode Per Minute",
             "type": "integer"
           },
+          "landmarks_burst": {
+            "description": "How many landmark requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan, which refetches on a 400 ms debounce from zoom 11 up.",
+            "title": "Landmarks Burst",
+            "type": "integer"
+          },
+          "landmarks_per_minute": {
+            "description": "Sustained `GET /api/landmarks` requests per client address per minute. As loose as the wildfire bucket and for the same reason: it answers from the places table and reaches no upstream. 0 means the limit is disabled.",
+            "title": "Landmarks Per Minute",
+            "type": "integer"
+          },
           "smoke_burst": {
             "description": "How many smoke requests an idle client can send back-to-back before the per-minute pace applies.",
             "title": "Smoke Burst",
@@ -1764,7 +1806,9 @@
           "smoke_per_minute",
           "smoke_burst",
           "closures_per_minute",
-          "closures_burst"
+          "closures_burst",
+          "landmarks_per_minute",
+          "landmarks_burst"
         ],
         "title": "RateLimits",
         "type": "object"
@@ -1787,7 +1831,7 @@
             "type": "array"
           },
           "fetched_at": {
-            "description": "When this instance last fetched from NOAA, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Plumes are cached per instance and served past their refresh deadline when NOAA is unreachable, so this is the only honest statement of how current the shapes are.",
+            "description": "When Bluebird Forecast last fetched from NOAA, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Plumes are cached and served past their refresh deadline when NOAA is unreachable, so this is the only honest statement of how current the shapes are.",
             "title": "Fetched At",
             "type": "integer"
           },
@@ -1931,7 +1975,7 @@
             "type": "array"
           },
           "fetched_at": {
-            "description": "When this instance last fetched perimeters from NIFC, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Perimeters are cached per instance and served past their refresh deadline when NIFC is unreachable, so this is the only honest statement of how current the shapes are. It is not when any individual fire was last surveyed: that is the per-feature `attr_ModifiedOnDateTime_dt`, which routinely runs days older.",
+            "description": "When Bluebird Forecast last fetched perimeters from NIFC, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Perimeters are cached and served past their refresh deadline when NIFC is unreachable, so this is the only honest statement of how current the shapes are. It is not when any individual fire was last surveyed: that is the per-feature `attr_ModifiedOnDateTime_dt`, which routinely runs days older.",
             "title": "Fetched At",
             "type": "integer"
           },
@@ -1966,7 +2010,7 @@
       "name": "Bluebird Forecast on GitHub",
       "url": "https://github.com/zimmertr/bluebird"
     },
-    "description": "\nBluebird Forecast ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named destination inside it is discovered from\nOpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThe analyze routes require an Open-Meteo API key in the X-Open-Meteo-Key\nheader. Every other route takes no key and no authentication. A keyed request\nspends the caller's Open-Meteo quota, never this deployment's.\n\nLight per-address rate limits and an instance-wide upstream budget protect the\nfree, keyless APIs underneath: requests past them receive 429 or 503 with a\n`Retry-After` header, and `GET /api/capabilities` publishes the numbers. Please\nstay considerate all the same: a single analysis can fan out to hundreds of\nforecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
+    "description": "\nBluebird Forecast ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named destination inside it is discovered from\nOpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThe analyze routes require an Open-Meteo API key in the X-Open-Meteo-Key\nheader. Every other route takes no key and no authentication. A keyed request\nspends the caller's Open-Meteo quota, never this deployment's.\n\nLight per-address rate limits and an upstream budget protect the free, keyless\nAPIs underneath: requests past them receive 429 or 503 with a\n`Retry-After` header, and `GET /api/capabilities` publishes the numbers. Please\nstay considerate all the same: a single analysis can fan out to hundreds of\nforecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
     "license": {
       "name": "PolyForm-Noncommercial-1.0.0",
       "url": "https://polyformproject.org/licenses/noncommercial/1.0.0"
@@ -2176,7 +2220,7 @@
     },
     "/api/closures": {
       "get": {
-        "description": "Active closure orders from three US Forest Service regions, intersecting `bbox`: the Pacific Northwest Region (Region 6), the Southwestern Region (Region 3) and the Intermountain Region (Region 4).\n\n`kind` picks the question. `area` answers where a person may not enter, as polygons, from all three regions. `trail` answers which ways in are shut, as lines for closed trails and roads plus points for closed trailheads and sites, from Region 6 alone.\n\nCoverage therefore differs by kind. `area` covers Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington. `trail` covers Oregon and Washington only. An empty result outside the coverage for its kind means \"not covered\", not \"nothing closed\". The `coverage` member states this machine-readably.\n\nRegions 3 and 4 publish every standing forest order, not closures alone, so an order from them is returned only when it closes an area to entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or its name or description says entry is prohibited in a sentence that names no permit as the way in.\n\nThis instance fetches every region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.",
+        "description": "Active closure orders from three US Forest Service regions, intersecting `bbox`: the Pacific Northwest Region (Region 6), the Southwestern Region (Region 3) and the Intermountain Region (Region 4).\n\n`kind` picks the question. `area` answers where a person may not enter, as polygons, from all three regions. `trail` answers which ways in are shut, as lines for closed trails and roads plus points for closed trailheads and sites, from Region 6 alone.\n\nCoverage therefore differs by kind. `area` covers Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington. `trail` covers Oregon and Washington only. An empty result outside the coverage for its kind means \"not covered\", not \"nothing closed\". The `coverage` member states this machine-readably.\n\nRegions 3 and 4 publish every standing forest order, not closures alone, so an order from them is returned only when it closes an area to entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or its name or description says entry is prohibited in a sentence that names no permit as the way in.\n\nBluebird Forecast fetches every region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. It answers 503 when no fetch has completed yet, or when every refresh has failed for more than 24 hours since the last good one.",
         "operationId": "closures_api_closures_get",
         "parameters": [
           {
@@ -2264,7 +2308,7 @@
                 }
               }
             },
-            "description": "This instance has never completed a fetch from the Forest Service, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry."
+            "description": "No fetch from the Forest Service has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve. Transient; `Retry-After` says when to retry."
           }
         },
         "summary": "Forest Service closure orders in a bounding box",
@@ -2475,9 +2519,77 @@
         ]
       }
     },
+    "/api/landmarks": {
+      "get": {
+        "description": "Every named trailhead (`highway=trailhead`, or a parking lot named as one) and crag (a climbing crag, area or boulder, never a single route) that OpenStreetMap carries inside `bbox`, as points.\n\nThis exists because the basemap's tiles carry neither: no tile has a trailhead, and the climbing points a tile has lose OSM's `climbing=` tag, so a crag, a boulder and a single route look alike and a crag mapped as a relation is absent. The answer comes from this instance's own copy of OpenStreetMap, filled from the planet file and kept current from its daily change files, so a map pan costs no upstream anything.\n\nAn instance without that copy, or whose first fill has not finished, answers 503.",
+        "operationId": "landmarks_in_box_api_landmarks_get",
+        "parameters": [
+          {
+            "description": "Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A feature is returned when its point is inside. A west edge east of the east edge crosses the antimeridian.",
+            "in": "query",
+            "name": "bbox",
+            "required": true,
+            "schema": {
+              "description": "Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A feature is returned when its point is inside. A west edge east of the east edge crosses the antimeridian.",
+              "examples": [
+                "-121.9,47.4,-121.5,47.9"
+              ],
+              "title": "Bbox",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LandmarkCollection"
+                }
+              }
+            },
+            "description": "Trailheads and crags inside the box, with when the copy was last updated."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`bbox` was missing, malformed, or outside valid coordinate ranges."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This instance holds no copy of OpenStreetMap to answer from: it runs without the database, or its first fill has not finished. `Retry-After` says when to ask again."
+          }
+        },
+        "summary": "Named trailheads and crags in a bounding box",
+        "tags": [
+          "landmarks"
+        ]
+      }
+    },
     "/api/smoke": {
       "get": {
-        "description": "Today's hand-traced smoke plumes covering North America, at all three densities.\n\nHMS is an analyst product, not a model: people at NOAA read GOES imagery and trace what they can see, roughly twice a day. So this is a picture of where the smoke is rather than a forecast, and there is nothing here to animate.\n\nThe whole analysis comes back in one response and there is no bounding box to send: a busy day measured under half a megabyte, so filtering would cost a parameter and save nothing.\n\nThis instance fetches the dated file from NOAA on a timer and serves it to everyone, and serves it past its refresh deadline when NOAA is unreachable \u2014 smoke traced this morning is the only tracing there will be until the next pass. Read `fetched_at` and `analysis_date` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.\n\nCoverage is North America, which is what HMS analyzes. An empty result elsewhere means \"not covered\", not \"clear air\".",
+        "description": "Today's hand-traced smoke plumes covering North America, at all three densities.\n\nHMS is an analyst product, not a model: people at NOAA read GOES imagery and trace what they can see, roughly twice a day. So this is a picture of where the smoke is rather than a forecast, and there is nothing here to animate.\n\nThe whole analysis comes back in one response and there is no bounding box to send: a busy day measured under half a megabyte, so filtering would cost a parameter and save nothing.\n\nBluebird Forecast fetches the dated file from NOAA on a timer and serves it to everyone, and serves it past its refresh deadline when NOAA is unreachable \u2014 smoke traced this morning is the only tracing there will be until the next pass. Read `fetched_at` and `analysis_date` to see how current the answer is. It answers 503 when no fetch has completed yet, or when every refresh has failed for more than 24 hours since the last good one.\n\nCoverage is North America, which is what HMS analyzes. An empty result elsewhere means \"not covered\", not \"clear air\".",
         "operationId": "smoke_api_smoke_get",
         "responses": {
           "200": {
@@ -2508,7 +2620,7 @@
                 }
               }
             },
-            "description": "This instance has never completed a fetch from NOAA, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry."
+            "description": "No fetch from NOAA has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve. Transient; `Retry-After` says when to retry."
           }
         },
         "summary": "Smoke plumes from NOAA's Hazard Mapping System",
@@ -2541,7 +2653,7 @@
     },
     "/api/wildfires": {
       "get": {
-        "description": "Active wildfire perimeters from NIFC's WFIGS \"Interagency Perimeters \u2014 Current\" layer, intersecting `bbox`.\n\nThis exists because NIFC's ArcGIS quota belongs to *their* organization and is shared by every consumer of the public dataset, so a browser calling NIFC directly competes with the rest of the internet for it and loses at random. This instance fetches the national set on a timer and serves it to everyone, which reduces Bluebird Forecast's contribution to that quota to a fixed handful of requests per hour no matter how many people are looking at maps.\n\nCoverage is the United States only: NIFC does not publish perimeters elsewhere, so an empty result outside the US means \"not covered\", not \"nothing burning\".\n\nPerimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.",
+        "description": "Active wildfire perimeters from NIFC's WFIGS \"Interagency Perimeters \u2014 Current\" layer, intersecting `bbox`.\n\nThis exists because NIFC's ArcGIS quota belongs to *their* organization and is shared by every consumer of the public dataset, so a browser calling NIFC directly competes with the rest of the internet for it and loses at random. Bluebird Forecast fetches the national set on a timer and serves it to everyone, which reduces its contribution to that quota to a fixed handful of requests per hour no matter how many people are looking at maps.\n\nCoverage is the United States only: NIFC does not publish perimeters elsewhere, so an empty result outside the US means \"not covered\", not \"nothing burning\".\n\nPerimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. It answers 503 when no fetch has completed yet, or when every refresh has failed for more than 24 hours since the last good one.",
         "operationId": "wildfires_api_wildfires_get",
         "parameters": [
           {
@@ -2614,7 +2726,7 @@
                 }
               }
             },
-            "description": "This instance has never completed a fetch from NIFC, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry."
+            "description": "No fetch from NIFC has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve. Transient; `Retry-After` says when to retry."
           }
         },
         "summary": "Active US wildfire perimeters in a bounding box",
@@ -2673,6 +2785,10 @@
     {
       "description": "Closure orders cached from three US Forest Service regions: closed areas from Regions 3, 4 and 6, and closed trails, roads and sites from Region 6 (Oregon and Washington). Served from this instance's snapshot rather than proxied per request, because the upstream quota belongs to an ArcGIS organization and is shared with every other consumer.",
       "name": "closures"
+    },
+    {
+      "description": "Every named trailhead and crag in OpenStreetMap, because the basemap's tiles carry no trailhead and cannot tell a crag from a route. Served from this instance's own copy of OpenStreetMap rather than asked of an upstream per map pan.",
+      "name": "landmarks"
     }
   ]
 }

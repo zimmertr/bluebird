@@ -145,11 +145,14 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
     'https://air-quality-api.open-meteo.com/**',
     answer((r) => r.fulfill(json(hourlyBodies(new URL(r.request().url()), AQI_INPUTS, {})))),
   )
-  // The pod answers these four by calling Overpass, NIFC, NOAA and the Forest
-  // Service itself, so they are stubbed too. /api/capabilities and /api/config reach no upstream
-  // and are left to the image, so the limits the page reads are the real ones.
+  // The pod answers these five from its database, or from Overpass, NIFC,
+  // NOAA and the Forest Service on a deployment without one, and the image
+  // under test has none, so they are stubbed too. /api/capabilities and
+  // /api/config reach no upstream and are left to the image, so the limits the
+  // page reads are the real ones.
   await page.route('**/api/destinations', (r) => r.fulfill(json(destinationsBody(r))))
   await page.route('**/api/wildfires**', (r) => r.fulfill(emptyCollection()))
+  await page.route('**/api/landmarks**', (r) => r.fulfill(emptyCollection()))
   await page.route('**/api/smoke**', (r) => r.fulfill(emptyCollection()))
   await page.route('**/api/closures**', (r) => r.fulfill(emptyCollection()))
   return traffic

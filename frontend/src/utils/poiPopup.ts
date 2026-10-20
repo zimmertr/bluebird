@@ -6,7 +6,8 @@ import { escapeHtml, factsRow, metaBand, popupAction, popupButton, popupCard } f
 import { elevationFact } from './popupRows'
 import { TYPE_COL } from './tableColumns'
 
-// The popup a clicked basemap label opens (#119): a peak, a lake or a place.
+// The popup a clicked map label opens (#119): a peak, a lake, a place, a
+// trailhead or a crag.
 //
 // It wears the result card itself (#712, TJ 2026-10-14): the name and the
 // link out on the header band, the type, elevation and coordinates on the
@@ -25,13 +26,12 @@ import { TYPE_COL } from './tableColumns'
 export const POI_ACTION_ATTR = 'data-poi-action'
 
 /**
- * Where a clicked feature links out to.
- *
- * A tile carries no OSM id, so this cannot deep-link to the object the way an
- * analyzed row does. `destinationUrl` already handles that: a peak goes to
- * Peakbagger's coordinate search either way, and everything else falls back to
- * an OSM pin at the point — which is exactly what a custom row gets, and for
- * the same reason.
+ * Where a clicked feature links out to, by the rule an analyzed row follows
+ * (`destinationUrl`): a peak to Peakbagger's coordinate search, a crag to
+ * Mountain Project, and anything with an OSM id, which only the pod's
+ * trailheads carry (#734), to that object. A tile label has no id, so the
+ * rest fall back to an OSM pin at the point, which is what a custom row gets
+ * for the same reason.
  */
 function poiUrl(poi: BasemapPoi): string {
   return destinationUrl({
@@ -39,7 +39,7 @@ function poiUrl(poi: BasemapPoi): string {
     type: placeType(poi.kind),
     latitude: poi.lat,
     longitude: poi.lon,
-    osm_id: null,
+    osm_id: poi.osmId ?? null,
   })
 }
 

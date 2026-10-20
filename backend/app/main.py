@@ -18,11 +18,13 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from app import (
     body_limit,
     cache_headers,
+    db,
     log_redaction,
     ratelimit,
     security_headers,
     telemetry,
 )
+from app.db import refresh
 from app.error_codes import (
     INTERNAL_DETAIL,
     ApiError,
@@ -38,12 +40,14 @@ from app.routes.closures import router as closures_router
 from app.routes.config import router as config_router
 from app.routes.destinations import router as destinations_router
 from app.routes.geocode import router as geocode_router
+from app.routes.landmarks import router as landmarks_router
 from app.routes.notfound import EDGE_PATH_PHRASE, not_found_body
 from app.routes.notfound import router as notfound_router
 from app.routes.smoke import router as smoke_router
 from app.routes.version import router as version_router
 from app.routes.wildfires import router as wildfires_router
 from app.services import http as upstream_http
+from app.services.places import update as places_update  # noqa: F401  registers the daily update
 from app.version import get_version
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -140,8 +144,8 @@ The analyze routes require an Open-Meteo API key in the X-Open-Meteo-Key
 header. Every other route takes no key and no authentication. A keyed request
 spends the caller's Open-Meteo quota, never this deployment's.
 
-Light per-address rate limits and an instance-wide upstream budget protect the
-free, keyless APIs underneath: requests past them receive 429 or 503 with a
+Light per-address rate limits and an upstream budget protect the free, keyless
+APIs underneath: requests past them receive 429 or 503 with a
 `Retry-After` header, and `GET /api/capabilities` publishes the numbers. Please
 stay considerate all the same: a single analysis can fan out to hundreds of
 forecast requests.
@@ -194,6 +198,15 @@ _TAGS = [
             "organization and is shared with every other consumer."
         ),
     },
+    {
+        "name": "landmarks",
+        "description": (
+            "Every named trailhead and crag in OpenStreetMap, because the "
+            "basemap's tiles carry no trailhead and cannot tell a crag from a "
+            "route. Served from this instance's own copy of OpenStreetMap "
+            "rather than asked of an upstream per map pan."
+        ),
+    },
 ]
 
 @asynccontextmanager
@@ -203,10 +216,17 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # /metrics route here would be a public one (see telemetry.py).
     telemetry.init_canary_series(_app.openapi())
     telemetry.start_metrics_server()
+    # The shared cache (#760) connects in the background, so a pod whose
+    # database is down still starts and serves on its per-pod paths; the
+    # refresh loop runs on every pod and does work only where it takes a lock.
+    await db.start()
+    refresh.start()
     # The Open-Meteo client is built lazily on first use so it binds to this
     # loop; all we owe it is a close, so the pod's keep-alive connections go
     # away with the process rather than waiting on upstream's idle timeout.
     yield
+    await refresh.stop()
+    await db.stop()
     telemetry.stop_metrics_server()
     await upstream_http.aclose()
 
@@ -429,6 +449,7 @@ app.include_router(capabilities_router, prefix="/api")
 app.include_router(wildfires_router, prefix="/api")
 app.include_router(smoke_router, prefix="/api")
 app.include_router(closures_router, prefix="/api")
+app.include_router(landmarks_router, prefix="/api")
 # Must stay last of the /api routers: it matches every path under the prefix, so
 # anything registered after it would be unreachable.
 app.include_router(notfound_router, prefix="/api")

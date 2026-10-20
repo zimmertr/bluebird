@@ -95,7 +95,7 @@ export interface paths {
          *
          *     Regions 3 and 4 publish every standing forest order, not closures alone, so an order from them is returned only when it closes an area to entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or its name or description says entry is prohibited in a sentence that names no permit as the way in.
          *
-         *     This instance fetches every region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.
+         *     Bluebird Forecast fetches every region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. It answers 503 when no fetch has completed yet, or when every refresh has failed for more than 24 hours since the last good one.
          */
         get: operations["closures_api_closures_get"];
         put?: never;
@@ -169,6 +169,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/landmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Named trailheads and crags in a bounding box
+         * @description Every named trailhead (`highway=trailhead`, or a parking lot named as one) and crag (a climbing crag, area or boulder, never a single route) that OpenStreetMap carries inside `bbox`, as points.
+         *
+         *     This exists because the basemap's tiles carry neither: no tile has a trailhead, and the climbing points a tile has lose OSM's `climbing=` tag, so a crag, a boulder and a single route look alike and a crag mapped as a relation is absent. The answer comes from this instance's own copy of OpenStreetMap, filled from the planet file and kept current from its daily change files, so a map pan costs no upstream anything.
+         *
+         *     An instance without that copy, or whose first fill has not finished, answers 503.
+         */
+        get: operations["landmarks_in_box_api_landmarks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/smoke": {
         parameters: {
             query?: never;
@@ -184,7 +208,7 @@ export interface paths {
          *
          *     The whole analysis comes back in one response and there is no bounding box to send: a busy day measured under half a megabyte, so filtering would cost a parameter and save nothing.
          *
-         *     This instance fetches the dated file from NOAA on a timer and serves it to everyone, and serves it past its refresh deadline when NOAA is unreachable — smoke traced this morning is the only tracing there will be until the next pass. Read `fetched_at` and `analysis_date` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.
+         *     Bluebird Forecast fetches the dated file from NOAA on a timer and serves it to everyone, and serves it past its refresh deadline when NOAA is unreachable — smoke traced this morning is the only tracing there will be until the next pass. Read `fetched_at` and `analysis_date` to see how current the answer is. It answers 503 when no fetch has completed yet, or when every refresh has failed for more than 24 hours since the last good one.
          *
          *     Coverage is North America, which is what HMS analyzes. An empty result elsewhere means "not covered", not "clear air".
          */
@@ -228,11 +252,11 @@ export interface paths {
          * Active US wildfire perimeters in a bounding box
          * @description Active wildfire perimeters from NIFC's WFIGS "Interagency Perimeters — Current" layer, intersecting `bbox`.
          *
-         *     This exists because NIFC's ArcGIS quota belongs to *their* organization and is shared by every consumer of the public dataset, so a browser calling NIFC directly competes with the rest of the internet for it and loses at random. This instance fetches the national set on a timer and serves it to everyone, which reduces Bluebird Forecast's contribution to that quota to a fixed handful of requests per hour no matter how many people are looking at maps.
+         *     This exists because NIFC's ArcGIS quota belongs to *their* organization and is shared by every consumer of the public dataset, so a browser calling NIFC directly competes with the rest of the internet for it and loses at random. Bluebird Forecast fetches the national set on a timer and serves it to everyone, which reduces its contribution to that quota to a fixed handful of requests per hour no matter how many people are looking at maps.
          *
          *     Coverage is the United States only: NIFC does not publish perimeters elsewhere, so an empty result outside the US means "not covered", not "nothing burning".
          *
-         *     Perimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.
+         *     Perimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. It answers 503 when no fetch has completed yet, or when every refresh has failed for more than 24 hours since the last good one.
          */
         get: operations["wildfires_api_wildfires_get"];
         put?: never;
@@ -601,7 +625,7 @@ export interface components {
         ClosureCollection: {
             /**
              * Coverage
-             * @description The area the feeds behind the requested `kind` cover, as a GeoJSON MultiPolygon geometry riding as a second foreign member. It differs by kind. For `area` it outlines the Forest Service's Regions 3, 4 and 6: Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington, less two Region 5 areas in Nevada. For `trail` it outlines Region 6 alone, Oregon and Washington, because only Region 6 publishes closed trails and sites. Every outline is coarse and biased about 0.2° outward on land borders. An empty `features` array for a bbox outside this geometry means the feeds cannot see that area, not that nothing is closed there. The trail outline is static per release. The area outline leaves out Region 3 or Region 4 when this instance's last fetch from that region failed, because the snapshot then holds none of its orders.
+             * @description The area the feeds behind the requested `kind` cover, as a GeoJSON MultiPolygon geometry riding as a second foreign member. It differs by kind. For `area` it outlines the Forest Service's Regions 3, 4 and 6: Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington, less two Region 5 areas in Nevada. For `trail` it outlines Region 6 alone, Oregon and Washington, because only Region 6 publishes closed trails and sites. Every outline is coarse and biased about 0.2° outward on land borders. An empty `features` array for a bbox outside this geometry means the feeds cannot see that area, not that nothing is closed there. The trail outline is static per release. The area outline leaves out Region 3 or Region 4 when the last fetch from that region failed, because the snapshot then holds none of its orders.
              */
             coverage: {
                 [key: string]: unknown;
@@ -615,7 +639,7 @@ export interface components {
             }[];
             /**
              * Fetched At
-             * @description When this instance last fetched closure orders from the Forest Service, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Closures are cached per instance and served past their refresh deadline when the Forest Service is unreachable, so this is the only honest statement of how current the answer is. It is not when any order was issued or last edited.
+             * @description When Bluebird Forecast last fetched closure orders from the Forest Service, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Closures are cached and served past their refresh deadline when the Forest Service is unreachable, so this is the only honest statement of how current the answer is. It is not when any order was issued or last edited.
              */
             fetched_at: number;
             /**
@@ -898,7 +922,7 @@ export interface components {
             destination_types?: components["schemas"]["DestinationType"][];
             /**
              * Elevation Lookup
-             * @description Whether to look up the elevation and OSM id of each `custom_destinations` row sent without an `elevation_ft`. `false` skips the map server: those rows come back as sent, in milliseconds, and a request that also discovers nothing takes no discovery slot. The bundled web app sends `false` from an analysis, because it looks its rows up itself as they are pasted, from the basemap's own tiles first and this endpoint second, and `elevation_lookup_complete` is then true only when no row needed a lookup.
+             * @description Whether to look up the elevation and OSM id of each `custom_destinations` row sent without an `elevation_ft`. `false` skips the lookup: those rows come back as sent, in milliseconds, and a request that also discovers nothing takes no discovery slot. The bundled web app sends `false` from an analysis, because it has already looked its rows up through this endpoint as they were pasted, and `elevation_lookup_complete` is then true only when no row needed a lookup.
              * @default true
              */
             elevation_lookup?: boolean;
@@ -1170,6 +1194,32 @@ export interface components {
             wind_mph: (number | null)[];
         };
         /**
+         * LandmarkCollection
+         * @description A GeoJSON FeatureCollection of named trailheads and crags, plus how current it is.
+         *
+         *     Declared for the schema only: the handler returns the text it builds.
+         */
+        LandmarkCollection: {
+            /**
+             * Features
+             * @description Point features inside the requested bounding box. Each carries `name`, `kind` (`trailhead` or `crag`), `osm_id` (`node/123`, `way/123` or `relation/123`) and `elevation_ft`, an integer or null. The geometry is the OSM node's position, or the centre of a way or relation. Features of one kind and one name within 300 m are one place, as in a polygon search, so a marker is the row a polygon around it returns.
+             */
+            features: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Fetched At
+             * @description When this instance's copy of OpenStreetMap was last brought up to date, in epoch milliseconds: the last daily change file applied, or the planet file it was filled from. A GeoJSON foreign member, which map libraries ignore.
+             */
+            fetched_at: number;
+            /**
+             * Type
+             * @description Always `FeatureCollection`, so the body drops straight into a map library.
+             * @constant
+             */
+            type: "FeatureCollection";
+        };
+        /**
          * Limits
          * @description Hard bounds every request is validated against.
          */
@@ -1262,9 +1312,11 @@ export interface components {
          * RateLimits
          * @description Per-client request pacing on the expensive endpoints.
          *
-         *     Enforced per backend instance, so behind a multi-replica deployment the
-         *     effective ceiling is roughly the number shown times the replica count.
-         *     Requests past a limit receive 429 with a `Retry-After` header.
+         *     Enforced across every backend instance while the deployment's shared
+         *     cache is up, and per backend instance otherwise, where behind a
+         *     multi-replica deployment the effective ceiling is roughly the number shown
+         *     times the replica count. Requests past a limit receive 429 with a
+         *     `Retry-After` header.
          */
         RateLimits: {
             /**
@@ -1307,6 +1359,16 @@ export interface components {
              * @description Sustained `GET /api/geocode` requests per client address per minute. 0 means the limit is disabled.
              */
             geocode_per_minute: number;
+            /**
+             * Landmarks Burst
+             * @description How many landmark requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan, which refetches on a 400 ms debounce from zoom 11 up.
+             */
+            landmarks_burst: number;
+            /**
+             * Landmarks Per Minute
+             * @description Sustained `GET /api/landmarks` requests per client address per minute. As loose as the wildfire bucket and for the same reason: it answers from the places table and reaches no upstream. 0 means the limit is disabled.
+             */
+            landmarks_per_minute: number;
             /**
              * Smoke Burst
              * @description How many smoke requests an idle client can send back-to-back before the per-minute pace applies.
@@ -1351,7 +1413,7 @@ export interface components {
             }[];
             /**
              * Fetched At
-             * @description When this instance last fetched from NOAA, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Plumes are cached per instance and served past their refresh deadline when NOAA is unreachable, so this is the only honest statement of how current the shapes are.
+             * @description When Bluebird Forecast last fetched from NOAA, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Plumes are cached and served past their refresh deadline when NOAA is unreachable, so this is the only honest statement of how current the shapes are.
              */
             fetched_at: number;
             /**
@@ -1427,7 +1489,7 @@ export interface components {
             }[];
             /**
              * Fetched At
-             * @description When this instance last fetched perimeters from NIFC, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Perimeters are cached per instance and served past their refresh deadline when NIFC is unreachable, so this is the only honest statement of how current the shapes are. It is not when any individual fire was last surveyed: that is the per-feature `attr_ModifiedOnDateTime_dt`, which routinely runs days older.
+             * @description When Bluebird Forecast last fetched perimeters from NIFC, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Perimeters are cached and served past their refresh deadline when NIFC is unreachable, so this is the only honest statement of how current the shapes are. It is not when any individual fire was last surveyed: that is the per-feature `attr_ModifiedOnDateTime_dt`, which routinely runs days older.
              */
             fetched_at: number;
             /**
@@ -1647,7 +1709,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description This instance has never completed a fetch from the Forest Service, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry. */
+            /** @description No fetch from the Forest Service has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve. Transient; `Retry-After` says when to retry. */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1817,6 +1879,56 @@ export interface operations {
             };
         };
     };
+    landmarks_in_box_api_landmarks_get: {
+        parameters: {
+            query: {
+                /** @description Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A feature is returned when its point is inside. A west edge east of the east edge crosses the antimeridian. */
+                bbox: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Trailheads and crags inside the box, with when the copy was last updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LandmarkCollection"];
+                };
+            };
+            /** @description `bbox` was missing, malformed, or outside valid coordinate ranges. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description This instance holds no copy of OpenStreetMap to answer from: it runs without the database, or its first fill has not finished. `Retry-After` says when to ask again. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     smoke_api_smoke_get: {
         parameters: {
             query?: never;
@@ -1844,7 +1956,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description This instance has never completed a fetch from NOAA, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry. */
+            /** @description No fetch from NOAA has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve. Transient; `Retry-After` says when to retry. */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1916,7 +2028,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description This instance has never completed a fetch from NIFC, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry. */
+            /** @description No fetch from NIFC has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve. Transient; `Retry-After` says when to retry. */
             503: {
                 headers: {
                     [name: string]: unknown;

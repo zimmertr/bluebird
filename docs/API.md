@@ -248,6 +248,7 @@ meant to prevent.
 | `GET /api/wildfires` | Active US wildfire perimeters in a bounding box, cached from NIFC. |
 | `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
 | `GET /api/closures` | Forest Service closure orders in a bounding box: closed areas in Regions 3, 4 and 6, or closed trails, roads and sites in Region 6 (Oregon and Washington). |
+| `GET /api/landmarks` | Named trailheads and crags in a bounding box, from the deployment's own copy of OpenStreetMap. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
 
@@ -283,10 +284,12 @@ response is Nominatim's `jsonv2` list, verbatim: each row carries `lat`, `lon`,
 `display_name`, and `extratags`, where a summit's `ele` lives. The proxy exists
 because Nominatim's usage policy asks for a real User-Agent, which a browser
 fetch cannot set. That policy also forbids autocomplete, so call it on an
-explicit search action, never per keystroke. The pod paces its own calls to
-Nominatim's rate; when that queue is full the route answers `503` with
-`error.code` `busy`. A repeat of the same `q` and `limit` within about ten
-minutes is answered from the pod's cache and never joins that queue.
+explicit search action, never per keystroke. The deployment paces its calls to
+Nominatim's rate, in one queue for every pod while its database is up; when
+that queue is full the route answers `503` with `error.code` `busy`. A repeat
+of the same `q` and `limit` within about ten minutes is answered from the
+cache, which every pod shares while the database is up, and never joins that
+queue.
 
 ### Which build is running
 
@@ -297,12 +300,24 @@ All three read `"dev"` outside a released image.
 ### Discovery without forecasts
 
 `destination_types` is a set, not a value. Ask for several and they come back
-from **one** Overpass query rather than one per type, so peaks and lakes
+from **one** search rather than one per type, so peaks and lakes
 together cost what peaks alone would, and every row is tagged with the type it
 actually is rather than the type you asked for. Order and duplicates are
 ignored. An empty set discovers nothing, which is how a request analyzes only
 its `custom_destinations`; `custom` is not a discoverable type and is rejected
 inside the list.
+
+That search reads the deployment's own copy of OpenStreetMap (#760), which
+answers a polygon of any size in milliseconds, and asks Overpass only when the
+copy cannot answer: an instance without the database, one whose first fill has
+not finished, or a search the database dropped. Either way the rules are the
+same, and so are two consequences. Features of one kind and one name within
+300 m come back as one row, the more specific one kept (a `highway=trailhead`
+node over the parking lot named for it), while places that only share a name
+are a row each. And from the copy, a place is inside the polygon when its
+point is: a node's position, or the centre of a way's or relation's bounding
+box. [DATA.md](DATA.md#openstreetmap-and-overpass) has the tags each type
+matches and how far behind OpenStreetMap the copy runs.
 
 `include_unnamed_peaks` widens the peak search to summits tagged with an
 elevation but no name, returned as `Peak 5961`. It defaults to false and is
@@ -361,21 +376,23 @@ cannot move a 10-mile answer — so `full` exists for callers who need the
 surveyed shapes.
 
 Two timestamps appear and they answer different questions. `fetched_at` is when
-this instance last retrieved the dataset from NIFC. The per-feature
+Bluebird Forecast last retrieved the dataset from NIFC. The per-feature
 `attr_ModifiedOnDateTime_dt` is when NIFC last revised that particular
 perimeter, which routinely runs days older and is a fact about the fire, not
 about this service.
 
 This endpoint exists because NIFC's quota belongs to NIFC's ArcGIS organization
 and is shared with every other consumer of the public dataset, so calling them
-per visitor competes with the rest of the internet for it. An instance holds one
-national snapshot and refreshes it on a timer, and serves it **past its refresh
+per visitor competes with the rest of the internet for it. A deployment holds
+one national snapshot, refreshed on a timer by one pod for all of them while
+its database is up and by each instance otherwise, and serves it **past its refresh
 deadline** when NIFC is unreachable, on the grounds that a perimeter mapped an
 hour ago still answers a ten-mile proximity question, for up to 24 hours. Read
-`fetched_at` if that matters to you. An instance answers `503` when it has never
-completed a fetch, or when every refresh has failed for more than 24 hours since
-its last good one. A refresh that does not finish within 60 seconds counts as
-failed.
+`fetched_at` if that matters to you. The route answers `503` when no fetch has
+completed yet, or when every refresh has failed for more than 24 hours since
+the last good one. A refresh that does not finish within 60 seconds counts as
+failed, or within 120 seconds for the shared refresh, which no request waits
+on.
 
 Coverage is the United States only, so an empty result elsewhere means "not
 covered", not "nothing burning". The `coverage` foreign member states this
@@ -423,8 +440,8 @@ already, so a value this service does not recognize comes back as `Light` with
 the unrecognized string in `density_raw`, rather than being dropped: a plume
 nobody can classify is still smoke somebody is standing in.
 
-Two timestamps again, answering different questions. `fetched_at` is when this
-instance last retrieved the file. `observed_start` and `observed_end` bound the
+Two timestamps again, answering different questions. `fetched_at` is when
+Bluebird Forecast last retrieved the file. `observed_start` and `observed_end` bound the
 imagery each plume was traced from, which is the window the plume actually
 describes, and they are null where HMS did not state them.
 
@@ -435,9 +452,10 @@ rather than reporting an outage — and this field is how you can tell. It is a
 `YYYY-MM-DD` date in US Eastern time.
 
 Perimeters and plumes share a caching contract: one national snapshot per
-instance, refreshed on a timer, served **past its refresh deadline** when the
-upstream is unreachable for up to 24 hours, and a `503` from an instance that
-has never completed a fetch or whose copy is older than that. Coverage is North America, so an empty result elsewhere means
+deployment (per instance without its database), refreshed on a timer, served
+**past its refresh deadline** when the upstream is unreachable for up to 24
+hours, and a `503` when no fetch has completed yet or the copy is older than
+that. Coverage is North America, so an empty result elsewhere means
 "not covered", not "clear air". See [DATA.md](DATA.md#smoke).
 
 The rain-radar and snow-depth overlays have no endpoint here and never will:
@@ -529,28 +547,91 @@ it as active. Read the status as the Forest Service's statement, and the order
 itself for the details.
 
 The caching contract is the one perimeters and plumes share: one snapshot of
-every region per instance, refreshed on a timer, served **past its refresh
-deadline** when the Forest Service is unreachable for up to 24 hours, and a
-`503` from an instance that has never completed a fetch or whose copy is older
-than that. `fetched_at` says when this
-instance last fetched; the order's own dates are facts about the order.
+every region per deployment (per instance without its database), refreshed on
+a timer, served **past its refresh deadline** when the Forest Service is
+unreachable for up to 24 hours, and a `503` when no fetch has completed yet or
+the copy is older than that. `fetched_at` says when the copy was last
+fetched; the order's own dates are facts about the order.
 
 Coverage differs by kind. `area` covers Arizona, New Mexico, Nevada, Utah,
 southern Idaho, western Wyoming, Oregon and Washington. `trail` covers Oregon
 and Washington only. An empty result outside the coverage for its kind means
 "not covered", not "nothing closed". The `coverage` foreign member states this
 machine-readably for the requested `kind`, as coarse outlines biased slightly
-outward on land. When this instance's last fetch from Region 3 or Region 4
+outward on land. When the last fetch from Region 3 or Region 4
 failed, the other regions are still served and the `area` outline leaves the
 failed region out, so an empty answer there still reads as "not covered". See
 [DATA.md](DATA.md#closures).
+
+### Trailheads and crags
+
+`GET /api/landmarks` returns the named trailheads and crags inside a bounding
+box, as GeoJSON points (#760). The web app draws its trailhead and crag
+markers from it, because the basemap's tiles carry no trailhead and cannot
+tell a crag from a single route.
+
+```bash
+curl -s "https://bluebirdforecast.com/api/landmarks?bbox=-121.6,47.8,-121.55,47.83"
+```
+
+```json
+{
+  "type": "FeatureCollection",
+  "fetched_at": 1792304197282,
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.574018, 47.8091085] },
+      "properties": {
+        "name": "Lake Serene Trailhead",
+        "kind": "trailhead",
+        "osm_id": "node/2322558097",
+        "elevation_ft": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.5713089, 47.818586] },
+      "properties": {
+        "name": "Lower Town Wall",
+        "kind": "crag",
+        "osm_id": "relation/19289461",
+        "elevation_ft": null
+      }
+    },
+    "…"
+  ]
+}
+```
+
+`bbox` works as it does on `/api/wildfires`, and a malformed one answers the
+same `422`; a west edge east of the east edge crosses the antimeridian. A
+trailhead is `highway=trailhead` or a parking lot named as one, and a crag is
+a climbing crag, area or boulder, never a single route. Each feature carries
+`name`, `kind` (`trailhead` or `crag`), `osm_id` and `elevation_ft`, a whole
+number of feet or null, and stands at the OSM node's position or the centre of
+a way or relation. Features of one kind and one name within 300 m are one
+feature, as in a polygon search, so a marker is the row a polygon drawn around
+it would return. There is no `detail` and no `coverage`: the copy is
+worldwide.
+
+`fetched_at` is when the deployment's copy of OpenStreetMap was last filled or
+last took in a daily change file, whichever is later, in epoch milliseconds.
+The copy lives in the deployment's database, so an instance without one, or
+whose first fill has not finished, answers `503` with `error.code`
+`snapshot_unavailable` and `Retry-After: 300`. No request here reaches an
+upstream, so a map pan costs OpenStreetMap nothing. The route has a
+per-address bucket of its own, published under `limits.rate` as
+`landmarks_per_minute` and `landmarks_burst`.
 
 ### Resolving your own coordinates
 
 The same endpoint also answers a second question: what does OpenStreetMap know
 about coordinates you already have? Send `custom_destinations` and each one is
-matched to the nearest peak, filling in the `elevation_ft` and `osm_id` a bare
-coordinate pair cannot carry. Send them without a polygon (leaving
+matched to a mapped peak, filling in the `elevation_ft` and `osm_id` a bare
+coordinate pair cannot carry: the nearest within about 150 m, or, when that one
+has no elevation or there is none, the nearest peak of the row's own name
+within 300 m that has one. Send them without a polygon (leaving
 `destination_types` empty) to resolve and discover nothing:
 
 ```json
@@ -584,21 +665,22 @@ Send them alongside a polygon to get both in one call, merged by the rule
 below. Either way at least one of `polygon` or `custom_destinations` is
 required; a request with neither is a `400`.
 
-Three things worth knowing about resolution:
+Four things worth knowing about resolution:
 
 - **It never overwrites.** A row that arrives with its own `elevation_ft` is
   left exactly as sent, and is not looked up at all.
-- **It is best-effort.** If the map service is unreachable the rows come back
+- **It is best-effort.** If neither the deployment's own copy of
+  OpenStreetMap nor the public map service can answer, the rows come back
   as sent rather than failing the request, so a null elevation means "nobody
   could say", never "the request failed".
 - **Not every point resolves.** A coordinate with no OSM peak beside it keeps
   a null elevation. That is a real answer about OSM's coverage, not an error.
 - **You can ask for no lookup at all.** `"elevation_lookup": false` skips the
-  map server: every row comes back exactly as sent, in milliseconds, and a request that also discovers nothing takes no
+  lookup: every row comes back exactly as sent, in milliseconds, and a request that also discovers nothing takes no
   discovery slot, so it never waits behind a discovery of yours in flight.
   The bundled web app sends it from every analysis, because it has looked its
-  rows up already as they were pasted, from the basemap's own tiles first and
-  this endpoint second. The default is `true`.
+  rows up already, through this endpoint, as they were pasted. The default is
+  `true`.
 
 The same resolution runs inside `POST /api/analyze` and
 `POST /api/analyze/stream`, so a custom row is ranked and filtered on the
@@ -1084,10 +1166,10 @@ A request sent with `"elevation_lookup": false` made no lookup, so its flag is
 | `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |
 | `413` | `validation` | The request body is larger than `limits.max_request_bytes`. It is refused before it is read, whether it declares a `Content-Length` or arrives chunked: `"Request body is too large. Maximum is {limits.max_request_bytes} bytes."`, the number written with thousands separators. |
 | `422` | `validation`, or absent | Request validation failed. Polygon too large, a ring with more points than `limits.max_polygon_points`, a list longer than the maximum the schema states, `limit` out of range, a window outside the servable horizon, a minimum above its maximum, or a field the request body does not declare. |
-| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the quota the analysis was spending mid-analysis: the deployment's own, or your key's when the request carries `X-Open-Meteo-Key`. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke and closures each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. An IPv6 address counts by its /64. Discovery also runs one at a time per address, whether `POST /api/destinations` or either analyze route asks for it: a second waits for the first and gets this `429` if it waits too long. On the analyze routes only the discovery waits, not the forecast fetch after it. |
+| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the quota the analysis was spending mid-analysis: the deployment's own, or your key's when the request carries `X-Open-Meteo-Key`. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke, closures and landmarks each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. Each is the whole deployment's while its database is up. An IPv6 address counts by its /64. Discovery also runs one at a time per address, whether `POST /api/destinations` or either analyze route asks for it: a second waits for the first and gets this `429` if it waits too long. On the analyze routes only the discovery waits, not the forecast fetch after it. |
 | `500` | `internal` | The service failed in a way none of the other statuses describes. The body has the same `{detail, error}` shape as every other error and never carries the failure's own text. On the stream the same failure arrives as a terminal `error` event. |
 | `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
-| `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC, NOAA or Forest Service fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |
+| `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or no fetch from NIFC, NOAA or the Forest Service has completed (or none in 24 hours), or, from `GET /api/landmarks`, the instance has no copy of OpenStreetMap to answer from. Transient by nature; `Retry-After` says when a retry is worthwhile. |
 
 A `422` carries Pydantic's per-field `detail` list. Where one of the service's
 own checks refused a field, that entry's `msg` is the sentence the check wrote,
@@ -1142,13 +1224,14 @@ the outcome, so a retry loop will spin forever.
 | `upstream_rate_limited` | `429` | `true` | Open-Meteo rate-limited the quota the analysis was spending mid-analysis: the deployment's, or your key's on a keyed request. |
 | `upstream_unavailable` | `502` | `true` | An upstream failed or could not be reached. |
 | `busy` | `503` | `true` | An in-flight upstream budget stayed saturated, so the request was shed. |
-| `snapshot_unavailable` | `503` | `true` | This instance has never completed a fetch of the wildfire, smoke or closure snapshot, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. |
+| `snapshot_unavailable` | `503` | `true` | No fetch of the wildfire, smoke or closure snapshot has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve; or, from `GET /api/landmarks`, the instance has no copy of OpenStreetMap: no database, or a first fill not finished. |
 | `internal` | `500` | `true` | An unexpected failure in the server: an exception no route turned into one of the codes above, or one that ended an SSE analysis, where it arrives on the `error` event. |
 
 Pydantic's `422` is the one exception, and deliberately: its `detail` is a list
 of per-field objects rather than a sentence, and the field paths in it are
-already machine-readable. The `bbox` parameter on `GET /api/wildfires` and
-`GET /api/closures` is parsed by hand, so its `422` does carry `validation`.
+already machine-readable. The `bbox` parameter on `GET /api/wildfires`,
+`GET /api/closures` and `GET /api/landmarks` is parsed by hand, so its `422`
+does carry `validation`.
 
 ## What version 1.0 promises
 
@@ -1216,13 +1299,13 @@ so the command above is a path this repository exercises on every pull request.
 
 ## Please be considerate
 
-Every upstream Bluebird Forecast depends on (Overpass, Open-Meteo, Nominatim) is run by
+Every upstream Bluebird Forecast depends on (Overpass, Open-Meteo, Nominatim, OpenStreetMap's own servers) is run by
 people paying for it, and the two that answer without a key are free — and
 Open-Meteo meters weighted calls (each location in a batch counts), so a single
 large analysis can spend over a thousand of them. That is what a key buys: an
 analyze request that carries one spends its own quota rather than anybody
 else's, which is the whole reason the route is public again. Light per-address
-rate limits and an instance-wide upstream budget enforce a floor of good
+rate limits and an upstream budget enforce a floor of good
 behavior: past them you get a `429` or `503` with `Retry-After` instead of
 service, key or no key. The numbers are published by `GET /api/capabilities`
 under `limits.rate`, and the full picture of what calls what lives in

@@ -3,12 +3,10 @@ import type { CustomDestination, DiscoveredDestination } from '../types'
 import type { Place } from '../utils/geocode'
 import { resolveCustomOnly } from '../utils/clientAnalyze'
 import {
-  type Identity,
   type IdentityMap,
   LOOKUP_DEBOUNCE_MS,
   LOOKUP_RETRY_MS,
   NO_IDENTITY,
-  answered,
   learn,
   rowsKey,
   unanswered,
@@ -47,17 +45,15 @@ const NO_KEYS: ReadonlySet<string> = new Set()
  * never waits for it. However the rows got there (a paste, a typed line, a
  * share link, an example), every distinct coordinate the browser has no
  * answer for is looked up once the box has been still for
- * `LOOKUP_DEBOUNCE_MS`, one lookup at a time, in two steps: the basemap's own
- * tiles first (`peakTiles.ts`, static files, well under a second), then the
- * pod's map-server lookup for whatever the tiles left. The answers are kept
- * for the session, so a row is never asked about twice, an added row asks
- * about itself alone, and a removed one costs nothing. By the time Analyze is
- * pressed the lookup is usually done, and the request carries the
- * elevations.
+ * `LOOKUP_DEBOUNCE_MS`, one lookup at a time, by the pod, which reads its own
+ * copy of OpenStreetMap, or the map server on a deployment without one
+ * (#760). The answers are kept for the session, so a row is never asked about
+ * twice, an added row asks about itself alone, and a removed one costs
+ * nothing. By the time Analyze is pressed the lookup is usually done, and the
+ * request carries the elevations.
  *
  * A set the pod gave up on (a busy map server) is asked once more after
- * `LOOKUP_RETRY_MS`, tiles and all, and then not again until the list
- * changes.
+ * `LOOKUP_RETRY_MS`, and then not again until the list changes.
  */
 export function useElevationLookup({ csvRows, places, cap, onPlaced }: Inputs): ElevationLookup {
   const [identity, setIdentity] = useState<IdentityMap>(NO_IDENTITY)
@@ -94,38 +90,15 @@ export function useElevationLookup({ csvRows, places, cap, onPlaced }: Inputs): 
       abortRef.current = controller
       const run = (async () => {
         try {
-          // The tiles first. Loaded on the first lookup, so the decoder and
-          // its tile library stay off the cold load the Lighthouse gate
-          // measures; a chunk that cannot be loaded leaves every row to the
-          // pod.
-          let fromTiles = new Map<string, Identity>()
-          try {
-            const tiles = await import('../utils/peakTiles')
-            fromTiles = await tiles.lookupPeaks(rows, tiles.fetchTileWith(await tiles.tileTemplate(), controller.signal))
-          } catch {
-            // Nothing placed; the pod is asked about every row below.
-          }
-          if (controller.signal.aborted) return
-          const placed = answered(rows, fromTiles)
-          if (placed.length) {
-            take(placed, true)
-            onPlacedRef.current?.(placed)
-          }
-          const left = rows.filter((r) => !fromTiles.has(geoKey(r.latitude, r.longitude)))
-          if (!left.length) {
-            gaveUpRef.current = null
-            return
-          }
-          // Then the pod, for the rest.
-          const resolved = await resolveCustomOnly(left, controller.signal, true)
+          const resolved = await resolveCustomOnly(rows, controller.signal, true)
           if (controller.signal.aborted) return
           const learned = take(resolved.destinations, resolved.lookupComplete)
-          const unplaced = left.filter((r) => !learned.has(geoKey(r.latitude, r.longitude)))
+          const unplaced = rows.filter((r) => !learned.has(geoKey(r.latitude, r.longitude)))
           const gaveUp = resolved.lookupComplete ? null : rowsKey(unplaced)
           gaveUpRef.current = gaveUp
           if (gaveUp && retry) setAbandoned(gaveUp)
-          const byPod = resolved.destinations.filter((d) => d.elevation_ft != null)
-          if (byPod.length) onPlacedRef.current?.(byPod)
+          const placed = resolved.destinations.filter((d) => d.elevation_ft != null)
+          if (placed.length) onPlacedRef.current?.(placed)
         } catch {
           // An abort, which is the unmount. Nothing to keep.
         } finally {
