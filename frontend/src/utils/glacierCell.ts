@@ -37,7 +37,7 @@ export interface TileRef {
   y: number
 }
 
-export const tileKey = (t: TileRef) => `${t.z}/${t.x}/${t.y}`
+const tileKey = (t: TileRef) => `${t.z}/${t.x}/${t.y}`
 
 /** One tile's bytes, or null when it could not be read. */
 export type FetchTile = (tile: TileRef) => Promise<Uint8Array | null>
@@ -48,7 +48,7 @@ export const FALLBACK_TILE_TEMPLATE = 'https://tiles.openfreemap.org/planet/late
 // A tile the edge serves answers in well under a second (135 zoom-14 tiles
 // took 0.2 to 0.7 s together on 2026-10-07), so one not back in this long is
 // a host that is not answering, and the card keeps its depth word.
-export const TILE_DEADLINE_MS = 5_000
+const TILE_DEADLINE_MS = 5_000
 
 let templatePromise: Promise<string> | null = null
 

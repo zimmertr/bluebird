@@ -155,7 +155,9 @@ them, and none has a floor:
 A coverage report says which lines no test runs. It cannot say whether a test
 that runs a line would fail if the line broke, and a floor rewards the tests
 that would not. Read the report for the modules a change touches, and add a
-test where a branch you wrote shows up unreached.
+test where a branch you wrote shows up unreached. `make coverage-backend` runs
+without a database, as `make test-backend` does, so the tests marked `db` skip
+and the modules only they reach read lower than they are.
 
 The Vitest config serves every `?raw` import from a virtual module of its own.
 V8 otherwise counts a source that a test reads as text as loaded with no

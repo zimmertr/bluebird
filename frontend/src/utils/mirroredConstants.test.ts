@@ -135,7 +135,6 @@ describe('the manifest', () => {
     'CLOUD_DECK_CEILING_FT',
     'CLOUD_SATURATION_RH',
     'COARSE_OFFSET_DEG',
-    'CUSTOM_MATCH_RADIUS_M',
     'FUTURE_LIMIT_SLACK_DAYS',
     'ISA_HEIGHT_M',
     'MAX_ANALYZE_PEAKS',

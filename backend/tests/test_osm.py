@@ -12,7 +12,7 @@ from prometheus_client import REGISTRY
 
 from app import ratelimit
 from app.models import DestinationType, GeoPolygon, bbox_area_km2
-from app.services import osm
+from app.services import cache, osm
 from app.services.errors import UpstreamError
 
 POLY = GeoPolygon(

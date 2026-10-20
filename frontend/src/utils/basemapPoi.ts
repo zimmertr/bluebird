@@ -14,6 +14,7 @@
 
 import { Place } from './geocode'
 import { LANDMARK_LAYERS, landmarkKindOf } from './landmarks'
+import { isFiniteNumber } from './numbers'
 
 /**
  * The lake label layers.
@@ -154,7 +155,7 @@ function nameOf(props: Record<string, unknown>): string {
 // convert from meters when it is the only one present. A click and a ring's
 // discovery from the tiles both read a feature's feet here, so the two cannot
 // name one summit two ways.
-export function elevationFtOf(props: Record<string, unknown>): number | undefined {
+function elevationFtOf(props: Record<string, unknown>): number | undefined {
   // `ele_ft` first, because it is the one the server agrees with. The tiles
   // come from Planetiler, which rounds `ele` to whole metres but computes
   // `ele_ft` from OSM's raw metres, decimals included, the same raw value the
@@ -235,7 +236,7 @@ export function poiFromFeature(
       kind: landmark,
       lat,
       lon,
-      ...(typeof ele === 'number' && Number.isFinite(ele) ? { elevationFt: Math.round(ele) } : {}),
+      ...(isFiniteNumber(ele) ? { elevationFt: Math.round(ele) } : {}),
       ...(typeof osmId === 'string' && osmId !== '' ? { osmId } : {}),
     }
   }

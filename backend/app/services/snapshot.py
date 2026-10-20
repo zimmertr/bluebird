@@ -327,7 +327,7 @@ class SnapshotCache[T]:
                 log.warning(
                     "%s: the shared cache cannot answer (%s); fetching upstream",
                     self._label,
-                    str(exc) or type(exc).__name__,
+                    log_reason(exc, deadline_s=SHARED_READ_DEADLINE_S),
                 )
                 self._row_stamp = None
         await self._fetch_locked()
