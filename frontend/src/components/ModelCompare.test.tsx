@@ -17,6 +17,6 @@ describe('ModelCompare', () => {
     const compared = [model('gfs_seamless', null), model('icon_seamless', 'DWD ICON note'), model('gfs_hrrr', 'NOAA HRRR note')]
     const { container } = render(<ModelCompare compared={compared} paceRemainingS={12} />)
     const lines = [...container.firstElementChild!.children].map((line) => line.textContent)
-    expect(lines).toEqual(['Open-Meteo quota: resuming in 12s', 'DWD ICON note', 'NOAA HRRR note'])
+    expect(lines).toEqual(['Open-Meteo quota · resuming in 12s', 'DWD ICON note', 'NOAA HRRR note'])
   })
 })

@@ -1135,6 +1135,73 @@ async def test_a_cloud_batch_resumes_a_minutely_429_too(monkeypatch):
     assert row is not None
 
 
+# Open-Meteo refuses a request past the five one address holds open on one
+# host with this reason, before it counts the request (measured 2026-10-21,
+# record 0203).
+def _too_many_open() -> httpx.HTTPStatusError:
+    return status_error(429, {"reason": "Too many concurrent requests"}, url=weather.FORECAST_URL)
+
+
+async def test_a_concurrency_refusal_resumes_the_batch_once_a_second_later(monkeypatch):
+    slept = sleep_recorder(monkeypatch)
+    calls = stub_openmeteo(monkeypatch, [_too_many_open(), _payload([0.4])])
+    results = await fetch_weather_batch(_dests(1), START, END)
+
+    assert len(calls) == 2
+    assert slept == [1]
+    assert results[0]["precip_total_in"] == 0.4
+
+
+async def test_a_concurrency_resume_books_no_second_weight(monkeypatch):
+    # The refused request was never counted, so booking it again would have
+    # the pod believe it spent what it did not.
+    pacer = RecordingPacer()
+    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", pacer)
+    sleep_recorder(monkeypatch)
+    stub_openmeteo(monkeypatch, [_too_many_open(), _payload([0.4])])
+    await fetch_weather_batch(_dests(1), START, END)
+
+    one_request = call_weight(1, START.date(), END.date(), weather.N_VARIABLES, n_models=1)
+    assert pacer.acquired == [one_request]
+
+
+async def test_a_concurrency_resume_waits_outside_the_in_flight_slot(monkeypatch):
+    slots = ratelimit.UpstreamBudget("test", 1)
+    held_while_waiting: list[bool] = []
+
+    async def fake_sleep(seconds):
+        held_while_waiting.append(slots._sem.locked())
+
+    monkeypatch.setattr(ratelimit, "WEATHER_BUDGET", slots)
+    monkeypatch.setattr(openmeteo_fetch.asyncio, "sleep", fake_sleep)
+    calls = stub_openmeteo(monkeypatch, [_too_many_open(), _payload([0.4])])
+    await fetch_weather_batch(_dests(1), START, END)
+
+    assert held_while_waiting == [False]
+    assert len(calls) == 2
+
+
+async def test_a_second_concurrency_refusal_fails_the_batch(monkeypatch):
+    sleep_recorder(monkeypatch)
+    calls = stub_openmeteo(monkeypatch, [_too_many_open(), _too_many_open()])
+    with pytest.raises(UpstreamRateLimited) as exc:
+        await fetch_weather_batch(_dests(1), START, END)
+
+    # One resume, not a loop, and the sentence a minutely refusal gives.
+    assert len(calls) == 2
+    assert exc.value.scope == "concurrency"
+    assert exc.value.message == "Open-Meteo is rate-limiting. Try again later."
+
+
+async def test_a_cloud_batch_resumes_a_concurrency_refusal_too(monkeypatch):
+    sleep_recorder(monkeypatch)
+    calls = stub_openmeteo(monkeypatch, [_too_many_open(), [_cloud_location()]])
+    [row] = await weather.fetch_cloud_batch([dest(46.85, -121.76)], START, END)
+
+    assert len(calls) == 2
+    assert row is not None
+
+
 async def test_hourly_rate_limit_stops_immediately(monkeypatch):
     # No wait we are willing to impose helps an hourly quota, so it must not
     # burn a retry (or a sleep) discovering that.

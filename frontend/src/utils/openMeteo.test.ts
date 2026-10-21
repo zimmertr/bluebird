@@ -1713,3 +1713,279 @@ describe('columns kept for a lookup still out (#673)', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 })
+
+// ── Open requests per host (#783) ──────────────────────────────────────────
+//
+// Measured 2026-10-21 (record 0203): Open-Meteo lets one address hold five
+// requests open on one host and refuses the sixth with `Too many concurrent
+// requests`, in about 0.7 s and with no Retry-After. Each host counts its own
+// five, so the air-quality and archive hosts answer while the forecast host
+// refuses.
+
+const FORECAST_HOST = 'api.open-meteo.com'
+const ARCHIVE_HOST = 'archive-api.open-meteo.com'
+const AIR_QUALITY_HOST = 'air-quality-api.open-meteo.com'
+const TOO_MANY_OPEN = { error: true, reason: 'Too many concurrent requests' }
+const RATE_LIMITING = 'Open-Meteo is rate-limiting. Try again later.'
+
+// One answer per location the request names, of the kind its host and
+// variables ask for.
+function answerFor(url: URL): Response {
+  const count = url.searchParams.get('latitude')!.split(',').length
+  if (url.host === AIR_QUALITY_HOST) return fakeResponse(Array.from({ length: count }, () => ({ hourly: {} })))
+  if (url.searchParams.get('hourly')!.includes('relative_humidity')) {
+    return fakeResponse(Array.from({ length: count }, () => cloudAnswer(['2026-07-21T00:00', '2026-07-21T01:00'])))
+  }
+  return fakeResponse(Array.from({ length: count }, hourlyPayload))
+}
+
+// A fetch whose answers wait until the test lets them go, counting the
+// requests each host holds open and the most it ever held at once.
+function heldFetch() {
+  const open = new Map<string, number>()
+  const most = new Map<string, number>()
+  const held: Array<() => void> = []
+  const spy = vi.fn((input: string) => {
+    const url = new URL(input)
+    const now = (open.get(url.host) ?? 0) + 1
+    open.set(url.host, now)
+    most.set(url.host, Math.max(most.get(url.host) ?? 0, now))
+    return new Promise<Response>((resolve) => {
+      held.push(() => {
+        open.set(url.host, open.get(url.host)! - 1)
+        resolve(answerFor(url))
+      })
+    })
+  })
+  vi.stubGlobal('fetch', spy)
+  return {
+    spy,
+    held,
+    openOn: (host: string) => open.get(host) ?? 0,
+    mostOn: (host: string) => most.get(host) ?? 0,
+    // Answers every request open now.
+    answerAll: () => held.splice(0).forEach((answer) => answer()),
+  }
+}
+
+const placesAt = (n: number, lon: number) =>
+  Array.from({ length: n }, (_, i) => ({ latitude: i / 1000, longitude: lon }))
+
+describe('one pool of open requests per host (#783)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    // The pacer reads the clock, and the clock just changed.
+    resetOpenMeteoState()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // Answers whatever is open, and moves the clock on when nothing is, so a
+  // pacer's sleep ends, until `done` says every fetch has settled.
+  async function runUntil(wire: ReturnType<typeof heldFetch>, done: () => boolean) {
+    for (let step = 0; step < 500 && !done(); step++) {
+      await vi.advanceTimersByTimeAsync(0)
+      if (wire.held.length > 0) wire.answerAll()
+      else await vi.advanceTimersByTimeAsync(5_000)
+    }
+    expect(done()).toBe(true)
+  }
+
+  it('never holds more than four open on the forecast host across the weather and cloud fetches', async () => {
+    // 300 places are six batches of each. Each fetch runs four at a time of
+    // its own, so before the pool the two held eight open on one host, and
+    // Open-Meteo refused three of them.
+    const wire = heldFetch()
+    const places = placesAt(300, 0)
+    let settled = 0
+    const weather = fetchWeather(places, WINDOW.startMs, WINDOW.endMs, OPTS).finally(() => settled++)
+    const cloud = fetchCloud(places, WINDOW.startMs, WINDOW.endMs, OPTS).finally(() => settled++)
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wire.openOn(FORECAST_HOST)).toBe(4)
+    await runUntil(wire, () => settled === 2)
+
+    expect(wire.mostOn(FORECAST_HOST)).toBe(4)
+    expect(wire.spy).toHaveBeenCalledTimes(12)
+    expect((await weather).every((r) => r !== null)).toBe(true)
+    expect(await cloud).toHaveLength(300)
+  })
+
+  it('lets an air-quality request through while four weather requests are open', async () => {
+    const wire = heldFetch()
+    let settled = 0
+    const weather = fetchWeather(placesAt(200, 0), WINDOW.startMs, WINDOW.endMs, OPTS).finally(() => settled++)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wire.openOn(FORECAST_HOST)).toBe(4)
+
+    const aqi = fetchAqi(placesAt(1, 1), WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS }).finally(() => settled++)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wire.openOn(AIR_QUALITY_HOST)).toBe(1)
+    expect(wire.openOn(FORECAST_HOST)).toBe(4)
+
+    await runUntil(wire, () => settled === 2)
+    await weather
+    expect((await aqi).failed).toEqual([false])
+  })
+
+  it('lets a spanning window\'s archive request through while four forecast requests are open', async () => {
+    // NOW_MS puts the archive boundary at 2026-05-27, so this window opens on
+    // the archive host and closes on the forecast host.
+    const spanning = { startMs: Date.parse('2026-05-25T22:00:00Z'), endMs: Date.parse('2026-05-27T01:00:00Z') }
+    expect(windowSource(spanning.startMs, spanning.endMs, NOW_MS)).toBe('spanning')
+    const wire = heldFetch()
+    let settled = 0
+    const forecast = fetchWeather(placesAt(200, 0), WINDOW.startMs, WINDOW.endMs, OPTS).finally(() => settled++)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wire.openOn(FORECAST_HOST)).toBe(4)
+
+    const span = fetchWeather(placesAt(1, 1), spanning.startMs, spanning.endMs, OPTS).finally(() => settled++)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wire.openOn(ARCHIVE_HOST)).toBe(1)
+    expect(wire.openOn(FORECAST_HOST)).toBe(4)
+
+    await runUntil(wire, () => settled === 2)
+    await forecast
+    await span
+    // The spanning fetch's forecast half waited its turn and still went out.
+    expect(wire.mostOn(FORECAST_HOST)).toBe(4)
+    expect(wire.spy).toHaveBeenCalledTimes(6)
+  })
+
+  it('asks a refused request once more a second later, saying nothing on the overlay', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(fakeResponse(TOO_MANY_OPEN, 429))
+      .mockResolvedValueOnce(fakeResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const onPace = vi.fn()
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { ...OPTS, onPace })
+
+    await vi.advanceTimersByTimeAsync(990)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(20)
+    const out = await pending
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(out[0]?.precip_total_in).toBe(0.3)
+    // A second's wait is under the pacer's three, and would only flash.
+    expect(onPace).not.toHaveBeenCalled()
+  })
+
+  it('books the pacer once for a batch refused and asked again', async () => {
+    // 250 places are five batches of 80 weighted calls, 400 of the 550. The
+    // refusal was never counted, so the second ask books nothing and a further
+    // 80 fit at once. Booked twice, the pacer would believe 480 were spent and
+    // make the next batch wait out the minute.
+    let first = true
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string) => {
+        if (first) {
+          first = false
+          return fakeResponse(TOO_MANY_OPEN, 429)
+        }
+        return answerFor(new URL(input))
+      }),
+    )
+    const refused = fetchWeather(placesAt(250, 0), WINDOW.startMs, WINDOW.endMs, OPTS)
+    await vi.advanceTimersByTimeAsync(1_100)
+    await refused
+
+    const onPace = vi.fn()
+    const next = fetchWeather(placesAt(50, 1), WINDOW.startMs, WINDOW.endMs, { ...OPTS, onPace })
+    await vi.advanceTimersByTimeAsync(0)
+    await next
+    expect(onPace).not.toHaveBeenCalled()
+  })
+
+  it('fails with the rate-limit sentence when the second ask is refused too', async () => {
+    const fetchSpy = vi.fn(async () => fakeResponse(TOO_MANY_OPEN, 429))
+    vi.stubGlobal('fetch', fetchSpy)
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+    const failed = expect(pending).rejects.toMatchObject({ message: RATE_LIMITING, scope: 'concurrency' })
+
+    await vi.advanceTimersByTimeAsync(5_000)
+    await failed
+    await expect(pending).rejects.toBeInstanceOf(OpenMeteoRateLimited)
+    // One more ask, not a loop.
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('asks a refused air-quality request once more too', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(fakeResponse(TOO_MANY_OPEN, 429))
+      .mockResolvedValueOnce(fakeResponse([{ hourly: {} }]))
+    vi.stubGlobal('fetch', fetchSpy)
+    const pending = fetchAqi([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
+
+    await vi.advanceTimersByTimeAsync(1_100)
+    expect(await pending).toEqual({ results: [null], failed: [false] })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('lets a cancel during the second\'s wait through as a cancel, and frees the slot', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(TOO_MANY_OPEN, 429)))
+    const controller = new AbortController()
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
+      ...OPTS,
+      signal: controller.signal,
+    })
+    const cancelled = expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.advanceTimersByTimeAsync(500)
+    controller.abort()
+    await cancelled
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+
+    // All four slots are free again: four batches go out at once.
+    const wire = heldFetch()
+    let settled = false
+    const after = fetchWeather(placesAt(200, 1), WINDOW.startMs, WINDOW.endMs, OPTS).finally(() => (settled = true))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wire.openOn(FORECAST_HOST)).toBe(4)
+    await runUntil(wire, () => settled)
+    await after
+  })
+
+  it('lets a cancel while queued for a slot through as a cancel, holding no slot', async () => {
+    const wire = heldFetch()
+    let settled = false
+    const holding = fetchWeather(placesAt(200, 0), WINDOW.startMs, WINDOW.endMs, OPTS).finally(() => (settled = true))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wire.openOn(FORECAST_HOST)).toBe(4)
+
+    const controller = new AbortController()
+    const queued = fetchWeather(placesAt(1, 1), WINDOW.startMs, WINDOW.endMs, { ...OPTS, signal: controller.signal })
+    const cancelled = expect(queued).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.advanceTimersByTimeAsync(0)
+    controller.abort()
+    await cancelled
+    expect(wire.spy).toHaveBeenCalledTimes(4)
+
+    await runUntil(wire, () => settled)
+    await holding
+    // The cancelled request never reached the wire.
+    expect(wire.spy).toHaveBeenCalledTimes(4)
+  })
+
+  it('empties the pools on reset', async () => {
+    const wire = heldFetch()
+    let settled = false
+    const holding = fetchWeather(placesAt(200, 0), WINDOW.startMs, WINDOW.endMs, OPTS).finally(() => (settled = true))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wire.openOn(FORECAST_HOST)).toBe(4)
+
+    resetOpenMeteoState()
+    let fresh = false
+    const after = fetchWeather(placesAt(1, 1), WINDOW.startMs, WINDOW.endMs, OPTS).finally(() => (fresh = true))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wire.openOn(FORECAST_HOST)).toBe(5)
+
+    await runUntil(wire, () => settled && fresh)
+    await holding
+    await after
+  })
+})

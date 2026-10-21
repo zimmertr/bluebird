@@ -54,12 +54,13 @@ describe('AnalysisOverlay', () => {
   })
 
   // While the pacer sleeps, the detail line under the heading counts down to
-  // when the quota is spent again.
-  it('shows the batch percentage and the quota line instead of the clock', () => {
+  // when the quota is spent again. The percentage rides in the heading and is
+  // printed nowhere else (record 0205).
+  it('shows the batch percentage in the heading and the quota line instead of the clock', () => {
     render(<AnalysisOverlay {...FETCHING} />)
-    expect(screen.getByRole('status').textContent).toBe('Retrieving 4 forecasts… Open-Meteo quota: resuming in 45s')
-    expect(screen.getByText('Open-Meteo quota: resuming in 45s')).toBeTruthy()
-    expect(screen.getByText('25%')).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe('Retrieving 4 forecasts · 25% Open-Meteo quota · resuming in 45s')
+    expect(screen.getByText('Open-Meteo quota · resuming in 45s')).toBeTruthy()
+    expect(screen.queryByText('25%')).toBeNull()
     expect(screen.queryByText(/^Elapsed/)).toBeNull()
   })
 

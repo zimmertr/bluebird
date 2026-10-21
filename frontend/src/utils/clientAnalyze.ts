@@ -773,74 +773,20 @@ export async function runClientAnalysis(
   let cloudFailure: unknown = null
 
   try {
-    // The cloud column rides beside the weather over the same candidates
-    // (#117, #683): every analysis fetches it, so a held row carries it the
-    // way it carries its weather and is not asked again. Started first so
-    // its batches overlap the weather's rather than trailing them; it spends
-    // the same weather budget, so the pacer still sees one analysis's worth
-    // of spend. The deck walk inserts the 2 m point at the same height the
-    // wind is read at, which is what the shared `coords` carry.
-    const cloudPending: Promise<CloudResult[] | null> = fetchCloud(coords, startMs, endMs, {
-      signal: internal.signal,
-      onPace,
-      model: request.forecast_model,
-      nowMs,
-      windowLimits,
-      onColumn: (k, column) => keepColumn(unforecastAt[k], column, 'cloud'),
-    }).catch((e: unknown) => {
-      if (!isAbort(e)) cloudFailure = e
-      internal.abort()
-      return null
-    })
-
-    // AQI rides ALONGSIDE weather for the whole field rather than trailing the
-    // ranking for the displayed rows. Open-Meteo bills weighted calls per
-    // SERVICE, and air quality has its own 600/min quota (openMeteo.ts), so
-    // this spends a bucket the weather fetch cannot touch, and the two waits
-    // overlap instead of stacking — measurably cheaper in wall clock than the
-    // lazy version it replaces, whose tail batch was a second serialized pace.
-    // It is also what lets an AQI ranking be a live presentation knob: sorting
-    // the held field by air quality needs air quality for all of it (#188).
-    //
-    // The server path stays lazy (#181). There the budget is the pod's, shared
-    // across visitors, so the same arithmetic comes out the other way.
-    // Nothing new to forecast: every candidate came out of the held field, so
-    // the analysis is a re-rank and costs no weather call at all. Air quality
-    // is asked only for held rows whose fetch failed, and only then.
-    const aqiPending: Promise<AqiFetch> | null =
-      aqiCoords.length > 0
-        ? fetchAqi(aqiCoords, startMs, endMs, {
-            signal: internal.signal,
-            // The same countdown the weather hands over. Air quality is awaited
-            // before the ranking assembles, so its pacer's sleep is the analysis's
-            // sleep and must read as scheduled, not hung (analyzeOverlay.ts).
-            onPace,
-            nowMs,
-            aqiForecastDays,
-          })
-            // fetchAqi only ever throws AbortError, which is what a weather failure
-            // (or Cancel) triggers below. Swallow it here so it cannot surface as an
-            // unhandled rejection once the caller has already taken the real error.
-            .catch(
-              (): AqiFetch => ({
-                results: new Array(aqiCoords.length).fill(null),
-                failed: new Array(aqiCoords.length).fill(true),
-              }),
-            )
-        : null
-    let fetched: DestinationResult[] = []
-    let fetchedAqiFailed: boolean[] = []
-    let times: number[] = []
+    // The weather goes out first, so its batches take the forecast host's
+    // first four slots (the pool in openMeteo.ts, record 0203) and the
+    // progress line and the partial rows move from the first round. The cloud
+    // fetch below queues behind them, and the two then take turns on the pool.
+    // Air quality and the cloud column both resolve at the end, so a partial
+    // field carries neither. That is invisible for a weather ranking (the
+    // columns fill in when the analysis commits) and meaningless for a
+    // ranking on either, which would be ranking nulls. So the announcements
+    // simply do not happen there.
+    let wxPending: Promise<WeatherResult[]> | null = null
     if (coords.length > 0) {
-      // Air quality resolves at the end, so a partial field carries none. That
-      // is invisible for a weather ranking (the column fills in when the
-      // analysis commits) and meaningless for an air-quality one, which would
-      // be ranking nulls. So the announcements simply do not happen there.
-      // The cloud column resolves at the end too, so the same holds for a
-      // cloud ranking.
       const rankFamily = familyOf(sortBy)
       const partialsWanted = onPartial != null && rankFamily !== 'aqi' && rankFamily !== 'cloud_deck'
-      const wxList = await fetchWeather(coords, startMs, endMs, {
+      wxPending = fetchWeather(coords, startMs, endMs, {
         signal: internal.signal,
         onPace,
         onPartial: partialsWanted
@@ -881,6 +827,71 @@ export async function runClientAnalysis(
             `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
           ),
       })
+    }
+
+    // The cloud column rides beside the weather over the same candidates
+    // (#117, #683): every analysis fetches it, so a held row carries it the
+    // way it carries its weather and is not asked again. Its batches overlap
+    // the weather's rather than trailing them, the two taking turns in the
+    // forecast host's one pool of open requests (openMeteo.ts); it spends the
+    // same weather budget, so the pacer still sees one analysis's worth of
+    // spend. The deck walk inserts the 2 m point at the same height the wind
+    // is read at, which is what the shared `coords` carry.
+    const cloudPending: Promise<CloudResult[] | null> = fetchCloud(coords, startMs, endMs, {
+      signal: internal.signal,
+      onPace,
+      model: request.forecast_model,
+      nowMs,
+      windowLimits,
+      onColumn: (k, column) => keepColumn(unforecastAt[k], column, 'cloud'),
+    }).catch((e: unknown) => {
+      if (!isAbort(e)) cloudFailure = e
+      internal.abort()
+      return null
+    })
+
+    // AQI rides ALONGSIDE weather for the whole field rather than trailing the
+    // ranking for the displayed rows. Open-Meteo bills weighted calls per
+    // HOST, and the air-quality host has its own 600/min quota and its own
+    // five open requests (measured 2026-10-21, record 0203; openMeteo.ts), so
+    // this spends a bucket and a pool the weather fetch cannot touch, and the
+    // two waits overlap instead of stacking — measurably cheaper in wall clock
+    // than the lazy version it replaces, whose tail batch was a second
+    // serialized pace.
+    // It is also what lets an AQI ranking be a live presentation knob: sorting
+    // the held field by air quality needs air quality for all of it (#188).
+    //
+    // The server path stays lazy (#181). There the budget is the pod's, shared
+    // across visitors, so the same arithmetic comes out the other way.
+    // Nothing new to forecast: every candidate came out of the held field, so
+    // the analysis is a re-rank and costs no weather call at all. Air quality
+    // is asked only for held rows whose fetch failed, and only then.
+    const aqiPending: Promise<AqiFetch> | null =
+      aqiCoords.length > 0
+        ? fetchAqi(aqiCoords, startMs, endMs, {
+            signal: internal.signal,
+            // The same countdown the weather hands over. Air quality is awaited
+            // before the ranking assembles, so its pacer's sleep is the analysis's
+            // sleep and must read as scheduled, not hung (analyzeOverlay.ts).
+            onPace,
+            nowMs,
+            aqiForecastDays,
+          })
+            // fetchAqi only ever throws AbortError, which is what a weather failure
+            // (or Cancel) triggers below. Swallow it here so it cannot surface as an
+            // unhandled rejection once the caller has already taken the real error.
+            .catch(
+              (): AqiFetch => ({
+                results: new Array(aqiCoords.length).fill(null),
+                failed: new Array(aqiCoords.length).fill(true),
+              }),
+            )
+        : null
+    let fetched: DestinationResult[] = []
+    let fetchedAqiFailed: boolean[] = []
+    let times: number[] = []
+    if (wxPending !== null) {
+      const wxList = await wxPending
       await followTail(aqiPending, cloudPending, onTail)
       // Never null on this branch: the new candidates are in `aqiCoords`.
       const aqi = (await aqiPending) ?? { results: [], failed: [] }

@@ -1017,6 +1017,42 @@ describe('runClientAnalysis and the cloud column', () => {
     expect(out.universe.every((r) => r.series && Array.isArray(r.series.cloud_deck_ft))).toBe(true)
   })
 
+  // Record 0203: the forecast host allows four open requests, and the weather
+  // goes out first so the progress line moves from the first round. Two
+  // hundred places are four batches of each, so the first four requests the
+  // host sees are the weather's and the cloud's queue behind them.
+  it('sends the weather batches before the cloud batches on the forecast host', async () => {
+    const order: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const host = new URL(url).hostname
+        const count = new URL(url).searchParams.get('latitude')!.split(',').length
+        let body: unknown
+        if (host !== 'api.open-meteo.com') {
+          body = Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } }))
+        } else if (isCloudRequest(url)) {
+          order.push('cloud')
+          body = cloudBody(new Array(count).fill(50))
+        } else {
+          order.push('weather')
+          body = weatherBody(new Array(count).fill(0))
+        }
+        return fakeResponse(body)
+      }),
+    )
+    const many = Array.from({ length: 200 }, (_, i) => ({
+      name: `Place ${i}`,
+      latitude: 47 + i / 1000,
+      longitude: -121 + i / 1000,
+    }))
+    const dests = customRows(many).map((d) => ({ ...d, elevation_ft: 328 }))
+    const out = await runClientAnalysis({ ...REQUEST, limit: 200 }, dests, startMs, endMs, { nowMs: startMs })
+    expect(order.slice(0, 4)).toEqual(['weather', 'weather', 'weather', 'weather'])
+    expect(order.filter((k) => k === 'cloud')).toHaveLength(4)
+    expect(out.universe).toHaveLength(200)
+  })
+
   it('ranks on it when the ranking names it', async () => {
     const cloudCounts: number[] = []
     stubWithCloud(THREE_PRECIPS, [90, 60, 80], cloudCounts)

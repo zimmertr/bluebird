@@ -160,6 +160,11 @@ export interface PipelineOptions {
   // What the places the server answers as "custom" really are, by coordinate
   // (`knownTypes`, #545). Applied before anything reads a row's type.
   knownTypes?: Readonly<Record<string, string>>
+  // The field a failed run of this same ring found (#782). A polygon run
+  // handed one forecasts it rather than asking the pod again: the reader is
+  // retrying the forecasts, and the ring, its kinds and its list have not
+  // moved since. The caller decides that it still matches.
+  found?: Discovered | null
 }
 
 export interface PipelineResult {
@@ -191,7 +196,14 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
   let found: Discovered
   let resolving: Promise<readonly DiscoveredDestination[]> | undefined
   if (request.polygon) {
-    found = typed(await discoverCandidates(request, signal, options.identity?.latest() ?? NO_IDENTITY))
+    const known = options.identity?.latest() ?? NO_IDENTITY
+    // A held field takes what the lookup has learned since it was found, as
+    // a fresh answer would.
+    found = typed(
+      options.found
+        ? { ...options.found, candidates: withIdentity(options.found.candidates, known) }
+        : await discoverCandidates(request, signal, known),
+    )
   } else {
     // A run with no polygon discovers nothing: its field is the list it was
     // sent, with the elevations the browser's own lookup has learned. So the
