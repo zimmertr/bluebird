@@ -33,6 +33,7 @@ import { mountFeatures, type MapFeatures } from '../map/features'
 import { watchView } from '../map/viewWatch'
 import { watchBasemap } from '../map/basemapWatch'
 import { createPopupBoard } from '../map/popups'
+import { createCentring } from '../map/centring'
 import { CAMERA_MS, FIT_PADDING_PX, PLACE_PADDING_PX } from '../map/mapStyles'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 
@@ -361,6 +362,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // Every popup on the map, pinned ones included, so an unmodified click
     // can clear them all (`map/popups.ts`).
     const [popups] = useState(createPopupBoard)
+    // A row's centring flight, which the resize observer flies again when the
+    // canvas changes size under it (`map/centring.ts`; record 0202).
+    const [centring] = useState(createCentring)
     // Flipped once the load handler has added every source/layer. A ref wouldn't
     // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
     // link turn the overlay on as soon as the map is ready.
@@ -525,14 +529,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
       focusPoint(at: { latitude: number; longitude: number }) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        map.flyTo({
-          center: [at.longitude, at.latitude],
-          zoom: Math.max(map.getZoom(), 10),
-          duration: CAMERA_MS.focus,
-          // The offset `focusResult` explains below: a padding handed to flyTo
-          // is interpolated onto the transform and stays there.
-          offset: [0, -cameraPadBottomPx / 2],
-        })
+        // Through the centring, as `focusResult` below.
+        centring.fly(map, CAMERA_MS.focus, (duration) =>
+          map.flyTo({
+            center: [at.longitude, at.latitude],
+            zoom: Math.max(map.getZoom(), 10),
+            duration,
+            // The offset `focusResult` explains below: a padding handed to flyTo
+            // is interpolated onto the transform and stays there.
+            offset: [0, -controller.inputs.cameraPadBottomPx / 2],
+          }),
+        )
         popups.closeAll()
       },
       closePopups() {
@@ -557,32 +564,67 @@ const MapView = forwardRef<MapViewHandle, Props>(
       focusResult(result: DestinationResult, { instant = false, avoid = [] } = {}) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        // The pad as it stands now, off the controller: the prop this closure
-        // holds can be a render behind a sheet that just collapsed.
-        const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
-        const canvas = map.getCanvas()
-        // The popup opens first, against the point the marker is flying to,
-        // and rides the flight; what it asks for joins the offset, so one
-        // camera move lands marker and card together.
-        const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
-        const { dx, dy } = featuresRef.current?.results.openPopup(result, { markerAt, avoid }) ?? { dx: 0, dy: 0 }
-        map.flyTo({
-          center: [result.longitude, result.latitude],
-          zoom: Math.max(map.getZoom(), 10),
-          duration: instant ? 0 : CAMERA_MS.focus,
-          // The one framing call that centres rather than fits, so it clears
-          // the sheet with `offset` instead of `padding`: a padding handed to
-          // `flyTo` is interpolated onto the transform and STAYS there, and the
-          // next `fitBounds` would then count it a second time on top of its
-          // own. Half the sheet's height puts the result in the middle of the
-          // map the reader can see.
-          offset: [dx, -cameraPadBottomPx / 2 + dy],
+        // Through the centring, which aims again, card and all, if the canvas
+        // is resized while the flight is in the air: a desk's layout move
+        // ends in one (record 0202).
+        centring.fly(map, instant ? 0 : CAMERA_MS.focus, (duration) => {
+          // The pad as it stands now, off the controller: the prop this
+          // closure holds can be a render behind a sheet that just collapsed.
+          const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
+          const canvas = map.getCanvas()
+          // The popup opens first, against the point the marker is flying
+          // to, and rides the flight; what it asks for joins the offset, so
+          // one camera move lands marker and card together.
+          const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
+          const { dx, dy } = featuresRef.current?.results.openPopup(result, { markerAt, avoid }) ?? { dx: 0, dy: 0 }
+          map.flyTo({
+            center: [result.longitude, result.latitude],
+            zoom: Math.max(map.getZoom(), 10),
+            duration,
+            // The one framing call that centres rather than fits, so it
+            // clears the sheet with `offset` instead of `padding`: a padding
+            // handed to `flyTo` is interpolated onto the transform and STAYS
+            // there, and the next `fitBounds` would then count it a second
+            // time on top of its own. Half the sheet's height puts the result
+            // in the middle of the map the reader can see.
+            offset: [dx, -cameraPadBottomPx / 2 + dy],
+          })
         })
       },
     }))
 
     useEffect(() => {
       if (!containerRef.current || mapRef.current) return
+
+      // Keep the canvas in sync with its container, which changes size when
+      // the results open or close, where a desk's layout move ends, and when
+      // the device rotates. MapLibre observes its container too, and redraws
+      // as it resizes, which draws a frame of a flight in the air against the
+      // new size (record 0202). Made before the map, so it hears of a resize
+      // first (observers are told in the order they were made), and a row's
+      // centring is aimed again before that frame is drawn.
+      const resizeObserver = new ResizeObserver(() => {
+        // Null until the map below is made, and for good if making it failed.
+        const map = mapRef.current
+        if (!map) return
+        map.resize()
+        // A row's centring still in the air flies on to a pixel of the old
+        // canvas; aim it at the canvas as it now stands (`map/centring.ts`).
+        centring.reaim()
+        // Re-frame a just-issued fit against the size the map actually ended up
+        // with. Re-issued with the same easing so it reads as one camera move,
+        // not a jump partway through.
+        const points = refitPointsRef.current
+        if (!points) return
+        const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
+        if (bounds) {
+          map.fitBounds(bounds, {
+            padding: framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx),
+            duration: CAMERA_MS.fit,
+          })
+        }
+      })
+      resizeObserver.observe(containerRef.current)
 
       const opening = initialCamera(restoredView)
       const map = new maplibregl.Map({
@@ -600,26 +642,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       controlsRef.current = addControls(map)
       // Before `load`: a style that fails never gets there.
       const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
-
-      // Keep the canvas in sync with its container. MapLibre only tracks window
-      // resizes, but our container also changes size when the results panel
-      // opens/closes or the device rotates — observe it directly.
-      const resizeObserver = new ResizeObserver(() => {
-        map.resize()
-        // Re-frame a just-issued fit against the size the map actually ended up
-        // with. Re-issued with the same easing so it reads as one camera move,
-        // not a jump partway through.
-        const points = refitPointsRef.current
-        if (!points) return
-        const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
-        if (bounds) {
-          map.fitBounds(bounds, {
-            padding: framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx),
-            duration: CAMERA_MS.fit,
-          })
-        }
-      })
-      resizeObserver.observe(containerRef.current)
 
       // A polygon, custom CSV list or searched places restored from the URL
       // take precedence over the default framing, and a link's own camera over
