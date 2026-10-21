@@ -1,4 +1,4 @@
-import { test, expect, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, resultRows, DESTINATION_NAMES, isoDay } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // Every menu at a desk is the one menu (#714, record 0201): a card 4px under
@@ -8,12 +8,6 @@ import type { Locator, Page } from '@playwright/test'
 // Measured on the live page, since jsdom lays nothing out.
 
 test.use({ viewport: { width: 1440, height: 900 } })
-
-function isoDay(offset: number): string {
-  const d = new Date()
-  d.setUTCDate(d.getUTCDate() + offset)
-  return d.toISOString().slice(0, 10)
-}
 
 interface Rect {
   left: number
