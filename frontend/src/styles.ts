@@ -1052,9 +1052,17 @@ export const LAYER = {
   mapControls: 'z-[18]',
   /** The analysis overlay, over the map while a run is in flight. */
   overlay: 'z-20',
-  /** The preview banner, and the scrim the phone's drawer had before it was a sheet (record 0141). */
+  /**
+   * The Controls sheet's dim on a phone (record 0207): over the map, its
+   * chrome and the results sheet, under the sheet and the notice band.
+   */
   scrim: 'z-30',
-  /** The panel on a phone: the Controls sheet (record 0141). */
+  /**
+   * The panel on a phone: the Controls sheet (record 0141), and the notice
+   * band while the sheet is up, which stands on its edge over the dim so a
+   * cue reads while a control changes (record 0207). Below `popover`, so a
+   * sheet opened from inside the panel dims the band with the rest.
+   */
   drawer: 'z-40',
   /**
    * Anything opened from inside the drawer, which must clear it: the model
@@ -1748,11 +1756,23 @@ export const MAP_FAB_WORDS = {
  * 66px), and past that the band scrolls inside itself rather than climbing
  * the map: a second box or a long run error is read by scrolling the band,
  * which `overscroll-contain` keeps from handing the flick on to the map.
+ *
+ * Two layers, one per place it stands, because two z-index utilities on one
+ * element resolve by stylesheet order. `map` is the map chrome's own, under
+ * the button. `overDim` is the panel's, for the band on the Controls sheet's
+ * edge while the sheet is up (record 0207): above the sheet's dim, so a cue
+ * that arrives while a control changes reads at full contrast and its × and
+ * retry still take a press. Under the dim it would read through 40% black,
+ * and a press on its × would land on the dim and close the sheet.
  */
-export const MAP_NOTICE_BAND =
-  `absolute ${MAP_EDGE.left} ${MAP_EDGE.right} ${LAYER.base} ${RADIUS.control} ` +
+const NOTICE_BAND =
+  `absolute ${MAP_EDGE.left} ${MAP_EDGE.right} ${RADIUS.control} ` +
   `max-h-[66px] overflow-y-auto overscroll-contain ` +
   `has-[>[role=status]>*]:bg-panel ${YIELD_EMPTY}`
+export const MAP_NOTICE_BAND = {
+  map: `${NOTICE_BAND} ${LAYER.base}`,
+  overDim: `${NOTICE_BAND} ${LAYER.drawer}`,
+} as const
 
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 /**
@@ -2273,7 +2293,9 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  * The bottom sheet (#696; record 0136): on a phone, every menu the map's chips
  * and the results bar open is one card rising from the screen's bottom edge,
  * modal over a dimmed map, where a desk keeps its menus joined to their
- * controls (record 0134). One component (`BottomSheet.tsx`) wears these.
+ * controls (record 0134). One component (`BottomSheet.tsx`) wears these,
+ * and its Controls sheet takes `dim`, the top and Done from here and the
+ * rest from `CONTROLS_SHEET` (record 0207).
  *
  * `scrim` catches every press outside the card, which closes it, and `dim`
  * shades all of it: the whole screen, the search row and the chips included,
@@ -2540,20 +2562,25 @@ export const LAYOUT_HOLD = {
 /**
  * The Controls sheet (#696; record 0141): on a phone the panel is a sheet
  * the summary chip raises from the map's foot, where a desk docks it beside
- * the map. The bottom sheet's surface and top (`BOTTOM_SHEET`), with three
- * differences that come from what it holds. It is not modal: there is no dim,
- * the map above it and the chips stay live, and the Analyze button rides its
- * edge, because a reader changing a control is about to press it. It never
- * unmounts, so the panel's state and the notice block's portal outlive a
- * close, and shut it slides below the map's foot (`shut`) and goes inert. And
- * its height is set where it is placed (`controlsSheetPx`), a fixed share of
- * the map, so a notice arriving while a finger is on a control moves the
- * button rather than the sheet. `LAYER.drawer`, the panel's own layer.
+ * the map. A bottom sheet (`BOTTOM_SHEET`), modal over the same dim, which
+ * moves nothing under it: the Analyze button, the scale and the (i) stand
+ * where they stood, under the dim and out of reach (record 0207). Three
+ * differences come from what it holds. It never unmounts, so the panel's
+ * state and the notice block's portal outlive a close, and shut it slides
+ * below the map's foot (`shut`) and goes inert. Its height is set where it
+ * is placed (`controlsSheetPx`), a fixed share of the map that leaves the
+ * notice band its room on the edge. And it stands on the panel's own layer,
+ * `LAYER.drawer`, with its dim (`scrim`) one layer under, where the menu
+ * sheets stand both on `popover`: the band rides its edge over the dim on
+ * the same layer as the card (`MAP_NOTICE_BAND.overDim`), and a sheet opened
+ * from inside the panel stands over all three. `focus:outline-none` because
+ * the card itself takes the keyboard as it opens, as a menu sheet's does.
  */
 export const CONTROLS_SHEET = {
+  scrim: `fixed inset-0 ${LAYER.scrim}`,
   card:
     `absolute inset-x-0 bottom-0 ${LAYER.drawer} flex flex-col overflow-hidden ` +
-    `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} ${MOTION.slide}`,
+    `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} ${MOTION.slide} focus:outline-none`,
   shut: 'translate-y-full',
   /** The panel under the sheet's top, which takes the rest and scrolls inside. */
   panel: 'min-h-0 flex-1',

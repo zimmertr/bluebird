@@ -4,7 +4,7 @@ import { act, fireEvent, screen } from '@testing-library/react'
 import PhoneFoot from './PhoneFoot'
 import BottomSheet from './BottomSheet'
 import { render, placeAt } from '../testSupport/render'
-import { DISABLED, MAP_FAB, MAP_FAB_WORDS } from '../styles'
+import { DISABLED, MAP_FAB, MAP_FAB_WORDS, MAP_NOTICE_BAND } from '../styles'
 import { CORNER_MARGIN_PX } from '../utils/resultsSheet'
 
 // The foot of a phone's map (#696): the notice band (record 0140) and the
@@ -13,6 +13,7 @@ function foot(over: Partial<Parameters<typeof PhoneFoot>[0]> = {}) {
   return (
     <PhoneFoot
       liftPx={104}
+      controlsOpen={false}
       fabBottomPx={120}
       onNoticeBand={() => {}}
       onBandPx={() => {}}
@@ -96,6 +97,28 @@ describe('PhoneFoot', () => {
     expect(button().style.bottom).toBe('120px')
     const band = onNoticeBand.mock.lastCall![0] as HTMLElement
     expect(band.style.bottom).toBe(`${104 + CORNER_MARGIN_PX}px`)
+    expect(band.className).toBe(MAP_NOTICE_BAND.map)
+  })
+
+  // The Controls sheet opens over the foot (record 0207): the band rides its
+  // edge over the dim, on the panel's layer, and the button stands where it
+  // stood, under the dim and out of reach.
+  it('stands the band over the Controls sheet\'s dim and leaves the button inert where it was', () => {
+    const onNoticeBand = vi.fn()
+    const onAnalyze = vi.fn()
+    const { rerender } = render(foot({ onNoticeBand, onAnalyze }))
+    const band = onNoticeBand.mock.lastCall![0] as HTMLElement
+    expect(button().hasAttribute('inert')).toBe(false)
+    rerender(foot({ onNoticeBand, onAnalyze, controlsOpen: true, liftPx: 540 }))
+    expect(onNoticeBand.mock.lastCall![0]).toBe(band)
+    expect(band.className).toBe(MAP_NOTICE_BAND.overDim)
+    expect(band.style.bottom).toBe(`${540 + CORNER_MARGIN_PX}px`)
+    const fab = screen.getByRole('button', { name: 'Analyze', hidden: true }) as HTMLButtonElement
+    expect(fab.hasAttribute('inert')).toBe(true)
+    expect(fab.style.bottom).toBe('120px')
+    rerender(foot({ onNoticeBand, onAnalyze }))
+    expect(band.className).toBe(MAP_NOTICE_BAND.map)
+    expect(button().hasAttribute('inert')).toBe(false)
   })
 
   // The band's height is what the button rises by, so it is reported, and
@@ -110,6 +133,23 @@ describe('PhoneFoot', () => {
     placeAt(band, { left: 12, top: 600, width: 366, height: 52 })
     act(() => fire())
     expect(onBandPx).toHaveBeenLastCalledWith(52)
+  })
+
+  // While the Controls sheet is up the band rides its edge, so its height no
+  // longer moves the button: a cue that arrives then is reported when the
+  // sheet shuts and the band is back at the foot (record 0207).
+  it('holds the band\'s height while the Controls sheet is up, and reports it as it shuts', () => {
+    const fire = stubResizeObserver()
+    const onBandPx = vi.fn()
+    const onNoticeBand = vi.fn()
+    const { rerender } = render(foot({ onBandPx, onNoticeBand, controlsOpen: true }))
+    expect(onBandPx).not.toHaveBeenCalled()
+    const band = onNoticeBand.mock.lastCall![0] as HTMLElement
+    placeAt(band, { left: 12, top: 180, width: 366, height: 62 })
+    act(() => fire())
+    expect(onBandPx).not.toHaveBeenCalled()
+    rerender(foot({ onBandPx, onNoticeBand }))
+    expect(onBandPx).toHaveBeenLastCalledWith(62)
   })
 
   // The opened credit line stops short of the button, so its width is
@@ -146,5 +186,20 @@ describe('PhoneFoot', () => {
     expect(screen.queryByRole('button', { name: 'Analyze' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     expect(screen.queryByRole('button', { name: 'Analyze' })).toBeTruthy()
+  })
+
+  // The Controls sheet is the one sheet it does not hide under: it stays
+  // where it stood (record 0207).
+  it('stays mounted under the Controls sheet', () => {
+    const kept = { open: true, tourRuns: false, heightPx: 540, restPx: 540, fullPx: 660, onHeightPx: () => {} }
+    render(
+      <>
+        {foot({ controlsOpen: true })}
+        <BottomSheet heading="Controls" onClose={() => {}} kept={kept}>
+          <div>Destinations</div>
+        </BottomSheet>
+      </>,
+    )
+    expect(screen.getByRole('button', { name: 'Analyze', hidden: true })).toBeTruthy()
   })
 })

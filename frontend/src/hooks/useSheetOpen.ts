@@ -18,16 +18,21 @@ function subscribe(listener: () => void) {
   }
 }
 
-/** Counts the calling sheet as open for as long as it is mounted. */
-export function useHoldSheetOpen(): void {
+/**
+ * Counts the calling sheet as open for as long as it is mounted and `hold`
+ * is true. The Controls sheet holds nothing (record 0207): the button stays
+ * where it stood under its dim, inert, so opening the sheet moves nothing.
+ */
+export function useHoldSheetOpen(hold = true): void {
   useEffect(() => {
+    if (!hold) return
     open += 1
     changed()
     return () => {
       open -= 1
       changed()
     }
-  }, [])
+  }, [hold])
 }
 
 /** True while any bottom sheet is mounted. */

@@ -29,8 +29,8 @@ import {
   controlsSheetPx,
   fabBottomPx,
   noticeBottomPx,
+  noticeLiftPx,
   phoneCornerLiftPx,
-  phoneFootLiftPx,
   transportFits,
   transportStandPx,
   legendBottomPx,
@@ -454,37 +454,40 @@ describe('the default panel heights', () => {
 })
 
 // The Controls sheet (#696; record 0141): the panel on a phone, a fixed share
-// of the map that leaves the rows, the button's strip and a full notice band.
+// of the map that leaves the rows, the strip a full results sheet leaves the
+// button, and a full notice band on its edge.
 describe('the Controls sheet', () => {
-  it('leaves the rows, the button and the fullest band above it', () => {
+  it('leaves the rows, the button\'s strip and the fullest band above it', () => {
     expect(CONTROLS_MAP_PX).toBe(DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX)
     expect(controlsSheetPx(844)).toBe(844 - CONTROLS_MAP_PX)
     expect(controlsSheetPx(100)).toBe(0)
   })
 
-  // With the fullest band on its edge, the button still stands under the rows.
-  it('leaves the button its place over a full band', () => {
-    const lift = controlsSheetPx(844)
-    const fab = fabBottomPx(lift, NOTICE_BAND_MAX_PX, 844)
-    expect(fab).toBe(lift + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX + FAB_INSET_PX)
-    expect(844 - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
+  // The fullest band on its edge tops out where a full results sheet does,
+  // so a cue arriving while a control changes never reaches the chips.
+  it('stands the fullest band on its edge under the button\'s strip', () => {
+    const bandTop = 844 - noticeBottomPx(controlsSheetPx(844)) - NOTICE_BAND_MAX_PX
+    expect(bandTop).toBe(DRAGGED_MAP_PX)
   })
 
-  it('is the edge the foot rides while it is up and stands higher', () => {
+  // The band alone rides it (record 0207): over its dim, wherever a drag left
+  // it, and even where a results sheet dragged high stands above it, since
+  // the Controls sheet is the one in view.
+  it('is the edge the band rides while it is up, and the results sheet\'s otherwise', () => {
     const sheet = controlsSheetPx(844)
-    expect(phoneFootLiftPx(104, sheet)).toBe(sheet)
-    expect(phoneFootLiftPx(104, null)).toBe(104)
-    expect(phoneFootLiftPx(sheet + 20, sheet)).toBe(sheet + 20)
+    expect(noticeLiftPx(104, sheet)).toBe(sheet)
+    expect(noticeLiftPx(104, null)).toBe(104)
+    expect(noticeLiftPx(sheet + 20, sheet)).toBe(sheet)
     // A drag moves the edge with it.
-    expect(phoneFootLiftPx(104, 300)).toBe(300)
+    expect(noticeLiftPx(104, 300)).toBe(300)
   })
 
-  // Dragged up whole, it stops where a dragged results sheet does, and the
-  // button keeps its strip under the chip row (#696; record 0146).
+  // Dragged up whole, it stops where a dragged results sheet does (#696;
+  // record 0146), and a full band on its edge still clears the rows.
   it('rises under a drag to the button\'s strip and no higher', () => {
     expect(controlsFullPx(844)).toBe(844 - DRAGGED_MAP_PX)
-    const lift = controlsFullPx(844)
-    expect(844 - fabBottomPx(lift, 0, 844) - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
+    const bandTop = 844 - noticeBottomPx(controlsFullPx(844)) - NOTICE_BAND_MAX_PX
+    expect(bandTop).toBeGreaterThan(MAP_ROWS_PX)
   })
 })
 

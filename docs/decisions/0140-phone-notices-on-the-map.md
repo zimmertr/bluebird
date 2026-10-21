@@ -1,6 +1,6 @@
 # 0140. On a phone, the notice block stands on the map, on the sheet's edge
 
-- Status: Accepted. Amends 0028 on a phone (the whole block stands on the map; on a desk it stays under Analyze).
+- Status: Accepted. Amends 0028 on a phone (the whole block stands on the map; on a desk it stays under Analyze). Amended by 0207 (the band rides the Controls sheet's edge over its dim, and the Analyze button, the scale and the (i) stay at the map's foot under it).
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696: frame 9 of the phone flow mockup approved 2026-10-14; placement B of the band comparison (frames A, B and C) chosen the same day; the split between action and information that day's cut made, reversed by the maintainer on a Pixel the same evening, with the corner bottom-aligned
 - Issues and PRs: #696, #708, #253, #123

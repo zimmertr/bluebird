@@ -1,11 +1,10 @@
-import { useId, useRef, type RefObject } from 'react'
-import { SheetTop } from './BottomSheet'
+import { useRef, type RefObject } from 'react'
+import BottomSheet from './BottomSheet'
 import ControlPanel from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
 import ThemeButton from './ThemeButton'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { useSheetDrag } from '../hooks/useSheetDrag'
 import type { Refusal, RunError } from '../hooks/useAnalyze'
 import type { LiveCapabilities } from '../hooks/useCapabilities'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
@@ -18,7 +17,7 @@ import type { ClosureProximityStatus } from '../utils/closureProximity'
 import type { ActionWord } from '../utils/analyzeGate'
 import type { EventNoticeKind } from '../utils/notices'
 import type { CommitReason } from '../utils/present'
-import { CONTROLS_SHEET, DESK_PANEL, HEADER_BUTTON, PANEL_HEADER } from '../styles'
+import { DESK_PANEL, HEADER_BUTTON, PANEL_HEADER } from '../styles'
 import type { Theme } from '../utils/viewPrefs'
 
 interface AppDrawerProps {
@@ -34,8 +33,13 @@ interface AppDrawerProps {
   sheetFullPx: number
   /** Holds it at a dragged height, or null for its own share. */
   onSheetPx: (px: number | null) => void
-  /** Closes it, from its own button or from the backdrop behind it. */
+  /** Closes it: its close button at a desk, and on a phone Done, Escape or a press on the dim. */
   onClose: () => void
+  /**
+   * The tutorial runs, and its card has the keyboard: a phone's Controls
+   * sheet, which a panel step holds open, then takes neither it nor Tab.
+   */
+  tourRuns?: boolean
   /** Draw mode and its buttons (`useDrawMode`). */
   drawMode: Pick<
     DrawMode,
@@ -127,9 +131,10 @@ interface AppDrawerProps {
 /**
  * The controls panel around `ControlPanel` (#409 cut it out of `App.tsx`):
  * docked beside the map at a desk, and on a phone the Controls sheet (#696;
- * record 0141), which the summary chip raises from the map's foot with the
- * Analyze button riding its edge. Closing on a committed report is App's,
- * because the report is App's: this only draws the panel it is told is open.
+ * record 0141), which the summary chip raises from the map's foot as a modal
+ * sheet over the dimmed map, the way Layers and Legend rise (record 0207).
+ * Closing on a committed report is App's, because the report is App's: this
+ * only draws the panel it is told is open.
  */
 export default function AppDrawer({
   open,
@@ -139,6 +144,7 @@ export default function AppDrawer({
   sheetFullPx,
   onSheetPx,
   onClose,
+  tourRuns = false,
   drawMode,
   destinationInputs,
   forecastSelection,
@@ -204,20 +210,11 @@ export default function AppDrawer({
     setLimit,
     clearFilters,
   } = rankingKnobs
-  // Opened from the map's Controls button, which unmounts as the drawer opens,
-  // the keyboard lands on this drawer's own way back out (#576). On a phone
-  // that is the sheet's Done.
+  // Opened from the map's summary chip, which unmounts as a desk's panel
+  // opens, the keyboard lands on the panel's own way back out (#576). A
+  // phone's sheet takes the keyboard itself, as a menu sheet does.
   const closeRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(closeRef, open)
-  const headingId = useId()
-  // The grip and the title drag the sheet the way a menu's are dragged
-  // (record 0146), with the heights App holds, since the Analyze button and
-  // the notice band ride its edge.
-  const onGripDown = useSheetDrag({
-    measure: () => ({ startPx: sheetPx, restPx: sheetRestPx, fullPx: sheetFullPx }),
-    onHeight: onSheetPx,
-    onClose,
-  })
   const panel = (
     <ControlPanel
       phone={!isDesktop}
@@ -297,29 +294,26 @@ export default function AppDrawer({
 
   if (!isDesktop) {
     return (
-      // Not a dialog: nothing outside it goes inert or dim, and the map's
-      // Analyze stands on its edge. A labelled region, so a screen reader
-      // can name what opened. Inert while shut for the reason the desk's
-      // panel is (#576), and Escape closes it as Done does.
-      <section
-        inert={!open}
-        aria-labelledby={headingId}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose()
+      // The bottom sheet every phone menu is, kept mounted (record 0207):
+      // modal over the dim while open, with Done, Escape and a press on the
+      // dim closing it, and inert while shut for the reason the desk's panel
+      // is (#576). Its grip and title drag it (record 0146) between the
+      // heights App holds, since the notice band rides its edge.
+      <BottomSheet
+        heading="Controls"
+        onClose={onClose}
+        kept={{
+          open,
+          tourRuns,
+          heightPx: sheetPx,
+          restPx: sheetRestPx,
+          fullPx: sheetFullPx,
+          onHeightPx: onSheetPx,
+          actions: <ThemeButton theme={theme} onToggle={onToggleTheme} />,
         }}
-        className={`${CONTROLS_SHEET.card} ${open ? '' : CONTROLS_SHEET.shut}`}
-        style={{ height: sheetPx }}
       >
-        <SheetTop
-          heading="Controls"
-          headingId={headingId}
-          onClose={onClose}
-          onGripDown={onGripDown}
-          doneRef={closeRef}
-          actions={<ThemeButton theme={theme} onToggle={onToggleTheme} />}
-        />
-        <div className={CONTROLS_SHEET.panel}>{panel}</div>
-      </section>
+        {panel}
+      </BottomSheet>
     )
   }
   return (

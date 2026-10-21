@@ -29,8 +29,8 @@ import { hourlyScale, rankedScale } from '../utils/colors'
 import {
   TRANSPORT_GAP_PX,
   fabBottomPx,
+  noticeLiftPx,
   phoneCornerLiftPx,
-  phoneFootLiftPx,
   transportFits,
   transportStandPx,
 } from '../utils/resultsSheet'
@@ -112,7 +112,7 @@ export interface MapStageProps {
   sidebarOpen: boolean
   /** Which edge of a desk's layout is moving, which the map's box holds still for (record 0202). */
   layoutMotion?: LayoutMotion
-  /** A phone's Controls sheet's height, wherever a drag left it (record 0146). */
+  /** A phone's Controls sheet's height, wherever a drag left it (record 0146), whose edge the notice band rides. */
   controlsPx: number
   /** Whether a desk's legend card opens unfolded (`viewPrefs.legendOpen`). */
   legendInitiallyOpen: boolean
@@ -268,12 +268,13 @@ export default function MapStage({
   // (#687, #696), and the player steps out meanwhile: playback is no use
   // while points are being placed.
   const drawBarShown = drawMode.drawing && !isDesktop
-  // A phone's Analyze button rides the sheet and rises over the notice band
-  // (record 0135), and the player stands on the button rather than on the
-  // sheet, stepping off while a sheet dragged high leaves it no room. The
-  // sheet is whichever stands higher, the results or the Controls sheet
-  // (record 0141), so the one Analyze is on the edge of the sheet in view.
-  const footLift = isDesktop ? layout.sheetLiftPx : phoneFootLiftPx(layout.sheetLiftPx, sidebarOpen ? controlsPx : null)
+  // A phone's Analyze button rides the results sheet and rises over the
+  // notice band (record 0135), and the player stands on the button rather
+  // than on the sheet, stepping off while a sheet dragged high leaves it no
+  // room. The Controls sheet moves none of them: it opens over them, modal,
+  // and the band alone leaves the foot to ride its edge (record 0207).
+  const footLift = layout.sheetLiftPx
+  const controlsOpen = !isDesktop && sidebarOpen
   const fabBottom = fabBottomPx(footLift, bandPx, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
@@ -414,7 +415,8 @@ export default function MapStage({
           Analyze button (record 0135). */}
       {!isDesktop && (
         <PhoneFoot
-          liftPx={footLift}
+          liftPx={noticeLiftPx(footLift, controlsOpen ? controlsPx : null)}
+          controlsOpen={controlsOpen}
           fabBottomPx={fabBottom}
           onNoticeBand={onNoticeBand}
           onBandPx={setBandPx}

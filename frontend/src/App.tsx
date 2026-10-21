@@ -635,6 +635,7 @@ export default function App() {
         sheetFullPx={controlsFullPx(layout.mapPx)}
         onSheetPx={setControlsHeldPx}
         onClose={closeDrawer}
+        tourRuns={tour.index !== null}
         theme={theme}
         onToggleTheme={toggleTheme}
         drawMode={drawMode}

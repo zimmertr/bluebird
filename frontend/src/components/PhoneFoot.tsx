@@ -6,13 +6,25 @@ import { ACTION_WORDS, type ActionWord } from '../utils/analyzeGate'
 import { noticeBottomPx } from '../utils/resultsSheet'
 
 interface PhoneFootProps {
-  /** How far the results sheet stands up the map (0 with no sheet). */
+  /**
+   * The edge the notice band stands on (`noticeLiftPx`): the Controls sheet's
+   * while it is up, or the results sheet's (0 with no sheet).
+   */
   liftPx: number
+  /**
+   * The Controls sheet is up (record 0207): the band rides its edge over its
+   * dim, and the button stands where it stood, under the dim and inert.
+   */
+  controlsOpen: boolean
   /** Where the button's bottom edge stands (`fabBottomPx`), which `MapStage` works out from the band's height. */
   fabBottomPx: number
   /** Receives the band the panel portals its notice block into (record 0140). */
   onNoticeBand: (band: HTMLDivElement | null) => void
-  /** Receives the band's height each time it changes, 0 while it holds nothing. */
+  /**
+   * Receives the band's height each time it changes, 0 while it holds
+   * nothing. Held while the Controls sheet is up: the band then stands on
+   * that sheet's edge, and the button stays where it stood (record 0207).
+   */
   onBandPx: (px: number) => void
   /**
    * Receives the button's width when it is measured: the wider word's in the
@@ -37,10 +49,13 @@ interface PhoneFootProps {
  * notice. This component measures the band and hands its height up, and
  * `MapStage` places the button from it (`fabBottomPx`), so the player that
  * stands on the button reads the same number. The button hides under the dim
- * while any bottom sheet is open, and comes back when the sheet closes.
+ * while a menu sheet is open, and comes back when the sheet closes. Under the
+ * Controls sheet it stays where it stood, inert under the dim, while the band
+ * alone rises over the dim onto the sheet's edge (record 0207).
  */
 export default function PhoneFoot({
   liftPx,
+  controlsOpen,
   fabBottomPx,
   onNoticeBand,
   onBandPx,
@@ -59,16 +74,19 @@ export default function PhoneFoot({
   )
   // The band's height decides where the button stands, and the notices in it
   // come and go with the panel's state, so it is observed rather than added
-  // up: a box can wrap, be dismissed or gain a line.
+  // up: a box can wrap, be dismissed or gain a line. Not while the Controls
+  // sheet is up, when the band rides that sheet's edge over the dim: a cue
+  // that arrives then would move the button under the dim, and opening the
+  // sheet moves nothing (record 0207). Its closing reports the band again.
   useEffect(() => {
-    if (!band) return
+    if (!band || controlsOpen) return
     const report = () => onBandPx(Math.round(band.getBoundingClientRect().height))
     report()
     if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(report)
     observer.observe(band)
     return () => observer.disconnect()
-  }, [band, onBandPx])
+  }, [band, onBandPx, controlsOpen])
 
   const sheetOpen = useSheetOpen()
   // The button's width is the widest word's whichever it reads, so it moves
@@ -97,10 +115,17 @@ export default function PhoneFoot({
 
   return (
     <>
-      <div ref={bandRef} className={MAP_NOTICE_BAND} style={{ bottom: noticeBottomPx(liftPx) }} />
+      <div
+        ref={bandRef}
+        className={controlsOpen ? MAP_NOTICE_BAND.overDim : MAP_NOTICE_BAND.map}
+        style={{ bottom: noticeBottomPx(liftPx) }}
+      />
       {!sheetOpen && (
         <button
           ref={setButtonRef}
+          // Under the Controls sheet's dim, out of reach of a press, the
+          // keyboard and a screen reader: Done, then Analyze.
+          inert={controlsOpen}
           onClick={onAnalyze}
           disabled={!analyzeEnabled}
           className={`${MAP_FAB} ${DISABLED}`}

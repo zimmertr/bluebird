@@ -440,9 +440,13 @@ export function phoneCornerLiftPx(fabBottom: number): number {
 
 /**
  * The map the Controls sheet leaves on a phone (#696; record 0141): the two
- * rows, the button's strip and room under the button for a notice band at its
- * fullest, so a cue that arrives while the reader changes a control raises
- * the button rather than resizing the sheet under their finger.
+ * rows, the strip a full results sheet leaves the Analyze button, and room
+ * on the sheet's edge for the notice band at its fullest. The band rides
+ * that edge over the sheet's dim (record 0207), so a cue that arrives while
+ * the reader changes a control stands above the sheet rather than resizing
+ * it under their finger. The button stays at the map's foot under the dim,
+ * so the sheet no longer needs the strip; it keeps it, 88px, so the sheet
+ * opens at the height a reader knows.
  */
 export const CONTROLS_MAP_PX = DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX
 
@@ -453,22 +457,23 @@ export function controlsSheetPx(mapPx: number): number {
 
 /**
  * The most a Controls sheet rises under a drag on its grip (#696; record
- * 0146): to the Analyze button's strip under the chip row, where a dragged
- * results sheet stops, so the button keeps a place to stand over it.
+ * 0146): where a dragged results sheet stops, the strip under the chip row,
+ * so a full band still stands on its edge clear of the chips.
  */
 export function controlsFullPx(mapPx: number): number {
   return Math.max(0, mapPx - DRAGGED_MAP_PX)
 }
 
 /**
- * The edge a phone's foot stands on: the results sheet's, or the Controls
- * sheet's while it is up and stands higher, so the button, the band and the
- * player ride whichever sheet is in view (record 0141). `controlsPx` is the
- * Controls sheet's height, whatever a drag left it at, or null while it is
- * shut.
+ * The edge a phone's notice band stands on (record 0207): the Controls
+ * sheet's while it is up, over its dim, wherever a drag left it, or the
+ * results sheet's otherwise. `controlsPx` is the Controls sheet's height, or
+ * null while it is shut. The Analyze button, the scale and the (i) ride the
+ * results sheet alone (`fabBottomPx`), so opening the Controls sheet moves
+ * none of them: they stand under its dim where they stood.
  */
-export function phoneFootLiftPx(sheetLiftPx: number, controlsPx: number | null): number {
-  return controlsPx === null ? sheetLiftPx : Math.max(sheetLiftPx, controlsPx)
+export function noticeLiftPx(sheetLiftPx: number, controlsPx: number | null): number {
+  return controlsPx ?? sheetLiftPx
 }
 
 /**

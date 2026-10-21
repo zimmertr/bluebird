@@ -208,6 +208,8 @@ function token(recipe: string, utility: string): string {
 }
 /** The Tailwind step a token paints in the dark theme: `slate-300`, `sky-650`. */
 const darkStep = (name: string): string => DARK_TOKENS[name].match(/^var\(--color-([\w-]+)\)$/)?.[1] ?? DARK_TOKENS[name]
+// A layer's stacking number, from its z utility: `z-30` or `z-[15]`.
+const zOf = (layer: string): number => Number(layer.match(/^z-\[?(\d+)\]?$/)![1])
 /**
  * The hex a token paints in the light theme. A light token that names one of
  * this app's own colours (`var(--color-sky-650)`, the accent the two themes
@@ -2550,8 +2552,9 @@ describe('the bottom sheet', () => {
     expect(BOTTOM_SHEET.dim).not.toMatch(/(^|\s)top-/)
     expect(bottomSheetSource).toContain('role="dialog"')
     expect(bottomSheetSource).toContain('aria-modal="true"')
-    // Modal unless the tutorial holds it open behind its own card (#696).
-    expect(bottomSheetSource).toContain('useDialog(onClose, tourAnchor === undefined)')
+    // Modal unless the tutorial holds it open behind its own card (#696), or
+    // the kept Controls sheet is shut or held by the tutorial (record 0207).
+    expect(bottomSheetSource).toContain('useDialog(onClose, open && (kept ? !kept.tourRuns : tourAnchor === undefined))')
   })
 
   // The results sheet's surface, a step up, since it stands over that sheet.
@@ -2576,21 +2579,41 @@ describe('the bottom sheet', () => {
 const words = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
 
 describe('the notice band', () => {
+  const bands = [MAP_NOTICE_BAND.map, MAP_NOTICE_BAND.overDim]
+
   it('lays the drawer\'s fill under the boxes only while it holds one, and yields the rest', () => {
     const drawerFill = DESK_PANEL.card.match(/(?:^|\s)(bg-[a-z-]+)(?=\s|$)/)?.[1]
     expect(drawerFill).toBeDefined()
-    expect(MAP_NOTICE_BAND).toContain(`has-[>[role=status]>*]:${drawerFill}`)
-    expect(MAP_NOTICE_BAND).not.toMatch(/(^|\s)bg-/)
-    for (const part of [MAP_EDGE.left, MAP_EDGE.right, YIELD_EMPTY]) expect(MAP_NOTICE_BAND).toContain(part)
-    // The boxes' own corners, so the fill under them meets their edges.
+    for (const band of bands) {
+      expect(band).toContain(`has-[>[role=status]>*]:${drawerFill}`)
+      expect(band).not.toMatch(/(^|\s)bg-/)
+      for (const part of [MAP_EDGE.left, MAP_EDGE.right, YIELD_EMPTY]) expect(band).toContain(part)
+      // The boxes' own corners, so the fill under them meets their edges.
+      expect(band).toContain(RADIUS.control)
+    }
     expect(NOTICE.warn).toContain(RADIUS.control)
-    expect(MAP_NOTICE_BAND).toContain(RADIUS.control)
+  })
+
+  // On the map it is map chrome, under the button. On the Controls sheet's
+  // edge it stands on the panel's layer, over the sheet's dim and under a
+  // sheet opened from inside the panel (record 0207). One layer each, since
+  // two z utilities on one element resolve by stylesheet order.
+  it('stands on the map\'s layer, or over the Controls sheet\'s dim', () => {
+    const layerOf = (recipe: string) => words(recipe).filter((w) => /^z-/.test(w))
+    expect(layerOf(MAP_NOTICE_BAND.map)).toEqual([LAYER.base])
+    expect(layerOf(MAP_NOTICE_BAND.overDim)).toEqual([LAYER.drawer])
+    expect(MAP_NOTICE_BAND.map.replace(LAYER.base, '')).toBe(MAP_NOTICE_BAND.overDim.replace(LAYER.drawer, ''))
+    expect(zOf(LAYER.drawer)).toBeGreaterThan(zOf(LAYER.scrim))
+    expect(zOf(LAYER.drawer)).toBeLessThan(zOf(LAYER.popover))
+    expect(phoneFootSource).toContain('controlsOpen ? MAP_NOTICE_BAND.overDim : MAP_NOTICE_BAND.map')
   })
 
   // Three lines of a box and then it scrolls inside itself (record 0140):
   // the class and the number the layout adds up are one.
   it('caps the band at the three lines the layout counts, and scrolls past them', () => {
-    expect(words(MAP_NOTICE_BAND)).toEqual(expect.arrayContaining([`max-h-[${NOTICE_BAND_MAX_PX}px]`, 'overflow-y-auto', 'overscroll-contain']))
+    for (const band of bands) {
+      expect(words(band)).toEqual(expect.arrayContaining([`max-h-[${NOTICE_BAND_MAX_PX}px]`, 'overflow-y-auto', 'overscroll-contain']))
+    }
     // The box the three lines are counted in: 12px type on a 16px line, 8px
     // of padding and a 1px border.
     expect(words(NOTICE.warn)).toEqual(expect.arrayContaining(['text-xs', 'p-2', 'border']))
@@ -2634,21 +2657,35 @@ describe('the safe area', () => {
   })
 })
 
-// The panel on a phone (#696; record 0141): the bottom sheet's surface, not
-// modal, mounted for good and slid below the map while shut.
+// The panel on a phone (#696; record 0141): the bottom sheet's surface,
+// mounted for good and slid below the map while shut, and modal over the
+// bottom sheet's own dim while open (record 0207).
 describe('the Controls sheet', () => {
   it('wears the bottom sheet surface on the panel layer, and slides', () => {
     expect(darkStep(token(CONTROLS_SHEET.card, 'bg'))).toBe('slate-800')
     expect(darkStep(token(CONTROLS_SHEET.card, 'border'))).toBe('slate-600')
-    for (const part of ['border-t', 'rounded-t-lg', ELEVATION.overlay, LAYER.drawer]) {
+    for (const part of ['border-t', 'rounded-t-lg', ELEVATION.overlay, LAYER.drawer, 'focus:outline-none']) {
       expect(words(CONTROLS_SHEET.card)).toContain(part)
     }
     for (const part of words(MOTION.slide)) expect(words(CONTROLS_SHEET.card)).toContain(part)
     expect(CONTROLS_SHEET.shut).toBe('translate-y-full')
     expect(words(CONTROLS_SHEET.panel)).toEqual(['min-h-0', 'flex-1'])
-    // Not modal: nothing of the bottom sheet's dim or scrim.
-    expect(CONTROLS_SHEET.card).not.toContain(BOTTOM_SHEET.dim)
-    expect(CONTROLS_SHEET.card).not.toMatch(/(^|\s)bg-scrim/)
+  })
+
+  // Its dim is the whole screen, fixed to the viewport like a menu sheet's,
+  // one layer under the card: over the map, the button and the results
+  // sheet, and under the band that rides the card's edge (record 0207).
+  it('dims the whole screen one layer under the card', () => {
+    expect(words(CONTROLS_SHEET.scrim)).toEqual(['fixed', 'inset-0', LAYER.scrim])
+    expect(zOf(LAYER.scrim)).toBeLessThan(zOf(LAYER.drawer))
+    for (const under of [LAYER.base, LAYER.sheet, LAYER.mapControls, MAP_FAB.match(/(?:^|\s)(z-\S+)/)![1]]) {
+      expect(zOf(under)).toBeLessThan(zOf(LAYER.scrim))
+    }
+    expect(bottomSheetSource).toContain('kept ? CONTROLS_SHEET.scrim : BOTTOM_SHEET.scrim')
+    expect(bottomSheetSource).toContain('<div className={BOTTOM_SHEET.dim} />')
+    // The button stays under the dim, out of reach, where it stood.
+    expect(phoneFootSource).toContain('inert={controlsOpen}')
+    expect(bottomSheetSource).toContain('useHoldSheetOpen(kept === undefined)')
   })
 })
 
