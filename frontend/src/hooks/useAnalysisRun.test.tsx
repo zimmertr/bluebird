@@ -42,12 +42,14 @@ describe('useAnalysisRun', () => {
     expect(result.current.progress?.percent).toBe(100)
   })
 
-  it('puts a failure in the error box and calls both hooks', async () => {
+  // The failure hook is told the kind, since a failed polygon run keeps the
+  // field it found and a cancel drops it (#782).
+  it('puts a failure in the error box and calls both hooks, naming the kind', async () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     const h = hooks()
     await act(() => result.current.run('s', async () => Promise.reject(new Error('Broken.')), h))
     expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
-    expect(h.onFailure).toHaveBeenCalledOnce()
+    expect(h.onFailure).toHaveBeenCalledExactlyOnceWith('error')
     expect(h.onSettled).toHaveBeenCalledOnce()
   })
 
@@ -67,9 +69,11 @@ describe('useAnalysisRun', () => {
 
   it('puts a refusal in the warn box, not the error box', async () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
-    await act(() => result.current.run('s', async () => Promise.reject(new AnalysisRefusalError('Too many.')), hooks()))
+    const h = hooks()
+    await act(() => result.current.run('s', async () => Promise.reject(new AnalysisRefusalError('Too many.')), h))
     expect(result.current.refusal).toEqual({ message: 'Too many.' })
     expect(result.current.error).toBeNull()
+    expect(h.onFailure).toHaveBeenCalledExactlyOnceWith('refusal')
   })
 
   it('aborts the run on cancel and shows nothing for it', async () => {
@@ -94,7 +98,7 @@ describe('useAnalysisRun', () => {
     })
     expect(seen?.aborted).toBe(true)
     expect(result.current).toMatchObject({ error: null, refusal: null, statusMessage: null, loading: false })
-    expect(h.onFailure).toHaveBeenCalledOnce()
+    expect(h.onFailure).toHaveBeenCalledExactlyOnceWith('cancel')
   })
 
   // #560: the caller keeps its own bookkeeping off a run that changed nothing,

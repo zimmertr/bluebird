@@ -403,3 +403,159 @@ describe('what the reader sees', () => {
     })
   })
 })
+
+// #782: a ring's found destinations show as pending rows from the moment
+// discovery answers, and a forecast failure leaves them on screen so Try
+// again asks for the forecasts alone.
+describe('a ring\'s found field', () => {
+  const RING: GeoPolygon = { type: 'Polygon', coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
+  const OTHER_RING: GeoPolygon = { type: 'Polygon', coordinates: [[[-121.6, 47.4], [-121.4, 47.4], [-121.4, 47.55], [-121.6, 47.4]]] }
+  const RING_REQUEST: AnalyzeRequest = {
+    ...REQUEST,
+    polygon: RING,
+    destination_types: ['peak', 'lake'],
+    include_unnamed_peaks: false,
+    custom_destinations: [PROBE],
+  }
+  const FOUND = [
+    discovered({ name: 'Found A', latitude: 47.45, longitude: -121.8, osm_id: 'node/10' }),
+    discovered({ name: 'Found B', type: 'lake', latitude: 47.5, longitude: -121.75, osm_id: 'way/11' }),
+  ]
+  // Every fetch in these runs is the ring's one discovery call, since the
+  // ranking is a spy.
+  function stubDiscovery() {
+    const fetch = vi.fn(async () => fakeResponse({ destinations: FOUND, total: FOUND.length }))
+    vi.stubGlobal('fetch', fetch)
+    return fetch
+  }
+  // A forecast fetch that fails once the field is announced.
+  const failForecasts = () => ranked.mockRejectedValueOnce(new Error('Open-Meteo quota reached. Try again later.'))
+  // A forecast fetch that stands until the run is cancelled.
+  function holdForecasts() {
+    ranked.mockImplementationOnce(
+      (_r, _c, _s, _e, cb) =>
+        new Promise((_, reject) => cb!.signal!.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))),
+    )
+  }
+
+  it('shows the field while its forecasts are fetched, and drops it on the commit', async () => {
+    stubDiscovery()
+    let release!: () => void
+    ranked.mockImplementationOnce(async () => {
+      await new Promise<void>((r) => (release = r))
+      return { response: DATA, universe: ROWS, aqiFailed: new Set<string>(), columns: new Map(), late: null }
+    })
+    const { result } = renderHook(() => useAnalyze())
+    let run!: Promise<boolean>
+    act(() => {
+      run = result.current.analyze(RING_REQUEST)
+    })
+    await vi.waitFor(() => expect(result.current.pendingField).toEqual(FOUND))
+    await act(async () => {
+      release()
+      await run
+    })
+    expect(result.current.analysisSeq).toBe(1)
+    expect(result.current.pendingField).toBeNull()
+  })
+
+  it('keeps the field through a forecast failure, beside the report it put back', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    await analyzeAt(result, T0)
+    const { response, universe } = result.current
+    stubDiscovery()
+    failForecasts()
+    await act(() => result.current.analyze(RING_REQUEST))
+    expect(result.current.error).toMatchObject({ retry: true })
+    expect(result.current.pendingField).toEqual(FOUND)
+    expect(result.current.response).toBe(response)
+    expect(result.current.universe).toBe(universe)
+    expect(result.current.analysisSeq).toBe(1)
+  })
+
+  it('forecasts the held field without asking the pod again when the next run asks the same question', async () => {
+    const fetch = stubDiscovery()
+    const { result } = renderHook(() => useAnalyze())
+    failForecasts()
+    await act(() => result.current.analyze(RING_REQUEST))
+    expect(fetch).toHaveBeenCalledOnce()
+    // The kinds in another order, and the toggle spelled out, are the same question.
+    await act(() => result.current.analyze({ ...RING_REQUEST, destination_types: ['lake', 'peak'] }))
+    expect(fetch).toHaveBeenCalledOnce()
+    expect(ranked.mock.calls[1][1]).toEqual(FOUND)
+    expect(result.current).toMatchObject({ analysisSeq: 1, response: DATA, error: null, pendingField: null })
+  })
+
+  it('discovers again for a changed ring, kind, unnamed-peaks toggle or list', async () => {
+    const changed: AnalyzeRequest[] = [
+      { ...RING_REQUEST, polygon: OTHER_RING },
+      { ...RING_REQUEST, destination_types: ['peak'] },
+      { ...RING_REQUEST, include_unnamed_peaks: true },
+      { ...RING_REQUEST, custom_destinations: [PROBE, { name: 'More', latitude: 47.2, longitude: -121.3 }] },
+    ]
+    for (const request of changed) {
+      const fetch = stubDiscovery()
+      const { result } = renderHook(() => useAnalyze())
+      failForecasts()
+      await act(() => result.current.analyze(RING_REQUEST))
+      await act(() => result.current.analyze(request))
+      expect(fetch).toHaveBeenCalledTimes(2)
+    }
+  })
+
+  it('drops the field on a cancel, so the next run discovers again', async () => {
+    const fetch = stubDiscovery()
+    const { result } = renderHook(() => useAnalyze())
+    holdForecasts()
+    let run!: Promise<boolean>
+    act(() => {
+      run = result.current.analyze(RING_REQUEST)
+    })
+    await vi.waitFor(() => expect(result.current.pendingField).toEqual(FOUND))
+    await act(async () => {
+      result.current.cancel()
+      await run
+    })
+    expect(result.current.pendingField).toBeNull()
+    await act(() => result.current.analyze(RING_REQUEST))
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops a failed run\'s field when Try again is cancelled', async () => {
+    stubDiscovery()
+    const { result } = renderHook(() => useAnalyze())
+    failForecasts()
+    await act(() => result.current.analyze(RING_REQUEST))
+    holdForecasts()
+    let run!: Promise<boolean>
+    act(() => {
+      run = result.current.analyze(RING_REQUEST)
+    })
+    expect(result.current.pendingField).toEqual(FOUND)
+    await act(async () => {
+      result.current.cancel()
+      await run
+    })
+    expect(result.current.pendingField).toBeNull()
+  })
+
+  it('drops the field on a reset, so the next run discovers again', async () => {
+    const fetch = stubDiscovery()
+    const { result } = renderHook(() => useAnalyze())
+    failForecasts()
+    await act(() => result.current.analyze(RING_REQUEST))
+    act(() => result.current.reset())
+    expect(result.current.pendingField).toBeNull()
+    await act(() => result.current.analyze(RING_REQUEST))
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  // A run with no ring finds nothing: its rows are the reader's list, which
+  // is pending as an input already.
+  it('holds no field for a run with no polygon', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    failForecasts()
+    await analyzeAt(result, T0)
+    expect(result.current.pendingField).toBeNull()
+  })
+})

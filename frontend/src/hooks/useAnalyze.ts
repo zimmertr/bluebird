@@ -5,7 +5,7 @@ import { RETRIEVING_MESSAGE, SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 import { analyzedView, type RecordedFacts } from '../utils/analysisSnapshot'
-import { runAnalysisPipeline } from '../utils/analysisPipeline'
+import { type Discovered, runAnalysisPipeline } from '../utils/analysisPipeline'
 import { placeRows } from '../utils/clientAnalyze'
 import { answered } from '../utils/elevationLookup'
 import type { AnalyzedView } from './analyzeTypes'
@@ -21,11 +21,29 @@ import type { AnalyzeOptions } from './analyzeTypes'
 // panel imports them by the hook's name.
 export type { AnalyzeOptions, AnalyzedView, Progress, Refusal, RunError } from './analyzeTypes'
 
+// The field a polygon run found, with the discovery inputs that found it.
+interface FoundField {
+  found: Discovered
+  key: string
+}
+
+// What a polygon request asks discovery, as one string: the ring, the kinds
+// with the unnamed-peaks toggle, and the reader's list by coordinate, which
+// rides in the same call. Null for a request with no polygon, which
+// discovers nothing.
+function foundKey(request: AnalyzeRequest): string | null {
+  if (!request.polygon) return null
+  const { polygonKey, typesKey } = discoveryKeys(request.polygon, request.destination_types, request.include_unnamed_peaks)
+  const custom = (request.custom_destinations ?? []).map((d) => geoKey(d.latitude, d.longitude)).sort()
+  return JSON.stringify([polygonKey, typesKey, custom])
+}
+
 // One Analyze click, end to end, composed from three parts: the run in flight
 // (useAnalysisRun), the report it commits (useAnalysisReport), and the
 // pipeline that does the work (analysisPipeline.ts). What stays here is what
-// spans runs: the forecasts the next one may reuse, and the snapshot of the
-// run that failed, which the Analyze button's word is read against.
+// spans runs: the forecasts the next one may reuse, the snapshot of the run
+// that failed, which the Analyze button's word is read against, and the field
+// a polygon run found, until a report holds it.
 export function useAnalyze(
   maxDestinations: number = MAX_ANALYZE_DESTINATIONS,
   models: readonly ForecastModelOption[] = [],
@@ -56,6 +74,19 @@ export function useAnalyze(
   const runSeqRef = useRef(0)
   // The last run's snapshot builder, for an answer that lands after it.
   const viewRef = useRef<(() => AnalyzedView) | null>(null)
+  // The field the current or last polygon run found, while no report holds it
+  // (#782). It shows as pending rows from the moment discovery answers, and a
+  // failure keeps it, so the reader still sees what the ring holds and Try
+  // again asks for the forecasts alone. A commit, a cancel, the next run and
+  // a reset drop it: the first puts the field in the report, and the rest end
+  // the run it belonged to. The ref is what the next run reads; the state is
+  // what renders.
+  const foundRef = useRef<FoundField | null>(null)
+  const [pendingField, setPendingField] = useState<DiscoveredDestination[] | null>(null)
+  function holdFound(next: FoundField | null) {
+    foundRef.current = next
+    setPendingField(next?.found.candidates ?? null)
+  }
 
   // The paste-time lookup's answer landed on the committed report (#673):
   // rows the pod placed after the run had read what was known.
@@ -92,6 +123,7 @@ export function useAnalyze(
     run.clearEvents()
     setFailedView(null)
     heldForecastsRef.current = null
+    holdFound(null)
   }
 
   // One explicit fetch per Analyze click: every candidate in the polygon is
@@ -110,6 +142,12 @@ export function useAnalyze(
     const { discovery, compareModels = [], onCommit, identity } = options
     setFailedView(null)
     const runSeq = ++runSeqRef.current
+    // A failed run's field stands in for discovery when this request would
+    // ask the pod the same question; any other request discovers afresh.
+    const key = foundKey(request)
+    const held = foundRef.current
+    const found = key !== null && held?.key === key ? held.found : null
+    holdFound(null)
     // Derived off the request unless the caller says otherwise: the weather-
     // only refresh re-fetches a polygon report through the custom path, so its
     // request carries no polygon.
@@ -142,9 +180,13 @@ export function useAnalyze(
           aqiForecastDays,
           knownTypes: options.knownTypes,
           identity,
-          onDiscovered: (found) => {
-            run.announce(found.candidates.length)
-            report.publishCandidates(found.candidates.map((c) => ({ latitude: c.latitude, longitude: c.longitude })))
+          found,
+          onDiscovered: (field) => {
+            run.announce(field.candidates.length)
+            report.publishCandidates(field.candidates.map((c) => ({ latitude: c.latitude, longitude: c.longitude })))
+            // A run with no polygon has no field to hold: its rows are the
+            // reader's list, already pending as inputs.
+            if (key !== null) holdFound({ found: field, key })
           },
           onPartial: (data, fieldSoFar) => report.commitArriving(data, fieldSoFar, view()),
           onProgress: run.onProgress,
@@ -153,6 +195,7 @@ export function useAnalyze(
         })
         heldForecastsRef.current = out.held
         report.commit(out.response, out.field, view(), out.pending)
+        holdFound(null)
         // In the same render as the commit, so the report never shows a
         // frame under the bookkeeping of the one before it, and inside the
         // run rather than after the click, so a retry's commit applies it too.
@@ -189,9 +232,12 @@ export function useAnalyze(
         )
       },
       {
-        onFailure: () => {
+        onFailure: (kind) => {
           report.discard()
           setFailedView(view())
+          // A cancel changes nothing, so the field goes with the run (#560).
+          // A failure keeps it on screen beside the report it put back.
+          if (kind === 'cancel') holdFound(null)
         },
         onSettled: report.settle,
       },
@@ -221,6 +267,9 @@ export function useAnalyze(
     universe: report.universe,
     // The committed rows still waiting on their elevation (#673).
     pendingHeights: report.pendingHeights,
+    // The field the polygon run found that no report holds yet (#782), or
+    // null: drawn as pending rows beside the reader's own.
+    pendingField,
     statusMessage: run.statusMessage,
     progress: run.progress,
     paceRemainingS: run.paceRemainingS,

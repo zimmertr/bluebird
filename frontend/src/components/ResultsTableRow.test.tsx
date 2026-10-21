@@ -371,6 +371,16 @@ describe('a pending row', () => {
     expect(screen.queryByRole('button', { name: 'Remove Probe Peak' })).toBeNull()
   })
 
+  // #782: a row a ring's search found, whose forecast has not landed.
+  it('offers no remove button on a found row, whose truth is the ring, and centres the map on it', async () => {
+    const onFocusPending = vi.fn()
+    const found = pendingDestination({ source: 'polygon', kind: 'peak', osmId: 'node/9' })
+    const { user } = inTable(<PendingRow {...pendingProps({ destination: found, onRemovePending: vi.fn(), onFocusPending })} />)
+    expect(screen.queryByRole('button', { name: 'Remove Probe Peak' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Center map on Probe Peak' }))
+    expect(onFocusPending).toHaveBeenCalledWith({ latitude: 47.1, longitude: -121.2 })
+  })
+
   it('rims its ticked box in light as a ranked row does', () => {
     const box: ChartBox = { onShift: vi.fn(), onToggle: vi.fn() }
     inTable(<PendingRow {...pendingProps({ chartBox: box, charted: true, chartColor: 'rgb(253, 165, 213)', theme: 'light' })} />)
