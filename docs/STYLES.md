@@ -94,7 +94,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label 44px (#687, record 0130) |
 | `MOTION` | Movement that answers an action and stops under a reduced-motion setting, at two speeds (#714): `menu` at 150ms for a menu or a card, a fade and a 4px slide from its trigger's side and back, with a closed card kept for its exit by `useExit`, and at 300ms `slide` for the phone's Controls sheet, `push` for the desk panel and `pane` for a results pane on a press or the collapse chevron, each naming the one property it moves. `progress` is the analysis card's bar (#687). `PANEL_MS` is the slower speed in numbers, for script that waits out a move. `TOUR.motion` is the tutorial's own |
 | `DESK_PANEL` | The controls panel at a desk: a 360px column in the row beside the map, which stays in the row while shut and gives its width back through its left margin (`shut`), so the map's edge moves with the panel's (#714) |
-| `RESULTS_PANE` | A results pane at a desk, the chart or the table with its grip: a one-row grid frame, `1fr` open and `0fr` shut, around a box of the pane's height, held to the results bar (`top`, the chart) or to the column's foot (`foot`, the table). The box clips what it holds (`box`), and the chart keeps the height it was drawn at while a pane moves (`held`) (#714) |
+| `RESULTS_PANE` | A results pane at a desk, the chart or the table with its grip: a one-row grid frame, `1fr` open and `0fr` shut, around a body mounted at the press at the height it will stand at, held to the results bar (`top`, the chart) or to the column's foot (`foot`, the table) (#714) |
 | `LAYOUT_HOLD` | What keeps one size while a desk's layout moves (#714): the map's box at the window's width or height, centred on its column, which clips it (`clip`); the table's box at the window's width and the chart at the width it had while the panel moves. `rest` is the map's box the rest of the time |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself. 16px square around a 10px letter, the one size under the type floor (`GLYPH_SIZE`, private to `styles.ts`), which the strip's numerals in `SWATCH_RAMP_TICK` share |
@@ -808,12 +808,11 @@ its 360px back, so the map's column narrows and widens in the frames the panel
 moves in, its left edge on the panel's right edge in every one. Nothing is
 painted over anything. A results pane at a desk opens and closes on a Table,
 Chart or Both press and on the collapse chevron (`RESULTS_PANE`): one grid
-row, `1fr` open and `0fr` shut, around a box of the pane's height. The chart's
-box holds to the results bar and the table's to the column's foot. An opening
-pane's box is empty until its frame has opened, and then the chart or the
-table mounts in it. While a pane moves, the chart and the table keep the
-height they were drawn at and the box clips them (`held`), so each is drawn
-once, where the move ends.
+row, `1fr` open and `0fr` shut, around a body that keeps its own height. An
+opening pane mounts its body at the press at the height it will stand at, so
+the chart is drawn once and the data is on screen as the frame uncovers it.
+The chart comes down from the results bar and the table up from the column's
+foot. A closing pane keeps its body until its frame has shut.
 
 While the layout moves, the map's box and the panes' bodies hold one size
 (`LAYOUT_HOLD`), so a frame moves boxes instead of resizing the map or laying
@@ -823,12 +822,11 @@ where the map and the table take the new width, then frames of 34ms. An open
 went from one 77ms frame to 11 frames of about 30ms and one of 46ms where they
 take theirs (medians, 2026-10-20).
 
-A pane press now commits in 31 to 52ms at both 167 and 946 destinations,
-where the first pass took up to 134ms at 167 and up to 1,621ms at 946 to mount
-a chart or a table before anything moved. At 167 each move runs 9 to 18
-frames, the longest of them 17 to 37ms, and the chevron moves in 15 frames
-shut and 18 open where it jumped in one. The mount or unmount comes in the
-frame after the move: 15 to 166ms at 167 and up to 1,029ms at 946 (medians,
+At 167 destinations a pane press that mounts a body commits in 84 to 142ms,
+and each move then runs 11 to 17 frames, the longest of them 20 to 45ms, with
+the chart or the table in every frame the pane stands part open. The chevron
+moves in 14 frames shut and 15 open. At 946 the mount takes 383 to 707ms, and
+some presses then show only one or two frames of motion (medians,
 2026-10-21).
 Record: [0202](decisions/0202-panel-and-panes-move-at-one-speed.md)
 
