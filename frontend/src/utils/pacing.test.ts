@@ -53,8 +53,8 @@ describe('the seconds left on a wait', () => {
 })
 
 describe('the wait line', () => {
-  it('is the line the analysis overlay has always shown', () => {
-    expect(paceWaitLine(34)).toBe('Open-Meteo quota: resuming in 34s')
+  it('is the one line the analysis overlay and the comparison show', () => {
+    expect(paceWaitLine(34)).toBe('Open-Meteo quota · resuming in 34s')
   })
 
   it('says nothing when nothing is waiting', () => {

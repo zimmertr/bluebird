@@ -5,16 +5,20 @@ import { paceWaitLine } from './pacing'
 // destinations). Two destination-type-agnostic phases:
 //   1. "Searching for destinations…"  — the pod's discovery (backend status).
 //      A run with no polygon has no such phase and opens on the next one
-//   2. "Retrieving {N} forecasts…"    — the weather fetch (a lone forecast
-//        reads "Retrieving forecast…")
+//   2. "Retrieving {N} forecasts · {P}%" — the weather fetch (a lone forecast
+//        reads "Retrieving forecast · {P}%")
 //   3. "Retrieving elevation…" — a run with no polygon, only when the pod's
 //      elevation lookup of its listed destinations is still out after the
 //      weather has answered
 //   4. "Retrieving air quality…", then "Retrieving cloud data…" — only when
 //      either fetch is still out after the weather has answered (`tailMessage`)
 //
-// The message carries only the TOTAL, not a live "x of y" fraction; the filling
-// progress BAR visualizes the real batch progress underneath it.
+// The message carries the TOTAL and the percentage of it that has landed, not
+// a live "x of y" fraction; the filling progress BAR draws the same percentage
+// underneath it and nothing is printed under the bar. The percentage joined the
+// heading on 2026-10-21 (record 0205), when the maintainer chose this layout
+// over a second line: the longest heading the cap allows, "Retrieving 1500
+// forecasts · 100%", is 224px at 14px in the card's 230px (measured on a Mac).
 //
 // Under the message, one secondary `detail` line can appear: during
 // retrieval, the live quota countdown while the pacer sleeps; during a long
@@ -82,9 +86,10 @@ const TAIL_MESSAGES: readonly string[] = [ELEVATION_MESSAGE, AQI_TAIL_MESSAGE, C
 const STILL_SEARCHING_AFTER_S = 20
 const STILL_SEARCHING = 'Large areas can take a while.'
 
-// "Retrieving forecast…" for exactly one, "Retrieving {N} forecasts…" otherwise.
-function retrievingLabel(total: number): string {
-  return total === 1 ? 'Retrieving forecast…' : `Retrieving ${total} forecasts…`
+// "Retrieving forecast · {P}%" for exactly one, "Retrieving {N} forecasts · {P}%"
+// otherwise. The dot is the legend's and the pace line's (pacing.ts).
+function retrievingLabel(total: number, percent: number): string {
+  return total === 1 ? `Retrieving forecast · ${percent}%` : `Retrieving ${total} forecasts · ${percent}%`
 }
 
 export function composeOverlay(i: OverlayInputs): OverlayView {
@@ -108,12 +113,12 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
   // quota bucket is refilling. A paced analysis must never look hung: the
   // countdown plus the elapsed timer is what proves the wait is scheduled.
   const detail = paceWaitLine(i.paceRemainingS ?? null)
-  // A tail label replaces the forecast count once the weather has answered;
-  // the bar stays full under it.
+  // A tail label replaces the forecast count and its percentage once the
+  // weather has answered; the bar stays full under it.
   const tail = i.statusMessage !== null && TAIL_MESSAGES.includes(i.statusMessage) ? i.statusMessage : null
   return {
     visible: true,
-    message: tail ?? retrievingLabel(total),
+    message: tail ?? retrievingLabel(total, percent),
     detail,
     progress: { processed, total, percent },
   }

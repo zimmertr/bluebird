@@ -71,7 +71,7 @@ describe('composeOverlay', () => {
     })
     expect(view).toEqual({
       visible: true,
-      message: 'Retrieving 200 forecasts…',
+      message: 'Retrieving 200 forecasts · 25%',
       detail: null,
       progress: { processed: 50, total: 200, percent: 25 },
     })
@@ -83,7 +83,7 @@ describe('composeOverlay', () => {
       analyzeLoading: true,
       rankedProgress: { processed: 0, total: 1 },
     })
-    expect(view.visible && view.message).toBe('Retrieving forecast…')
+    expect(view.visible && view.message).toBe('Retrieving forecast · 0%')
   })
 
   it('shows reassurance once a search runs long', () => {
@@ -118,7 +118,7 @@ describe('composeOverlay', () => {
       rankedProgress: { processed: 550, total: 908 },
       paceRemainingS: 34,
     })
-    expect(view.visible && view.detail).toBe('Open-Meteo quota: resuming in 34s')
+    expect(view.visible && view.detail).toBe('Open-Meteo quota · resuming in 34s')
     const done = composeOverlay({
       ...idle,
       analyzeLoading: true,
@@ -183,6 +183,6 @@ describe('the tail label', () => {
       statusMessage: 'Retrieving forecasts: 40 of 40 peaks…',
       rankedProgress: { processed: 40, total: 40 },
     })
-    expect(view).toMatchObject({ message: 'Retrieving 40 forecasts…' })
+    expect(view).toMatchObject({ message: 'Retrieving 40 forecasts · 100%' })
   })
 })
