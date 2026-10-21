@@ -1,21 +1,24 @@
-import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, screen } from '@testing-library/react'
 import { createRef, type ReactNode } from 'react'
 import MapStage, { type MapStageProps } from './MapStage'
 import type { MapViewHandle } from './MapView'
-import { render } from '../testSupport/render'
+import { placeAt, render, stubResizeObserver } from '../testSupport/render'
 import { place, resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import {
+  CORNER_MARGIN_PX,
   DRAGGED_MAP_PX,
   FAB_INSET_PX,
   controlsSheetPx,
   fabBottomPx,
-  phoneCornerLiftPx,
+  noticeBottomPx,
   transportStandPx,
+  type PhoneLine,
 } from '../utils/resultsSheet'
-import { MAP_EDGE } from '../styles'
+import { MAP_CORNER, MAP_EDGE } from '../styles'
+import { CREDITS_OPEN_CLASS, type CornerSlots } from '../map/controls'
 import type { Place } from '../utils/geocode'
 
 // MapView draws with WebGL, which jsdom has none of, and what this suite is
@@ -41,17 +44,15 @@ vi.mock('./TimelineTransport', () => ({
 }))
 vi.mock('./PhoneFoot', () => ({
   default: (props: {
-    liftPx: number
+    bandBottomPx: number
     fabBottomPx: number
     onBandPx: (px: number) => void
-    onFabPx: (px: number) => void
     analyzeEnabled: boolean
     word: string
     onAnalyze: () => void
   }) => (
-    <div data-testid="foot" data-lift={String(props.liftPx)} data-fab={String(props.fabBottomPx)} data-word={props.word}>
+    <div data-testid="foot" data-band={String(props.bandBottomPx)} data-fab={String(props.fabBottomPx)} data-word={props.word}>
       <button onClick={() => props.onBandPx(40)}>Band</button>
-      <button onClick={() => props.onFabPx(120)}>Fab</button>
       <button onClick={props.onAnalyze} disabled={!props.analyzeEnabled}>
         Analyze
       </button>
@@ -81,6 +82,10 @@ vi.mock('./MapRows', () => ({
 }))
 
 const NOOP = () => {}
+// In an afterEach so a failed assertion cannot leave the fake observer behind.
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 // Read only on a press, long after the mocks above are built.
 const PLACE: Place = place()
 const ROW = resultRow()
@@ -354,17 +359,21 @@ describe('MapStage', () => {
   })
 
   // A desk's buttons, credit line and scale stand in the map's bottom-right
-  // corner (record 0174), whose slots reach the map together; a phone's map
-  // has no corner.
-  it('hands the map a desk\'s corner, and none on a phone', () => {
+  // corner, and a phone's credit line and scale in its bottom-left one
+  // (record 0174); each corner's slots reach the map together, and a width
+  // change builds the other corner.
+  it('hands the map a desk\'s corner, and a phone\'s line', () => {
     seen.mapView.length = 0
     const { container, rerender } = render(<MapStage {...props()} />)
-    const corner = seen.mapView[seen.mapView.length - 1].cornerSlots as Record<string, HTMLElement>
-    expect(Object.keys(corner)).toEqual(['compass', 'locate', 'zoom', 'credit', 'scale'])
-    for (const slot of Object.values(corner)) expect(container.contains(slot)).toBe(true)
+    const desk = seen.mapView[seen.mapView.length - 1].cornerSlots as CornerSlots
+    expect(Object.keys(desk)).toEqual(['credit', 'scale', 'buttons'])
+    for (const slot of [desk.credit, desk.scale, ...Object.values(desk.buttons!)]) expect(container.contains(slot)).toBe(true)
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(seen.mapView[seen.mapView.length - 1].cornerSlots).toBeNull()
-    expect(container.querySelector('.map-corner')).toBeNull()
+    const phone = seen.mapView[seen.mapView.length - 1].cornerSlots as CornerSlots
+    expect(phone.buttons).toBeNull()
+    for (const slot of [phone.credit, phone.scale]) expect(container.contains(slot)).toBe(true)
+    expect(container.contains(desk.credit)).toBe(false)
+    expect(container.querySelector('[data-map-overlay]')?.className).toBe(MAP_CORNER.phoneCredit)
   })
 
   // On a phone the vendor's stack, the compass alone there, starts under the
@@ -396,14 +405,14 @@ describe('MapStage', () => {
     expect(screen.getByTestId('foot').dataset.word).toBe('Try again')
   })
 
-  // Two things move the button (record 0135): the sheet it rides, and the
+  // The sheet moves the button (record 0135), which rides it, and so does the
   // notice band it rises over. The player stands on the button.
   it('rides the sheet, rises over the band, and carries the player', () => {
     const layout = { ...LAYOUT, sheetLiftPx: 104 }
     const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
     render(<MapStage {...props({ isDesktop: false, sidebarOpen: false, layout, timeline })} />)
     const foot = () => screen.getByTestId('foot').dataset
-    expect(foot().lift).toBe('104')
+    expect(foot().band).toBe(String(104 + CORNER_MARGIN_PX))
     expect(foot().fab).toBe(String(104 + FAB_INSET_PX))
     fireEvent.click(screen.getByRole('button', { name: 'Band' }))
     const risen = fabBottomPx(104, 40, 800)
@@ -412,16 +421,28 @@ describe('MapStage', () => {
     expect(screen.getByTestId('transport').dataset.lift).toBe(String(transportStandPx(risen)))
   })
 
-  // The opened credit line stops short of the button (map.css), so a phone
-  // publishes the width it measured; a desk has no button.
-  it('publishes the button\'s width on a phone', () => {
-    const { container, rerender } = render(<MapStage {...props()} />)
-    const stage = () => container.firstElementChild as HTMLElement
-    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('')
-    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('0px')
-    fireEvent.click(screen.getByRole('button', { name: 'Fab' }))
-    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('120px')
+  // A phone's credit line stands on the sheet's edge (record 0174): the band
+  // stands over it folded or open, and the button over it only while the
+  // credits are open, since folded it stands beside the button.
+  it('stands the band over a phone\'s credit line, and the button over an open one', () => {
+    const fire = stubResizeObserver()
+    const layout = { ...LAYOUT, sheetLiftPx: 104 }
+    const { container } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false, layout })} />)
+    const line = container.querySelector('[data-map-overlay]')!
+    const foot = () => screen.getByTestId('foot').dataset
+    placeAt(line, { left: 0, top: 600, width: 152, height: 29 })
+    act(() => fire())
+    expect(foot().band).toBe(String(noticeBottomPx(104, 29)))
+    expect(foot().fab).toBe(String(104 + FAB_INSET_PX))
+    const credits = document.createElement('details')
+    credits.className = `maplibregl-ctrl-attrib ${CREDITS_OPEN_CLASS}`
+    line.firstElementChild!.append(credits)
+    placeAt(line, { left: 0, top: 556, width: 348, height: 73 })
+    act(() => fire())
+    const open: PhoneLine = { px: 73, open: true }
+    expect(foot().band).toBe(String(noticeBottomPx(104, 73)))
+    expect(foot().fab).toBe(String(fabBottomPx(104, 0, 800, open)))
+    expect(foot().fab).toBe(String(104 + 73 + FAB_INSET_PX))
   })
 
   // A sheet at its highest leaves the button its strip and no room for the
@@ -440,22 +461,26 @@ describe('MapStage', () => {
     const layout = { ...LAYOUT, sheetLiftPx: 104 }
     const controlsPx = controlsSheetPx(800)
     const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: true, controlsPx, layout })} />)
-    expect(screen.getByTestId('foot').dataset.lift).toBe(String(controlsPx))
+    const fab = () => screen.getByTestId('foot').dataset.fab
+    expect(fab()).toBe(String(controlsPx + FAB_INSET_PX))
     // Wherever a drag on its grip leaves it (record 0146).
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: true, controlsPx: 300, layout })} />)
-    expect(screen.getByTestId('foot').dataset.lift).toBe('300')
+    expect(fab()).toBe(String(300 + FAB_INSET_PX))
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, controlsPx, layout })} />)
-    expect(screen.getByTestId('foot').dataset.lift).toBe('104')
+    expect(fab()).toBe(String(104 + FAB_INSET_PX))
   })
 
-  // A phone's scale and (i) stand on the button's row (record 0140); a desk's
-  // on the results' edge, as before.
-  it("stands a phone's map corners on the button's row", () => {
+  // A phone's credit line stands on the edge of whichever sheet stands
+  // higher (record 0174), the Controls sheet's while it is up; a desk's on
+  // the results' edge, as before.
+  it("stands a phone's credit line on the sheet's edge", () => {
     const layout = { ...LAYOUT, sheetLiftPx: 104 }
     const { container, rerender } = render(<MapStage {...props({ layout })} />)
     const stage = () => container.firstElementChild as HTMLElement
     expect(stage().style.getPropertyValue('--map-corner-lift')).toBe(`${LAYOUT.mapCornerLift}px`)
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, layout })} />)
-    expect(stage().style.getPropertyValue('--map-corner-lift')).toBe(`${phoneCornerLiftPx(104 + FAB_INSET_PX)}px`)
+    expect(stage().style.getPropertyValue('--map-corner-lift')).toBe('104px')
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: true, controlsPx: 300, layout })} />)
+    expect(stage().style.getPropertyValue('--map-corner-lift')).toBe('300px')
   })
 })

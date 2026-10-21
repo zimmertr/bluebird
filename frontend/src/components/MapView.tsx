@@ -218,10 +218,10 @@ interface Props {
   // The slot at the right end of a phone's chip row the compass stands in
   // (record 0147); null at a desk and before the rows mount.
   compassSlot: HTMLElement | null
-  // A desk's corner, every slot at once (`MapCorner`, record 0174): the
-  // compass, the locate button and the zoom pair, and the credit line with
-  // the scale at its end. Null on a phone and before the corner mounts, when
-  // each control keeps its library corner.
+  // The map's corner, every slot at once (`MapCorner`, record 0174): the
+  // credit line with the scale at its end, and at a desk the compass, the
+  // locate button and the zoom pair over it. Null before the corner mounts,
+  // when each control keeps its library corner.
   cornerSlots: CornerSlots | null
 }
 
@@ -287,15 +287,16 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
     // The library's controls, which stand at the right of a phone's two rows
-    // and in a desk's corner (`placeControl`).
+    // and in the map's corner (`placeControl`).
     const controlsRef = useRef<MapControls | null>(null)
     // The attribution, which the effect below re-adds at each breakpoint and
-    // a desk's corner stands in its credit line.
+    // the corner stands in its credit line.
     const attributionRef = useRef<maplibregl.AttributionControl | null>(null)
-    // Gated on the width as well as the corner being there, because the
-    // corner goes a render after the width does: its slots are still in hand,
-    // detached, in the render that crosses to a phone.
-    const corner = isDesktop ? cornerSlots : null
+    // Gated on the corner being built for this width, because the corner is
+    // rebuilt a render after the width changes: the other width's slots are
+    // still in hand, detached, in the render that crosses. Only a desk's
+    // corner has buttons.
+    const corner = cornerSlots && (cornerSlots.buttons !== null) === isDesktop ? cornerSlots : null
     const loadedRef = useRef(false)
     const ptsRef = useRef<[number, number][]>([])
     // The ring a `?poly=` link opened with. A ref rather than a mount-time
@@ -678,25 +679,26 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // identity changed, losing the camera and every layer with it.
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Each control follows its slot: into a phone's rows or a desk's corner
+    // Each control follows its slot: into a phone's rows or the map's corner
     // while they are up, and back to its library corner when they go. The
-    // zoom pair and the scale have a slot in a desk's corner alone.
+    // zoom pair has a slot in a desk's corner alone, and the scale in the
+    // corner's credit line at both widths.
     // After the map is built, which an effect declared above these has done.
     useEffect(() => {
       const map = mapRef.current
       const controls = controlsRef.current
-      if (map && controls) placeControl(map, controls.locate, corner?.locate ?? locateSlot)
+      if (map && controls) placeControl(map, controls.locate, corner?.buttons?.locate ?? locateSlot)
     }, [corner, locateSlot])
     useEffect(() => {
       const map = mapRef.current
       const controls = controlsRef.current
-      if (map && controls) placeControl(map, controls.compass, corner?.compass ?? compassSlot, { first: true })
+      if (map && controls) placeControl(map, controls.compass, corner?.buttons?.compass ?? compassSlot, { first: true })
     }, [corner, compassSlot])
     useEffect(() => {
       const map = mapRef.current
       const controls = controlsRef.current
       if (!map || !controls) return
-      placeControl(map, controls.zoom, corner?.zoom ?? null)
+      placeControl(map, controls.zoom, corner?.buttons?.zoom ?? null)
       placeControl(map, controls.scale, corner?.scale ?? null, { corner: 'bottom-left' })
     }, [corner])
 
@@ -714,8 +716,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
         if (mapRef.current === map) map.removeControl(control)
       }
     }, [isDesktop])
-    // Into a desk's credit line. Declared after the effect above, so a width
-    // change places the control that effect has just added.
+    // Into the corner's credit line, at either width. Declared after the
+    // effect above, so a width change places the control that effect has
+    // just added.
     useEffect(() => {
       const map = mapRef.current
       const control = attributionRef.current

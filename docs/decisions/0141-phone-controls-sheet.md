@@ -1,6 +1,6 @@
 # 0141. On a phone the controls are a bottom sheet the summary chip raises, with the map's Analyze on its edge
 
-- Status: Accepted. Amends 0135 (the panel a phone opens from the summary chip is a sheet, not a side drawer). Amended by 0146 (its grip drags).
+- Status: Accepted. Amends 0135 (the panel a phone opens from the summary chip is a sheet, not a side drawer). Amended by 0146 (its grip drags) and 0174 (its share of the map keeps room for the credit line under the band).
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696: frame C of the band comparison, chosen 2026-10-14; the fixed foot dropped on a Pixel the same evening
 - Issues and PRs: #696, #708, #576, #536

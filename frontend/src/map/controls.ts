@@ -6,10 +6,11 @@
  * 0174), as Google Maps does: the compass, the locate button and the zoom pair
  * in a column over the credit line, which carries the scale at its end. A
  * phone stands the compass and the locate button at the right of the map's
- * two rows (`MapRows`) and its scale and (i) at the bottom left, and shows no
- * zoom pair, since a pinch zooms there (#696): the pair waits in the library's
- * top-right corner, which `map.css` hides it in. `MapView` moves each control
- * into its slot (`placeControl`).
+ * two rows (`MapRows`), and its credit line, the (i) with the scale at its
+ * end, in the bottom-left corner. It shows no zoom pair, since a pinch zooms
+ * there (#696): the pair waits in the library's top-right corner, which
+ * `map.css` hides it in. `MapView` moves each control into its slot
+ * (`placeControl`).
  *
  * Every button wears the app's map button (`MAP_ROUND_BUTTON`, record 0147),
  * the zoom pair the same chrome joined (`MAP_ZOOM_PAIR`), and the credit line
@@ -34,15 +35,21 @@ export interface MapControls {
   scale: ScaleControl
 }
 
-/** A desk's corner (`MapCorner`): a slot for each control it stands. */
+/**
+ * A map corner (`MapCorner`): a slot for each control it stands. Both widths
+ * have the credit line; only a desk's corner has the column of buttons over
+ * it, so `buttons` is null on a phone, whose compass and locate button stand
+ * in its rows. That is also how the map tells a corner built for the other
+ * width, in the one render after the width changes and before the corner
+ * does (`MapView`).
+ */
 export interface CornerSlots {
-  compass: HTMLElement
-  locate: HTMLElement
-  zoom: HTMLElement
   /** In the credit line, for the attribution. */
   credit: HTMLElement
   /** At the credit line's end, for the scale. */
   scale: HTMLElement
+  /** A desk's column over the line, top to bottom; null on a phone. */
+  buttons: { compass: HTMLElement; locate: HTMLElement; zoom: HTMLElement } | null
 }
 
 /** A library corner, where a control stands while no slot holds it. */
@@ -92,10 +99,9 @@ export function addControls(map: maplibregl.Map): MapControls {
   const zoom = new NavigationControl({ showCompass: false })
   map.addControl(zoom, 'top-right')
   dressZoomPair(zoom._container)
-  // The scale's corner is the bottom left, where a phone's stands beside the
-  // (i) in the one band the map's bottom chrome reserves (`TRANSPORT_GAP_PX`
-  // in `utils/resultsSheet.ts`). A desk's stands at the end of the credit line
-  // in the bottom-right corner instead (`MapCorner`).
+  // The scale's library corner is the bottom left, where it waits until a
+  // corner's credit line stands it at its end (`MapCorner`): a desk's in the
+  // bottom-right corner, a phone's in the bottom left.
   const scale = new ScaleControl({ maxWidth: SCALE_MAX_WIDTH_PX })
   map.addControl(scale, 'bottom-left')
   return { compass, locate, zoom, scale }
@@ -103,7 +109,7 @@ export function addControls(map: maplibregl.Map): MapControls {
 
 /**
  * Stands a control in `slot`, or back in its library corner when there is
- * none: the moment before a phone's rows or a desk's corner mount, after they
+ * none: the moment before a phone's rows or a map's corner mount, after they
  * go, and a phone's zoom pair, which has no slot. The control's own element
  * is moved rather than a second one built, so its states and its permission
  * prompt stay the library's; the library keeps its handle on the element
@@ -127,9 +133,10 @@ export function placeControl(
 
 /**
  * The widest the scale bar draws, the library's own default stated here
- * because `map.css` keeps the attribution clear of it at that width: a phone's
- * opened credit line wraps at the scale's edge rather than covering it (#687).
- * `styles.test.ts` holds the stylesheet's arithmetic to this number.
+ * because the credit line keeps it in a box this wide at both widths
+ * (`MAP_CORNER.scale`), so the credits keep their place while the bar grows
+ * and shrinks with the zoom (record 0174). `styles.test.ts` holds the box and
+ * `map.css`'s arithmetic to this number.
  */
 export const SCALE_MAX_WIDTH_PX = 100
 
@@ -141,6 +148,16 @@ export const SCALE_MAX_WIDTH_PX = 100
  * same class the stylesheet does.
  */
 export const COMPASS_IDLE_CLASS = 'compass-idle'
+
+/**
+ * The class the library sets on its compact attribution while the credits
+ * are open, and takes off when the (i) or a drag folds them. A phone's credit
+ * line reads it to report whether its credits are open (`MapCorner`), since
+ * the Analyze button stands over an open line (record 0174), and `map.css`
+ * lays the opened line out under it. Exported so the component names the
+ * class the stylesheet does.
+ */
+export const CREDITS_OPEN_CLASS = 'maplibregl-compact-show'
 
 /**
  * Idles the compass while pressing it would do nothing. MapLibre's compass
@@ -207,10 +224,9 @@ export function addAttribution(map: maplibregl.Map, compact: boolean): Attributi
     compact,
     customAttribution: withOpenMeteo(options.customAttribution),
   })
-  // A compact credit stands beside the scale at the bottom left on a phone
-  // (#696), so the right of the map's foot is map (`map.css`). A desk's
-  // stands at the bottom right until `MapView` moves it into the corner's
-  // credit line (`MapCorner`).
+  // A compact credit waits at the bottom left, a full one at the bottom
+  // right, each the side its width's corner stands on, until `MapView` moves
+  // it into that corner's credit line (`MapCorner`, record 0174).
   map.addControl(control, compact ? 'bottom-left' : 'bottom-right')
   // The app's chrome (record 0147): the line on the floating box, its (i) a
   // round dark button. `map.css` takes the box off a folded line.

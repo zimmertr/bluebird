@@ -155,6 +155,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `MENU` | The parts of the one menu: `card` (the chip card's `menu` surface on `LAYER.popover`), `header` and `foot` (an overline strip and a foot ruled off by `SURFACE_DIVIDER`), `list` (the scrolling rows on `SCROLL_BARS`), `row` and `option` (the Layers menu's 10px inset, `option` adding the control size and the touch row for a list you pick from), `cardRow` (a Layers row's inset, pulled out so its fill starts where a list row's does), `active` (the raised fill under the pointer or the keyboard), `hover` (the same fill on every enabled checkbox row) and `current` (the value a field shows, in semibold, with no check mark) |
 | `DRAW_BAR` | The draw bar on a phone: the polygon readout, Done and Cancel on the map while a ring is drawn, a floating box at the map's inset off both sides, standing where the player stands. A desk keeps them in the docked panel |
 | `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the map's rows and MapLibre's own control stack; `left` and `right` are the inset as utilities. The same publisher carries `--map-credit-size` at the ramp's smallest step, so `map.css` can size the library's credit line from the ramp |
+| `MAP_CORNER` | The map's corner (record 0174). At a desk, the credit line flush in the bottom-right corner with the scale at its end, and over it the compass, the locate button and the zoom pair, 24px in, 6px apart and 10px above the line. On a phone, the same line mirrored into the bottom-left corner on the sheet's edge, holding the (i) and the scale (`phoneBox`, `phoneCredit`, `phoneScale`). Each piece is the library's own control, moved into a slot |
 | `MICRO_SIZE` | The ramp's smallest step as a utility, 11px since #687. `MAP_EDGE.publish` spells the same 11px a second time as a custom property, and `CHART_TICK_PX` a third as the number Recharts takes, because Tailwind compiles no interpolated class and the library's credit line has no call site; `styles.test.ts` holds the two to one number |
 | `METRICS_GRID` | The Metrics table: label, aggregate menu, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
 | `METRIC_BOX_W` | One bound box in the Metrics table: 56px (w-14), the widest the metric row's label budget allows. The results cap spans both box columns instead, so it wears `w-full` off the same shape |
@@ -366,7 +367,7 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_CHIP_CARD.key` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
 | The chip menus are one width and hang one way | `styles.test.ts`, `checks/styles.js` | `MAP_MENU_W` inside `MAP_CHIP_MENU`, worn once by each menu; `style-map-chrome` fails a width, offset or chip height spelled beside the roles |
-| The map's rows, a phone's sheets and its Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
+| The map's rows, a phone's sheets and its Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, the phone credit line's 29px (`PHONE_LINE_PX`), `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend card |
 | The accent ratios are pinned | `styles.test.ts` | 4.56, 3.20, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 4.56, 4.06, 3.54, 3.17, 4.56 and the 6.45 hover |
@@ -679,6 +680,21 @@ the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
 the panel. A phone draws no zoom pair, since a pinch zooms there.
 Record: [0174](decisions/0174-desk-map-rows.md)
 
+A phone's credit line is the desk's, mirrored into the bottom-left corner
+(`MAP_CORNER.phoneCredit`): the (i) and the scale's 100px box on one row, flush
+on the edge of whichever sheet is up, its top and right edges on and its
+top-right corner rounded. The full credits run about 430px at 11px, so the (i)
+stays the library's compact form. Folded, the line is 29px tall
+(`PHONE_LINE_PX`) and 153px wide, 70.9px clear of the Analyze button at 360
+wide and 100.9px at 390. Opened, it grows to the map's 12px inset with the
+credits in two lines over the (i) and the scale, which keep their places, and
+the button rises 16px over it (`fabBottomPx`). The notice band stands 10px over
+the line. The line sets the library's 20px line (`leading-5`), which its
+controls lose outside the map's container, so the scale keeps its 22px box.
+Measured 2026-10-21 in the Playwright image's Chromium at 360 and 390 wide
+(`e2e/phoneCorner.spec.ts`).
+Record: [0174](decisions/0174-desk-map-rows.md)
+
 Seen and pressed are two sizes. On a coarse pointer a chip is 32px seen and
 44 pressed, by a pseudo-element 7px above and below it measured from inside
 its 1px border; the locate button 40 seen and 44 pressed, by a 3px rim
@@ -723,8 +739,8 @@ the library's corner. While the map is north-up and flat the compass is
 disabled: greyed by `DISABLED` at a desk, so the column keeps one shape, and
 hidden in a phone's chip row. The credit line's (i) is the same dark
 round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
-is the floating card (`MAP_CREDIT.card`), which a desk's credit line in the
-corner is itself, so the line sheds the card it would otherwise wear; its links dressed in `map.css` as
+is the floating card (`MAP_CREDIT.card`), which the corner's credit line is
+itself at either width, so the line sheds the card it would otherwise wear; its links dressed in `map.css` as
 `LINK` dresses the app's. The compass needle is redrawn rather than inverted,
 red-500 north and slate-50 south edged in slate-600, and the (i)'s glyph is
 centred on its button's whole box. The scale bar is a ruler on the map, not a
@@ -732,28 +748,26 @@ control, so it wears none of that chrome.
 Record: [0147](decisions/0147-map-buttons-wear-the-app-chrome.md) It stands on
 the legend ramp's scrim in the ramp's ink instead, so it follows the theme
 (5.35:1 over a white map in the dark theme, its worst), with its ends dark in
-both themes because the basemap is light in both. In a desk's credit line it
-stands on the line instead, so there it takes no scrim and draws its ends in
-its ink (record 0174). Its label keeps the
+both themes because the basemap is light in both. In a credit line, a desk's
+or a phone's, it stands on the line instead, so there it takes no scrim and
+draws its ends in its ink (record 0174). Its label keeps the
 vendor's 10px, under the floor, because at 11px `1000 km` on its narrowest bar
 ran past the bar's end (`e2e/scaleBar.spec.ts`).
 Record: [0162](decisions/0162-scale-bar-on-the-theme-ground.md)
 
 The whole notice block stands on the map in a band (`MAP_NOTICE_BAND`):
 the panel's own boxes on its slate-800, 12px off each side, 10px over the
-sheet's edge, three lines of a box at most (66px) and then it scrolls inside
-itself. The button stands 16px over the band, and the scale and the (i) move
-onto the button's row, each with its bottom on the button's bottom edge, and
-the opened credit line grows up from that edge. Measured 2026-10-14: a 10px
-gap from the band to the sheet at 360, 390 and 430 wide, the gap the (i)
-kept above the sheet before; the button's, the scale's and the (i)'s bottoms
-on one edge at all three, at 446, 500 and 588 with a report landed.
+credit line on the sheet's edge, three lines of a box at most (66px) and then
+it scrolls inside itself. The button stands 16px over the band. Measured
+2026-10-21 with the Controls sheet up and a cue in the band, at 360x800 and
+390x800: the line on the sheet's edge at 285, the band from 208 to 246 and the
+button from 136 to 192.
 Record: [0140](decisions/0140-phone-notices-on-the-map.md)
 
 The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`): the
 bottom sheet's surface and top, not modal, slid below the map while shut, its
-height a fixed share of the map that leaves the rows, the button's strip and a
-full band. The chip is lit while it is up, its words white on the accent fill.
+height a fixed share of the map that leaves the rows, the button's strip, the
+folded credit line and a full band. The chip is lit while it is up, its words white on the accent fill.
 It carries no notice block and no fixed foot: the document links are the
 last thing in its scrolling body.
 Record: [0141](decisions/0141-phone-controls-sheet.md)

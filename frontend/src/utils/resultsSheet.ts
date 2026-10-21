@@ -399,52 +399,68 @@ export const NOTICE_LINE_PX = 16
 export const NOTICE_BAND_MAX_PX = 3 * NOTICE_LINE_PX + 2 * 8 + 2 * 1
 
 /**
- * Where the notice band stands on a phone (#696; record 0140): on the
- * results sheet's edge, or on the map's foot before there is one, the
- * library's own 10px off it (`CORNER_MARGIN_PX`), which is the gap the scale
- * and the (i) kept above the sheet before they moved up to the button's row.
+ * A phone's credit line, folded: the (i) and the scale in a row flush in the
+ * map's bottom-left corner on the sheet's edge (record 0174). The (i)'s 24px
+ * (`CORNER_CONTROL_PX`), the line's 2px of padding above and below it, and
+ * its 1px top edge (`MAP_CORNER.phoneCredit`), which `styles.test.ts` holds
+ * to this sum. Opened, the line is as tall as the credits make it, so the
+ * phone's foot reads the height `MapCorner` measures (`PhoneLine`); this is
+ * the room a sheet keeps for the folded line (`CONTROLS_MAP_PX`).
  */
-export function noticeBottomPx(liftPx: number): number {
-  return liftPx + CORNER_MARGIN_PX
+export const PHONE_LINE_PX = CORNER_CONTROL_PX + 2 * 2 + 1
+
+/**
+ * A phone's credit line as `MapCorner` measures it (record 0174): its height
+ * on the sheet's edge, and whether its credits are open, which spreads it
+ * across the map under the Analyze button.
+ */
+export interface PhoneLine {
+  px: number
+  open: boolean
+}
+
+/** No line under the foot: a desk's, and a phone's before its corner has measured one. */
+export const NO_LINE: PhoneLine = { px: 0, open: false }
+
+/**
+ * Where the notice band stands on a phone (#696; record 0140): the library's
+ * own 10px (`CORNER_MARGIN_PX`) over the credit line's top edge (`linePx`, its
+ * height on the sheet's edge, record 0174), the gap a desk's buttons keep
+ * over its line. The line spans the band's left end, so the band clears all
+ * of it, folded or open.
+ */
+export function noticeBottomPx(liftPx: number, linePx = 0): number {
+  return liftPx + linePx + CORNER_MARGIN_PX
 }
 
 /**
- * Where the phone's Analyze button stands (#696; record 0135). Two things move
- * it and nothing else, Material's rule for a floating button: the sheet,
- * whose top edge it rides 16px above at every height, and the notice band,
- * which stands on that edge and which the button rises 16px above while it
- * holds a notice (`bandPx`, the band's measured height, 0 while empty). Never
- * higher than one inset under the chip row (`mapPx`, the map's whole height):
- * a notice over a sheet dragged high goes under the button rather than the
- * button over the chips.
+ * Where the phone's Analyze button stands (#696; record 0135). Two things
+ * move it in Material's rule for a floating button: the sheet, whose top edge
+ * it rides 16px above at every height, and the notice band, which stands over
+ * the credit line and which the button rises 16px above while it holds a
+ * notice (`bandPx`, the band's measured height, 0 while empty). A third is
+ * the credit line, and only while its credits are open (record 0174): folded,
+ * the line stands beside the button, and open, it spans the map under it, so
+ * the button rises 16px over it. Never higher than one inset under the chip
+ * row (`mapPx`, the map's whole height): a notice or an opened line over a
+ * sheet dragged high goes under the button rather than the button over the
+ * chips.
  */
-export function fabBottomPx(liftPx: number, bandPx: number, mapPx: number): number {
-  const wanted = bandPx > 0 ? noticeBottomPx(liftPx) + bandPx + FAB_INSET_PX : liftPx + FAB_INSET_PX
+export function fabBottomPx(liftPx: number, bandPx: number, mapPx: number, line: PhoneLine = NO_LINE): number {
+  const overLine = liftPx + (line.open ? line.px : 0) + FAB_INSET_PX
+  const wanted = bandPx > 0 ? noticeBottomPx(liftPx, line.px) + bandPx + FAB_INSET_PX : overLine
   const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
   return clamp(wanted, liftPx + FAB_INSET_PX, highest)
 }
 
 /**
- * Where a phone's scale and (i) stand: on the Analyze button's row, at its
- * left, each with its bottom on the button's bottom edge (record 0140; TJ,
- * 2026-10-14). `map.css` stands each control on the library's 10px margin
- * inside the corner band, so the band starts that margin under the button,
- * and the opened credit line, taller than the band, grows up from the same
- * edge. They were centred on the button's middle until the maintainer read
- * it on a Pixel: the credit line opened above the button's top and the
- * collapsed controls stood 6px higher than the button's foot.
- */
-export function phoneCornerLiftPx(fabBottom: number): number {
-  return fabBottom - CORNER_MARGIN_PX
-}
-
-/**
  * The map the Controls sheet leaves on a phone (#696; record 0141): the two
- * rows, the button's strip and room under the button for a notice band at its
- * fullest, so a cue that arrives while the reader changes a control raises
- * the button rather than resizing the sheet under their finger.
+ * rows, the button's strip and room under the button for the folded credit
+ * line and a notice band at its fullest over it, so a cue that arrives while
+ * the reader changes a control raises the button rather than resizing the
+ * sheet under their finger.
  */
-export const CONTROLS_MAP_PX = DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX
+export const CONTROLS_MAP_PX = DRAGGED_MAP_PX + PHONE_LINE_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX
 
 /** The Controls sheet's height on a phone whose map is `mapPx` tall. */
 export function controlsSheetPx(mapPx: number): number {
@@ -499,8 +515,10 @@ export function transportBottomPx(liftPx: number): number {
 }
 
 /**
- * Where MapLibre's own bottom corners go: the scale bar on the left and the
- * attribution on the right, published to `map.css` as `--map-corner-lift`.
+ * Where the map's corner stands at a desk (record 0174), and MapLibre's own
+ * bottom corners while no corner holds the scale and the attribution,
+ * published to `map.css` as `--map-corner-lift`. A phone's corner rides the
+ * foot's edge instead (`phoneFootLiftPx`), which counts the Controls sheet.
  *
  * Those two are the library's, anchored to the container's bottom edge, and on
  * a phone the results sheet stands on that edge. So the corners ride the

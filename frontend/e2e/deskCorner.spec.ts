@@ -95,11 +95,15 @@ for (const [width, height, panel] of [
   })
 }
 
-// A phone has no corner and no zoom pair (#696): a pinch zooms there.
-test('a phone stands no zoom pair and no corner', async ({ page }) => {
+// A phone has no zoom pair (#696), since a pinch zooms there, and no column:
+// its corner is the credit line alone (record 0174, `phoneCorner.spec.ts`),
+// and its locate button stands at the search pill.
+test('a phone stands no zoom pair and no column', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 })
   await page.goto('/')
   await expect(page.locator('.maplibregl-ctrl-geolocate')).toBeVisible()
   await expect(page.locator('.maplibregl-ctrl-zoom-in')).toBeHidden()
-  await expect(page.locator('.map-corner')).toHaveCount(0)
+  await expect(page.locator('.map-corner')).toHaveCount(1)
+  await expect(page.locator('.map-corner .maplibregl-ctrl-geolocate')).toHaveCount(0)
+  await expect(page.locator('.map-corner .maplibregl-ctrl-attrib')).toHaveCount(1)
 })
