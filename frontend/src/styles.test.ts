@@ -150,6 +150,8 @@ import panelFooterSource from './components/PanelFooter.tsx?raw'
 import appSource from './App.tsx?raw'
 import searchBoxSource from './components/SearchBox.tsx?raw'
 import layersPopoverSource from './components/LayersPopover.tsx?raw'
+import columnsPickerSource from './components/ColumnsPicker.tsx?raw'
+import modelsPickerSource from './components/ModelsPicker.tsx?raw'
 import mapLegendSource from './components/MapLegend.tsx?raw'
 import mapRowsSource from './components/MapRows.tsx?raw'
 import bottomSheetSource from './components/BottomSheet.tsx?raw'
@@ -3467,6 +3469,23 @@ describe('the one menu', () => {
     expect(MENU.current).toBe('font-semibold')
   })
 
+  // Every row a press acts on lights under the pointer, a checkbox row as a
+  // pick-one row does, in the one fill. The Layers rows stand on the card's
+  // own padding, so they reach out to the list rows' 4px for it and keep
+  // their words at 10px.
+  it('fills every enabled row the same way, a checkbox row included', () => {
+    expect(MENU.hover).toBe(`hover:${MENU.active}`)
+    const layersInset = stepPx(MAP_CHIP_MENU, 'px')
+    expect(MENU.cardRow).toMatch(/(^|\s)-mx-1\.5(\s|$)/)
+    expect(stepPx(MENU.cardRow, 'px')).toBe(stepPx(MENU.row, 'px'))
+    expect(layersInset - stepPx(MENU.cardRow, 'px')).toBe(stepPx(MENU.list, 'px'))
+    expect(MENU.cardRow).toContain('rounded')
+    // A disabled row takes none: each wiring names the condition.
+    expect(layersPopoverSource).toContain("disabled ? '' : ` ${MENU.hover}`")
+    expect(columnsPickerSource).toContain('!sheet && !isRanked ? MENU.hover')
+    expect(modelsPickerSource).toContain('${MENU.row} ${MENU.hover}')
+  })
+
   // Three trigger shapes, on purpose (TJ, 2026-10-20: "Three shapes,
   // recorded"): a pill on the map, a field in the panel, a button in the
   // results bar's group. Everything else is the one menu.
@@ -3528,13 +3547,20 @@ describe('the one menu', () => {
     }
   })
 
-  // About 150ms, the same both ways in its words, and off under reduced
-  // motion: fades in and slides 4px from its trigger's side.
-  it('fades a menu in over 150ms and keeps still under reduced motion', () => {
+  // About 150ms, the same both ways, and off under reduced motion: fades in
+  // and slides 4px from its trigger's side, and goes back the way it came.
+  it('fades a menu in and out over 150ms and keeps still under reduced motion', () => {
     expect(MOTION.menu).toContain('duration-150')
     expect(MOTION.menu).toContain('motion-reduce:transition-none')
     expect(words(MOTION.menu)).toEqual(expect.arrayContaining(['starting:opacity-0', 'starting:-translate-y-1']))
     expect(MOTION.menu).toContain('data-[side=above]:starting:translate-y-1')
+    // The exit is the entrance's start, word for word, under `closing`.
+    const exit = words(MOTION.menu).filter((w) => w.includes('data-[state=closing]:'))
+    const entrance = words(MOTION.menu).filter((w) => w.includes('starting:'))
+    expect(exit.filter((w) => !w.endsWith('pointer-events-none')).map((w) => w.replace('data-[state=closing]:', '')))
+      .toEqual(entrance.map((w) => w.replace('starting:', '')))
+    // And a press during the fade lands on what is under the card.
+    expect(words(MOTION.menu)).toContain('data-[state=closing]:pointer-events-none')
     for (const card of [SURFACE_CHIP_CARD.key, SURFACE_CHIP_CARD.menu, MENU.card]) {
       expect(card).toContain(MOTION.menu)
     }

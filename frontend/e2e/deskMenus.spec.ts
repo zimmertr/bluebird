@@ -178,3 +178,62 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
   await expect(shown).toHaveText(words[last ? here - 1 : here + 1])
   await expect(aggregate).toBeFocused()
 })
+
+// A three-digit Removed count is the one thing that wraps the bar's button
+// group at a desk, beside the docked panel at 1024. The group goes to a line
+// of its own as a whole, at the line's right end, and the results stand right
+// under the taller bar rather than under the one line the floor once counted.
+test.describe('a long Removed count at 1024', () => {
+  test.use({ viewport: { width: 1024, height: 768 } })
+
+  test('wraps the button group whole onto its own line, at the right end', async ({ page }) => {
+    const ring = { cx: (-121.9 - 121.7 - 121.7) / 3, cy: (47.4 + 47.4 + 47.55) / 3 }
+    const destinations = Array.from({ length: 105 }, (_, i) => ({
+      name: `Peak ${5000 + i}`,
+      type: 'peak',
+      latitude: Number((ring.cy + (Math.floor(i / 12) - 4) * 0.003).toFixed(5)),
+      longitude: Number((ring.cx + ((i % 12) - 6) * 0.003).toFixed(5)),
+      elevation_ft: 4000 + i * 10,
+      osm_id: `node/${2000 + i}`,
+    }))
+    await page.route('**/api/destinations', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ destinations, total: destinations.length, total_found: null, truncated: false }),
+      }),
+    )
+    const removed = destinations
+      .slice(0, 100)
+      .map((d) => `${d.longitude},${d.latitude}`)
+      .join(';')
+    await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&removed=${removed}`)
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await page.getByRole('button', { name: 'Analyze' }).click()
+    const button = page.getByRole('button', { name: 'Removed (100)' })
+    await expect(button).toBeVisible()
+
+    const parts = await button.evaluate((el) => {
+      const box = (e: Element) => e.getBoundingClientRect().toJSON() as DOMRect
+      const group = el.parentElement!
+      const row = group.parentElement!.parentElement!
+      const bar = row.closest('[data-tour="results"]')!.firstElementChild!
+      return {
+        group: box(group),
+        modes: box(row.firstElementChild!),
+        row: box(row),
+        bar: box(bar),
+        under: box(bar.nextElementSibling!),
+        map: document.querySelector('.maplibregl-canvas')!.getBoundingClientRect().toJSON() as DOMRect,
+      }
+    })
+    // Its own line, under the mode switch, and the whole group on it.
+    expect(parts.group.top).toBeGreaterThanOrEqual(parts.modes.bottom)
+    expect(parts.group.height).toBeCloseTo(parts.modes.height, 0)
+    // At the right end of the line, as it stands on one line.
+    near(parts.group.right, parts.row.right)
+    // The map ends where the bar starts, and the panels start where it ends.
+    near(parts.map.bottom, parts.bar.top)
+    near(parts.under.top, parts.bar.bottom)
+  })
+})

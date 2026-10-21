@@ -1,6 +1,7 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
+import { useExit } from '../hooks/useExit'
 import { familyOf, metricLabel } from '../metrics'
 import type { SortBy } from '../types'
 import {
@@ -446,6 +447,10 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
     if (!shown) setSheetOpen(false)
   }, [shown])
   const open = (sheet ? sheetOpen : deskOpen) && shown
+  // A desk's card folds the way it opened, over `MOTION.menu`'s 150ms.
+  const chipRef = useRef<HTMLButtonElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const closing = useExit(open && !sheet, cardRef, chipRef)
   const toggle = () => {
     if (sheet) {
       setSheetOpen((o) => !o)
@@ -455,7 +460,15 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
     writeViewPrefs({ legendOpen: !deskOpen })
   }
   const chip = (
-    <MenuButton shape="chip" open={open} chevron={!sheet} onClick={toggle} disabled={!shown} className={DISABLED}>
+    <MenuButton
+      ref={chipRef}
+      shape="chip"
+      open={open}
+      chevron={!sheet}
+      onClick={toggle}
+      disabled={!shown}
+      className={DISABLED}
+    >
       Legend
     </MenuButton>
   )
@@ -474,8 +487,10 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
   return (
     <div className="relative flex-shrink-0">
       {chip}
-      {open && (
+      {(open || closing) && (
         <div
+          ref={cardRef}
+          data-state={closing ? 'closing' : 'open'}
           // A popup keeps clear of this card (`resultsLayer.ts` finds every
           // `data-map-overlay`).
           data-map-overlay=""

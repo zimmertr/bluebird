@@ -37,6 +37,8 @@ interface ResultsBarProps {
   sortDesc: boolean
   /** Whether the report is one hour, which drops the aggregate from the title. */
   pointSample: boolean
+  /** The bar's element, which `useResultsLayout` measures for the docked map's floor. */
+  barRef?: RefObject<HTMLDivElement | null>
   /** "N of M", or null before any report. */
   rowCount: string | null
   /** Destinations no analysis has covered, counted in the title before the first report. */
@@ -91,6 +93,7 @@ interface ResultsBarProps {
  * re-measure if a member joins or leaves.
  */
 export default function ResultsBar({
+  barRef,
   sortBy,
   sortDesc,
   pointSample,
@@ -206,7 +209,7 @@ export default function ResultsBar({
     },
   ].filter((action) => action !== false)
   return (
-    <div className={`@container flex-shrink-0 px-3 py-1.5 bg-raised border-b border-frame`}>
+    <div ref={barRef} className={`@container flex-shrink-0 px-3 py-1.5 bg-raised border-b border-frame`}>
       <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           {/* Before the first analysis the title is the same ranked
@@ -292,7 +295,12 @@ export default function ResultsBar({
               items, each its glyph and, where the bar can hold every word on
               one line, its word (`BAR_LABEL`). Removed joins it whenever it
               shows, and the wide chevron stands after it. */}
-          <div className="flex items-center gap-2">
+          {/* At the row's right end. On one line `justify-between` stands it
+              there already; where a three-digit Removed count wraps it onto a
+              line of its own (beside the docked panel at 1024, #714) the
+              margin keeps it there rather than at the line's start. Not before
+              a report, where it is the row's only member. */}
+          <div className={`flex items-center gap-2 ${showResults ? 'ml-auto' : ''}`}>
             <div className={ACTION_GROUP}>
               {actions.map((action, i) => (
                 <Fragment key={action.key}>

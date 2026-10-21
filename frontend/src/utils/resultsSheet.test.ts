@@ -416,6 +416,14 @@ describe('dockedMapFloorPx', () => {
     expect(dockedMapFloorPx(2) - dockedMapFloorPx(1)).toBe(dockedMapFloorPx(1) - dockedMapFloorPx(0))
   })
 
+  // The one-line estimate holds until the bar is measured, and the bar's own
+  // height replaces it after: 85px beside the docked panel at 1024 with a
+  // three-digit Removed count (#714).
+  it('counts the bar as measured once it is', () => {
+    expect(dockedMapFloorPx(1, RESULTS_BAR_PX)).toBe(dockedMapFloorPx(1))
+    expect(dockedMapFloorPx(1, 85) - dockedMapFloorPx(1)).toBe(85 - RESULTS_BAR_PX)
+  })
+
   // It replaces `resolvePanelHeights`' own default, which was 280 — a number
   // that predates the legend stack and is under half of what the stack needs.
   it('reserves far more than the fixed default it replaced', () => {

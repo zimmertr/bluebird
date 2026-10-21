@@ -29,6 +29,8 @@ interface Props {
    * two groups of chips) passes nothing and draws its own.
    */
   header?: ReactNode
+  /** Whether the card is on its way out (`usePopover`'s `closing`), for the exit `MOTION.menu` draws. */
+  closing: boolean
   children: ReactNode
 }
 
@@ -47,13 +49,16 @@ interface Props {
  * linter's `style-own-menu` check fails a second `position: 'fixed'` or a
  * second copy of the card anywhere under `components/`.
  */
-export default function Menu({ box, popoverRef, header, children }: Props) {
+export default function Menu({ box, popoverRef, header, closing, children }: Props) {
   return createPortal(
     <div
       ref={popoverRef}
       // Which way the card came in from (`MOTION.menu`): down under its
       // trigger, or up where it had to open above it.
       data-side={box.placement}
+      // And whether it is going: the same fade and slide, back towards the
+      // trigger, with presses passing through to what is under it.
+      data-state={closing ? 'closing' : 'open'}
       style={{
         position: 'fixed',
         ...box.align,
@@ -148,7 +153,7 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
   const [active, setActive] = useState(selectedIndex)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const { popoverRef, box } = usePopover({ open, onOpenChange: setOpen, triggerRef, initialFocusRef: listRef })
+  const { popoverRef, box, closing } = usePopover({ open, onOpenChange: setOpen, triggerRef, initialFocusRef: listRef })
   const listId = useId()
   const nameId = useId()
   const valueId = useId()
@@ -199,8 +204,8 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
           {options[selectedIndex]?.label ?? value}
         </span>
       </MenuButton>
-      {open && box && (
-        <Menu box={box} popoverRef={popoverRef}>
+      {box && (
+        <Menu box={box} popoverRef={popoverRef} closing={closing}>
           <div
             ref={listRef}
             role="listbox"

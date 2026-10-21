@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { MAP_CHIP_MENU, MENU_CHEVRON } from '../styles'
+import { MAP_CHIP_MENU, MENU, MENU_CHEVRON } from '../styles'
 import { IconChevron } from './icons'
 import type { ViewBounds } from '../utils/layerCoverage'
 
@@ -155,6 +155,24 @@ describe('LayersPopover', () => {
     const player = screen.getByRole('checkbox', { name: 'Forecast player' })
     expect((player as HTMLInputElement).disabled).toBe(true)
     expect(player.getAttribute('aria-describedby')).toBeNull()
+  })
+
+  // A row a press acts on lights under the pointer, as every menu row does
+  // (record 0200); a greyed one takes no fill, and a phone's sheet none at all.
+  it('lights every live row under the pointer and no greyed one', () => {
+    const fill = (name: RegExp | string) =>
+      screen.getByRole('checkbox', { name }).closest('label')!.className.split(' ').includes(MENU.hover)
+    const { unmount } = render(
+      <LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={ARCHIVE} playerOffered={false} />,
+    )
+    open()
+    expect(fill('Smoke')).toBe(true)
+    expect(fill(/^Forecast grid/)).toBe(false)
+    expect(fill('Forecast player')).toBe(false)
+    unmount()
+    render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered sheet />)
+    open()
+    expect(fill('Smoke')).toBe(false)
   })
 
   // Each row drives its own layer, and no label carries a coverage note: the

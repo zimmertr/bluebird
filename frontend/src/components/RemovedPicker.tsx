@@ -35,7 +35,7 @@ export default function RemovedPicker({
 }: Props) {
   // Closed to the popover's hook on a phone, whose sheet places and dismisses
   // itself: a press inside the sheet would read as a press outside the card.
-  const { popoverRef, box } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
+  const { popoverRef, box, closing } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
 
   // Restoring the last row empties the list out from under the popover, so it
   // closes. Where the keyboard goes is the sheet's: the trigger hides at zero
@@ -86,10 +86,10 @@ export default function RemovedPicker({
     ) : null
   }
 
-  if (!open || !box) return null
+  if (!box) return null
 
   return (
-    <Menu box={box} popoverRef={popoverRef} header="Removed rows">
+    <Menu box={box} popoverRef={popoverRef} closing={closing} header="Removed rows">
       <div className={MENU.list}>{rows}</div>
 
       {restoreAll && <div className={MENU.foot}>{restoreAll}</div>}

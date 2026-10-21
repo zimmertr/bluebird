@@ -137,7 +137,7 @@ export default function ModelPicker({
   // The chip row is part of the panel's height, so a tick that wraps it onto a
   // second line has to buy another measuring pass; so does the list arriving
   // from `/api/capabilities` under an open panel. Nothing else here changes it.
-  const { popoverRef, box } = usePopover({
+  const { popoverRef, box, closing } = usePopover({
     open,
     onOpenChange: setOpen,
     triggerRef,
@@ -364,8 +364,8 @@ export default function ModelPicker({
           <span className="flex-shrink-0 tabular-nums">+{comparedCount}</span>
         )}
       </MenuButton>
-      {open && box && (
-        <Menu box={box} popoverRef={popoverRef}>
+      {box && (
+        <Menu box={box} popoverRef={popoverRef} closing={closing}>
           {/* The selected set, split into what each part DOES, under
               headings of the same kind the list's own header below wears.
               Two groups rather than one row of chips is the whole

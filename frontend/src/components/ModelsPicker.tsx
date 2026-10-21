@@ -50,10 +50,10 @@ export default function ModelsPicker({
 }: Props) {
   // Closed to the popover's hook on a phone, whose sheet places and dismisses
   // itself: a press inside the sheet would read as a press outside the card.
-  const { popoverRef, box } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
+  const { popoverRef, box, closing } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
 
   const rows = visibilityRows(models, hidden).map((row) => (
-    <label key={row.id} className={sheet ? CHOICE_ROW : `${CHOICE_ROW} ${MENU.row}`}>
+    <label key={row.id} className={sheet ? CHOICE_ROW : `${CHOICE_ROW} ${MENU.row} ${MENU.hover}`}>
       <input
         type="checkbox"
         checked={row.visible}
@@ -72,10 +72,10 @@ export default function ModelsPicker({
     ) : null
   }
 
-  if (!open || !box) return null
+  if (!box) return null
 
   return (
-    <Menu box={box} popoverRef={popoverRef}>
+    <Menu box={box} popoverRef={popoverRef} closing={closing}>
       <div className={MENU.list}>{rows}</div>
     </Menu>
   )

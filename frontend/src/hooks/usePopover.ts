@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { popoverBox, type PopoverBox } from '../utils/listbox'
 import { CHIP_MENU_GAP_PX } from '../utils/resultsSheet'
+import { useExit } from './useExit'
 import { useTakeOrphanedFocus } from './useFocusHandoff'
 
 /**
@@ -104,7 +105,13 @@ export function usePopover({
   anchorRef,
   ownPressRef,
   widthRef,
-}: Options): { popoverRef: React.RefObject<HTMLDivElement | null>; box: PopoverBox | null } {
+}: Options): {
+  popoverRef: React.RefObject<HTMLDivElement | null>
+  /** Where the card stands while it is drawn, open or on its way out; null when there is no card. */
+  box: PopoverBox | null
+  /** Whether the card is on its way out, for `Menu`'s `closing` (`useExit`). */
+  closing: boolean
+} {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<PopoverBox | null>(null)
   // What `remeasure` held when this open was last measured, or null while the
@@ -208,9 +215,13 @@ export function usePopover({
   }, [shown, initialFocusRef])
 
   // And back out to the trigger when it closes, by whatever route, if the
-  // keyboard was inside: the panel unmounts under it, and the browser would
-  // otherwise park it on the body. A press on something else keeps its focus,
-  // because then nothing was orphaned.
+  // keyboard was inside. A closed card leaves over `MOTION.menu`'s 150ms
+  // rather than at once, and `useExit` hands the keyboard back as it starts
+  // to; this catches a card its caller stopped drawing in the same commit
+  // (the calendar's, when Current takes the When segment), which unmounts
+  // under the keyboard and would otherwise leave it on the body. A press on
+  // something else keeps its focus, because then nothing was orphaned.
+  const closing = useExit(open, popoverRef, triggerRef)
   useTakeOrphanedFocus(triggerRef, !open)
 
   useEffect(() => {
@@ -265,7 +276,7 @@ export function usePopover({
     }
   }, [open, onOpenChange, triggerRef, ownPressRef])
 
-  return { popoverRef, box }
+  return { popoverRef, box: open || closing ? box : null, closing }
 }
 
 function sameSignals(a: readonly unknown[], b: readonly unknown[]): boolean {

@@ -55,6 +55,7 @@ interface ResultsSheetView {
   layout: Pick<
     ResultsLayout,
     | 'sheetRef'
+    | 'barRef'
     | 'resultsCollapsed'
     | 'toggleCollapsed'
     | 'resultsMode'
@@ -122,7 +123,7 @@ export default function ResultsSheet({
   theme,
 }: ResultsSheetProps) {
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
-  const { sheetRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
+  const { sheetRef, barRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
   const { results, windowTitle, pending, rowCount } = report
   const { selectedModelRows, hiddenModels, toggleHiddenModel, compareWait, compareNotes } = charts
   const { allColumns, pickerVisibleKeys, handleVisibilityChange, handleColumnMove, handleDownloadCsv } = tableView
@@ -175,6 +176,7 @@ export default function ResultsSheet({
           }
         >
           <ResultsBar
+            barRef={barRef}
             sortBy={sortBy}
             sortDesc={sortDesc}
             pointSample={pointSample}

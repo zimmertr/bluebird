@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type ResultsLayoutInputs, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
+import { RESULTS_BAR_PX, dockedMapFloorPx } from '../utils/resultsSheet'
 
 // jsdom has no media queries, so the one the Both widening asks is answered
 // here: a desktop width unless a test says otherwise.
@@ -387,6 +388,34 @@ describe('useResultsLayout', () => {
     height = 400
     rerender()
     expect(result.current.sheetLiftPx).toBe(400)
+  })
+
+  // The docked bar's MEASURED height is what the map's floor counts on a desk:
+  // beside the docked panel at 1024 it is two lines or three rather than the
+  // one the estimate counts, and the panels give up the difference rather
+  // than the map (#714).
+  it('keeps a desk map its floor under a bar taller than one line', () => {
+    setViewport(768)
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const BAR = 85
+    const bar = document.createElement('div')
+    bar.getBoundingClientRect = () => ({ height: BAR }) as DOMRect
+    const { result, rerender } = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'both' }))
+    const panels = () => result.current.chartPanelPx + result.current.tablePanelPx
+    const estimated = panels()
+    act(() => {
+      result.current.barRef.current = bar
+    })
+    rerender()
+    expect(panels()).toBe(estimated - (BAR - RESULTS_BAR_PX))
+    // What is left is the map's whole reserve: rows, legend stack and band.
+    expect(768 - BAR - 2 * 8 - panels()).toBe(dockedMapFloorPx(0) - RESULTS_BAR_PX)
   })
 
   // A phone's home indicator band (record 0145): the foot stands on it with

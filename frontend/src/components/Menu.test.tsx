@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { act, fireEvent, screen } from '@testing-library/react'
 import Menu, { MenuButton, MenuSelect } from './Menu'
 import { usePopover } from '../hooks/usePopover'
 import { placeAt, render, type Box } from '../testSupport/render'
@@ -23,7 +23,7 @@ function Harness({ trigger, header, row, panel }: { trigger: Box; header?: strin
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
-  const { popoverRef, box } = usePopover({
+  const { popoverRef, box, closing } = usePopover({
     open,
     onOpenChange: setOpen,
     triggerRef,
@@ -63,8 +63,8 @@ function Harness({ trigger, header, row, panel }: { trigger: Box; header?: strin
         button
       )}
       <button>Elsewhere</button>
-      {open && box && (
-        <Menu box={box} popoverRef={popoverRef} header={header}>
+      {box && (
+        <Menu box={box} popoverRef={popoverRef} closing={closing} header={header}>
           <button>Inside</button>
           <button disabled>Unusable</button>
           <button>Last</button>
@@ -209,6 +209,64 @@ describe('dismissal', () => {
     // reopen what the press had just closed.
     await user.click(trigger())
     expect(screen.queryByRole('button', { name: 'Inside' })).toBeNull()
+  })
+})
+
+// A card leaves the way it came in (`MOTION.menu`), so it stays mounted for
+// its own transition after a close. jsdom has no stylesheet, which is why
+// every other suite here sees a close as gone at once; these give the card the
+// transition a browser would compute for it.
+describe('the exit', () => {
+  const TRIGGER = { left: 20, top: 100, width: 120, height: 30 }
+  const inside = () => screen.queryByRole('button', { name: 'Inside' })
+
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  function openWith(transition: { property: string; duration: string }) {
+    render(<Harness trigger={TRIGGER} />)
+    fireEvent.click(trigger())
+    card().style.transitionProperty = transition.property
+    card().style.transitionDuration = transition.duration
+  }
+  const MENU_TRANSITION = { property: 'opacity, translate', duration: '0.15s' }
+
+  it('stays for its 150ms closing, then goes', () => {
+    openWith(MENU_TRANSITION)
+    fireEvent.pointerDown(document.body)
+    expect(card().dataset.state).toBe('closing')
+    act(() => vi.advanceTimersByTime(149))
+    expect(inside()).not.toBeNull()
+    act(() => vi.advanceTimersByTime(1))
+    expect(inside()).toBeNull()
+  })
+
+  // Everything but the picture is closed from the first frame.
+  it('reads as shut while it goes, with the keyboard back on the trigger', () => {
+    openWith(MENU_TRANSITION)
+    inside()!.focus()
+    fireEvent.pointerDown(document.body)
+    expect(trigger().getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(trigger())
+  })
+
+  it('turns round where it stands on a reopen during the exit', () => {
+    openWith(MENU_TRANSITION)
+    const going = card()
+    fireEvent.pointerDown(document.body)
+    act(() => vi.advanceTimersByTime(60))
+    fireEvent.click(trigger())
+    expect(card()).toBe(going)
+    expect(card().dataset.state).toBe('open')
+    act(() => vi.advanceTimersByTime(500))
+    expect(inside()).not.toBeNull()
+  })
+
+  // `motion-reduce:transition-none`, as a browser computes it.
+  it('goes at once where the reader asked for less motion', () => {
+    openWith({ property: 'none', duration: '0.15s' })
+    fireEvent.pointerDown(document.body)
+    expect(inside()).toBeNull()
   })
 })
 

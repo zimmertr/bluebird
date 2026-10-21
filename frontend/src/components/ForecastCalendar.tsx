@@ -307,7 +307,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
   // Hourly adds two rows and a month can hold five weeks or six, and either
   // changes the card's height while it is open; a card that grew without
   // being placed again would scroll in a gap the viewport could give it.
-  const { popoverRef, box } = usePopover({
+  const { popoverRef, box, closing } = usePopover({
     open,
     onOpenChange: dismiss,
     triggerRef,
@@ -469,8 +469,8 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
         </div>
       )}
 
-      {revealsGrid && open && box && (
-        <Menu box={box} popoverRef={popoverRef}>
+      {revealsGrid && box && (
+        <Menu box={box} popoverRef={popoverRef} closing={closing}>
           <div className={CALENDAR_GROUND}>
           <div className="flex items-center justify-between gap-2">
             <span className={TEXT.subheading} title={HOURS_NOTE}>

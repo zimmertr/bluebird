@@ -8,6 +8,7 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   MAP_CHIP_MENU,
+  MENU,
   SEGMENT_DIVIDER,
   SEGMENT_FLUID,
   SEGMENT_IDLE,
@@ -17,6 +18,7 @@ import {
   SURFACE_CHIP_CARD,
 } from '../styles'
 import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid'
+import { useExit } from '../hooks/useExit'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useLayerReach } from '../hooks/useLayerReach'
 import type { LayerCoverage } from '../utils/layerCoverage'
@@ -32,6 +34,7 @@ function layerRow({
   onChange,
   disabled,
   note,
+  menu,
 }: {
   key: string
   label: string
@@ -42,9 +45,12 @@ function layerRow({
    *  touch or to a screen reader. */
   disabled?: boolean
   note?: string
+  /** A row of the desk's card rather than of a phone's sheet: it lights under the pointer unless disabled. */
+  menu: boolean
 }) {
+  const inCard = menu ? ` ${MENU.cardRow}${disabled ? '' : ` ${MENU.hover}`}` : ''
   return (
-    <label key={key} className={CHOICE_ROW} title={disabled && note ? note : undefined}>
+    <label key={key} className={`${CHOICE_ROW}${inCard}`} title={disabled && note ? note : undefined}>
       <input
         type="checkbox"
         checked={checked}
@@ -154,13 +160,19 @@ export default function LayersPopover({
   // menu is open. A label used to carry this ("US only", "OR/WA", "West"),
   // three ways at once and none of them true of the area feeds' eight states;
   // a grey row is the one way that is true everywhere (#676).
-  const outOfView = useLayerReach(mapRef, coverage, open)
   const layersRef = useRef<HTMLDivElement>(null)
-  // A close by Escape or by a press elsewhere unmounts the menu under a
+  // A close by Escape or by a press elsewhere takes the menu from under a
   // keyboard that was inside it, so the focus comes back to the button that
-  // opened it rather than falling to the body (#576).
+  // opened it rather than falling to the body (#576): as the desk's card
+  // starts to leave (`useExit`, which keeps it for `MOTION.menu`'s fade), or
+  // as the phone's sheet unmounts.
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const closing = useExit(open && !sheet, cardRef, buttonRef)
   useTakeOrphanedFocus(buttonRef, !open)
+  // Watched while the card is going too, so its grey rows do not light up as
+  // it fades.
+  const outOfView = useLayerReach(mapRef, coverage, open || closing)
   // Both ways out of a popover a reader expects: click away, or press Escape.
   // `pointerdown` rather than `click` so a press that starts outside dismisses
   // even if the pointer travels before release, and so it lands before the
@@ -257,7 +269,7 @@ export default function LayersPopover({
   const Row: ElementType = sheet ? 'div' : Fragment
   const rows = MAP_LAYERS.map((layer) => (
     <Row key={layer.key}>
-      {layerRow(layer)}
+      {layerRow({ ...layer, menu: !sheet })}
       {/* The grid's sub-choices, revealed by its own checkbox
           and rendered under the row they belong to rather than
           after the list, so the alphabetical order above holds
@@ -384,8 +396,10 @@ export default function LayersPopover({
     // surface, so the menu's outline and its deeper shadow are what part them.
     <div ref={layersRef} className="relative z-[1] flex-shrink-0">
       {button}
-      {open && (
+      {(open || closing) && (
         <div
+          ref={cardRef}
+          data-state={closing ? 'closing' : 'open'}
           className={`${SURFACE_CHIP_CARD.menu} ${MAP_CHIP_MENU}`}
           data-tour="layers-menu"
         >

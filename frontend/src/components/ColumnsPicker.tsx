@@ -46,7 +46,7 @@ export default function ColumnsPicker({
 }: Props) {
   // Closed to the popover's hook on a phone, whose sheet places and dismisses
   // itself: a press inside the sheet would read as a press outside the card.
-  const { popoverRef, box } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
+  const { popoverRef, box, closing } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
   const rankedNoteId = useId()
 
   const rankedGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
@@ -139,7 +139,11 @@ export default function ColumnsPicker({
           if (el) rowsRef.current.set(col.key, el)
           else rowsRef.current.delete(col.key)
         }}
-        className={`${CHOICE_ROW} ${sheet ? 'px-1' : MENU.row} ${isCarried ? DRAG.carried : ''}`}
+        // The raised fill under the pointer on a desk's rows, but not on the
+        // ranked column's, which cannot be unticked.
+        className={`${CHOICE_ROW} ${sheet ? 'px-1' : MENU.row} ${!sheet && !isRanked ? MENU.hover : ''} ${
+          isCarried ? DRAG.carried : ''
+        }`}
       >
         <input
           type="checkbox"
@@ -234,13 +238,13 @@ export default function ColumnsPicker({
     ) : null
   }
 
-  if (!open || !box) return null
+  if (!box) return null
 
   return (
     // No heading (the maintainer, 2026-10-14): under a button called Columns
     // it said the button's word again, and the Models menu beside it has
     // none. The list keeps that word as its accessible name.
-    <Menu box={box} popoverRef={popoverRef}>
+    <Menu box={box} popoverRef={popoverRef} closing={closing}>
       <div role="group" aria-label="Columns" className={MENU.list}>
         {rows}
       </div>

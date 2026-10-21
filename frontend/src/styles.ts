@@ -375,25 +375,30 @@ export const SURFACE_SHEET =
   `bg-panel border-t border-frame rounded-t-lg overflow-hidden ${ELEVATION.none}`
 
 /**
- * How a menu comes in (#714; record 0200): it fades in and slides 4px from
- * its trigger's side over 150ms, and stops where the reader asked their
- * system for less. `MOTION.menu` is this value; it is declared up here
- * because the chip cards below wear it, and a const read before its
- * declaration is a temporal-dead-zone throw.
+ * How a menu comes and goes (#714; record 0200): it fades in and slides 4px
+ * from its trigger's side over 150ms, leaves the same way back, and does
+ * neither where the reader asked their system for less. `MOTION.menu` is this
+ * value; it is declared up here because the chip cards below wear it, and a
+ * const read before its declaration is a temporal-dead-zone throw.
  *
- * An entrance only. `@starting-style` (Tailwind's `starting:`) gives a card
- * the faded, shifted style for the frame it mounts in, so the browser
- * transitions it in with no script. A close unmounts the card, so it goes at
- * once: a matching exit would keep every menu mounted for 150ms after its
- * close, and every test and focus rule that reads "closed" as "gone" with it.
+ * The same animation in both directions, the maintainer's rule for motion.
+ * `@starting-style` (Tailwind's `starting:`) gives a card the faded, shifted
+ * style for the frame it mounts in, so the browser transitions it in with no
+ * script. A close keeps the card mounted with `data-state="closing"`, which
+ * transitions it back to that style, for as long as the transition runs
+ * (`useExit`, which reads the time off the card rather than copying it). Its
+ * presses pass through while it goes, so a reader who closed it by pressing
+ * the map is not stopped by its ghost.
  *
- * Down from above, the way a card under its trigger drops; a card that had
- * to open above its trigger (`data-side="above"`, which `Menu` writes) rises
- * from below instead.
+ * Down from above, the way a card under its trigger drops, and back up as it
+ * goes; a card that had to open above its trigger (`data-side="above"`, which
+ * `Menu` writes) rises from below instead and sinks back.
  */
 const MENU_MOTION =
   'transition-[opacity,translate] duration-150 ease-out starting:opacity-0 starting:-translate-y-1 ' +
-  'data-[side=above]:starting:translate-y-1 motion-reduce:transition-none'
+  'data-[side=above]:starting:translate-y-1 data-[state=closing]:pointer-events-none ' +
+  'data-[state=closing]:opacity-0 data-[state=closing]:-translate-y-1 ' +
+  'data-[side=above]:data-[state=closing]:translate-y-1 motion-reduce:transition-none'
 
 /**
  * The two cards a desk's map chips open (#714; record 0174), and since record
@@ -2429,10 +2434,11 @@ export const HEADER_BUTTON =
  */
 export const MOTION = {
   /**
-   * A menu fading and sliding in from its trigger over 150ms (#714; record
-   * 0200): quick enough that the card is there when the eye lands, and slow
-   * enough to say which control it came from. Every desk menu wears it
-   * through `SURFACE_CHIP_CARD`, which is why the value is declared above it.
+   * A menu fading and sliding in from its trigger over 150ms, and back out
+   * the same way (#714; record 0200): quick enough that the card is there
+   * when the eye lands, and slow enough to say which control it came from.
+   * Every desk menu wears it through `SURFACE_CHIP_CARD`, which is why the
+   * value is declared above it.
    */
   menu: MENU_MOTION,
   /** The phone drawer's slide in and out. */
@@ -2751,6 +2757,15 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   one 8px down, where the Layers menu's `px-2.5 py-2` stands its own.
  * - `row`: a row's inset and shape, for a row that brings its own type and
  *   control (a checkbox row wears `CHOICE_ROW` beside it).
+ * - `cardRow`: the same inset for a row that stands straight on a card's
+ *   10px padding rather than in a `list` (the Layers rows): pulled out 6px
+ *   and padded back, so its words stay where they were and its fill starts
+ *   4px from the card's edge, where a `list` row's does.
+ * - `hover`: the raised fill under the pointer, on every row a press acts
+ *   on: a checkbox row's whole width toggles its box, so it lights the way a
+ *   pick-one row does under `active`. A disabled row takes none, because
+ *   nothing happens there, and neither does a row whose only control is a
+ *   link inside it (Removed rows), which lights on its own.
  * - `option`: a row a reader picks, at the control type, 20px apart.
  * - `active`: the row under the pointer or the arrow keys, in the raised fill.
  * - `current`: the value a list that replaced a select holds, set semibold
@@ -2762,8 +2777,10 @@ export const MENU = {
   header: `${TEXT.overline} border-b ${SURFACE_DIVIDER} px-2.5 py-2`,
   list: `min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1.5 ${SCROLL_BARS}`,
   row: MENU_ROW,
+  cardRow: '-mx-1.5 rounded px-1.5',
   option: `${TEXT.control} ${TAP.row} ${MENU_ROW} cursor-pointer`,
   active: 'bg-raised',
+  hover: 'hover:bg-raised',
   current: 'font-semibold',
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
 } as const
