@@ -1422,7 +1422,7 @@ job is the later check: CVEs disclosed after that scan, on the amd64 half.
   base and rolls it out through Path 1.
 
 **When there is no base-image PR to merge.** Alpine fixes a package days to
-weeks before the `python:3.14-alpine` image rebuilds carrying it, so the
+weeks before the `python:3.15-alpine` image rebuilds carrying it, so the
 pinned image can be the newest one published while the packages under it are
 not. Dependabot moves the base only when the image is rebuilt, so it has
 nothing to open, and this is the case that failed the 2026-09 scans (seven fixable HIGH util-linux CVEs against a
@@ -1503,7 +1503,7 @@ to a commit SHA with its exact version in a comment (#632), so Dependabot
 raises action patch bumps too, and the job arms auto-merge on them; they still
 wait for a person, for the `Workflows` reason below. The Dockerfile's base
 images are pinned as `tag@digest`, with the tags floating at the minor
-(`python:3.14-alpine`, `node:26-alpine`): a new minor or major is a runtime
+(`python:3.15-alpine`, `node:26-alpine`): a new minor or major is a runtime
 bump that waits for review, and a rebuild of the image under the same tag
 arrives as a digest PR. The fill's `debian:trixie-slim` and the test
 database's `postgres:18-trixie` are pinned the same way (#760). The test database's PostGIS package names its major (`postgresql-18-postgis-3`), so a major bump of that tag moves the package in the same PR. A Node major bump also fails `Backend Tests` until the

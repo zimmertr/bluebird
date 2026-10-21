@@ -3,7 +3,7 @@
 # repo runs; `ruff check backend/` from the repo root and `ruff check .` inside
 # backend/ both find this file by walking up from each source file, so the two
 # invocations cannot disagree.
-target-version = "py314"
+target-version = "py315"
 line-length = 120
 
 [lint]

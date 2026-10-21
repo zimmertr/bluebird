@@ -213,3 +213,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0197](0197-apk-upgrade-on-every-build.md) | The runtime stage's `apk upgrade` runs on every build, placed after the build arguments that change with every commit | 2026-10-14 | Accepted | Root: CI/CD pipeline; `docs/CICD.md`, Scheduled image scan |
 | [0198](0198-a-new-postgres-major-is-a-new-cluster.md) | The shared cache runs PostgreSQL 18 on CloudNativePG's maintained PostGIS image, and a new major is a new cluster | 2026-10-20 | Accepted | `ARCHITECTURE.md`: The shared cache |
 | [0199](0199-pool-checks-a-connection-before-handing-it-out.md) | The app's pool checks a connection before handing it out | 2026-10-20 | Accepted | Backend: `app/db/` |
+| [0200](0200-uvicorn-extras-pinned-directly.md) | The backend pins uvicorn, httptools and uvloop by name rather than asking for uvicorn's `[standard]` extra | 2026-10-20 | Accepted | Root: Development commands |

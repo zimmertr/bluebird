@@ -192,7 +192,7 @@ four files:
 make lock-backend
 ```
 
-The target runs pip-compile on `python:3.14-alpine`, the image's own base, so
+The target runs pip-compile on `python:3.15-alpine`, the image's own base, so
 every environment marker resolves for the platform that installs the lock. It
 keeps every pin the locks already hold; to move one indirect package, add
 `--upgrade-package NAME` to both `pip-compile` commands in the target. The

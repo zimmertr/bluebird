@@ -1,5 +1,11 @@
 fastapi==0.143.0
-uvicorn[standard]==0.54.0
+# Named rather than asked for as uvicorn[standard]: the extra also installs
+# pyyaml, python-dotenv, watchfiles and websockets, which the app never imports,
+# and pyyaml ships no Python 3.15 wheel, so the image would build it from source
+# with an unhashed build backend (#775).
+uvicorn==0.54.0
+httptools==0.9.0
+uvloop==0.23.0
 httpx==0.28.1
 pydantic==2.14.1
 prometheus-client==0.26.0
