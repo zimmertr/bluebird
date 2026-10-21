@@ -180,6 +180,14 @@ export const PLAYER_ROOM_PX = FAB_GAP_PX + TRANSPORT_HEIGHT_PX
  * the export links. Measured in Chrome at 1440x1000, 2026-09-14 (35px) and
  * rounded up. The sheet's own header is taller and is `SHEET_HEADER_PX`; this
  * is the docked half of the same bar, with no grab handle and no sheet border.
+ *
+ * One line, which is the bar wherever it is 896px wide or more. It is the
+ * estimate for the frame before `useResultsLayout` has measured the bar, and
+ * the measurement wins from then on, because a narrower bar is taller: beside
+ * the docked panel at 1024 the title stands over the actions, 59px, and a
+ * three-digit Removed count wraps the button group onto a line of its own,
+ * 85px (#714, measured 2026-10-20). Counted at 36 there, the map came up 23 or
+ * 49px short of the room the floor below keeps for it whenever the floor bound.
  */
 export const RESULTS_BAR_PX = 36
 
@@ -206,12 +214,15 @@ const DOCKED_GRIP_PX = 8
  *
  * It replaces the fixed 280 `resolvePanelHeights` defaults to: that number
  * predated the legend stack and was under half of what the stack now needs.
+ *
+ * `barPx` is the bar's height as `useResultsLayout` measured it, and
+ * `RESULTS_BAR_PX` until it has.
  */
-export function dockedMapFloorPx(gripCount: number): number {
+export function dockedMapFloorPx(gripCount: number, barPx: number = RESULTS_BAR_PX): number {
   // The legend card hangs from its chip, so its top is where the rows end, at
   // either pointer: the rows are the same 92px under a finger.
   const reserve = MAP_ROWS_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
-  return reserve + RESULTS_BAR_PX + gripCount * DOCKED_GRIP_PX
+  return reserve + barPx + gripCount * DOCKED_GRIP_PX
 }
 
 /**

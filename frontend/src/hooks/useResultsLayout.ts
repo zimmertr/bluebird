@@ -197,6 +197,14 @@ export function useResultsLayout({
   // are docked, where the number means nothing.
   const [sheetMeasuredPx, setSheetMeasuredPx] = useState<number | null>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
+  // The docked bar's own height, which the map's floor counts
+  // (`dockedMapFloorPx`), measured for the sheet's reason: it depends on the
+  // width and on what the bar carries. One line where the bar is 896px wide or
+  // more, the title over the actions under that, and a third line where a
+  // three-digit Removed count wraps the button group (#714). `null` on a
+  // phone, where the sheet is measured whole, and before the bar is laid out.
+  const [barMeasuredPx, setBarMeasuredPx] = useState<number | null>(null)
+  const barRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   // Whether the reader has set a panel height themselves. It only matters on a
   // phone, where the results are a sheet standing on the map (#249): until they
@@ -228,7 +236,8 @@ export function useResultsLayout({
       return
     }
     if (!window.matchMedia('(min-width: 1024px)').matches) return
-    if (!bothOpensWithRoom(window.innerHeight - bannerPx, DEFAULT_PANEL_HEIGHT, dockedMapFloorPx(2))) return
+    const barPx = laidOutHeight(barRef.current) ?? undefined
+    if (!bothOpensWithRoom(window.innerHeight - bannerPx, DEFAULT_PANEL_HEIGHT, dockedMapFloorPx(2, barPx))) return
     setModePref('both')
   }, [response, analysisSeq, bannerPx])
 
@@ -295,7 +304,7 @@ export function useResultsLayout({
   const mapFloorPx = isDesktop
     ? heightsChosen
       ? undefined
-      : dockedMapFloorPx(gripCount)
+      : dockedMapFloorPx(gripCount, barMeasuredPx ?? undefined)
     : heightsChosen || heldFull
       ? dragFloorPx
       : restingMapFloorPx(gripCount)
@@ -333,14 +342,32 @@ export function useResultsLayout({
     const el = sheetRef.current
     const next = !el || isDesktop ? null : el.getBoundingClientRect().height
     setSheetMeasuredPx((prev) => (prev === next ? prev : next))
+    // The docked bar, on the same path: a mode switch or a Removed count that
+    // changes its lines re-renders the app. Nothing it moves changes the bar's
+    // own width, so this settles at once too.
+    const bar = isDesktop ? laidOutHeight(barRef.current) : null
+    setBarMeasuredPx((prev) => (prev === bar ? prev : bar))
   })
 
-  // And the second path: a resize that no render caused — a font landing, the
-  // on-screen keyboard, a scrollbar appearing inside the table. Rare, and the
-  // reason this is not left to the render alone.
+  // And the second path: a resize that no render caused. On a phone that is a
+  // font landing, the on-screen keyboard or a scrollbar appearing inside the
+  // table, which is rare; at a desk it is a window narrowed past where the bar
+  // holds one line. Either is why this is not left to the render alone. One
+  // observer for whichever of the two this width measures: the sheet on a
+  // phone, the bar on a desk.
   useEffect(() => {
+    if (isDesktop) {
+      const bar = barRef.current
+      if (!bar) return
+      const observer = new ResizeObserver(() => {
+        const next = laidOutHeight(bar)
+        setBarMeasuredPx((prev) => (prev === next ? prev : next))
+      })
+      observer.observe(bar)
+      return () => observer.disconnect()
+    }
     const el = sheetRef.current
-    if (!el || isDesktop) return
+    if (!el) return
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0]
       // The BORDER box: the sheet's own top border is part of what covers the
@@ -475,6 +502,7 @@ export function useResultsLayout({
 
   return {
     sheetRef,
+    barRef,
     isDragging,
     resultsCollapsed,
     toggleCollapsed,
@@ -493,6 +521,12 @@ export function useResultsLayout({
     chartGrip,
     tableGrip,
   }
+}
+
+/** An element's height once it is laid out; null for none, or for 0, which is no layout yet (and jsdom's every box). */
+function laidOutHeight(el: HTMLElement | null): number | null {
+  const height = el?.getBoundingClientRect().height ?? 0
+  return height > 0 ? height : null
 }
 
 /** What `useResultsLayout` hands its callers; the results sheet reads it whole. */

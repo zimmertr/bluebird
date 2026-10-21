@@ -362,7 +362,10 @@ export default function ControlPanel({
   )
 
   return (
-    <div className="flex flex-col h-full">
+    // The panel a menu opened in it stays inside (`usePopover`, record 0200):
+    // the model list lines up with its field's right edge rather than
+    // spilling over the map.
+    <div data-menu-bound="" className="flex flex-col h-full">
       {/* Header, at a desk: a phone's sheet carries its own (`AppDrawer`). */}
       {!phone && (
         <div className={`border-b ${PANEL_EDGE} flex`}>
@@ -431,6 +434,7 @@ export default function ControlPanel({
           setSelection={setSelection}
           archiveDays={archiveDays}
           aqiForecastDays={aqiForecastDays}
+          phone={phone}
         />
 
         <MetricsTable
@@ -446,6 +450,7 @@ export default function ControlPanel({
           limit={limit}
           setLimit={setLimit}
           maxLimit={maxLimit}
+          phone={phone}
         />
 
         {/* A phone's footer is the document links, the last thing in the

@@ -1,6 +1,6 @@
 // Must trip: a link at the micro step, the window title in the caption tier, a
-// link in the bar, no button wearing ACTION_ITEM, no ACTION_GROUP, and no
-// word wearing BAR_LABEL.
+// link in the bar, no Download CSV on ACTION_ITEM, no menu buttons in the bar
+// shape, no ACTION_GROUP, and no word wearing BAR_LABEL.
 export const Bar = () => (
   <div>
     <button className={`${TEXT.micro} ${LINK}`}>Columns</button>

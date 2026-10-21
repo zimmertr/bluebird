@@ -415,6 +415,14 @@ describe('dockedMapFloorPx', () => {
     expect(dockedMapFloorPx(2) - dockedMapFloorPx(1)).toBe(dockedMapFloorPx(1) - dockedMapFloorPx(0))
   })
 
+  // The one-line estimate holds until the bar is measured, and the bar's own
+  // height replaces it after: 85px beside the docked panel at 1024 with a
+  // three-digit Removed count (#714).
+  it('counts the bar as measured once it is', () => {
+    expect(dockedMapFloorPx(1, RESULTS_BAR_PX)).toBe(dockedMapFloorPx(1))
+    expect(dockedMapFloorPx(1, 85) - dockedMapFloorPx(1)).toBe(85 - RESULTS_BAR_PX)
+  })
+
   // The acceptance criterion for the desktop half, at the viewport the change
   // was measured on: both panels open at their default height, and the map
   // still holds the whole legend stack above the transport's band.

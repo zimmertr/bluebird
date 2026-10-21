@@ -80,9 +80,10 @@ test('an open popup marks whichever number the panel ranks by', async ({ page })
   await page.getByRole('radio', { name: 'Temperature' }).check()
   await expect.poll(marked).toEqual([expect.stringMatching(/^Temperature \(°F\) (Min|Max|Avg)$/)])
 
-  const aggregate = page.getByRole('combobox', { name: 'Temperature aggregate' })
-  await aggregate.focus()
-  await aggregate.selectOption({ label: 'Min' })
+  // A desk picks the aggregate from the one menu (record 0200).
+  const aggregate = page.getByRole('button', { name: /^Temperature aggregate / })
+  await aggregate.click()
+  await page.getByRole('option', { name: 'Min', exact: true }).click()
   await expect.poll(marked).toEqual(['Temperature (°F) Min'])
   // The same card, redrawn in place, and the reader's focus where they left it.
   await expect(popup).toHaveCount(1)

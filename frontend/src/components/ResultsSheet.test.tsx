@@ -94,7 +94,7 @@ describe('ResultsSheet', () => {
   })
 
   // A phone's three bar menus are bottom sheets (#696; record 0136); a desk's
-  // unfurl from the bar.
+  // stand under their own buttons (record 0200).
   it('hands the bar\'s three menus a sheet on a phone only', () => {
     const sheets = () => ['columns', 'models', 'removed'].map((id) => screen.getByTestId(id).dataset.sheet)
     const { rerender } = render(<ResultsSheet {...props({ removed: 1 })} />)

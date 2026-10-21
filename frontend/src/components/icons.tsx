@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { EXTERNAL_LINK } from '../iconPaths'
-import { ICON, ICON_ADORNMENT } from '../styles'
+import { ICON } from '../styles'
 
 /**
  * Every glyph the app draws (#386).
@@ -68,7 +68,12 @@ export function IconClose({
   )
 }
 
-/** The collapse affordance on the results panels' header bars, and a desk map chip's open or shut cue (`MAP_CHIP_CHEVRON`). */
+/**
+ * The collapse affordance on the results panels' header bars, and every menu
+ * trigger's open or shut cue (`MENU_CHEVRON`, record 0200): a chip's, a
+ * results-bar button's and a field's, where it took the filled select
+ * arrow's place, so one glyph says "this opens" everywhere.
+ */
 export function IconChevron({ up, className }: IconProps & { up: boolean }): ReactNode {
   return (
     <svg
@@ -82,32 +87,6 @@ export function IconChevron({ up, className }: IconProps & { up: boolean }): Rea
       aria-hidden="true"
     >
       <polyline points={up ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
-    </svg>
-  )
-}
-
-/**
- * The arrow a `SELECT` reserves its right-hand room for.
- *
- * It carries `ICON_ADORNMENT` itself: all three dropdowns in the app place it
- * the same way, and the reserve `SELECT` budgets is measured off that one
- * offset plus this one step. The calendar's field is the one exception, and
- * hands its own placement in (`CALENDAR_FIELD.arrow`): it may wrap to two
- * lines, and its arrow stays on the first.
- */
-export function IconSelectArrow({ placement = ICON_ADORNMENT }: { placement?: string } = {}): ReactNode {
-  return (
-    <svg
-      className={`${placement} ${ICON.control}`}
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        fillRule="evenodd"
-        d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
-        clipRule="evenodd"
-      />
     </svg>
   )
 }

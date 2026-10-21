@@ -8,7 +8,7 @@ import { SMOKE_DENSITIES } from '../utils/smoke'
 import { legendMaxCss } from '../utils/resultsSheet'
 import { readViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
 import { IconChevron } from './icons'
-import { MAP_CHIP_CHEVRON } from '../styles'
+import { MENU_CHEVRON } from '../styles'
 
 const NONE = {
   showWildfires: false,
@@ -156,7 +156,6 @@ describe('the desk\'s Legend chip', () => {
     render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} />)
     const button = screen.getByRole('button', { name: 'Legend' })
     expect(button.getAttribute('aria-expanded')).toBe('true')
-    expect(button.getAttribute('data-unfurled')).toBeNull()
     expect(button.nextElementSibling!.textContent).toContain('Smoke')
   })
 
@@ -179,7 +178,6 @@ describe('the desk\'s Legend chip', () => {
     render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} />)
     fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
     expect(screen.queryByText(/Smoke/)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Legend' }).getAttribute('data-unfurled')).toBeNull()
     expect(readViewPrefs().legendOpen).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
     expect(screen.getByText(/Smoke/)).toBeTruthy()
@@ -197,7 +195,7 @@ describe('the desk\'s Legend chip', () => {
   it('points its chevron up while the card is open and down while it is folded', () => {
     render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} />)
     const chevron = () => screen.getByRole('button', { name: 'Legend' }).querySelector('svg')!
-    expect(chevron().classList).toContain(MAP_CHIP_CHEVRON)
+    expect(chevron().classList).toContain(MENU_CHEVRON.chip)
     expect(chevron().getAttribute('aria-hidden')).toBe('true')
     expect(chevron().querySelector('polyline')!.getAttribute('points')).toBe(chevronPoints(true))
     fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
@@ -223,7 +221,6 @@ describe('the phone\'s Legend chip', () => {
     render(<Legend {...PHONE} overlays={SMOKE_AND_RADAR} />)
     const chip = screen.getByRole('button', { name: 'Legend' })
     expect(chip.getAttribute('aria-expanded')).toBe('false')
-    expect(chip.getAttribute('data-unfurled')).toBeNull()
     // A sheet rises from below, so a phone's chip carries no chevron.
     expect(chip.querySelector('svg')).toBeNull()
     fireEvent.click(chip)

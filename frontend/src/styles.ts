@@ -311,9 +311,10 @@ export const TAP = {
  *   chart tooltip.
  * - `overlay` (`shadow-2xl`): opened above other chrome, the things a reader
  *   acts in and then closes: every menu, every card over a scrim, and a column
- *   being carried. `2xl` rather than `xl` for `SURFACE_POPOVER`'s measured
- *   reason: its single 0.25-alpha blur is the only one of the two that still
- *   reads over the dark results sheet.
+ *   being carried. `2xl` rather than `xl`, measured on the search list: `xl`
+ *   is two layers at 0.1 black alpha and `2xl` one 50px blur at 0.25. Over
+ *   the light basemap both register, but a menu can hang over the dark
+ *   results sheet, where 0.1 alpha on a near-black surface is nothing at all.
  *
  * The glows are not on this scale: `ACCENT_RING` and the tutorial's spotlight
  * point at something rather than lift it. Nor is the marker popup's header
@@ -347,51 +348,13 @@ export const SURFACE_FLOATING =
 export const SURFACE_PAGE = 'bg-page'
 
 /**
- * Opaque cards that sit above a scrim: the dialogs and the analysis overlay,
- * and every popover `Popover.tsx` opens. `ELEVATION.overlay` since #687, where
- * it wore the `xl` step alone; over the scrim the step hardly shows, and over
- * the map, where the popovers hang, the `xl` step's 0.1 alpha did not read at
- * all on the dark results sheet.
+ * Opaque cards that sit above a scrim: the dialogs, the analysis overlay and
+ * the tutorial's card. `ELEVATION.overlay` since #687, where it wore the `xl`
+ * step alone; over the scrim the step hardly shows. A menu stands on the chip
+ * card's surface instead (`SURFACE_CHIP_CARD.menu`, record 0200).
  */
 export const SURFACE_CARD =
   `bg-panel border border-frame ${RADIUS.surface} ${ELEVATION.overlay}`
-
-/**
- * A menu unfurled out of the control that opens it (#687, record 0134): the
- * maintainer's rule that a menu is one card with its button, at the button's
- * width, rather than a box floating beside it. The card gives up the border
- * and the two corners on the edge it shares with its anchor, so the anchor's
- * own edge is the one line between them. Keyed by the side the card took,
- * which `popoverBox` reports as `joined`.
- *
- * Both utilities beat the card's own: Tailwind v4 orders a side's radius and
- * width after the all-sides shorthand they narrow, whatever the class list
- * says, and the built stylesheet bore that out on 2026-10-13. `styles.test.ts`
- * holds the two sides to each other, since a card squared on one edge and
- * bordered on it would draw a line through the join.
- */
-export const UNFURLED = {
-  below: 'rounded-t-none border-t-0',
-  above: 'rounded-b-none border-b-0',
-  // Across the control's row (`popoverBox`'s `span`), the card is wider than
-  // the control: it keeps its border on the shared edge, laid over the
-  // control's own, and squares only the corner under the control, keeping
-  // the outer one round where it stands free under the label.
-  belowWide: 'rounded-tr-none',
-  aboveWide: 'rounded-br-none',
-} as const
-
-/**
- * The anchor's half of the same join, worn by every control a menu unfurls
- * out of. `usePopover` writes `data-unfurled` on it while the card is open,
- * and these square the anchor's corners on the shared edge and give its
- * border the card's slate-600, so the outline runs round both as one. A
- * variant rather than a second role swapped in by the caller, because a
- * variant is ordered after the anchor's own radius and edge colour and so
- * wins without racing them.
- */
-export const UNFURL_ANCHOR =
-  'data-[unfurled=below]:rounded-b-none data-[unfurled=above]:rounded-t-none data-[unfurled]:border-frame'
 
 /**
  * The results sheet on a phone: the panel parked over the map's bottom edge
@@ -413,46 +376,44 @@ export const SURFACE_SHEET =
   `bg-panel border-t border-frame rounded-t-lg overflow-hidden ${ELEVATION.none}`
 
 /**
- * The search box's results list: a list of answers dropping from the floating
- * pill, a step lighter than the pill and standing a step higher.
+ * How a menu comes and goes (#714; record 0200): it fades in and slides 4px
+ * from its trigger's side over 150ms, leaves the same way back, and does
+ * neither where the reader asked their system for less. `MOTION.menu` is this
+ * value; it is declared up here because the chip cards below wear it, and a
+ * const read before its declaration is a temporal-dead-zone throw.
  *
- * ## Why `ELEVATION.overlay` (`shadow-2xl`) rather than `shadow-xl`
+ * The same animation in both directions, the maintainer's rule for motion.
+ * `@starting-style` (Tailwind's `starting:`) gives a card the faded, shifted
+ * style for the frame it mounts in, so the browser transitions it in with no
+ * script. A close keeps the card mounted with `data-state="closing"`, which
+ * transitions it back to that style, for as long as the transition runs
+ * (`useExit`, which reads the time off the card rather than copying it). Its
+ * presses pass through while it goes, so a reader who closed it by pressing
+ * the map is not stopped by its ghost.
  *
- * Tailwind's `xl` is two layers at 0.1 black alpha; `2xl` is one 50px blur at
- * 0.25. Over the light basemap both register, but on a phone this list can
- * hang over the dark results sheet, where 0.1 alpha on a near black surface is
- * nothing at all. 0.25 is the only one of the two that reads on both grounds,
- * which is why it is the overlay step every opened surface takes,
- * `SURFACE_CARD` included since #687.
- *
- * ## Why slate-700, and what still clears AA on it
- *
- * One step up from the pill's slate-800, measured on the v4 oklch steps:
- * white 10.34:1, `TEXT.control`'s slate-200 8.40:1, `MICRO`'s slate-300
- * 6.97:1 — every text role in the list past the 4.5:1 of WCAG 1.4.3. A
- * result's description is the exception, which is why it wears
- * `CAPTION_LIFTED`.
- *
- * The border is 1.37:1 on this fill where it is 1.93:1 on slate-800, and that
- * is fine for the same reason it is fine there: the list overlaps nothing but
- * the map, and the shadow is what lifts it off that.
- *
- * Spelled out rather than composed onto `SURFACE_FLOATING`: two background
- * utilities resolve by their order in the generated stylesheet, not by class
- * order, so appending a lighter fill would be a bet rather than an override.
+ * Down from above, the way a card under its trigger drops, and back up as it
+ * goes; a card that had to open above its trigger (`data-side="above"`, which
+ * `Menu` writes) rises from below instead and sinks back.
  */
-export const SURFACE_POPOVER =
-  `bg-raised/95 border border-frame ${RADIUS.surface} ${ELEVATION.overlay} backdrop-blur-sm`
+const MENU_MOTION =
+  'transition-[opacity,translate] duration-150 ease-out starting:opacity-0 starting:-translate-y-1 ' +
+  'data-[side=above]:starting:translate-y-1 data-[state=closing]:pointer-events-none ' +
+  'data-[state=closing]:opacity-0 data-[state=closing]:-translate-y-1 ' +
+  'data-[side=above]:data-[state=closing]:translate-y-1 motion-reduce:transition-none'
 
 /**
- * The two cards a desk's map chips open (#714; record 0174): the legend card
- * under Legend and the Layers menu under Layers. One fill and one edge for
- * both, because they are twins: identical chips side by side, each opening a
- * card of one width from its left edge, so a reader takes both as what that
- * chip opened, and two looks would ask them to find a difference that is not
- * there (TJ, 2026-10-18).
+ * The two cards a desk's map chips open (#714; record 0174), and since record
+ * 0200 every desk menu: the legend card under Legend, the Layers menu under
+ * Layers, and the card `Menu.tsx` draws for every other trigger, the search
+ * list included. One fill and one edge for all, because they are twins:
+ * controls that each open a card under them, so a reader takes each as what
+ * that control opened, and two looks would ask them to find a difference that
+ * is not there (TJ, 2026-10-18).
  *
- * The fill is the chips' own (`bg-floating`), since the cards hang from them.
+ * The fill is the chips' own colour (`bg-floating`), opaque: under the
+ * calendar the frosted 95% let the Analyze button show through, so every menu
+ * and both chip cards went solid (TJ, 2026-10-20), and with nothing seen
+ * through them the blur went too. The chips themselves keep the frosted fill.
  * The edge is the structural one, `PANEL_EDGE`'s slate-500, rather than the
  * quiet frame, because the Layers menu opens across the legend card and its
  * outline is what separates the two there: slate-500 reads 3.07:1 on the
@@ -462,15 +423,15 @@ export const SURFACE_POPOVER =
  * wear on the panel, which was derived against this same slate-800.
  *
  * The shadow is what differs: the legend rests on the map with the chips
- * (`ELEVATION.raised`), and the menu stands over it (`ELEVATION.overlay`), the
+ * (`ELEVATION.raised`), and a menu stands over it (`ELEVATION.overlay`), the
  * step every menu takes. Two finished recipes rather than a base and a shadow
  * added at the call site, so the linter can hold each card to its own.
  */
-const CHIP_CARD_FACE = `bg-floating/95 border border-edge ${RADIUS.surface} backdrop-blur-sm`
+const CHIP_CARD_FACE = `bg-floating border border-edge ${RADIUS.surface} ${MENU_MOTION}`
 export const SURFACE_CHIP_CARD = {
   /** The legend card, which rests on the map like the chips. */
   key: `${CHIP_CARD_FACE} ${ELEVATION.raised}`,
-  /** The Layers menu, which opens over the legend card. */
+  /** Every menu, which opens over whatever is under it. */
   menu: `${CHIP_CARD_FACE} ${ELEVATION.overlay}`,
 } as const
 
@@ -956,7 +917,9 @@ export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
 export const ICON_BUTTON = `px-1 text-ink-soft hover:text-ink-strong transition-colors ${FOCUS_RING}`
 
 /**
- * A glyph drawn inside a field rather than beside it: the `SELECT` arrow.
+ * A glyph drawn inside a field rather than beside it: the chevron a `SELECT`
+ * reserves its room for (`MENU_CHEVRON.field` at a desk, and the phone's two
+ * native selects).
  *
  * `pointer-events-none` is the load-bearing part — the arrow overlays the
  * control it decorates, and without it the one place a user aims for is the one
@@ -1240,12 +1203,12 @@ const FIELD_LOOK = `${TEXT.control} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.c
 /**
  * `TEXT.caption` re-derived for that same fill: a search result's description.
  *
- * The caption tier is slate-400, which is 5.7:1 on the panel and 3.94:1 on the
- * popover — under the 4.5:1 WCAG 1.4.3 asks of text. slate-300 is 6.97:1 on
- * the fill and 5.89:1 on a highlighted row (slate-600 at 50%), so it clears on
- * both grounds a result line is ever drawn on. Measured on the v4 oklch steps
- * 2026-09-14. The search dropdown needs it because it moved from
- * `SURFACE_FLOATING` to the popover.
+ * The caption tier is slate-400, which is 5.7:1 on the panel and was 3.94:1
+ * on the slate-700 list the search results stood on until record 0200 — under
+ * the 4.5:1 WCAG 1.4.3 asks of text. slate-300 was 6.97:1 there and 5.89:1 on
+ * a highlighted row (slate-600 at 50%), measured on the v4 oklch steps
+ * 2026-09-14. The list stands on the menu card's slate-800 now, where both
+ * grounds are darker and every ratio here only grows, and keeps this ink.
  *
  * The results sheet's header bar is the second slate-700 fill a caption lands
  * on: the window caption beside the ranked title. slate-400 is 3.93:1 there
@@ -1683,38 +1646,25 @@ const CHIP_FACE =
   `${CHIP_SIZE} text-ink-strong h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
   `transition-colors ${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-raised ` +
   `aria-expanded:bg-accent aria-expanded:border-accent aria-expanded:text-on-fill ${FOCUS_RING}`
-export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
+const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 
 /**
  * A chip's menu on a desk (#714; record 0174): the Layers menu and the legend
  * card, each a whole card standing 4px under its chip from the chip's left
  * edge. A phone's open as bottom sheets instead (record 0136).
  *
- * Not joined to the chip the way every other menu is (record 0134): squaring
- * a 32px pill's bottom corners left a dome, and the maintainer chose the pill
- * kept whole and lit, as a phone's chip is, with the card set apart (TJ,
- * 2026-10-18). Apart by 4px, the gap most menus keep from their trigger, and
- * closer than the 8px between the pill and the chip row: at that same 8px the
- * card read as a third row rather than as its chip's menu.
- * `CHIP_MENU_GAP_PX` in `resultsSheet.ts` is the gap in pixels. The surface
- * is `SURFACE_CHIP_CARD`'s: one fill and edge for both cards, the menu's
- * shadow a step over the legend's.
+ * The reference every desk menu was made from (record 0200): the pill kept
+ * whole and lit, as a phone's chip is, with the card set apart, because
+ * squaring a 32px pill's bottom corners to join a card left a dome (TJ,
+ * 2026-10-18). Apart by 4px, closer than the 8px between the pill and the
+ * chip row: at that same 8px the card read as a third row rather than as its
+ * chip's menu. `CHIP_MENU_GAP_PX` in `resultsSheet.ts` is the gap in pixels,
+ * and every other menu stands that far under its trigger. The surface is
+ * `SURFACE_CHIP_CARD`'s: one fill and edge for both cards, the menu's shadow a
+ * step over the legend's. Its 10px side inset is the one every menu's rows
+ * stand at (`MENU.list` and `MENU.row`).
  */
 export const MAP_CHIP_MENU = `absolute left-0 top-full mt-1 ${MAP_MENU_W} px-2.5 py-2`
-
-/**
- * Where a desk chip's chevron stands (#714; record 0174): `IconChevron` after
- * the Legend and Layers labels, pointing down while the card is shut and up
- * while it is open, because a desk's card drops from its chip. A phone's chip
- * carries none: its sheet rises from the bottom, so the arrow would point the
- * wrong way, and the phone's row has no width to spare (TJ, 2026-10-18).
- *
- * `-mr-1` takes back the 4px of empty box past the stroke: the chevron's
- * stroke spans the middle 8px of `ICON.control`'s 16px, so without it the
- * glyph would stand 16px from the chip's right edge where the label stands
- * 12px from its left.
- */
-export const MAP_CHIP_CHEVRON = '-mr-1'
 
 /**
  * The summary chip, `☰ Current · NOAA GFS`, which opens the drawer: a chip
@@ -1954,11 +1904,16 @@ export const SEGMENT_DIVIDER = 'border-l border-edge'
  * 24px circle on its centre reaches 12px either side, inside its own 28px, so
  * it meets neither neighbour. On a coarse pointer `TAP.action` makes each 44px.
  * The label is the slate-400 idle half's, as on the switch beside it.
+ *
+ * Under the pointer the label takes the accent, the hover every menu trigger
+ * wears (record 0200), where the switch's idle half brightens to white. An
+ * item has no edge of its own inside the group, so the label is the whole
+ * of its hover. The three that open a menu wear `MENU_TRIGGER.bar` over this,
+ * which adds the lit state; Download CSV opens nothing and wears this alone.
  */
-// The bar's menus unfurl out of the whole group rather than out of the one
-// button pressed (record 0134), so the group is the anchor that squares up.
-export const ACTION_GROUP = `${SEGMENT_FLUID} ${UNFURL_ANCHOR}`
-export const ACTION_ITEM = `${segmentHalf('flex-none')} px-1.5 cursor-pointer whitespace-nowrap ${SEGMENT_IDLE}`
+export const ACTION_GROUP = SEGMENT_FLUID
+export const ACTION_ITEM =
+  `${segmentHalf('flex-none')} px-1.5 cursor-pointer whitespace-nowrap ${RECESSED_FILL} text-ink-soft ${ACCENT.hoverText}`
 
 /**
  * The word on a results bar control, shown only where the bar can hold the
@@ -1976,6 +1931,12 @@ export const ACTION_ITEM = `${segmentHalf('flex-none')} px-1.5 cursor-pointer wh
  * 406px at 430, and shows the switch and the glyphs on one line, Removed or
  * not. It replaces the switch's `sm:` viewport rule, so the bar's words come
  * and go together.
+ *
+ * At a desk the three menu buttons carry chevrons, which a phone's never do
+ * (record 0200), and the labelled group is 437.8px, measured 2026-10-20. A
+ * desk's bar is never under the 640px it has beside the docked panel at 1024,
+ * which holds the line with a two-digit Removed count (637.2px); a
+ * three-digit count wraps the group onto a line of its own there.
  */
 export const BAR_LABEL = 'hidden @min-[584px]:inline'
 
@@ -2473,6 +2434,14 @@ export const HEADER_BUTTON =
  * in the app that ignored the setting.
  */
 export const MOTION = {
+  /**
+   * A menu fading and sliding in from its trigger over 150ms, and back out
+   * the same way (#714; record 0200): quick enough that the card is there
+   * when the eye lands, and slow enough to say which control it came from.
+   * Every desk menu wears it through `SURFACE_CHIP_CARD`, which is why the
+   * value is declared above it.
+   */
+  menu: MENU_MOTION,
   /** The phone drawer's slide in and out. */
   slide: 'transform transition-transform duration-300 ease-in-out motion-reduce:transition-none',
   /** A progress bar's fill growing to its next width. */
@@ -2540,7 +2509,7 @@ export const BADGE_STEP = `${ACCENT.fill} text-xs font-bold`
  * The ground the calendar stands on inside its popover (#687, record 0129).
  *
  * The calendar was a bordered well in the panel body until the date field
- * replaced it; it now opens on `Popover.tsx`'s card, which draws the edge, so
+ * replaced it; it now opens on `Menu.tsx`'s card, which draws the edge, so
  * this carries the well's recessed fill and not its border. The fill is what
  * matters: `DAY.range` is sky-950, which sits within a point and a half of
  * slate-800's lightness and reads there by hue alone (1.05:1), where on
@@ -2680,8 +2649,9 @@ export const FIELD_NUMERIC =
  * - `appearance-none`, because the platform control paints its own chrome from
  *   the *system* palette, not ours: on a light-mode OS the popup and its arrow
  *   render dark-on-light inside a dark panel. Suppressing it costs the arrow,
- *   which the call site draws back as an inline SVG in `ICON_ADORNMENT` — one
- *   glyph we control on every platform, rather than one we control on none.
+ *   which the call site draws back as the chevron every menu trigger wears
+ *   (`IconChevron` in `ICON_ADORNMENT`, record 0200), one glyph we control
+ *   on every platform rather than one we control on none.
  * - `pr-6`, reserving the room that arrow sits in. It belongs here and not at
  *   the call site because it is not decoration: without it a long option label
  *   runs underneath the arrow. 24px is the arrow's own box and nothing more:
@@ -2700,8 +2670,127 @@ export const FIELD_NUMERIC =
 export const SELECT = `${FIELD} appearance-none pr-6`
 
 /**
- * The calendar's field under Dates (#687, record 0129): a `SELECT` holding the
- * window in the results bar's words, which may wrap to two lines.
+ * One menu for every control that opens one at a desk (#714; record 0200).
+ * The maintainer found five menus behaving five ways ("Right now it feels
+ * like chaos"): a chart dropdown square and drawn over its own field, the
+ * model list joined to its field, the results bar's lists the width of the
+ * whole button group, three hovers and two of them none. So there is one
+ * menu, the Layers chip's card, and these roles are its parts. `Menu.tsx`
+ * draws the card, `MenuButton` the trigger and `MenuSelect` the two lists
+ * that were native selects; the linter's `style-one-menu` check holds every
+ * desk menu to them.
+ *
+ * The trigger keeps one of three shapes, on purpose: a pill on the map, a
+ * field in the panel, a button in the results bar's group (TJ, 2026-10-20:
+ * "Three shapes, recorded"). Each is where it stands and reads as its
+ * neighbours do. Everything else is the one menu: the chevron, the hover,
+ * the open state, the card, its gap and width, the rows and their type.
+ */
+
+// The field chevron's inks: the adornment's slate at rest, and the accent
+// under the pointer and while its menu is open, where the field's edge turns
+// accent with it. On the chevron rather than inherited from the field,
+// because an open field keeps its label's ink and only its edge and chevron
+// say it is open. `group-enabled` so a faded field does not light.
+const FIELD_CHEVRON_INK = 'group-enabled:group-hover:text-accent-ink group-aria-expanded:text-accent-ink'
+
+/**
+ * The three trigger shapes (record 0200), each with the one hover and the
+ * one open state:
+ *
+ * - `chip`: `MAP_CHIP`, which already had both: under the pointer its edge
+ *   and label take the accent (`ACCENT.edgeHover`, `ACCENT.hoverText`), and
+ *   while its menu is out it is lit in the accent fill.
+ * - `field`: `SELECT`, with the same accent edge and label under the pointer,
+ *   and the accent edge while open. A field is not lit while open, because a
+ *   filled field would read as a value chosen rather than a list shown.
+ *   Spelled with `enabled:` here rather than composed from `ACCENT`'s hover
+ *   roles, so the faded model picker over an archive window does not light.
+ *   `relative`, because its chevron stands inside it.
+ * - `bar`: `ACTION_ITEM`, whose hover is the accent label alone (it has no
+ *   edge of its own inside its group), lit like a chip while open.
+ *
+ * The lit fill is `ACCENT.fill`'s two classes as `aria-expanded` variants,
+ * which sort after the resting fill and the hover and so win without a race.
+ */
+export const MENU_TRIGGER = {
+  chip: MAP_CHIP,
+  field:
+    `${SELECT} group relative enabled:hover:border-accent-ink enabled:hover:text-accent-ink ` +
+    'aria-expanded:border-accent-ink',
+  bar: `${ACTION_ITEM} aria-expanded:bg-accent aria-expanded:text-on-fill`,
+} as const
+
+/**
+ * Where each shape's chevron stands: `IconChevron`, down while the menu is
+ * shut and up while it is open, because a desk's menu drops from its trigger.
+ * A phone's chip and a phone's bar button carry none: their sheet rises from
+ * the bottom, so the arrow would point the wrong way (TJ, 2026-10-18).
+ *
+ * The chevron's stroke spans the middle 8px of `ICON.control`'s 16px, so its
+ * box holds 4px of nothing past the stroke. A chip takes all 4px back
+ * (`-mr-1`), so the glyph stands 12px from its right edge as the label does
+ * from its left. A bar button takes 2px (`-mr-0.5`): its inset is 6px, and
+ * the stroke then stands 8px from its edge, where its leading glyph's stroke
+ * stands. A field's stands in `ICON_ADORNMENT`'s place, inside the room
+ * `SELECT` reserves, where the filled select arrow stood until record 0200.
+ */
+export const MENU_CHEVRON = {
+  chip: '-mr-1',
+  bar: '-mr-0.5',
+  field: `${ICON_ADORNMENT} ${FIELD_CHEVRON_INK}`,
+} as const
+
+// A row's shape in any menu: 6px in from the list's 4px, so its words stand
+// 10px from the card's edge as the Layers rows do, and one line however long.
+const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
+
+/**
+ * The card and what stands in it (record 0200).
+ *
+ * - `card`: the Layers menu's surface (`SURFACE_CHIP_CARD.menu`), on the
+ *   popover layer, as a column so a list inside it can take the room left and
+ *   scroll. Placed 4px under its trigger by `usePopover`.
+ * - `header` and `foot`: the overline strip over a list (Removed rows) and
+ *   the strip under one (Restore all), at the rows' 10px inset.
+ * - `list`: the scrolling list, 4px in from the card's sides and 6px from its
+ *   top and bottom, so a row's words stand 10px from the edge and the first
+ *   one 8px down, where the Layers menu's `px-2.5 py-2` stands its own.
+ * - `row`: a row's inset and shape, for a row that brings its own type and
+ *   control (a checkbox row wears `CHOICE_ROW` beside it).
+ * - `cardRow`: the same inset for a row that stands straight on a card's
+ *   10px padding rather than in a `list` (the Layers rows): pulled out 6px
+ *   and padded back, so its words stay where they were and its fill starts
+ *   4px from the card's edge, where a `list` row's does.
+ * - `hover`: the raised fill under the pointer, on every row a press acts
+ *   on: a checkbox row's whole width toggles its box, so it lights the way a
+ *   pick-one row does under `active`. A disabled row takes none, because
+ *   nothing happens there, and neither does a row whose only control is a
+ *   link inside it (Removed rows), which lights on its own.
+ * - `option`: a row a reader picks, at the control type, 20px apart.
+ * - `active`: the row under the pointer or the arrow keys, in the raised fill.
+ * - `current`: the value a list that replaced a select holds, set semibold
+ *   the way the model list sets its ranking model. No check mark: the weight
+ *   says it, and a mark would take a column from every row.
+ */
+export const MENU = {
+  card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
+  header: `${TEXT.overline} border-b ${SURFACE_DIVIDER} px-2.5 py-2`,
+  list: `min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1.5 ${SCROLL_BARS}`,
+  row: MENU_ROW,
+  cardRow: '-mx-1.5 rounded px-1.5',
+  option: `${TEXT.control} ${TAP.row} ${MENU_ROW} cursor-pointer`,
+  active: 'bg-raised',
+  hover: 'hover:bg-raised',
+  current: 'font-semibold',
+  foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
+} as const
+
+/**
+ * The calendar's field under Dates (#687, record 0129): a field holding the
+ * window in the results bar's words, which may wrap to two lines. It is a
+ * menu trigger like any field (`MENU_TRIGGER.field`), and these are the two
+ * things it does differently.
  *
  * It is the one panel control that may stand two lines tall, because its words
  * are the window itself and the longest of them, an hourly window with a year
@@ -2710,15 +2799,16 @@ export const SELECT = `${FIELD} appearance-none pr-6`
  * cut off the end time, the part a reader set by hand.
  *
  * So the box aligns to its top and grows downward only when the words need a
- * second line: the first line and the arrow stand exactly where a one-line
+ * second line: the first line and the chevron stand exactly where a one-line
  * field centres them. 7px is the 1px border plus `py-1.5` on a fine pointer
  * (one line is 30px); 14px is the border plus 13px on a touch screen, where a
- * one-line field is `TAP.height`'s 44px. The arrow is `ICON_ADORNMENT`'s
- * placement pinned to that first line rather than to the middle of the box.
+ * one-line field is `TAP.height`'s 44px. The chevron is `ICON_ADORNMENT`'s
+ * placement pinned to that first line rather than to the middle of the box,
+ * in the field chevron's inks (`FIELD_CHEVRON_INK`).
  */
 export const CALENDAR_FIELD = {
-  box: `${SELECT} flex w-full items-start px-2 py-1.5 touch:py-[13px] text-left`,
-  arrow: 'pointer-events-none absolute right-2 top-[7px] touch:top-[14px] text-ink-soft',
+  box: 'flex w-full items-start px-2 py-1.5 touch:py-[13px] text-left',
+  arrow: `pointer-events-none absolute right-2 top-[7px] touch:top-[14px] text-ink-soft ${FIELD_CHEVRON_INK}`,
 } as const
 
 /**
