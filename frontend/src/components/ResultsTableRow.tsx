@@ -591,14 +591,15 @@ interface PendingProps {
   chartColor?: string
   // The theme its chart box's rim follows (PR #733).
   theme: Theme
-  // Absent for a CSV row: its truth is the textarea text, so it is removed by
-  // editing that, not by an × here.
+  // Used for a searched place only. A CSV row's truth is the textarea text and
+  // a found row's is the ring (#782), so each is removed by editing that, not
+  // by an × here.
   onRemovePending?: (d: PendingDestination) => void
   onFocusPending?: (at: { latitude: number; longitude: number }) => void
 }
 
-// A custom destination awaiting its first analysis: its name and elevation,
-// and a dash in every metric.
+// A destination awaiting its forecast, named by the reader or found by a
+// ring's search: its name and elevation, and a dash in every metric.
 function PendingTableRow({
   destination: d,
   columns,

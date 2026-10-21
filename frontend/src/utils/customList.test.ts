@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { buildCustomList, distinctRows, pendingAsResult, pendingDestinations } from './customList'
+import { buildCustomList, distinctRows, foundAsPending, pendingAsResult, pendingDestinations } from './customList'
+import { destinationUrl } from './destinationUrl'
+import { pendingLinkRow } from './resultsCells'
 import { geoKey } from './points'
 import { CustomDestination, DestinationResult } from '../types'
 import { NO_CONSTRAINTS } from './clientAnalyze'
 import { presentResults } from './present'
-import { place, resultRow } from '../testSupport/fixtures'
+import { discovered, place, resultRow } from '../testSupport/fixtures'
 
 const csv: CustomDestination[] = [
   { name: 'Mount Rainier', latitude: 46.8529, longitude: -121.7604 },
@@ -252,6 +254,37 @@ describe('pendingAsResult', () => {
     const [row] = pendingDestinations([csv[0]], [], new Set(), new Set()).map(pendingAsResult)
     for (const key of ['precip_total_in', 'temp_avg_f', 'wind_avg_mph', 'aqi_avg'] as const) {
       expect(row[key]).toBeUndefined()
+    }
+  })
+})
+
+// #782: a ring's found destination shows as a pending row until its forecast
+// lands, and links where its ranked row will.
+describe('foundAsPending', () => {
+  it('carries the type discovery gave as its kind, and its OSM id and elevation', () => {
+    const row = foundAsPending(discovered({ name: 'Snow Lake', type: 'lake', elevation_ft: 4016, osm_id: 'way/12' }))
+    expect(row).toEqual({
+      name: 'Snow Lake',
+      latitude: 47.45,
+      longitude: -121.8,
+      elevation_ft: 4016,
+      kind: 'lake',
+      osmId: 'way/12',
+      source: 'polygon',
+    })
+  })
+
+  it('leaves an unknown elevation and a missing id absent', () => {
+    const row = foundAsPending(discovered({ elevation_ft: null, osm_id: null }))
+    expect(row.elevation_ft).toBeUndefined()
+    expect(row.osmId).toBeUndefined()
+  })
+
+  it('links every kind where its ranked row links', () => {
+    for (const type of ['peak', 'crag', 'lake', 'trailhead', 'custom']) {
+      const found = discovered({ name: 'Probe', type, osm_id: 'node/5' })
+      const ranked = resultRow({ name: 'Probe', type, latitude: found.latitude, longitude: found.longitude, osm_id: 'node/5' })
+      expect(destinationUrl(pendingLinkRow(foundAsPending(found)))).toBe(destinationUrl(ranked))
     }
   })
 })

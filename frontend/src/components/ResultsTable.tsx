@@ -84,12 +84,14 @@ interface Props {
   // elevation and every cell read at the destination's height tick the
   // flag columns' dots until it answers. One set per report, like the maps.
   pendingHeights: ReadonlySet<string>
-  // Custom destinations awaiting their first analysis — pasted CSV rows and
-  // searched places alike — shown immediately as un-forecasted rows (name +
-  // elevation, "—" metrics) so both inputs have feedback before Analyze runs.
+  // Destinations awaiting a forecast, shown as un-forecasted rows (name +
+  // elevation, "—" metrics): pasted CSV rows and searched or clicked places
+  // before Analyze runs, so every input has feedback, then a ring's found
+  // destinations until their forecasts land or a failed run leaves them (#782).
   pending?: PendingDestination[]
-  // Absent for a CSV row: its truth is the textarea text, so it is removed by
-  // editing that, not by an × here.
+  // Called for a searched place only. A CSV row's truth is the textarea text
+  // and a found row's is the ring, so each is removed by editing that, not by
+  // an × here.
   onRemovePending?: (d: PendingDestination) => void
   // The × that replaces a row's rank number on hover — removes the destination
   // from the current report (and, for a searched place, deregisters it).

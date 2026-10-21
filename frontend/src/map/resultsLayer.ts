@@ -189,8 +189,9 @@ export function mountResultsLayer(
     paint: MARKER_LABEL_PAINT,
   })
 
-  // ── Pending custom destinations ────────────────────────────────
-  // A pasted CSV row or searched place not yet in the displayed analysis:
+  // ── Pending destinations ───────────────────────────────────────
+  // A pasted CSV row or searched place not yet in the displayed analysis, or
+  // a destination a ring's search found whose forecast has not landed (#782):
   // a neutral dot (`PENDING_COLOR`) so the point never vanishes, no forecast
   // popup yet. Not a click target, on purpose — a pending
   // dot must never swallow a polygon click while you draw around a

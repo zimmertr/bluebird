@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type PresentedReportInputs, usePresentedReport } from './usePresentedReport'
-import { analyzedSnapshot, place, resultRow } from '../testSupport/fixtures'
+import { analyzedSnapshot, discovered, place, resultRow } from '../testSupport/fixtures'
 import { NO_IDENTITY } from '../utils/elevationLookup'
-import type { AnalyzeResponse, DestinationResult } from '../types'
+import type { AnalyzeResponse, DestinationResult, DiscoveredDestination } from '../types'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { geoKey } from '../utils/points'
 import type { PresentationKnobs } from '../utils/present'
@@ -43,6 +43,7 @@ function inputs(over: Partial<PresentedReportInputs> = {}): PresentedReportInput
     activeRemovedKeys: NONE,
     places: NO_PLACES,
     csvRows: NO_ROWS,
+    found: null,
     restoredTableSort: null,
     ...over,
   }
@@ -115,6 +116,63 @@ describe('usePresentedReport', () => {
     const demo = analyzedSnapshot()
     const { result } = renderHook(() => usePresentedReport(inputs({ places, analyzed: demo, coverage: covered })))
     expect(result.current.pending).toHaveLength(0)
+  })
+
+  // #782: a ring's found destinations are pending until their forecasts land,
+  // after the reader's own rows and in the order discovery gave.
+  describe('a ring\'s found field', () => {
+    const NORTH = discovered({ name: 'North Tarn', type: 'lake', latitude: 47.9, longitude: -121.1, osm_id: 'way/7' })
+    const SOUTH = discovered({ name: 'South Spire', latitude: 46.9, longitude: -121.3, osm_id: 'node/8' })
+    // Mount Rainier's coordinate, which the universe already ranks.
+    const RANKED = discovered({ name: 'Mount Rainier', latitude: PEAK.latitude, longitude: PEAK.longitude })
+
+    it('follows the reader\'s own pending rows, in discovery order, as polygon rows', () => {
+      const { result } = renderHook(() =>
+        usePresentedReport(inputs({ places: [place()], found: [SOUTH, NORTH] })),
+      )
+      expect(result.current.pending.map((d) => [d.name, d.source])).toEqual([
+        ['Mount Baker', 'search'],
+        ['South Spire', 'polygon'],
+        ['North Tarn', 'polygon'],
+      ])
+      expect(result.current.pending[2]).toMatchObject({ kind: 'lake', osmId: 'way/7' })
+    })
+
+    it('leaves out a row the universe holds, which is its forecast landing', () => {
+      let universe: DestinationResult[] = [WET]
+      const { result, rerender } = renderHook(() => usePresentedReport(inputs({ universe, found: [RANKED, NORTH] })))
+      expect(result.current.pending.map((d) => d.name)).toEqual(['Mount Rainier', 'North Tarn'])
+      universe = FIELD
+      rerender()
+      expect(result.current.pending.map((d) => d.name)).toEqual(['North Tarn'])
+    })
+
+    it('leaves out a removed row, and one the reader named too', () => {
+      const activeRemovedKeys = new Set([geoKey(NORTH.latitude, NORTH.longitude)])
+      const named = discovered({ name: 'Baker again', latitude: 48.7768, longitude: -121.8144 })
+      const { result } = renderHook(() =>
+        usePresentedReport(inputs({ places: [place()], activeRemovedKeys, found: [named, NORTH, SOUTH] })),
+      )
+      expect(result.current.pending.map((d) => d.name)).toEqual(['Mount Baker', 'South Spire'])
+    })
+
+    it('counts the reader\'s own rows alone for the commit cue', () => {
+      const { result } = renderHook(() =>
+        usePresentedReport(inputs({ places: [place()], found: [SOUTH, NORTH] })),
+      )
+      expect(result.current.pending).toHaveLength(3)
+      expect(result.current.customPendingCount).toBe(1)
+    })
+
+    it('hands back the reader\'s own list unchanged when nothing new was found', () => {
+      const places = [place()]
+      const { result, rerender } = renderHook(({ found }) => usePresentedReport(inputs({ places, found })), {
+        initialProps: { found: null as DiscoveredDestination[] | null },
+      })
+      const own = result.current.pending
+      rerender({ found: [RANKED] })
+      expect(result.current.pending).toBe(own)
+    })
   })
 
   // A discovered row carries its OSM id; the refresh that echoes it through
