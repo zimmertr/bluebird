@@ -1,4 +1,4 @@
-import { test, expect, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, expectRanked, resultRows, DESTINATION_NAMES } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A press on a results row opens that destination's marker popup (#696;
@@ -10,7 +10,8 @@ async function analyze(page: Page, phone: boolean) {
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const where = phone ? page.getByRole('main') : page.locator('aside')
   await where.getByRole('button', { name: 'Analyze', exact: true }).click()
-  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+  // Every test here reads a row by its position, so not before it is ranked.
+  await expectRanked(page)
 }
 
 test('a click on a row opens its popup, and its chart box does not, at 1280 px', async ({ page }) => {
@@ -50,6 +51,9 @@ test.describe('on a phone', () => {
     await expect(row.getByRole('button', { name: `Remove ${name}` })).toBeHidden()
     await row.locator('td').nth(3).tap()
     const popup = page.locator('.maplibregl-popup')
+    // The card is the row's, or the remove below takes another one out.
+    await expect(popup).toHaveCount(1)
+    await expect(popup).toContainText(name)
     await popup.getByRole('button', { name: 'Remove from analysis' }).tap()
     await expect(popup).toHaveCount(0)
     // The tap lowered the sheet to its bar; raised again, the table is a row
