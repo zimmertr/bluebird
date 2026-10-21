@@ -2,7 +2,6 @@ import { useId, useState, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialog } from '../hooks/useDialog'
 import { useSheetDrag } from '../hooks/useSheetDrag'
-import { useHoldSheetOpen } from '../hooks/useSheetOpen'
 import { BOTTOM_SHEET, CONTROLS_SHEET } from '../styles'
 
 /**
@@ -70,23 +69,19 @@ interface Props {
  * keeps Tab inside the card, which is what makes the sheet modal. Portalled
  * to the end of the body for the reason `Popover` is: the results bar that
  * opens three of these is inside the results sheet, which clips what it holds.
- * The Analyze button hides under it (`useHoldSheetOpen`).
  *
  * The Controls sheet (`kept`) differs where the panel needs it to. It stays
  * mounted, because the panel's state and the notice block it portals onto
  * the map must outlive a close, so it is modal while open and inert while
  * shut. It renders in place on the panel's layers rather than portalled on
  * the menus', so the notice band can stand between its dim and a sheet
- * opened from inside it (`CONTROLS_SHEET`). Its height is its caller's,
- * because `MapStage` stands the band on its edge. And it holds no count, so
- * the Analyze button stays where it stood, under the dim and inert.
+ * opened from inside it (`CONTROLS_SHEET`). And its height is its caller's,
+ * because `MapStage` stands the band on its edge.
  */
 export default function BottomSheet({ heading, onClose, children, outside, tourAnchor, kept }: Props) {
   const headingId = useId()
   const open = kept ? kept.open : true
   const panelRef = useDialog(onClose, open && (kept ? !kept.tourRuns : tourAnchor === undefined))
-  // The Analyze button hides under a menu sheet's dim while it is open.
-  useHoldSheetOpen(kept === undefined)
   // The height a drag left a menu sheet at, or null for its rows' own (#696;
   // record 0146). Its own height and its full one are read off the card when
   // a drag begins: the rows' height with no height set, and the cap its role

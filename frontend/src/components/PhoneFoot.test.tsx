@@ -101,24 +101,22 @@ describe('PhoneFoot', () => {
   })
 
   // The Controls sheet opens over the foot (record 0207): the band rides its
-  // edge over the dim, on the panel's layer, and the button stands where it
-  // stood, under the dim and out of reach.
-  it('stands the band over the Controls sheet\'s dim and leaves the button inert where it was', () => {
+  // edge over the dim, on the panel's layer, and the button is left as it was.
+  it('stands the band over the Controls sheet\'s dim and leaves the button as it was', () => {
     const onNoticeBand = vi.fn()
-    const onAnalyze = vi.fn()
-    const { rerender } = render(foot({ onNoticeBand, onAnalyze }))
+    const { rerender } = render(foot({ onNoticeBand }))
     const band = onNoticeBand.mock.lastCall![0] as HTMLElement
-    expect(button().hasAttribute('inert')).toBe(false)
-    rerender(foot({ onNoticeBand, onAnalyze, controlsOpen: true, liftPx: 540 }))
+    const fab = button()
+    rerender(foot({ onNoticeBand, controlsOpen: true, liftPx: 540 }))
     expect(onNoticeBand.mock.lastCall![0]).toBe(band)
     expect(band.className).toBe(MAP_NOTICE_BAND.overDim)
     expect(band.style.bottom).toBe(`${540 + CORNER_MARGIN_PX}px`)
-    const fab = screen.getByRole('button', { name: 'Analyze', hidden: true }) as HTMLButtonElement
-    expect(fab.hasAttribute('inert')).toBe(true)
+    expect(fab.isConnected).toBe(true)
+    expect(fab.hasAttribute('inert')).toBe(false)
     expect(fab.style.bottom).toBe('120px')
-    rerender(foot({ onNoticeBand, onAnalyze }))
+    rerender(foot({ onNoticeBand }))
     expect(band.className).toBe(MAP_NOTICE_BAND.map)
-    expect(button().hasAttribute('inert')).toBe(false)
+    expect(button()).toBe(fab)
   })
 
   // The band's height is what the button rises by, so it is reported, and
@@ -153,7 +151,7 @@ describe('PhoneFoot', () => {
   })
 
   // The opened credit line stops short of the button, so its width is
-  // reported, and kept while a sheet hides it.
+  // reported.
   it('reports the button\'s width', () => {
     const fire = stubResizeObserver()
     const onFabPx = vi.fn()
@@ -163,43 +161,51 @@ describe('PhoneFoot', () => {
     expect(onFabPx).toHaveBeenLastCalledWith(120.1)
   })
 
-  // Material's rule for a floating button under a modal sheet: it hides under
-  // the dim while any sheet is open, and comes back when the sheet closes.
-  it('hides while a bottom sheet is open, and comes back when it closes', () => {
-    function Page() {
-      const [open, setOpen] = useState(false)
-      return (
-        <>
-          {foot()}
-          <button onClick={() => setOpen(true)}>Layers</button>
-          {open && (
-            <BottomSheet heading="Layers" onClose={() => setOpen(false)}>
-              <div>Smoke</div>
-            </BottomSheet>
-          )}
-        </>
-      )
-    }
-    render(<Page />)
-    expect(screen.queryByRole('button', { name: 'Analyze' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Layers' }))
-    expect(screen.queryByRole('button', { name: 'Analyze' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
-    expect(screen.queryByRole('button', { name: 'Analyze' })).toBeTruthy()
-  })
-
-  // The Controls sheet is the one sheet it does not hide under: it stays
-  // where it stood (record 0207).
-  it('stays mounted under the Controls sheet', () => {
-    const kept = { open: true, tourRuns: false, heightPx: 540, restPx: 540, fullPx: 660, onHeightPx: () => {} }
-    render(
-      <>
-        {foot({ controlsOpen: true })}
-        <BottomSheet heading="Controls" onClose={() => {}} kept={kept}>
-          <div>Destinations</div>
-        </BottomSheet>
-      </>,
-    )
-    expect(screen.getByRole('button', { name: 'Analyze', hidden: true })).toBeTruthy()
-  })
+  // Every phone sheet opens over the button and leaves it alone (TJ,
+  // 2026-10-21; record 0207): the same element where it stood, neither inert
+  // nor greyed, while the sheet holds the keyboard. The sheet's dim and its
+  // modality keep the button from a press, so nothing here has to.
+  for (const controls of [false, true]) {
+    it(`leaves the button as it was under ${controls ? 'the Controls sheet' : 'a menu sheet'}`, () => {
+      function Page() {
+        const [open, setOpen] = useState(false)
+        const close = () => setOpen(false)
+        const kept = { open, tourRuns: false, heightPx: 540, restPx: 540, fullPx: 660, onHeightPx: () => {} }
+        return (
+          <>
+            {foot({ controlsOpen: controls && open })}
+            <button onClick={() => setOpen(true)}>Open</button>
+            {controls ? (
+              <BottomSheet heading="Controls" onClose={close} kept={kept}>
+                <div>Destinations</div>
+              </BottomSheet>
+            ) : (
+              open && (
+                <BottomSheet heading="Layers" onClose={close}>
+                  <div>Smoke</div>
+                </BottomSheet>
+              )
+            )}
+          </>
+        )
+      }
+      render(<Page />)
+      const fab = button()
+      const asItWas = () => {
+        expect(document.querySelector('[data-tour="analyze"]')).toBe(fab)
+        expect(fab.hasAttribute('inert')).toBe(false)
+        expect(fab.disabled).toBe(false)
+        expect(fab.style.bottom).toBe('120px')
+        expect(fab.className).toBe(`${MAP_FAB} ${DISABLED}`)
+      }
+      asItWas()
+      fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+      const sheet = screen.getByRole('dialog', { name: controls ? 'Controls' : 'Layers' })
+      expect(sheet.getAttribute('aria-modal')).toBe('true')
+      expect(sheet.contains(document.activeElement)).toBe(true)
+      asItWas()
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+      asItWas()
+    })
+  }
 })
