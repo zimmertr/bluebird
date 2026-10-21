@@ -564,19 +564,24 @@ const MapView = forwardRef<MapViewHandle, Props>(
       focusResult(result: DestinationResult, { instant = false, avoid = [] } = {}) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        // Through the centring, which aims again, card and all, if the canvas
-        // is resized while the flight is in the air: a desk's layout move
-        // ends in one (record 0202).
-        centring.fly(map, instant ? 0 : CAMERA_MS.focus, (duration) => {
+        // Through the centring, which aims again if the canvas is resized
+        // while the flight is in the air: a desk's layout move ends in one
+        // (record 0202).
+        centring.fly(map, instant ? 0 : CAMERA_MS.focus, (duration, again) => {
           // The pad as it stands now, off the controller: the prop this
           // closure holds can be a render behind a sheet that just collapsed.
           const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
           const canvas = map.getCanvas()
+          const results = featuresRef.current?.results
           // The popup opens first, against the point the marker is flying
           // to, and rides the flight; what it asks for joins the offset, so
-          // one camera move lands marker and card together.
+          // one camera move lands marker and card together. A flight sent
+          // again places the card again only while it stands: one closed
+          // since, by its own button or by the next report, stays closed, and
+          // the marker flies alone.
+          const reopen = !again || (results?.hasOpenCard(result) ?? false)
           const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
-          const { dx, dy } = featuresRef.current?.results.openPopup(result, { markerAt, avoid }) ?? { dx: 0, dy: 0 }
+          const { dx, dy } = (reopen ? results?.openPopup(result, { markerAt, avoid }) : undefined) ?? { dx: 0, dy: 0 }
           map.flyTo({
             center: [result.longitude, result.latitude],
             zoom: Math.max(map.getZoom(), 10),

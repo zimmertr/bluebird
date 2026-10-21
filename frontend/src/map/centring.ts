@@ -22,31 +22,38 @@
  */
 import type * as maplibregl from 'maplibre-gl'
 
+/**
+ * Places a centring's target for the canvas as it stands and flies there in
+ * the time it is given. `again` is false for the press's own flight and true
+ * for each one a resize sends after it, which must not open what the reader
+ * has closed since.
+ */
+export type Aim = (durationMs: number, again: boolean) => void
+
 export interface Centring {
   /**
-   * Fly with `aim`, which places the target for the canvas as it stands and
-   * flies there in the time it is given. A cut (0ms) is not kept: it has
-   * landed before any resize can come.
+   * Fly with `aim`. A cut (0ms) is not kept: it has landed before any resize
+   * can come.
    */
-  fly(map: maplibregl.Map, durationMs: number, aim: (durationMs: number) => void): void
+  fly(map: maplibregl.Map, durationMs: number, aim: Aim): void
   /** Fly a centring still in the air again, for the canvas as it now stands. */
   reaim(): void
 }
 
 interface Flight {
   map: maplibregl.Map
-  aim: (durationMs: number) => void
+  aim: Aim
   endsAt: number
 }
 
 export function createCentring(now: () => number = () => performance.now()): Centring {
   let flight: Flight | null = null
 
-  const fly = (map: maplibregl.Map, durationMs: number, aim: (durationMs: number) => void) => {
+  const fly = (map: maplibregl.Map, durationMs: number, aim: Aim, again = false) => {
     // Cleared before the new flight starts, because starting it stops the one
     // in the air, whose `moveend` comes inside `aim`.
     flight = null
-    aim(durationMs)
+    aim(durationMs, again)
     if (durationMs <= 0) return
     const mine: Flight = { map, aim, endsAt: now() + durationMs }
     flight = mine
@@ -58,11 +65,11 @@ export function createCentring(now: () => number = () => performance.now()): Cen
   }
 
   return {
-    fly,
+    fly: (map, durationMs, aim) => fly(map, durationMs, aim),
     reaim() {
       if (flight === null) return
       const left = flight.endsAt - now()
-      if (left > 0) fly(flight.map, left, flight.aim)
+      if (left > 0) fly(flight.map, left, flight.aim, true)
       else flight = null
     },
   }
