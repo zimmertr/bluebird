@@ -22,16 +22,21 @@ interface RowFocusInputs {
  */
 export function useRowFocus({ isDesktop, resultsCollapsed, collapse, mapRef }: RowFocusInputs) {
   const waiting = useRef<DestinationResult | null>(null)
+  // Keyed on what the press does, so a desk's chevron leaves the callback,
+  // and every table row it reaches, as they were: the table stays drawn
+  // while its pane shuts (record 0202), and a new callback there drew 946
+  // rows again in the chevron's press.
+  const lowerFirst = !isDesktop && !resultsCollapsed
   const onFocusResult = useCallback(
     (row: DestinationResult) => {
-      if (!isDesktop && !resultsCollapsed) {
+      if (lowerFirst) {
         waiting.current = row
         collapse()
         return
       }
       mapRef.current?.focusResult(row)
     },
-    [isDesktop, resultsCollapsed, collapse, mapRef],
+    [lowerFirst, collapse, mapRef],
   )
   useEffect(() => {
     const row = waiting.current

@@ -581,6 +581,7 @@ export default function App() {
     isDesktop,
     open: sidebarOpen,
     mode: layout.resultsMode,
+    collapsed: layout.resultsCollapsed,
   })
 
   // The tour waits while a polygon is being drawn or a run is in flight: its

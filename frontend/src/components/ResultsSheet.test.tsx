@@ -103,8 +103,14 @@ describe('ResultsSheet', () => {
     expect(sheets()).toEqual(['true', 'true', 'true'])
   })
 
+  // A desk keeps the panels, collapsed, so their frames can shut at the
+  // panel's speed (record 0202); a phone's sheet drops them.
   it('folds the panels away and keeps the bar', () => {
-    render(<ResultsSheet {...props({ resultsCollapsed: true })} />)
+    seen.panels.length = 0
+    const { rerender } = render(<ResultsSheet {...props({ resultsCollapsed: true })} />)
+    expect(screen.getByTestId('bar')).toBeTruthy()
+    expect(seen.panels[seen.panels.length - 1].collapsed).toBe(true)
+    rerender(<ResultsSheet {...props({ resultsCollapsed: true, isDesktop: false })} />)
     expect(screen.getByTestId('bar')).toBeTruthy()
     expect(screen.queryByTestId('panels')).toBeNull()
   })

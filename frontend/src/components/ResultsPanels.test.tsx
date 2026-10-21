@@ -76,11 +76,13 @@ function props(
     tableView?: unknown
     theme?: string
     panesMove?: boolean
+    collapsed?: boolean
     layoutMotion?: 'opening' | 'closing' | 'panes' | null
   } = {},
 ): Props {
   return {
     panesMove: over.panesMove ?? false,
+    collapsed: over.collapsed ?? false,
     layoutMotion: over.layoutMotion ?? null,
     layout: over.layout ?? BOTH,
     charts: over.charts ?? CHARTS_QUIET,
@@ -246,6 +248,63 @@ describe('the panes at a desk', () => {
     rerender(<ResultsPanels {...props({ panesMove: true, layoutMotion: 'panes' })} />)
     expect(body('chart')).toBe(`${RESULTS_PANE.top} `)
     expect(body('table')).toBe(`${RESULTS_PANE.foot} `)
+  })
+
+  // The chart's mount is the long commit of a press at a thousand rows, so
+  // an opening pane draws an empty box of its height at the press and mounts
+  // its body once its frame has opened.
+  it('opens a pane at the press and mounts its body once its frame has opened', async () => {
+    const { rerender } = render(<ResultsPanels {...props({ panesMove: true, layout: layout('table') })} />)
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), layoutMotion: 'panes' })} />)
+    expect(screen.queryByTestId('chart')).toBeNull()
+    expect(screen.getAllByTestId('grip')).toHaveLength(2)
+    const frame = frameOf(screen.getAllByTestId('grip')[0])
+    expect(frame.className).toContain(RESULTS_PANE.open)
+    const box = frame.querySelector<HTMLElement>('[style]')!
+    expect(box.className).toBe(RESULTS_PANE.box)
+    expect(box.style.height).toBe('200px')
+    fireEvent.transitionEnd(frame)
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('both') })} />)
+    await screen.findByTestId('chart')
+  })
+
+  it('shuts both panes on the collapse chevron and opens them again', async () => {
+    const { rerender } = render(<ResultsPanels {...props({ panesMove: true })} />)
+    const chart = await screen.findByTestId('chart')
+    const table = screen.getByTestId('table')
+    rerender(<ResultsPanels {...props({ panesMove: true, collapsed: true, layoutMotion: 'panes' })} />)
+    // Each body stays drawn while its frame shuts.
+    expect(screen.getByTestId('chart')).toBe(chart)
+    expect(screen.getByTestId('table')).toBe(table)
+    expect(frameOf(chart).className).toContain(RESULTS_PANE.shut)
+    expect(frameOf(table).className).toContain(RESULTS_PANE.shut)
+    fireEvent.transitionEnd(frameOf(chart))
+    fireEvent.transitionEnd(frameOf(table))
+    rerender(<ResultsPanels {...props({ panesMove: true, collapsed: true })} />)
+    expect(screen.queryByTestId('chart')).toBeNull()
+    expect(screen.queryByTestId('table')).toBeNull()
+    expect(screen.queryAllByTestId('grip')).toHaveLength(0)
+    rerender(<ResultsPanels {...props({ panesMove: true, layoutMotion: 'panes' })} />)
+    expect(screen.getAllByTestId('grip')).toHaveLength(2)
+    expect(screen.queryByTestId('table')).toBeNull()
+  })
+
+  // The chart-only legend takes its height from the plot, so it comes and
+  // goes where a move ends, when the plot is drawn at its new size.
+  it('holds the chart\'s legend and height while a pane moves', async () => {
+    const legend = { ...TABLE_VIEW, legend: [{ key: 'a', row: ROW, suffix: '' }] }
+    const chip = () => screen.queryByRole('button', { name: `Hide ${ROW.name} on the chart` })
+    const held = () => frameOf(screen.getByTestId('chart')).querySelector<HTMLElement>(`[class="${RESULTS_PANE.held}"]`)!
+    const { rerender } = render(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend })} />)
+    await screen.findByTestId('chart')
+    expect(chip()).toBeTruthy()
+    const moved = { ...layout('both'), chartPanelPx: 160 }
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: moved, tableView: legend, layoutMotion: 'panes' })} />)
+    expect(chip()).toBeTruthy()
+    expect(held().style.height).toBe('200px')
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: moved, tableView: legend })} />)
+    expect(chip()).toBeNull()
+    expect(held().style.height).toBe('160px')
   })
 
   it('holds the chart to the bar and the table to the foot', async () => {
