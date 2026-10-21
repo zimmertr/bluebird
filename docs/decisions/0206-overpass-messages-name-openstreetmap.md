@@ -17,14 +17,14 @@ Measured 2026-10-21 in the notice itself, in Chrome on the maintainer's Mac:
 | Label | Timeout line | Longest line that still wraps |
 |---|---|---|
 | `OpenStreetMap (Overpass)` | 324px, wraps | all nine templates wrap |
-| `OpenStreetMap` | 258px | `OpenStreetMap failed (HTTP 504). Try again later.` at 284px, `OpenStreetMap rejected the request. Try again later.` at 297px |
+| `OpenStreetMap` | 258px | `OpenStreetMap failed (HTTP 504). Try again later.` at 284px, `OpenStreetMap rejected the request. Try again later.` at 297px (both templates then changed, below) |
 | `Overpass` | 222px | none, the longest 261px |
 
 ## Decision
 
 - `PROVIDER` is `OpenStreetMap`, the name the footer already credits. The two Overpass budgets keep their per-mirror metric labels, which never read it.
 - The shared templates write an HTTP code bare: `failed (504)` and `error (418)` where they said `failed (HTTP 504)` and `error (HTTP 418)`. The first is the line an outage shows, which the label alone left 3px over; the second follows it so one fact has one grammar. Every provider's messages change with the template, Open-Meteo's included, and the browser's own `Open-Meteo error (500). Try again later.` in `openMeteo.ts` follows for the same reason.
-- `rejected the request`, a 401 or 403 from a mirror, still wraps at 297px and stays as it is; it has not been seen from Overpass.
+- The 401 and 403 template says `denied access` where it said `rejected the request`, which was 297px with the label alone; the new line is the length of the timeout line, about 258px. The maintainer chose it on the same day, after the PR's review, although no mirror has answered 401 or 403.
 
 ## Alternatives rejected
 
@@ -33,4 +33,4 @@ Measured 2026-10-21 in the notice itself, in Chrome on the maintainer's Mac:
 
 ## Consequences
 
-`test_errors.py` pins the two templates. The pod's `detail` wording is outside the API's SemVer promise (`docs/API.md`, What version 1.0 promises), so no major release is needed. Record 0118 keeps the 504 line as the maintainer quoted it in 2026, which is history rather than a spelling to update.
+`test_errors.py` pins the three templates. The pod's `detail` wording is outside the API's SemVer promise (`docs/API.md`, What version 1.0 promises), so no major release is needed. Record 0118 keeps the 504 line as the maintainer quoted it in 2026, which is history rather than a spelling to update.

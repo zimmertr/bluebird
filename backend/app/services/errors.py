@@ -258,8 +258,10 @@ def classify_http_error(exc: Exception, provider: str) -> str:
         if code == 429:
             scope, _ = parse_rate_limit(exc)
             return rate_limit_message(provider, scope)
+        # "denied access" rather than "rejected the request" (record 0206): the
+        # longer line was 297px in the panel notice's 281px with OpenStreetMap.
         if code in (401, 403):
-            return f"{provider} rejected the request. Try again later."
+            return f"{provider} denied access. Try again later."
         # The code without the word HTTP (record 0206): "OpenStreetMap failed
         # (HTTP 504). Try again later." was 284px in the panel notice's 281px,
         # and the one the word was dropped from is the one an outage shows.

@@ -52,7 +52,7 @@ def test_too_many_open_requests_is_its_own_scope():
 @pytest.mark.parametrize("code", [401, 403])
 def test_a_401_or_403_reads_as_rejected(code):
     msg = classify_http_error(status_error(code, {}), PROVIDER)
-    assert msg == f"{PROVIDER} rejected the request. Try again later."
+    assert msg == f"{PROVIDER} denied access. Try again later."
 
 
 @pytest.mark.parametrize("code", [500, 502, 503])
