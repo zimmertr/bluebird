@@ -1,6 +1,6 @@
 # 0093. A run that does not finish changes nothing
 
-- Status: Accepted
+- Status: Accepted. Amended by 0204: a failed polygon run's found field stays as pending rows.
 - Date: 2026-10-01
 - Decider: the maintainer (TJ), on issue #560 (half 1 as the issue planned; for half 2, neither of the issue's options: the previous report comes back exactly)
 - Issues and PRs: #560, #613
