@@ -110,7 +110,7 @@ export interface MapStageProps {
   showResults: boolean
   /** Whether the controls panel is open. */
   sidebarOpen: boolean
-  /** Which edge of a desk's layout is moving, which the map's box holds still for (record 0201). */
+  /** Which edge of a desk's layout is moving, which the map's box holds still for (record 0202). */
   layoutMotion?: LayoutMotion
   /** A phone's Controls sheet's height, wherever a drag left it (record 0146). */
   controlsPx: number
@@ -346,7 +346,7 @@ export default function MapStage({
         onCancel={analysis.cancel}
       />
       {/* The map's box, which holds one size while the layout moves
-          (`layoutMotion`, record 0201) and fills the column otherwise. */}
+          (`layoutMotion`, record 0202) and fills the column otherwise. */}
       <div className={mapBox}>
         <MapView
           ref={mapRef}

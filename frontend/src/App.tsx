@@ -576,7 +576,7 @@ export default function App() {
   })
   const { layout, tableView } = resultsView
   // Which edge of a desk's layout is moving, so the map and the results
-  // hold one size while it moves (record 0201).
+  // hold one size while it moves (record 0202).
   const { motion: layoutMotion, onTransitionEnd: onLayoutMoved } = useLayoutMotion({
     isDesktop,
     open: sidebarOpen,

@@ -164,7 +164,7 @@ describe('AppDrawer', () => {
   })
 
   // Shut, it stays in the row and its margin takes its width back, so the
-  // map's edge moves with the panel's both ways (record 0201).
+  // map's edge moves with the panel's both ways (record 0202).
   it('pushes off the left edge when closed and stays mounted', () => {
     const { container, rerender } = render(drawer(true))
     const shut = DESK_PANEL.shut

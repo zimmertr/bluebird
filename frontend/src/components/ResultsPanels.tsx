@@ -75,7 +75,7 @@ export interface ResultsPanelsProps {
   chartTitled: boolean
   /**
    * A desk, where a press on Table, Chart or Both opens and closes the panes
-   * at the panel's speed (record 0201). A phone's change at once.
+   * at the panel's speed (record 0202). A phone's change at once.
    */
   panesMove?: boolean
   /**
@@ -146,7 +146,7 @@ export default function ResultsPanels({
   const { resultsMode, chartGrip, chartPanelPx, tableGrip, tablePanelPx } = layout
   const tableScrollRef = useRef<HTMLDivElement>(null)
   // Each pane's frame and body: shown by the mode, and at a desk kept
-  // mounted while its frame closes, at the height it had (record 0201).
+  // mounted while its frame closes, at the height it had (record 0202).
   const chartPane = usePaneMotion(resultsMode !== 'table', chartPanelPx, panesMove)
   const tablePane = usePaneMotion(resultsMode !== 'chart', tablePanelPx, panesMove)
   const paneMotion = panesMove ? MOTION.pane : ''

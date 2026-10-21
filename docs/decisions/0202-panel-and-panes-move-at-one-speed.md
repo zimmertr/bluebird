@@ -1,4 +1,4 @@
-# 0201. The desk panel pushes the map's edge and the results panes open and close, at one speed both ways, with menus at a faster one
+# 0202. The desk panel pushes the map's edge and the results panes open and close, at one speed both ways, with menus at a faster one
 
 - Status: Accepted
 - Date: 2026-10-20

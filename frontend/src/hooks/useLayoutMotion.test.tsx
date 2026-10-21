@@ -13,7 +13,7 @@ const start = (initialProps: Props) => renderHook((p: Props) => useLayoutMotion(
 const ended = (propertyName: string) => ({ propertyName }) as TransitionEvent<HTMLElement>
 
 // While a desk's layout moves, the map and the results hold one size, from
-// the render that starts the move until it ends (#714; record 0201).
+// the render that starts the move until it ends (#714; record 0202).
 describe('useLayoutMotion', () => {
   beforeEach(() => {
     vi.useFakeTimers()

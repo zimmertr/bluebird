@@ -2464,7 +2464,7 @@ export const HEADER_BUTTON =
 
 /**
  * Movement that answers a reader's action, at two speeds, and stops where
- * they asked their system for less (#687, #714; record 0201).
+ * they asked their system for less (#687, #714; record 0202).
  *
  * A menu or a card is small and near the hand that opened it, so it fades and
  * slides in 150ms. A panel, a sheet or a results pane moves an edge the whole
@@ -2496,7 +2496,7 @@ export const MOTION = {
 export const PANEL_MS = 300
 
 /**
- * The controls panel at a desk (#714; record 0201): a column in the page's
+ * The controls panel at a desk (#714; record 0202): a column in the page's
  * row beside the map, 360px wide, that stays in the row while it is shut.
  * Shut, its left margin takes its own width back, so it slides off the left
  * edge and the map's column widens in the same frames; open, the margin
@@ -2515,7 +2515,7 @@ export const DESK_PANEL = {
 /**
  * A results pane at a desk, the chart or the table with its grip, as a frame
  * that opens on a Table, Chart or Both press and closes on the next (#714;
- * record 0201). The frame is one grid row, `1fr` open and `0fr` shut, so it
+ * record 0202). The frame is one grid row, `1fr` open and `0fr` shut, so it
  * opens to whatever height its body has without being told it, and only the
  * press moves it: a drag on a grip changes the body under a row that stays
  * `1fr`. The body keeps its own height and the frame clips it.
@@ -2535,7 +2535,7 @@ export const RESULTS_PANE = {
 } as const
 
 /**
- * What holds one size while a desk's layout moves (#714; record 0201,
+ * What holds one size while a desk's layout moves (#714; record 0202,
  * `useLayoutMotion`), so a frame of the move shifts boxes rather than
  * resizing a map canvas or laying out a table of a thousand rows.
  *

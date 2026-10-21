@@ -17,7 +17,7 @@ const MOVES = new Set(['margin-left', 'grid-template-rows'])
 const FALLBACK_MS = PANEL_MS * 3
 
 /**
- * Whether a desk's layout is moving (#714; record 0201). While the panel
+ * Whether a desk's layout is moving (#714; record 0202). While the panel
  * pushes the map's edge or a results pane opens, the map's box and the panes'
  * bodies hold one size (`LAYOUT_HOLD`), so a frame of the move moves boxes
  * rather than redrawing the map, the table or the chart; each is drawn at its

@@ -19,7 +19,7 @@ const ended = (own: boolean) => {
 
 // A results pane at a desk opens and closes over the panel's speed, and the
 // body it clips keeps its height and stays mounted while it closes (#714;
-// record 0201).
+// record 0202).
 describe('usePaneMotion', () => {
   beforeEach(() => {
     vi.useFakeTimers()

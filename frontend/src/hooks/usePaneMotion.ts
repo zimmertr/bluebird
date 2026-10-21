@@ -23,7 +23,7 @@ export interface PaneMotion {
 
 /**
  * A results pane's life across a Table, Chart or Both press at a desk (#714;
- * record 0201). The frame opens from nothing to the body's height and closes
+ * record 0202). The frame opens from nothing to the body's height and closes
  * back, at the panel's speed, the same both ways; the body keeps its own
  * height throughout, so the chart draws once rather than once a frame, and a
  * closing body stays mounted, at the height it had, until its frame is shut.

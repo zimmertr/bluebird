@@ -1,7 +1,7 @@
 import { test, expect, resultRows, DESTINATION_NAMES } from './fixtures'
 import type { Page } from '@playwright/test'
 
-// The desk panel pushes the map's edge (#714; record 0201): it stays in the
+// The desk panel pushes the map's edge (#714; record 0202): it stays in the
 // row while it is shut and its margin takes its 360px back, so the map's
 // column narrows and widens in the frames the panel moves in, over the
 // panel's 300ms both ways, and nothing is painted over anything. A press on
@@ -98,7 +98,7 @@ const canvasSizes = (frames: { canvasWidth: number }[]) => new Set(frames.map((f
 test('the map is resized once a move, not in every frame, after a move that ended late too', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  // A close resizes the map at its start and an open at its end (record 0201).
+  // A close resizes the map at its start and an open at its end (record 0202).
   expect(canvasSizes(await framesAfter(page, 'button[aria-label="Close controls"]', 800))).toBeLessThanOrEqual(2)
   expect(canvasSizes(await framesAfter(page, 'button[aria-label="Open controls"]', 800))).toBeLessThanOrEqual(2)
 

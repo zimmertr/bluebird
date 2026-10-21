@@ -325,7 +325,7 @@ export default function AppDrawer({
   return (
     <>
       {/* The desk's panel, a column beside the map that stays in the row
-          while it is shut (record 0201): its margin takes its width back, so
+          while it is shut (record 0202): its margin takes its width back, so
           the map's edge travels with the panel's both ways. A phone draws the
           Controls sheet above instead.
 

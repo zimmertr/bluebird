@@ -25,7 +25,7 @@ interface ResultsSheetProps
     | 'onRemovePending'
     | 'onFocusResult'
     | 'onFocusPending'
-    // Read off `isDesktop` here (#696, record 0201).
+    // Read off `isDesktop` here (#696, record 0202).
     | 'chartTitled'
     | 'panesMove'
   > {

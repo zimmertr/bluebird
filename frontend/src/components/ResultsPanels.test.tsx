@@ -203,7 +203,7 @@ describe('ResultsPanels', () => {
 const frameOf = (body: HTMLElement) => body.closest('[class*="grid-rows-"]') as HTMLElement
 
 // At a desk a Table, Chart or Both press opens and closes the panes at the
-// panel's speed, the same both ways (#714; record 0201).
+// panel's speed, the same both ways (#714; record 0202).
 describe('the panes at a desk', () => {
   it('moves the panes at a desk and nowhere else', async () => {
     const { unmount } = render(<ResultsPanels {...props({ panesMove: true })} />)

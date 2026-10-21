@@ -3550,7 +3550,7 @@ describe('the panel frame', () => {
     expect(resultsPanelsSource).toContain('MOTION.pane')
   })
 
-  // Two speeds (#714; record 0201): a menu or a card in 150ms, and a panel,
+  // Two speeds (#714; record 0202): a menu or a card in 150ms, and a panel,
   // a sheet or a results pane in 300ms, each the same both ways because one
   // recipe carries both directions. The number script waits on is the panel
   // classes' own.
@@ -3571,7 +3571,7 @@ describe('the panel frame', () => {
     expect(MOTION.menu).toMatch(/(^|\s)transition-\[opacity,translate\](\s|$)/)
   })
 
-  // The desk panel pushes the map's edge (record 0201): it stays in the row
+  // The desk panel pushes the map's edge (record 0202): it stays in the row
   // shut, and its margin takes back exactly its own width.
   it('takes the desk panel out of the row by its own width', () => {
     const width = DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)?.[1]
@@ -3583,7 +3583,7 @@ describe('the panel frame', () => {
   })
 
   // While a desk's layout moves, the map and the results hold one size
-  // (record 0201). The map's box is the window's width or height, centred on
+  // (record 0202). The map's box is the window's width or height, centred on
   // its column, so MapLibre, which keeps the centre on a resize, draws what it
   // would at every size in between. The chart closing keeps its open width,
   // the window less the panel.
@@ -3599,7 +3599,7 @@ describe('the panel frame', () => {
   })
 
   // A results pane opens to its body's height and shuts to none, and the
-  // chart's body holds to the bar and the table's to the foot (record 0201).
+  // chart's body holds to the bar and the table's to the foot (record 0202).
   it('opens a results pane by its grid row', () => {
     expect(RESULTS_PANE.open).toBe('grid-rows-[1fr]')
     expect(RESULTS_PANE.shut).toBe('grid-rows-[0fr]')

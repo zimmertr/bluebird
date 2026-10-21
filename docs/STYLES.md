@@ -804,7 +804,7 @@ went from one 77ms frame and a slide over the map to 8 frames: one of 51ms
 where the map and the table take the new width, then frames of 34ms. An open
 went from one 77ms frame to 11 frames of about 30ms and one of 46ms where they
 take theirs (medians, 2026-10-20).
-Record: [0201](decisions/0201-panel-and-panes-move-at-one-speed.md)
+Record: [0202](decisions/0202-panel-and-panes-move-at-one-speed.md)
 
 ### Control width
 
