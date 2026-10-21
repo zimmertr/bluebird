@@ -2487,21 +2487,18 @@ export const DESK_PANEL = {
  * A results pane at a desk, the chart or the table with its grip, as a frame
  * that opens on a Table, Chart or Both press or the collapse chevron and
  * closes on the next (#714; record 0202). The frame is one grid row, `1fr`
- * open and `0fr` shut, so it opens to whatever height its box has without
- * being told it, and only a press moves it: a drag on a grip changes the box
- * under a row that stays `1fr`. The box keeps its own height and the frame
- * clips it.
+ * open and `0fr` shut, so it opens to whatever height its body has without
+ * being told it, and only a press moves it: a drag on a grip changes the body
+ * under a row that stays `1fr`. The body is mounted at the press at the
+ * height it will stand at, keeps it, and the frame clips it, so the data is
+ * on screen as the pane grows and as it shrinks.
  *
- * The chart's box holds to the results bar (`top`) and the table's to the
- * column's foot (`foot`), the edges each stands against in Both. So neither
+ * The chart's body holds to the results bar (`top`) and the table's to the
+ * column's foot (`foot`), the edges each stands against in Both. So the chart
+ * comes down from the bar, the table comes up from the foot, and neither
  * picture slides under the other: Table to Chart wipes the boundary down the
  * column, and Table to Both lifts the bar off a table that stays where it
  * stands.
- *
- * Inside the box the body, the chart (`held`) or the table's scroller, keeps
- * the height it was drawn at while a pane moves, and the box clips it
- * (`box`), so the chart is drawn and the table laid out once, where the move
- * ends. An opening pane's box is empty until its frame has opened.
  */
 export const RESULTS_PANE = {
   frame: 'grid flex-shrink-0',
@@ -2509,8 +2506,6 @@ export const RESULTS_PANE = {
   shut: 'grid-rows-[0fr]',
   top: 'flex min-h-0 flex-col overflow-hidden',
   foot: 'flex min-h-0 flex-col justify-end overflow-hidden',
-  box: 'flex min-h-0 flex-shrink-0 flex-col overflow-hidden',
-  held: 'flex flex-shrink-0 flex-col',
 } as const
 
 /**

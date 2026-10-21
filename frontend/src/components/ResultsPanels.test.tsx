@@ -250,25 +250,19 @@ describe('the panes at a desk', () => {
     expect(body('table')).toBe(`${RESULTS_PANE.foot} `)
   })
 
-  // The chart's mount is the long commit of a press at a thousand rows, so
-  // an opening pane draws an empty box of its height at the press and mounts
-  // its body once its frame has opened.
-  it('opens a pane at the press and mounts its body once its frame has opened', async () => {
+  // TJ on 2026-10-21: "I think the data should be there as it extends up."
+  // An opening pane mounts its body at the press, at the height the mode
+  // pressed gives it, and the frame uncovers it as it opens.
+  it('mounts an opening pane\'s body at the press, at its end height', async () => {
     const { rerender } = render(<ResultsPanels {...props({ panesMove: true, layout: layout('table') })} />)
     rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), layoutMotion: 'panes' })} />)
-    expect(screen.queryByTestId('chart')).toBeNull()
-    expect(screen.getAllByTestId('grip')).toHaveLength(2)
-    const frame = frameOf(screen.getAllByTestId('grip')[0])
+    const chart = await screen.findByTestId('chart')
+    const frame = frameOf(chart)
     expect(frame.className).toContain(RESULTS_PANE.open)
-    const box = frame.querySelector<HTMLElement>('[style]')!
-    expect(box.className).toBe(RESULTS_PANE.box)
-    expect(box.style.height).toBe('200px')
-    fireEvent.transitionEnd(frame)
-    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('both') })} />)
-    await screen.findByTestId('chart')
+    expect(frame.querySelector<HTMLElement>('[style]')!.style.height).toBe('200px')
   })
 
-  it('shuts both panes on the collapse chevron and opens them again', async () => {
+  it('shuts both panes on the collapse chevron, keeping their bodies, and opens them again with them', async () => {
     const { rerender } = render(<ResultsPanels {...props({ panesMove: true })} />)
     const chart = await screen.findByTestId('chart')
     const table = screen.getByTestId('table')
@@ -284,27 +278,32 @@ describe('the panes at a desk', () => {
     expect(screen.queryByTestId('chart')).toBeNull()
     expect(screen.queryByTestId('table')).toBeNull()
     expect(screen.queryAllByTestId('grip')).toHaveLength(0)
+    // Expanded, both bodies are back at the press.
     rerender(<ResultsPanels {...props({ panesMove: true, layoutMotion: 'panes' })} />)
     expect(screen.getAllByTestId('grip')).toHaveLength(2)
-    expect(screen.queryByTestId('table')).toBeNull()
+    expect(screen.getByTestId('table')).toBeTruthy()
+    await screen.findByTestId('chart')
   })
 
-  // The chart-only legend takes its height from the plot, so it comes and
-  // goes where a move ends, when the plot is drawn at its new size.
-  it('holds the chart\'s legend and height while a pane moves', async () => {
+  // The chart-only legend takes its height from the plot. A chart that stays
+  // takes the legend its new mode gives it at the press, drawn once at its
+  // end size; a closing chart keeps the one it was drawn with as it goes.
+  it('draws the legend for the mode pressed, and keeps a closing chart\'s', async () => {
     const legend = { ...TABLE_VIEW, legend: [{ key: 'a', row: ROW, suffix: '' }] }
     const chip = () => screen.queryByRole('button', { name: `Hide ${ROW.name} on the chart` })
-    const held = () => frameOf(screen.getByTestId('chart')).querySelector<HTMLElement>(`[class="${RESULTS_PANE.held}"]`)!
-    const { rerender } = render(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend })} />)
+    const { rerender } = render(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), tableView: legend })} />)
     await screen.findByTestId('chart')
-    expect(chip()).toBeTruthy()
-    const moved = { ...layout('both'), chartPanelPx: 160 }
-    rerender(<ResultsPanels {...props({ panesMove: true, layout: moved, tableView: legend, layoutMotion: 'panes' })} />)
-    expect(chip()).toBeTruthy()
-    expect(held().style.height).toBe('200px')
-    rerender(<ResultsPanels {...props({ panesMove: true, layout: moved, tableView: legend })} />)
     expect(chip()).toBeNull()
-    expect(held().style.height).toBe('160px')
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend, layoutMotion: 'panes' })} />)
+    expect(chip()).toBeTruthy()
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend })} />)
+    rerender(
+      <ResultsPanels
+        {...props({ panesMove: true, layout: { ...layout('table'), chartPanelPx: 0 }, tableView: legend, layoutMotion: 'panes' })}
+      />,
+    )
+    expect(screen.getByTestId('chart')).toBeTruthy()
+    expect(chip()).toBeTruthy()
   })
 
   it('holds the chart to the bar and the table to the foot', async () => {
