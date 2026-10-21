@@ -61,7 +61,7 @@ describe('MetricsTable', () => {
     RANKED_FAMILIES.forEach((f, i) => expect(radios[i]).toBe(screen.getByRole('radio', { name: NOUN[f] })))
   })
 
-  // A desk picks the aggregate from the one menu (record 0200), and a phone
+  // A desk picks the aggregate from the one menu (record 0201), and a phone
   // from its own native picker (record 0149). Both name the choice alike.
   it('ranks by a new aggregate from the menu', async () => {
     const setSortBy = vi.fn()

@@ -11,7 +11,7 @@ interface Props {
   models: readonly VisibilityModel[]
   hidden: ReadonlySet<string>
   onToggle: (id: string) => void
-  /** The Models button, which the menu stands 4px under at its rows' width (record 0200). */
+  /** The Models button, which the menu stands 4px under at its rows' width (record 0201). */
   triggerRef: React.RefObject<HTMLButtonElement | null>
   /** A phone (#696): the menu is a bottom sheet rather than a card under its button. */
   sheet?: boolean

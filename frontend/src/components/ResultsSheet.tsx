@@ -132,7 +132,7 @@ export default function ResultsSheet({
   // Each popover's open flag and its trigger. Nothing outside the sheet opens
   // one, so nothing outside it holds them.
   // Each menu stands 4px under the button that opened it at a desk (record
-  // 0200); on a phone each is a bottom sheet instead (#696; record 0136).
+  // 0201); on a phone each is a bottom sheet instead (#696; record 0136).
   const sheet = !isDesktop
   const columnsButtonRef = useRef<HTMLButtonElement>(null)
   const modelsButtonRef = useRef<HTMLButtonElement>(null)

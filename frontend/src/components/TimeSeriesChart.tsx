@@ -208,7 +208,7 @@ interface Props {
 // A stable empty default: a fresh `[]` per render would rebuild every line, and
 // with it every path Recharts strokes, on every hover.
 // The metric menu's rows at a desk, once: the chart's own list in its order
-// and words, as the select's options read them (record 0200).
+// and words, as the select's options read them (record 0201).
 const METRIC_OPTIONS = CHART_METRICS.map((m) => ({ value: m.key, label: m.label }))
 
 const NO_EXTRA_LINES: readonly ChartLine[] = []
@@ -455,7 +455,7 @@ function TimeSeriesChart({
           wider one. The row itself does not wrap either:
           the comparison note beside the control shrinks (`min-w-0`) rather
           than dropping under it. At a desk it opens the one menu rather
-          than the platform's list (record 0200). */}
+          than the platform's list (record 0201). */}
       {/* At a desk the select stands in a row above the plot; on a phone it
           is the plot's title (below), and the row stands only to hold a
           comparison's note. */}

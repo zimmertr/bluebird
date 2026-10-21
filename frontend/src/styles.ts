@@ -351,7 +351,7 @@ export const SURFACE_PAGE = 'bg-page'
  * Opaque cards that sit above a scrim: the dialogs, the analysis overlay and
  * the tutorial's card. `ELEVATION.overlay` since #687, where it wore the `xl`
  * step alone; over the scrim the step hardly shows. A menu stands on the chip
- * card's surface instead (`SURFACE_CHIP_CARD.menu`, record 0200).
+ * card's surface instead (`SURFACE_CHIP_CARD.menu`, record 0201).
  */
 export const SURFACE_CARD =
   `bg-panel border border-frame ${RADIUS.surface} ${ELEVATION.overlay}`
@@ -376,7 +376,7 @@ export const SURFACE_SHEET =
   `bg-panel border-t border-frame rounded-t-lg overflow-hidden ${ELEVATION.none}`
 
 /**
- * How a menu comes and goes (#714; record 0200): it fades in and slides 4px
+ * How a menu comes and goes (#714; record 0201): it fades in and slides 4px
  * from its trigger's side over 150ms, leaves the same way back, and does
  * neither where the reader asked their system for less. `MOTION.menu` is this
  * value; it is declared up here because the chip cards below wear it, and a
@@ -403,7 +403,7 @@ const MENU_MOTION =
 
 /**
  * The two cards a desk's map chips open (#714; record 0174), and since record
- * 0200 every desk menu: the legend card under Legend, the Layers menu under
+ * 0201 every desk menu: the legend card under Legend, the Layers menu under
  * Layers, and the card `Menu.tsx` draws for every other trigger, the search
  * list included. One fill and one edge for all, because they are twins:
  * controls that each open a card under them, so a reader takes each as what
@@ -1204,7 +1204,7 @@ const FIELD_LOOK = `${TEXT.control} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.c
  * `TEXT.caption` re-derived for that same fill: a search result's description.
  *
  * The caption tier is slate-400, which is 5.7:1 on the panel and was 3.94:1
- * on the slate-700 list the search results stood on until record 0200 — under
+ * on the slate-700 list the search results stood on until record 0201 — under
  * the 4.5:1 WCAG 1.4.3 asks of text. slate-300 was 6.97:1 there and 5.89:1 on
  * a highlighted row (slate-600 at 50%), measured on the v4 oklch steps
  * 2026-09-14. The list stands on the menu card's slate-800 now, where both
@@ -1653,7 +1653,7 @@ const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
  * card, each a whole card standing 4px under its chip from the chip's left
  * edge. A phone's open as bottom sheets instead (record 0136).
  *
- * The reference every desk menu was made from (record 0200): the pill kept
+ * The reference every desk menu was made from (record 0201): the pill kept
  * whole and lit, as a phone's chip is, with the card set apart, because
  * squaring a 32px pill's bottom corners to join a card left a dome (TJ,
  * 2026-10-18). Apart by 4px, closer than the 8px between the pill and the
@@ -1906,7 +1906,7 @@ export const SEGMENT_DIVIDER = 'border-l border-edge'
  * The label is the slate-400 idle half's, as on the switch beside it.
  *
  * Under the pointer the label takes the accent, the hover every menu trigger
- * wears (record 0200), where the switch's idle half brightens to white. An
+ * wears (record 0201), where the switch's idle half brightens to white. An
  * item has no edge of its own inside the group, so the label is the whole
  * of its hover. The three that open a menu wear `MENU_TRIGGER.bar` over this,
  * which adds the lit state; Download CSV opens nothing and wears this alone.
@@ -1933,7 +1933,7 @@ export const ACTION_ITEM =
  * and go together.
  *
  * At a desk the three menu buttons carry chevrons, which a phone's never do
- * (record 0200), and the labelled group is 437.8px, measured 2026-10-20. A
+ * (record 0201), and the labelled group is 437.8px, measured 2026-10-20. A
  * desk's bar is never under the 640px it has beside the docked panel at 1024,
  * which holds the line with a two-digit Removed count (637.2px); a
  * three-digit count wraps the group onto a line of its own there.
@@ -2436,7 +2436,7 @@ export const HEADER_BUTTON =
 export const MOTION = {
   /**
    * A menu fading and sliding in from its trigger over 150ms, and back out
-   * the same way (#714; record 0200): quick enough that the card is there
+   * the same way (#714; record 0201): quick enough that the card is there
    * when the eye lands, and slow enough to say which control it came from.
    * Every desk menu wears it through `SURFACE_CHIP_CARD`, which is why the
    * value is declared above it.
@@ -2650,7 +2650,7 @@ export const FIELD_NUMERIC =
  *   the *system* palette, not ours: on a light-mode OS the popup and its arrow
  *   render dark-on-light inside a dark panel. Suppressing it costs the arrow,
  *   which the call site draws back as the chevron every menu trigger wears
- *   (`IconChevron` in `ICON_ADORNMENT`, record 0200), one glyph we control
+ *   (`IconChevron` in `ICON_ADORNMENT`, record 0201), one glyph we control
  *   on every platform rather than one we control on none.
  * - `pr-6`, reserving the room that arrow sits in. It belongs here and not at
  *   the call site because it is not decoration: without it a long option label
@@ -2670,7 +2670,7 @@ export const FIELD_NUMERIC =
 export const SELECT = `${FIELD} appearance-none pr-6`
 
 /**
- * One menu for every control that opens one at a desk (#714; record 0200).
+ * One menu for every control that opens one at a desk (#714; record 0201).
  * The maintainer found five menus behaving five ways ("Right now it feels
  * like chaos"): a chart dropdown square and drawn over its own field, the
  * model list joined to its field, the results bar's lists the width of the
@@ -2695,7 +2695,7 @@ export const SELECT = `${FIELD} appearance-none pr-6`
 const FIELD_CHEVRON_INK = 'group-enabled:group-hover:text-accent-ink group-aria-expanded:text-accent-ink'
 
 /**
- * The three trigger shapes (record 0200), each with the one hover and the
+ * The three trigger shapes (record 0201), each with the one hover and the
  * one open state:
  *
  * - `chip`: `MAP_CHIP`, which already had both: under the pointer its edge
@@ -2733,7 +2733,7 @@ export const MENU_TRIGGER = {
  * from its left. A bar button takes 2px (`-mr-0.5`): its inset is 6px, and
  * the stroke then stands 8px from its edge, where its leading glyph's stroke
  * stands. A field's stands in `ICON_ADORNMENT`'s place, inside the room
- * `SELECT` reserves, where the filled select arrow stood until record 0200.
+ * `SELECT` reserves, where the filled select arrow stood until record 0201.
  */
 export const MENU_CHEVRON = {
   chip: '-mr-1',
@@ -2746,7 +2746,7 @@ export const MENU_CHEVRON = {
 const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
 
 /**
- * The card and what stands in it (record 0200).
+ * The card and what stands in it (record 0201).
  *
  * - `card`: the Layers menu's surface (`SURFACE_CHIP_CARD.menu`), on the
  *   popover layer, as a column so a list inside it can take the room left and

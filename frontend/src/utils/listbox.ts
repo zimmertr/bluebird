@@ -65,7 +65,7 @@ export interface PopoverOptions {
   desiredWidth: number
   /**
    * A width the card takes whatever its rows say: the model list's panel row
-   * and the calendar's field (record 0200). Without one the card is its
+   * and the calendar's field (record 0201). Without one the card is its
    * rows' width, never narrower than the trigger.
    */
   width?: number
@@ -84,7 +84,7 @@ export const MENU_FLOOR_PX = 132
 
 /**
  * Where a menu stands against its trigger: the one placement every desk menu
- * takes (#714; record 0200), the Layers chip's card made the general case.
+ * takes (#714; record 0201), the Layers chip's card made the general case.
  *
  * Fixed coordinates rather than an absolutely-positioned child, because the
  * control panel is an `overflow-y-auto` column: a child positioned inside it is

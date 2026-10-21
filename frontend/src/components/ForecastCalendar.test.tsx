@@ -249,7 +249,7 @@ describe('the date field', () => {
     expect(screen.queryByRole('button', { name: /^When\b/ })).toBeNull()
   })
 
-  // The card stands 4px under the field like every menu (record 0200), the
+  // The card stands 4px under the field like every menu (record 0201), the
   // field lit while it is out and back to rest when it closes.
   it('opens the card on the selected day under the field', async () => {
     const { user } = render(

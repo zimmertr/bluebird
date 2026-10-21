@@ -78,7 +78,7 @@ export default function ForecastSection({
             The trigger is a button carrying its own aria-label, not an
             input, so this is a span with nothing to point `htmlFor` at.
             A narrow trigger costs the list nothing: the list takes this
-            row's width, under the label (record 0200). */}
+            row's width, under the label (record 0201). */}
         <span className={`${TEXT.control} flex-1`}>Model</span>
         <div className={`relative ${CONTROL_W}`}>
           {/* A model named by a link but not offered here still has to

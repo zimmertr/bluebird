@@ -43,7 +43,7 @@ describe('the Models sheet', () => {
   })
 
   // A sheet's rows take no hover fill; a desk card's every row does (record
-  // 0200), since a press anywhere on one toggles it.
+  // 0201), since a press anywhere on one toggles it.
   it('lights a row under the pointer on a desk and not in the sheet', () => {
     const lit = () => screen.getAllByRole('checkbox').map((b) => b.closest('label')!.className.split(' ').includes(MENU.hover))
     const { unmount } = render(
@@ -172,7 +172,7 @@ describe('the Model and When sheets', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  // A desk keeps the card under each field (record 0200).
+  // A desk keeps the card under each field (record 0201).
   it('opens no sheet at a desk', () => {
     render(<Forecast phone={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Dates' }))

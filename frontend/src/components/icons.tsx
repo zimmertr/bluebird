@@ -70,7 +70,7 @@ export function IconClose({
 
 /**
  * The collapse affordance on the results panels' header bars, and every menu
- * trigger's open or shut cue (`MENU_CHEVRON`, record 0200): a chip's, a
+ * trigger's open or shut cue (`MENU_CHEVRON`, record 0201): a chip's, a
  * results-bar button's and a field's, where it took the filled select
  * arrow's place, so one glyph says "this opens" everywhere.
  */

@@ -158,7 +158,7 @@ describe('LayersPopover', () => {
   })
 
   // A row a press acts on lights under the pointer, as every menu row does
-  // (record 0200); a greyed one takes no fill, and a phone's sheet none at all.
+  // (record 0201); a greyed one takes no fill, and a phone's sheet none at all.
   it('lights every live row under the pointer and no greyed one', () => {
     const fill = (name: RegExp | string) =>
       screen.getByRole('checkbox', { name }).closest('label')!.className.split(' ').includes(MENU.hover)

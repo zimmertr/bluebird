@@ -1048,7 +1048,7 @@ list takes the Model row's, lined up with the field's right edge, and the
 calendar takes its field's. Columns, Models and Removed each open under their
 own button. The search results keep their place under the pill and take the
 card's surface.
-Record: [0200](decisions/0200-one-menu-for-every-trigger.md)
+Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
 
 Triggers come in three shapes, on purpose (`MENU_TRIGGER`): a pill on the map,
 a field in the panel or over the chart, and a button in the results bar. Each
@@ -1057,14 +1057,14 @@ Download CSV opens nothing and has none. Under the pointer the edge and the
 label take the accent; a bar button has no edge, so only its label does. While
 its menu is open, a pill or a bar button fills with the accent and a field
 keeps its accent edge.
-Record: [0200](decisions/0200-one-menu-for-every-trigger.md)
+Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
 
 At a desk the chart's metric and each Metrics row's aggregate are menus. A
 native select opens the platform's own list, which no stylesheet reaches. The
 arrow keys, Enter, Space and Escape work as on a select, and the keyboard
 returns to the field when the list closes. A phone keeps the native select,
 whose picker rises from below like every phone menu.
-Record: [0200](decisions/0200-one-menu-for-every-trigger.md)
+Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
 
 The Layers chip's card is where the one menu came from. Squaring a 32px pill's
 bottom corners left a dome, so the chip stays a whole pill, lit while its card
@@ -1084,7 +1084,7 @@ included, as a modal sheet's scrim does in Material. The grip and the title
 row drag the sheet, to just under the chips, shut, or anywhere between, and a
 double tap on the grip puts it back at its own height, through the gesture
 the results sheet's grips use.
-Record: [0136](decisions/0136-phone-menus-are-bottom-sheets.md) Record: [0146](decisions/0146-sheet-grips-drag.md) Record: [0200](decisions/0200-one-menu-for-every-trigger.md)
+Record: [0136](decisions/0136-phone-menus-are-bottom-sheets.md) Record: [0146](decisions/0146-sheet-grips-drag.md) Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
 
 ### Adding a new role
 

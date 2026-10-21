@@ -362,7 +362,7 @@ export default function ControlPanel({
   )
 
   return (
-    // The panel a menu opened in it stays inside (`usePopover`, record 0200):
+    // The panel a menu opened in it stays inside (`usePopover`, record 0201):
     // the model list lines up with its field's right edge rather than
     // spilling over the map.
     <div data-menu-bound="" className="flex flex-col h-full">

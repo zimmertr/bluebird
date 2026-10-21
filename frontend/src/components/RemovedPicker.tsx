@@ -13,7 +13,7 @@ interface Props {
   entries: [string, RemovedEntry][]
   onRestore: (key: string) => void
   onRestoreAll: () => void
-  /** The Removed button, which the menu stands 4px under at its rows' width (record 0200). */
+  /** The Removed button, which the menu stands 4px under at its rows' width (record 0201). */
   triggerRef: React.RefObject<HTMLButtonElement | null>
   /** A phone (#696): the menu is a bottom sheet rather than a card under its button. */
   sheet?: boolean

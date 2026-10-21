@@ -253,7 +253,7 @@ describe('the chip row', () => {
 })
 
 // The list runs the Model row's width rather than the trigger's 118px, and
-// stands 4px under the trigger like every menu (record 0200). The trigger is
+// stands 4px under the trigger like every menu (record 0201). The trigger is
 // on the panel's right edge, so the card lines up with its right edge and
 // reaches back to the row's left.
 describe('the list across its row', () => {

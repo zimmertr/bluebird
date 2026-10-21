@@ -90,7 +90,7 @@ interface Drag {
  * Under Dates with a range picked the panel shows one field holding the
  * window in the words the results bar prints for it, and the field opens the
  * Hours row and the month grid as a menu on `Menu.tsx`'s card, 4px under the
- * field at its width like every desk menu (record 0200). With no range there
+ * field at its width like every desk menu (record 0201). With no range there
  * is no field at all, only the card when Dates is pressed, standing where
  * the field would. The grid used to stand in the panel body in a well, where
  * choosing Dates grew the Forecast section from 111px to 424px. Record 0129.
@@ -450,7 +450,7 @@ export default function ForecastCalendar({ selection, onChange, band, sheet = fa
           It is drawn only when it has something to show (#687): with no range
           picked an empty box would stand above the card. The card it opens
           stands 4px under it at its width, the field lit over it the way
-          every field is while its menu is out (record 0200). The slot stays
+          every field is while its menu is out (record 0201). The slot stays
           while a card Dates opened is out with no field in it, empty, as
           what that card is placed under. A phone's sheet is placed by the
           screen's edge, so there it is drawn for the field alone. */}

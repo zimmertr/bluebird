@@ -59,7 +59,7 @@ interface Props {
    * The row the trigger stands in, whose width the list takes: its rows carry
    * a badge, a grid and reach column and a summary, which would run a card
    * as wide as its rows across the map, and the trigger is `CONTROL_W`
-   * (record 0200).
+   * (record 0201).
    */
   rowRef?: React.RefObject<HTMLElement | null>
   /**
@@ -148,7 +148,7 @@ export default function ModelPicker({
     open: open && !sheet,
     onOpenChange: setOpen,
     triggerRef,
-    // 4px under the field like every menu, at its row's width (record 0200):
+    // 4px under the field like every menu, at its row's width (record 0201):
     // the trigger's 118px clipped the header and the badge, and the card's
     // right edge on the field's keeps it in the panel, opening under the
     // label. It was 380px floating over the map before record 0134.

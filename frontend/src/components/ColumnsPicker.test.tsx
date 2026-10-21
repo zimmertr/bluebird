@@ -81,7 +81,7 @@ describe('visibility', () => {
   })
 
   // The raised fill under the pointer on every row that can be unticked
-  // (record 0200), and none on a held one, where a press does nothing.
+  // (record 0201), and none on a held one, where a press does nothing.
   it('lights every row a press acts on, and no held one', () => {
     const lit = (label: string) => box(label).closest('label')!.className.split(' ').includes(MENU.hover)
     render(<Picker />)

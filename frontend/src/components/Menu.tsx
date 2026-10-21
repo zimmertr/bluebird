@@ -8,7 +8,7 @@ import BottomSheet from './BottomSheet'
 import { IconChevron } from './icons'
 
 /**
- * One menu for every control that opens one at a desk (#714; record 0200):
+ * One menu for every control that opens one at a desk (#714; record 0201):
  * the card, the trigger and the list that stands in for a native select.
  *
  * The maintainer found the app's menus behaving five ways, a chart dropdown
@@ -106,7 +106,7 @@ export default function Menu({ box, popoverRef, header, closing, sheet, children
 }
 
 interface MenuButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-expanded' | 'type'> {
-  /** Which of the three trigger shapes (record 0200): a map pill, a panel field, a results-bar button. */
+  /** Which of the three trigger shapes (record 0201): a map pill, a panel field, a results-bar button. */
   shape: keyof typeof MENU_TRIGGER
   /** Whether its menu is out: the chevron points up and the trigger lights. */
   open: boolean
@@ -158,7 +158,7 @@ interface MenuSelectProps<V extends string> {
 
 /**
  * A choice of one value from a short list, as the one menu rather than a
- * native select (record 0200): the chart's metric and the Metrics table's
+ * native select (record 0201): the chart's metric and the Metrics table's
  * aggregates at a desk. A native select opens the platform's own list, which
  * no stylesheet reaches, so at a desk it was the one menu that looked and
  * behaved like nothing else in the app. A phone keeps the native select,

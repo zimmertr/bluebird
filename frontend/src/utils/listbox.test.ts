@@ -10,7 +10,7 @@ const opts = (desiredHeight: number, desiredWidth = 0) => ({ ...BASE, desiredHei
 // A trigger in the results bar: narrow, and well clear of every edge.
 const TRIGGER = { left: 300, top: 400, width: 90, height: 22 }
 
-// One menu for every trigger at a desk (#714; record 0200): the Layers chip's
+// One menu for every trigger at a desk (#714; record 0201): the Layers chip's
 // card made the general case.
 describe('popoverBox, down the page', () => {
   it('stands 4px under a trigger with room under it', () => {

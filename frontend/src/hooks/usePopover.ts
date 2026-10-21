@@ -11,7 +11,7 @@ import { useTakeOrphanedFocus } from './useFocusHandoff'
  * One recipe, because there were four (#385). Every popover in the app had its
  * own copy of the placement call, the once-per-open measuring pass and the
  * dismiss listeners, and three of the four had been built by copying a fourth —
- * so a fix to one of them reached none of the others. Since record 0200 it
+ * so a fix to one of them reached none of the others. Since record 0201 it
  * has one placement too: every desk menu stands where the Layers chip's card
  * does, 4px under its trigger.
  *
@@ -21,7 +21,7 @@ import { useTakeOrphanedFocus } from './useFocusHandoff'
  */
 
 // Between the trigger and the card: the Layers chip's 4px, which every menu
-// takes (record 0200), so a gap that differed between two menus cannot read
+// takes (record 0201), so a gap that differed between two menus cannot read
 // as one of them being misplaced. And between the card and the edge of the
 // viewport or of its panel.
 const GAP_PX = CHIP_MENU_GAP_PX
@@ -84,7 +84,7 @@ interface Options {
    * An element whose width the card takes whatever its rows want: the Model
    * row for the model list, whose summaries would otherwise run it across the
    * map, and the calendar's slot. Without one a card is its rows' width and
-   * never narrower than its trigger (record 0200).
+   * never narrower than its trigger (record 0201).
    */
   widthRef?: React.RefObject<HTMLElement | null>
   /**

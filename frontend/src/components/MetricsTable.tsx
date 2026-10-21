@@ -178,7 +178,7 @@ const BOX_PLACEHOLDER: Record<MetricFamily, string> = {
   aqi: 'aqi',
 }
 
-// Each row's aggregate menu at a desk (record 0200): the keys its family
+// Each row's aggregate menu at a desk (record 0201): the keys its family
 // ranks by, in the words the native select's options carried.
 const AGGREGATE_OPTIONS = Object.fromEntries(
   RANKED_FAMILIES.map((family) => [
@@ -214,7 +214,7 @@ interface Props {
   // the compiled analysis cap).
   maxLimit: number
   // A phone (#696), where the aggregate stays the native select and opens the
-  // phone's own picker; a desk's opens the one menu (record 0200).
+  // phone's own picker; a desk's opens the one menu (record 0201).
   phone?: boolean
 }
 

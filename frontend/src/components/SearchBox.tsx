@@ -32,7 +32,7 @@ import { coordinateLabel } from '../utils/points'
 // severity the tint used to carry — amber-300 read 7.15:1 on the slate-700 the
 // list stood on before, measured 2026-09-14, and more on the card's slate-800.
 //
-// The card is every menu's (`SURFACE_CHIP_CARD.menu`, record 0200), 4px under
+// The card is every menu's (`SURFACE_CHIP_CARD.menu`, record 0201), 4px under
 // the pill like every menu under its trigger. Only the surface is the menu's:
 // the list stays the search box's own, a list of answers under a text field
 // rather than a menu a button opens, so `usePopover` neither places it nor

@@ -140,7 +140,7 @@ import {
   popupButton,
   type PopupButtonVariant,
 } from './utils/popupChrome'
-// The map's chip is the chip shape of the one menu trigger (record 0200), and
+// The map's chip is the chip shape of the one menu trigger (record 0201), and
 // that is the only name it is exported under.
 const MAP_CHIP = MENU_TRIGGER.chip
 // `?raw` gives us the file's text without executing it, so this stays a pure
@@ -1468,7 +1468,7 @@ describe('shared recipes', () => {
     expect(sizes(CAPTION_LIFTED)).toEqual(sizes(TEXT.caption))
   })
 
-  // The search results list stands on the one menu card (record 0200), the
+  // The search results list stands on the one menu card (record 0201), the
   // card the pill drops it onto lifted by the overlay shadow over the pill's
   // raised one.
   it('stands the search results on the menu card', () => {
@@ -1485,7 +1485,7 @@ describe('shared recipes', () => {
     const { key, menu } = SURFACE_CHIP_CARD
     expect(token(key, 'bg')).toBe(token(menu, 'bg'))
     expect(token(key, 'bg')).toBe(token(MAP_CHIP, 'bg'))
-    // Opaque, every menu and both chip cards (TJ, 2026-10-20, record 0200):
+    // Opaque, every menu and both chip cards (TJ, 2026-10-20, record 0201):
     // under the calendar the frosted fill let the Analyze button show
     // through. Nothing is seen through them, so they carry no blur, where the
     // chips themselves stay frosted.
@@ -1508,7 +1508,7 @@ describe('shared recipes', () => {
   // between them. Measured 2026-10-18 on the v4 oklch steps: slate-500 on the
   // slate-800 card, where the frame both cards wore before read 1.93:1. The
   // light theme's pair is measured in its own suite below. Re-measured
-  // 2026-10-20 on the opaque card (record 0200): 3.07:1 again, and now the
+  // 2026-10-20 on the opaque card (record 0201): 3.07:1 again, and now the
   // ratio a reader sees, where the 95% fill let the map under it move it.
   it("draws a desk chip card's outline past 3:1 on the card it overlaps", () => {
     const MEASURED = { dark: 3.07, frameWas: 1.93 }
@@ -2294,7 +2294,7 @@ describe('the map rows', () => {
   // lit and the resting fills never race on stylesheet order.
   it('lights a chip in the accent fill while its sheet is open', () => {
     // A map chip keeps its pill whole while its menu is out (TJ, 2026-10-18),
-    // and is the chip shape of the one menu trigger (record 0200).
+    // and is the chip shape of the one menu trigger (record 0201).
     for (const source of [mapLegendSource, layersPopoverSource]) expect(source).toContain('shape="chip"')
     expect(mapLegendSource).toContain('className={DISABLED}')
     const fill = tokens(ACCENT.fill).find((t) => t.startsWith('bg-'))!
@@ -3422,7 +3422,7 @@ describe('the results bar buttons', () => {
   it('reads as the sibling of the mode switch', () => {
     expect(ACTION_GROUP).toBe(SEGMENT_FLUID)
     // The switch's idle fill and ink, with the accent label every menu
-    // trigger takes under the pointer in place of its white (record 0200).
+    // trigger takes under the pointer in place of its white (record 0201).
     expect(token(ACTION_ITEM, 'bg')).toBe(token(SEGMENT_IDLE, 'bg'))
     expect(token(ACTION_ITEM, 'text')).toBe(token(SEGMENT_IDLE, 'text'))
     expect(ACTION_ITEM).toContain(ACCENT.hoverText)
@@ -3456,7 +3456,7 @@ describe('the results bar buttons', () => {
     // measured, 430, has 406.
     expect(640).toBeGreaterThanOrEqual(fits)
     expect(406).toBeLessThan(fits)
-    // At a desk the menu buttons carry chevrons (record 0200), measured
+    // At a desk the menu buttons carry chevrons (record 0201), measured
     // 2026-10-20: the docked bar at 1024 still holds a two-digit count.
     const DESK_GROUP = 437.8
     expect(MEASURED.switch + DESK_GROUP + MEASURED.gap + MEASURED.digits / 2).toBeLessThanOrEqual(640)
@@ -3489,7 +3489,7 @@ describe('the welcome dialog foot', () => {
   })
 })
 
-// One menu for every trigger at a desk (#714, record 0200): the Layers chip's
+// One menu for every trigger at a desk (#714, record 0201): the Layers chip's
 // card made the general case.
 describe('the one menu', () => {
   // A desk chip's menu stands 4px under it, closer than the chip row stands
@@ -3743,7 +3743,7 @@ describe('the calendar field', () => {
 
   // The field is a field trigger, the same recessed box with a chevron that
   // opens every other choice in the panel, and the card is Menu.tsx's
-  // (record 0200).
+  // (record 0201).
   it('draws the field as a field trigger and the grid on the menu card', () => {
     expect(forecastCalendarSource).toContain('shape="field"')
     expect(forecastCalendarSource).toContain('className={CALENDAR_FIELD.box}')

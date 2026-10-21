@@ -1,7 +1,7 @@
 import { test, expect, resultRows, DESTINATION_NAMES } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
-// Every menu at a desk is the one menu (#714, record 0200): a card 4px under
+// Every menu at a desk is the one menu (#714, record 0201): a card 4px under
 // its trigger, never joined to it, lined up with the trigger's left edge or,
 // where that runs off the panel or the window, its right edge, and never
 // narrower than the trigger. The trigger is lit while its menu is out.

@@ -142,10 +142,10 @@ const fromExport = (name, target) =>
   `${defaultExport(name)} ${target}, ${defaultExport(name)} ~ * ${target}`
 
 const ICON_SIZE = String.raw`(^|\s)[hw]-(\d|\[)`
-// The old popover card, which every menu wore before record 0200.
+// The old popover card, which every menu wore before record 0201.
 const POPOVER_BOX = pair('SURFACE_CARD', 'LAYER.popover', '^ $')
 
-// A trigger in one of the three shapes (record 0200).
+// A trigger in one of the three shapes (record 0201).
 const MENU_BUTTON = (shape) =>
   `JSXOpeningElement[name.name="MenuButton"]:has(> JSXAttribute[name.name="shape"][value.value="${shape}"])`
 
@@ -251,7 +251,7 @@ export const STYLES = [
   },
   {
     // Menu.tsx owns the fixed box, the card and the stacking order (record
-    // 0200), so a fix reaches every menu. A menu that spells them again
+    // 0201), so a fix reaches every menu. A menu that spells them again
     // drifts a step, which is how the app came to have five.
     name: 'style-own-menu',
     files: SOURCES,
@@ -291,7 +291,7 @@ export const STYLES = [
     ],
   },
   {
-    // Every desk menu is the one menu (#714, record 0200): it stands 4px under
+    // Every desk menu is the one menu (#714, record 0201): it stands 4px under
     // its trigger wherever it opens, so no caller picks a placement, and a
     // list of options lives inside its card. The search box's results list is
     // the stated exception, so its file is the one left out. A native select
@@ -321,7 +321,7 @@ export const STYLES = [
   {
     // The joined unfurl of record 0134 is gone, and with it the card it stood
     // on, the attribute that squared its trigger and the placements that put
-    // a card anywhere but under its trigger (record 0200). A role brought back
+    // a card anywhere but under its trigger (record 0201). A role brought back
     // under its old name would bring the second look back with it.
     name: 'style-no-unfurl',
     files: SHIPPED,
@@ -338,7 +338,7 @@ export const STYLES = [
   },
   {
     // Every control that opens a menu is a MenuButton in one of the three
-    // shapes (record 0200), so it carries the chevron, the hover and the lit
+    // shapes (record 0201), so it carries the chevron, the hover and the lit
     // state every trigger shares. A plain button with aria-expanded is a
     // fourth trigger with a look of its own. The map's sidebar toggle opens
     // the control panel, not a menu, so its file is left out.
@@ -436,7 +436,7 @@ export const STYLES = [
   },
   {
     // The Legend chip and the card under it (#714, record 0174): the chip is
-    // the chip shape of the one trigger (record 0200), and the card wears the
+    // the chip shape of the one trigger (record 0201), and the card wears the
     // menu role on the chip cards' one surface (TJ, 2026-10-18).
     name: 'style-map-legend-chip',
     files: ['src/components/MapLegend.tsx'],
@@ -492,7 +492,7 @@ export const STYLES = [
     require: [
       {
         // Download CSV opens nothing, so it is the one button that is not a
-        // menu's trigger and carries no chevron (record 0200).
+        // menu's trigger and carries no chevron (record 0201).
         selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="ACTION_ITEM"]',
         count: 1,
         message: 'Download CSV wears ACTION_ITEM.',

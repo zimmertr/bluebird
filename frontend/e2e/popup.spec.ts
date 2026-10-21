@@ -80,7 +80,7 @@ test('an open popup marks whichever number the panel ranks by', async ({ page })
   await page.getByRole('radio', { name: 'Temperature' }).check()
   await expect.poll(marked).toEqual([expect.stringMatching(/^Temperature \(°F\) (Min|Max|Avg)$/)])
 
-  // A desk picks the aggregate from the one menu (record 0200).
+  // A desk picks the aggregate from the one menu (record 0201).
   const aggregate = page.getByRole('button', { name: /^Temperature aggregate / })
   await aggregate.click()
   await page.getByRole('option', { name: 'Min', exact: true }).click()

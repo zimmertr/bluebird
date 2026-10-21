@@ -132,7 +132,7 @@ export default function ResultsBar({
   // Columns keeps the longer label it always had, which holds its word.
   //
   // The three that open a menu are its triggers in the bar's shape (record
-  // 0200): the chevron after the word at a desk, down while shut and up while
+  // 0201): the chevron after the word at a desk, down while shut and up while
   // open, lit while their menu is out. Download CSV opens nothing and takes
   // neither.
   const actions = [

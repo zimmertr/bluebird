@@ -7,7 +7,7 @@ import { placeAt, render, type Box } from '../testSupport/render'
 import { ACCENT, MENU, MENU_CHEVRON, MENU_TRIGGER, SURFACE_CHIP_CARD } from '../styles'
 import { CHIP_MENU_GAP_PX } from '../utils/resultsSheet'
 
-// The one menu every desk control opens (#714; record 0200): `usePopover`
+// The one menu every desk control opens (#714; record 0201): `usePopover`
 // decides where the card goes and what closes it, `Menu` draws the card and
 // portals it out, `MenuButton` is the trigger in its three shapes and
 // `MenuSelect` the list that stands in for a native select. Every menu in the

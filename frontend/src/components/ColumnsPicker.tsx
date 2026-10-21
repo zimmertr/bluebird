@@ -27,7 +27,7 @@ interface Props {
   // Move one column to where another sits. The picker names the two columns
   // and nothing else: the key list is `useTableView`'s, and `moveColumn` owns the move.
   onColumnMove?: (fromKey: string, toKey: string) => void
-  /** The Columns button, which the menu stands 4px under at its rows' width (record 0200). */
+  /** The Columns button, which the menu stands 4px under at its rows' width (record 0201). */
   triggerRef: React.RefObject<HTMLButtonElement | null>
   /** A phone (#696): the menu is a bottom sheet rather than a card under its button. */
   sheet?: boolean

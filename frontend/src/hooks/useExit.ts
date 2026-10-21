@@ -2,7 +2,7 @@ import { useLayoutEffect, useState, type RefObject } from 'react'
 
 /**
  * Whether a card that has just closed is still on its way out (#714; record
- * 0200).
+ * 0201).
  *
  * A menu leaves the way it came in: it fades and slides back towards its
  * trigger over `MOTION.menu`'s 150ms, because the maintainer's rule for

@@ -113,7 +113,7 @@ describe('ResultsBar', () => {
   // One group for the bar's four buttons (#687), in the mode switch's look:
   // each a glyph and a word the width rule can hide, with a divider between
   // each two. The three that open a menu are its triggers in the bar's shape
-  // (record 0200), with the chevron after the word at a desk; Download CSV
+  // (record 0201), with the chevron after the word at a desk; Download CSV
   // opens nothing and carries none.
   it('draws Columns, Models, Removed and Download CSV as one group of glyph buttons', () => {
     render(<ResultsBar {...props({ removedCount: 2 })} />)
