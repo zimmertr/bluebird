@@ -1,4 +1,4 @@
-import { test, expect, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, expectRanked, resultRows, DESTINATION_NAMES } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // The desk panel pushes the map's edge (#714; record 0202): it stays in the
@@ -142,7 +142,8 @@ test('a press on Both opens the chart pane at the panel speed, holding the map t
   await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
-  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+  // Measured frame by frame, so the ranking lands first rather than mid-move.
+  await expectRanked(page)
   await page.getByRole('button', { name: 'Show table only' }).click()
   await expect(page.locator('[data-tour="results"] .recharts-wrapper')).toHaveCount(0)
   const mapBottom = () => page.locator('main > div').first().evaluate((el) => el.getBoundingClientRect().bottom)
@@ -214,7 +215,7 @@ async function analyzedAt(page: Page, mode: 'Show both chart and table' | 'Show 
   await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
-  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+  await expectRanked(page)
   await page.getByRole('button', { name: mode }).click()
   await page.waitForTimeout(600)
 }

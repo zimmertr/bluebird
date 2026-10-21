@@ -1,4 +1,4 @@
-import { test, expect, DESTINATION_NAMES, resultRows, isoDay } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, resultRows, isoDay } from './fixtures'
 import type { Locator } from '@playwright/test'
 
 // A result popup is built from the report it opened over, so a new report
@@ -22,7 +22,8 @@ test('a popup clears the forecast player, and the next analysis closes it', asyn
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const analyze = page.getByRole('button', { name: 'Analyze' })
   await analyze.click()
-  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+  // A pending row's centring opens no card, so not before the row is ranked.
+  await expectRanked(page)
   // Table alone, which leaves the map the height a desktop reader works at.
   await page.getByRole('button', { name: 'Show table only' }).click()
 
@@ -57,7 +58,7 @@ test('an open popup marks whichever number the panel ranks by', async ({ page })
   await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
-  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+  await expectRanked(page)
   await page.getByRole('button', { name: /^Center map on / }).first().click()
   const popup = page.locator('.maplibregl-popup')
   await expect(popup).toHaveCount(1)

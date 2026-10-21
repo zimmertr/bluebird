@@ -1,4 +1,4 @@
-import { test, expect, resultRows, DESTINATION_NAMES, isoDay } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, isoDay } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // Every menu at a desk is the one menu (#714, record 0201): a card 4px under
@@ -50,7 +50,9 @@ async function analyzed(page: Page, query = '') {
   await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55${query}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
-  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+  // A row is removed and the results bar measured, so not before the
+  // ranking lands.
+  await expectRanked(page)
 }
 
 test('the Layers chip and the results bar open their menus under themselves, lit', async ({ page }) => {
