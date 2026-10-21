@@ -27,14 +27,12 @@ import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { NOUN, familyOf } from '../metrics'
 import { hourlyScale, rankedScale } from '../utils/colors'
 import {
-  NO_LINE,
   TRANSPORT_GAP_PX,
   fabBottomPx,
-  noticeBottomPx,
+  phoneCornerLiftPx,
   phoneFootLiftPx,
   transportFits,
   transportStandPx,
-  type PhoneLine,
 } from '../utils/resultsSheet'
 import type { Place } from '../utils/geocode'
 import { fieldHasValue } from '../utils/present'
@@ -205,16 +203,16 @@ export default function MapStage({
   const [locateSlot, setLocateSlot] = useState<HTMLDivElement | null>(null)
   // The compass's, under it at a phone's chip row's end (record 0147).
   const [compassSlot, setCompassSlot] = useState<HTMLDivElement | null>(null)
-  // The map's corner (`MapCorner`, record 0174): at a desk the compass, the
-  // locate button, the zoom pair, the credit line and the scale; on a phone
-  // the credit line and the scale.
+  // A desk's corner (`MapCorner`, record 0174), which stands the compass, the
+  // locate button, the zoom pair, the credit line and the scale.
   const [cornerSlots, setCornerSlots] = useState<CornerSlots | null>(null)
-  // A phone's credit line, which the notice band and, while its credits are
-  // open, the Analyze button stand over (`MapCorner` measures it).
-  const [line, setLine] = useState<PhoneLine>(NO_LINE)
   // The height of the phone's notice band, which the Analyze button rises
   // above (`PhoneFoot` measures it), 0 while it holds nothing.
   const [bandPx, setBandPx] = useState(0)
+  // The Analyze button's width, which a phone's opened credit line stops
+  // short of (`--map-fab-w`, read by map.css); `PhoneFoot` measures it,
+  // since it is the wider word's in whatever face the phone draws.
+  const [fabPx, setFabPx] = useState(0)
   const smokeId = useId()
   const { registerPlace, removeResult } = removals
   const { removePlace } = destinationInputs
@@ -275,11 +273,8 @@ export default function MapStage({
   // sheet, stepping off while a sheet dragged high leaves it no room. The
   // sheet is whichever stands higher, the results or the Controls sheet
   // (record 0141), so the one Analyze is on the edge of the sheet in view.
-  // The credit line stands on that edge too (record 0174): the band stands
-  // over it, and so does the button while its credits are open.
   const footLift = isDesktop ? layout.sheetLiftPx : phoneFootLiftPx(layout.sheetLiftPx, sidebarOpen ? controlsPx : null)
-  const phoneLine = isDesktop ? NO_LINE : line
-  const fabBottom = fabBottomPx(footLift, bandPx, layout.mapPx, phoneLine)
+  const fabBottom = fabBottomPx(footLift, bandPx, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
   // Legend and Layers are chips in the row under the search pill at both
@@ -317,17 +312,16 @@ export default function MapStage({
         : LAYOUT_HOLD.rest
 
   return (
-    // `--map-corner-lift` and `--map-corner-band` are read by the map's
-    // corner (`MAP_CORNER`) and map.css: how far the credit line and the
-    // scale rise off the container's bottom edge, and the height of the band
-    // the library's own corners centre a control in while no corner holds
-    // it. Both have a reason to rise: the attribution is a licence term that
-    // cannot be covered by the phone sheet, and the scale bar reads against
-    // the map rather than against the sheet. One number for the corner
-    // rather than an offset per control, derived beside every other anchor
-    // in `resultsSheet.ts`. The map area keeps the whole column, so the
-    // canvas runs on behind the sheet and its ResizeObserver sees no change
-    // on a drag.
+    // `--map-corner-lift` and `--map-corner-band` are read by map.css:
+    // how far MapLibre's own bottom controls rise off the container's
+    // bottom edge, and the height of the band they are centred in. Both
+    // controls have a reason to rise: the attribution is a licence term
+    // that cannot be covered by the phone sheet, and the scale bar reads
+    // against the map rather than against the forecast player centred over
+    // the same edge. One number for the corner rather than an offset per
+    // control, derived beside every other anchor in `resultsSheet.ts`. The
+    // map area keeps the whole column, so the canvas runs on behind the
+    // sheet and its ResizeObserver sees no change on a drag.
     <div
       // On a phone the library's stack, the compass alone there, starts under
       // the app's two rows, and under the draw bar while a ring is drawn.
@@ -336,10 +330,11 @@ export default function MapStage({
       } ${layoutMotion ? LAYOUT_HOLD.clip : ''}`}
       style={
         {
-          // A desk's line stands on the results' edge, a phone's on the
-          // edge of whichever sheet stands higher (record 0174).
-          '--map-corner-lift': `${isDesktop ? layout.mapCornerLift : footLift}px`,
+          // A phone's scale and (i) stand on the Analyze button's row
+          // (record 0140), a desk's on the results' edge.
+          '--map-corner-lift': `${isDesktop ? layout.mapCornerLift : phoneCornerLiftPx(fabBottom)}px`,
           '--map-corner-band': `${TRANSPORT_GAP_PX}px`,
+          ...(isDesktop ? {} : { '--map-fab-w': `${fabPx}px` }),
         } as React.CSSProperties
       }
     >
@@ -411,20 +406,19 @@ export default function MapStage({
         legend={legendChip}
       />
       {/* A desk's map buttons, credit line and scale, in the map's
-          bottom-right corner, or a phone's credit line and scale in its
-          bottom-left corner (record 0174). Keyed by width, so a width change
-          builds the other corner and hands the map its slots afresh. */}
-      <MapCorner key={isDesktop ? 'desk' : 'phone'} phone={!isDesktop} onSlots={setCornerSlots} onLine={setLine} />
+          bottom-right corner (record 0174). */}
+      {isDesktop && <MapCorner onSlots={setCornerSlots} />}
       {/* The foot of a phone's map: the band the panel's notice block
           stands in while the drawer is shut (record 0140), which
           `PanelFooter` portals the one block it renders into, and the
           Analyze button (record 0135). */}
       {!isDesktop && (
         <PhoneFoot
-          bandBottomPx={noticeBottomPx(footLift, phoneLine.px)}
+          liftPx={footLift}
           fabBottomPx={fabBottom}
           onNoticeBand={onNoticeBand}
           onBandPx={setBandPx}
+          onFabPx={setFabPx}
           analyzeEnabled={analyzeEnabled}
           word={actionWord}
           onAnalyze={onAnalyze}

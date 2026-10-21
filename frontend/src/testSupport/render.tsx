@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react'
 import { render as renderDom, type RenderOptions } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { vi } from 'vitest'
 
 // What every component test starts from: the rendered tree and a user to drive
 // it. One helper so that every suite drives the page the same way, and a change
@@ -43,26 +42,4 @@ export function placeAt(el: Element, { left, top, width, height }: Box): void {
     bottom: top + height,
   }
   el.getBoundingClientRect = () => ({ ...rect, toJSON: () => rect }) as DOMRect
-}
-
-/**
- * Stand in for `ResizeObserver`, which jsdom lacks, and hand back a call that
- * fires every observer started since, at once. A component that measures
- * itself reports on the fire, after `placeAt` has moved the boxes it reads.
- * The caller unstubs it (`vi.unstubAllGlobals`) in an `afterEach`, so a failed
- * assertion cannot leave it behind.
- */
-export function stubResizeObserver(): () => void {
-  const callbacks: (() => void)[] = []
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      constructor(cb: () => void) {
-        callbacks.push(cb)
-      }
-      observe() {}
-      disconnect() {}
-    },
-  )
-  return () => callbacks.forEach((cb) => cb())
 }
