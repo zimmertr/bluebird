@@ -12,6 +12,7 @@ from app.services.errors import (
     is_invalid_api_key,
     is_out_of_domain,
     log_reason,
+    parse_rate_limit,
     retry_after_seconds,
 )
 
@@ -33,6 +34,19 @@ def test_rate_limit_429():
     # A 429 that gives no reason has no scope to name.
     msg = classify_http_error(status_error(429, {}), PROVIDER)
     assert msg == f"{PROVIDER} is rate-limiting. Try again later."
+
+
+def test_too_many_open_requests_is_its_own_scope():
+    # Open-Meteo's answer to a sixth open request from one address on one host
+    # (measured 2026-10-21, record 0203). It names no quota, so it must not
+    # read as one, and it is waited out a second whatever a header says.
+    refusal = status_error(429, {"error": True, "reason": "Too many concurrent requests"})
+    assert parse_rate_limit(refusal) == ("concurrency", 1)
+    with_header = status_error(
+        429, {"reason": "Too many concurrent requests"}, headers={"Retry-After": "30"}
+    )
+    assert parse_rate_limit(with_header) == ("concurrency", 1)
+    assert classify_http_error(refusal, PROVIDER) == f"{PROVIDER} is rate-limiting. Try again later."
 
 
 @pytest.mark.parametrize("code", [401, 403])

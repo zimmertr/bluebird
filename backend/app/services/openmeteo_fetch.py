@@ -31,6 +31,7 @@ from app import ratelimit, telemetry
 from app.log_redaction import KEY_IN_QUERY, REDACTED
 from app.services import cache, http
 from app.services.errors import (
+    CONCURRENCY_WAIT_S,
     InvalidApiKeyError,
     UpstreamError,
     UpstreamRateLimited,
@@ -199,6 +200,12 @@ async def fetch_batched(
     429. The wait happens here rather than in the service because the batch
     must give up its in-flight slot while it waits and pay its weight again
     before it asks again, and both belong to this loop.
+
+    A concurrency 429 is resumed on every service, whatever `resume_minutely`
+    says: Open-Meteo refuses a request past the five one address holds open on
+    one host before counting it (record 0203), so it costs nothing and says
+    nothing about quota. The batch waits a second outside its slot and asks
+    once more without booking its weight again.
     """
     # Serve repeats from the per-location cache first, then fetch only the
     # misses. A repeat Analyze on the same polygon and window costs zero
@@ -253,11 +260,12 @@ async def fetch_batched(
                     await pacing.on_pace(int(estimate) + 1)
             await pacing.budget.acquire(weight)
 
-    async def attempt(chunk: list[dict[str, Any]]) -> list[dict[str, Any] | None]:
+    async def attempt(chunk: list[dict[str, Any]], *, pay: bool = True) -> list[dict[str, Any] | None]:
         # The pod's weighted spend first, then a pod-wide in-flight slot. The
         # weight acquire happens BEFORE the in-flight slot so a pace sleep
         # never holds a slot another analysis could be using.
-        await spend(chunk)
+        if pay:
+            await spend(chunk)
         async with slots.slot():
             return await fetch_chunk(chunk)
 
@@ -273,6 +281,7 @@ async def fetch_batched(
                 unanswered.add(index)
                 return index, [None] * len(chunk)
             try:
+                pay_again = True
                 try:
                     return index, await attempt(chunk)
                 except UpstreamRateLimited as exc:
@@ -284,16 +293,22 @@ async def fetch_batched(
                     # The wait runs outside the in-flight slot, which `attempt`
                     # has already released, and the retry pays its weight
                     # again, because the provider bills the request it repeats.
-                    if not resume_minutely or exc.scope != "minutely":
+                    # A concurrency 429 was never billed, so its retry books
+                    # nothing, and it is resumed on every service.
+                    if exc.scope == "concurrency":
+                        wait, pay_again = CONCURRENCY_WAIT_S, False
+                        log.warning("%s refused for too many open requests; resuming batch in %ds", label, wait)
+                    elif resume_minutely and exc.scope == "minutely":
+                        wait = min(exc.retry_after_s, _RESUME_MAX_WAIT_S)
+                        log.warning(
+                            "%s minutely quota hit; resuming batch in %ds", label, wait
+                        )
+                    else:
                         raise
-                    wait = min(exc.retry_after_s, _RESUME_MAX_WAIT_S)
-                    log.warning(
-                        "%s minutely quota hit; resuming batch in %ds", label, wait
-                    )
                     await asyncio.sleep(wait)
-                # The one resume. A second 429 on the same batch is real
-                # exhaustion and raises from here, minutely or not.
-                return index, await attempt(chunk)
+                # The one resume. A second 429 on the same batch raises from
+                # here, whatever its scope.
+                return index, await attempt(chunk, pay=pay_again)
             except ratelimit.BudgetExhausted:
                 # Wedged, not merely busy. Raising fails the analysis with a
                 # 503; degrading loses this batch and keeps the rest.

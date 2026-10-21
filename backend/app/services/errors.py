@@ -27,7 +27,9 @@ class UpstreamRateLimited(UpstreamError):
     Distinct from a generic :class:`UpstreamError` because the right reaction
     differs by ``scope``: a minutely quota refills within the minute (pace and
     retry), while an hourly or daily quota makes retrying pointless until its
-    boundary. ``retry_after_s`` is the provider's Retry-After when sent, else a
+    boundary. ``concurrency`` names no quota at all: the request was refused
+    before it was counted, and a slot opens as soon as an open request answers.
+    ``retry_after_s`` is the provider's Retry-After when sent, else a
     scope-derived floor.
     """
 
@@ -40,7 +42,7 @@ class UpstreamRateLimited(UpstreamError):
     ) -> None:
         super().__init__(message)
         self.provider = provider
-        self.scope = scope  # "minutely" | "hourly" | "daily" | None
+        self.scope = scope  # "minutely" | "hourly" | "daily" | "monthly" | "concurrency" | None
         self.retry_after_s = retry_after_s
 
 
@@ -137,6 +139,13 @@ class PartialResultError(RuntimeError):
 # whether an automatic resume can help.
 _SCOPE_WORDS = re.compile(r"\b(minutely|hourly|daily|monthly)\b", re.IGNORECASE)
 
+# The one Open-Meteo 429 that names no quota: a request past the five one
+# address may hold open on one host (measured 2026-10-21, record 0203). It
+# arrives with no Retry-After, and Open-Meteo refuses it before counting it, so
+# it waits a second, for one of the five to answer, whatever a header says.
+_CONCURRENCY_REASON = re.compile(r"too many concurrent requests", re.IGNORECASE)
+CONCURRENCY_WAIT_S = 1
+
 # Without a Retry-After header the true reset moment is unknowable (the quota
 # windows are the provider's, not ours), so each scope gets a conservative
 # floor: long enough that a retry after it has a real chance, short enough not
@@ -192,6 +201,8 @@ def parse_rate_limit(exc: httpx.HTTPStatusError) -> tuple[str | None, int]:
     match = _SCOPE_WORDS.search(reason)
     if match:
         scope = match.group(1).lower()
+    elif _CONCURRENCY_REASON.search(reason):
+        return "concurrency", CONCURRENCY_WAIT_S
 
     sent = retry_after_header(exc.response)
     if sent is not None:
