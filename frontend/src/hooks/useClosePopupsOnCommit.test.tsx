@@ -10,9 +10,9 @@ function mapRef() {
 }
 
 describe('useClosePopupsOnCommit', () => {
-  it('closes nothing before the first report', () => {
+  it('closes nothing before a report or a discard', () => {
     const { ref, closePopups } = mapRef()
-    renderHook(() => useClosePopupsOnCommit(0, ref))
+    renderHook(() => useClosePopupsOnCommit(0, ref, 0))
     expect(closePopups).not.toHaveBeenCalled()
   })
 
@@ -42,12 +42,6 @@ describe('useClosePopupsOnCommit', () => {
     expect(closePopups).toHaveBeenCalledTimes(2)
     rerender(1)
     expect(closePopups).toHaveBeenCalledTimes(2)
-  })
-
-  it('closes nothing before a report or a discard', () => {
-    const { ref, closePopups } = mapRef()
-    renderHook(() => useClosePopupsOnCommit(0, ref, 0))
-    expect(closePopups).not.toHaveBeenCalled()
   })
 
   it('survives a map that has not mounted', () => {

@@ -13,40 +13,20 @@ import {
   reachKmFor,
   gridImageCoordinates,
   pairCells,
-  type GridSpec,
 } from './forecastGridLattice'
 import { NO_VALUE, fillColor } from './resultFeatures'
 import type { AqiResult, CloudResult, WeatherResult } from './openMeteo'
-import { forecastModel, gridRow, weatherResult } from '../testSupport/fixtures'
-
-// A field of destinations, as coordinates — the only part of a result the
-// lattice reads.
-function field(...points: [number, number][]) {
-  return points.map(([latitude, longitude]) => ({ latitude, longitude }))
-}
-
-// Rainier and Adams: ~80 km apart, which is the everyday polygon this feature
-// was designed around.
-const CASCADES = field([46.8523, -121.7603], [46.2024, -121.4909])
-
-// A filled mesh of destinations, the shape a polygon analysis produces: the
-// reach disks overlap into one solid blob, which is what the dense-lattice
-// tests need now that two corner points alone grid as two separate patches.
-function mesh(
-  latLo: number,
-  latHi: number,
-  lonLo: number,
-  lonHi: number,
-  step: number,
-): { latitude: number; longitude: number }[] {
-  const out: { latitude: number; longitude: number }[] = []
-  for (let la = latLo; la <= latHi + 1e-9; la += step) {
-    for (let lo = lonLo; lo <= lonHi + 1e-9; lo += step) {
-      out.push({ latitude: la, longitude: lo })
-    }
-  }
-  return out
-}
+import {
+  CASCADES,
+  fetchedSeries,
+  field,
+  forecastModel,
+  gridCell,
+  gridRow,
+  gridSpec,
+  mesh,
+  weatherResult,
+} from '../testSupport/fixtures'
 
 describe('buildGrid', () => {
   it('covers the field with cells at the model pitch', () => {
@@ -117,39 +97,44 @@ describe('buildGrid', () => {
     }
   })
 
-  it('keeps every cell within reach of some destination, and reaches all of it', () => {
-    // The default reach pinned: a lone destination's cells are a disk —
-    // nothing past the reach, and the disk genuinely extends toward it rather
+  // A lone destination's cells are a disk, measured from it in km.
+  const dest = { latitude: 46.8, longitude: -121.8 }
+  const cos = Math.cos((dest.latitude * Math.PI) / 180)
+  const km = (p: { latitude: number; longitude: number }) => {
+    const dy = (p.latitude - dest.latitude) * 111.32
+    const dx = (p.longitude - dest.longitude) * 111.32 * cos
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+  const defaultReach = reachKmFor(3, GRID_REACH_DEFAULT_FRAC)
+
+  it("keeps a lone destination's cells inside the default reach", () => {
+    // Nothing past the reach, and the disk genuinely extends toward it rather
     // than stopping at the old one-pitch padding. The default is the bar's
     // middle — 2.5 model pitches, 7.5 km at a 3 km pitch.
-    const dest = { latitude: 46.8, longitude: -121.8 }
     const spec = buildGrid([dest], 3)!
-    const cos = Math.cos((dest.latitude * Math.PI) / 180)
-    const km = (p: { latitude: number; longitude: number }) => {
-      const dy = (p.latitude - dest.latitude) * 111.32
-      const dx = (p.longitude - dest.longitude) * 111.32 * cos
-      return Math.sqrt(dx * dx + dy * dy)
-    }
-    const defaultReach = reachKmFor(3, GRID_REACH_DEFAULT_FRAC)
     expect(defaultReach).toBeCloseTo(7.5, 10)
     const distances = spec.points.map(km)
     expect(Math.max(...distances)).toBeLessThanOrEqual(defaultReach + 1e-6)
     expect(Math.max(...distances)).toBeGreaterThan(defaultReach * 0.5)
+  })
 
-    // The coverage slider's value overrides the default, both directions.
+  it('follows the coverage slider', () => {
     const maxReach = reachKmFor(3, 1)
-    const wide = buildGrid([dest], 3, maxReach)!
-    const wideMax = Math.max(...wide.points.map(km))
+    const wideMax = Math.max(...buildGrid([dest], 3, maxReach)!.points.map(km))
     expect(wideMax).toBeLessThanOrEqual(maxReach + 1e-6)
     expect(wideMax).toBeGreaterThan(defaultReach)
-    // The one-pitch floor still binds under a small slider value: even at
-    // zero, a destination keeps its own cell and some neighbours.
+  })
+
+  it('keeps the one-pitch floor at zero reach', () => {
+    // Even at zero, a destination keeps its own cell and some neighbours.
     const floored = buildGrid([dest], 13, 0)!
     expect(floored.points.length).toBeGreaterThan(1)
     expect(Math.max(...floored.points.map(km))).toBeLessThanOrEqual(13 + 1e-6)
+  })
 
-    // And the fetched distances ride the spec, one per kept cell, so a
-    // smaller reach can re-cut the same lattice without rebuilding it.
+  it('carries one fetched distance per kept cell', () => {
+    // So a smaller reach can re-cut the same lattice without rebuilding it.
+    const wide = buildGrid([dest], 3, reachKmFor(3, 1))!
     expect(wide.distancesKm).toHaveLength(wide.points.length)
     wide.distancesKm.forEach((d, i) => expect(d).toBeCloseTo(km(wide.points[i]), 6))
   })
@@ -159,13 +144,8 @@ describe('buildGrid', () => {
     // lattice geometry and the pitch stay the fetched lattice's, only the
     // kept subset narrows — which is what makes the picture follow the thumb
     // with no fetch behind it.
-    const dest = { latitude: 46.8, longitude: -121.8 }
     const spec = buildGrid([dest], 3, reachKmFor(3, 1))!
-    const cells = spec.points.map((_, i) => ({
-      index: spec.indices[i],
-      box: spec.cells[i],
-      row: gridRow(),
-    }))
+    const cells = spec.points.map((_, i) => gridCell(spec.cells[i], gridRow(), spec.indices[i]))
 
     const view = gridView(spec, cells, 4)
     expect(view.spec.cols).toBe(spec.cols)
@@ -309,7 +289,7 @@ describe('gridAllowed', () => {
 })
 
 describe('pairCells', () => {
-  const spec: GridSpec = {
+  const spec = gridSpec({
     points: [
       { latitude: 46.4, longitude: -121.7 },
       { latitude: 46.5, longitude: -121.7 },
@@ -317,17 +297,11 @@ describe('pairCells', () => {
     cells: [
       [-121.8, 46.3, -121.6, 46.5],
       [-121.8, 46.5, -121.6, 46.7],
-    ] as [number, number, number, number][],
+    ],
     indices: [0, 1],
     distancesKm: [0, 0],
-    cols: 1,
     rows: 2,
-    west: -121.8,
-    south: 46.3,
-    latStep: 0.2,
-    lonStep: 0.2,
-    pitchKm: 13,
-  }
+  })
 
   // A sample that publishes a freezing level, because the case below measures
   // its absence against this one.
@@ -343,7 +317,7 @@ describe('pairCells', () => {
       freeze_min_ft: 9000,
       freeze_max_ft: 9500,
       freeze_avg_ft: 9250,
-      series: {
+      series: fetchedSeries({
         times: [1000, 2000],
         precip_in: precip,
         temp_f: [40, 60],
@@ -351,7 +325,7 @@ describe('pairCells', () => {
         freeze_ft: [9000, 9500],
         snowfall_in: [0, 0],
         wind_dir_deg: [90, 270],
-      },
+      }),
     })
 
   const noAqi: AqiResult[] = [null, null]

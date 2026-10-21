@@ -17,5 +17,9 @@ frontend/tools/
 # The browser suite runs against the built image from outside it.
 frontend/e2e/
 frontend/dist/
+frontend/coverage/
+backend/htmlcov/
+backend/.coverage
+backend/coverage.json
 __pycache__/
 *.pyc

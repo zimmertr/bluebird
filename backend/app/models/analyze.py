@@ -21,6 +21,7 @@ from app.limits import (
     MIN_LIMIT,
     PAST_LIMIT_SLACK_DAYS,
     _as_utc,
+    floor_hour,
 )
 from app.models.common import (
     _RESPONSE_CONFIG,
@@ -378,7 +379,7 @@ class AnalyzeRequest(_DiscoveryFields):
         # ordering guard — means the rest of the pipeline only ever sees an
         # ordinary ordered window.
         if start == end:
-            start = start.replace(minute=0, second=0, microsecond=0)
+            start = floor_hour(start)
             end = start + timedelta(minutes=1)
             self.start_datetime = start
             self.end_datetime = end

@@ -37,7 +37,7 @@ export interface TileRef {
   y: number
 }
 
-export const tileKey = (t: TileRef) => `${t.z}/${t.x}/${t.y}`
+const tileKey = (t: TileRef) => `${t.z}/${t.x}/${t.y}`
 
 /** One tile's bytes, or null when it could not be read. */
 export type FetchTile = (tile: TileRef) => Promise<Uint8Array | null>
@@ -48,7 +48,7 @@ export const FALLBACK_TILE_TEMPLATE = 'https://tiles.openfreemap.org/planet/late
 // A tile the edge serves answers in well under a second (135 zoom-14 tiles
 // took 0.2 to 0.7 s together on 2026-10-07), so one not back in this long is
 // a host that is not answering, and the card keeps its depth word.
-export const TILE_DEADLINE_MS = 5_000
+const TILE_DEADLINE_MS = 5_000
 
 let templatePromise: Promise<string> | null = null
 
@@ -144,7 +144,7 @@ function tileUnits(lng: number, lat: number, z: number): [number, number] {
 }
 
 /** The cell around a point, as its west-north and east-south corners in tile units. */
-export function cellBox(lng: number, lat: number, z = GLACIER_TILE_ZOOM) {
+function cellBox(lng: number, lat: number, z = GLACIER_TILE_ZOOM) {
   const half = SNOW_CELL_DEG / 2
   const [x0, y0] = tileUnits(lng - half, lat + half, z)
   const [x1, y1] = tileUnits(lng + half, lat - half, z)
@@ -187,7 +187,7 @@ function crosses(p: P, q: P, r: P, s: P): boolean {
  * the polygon, a vertex of the polygon inside the box, or an edge of one
  * crossing an edge of the other. A hole counts as outside.
  */
-export function boxTouches({ x0, y0, x1, y1 }: ReturnType<typeof cellBox>, rings: Rings): boolean {
+function boxTouches({ x0, y0, x1, y1 }: ReturnType<typeof cellBox>, rings: Rings): boolean {
   const corners: P[] = [
     [x0, y0],
     [x1, y0],

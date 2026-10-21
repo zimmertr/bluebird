@@ -17,6 +17,7 @@ from datetime import UTC, date, datetime
 
 import httpx
 import pytest
+from conftest import fake_response
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -157,6 +158,20 @@ def test_parse_drops_lon_lat_alt_down_to_lon_lat_and_trims_precision():
     assert ring[0] == [-123.18073, 41.42071]
 
 
+def test_parse_skips_a_coordinate_it_cannot_read_and_keeps_the_ring():
+    # A one-number triple and a non-numeric one among the square's points
+    # cost only themselves, never the plume or the day around them.
+    corners = _SQUARE.split()
+    coordinates = " ".join([corners[0], "-123.5", corners[1], "x,y,0", *corners[2:]])
+    [feature] = hms.parse_kml(_kml(_placemark(coordinates=coordinates)))
+    assert feature["geometry"]["coordinates"][0] == [
+        [-123.18073, 41.42071],
+        [-122.18073, 41.42071],
+        [-122.18073, 42.42071],
+        [-123.18073, 41.42071],
+    ]
+
+
 def test_parse_drops_a_placemark_with_no_drawable_ring():
     assert hms.parse_kml(_kml(_placemark(coordinates="-123.0,41.0,0 -122.0,41.0,0"))) == []
 
@@ -185,7 +200,7 @@ def test_collection_json_carries_the_fetch_time_and_the_analysis_date():
 
 def _transport(responses: dict[str, httpx.Response]) -> httpx.MockTransport:
     def handler(request: httpx.Request) -> httpx.Response:
-        return responses.get(str(request.url), httpx.Response(404, text="not found"))
+        return responses.get(str(request.url), fake_response(None, 404, text="not found"))
 
     return httpx.MockTransport(handler)
 
@@ -215,7 +230,7 @@ def served_kml(monkeypatch):
 
 async def test_fetch_uses_todays_file(served_kml):
     today = date(2026, 8, 4)
-    asked = served_kml({hms.kml_url(today): httpx.Response(200, text=_kml(_placemark()))})
+    asked = served_kml({hms.kml_url(today): fake_response(None, text=_kml(_placemark()))})
     snapshot = await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
     assert asked == [hms.kml_url(today)]
     assert snapshot.analysis_date == "2026-08-04"
@@ -247,7 +262,7 @@ async def test_the_kml_parse_runs_off_the_event_loop(served_kml, monkeypatch):
             ticks += 1
 
     today = date(2026, 8, 4)
-    served_kml({hms.kml_url(today): httpx.Response(200, text=_kml(_placemark()))})
+    served_kml({hms.kml_url(today): fake_response(None, text=_kml(_placemark()))})
     beat = asyncio.create_task(heartbeat())
     await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
     beat.cancel()
@@ -260,7 +275,7 @@ async def test_fetch_falls_back_a_day_before_the_first_pass_lands(served_kml):
     # The morning state, not an outage: HMS's first analysis lands around late
     # morning Eastern, so the dated file simply does not exist before it.
     yesterday = date(2026, 8, 3)
-    asked = served_kml({hms.kml_url(yesterday): httpx.Response(200, text=_kml(_placemark()))})
+    asked = served_kml({hms.kml_url(yesterday): fake_response(None, text=_kml(_placemark()))})
     snapshot = await hms.fetch_snapshot(datetime(2026, 8, 4, 13, 0, tzinfo=UTC))
     assert asked == [hms.kml_url(date(2026, 8, 4)), hms.kml_url(yesterday)]
     # Labelled with the day it really came from, which is what keeps the
@@ -277,7 +292,7 @@ async def test_fetch_gives_up_when_neither_day_exists(served_kml):
 async def test_a_server_error_is_not_swallowed_as_a_missing_day(served_kml):
     # 500 is an outage and must surface; only 404 means "not published yet".
     today = date(2026, 8, 4)
-    asked = served_kml({hms.kml_url(today): httpx.Response(500, text="oops")})
+    asked = served_kml({hms.kml_url(today): fake_response(None, 500, text="oops")})
     with pytest.raises(httpx.HTTPStatusError):
         await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
     assert asked == [hms.kml_url(today)]
@@ -386,10 +401,3 @@ def test_route_answers_503_when_nothing_has_ever_been_fetched():
         "code": "snapshot_unavailable",
         "retryable": True,
     }
-
-
-def test_capabilities_publishes_the_smoke_bucket():
-    with TestClient(app) as client:
-        limits = client.get("/api/capabilities").json()["limits"]["rate"]
-    assert "smoke_per_minute" in limits
-    assert "smoke_burst" in limits

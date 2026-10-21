@@ -32,6 +32,9 @@
  * stops existing.
  */
 
+import { clamp } from './numbers'
+import { DAY_MS } from './forecastWindow'
+
 export type TimelineAxis = 'radar' | 'forecast'
 
 /**
@@ -69,7 +72,7 @@ export function nextFrame(index: number, count: number): number {
 /** Hold an index inside an axis that may have changed length under it. */
 export function clampIndex(index: number, count: number): number {
   if (count <= 0) return 0
-  return Math.max(0, Math.min(count - 1, index))
+  return clamp(index, 0, count - 1)
 }
 
 /**
@@ -226,7 +229,7 @@ export function forecastScaleMarks(times: readonly number[]): ScaleMark[] {
   return picked.map((i) => ({ label: label(times[i]), at: at(i) }))
 }
 
-const WEEK_MS = 7 * 24 * 3_600_000
+const WEEK_MS = 7 * DAY_MS
 
 /** A scale mark: the day alone, since the readout above carries the hour. */
 export function forecastDayLabel(ms: number): string {

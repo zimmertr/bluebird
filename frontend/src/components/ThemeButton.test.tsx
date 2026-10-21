@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import ThemeButton from './ThemeButton'
+import { IconMoon, IconSun } from './icons'
 import { render } from '../testSupport/render'
 import { useTheme } from '../hooks/useTheme'
 import { THEME_KEY } from '../utils/viewPrefs'
@@ -20,15 +21,20 @@ describe('ThemeButton (#706)', () => {
     delete document.documentElement.dataset.theme
   })
 
-  // The glyph and the name are both the theme a press goes to.
+  // The glyph and the name are both the theme a press goes to. The glyph is
+  // compared with each icon drawn on its own, so a redrawn sun or moon still
+  // passes and an inverted pair does not.
   it('offers light with a sun while dark, and dark with a moon while light', () => {
+    const sun = render(<IconSun />).container.firstElementChild!
+    const moon = render(<IconMoon />).container.firstElementChild!
     const { rerender } = render(<ThemeButton theme="dark" onToggle={() => {}} />)
     let button = screen.getByRole('button', { name: 'Switch to light theme' })
-    expect(glyph(button).querySelector('circle')).not.toBeNull()
+    expect(glyph(button).isEqualNode(sun)).toBe(true)
+    expect(glyph(button).isEqualNode(moon)).toBe(false)
     rerender(<ThemeButton theme="light" onToggle={() => {}} />)
     button = screen.getByRole('button', { name: 'Switch to dark theme' })
-    expect(glyph(button).querySelector('circle')).toBeNull()
-    expect(glyph(button).querySelector('path')).not.toBeNull()
+    expect(glyph(button).isEqualNode(moon)).toBe(true)
+    expect(glyph(button).isEqualNode(sun)).toBe(false)
   })
 
   // A plain button whose name says what it does: not a pressed toggle, and

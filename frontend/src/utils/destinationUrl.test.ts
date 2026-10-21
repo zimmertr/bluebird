@@ -10,14 +10,10 @@ const blackPeak = {
 }
 
 describe('destinationUrl', () => {
-  it('links peaks to a Peakbagger radius search at the coordinates', () => {
+  it('links peaks to a Peakbagger radius search at the coordinates, even with an osm_id', () => {
     expect(destinationUrl(blackPeak)).toBe(
       'https://www.peakbagger.com/search.aspx?tid=R&lat=48.52570&lon=-120.75680'
     )
-  })
-
-  it('links peaks by coordinates even when an osm_id is present', () => {
-    expect(destinationUrl(blackPeak)).toContain('peakbagger.com')
   })
 
   it('links other OSM-sourced types to their exact OSM object', () => {

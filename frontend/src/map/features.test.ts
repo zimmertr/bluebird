@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('maplibre-gl', () => ({ Popup: class {}, addProtocol: vi.fn() }))
 
 import { mountFeatures } from './features'
-import { createMapController, type MapInputs } from './controller'
+import { createMapController } from './controller'
+import { mapInputs } from '../testSupport/fixtures'
 import { createPopupBoard } from './popups'
 import { RESULT_MARKER_LAYER } from './resultsLayer'
 import { POI_LAYERS } from '../utils/basemapPoi'
@@ -30,7 +31,7 @@ const STYLE_LAYERS = [
 
 function setup(drawing = false) {
   const stub = stubMap({ styleLayers: STYLE_LAYERS })
-  const controller = createMapController({ drawing, onCameraMove: vi.fn() } as unknown as MapInputs)
+  const controller = createMapController(mapInputs({ drawing, onCameraMove: vi.fn() }))
   const features = mountFeatures(stub.map, {
     controller,
     popups: createPopupBoard(),

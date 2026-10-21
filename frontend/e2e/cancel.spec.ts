@@ -1,15 +1,9 @@
-import { test, expect, redrawRing, DESTINATION_NAMES, resultRows } from './fixtures'
+import { test, expect, redrawRing, DESTINATION_NAMES, resultRows, isoDay, peak, destinationsAnswer } from './fixtures'
 import type { Page, Route } from '@playwright/test'
 
 // #560: a run that does not finish changes nothing. Ring A is analyzed, the
 // reader draws ring B away from it and cancels B's analysis, and the next
 // Analyze must search ring B rather than refresh ring A's field under B's name.
-
-function isoDay(offset: number): string {
-  const d = new Date()
-  d.setUTCDate(d.getUTCDate() + offset)
-  return d.toISOString().slice(0, 10)
-}
 
 // Ring A is a right triangle with its right angle at the south-east corner.
 // The link opens the camera on its middle at a zoom where it fills part of
@@ -67,18 +61,21 @@ async function ringBDiscovery(page: Page, count: number, holdFirst: boolean) {
     }
     const ring = body.polygon.coordinates[0]
     const [lon, lat] = ring[0]
-    const destinations = ringBNames(count).map((name, i) => ({
-      name,
-      type: 'peak',
-      latitude: Number((lat + 0.0005 * (i + 1)).toFixed(5)),
-      longitude: Number((lon + 0.0005 * ((i % 7) + 1)).toFixed(5)),
-      elevation_ft: 4000 + i,
-      osm_id: `node/${5000 + i}`,
-    }))
+    // Ids apart from ring A's node/1000 to node/1004, so no two rings' peaks
+    // share an identity.
+    const destinations = ringBNames(count).map((name, i) =>
+      peak({
+        name,
+        latitude: Number((lat + 0.0005 * (i + 1)).toFixed(5)),
+        longitude: Number((lon + 0.0005 * ((i % 7) + 1)).toFixed(5)),
+        elevation_ft: 4000 + i,
+        osm_id: `node/${5000 + i}`,
+      }),
+    )
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ destinations, total: destinations.length, total_found: null, truncated: false }),
+      body: JSON.stringify(destinationsAnswer(destinations)),
     })
   })
   return { release: () => held.splice(0).forEach((r) => r.abort().catch(() => {})) }

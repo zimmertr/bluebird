@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
 import PanelFooter from './PanelFooter'
 import type { FooterMessage } from '../utils/notices'
@@ -204,12 +204,20 @@ describe('PanelFooter', () => {
     }
   })
 
+  // The map's band, appended by hand, so its removal is registered with the
+  // test rather than left to a last line a failed assertion never reaches.
+  function mapBand(): HTMLDivElement {
+    const home = document.createElement('div')
+    document.body.appendChild(home)
+    onTestFinished(() => home.remove())
+    return home
+  }
+
   // On a phone the whole block stands in the band the map holds (#696;
   // record 0140), informing lines and action lines alike, and the Controls
   // sheet keeps none of it. At a desk it is one block under the button.
   it('sends the whole block to the home it is handed on a phone, and keeps none of it', () => {
-    const home = document.createElement('div')
-    document.body.appendChild(home)
+    const home = mapBand()
     const { container, rerender } = render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home, phone: true })} />)
     const regions = screen.getAllByRole('status')
     expect(regions).toHaveLength(1)
@@ -224,7 +232,6 @@ describe('PanelFooter', () => {
     expect(home.childElementCount).toBe(0)
     expect(screen.getAllByRole('status')).toHaveLength(1)
     expect(container.contains(screen.getByRole('status'))).toBe(true)
-    home.remove()
   })
 
   // The band mounts after the sheet on a phone's first frame; the block waits
@@ -248,8 +255,7 @@ describe('PanelFooter', () => {
 
   // A dismissal is the one ledger's wherever the block stands.
   it('dismisses a line on the map from the same ledger', () => {
-    const home = document.createElement('div')
-    document.body.appendChild(home)
+    const home = mapBand()
     render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home, phone: true })} />)
     expect(within(home).getByText('First warning.')).toBeTruthy()
     const dismiss = within(home)
@@ -257,6 +263,5 @@ describe('PanelFooter', () => {
       .find((b) => b.parentElement?.textContent?.includes('First warning.'))!
     fireEvent.click(dismiss)
     expect(within(home).queryByText('First warning.')).toBeNull()
-    home.remove()
   })
 })

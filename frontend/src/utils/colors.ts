@@ -1,6 +1,7 @@
 import { SortBy } from '../types'
 import { FAMILY_KEYS, MetricFamily, UNIT } from '../metrics'
 import type { Theme } from './viewPrefs'
+import { clamp } from './numbers'
 
 /**
  * A set of band boundaries and the colors they anchor.
@@ -432,7 +433,8 @@ export function scaleFor(key: string, pointSample: boolean): ColorScale | null {
   return scale
 }
 
-function hexToRgb(hex: string): [number, number, number] {
+/** A `#rrggbb` colour as its three channels, 0 to 255. */
+export function hexToRgb(hex: string): [number, number, number] {
   return [
     parseInt(hex.slice(1, 3), 16),
     parseInt(hex.slice(3, 5), 16),
@@ -441,7 +443,7 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 function lerp(a: number, b: number, t: number): number {
-  return Math.round(a + (b - a) * Math.max(0, Math.min(1, t)))
+  return Math.round(a + (b - a) * clamp(t, 0, 1))
 }
 
 function mix(

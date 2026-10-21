@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { type ReportCsvInputs, reportCsv } from './exportCsv'
 import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
+import { normalizeWindow } from './forecastWindow'
 import { geoKey } from './points'
 import {
   CLOSURE_COL,
@@ -68,10 +69,13 @@ describe('reportCsv', () => {
     expect(header(csv)).toContain(WILDFIRE_COL.label)
   })
 
-  it('writes the columns in the order on screen, with the Model column when it is drawn', () => {
+  it('writes the columns in the order on screen', () => {
     const [first, second] = COLUMNS
     const moved = header(reportCsv(inputs({ columnOrder: [second.key, first.key] })))
     expect(moved.indexOf(second.label)).toBeLessThan(moved.indexOf(first.label))
+  })
+
+  it('adds the Model column only when it is drawn', () => {
     expect(header(reportCsv(inputs()))).not.toContain(MODEL_COL.label)
     expect(header(reportCsv(inputs({ modelColumnOn: true })))).toContain(MODEL_COL.label)
   })
@@ -82,10 +86,12 @@ describe('reportCsv', () => {
     expect(csv).toContain('Probe Peak')
   })
 
-  // A Current analysis records start === end; the file writes the sampled hour.
-  it('names the analyzed window', () => {
-    const at = Date.UTC(2026, 6, 20, 6)
-    const csv = reportCsv(inputs({ window: { startMs: at, endMs: at + 12 * 3_600_000 } }))
-    expect(csv.split('\r\n').length).toBeGreaterThan(reportCsv(inputs()).split('\r\n').length)
+  // A Current analysis records start === end; the file writes the sampled
+  // hour. How the window line reads is buildResultsCsv's, and its own test's.
+  it('names the analyzed window, resolved as a fetch resolves it', () => {
+    const at = Date.UTC(2026, 6, 20, 6, 34)
+    const point = reportCsv(inputs({ window: { startMs: at, endMs: at } }))
+    expect(point).toBe(reportCsv(inputs({ window: normalizeWindow(at, at) })))
+    expect(point).not.toBe(reportCsv(inputs()))
   })
 })

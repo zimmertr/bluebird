@@ -1,7 +1,8 @@
 import { vi } from 'vitest'
-import { createMapController, type MapController, type MapInputs } from '../map/controller'
+import { createMapController, type MapController } from '../map/controller'
 import { mountMapPopups } from '../map/mapPopups'
 import { createPopupBoard } from '../map/popups'
+import { mapInputs } from './fixtures'
 import type { stubMap, StubFeature } from './stubMap'
 
 // The map's popup system, mounted for real on a stub map, for a module test
@@ -11,7 +12,7 @@ import type { stubMap, StubFeature } from './stubMap'
 // maplibre-gl's Popup as before, because this makes real ones.
 export function mountTestPopups(
   stub: ReturnType<typeof stubMap>,
-  controller: MapController = createMapController({ drawing: false } as MapInputs),
+  controller: MapController = createMapController(mapInputs()),
 ) {
   const addPoint = vi.fn()
   const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint })

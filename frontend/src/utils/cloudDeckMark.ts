@@ -15,6 +15,7 @@
 // depth ceiling's rule (record 0053) carried over.
 
 import { CLOUD_DECK_CEILING_FT, FT_TO_M, ISA_HEIGHT_M, roundHalfEven } from './openMeteoAggregate'
+import { grouped as groupDigits, isFiniteNumber } from './numbers'
 
 /**
  * The bottom of the walk in whole feet: the standard height of 1000 hPa, 364.
@@ -40,10 +41,10 @@ export const CLOUD_DECK_CEILING_SHOWN_FT = 30_000
  * the downloaded file and the chart's tooltip.
  */
 export function cloudDeckMark(value: unknown, grouped = true): string | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  if (!isFiniteNumber(value)) return null
   const whole = Math.round(value)
   if (whole >= CLOUD_DECK_CEILING_FT) {
-    const shown = grouped ? CLOUD_DECK_CEILING_SHOWN_FT.toLocaleString() : String(CLOUD_DECK_CEILING_SHOWN_FT)
+    const shown = grouped ? groupDigits(CLOUD_DECK_CEILING_SHOWN_FT) : String(CLOUD_DECK_CEILING_SHOWN_FT)
     return `≥${shown}`
   }
   if (whole === CLOUD_DECK_FLOOR_FT) return `≤${CLOUD_DECK_FLOOR_FT}`

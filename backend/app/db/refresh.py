@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from app import db, telemetry
+from app.services.errors import log_reason
 
 log = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ async def run_if_due(source: Source) -> bool:
             except Exception as exc:  # noqa: BLE001  a failed refresh is recorded, never raised
                 failures += 1
                 wait = backoff_s(failures)
-                message = str(exc) or type(exc).__name__
+                message = log_reason(exc)
                 log.warning(
                     "Refresh of %s failed (%s); next try in %.0f s", source.name, message, wait
                 )

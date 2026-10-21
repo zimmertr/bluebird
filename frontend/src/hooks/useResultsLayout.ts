@@ -11,6 +11,7 @@ import {
   splitChartTable,
 } from '../utils/layout'
 import {
+  DEFAULT_PANEL_HEIGHT,
   dockedMapFloorPx,
   draggedMapFloorPx,
   mapCornerLiftPx,
@@ -23,23 +24,8 @@ import { type ResultsMode, writeViewPrefs } from '../utils/viewPrefs'
 
 // Opening heights for the two docked panels, and where a double-click on a
 // resizer puts them back. A drag is easy to overshoot and there was no way
-// back short of dragging until it looked right again.
-/**
- * The chart and the table open at the same height, and at the height that
- * leaves the map its whole legend stack.
- *
- * One number for both, because they are two halves of one answer and an 8px
- * difference between them read as a mistake. The value is what Both mode can
- * spend on a 1000px-tall window: 1000 less the docked map floor
- * (`dockedMapFloorPx`, 541 with two grips) is 459, and two panels of 220 fit
- * inside it with the map a few pixels clear of its floor. They were 288 and
- * 280, chosen before the legend stack had a number, and at those heights the
- * bottom of the stack sat under the results bar on exactly this window.
- *
- * Shared with the phone, where the sheet's own floors take over; they are the
- * starting heights either way, and the reader's drag replaces them.
- */
-const DEFAULT_PANEL_HEIGHT = 220
+// back short of dragging until it looked right again. One number for both,
+// measured in `utils/resultsSheet.ts` against the docked map floor.
 const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT
 const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 
@@ -60,7 +46,7 @@ function useViewportHeight(): number {
 }
 
 /** What one resize grip is wired to. The shape `ResizeGrip` takes. */
-export interface GripHandlers {
+interface GripHandlers {
   onReset: () => void
   onDragStart: () => void
   onDrag: (up: number) => void

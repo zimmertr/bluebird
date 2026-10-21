@@ -13,7 +13,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import dest
+from conftest import dest, weather_metrics
 from fastapi import Request
 
 from app import limits, ratelimit
@@ -66,12 +66,7 @@ def _window(request: AnalyzeRequest) -> Window:
 
 
 def _wx(precip: float, wind_max: float = 9.0) -> dict:
-    return {
-        "precip_total_in": precip, "precip_avg_in_hr": precip,
-        "precip_min_in_hr": precip, "precip_max_in_hr": precip,
-        "temp_min_f": 40.0, "temp_max_f": 60.0, "temp_avg_f": 50.0,
-        "wind_min_mph": 1.0, "wind_max_mph": wind_max, "wind_avg_mph": 5.0,
-    }
+    return weather_metrics(precip, wind_max_mph=wind_max)
 
 
 def _row(name: str, precip: float) -> DestinationResult:

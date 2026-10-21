@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mountCamera } from './camera'
-import { createMapController, type MapInputs } from './controller'
+import { createMapController } from './controller'
+import { mapInputs } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
 
 function setup() {
   const stub = stubMap({ center: { lng: -121.5, lat: 47.25 }, zoom: 9.5 })
   const onCameraMove = vi.fn()
-  mountCamera(stub.map, { controller: createMapController({ onCameraMove } as unknown as MapInputs) })
+  mountCamera(stub.map, { controller: createMapController(mapInputs({ onCameraMove })) })
   return { stub, onCameraMove }
 }
 

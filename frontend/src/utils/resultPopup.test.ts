@@ -4,7 +4,6 @@ import { poiPopupHtml, POI_ACTION_ATTR } from './poiPopup'
 import { POPUP_BODY_ATTR, POPUP_TINT_ATTR } from './popupChrome'
 import { cellColor } from './resultsCells'
 import type { FireWarning } from './fireProximity'
-import type { DestinationResult } from '../types'
 import { FAMILY_KEYS, NOUN, SEP } from '../metrics'
 import {
   GRID_COMPACT_INSET_PX,
@@ -18,7 +17,7 @@ import {
   WARNING_COLOR,
 } from './popupChrome'
 import { displayedColumns } from './tableColumns'
-import { closureWarning, resultRow } from '../testSupport/fixtures'
+import { closureWarning, resultRow, series } from '../testSupport/fixtures'
 
 // Every aggregate is a different number so a test can tell which column a
 // value came from.
@@ -453,16 +452,16 @@ describe('resultPopupHtml links out', () => {
     Date.UTC(2026, 8, 16, 14),
     Date.UTC(2026, 8, 16, 15),
   ]
-  const series = {
+  const hourly = series({
     precip_in: [0, 0, 0.1, 0],
     temp_f: [30, 21, 38, 25],
     wind_mph: [4, 22, 9, 12],
     freeze_ft: [9900, 9880, 9843, 9900],
     aqi: [31, 44, 58, 35],
-  }
+  })
   const linked = {
     ...base,
-    row: { ...row, series } as DestinationResult,
+    row: resultRow({ ...row, series: hourly }),
     modelId: 'gfs_seamless',
     times: TIMES,
   }
@@ -490,8 +489,8 @@ describe('resultPopupHtml links out', () => {
   it('leaves an absent freezing level unlinked', () => {
     const bare = {
       ...linked,
-      row: { ...row, series, freeze_min_ft: null, freeze_max_ft: null, freeze_avg_ft: null },
-    } as typeof linked
+      row: resultRow({ ...row, series: hourly, freeze_min_ft: null, freeze_max_ft: null, freeze_avg_ft: null }),
+    }
     const html = resultPopupHtml(bare)
     expect(html).not.toContain('deg0')
     expect(html).toContain('N/A')

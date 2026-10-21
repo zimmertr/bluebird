@@ -13,7 +13,9 @@
 //
 // Every accessor is total. A storage that refuses to answer — private mode,
 // a full quota, a render with no `window` at all — yields the defaults rather
-// than throwing into a component's initializer.
+// than throwing into a component's initializer. The global is first read
+// inside each try, never in a guard before it: where site data is blocked,
+// reading `localStorage` throws, `typeof localStorage` included.
 import { FAMILY_KEYS } from '../metrics'
 import { CLOSURE_KEY, WILDFIRE_KEY } from './tableColumns'
 
@@ -75,7 +77,6 @@ export interface ViewPrefs {
 }
 
 function readStored(): StoredView {
-  if (typeof localStorage === 'undefined') return {}
   try {
     return (JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') ?? {}) as StoredView
   } catch {
@@ -167,7 +168,6 @@ export function readViewPrefs(): ViewPrefs {
  * is.
  */
 export function writeViewPrefs(patch: Partial<ViewPrefs>): void {
-  if (typeof localStorage === 'undefined') return
   try {
     const stored = readStored()
     if ('modeChosen' in patch) stored.modeChosen = patch.modeChosen ?? undefined
@@ -199,7 +199,6 @@ export function writeViewPrefs(patch: Partial<ViewPrefs>): void {
 
 /** Whether this browser has already dismissed the welcome modal. */
 export function hasWelcomed(): boolean {
-  if (typeof localStorage === 'undefined') return false
   try {
     return Boolean(localStorage.getItem(WELCOME_KEY))
   } catch {
@@ -209,7 +208,6 @@ export function hasWelcomed(): boolean {
 
 /** Record the dismissal, so the modal opens once per browser rather than per visit. */
 export function setWelcomed(): void {
-  if (typeof localStorage === 'undefined') return
   try {
     localStorage.setItem(WELCOME_KEY, '1')
   } catch {
@@ -223,7 +221,6 @@ export function setWelcomed(): void {
  * included, reads as the default.
  */
 export function readTheme(): Theme {
-  if (typeof localStorage === 'undefined') return 'dark'
   try {
     return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'
   } catch {
@@ -237,7 +234,6 @@ export function readTheme(): Theme {
  * of this key says.
  */
 export function writeTheme(theme: Theme): void {
-  if (typeof localStorage === 'undefined') return
   try {
     if (theme === 'light') localStorage.setItem(THEME_KEY, 'light')
     else localStorage.removeItem(THEME_KEY)

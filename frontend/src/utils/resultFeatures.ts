@@ -3,6 +3,7 @@ import { DestinationResult, SortBy } from '../types'
 import { colorOnScale, hourlyScale, markerColor } from './colors'
 import { valueAt } from './chartData'
 import { familyOf } from '../metrics'
+import { isFiniteNumber } from './numbers'
 
 // Sorting by AQI can hit rows with no AQI data (beyond its ~5-day horizon), and
 // scrubbing playback past that horizon hits the same gap an hour at a time.
@@ -62,7 +63,7 @@ export function fillColor(
  */
 export function bearingAt(row: DestinationResult, hourIndex: number): { bearing?: number } {
   const from = row.series?.wind_dir_deg?.[hourIndex]
-  if (from == null || !Number.isFinite(from)) return {}
+  if (!isFiniteNumber(from)) return {}
   return { bearing: (from + 180) % 360 }
 }
 

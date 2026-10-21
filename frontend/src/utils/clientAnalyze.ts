@@ -44,12 +44,12 @@ import {
 } from './openMeteo'
 import type { CloudSeries, HourlyPayload } from './openMeteoAggregate'
 import { nullsLast } from './sortResults'
+import { isAbort } from './abort'
 
 // The forecast bounds live in constraints.ts. They are re-exported here because
 // present.ts, the panel and the URL codec read them by this module's name.
 export {
   NO_CONSTRAINTS,
-  constraintFields,
   constraintsFromRequest,
   filterConstraints,
   hasConstraints,
@@ -84,7 +84,10 @@ export function analysisNoun(request: AnalyzeRequest): string {
 // Port of _cap_detail: the over-cap refusal states what is wrong, and
 // nothing else. It used to advise the remedies in play and quote the
 // computed elevation floor; TJ removed both (2026-08-22, #253's PR), and the
-// server's copy dropped them in the same change.
+// server's copy dropped them in the same change. The one number on screen
+// grouped in en-US rather than the reader's locale (`grouped`), because the
+// sentence mirrors the server's `f'{n:,}'` (mirror row 18) and the two must
+// read alike.
 export function capDetail(
   count: number,
   noun: string,
@@ -251,7 +254,7 @@ export function withCloud(
  * aggregates and the hourly column on the report's grid. For a held row whose
  * air quality failed the first time and was asked again (#580).
  */
-export function withAqi(row: DestinationResult, aqi: AqiResult, times: readonly number[]): DestinationResult {
+function withAqi(row: DestinationResult, aqi: AqiResult, times: readonly number[]): DestinationResult {
   return {
     ...row,
     aqi_avg: aqi?.aqi_avg ?? null,
@@ -785,7 +788,7 @@ export async function runClientAnalysis(
       windowLimits,
       onColumn: (k, column) => keepColumn(unforecastAt[k], column, 'cloud'),
     }).catch((e: unknown) => {
-      if (!(e instanceof DOMException && e.name === 'AbortError')) cloudFailure = e
+      if (!isAbort(e)) cloudFailure = e
       internal.abort()
       return null
     })

@@ -7,7 +7,7 @@ import time
 
 import httpx
 import pytest
-from conftest import fake_response
+from conftest import dest, fake_response
 from prometheus_client import REGISTRY
 
 from app import ratelimit
@@ -18,6 +18,19 @@ from app.services.errors import UpstreamError
 POLY = GeoPolygon(
     type="Polygon", coordinates=[[[-121.0, 47.0], [-120.0, 47.0], [-120.0, 48.0], [-121.0, 47.0]]]
 )
+
+
+def _stub_overpass(monkeypatch, elements, spy: list | None = None) -> list[str]:
+    """Answer every Overpass query with `elements`, recording each query in
+    `spy` (a new list when none is given), which is returned."""
+    queries = [] if spy is None else spy
+
+    async def fake_post(query, on_status=None, **_kwargs):
+        queries.append(query)
+        return {"elements": elements}
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    return queries
 
 
 def test_polygon_to_overpass_orders_lat_lon():
@@ -50,10 +63,7 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
         ]
     }
 
-    async def fake_post(query, on_status=None, **_kwargs):
-        return canned
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    _stub_overpass(monkeypatch, canned["elements"])
     results = await osm.query_osm(
         POLY, [DestinationType.peak, DestinationType.lake, DestinationType.crag]
     )
@@ -67,43 +77,42 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
 
 
 async def test_query_osm_converts_elevation_meters_to_feet(monkeypatch):
-    canned = {"elements": [{"type": "node", "id": 1, "lat": 1.0, "lon": 2.0,
-                            "tags": {"name": "X", "natural": "peak", "ele": "1000"}}]}
-
-    async def fake_post(query, on_status=None, **_kwargs):
-        return canned
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    _stub_overpass(
+        monkeypatch,
+        [{"type": "node", "id": 1, "lat": 1.0, "lon": 2.0,
+          "tags": {"name": "X", "natural": "peak", "ele": "1000"}}],
+    )
     results = await osm.query_osm(POLY, [DestinationType.peak])
     # 1000 m * 3.28084 ft/m, rounded to whole feet.
     assert results[0]["elevation_ft"] == 3281.0
 
 
 async def test_query_osm_bad_elevation_tag_is_ignored(monkeypatch):
-    canned = {"elements": [{"type": "node", "id": 1, "lat": 1.0, "lon": 2.0,
-                            "tags": {"name": "X", "natural": "peak", "ele": "high"}}]}
-
-    async def fake_post(query, on_status=None, **_kwargs):
-        return canned
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    _stub_overpass(
+        monkeypatch,
+        [{"type": "node", "id": 1, "lat": 1.0, "lon": 2.0,
+          "tags": {"name": "X", "natural": "peak", "ele": "high"}}],
+    )
     results = await osm.query_osm(POLY, [DestinationType.peak])
     assert results[0]["elevation_ft"] is None
+
+
+@pytest.mark.parametrize("ele", ["nan", "NaN", "inf", "-inf", "Infinity"])
+def test_a_non_finite_elevation_tag_is_unparseable(ele):
+    # `float` reads every one of these, where the browser's `Number.isFinite`
+    # refuses them, and a non-finite height carried on would fail whatever
+    # rounds it next.
+    assert osm._ele_ft({"ele": ele}) is None
 
 
 async def test_query_osm_peak_query_includes_volcanoes(monkeypatch):
     # Regression: Cascade volcanoes (Baker, Rainier, ...) are tagged
     # natural=volcano, not natural=peak — the peak query must ask for both.
-    captured: dict[str, str] = {}
-
-    async def fake_post(query, on_status=None, **_kwargs):
-        captured["query"] = query
-        return {"elements": []}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    queries = _stub_overpass(monkeypatch, [])
     await osm.query_osm(POLY, [DestinationType.peak])
-    assert 'node["natural"="peak"]["name"]' in captured["query"]
-    assert 'node["natural"="volcano"]["name"]' in captured["query"]
+    [query] = queries
+    assert 'node["natural"="peak"]["name"]' in query
+    assert 'node["natural"="volcano"]["name"]' in query
 
 
 async def test_query_osm_unimplemented_type_raises():
@@ -117,13 +126,7 @@ async def test_query_osm_unimplemented_type_raises():
 
 
 async def test_several_types_are_one_query_not_one_each(monkeypatch):
-    calls = []
-
-    async def fake_post(query, on_status=None, **_kwargs):
-        calls.append(query)
-        return {"elements": []}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    calls = _stub_overpass(monkeypatch, [])
     await osm.query_osm(POLY, [DestinationType.peak, DestinationType.lake])
 
     assert len(calls) == 1
@@ -140,13 +143,7 @@ async def test_crag_clauses_never_take_a_bare_sport_climbing(monkeypatch):
     # Bare `sport=climbing` also tags every route, so each clause that asks for
     # it narrows it: by a subtype, by the rock it is on, or by a climbing site
     # (#760). Which features each clause takes is test_osm_rules.py's table.
-    calls = []
-
-    async def fake_post(query, on_status=None, **_kwargs):
-        calls.append(query)
-        return {"elements": []}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    calls = _stub_overpass(monkeypatch, [])
     await osm.query_osm(POLY, [DestinationType.peak, DestinationType.crag])
 
     [query] = calls
@@ -193,10 +190,7 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
         ]
     }
 
-    async def fake_post(query, on_status=None, **_kwargs):
-        return canned
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    _stub_overpass(monkeypatch, canned["elements"])
     results = await osm.query_osm(
         POLY,
         [DestinationType.peak, DestinationType.lake, DestinationType.trailhead, DestinationType.crag],
@@ -222,10 +216,7 @@ async def test_a_trailhead_beside_its_lot_is_one_row_and_the_node_stands_for_it(
         ]
     }
 
-    async def fake_post(query, on_status=None, **_kwargs):
-        return canned
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    _stub_overpass(monkeypatch, canned["elements"])
     rows = await osm.query_osm(POLY, [DestinationType.trailhead])
 
     assert [(r["osm_id"], r["type"]) for r in rows] == [("node/21", "trailhead")]
@@ -243,10 +234,7 @@ async def test_two_places_sharing_a_name_far_apart_are_two_rows(monkeypatch):
         ]
     }
 
-    async def fake_post(query, on_status=None, **_kwargs):
-        return canned
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    _stub_overpass(monkeypatch, canned["elements"])
     rows = await osm.query_osm(POLY, [DestinationType.lake])
 
     assert [r["osm_id"] for r in rows] == ["way/30", "way/31"]
@@ -264,10 +252,7 @@ async def test_a_row_of_a_kind_nobody_asked_for_is_left_out(monkeypatch):
         ]
     }
 
-    async def fake_post(query, on_status=None, **_kwargs):
-        return canned
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    _stub_overpass(monkeypatch, canned["elements"])
     rows = await osm.query_osm(POLY, [DestinationType.crag])
 
     assert [r["name"] for r in rows] == ["Wall"]
@@ -276,13 +261,7 @@ async def test_a_row_of_a_kind_nobody_asked_for_is_left_out(monkeypatch):
 async def test_type_order_does_not_change_the_query_or_the_cache_key(monkeypatch):
     # Order carries no meaning, so it must not produce a second query text or
     # a second cache entry for the same question.
-    queries = []
-
-    async def fake_post(query, on_status=None, **_kwargs):
-        queries.append(query)
-        return {"elements": []}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    queries = _stub_overpass(monkeypatch, [])
     await osm.query_osm(POLY, [DestinationType.lake, DestinationType.peak])
     # A second ask in the other order is served from the first one's cache.
     await osm.query_osm(POLY, [DestinationType.peak, DestinationType.lake])
@@ -297,13 +276,7 @@ async def test_a_polygons_bbox_is_neither_queried_nor_keyed(monkeypatch):
     # RFC 7946 lets a polygon carry a bbox and the API accepts one (#563), but
     # the ring is the whole question: the same ring with any bbox, or none, is
     # one query and one cache entry.
-    queries = []
-
-    async def fake_post(query, on_status=None, **_kwargs):
-        queries.append(query)
-        return {"elements": []}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    queries = _stub_overpass(monkeypatch, [])
     await osm.query_osm(POLY, [DestinationType.peak])
     boxed = GeoPolygon(**POLY.model_dump(exclude={"bbox"}), bbox=[-180, -90, 180, 90])
     await osm.query_osm(boxed, [DestinationType.peak])
@@ -314,13 +287,7 @@ async def test_a_positions_altitude_is_neither_queried_nor_keyed(monkeypatch):
     # RFC 7946 lets a position carry an altitude and the API accepts one, the
     # way it accepts a bbox (#564). The model drops it, so the same ring with
     # an altitude is the same area, the same query and one cache entry.
-    queries = []
-
-    async def fake_post(query, on_status=None, **_kwargs):
-        queries.append(query)
-        return {"elements": []}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    queries = _stub_overpass(monkeypatch, [])
     raised = GeoPolygon(
         type="Polygon", coordinates=[[[*p, 1234.5] for p in POLY.coordinates[0]]]
     )
@@ -675,15 +642,7 @@ _FAR_DEG = 0.01
 
 
 def _row(lat: float, lon: float, name: str = "Row", **extra) -> dict:
-    return {
-        "name": name,
-        "latitude": lat,
-        "longitude": lon,
-        "elevation_ft": None,
-        "osm_id": None,
-        "type": "custom",
-        **extra,
-    }
+    return dest(lat, lon, **{"name": name, "elevation_ft": None, "osm_id": None, "type": "custom", **extra})
 
 
 def _node(node_id: int, lat: float, lon: float, ele: str | None = "1000") -> dict:
@@ -691,15 +650,6 @@ def _node(node_id: int, lat: float, lon: float, ele: str | None = "1000") -> dic
     if ele is not None:
         tags["ele"] = ele
     return {"type": "node", "id": node_id, "lat": lat, "lon": lon, "tags": tags}
-
-
-def _stub_overpass(monkeypatch, elements, spy: list | None = None):
-    async def fake_post(query, on_status=None, **_kwargs):
-        if spy is not None:
-            spy.append(query)
-        return {"elements": elements}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
 
 
 async def test_enrich_custom_fills_elevation_and_identity(monkeypatch):
@@ -782,23 +732,50 @@ async def test_a_reset_connection_is_logged_as_what_it_was(monkeypatch, caplog):
 
 
 # #673: a null elevation says "no peak here" only when the lookup finished.
-async def test_enrich_custom_reporting_says_whether_the_lookup_finished(monkeypatch):
+async def test_a_finished_lookup_reports_complete_with_its_misses_null(monkeypatch):
     _stub_overpass(monkeypatch, [_node(1, 47.0, -121.0)])
     rows, complete = await _enrich_custom_reporting([_row(47.0, -121.0), _row(48.0, -122.0)])
     assert complete is True
     assert [r["elevation_ft"] for r in rows] == [3281.0, None]
 
+
+async def test_a_lookup_the_budget_refuses_reports_incomplete(monkeypatch):
     async def saturated(query, on_status=None, **_kwargs):
         raise ratelimit.BudgetExhausted("OpenStreetMap (Overpass)")
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", saturated)
-    cache.ENRICH_CACHE.clear()
     rows, complete = await _enrich_custom_reporting([_row(49.0, -123.0)])
     assert complete is False
     assert rows[0]["elevation_ft"] is None
-    # A list with nothing to look up finished before it started.
+
+
+async def test_a_list_with_nothing_to_look_up_reports_complete(monkeypatch):
+    # It finished before it started, and asked Overpass nothing.
+    spy = _stub_overpass(monkeypatch, [])
     rows, complete = await _enrich_custom_reporting([_row(49.0, -123.0, elevation_ft=100.0)])
     assert complete is True
+    assert spy == []
+
+
+async def test_enrich_custom_degrades_and_logs_a_traceback_on_a_bug_in_the_lookup(
+    monkeypatch, caplog
+):
+    # Not an upstream problem, so it is a bug here: still not fatal to the
+    # analysis around it, but logged with the traceback the quiet paths leave
+    # out.
+    async def broken(pending):
+        raise RuntimeError("a parser bug nobody planned for")
+
+    monkeypatch.setattr(osm.enrich, "_lookup_peaks", broken)
+    sent = [_row(47.0, -121.0)]
+    with caplog.at_level(logging.WARNING, logger="app.services.osm"):
+        rows, complete = await _enrich_custom_reporting(sent)
+    assert rows == sent
+    assert complete is False
+    [record] = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert record.levelno == logging.ERROR
+    assert record.getMessage() == "Custom destination elevation lookup failed unexpectedly"
+    assert record.exc_info is not None
 
 
 async def test_enrich_custom_does_not_mutate_the_rows_it_was_given(monkeypatch):
@@ -1105,14 +1082,6 @@ async def test_enrich_custom_splits_a_list_too_big_for_one_query(monkeypatch):
     assert len(spy) == 2
 
 
-async def test_enrich_custom_skips_the_lookup_when_nothing_is_missing(monkeypatch):
-    spy: list = []
-    _stub_overpass(monkeypatch, [], spy)
-    rows = await _enrich_custom([_row(47.0, -121.0, elevation_ft=100.0)])
-    assert spy == []
-    assert rows[0]["elevation_ft"] == 100.0
-
-
 # ── Unnamed summits (opt-in) ───────────────────────────────────────────────
 # OSM knows plenty of peaks only by their height. Including them roughly
 # triples the candidate count, which is why it is a flag and not the default.
@@ -1129,21 +1098,17 @@ def _unnamed(id_: int, ele: str, lat: float = 47.5):
 
 
 async def test_unnamed_peaks_are_skipped_unless_asked_for(monkeypatch):
-    async def fake_post(query, on_status=None, **_kwargs):
-        assert '["ele"]' not in query
-        return {"elements": [_unnamed(1, "1000")]}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    queries = _stub_overpass(monkeypatch, [_unnamed(1, "1000")])
     assert await osm.query_osm(POLY, [DestinationType.peak]) == []
+    [query] = queries
+    assert '["ele"]' not in query
 
 
 async def test_unnamed_peaks_are_named_for_their_height(monkeypatch):
-    async def fake_post(query, on_status=None, **_kwargs):
-        assert '["ele"]' in query
-        return {"elements": [_unnamed(1, "1817.2")]}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    queries = _stub_overpass(monkeypatch, [_unnamed(1, "1817.2")])
     rows = await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
+    [query] = queries
+    assert '["ele"]' in query
 
     # 1817.2 m is 5,962 ft. Unpunctuated: an identifier, not a measurement, and
     # the same string the browser builds for a clicked one.
@@ -1154,41 +1119,48 @@ async def test_unnamed_peaks_are_named_for_their_height(monkeypatch):
 async def test_two_unnamed_peaks_at_one_height_are_two_destinations(monkeypatch):
     # Name is the identity rule for mapped features and cannot be for generated
     # ones: every unnamed 5,961 ft summit in a range would collapse into one.
-    async def fake_post(query, on_status=None, **_kwargs):
-        return {"elements": [_unnamed(1, "1000", 47.5), _unnamed(2, "1000", 47.6)]}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    _stub_overpass(monkeypatch, [_unnamed(1, "1000", 47.5), _unnamed(2, "1000", 47.6)])
     rows = await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
 
     assert len(rows) == 2
     assert {r["osm_id"] for r in rows} == {"node/1", "node/2"}
 
 
-async def test_an_unnamed_peak_with_no_height_has_nothing_to_be_called(monkeypatch):
-    async def fake_post(query, on_status=None, **_kwargs):
-        return {"elements": [{"type": "node", "id": 9, "lat": 47.5, "lon": -121.5, "tags": {"natural": "peak"}}]}
+async def test_an_unnamed_summit_listed_twice_is_one_destination(monkeypatch):
+    # A generated name dedups by OSM id, the only identity it has, so the same
+    # node answered twice is one row and not two rows of one name.
+    _stub_overpass(monkeypatch, [_unnamed(1, "1000"), _unnamed(1, "1000")])
+    rows = await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
 
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    assert [r["name"] for r in rows] == ["Peak 3281"]
+
+
+async def test_an_unnamed_peak_tagged_nan_is_skipped_rather_than_fatal(monkeypatch):
+    # Its name is its height rounded to an integer, which raises on a NaN, and
+    # one bad tag must not answer the whole discovery 502.
+    _stub_overpass(monkeypatch, [_unnamed(1, "nan"), _unnamed(2, "1000", 47.6)])
+    rows = await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
+
+    assert [r["name"] for r in rows] == ["Peak 3281"]
+
+
+async def test_an_unnamed_peak_with_no_height_has_nothing_to_be_called(monkeypatch):
+    _stub_overpass(
+        monkeypatch,
+        [{"type": "node", "id": 9, "lat": 47.5, "lon": -121.5, "tags": {"natural": "peak"}}],
+    )
     assert await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True) == []
 
 
 async def test_the_two_questions_do_not_share_a_cache_entry(monkeypatch):
-    queries = []
-
-    async def fake_post(query, on_status=None, **_kwargs):
-        queries.append(query)
-        return {"elements": []}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    queries = _stub_overpass(monkeypatch, [])
     await osm.query_osm(POLY, [DestinationType.peak])
     await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
     assert len(queries) == 2
 
 
 async def test_the_flag_is_ignored_when_peaks_were_not_asked_for(monkeypatch):
-    async def fake_post(query, on_status=None, **_kwargs):
-        assert "natural" not in query or '"peak"' not in query
-        return {"elements": []}
-
-    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    queries = _stub_overpass(monkeypatch, [])
     await osm.query_osm(POLY, [DestinationType.lake], include_unnamed_peaks=True)
+    [query] = queries
+    assert '["ele"]' not in query

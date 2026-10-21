@@ -86,6 +86,11 @@ describe('useDrawMode', () => {
     act(() => result.current.startDrawing())
     press('Escape')
     expect(result.current.drawing).toBe(true)
+    // A ring that could finish, so only the field's claim keeps Enter (a CSV
+    // newline) from finishing it.
+    act(() => result.current.handleDrawUpdate(3))
+    press('Enter')
+    expect(result.current.drawing).toBe(true)
     field.remove()
   })
 

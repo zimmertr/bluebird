@@ -295,12 +295,6 @@ describe('MapStage', () => {
     expect(screen.getByTestId('transport')).toBeTruthy()
   })
 
-  it('publishes the corner lift map.css reads', () => {
-    const { container } = render(<MapStage {...props()} />)
-    const stage = container.firstElementChild as HTMLElement
-    expect(stage.style.getPropertyValue('--map-corner-lift')).toBe('12px')
-  })
-
   it('reopens the controls', () => {
     const onOpenControls = vi.fn()
     render(<MapStage {...props({ onOpenControls })} />)

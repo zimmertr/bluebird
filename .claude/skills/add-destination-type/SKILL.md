@@ -13,13 +13,14 @@ description: Add a new destination type (the OSM feature kinds Bluebird Forecast
    they are unioned with whatever else was asked for, because `destination_types` is
    a set and Overpass is donated, so an analysis is one request no matter how many
    types it names. Then teach `classify` to recognize the tags they match on, so an
-   element is tagged with what it *is* rather than what was asked for. Add the kind's
-   constant to `KINDS`, and keep the module standard library only: the fill image
-   copies it in with none of the app's dependencies. Bump `RULES_VERSION`, because the
-   daily update applies a new rule only to features edited after it ships, and the
-   version change is what makes the next fill rebuild the table. Finally add the type
-   to `IMPLEMENTED_TYPES` in `backend/app/services/osm/query.py`, which
-   `GET /api/capabilities` publishes, so nothing further is needed to advertise it.
+   element is tagged with what it *is* rather than what was asked for. Add a constant
+   for the kind beside `PEAK` and the rest, and keep the module standard library
+   only: the fill image copies it in with none of the app's dependencies. Bump
+   `RULES_VERSION`, because the daily update applies a new rule only to features
+   edited after it ships, and the version change is what makes the next fill rebuild
+   the table. Finally add the type to `IMPLEMENTED_TYPES` in
+   `backend/app/services/osm/query.py`, which `GET /api/capabilities` publishes, so
+   nothing further is needed to advertise it.
 3. Let the places table hold it. `places.kind` carries a `CHECK` naming every kind
    (`backend/app/db/migrations/0001_cache.sql`), so add a numbered migration beside it
    that widens the constraint; editing `0001` changes nothing on a database that has

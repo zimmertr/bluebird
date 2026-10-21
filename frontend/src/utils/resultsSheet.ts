@@ -17,6 +17,7 @@
 // at both widths and is answered from the same constants.
 
 import { resolvePanelHeights } from './layout'
+import { clamp } from './numbers'
 
 /** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
 export const MAP_ROWS_PX = 92
@@ -213,6 +214,23 @@ export function dockedMapFloorPx(gripCount: number): number {
   return reserve + RESULTS_BAR_PX + gripCount * DOCKED_GRIP_PX
 }
 
+/**
+ * The chart and the table open at the same height, and at the height that
+ * leaves the map its whole legend stack.
+ *
+ * One number for both, because they are two halves of one answer and an 8px
+ * difference between them read as a mistake. The value is what Both mode can
+ * spend on a 1000px-tall window: 1000 less the docked map floor
+ * (`dockedMapFloorPx`, 541 with two grips) is 459, and two panels of 220 fit
+ * inside it with the map a few pixels clear of its floor. They were 288 and
+ * 280, chosen before the legend stack had a number, and at those heights the
+ * bottom of the stack sat under the results bar on exactly this window.
+ *
+ * Shared with the phone, where the sheet's own floors take over; they are the
+ * starting heights either way, and the reader's drag replaces them.
+ */
+export const DEFAULT_PANEL_HEIGHT = 220
+
 /** The sheet's own chrome: the header bar plus each grip it renders. */
 export function sheetChromePx(gripCount: number): number {
   return SHEET_HEADER_PX + gripCount * GRIP_PX
@@ -392,7 +410,7 @@ export function noticeBottomPx(liftPx: number): number {
 export function fabBottomPx(liftPx: number, bandPx: number, mapPx: number): number {
   const wanted = bandPx > 0 ? noticeBottomPx(liftPx) + bandPx + FAB_INSET_PX : liftPx + FAB_INSET_PX
   const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
-  return Math.max(liftPx + FAB_INSET_PX, Math.min(wanted, highest))
+  return clamp(wanted, liftPx + FAB_INSET_PX, highest)
 }
 
 /**

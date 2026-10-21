@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { extremeHourMs, windyModel, windyTime, windyUrl } from './windy'
-import { HourlySeries } from '../types'
+import type { HourlySeries } from '../types'
+import { series as emptySeries } from '../testSupport/fixtures'
 
 const RAINIER = { latitude: 46.8523, longitude: -121.7603 }
 
-function series(over: Partial<HourlySeries> = {}): HourlySeries {
-  return {
+const series = (over: Partial<HourlySeries> = {}) =>
+  emptySeries({
     precip_in: [0, 0, 0.1, 0],
     temp_f: [30, 21, 38, 25],
     wind_mph: [4, 22, 9, 12],
@@ -13,8 +14,7 @@ function series(over: Partial<HourlySeries> = {}): HourlySeries {
     snowfall_in: [0, 0.4, 1.2, 0],
     aqi: [31, 44, 20, 35],
     ...over,
-  }
-}
+  })
 
 // One hour apart, starting at 2026-09-16T12:00Z.
 const TIMES = [

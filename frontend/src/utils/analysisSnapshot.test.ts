@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AnalyzeRequest } from '../types'
 import { analyzedView, type RecordedFacts } from './analysisSnapshot'
 import { constraintsFromRequest } from './clientAnalyze'
-import { FALLBACK_WINDOW_LIMITS, windowSource } from './forecastWindow'
+import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { discoveryKeys } from './present'
 import { geoKey } from './points'
 
@@ -33,7 +33,8 @@ describe('analyzedView', () => {
     const startMs = Date.parse(REQUEST.start_datetime)
     const endMs = Date.parse(REQUEST.end_datetime)
     expect(view.window).toEqual({ startMs, endMs })
-    expect(view.windowSource).toBe(windowSource(startMs, endMs, NOW, FALLBACK_WINDOW_LIMITS))
+    // Today's clock would call this July window archive, so a Date.now() leak shows.
+    expect(view.windowSource).toBe('forecast')
   })
 
   // The caption's "as of" is the commit's moment, not the window's start.

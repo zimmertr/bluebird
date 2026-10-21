@@ -87,6 +87,15 @@ describe('the Removed sheet', () => {
     expect(screen.getByRole('button', { name: 'Restore Mount Baker' })).toBeTruthy()
   })
 
+  it('closes on Done', () => {
+    const onOpenChange = vi.fn()
+    render(
+      <RemovedPicker open onOpenChange={onOpenChange} entries={[entry('Mount Baker')]} onRestore={() => {}} onRestoreAll={() => {}} sheet {...refs()} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('offers no Restore all for one row', () => {
     render(
       <RemovedPicker open onOpenChange={() => {}} entries={[entry('Mount Baker')]} onRestore={() => {}} onRestoreAll={() => {}} sheet {...refs()} />,

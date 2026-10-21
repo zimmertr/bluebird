@@ -56,6 +56,8 @@ def _snapshot(*features: dict, fetched_at_ms: int = 1_000) -> nifc.Snapshot:
 
 def test_to_fire_drops_a_feature_with_no_geometry():
     assert nifc._to_fire({"type": "Feature", "properties": {}, "geometry": None}) is None
+    # A geometry with no coordinates in it has no box to file it under either.
+    assert nifc._to_fire({"geometry": {"type": "Polygon", "coordinates": []}}) is None
 
 
 def test_to_fire_preserves_the_upstream_json_verbatim():
@@ -215,6 +217,43 @@ def test_parse_page_reads_a_page_the_way_the_pager_needs_it():
     assert count == 2
 
 
+def test_a_page_skips_a_feature_that_is_not_an_object():
+    # One malformed item must not fail the whole page, and with it the refresh.
+    payload = json.dumps(
+        {"type": "FeatureCollection", "features": [None, _polygon(-120.0, 45.0, -119.9, 45.1)]}
+    ).encode()
+
+    fires, _, count = nifc._parse_page(payload)
+
+    assert len(fires) == 1
+    assert count == 2
+
+
+def test_a_page_with_no_features_list_is_an_upstream_error():
+    with pytest.raises(UpstreamError) as excinfo:
+        nifc._parse_page(b'{"type": "FeatureCollection"}')
+    assert excinfo.value.message == "Wildfire data could not be read."
+
+
+async def test_the_snapshot_holds_the_full_and_the_coarse_copy_from_one_fetch(monkeypatch):
+    # The map's low-zoom copy and the API's full one come from two queries in
+    # one refresh, and must land in their own fields.
+    asked: list[float | None] = []
+    full = (nifc._to_fire(_polygon(-120.0, 45.0, -119.0, 46.0, name="Full")),)
+    coarse = (nifc._to_fire(_polygon(-120.0, 45.0, -119.0, 46.0, name="Coarse")),)
+
+    async def fetch_layer(client, simplify_deg):
+        asked.append(simplify_deg)
+        return coarse if simplify_deg == nifc.COARSE_OFFSET_DEG else full
+
+    monkeypatch.setattr(nifc, "_fetch_layer", fetch_layer)
+    snapshot = await nifc.fetch_snapshot()
+
+    assert sorted(asked, key=lambda d: d is not None) == [None, nifc.COARSE_OFFSET_DEG]
+    assert snapshot.full == full
+    assert snapshot.coarse == coarse
+
+
 async def test_fetch_layer_stops_at_the_page_backstop(monkeypatch, caplog):
     monkeypatch.setattr(nifc, "MAX_PAGES", 3)
     forever = [
@@ -241,107 +280,10 @@ async def test_fetch_layer_asks_for_simplified_geometry_only_when_told():
 
 
 # ── The cache ─────────────────────────────────────────────────────────────────
-
-
-async def test_cache_refetches_once_the_snapshot_ages_out():
-    clock = _Clock()
-    calls = 0
-
-    async def fetch() -> nifc.Snapshot:
-        nonlocal calls
-        calls += 1
-        return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0), fetched_at_ms=calls)
-
-    perimeters = nifc.perimeter_cache(ttl_s=600, clock=clock, fetch=fetch)
-    assert (await perimeters.get()).fetched_at_ms == 1
-    clock.t = 599
-    assert (await perimeters.get()).fetched_at_ms == 1
-    clock.t = 601
-    await perimeters.get()
-    await perimeters.settle()
-    assert (await perimeters.get()).fetched_at_ms == 2
-    assert calls == 2
-
-
-async def test_an_aged_snapshot_is_served_without_waiting_for_the_refresh():
-    # A national fetch measured 6.7 seconds against the live service. Blocking
-    # on it would hand that wait to one unlucky visitor every TTL, to tell them
-    # what the previous visitor already knew.
-    clock = _Clock()
-    release = asyncio.Event()
-    calls = 0
-
-    async def fetch() -> nifc.Snapshot:
-        nonlocal calls
-        calls += 1
-        if calls > 1:
-            await release.wait()
-        return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0), fetched_at_ms=calls)
-
-    perimeters = nifc.perimeter_cache(ttl_s=600, clock=clock, fetch=fetch)
-    await perimeters.get()
-
-    clock.t = 601
-    # Returns the aged copy while the refresh is still blocked on `release`. If
-    # get() waited on the refresh, this line would hang rather than fail.
-    served = await perimeters.get()
-    assert served.fetched_at_ms == 1
-
-    # One yield is enough for the scheduled refresh to reach its own await, so
-    # the caller was served ahead of an upstream fetch that is still in flight.
-    await asyncio.sleep(0)
-    assert calls == 2
-
-    release.set()
-    await perimeters.settle()
-    assert (await perimeters.get()).fetched_at_ms == 2
-
-
-async def test_concurrent_cold_misses_cost_one_upstream_fetch():
-    # The thundering herd this exists to stop: on a cold pod every visitor
-    # would otherwise be its own query against a quota shared with the rest of
-    # the internet.
-    started = asyncio.Event()
-    release = asyncio.Event()
-    calls = 0
-
-    async def fetch() -> nifc.Snapshot:
-        nonlocal calls
-        calls += 1
-        started.set()
-        await release.wait()
-        return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0))
-
-    perimeters = nifc.perimeter_cache(fetch=fetch)
-    waiters = [asyncio.create_task(perimeters.get()) for _ in range(5)]
-    await started.wait()
-    release.set()
-    results = await asyncio.gather(*waiters)
-
-    assert calls == 1
-    assert all(r is results[0] for r in results)
-
-
-async def test_concurrent_aged_reads_schedule_one_background_refresh():
-    clock = _Clock()
-    release = asyncio.Event()
-    calls = 0
-
-    async def fetch() -> nifc.Snapshot:
-        nonlocal calls
-        calls += 1
-        if calls > 1:
-            await release.wait()
-        return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0))
-
-    perimeters = nifc.perimeter_cache(ttl_s=600, clock=clock, fetch=fetch)
-    await perimeters.get()
-
-    clock.t = 601
-    await asyncio.gather(*(perimeters.get() for _ in range(5)))
-    release.set()
-    await perimeters.settle()
-    assert calls == 2
+#
+# The cache itself is snapshot.SnapshotCache, tested in test_snapshot_cache.py.
+# This is the overlay's own serve-stale case, through its own factory and its
+# own TTL.
 
 
 async def test_a_failed_refresh_keeps_serving_the_last_good_snapshot():
@@ -353,52 +295,17 @@ async def test_a_failed_refresh_keeps_serving_the_last_good_snapshot():
             raise UpstreamRateLimited(nifc.PROVIDER, "minutely", 60, "quota exhausted")
         return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0), fetched_at_ms=7)
 
-    perimeters = nifc.perimeter_cache(ttl_s=600, clock=clock, fetch=fetch)
+    perimeters = nifc.perimeter_cache(clock=clock, fetch=fetch)
     await perimeters.get()
 
     healthy = False
-    clock.t = 601
+    clock.t = nifc.TTL_S + 1
     await perimeters.get()
     await perimeters.settle()
     stale = await perimeters.get()
     # Still answerable, and still honest about when it was true.
     assert stale.fetched_at_ms == 7
     assert len(stale.full) == 1
-
-
-async def test_a_failed_refresh_backs_off_instead_of_retrying_per_request():
-    clock = _Clock()
-    attempts = 0
-
-    async def fetch() -> nifc.Snapshot:
-        nonlocal attempts
-        attempts += 1
-        if attempts > 1:
-            raise UpstreamError("down")
-        return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0))
-
-    perimeters = nifc.perimeter_cache(ttl_s=600, retry_after_failure_s=60, clock=clock, fetch=fetch)
-    await perimeters.get()
-    clock.t = 601
-    await perimeters.get()
-    await perimeters.settle()  # attempt 2, fails
-    for _ in range(3):
-        await perimeters.get()  # inside the backoff: must not become attempt 3
-        await perimeters.settle()
-    assert attempts == 2
-    clock.t = 662
-    await perimeters.get()
-    await perimeters.settle()
-    assert attempts == 3
-
-
-async def test_the_first_ever_failure_has_nothing_to_serve_and_raises():
-    async def fetch() -> nifc.Snapshot:
-        raise UpstreamError("NIFC unreachable")
-
-    perimeters = nifc.perimeter_cache(fetch=fetch)
-    with pytest.raises(UpstreamError):
-        await perimeters.get()
 
 
 # ── Filtering and assembly ────────────────────────────────────────────────────
@@ -477,8 +384,20 @@ def test_a_snapshot_reads_back_from_the_shared_cache_as_the_same_answer():
 def served(monkeypatch):
     """Install a cache that answers from fixed features without any network."""
 
-    def install(*features: dict, fetched_at_ms: int = 1_722_470_000_000) -> nifc.Snapshot:
+    def install(
+        *features: dict,
+        fetched_at_ms: int = 1_722_470_000_000,
+        coarse: tuple[dict, ...] | None = None,
+    ) -> nifc.Snapshot:
+        """`coarse` gives the simplified copy features of its own, so a test
+        can tell which copy a request was served; by default it is `full`."""
         snapshot = _snapshot(*features, fetched_at_ms=fetched_at_ms)
+        if coarse is not None:
+            snapshot = nifc.Snapshot(
+                fetched_at_ms=fetched_at_ms,
+                full=snapshot.full,
+                coarse=_snapshot(*coarse).coarse,
+            )
 
         async def fetch() -> nifc.Snapshot:
             return snapshot
@@ -502,24 +421,23 @@ def test_route_returns_perimeters_in_the_box(served):
     assert [f["properties"]["attr_IncidentName"] for f in body["features"]] == ["Rainier Fire"]
 
 
+def _names(response: httpx.Response) -> list[str]:
+    return [f["properties"]["attr_IncidentName"] for f in response.json()["features"]]
+
+
 def test_route_defaults_to_coarse_and_accepts_full(served):
-    served(_polygon(-121.9, 46.7, -121.5, 47.0))
+    served(
+        _polygon(-121.9, 46.7, -121.5, 47.0, name="Full Fire"),
+        coarse=(_polygon(-121.9, 46.7, -121.5, 47.0, name="Coarse Fire"),),
+    )
+    params = {"bbox": "-180,-90,180,90"}
     with TestClient(app) as client:
-        assert (
-            client.get("/api/wildfires", params={"bbox": "-180,-90,180,90"}).status_code == 200
-        )
-        assert (
-            client.get(
-                "/api/wildfires", params={"bbox": "-180,-90,180,90", "detail": "full"}
-            ).status_code
-            == 200
-        )
-        assert (
-            client.get(
-                "/api/wildfires", params={"bbox": "-180,-90,180,90", "detail": "sketch"}
-            ).status_code
-            == 422
-        )
+        default = client.get("/api/wildfires", params=params)
+        full = client.get("/api/wildfires", params={**params, "detail": "full"})
+        sketch = client.get("/api/wildfires", params={**params, "detail": "sketch"})
+    assert _names(default) == ["Coarse Fire"]
+    assert _names(full) == ["Full Fire"]
+    assert sketch.status_code == 422
 
 
 def counting_calls(monkeypatch, module, name: str) -> list[int]:
@@ -546,6 +464,10 @@ def test_the_national_answer_is_joined_and_compressed_once_per_snapshot(
     snapshot = served(
         _polygon(-121.9, 46.7, -121.5, 47.0, name="Rainier Fire"),
         _polygon(-80.0, 25.0, -79.0, 26.0, name="Florida Fire"),
+        coarse=(
+            _polygon(-121.9, 46.7, -121.5, 47.0, name="Rainier Fire, coarse"),
+            _polygon(-80.0, 25.0, -79.0, 26.0, name="Florida Fire, coarse"),
+        ),
     )
     joins = counting_calls(monkeypatch, nifc, "collection_json")
     compressions = counting_calls(monkeypatch, zlib, "compressobj")
@@ -559,8 +481,10 @@ def test_the_national_answer_is_joined_and_compressed_once_per_snapshot(
         assert response.status_code == 200
         assert response.headers["content-encoding"] == "gzip"
         assert "Accept-Encoding" in response.headers["vary"]
-        # The content is what the per-request join produced.
-        assert response.json() == json.loads(nifc.collection_json(snapshot, list(snapshot.full)))
+        # The content is what the per-request join of the asked-for copy
+        # produced, so the held answer is keyed by fidelity as well.
+        copy = list(getattr(snapshot, detail))
+        assert response.json() == json.loads(nifc.collection_json(snapshot, copy))
 
 
 def test_a_client_that_takes_no_gzip_gets_the_same_national_answer(served):
@@ -620,8 +544,50 @@ def test_route_answers_503_when_nothing_has_ever_been_fetched(monkeypatch):
     }
 
 
-def test_capabilities_publishes_the_wildfire_bucket():
+# ArcGIS refuses a quota either way: HTTP 429, or 200 with the refusal in the
+# body. Both are one fact, so both answer the feed's own sentence and carry
+# ArcGIS's Retry-After when it sends one.
+QUOTA_REFUSAL = {"error": {"code": 429, "message": "Unable to perform query. Too many requests."}}
+ARCGIS_REFUSALS = [
+    pytest.param(429, {}, {"Retry-After": "120"}, "120", id="http-429-with-retry-after"),
+    pytest.param(429, {}, {}, "60", id="http-429"),
+    pytest.param(200, QUOTA_REFUSAL, {"Retry-After": "120"}, "120", id="inside-200-with-retry-after"),
+    pytest.param(200, QUOTA_REFUSAL, {}, "60", id="inside-200"),
+]
+
+
+def arcgis_answering(status: int, body: dict, headers: dict[str, str]) -> httpx.MockTransport:
+    """A transport whose every ArcGIS page is the same refusal."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return fake_response(body, status, url=str(request.url), headers=headers)
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.parametrize(("status", "body", "headers", "retry_after"), ARCGIS_REFUSALS)
+def test_an_arcgis_refusal_answers_the_feeds_own_sentence(
+    monkeypatch, status, body, headers, retry_after
+):
+    async def fetch() -> nifc.Snapshot:
+        transport = arcgis_answering(status, body, headers)
+        async with httpx.AsyncClient(transport=transport) as client:
+            full = await nifc._fetch_layer(client, None)
+        return nifc.Snapshot(fetched_at_ms=1, full=full, coarse=full)
+
+    monkeypatch.setattr(nifc, "PERIMETERS", nifc.perimeter_cache(fetch=fetch))
     with TestClient(app) as client:
-        limits = client.get("/api/capabilities").json()["limits"]["rate"]
-    assert "wildfires_per_minute" in limits
-    assert "wildfires_burst" in limits
+        response = client.get("/api/wildfires", params={"bbox": "-122.5,46.0,-121.0,47.5"})
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Wildfire data is rate-limited. Try again later."
+    assert response.headers["Retry-After"] == retry_after
+
+
+def test_an_arcgis_503_status_keeps_its_own_sentence():
+    # Only the 429 is a refusal by quota; a 503 status is the service failing.
+    async def fetch() -> None:
+        async with httpx.AsyncClient(transport=arcgis_answering(503, {}, {})) as client:
+            await nifc._fetch_layer(client, None)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        asyncio.run(fetch())

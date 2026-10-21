@@ -24,6 +24,7 @@ from psycopg import AsyncConnection
 from app import db, telemetry
 from app.env import env_int
 from app.ratelimit import shared
+from app.services.errors import retry_after_seconds
 
 log = logging.getLogger("bluebird_forecast.ratelimit")
 
@@ -250,7 +251,7 @@ class MinIntervalGate:
             telemetry.UPSTREAM_SHED.labels(
                 provider=self.provider, mechanism="gate"
             ).inc()
-            raise BudgetExhausted(self.provider, retry_after_s=math.ceil(wait))
+            raise BudgetExhausted(self.provider, retry_after_s=retry_after_seconds(wait))
         if wait > 0:
             telemetry.UPSTREAM_PACE_SECONDS.labels(provider=self.provider).inc(wait)
             await asyncio.sleep(wait)
@@ -511,7 +512,7 @@ class WeightedBudget:
             telemetry.UPSTREAM_SHED.labels(
                 provider=self.provider, mechanism="weight"
             ).inc()
-            raise BudgetExhausted(self.provider, retry_after_s=math.ceil(wait))
+            raise BudgetExhausted(self.provider, retry_after_s=retry_after_seconds(wait))
         telemetry.WEIGHT_SPENT.labels(provider=self.provider).inc(weight)
         if wait > 0:
             log.info(

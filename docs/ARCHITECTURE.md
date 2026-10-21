@@ -14,7 +14,7 @@ Because the browser talks to Open-Meteo itself, that service sees each visitor's
 The whole thing builds as a single multi-stage Docker image:
 
 - Stage 1 runs `node:26-alpine` to `npm run build` the SPA, and vendors Swagger UI's assets so `/docs` renders without reaching out to a CDN. The build also writes the npm half of `third-party-licenses.txt`: a Vite plugin (`frontend/plugins/thirdPartyLicenses.ts`) reads the bundle's module graph, the MapLibre worker's, the packages the stylesheets import and the vendored Swagger UI, and copies each package's own license files into it. A package with no license text fails the build.
-- Stage 2 runs `python:3.14-alpine` with uvicorn, serving the API and the built SPA together. After `pip install` it appends the Python half of the same file from the metadata of every installed distribution (`backend/scripts/write_third_party_licenses.py`, run from a bind mount so it does not stay in the image), and copies the repository's `LICENSE` to `/app/LICENSE` and Swagger UI's `LICENSE`, `NOTICE` and `swagger-ui-bundle.js.LICENSE.txt` beside its files.
+- Stage 2 runs `python:3.15-alpine` with uvicorn, serving the API and the built SPA together. After `pip install` it appends the Python half of the same file from the metadata of every installed distribution (`backend/scripts/write_third_party_licenses.py`, run from a bind mount so it does not stay in the image), and copies the repository's `LICENSE` to `/app/LICENSE` and Swagger UI's `LICENSE`, `NOTICE` and `swagger-ui-bundle.js.LICENSE.txt` beside its files.
 
 The finished file is served at `/third-party-licenses.txt`. It is a static file like any other under the mount, so the production gateway forwards it with no chart change: the chart's allowlist governs `/api` paths only. The terms page links it from its License section, and nothing on the first screen references it, so the cold load does not fetch it. `NOTICES.md` at the repository root stays the human summary; the served file is the complete one, with every license text. See [decision 0086](decisions/0086-license-notices-built-into-the-image.md).
 
@@ -89,9 +89,13 @@ in [TRAFFIC.md](TRAFFIC.md#security-response-headers).
 
 ## The shared cache
 
-Since #760 every pod reads one PostgreSQL 17 database with PostGIS 3.5
+Since #760 every pod reads one PostgreSQL 18 database with PostGIS 3.6
 (`backend/app/db/`), which holds what the app would otherwise ask an upstream
 for again and again. Record: [0175](decisions/0175-shared-cache-in-postgresql.md)
+A new major is a new cluster rather than an upgrade in place: the operator
+upgrades only between images on one OS, and everything in the database is a
+cache the fill and the refreshes rebuild. Record:
+[0198](decisions/0198-a-new-postgres-major-is-a-new-cluster.md)
 
 - **Places.** Every place discovery can find, worldwide, one row per
   OpenStreetMap element, each at one point: a node's position, or the centre
@@ -201,10 +205,14 @@ Record: [0179](decisions/0179-relations-stand-at-their-own-points.md)
 
 On Washington's extract (364.8 MB) the fill took 8 s and peaked at 3.8 GB, all
 but 0.2 GB of it in `osmium getid -r`, whose memory follows OpenStreetMap's
-highest ids rather than the extract's size. The planet's time and memory are
-not measured yet. Scaled by size from Washington the fill takes about 40
-minutes on the maintainer's Mac, and the cluster's workers are probably slower;
-the CronJob allows 12 hours, requests 4 GiB and stops at 6 GiB.
+highest ids rather than the extract's size. On the cluster, the planet took 82
+minutes to reach the load on 2026-10-20: 24 minutes of download at 62 MB/s, 13
+of `tags-filter`, 31 of `getid -r`, which peaked at 4.4 GB, and 12 of placing
+1.24 million places. The CronJob allows 12 hours, requests 5 GiB and stops at
+6 GiB. That run died at the load's first statement: its connection had sat
+idle through the pipeline, and Istio's sidecar closes a connection that
+carries no bytes for an hour. The fill now sends a statement every five
+minutes while the pipeline runs.
 
 ## Metrics
 
@@ -216,7 +224,7 @@ The registry is served on its own port (`METRICS_PORT`, default 9464), never as 
 
 Manifests live in a separate repo, `zimmertr/Kubernetes-Manifests`, under `public/bluebird/`, and ArgoCD picks them up automatically. That directory is a Kustomization that inflates the `bluebird-helm` OCI chart with a `values.yml` and adds the three Argo Rollouts analysis templates. The stack runs an Argo Rollout with a canary strategy behind an Istio VirtualService on the cluster's shared Gateway, autoscaled between three and ten replicas with a PodDisruptionBudget and one pod per worker node, and the PodMonitor above switched on. TLS is a cert-manager `Certificate` for `bluebirdforecast.com`, declared with the cert-manager app in `public/cert-manager/resources/certificate-bluebird.yml` and issued into the shared gateway's namespace, `istio-gateway`, as the secret `bluebird`. The public hostnames reach that gateway through a Cloudflare Tunnel; nothing is port-forwarded from the internet. cloudflared runs from `public/cloudflared/`, and the tunnel, its ingress rules and its DNS records are Terraform in `terraform/cloudflare/`. [TRAFFIC.md](TRAFFIC.md) follows a request the rest of the way.
 
-The database comes from CloudNativePG rather than a hand-written manifest. Its operator (the `cloudnative-pg` chart, 0.29.1) is an Argo CD app of its own, `misc/cloudnative-pg` in the `postgres-system` namespace, because its CRDs and webhooks serve the whole cluster. The app's chart runs one PostgreSQL instance through CloudNativePG's `cluster` chart (0.9.0), a subchart aliased `database` and on by default (`database.enabled`). One instance, because the database is a cache the fill can rebuild. Its 10 GiB volume is a static `proxmox-flashpool` PersistentVolume bound to the claim the operator creates, so the data outlives the pod. Within Bluebird Forecast's app, Argo CD syncs the volume first, the database next and the app last, since the app's pods read the Secret the operator writes. The operator runs outside the Istio mesh, so the API server reaches its webhooks directly. The database's pods take the namespace's sidecar like the rest; the cluster has no `PeerAuthentication`, so mutual TLS is permissive and the operator reaches their status port, and a STRICT policy in `bluebird-system` would need an exception for it. The fill's scratch volume uses `proxmox-datapool-scratch`, a StorageClass whose volumes are deleted with their claim, because each worker's 51 GB of ephemeral storage is smaller than the planet.
+The database comes from CloudNativePG rather than a hand-written manifest. Its operator (the `cloudnative-pg` chart, 0.29.1) is an Argo CD app of its own, `misc/cloudnative-pg` in the `postgres-system` namespace, because its CRDs and webhooks serve the whole cluster. The app's chart runs PostgreSQL through CloudNativePG's `cluster` chart (0.9.0), a subchart aliased `database` and on by default (`database.enabled`), as three instances spread one to a worker where they fit. Every search reads the database, so a drain or a failed instance hands over to a standby in seconds. Each instance has its own 10 GiB `proxmox-flashpool` volume, provisioned dynamically, and the operator runs two replicas, since failover is its job. Within Bluebird Forecast's app, Argo CD syncs the database first and the app after it, since the app's pods read the Secret the operator writes. The operator runs outside the Istio mesh, so the API server reaches its webhooks directly. The database's pods take the namespace's sidecar like the rest; the cluster has no `PeerAuthentication`, so mutual TLS is permissive and the operator reaches their status port, and a STRICT policy in `bluebird-system` would need an exception for it. The fill's scratch volume uses `proxmox-datapool-scratch`, a StorageClass whose volumes are deleted with their claim, because each worker's 51 GB of ephemeral storage is smaller than the planet.
 
 For the complete CI/CD picture — how a merge flows through GitHub Actions, Docker Hub, the `bluebird-helm` chart, Artifact Hub, and on to Argo CD, plus how per-PR preview environments spin up — see [`CICD.md`](CICD.md), which has Mermaid diagrams of each path.
 

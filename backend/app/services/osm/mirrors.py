@@ -20,7 +20,7 @@ import httpx
 from app import ratelimit, telemetry
 from app.models import DestinationType, GeoPolygon
 from app.services import cache
-from app.services.errors import PartialResultError, UpstreamError, classify_http_error
+from app.services.errors import PartialResultError, UpstreamError, classify_http_error, log_reason
 from app.services.http import HEADERS
 from app.services.osm import rules
 from app.services.osm.query import (
@@ -381,12 +381,11 @@ async def _post_with_fallback(
                 # neither does a connection the server reset (seen 2026-10-07
                 # from overpass-api.de), which is not a timeout and must not
                 # read as one in the log.
-                reason = str(exc) or (
-                    f"no answer within {timeout_s:.0f}s"
-                    if isinstance(exc, TimeoutError)
-                    else type(exc).__name__
+                log.warning(
+                    "Overpass endpoint %s failed: %s",
+                    mirror.url,
+                    log_reason(exc, deadline_s=timeout_s),
                 )
-                log.warning("Overpass endpoint %s failed: %s", mirror.url, reason)
                 last_exc = exc
             except asyncio.CancelledError:
                 # The caller ended this attempt, not the mirror's timeout, so it

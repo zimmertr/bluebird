@@ -1,4 +1,4 @@
-import { test, expect, resultRows } from './fixtures'
+import { test, expect, resultRows, isoDay } from './fixtures'
 
 // In light the chart's lines are pastels drawn over a dark rim (PR #733),
 // which is one SVG filter that `index.css` applies to the group Recharts
@@ -7,12 +7,6 @@ import { test, expect, resultRows } from './fixtures'
 // release that renamed it would leave every pastel under 2:1 on the panel
 // with every unit test green. Dark lines carry no rim, and a ticked chart box
 // wears the same rim as an outline in light.
-
-function isoDay(offset: number): string {
-  const d = new Date()
-  d.setUTCDate(d.getUTCDate() + offset)
-  return d.toISOString().slice(0, 10)
-}
 
 test.use({ viewport: { width: 1280, height: 900 } })
 

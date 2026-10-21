@@ -88,7 +88,7 @@ export interface MapPopupTarget {
 }
 
 /** Where a point target is asked about: the clicked coordinate, and the map's zoom. */
-export interface MapPoint {
+interface MapPoint {
   lng: number
   lat: number
   zoom: number
@@ -122,7 +122,7 @@ export interface MapPointTarget {
 }
 
 /** What a card may set for itself; everything else is the same for every card. */
-export interface MapCardOptions {
+interface MapCardOptions {
   /**
    * The kind of thing it describes, so an overlay switched off can take it
    * down; every kind, for a card that describes more than one.
@@ -146,7 +146,7 @@ export interface MapCardOptions {
 }
 
 /** A card on the map, and the move its fit asked of the map. */
-export interface PlacedCard {
+interface PlacedCard {
   popup: Popup
   /** How far the card's point, and the card with it, moves across the screen. */
   dx: number

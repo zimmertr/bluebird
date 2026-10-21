@@ -481,7 +481,7 @@ async def _fetch_forecasts(
             await aqi_task if aqi_task is not None else [None] * len(destinations)
         )
         cloud_list = await cloud_task
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — `_upstream_failure` maps it, logging an unknown cause's traceback
         yield _upstream_failure(e)
         return
     finally:

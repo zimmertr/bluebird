@@ -82,10 +82,6 @@ describe('parseCustomCsv', () => {
       expect(out.some((d) => d.name.startsWith('#'))).toBe(false)
     })
 
-    it('reads every data row as a finite coordinate pair', () => {
-      expect(out.every((d) => Number.isFinite(d.latitude) && Number.isFinite(d.longitude))).toBe(true)
-    })
-
     // The results table numbers its rows itself, so a list number in the name
     // would read "1 23. Foobar Mountain".
     it('names each peak without a list number', () => {

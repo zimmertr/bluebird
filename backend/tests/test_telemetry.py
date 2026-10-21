@@ -13,7 +13,14 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
-from conftest import dest, fake_response
+from conftest import (
+    dest,
+    fake_response,
+    status_error,
+    stub_openmeteo,
+    weather_hourly,
+    weather_metrics,
+)
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
@@ -22,7 +29,7 @@ from app import ratelimit, telemetry
 from app.main import app
 from app.services import air_quality, cache, weather
 from app.services import osm as osm_mod
-from app.services.errors import UpstreamRateLimited
+from app.services.errors import UpstreamError, UpstreamRateLimited
 
 client = TestClient(app)
 
@@ -212,15 +219,7 @@ def stub_upstreams(monkeypatch):
         destinations, start, end, on_progress=None, on_pace=None, model=None,
         api_key=None, source="forecast", boundary=None,
     ):
-        return [
-            {
-                "precip_total_in": 0.1, "precip_avg_in_hr": 0.1,
-                "precip_min_in_hr": 0.1, "precip_max_in_hr": 0.1,
-                "temp_min_f": 40.0, "temp_max_f": 60.0, "temp_avg_f": 50.0,
-                "wind_min_mph": 1.0, "wind_max_mph": 9.0, "wind_avg_mph": 5.0,
-            }
-            for _ in destinations
-        ]
+        return [weather_metrics(0.1) for _ in destinations]
 
     async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
@@ -402,27 +401,8 @@ def test_cache_collector_reads_the_existing_counters():
 # ── Open-Meteo fetch outcomes ──────────────────────────────────────────────
 
 
-def _stub_openmeteo(monkeypatch, module, behaviors: list):
-    calls = []
-
-    class _Client:
-        async def get(self, url, params=None):
-            behavior = behaviors[len(calls)]
-            calls.append(params or {})
-            if isinstance(behavior, Exception):
-                raise behavior
-            return fake_response(behavior)
-
-    monkeypatch.setattr(module.http, "client", lambda: _Client())
-    return calls
-
-
 def _rate_limited(url: str, scope: str) -> httpx.HTTPStatusError:
-    request = httpx.Request("GET", url)
-    response = httpx.Response(
-        429, request=request, json={"reason": f"{scope} API request limit exceeded"}
-    )
-    return httpx.HTTPStatusError("429", request=request, response=response)
+    return status_error(429, {"reason": f"{scope} API request limit exceeded"}, url=url)
 
 
 WINDOW = (
@@ -432,20 +412,8 @@ WINDOW = (
 
 
 def test_weather_success_counts_request_and_duration(monkeypatch):
-    hourly = {
-        "hourly": {
-            "time": ["2026-07-21T00:00"],
-            "precipitation": [0.1],
-            "temperature_2m": [50.0],
-            "wind_speed_10m": [5.0],
-        },
-        "hourly_units": {
-            "precipitation": "inch",
-            "temperature_2m": "°F",
-            "wind_speed_10m": "mp/h",
-        },
-    }
-    _stub_openmeteo(monkeypatch, weather, [[hourly]])
+    hourly = weather_hourly(["2026-07-21T00:00"], [0.1], [50.0], [5.0])
+    stub_openmeteo(monkeypatch, [[hourly]])
     ok_before = _value(
         "bluebird_forecast_openmeteo_requests_total",
         {"service": "weather", "outcome": "success", "quota": "pod"},
@@ -476,7 +444,7 @@ def test_weather_success_counts_request_and_duration(monkeypatch):
 
 
 def test_weather_terminal_429_counts_scope(monkeypatch):
-    _stub_openmeteo(monkeypatch, weather, [_rate_limited(weather.FORECAST_URL, "Hourly")])
+    stub_openmeteo(monkeypatch, [_rate_limited(weather.FORECAST_URL, "Hourly")])
     before = _value(
         "bluebird_forecast_openmeteo_rate_limited_total",
         {"service": "weather", "scope": "hourly", "quota": "pod"},
@@ -500,7 +468,7 @@ def test_weather_terminal_429_counts_scope(monkeypatch):
 def test_aqi_failure_counts_a_degraded_batch(monkeypatch):
     request = httpx.Request("GET", air_quality.AIR_QUALITY_URL)
     boom = httpx.ConnectError("nope", request=request)
-    _stub_openmeteo(monkeypatch, air_quality, [boom])
+    stub_openmeteo(monkeypatch, [boom])
     degraded_before = _value("bluebird_forecast_aqi_degraded_total", {"reason": "error"})
     err_before = _value(
         "bluebird_forecast_openmeteo_requests_total",
@@ -525,24 +493,42 @@ def test_aqi_failure_counts_a_degraded_batch(monkeypatch):
     )
 
 
+def test_a_read_timeout_counts_as_a_timeout(monkeypatch):
+    # The Overpass counter's vocabulary: a timeout is its own outcome rather
+    # than one more network error.
+    request = httpx.Request("GET", weather.FORECAST_URL)
+    stub_openmeteo(monkeypatch, [httpx.ReadTimeout("slow", request=request)])
+    labels = {"service": "weather", "outcome": "timeout", "quota": "pod"}
+    before = _value("bluebird_forecast_openmeteo_requests_total", labels)
+    cache.FORECAST_CACHE.clear()
+    with pytest.raises(UpstreamError):
+        asyncio.run(weather.fetch_weather_batch([dest(47.6, -121.6)], *WINDOW))
+    assert _value("bluebird_forecast_openmeteo_requests_total", labels) == before + 1
+
+
+def test_the_total_deadline_counts_as_a_timeout(monkeypatch):
+    # The request's own deadline ends in the builtin TimeoutError, which is
+    # the same fact as httpx timing out one read.
+    monkeypatch.setattr(weather.http, "TIMEOUT_S", 0.05)
+
+    async def slow(url, params):
+        await asyncio.sleep(1)
+
+    stub_openmeteo(monkeypatch, [slow])
+    labels = {"service": "weather", "outcome": "timeout", "quota": "pod"}
+    before = _value("bluebird_forecast_openmeteo_requests_total", labels)
+    cache.FORECAST_CACHE.clear()
+    with pytest.raises(UpstreamError):
+        asyncio.run(weather.fetch_weather_batch([dest(47.7, -121.7)], *WINDOW))
+    assert _value("bluebird_forecast_openmeteo_requests_total", labels) == before + 1
+
+
 def test_keyed_weather_batch_counts_against_the_callers_quota(monkeypatch):
     # The whole point of the label: a keyed batch spends the caller's quota,
     # which none of this pod's pacers meter, so it must not sum into the
     # series that watches the pod's own free tier.
-    hourly = {
-        "hourly": {
-            "time": ["2026-07-21T00:00"],
-            "precipitation": [0.1],
-            "temperature_2m": [50.0],
-            "wind_speed_10m": [5.0],
-        },
-        "hourly_units": {
-            "precipitation": "inch",
-            "temperature_2m": "°F",
-            "wind_speed_10m": "mp/h",
-        },
-    }
-    _stub_openmeteo(monkeypatch, weather, [[hourly]])
+    hourly = weather_hourly(["2026-07-21T00:00"], [0.1], [50.0], [5.0])
+    stub_openmeteo(monkeypatch, [[hourly]])
     caller = {"service": "weather", "outcome": "success", "quota": "caller"}
     pod = {**caller, "quota": "pod"}
     caller_before = _value("bluebird_forecast_openmeteo_requests_total", caller)
@@ -559,7 +545,7 @@ def test_keyed_weather_batch_counts_against_the_callers_quota(monkeypatch):
 
 def test_keyed_aqi_batch_counts_against_the_callers_quota(monkeypatch):
     payload = {"hourly": {"time": ["2026-07-21T00:00"], "us_aqi": [42]}}
-    _stub_openmeteo(monkeypatch, air_quality, [[payload]])
+    stub_openmeteo(monkeypatch, [[payload]])
     labels = {"service": "aqi", "outcome": "success", "quota": "caller"}
     before = _value("bluebird_forecast_openmeteo_requests_total", labels)
     cache.FORECAST_CACHE.clear()
@@ -582,15 +568,12 @@ def test_attempt_outcome_classification():
     from app.services.errors import PartialResultError
 
     request = httpx.Request("POST", "https://overpass-api.de/api/interpreter")
-    response = httpx.Response(504, request=request)
     assert osm_mod._attempt_outcome(PartialResultError("remark")) == "partial"
     assert (
         osm_mod._attempt_outcome(httpx.ConnectTimeout("t", request=request)) == "timeout"
     )
     assert (
-        osm_mod._attempt_outcome(
-            httpx.HTTPStatusError("504", request=request, response=response)
-        )
+        osm_mod._attempt_outcome(status_error(504, url="https://overpass-api.de/api/interpreter"))
         == "http_error"
     )
     assert (
@@ -696,6 +679,10 @@ def test_no_label_carries_coordinates_or_client_identity():
 def test_metrics_port_zero_disables_the_server(monkeypatch):
     monkeypatch.setattr(telemetry, "METRICS_PORT", 0)
     telemetry.start_metrics_server()
+    assert telemetry._server is None
+    # The lifespan's shutdown stops the server it never started, so a
+    # deployment with metrics off must be able to shut down.
+    telemetry.stop_metrics_server()
     assert telemetry._server is None
 
 

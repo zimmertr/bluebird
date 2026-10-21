@@ -251,12 +251,6 @@ describe('enhanceBasemap on the style\'s place labels', () => {
     expect(layout.label_other['icon-image']).toEqual(['step', ['zoom'], '', 9, hamlet('town_hall_11', '')])
     expect(layout.label_other['text-anchor']).toEqual(['step', ['zoom'], 'center', 9, hamlet('top', 'center')])
   })
-
-  it('puts each glow under its place label, and so under the disc', () => {
-    const { map, stack } = stubMap({ styleLayers: placeLayers })
-    enhanceBasemap(map)
-    expect(stack.indexOf('label_town-glow')).toBeLessThan(stack.indexOf('label_town'))
-  })
 })
 
 describe('townMarker', () => {

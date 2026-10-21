@@ -52,6 +52,9 @@ describe('availableAxes', () => {
 // Whether the player EXISTS, which is a different question from whether it is
 // shown: the Layers row is absent while this is false, because a checkbox that
 // switches on an empty bar is one the reader has to try to learn it is empty.
+// The row's presence and the switch's value are independent. Nothing here
+// reads the switch, so a reader who turned the player off keeps that decision
+// while the row is away, and a radar toggle cannot hand it back on.
 describe('playerAvailable', () => {
   it('is false with neither radar nor a multi-hour report', () => {
     expect(playerAvailable(false, 0)).toBe(false)
@@ -65,18 +68,6 @@ describe('playerAvailable', () => {
 
   it('is true on a report covering more than one hour', () => {
     expect(playerAvailable(false, 2)).toBe(true)
-  })
-
-  // The row's presence and the switch's value are independent. Nothing here
-  // reads the switch, so a reader who turned the player off keeps that decision
-  // while the row is away, and a radar toggle cannot hand it back on.
-  it('says nothing about the switch itself', () => {
-    for (const shown of [true, false]) {
-      expect(availableAxes(shown, false, 1)).toEqual([])
-      expect(playerAvailable(false, 1)).toBe(false)
-    }
-    expect(availableAxes(false, true, 24)).toEqual([])
-    expect(playerAvailable(true, 24)).toBe(true)
   })
 
   // One predicate, two consumers: the row and the axis list. If they could

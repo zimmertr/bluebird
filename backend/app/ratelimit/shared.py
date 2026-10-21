@@ -27,6 +27,7 @@ from psycopg import AsyncConnection
 
 from app import db
 from app.db import refresh
+from app.services.errors import log_reason
 
 log = logging.getLogger("bluebird_forecast.ratelimit")
 
@@ -77,7 +78,7 @@ async def run[T](what: str, op: Callable[[AsyncConnection], Awaitable[T]]) -> T:
         log.warning(
             "event=shared_cache_fallback what=%s error=%s pause_s=%.0f",
             what,
-            str(exc) or type(exc).__name__,
+            log_reason(exc, deadline_s=TIMEOUT_S),
             PAUSE_S,
         )
         raise db.DatabaseUnavailable(str(exc)) from exc

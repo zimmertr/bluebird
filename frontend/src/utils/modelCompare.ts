@@ -11,7 +11,7 @@
 
 import { DestinationResult, HourlySeries } from '../types'
 import { ChartLine, chartKey, collidingType, comparedLineLabel, gridRemapper, lineSuffix, modelSuffix } from './chartData'
-import { HOUR_MS } from './forecastWindow'
+import { HOUR_MS, floorHour } from './forecastWindow'
 import { listPhrase } from './notices'
 import type { WeatherResult } from './openMeteo'
 import type { WeatherSeries } from './openMeteoAggregate'
@@ -41,10 +41,6 @@ export function compareEndMs(
   // 16:11 would date data that stops at 16:00.
   for (const hours of forecastHours) end = Math.min(end, floorHour(nowMs + hours * HOUR_MS))
   return end
-}
-
-function floorHour(ms: number): number {
-  return ms - (ms % HOUR_MS)
 }
 
 /**

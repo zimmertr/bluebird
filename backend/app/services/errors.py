@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from typing import Any
 
 import httpx
 
@@ -143,6 +144,40 @@ _SCOPE_WORDS = re.compile(r"\b(minutely|hourly|daily|monthly)\b", re.IGNORECASE)
 _SCOPE_RETRY_FLOOR_S = {"minutely": 60, "hourly": 900, "daily": 3600, "monthly": 3600}
 
 
+def finite_float(value: Any) -> float | None:
+    """`value` read as a finite number, or None when it is not one.
+
+    `float` reads "nan" and "inf" out of text, where the browser's `Number`
+    with `Number.isFinite` refuses both, and whatever rounds the result next
+    raises on either (`math.ceil` and `round` to an integer both do, and an
+    infinity raises OverflowError, which a ValueError guard misses).
+    """
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def retry_after_seconds(wait_s: float) -> int:
+    """A wait as a `Retry-After` value: whole seconds, rounded up, at least 1.
+
+    A refusal that said 0 would tell its caller to come straight back, which a
+    shed under a misconfigured negative wait would otherwise do.
+    """
+    return max(1, math.ceil(wait_s))
+
+
+def retry_after_header(response: httpx.Response) -> int | None:
+    """The `Retry-After` an upstream sent, in whole seconds, or None.
+
+    None when there is no header or it is not a number this can read; the
+    HTTP-date form is one of those, and the caller's own default stands.
+    """
+    seconds = finite_float(response.headers.get("Retry-After"))
+    return None if seconds is None else retry_after_seconds(seconds)
+
+
 def parse_rate_limit(exc: httpx.HTTPStatusError) -> tuple[str | None, int]:
     """Extract (scope, retry_after_s) from an upstream 429 response.
 
@@ -158,27 +193,38 @@ def parse_rate_limit(exc: httpx.HTTPStatusError) -> tuple[str | None, int]:
     if match:
         scope = match.group(1).lower()
 
-    retry_after = _SCOPE_RETRY_FLOOR_S.get(scope or "", 60)
-    header = exc.response.headers.get("Retry-After")
-    if header:
-        try:
-            seconds = float(header)
-        except ValueError:
-            seconds = math.nan
-        # `float` reads "inf" and "nan" too, and math.ceil raises on either
-        # (OverflowError for an infinity, which a ValueError guard misses).
-        if math.isfinite(seconds):
-            retry_after = max(1, math.ceil(seconds))
-    return scope, retry_after
+    sent = retry_after_header(exc.response)
+    if sent is not None:
+        return scope, sent
+    return scope, _SCOPE_RETRY_FLOOR_S.get(scope or "", 60)
 
 
 def rate_limit_message(provider: str, scope: str | None) -> str:
     """The user-facing sentence for an upstream 429, by quota scope."""
-    if scope == "hourly":
-        return f"{provider} quota reached. Try again later."
-    if scope in ("daily", "monthly"):
+    if scope in ("hourly", "daily", "monthly"):
         return f"{provider} quota reached. Try again later."
     return f"{provider} is rate-limiting. Try again later."
+
+
+def log_reason(
+    exc: BaseException, *, text: str | None = None, deadline_s: float | None = None
+) -> str:
+    """What a log line says a failure was, never an empty string.
+
+    `text` stands in for `str(exc)` where that is unsafe to log: an Open-Meteo
+    error carries the caller's key in its URL, so those sites pass
+    `redacted_error`'s text. A failure with no text of its own is named by its
+    type, except the builtin TimeoutError an `asyncio.timeout` ends in, which
+    reads as the deadline the caller set when it passes one. A connection the
+    server reset carries no text either (seen 2026-10-07 from
+    overpass-api.de), and it is not a timeout, so it must not read as one.
+    """
+    message = str(exc) if text is None else text
+    if message:
+        return message
+    if deadline_s is not None and isinstance(exc, TimeoutError):
+        return f"no answer within {deadline_s:.0f}s"
+    return type(exc).__name__
 
 
 def classify_http_error(exc: Exception, provider: str) -> str:

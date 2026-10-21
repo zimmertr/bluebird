@@ -21,6 +21,7 @@ import { fetchWeather } from '../utils/openMeteo'
 import { COVERAGE_PHRASE, OpenMeteoModelCoverage } from '../utils/openMeteoErrors'
 import type { WeatherResult } from '../utils/openMeteo'
 import { usePacedFetch } from './usePacedFetch'
+import { isAbort } from '../utils/abort'
 
 /**
  * Comparing models across the charted destinations (issue #232): the spend, and
@@ -303,7 +304,7 @@ export function useModelCompare({
           })
         })
         .catch((e) => {
-          if (e instanceof DOMException && e.name === 'AbortError') return
+          if (isAbort(e)) return
           if (seqRef.current !== seqAtCall) return
           // A failed batch is not held against the model for ever: drop the
           // pairs from the asked-for set so charting another destination, or

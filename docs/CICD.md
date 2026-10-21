@@ -271,8 +271,8 @@ declares and the planet fill's CronJob. The Kustomization inflates it with
 `skipTests: true`, so the subchart's test hook is not run as a Job on every
 sync. The operator that runs the `Cluster` is an Argo CD app of its own,
 `misc/cloudnative-pg` (chart 0.29.1). Sync waves order the rest: the
-database's static volume at -2, the database at -1, the app at 0, because the
-app's pods read the Secret the operator writes for the database. The rollout
+database at -1, the app at 0, because the app's pods read the Secret the
+operator writes for the database. The rollout
 itself is a four-step canary — a scale step that starts one canary pod at zero
 user traffic, then three blocking analyses, then promotion in a single cutover — described
 in [Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
@@ -1236,7 +1236,7 @@ flowchart LR
   build itself fails before that when a bundled or installed package has no
   license text, so this job is where a missing notice turns a PR red.
 - `pr.yml`'s **Database Tests** job (#760) runs the backend tests marked `db`,
-  the shared cache's schema, readers and writers, against a PostgreSQL 17 with
+  the shared cache's schema, readers and writers, against a PostgreSQL 18 with
   PostGIS built from `backend/tests/db/Dockerfile`. The database builds and
   starts in the background while Python installs, and the job waits for it
   over TCP for up to two minutes. It is a job of its own so `Backend Tests`
@@ -1422,7 +1422,7 @@ job is the later check: CVEs disclosed after that scan, on the amd64 half.
   base and rolls it out through Path 1.
 
 **When there is no base-image PR to merge.** Alpine fixes a package days to
-weeks before the `python:3.14-alpine` image rebuilds carrying it, so the
+weeks before the `python:3.15-alpine` image rebuilds carrying it, so the
 pinned image can be the newest one published while the packages under it are
 not. Dependabot moves the base only when the image is rebuilt, so it has
 nothing to open, and this is the case that failed the 2026-09 scans (seven fixable HIGH util-linux CVEs against a
@@ -1441,7 +1441,7 @@ Alpine published into that gap stayed out of every release until someone ran
 1.3.2-r1 already in Alpine's index and the base the newest published (alert
 39, CVE-2026-85091, 2026-10-14). **The remedy is the next merge to `main`**:
 its release rebuilds the layer and ships the fix, and nothing needs clearing.
-Record: [0126](decisions/0126-apk-upgrade-on-every-build.md)
+Record: [0197](decisions/0197-apk-upgrade-on-every-build.md)
 
 This job scans a published image rather than a checkout, so its `actions/checkout`
 step exists purely to read `trivy.yaml`. That is deliberate: without the PR gate's
@@ -1503,10 +1503,10 @@ to a commit SHA with its exact version in a comment (#632), so Dependabot
 raises action patch bumps too, and the job arms auto-merge on them; they still
 wait for a person, for the `Workflows` reason below. The Dockerfile's base
 images are pinned as `tag@digest`, with the tags floating at the minor
-(`python:3.14-alpine`, `node:26-alpine`): a new minor or major is a runtime
+(`python:3.15-alpine`, `node:26-alpine`): a new minor or major is a runtime
 bump that waits for review, and a rebuild of the image under the same tag
 arrives as a digest PR. The fill's `debian:trixie-slim` and the test
-database's `postgres:17-trixie` are pinned the same way (#760). A Node major bump also fails `Backend Tests` until the
+database's `postgres:18-trixie` are pinned the same way (#760). The test database's PostGIS package names its major (`postgresql-18-postgis-3`), so a major bump of that tag moves the package in the same PR. A Node major bump also fails `Backend Tests` until the
 same PR moves `.node-version` to match, which is what keeps CI on the image's
 runtime. Base-OS *patch* fixes no longer arrive unannounced at the next build:
 they come as that digest PR. The merge PAT is intentionally scoped to Contents +

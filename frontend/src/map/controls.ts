@@ -153,7 +153,7 @@ export const COMPASS_IDLE_CLASS = 'compass-idle'
  * it does, hands the keyboard to the map rather than dropping it on the page.
  * The library has no option for any of this; the markup is the library's.
  */
-export function idleCompassWhileNorthUp(map: maplibregl.Map, container: HTMLElement | undefined): void {
+function idleCompassWhileNorthUp(map: maplibregl.Map, container: HTMLElement | undefined): void {
   const compass = container?.querySelector<HTMLButtonElement>('.maplibregl-ctrl-compass')
   if (!compass) return
   dress(compass, DISABLED)

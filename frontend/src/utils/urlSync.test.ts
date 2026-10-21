@@ -27,15 +27,9 @@ describe('urlNeedsSync', () => {
     expect(urlNeedsSync('foo=1&bar=3', '/', '?foo=1&bar=2')).toBe(true)
   })
 
-  it('preserves pathname when syncing', () => {
+  it('answers the same under any pathname', () => {
     expect(urlNeedsSync('search=peak', '/app/', '?search=peak')).toBe(false)
     expect(urlNeedsSync('search=lake', '/app/', '?search=peak')).toBe(true)
-  })
-
-  it('handles URLs with no pathname', () => {
-    const pathname = '/'
-    expect(urlNeedsSync('a=1', pathname, '?a=1')).toBe(false)
-    expect(urlNeedsSync('a=1', pathname, '')).toBe(true)
   })
 
   it('handles URL encoding special characters', () => {

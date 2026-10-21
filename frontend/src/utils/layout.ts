@@ -1,4 +1,5 @@
 import type { ResultsMode } from './viewPrefs'
+import { clamp } from './numbers'
 
 // One of the two panels on its own, which is what Both falls back to where it
 // does not fit.
@@ -21,11 +22,7 @@ export function clampPanelHeight(
   floorPx = 120,
 ): number {
   const ceil = Math.max(floorPx, viewportPx - mapMinPx - reservedPx)
-  return Math.max(floorPx, Math.min(startHeight + dragUpPx, ceil))
-}
-
-function clamp(value: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(value, hi))
+  return clamp(startHeight + dragUpPx, floorPx, ceil)
 }
 
 // Resolve the *applied* heights of the stacked chart and table panels from their

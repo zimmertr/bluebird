@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 
 import httpx
 
 from app import ratelimit, telemetry
+from app.limits import _as_utc
 from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel, WindowSource
 from app.services import cache, http
 from app.services.aggregation import (
@@ -123,7 +124,16 @@ def _fetch_spans(
         return [_Span(source == "archive", start_dt, end_dt)]
     if boundary is None:
         raise ValueError("a spanning window needs the boundary that classified it")
-    seam = boundary.replace(tzinfo=start_dt.tzinfo)
+    # The boundary is an instant, so it is converted into the window's own form
+    # rather than relabelled: into the window's zone when it carries one, and
+    # to the naive UTC wall clock when it does not, which is how a naive stamp
+    # is read everywhere here. A relabel would move the seam by the offset.
+    instant = _as_utc(boundary)
+    seam = (
+        instant.astimezone(start_dt.tzinfo)
+        if start_dt.tzinfo is not None
+        else instant.astimezone(UTC).replace(tzinfo=None)
+    )
     if seam <= start_dt:
         return [_Span(False, start_dt, end_dt)]
     if seam > end_dt:
@@ -232,7 +242,8 @@ async def fetch_weather_batch(
             start_dt.isoformat(),
             end_dt.isoformat(),
             model.value,
-            dest.get("elevation_ft") or "",
+            # Unknown is "" and 0 ft is 0.0, an elevation like any other.
+            "" if (elevation := dest.get("elevation_ft")) is None else elevation,
             source,
         )
 
@@ -296,7 +307,10 @@ async def fetch_cloud_batch(
             start_dt.isoformat(),
             end_dt.isoformat(),
             model.value,
-            dest.get("elevation_ft") or "",
+            # Unknown is "" and 0 ft is 0.0: a sea-level row inserts its 2 m
+            # point at the bottom of the walk where an unknown one walks the
+            # levels alone, so the two decks differ and must not share an entry.
+            "" if (elevation := dest.get("elevation_ft")) is None else elevation,
             source,
         )
 

@@ -55,7 +55,7 @@ for (const [width, height, panel] of [
     if (panel === 'shut') await page.getByRole('button', { name: 'Close controls' }).click()
 
     const at = await corner(page)
-    console.log(`desk corner ${width} px`, JSON.stringify(at))
+    test.info().annotations.push({ type: `desk corner ${width} px`, description: JSON.stringify(at) })
     const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(0.5)
     // The line flush in the corner, the scale at its end inside its 8px.
     near(at.line.right, at.map.right)
