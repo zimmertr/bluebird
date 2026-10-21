@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react'
 
+// The dialogs holding the keyboard, innermost last. A sheet opened from inside
+// the Controls sheet (the model list, the calendar) stands over it, and both
+// listen on the document, so only the top one answers a key: without that,
+// Escape in the model list closed the Controls sheet under it too (record
+// 0207).
+const open: object[] = []
+
 // Dialog accessibility in one hook: focus moves into the panel when it opens
 // (and back where it was on close), Escape and Enter close, and Tab cycles
 // inside the panel instead of escaping to the page behind the backdrop. Pair
@@ -8,21 +15,34 @@ import { useEffect, useRef } from 'react'
 //
 // `active` false leaves the keyboard where it is and listens for nothing: a
 // sheet the tutorial holds open behind its own card, which has the keyboard
-// (#696).
+// (#696), and the Controls sheet while it is shut, since it never unmounts.
 export function useDialog(onClose: () => void, active = true) {
   const panelRef = useRef<HTMLDivElement>(null)
-  // Latest-close ref so the mount-once effect never re-runs (re-running would
-  // steal focus back to the panel on every parent render).
+  // Latest-close ref so the effect never re-runs on a new callback (re-running
+  // would steal focus back to the panel on every parent render).
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 
   useEffect(() => {
     const panel = panelRef.current
     if (!panel || !active) return
-    const previous = document.activeElement as HTMLElement | null
-    panel.focus()
+    const self = {}
+    open.push(self)
+    const held = document.activeElement as HTMLElement | null
+    // A panel that already holds the keyboard keeps it where it is: the
+    // tutorial hands the Controls sheet's Tutorial link back the keyboard as
+    // it ends, in the commit that makes the sheet modal again. Where it goes
+    // back on close is then unknown, and nothing is put back.
+    const inside = held !== null && panel.contains(held)
+    const previous = inside ? null : held
+    // Without scrolling: the Controls sheet takes the keyboard in the commit
+    // that starts it sliding up from below the screen, and a bare focus
+    // scrolls the app's column to reach it (`takeOrphanedFocus` has the
+    // measurement).
+    if (!inside) panel.focus({ preventScroll: true })
 
     function onKeyDown(e: KeyboardEvent) {
+      if (open[open.length - 1] !== self) return
       if (e.key === 'Escape') {
         e.stopPropagation()
         onCloseRef.current()
@@ -74,11 +94,17 @@ export function useDialog(onClose: () => void, active = true) {
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      previous?.focus()
+      open.splice(open.indexOf(self), 1)
+      // Back where it was, unless the keyboard has gone somewhere of the
+      // reader's or the tour's choosing meanwhile: a sheet that unmounted
+      // left it on the body, and one that went inert left it inside.
+      const now = document.activeElement
+      if (!now || now === document.body || panel.contains(now)) previous?.focus()
     }
-    // Mount-once, `active` included: a sheet does not change hands while open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    // Keyed on `active` alone: a menu sheet does not change hands while open,
+    // and the Controls sheet, which stays mounted, turns modal as it opens and
+    // stops as it shuts or as the tutorial takes the keyboard.
+  }, [active])
 
   return panelRef
 }

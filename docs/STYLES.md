@@ -189,8 +189,8 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `LAYER.sheet` | The phone results sheet: over the map chrome it covers, under the drawer's scrim |
 | `LAYER.mapControls` | The map's top-left cluster and what it opens: over the sheet and the map chrome the Layers popover hangs across |
 | `LAYER.overlay` | Analysis overlay card |
-| `LAYER.scrim` | The preview banner |
-| `LAYER.drawer` | The panel: a phone's Controls sheet |
+| `LAYER.scrim` | The Controls sheet's dim: over the map, its chrome and the results sheet |
+| `LAYER.drawer` | The panel: a phone's Controls sheet, and the notice band on its edge while it is up |
 | `LAYER.popover` | Every menu `Menu.tsx` draws, and every phone bottom sheet (above the panel, below modal) |
 | `LAYER.modal` | Modal dialogs |
 
@@ -742,7 +742,7 @@ vendor's 10px, under the floor, because at 11px `1000 km` on its narrowest bar
 ran past the bar's end (`e2e/scaleBar.spec.ts`).
 Record: [0162](decisions/0162-scale-bar-on-the-theme-ground.md)
 
-The whole notice block stands on the map in a band (`MAP_NOTICE_BAND`):
+The whole notice block stands on the map in a band (`MAP_NOTICE_BAND.map`):
 the panel's own boxes on its slate-800, 12px off each side, 10px over the
 sheet's edge, three lines of a box at most (66px) and then it scrolls inside
 itself. The button stands 16px over the band, and the scale and the (i) move
@@ -753,13 +753,20 @@ kept above the sheet before; the button's, the scale's and the (i)'s bottoms
 on one edge at all three, at 446, 500 and 588 with a report landed.
 Record: [0140](decisions/0140-phone-notices-on-the-map.md)
 
-The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`): the
-bottom sheet's surface and top, not modal, slid below the map while shut, its
-height a fixed share of the map that leaves the rows, the button's strip and a
-full band. The chip is lit while it is up, its words white on the accent fill.
-It carries no notice block and no fixed foot: the document links are the
-last thing in its scrolling body.
-Record: [0141](decisions/0141-phone-controls-sheet.md)
+The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`),
+the bottom sheet the menus below are, kept mounted: modal over the same dim,
+slid below the map while shut, its height a fixed share of the map that
+leaves the rows, the button's strip and a full band. Its dim stands one layer
+under its card (`scrim` on `LAYER.scrim`). It pushes nothing. The button, the
+scale and the (i) stay where they stood under the dim, the button inert, and
+the band alone rides the sheet's edge, over the dim on the card's layer
+(`MAP_NOTICE_BAND.overDim`). Measured 2026-10-21 at 360x740 and 390x844 with a
+cue in the band: the sheet's top at 256, the band 184 to 246, and the button
+at 390 to 446 and 444 to 500, where it stood with the sheet shut. The chip is
+lit while the sheet is up, its words white on the accent fill. The sheet
+carries no notice block and no fixed foot: the document links are the last
+thing in its scrolling body.
+Record: [0207](decisions/0207-phone-controls-sheet-is-modal.md)
 
 A phone's home indicator band (`SAFE_AREA`) is padded under the results sheet,
 and the chrome placed in pixels stands on its top edge before there is a
@@ -1125,7 +1132,8 @@ Done, and rows a finger's 44px tall with a rule between them. Layers and
 Legend from the chip row, the model list and the calendar from the Controls
 sheet, and Columns, Models and Removed from the results bar open in it. The
 model list and the calendar are `Menu`'s rows in a sheet (`sheet`), so they
-are written once for both widths. The dim covers the whole screen, the search row and the chips
+are written once for both widths. The Controls sheet is the same sheet, kept
+mounted (above). The dim covers the whole screen, the search row and the chips
 included, as a modal sheet's scrim does in Material. The grip and the title
 row drag the sheet, to just under the chips, shut, or anywhere between, and a
 double tap on the grip puts it back at its own height, through the gesture

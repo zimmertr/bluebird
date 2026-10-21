@@ -161,7 +161,7 @@ test.describe('on a phone', () => {
     await page.goto('/?view=-121.5,47.5,12&closedareas=1&closedtrails=1')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     // A phone opens on the map, with the Controls sheet shut (#696).
-    await expect(page.locator('section[aria-labelledby]')).toHaveAttribute('inert', '')
+    await expect(page.getByRole('dialog', { name: 'Controls', includeHidden: true })).toHaveAttribute('inert', '')
 
     const canvas = await page.locator('.maplibregl-canvas').boundingBox()
     expect(canvas).not.toBeNull()

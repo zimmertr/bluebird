@@ -42,6 +42,7 @@ vi.mock('./TimelineTransport', () => ({
 vi.mock('./PhoneFoot', () => ({
   default: (props: {
     liftPx: number
+    controlsOpen: boolean
     fabBottomPx: number
     onBandPx: (px: number) => void
     onFabPx: (px: number) => void
@@ -49,7 +50,13 @@ vi.mock('./PhoneFoot', () => ({
     word: string
     onAnalyze: () => void
   }) => (
-    <div data-testid="foot" data-lift={String(props.liftPx)} data-fab={String(props.fabBottomPx)} data-word={props.word}>
+    <div
+      data-testid="foot"
+      data-lift={String(props.liftPx)}
+      data-controls={String(props.controlsOpen)}
+      data-fab={String(props.fabBottomPx)}
+      data-word={props.word}
+    >
       <button onClick={() => props.onBandPx(40)}>Band</button>
       <button onClick={() => props.onFabPx(120)}>Fab</button>
       <button onClick={props.onAnalyze} disabled={!props.analyzeEnabled}>
@@ -434,18 +441,34 @@ describe('MapStage', () => {
     expect(screen.getByTestId('foot').dataset.fab).toBe(String(800 - DRAGGED_MAP_PX + FAB_INSET_PX))
   })
 
-  // The Controls sheet (record 0141) is a sheet the foot rides like the
-  // results: the button stands on whichever edge is higher while it is up.
-  it('rides the Controls sheet while it is up', () => {
+  // The Controls sheet opens over the foot (record 0207): the band alone
+  // rides its edge, and the button, the player and the corner stay where
+  // they stood, on the results sheet's edge.
+  it('rides the band on the Controls sheet while it is up, and moves nothing else', () => {
     const layout = { ...LAYOUT, sheetLiftPx: 104 }
+    const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
     const controlsPx = controlsSheetPx(800)
-    const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: true, controlsPx, layout })} />)
-    expect(screen.getByTestId('foot').dataset.lift).toBe(String(controlsPx))
+    const phone = (sidebarOpen: boolean, px = controlsPx) =>
+      props({ isDesktop: false, sidebarOpen, controlsPx: px, layout, timeline })
+    const { container, rerender } = render(<MapStage {...phone(false)} />)
+    const foot = () => screen.getByTestId('foot').dataset
+    const shut = {
+      fab: foot().fab,
+      player: screen.getByTestId('transport').dataset.lift,
+      corner: (container.firstElementChild as HTMLElement).style.getPropertyValue('--map-corner-lift'),
+    }
+    expect(foot().lift).toBe('104')
+    expect(foot().controls).toBe('false')
+    rerender(<MapStage {...phone(true)} />)
+    expect(foot().lift).toBe(String(controlsPx))
+    expect(foot().controls).toBe('true')
+    expect(foot().fab).toBe(shut.fab)
+    expect(screen.getByTestId('transport').dataset.lift).toBe(shut.player)
+    expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--map-corner-lift')).toBe(shut.corner)
     // Wherever a drag on its grip leaves it (record 0146).
-    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: true, controlsPx: 300, layout })} />)
-    expect(screen.getByTestId('foot').dataset.lift).toBe('300')
-    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, controlsPx, layout })} />)
-    expect(screen.getByTestId('foot').dataset.lift).toBe('104')
+    rerender(<MapStage {...phone(true, 300)} />)
+    expect(foot().lift).toBe('300')
+    expect(foot().fab).toBe(shut.fab)
   })
 
   // A phone's scale and (i) stand on the button's row (record 0140); a desk's

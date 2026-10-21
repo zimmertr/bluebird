@@ -192,7 +192,7 @@ test.describe('on a phone with a report', () => {
     await expect(page.getByRole('button', { name: 'Expand results' }).first()).toBeVisible()
 
     await page.getByRole('button', { name: 'Open controls' }).tap()
-    const link = page.getByRole('region', { name: 'Controls' }).getByRole('link', { name: 'Tutorial' })
+    const link = page.getByRole('dialog', { name: 'Controls' }).getByRole('link', { name: 'Tutorial' })
     await link.scrollIntoViewIfNeeded()
     await link.tap()
     await expect(heading(page)).toHaveText('Destinations')
@@ -256,6 +256,11 @@ test.describe('on a phone with a report', () => {
     await expect(page.locator('[data-tour="chart"] .recharts-line')).toHaveCount(5)
     await expect(page.locator('[data-tour="chart"] .recharts-tooltip-cursor')).toHaveCount(0)
     await expect(page.locator('[data-tour="chart"] .recharts-active-dot')).toHaveCount(0)
+    // The tour started from the Controls sheet and gives it back open, modal
+    // over the map (record 0207), so Done comes before the Layers chip.
+    const controls = page.getByRole('dialog', { name: 'Controls' })
+    await expect(controls).not.toHaveAttribute('inert')
+    await controls.getByRole('button', { name: 'Done' }).tap()
     await page.getByRole('button', { name: 'Layers', exact: true }).first().tap()
     await expect(page.getByRole('dialog', { name: 'Layers', exact: true }).getByRole('checkbox', { name: 'Wildfires' })).not.toBeChecked()
   })

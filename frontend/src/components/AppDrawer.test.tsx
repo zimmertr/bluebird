@@ -159,7 +159,7 @@ describe('AppDrawer', () => {
   it('docks at a desk with no backdrop and no sheet', () => {
     const { container } = render(drawer(true))
     expect(container.querySelector('aside')?.previousElementSibling).toBeNull()
-    expect(screen.queryByRole('region', { name: 'Controls' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Controls' })).toBeNull()
     expect(screen.getByTestId('panel').dataset.phone).toBe('false')
   })
 
@@ -233,19 +233,25 @@ describe('AppDrawer', () => {
     expect(screen.getByTestId('panel').dataset.closureFailed).toBe('true')
   })
 
-  // A phone raises the panel as the Controls sheet (#696; record 0141): not a
-  // dialog, no backdrop, its height set from where it stands, and mounted for
-  // good so the panel keeps its state and the notice portal its home.
+  // A phone raises the panel as the Controls sheet (#696; record 0141): the
+  // bottom sheet every phone menu is, modal over the dim (record 0207), its
+  // height set from where it stands, and mounted for good so the panel keeps
+  // its state and the notice portal its home.
   describe('on a phone', () => {
-    const phone = (open: boolean, onClose = NOOP) => drawer(open, onClose, false, { isDesktop: false, sheetPx: 540 })
+    const phone = (open: boolean, onClose = NOOP, over: Partial<ComponentProps<typeof AppDrawer>> = {}) =>
+      drawer(open, onClose, false, { isDesktop: false, sheetPx: 540, ...over })
+    const sheet = () => screen.getByRole('dialog', { name: 'Controls' })
+    const dim = () => sheet().previousElementSibling as HTMLElement | null
 
-    it('is a region titled Controls, the given height, with the phone panel in it', () => {
+    it('is a modal sheet titled Controls, the given height, with the phone panel in it', () => {
       const { container } = render(phone(true))
-      const sheet = screen.getByRole('region', { name: 'Controls' })
-      expect(sheet.style.height).toBe('540px')
+      expect(sheet().getAttribute('aria-modal')).toBe('true')
+      expect(sheet().style.height).toBe('540px')
       expect(screen.getByTestId('panel').dataset.phone).toBe('true')
       expect(container.querySelector('aside')).toBeNull()
-      expect(screen.queryByRole('dialog')).toBeNull()
+      // In place rather than portalled, so the notice band can stand between
+      // its dim and a sheet opened from inside it.
+      expect(container.contains(sheet())).toBe(true)
     })
 
     // On a phone the switch is the Controls sheet's alone, in its title row
@@ -261,27 +267,30 @@ describe('AppDrawer', () => {
       expect(onToggleTheme).toHaveBeenCalledOnce()
     })
 
-    it('closes from Done and from Escape', () => {
+    it('closes from Done, from Escape and from a press on the dim', () => {
       const onClose = vi.fn()
       render(phone(true, onClose))
       fireEvent.click(screen.getByRole('button', { name: 'Done' }))
-      fireEvent.keyDown(screen.getByRole('region', { name: 'Controls' }), { key: 'Escape' })
-      expect(onClose).toHaveBeenCalledTimes(2)
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(dim()!.getAttribute('aria-hidden')).toBe('true')
+      fireEvent.click(dim()!)
+      expect(onClose).toHaveBeenCalledTimes(3)
     })
 
-    it('slides below the map and goes inert when shut, and stays mounted', () => {
-      const { container, rerender } = render(phone(true))
-      const sheet = () => container.querySelector('section') as HTMLElement
+    it('slides below the map, drops its dim and goes inert when shut, and stays mounted', () => {
+      const { rerender } = render(phone(true))
       expect(sheet().hasAttribute('inert')).toBe(false)
       expect(sheet().className).not.toContain('translate-y-full')
+      expect(dim()).not.toBeNull()
       rerender(phone(false))
       expect(sheet().hasAttribute('inert')).toBe(true)
       expect(sheet().className).toContain('translate-y-full')
+      expect(dim()).toBeNull()
       expect(screen.getByTestId('panel')).toBeTruthy()
     })
 
     // Its grip and title drag it the way a menu's do (record 0146), with the
-    // heights App holds: the button and the band ride its edge.
+    // heights App holds: the notice band rides its edge.
     it('hands App the height a drag on its title holds it at, and its own back on a double press', () => {
       // The gesture reads each press's timeStamp, which jsdom stamps from the
       // clock: frozen, the two presses are a double press by construction
@@ -301,19 +310,51 @@ describe('AppDrawer', () => {
       expect(onSheetPx).toHaveBeenLastCalledWith(null)
     })
 
-    // The summary chip that raised it can go inert under it, so Done takes
-    // the keyboard rather than the body (#576).
-    it('hands the keyboard to Done when the control that raised it goes', () => {
+    // As a menu sheet does: the keyboard goes into the sheet as it opens,
+    // stays inside it, and goes back to the chip that raised it on Done.
+    it('takes the keyboard in as it opens, keeps Tab inside, and hands it back as it shuts', () => {
+      const onClose = vi.fn()
       const page = (open: boolean) => (
         <>
-          {phone(open)}
-          {!open && <button>Open controls</button>}
+          <button>Open controls</button>
+          {phone(open, onClose)}
         </>
       )
       const { rerender } = render(page(false))
-      screen.getByRole('button', { name: 'Open controls' }).focus()
+      const chip = screen.getByRole('button', { name: 'Open controls' })
+      chip.focus()
       rerender(page(true))
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Done' }))
+      expect(document.activeElement).toBe(sheet())
+      const done = screen.getByRole('button', { name: 'Done' })
+      done.focus()
+      expect(fireEvent.keyDown(document, { key: 'Tab' })).toBe(false)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Switch to light theme' }))
+      rerender(page(false))
+      expect(document.activeElement).toBe(chip)
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    // A panel step of the tutorial holds the sheet open behind its card,
+    // which keeps the keyboard and its own Escape (#536).
+    it('leaves the keyboard to the tutorial while it runs', () => {
+      const onClose = vi.fn()
+      const page = (tourRuns: boolean) => (
+        <>
+          <button>Next</button>
+          {phone(true, onClose, { tourRuns })}
+        </>
+      )
+      const { rerender } = render(page(true))
+      const next = screen.getByRole('button', { name: 'Next' })
+      next.focus()
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(onClose).not.toHaveBeenCalled()
+      expect(document.activeElement).toBe(next)
+      // The tour ends with the sheet up: it is modal again.
+      rerender(page(false))
+      expect(document.activeElement).toBe(sheet())
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(onClose).toHaveBeenCalledOnce()
     })
   })
 })
