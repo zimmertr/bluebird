@@ -4,8 +4,8 @@ import { fireEvent, screen } from '@testing-library/react'
 import ModelsPicker from './ModelsPicker'
 import { render } from '../testSupport/render'
 
-// The desk's Models menu: the card that unfurls from the results bar's button
-// group. The phone's sheet is `menuSheets.test.tsx`'s.
+// The desk's Models menu: the card 4px under the results bar's own button
+// (record 0201). The phone's sheet is `menuSheets.test.tsx`'s.
 const MODELS = [
   { id: 'gfs_seamless', label: 'NOAA GFS' },
   { id: 'ecmwf_ifs025', label: 'ECMWF IFS' },
@@ -23,7 +23,6 @@ function Picker({ open = true, onToggle = () => {} }: { open?: boolean; onToggle
         hidden={new Set(['ecmwf_ifs025'])}
         onToggle={onToggle}
         triggerRef={triggerRef}
-        anchorRef={triggerRef}
       />
     </>
   )
