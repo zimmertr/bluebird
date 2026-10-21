@@ -1,30 +1,24 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type ElementType, type RefObject } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
-import { IconLayers } from './icons'
 import BottomSheet from './BottomSheet'
+import { MenuButton } from './Menu'
 import {
   ACCENT,
-  BUTTON_FLOATING,
   CHOICE_INPUT,
   CHOICE_ROW,
-  LIFTED_EDGE,
-  MAP_CHIP,
-  MAP_COL_W,
-  MAP_ROW_H,
-  RADIUS,
-  RECESSED_FILL,
+  MAP_CHIP_MENU,
+  MENU,
   SEGMENT_DIVIDER,
-  SEGMENT_FLUID_LIFTED,
+  SEGMENT_FLUID,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SLIDER,
   SR_ONLY,
-  SURFACE_POPOVER,
-  UNFURLED,
-  UNFURL_ANCHOR,
+  SURFACE_CHIP_CARD,
 } from '../styles'
 import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid'
+import { useExit } from '../hooks/useExit'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useLayerReach } from '../hooks/useLayerReach'
 import type { LayerCoverage } from '../utils/layerCoverage'
@@ -40,6 +34,7 @@ function layerRow({
   onChange,
   disabled,
   note,
+  menu,
 }: {
   key: string
   label: string
@@ -50,9 +45,12 @@ function layerRow({
    *  touch or to a screen reader. */
   disabled?: boolean
   note?: string
+  /** A row of the desk's card rather than of a phone's sheet: it lights under the pointer unless disabled. */
+  menu: boolean
 }) {
+  const inCard = menu ? ` ${MENU.cardRow}${disabled ? '' : ` ${MENU.hover}`}` : ''
   return (
-    <label key={key} className={CHOICE_ROW} title={disabled && note ? note : undefined}>
+    <label key={key} className={`${CHOICE_ROW}${inCard}`} title={disabled && note ? note : undefined}>
       <input
         type="checkbox"
         checked={checked}
@@ -96,20 +94,16 @@ interface LayersPopoverProps {
   /** The tutorial holds the menu open for its Layers step (#536). */
   forcedOpen?: boolean
   /**
-   * A phone (#696): the button is a chip in the row under the search pill and
-   * the menu a bottom sheet, rather than a button in the desk's column with
-   * its menu unfurling out of it.
+   * A phone (#696): the menu is a bottom sheet, rather than the card a desk
+   * stands under the chip (#714). The chip is the same at both.
    */
   sheet?: boolean
 }
 
 /**
- * Layers, under the search box rather than beside MapLibre's own
- * controls on the right. Two reasons it moved: the library's stack
- * is two control GROUPS with a margin between them, so any offset
- * that clears it is a guess that was already wrong once — and the
- * left column is where the app's own map controls live, which
- * makes the split legible. Left is ours, right is the library's.
+ * Layers, a chip in the map's row under the search pill at both widths
+ * (#696; a desk's since #714), with its menu a card joined to the chip at a
+ * desk and a bottom sheet on a phone.
  */
 export default function LayersPopover({
   overlays,
@@ -166,13 +160,19 @@ export default function LayersPopover({
   // menu is open. A label used to carry this ("US only", "OR/WA", "West"),
   // three ways at once and none of them true of the area feeds' eight states;
   // a grey row is the one way that is true everywhere (#676).
-  const outOfView = useLayerReach(mapRef, coverage, open)
   const layersRef = useRef<HTMLDivElement>(null)
-  // A close by Escape or by a press elsewhere unmounts the menu under a
+  // A close by Escape or by a press elsewhere takes the menu from under a
   // keyboard that was inside it, so the focus comes back to the button that
-  // opened it rather than falling to the body (#576).
+  // opened it rather than falling to the body (#576): as the desk's card
+  // starts to leave (`useExit`, which keeps it for `MOTION.menu`'s fade), or
+  // as the phone's sheet unmounts.
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const closing = useExit(open && !sheet, cardRef, buttonRef)
   useTakeOrphanedFocus(buttonRef, !open)
+  // Watched while the card is going too, so its grey rows do not light up as
+  // it fades.
+  const outOfView = useLayerReach(mapRef, coverage, open || closing)
   // Both ways out of a popover a reader expects: click away, or press Escape.
   // `pointerdown` rather than `click` so a press that starts outside dismisses
   // even if the pointer travels before release, and so it lands before the
@@ -269,12 +269,12 @@ export default function LayersPopover({
   const Row: ElementType = sheet ? 'div' : Fragment
   const rows = MAP_LAYERS.map((layer) => (
     <Row key={layer.key}>
-      {layerRow(layer)}
+      {layerRow({ ...layer, menu: !sheet })}
       {/* The grid's sub-choices, revealed by its own checkbox
           and rendered under the row they belong to rather than
           after the list, so the alphabetical order above holds
-          whatever is open. The popover is as wide as the legend
-          boxes below it (`MAP_COL_W`), and a phone's sheet as wide
+          whatever is open. The desk's card is as wide as the legend
+          card beside it (`MAP_MENU_W`), and a phone's sheet as wide
           as the phone, so these take the fluid segment rather than
           the panel's fixed 144px column — the same reason the
           results bar's mode switch does.
@@ -288,7 +288,7 @@ export default function LayersPopover({
           one gap bounds nothing. */}
       {layer.key === 'grid' && gridOn && (
         <>
-          <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
+          <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
             {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
               <button
                 key={value}
@@ -312,7 +312,7 @@ export default function LayersPopover({
               and commits on release, because each committed value
               is a refetch and a drag must not fetch per pixel. */}
           <div
-            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
+            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${SLIDER.well}`}
           >
             {(() => {
               const shown = gridReachDraft ?? gridReachFrac
@@ -356,33 +356,25 @@ export default function LayersPopover({
     </Row>
   ))
 
-  // A phone's Layers is a chip in the row under the search pill, and its menu
-  // a bottom sheet over the dimmed map (#696; record 0136), where a desk's
-  // unfurls from its button in the map's column. One button either way, so
-  // the tutorial's anchor is one element; the desk's menu is absolute, so the
-  // button's box is the whole column member's. The tutorial does not hold the
-  // sheet open: a modal sheet would take the keyboard from the tour's own
-  // card, so on a phone its Layers step points at the chip.
+  // Layers is a chip in the row under the search pill at both widths. A
+  // phone's menu is a bottom sheet over the dimmed map (#696; record 0136),
+  // and a desk's is a card 4px under the chip, which stays whole (#714;
+  // record 0174), because a pill squared to join a card reads as a dome. One
+  // button either way, so the tutorial's anchor is one element; the desk's
+  // card is absolute, so the chip's box is the row member's. The tutorial
+  // does not hold the sheet open: a modal sheet would take the keyboard from
+  // the tour's own card, so on a phone its Layers step points at the chip.
   const button = (
-    <button
+    <MenuButton
       ref={buttonRef}
+      shape="chip"
+      open={open}
+      chevron={!sheet}
       onClick={() => setLayersOpen((o) => !o)}
-      aria-expanded={open}
-      // The desk's menu unfurls out of the button's bottom edge as one card
-      // with it (record 0134). Written here rather than by `usePopover`,
-      // which this menu does not wear: it hangs in the map column, not in a
-      // portal.
-      data-unfurled={open && !sheet ? 'below' : undefined}
-      className={
-        sheet
-          ? MAP_CHIP
-          : `${BUTTON_FLOATING} ${UNFURL_ANCHOR} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`
-      }
       data-tour="layers"
     >
-      {!sheet && <IconLayers />}
       Layers
-    </button>
+    </MenuButton>
   )
 
   if (sheet) {
@@ -399,15 +391,16 @@ export default function LayersPopover({
   }
 
   return (
-    <div ref={layersRef} className="relative">
+    // Raised over the Legend chip's card beside it, which it opens across:
+    // the menu is the thing a reader just asked for. The two cards share one
+    // surface, so the menu's outline and its deeper shadow are what part them.
+    <div ref={layersRef} className="relative z-[1] flex-shrink-0">
       {button}
-      {/* Zero from the button it hangs under, which is the same edge
-          as `MAP_EDGE.left`: the popover's offset parent is the column,
-          so an inset of its own would be that inset twice and the box
-          would hang a step right of the legends it hangs over. */}
-      {open && (
+      {(open || closing) && (
         <div
-          className={`${SURFACE_POPOVER} ${MAP_COL_W} ${UNFURLED.below} absolute left-0 px-2.5 py-2`}
+          ref={cardRef}
+          data-state={closing ? 'closing' : 'open'}
+          className={`${SURFACE_CHIP_CARD.menu} ${MAP_CHIP_MENU}`}
           data-tour="layers-menu"
         >
           {rows}

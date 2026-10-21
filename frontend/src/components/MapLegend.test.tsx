@@ -5,7 +5,10 @@ import MapLegend, { LegendSections, legendSections, type LegendInputs } from './
 import { render } from '../testSupport/render'
 import { rankedScale } from '../utils/colors'
 import { SMOKE_DENSITIES } from '../utils/smoke'
-import { readViewPrefs } from '../utils/viewPrefs'
+import { legendMaxCss } from '../utils/resultsSheet'
+import { readViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
+import { IconChevron } from './icons'
+import { MENU_CHEVRON } from '../styles'
 
 const NONE = {
   showWildfires: false,
@@ -30,23 +33,23 @@ const BASE = {
   rankedFieldHasValue: true,
   overlays: NONE,
   grid: NO_GRID,
-  sidebarOpen: true,
+  sheet: false,
   sheetLiftPx: 0,
   timelineShown: false,
   initiallyOpen: true,
 }
-// The box as a desk draws it, from the inputs every surface reads: the
-// sections are `legendSections`' since #696, which a phone's Legend sheet
-// draws too.
+// The chip and its key from the inputs every surface reads: the sections are
+// `legendSections`' since #696, which a desk's card and a phone's Legend
+// sheet both draw.
 function Legend(props: LegendInputs & Omit<ComponentProps<typeof MapLegend>, 'sections'>) {
   const id = useId()
   return <MapLegend {...props} sections={legendSections(props, id)} />
 }
 
 describe('MapLegend', () => {
-  // The button stays and greys, the way a phone's chip does (#696), so the
-  // column keeps one shape; there is no card to unfold.
-  it('greys its button and draws no card when nothing on the map is coloured or switched on', () => {
+  // The chip stays and greys (#696), so the row keeps one shape; there is no
+  // card to unfold.
+  it('greys its chip and draws no card when nothing on the map is coloured or switched on', () => {
     const { container } = render(<Legend {...BASE} />)
     const button = screen.getByRole('button', { name: 'Legend' }) as HTMLButtonElement
     expect(button.disabled).toBe(true)
@@ -144,23 +147,37 @@ describe('legendSections', () => {
   })
 })
 
-// A desk's legend is a button in the map's column with its card unfurled out
-// of it (#696; record 0134's join), open until the reader folds it, and
-// folded or open again on the next visit.
-describe('the desk\'s Legend button', () => {
-  it('unfurls the card out of the button, open by default', () => {
+// A desk's legend is a chip in the map's row with its card standing under it
+// (#714), open until the reader folds it, and folded or open again on the
+// next visit. The chip keeps its pill whole and is lit while the card is out,
+// as a phone's is (TJ, 2026-10-18).
+describe('the desk\'s Legend chip', () => {
+  it('opens the card under the chip, open by default', () => {
     render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} />)
     const button = screen.getByRole('button', { name: 'Legend' })
     expect(button.getAttribute('aria-expanded')).toBe('true')
-    expect(button.getAttribute('data-unfurled')).toBe('below')
     expect(button.nextElementSibling!.textContent).toContain('Smoke')
+  })
+
+  // The card hangs from the chip inside the rows, so it reads the map's
+  // height off the wrapper's size container and stops at the floor the
+  // player's band or the plain gap keeps (`legendMaxCss`).
+  it('caps the card at the map left below the rows, and scrolls past it', () => {
+    render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} timelineShown />)
+    const card = screen.getByRole('button', { name: 'Legend' }).nextElementSibling as HTMLElement
+    // Read back through a style of its own, because the DOM normalizes the
+    // calc's terms into its own order.
+    const want = document.createElement('div')
+    want.style.maxHeight = legendMaxCss(0, true)
+    expect(want.style.maxHeight).not.toBe('')
+    expect(card.style.maxHeight).toBe(want.style.maxHeight)
+    expect(card.className).toContain('overflow-y-auto')
   })
 
   it('folds and unfolds on a press, and remembers which', () => {
     render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} />)
     fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
     expect(screen.queryByText(/Smoke/)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Legend' }).getAttribute('data-unfurled')).toBeNull()
     expect(readViewPrefs().legendOpen).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
     expect(screen.getByText(/Smoke/)).toBeTruthy()
@@ -171,5 +188,65 @@ describe('the desk\'s Legend button', () => {
     render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} initiallyOpen={false} />)
     expect(screen.getByRole('button', { name: 'Legend' }).getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByText(/Smoke/)).toBeNull()
+  })
+
+  // A desk's card drops from its chip, so the chip carries a chevron: up
+  // while the card is open, down while it is folded (TJ, 2026-10-18).
+  it('points its chevron up while the card is open and down while it is folded', () => {
+    render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} />)
+    const chevron = () => screen.getByRole('button', { name: 'Legend' }).querySelector('svg')!
+    expect(chevron().classList).toContain(MENU_CHEVRON.chip)
+    expect(chevron().getAttribute('aria-hidden')).toBe('true')
+    expect(chevron().querySelector('polyline')!.getAttribute('points')).toBe(chevronPoints(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
+    expect(chevron().querySelector('polyline')!.getAttribute('points')).toBe(chevronPoints(false))
+  })
+})
+
+// The points `IconChevron` draws for one direction, read off the icon itself
+// so the chip's tests do not restate its geometry.
+function chevronPoints(up: boolean): string | null {
+  const { container, unmount } = render(<IconChevron up={up} />)
+  const points = container.querySelector('polyline')!.getAttribute('points')
+  unmount()
+  return points
+}
+
+// A phone's key is a bottom sheet (#696; record 0136), shut until asked for
+// and never remembered.
+describe('the phone\'s Legend chip', () => {
+  const PHONE = { ...BASE, sheet: true }
+
+  it('opens the keys in a sheet, shut at first whatever the desk remembers', () => {
+    render(<Legend {...PHONE} overlays={SMOKE_AND_RADAR} />)
+    const chip = screen.getByRole('button', { name: 'Legend' })
+    expect(chip.getAttribute('aria-expanded')).toBe('false')
+    // A sheet rises from below, so a phone's chip carries no chevron.
+    expect(chip.querySelector('svg')).toBeNull()
+    fireEvent.click(chip)
+    const sheet = screen.getByRole('dialog', { name: 'Legend' })
+    expect(sheet.textContent).toContain('Smoke')
+    expect(screen.getByRole('button', { name: 'Legend' }).getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('does not write the desk\'s fold', () => {
+    writeViewPrefs({ legendOpen: true })
+    render(<Legend {...PHONE} overlays={SMOKE_AND_RADAR} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
+    expect(readViewPrefs().legendOpen).toBe(true)
+  })
+
+  // A key that goes while its sheet is open takes the sheet with it, and the
+  // next key does not bring the sheet back by itself.
+  it('closes the sheet when the last key goes', () => {
+    const { rerender } = render(<Legend {...PHONE} overlays={SMOKE_AND_RADAR} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
+    rerender(<Legend {...PHONE} />)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect((screen.getByRole('button', { name: 'Legend' }) as HTMLButtonElement).disabled).toBe(true)
+    rerender(<Legend {...PHONE} overlays={SMOKE_AND_RADAR} />)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

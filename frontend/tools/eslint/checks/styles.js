@@ -142,7 +142,18 @@ const fromExport = (name, target) =>
   `${defaultExport(name)} ${target}, ${defaultExport(name)} ~ * ${target}`
 
 const ICON_SIZE = String.raw`(^|\s)[hw]-(\d|\[)`
+// The old popover card, which every menu wore before record 0201.
 const POPOVER_BOX = pair('SURFACE_CARD', 'LAYER.popover', '^ $')
+
+// A trigger in one of the three shapes (record 0201).
+const MENU_BUTTON = (shape) =>
+  `JSXOpeningElement[name.name="MenuButton"]:has(> JSXAttribute[name.name="shape"][value.value="${shape}"])`
+
+// Where a native select may stand: in a phone's branch, the Metrics table's
+// `phone ? ... :` and the chart's `titled && ...` (record 0149).
+const PHONE_ONLY =
+  'ConditionalExpression[test.name="phone"] > .consequent JSXOpeningElement, ' +
+  'LogicalExpression[left.name="titled"] > .right JSXOpeningElement'
 
 const GRID = elementWith('METRICS_GRID')
 const CLEAR = 'JSXOpeningElement:has(JSXAttribute[name.name="onClick"] > JSXExpressionContainer > Identifier[name="onClearFilters"])'
@@ -163,7 +174,8 @@ const titleCaption = (ref) =>
     .map((k) => `${exprIs(k, ref)}[quasis.${k + 1}.value.raw=" truncate"][quasis.${k + 1}.tail=true]`)
     .join(', ')})`
 
-const SEARCH_WIDTHS = ['4', '72', '80']
+// The spinner's square. The pill and its list take the row's width.
+const SEARCH_WIDTHS = ['4']
 
 const PLAYER_ROW = 'VariableDeclarator[id.name="MAP_LAYERS"] ObjectExpression:has(> Property[key.name="label"][value.value="Forecast player"])'
 
@@ -238,23 +250,32 @@ export const STYLES = [
     require: [{ selector: 'JSXOpeningElement[name.name="svg"]', min: 11, message: 'icons.tsx draws the glyphs.' }],
   },
   {
-    // Popover.tsx owns the fixed box, the card and the stacking order, so a
-    // fix reaches every panel. A panel that spells them again drifts a step.
-    name: 'style-own-popover',
+    // Menu.tsx owns the fixed box, the card and the stacking order (record
+    // 0201), so a fix reaches every menu. A menu that spells them again
+    // drifts a step, which is how the app came to have five.
+    name: 'style-own-menu',
     files: SOURCES,
-    ignores: [...TESTS, 'src/components/Popover.tsx'],
+    ignores: [...TESTS, 'src/components/Menu.tsx'],
     ban: [
       {
         selector: 'Property:matches([key.name="position"], [key.value="position"])[value.value="fixed"]',
-        message: 'Position a floating panel through Popover.tsx.',
+        message: 'Position a menu through Menu.tsx.',
       },
-      { selector: POPOVER_BOX, message: 'Wrap a floating panel in Popover.tsx rather than spelling its box.' },
+      {
+        selector: `${role('MENU')}[property.name="card"], ${POPOVER_BOX}`,
+        message: 'Stand a menu in Menu.tsx rather than spelling its card.',
+      },
     ],
   },
   {
-    name: 'style-popover-shell',
-    files: ['src/components/Popover.tsx'],
-    require: [{ selector: POPOVER_BOX, message: 'Popover.tsx applies the card and the popover layer.' }],
+    name: 'style-menu-shell',
+    files: ['src/components/Menu.tsx'],
+    require: [
+      { selector: `${role('MENU')}[property.name="card"]`, count: 1, message: 'Menu.tsx stands the card on MENU.card.' },
+      { selector: calls('createPortal'), count: 1, message: 'Menu.tsx portals the card to the body.' },
+      { selector: role('MENU_TRIGGER'), count: 1, message: 'MenuButton wears MENU_TRIGGER.' },
+      { selector: 'JSXOpeningElement[name.name="IconChevron"]', count: 1, message: 'MenuButton draws the one chevron.' },
+    ],
   },
   {
     // The placement is wired from a hook, so the files a second caller could
@@ -270,33 +291,83 @@ export const STYLES = [
     ],
   },
   {
-    // Every menu unfurls out of the control that opens it, as one card with it
-    // at its width (the maintainer, 2026-10-13; record 0134). A panel asks
-    // usePopover for that by `placement: 'unfurl'`, or `'cover'` for the
-    // calendar, which stands in its field's place. And a list of options lives inside the
-    // one card: the search box's results list is the stated exception, so its
-    // file is the one left out.
-    name: 'style-menu-unfurls',
+    // Every desk menu is the one menu (#714, record 0201): it stands 4px under
+    // its trigger wherever it opens, so no caller picks a placement, and a
+    // list of options lives inside its card. The search box's results list is
+    // the stated exception, so its file is the one left out. A native select
+    // opens the platform's own list, which no stylesheet reaches, so one is
+    // drawn on a phone only, where its picker rises from below like every
+    // phone menu (record 0149).
+    name: 'style-one-menu',
     files: ['src/App.tsx', 'src/components/*.tsx', 'src/hooks/*.ts', 'src/map/**/*.{ts,tsx}'],
     ignores: [...TESTS, 'src/hooks/usePopover.ts', 'src/components/SearchBox.tsx'],
     probe: 'src/components/ColumnsPicker.tsx',
     ban: [
       {
-        selector:
-          'CallExpression[callee.name="usePopover"]:not(:has(Property[key.name="placement"][value.value=/^(unfurl|cover)$/]))',
-        message: 'Unfurl a menu out of its control: pass usePopover placement \'unfurl\' (or the calendar\'s \'cover\').',
-      },
-      {
-        // The row-width form is a refinement of unfurling, never a way for a
-        // panel to take a width of its own beside its control.
-        selector:
-          'CallExpression[callee.name="usePopover"]:has(Property[key.name="widthRef"]):not(:has(Property[key.name="placement"][value.value="unfurl"]))',
-        message: 'Span a row only from an unfurled menu: widthRef goes with placement \'unfurl\'.',
+        selector: 'CallExpression[callee.name="usePopover"] Property[key.name="placement"]',
+        message: 'Pass usePopover no placement: every menu stands 4px under its trigger.',
       },
       {
         selector:
-          'JSXAttribute[name.name="role"][value.value="listbox"]:not(JSXElement[openingElement.name.name="Popover"] JSXAttribute)',
-        message: 'A list of options lives in the card Popover.tsx draws; only the search box keeps its own.',
+          'JSXAttribute[name.name="role"][value.value="listbox"]:not(JSXElement[openingElement.name.name="Menu"] JSXAttribute)',
+        message: 'A list of options lives in the card Menu.tsx draws; only the search box keeps its own.',
+      },
+      {
+        selector: `JSXOpeningElement[name.name="select"]:not(${PHONE_ONLY})`,
+        message: 'Draw a native select on a phone only: a desk picks from MenuSelect.',
+      },
+    ],
+  },
+  {
+    // The joined unfurl of record 0134 is gone, and with it the card it stood
+    // on, the attribute that squared its trigger and the placements that put
+    // a card anywhere but under its trigger (record 0201). A role brought back
+    // under its old name would bring the second look back with it.
+    name: 'style-no-unfurl',
+    files: SHIPPED,
+    ignores: TESTS,
+    probe: 'src/styles.ts',
+    ban: [
+      {
+        selector:
+          'Identifier[name=/^(SURFACE_POPOVER|UNFURLED|UNFURL_ANCHOR|UNFURL_FLOOR_PX|unfurledBox)$/], ' +
+          'JSXAttribute[name.name="data-unfurled"], Literal[value=/^(data-unfurled|unfurl|cover|hang)$/]',
+        message: 'Bring back no unfurled or covering menu: every menu stands under its trigger on one card.',
+      },
+    ],
+  },
+  {
+    // Every control that opens a menu is a MenuButton in one of the three
+    // shapes (record 0201), so it carries the chevron, the hover and the lit
+    // state every trigger shares. A plain button with aria-expanded is a
+    // fourth trigger with a look of its own. The map's sidebar toggle opens
+    // the control panel, not a menu, so its file is left out.
+    name: 'style-menu-trigger',
+    files: SOURCES,
+    ignores: [...TESTS, 'src/components/Menu.tsx', 'src/components/MapRows.tsx'],
+    probe: 'src/components/ResultsBar.tsx',
+    ban: [
+      {
+        selector: 'JSXOpeningElement[name.name="button"]:has(> JSXAttribute[name.name="aria-expanded"])',
+        message: 'Open a menu from MenuButton, never from a button of its own.',
+      },
+    ],
+  },
+  {
+    // The panel's menus and the chart's open from the field shape: the model
+    // picker, the calendar, each metric's aggregate and the chart's metric.
+    name: 'style-menu-field',
+    files: [
+      'src/components/ModelPicker.tsx',
+      'src/components/ForecastCalendar.tsx',
+      'src/components/MetricsTable.tsx',
+      'src/components/TimeSeriesChart.tsx',
+    ],
+    require: [
+      {
+        selector: `${MENU_BUTTON('field')}, JSXOpeningElement[name.name="MenuSelect"]`,
+        count: 1,
+        message: 'Open a panel menu from the field shape: one MenuButton shape="field" or MenuSelect.',
       },
     ],
   },
@@ -322,44 +393,41 @@ export const STYLES = [
     require: [{ selector: interp('SURFACE_PAGE'), message: 'Stand the page on SURFACE_PAGE.' }],
   },
   {
-    // The map's left column: one width, one gap, one row height, one inset.
-    // A width, gap or height spelled beside the role moves the column without
-    // moving what is derived from the role.
-    name: 'style-map-column',
+    // The map's chrome at both widths (#714, record 0174): the two rows, the
+    // chips and the menus that stand under them. A width, height or offset
+    // spelled beside a role moves one part without moving what is derived
+    // from the role, and an inset spelled at a call site is how the old
+    // column came to sit 4px right of the legends.
+    name: 'style-map-chrome',
     files: [
       'src/App.tsx',
       'src/components/AnalysisOverlay.tsx',
       'src/components/LayersPopover.tsx',
-      'src/components/MapButtonColumn.tsx',
+      'src/components/MapRows.tsx',
       'src/components/MapLegend.tsx',
     ],
     ban: [
-      { selector: ride('MAP_COL_W', String.raw`(^|\s)w-\S`), message: 'Spell no width beside MAP_COL_W.' },
+      {
+        selector: ride('MAP_CHIP_MENU', String.raw`(^|\s)(w-|top-|left-|right-)`),
+        message: 'Spell no width or offset beside MAP_CHIP_MENU.',
+      },
       {
         // A range rather than a list, so a step nobody thought of still fails,
         // and guarded so a max-w is not read as a width.
         selector: text(String.raw`(?<![-\w])w-(?:4\d|5\d)\b`),
-        message: 'Take the map column width from MAP_COL_W.',
+        message: 'Take the chip menu width from MAP_MENU_W.',
       },
       {
-        selector: ride('MAP_COL_GAP.gap', String.raw`(^|\s)(gap-|mt-)`),
-        message: 'Spell no gap beside MAP_COL_GAP.',
-      },
-      {
-        selector: ride('MAP_ROW_H', String.raw`(^|\s)(h-|min-h-|py-)`),
-        message: 'Spell no height or padding beside MAP_ROW_H.',
+        selector: within(`${MENU_BUTTON('chip')} > JSXAttribute[name.name="className"]`, String.raw`(^|\s)(h-|min-h-|px-|py-)`),
+        message: 'Spell no height or padding on a chip: its shape carries both.',
       },
       { selector: text(String.raw`\btop-3\b`), message: 'Take the top inset from MAP_EDGE.top.' },
       { selector: text(String.raw`\bleft-(2|3)\b|\bleft-\[`), message: 'Take the left inset from MAP_EDGE.left.' },
     ],
   },
   {
-    // The map column's members are four files now (#409); each carries its
-    // share of the roles, and the counts add up to what App.tsx held: four
-    // MAP_COL_W, two MAP_COL_GAP.gap and two MAP_EDGE.left. The Layers menu's
-    // MAP_COL_GAP.top went with its gap when it unfurled (record 0134).
     // Everything inside the wrapper, which MapStage draws, inherits the one
-    // number.
+    // inset, and the legend card reads the wrapper's height (`100cqh`).
     name: 'style-map-wrapper',
     files: ['src/components/MapStage.tsx'],
     require: [
@@ -367,42 +435,42 @@ export const STYLES = [
     ],
   },
   {
-    // The legend box and the stack it scrolls in.
-    name: 'style-map-legend-column',
+    // The Legend chip and the card under it (#714, record 0174): the chip is
+    // the chip shape of the one trigger (record 0201), and the card wears the
+    // menu role on the chip cards' one surface (TJ, 2026-10-18).
+    name: 'style-map-legend-chip',
     files: ['src/components/MapLegend.tsx'],
     require: [
-      // The Legend button and the card that unfurls out of it (#696, record
-      // 0134's join): one width, and the join worn by both.
-      { selector: interp('MAP_COL_W'), count: 2, message: 'The Legend button and its card wear MAP_COL_W.' },
-      { selector: interp('UNFURLED.below'), count: 1, message: 'The legend card unfurls from its button with UNFURLED.below.' },
-      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Legend button wears UNFURL_ANCHOR.' },
-      { selector: interp('MAP_COL_GAP.gap'), count: 1, message: 'The legend stack spaces by MAP_COL_GAP.gap.' },
-      { selector: interp('MAP_EDGE.left'), count: 1, message: 'The legend stack stands off the left by MAP_EDGE.left.' },
+      { selector: MENU_BUTTON('chip'), count: 1, message: 'The Legend chip is a MenuButton in the chip shape.' },
+      { selector: interp('MAP_CHIP_MENU'), count: 1, message: 'The legend card wears MAP_CHIP_MENU.' },
+      { selector: role('SURFACE_CHIP_CARD') + '[property.name="key"]', count: 1, message: 'The legend card stands on SURFACE_CHIP_CARD.key.' },
     ],
   },
   {
-    // The button cluster and the Controls button it holds while the panel is
-    // closed. A stacking context orders only its own children, so the layer
-    // is useless unless the cluster itself wears it.
-    name: 'style-map-button-column',
-    files: ['src/components/MapButtonColumn.tsx'],
+    // The two rows: the pill and the locate button, then the chips and the
+    // compass. A stacking context orders only its own children, so the layer
+    // is useless unless the stack itself wears it.
+    name: 'style-map-rows',
+    files: ['src/components/MapRows.tsx'],
     require: [
-      { selector: interp('MAP_COL_W'), count: 1, message: 'The Controls button wears MAP_COL_W.' },
-      { selector: interp('MAP_COL_GAP.gap'), count: 1, message: 'The cluster spaces by MAP_COL_GAP.gap.' },
-      { selector: role('LAYER') + '[property.name="mapControls"]', message: 'The map controls cluster wears LAYER.mapControls.' },
-      { selector: interp('MAP_EDGE.top'), message: 'The column stands off the top by MAP_EDGE.top.' },
-      { selector: interp('MAP_EDGE.left'), count: 1, message: 'The cluster stands off the left by MAP_EDGE.left.' },
+      { selector: role('MAP_ROWS') + '[property.name="stack"]', message: 'The rows stand in MAP_ROWS.stack.' },
+      { selector: role('LAYER') + '[property.name="mapControls"]', message: 'The rows wear LAYER.mapControls.' },
+      { selector: role('MAP_SLOT') + '[property.name="locate"]', message: 'The pill row ends in MAP_SLOT.locate.' },
+      { selector: role('MAP_SLOT') + '[property.name="compass"]', message: 'The chip row ends in MAP_SLOT.compass.' },
     ],
   },
   {
-    // The Layers button and the menu that unfurls out of it (record 0134):
-    // one width, and the join on the button's bottom edge, worn by both.
-    name: 'style-map-layers-column',
+    // The Layers chip and the menu under it, unjoined like the legend's
+    // (record 0174), on the legend card's surface with the deeper shadow. Its
+    // wrapper stands over the Legend chip's, so the menu opens over the legend
+    // card rather than under it.
+    name: 'style-map-layers-chip',
     files: ['src/components/LayersPopover.tsx'],
     require: [
-      { selector: interp('MAP_COL_W'), count: 2, message: 'The Layers button and its popover wear MAP_COL_W.' },
-      { selector: interp('UNFURLED.below'), count: 1, message: 'The Layers menu unfurls from the button with UNFURLED.below.' },
-      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Layers button wears UNFURL_ANCHOR.' },
+      { selector: MENU_BUTTON('chip'), count: 1, message: 'The Layers chip is a MenuButton in the chip shape.' },
+      { selector: interp('MAP_CHIP_MENU'), count: 1, message: 'The Layers menu wears MAP_CHIP_MENU.' },
+      { selector: role('SURFACE_CHIP_CARD') + '[property.name="menu"]', count: 1, message: 'The Layers menu stands on SURFACE_CHIP_CARD.menu.' },
+      { selector: text(String.raw`(^|\s)z-\[1\](\s|$)`), message: 'Stand the Layers menu over the legend card with z-[1].' },
     ],
   },
   {
@@ -423,9 +491,16 @@ export const STYLES = [
     ],
     require: [
       {
+        // Download CSV opens nothing, so it is the one button that is not a
+        // menu's trigger and carries no chevron (record 0201).
         selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="ACTION_ITEM"]',
-        count: 4,
-        message: 'The four results bar buttons wear ACTION_ITEM.',
+        count: 1,
+        message: 'Download CSV wears ACTION_ITEM.',
+      },
+      {
+        selector: MENU_BUTTON('bar'),
+        count: 3,
+        message: 'The three menu buttons are MenuButtons in the bar shape.',
       },
       {
         selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="ACTION_GROUP"]',
@@ -502,18 +577,17 @@ export const STYLES = [
     ],
   },
   {
-    // The search field, its results and its message: one width, one opaque
-    // surface, and severity by STATUS colour rather than a panel notice box.
+    // The search pill, its results and its message: the row's width, one
+    // opaque surface, and severity by STATUS colour rather than a panel
+    // notice box.
     name: 'style-search-box',
     files: ['src/components/SearchBox.tsx'],
     ban: [
-      { selector: ride('MAP_COL_W', String.raw`(^|\s)w-\S`), message: 'Spell no width beside MAP_COL_W.' },
       {
-        // The one deliberate exception is the result list, wider than the
-        // column so a second line keeps the county and state. The single-digit
-        // step left is the spinner's square.
+        // The pill and its list are the row's width, so the one fixed width
+        // left is the spinner's square.
         selector: text(`(?<![-\\w])w-(?!(?:${SEARCH_WIDTHS.join('|')})(?:\\s|$))\\d`),
-        message: 'Pick no width in SearchBox beyond the result list and the spinner.',
+        message: 'Pick no width in SearchBox beyond the spinner.',
       },
       { selector: ride('DROPDOWN', String.raw`\sbg-`), message: 'Spell no surface beside DROPDOWN.' },
       {
@@ -523,20 +597,15 @@ export const STYLES = [
       },
     ],
     require: [
-      {
-        // Or the pill's whole slot in its place on a phone (#696), where the
-        // slot is the width: the two are one choice in one class list.
-        selector: `${interp('MAP_COL_W')}, TemplateLiteral > ConditionalExpression[alternate.name="MAP_COL_W"]`,
-        count: 1,
-        message: 'The search field wears MAP_COL_W.',
-      },
+      { selector: interp('MAP_PILL_FIELD'), count: 1, message: 'The search field wears MAP_PILL_FIELD.' },
       ...SEARCH_WIDTHS.map((w) => ({
         selector: text(`(?<![-\\w])w-${w}(?:\\s|$)`),
         message: `SearchBox keeps its w-${w}.`,
       })),
       {
-        selector: 'VariableDeclarator[id.name="DROPDOWN"] > TemplateLiteral > Identifier[name="SURFACE_POPOVER"]',
-        message: 'DROPDOWN stands on SURFACE_POPOVER.',
+        selector:
+          'VariableDeclarator[id.name="DROPDOWN"] > TemplateLiteral > MemberExpression[object.name="SURFACE_CHIP_CARD"][property.name="menu"]',
+        message: 'DROPDOWN stands on SURFACE_CHIP_CARD.menu, the card every menu wears.',
       },
       { selector: interp('DROPDOWN'), count: 2, message: 'The list and the message both ride DROPDOWN.' },
       { selector: interp('CAPTION_LIFTED'), message: 'The result captions wear CAPTION_LIFTED.' },
@@ -544,21 +613,21 @@ export const STYLES = [
     ],
   },
   {
-    // The chart's metric select cannot follow the panel column down: its
+    // The chart's metric menu cannot follow the panel column down: its
     // labels carry units. And a row whose width its labels cannot move never
     // wraps, so a sixth metric cannot bring the second line back.
     name: 'style-chart-metric',
     files: ['src/components/TimeSeriesChart.tsx'],
     ban: [
-      { selector: named('CONTROL_W'), message: 'Size the chart metric select by CHART_METRIC_W, not CONTROL_W.' },
+      { selector: named('CONTROL_W'), message: 'Size the chart metric menu by CHART_METRIC_W, not CONTROL_W.' },
       { selector: text('flex-wrap'), message: 'Let the chart metric row wrap nowhere.' },
     ],
     require: [
       { selector: named('CHART_METRIC_W'), message: 'TimeSeriesChart reads CHART_METRIC_W.' },
       {
         selector:
-          'JSXOpeningElement[name.name="select"]:has(JSXAttribute[name.name="className"] Identifier[name="SELECT"]):has(JSXAttribute[name.name="className"] Identifier[name="CHART_METRIC_W"])',
-        message: 'Build the chart metric select from SELECT at CHART_METRIC_W.',
+          'JSXOpeningElement[name.name="MenuSelect"]:has(JSXAttribute[name.name="className"] Identifier[name="CHART_METRIC_W"])',
+        message: 'Build the desk\'s chart metric as MenuSelect at CHART_METRIC_W.',
       },
     ],
   },

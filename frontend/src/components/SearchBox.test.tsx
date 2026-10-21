@@ -114,15 +114,16 @@ describe('SearchBox', () => {
     })
   })
 
-  // The phone's pill (#696): the slot's size in the pill's face, and a report
+  // The pill (#696, at both widths since #714): the slot's size in the
+  // pill's face, and a report
   // each time the field takes or leaves the keyboard or its list opens or
   // shuts, which widens the pill and steps the chip row aside.
-  it('reports while it is in use as a pill, and holds open while its list is', async () => {
+  it('reports while it is in use, and holds open while its list is', async () => {
     const expanded = vi.fn()
     search.mockResolvedValue([place(), place({ label: 'Baker Lake', lat: 48.7 })])
     const { user } = render(
       <>
-        <SearchBox onSelect={onSelect} pill onExpandedChange={expanded} />
+        <SearchBox onSelect={onSelect} onExpandedChange={expanded} />
         <button>Elsewhere</button>
       </>,
     )

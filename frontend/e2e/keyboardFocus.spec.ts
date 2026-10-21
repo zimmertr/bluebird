@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, DESTINATION_NAMES, resultRows } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, resultRows } from './fixtures'
 
 // Where the keyboard goes in a real browser (#575, #576). The unit suites hold
 // each rule in jsdom, which implements neither `inert` nor a hidden element's
@@ -22,7 +22,9 @@ async function analyzeFromTheKeyboard(page: Page) {
   const analyze = page.getByRole('button', { name: 'Analyze' })
   await analyze.focus()
   await page.keyboard.press('Enter')
-  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+  // The tests read a row's links and Tab through its controls, so not
+  // before the rows are ranked.
+  await expectRanked(page)
   return analyze
 }
 

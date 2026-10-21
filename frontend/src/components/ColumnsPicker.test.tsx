@@ -5,6 +5,7 @@ import ColumnsPicker from './ColumnsPicker'
 import { displayedColumns } from '../utils/tableColumns'
 import { DRAG_THRESHOLD_PX } from '../utils/columnDrag'
 import { placeAt, render } from '../testSupport/render'
+import { MENU } from '../styles'
 
 // The real column list, ranked by the total precipitation, so the ranked group
 // is the four precipitation columns and everything else is free to hide.
@@ -32,7 +33,6 @@ function Picker(props: {
         onVisibilityChange={props.onVisibilityChange ?? (() => {})}
         onColumnMove={props.onColumnMove}
         triggerRef={triggerRef}
-        anchorRef={triggerRef}
         sheet={props.sheet}
       />
     </>
@@ -78,6 +78,16 @@ describe('visibility', () => {
       ).toBeTruthy()
     }
     expect(box('Name').getAttribute('aria-describedby')).toBeNull()
+  })
+
+  // The raised fill under the pointer on every row that can be unticked
+  // (record 0201), and none on a held one, where a press does nothing.
+  it('lights every row a press acts on, and no held one', () => {
+    const lit = (label: string) => box(label).closest('label')!.className.split(' ').includes(MENU.hover)
+    render(<Picker />)
+    expect(lit('Name')).toBe(true)
+    const ranked = COLUMNS.find((c) => (c.key as string).startsWith('precip_'))!
+    expect(lit(ranked.label as string)).toBe(false)
   })
 
   it('hides a column when it is unticked', async () => {

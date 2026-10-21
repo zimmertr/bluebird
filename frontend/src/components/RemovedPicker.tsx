@@ -2,9 +2,9 @@ import { useEffect } from 'react'
 import { RemovedEntry } from '../utils/removals'
 import { collidingType, lineNamed, sharedNames } from '../utils/chartData'
 import { usePopover } from '../hooks/usePopover'
-import Popover from './Popover'
+import Menu from './Menu'
 import BottomSheet from './BottomSheet'
-import { CONTROL_SIZE, FOCUS_RING, LINK_ACTION, SURFACE_DIVIDER, TEXT } from '../styles'
+import { CONTROL_SIZE, FOCUS_RING, LINK_ACTION, MENU, TEXT } from '../styles'
 
 interface Props {
   open: boolean
@@ -13,13 +13,9 @@ interface Props {
   entries: [string, RemovedEntry][]
   onRestore: (key: string) => void
   onRestoreAll: () => void
+  /** The Removed button, which the menu stands 4px under at its rows' width (record 0201). */
   triggerRef: React.RefObject<HTMLButtonElement | null>
-  /**
-   * What the panel unfurls out of: the results bar's button group, so every
-   * menu on the bar takes the same place at the same width (record 0134).
-   */
-  anchorRef: React.RefObject<HTMLElement | null>
-  /** A phone (#696): the menu is a bottom sheet rather than a card joined to the bar's group. */
+  /** A phone (#696): the menu is a bottom sheet rather than a card under its button. */
   sheet?: boolean
 }
 
@@ -35,12 +31,11 @@ export default function RemovedPicker({
   onRestore,
   onRestoreAll,
   triggerRef,
-  anchorRef,
   sheet = false,
 }: Props) {
   // Closed to the popover's hook on a phone, whose sheet places and dismisses
   // itself: a press inside the sheet would read as a press outside the card.
-  const { popoverRef, box } = usePopover({ open: open && !sheet, onOpenChange, triggerRef, anchorRef, placement: 'unfurl' })
+  const { popoverRef, box, closing } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
 
   // Restoring the last row empties the list out from under the popover, so it
   // closes. Where the keyboard goes is the sheet's: the trigger hides at zero
@@ -56,7 +51,7 @@ export default function RemovedPicker({
   const rows = entries.map(([key, entry]) => {
     const name = lineNamed(entry.row.name, collidingType(entry.row, shared))
     return (
-      <div key={key} className="flex items-center gap-2 px-2 py-1">
+      <div key={key} className={`flex items-center gap-2 ${sheet ? 'px-2 py-1' : MENU.row}`}>
         <span className={`${TEXT.control} min-w-0 flex-1 truncate`}>{name}</span>
         {/* At the control size, the floor for anything pressed (#687):
             it was the micro step. Colourless, so the link colour is
@@ -91,13 +86,13 @@ export default function RemovedPicker({
     ) : null
   }
 
-  if (!open || !box) return null
+  if (!box) return null
 
   return (
-    <Popover box={box} popoverRef={popoverRef} header="Removed rows">
-      <div className="min-h-0 flex-1 overflow-y-auto p-1">{rows}</div>
+    <Menu box={box} popoverRef={popoverRef} closing={closing} header="Removed rows">
+      <div className={MENU.list}>{rows}</div>
 
-      {restoreAll && <div className={`border-t ${SURFACE_DIVIDER} px-3 py-2`}>{restoreAll}</div>}
-    </Popover>
+      {restoreAll && <div className={MENU.foot}>{restoreAll}</div>}
+    </Menu>
   )
 }

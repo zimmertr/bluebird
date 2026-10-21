@@ -1,6 +1,6 @@
 # 0129. The calendar opens from a field as a popover, with 28px day rows under a fine pointer
 
-- Status: Accepted
+- Status: Accepted. Amended by 0201 (the card stands 4px under its field at the field's width, or over it where it fits only there, and the field stays drawn while it is open).
 - Date: 2026-10-13
 - Decider: the maintainer, on #687 (2026-10-13: the audit's two P05 options approved as one, "a one-line date field that opens the calendar as a popover, with 28px day rows on a fine pointer"; the round-2 mockup confirmed the form). Then on the maintainer's third look at #707 the same day: the field is drawn only when it has something to show, and the open card stands in its place. And on the fourth: a close with no day picked goes back to Current, Current closes everything in one frame, and the card gets a Done button
 - Issues and PRs: #687, #707

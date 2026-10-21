@@ -361,6 +361,24 @@ describe('mountResultsLayer', () => {
   // which is not among the map's rows; the card still names the rank.
   // A rank Rainier's place among the rows cannot produce, so a copy looked up
   // by its coordinates rather than read by its stamp would print the wrong one.
+  // A row's centring places its card again for a resized canvas only while
+  // the card stands (#714), so the layer says whether one stands on a place.
+  it('says whether a result card stands open on a destination', () => {
+    const { layer, board, clickMarker } = setup()
+    const at = (row: typeof ADAMS) => ({ latitude: row.latitude, longitude: row.longitude })
+    expect(layer.hasOpenCard(at(RAINIER))).toBe(false)
+    layer.openPopup(RAINIER)
+    expect(layer.hasOpenCard(at(RAINIER))).toBe(true)
+    expect(layer.hasOpenCard(at(ADAMS))).toBe(false)
+    // A click on another marker closes it and opens that one's.
+    clickMarker(ADAMS, 1)
+    expect(layer.hasOpenCard(at(RAINIER))).toBe(false)
+    expect(layer.hasOpenCard(at(ADAMS))).toBe(true)
+    // The next report closes every card (#577).
+    board.closeAll()
+    expect(layer.hasOpenCard(at(ADAMS))).toBe(false)
+  })
+
   it('ranks a table row by the stamp it carries', () => {
     const { layer } = setup()
     layer.openPopup({ ...RAINIER, rank: 7 } as typeof RAINIER)

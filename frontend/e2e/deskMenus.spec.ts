@@ -1,0 +1,267 @@
+import { test, expect, expectRanked, DESTINATION_NAMES, isoDay } from './fixtures'
+import type { Locator, Page } from '@playwright/test'
+
+// Every menu at a desk is the one menu (#714, record 0201): a card 4px under
+// its trigger, never joined to it, lined up with the trigger's left edge or,
+// where that runs off the panel or the window, its right edge, and never
+// narrower than the trigger. The trigger is lit while its menu is out.
+// Measured on the live page, since jsdom lays nothing out.
+
+test.use({ viewport: { width: 1440, height: 900 } })
+
+interface Rect {
+  left: number
+  top: number
+  right: number
+  bottom: number
+  width: number
+}
+
+// A card slides 4px in as it opens (`MOTION.menu`), so it is measured once
+// its entrance has finished, where it stands.
+async function rect(locator: Locator): Promise<Rect> {
+  await locator.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  const b = await locator.boundingBox()
+  expect(b).not.toBeNull()
+  return { left: b!.x, top: b!.y, right: b!.x + b!.width, bottom: b!.y + b!.height, width: b!.width }
+}
+
+const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(0.5)
+
+// The card every portalled menu stands on, which says which side it opened to.
+const card = (page: Page) => page.locator('body > [data-side]')
+
+// A menu's place against its trigger: 4px off whichever side it opened on, and
+// one of the trigger's two edges shared.
+async function standsOff(trigger: Rect, menu: Rect, side: string | null) {
+  if (side === 'above') near(trigger.top - menu.bottom, 4)
+  else near(menu.top - trigger.bottom, 4)
+  expect(menu.width).toBeGreaterThanOrEqual(trigger.width - 0.5)
+  const left = Math.abs(menu.left - trigger.left) <= 0.5
+  const right = Math.abs(menu.right - trigger.right) <= 0.5
+  expect(left || right).toBe(true)
+  return left ? 'left' : 'right'
+}
+
+const fillOf = (locator: Locator) => locator.evaluate((el) => getComputedStyle(el).backgroundColor)
+const edgeOf = (locator: Locator) => locator.evaluate((el) => getComputedStyle(el).borderTopColor)
+
+async function analyzed(page: Page, query = '') {
+  await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55${query}`)
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await page.getByRole('button', { name: 'Analyze' }).click()
+  // A row is removed and the results bar measured, so not before the
+  // ranking lands.
+  await expectRanked(page)
+}
+
+test('the Layers chip and the results bar open their menus under themselves, lit', async ({ page }) => {
+  await analyzed(page)
+
+  const layers = page.getByRole('button', { name: 'Layers', exact: true })
+  const shutFill = await fillOf(layers)
+  await layers.click()
+  await expect(layers).toHaveAttribute('aria-expanded', 'true')
+  const layersMenu = page.locator('[data-tour="layers-menu"]')
+  const chip = await rect(layers)
+  expect(await standsOff(chip, await rect(layersMenu), 'below')).toBe('left')
+  await expect.poll(() => fillOf(layers)).not.toBe(shutFill)
+  const litFill = await fillOf(layers)
+  await layers.click()
+  await expect(layers).toHaveAttribute('aria-expanded', 'false')
+
+  // The bar's buttons: each card under its own button rather than under the
+  // group, and the button lit in the chip's own accent fill.
+  for (const name of ['Choose which columns to display', 'Models']) {
+    const button = page.getByRole('button', { name, exact: true })
+    const rest = await fillOf(button)
+    await button.click()
+    await expect(button).toHaveAttribute('aria-expanded', 'true')
+    const menu = card(page)
+    await expect(menu).toHaveCount(1)
+    const at = await rect(button)
+    const box = await rect(menu)
+    const edge = await standsOff(at, box, await menu.getAttribute('data-side'))
+    // Left-aligned unless that would run the card off the window.
+    expect(edge).toBe(at.left + box.width <= 1440 - 8 + 0.5 ? 'left' : 'right')
+    // Its rows' width, not the whole group's: the card is max-content.
+    expect(await menu.evaluate((el) => el.style.width)).toBe('max-content')
+    await expect.poll(() => fillOf(button)).toBe(litFill)
+    expect(litFill).not.toBe(rest)
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveCount(0)
+    await expect(button).toHaveAttribute('aria-expanded', 'false')
+  }
+
+  // Removed opens the same way once a row is gone.
+  await page.getByRole('button', { name: `Remove ${DESTINATION_NAMES[0]}` }).click()
+  const removed = page.getByRole('button', { name: 'Removed (1)' })
+  await removed.click()
+  const box = await rect(card(page))
+  await standsOff(await rect(removed), box, await card(page).getAttribute('data-side'))
+})
+
+test('the model list takes its row and lines up with the field\'s right edge', async ({ page }) => {
+  await analyzed(page)
+  const field = page.getByRole('button', { name: /^Forecast model:/ })
+  const rest = await edgeOf(field)
+  await field.click()
+  const menu = card(page)
+  await expect(menu.getByRole('listbox', { name: 'Forecast model' })).toBeVisible()
+  const trigger = await rect(field)
+  const box = await rect(menu)
+  // The field stands on the panel's right edge, so its card runs back from
+  // there across the Model row.
+  expect(await standsOff(trigger, box, await menu.getAttribute('data-side'))).toBe('right')
+  expect(box.width).toBeGreaterThan(trigger.width + 100)
+  // A field keeps its accent edge while its menu is out, with the pointer
+  // gone from it.
+  await page.mouse.move(900, 450)
+  await expect.poll(() => edgeOf(field)).not.toBe(rest)
+})
+
+test('the calendar stands 4px under its field at the field\'s width', async ({ page }) => {
+  await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
+  const field = page.getByRole('button', { name: /^When\b/ })
+  await field.click()
+  await expect(page.getByRole('grid', { name: 'Forecast day' })).toBeVisible()
+  const menu = card(page)
+  const trigger = await rect(field)
+  const box = await rect(menu)
+  await standsOff(trigger, box, await menu.getAttribute('data-side'))
+  near(box.left, trigger.left)
+  near(box.width, trigger.width)
+  await expect(field).toHaveAttribute('aria-expanded', 'true')
+})
+
+test('the chart metric and an aggregate pick from the one menu', async ({ page }) => {
+  // A window of days, because a single hour has no aggregate to choose.
+  await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
+
+  const metric = page.getByRole('button', { name: /^Chart metric / })
+  await metric.click()
+  const list = page.getByRole('listbox', { name: 'Chart metric' })
+  await expect(list).toBeVisible()
+  const options = list.getByRole('option')
+  const current = await list.getByRole('option', { selected: true }).textContent()
+  const labels = await options.allTextContents()
+  const other = labels.find((l) => l !== current)!
+  const at = await rect(metric)
+  await standsOff(at, await rect(card(page)), await card(page).getAttribute('data-side'))
+  await list.getByRole('option', { name: other, exact: true }).click()
+  await expect(list).toHaveCount(0)
+  // The field's second span is the value it shows; the first names it.
+  await expect(metric.locator('span').nth(1)).toHaveText(other)
+  await expect(metric).toBeFocused()
+
+  // The keyboard: the arrows open and walk the list, Enter picks, and the
+  // keyboard is back on the field.
+  const aggregate = page.getByRole('button', { name: /^Temperature aggregate / })
+  const shown = aggregate.locator('span').nth(1)
+  const before = (await shown.textContent())!
+  await aggregate.focus()
+  await page.keyboard.press('ArrowDown')
+  const rows = page.getByRole('listbox', { name: 'Temperature aggregate' })
+  await expect(rows).toBeVisible()
+  await standsOff(await rect(aggregate), await rect(card(page)), await card(page).getAttribute('data-side'))
+  const words = await rows.getByRole('option').allTextContents()
+  // One step away from the current value, whichever way there is room.
+  const here = words.indexOf(before)
+  const last = here === words.length - 1
+  await page.keyboard.press(last ? 'ArrowUp' : 'ArrowDown')
+  await page.keyboard.press('Enter')
+  await expect(rows).toHaveCount(0)
+  await expect(shown).toHaveText(words[last ? here - 1 : here + 1])
+  await expect(aggregate).toBeFocused()
+})
+
+// A three-digit Removed count is the one thing that wraps the bar's button
+// group at a desk, beside the docked panel at 1024. The group goes to a line
+// of its own as a whole, at the line's right end, and the results stand right
+// under the taller bar rather than under the one line the floor once counted.
+test.describe('a long Removed count at 1024', () => {
+  test.use({ viewport: { width: 1024, height: 768 } })
+
+  test('wraps the button group whole onto its own line, at the right end', async ({ page }) => {
+    const ring = { cx: (-121.9 - 121.7 - 121.7) / 3, cy: (47.4 + 47.4 + 47.55) / 3 }
+    const destinations = Array.from({ length: 105 }, (_, i) => ({
+      name: `Peak ${5000 + i}`,
+      type: 'peak',
+      latitude: Number((ring.cy + (Math.floor(i / 12) - 4) * 0.003).toFixed(5)),
+      longitude: Number((ring.cx + ((i % 12) - 6) * 0.003).toFixed(5)),
+      elevation_ft: 4000 + i * 10,
+      osm_id: `node/${2000 + i}`,
+    }))
+    await page.route('**/api/destinations', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ destinations, total: destinations.length, total_found: null, truncated: false }),
+      }),
+    )
+    const removed = destinations
+      .slice(0, 100)
+      .map((d) => `${d.longitude},${d.latitude}`)
+      .join(';')
+    await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&removed=${removed}`)
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await page.getByRole('button', { name: 'Analyze' }).click()
+    const button = page.getByRole('button', { name: 'Removed (100)' })
+    await expect(button).toBeVisible()
+
+    const parts = await button.evaluate((el) => {
+      const box = (e: Element) => e.getBoundingClientRect().toJSON() as DOMRect
+      const group = el.parentElement!
+      const row = group.parentElement!.parentElement!
+      const bar = row.closest('[data-tour="results"]')!.firstElementChild!
+      return {
+        group: box(group),
+        modes: box(row.firstElementChild!),
+        row: box(row),
+        bar: box(bar),
+        under: box(bar.nextElementSibling!),
+        map: document.querySelector('.maplibregl-canvas')!.getBoundingClientRect().toJSON() as DOMRect,
+      }
+    })
+    // Its own line, under the mode switch, and the whole group on it.
+    expect(parts.group.top).toBeGreaterThanOrEqual(parts.modes.bottom)
+    expect(parts.group.height).toBeCloseTo(parts.modes.height, 0)
+    // At the right end of the line, as it stands on one line.
+    near(parts.group.right, parts.row.right)
+    // The map ends where the bar starts, and the panels start where it ends.
+    near(parts.map.bottom, parts.bar.top)
+    near(parts.under.top, parts.bar.bottom)
+  })
+})
+
+// The panel's two field menus on a phone are bottom sheets instead (record
+// 0136), headed by their labels' words, with 44px days: no card is drawn
+// under either field there.
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+
+  test('the model list and the calendar open as bottom sheets', async ({ page }) => {
+    await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await page.getByRole('button', { name: 'Open controls' }).tap()
+
+    await page.getByRole('button', { name: /^Forecast model:/ }).tap()
+    const models = page.getByRole('dialog', { name: 'Model' })
+    await expect(models.getByRole('listbox', { name: 'Forecast model' })).toBeVisible()
+    await expect(card(page)).toHaveCount(0)
+    await models.getByRole('button', { name: 'Done' }).tap()
+    await expect(models).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Dates' }).tap()
+    const when = page.getByRole('dialog', { name: 'When' })
+    await expect(when.getByRole('grid', { name: 'Forecast day' })).toBeVisible()
+    await expect(card(page)).toHaveCount(0)
+    const cell = await when.getByRole('gridcell').first().boundingBox()
+    expect(cell!.height).toBeGreaterThanOrEqual(44)
+    // The sheet stands on the screen's bottom edge.
+    const sheet = await when.boundingBox()
+    near(sheet!.y + sheet!.height, 844)
+    await when.getByRole('button', { name: 'Done' }).tap()
+    await expect(when).toHaveCount(0)
+  })
+})

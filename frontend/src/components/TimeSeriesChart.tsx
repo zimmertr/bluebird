@@ -11,8 +11,9 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_METRIC_W, CHART_PLOT_TOUCH, CHART_TITLE, LINE_EDGE, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
-import { IconSelectArrow } from './icons'
+import { CHART_METRIC_W, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, LINE_EDGE, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
+import { IconChevron } from './icons'
+import { MenuSelect } from './Menu'
 import {
   CHART_METRICS,
   ChartLine,
@@ -206,6 +207,10 @@ interface Props {
 
 // A stable empty default: a fresh `[]` per render would rebuild every line, and
 // with it every path Recharts strokes, on every hover.
+// The metric menu's rows at a desk, once: the chart's own list in its order
+// and words, as the select's options read them (record 0201).
+const METRIC_OPTIONS = CHART_METRICS.map((m) => ({ value: m.key, label: m.label }))
+
 const NO_EXTRA_LINES: readonly ChartLine[] = []
 const NO_MODEL_ENDS: readonly ModelEndLine[] = []
 const NO_SHARED_NAMES: ReadonlySet<string> = new Set()
@@ -449,7 +454,8 @@ function TimeSeriesChart({
           lines up with nothing above it, and `Freezing level (ft)` needs the
           wider one. The row itself does not wrap either:
           the comparison note beside the control shrinks (`min-w-0`) rather
-          than dropping under it. */}
+          than dropping under it. At a desk it opens the one menu rather
+          than the platform's list (record 0201). */}
       {/* At a desk the select stands in a row above the plot; on a phone it
           is the plot's title (below), and the row stands only to hold a
           comparison's note. */}
@@ -461,15 +467,13 @@ function TimeSeriesChart({
             // descender space below itself and sits a pixel low against what
             // is beside it.
             <div className="relative flex flex-shrink-0">
-              <select
-                aria-label="Chart metric"
+              <MenuSelect
+                label="Chart metric"
                 value={metric}
-                onChange={(e) => onMetricChange(e.target.value as ChartMetric)}
-                className={`${SELECT} ${CHART_METRIC_W} px-2 py-0.5`}
-              >
-                {metricOptions}
-              </select>
-              <IconSelectArrow />
+                options={METRIC_OPTIONS}
+                onChange={onMetricChange}
+                className={`${CHART_METRIC_W} px-2 py-0.5`}
+              />
             </div>
           )}
           {controls}
@@ -486,7 +490,7 @@ function TimeSeriesChart({
             <span aria-hidden="true" className={CHART_TITLE.text}>
               {metricLabel}
             </span>
-            <IconSelectArrow />
+            <IconChevron up={false} className={ICON_ADORNMENT} />
             <select
               aria-label="Chart metric"
               value={metric}

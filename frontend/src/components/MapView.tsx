@@ -28,11 +28,12 @@ import { ringPolygon, ringToPts } from '../utils/drawGeometry'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 import { createMapController, type MapInputs } from '../map/controller'
 import { STYLE } from '../map/basemap'
-import { addAttribution, addControls, placeControl, type MapControls } from '../map/controls'
+import { addAttribution, addControls, placeControl, type CornerSlots, type MapControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { watchView } from '../map/viewWatch'
 import { watchBasemap } from '../map/basemapWatch'
 import { createPopupBoard } from '../map/popups'
+import { createCentring } from '../map/centring'
 import { CAMERA_MS, FIT_PADDING_PX, PLACE_PADDING_PX } from '../map/mapStyles'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 
@@ -211,13 +212,18 @@ interface Props {
   // tool places no point past it (#619).
   maxPolygonPoints: number
   // The round slot at the right of a phone's search pill, which the locate
-  // button stands in (#696), or null at a desk's width, where it keeps the
-  // library's top-right corner. A DOM node held in state, so it is one
-  // identity for as long as the slot is mounted.
+  // button stands in (#696), or null at a desk and before the rows mount. A
+  // DOM node held in state, so it is one identity for as long as the slot is
+  // mounted.
   locateSlot: HTMLElement | null
-  // The slot at the right end of a phone's chip row, under the locate button,
-  // which the compass stands in (record 0147), or null at a desk's width.
+  // The slot at the right end of a phone's chip row the compass stands in
+  // (record 0147); null at a desk and before the rows mount.
   compassSlot: HTMLElement | null
+  // A desk's corner, every slot at once (`MapCorner`, record 0174): the
+  // compass, the locate button and the zoom pair, and the credit line with
+  // the scale at its end. Null on a phone and before the corner mounts, when
+  // each control keeps its library corner.
+  cornerSlots: CornerSlots | null
 }
 
 // A search result frames at least this much map around the hit; features with
@@ -272,6 +278,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       maxPolygonPoints,
       locateSlot,
       compassSlot,
+      cornerSlots,
     },
     ref,
   ) => {
@@ -280,9 +287,16 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const isDesktop = useIsDesktop()
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
-    // The library's locate button and its zoom and compass group, which a
-    // phone's width stands at the right of its two rows (`placeControl`).
+    // The library's controls, which stand at the right of a phone's two rows
+    // and in a desk's corner (`placeControl`).
     const controlsRef = useRef<MapControls | null>(null)
+    // The attribution, which the effect below re-adds at each breakpoint and
+    // a desk's corner stands in its credit line.
+    const attributionRef = useRef<maplibregl.AttributionControl | null>(null)
+    // Gated on the width as well as the corner being there, because the
+    // corner goes a render after the width does: its slots are still in hand,
+    // detached, in the render that crosses to a phone.
+    const corner = isDesktop ? cornerSlots : null
     const loadedRef = useRef(false)
     const ptsRef = useRef<[number, number][]>([])
     // The ring a `?poly=` link opened with. A ref rather than a mount-time
@@ -348,6 +362,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // Every popup on the map, pinned ones included, so an unmodified click
     // can clear them all (`map/popups.ts`).
     const [popups] = useState(createPopupBoard)
+    // A row's centring flight, which the resize observer flies again when the
+    // canvas changes size under it (`map/centring.ts`; record 0202).
+    const [centring] = useState(createCentring)
     // Flipped once the load handler has added every source/layer. A ref wouldn't
     // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
     // link turn the overlay on as soon as the map is ready.
@@ -512,14 +529,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
       focusPoint(at: { latitude: number; longitude: number }) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        map.flyTo({
-          center: [at.longitude, at.latitude],
-          zoom: Math.max(map.getZoom(), 10),
-          duration: CAMERA_MS.focus,
-          // The offset `focusResult` explains below: a padding handed to flyTo
-          // is interpolated onto the transform and stays there.
-          offset: [0, -cameraPadBottomPx / 2],
-        })
+        // Through the centring, as `focusResult` below.
+        centring.fly(map, CAMERA_MS.focus, (duration) =>
+          map.flyTo({
+            center: [at.longitude, at.latitude],
+            zoom: Math.max(map.getZoom(), 10),
+            duration,
+            // The offset `focusResult` explains below: a padding handed to flyTo
+            // is interpolated onto the transform and stays there.
+            offset: [0, -controller.inputs.cameraPadBottomPx / 2],
+          }),
+        )
         popups.closeAll()
       },
       closePopups() {
@@ -544,26 +564,36 @@ const MapView = forwardRef<MapViewHandle, Props>(
       focusResult(result: DestinationResult, { instant = false, avoid = [] } = {}) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        // The pad as it stands now, off the controller: the prop this closure
-        // holds can be a render behind a sheet that just collapsed.
-        const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
-        const canvas = map.getCanvas()
-        // The popup opens first, against the point the marker is flying to,
-        // and rides the flight; what it asks for joins the offset, so one
-        // camera move lands marker and card together.
-        const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
-        const { dx, dy } = featuresRef.current?.results.openPopup(result, { markerAt, avoid }) ?? { dx: 0, dy: 0 }
-        map.flyTo({
-          center: [result.longitude, result.latitude],
-          zoom: Math.max(map.getZoom(), 10),
-          duration: instant ? 0 : CAMERA_MS.focus,
-          // The one framing call that centres rather than fits, so it clears
-          // the sheet with `offset` instead of `padding`: a padding handed to
-          // `flyTo` is interpolated onto the transform and STAYS there, and the
-          // next `fitBounds` would then count it a second time on top of its
-          // own. Half the sheet's height puts the result in the middle of the
-          // map the reader can see.
-          offset: [dx, -cameraPadBottomPx / 2 + dy],
+        // Through the centring, which aims again if the canvas is resized
+        // while the flight is in the air: a desk's layout move ends in one
+        // (record 0202).
+        centring.fly(map, instant ? 0 : CAMERA_MS.focus, (duration, again) => {
+          // The pad as it stands now, off the controller: the prop this
+          // closure holds can be a render behind a sheet that just collapsed.
+          const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
+          const canvas = map.getCanvas()
+          const results = featuresRef.current?.results
+          // The popup opens first, against the point the marker is flying
+          // to, and rides the flight; what it asks for joins the offset, so
+          // one camera move lands marker and card together. A flight sent
+          // again places the card again only while it stands: one closed
+          // since, by its own button or by the next report, stays closed, and
+          // the marker flies alone.
+          const reopen = !again || (results?.hasOpenCard(result) ?? false)
+          const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
+          const { dx, dy } = (reopen ? results?.openPopup(result, { markerAt, avoid }) : undefined) ?? { dx: 0, dy: 0 }
+          map.flyTo({
+            center: [result.longitude, result.latitude],
+            zoom: Math.max(map.getZoom(), 10),
+            duration,
+            // The one framing call that centres rather than fits, so it
+            // clears the sheet with `offset` instead of `padding`: a padding
+            // handed to `flyTo` is interpolated onto the transform and STAYS
+            // there, and the next `fitBounds` would then count it a second
+            // time on top of its own. Half the sheet's height puts the result
+            // in the middle of the map the reader can see.
+            offset: [dx, -cameraPadBottomPx / 2 + dy],
+          })
         })
       },
     }))
@@ -571,30 +601,21 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (!containerRef.current || mapRef.current) return
 
-      const opening = initialCamera(restoredView)
-      const map = new maplibregl.Map({
-        container: containerRef.current,
-        style: STYLE,
-        center: [opening.lng, opening.lat],
-        zoom: opening.zoom,
-        // The library adds its own attribution unless told not to, and the
-        // only way to decide `compact` is to construct the control. The effect
-        // below does, at the app's own breakpoint rather than the library's
-        // 640px one.
-        attributionControl: false,
-      })
-      mapRef.current = map
-      // Read once, like the attribution's `compact`: a pointer does not turn
-      // coarse under a session, where a window does change width.
-      controlsRef.current = addControls(map, window.matchMedia('(hover: none)').matches)
-      // Before `load`: a style that fails never gets there.
-      const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
-
-      // Keep the canvas in sync with its container. MapLibre only tracks window
-      // resizes, but our container also changes size when the results panel
-      // opens/closes or the device rotates — observe it directly.
+      // Keep the canvas in sync with its container, which changes size when
+      // the results open or close, where a desk's layout move ends, and when
+      // the device rotates. MapLibre observes its container too, and redraws
+      // as it resizes, which draws a frame of a flight in the air against the
+      // new size (record 0202). Made before the map, so it hears of a resize
+      // first (observers are told in the order they were made), and a row's
+      // centring is aimed again before that frame is drawn.
       const resizeObserver = new ResizeObserver(() => {
+        // Null until the map below is made, and for good if making it failed.
+        const map = mapRef.current
+        if (!map) return
         map.resize()
+        // A row's centring still in the air flies on to a pixel of the old
+        // canvas; aim it at the canvas as it now stands (`map/centring.ts`).
+        centring.reaim()
         // Re-frame a just-issued fit against the size the map actually ended up
         // with. Re-issued with the same easing so it reads as one camera move,
         // not a jump partway through.
@@ -609,6 +630,23 @@ const MapView = forwardRef<MapViewHandle, Props>(
         }
       })
       resizeObserver.observe(containerRef.current)
+
+      const opening = initialCamera(restoredView)
+      const map = new maplibregl.Map({
+        container: containerRef.current,
+        style: STYLE,
+        center: [opening.lng, opening.lat],
+        zoom: opening.zoom,
+        // The library adds its own attribution unless told not to, and the
+        // only way to decide `compact` is to construct the control. The effect
+        // below does, at the app's own breakpoint rather than the library's
+        // 640px one.
+        attributionControl: false,
+      })
+      mapRef.current = map
+      controlsRef.current = addControls(map)
+      // Before `load`: a style that fails never gets there.
+      const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
 
       // A polygon, custom CSV list or searched places restored from the URL
       // take precedence over the default framing, and a link's own camera over
@@ -667,19 +705,27 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // identity changed, losing the camera and every layer with it.
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // The locate button and the compass follow their slots: into the rows
-    // while a phone's rows are up, back to the library's corner when they go.
+    // Each control follows its slot: into a phone's rows or a desk's corner
+    // while they are up, and back to its library corner when they go. The
+    // zoom pair and the scale have a slot in a desk's corner alone.
     // After the map is built, which an effect declared above these has done.
     useEffect(() => {
       const map = mapRef.current
       const controls = controlsRef.current
-      if (map && controls) placeControl(map, controls.locate, locateSlot)
-    }, [locateSlot])
+      if (map && controls) placeControl(map, controls.locate, corner?.locate ?? locateSlot)
+    }, [corner, locateSlot])
     useEffect(() => {
       const map = mapRef.current
       const controls = controlsRef.current
-      if (map && controls) placeControl(map, controls.nav, compassSlot, true)
-    }, [compassSlot])
+      if (map && controls) placeControl(map, controls.compass, corner?.compass ?? compassSlot, { first: true })
+    }, [corner, compassSlot])
+    useEffect(() => {
+      const map = mapRef.current
+      const controls = controlsRef.current
+      if (!map || !controls) return
+      placeControl(map, controls.zoom, corner?.zoom ?? null)
+      placeControl(map, controls.scale, corner?.scale ?? null, { corner: 'bottom-left' })
+    }, [corner])
 
     // The attribution at the sheet's own breakpoint rather than the library's
     // 640px: between the two the map is wide enough for the line but the
@@ -690,10 +736,19 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const map = mapRef.current
       if (!map) return
       const control = addAttribution(map, !isDesktop)
+      attributionRef.current = control
       return () => {
         if (mapRef.current === map) map.removeControl(control)
       }
     }, [isDesktop])
+    // Into a desk's credit line. Declared after the effect above, so a width
+    // change places the control that effect has just added.
+    useEffect(() => {
+      const map = mapRef.current
+      const control = attributionRef.current
+      if (!map || !control) return
+      placeControl(map, control, corner?.credit ?? null, { corner: isDesktop ? 'bottom-right' : 'bottom-left' })
+    }, [corner, isDesktop])
 
     // Markers, and the hour they are colored for. `playbackIndex` joins the
     // deps because a scrub is a re-render of the same rows at a different hour:

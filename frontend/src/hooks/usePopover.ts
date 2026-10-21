@@ -1,31 +1,35 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { popoverBox, type Placement, type PopoverBox } from '../utils/listbox'
+import { popoverBox, type PopoverBox } from '../utils/listbox'
+import { CHIP_MENU_GAP_PX } from '../utils/resultsSheet'
+import { useExit } from './useExit'
 import { useTakeOrphanedFocus } from './useFocusHandoff'
 
 /**
- * A panel hanging off a trigger: where it lands, when it is measured again, and
- * what closes it.
+ * A menu standing off its trigger: where it lands, when it is measured again,
+ * and what closes it.
  *
  * One recipe, because there were four (#385). Every popover in the app had its
  * own copy of the placement call, the once-per-open measuring pass and the
  * dismiss listeners, and three of the four had been built by copying a fourth —
- * so a fix to one of them reached none of the others.
+ * so a fix to one of them reached none of the others. Since record 0201 it
+ * has one placement too: every desk menu stands where the Layers chip's card
+ * does, 4px under its trigger.
  *
  * The maths stays in `utils/listbox.ts`, the pure half, which the node test
  * project checks case by case. This hook is the wiring around it, and
- * `components/Popover.test.tsx` renders it once for every panel that wears it.
+ * `components/Menu.test.tsx` renders it with the card every menu wears.
  */
 
-// Between the trigger and the panel, and between the panel and the edge of the
-// viewport. One pair for the app rather than one per popover: a gap that
-// differed between two panels would read as one of them being misplaced.
-const GAP_PX = 4
+// Between the trigger and the card: the Layers chip's 4px, which every menu
+// takes (record 0201), so a gap that differed between two menus cannot read
+// as one of them being misplaced. And between the card and the edge of the
+// viewport or of its panel.
+const GAP_PX = CHIP_MENU_GAP_PX
 const VIEWPORT_MARGIN_PX = 8
 
-// What a panel that hangs beside its trigger asks for. Every menu unfurls at
-// its anchor's width since #687 (record 0134), so this is what the one panel
-// that is not a menu takes.
-const LIST_WIDTH_PX = 256
+// What a trigger's panel says it is, so a menu in it stays inside it
+// (`popoverBox`'s `bound`): the control panel, docked or a phone's sheet.
+const MENU_BOUND = 'data-menu-bound'
 
 // A panel whose height cannot change while it is open measures once and stays
 // put. Shared rather than a default array literal at the call, so the identity
@@ -46,9 +50,8 @@ interface Options {
   open: boolean
   /** Called with `false` by Escape and by a press outside the panel. */
   onOpenChange: (open: boolean) => void
-  /** The control the panel hangs off, and the one press outside never means. */
+  /** The control the panel opens from, and the one press outside never means. */
   triggerRef: React.RefObject<HTMLElement | null>
-  preferredWidth?: number
   /**
    * What ELSE changes the panel's height while it is open. Each value here is
    * compared with the last measured one, and a change buys another measuring
@@ -57,40 +60,31 @@ interface Options {
    * Empty is the deliberate default. A panel that re-places itself whenever its
    * rows change can jump from above its trigger to below it under the hand that
    * is pressing a row, which is worse than one that shrinks where it stands.
-   * The exception is a panel that GROWS — `ModelPicker`'s chip row gains a line
-   * as models are ticked — because that one hits its cap and starts scrolling
-   * in a gap the viewport could have given it outright.
+   * The exceptions are a panel that GROWS — `ModelPicker`'s chip row gains a
+   * line as models are ticked — because that one hits its cap and starts
+   * scrolling in a gap the viewport could have given it outright, and the
+   * calendar, which grows a row of hour fields under Hourly and a sixth week
+   * in some months.
    */
   remeasure?: readonly unknown[]
   /**
    * What takes the keyboard when the panel opens. Defaults to the panel's
-   * first control; `ModelPicker` names its list, which is not in the Tab
-   * order because it is one element driven by `aria-activedescendant`.
+   * first control; a list driven by `aria-activedescendant` names itself,
+   * since it is not in the Tab order.
    */
   initialFocusRef?: React.RefObject<HTMLElement | null>
   /**
    * What the panel is placed against, when that is not the trigger: the
-   * calendar's slot under When, which stays in the layout while its field is
-   * hidden under the open card, and the results bar's button group, which
-   * every one of its menus unfurls out of (#687). The trigger still takes the
-   * keyboard back and is still exempt from a press outside.
+   * calendar's slot under When, which holds its field when there is one and
+   * stands empty where it would be when there is not. The trigger still takes
+   * the keyboard back and is still exempt from a press outside.
    */
   anchorRef?: React.RefObject<HTMLElement | null>
   /**
-   * How the panel stands against the anchor (`popoverBox`'s `placement`).
-   * Every menu unfurls (record 0134), and the calendar covers. An unfurled
-   * panel's anchor carries `data-unfurled="below"` or `"above"` while it is
-   * open, which `UNFURL_ANCHOR` reads to square the corners it shares with
-   * the card.
-   */
-  placement?: Placement
-  /**
-   * The row the control stands in, for an unfurled panel whose rows need more
-   * than the control's width (`popoverBox`'s `span`, record 0134): the model
-   * dropdown's row in the panel. The results bar's menus spanned the bar's
-   * line on a phone until they became bottom sheets there (#696). Read only
-   * with `placement: 'unfurl'`; the linter's `style-menu-unfurls` check fails
-   * it anywhere else.
+   * An element whose width the card takes whatever its rows want: the Model
+   * row for the model list, whose summaries would otherwise run it across the
+   * map, and the calendar's slot. Without one a card is its rows' width and
+   * never narrower than its trigger (record 0201).
    */
   widthRef?: React.RefObject<HTMLElement | null>
   /**
@@ -106,14 +100,18 @@ export function usePopover({
   open,
   onOpenChange,
   triggerRef,
-  preferredWidth = LIST_WIDTH_PX,
   remeasure = ONCE_PER_OPEN,
   initialFocusRef,
   anchorRef,
-  placement = 'hang',
   ownPressRef,
   widthRef,
-}: Options): { popoverRef: React.RefObject<HTMLDivElement | null>; box: PopoverBox | null } {
+}: Options): {
+  popoverRef: React.RefObject<HTMLDivElement | null>
+  /** Where the card stands while it is drawn, open or on its way out; null when there is no card. */
+  box: PopoverBox | null
+  /** Whether the card is on its way out, for `Menu`'s `closing` (`useExit`). */
+  closing: boolean
+} {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<PopoverBox | null>(null)
   // What `remeasure` held when this open was last measured, or null while the
@@ -126,19 +124,20 @@ export function usePopover({
   // The three pickers that take their trigger as a PROP had no way out of that:
   // two carried a standing lint error and the third a suppression.
   const place = useCallback(
-    (desiredHeight = Infinity) => {
+    (desiredHeight = Infinity, desiredWidth = 0) => {
       const trigger = (anchorRef ?? triggerRef).current
       if (!trigger) return
+      const bound = trigger.closest(`[${MENU_BOUND}]`)?.getBoundingClientRect()
       const next = popoverBox(
         trigger.getBoundingClientRect(),
         { width: window.innerWidth, height: window.innerHeight },
         {
-          preferredWidth,
           gap: GAP_PX,
           margin: VIEWPORT_MARGIN_PX,
           desiredHeight,
-          placement,
-          span: placement === 'unfurl' ? widthRef?.current?.getBoundingClientRect() : undefined,
+          desiredWidth,
+          width: widthRef?.current?.getBoundingClientRect().width,
+          bound,
         },
       )
       // A box that says the same thing is the same box. Without this, every
@@ -148,14 +147,16 @@ export function usePopover({
       // phase to hear a sidebar's own.
       setBox((prev) => (prev && sameBox(prev, next) ? prev : next))
     },
-    [triggerRef, anchorRef, widthRef, preferredWidth, placement],
+    [triggerRef, anchorRef, widthRef],
   )
 
   // Two passes, both before paint so neither is visible. The first asks for as
   // much room as the viewport can give, which lets the panel lay out at its
-  // natural height; the second measures that height and re-places knowing it.
-  // Without the measurement the placement cannot tell "taller than the gap"
-  // from "taller than the screen", and every panel would scroll in the gap.
+  // natural height and its rows' width; the second measures both and
+  // re-places knowing them. Without the height the placement cannot tell
+  // "taller than the gap" from "taller than the screen", and every panel would
+  // scroll in the gap; without the width it cannot tell whether the card's
+  // right edge would run past its panel.
   useLayoutEffect(() => {
     if (open) place()
   }, [open, place])
@@ -178,8 +179,10 @@ export function usePopover({
     if (measured && sameSignals(measured, remeasure)) return
     measuredRef.current = remeasure
     // `scrollHeight` rather than the bounding box, since the first pass may
-    // already have capped the box at the viewport.
-    place(popover.scrollHeight)
+    // already have capped the box at the viewport. `offsetWidth` rather than
+    // the bounding box, since the card's entrance shifts its box while the
+    // width it lays out at stays put.
+    place(popover.scrollHeight, popover.offsetWidth)
   })
 
   // The trigger moves whenever something around it scrolls or the window
@@ -188,7 +191,7 @@ export function usePopover({
   // to window.
   useEffect(() => {
     if (!open) return
-    const follow = () => place(popoverRef.current?.scrollHeight ?? Infinity)
+    const follow = () => place(popoverRef.current?.scrollHeight ?? Infinity, popoverRef.current?.offsetWidth ?? 0)
     window.addEventListener('resize', follow)
     window.addEventListener('scroll', follow, true)
     return () => {
@@ -196,22 +199,6 @@ export function usePopover({
       window.removeEventListener('scroll', follow, true)
     }
   }, [open, place])
-
-  // The anchor says which of its edges the card is joined to, so the two
-  // drop the corners they share. Written on the element rather than through a
-  // prop, because the anchor belongs to whoever renders it (the results bar's
-  // group is ResultsBar's) and only this hook knows which side the card took.
-  // Removed only if it still says what this panel wrote: the bar's menus
-  // share one anchor, and the next one may already have written its own.
-  const joined = open ? box?.joined : undefined
-  useLayoutEffect(() => {
-    const anchor = (anchorRef ?? triggerRef).current
-    if (!anchor || !joined) return
-    anchor.dataset.unfurled = joined
-    return () => {
-      if (anchor.dataset.unfurled === joined) delete anchor.dataset.unfurled
-    }
-  }, [anchorRef, triggerRef, joined])
 
   // The keyboard goes INTO the panel when it opens (#576). Every panel is
   // portalled to the end of the body, so one left on its trigger was reached
@@ -228,9 +215,13 @@ export function usePopover({
   }, [shown, initialFocusRef])
 
   // And back out to the trigger when it closes, by whatever route, if the
-  // keyboard was inside: the panel unmounts under it, and the browser would
-  // otherwise park it on the body. A press on something else keeps its focus,
-  // because then nothing was orphaned.
+  // keyboard was inside. A closed card leaves over `MOTION.menu`'s 150ms
+  // rather than at once, and `useExit` hands the keyboard back as it starts
+  // to; this catches a card its caller stopped drawing in the same commit
+  // (the calendar's, when Current takes the When segment), which unmounts
+  // under the keyboard and would otherwise leave it on the body. A press on
+  // something else keeps its focus, because then nothing was orphaned.
+  const closing = useExit(open, popoverRef, triggerRef)
   useTakeOrphanedFocus(triggerRef, !open)
 
   useEffect(() => {
@@ -285,7 +276,7 @@ export function usePopover({
     }
   }, [open, onOpenChange, triggerRef, ownPressRef])
 
-  return { popoverRef, box }
+  return { popoverRef, box: open || closing ? box : null, closing }
 }
 
 function sameSignals(a: readonly unknown[], b: readonly unknown[]): boolean {
@@ -293,11 +284,14 @@ function sameSignals(a: readonly unknown[], b: readonly unknown[]): boolean {
 }
 
 function sameBox(a: PopoverBox, b: PopoverBox): boolean {
-  if (a.left !== b.left || a.width !== b.width || a.maxHeight !== b.maxHeight) return false
-  if (a.placement !== b.placement || a.joined !== b.joined || a.wide !== b.wide) return false
-  // One key, never both, and which one it is depends on the placement — so the
-  // two are compared through the key each actually carries.
-  return 'top' in a.offset
-    ? 'top' in b.offset && a.offset.top === b.offset.top
-    : 'bottom' in b.offset && a.offset.bottom === b.offset.bottom
+  if (a.width !== b.width || a.minWidth !== b.minWidth || a.maxWidth !== b.maxWidth) return false
+  if (a.maxHeight !== b.maxHeight || a.placement !== b.placement) return false
+  return sameEdge(a.align, b.align) && sameEdge(a.offset, b.offset)
+}
+
+// One key, never both, and which one it is depends on the placement — so the
+// two are compared through the key each actually carries.
+function sameEdge(a: Record<string, number>, b: Record<string, number>): boolean {
+  const [key] = Object.keys(a)
+  return key in b && a[key] === b[key]
 }

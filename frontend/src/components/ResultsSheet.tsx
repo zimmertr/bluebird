@@ -25,8 +25,11 @@ interface ResultsSheetProps
     | 'onRemovePending'
     | 'onFocusResult'
     | 'onFocusPending'
-    // Read off `isDesktop` here (#696).
+    // Read off `isDesktop` here (#696, record 0202).
     | 'chartTitled'
+    | 'panesMove'
+    // Read off the layout's collapse here (record 0202).
+    | 'collapsed'
   > {
   /** The sheet's view (`useResultsView`): whether it shows, its layout, the chart, the table and the table's callbacks. */
   resultsView: ResultsSheetView
@@ -55,6 +58,7 @@ interface ResultsSheetView {
   layout: Pick<
     ResultsLayout,
     | 'sheetRef'
+    | 'barRef'
     | 'resultsCollapsed'
     | 'toggleCollapsed'
     | 'resultsMode'
@@ -120,9 +124,10 @@ export default function ResultsSheet({
   pendingHeights,
   modelId,
   theme,
+  layoutMotion = null,
 }: ResultsSheetProps) {
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
-  const { sheetRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
+  const { sheetRef, barRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
   const { results, windowTitle, pending, rowCount } = report
   const { selectedModelRows, hiddenModels, toggleHiddenModel, compareWait, compareNotes } = charts
   const { allColumns, pickerVisibleKeys, handleVisibilityChange, handleColumnMove, handleDownloadCsv } = tableView
@@ -130,13 +135,10 @@ export default function ResultsSheet({
 
   // Each popover's open flag and its trigger. Nothing outside the sheet opens
   // one, so nothing outside it holds them.
-  const columnsButtonRef = useRef<HTMLButtonElement>(null)
-  // What all three unfurl out of: the bar's button group, so the menus share
-  // one place and one width whichever button opened them (record 0134).
-  const actionGroupRef = useRef<HTMLDivElement>(null)
-  // On a phone each menu is a bottom sheet instead (#696; record 0136), so
-  // the group anchors nothing there.
+  // Each menu stands 4px under the button that opened it at a desk (record
+  // 0201); on a phone each is a bottom sheet instead (#696; record 0136).
   const sheet = !isDesktop
+  const columnsButtonRef = useRef<HTMLButtonElement>(null)
   const modelsButtonRef = useRef<HTMLButtonElement>(null)
   const removedButtonRef = useRef<HTMLButtonElement>(null)
   const [columnsOpen, setColumnsOpen] = useState(false)
@@ -178,6 +180,7 @@ export default function ResultsSheet({
           }
         >
           <ResultsBar
+            barRef={barRef}
             sortBy={sortBy}
             sortDesc={sortDesc}
             pointSample={pointSample}
@@ -191,7 +194,7 @@ export default function ResultsSheet({
             chooseResultsMode={chooseResultsMode}
             bothHasRoom={bothHasRoom}
             showTable={showTable}
-            actionGroupRef={actionGroupRef}
+            sheet={sheet}
             columnsButtonRef={columnsButtonRef}
             onToggleColumns={() => setColumnsOpen(!columnsOpen)}
             columnsOpen={columnsOpen}
@@ -207,7 +210,10 @@ export default function ResultsSheet({
             compareWait={compareWait}
             compareNotes={compareNotes}
           />
-          {!resultsCollapsed && (
+          {/* A desk keeps the panels while collapsed, so the chevron shuts
+              and opens their frames at the panel's speed (record 0202); a
+              phone's sheet drops them. */}
+          {(isDesktop || !resultsCollapsed) && (
             <ResultsPanels
               layout={layout}
               charts={charts}
@@ -219,6 +225,9 @@ export default function ResultsSheet({
               sortBy={sortBy}
               sortDesc={sortDesc}
               chartTitled={!isDesktop}
+              panesMove={isDesktop}
+              collapsed={resultsCollapsed}
+              layoutMotion={layoutMotion}
               pointSample={pointSample}
               forecastTimes={forecastTimes}
               playbackIndex={playbackIndex}
@@ -249,7 +258,6 @@ export default function ResultsSheet({
         onVisibilityChange={handleVisibilityChange}
         onColumnMove={handleColumnMove}
         triggerRef={columnsButtonRef}
-        anchorRef={actionGroupRef}
         sheet={sheet}
       />
 
@@ -261,7 +269,6 @@ export default function ResultsSheet({
         hidden={hiddenModels}
         onToggle={toggleHiddenModel}
         triggerRef={modelsButtonRef}
-        anchorRef={actionGroupRef}
         sheet={sheet}
       />
 
@@ -273,7 +280,6 @@ export default function ResultsSheet({
         onRestore={restoreRemoved}
         onRestoreAll={restoreAllRemoved}
         triggerRef={removedButtonRef}
-        anchorRef={actionGroupRef}
         sheet={sheet}
       />
     </>

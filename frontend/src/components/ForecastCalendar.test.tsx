@@ -19,7 +19,7 @@ const BAND: BandLimits = { forecastHours: 48, pastDays: 30, aqiDays: 5 }
 
 const onChange = vi.fn()
 
-function Calendar({ initial }: { initial: ForecastSelection }) {
+function Calendar({ initial, sheet = false }: { initial: ForecastSelection; sheet?: boolean }) {
   const [selection, setSelection] = useState(initial)
   return (
     <ForecastCalendar
@@ -29,6 +29,7 @@ function Calendar({ initial }: { initial: ForecastSelection }) {
         setSelection(next)
       }}
       band={BAND}
+      sheet={sheet}
     />
   )
 }
@@ -248,20 +249,31 @@ describe('the date field', () => {
     expect(screen.queryByRole('button', { name: /^When\b/ })).toBeNull()
   })
 
-  // The card takes the field's place while it is open, so no field stands
-  // under it, and the field comes back when it closes (#687).
-  it('opens the card on the selected day in place of the field', async () => {
+  // The card stands 4px under the field like every menu (record 0201), the
+  // field lit while it is out and back to rest when it closes.
+  it('opens the card on the selected day under the field', async () => {
     const { user } = render(
       <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-16' }} />,
     )
     await user.click(field())
-    expect(noField()).toBeNull()
+    expect(field().getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('grid', { name: 'Forecast day' })).toBeTruthy()
     // The keyboard lands on the dates, not on the Hours row above them.
     expect(document.activeElement).toBe(day('2026-09-15'))
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('grid')).toBeNull()
+    expect(field().getAttribute('aria-expanded')).toBe('false')
     expect(field().textContent).toBe('Tue, Sep 15 to Wed, Sep 16')
+  })
+
+  // A second press on the field closes the card, as on every trigger.
+  it('closes the card from its field', async () => {
+    const { user } = render(
+      <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-16' }} />,
+    )
+    await user.click(field())
+    await user.click(field())
+    expect(screen.queryByRole('grid')).toBeNull()
   })
 
   // With no range there is nothing for a field to hold, so none is drawn,
@@ -407,5 +419,39 @@ describe('the date field', () => {
     await user.click(arm('Dates'))
     expect(screen.queryByRole('grid')).toBeNull()
     expect(field().textContent).toBe('Thu, Sep 10 to Sat, Sep 12')
+  })
+})
+
+// A phone's calendar is a bottom sheet headed by the When label's word
+// (record 0136): the Hours row and the grid in it, the sheet's Done in place
+// of the card's own, and every close the card's (`dismiss`).
+describe('on a phone', () => {
+  it('opens a sheet headed When from Dates, with one Done', async () => {
+    const { user } = render(<Calendar initial={{ kind: 'now' }} sheet />)
+    await user.click(arm('Dates'))
+    const sheet = screen.getByRole('dialog', { name: 'When' })
+    expect(sheet.querySelector('[role="grid"]')).not.toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Done' })).toHaveLength(1)
+    expect(document.querySelector('body > [data-side]')).toBeNull()
+  })
+
+  it('goes back to Current on Done with no day picked', async () => {
+    const { user } = render(<Calendar initial={{ kind: 'now' }} sheet />)
+    await user.click(arm('Dates'))
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(lastSelection()).toEqual({ kind: 'now' })
+  })
+
+  it('keeps a picked range and its field on Done', async () => {
+    const { user } = render(<Calendar initial={{ kind: 'now' }} sheet />)
+    await user.click(arm('Dates'))
+    await user.click(day('2026-09-16'))
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(arm('Dates').getAttribute('aria-pressed')).toBe('true')
+    expect(field()).toBeTruthy()
+    await user.click(field())
+    expect(screen.getByRole('dialog', { name: 'When' })).toBeTruthy()
   })
 })

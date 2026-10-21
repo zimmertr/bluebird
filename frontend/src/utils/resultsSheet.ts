@@ -10,49 +10,30 @@
 // whether a legend is on screen at all.
 //
 // Desktop is mostly unaffected: the panel is docked below the map there,
-// nothing is covered, and every lift here is 0. The one number it does take is
-// `dockedMapFloorPx` — the map floor. A docked panel does not cover the map,
-// but it does take its height out of the same column, so "enough map for the
-// legend stack" is the same question at both widths and is answered from the
-// same three constants.
+// nothing is covered, and every lift here is 0. The numbers it does take are
+// `dockedMapFloorPx`, the map floor, and `legendMaxCss`, the legend card's
+// height. A docked panel does not cover the map, but it does take its height
+// out of the same column, so "enough map for the legend" is the same question
+// at both widths and is answered from the same constants.
 
 import { resolvePanelHeights } from './layout'
 import { clamp } from './numbers'
 
+/** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
+export const MAP_ROWS_PX = 92
+
 /**
- * The legend stack's own top inset (`LEGEND_TOP` in `styles.ts`, which spells
- * the classes and carries the derivation).
+ * The top a phone's resting sheet reserves map below: the inset the legend
+ * stack had under a coarse pointer's column of search, Controls and Layers,
+ * 44px rows 4px apart from a 12px inset.
  *
- * `LEGEND_TOP` has FOUR numbers: two pointer sizes, each with and without the
- * Controls button, which stands in the column only while the panel is
- * collapsed. These two are the pair a FLOOR is about, and they are not the same
- * arm of that table:
- *
- *   - `LEGEND_TOP_PX` is the coarse inset with the Controls button (156), which
- *     is the phone at rest: the drawer is closed, so the button is up, and the
- *     sheet covers the map's bottom whatever the drawer is doing. Everything
- *     derived from it here is the sheet's, and a floor is a promise about the
- *     smallest map that will do — so it takes the taller column.
- *   - `LEGEND_TOP_FINE_PX` is the fine inset WITHOUT it (92), which is the
- *     desktop a docked floor is asked about: the panel is docked, so the
- *     Controls button is not there. When it is, the panel is collapsed and the
- *     map has that whole panel back, so the floor is the slacker constraint
- *     rather than the binding one.
+ * A phone has stood no legend on its map since #696, its key being the Legend
+ * sheet's, and no column since its two rows (`MAP_ROWS_PX`). The number stays
+ * on purpose: the sheet rests where it has since #249, so its half height is
+ * the one a reader knows. Its full height is the Analyze button's
+ * (`DRAGGED_MAP_PX`).
  */
-export const LEGEND_TOP_PX = 156
-export const LEGEND_TOP_FINE_PX = 92
-
-/*
- * Since #696 a phone stands no legend on its map, its key being the Legend
- * sheet's, and its controls are two rows that end 92px down (`MAP_ROWS` in
- * `styles.ts`). The phone's resting floor below still reserves the column and
- * the stack it was measured with, on purpose: the sheet rests where it did, so
- * its half height is the one a reader knows. Its full height is the Analyze
- * button's (`DRAGGED_MAP_PX`).
- */
-
-/** Where a phone's two rows end, from the map's top edge (`MAP_ROWS`). */
-export const PHONE_ROWS_PX = 92
+export const RESTING_TOP_PX = 156
 
 /**
  * The phone's Analyze button (#696; record 0135), an extended floating action
@@ -69,12 +50,12 @@ export const FAB_STRIP_PX = FAB_INSET_PX + FAB_PX + FAB_INSET_PX
 export const FAB_GAP_PX = 8
 
 /**
- * What the legend stack needs to render with no scrolling: ONE box holding the
+ * What the legend needs to render with no scrolling: ONE card holding the
  * metric key and a section per layer that is on. Measured in Chrome 2026-09-17
  * with every layer on, the forecast grid drawn and a freezing-level ranking
- * held. The same number at both widths, because the box is one fixed width
- * (`MAP_COL_W`) and a legend row is read rather than operated, so no part of it
- * takes the coarse-pointer target the buttons above it do.
+ * held. The same number at both widths, because the card is one fixed width
+ * (`MAP_MENU_W`) and a legend row is read rather than operated, so no part of
+ * it takes a coarse pointer's target.
  *
  * It has been 245, then 265, then 313 as bands and layers joined — a six-band
  * freezing-level key (2026-09-14) and then the snow depth overlay's own section
@@ -89,7 +70,7 @@ export const FAB_GAP_PX = 8
  */
 export const LEGEND_STACK_PX = 182
 
-/** The gap the legend keeps below itself when no timeline is on (`bottom-8`). */
+/** The gap the legend keeps below itself when no timeline is on. */
 export const LEGEND_GAP_PX = 32
 
 /**
@@ -174,7 +155,7 @@ const GRIP_PX = 24
  * change the height of the results — toggling radar would otherwise resize the
  * sheet under the reader's hand.
  */
-export const RESTING_MAP_PX = LEGEND_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
+export const RESTING_MAP_PX = RESTING_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
 
 /**
  * Map that stays uncovered however high the reader drags, which is a phone's
@@ -184,7 +165,7 @@ export const RESTING_MAP_PX = LEGEND_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_P
  * stand under a full sheet. The player now stands above the button, and a
  * full sheet leaves it its room too while it is on (`PLAYER_ROOM_PX`).
  */
-export const DRAGGED_MAP_PX = PHONE_ROWS_PX + FAB_STRIP_PX
+export const DRAGGED_MAP_PX = MAP_ROWS_PX + FAB_STRIP_PX
 
 /**
  * The room the player takes above the button: its bar and the gap under it.
@@ -199,6 +180,14 @@ export const PLAYER_ROOM_PX = FAB_GAP_PX + TRANSPORT_HEIGHT_PX
  * the export links. Measured in Chrome at 1440x1000, 2026-09-14 (35px) and
  * rounded up. The sheet's own header is taller and is `SHEET_HEADER_PX`; this
  * is the docked half of the same bar, with no grab handle and no sheet border.
+ *
+ * One line, which is the bar wherever it is 896px wide or more. It is the
+ * estimate for the frame before `useResultsLayout` has measured the bar, and
+ * the measurement wins from then on, because a narrower bar is taller: beside
+ * the docked panel at 1024 the title stands over the actions, 59px, and a
+ * three-digit Removed count wraps the button group onto a line of its own,
+ * 85px (#714, measured 2026-10-20). Counted at 36 there, the map came up 23 or
+ * 49px short of the room the floor below keeps for it whenever the floor bound.
  */
 export const RESULTS_BAR_PX = 36
 
@@ -225,13 +214,15 @@ const DOCKED_GRIP_PX = 8
  *
  * It replaces the fixed 280 `resolvePanelHeights` defaults to: that number
  * predated the legend stack and was under half of what the stack now needs.
+ *
+ * `barPx` is the bar's height as `useResultsLayout` measured it, and
+ * `RESULTS_BAR_PX` until it has.
  */
-export function dockedMapFloorPx(gripCount: number): number {
-  // The FINE inset, not `RESTING_MAP_PX`'s coarse one: the results are docked
-  // beside a pointer, and a docked layout on a coarse pointer is a tablet wide
-  // enough that the 16px is noise either way.
-  const reserve = LEGEND_TOP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
-  return reserve + RESULTS_BAR_PX + gripCount * DOCKED_GRIP_PX
+export function dockedMapFloorPx(gripCount: number, barPx: number = RESULTS_BAR_PX): number {
+  // The legend card hangs from its chip, so its top is where the rows end, at
+  // either pointer: the rows are the same 92px under a finger.
+  const reserve = MAP_ROWS_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
+  return reserve + barPx + gripCount * DOCKED_GRIP_PX
 }
 
 /**
@@ -368,13 +359,32 @@ export function restingLiftPx({
 }
 
 /**
- * Where the legend stack's bottom edge goes. `liftPx` is the sheet's height (0
- * where the results are docked), so the stack keeps exactly the clearance it
- * keeps on a full-height map: the transport's band when the bar is on screen,
- * and the plain gap otherwise.
+ * How far above the map's bottom edge the legend stops. `liftPx` is the
+ * sheet's height (0 where the results are docked), so the legend keeps
+ * exactly the clearance it keeps on a full-height map: the transport's band
+ * when the bar is on screen, and the plain gap otherwise.
  */
 export function legendBottomPx(liftPx: number, timelineShown: boolean): number {
   return liftPx + (timelineShown ? TRANSPORT_BAND_PX : LEGEND_GAP_PX)
+}
+
+/**
+ * The gap between a chip and the menu standing under it at a desk (#714):
+ * 4px, half the 8px between the pill and the chip row, so the card reads as
+ * its chip's (TJ, 2026-10-18). `MAP_CHIP_MENU`'s `mt-1` in `styles.ts`; the
+ * test there holds the two to one number.
+ */
+export const CHIP_MENU_GAP_PX = 4
+
+/**
+ * The tallest a desk's legend card may be (#714): the map below the rows and
+ * the gap under its chip, less the floor `legendBottomPx` keeps. A CSS length,
+ * because the card hangs from its chip inside the rows and cannot see the
+ * map's height; the map wrapper is a size container (`MAP_EDGE.publish`), so
+ * `100cqh` is it. Past this the card scrolls inside itself.
+ */
+export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
+  return `calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + legendBottomPx(liftPx, timelineShown)}px)`
 }
 
 /**
@@ -410,7 +420,7 @@ export function noticeBottomPx(liftPx: number): number {
  */
 export function fabBottomPx(liftPx: number, bandPx: number, mapPx: number): number {
   const wanted = bandPx > 0 ? noticeBottomPx(liftPx) + bandPx + FAB_INSET_PX : liftPx + FAB_INSET_PX
-  const highest = mapPx - PHONE_ROWS_PX - FAB_INSET_PX - FAB_PX
+  const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
   return clamp(wanted, liftPx + FAB_INSET_PX, highest)
 }
 
@@ -430,9 +440,13 @@ export function phoneCornerLiftPx(fabBottom: number): number {
 
 /**
  * The map the Controls sheet leaves on a phone (#696; record 0141): the two
- * rows, the button's strip and room under the button for a notice band at its
- * fullest, so a cue that arrives while the reader changes a control raises
- * the button rather than resizing the sheet under their finger.
+ * rows, the strip a full results sheet leaves the Analyze button, and room
+ * on the sheet's edge for the notice band at its fullest. The band rides
+ * that edge over the sheet's dim (record 0207), so a cue that arrives while
+ * the reader changes a control stands above the sheet rather than resizing
+ * it under their finger. The button stays at the map's foot under the dim,
+ * so the sheet no longer needs the strip; it keeps it, 88px, so the sheet
+ * opens at the height a reader knows.
  */
 export const CONTROLS_MAP_PX = DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX
 
@@ -443,22 +457,23 @@ export function controlsSheetPx(mapPx: number): number {
 
 /**
  * The most a Controls sheet rises under a drag on its grip (#696; record
- * 0146): to the Analyze button's strip under the chip row, where a dragged
- * results sheet stops, so the button keeps a place to stand over it.
+ * 0146): where a dragged results sheet stops, the strip under the chip row,
+ * so a full band still stands on its edge clear of the chips.
  */
 export function controlsFullPx(mapPx: number): number {
   return Math.max(0, mapPx - DRAGGED_MAP_PX)
 }
 
 /**
- * The edge a phone's foot stands on: the results sheet's, or the Controls
- * sheet's while it is up and stands higher, so the button, the band and the
- * player ride whichever sheet is in view (record 0141). `controlsPx` is the
- * Controls sheet's height, whatever a drag left it at, or null while it is
- * shut.
+ * The edge a phone's notice band stands on (record 0207): the Controls
+ * sheet's while it is up, over its dim, wherever a drag left it, or the
+ * results sheet's otherwise. `controlsPx` is the Controls sheet's height, or
+ * null while it is shut. The Analyze button, the scale and the (i) ride the
+ * results sheet alone (`fabBottomPx`), so opening the Controls sheet moves
+ * none of them: they stand under its dim where they stood.
  */
-export function phoneFootLiftPx(sheetLiftPx: number, controlsPx: number | null): number {
-  return controlsPx === null ? sheetLiftPx : Math.max(sheetLiftPx, controlsPx)
+export function noticeLiftPx(sheetLiftPx: number, controlsPx: number | null): number {
+  return controlsPx ?? sheetLiftPx
 }
 
 /**
@@ -480,7 +495,7 @@ export function transportStandPx(fabBottom: number): number {
  */
 export function transportFits(fabBottom: number, mapPx: number): boolean {
   const top = fabBottom + FAB_PX + FAB_GAP_PX + TRANSPORT_HEIGHT_PX
-  return top <= mapPx - PHONE_ROWS_PX - FAB_INSET_PX
+  return top <= mapPx - MAP_ROWS_PX - FAB_INSET_PX
 }
 
 /** Where the timeline transport's bottom edge goes, on the same terms. */

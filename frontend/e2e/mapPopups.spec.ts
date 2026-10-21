@@ -1,5 +1,5 @@
-import { test, expect, DESTINATION_NAMES, resultRows } from './fixtures'
-import type { Locator } from '@playwright/test'
+import { test, expect, expectRanked, DESTINATION_NAMES } from './fixtures'
+import type { Locator, Page } from '@playwright/test'
 
 // Every map popup opens on a click, never on a hover, and the smaller target
 // under a click takes it (TJ, 2026-10-08, record 0125): a destination inside
@@ -60,6 +60,30 @@ async function markerUnder(card: Locator) {
   return JSON.parse(last) as { x: number; y: number }
 }
 
+// At a desk the first report's panes open over the foot of the map, and the
+// map's canvas takes its shorter height only once they have, about half a
+// second after the ranking lands (record 0202). A row centred before then
+// aims its marker at the middle of the taller canvas, which the shorter one
+// leaves under the results bar, and a hover beside the marker lands on the
+// bar rather than the fire. So a centring waits for the canvas to stand on
+// the results' top.
+async function resultsOpened(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const canvas = document.querySelector('.maplibregl-canvas')?.getBoundingClientRect()
+        const results = document.querySelector('[data-tour="results"]')?.getBoundingClientRect()
+        return canvas !== undefined && results !== undefined && Math.round(canvas.bottom) === Math.round(results.top)
+      }),
+    )
+    .toBe(true)
+}
+
+// Whether the page's own element at a point is the map's canvas: a marker
+// drawn there, or the fire.
+const onMap = (page: Page, at: { x: number; y: number }) =>
+  page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.classList.contains('maplibregl-canvas') ?? false, at)
+
 test('a fire opens its popup on a click and never on a hover, and a marker inside it takes its own click', async ({
   page,
   context,
@@ -72,7 +96,9 @@ test('a fire opens its popup on a click and never on a hover, and a marker insid
   await page.goto(`/?type=peak&poly=${RING}&fires=1`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
-  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+  // A pending row's centring opens no card, so not before the row is ranked.
+  await expectRanked(page)
+  await resultsOpened(page)
 
   // Centring a row opens its card on the marker, which says where the marker is.
   await page.getByRole('button', { name: `Center map on ${DESTINATION_NAMES[0]}` }).click()
@@ -87,6 +113,9 @@ test('a fire opens its popup on a click and never on a hover, and a marker insid
   // Clear of every marker: they stand within a kilometre of the ring's middle.
   const bare = { x: marker.x + 220, y: marker.y }
   const canvas = page.locator('.maplibregl-canvas')
+  // Both points are on the map, or everything below reads something else.
+  expect(await onMap(page, marker)).toBe(true)
+  expect(await onMap(page, bare)).toBe(true)
 
   // A hover opens nothing, over the fire or over the marker inside it, and the
   // pointer still says the fire can be clicked.
@@ -161,7 +190,7 @@ test.describe('on a phone', () => {
     await page.goto('/?view=-121.5,47.5,12&closedareas=1&closedtrails=1')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     // A phone opens on the map, with the Controls sheet shut (#696).
-    await expect(page.locator('section[aria-labelledby]')).toHaveAttribute('inert', '')
+    await expect(page.getByRole('dialog', { name: 'Controls', includeHidden: true })).toHaveAttribute('inert', '')
 
     const canvas = await page.locator('.maplibregl-canvas').boundingBox()
     expect(canvas).not.toBeNull()

@@ -4,10 +4,10 @@ import type { SearchBoxHandle } from './SearchBox'
 import TimelineTransport from './TimelineTransport'
 import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
-import MapButtonColumn from './MapButtonColumn'
 import MapLegend, { legendSections, type LegendInputs } from './MapLegend'
 import MapDrawBar from './MapDrawBar'
-import PhoneMapRows from './PhoneMapRows'
+import MapRows from './MapRows'
+import MapCorner from './MapCorner'
 import PhoneFoot from './PhoneFoot'
 import type { Analysis } from '../hooks/useAnalyze'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
@@ -22,14 +22,15 @@ import type { ResultsLayout } from '../hooks/useResultsLayout'
 import type { TableView } from '../hooks/useTableView'
 import type { Timeline } from '../hooks/useTimeline'
 import type { SortBy } from '../types'
-import { MAP_EDGE } from '../styles'
+import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
+import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { NOUN, familyOf } from '../metrics'
 import { hourlyScale, rankedScale } from '../utils/colors'
 import {
   TRANSPORT_GAP_PX,
   fabBottomPx,
+  noticeLiftPx,
   phoneCornerLiftPx,
-  phoneFootLiftPx,
   transportFits,
   transportStandPx,
 } from '../utils/resultsSheet'
@@ -38,6 +39,7 @@ import { fieldHasValue } from '../utils/present'
 import type { CameraView } from '../utils/mapView'
 import type { UrlSync } from '../hooks/useUrlSync'
 import type { LayerCoverage } from '../utils/layerCoverage'
+import type { CornerSlots } from '../map/controls'
 import type { ActionWord } from '../utils/analyzeGate'
 
 export interface MapStageProps {
@@ -108,7 +110,9 @@ export interface MapStageProps {
   showResults: boolean
   /** Whether the controls panel is open. */
   sidebarOpen: boolean
-  /** A phone's Controls sheet's height, wherever a drag left it (record 0146). */
+  /** Which edge of a desk's layout is moving, which the map's box holds still for (record 0202). */
+  layoutMotion?: LayoutMotion
+  /** A phone's Controls sheet's height, wherever a drag left it (record 0146), whose edge the notice band rides. */
   controlsPx: number
   /** Whether a desk's legend card opens unfolded (`viewPrefs.legendOpen`). */
   legendInitiallyOpen: boolean
@@ -116,7 +120,7 @@ export interface MapStageProps {
   onOpenControls: () => void
   /** Lowers a phone's Controls sheet from the chip that raised it. */
   onCloseControls: () => void
-  /** The phone's summary chip: the When arm and the model (`controlsSummary`). */
+  /** The summary chip's words: the When arm and the model (`controlsSummary`). */
   controlsSummary: string
   /**
    * Receives the band a phone's map holds the panel's notice block in while
@@ -147,8 +151,8 @@ export interface MapStageProps {
 }
 
 /**
- * The map column above the results: the map, the loading card, the legend,
- * the button column and the forecast player. MapView is memoized, so every
+ * The map column above the results: the map, the loading card, the two rows
+ * across its top with Layers and the legend in them, and the forecast player. MapView is memoized, so every
  * prop it gets here is a member of an input, never a value built in this
  * render (`map-stage-memo-props`).
  */
@@ -173,6 +177,7 @@ export default function MapStage({
   modelId,
   showResults,
   sidebarOpen,
+  layoutMotion = null,
   controlsPx,
   legendInitiallyOpen,
   onOpenControls,
@@ -193,10 +198,14 @@ export default function MapStage({
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
   // stands its own locate button in (#696). State rather than a ref, so the
-  // map hears the slot arrive and go.
+  // map hears the slot arrive and go; at a desk there is none, and the button
+  // stands in the map's corner (`cornerSlots`).
   const [locateSlot, setLocateSlot] = useState<HTMLDivElement | null>(null)
-  // The compass's, under it at the chip row's right end (record 0147).
+  // The compass's, under it at a phone's chip row's end (record 0147).
   const [compassSlot, setCompassSlot] = useState<HTMLDivElement | null>(null)
+  // A desk's corner (`MapCorner`, record 0174), which stands the compass, the
+  // locate button, the zoom pair, the credit line and the scale.
+  const [cornerSlots, setCornerSlots] = useState<CornerSlots | null>(null)
   // The height of the phone's notice band, which the Analyze button rises
   // above (`PhoneFoot` measures it), 0 while it holds nothing.
   const [bandPx, setBandPx] = useState(0)
@@ -251,7 +260,7 @@ export default function MapStage({
   // every cell reads N/A, and a key of six height bands beside them would be
   // the only thing on screen claiming the field was measured.
   const rankedFieldHasValue = fieldHasValue(results, sortBy)
-  // What the legend keys: a desk's box on the map, a phone's Legend sheet.
+  // What the legend keys: a desk's card on the map, a phone's Legend sheet.
   const legendInputs: LegendInputs = { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }
   const legend = legendSections(legendInputs, smokeId)
 
@@ -259,18 +268,19 @@ export default function MapStage({
   // (#687, #696), and the player steps out meanwhile: playback is no use
   // while points are being placed.
   const drawBarShown = drawMode.drawing && !isDesktop
-  // A phone's Analyze button rides the sheet and rises over the notice band
-  // (record 0135), and the player stands on the button rather than on the
-  // sheet, stepping off while a sheet dragged high leaves it no room. The
-  // sheet is whichever stands higher, the results or the Controls sheet
-  // (record 0141), so the one Analyze is on the edge of the sheet in view.
-  const footLift = isDesktop ? layout.sheetLiftPx : phoneFootLiftPx(layout.sheetLiftPx, sidebarOpen ? controlsPx : null)
+  // A phone's Analyze button rides the results sheet and rises over the
+  // notice band (record 0135), and the player stands on the button rather
+  // than on the sheet, stepping off while a sheet dragged high leaves it no
+  // room. The Controls sheet moves none of them: it opens over them, modal,
+  // and the band alone leaves the foot to ride its edge (record 0207).
+  const footLift = layout.sheetLiftPx
+  const controlsOpen = !isDesktop && sidebarOpen
   const fabBottom = fabBottomPx(footLift, bandPx, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
-  // Layers is one component at both widths: a button in the desk's column
-  // with its menu unfurling out of it, or a chip in the phone's row with its
-  // menu a bottom sheet (#696).
+  // Legend and Layers are chips in the row under the search pill at both
+  // widths, each with its menu a card joined to the chip at a desk (#714) and
+  // a bottom sheet on a phone (#696).
   const layers = (
     <LayersPopover
       overlays={overlays}
@@ -282,6 +292,25 @@ export default function MapStage({
       sheet={!isDesktop}
     />
   )
+  const legendChip = (
+    <MapLegend
+      sections={legend}
+      sheet={!isDesktop}
+      sheetLiftPx={layout.sheetLiftPx}
+      timelineShown={timelineShown}
+      initiallyOpen={legendInitiallyOpen}
+    />
+  )
+
+  // While the panel moves the box is the window's width, and while a pane
+  // moves the window's height, centred on the column either way, so the map
+  // is resized where the move starts or ends rather than in every frame.
+  const mapBox =
+    layoutMotion === 'opening' || layoutMotion === 'closing'
+      ? LAYOUT_HOLD.mapPush
+      : layoutMotion === 'panes'
+        ? LAYOUT_HOLD.mapPanes
+        : LAYOUT_HOLD.rest
 
   return (
     // `--map-corner-lift` and `--map-corner-band` are read by map.css:
@@ -299,7 +328,7 @@ export default function MapStage({
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${
         isDesktop ? '' : drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows
-      }`}
+      } ${layoutMotion ? LAYOUT_HOLD.clip : ''}`}
       style={
         {
           // A phone's scale and (i) stand on the Analyze button's row
@@ -317,99 +346,77 @@ export default function MapStage({
         paceRemainingS={analysis.paceRemainingS}
         onCancel={analysis.cancel}
       />
-      <MapView
-        ref={mapRef}
-        drawing={drawMode.drawing}
-        pointedPois={poisPointed}
-        polygon={destinationInputs.polygon}
-        restoredPoints={destinationInputs.restoredPoints}
-        onPolygonChange={destinationInputs.setPolygon}
-        onDrawUpdate={drawMode.handleDrawUpdate}
-        results={results}
-        sortBy={sortBy}
-        modelId={modelId}
-        times={timeline.forecastTimes}
-        popupColumns={tableView.tableColumns}
-        pointSample={pointSample}
-        modelFallbackLabel={tableView.analysisModelLabel}
-        fireWarnings={fire.warnings}
-        closureWarnings={closure.warnings}
-        showWildfires={overlays.showWildfires}
-        showAreaClosures={overlays.showAreaClosures}
-        showTrailClosures={overlays.showTrailClosures}
-        showRadar={overlays.showRadar}
-        showSmoke={overlays.showSmoke}
-        showSnow={overlays.showSnow}
-        radarIndex={timeline.radarIndex}
-        gridSpec={grid.grid.spec}
-        gridCells={grid.grid.cells}
-        gridStyle={grid.gridStyle}
-        playbackIndex={playbackIndex}
-        pending={report.pending}
-        searchedPlaces={destinationInputs.places}
-        onAddPoi={handleAddPoi}
-        onRemovePoi={handleRemovePoi}
-        onRemoveResult={removeResult}
-        cameraPadBottomPx={layout.cameraPadBottomPx}
-        restoredView={restoredView}
-        onCameraMove={urlSync.reportView}
-        onBasemapFailed={onBasemapFailed}
-        maxPolygonPoints={maxPolygonPoints}
-        locateSlot={locateSlot}
-        compassSlot={compassSlot}
+      {/* The map's box, which holds one size while the layout moves
+          (`layoutMotion`, record 0202) and fills the column otherwise. */}
+      <div className={mapBox}>
+        <MapView
+          ref={mapRef}
+          drawing={drawMode.drawing}
+          pointedPois={poisPointed}
+          polygon={destinationInputs.polygon}
+          restoredPoints={destinationInputs.restoredPoints}
+          onPolygonChange={destinationInputs.setPolygon}
+          onDrawUpdate={drawMode.handleDrawUpdate}
+          results={results}
+          sortBy={sortBy}
+          modelId={modelId}
+          times={timeline.forecastTimes}
+          popupColumns={tableView.tableColumns}
+          pointSample={pointSample}
+          modelFallbackLabel={tableView.analysisModelLabel}
+          fireWarnings={fire.warnings}
+          closureWarnings={closure.warnings}
+          showWildfires={overlays.showWildfires}
+          showAreaClosures={overlays.showAreaClosures}
+          showTrailClosures={overlays.showTrailClosures}
+          showRadar={overlays.showRadar}
+          showSmoke={overlays.showSmoke}
+          showSnow={overlays.showSnow}
+          radarIndex={timeline.radarIndex}
+          gridSpec={grid.grid.spec}
+          gridCells={grid.grid.cells}
+          gridStyle={grid.gridStyle}
+          playbackIndex={playbackIndex}
+          pending={report.pending}
+          searchedPlaces={destinationInputs.places}
+          onAddPoi={handleAddPoi}
+          onRemovePoi={handleRemovePoi}
+          onRemoveResult={removeResult}
+          cameraPadBottomPx={layout.cameraPadBottomPx}
+          restoredView={restoredView}
+          onCameraMove={urlSync.reportView}
+          onBasemapFailed={onBasemapFailed}
+          maxPolygonPoints={maxPolygonPoints}
+          locateSlot={locateSlot}
+          compassSlot={compassSlot}
+          cornerSlots={cornerSlots}
+        />
+      </div>
+      <MapRows
+        searchBoxRef={searchBoxRef}
+        onSearchSelect={handleSearchSelect}
+        searchPointed={searchPointed}
+        onLocateSlot={setLocateSlot}
+        onCompassSlot={setCompassSlot}
+        desk={isDesktop}
+        sidebarOpen={sidebarOpen}
+        onOpenControls={onOpenControls}
+        onCloseControls={onCloseControls}
+        controlsSummary={controlsSummary}
+        layers={layers}
+        legend={legendChip}
       />
-      {/* The legends render BEFORE the button column below on purpose.
-          Both are map chrome at the same layer, so paint order is DOM
-          order, and the one that has to win is the one you can click:
-          the Layers popover opens downward into exactly this space, and
-          with the legends last it opened underneath them. Pushing the
-          legends further down instead only moved the collision, since a
-          popover is as tall as its contents. A phone draws no box: its
-          sections are the Legend sheet's (#696). The desk's box is the
-          column's Legend button and its card, which stand in this stack
-          for the same reason. */}
-      {isDesktop && (
-        <MapLegend
-          sections={legend}
-          sidebarOpen={sidebarOpen}
-          sheetLiftPx={layout.sheetLiftPx}
-          timelineShown={timelineShown}
-          initiallyOpen={legendInitiallyOpen}
-        />
-      )}
-      {isDesktop ? (
-        <MapButtonColumn
-          searchBoxRef={searchBoxRef}
-          onSearchSelect={handleSearchSelect}
-          searchPointed={searchPointed}
-          sidebarOpen={sidebarOpen}
-          onOpenControls={onOpenControls}
-          controlsSummary={controlsSummary}
-        >
-          {layers}
-        </MapButtonColumn>
-      ) : (
-        <PhoneMapRows
-          searchBoxRef={searchBoxRef}
-          onSearchSelect={handleSearchSelect}
-          searchPointed={searchPointed}
-          onLocateSlot={setLocateSlot}
-          onCompassSlot={setCompassSlot}
-          sidebarOpen={sidebarOpen}
-          onOpenControls={onOpenControls}
-          onCloseControls={onCloseControls}
-          controlsSummary={controlsSummary}
-          layers={layers}
-          legend={legend}
-        />
-      )}
+      {/* A desk's map buttons, credit line and scale, in the map's
+          bottom-right corner (record 0174). */}
+      {isDesktop && <MapCorner onSlots={setCornerSlots} />}
       {/* The foot of a phone's map: the band the panel's notice block
           stands in while the drawer is shut (record 0140), which
           `PanelFooter` portals the one block it renders into, and the
           Analyze button (record 0135). */}
       {!isDesktop && (
         <PhoneFoot
-          liftPx={footLift}
+          liftPx={noticeLiftPx(footLift, controlsOpen ? controlsPx : null)}
+          controlsOpen={controlsOpen}
           fabBottomPx={fabBottom}
           onNoticeBand={onNoticeBand}
           onBandPx={setBandPx}

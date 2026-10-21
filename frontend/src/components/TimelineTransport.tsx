@@ -58,14 +58,13 @@ interface Props {
  * each control reports. The same split `ForecastCalendar` makes for the same
  * reason.
  *
- * Bottom-centre rather than in a corner: the corners are spoken for (the
- * legends bottom-left, the scale control bottom-right, the map controls
- * top-right), and a control that changes what the whole map shows belongs where
- * the eye already is rather than off to one side.
+ * Bottom-centre rather than in a corner: the corners are spoken for (the rows
+ * top left, the scale and the credit line at the foot, and a desk's map
+ * buttons bottom right), and a control that changes what the whole map shows
+ * belongs where the eye already is rather than off to one side.
  *
- * It sits at `LAYER.base` with the legends, which stack above it — the two
- * never overlap because the legend column is anchored to the left edge and this
- * is centred, and on a phone the legends are given the room to slide up.
+ * It sits at `LAYER.base` with the rest of the map's chrome, under the rows
+ * and the cards that hang from their chips (`LAYER.mapControls`).
  */
 export default function TimelineTransport({
   axis,

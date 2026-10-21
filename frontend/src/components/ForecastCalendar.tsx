@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, Ref } from 'react'
-import Popover from './Popover'
-import { IconSelectArrow } from './icons'
+import Menu, { MenuButton } from './Menu'
 import { usePopover } from '../hooks/usePopover'
 import { isPointSample } from '../utils/forecastWindow'
 import {
@@ -60,6 +59,12 @@ interface Props {
   // ECMWF reaches fourteen, so the same calendar draws twelve more disabled days
   // for one than for the other. The near one is the archive's reach (#123).
   band: BandLimits
+  /**
+   * A phone (record 0136): the calendar opens in a bottom sheet headed When,
+   * the label's word, with the sheet's own Done, rather than in a card under
+   * the field.
+   */
+  sheet?: boolean
 }
 
 // What the Hours toggle opens on: this hour through the end of the day.
@@ -84,11 +89,11 @@ interface Drag {
  *
  * Under Dates with a range picked the panel shows one field holding the
  * window in the words the results bar prints for it, and the field opens the
- * Hours row and the month grid as a popover on `Popover.tsx`'s card. The card
- * takes the field's place while it is open, and with no range there is no
- * field at all, only the card when Dates is pressed. The grid used to stand in the
- * panel body in a well, where choosing Dates grew the Forecast section from
- * 111px to 424px. Record 0129.
+ * Hours row and the month grid as a menu on `Menu.tsx`'s card, 4px under the
+ * field at its width like every desk menu (record 0201). With no range there
+ * is no field at all, only the card when Dates is pressed, standing where
+ * the field would. The grid used to stand in the panel body in a well, where
+ * choosing Dates grew the Forecast section from 111px to 424px. Record 0129.
  *
  * One click picks a whole day, a second click extends to a range, and dragging
  * either end adjusts it. The interaction rules themselves live in
@@ -112,7 +117,7 @@ interface Drag {
 const HOURS_NOTE =
   'Hourly sets the start time on the first day and the end time on the last day. Forecast data is inclusive.'
 
-export default function ForecastCalendar({ selection, onChange, band }: Props) {
+export default function ForecastCalendar({ selection, onChange, band, sheet = false }: Props) {
   // Captured once: a grid that recomputed against a moving `now` would redraw
   // every render, and nothing here changes meaning within a session.
   const now = useMemo(() => new Date(), [])
@@ -143,14 +148,19 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
   // focus on mount would scroll the panel down to the calendar on every load.
   const keyboardNav = useRef(false)
 
-  // The popover the grid lives in. Its state is this component's, not the
-  // popover's, so the anchor, the page and the range to bring back survive a
+  // The menu the grid lives in. Its state is this component's, not the
+  // menu's, so the anchor, the page and the range to bring back survive a
   // close: closing the card is not leaving the Dates arm.
   const [open, setOpen] = useState(false)
+  // Whether the card opened from the field, which then stands over it while
+  // it is open. A card Dates opened with no range stands where the field
+  // would, and a field drawn in the middle of that visit, once its first day
+  // is picked, would push the card down under the hand picking the second.
+  const [fromField, setFromField] = useState(false)
   const fieldRef = useRef<HTMLButtonElement>(null)
-  // Where the card stands: the slot under When, which is in the layout under
-  // Dates whether or not the field is drawn in it, so the card's top is the
-  // field's top, or where it would be.
+  // What the card stands under and takes the width of: the slot under When,
+  // which is in the layout under Dates whether or not the field is drawn in
+  // it, so the card is 4px under the field, or under where it would be.
   const slotRef = useRef<HTMLDivElement>(null)
   const datesRef = useRef<HTMLButtonElement>(null)
   // The When segment: a press on it is the arm switch's to handle, so the card
@@ -221,7 +231,10 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
     // Dates with no range to bring back has no field to show, so the card
     // opens for the first pick. A restored range opens nothing: its field
     // already says what was chosen.
-    if (next.kind === 'days' && !hasDates(next)) setOpen(true)
+    if (next.kind === 'days' && !hasDates(next)) {
+      setFromField(false)
+      setOpen(true)
+    }
     if (next.kind === 'now') setOpen(false)
     onChange(next)
   }
@@ -300,14 +313,15 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
   // Hourly adds two rows and a month can hold five weeks or six, and either
   // changes the card's height while it is open; a card that grew without
   // being placed again would scroll in a gap the viewport could give it.
-  const { popoverRef, box } = usePopover({
-    open,
+  // Closed to the hook on a phone, whose sheet places and dismisses itself.
+  const { popoverRef, box, closing } = usePopover({
+    open: open && !sheet,
     onOpenChange: dismiss,
     triggerRef,
     remeasure: [hours !== undefined, weeks.length],
     initialFocusRef: focusedDayRef,
     anchorRef: slotRef,
-    placement: 'cover',
+    widthRef: slotRef,
     ownPressRef: segmentRef,
   })
 
@@ -343,6 +357,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
       setMonth(monthKey(selection.startDate))
       setFocused(selection.startDate)
     }
+    setFromField(hasDates(selection))
     setOpen(true)
   }, [selection])
 
@@ -426,44 +441,50 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
       {/* The field under the arm: full width, like the calendar it stands in
           for, because the window's words do not fit the control column (a
           two-day range is 26 characters) and record 0040 keeps the calendar
-          as the one control with its own block. It is a SELECT for the same
-          reason the model picker is: a recessed box with an arrow is what
+          as the one control with its own block. It is a field for the same
+          reason the model picker is: a recessed box with a chevron is what
           opens a choice in this panel, and the one control here that may
-          stand two lines tall (CALENDAR_FIELD). Named by the When label and its own
-          words together, so it is announced as the window it holds.
+          stand two lines tall (CALENDAR_FIELD). Named by the When label and
+          its own words together, so it is announced as the window it holds.
 
           It is drawn only when it has something to show (#687): with no range
-          picked an empty box would stand above the card, and while the card is
-          open the card stands in its place, top on its top, so the field is
-          not drawn under it. The slot stays while the card is open, empty, as
-          what the card is placed against. */}
-      {revealsGrid && (fieldText !== '' || open) && (
+          picked an empty box would stand above the card. The card it opens
+          stands 4px under it at its width, the field lit over it the way
+          every field is while its menu is out (record 0201). The slot stays
+          while a card Dates opened is out with no field in it, empty, as
+          what that card is placed under. A phone's sheet is placed by the
+          screen's edge, so there it is drawn for the field alone. */}
+      {revealsGrid && (fieldText !== '' || (open && !sheet)) && (
         <div ref={slotRef} className="relative mt-2">
-          {!open && (
-            <>
-              <button
-                ref={fieldRef}
-                type="button"
-                aria-expanded={false}
-                aria-labelledby={`${whenId} ${fieldTextId}`}
-                onClick={openCalendar}
-                className={CALENDAR_FIELD.box}
-              >
-                {/* Wraps rather than truncating: the longest window, hours and a
-                    year, needs two lines at panel width, and the end of it is
-                    what an ellipsis would hide. */}
-                <span id={fieldTextId} className="min-w-0">
-                  {fieldText}
-                </span>
-              </button>
-              <IconSelectArrow placement={CALENDAR_FIELD.arrow} />
-            </>
+          {fieldText !== '' && (!open || fromField) && (
+            <MenuButton
+              ref={fieldRef}
+              shape="field"
+              open={open}
+              aria-labelledby={`${whenId} ${fieldTextId}`}
+              onClick={() => (open ? dismiss(false) : openCalendar())}
+              className={CALENDAR_FIELD.box}
+              chevronClassName={CALENDAR_FIELD.arrow}
+            >
+              {/* Wraps rather than truncating: the longest window, hours and a
+                  year, needs two lines at panel width, and the end of it is
+                  what an ellipsis would hide. */}
+              <span id={fieldTextId} className="min-w-0">
+                {fieldText}
+              </span>
+            </MenuButton>
           )}
         </div>
       )}
 
-      {revealsGrid && open && box && (
-        <Popover box={box} popoverRef={popoverRef}>
+      {revealsGrid && (box || (sheet && open)) && (
+        <Menu
+          box={box}
+          popoverRef={popoverRef}
+          closing={closing}
+          // The sheet's Done is the card's below, closing the same way.
+          sheet={sheet ? { heading: 'When', onClose: () => dismiss(false) } : undefined}
+        >
           <div className={CALENDAR_GROUND}>
           <div className="flex items-center justify-between gap-2">
             <span className={TEXT.subheading} title={HOURS_NOTE}>
@@ -623,12 +644,14 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
               closes on Dates and its field, and with no day picked the arm
               goes back to Current, as every other close does (`dismiss`).
               The word and the button are draw mode's Done. */}
-          <div className="flex justify-end p-2">
-            <button type="button" onClick={() => dismiss(false)} className={BUTTON_ACCENT}>
-              Done
-            </button>
-          </div>
-        </Popover>
+          {!sheet && (
+            <div className="flex justify-end p-2">
+              <button type="button" onClick={() => dismiss(false)} className={BUTTON_ACCENT}>
+                Done
+              </button>
+            </div>
+          )}
+        </Menu>
       )}
     </>
   )

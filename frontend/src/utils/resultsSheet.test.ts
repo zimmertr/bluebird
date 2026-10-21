@@ -10,12 +10,11 @@ import {
   CONTROLS_MAP_PX,
   NOTICE_BAND_MAX_PX,
   NOTICE_LINE_PX,
-  PHONE_ROWS_PX,
+  MAP_ROWS_PX,
   PLAYER_ROOM_PX,
   LEGEND_GAP_PX,
   LEGEND_STACK_PX,
-  LEGEND_TOP_FINE_PX,
-  LEGEND_TOP_PX,
+  RESTING_TOP_PX,
   RESTING_MAP_PX,
   RESULTS_BAR_PX,
   SHEET_HEADER_PX,
@@ -30,11 +29,13 @@ import {
   controlsSheetPx,
   fabBottomPx,
   noticeBottomPx,
+  noticeLiftPx,
   phoneCornerLiftPx,
-  phoneFootLiftPx,
   transportFits,
   transportStandPx,
   legendBottomPx,
+  legendMaxCss,
+  CHIP_MENU_GAP_PX,
   mapCornerLiftPx,
   resolveSheetLift,
   restingLiftPx,
@@ -91,23 +92,26 @@ describe('the map chrome anchors', () => {
     )
   })
 
-  // Every offset on this edge is derived here and applied as a style, so the
-  // one class left to mirror is the legend's top inset.
-  it('mirrors the legend inset the role spells', () => {
-    // The inset is a role with four numbers: two pointer sizes, each with and
-    // without the Controls button, which stands in the column only while the
-    // panel is collapsed. The two a floor is about are asserted against the
-    // classes, so a shade of either cannot move alone.
-    expect(stylesSource).toContain("compact: 'top-[92px] touch:top-[108px]'")
-    expect(stylesSource).toContain("full: 'top-[132px] touch:top-[156px]'")
-    // Fine and compact: a docked desktop, which is the only pointer the docked
-    // floor is asked about.
-    expect(LEGEND_TOP_FINE_PX).toBe(92)
-    // Coarse and full: a phone at rest, where the drawer is closed, the
-    // Controls button is up, and the sheet covers the map's bottom regardless.
-    expect(LEGEND_TOP_PX).toBe(156)
-    // The sheet's floor is promised against the taller column of the two.
-    expect(LEGEND_TOP_PX).toBeGreaterThan(LEGEND_TOP_FINE_PX)
+  // The rows are four numbers in the role (`MAP_ROWS`): the 12px inset, the
+  // 40px pill row, 8px between and the 32px chip row. Their sum is what every
+  // anchor under them reads, a desk's legend card included (#714).
+  it('ends the rows where the role\'s four numbers do, at both widths', () => {
+    expect(stylesSource).toContain("row: `relative h-10 ${YIELD_EMPTY}`")
+    expect(stylesSource).toContain("chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`")
+    expect(MAP_ROWS_PX).toBe(12 + 40 + 8 + 32)
+    // The phone's resting reserve keeps the column it was measured with.
+    expect(RESTING_TOP_PX).toBe(156)
+    expect(RESTING_TOP_PX).toBeGreaterThan(MAP_ROWS_PX)
+  })
+
+  // A desk's legend card hangs 4px under its chip and scrolls inside what is
+  // left of the map under the rows and that gap, above the same floor the
+  // stack kept.
+  it('caps a desk\'s legend card at the map under the rows, less the floor', () => {
+    expect(CHIP_MENU_GAP_PX).toBe(4)
+    expect(legendMaxCss(0, false)).toBe(`calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + LEGEND_GAP_PX}px)`)
+    expect(legendMaxCss(0, true)).toBe(`calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + TRANSPORT_BAND_PX}px)`)
+    expect(stylesSource).toContain('[container-type:size]')
   })
 
   // The band above the results holds the taller of MapLibre's two bottom
@@ -169,7 +173,7 @@ describe('mapCornerLiftPx', () => {
 describe('the resting height', () => {
   it('counts the transport band whether or not a timeline is on screen', () => {
     // A map overlay must never resize the results, so the reserve is one number.
-    expect(RESTING_MAP_PX).toBe(LEGEND_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX)
+    expect(RESTING_MAP_PX).toBe(RESTING_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX)
   })
 
   it('reserves the sheet its own chrome on top of the map it must not cover', () => {
@@ -205,11 +209,11 @@ describe('the resting height', () => {
       })
       const sheet = sheetHeightPx({ collapsed: false, gripCount, panelsPx: chart + table })
       const visibleMap = VIEWPORT - sheet
-      const legendBand = visibleMap - LEGEND_TOP_PX - legendBottomPx(0, true)
+      const legendBand = visibleMap - RESTING_TOP_PX - legendBottomPx(0, true)
       expect(legendBand).toBeGreaterThanOrEqual(wanted)
       // The transport occupies the band's bottom 112px, so it clears the map's
       // button column — the collision the issue reports beside the legends.
-      expect(visibleMap - TRANSPORT_BAND_PX).toBeGreaterThan(LEGEND_TOP_PX)
+      expect(visibleMap - TRANSPORT_BAND_PX).toBeGreaterThan(RESTING_TOP_PX)
       // And the criterion the issue pins the trade to: the sheet covers less map
       // than the panel it replaces, which took the map down to 161px.
       expect(visibleMap).toBeGreaterThanOrEqual(161)
@@ -238,7 +242,7 @@ describe('the resting height', () => {
 // the reader takes hold of a grip; this one holds however far they pull.
 describe('the drag cap', () => {
   it('leaves the rows and the button\'s strip: 92 and 16 + 56 + 16', () => {
-    expect(PHONE_ROWS_PX).toBe(92)
+    expect(MAP_ROWS_PX).toBe(92)
     expect(FAB_STRIP_PX).toBe(FAB_INSET_PX + FAB_PX + FAB_INSET_PX)
     expect([FAB_INSET_PX, FAB_PX, FAB_STRIP_PX]).toEqual([16, 56, 88])
     expect(DRAGGED_MAP_PX).toBe(180)
@@ -278,7 +282,7 @@ describe('the drag cap', () => {
     // The button at the sheet's edge and an inset under the rows.
     const fab = fabBottomPx(capped, 0, VIEWPORT)
     expect(fab).toBe(capped + FAB_INSET_PX)
-    expect(VIEWPORT - fab - FAB_PX).toBe(PHONE_ROWS_PX + FAB_INSET_PX)
+    expect(VIEWPORT - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
   })
 })
 
@@ -320,7 +324,7 @@ describe('the Analyze button', () => {
     const lift = 844 - DRAGGED_MAP_PX
     expect(fabBottomPx(lift, 52, 844)).toBe(lift + FAB_INSET_PX)
     const fab = fabBottomPx(300, 400, 844)
-    expect(844 - fab - FAB_PX).toBe(PHONE_ROWS_PX + FAB_INSET_PX)
+    expect(844 - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
   })
 
   // The player's bottom 8px over the button's top, and off the map while
@@ -329,7 +333,7 @@ describe('the Analyze button', () => {
     expect(transportBottomPx(transportStandPx(120))).toBe(120 + FAB_PX + FAB_GAP_PX)
     expect(transportFits(16, 844)).toBe(true)
     const top = (fab: number) => fab + FAB_PX + FAB_GAP_PX + TRANSPORT_HEIGHT_PX
-    const highest = 844 - PHONE_ROWS_PX - FAB_INSET_PX
+    const highest = 844 - MAP_ROWS_PX - FAB_INSET_PX
     expect(transportFits(highest - top(0), 844)).toBe(true)
     expect(transportFits(highest - top(0) + 1, 844)).toBe(false)
   })
@@ -400,15 +404,23 @@ describe('the camera padding', () => {
 describe('dockedMapFloorPx', () => {
   // It replaces `resolvePanelHeights`' own default, which was 280 — a number
   // that predates the legend stack and is under half of what the stack needs.
-  it('is the fine-pointer reserve plus the chrome the panels are stacked under', () => {
+  it('is the rows, the legend card and the band, plus the chrome the panels are stacked under', () => {
     expect(dockedMapFloorPx(0)).toBe(
-      LEGEND_TOP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX + RESULTS_BAR_PX,
+      MAP_ROWS_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX + RESULTS_BAR_PX,
     )
     // Lower than the phone's reserve by exactly the inset the two disagree on.
     expect(RESTING_MAP_PX - (dockedMapFloorPx(0) - RESULTS_BAR_PX)).toBe(
-      LEGEND_TOP_PX - LEGEND_TOP_FINE_PX,
+      RESTING_TOP_PX - MAP_ROWS_PX,
     )
     expect(dockedMapFloorPx(2) - dockedMapFloorPx(1)).toBe(dockedMapFloorPx(1) - dockedMapFloorPx(0))
+  })
+
+  // The one-line estimate holds until the bar is measured, and the bar's own
+  // height replaces it after: 85px beside the docked panel at 1024 with a
+  // three-digit Removed count (#714).
+  it('counts the bar as measured once it is', () => {
+    expect(dockedMapFloorPx(1, RESULTS_BAR_PX)).toBe(dockedMapFloorPx(1))
+    expect(dockedMapFloorPx(1, 85) - dockedMapFloorPx(1)).toBe(85 - RESULTS_BAR_PX)
   })
 
   // The acceptance criterion for the desktop half, at the viewport the change
@@ -426,9 +438,8 @@ describe('dockedMapFloorPx', () => {
     // Nothing is clamped: the defaults are chosen to fit this window.
     expect({ chart, table }).toEqual({ chart: DEFAULT_PANEL_HEIGHT, table: DEFAULT_PANEL_HEIGHT })
     const visibleMap = VIEWPORT - RESULTS_BAR_PX - gripCount * 8 - chart - table
-    // The FINE inset: a docked layout is the pointer case, which is the whole
-    // reason `dockedMapFloorPx` reads that one rather than the phone's.
-    const legendBand = visibleMap - LEGEND_TOP_FINE_PX - legendBottomPx(0, true)
+    // The card hangs from its chip, where the rows end.
+    const legendBand = visibleMap - MAP_ROWS_PX - legendBottomPx(0, true)
     expect(legendBand).toBeGreaterThanOrEqual(LEGEND_STACK_PX)
   })
 })
@@ -443,37 +454,40 @@ describe('the default panel heights', () => {
 })
 
 // The Controls sheet (#696; record 0141): the panel on a phone, a fixed share
-// of the map that leaves the rows, the button's strip and a full notice band.
+// of the map that leaves the rows, the strip a full results sheet leaves the
+// button, and a full notice band on its edge.
 describe('the Controls sheet', () => {
-  it('leaves the rows, the button and the fullest band above it', () => {
+  it('leaves the rows, the button\'s strip and the fullest band above it', () => {
     expect(CONTROLS_MAP_PX).toBe(DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX)
     expect(controlsSheetPx(844)).toBe(844 - CONTROLS_MAP_PX)
     expect(controlsSheetPx(100)).toBe(0)
   })
 
-  // With the fullest band on its edge, the button still stands under the rows.
-  it('leaves the button its place over a full band', () => {
-    const lift = controlsSheetPx(844)
-    const fab = fabBottomPx(lift, NOTICE_BAND_MAX_PX, 844)
-    expect(fab).toBe(lift + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX + FAB_INSET_PX)
-    expect(844 - fab - FAB_PX).toBe(PHONE_ROWS_PX + FAB_INSET_PX)
+  // The fullest band on its edge tops out where a full results sheet does,
+  // so a cue arriving while a control changes never reaches the chips.
+  it('stands the fullest band on its edge under the button\'s strip', () => {
+    const bandTop = 844 - noticeBottomPx(controlsSheetPx(844)) - NOTICE_BAND_MAX_PX
+    expect(bandTop).toBe(DRAGGED_MAP_PX)
   })
 
-  it('is the edge the foot rides while it is up and stands higher', () => {
+  // The band alone rides it (record 0207): over its dim, wherever a drag left
+  // it, and even where a results sheet dragged high stands above it, since
+  // the Controls sheet is the one in view.
+  it('is the edge the band rides while it is up, and the results sheet\'s otherwise', () => {
     const sheet = controlsSheetPx(844)
-    expect(phoneFootLiftPx(104, sheet)).toBe(sheet)
-    expect(phoneFootLiftPx(104, null)).toBe(104)
-    expect(phoneFootLiftPx(sheet + 20, sheet)).toBe(sheet + 20)
+    expect(noticeLiftPx(104, sheet)).toBe(sheet)
+    expect(noticeLiftPx(104, null)).toBe(104)
+    expect(noticeLiftPx(sheet + 20, sheet)).toBe(sheet)
     // A drag moves the edge with it.
-    expect(phoneFootLiftPx(104, 300)).toBe(300)
+    expect(noticeLiftPx(104, 300)).toBe(300)
   })
 
-  // Dragged up whole, it stops where a dragged results sheet does, and the
-  // button keeps its strip under the chip row (#696; record 0146).
+  // Dragged up whole, it stops where a dragged results sheet does (#696;
+  // record 0146), and a full band on its edge still clears the rows.
   it('rises under a drag to the button\'s strip and no higher', () => {
     expect(controlsFullPx(844)).toBe(844 - DRAGGED_MAP_PX)
-    const lift = controlsFullPx(844)
-    expect(844 - fabBottomPx(lift, 0, 844) - FAB_PX).toBe(PHONE_ROWS_PX + FAB_INSET_PX)
+    const bandTop = 844 - noticeBottomPx(controlsFullPx(844)) - NOTICE_BAND_MAX_PX
+    expect(bandTop).toBeGreaterThan(MAP_ROWS_PX)
   })
 })
 

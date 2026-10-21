@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
-import BottomSheet from './BottomSheet'
+import BottomSheet, { type KeptSheet } from './BottomSheet'
 import { DOUBLE_PRESS_MS } from '../hooks/useGripDrag'
 import { SHEET_SNAP_PX } from '../utils/sheetDrag'
 import { render } from '../testSupport/render'
@@ -168,5 +169,60 @@ describe('BottomSheet', () => {
     const outside = screen.getByTestId('outside')
     expect(outside.parentElement).toBe(screen.getByRole('dialog'))
     expect(screen.getByRole('checkbox').closest('label')!.parentElement).not.toBe(outside.parentElement)
+  })
+
+  // The Controls sheet (record 0207): the same shape, kept mounted, and modal
+  // only while open.
+  describe('kept', () => {
+    const KEPT: KeptSheet = { open: true, tourRuns: false, heightPx: 540, restPx: 540, fullPx: 660, onHeightPx: () => {} }
+    function kept(open: boolean, onClose = vi.fn()) {
+      return (
+        <div data-testid="home">
+          <BottomSheet heading="Controls" onClose={onClose} kept={{ ...KEPT, open }}>
+            <input aria-label="Field" />
+          </BottomSheet>
+        </div>
+      )
+    }
+
+    it('renders in place at the height it is handed, over its own dim while open', () => {
+      const { rerender } = render(kept(true))
+      const dialog = screen.getByRole('dialog', { name: 'Controls' })
+      expect(dialog.parentElement).toBe(screen.getByTestId('home'))
+      expect(dialog.style.height).toBe('540px')
+      expect(dialog.previousElementSibling?.getAttribute('aria-hidden')).toBe('true')
+      rerender(kept(false))
+      expect(dialog.previousElementSibling).toBeNull()
+      expect(dialog.hasAttribute('inert')).toBe(true)
+      expect(screen.getByRole('textbox', { hidden: true })).toBeTruthy()
+    })
+
+    // A sheet opened from inside it, the model list or the calendar, stands
+    // over it: Escape closes that one alone, and then the Controls sheet.
+    it('answers no key while a sheet opened from inside it is up', () => {
+      const onClose = vi.fn()
+      function Page() {
+        const [inner, setInner] = useState(false)
+        return (
+          <BottomSheet heading="Controls" onClose={onClose} kept={KEPT}>
+            <button onClick={() => setInner(true)}>Model</button>
+            {inner && (
+              <BottomSheet heading="Model" onClose={() => setInner(false)}>
+                <div>NOAA GFS</div>
+              </BottomSheet>
+            )}
+          </BottomSheet>
+        )
+      }
+      render(<Page />)
+      const opener = screen.getByRole('button', { name: 'Model' })
+      fireEvent.click(opener)
+      expect(document.activeElement).toBe(screen.getByRole('dialog', { name: 'Model' }))
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(screen.queryByRole('dialog', { name: 'Model' })).toBeNull()
+      expect(onClose).not.toHaveBeenCalled()
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(onClose).toHaveBeenCalledOnce()
+    })
   })
 })

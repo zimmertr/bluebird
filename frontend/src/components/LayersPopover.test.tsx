@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { UNFURLED } from '../styles'
+import { MAP_CHIP_MENU, MENU, MENU_CHEVRON } from '../styles'
+import { IconChevron } from './icons'
 import type { ViewBounds } from '../utils/layerCoverage'
 
 // Every switch off, the grid allowed and off, and nothing spanning time.
@@ -70,6 +71,15 @@ const CONUS = {
 const open = () => fireEvent.click(screen.getByRole('button', { name: 'Layers' }))
 const rows = () => screen.getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)
 
+// The points `IconChevron` draws for one direction, read off the icon itself
+// so the chip's tests do not restate its geometry.
+function chevronPoints(up: boolean): string | null {
+  const { container, unmount } = render(<IconChevron up={up} />)
+  const points = container.querySelector('polyline')!.getAttribute('points')
+  unmount()
+  return points
+}
+
 describe('LayersPopover', () => {
   // The menu unmounts under a keyboard that was in it, so Escape hands the
   // focus back to the button that opened it rather than to the body (#576).
@@ -94,18 +104,24 @@ describe('LayersPopover', () => {
     expect(screen.queryByRole('checkbox')).toBeNull()
   })
 
-  // The menu unfurls out of the button's bottom edge as one card with it
-  // (record 0134): the button says so while the menu is open and not after.
-  it('joins the menu to the button only while it is open', () => {
+  // The menu stands under the chip as a whole card, 8px down, and the chip
+  // keeps its pill and is lit while it is out (#714; TJ, 2026-10-18).
+  it('lights the chip while its menu stands under it', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     const button = screen.getByRole('button', { name: 'Layers' })
-    expect(button.dataset.unfurled).toBeUndefined()
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    const points = () => button.querySelector('svg polyline')!.getAttribute('points')
+    expect(button.querySelector('svg')!.classList).toContain(MENU_CHEVRON.chip)
+    expect(points()).toBe(chevronPoints(false))
     open()
-    expect(button.dataset.unfurled).toBe('below')
+    expect(button.getAttribute('aria-expanded')).toBe('true')
+    // The menu drops from the chip, and the chevron says so (TJ, 2026-10-18).
+    expect(points()).toBe(chevronPoints(true))
     const menu = screen.getByRole('checkbox', { name: 'Smoke' }).closest('[data-tour="layers-menu"]') as HTMLElement
-    for (const cls of UNFURLED.below.split(' ')) expect(menu.classList).toContain(cls)
+    for (const cls of MAP_CHIP_MENU.split(' ')) expect(menu.classList).toContain(cls)
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(button.dataset.unfurled).toBeUndefined()
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    expect(points()).toBe(chevronPoints(false))
   })
 
   // A press inside the popover is a choice, not a way out.
@@ -139,6 +155,24 @@ describe('LayersPopover', () => {
     expect((grid as HTMLInputElement).disabled).toBe(true)
     const player = screen.getByRole('checkbox', { name: 'Forecast player', description: '' })
     expect((player as HTMLInputElement).disabled).toBe(true)
+  })
+
+  // A row a press acts on lights under the pointer, as every menu row does
+  // (record 0201); a greyed one takes no fill, and a phone's sheet none at all.
+  it('lights every live row under the pointer and no greyed one', () => {
+    const fill = (name: RegExp | string) =>
+      screen.getByRole('checkbox', { name }).closest('label')!.className.split(' ').includes(MENU.hover)
+    const { unmount } = render(
+      <LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={ARCHIVE} playerOffered={false} />,
+    )
+    open()
+    expect(fill('Smoke')).toBe(true)
+    expect(fill(/^Forecast grid/)).toBe(false)
+    expect(fill('Forecast player')).toBe(false)
+    unmount()
+    render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered sheet />)
+    open()
+    expect(fill('Smoke')).toBe(false)
   })
 
   // Each row drives its own layer, and no label carries a coverage note: the
@@ -214,7 +248,8 @@ describe('LayersPopover', () => {
   it('opens the rows in a sheet on a phone, lit while open', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered sheet />)
     const chip = screen.getByRole('button', { name: 'Layers' })
-    expect(chip.getAttribute('data-unfurled')).toBeNull()
+    // A sheet rises from below, so a phone's chip carries no chevron.
+    expect(chip.querySelector('svg')).toBeNull()
     open()
     expect(chip.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('dialog', { name: 'Layers' })).toBeTruthy()

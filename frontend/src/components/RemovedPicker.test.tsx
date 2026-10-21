@@ -6,8 +6,8 @@ import type { RemovedEntry } from '../utils/removals'
 import { resultRow } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
 
-// The desk's Removed menu: the card that unfurls from the results bar's button
-// group. The phone's sheet is `menuSheets.test.tsx`'s.
+// The desk's Removed menu: the card 4px under the results bar's own button
+// (record 0201). The phone's sheet is `menuSheets.test.tsx`'s.
 const entry = (name: string): [string, RemovedEntry] => [name, { row: resultRow({ name }) } as RemovedEntry]
 
 interface PickerProps {
@@ -29,7 +29,6 @@ function Picker({ entries, onOpenChange = () => {}, onRestore = () => {}, onRest
         onRestore={onRestore}
         onRestoreAll={onRestoreAll}
         triggerRef={triggerRef}
-        anchorRef={triggerRef}
       />
     </>
   )

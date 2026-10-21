@@ -1,23 +1,19 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
+import { useExit } from '../hooks/useExit'
 import { familyOf, metricLabel } from '../metrics'
 import type { SortBy } from '../types'
 import {
   ACCENT,
-  BUTTON_FLOATING,
   CONTROL_SIZE,
   DISABLED,
-  LEGEND_TOP,
   LINK,
-  MAP_COL_GAP,
-  MAP_COL_W,
-  MAP_EDGE,
-  MAP_ROW_H,
+  MAP_CHIP_MENU,
   RADIUS,
   STATUS,
   SR_ONLY,
-  SURFACE_FLOATING,
+  SURFACE_CHIP_CARD,
   SWATCH_CHIP,
   SWATCH_EDGE,
   SWATCH_LINE,
@@ -25,17 +21,15 @@ import {
   SWATCH_RAMP_SCRIM,
   SWATCH_RAMP_TICK,
   TEXT,
-  UNFURL_ANCHOR,
-  UNFURLED,
-  YIELD_EMPTY,
 } from '../styles'
-import { IconLegend } from './icons'
+import BottomSheet from './BottomSheet'
+import { MenuButton } from './Menu'
 import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF, radarSwatchCss } from '../utils/radar'
-import { legendBottomPx } from '../utils/resultsSheet'
+import { legendMaxCss } from '../utils/resultsSheet'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from '../utils/smoke'
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../utils/snowDepth'
 import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
@@ -417,121 +411,99 @@ export function LegendSections({ sections }: { sections: readonly LegendSectionS
 }
 
 interface MapLegendProps {
-  /** What the box holds (`legendSections`). */
+  /** What the card or the sheet holds (`legendSections`). */
   sections: readonly LegendSectionSpec[]
-  /** Whether the panel is open; the column above is one row taller while it is not. */
-  sidebarOpen: boolean
-  /** How far the results sheet stands over the map's bottom edge. */
+  /** A phone (#696): the key is a bottom sheet, rather than a card under the chip. */
+  sheet: boolean
+  /** How far the results sheet stands over the map's bottom edge (0 at a desk). */
   sheetLiftPx: number
   /** Whether the forecast player's bar is on screen. */
   timelineShown: boolean
-  /** Whether the card opens unfolded: the reader's last answer (`viewPrefs.legendOpen`), or open. */
+  /** Whether a desk's card opens unfolded: the reader's last answer (`viewPrefs.legendOpen`), or open. */
   initiallyOpen: boolean
 }
 
 /**
- * The map's one legend box and the stack it scrolls in (#454; #409 cut it out
- * of `App.tsx`), at a desk's width: the column's `Legend` button and the card
- * it unfurls (#696, the maintainer, 2026-10-14), joined the way Layers is to
- * its menu (record 0134). Open until the reader folds it, and folded or open
- * again on their next visit (`viewPrefs.legendOpen`). The button greys while
- * no section has anything to key, the way a phone's Legend chip does, so the
- * column keeps one shape from arrival to results. A phone draws the same
- * sections in its Legend sheet instead.
+ * The map's legend: the `Legend` chip in the row under the search pill and
+ * the key it opens (#454; #409 cut it out of `App.tsx`). The chip greys while
+ * no section has anything to key, so the row keeps one shape from arrival to
+ * results.
+ *
+ * At a desk the key is a card 4px under the chip (#714; record 0174), open
+ * until the reader folds it, and folded or open again on their next visit
+ * (`viewPrefs.legendOpen`), because a key belongs on the map beside the
+ * markers it explains. On a phone it is a bottom sheet (record 0136), shut
+ * until asked for and never remembered, because a sheet covers the map.
  */
-export default function MapLegend({ sections, sidebarOpen, sheetLiftPx, timelineShown, initiallyOpen }: MapLegendProps) {
-  const [open, setOpen] = useState(initiallyOpen)
+export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown, initiallyOpen }: MapLegendProps) {
+  const [deskOpen, setDeskOpen] = useState(initiallyOpen)
+  const [sheetOpen, setSheetOpen] = useState(false)
   const shown = sections.length > 0
-  const unfolded = open && shown
+  // A key can go while its sheet is open (a layer switched off elsewhere, a
+  // report put back), and the chip greys under it; the sheet goes with it
+  // rather than coming back by itself with the next key. A desk's card keeps
+  // the reader's answer instead: it is a setting, not a gesture.
+  useEffect(() => {
+    if (!shown) setSheetOpen(false)
+  }, [shown])
+  const open = (sheet ? sheetOpen : deskOpen) && shown
+  // A desk's card folds the way it opened, over `MOTION.menu`'s 150ms.
+  const chipRef = useRef<HTMLButtonElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const closing = useExit(open && !sheet, cardRef, chipRef)
   const toggle = () => {
-    setOpen(!open)
-    writeViewPrefs({ legendOpen: !open })
+    if (sheet) {
+      setSheetOpen((o) => !o)
+      return
+    }
+    setDeskOpen(!deskOpen)
+    writeViewPrefs({ legendOpen: !deskOpen })
   }
-  // Top-anchored legends: they hang one gap under the Layers button
-  // (`LEGEND_TOP`) and grow downward, at EVERY width.
-  //
-  // A key belongs where the reader last looked for it. Anchored to
-  // the bottom instead, the stack rode up and down with every panel
-  // drag and every results mode, so a box that had said nothing new
-  // appeared to be moving on its own — and on a phone the last box
-  // ended up under the forecast player. Anchored here it is a fixed
-  // landmark under the button that switches the layers it explains,
-  // and what gives when the map runs short is the tail of the stack
-  // rather than its position.
-  //
-  // The inset is what clears the Controls/search/Layers column above,
-  // and it is two numbers rather than one because that column is two
-  // heights: `TAP` floors the search row and the Layers button at 44
-  // for a finger, so the column ends at 92 under a pointer and 108
-  // under a finger. The role holds both with the arithmetic; the rule
-  // is that the stack sits one of the column's own 8px gaps below
-  // whichever it is. Anything shorter collides — at 76 the first rows
-  // paint behind the Layers button, which is opaque and paints after
-  // the legends (see the ordering note where `MapStage.tsx` renders this) —
-  // and anything taller is
-  // dead map.
-  //
-  // It used to lift at `lg`, on the reasoning that a desktop map has
-  // room to spare — but "top-auto" does not mean "as tall as it
-  // likes", it means the box starts wherever its content puts it,
-  // which on a wide map was 54px: straight through the Layers button
-  // at 54-92. Same collision, reached from the other side.
-  //
-  // The `bottom` offset is a ceiling on the scroll box, not an
-  // anchor: it stops the stack above the timeline's band while the
-  // bar is on screen, and above the sheet's top edge on a phone, so
-  // no box is ever half under a control. Overflow leaves through the
-  // bottom, which is the edge a scroll can follow — a stack that
-  // overflowed its START edge would put boxes at negative
-  // coordinates with `scrollTop` pinned at 0 and no way to reach
-  // them, which is measured and is why the bottom anchoring is not
-  // coming back. A sheet dragged tall closes the box to nothing, and
-  // a double press on its grip brings the legends back with the rest
-  // of the default.
-  return (
-    <div
-      // The inset clears the button column above, which is one row
-      // taller while the panel is collapsed and the Controls button
-      // stands in it. `LEGEND_TOP` carries both heights; picking
-      // between them here is the only thing that knows which one is on
-      // screen.
-      className={`absolute ${MAP_EDGE.left} ${
-        sidebarOpen ? LEGEND_TOP.compact : LEGEND_TOP.full
-      } z-10 flex flex-col ${MAP_COL_GAP.gap} overflow-y-auto [&>*]:flex-shrink-0 ${YIELD_EMPTY}`}
-      // The floor of the scroll box, derived rather than chosen: the
-      // transport's whole band while the bar is on screen and a plain
-      // gap otherwise, measured from whatever stands on the map's
-      // bottom edge — the edge itself where the results are docked, the
-      // top of the sheet where they cover it (#249).
-      style={{ bottom: legendBottomPx(sheetLiftPx, timelineShown) }}
+  const chip = (
+    <MenuButton
+      ref={chipRef}
+      shape="chip"
+      open={open}
+      chevron={!sheet}
+      onClick={toggle}
+      disabled={!shown}
+      className={DISABLED}
     >
-      <div
-        // A popup keeps clear of this box (`resultsLayer.ts` finds every
-        // `data-map-overlay`); the box rather than the scroll column around
-        // it, whose empty length below the box reaches the map's floor.
-        data-map-overlay=""
-        className="flex flex-col"
-      >
-        {/* The button the card unfurls out of, the column's last member. It
-            stands at the top of the scroll box, so a key too tall for the map
-            scrolls under it rather than taking it away. */}
-        <button
-          type="button"
-          onClick={toggle}
-          disabled={!shown}
-          aria-expanded={unfolded}
-          data-unfurled={unfolded ? 'below' : undefined}
-          className={`${BUTTON_FLOATING} ${UNFURL_ANCHOR} ${MAP_COL_W} ${MAP_ROW_H} ${DISABLED} sticky top-0 z-[1] flex flex-shrink-0 items-center gap-2 px-2.5`}
-        >
-          <IconLegend />
-          Legend
-        </button>
-        {unfolded && (
-          <div className={`${SURFACE_FLOATING} ${MAP_COL_W} ${UNFURLED.below} flex flex-col gap-1 px-2.5 py-2`}>
+      Legend
+    </MenuButton>
+  )
+  if (sheet) {
+    return (
+      <>
+        {chip}
+        {open && (
+          <BottomSheet heading="Legend" onClose={() => setSheetOpen(false)}>
             <LegendSections sections={sections} />
-          </div>
+          </BottomSheet>
         )}
-      </div>
+      </>
+    )
+  }
+  return (
+    <div className="relative flex-shrink-0">
+      {chip}
+      {(open || closing) && (
+        <div
+          ref={cardRef}
+          data-state={closing ? 'closing' : 'open'}
+          // A popup keeps clear of this card (`resultsLayer.ts` finds every
+          // `data-map-overlay`).
+          data-map-overlay=""
+          className={`${SURFACE_CHIP_CARD.key} ${MAP_CHIP_MENU} flex flex-col gap-1 overflow-y-auto overscroll-contain`}
+          // What is left of the map under the rows, less the floor the old
+          // stack kept: the player's band while it is on screen and a plain
+          // gap otherwise (`legendMaxPx`). A key too tall for that scrolls
+          // inside the card rather than running under the player.
+          style={{ maxHeight: legendMaxCss(sheetLiftPx, timelineShown) }}
+        >
+          <LegendSections sections={sections} />
+        </div>
+      )}
     </div>
   )
 }

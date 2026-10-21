@@ -3,14 +3,13 @@ import { fireEvent, screen } from '@testing-library/react'
 import { createRef, type ComponentProps } from 'react'
 import ResultsBar from './ResultsBar'
 import { render } from '../testSupport/render'
-import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL } from '../styles'
+import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, MENU_CHEVRON, MENU_TRIGGER } from '../styles'
 
 type Props = ComponentProps<typeof ResultsBar>
 const NOOP = () => {}
 const COLUMNS = createRef<HTMLButtonElement>()
 const MODELS = createRef<HTMLButtonElement>()
 const REMOVED = createRef<HTMLButtonElement>()
-const GROUP = createRef<HTMLDivElement>()
 
 // Before any report: two pending destinations, nothing removed, room for Both.
 function props(over: Partial<Props> = {}): Props {
@@ -28,7 +27,7 @@ function props(over: Partial<Props> = {}): Props {
     chooseResultsMode: NOOP,
     bothHasRoom: true,
     showTable: true,
-    actionGroupRef: GROUP,
+    sheet: false,
     columnsButtonRef: COLUMNS,
     onToggleColumns: NOOP,
     columnsOpen: false,
@@ -113,23 +112,48 @@ describe('ResultsBar', () => {
 
   // One group for the bar's four buttons (#687), in the mode switch's look:
   // each a glyph and a word the width rule can hide, with a divider between
-  // each two.
+  // each two. The three that open a menu are its triggers in the bar's shape
+  // (record 0201), with the chevron after the word at a desk; Download CSV
+  // opens nothing and carries none.
   it('draws Columns, Models, Removed and Download CSV as one group of glyph buttons', () => {
     render(<ResultsBar {...props({ removedCount: 2 })} />)
-    const names = ['Choose which columns to display', 'Models', 'Removed (2)', 'Download CSV']
-    const buttons = names.map((name) => screen.getByRole('button', { name }))
-    for (const button of buttons) {
-      expect(button.className).toBe(ACTION_ITEM)
-      expect(button.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
+    const menus = ['Choose which columns to display', 'Models', 'Removed (2)'].map((name) => screen.getByRole('button', { name }))
+    const download = screen.getByRole('button', { name: 'Download CSV' })
+    for (const button of menus) {
+      expect(button.className).toBe(MENU_TRIGGER.bar)
+      expect(button.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(2)
+      expect(button.lastElementChild?.getAttribute('class')).toContain(MENU_CHEVRON.bar)
       expect(button.querySelector('span')?.className).toBe(BAR_LABEL)
     }
+    expect(MENU_TRIGGER.bar.startsWith(ACTION_ITEM)).toBe(true)
+    expect(download.className).toBe(ACTION_ITEM)
+    expect(download.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
+    expect(download.querySelector('span')?.className).toBe(BAR_LABEL)
+    const buttons = [...menus, download]
     const group = buttons[0].parentElement as HTMLElement
     expect(group.className).toBe(ACTION_GROUP)
-    // The element the bar's menus unfurl out of (record 0134).
-    expect(GROUP.current).toBe(group)
     for (const button of buttons) expect(button.parentElement).toBe(group)
     // Four buttons, three dividers, in turn.
     expect([...group.children].map((c) => c.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON'])
+  })
+
+  // A phone's menus are sheets rising from below, so its buttons point
+  // nowhere (record 0174's rule for a phone's chips).
+  it('draws no chevron on a phone', () => {
+    render(<ResultsBar {...props({ removedCount: 2, sheet: true })} />)
+    for (const name of ['Choose which columns to display', 'Models', 'Removed (2)']) {
+      expect(screen.getByRole('button', { name }).querySelectorAll('svg')).toHaveLength(1)
+    }
+  })
+
+  // The chevron points the way its menu goes: down while shut, up while open.
+  it("turns a button's chevron up while its menu is open", () => {
+    const { rerender } = render(<ResultsBar {...props()} />)
+    const points = () => COLUMNS.current?.lastElementChild?.querySelector('polyline')?.getAttribute('points')
+    const shut = points()
+    rerender(<ResultsBar {...props({ columnsOpen: true })} />)
+    expect(points()).not.toBe(shut)
+    expect(COLUMNS.current?.getAttribute('aria-expanded')).toBe('true')
   })
 
   it('puts no divider before the first button, whichever stand', () => {
