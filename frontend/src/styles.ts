@@ -1538,7 +1538,10 @@ export const MAP_SLOT = {
  * the map and rounds the one corner between them, since the line stands
  * against the map's side and the results' top.
  */
-const CREDIT_LINE = 'map-corner py-0.5 bg-floating/95 border-frame backdrop-blur-sm'
+// `leading-5` is the library's own 20px line, which the map's container gives
+// its controls and either corner, outside it, does not: without it the scale
+// shrank to 17px from the 22px box record 0162 holds it to, at both widths.
+const CREDIT_LINE = 'map-corner py-0.5 leading-5 bg-floating/95 border-frame backdrop-blur-sm'
 
 /** The scale's box in either line: as wide as the bar draws, the bar at its right. */
 const SCALE_BOX = 'flex w-25 justify-end'
@@ -1566,10 +1569,11 @@ const SCALE_BOX = 'flex w-25 justify-end'
  *
  * A phone's line is a grid of two columns, the (i)'s 24px (`MAP_CREDIT.button`)
  * and the scale's box, 10px apart, each standing on the line's bottom
- * (`PHONE_LINE_PX` folded). It sets the library's own 20px line, which its
- * controls lose by standing outside the map's container, so the scale keeps
- * the vendor's 22px box that record 0162 and `e2e/scaleBar.spec.ts` hold it
- * to, and the opened credits read on the vendor's 20px lines. The full
+ * (`PHONE_LINE_PX` folded). Either line sets the library's own 20px line
+ * (`CREDIT_LINE`), which its controls lose by standing outside the map's
+ * container, so the scale keeps the vendor's 22px box that record 0162 and
+ * `e2e/scaleBar.spec.ts` hold it to, and the opened credits read on the
+ * vendor's 20px lines. The full
  * credits, about 430px at the line's 11px, cannot fit beside the button at
  * 360 wide, so the (i) stays the library's compact form; opened, `map.css`
  * spreads the line to the map's inset on the right and stands the credits
@@ -1584,7 +1588,7 @@ export const MAP_CORNER = {
   stack: 'map-corner mr-6 flex flex-col items-end gap-1.5',
   credit: `${CREDIT_LINE} flex items-center gap-2.5 pl-2.5 pr-2 border-t border-l rounded-tl-lg`,
   phoneBox: `absolute left-0 ${MAP_EDGE.right} bottom-[var(--map-corner-lift,0px)] flex pointer-events-none ${LAYER.base}`,
-  phoneCredit: `${CREDIT_LINE} map-phone-line grid grid-cols-[1.5rem_auto] items-end gap-x-2.5 pl-2 pr-2.5 leading-5 border-t border-r rounded-tr-lg`,
+  phoneCredit: `${CREDIT_LINE} map-phone-line grid grid-cols-[1.5rem_auto] items-end gap-x-2.5 pl-2 pr-2.5 border-t border-r rounded-tr-lg`,
   slot: 'contents',
   scale: SCALE_BOX,
   phoneScale: `${SCALE_BOX} col-start-2 row-start-1`,

@@ -689,8 +689,9 @@ stays the library's compact form. Folded, the line is 29px tall
 wide and 100.9px at 390. Opened, it grows to the map's 12px inset with the
 credits in two lines over the (i) and the scale, which keep their places, and
 the button rises 16px over it (`fabBottomPx`). The notice band stands 10px over
-the line. The line sets the library's 20px line (`leading-5`), which its
-controls lose outside the map's container, so the scale keeps its 22px box.
+the line. Both lines set the library's 20px line (`leading-5`), which its
+controls lose outside the map's container, so the scale keeps its 22px box at
+either width.
 Measured 2026-10-21 in the Playwright image's Chromium at 360 and 390 wide
 (`e2e/phoneCorner.spec.ts`).
 Record: [0174](decisions/0174-desk-map-rows.md)
