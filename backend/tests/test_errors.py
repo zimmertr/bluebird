@@ -58,12 +58,12 @@ def test_a_401_or_403_reads_as_rejected(code):
 @pytest.mark.parametrize("code", [500, 502, 503])
 def test_a_5xx_names_its_status(code):
     msg = classify_http_error(status_error(code, {}), PROVIDER)
-    assert msg == f"{PROVIDER} failed (HTTP {code}). Try again later."
+    assert msg == f"{PROVIDER} failed ({code}). Try again later."
 
 
 def test_an_unlisted_status_names_its_status():
     msg = classify_http_error(status_error(418, {}), PROVIDER)
-    assert msg == f"{PROVIDER} error (HTTP 418). Try again later."
+    assert msg == f"{PROVIDER} error (418). Try again later."
 
 
 def test_connect_error():

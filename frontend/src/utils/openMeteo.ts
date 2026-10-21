@@ -580,7 +580,7 @@ async function requestJson(
     }
     if (!res.ok) {
       throw new OpenMeteoHttpError(
-        `Open-Meteo error (HTTP ${res.status}). Try again later.`,
+        `Open-Meteo error (${res.status}). Try again later.`,
         res.status,
       )
     }

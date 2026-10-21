@@ -260,9 +260,12 @@ def classify_http_error(exc: Exception, provider: str) -> str:
             return rate_limit_message(provider, scope)
         if code in (401, 403):
             return f"{provider} rejected the request. Try again later."
+        # The code without the word HTTP (record 0206): "OpenStreetMap failed
+        # (HTTP 504). Try again later." was 284px in the panel notice's 281px,
+        # and the one the word was dropped from is the one an outage shows.
         if 500 <= code < 600:
-            return f"{provider} failed (HTTP {code}). Try again later."
-        return f"{provider} error (HTTP {code}). Try again later."
+            return f"{provider} failed ({code}). Try again later."
+        return f"{provider} error ({code}). Try again later."
 
     if isinstance(exc, httpx.ConnectError):
         return f"Cannot reach {provider}. Try again later."
