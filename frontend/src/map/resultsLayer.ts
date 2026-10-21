@@ -124,6 +124,14 @@ export interface ResultsLayer {
    * never on a playback tick, which changes none of a card's numbers.
    */
   refreshPopups(): void
+  /**
+   * Whether a result card stands open on this destination. A row's centring
+   * asks it before it places the card again for a resized canvas (#714;
+   * `map/centring.ts`): a card the reader or a new report has closed since
+   * stays closed. By the place rather than by any open card, because a click
+   * on another marker opens its card without stopping the flight.
+   */
+  hasOpenCard(at: { latitude: number; longitude: number }): boolean
 }
 
 /** How far the marker, and its popup with it, should move across the screen. */
@@ -344,6 +352,9 @@ export function mountResultsLayer(
     // no longer displays keeps the numbers it was opened on and loses its
     // rank, the way a searched destination's card has none, rather than
     // closing under the reader.
+    hasOpenCard({ latitude, longitude }) {
+      return cards.some((card) => card.row.latitude === latitude && card.row.longitude === longitude)
+    },
     refreshPopups() {
       for (const card of cards) {
         const shown = controller.inputs.results

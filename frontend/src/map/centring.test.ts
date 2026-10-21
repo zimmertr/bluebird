@@ -16,15 +16,17 @@ describe('createCentring', () => {
     const centring = createCentring(time.now)
     const aim = vi.fn()
     centring.fly(stub.map, 800, aim)
-    expect(aim).toHaveBeenLastCalledWith(800)
+    // The press's own flight, which opens the card.
+    expect(aim).toHaveBeenLastCalledWith(800, false)
     time.advance(300)
     centring.reaim()
     expect(aim).toHaveBeenCalledTimes(2)
-    expect(aim).toHaveBeenLastCalledWith(500)
+    // Sent again, so it opens only a card that still stands.
+    expect(aim).toHaveBeenLastCalledWith(500, true)
     // The second flight is the one kept, and its end is the first one's.
     time.advance(200)
     centring.reaim()
-    expect(aim).toHaveBeenLastCalledWith(300)
+    expect(aim).toHaveBeenLastCalledWith(300, true)
   })
 
   it('forgets a flight at its moveend, so a resize never moves a camera at rest', () => {
@@ -77,7 +79,7 @@ describe('createCentring', () => {
     time.advance(100)
     centring.reaim()
     expect(first).toHaveBeenCalledTimes(1)
-    expect(second).toHaveBeenLastCalledWith(700)
+    expect(second).toHaveBeenLastCalledWith(700, true)
     expect(stub.handlerCount('moveend')).toBe(1)
   })
 })
