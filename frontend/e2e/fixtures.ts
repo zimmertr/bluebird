@@ -129,6 +129,24 @@ export const DESTINATION_NAMES = ['Mount Alpha', 'Beta Peak', 'Gamma Butte', 'De
 // grid (#683), and its rows would count as results.
 export const resultRows = (page: Page) => page.locator('[data-results-table] tbody tr')
 
+// The rank column, top to bottom: a ranked row's number, or the dash of a row
+// still waiting on its forecast. The rank is the first cell that holds no
+// input, since the chart's box comes before it when that column shows.
+const rankColumn = (page: Page) =>
+  resultRows(page).evaluateAll((rows) =>
+    rows.map((row) => row.querySelector(':scope > td:not(:has(input))')?.textContent?.trim() ?? ''),
+  )
+
+// A polygon run's found destinations stand in the table as pending rows the
+// moment discovery answers, and take their ranked places only when their
+// forecasts land (#782). So a row count says discovery answered, not that the
+// ranking settled: a test that picks a row by its position, or presses one,
+// waits here first, because the row at an index changes when the ranking
+// lands and a pending row opens no card.
+export async function expectRanked(page: Page, count = DESTINATION_NAMES.length) {
+  await expect.poll(() => rankColumn(page)).toEqual(Array.from({ length: count }, (_, i) => String(i + 1)))
+}
+
 const json = (body: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
 const emptyCollection = () => json({ type: 'FeatureCollection', features: [], fetched_at: new Date().toISOString() })
 
