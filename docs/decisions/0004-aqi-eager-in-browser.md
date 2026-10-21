@@ -1,6 +1,6 @@
 # 0004. The browser fetches air quality for the whole field, and the pod fetches it lazily
 
-- Status: Accepted
+- Status: Accepted. Its per-service premise was measured on 2026-10-21 ([0203](0203-four-open-requests-per-open-meteo-host.md)).
 - Date: 2026-07-29 (git: the merge of #189). The lazy fetch on the pod came with #181 the same day.
 - Decider: TJ (git: author and merger of #189)
 - Issues and PRs: #180, #181, #189
