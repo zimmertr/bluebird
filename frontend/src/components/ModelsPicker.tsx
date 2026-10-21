@@ -1,8 +1,8 @@
 import { visibilityRows, type VisibilityModel } from '../utils/modelVisibility'
 import { usePopover } from '../hooks/usePopover'
-import Popover from './Popover'
+import Menu from './Menu'
 import BottomSheet from './BottomSheet'
-import { CHOICE_INPUT, CHOICE_ROW } from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, MENU } from '../styles'
 
 interface Props {
   open: boolean
@@ -11,13 +11,9 @@ interface Props {
   models: readonly VisibilityModel[]
   hidden: ReadonlySet<string>
   onToggle: (id: string) => void
+  /** The Models button, which the menu stands 4px under at its rows' width (record 0200). */
   triggerRef: React.RefObject<HTMLButtonElement | null>
-  /**
-   * What the panel unfurls out of: the results bar's button group, so every
-   * menu on the bar takes the same place at the same width (record 0134).
-   */
-  anchorRef: React.RefObject<HTMLElement | null>
-  /** A phone (#696): the menu is a bottom sheet rather than a card joined to the bar's group. */
+  /** A phone (#696): the menu is a bottom sheet rather than a card under its button. */
   sheet?: boolean
 }
 
@@ -27,7 +23,7 @@ interface Props {
  * The same popover the Columns picker is, for the same reason: this is a set of
  * things on screen and which of them to look at, which is the question Columns
  * already answers one way. It now shares the recipe rather than a copy of it —
- * `usePopover` places and dismisses both, `Popover` is the card both sit in,
+ * `usePopover` places and dismisses both, `Menu` is the card both sit in,
  * and both wear `CHOICE_ROW`/`CHOICE_INPUT` rows — so the two read as one
  * control and cannot drift apart again (#385).
  *
@@ -50,15 +46,14 @@ export default function ModelsPicker({
   hidden,
   onToggle,
   triggerRef,
-  anchorRef,
   sheet = false,
 }: Props) {
   // Closed to the popover's hook on a phone, whose sheet places and dismisses
   // itself: a press inside the sheet would read as a press outside the card.
-  const { popoverRef, box } = usePopover({ open: open && !sheet, onOpenChange, triggerRef, anchorRef, placement: 'unfurl' })
+  const { popoverRef, box } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
 
   const rows = visibilityRows(models, hidden).map((row) => (
-    <label key={row.id} className={CHOICE_ROW}>
+    <label key={row.id} className={sheet ? CHOICE_ROW : `${CHOICE_ROW} ${MENU.row}`}>
       <input
         type="checkbox"
         checked={row.visible}
@@ -80,8 +75,8 @@ export default function ModelsPicker({
   if (!open || !box) return null
 
   return (
-    <Popover box={box} popoverRef={popoverRef}>
-      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1">{rows}</div>
-    </Popover>
+    <Menu box={box} popoverRef={popoverRef}>
+      <div className={MENU.list}>{rows}</div>
+    </Menu>
   )
 }

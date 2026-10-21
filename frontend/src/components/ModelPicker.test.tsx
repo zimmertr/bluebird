@@ -210,37 +210,42 @@ describe('the chip row', () => {
   })
 })
 
-// The list unfurls across the Model row rather than at the trigger's 118px
-// (record 0134): from the row's left edge to the trigger's right edge, its
-// top border laid over the trigger's bottom one.
+// The list runs the Model row's width rather than the trigger's 118px, and
+// stands 4px under the trigger like every menu (record 0200). The trigger is
+// on the panel's right edge, so the card lines up with its right edge and
+// reaches back to the row's left.
 describe('the list across its row', () => {
   function InRow() {
     const rowRef = useRef<HTMLDivElement>(null)
     return (
-      <div ref={rowRef} data-testid="row">
-        <ModelPicker
-          models={MODELS}
-          value="gfs_seamless"
-          defaultId="gfs_seamless"
-          onChange={() => {}}
-          compared={[]}
-          onComparedChange={() => {}}
-          rowRef={rowRef}
-        />
+      <div data-menu-bound="" data-testid="panel">
+        <div ref={rowRef} data-testid="row">
+          <ModelPicker
+            models={MODELS}
+            value="gfs_seamless"
+            defaultId="gfs_seamless"
+            onChange={() => {}}
+            compared={[]}
+            onComparedChange={() => {}}
+            rowRef={rowRef}
+          />
+        </div>
       </div>
     )
   }
 
-  it('spans the row and opens leftward under the label', async () => {
+  it('takes the row\'s width and lines up with the trigger\'s right edge', async () => {
     const { user } = render(<InRow />)
+    placeAt(screen.getByTestId('panel'), { left: 0, top: 0, width: 360, height: 768 })
     placeAt(screen.getByTestId('row'), { left: 16, top: 400, width: 327, height: 30 })
     const trigger = screen.getByRole('button', { name: /^Forecast model:/ })
     placeAt(trigger, { left: 225, top: 400, width: 118, height: 30 })
     await user.click(trigger)
     const card = list().closest<HTMLElement>('[style]')!
-    expect(card.style.left).toBe('16px')
+    expect(card.style.right).toBe(`${window.innerWidth - 343}px`)
+    expect(card.style.left).toBe('')
     expect(card.style.width).toBe('327px')
-    expect(card.style.top).toBe('429px')
-    expect(trigger.dataset.unfurled).toBe('below')
+    expect(card.style.top).toBe('434px')
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
   })
 })

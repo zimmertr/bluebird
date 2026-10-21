@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { MAP_CHIP_CHEVRON, MAP_CHIP_MENU } from '../styles'
+import { MAP_CHIP_MENU, MENU_CHEVRON } from '../styles'
 import { IconChevron } from './icons'
 import type { ViewBounds } from '../utils/layerCoverage'
 
@@ -111,11 +111,10 @@ describe('LayersPopover', () => {
     const button = screen.getByRole('button', { name: 'Layers' })
     expect(button.getAttribute('aria-expanded')).toBe('false')
     const points = () => button.querySelector('svg polyline')!.getAttribute('points')
-    expect(button.querySelector('svg')!.classList).toContain(MAP_CHIP_CHEVRON)
+    expect(button.querySelector('svg')!.classList).toContain(MENU_CHEVRON.chip)
     expect(points()).toBe(chevronPoints(false))
     open()
     expect(button.getAttribute('aria-expanded')).toBe('true')
-    expect(button.dataset.unfurled).toBeUndefined()
     // The menu drops from the chip, and the chevron says so (TJ, 2026-10-18).
     expect(points()).toBe(chevronPoints(true))
     const menu = screen.getByRole('checkbox', { name: 'Smoke' }).closest('[data-tour="layers-menu"]') as HTMLElement
@@ -231,7 +230,6 @@ describe('LayersPopover', () => {
   it('opens the rows in a sheet on a phone, lit while open', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered sheet />)
     const chip = screen.getByRole('button', { name: 'Layers' })
-    expect(chip.getAttribute('data-unfurled')).toBeNull()
     // A sheet rises from below, so a phone's chip carries no chevron.
     expect(chip.querySelector('svg')).toBeNull()
     open()

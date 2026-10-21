@@ -10,7 +10,7 @@ import { render } from '../testSupport/render'
 // The results bar's Models and Removed menus on a phone (#696; record 0136):
 // the same rows in a bottom sheet named by the menu's own words, closed by
 // the sheet's Done rather than by the popover's press outside.
-const refs = () => ({ triggerRef: createRef<HTMLButtonElement>(), anchorRef: createRef<HTMLElement>() })
+const refs = () => ({ triggerRef: createRef<HTMLButtonElement>() })
 const MODELS = [
   { id: 'gfs_seamless', label: 'NOAA GFS' },
   { id: 'ecmwf_ifs025', label: 'ECMWF IFS' },

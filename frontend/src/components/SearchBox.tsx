@@ -12,7 +12,7 @@ import {
   SEARCH_LIST,
   SPINNER,
   STATUS,
-  SURFACE_POPOVER,
+  SURFACE_CHIP_CARD,
   TAP,
   TEXT,
 } from '../styles'
@@ -26,15 +26,20 @@ import { IconClose, IconSearch } from './icons'
 //
 // The notice used to wear `NOTICE.warn`, which is a panel role: an amber tint at
 // 40% over whatever is behind it. Behind it here is the map and the Layers
-// button, which showed straight through the box (TJ, 2026-09-14). The popover's
-// fill is opaque enough to stand on anything, and `STATUS.warn` keeps the
-// severity the tint used to carry — amber-300 reads 7.15:1 on that fill,
-// measured 2026-09-14, where AA asks 4.5:1.
+// button, which showed straight through the box (TJ, 2026-09-14). The menu
+// card's fill is opaque and stands on anything, and `STATUS.warn` keeps the
+// severity the tint used to carry — amber-300 read 7.15:1 on the slate-700 the
+// list stood on before, measured 2026-09-14, and more on the card's slate-800.
 //
-// Its width is the pill's (#696, a desk's too since #714): a list narrower
-// than the field it hangs from would read as a second thing. Across the whole
-// row while it is open, the pill having widened over the locate button.
-const DROPDOWN = `${SURFACE_POPOVER} absolute left-0 top-full mt-1 w-full`
+// The card is every menu's (`SURFACE_CHIP_CARD.menu`, record 0200), 4px under
+// the pill like every menu under its trigger. Only the surface is the menu's:
+// the list stays the search box's own, a list of answers under a text field
+// rather than a menu a button opens, so `usePopover` neither places it nor
+// closes it. Its width is the pill's (#696, a desk's too since #714): a list
+// narrower than the field it hangs from would read as a second thing. Across
+// the whole row while it is open, the pill having widened over the locate
+// button.
+const DROPDOWN = `${SURFACE_CHIP_CARD.menu} absolute left-0 top-full mt-1 w-full`
 
 interface Props {
   onSelect: (place: Place) => void
@@ -269,10 +274,10 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           id={listId}
           role="listbox"
           aria-label="Search results"
-          // `DROPDOWN` (above) is the surface and the width. This is a menu the
-          // reader acts in, hanging over the chips and the legend below, and
-          // one step of fill plus the heavier shadow is what says so — the
-          // same separation the Layers menu takes against the same legend.
+          // `DROPDOWN` (above) is the surface and the width. This is a list the
+          // reader acts in, hanging over the chips and the legend below, on
+          // the card and the heavier shadow every menu wears, the same
+          // separation the Layers menu takes against the same legend.
           // A result reads "Mount Baker, Whatcom County, Washington", and the
           // half that tells it from the other three Mount Bakers is the half
           // a narrow list clips (TJ, 2026-09-14), which is why a desk's pill

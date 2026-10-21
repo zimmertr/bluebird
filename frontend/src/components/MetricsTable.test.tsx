@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import MetricsTable from './MetricsTable'
-import { AGGREGATE, DEFAULT_FAMILY_KEY, FAMILY_KEYS, NOUN, RANKED_FAMILIES } from '../metrics'
+import { AGGREGATE, DEFAULT_FAMILY_KEY, FAMILY_KEYS, NOUN, RANKED_FAMILIES, windowAggregate } from '../metrics'
 import { NO_CONSTRAINTS } from '../utils/clientAnalyze'
 import { DEFAULT_LIMIT } from '../utils/urlState'
 import { render } from '../testSupport/render'
@@ -59,9 +59,23 @@ describe('MetricsTable', () => {
     )
   })
 
-  it('ranks by a new aggregate from the dropdown', () => {
+  // A desk picks the aggregate from the one menu (record 0200), and a phone
+  // from its own native picker (record 0149). Both name the choice alike.
+  it('ranks by a new aggregate from the menu', async () => {
     const setSortBy = vi.fn()
-    render(<MetricsTable {...props({ setSortBy })} />)
+    const { user } = render(<MetricsTable {...props({ setSortBy })} />)
+    const other = FAMILY_KEYS.temp.find((k) => k !== DEFAULT_FAMILY_KEY.temp)!
+    expect(screen.queryAllByRole('combobox')).toEqual([])
+    const field = screen.getByRole('button', { name: new RegExp(`^${NOUN.temp} aggregate `) })
+    await user.click(field)
+    await user.click(screen.getByRole('option', { name: windowAggregate(other) }))
+    expect(setSortBy).toHaveBeenCalledWith(other)
+    expect(document.activeElement).toBe(field)
+  })
+
+  it('ranks by a new aggregate from the native select on a phone', () => {
+    const setSortBy = vi.fn()
+    render(<MetricsTable {...props({ setSortBy, phone: true })} />)
     const other = FAMILY_KEYS.temp.find((k) => k !== DEFAULT_FAMILY_KEY.temp)!
     fireEvent.change(screen.getByRole('combobox', { name: `${NOUN.temp} aggregate` }), {
       target: { value: other },
@@ -69,8 +83,10 @@ describe('MetricsTable', () => {
     expect(setSortBy).toHaveBeenCalledWith(other)
   })
 
-  it('hides every dropdown for a single-hour window', () => {
+  it('hides every aggregate choice for a single-hour window', () => {
     render(<MetricsTable {...props({ pointSample: true })} />)
+    expect(screen.queryAllByRole('button', { name: / aggregate / })).toEqual([])
+    render(<MetricsTable {...props({ pointSample: true, phone: true })} />)
     expect(screen.queryAllByRole('combobox')).toEqual([])
   })
 

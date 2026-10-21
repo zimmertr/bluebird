@@ -8,8 +8,6 @@ import {
   CONTROL_SIZE,
   DISABLED,
   LINK,
-  MAP_CHIP,
-  MAP_CHIP_CHEVRON,
   MAP_CHIP_MENU,
   RADIUS,
   STATUS,
@@ -24,7 +22,7 @@ import {
   TEXT,
 } from '../styles'
 import BottomSheet from './BottomSheet'
-import { IconChevron } from './icons'
+import { MenuButton } from './Menu'
 import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
 import type { LabelledScale } from '../utils/colors'
@@ -457,16 +455,9 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
     writeViewPrefs({ legendOpen: !deskOpen })
   }
   const chip = (
-    <button
-      type="button"
-      onClick={toggle}
-      disabled={!shown}
-      aria-expanded={open}
-      className={`${MAP_CHIP} ${DISABLED}`}
-    >
+    <MenuButton shape="chip" open={open} chevron={!sheet} onClick={toggle} disabled={!shown} className={DISABLED}>
       Legend
-      {!sheet && <IconChevron up={open} className={MAP_CHIP_CHEVRON} />}
-    </button>
+    </MenuButton>
   )
   if (sheet) {
     return (

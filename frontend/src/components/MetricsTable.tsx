@@ -7,6 +7,7 @@ import {
   CHOICE_ROW,
   DISABLED,
   FIELD_NUMERIC,
+  ICON_ADORNMENT,
   METRICS_GRID,
   METRIC_HEAD_GAP,
   METRIC_BOX_W,
@@ -20,7 +21,8 @@ import {
   SELECT_W_AGGREGATE,
   TEXT,
 } from '../styles'
-import { IconSelectArrow } from './icons'
+import { IconChevron } from './icons'
+import { MenuSelect } from './Menu'
 import {
   AGGREGATE,
   FAMILY_KEYS,
@@ -176,6 +178,15 @@ const BOX_PLACEHOLDER: Record<MetricFamily, string> = {
   aqi: 'aqi',
 }
 
+// Each row's aggregate menu at a desk (record 0200): the keys its family
+// ranks by, in the words the native select's options carried.
+const AGGREGATE_OPTIONS = Object.fromEntries(
+  RANKED_FAMILIES.map((family) => [
+    family,
+    FAMILY_KEYS[family].map((key) => ({ value: key, label: windowAggregate(key) })),
+  ]),
+) as Record<MetricFamily, { value: SortBy; label: string }[]>
+
 interface Props {
   sortBy: SortBy
   setSortBy: (s: SortBy) => void
@@ -202,6 +213,9 @@ interface Props {
   // Live ceiling for the results knob, from /api/capabilities (falls back to
   // the compiled analysis cap).
   maxLimit: number
+  // A phone (#696), where the aggregate stays the native select and opens the
+  // phone's own picker; a desk's opens the one menu (record 0200).
+  phone?: boolean
 }
 
 /**
@@ -221,6 +235,7 @@ export default function MetricsTable({
   limit,
   setLimit,
   maxLimit,
+  phone = false,
 }: Props) {
   // What Clear filters offers to undo, and therefore whether it is enabled.
   // The button is always drawn: a control that appears and disappears moves
@@ -369,19 +384,31 @@ export default function MetricsTable({
                   {/* py-0.5 is SEGMENT_ITEM_SHAPE's own vertical padding, so the
                       dropdown, the boxes and the segment above are the
                       same height. */}
-                  <select
-                    aria-label={`${NOUN[family]} aggregate`}
-                    value={rowKey}
-                    onChange={(e) => setSortBy(e.target.value as SortBy)}
-                    className={`${SELECT} ${SELECT_W_AGGREGATE} px-2 py-0.5`}
-                  >
-                    {FAMILY_KEYS[family].map((key) => (
-                      <option key={key} value={key}>
-                        {windowAggregate(key)}
-                      </option>
-                    ))}
-                  </select>
-                  <IconSelectArrow />
+                  {phone ? (
+                    <>
+                      <select
+                        aria-label={`${NOUN[family]} aggregate`}
+                        value={rowKey}
+                        onChange={(e) => setSortBy(e.target.value as SortBy)}
+                        className={`${SELECT} ${SELECT_W_AGGREGATE} px-2 py-0.5`}
+                      >
+                        {AGGREGATE_OPTIONS[family].map(({ value, label }) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                      <IconChevron up={false} className={ICON_ADORNMENT} />
+                    </>
+                  ) : (
+                    <MenuSelect
+                      label={`${NOUN[family]} aggregate`}
+                      value={rowKey}
+                      options={AGGREGATE_OPTIONS[family]}
+                      onChange={setSortBy}
+                      className={`${SELECT_W_AGGREGATE} px-2 py-0.5`}
+                    />
+                  )}
                 </div>
               )}
               {EDGES.map(([edge, aggregate], i) => (

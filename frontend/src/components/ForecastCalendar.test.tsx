@@ -248,20 +248,31 @@ describe('the date field', () => {
     expect(screen.queryByRole('button', { name: /^When\b/ })).toBeNull()
   })
 
-  // The card takes the field's place while it is open, so no field stands
-  // under it, and the field comes back when it closes (#687).
-  it('opens the card on the selected day in place of the field', async () => {
+  // The card stands 4px under the field like every menu (record 0200), the
+  // field lit while it is out and back to rest when it closes.
+  it('opens the card on the selected day under the field', async () => {
     const { user } = render(
       <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-16' }} />,
     )
     await user.click(field())
-    expect(noField()).toBeNull()
+    expect(field().getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('grid', { name: 'Forecast day' })).toBeTruthy()
     // The keyboard lands on the dates, not on the Hours row above them.
     expect(document.activeElement).toBe(day('2026-09-15'))
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('grid')).toBeNull()
+    expect(field().getAttribute('aria-expanded')).toBe('false')
     expect(field().textContent).toBe('Tue, Sep 15 to Wed, Sep 16')
+  })
+
+  // A second press on the field closes the card, as on every trigger.
+  it('closes the card from its field', async () => {
+    const { user } = render(
+      <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-16' }} />,
+    )
+    await user.click(field())
+    await user.click(field())
+    expect(screen.queryByRole('grid')).toBeNull()
   })
 
   // With no range there is nothing for a field to hold, so none is drawn,

@@ -2,13 +2,11 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ElementType, t
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import BottomSheet from './BottomSheet'
-import { IconChevron } from './icons'
+import { MenuButton } from './Menu'
 import {
   ACCENT,
   CHOICE_INPUT,
   CHOICE_ROW,
-  MAP_CHIP,
-  MAP_CHIP_CHEVRON,
   MAP_CHIP_MENU,
   SEGMENT_DIVIDER,
   SEGMENT_FLUID,
@@ -355,16 +353,16 @@ export default function LayersPopover({
   // does not hold the sheet open: a modal sheet would take the keyboard from
   // the tour's own card, so on a phone its Layers step points at the chip.
   const button = (
-    <button
+    <MenuButton
       ref={buttonRef}
+      shape="chip"
+      open={open}
+      chevron={!sheet}
       onClick={() => setLayersOpen((o) => !o)}
-      aria-expanded={open}
-      className={MAP_CHIP}
       data-tour="layers"
     >
       Layers
-      {!sheet && <IconChevron up={open} className={MAP_CHIP_CHEVRON} />}
-    </button>
+    </MenuButton>
   )
 
   if (sheet) {

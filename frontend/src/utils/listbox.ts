@@ -1,7 +1,6 @@
 /**
- * The two things a popover listbox has to get right that a native `<select>`
- * would have got right for free: where the panel lands, and where the arrow
- * keys go.
+ * The two things a menu has to get right that a native `<select>` would have
+ * got right for free: where the card lands, and where the arrow keys go.
  *
  * Both live here rather than in the component so the node test project can
  * check every placement and every key without a page. The component keeps
@@ -18,51 +17,41 @@ export interface Rect {
 
 /** A fixed-position box, ready to render. */
 export interface PopoverBox {
-  left: number
-  width: number
-  maxHeight: number
   /**
-   * `below` and `above` sit clear of the trigger. `shifted` means the panel is
-   * taller than either side alone and overlaps the trigger to use the whole
-   * viewport, which is the difference between a scrollbar and no scrollbar.
+   * The edge the card is anchored by across: its left on the trigger's left,
+   * or its right on the trigger's right, ready to spread into a style object.
+   * A right-hand card anchors by `right` so it keeps the trigger's edge
+   * whatever width its rows give it, with no second measurement.
    */
-  placement: 'below' | 'above' | 'shifted'
+  align: { left: number } | { right: number }
+  /** A width the card takes whatever its rows want, or null for its rows' width. */
+  width: number | null
+  /** Never narrower than its trigger, which would read as another control. */
+  minWidth: number
+  /** Never wider than the viewport less its margins. */
+  maxWidth: number
+  maxHeight: number
+  /** Under the trigger, or over it where there is no room under it. */
+  placement: 'below' | 'above'
   /**
-   * The anchored edge, ready to spread straight into a style object. One key,
-   * never both, and which one is this function's business rather than the
-   * caller's — an upward panel anchors by `bottom` so it needs no height, and
-   * the other two anchor by `top`.
+   * The anchored edge down the page, ready to spread straight into a style
+   * object. One key, never both, and which one is this function's business
+   * rather than the caller's: an upward card anchors by `bottom` so it needs
+   * no height.
    *
    * A caller that re-derived this from `placement` got it wrong the first time
-   * it was tried: a ternary on `below` sent `shifted` down the `bottom` branch,
-   * which set `bottom: undefined`, and a fixed element with neither edge
-   * anchored silently falls back to its static position at the end of the body.
-   * Handing over the finished pair makes that unspellable.
+   * it was tried: a ternary sent one branch down the `bottom` key with nothing
+   * in it, and a fixed element with neither edge anchored silently falls back
+   * to its static position at the end of the body. Handing over the finished
+   * pair makes that unspellable.
    */
   offset: { top: number } | { bottom: number }
-  /**
-   * Set only on an unfurled panel (`placement: 'unfurl'`): the edge it shares with
-   * its anchor, which is the edge whose border and corners the card drops so
-   * the two read as one piece.
-   */
-  joined?: 'below' | 'above'
-  /**
-   * Set with `joined` when the card spans its control's row rather than the
-   * control (`span`): wider than the control, so it keeps the border and the
-   * outer corner on the shared edge and lays that border over the control's.
-   */
-  wide?: boolean
 }
 
-/** How a panel stands against its trigger: beside it, on it, or out of it. */
-export type Placement = 'hang' | 'cover' | 'unfurl'
-
 export interface PopoverOptions {
-  /** What the panel wants, if the viewport allows it. */
-  preferredWidth: number
-  /** Between the trigger and the panel. */
+  /** Between the trigger and the card. */
   gap: number
-  /** Between the panel and the edge of the viewport. */
+  /** Between the card and the edge of the viewport, or of its panel. */
   margin: number
   /**
    * How tall the content wants to be, measured. `Infinity` asks for as much
@@ -70,177 +59,99 @@ export interface PopoverOptions {
    * anything has been laid out to measure.
    */
   desiredHeight: number
+  /** How wide the rows want the card, measured; 0 before the first pass. */
+  desiredWidth: number
   /**
-   * How the panel stands against its trigger (#687). `hang`, the default, is
-   * beside it, below or above, at `preferredWidth`, as every panel did before.
-   * `cover` stands where the trigger stands: top at the trigger's top, pushed
-   * up only as far as the viewport needs, for a panel that takes its
-   * trigger's place, the calendar's, whose field is not drawn while the card
-   * is open, so a card beside it would hang off an empty slot. `unfurl` comes
-   * out of the trigger as one card with it (record 0134): exactly its width,
-   * flush with its left edge, and no gap, so `preferredWidth` and `gap` do
-   * not apply.
+   * A width the card takes whatever its rows say: the model list's panel row
+   * and the calendar's field (record 0200). Without one the card is its
+   * rows' width, never narrower than the trigger.
    */
-  placement?: Placement
+  width?: number
   /**
-   * An unfurled panel only: the row its control stands in, when the control is
-   * narrower than the panel's rows need (record 0134's qualification). The
-   * card then runs from the row's left edge to the control's right edge,
-   * still joined to the control, so it opens leftward under the label rather
-   * than floating over anything else.
+   * The edges of the panel the trigger stands in, which the card stays
+   * inside where it can: a field's menu in the control panel opens leftward
+   * from the field's right edge rather than spilling over the map.
    */
-  span?: Rect
+  bound?: { left: number; right: number }
 }
-
-// A spanned card keeps its top border and lays it over the control's bottom
-// one, so the two edges draw one line: `SURFACE_CARD`'s 1px.
-const SEAM_PX = 1
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(Math.max(value, low), Math.max(low, high))
 }
 
+// The least room under a trigger that a menu still opens down into, and
+// scrolls in, rather than opening above it: three 44px rows, the fewest that
+// read as a list on a phone rather than as a slot.
+export const MENU_FLOOR_PX = 132
+
 /**
- * Where to put a panel hanging off `trigger`.
+ * Where a menu stands against its trigger: the one placement every desk menu
+ * takes (#714; record 0200), the Layers chip's card made the general case.
  *
  * Fixed coordinates rather than an absolutely-positioned child, because the
  * control panel is an `overflow-y-auto` column: a child positioned inside it is
  * clipped at the scroll boundary, which for a control near the bottom of the
  * panel would cut the list in half.
  *
- * The panel may be wider than its trigger. That is the whole reason it exists —
- * the sidebar is too narrow to read eight summaries in, and a floating panel
- * can spill over the map. It is never *narrower* than the trigger, which would
- * read as a different control rather than as that one opening.
+ * **Across**: at least the trigger's width, and otherwise its rows' (or the
+ * `width` it is given), lined up with the trigger's left edge, or with its
+ * right edge where the left would run the card past the panel it stands in
+ * or the window. Only where neither fits does it give up the trigger's edges
+ * and stay inside the window.
  *
- * Opens downward when the content fits there, flips above when it fits there
- * instead, and otherwise stops trying to sit clear of the trigger at all.
+ * **Down**: `gap` under the trigger whenever the content fits there. Where
+ * it does not, over the trigger if it fits whole there: the calendar at
+ * 1024x768 and on a phone, which would otherwise scroll its Hours row and
+ * month bar out of a slot under its field. Where it fits neither side, under
+ * the trigger while the room there is at least `MENU_FLOOR_PX` to scroll in or
+ * is the roomier side: the Columns list scrolls under the bar at 1024x768
+ * rather than standing up from a bar the reader is looking down at (record
+ * 0134 measured it at 227px under and 503px over). Over the trigger only
+ * where that leaves no room under it, which is not a hypothetical: a short
+ * window puts the bar at the foot of the screen.
  *
- * That last case is the one worth explaining. Preferring the roomier side and
- * scrolling inside it is the obvious rule and it is wrong on an ordinary
- * laptop: a control halfway down the window has perhaps 490px above it and
- * 330px below, so a 520px list scrolls even though the window is 875px tall
- * and could show the whole thing twice over. A dropdown does not actually have
- * to clear its trigger. When neither side fits it overlaps instead, taking the
- * full viewport, and a scrollbar then means the content genuinely does not fit
- * on the screen rather than that it did not fit in the gap.
+ * An unmeasured card (`desiredHeight` of `Infinity`, the first pass) is given
+ * the whole viewport's height, so it lays out at its natural height for the
+ * second pass to measure. Both passes run before paint, so this box is never
+ * seen; without it a card capped at the room below would measure as exactly
+ * that tall, and the placement could not tell "taller than the gap" from
+ * "taller than the screen".
+ *
+ * The trigger's edges are clipped into the viewport before anything is
+ * measured from them. It can genuinely be off screen: the control panel is a
+ * scrolling column, so a short window puts the model row below the fold while
+ * its menu is still open. Measuring from the raw rect then invents room that
+ * is not there, and a negative `bottom` pushes the card down past the bottom
+ * edge instead of up.
  */
 export function popoverBox(
   trigger: Rect,
   viewport: { width: number; height: number },
-  { preferredWidth, gap, margin, desiredHeight, placement = 'hang', span }: PopoverOptions,
+  { gap, margin, desiredHeight, desiredWidth, width: fixed, bound }: PopoverOptions,
 ): PopoverBox {
-  if (placement === 'unfurl') return unfurledBox(trigger, viewport, margin, desiredHeight, span)
-  const width = clamp(preferredWidth, trigger.width, viewport.width - margin * 2)
-  const left = clamp(trigger.left, margin, viewport.width - width - margin)
+  const maxWidth = Math.max(viewport.width - margin * 2, 0)
+  const width = Math.min(fixed ?? Math.max(trigger.width, desiredWidth), maxWidth)
+  const right = trigger.left + trigger.width
+  const leftLimit = Math.max(bound?.left ?? 0, 0) + margin
+  const rightLimit = Math.min(bound?.right ?? viewport.width, viewport.width) - margin
+  let align: PopoverBox['align']
+  if (trigger.left + width <= rightLimit) align = { left: trigger.left }
+  else if (right - width >= leftLimit) align = { right: viewport.width - right }
+  else align = { left: clamp(trigger.left, margin, viewport.width - width - margin) }
 
-  // The trigger's own edges, clipped into the viewport before anything is
-  // measured from them. It can genuinely be off screen: the control panel is a
-  // scrolling column, so a short window puts the model row below the fold while
-  // its popover is still open. Measuring from the raw rect then invents room
-  // that is not there — a trigger at y=526 in a 339px window reports 514px
-  // "above" it — and the `above` branch turns that into a negative `bottom`,
-  // which pushes the panel *down* past the bottom edge instead of up.
   const triggerTop = clamp(trigger.top, 0, viewport.height)
   const triggerBottom = clamp(trigger.top + trigger.height, 0, viewport.height)
-
   const below = Math.max(viewport.height - triggerBottom - gap - margin, 0)
   const above = Math.max(triggerTop - gap - margin, 0)
-  const whole = Math.max(viewport.height - margin * 2, 0)
-
-  const cover = placement === 'cover'
-  if (!cover && desiredHeight <= below) {
-    return {
-      left,
-      width,
-      maxHeight: below,
-      placement: 'below',
-      offset: { top: triggerBottom + gap },
-    }
+  const sized = { align, width: fixed === undefined ? null : width, minWidth: Math.min(trigger.width, maxWidth), maxWidth }
+  if (desiredHeight === Infinity) {
+    return { ...sized, maxHeight: Math.max(viewport.height - margin * 2, 0), placement: 'below', offset: { top: margin } }
   }
-  if (!cover && desiredHeight <= above) {
-    return {
-      left,
-      width,
-      maxHeight: above,
-      placement: 'above',
-      offset: { bottom: viewport.height - triggerTop + gap },
-    }
+  const fitsAbove = desiredHeight <= above
+  if (desiredHeight <= below || (!fitsAbove && (below >= MENU_FLOOR_PX || below >= above))) {
+    return { ...sized, maxHeight: below, placement: 'below', offset: { top: triggerBottom + gap } }
   }
-  // Anchored to the trigger's own top where the viewport allows it, then pushed
-  // up only as far as it must be to fit. Keeping it near the trigger is what
-  // stops the panel from appearing to belong to something else on the page.
-  const height = Math.min(desiredHeight, whole)
-  return {
-    left,
-    width,
-    maxHeight: whole,
-    placement: 'shifted',
-    offset: { top: clamp(triggerTop, margin, viewport.height - margin - height) },
-  }
-}
-
-// The least room under an anchor that a menu still unfurls down into, and
-// scrolls in, rather than joining the anchor's top edge instead: three 44px
-// rows, the fewest that read as a list on a phone rather than as a slot.
-export const UNFURL_FLOOR_PX = 132
-
-/**
- * A panel that unfurls out of its anchor rather than hanging beside it: the
- * maintainer's rule of 2026-10-13 (record 0134), that a menu is one card with
- * the control that opens it, unfurling down out of its bottom edge.
- *
- * Downward whenever the content fits below, and whenever below has
- * `UNFURL_FLOOR_PX` to scroll in even when it does not: at 1024x768 the
- * Columns list is 455px under a group with 227px beneath it, and it scrolls
- * there rather than leave the bottom edge for the 503px above. Joined to the
- * anchor's top edge only under that floor, which is not a hypothetical: a
- * collapsed results sheet on a phone is a bar at the foot of the screen with
- * nothing under it to unfurl into. It never shifts over the anchor the way a
- * hanging panel may, because a card standing on its own control would hide
- * the one thing that says what the card is.
- *
- * The width is the anchor's, never the viewport's idea of a better one, and
- * the anchor's edges are clipped into the viewport like the trigger's above.
- */
-function unfurledBox(
-  anchor: Rect,
-  viewport: { width: number; height: number },
-  margin: number,
-  desiredHeight: number,
-  span?: Rect,
-): PopoverBox {
-  // Across the row, the card's right edge stays on the control's: it opens
-  // leftward under the label, and its outer corner is the one left round.
-  const right = anchor.left + anchor.width
-  const wide = span !== undefined && span.left < anchor.left
-  const left = wide ? span.left : anchor.left
-  const width = right - left
-  const seam = wide ? SEAM_PX : 0
-  const anchorTop = clamp(anchor.top, 0, viewport.height)
-  const anchorBottom = clamp(anchor.top + anchor.height, 0, viewport.height)
-  const below = Math.max(viewport.height - anchorBottom - margin, 0)
-  const above = Math.max(anchorTop - margin, 0)
-  if (desiredHeight <= below || below >= UNFURL_FLOOR_PX || below >= above) {
-    return {
-      left,
-      width,
-      maxHeight: below + seam,
-      placement: 'below',
-      offset: { top: anchorBottom - seam },
-      joined: 'below',
-      wide,
-    }
-  }
-  return {
-    left,
-    width,
-    maxHeight: above + seam,
-    placement: 'above',
-    offset: { bottom: viewport.height - anchorTop - seam },
-    joined: 'above',
-    wide,
-  }
+  return { ...sized, maxHeight: above, placement: 'above', offset: { bottom: viewport.height - triggerTop + gap } }
 }
 
 /**

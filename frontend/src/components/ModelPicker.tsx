@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { nextActiveIndex, nextToolbarIndex, optionDomId } from '../utils/listbox'
 import { usePopover } from '../hooks/usePopover'
-import Popover from './Popover'
+import Menu, { MenuButton } from './Menu'
 import {
   canRemove,
   chipFocusAfterRemoval,
@@ -16,13 +16,12 @@ import {
   CHIP,
   CHOICE_INPUT,
   DISABLED,
-  SELECT,
+  MENU,
   SURFACE_DIVIDER,
   SCROLL_BARS,
   TEXT,
-  UNFURL_ANCHOR,
 } from '../styles'
-import { IconClose, IconSelectArrow } from './icons'
+import { IconClose } from './icons'
 
 // Namespaces this listbox's option ids inside the document.
 const LIST_ID = 'model'
@@ -57,9 +56,10 @@ interface Props {
    */
   disabled?: boolean
   /**
-   * The row the trigger stands in, which the list spans: its rows carry a
-   * badge, a grid and reach column and a summary, and the trigger is
-   * `CONTROL_W` (record 0134).
+   * The row the trigger stands in, whose width the list takes: its rows carry
+   * a badge, a grid and reach column and a summary, which would run a card
+   * as wide as its rows across the map, and the trigger is `CONTROL_W`
+   * (record 0200).
    */
   rowRef?: React.RefObject<HTMLElement | null>
 }
@@ -76,7 +76,7 @@ interface Props {
  *
  * So this is the WAI-ARIA listbox pattern, hand-rolled, which is the price of
  * the requirement. Where the panel lands and what closes it are `usePopover`'s,
- * and the card it sits in is `Popover`'s — including the portal to
+ * and the card it sits in is `Menu`'s — including the portal to
  * `document.body`, since the control panel is an `overflow-y-auto` column that
  * would otherwise clip it at the scroll boundary. What is left here is the part
  * no other popover has: the keyboard, the chips and the list.
@@ -141,11 +141,10 @@ export default function ModelPicker({
     open,
     onOpenChange: setOpen,
     triggerRef,
-    // Out of the trigger like every menu, across its row (record 0134): the
-    // trigger's 118px clipped the header and the badge, so the card runs from
-    // the row's left edge to the trigger's right edge and opens under the
-    // label. It was 380px floating over the map.
-    placement: 'unfurl',
+    // 4px under the field like every menu, at its row's width (record 0200):
+    // the trigger's 118px clipped the header and the badge, and the card's
+    // right edge on the field's keeps it in the panel, opening under the
+    // label. It was 380px floating over the map before record 0134.
     widthRef: rowRef,
     remeasure: [models, chipIds.length],
     // The list rather than the chip row, because the list is what an opened
@@ -333,11 +332,11 @@ export default function ModelPicker({
 
   return (
     <>
-      <button
+      <MenuButton
         ref={triggerRef}
-        type="button"
+        shape="field"
+        open={open}
         aria-haspopup="listbox"
-        aria-expanded={open}
         aria-label={`Forecast model: ${selected?.label ?? value}${
           comparedCount > 0 ? ` +${comparedCount}` : ''
         }`}
@@ -354,7 +353,7 @@ export default function ModelPicker({
         // box to the tap floor there, and a baseline left the model name
         // against the top edge of a box half again as tall as its text
         // (TJ, 2026-09-14).
-        className={`${SELECT} ${DISABLED} ${UNFURL_ANCHOR} flex w-full items-center justify-center gap-1 px-2 py-1.5 text-center`}
+        className={`${DISABLED} flex w-full items-center justify-center gap-1 px-2 py-1.5 text-center`}
       >
         {/* The label gives way, never the count: `+2` is the only thing on the
             trigger that a reader cannot otherwise see, so a long model name
@@ -364,10 +363,9 @@ export default function ModelPicker({
         {comparedCount > 0 && (
           <span className="flex-shrink-0 tabular-nums">+{comparedCount}</span>
         )}
-      </button>
-      <IconSelectArrow />
+      </MenuButton>
       {open && box && (
-        <Popover box={box} popoverRef={popoverRef}>
+        <Menu box={box} popoverRef={popoverRef}>
           {/* The selected set, split into what each part DOES, under
               headings of the same kind the list's own header below wears.
               Two groups rather than one row of chips is the whole
@@ -394,8 +392,8 @@ export default function ModelPicker({
             {CHIP_GROUPS.map(({ heading, ids }) =>
               ids.length === 0 ? null : (
                 <Fragment key={heading}>
-                  <div className={`${TEXT.overline} px-3 pb-1 pt-2`}>{heading}</div>
-                  <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2">
+                  <div className={`${TEXT.overline} px-2.5 pb-1 pt-2`}>{heading}</div>
+                  <div className="flex flex-wrap items-center gap-1.5 px-2.5 pb-2">
                     {ids.map(renderChip)}
                   </div>
                 </Fragment>
@@ -415,7 +413,7 @@ export default function ModelPicker({
               each figure in the option's own text. */}
           <div
             aria-hidden="true"
-            className={`${TEXT.overline} flex items-baseline justify-between gap-2 border-b ${SURFACE_DIVIDER} px-3 py-1.5`}
+            className={`${TEXT.overline} flex items-baseline justify-between gap-2 border-b ${SURFACE_DIVIDER} px-2.5 py-1.5`}
           >
             <span>Model</span>
             <span>Resolution · Range</span>
@@ -454,9 +452,9 @@ export default function ModelPicker({
                 onClick={() => {
                   if (!locked) toggle(model.id)
                 }}
-                className={`flex items-start gap-2 rounded px-2 py-1.5 ${
+                className={`flex items-start gap-2 rounded px-1.5 py-1.5 ${
                   locked ? 'cursor-default' : 'cursor-pointer'
-                } ${i === active ? 'bg-raised' : ''}`}
+                } ${i === active ? MENU.active : ''}`}
               >
                 <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
@@ -510,7 +508,7 @@ export default function ModelPicker({
             )
           })}
           </div>
-        </Popover>
+        </Menu>
       )}
     </>
   )

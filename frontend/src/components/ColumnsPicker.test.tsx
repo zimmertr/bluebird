@@ -32,7 +32,6 @@ function Picker(props: {
         onVisibilityChange={props.onVisibilityChange ?? (() => {})}
         onColumnMove={props.onColumnMove}
         triggerRef={triggerRef}
-        anchorRef={triggerRef}
         sheet={props.sheet}
       />
     </>

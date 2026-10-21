@@ -1,41 +1,47 @@
 import { describe, expect, it } from 'vitest'
-import { nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox, UNFURL_FLOOR_PX } from './listbox'
+import { MENU_FLOOR_PX, nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox } from './listbox'
 
 const VIEWPORT = { width: 1400, height: 900 }
-// Most cases pass a content height explicitly; this is the shared geometry.
-const BASE = { preferredWidth: 380, gap: 4, margin: 8 }
-const OPTS = { ...BASE, desiredHeight: 0 }
-const opts = (desiredHeight: number) => ({ ...BASE, desiredHeight })
+// Most cases pass a content height and width explicitly; this is the shared
+// geometry, the 4px gap every menu takes and the 8px margin.
+const BASE = { gap: 4, margin: 8 }
+const opts = (desiredHeight: number, desiredWidth = 0) => ({ ...BASE, desiredHeight, desiredWidth })
 
-// A trigger in the sidebar: narrow, and well clear of both edges.
-const TRIGGER = { left: 16, top: 400, width: 253, height: 34 }
+// A trigger in the results bar: narrow, and well clear of every edge.
+const TRIGGER = { left: 300, top: 400, width: 90, height: 22 }
 
-describe('popoverBox', () => {
-  it('opens below a trigger with room under it', () => {
+// One menu for every trigger at a desk (#714; record 0200): the Layers chip's
+// card made the general case.
+describe('popoverBox, down the page', () => {
+  it('stands 4px under a trigger with room under it', () => {
     const box = popoverBox(TRIGGER, VIEWPORT, opts(200))
     expect(box.placement).toBe('below')
-    expect(box.offset).toEqual({ top: 438 })
+    expect(box.offset).toEqual({ top: 400 + 22 + 4 })
   })
 
-  // The point of the whole control: the sidebar cannot hold eight summaries, so
-  // the panel spills over the map.
-  it('widens past the trigger to the preferred width', () => {
-    expect(popoverBox(TRIGGER, VIEWPORT, OPTS).width).toBe(380)
-  })
-
-  it('never renders narrower than the trigger it belongs to', () => {
-    const wide = { ...TRIGGER, width: 500 }
-    expect(popoverBox(wide, VIEWPORT, OPTS).width).toBe(500)
-  })
-
-  it('gives back the room the chosen side actually has', () => {
+  it('gives back the room under the trigger', () => {
     const box = popoverBox(TRIGGER, VIEWPORT, opts(200))
-    expect(box.maxHeight).toBe(900 - 434 - 4 - 8)
+    expect(box.maxHeight).toBe(900 - 422 - 4 - 8)
   })
 
-  // A trigger low on the screen has to flip rather than squeeze into the forty
-  // pixels under it.
-  it('flips above when the content does not fit below but does above', () => {
+  // At 1024x768 the Columns list fits neither side of a bar with 227px under
+  // it and 495px over it: it scrolls under the bar rather than standing up
+  // from a bar the reader is looking down at (record 0134).
+  it('scrolls under the trigger where the card fits neither side and the room there reaches the floor', () => {
+    const bar = { ...TRIGGER, top: 768 - 8 - 4 - 227 - 22 }
+    const box = popoverBox(bar, { width: 1024, height: 768 }, opts(620))
+    expect(box.placement).toBe('below')
+    expect(box.maxHeight).toBe(227)
+    const floor = popoverBox({ ...bar, top: 768 - 8 - 4 - MENU_FLOOR_PX - 22 }, { width: 1024, height: 768 }, opts(700))
+    expect(floor.placement).toBe('below')
+    expect(floor.maxHeight).toBe(MENU_FLOOR_PX)
+  })
+
+  it('reads the floor as three rows at the touch target', () => {
+    expect(MENU_FLOOR_PX).toBe(3 * 44)
+  })
+
+  it('opens above only where there is no room under the trigger', () => {
     const low = { ...TRIGGER, top: 820 }
     const box = popoverBox(low, VIEWPORT, opts(300))
     expect(box.placement).toBe('above')
@@ -43,94 +49,44 @@ describe('popoverBox', () => {
     expect(box.maxHeight).toBe(820 - 4 - 8)
   })
 
-  // The regression this rule exists for. A control halfway down an ordinary
-  // laptop window has ~490px above and ~330px below; a 520px list fits in
-  // neither, and preferring the roomier side would scroll it inside 490px on a
-  // 900px screen that could show the whole thing.
-  it('overlaps the trigger rather than scrolling when neither side fits', () => {
-    const box = popoverBox(TRIGGER, VIEWPORT, opts(520))
-    expect(box.placement).toBe('shifted')
-    expect(box.maxHeight).toBe(900 - 16)
-    expect(box.offset).toEqual({ top: 372 })
+  it('takes the roomier side where the room under the trigger is short of the floor', () => {
+    // 106px under it, short of the floor, and 748px above; a card taller than
+    // either side.
+    const box = popoverBox({ ...TRIGGER, top: 760 }, VIEWPORT, opts(2000))
+    expect(box.placement).toBe('above')
+    const middle = popoverBox({ ...TRIGGER, top: 440 }, VIEWPORT, opts(2000))
+    expect(middle.placement).toBe('below')
   })
 
-  // Anchored to the trigger's own top where it can be, so the panel still reads
-  // as belonging to the control that opened it. The window where that happens
-  // is narrow — 470px clears the 454px below it but still fits between the
-  // trigger's top and the bottom margin — so in practice a shifted panel
-  // usually ends up pushed up by the case below.
-  it('anchors a shifted panel to the trigger when the viewport allows', () => {
-    const box = popoverBox(TRIGGER, VIEWPORT, opts(470))
-    expect(box.placement).toBe('shifted')
-    expect(box.offset).toEqual({ top: TRIGGER.top })
+  // The calendar at 1024x768: its 309px card has 229px under the field and
+  // 485px over it, so it opens over the field whole rather than scrolling its
+  // Hours row and month bar out of the slot under it.
+  it('opens above where the card fits whole there and not under the trigger', () => {
+    const field = { left: 16, top: 497, width: 327, height: 30 }
+    const box = popoverBox(field, { width: 1024, height: 768 }, opts(309))
+    expect(box.placement).toBe('above')
+    expect(box.offset).toEqual({ bottom: 768 - 497 + 4 })
   })
 
-  it('pushes a shifted panel up only as far as it must to fit', () => {
-    // 700px of content against 154px below and 688px above: neither side takes
-    // it, and anchoring at the trigger's 700 would run 500px off the bottom.
-    const box = popoverBox({ ...TRIGGER, top: 700 }, VIEWPORT, opts(700))
-    expect(box.offset).toEqual({ top: 900 - 8 - 700 })
-  })
-
-  it('never pushes a shifted panel past the top margin', () => {
-    const box = popoverBox({ ...TRIGGER, top: 700 }, VIEWPORT, opts(2000))
+  // The first pass has measured nothing, so it lays the card out at the whole
+  // viewport's height for the second to measure.
+  it('gives an unmeasured card the whole viewport to lay out in', () => {
+    const box = popoverBox({ ...TRIGGER, top: 700 }, VIEWPORT, opts(Infinity))
+    expect(box.maxHeight).toBe(900 - 8 * 2)
     expect(box.offset).toEqual({ top: 8 })
-    expect(box.maxHeight).toBe(900 - 16)
   })
 
-  // The first pass, before anything has been laid out to measure: ask for
-  // everything, so the content renders at its natural height to be measured.
-  it('gives the whole viewport when the wanted height is unknown', () => {
-    const box = popoverBox(TRIGGER, VIEWPORT, opts(Infinity))
-    expect(box.placement).toBe('shifted')
-    expect(box.maxHeight).toBe(900 - 16)
-  })
-
-  // Every placement hands back exactly one anchored edge. A box with neither is
-  // a fixed element that falls back to its static position, which is how the
-  // panel once rendered a full viewport height below where it belonged.
-  it('always anchors exactly one edge, whichever way it opens', () => {
-    for (const height of [100, 470, 520, 700, 2000, Infinity]) {
-      for (const top of [40, 400, 700, 860]) {
-        const box = popoverBox({ ...TRIGGER, top }, VIEWPORT, opts(height))
-        const keys = Object.keys(box.offset)
-        expect(keys.length, `${top}/${height}`).toBe(1)
-        expect(Number.isFinite(Object.values(box.offset)[0]), `${top}/${height}`).toBe(true)
-      }
-    }
-  })
-
-  it('keeps the panel inside the right edge', () => {
-    const nearRight = { ...TRIGGER, left: 1300 }
-    const box = popoverBox(nearRight, VIEWPORT, OPTS)
-    expect(box.left).toBe(1400 - 380 - 8)
-  })
-
-  it('keeps the panel inside the left edge', () => {
-    const offLeft = { ...TRIGGER, left: -40 }
-    expect(popoverBox(offLeft, VIEWPORT, OPTS).left).toBe(8)
-  })
-
-  // A phone in portrait is narrower than the panel wants to be.
-  it('shrinks to the viewport when the preferred width will not fit', () => {
-    const phone = { width: 390, height: 780 }
-    const box = popoverBox({ left: 8, top: 300, width: 360, height: 44 }, phone, opts(200))
-    expect(box.width).toBe(390 - 16)
-    expect(box.left).toBe(8)
-  })
-
-  // The bug this clipping exists for. The control panel is a scrolling column,
-  // so a short window leaves the trigger below the fold while its popover is
-  // open. Measured from the raw rect, a trigger at 526 in a 339px window claims
-  // 514px above it, and the `above` branch turns that into `bottom: -183`,
-  // which pushes the panel down past the bottom edge rather than up.
+  // The bug the clipping exists for. The control panel is a scrolling column,
+  // so a short window leaves the trigger below the fold while its menu is
+  // open. Measured from the raw rect, a trigger at 526 in a 339px window
+  // claims 514px above it, and a negative `bottom` pushes the card down past
+  // the bottom edge rather than up.
   it('invents no room above a trigger that has scrolled off screen', () => {
     const short = { width: 1100, height: 339 }
-    const offScreen = { ...TRIGGER, top: 526 }
-    const box = popoverBox(offScreen, short, opts(495))
-    expect(box.placement).toBe('shifted')
-    expect(box.offset).toEqual({ top: 8 })
-    expect(box.maxHeight).toBe(339 - 16)
+    const box = popoverBox({ ...TRIGGER, top: 526 }, short, opts(495))
+    expect(box.placement).toBe('above')
+    expect(box.offset).toEqual({ bottom: 4 })
+    expect(box.maxHeight).toBe(339 - 4 - 8)
   })
 
   it('invents no room below a trigger scrolled off the top', () => {
@@ -140,9 +96,9 @@ describe('popoverBox', () => {
     expect(box.maxHeight).toBe(900 - 0 - 4 - 8)
   })
 
-  // Whatever the trigger does, the panel stays on screen. Asserted over the
-  // whole space rather than case by case, because every failure so far has been
-  // a geometry nobody thought to write a case for.
+  // Whatever the trigger does, the card stays on screen. Asserted over the
+  // whole space rather than case by case, because every failure so far has
+  // been a geometry nobody thought to write a case for.
   it('always lands inside the viewport', () => {
     for (const height of [100, 495, 520, 900, Infinity]) {
       for (const top of [-500, -40, 0, 200, 526, 899, 1400]) {
@@ -161,99 +117,66 @@ describe('popoverBox', () => {
   })
 
   it('never reports negative room', () => {
-    const squeezed = { ...TRIGGER, top: 899 }
-    expect(popoverBox(squeezed, VIEWPORT, opts(0)).maxHeight).toBeGreaterThanOrEqual(0)
-  })
-  // A panel that takes its trigger's place stands where the trigger stood,
-  // with room or without, and moves up only as far as the screen needs.
-  it('stands on the trigger when asked to cover it', () => {
-    const box = popoverBox(TRIGGER, VIEWPORT, { ...opts(200), placement: 'cover' as const })
-    expect(box.offset).toEqual({ top: 400 })
-    const low = popoverBox({ ...TRIGGER, top: 800 }, VIEWPORT, { ...opts(300), placement: 'cover' as const })
-    expect(low.offset).toEqual({ top: 900 - 8 - 300 })
+    expect(popoverBox({ ...TRIGGER, top: 899 }, VIEWPORT, opts(0)).maxHeight).toBeGreaterThanOrEqual(0)
   })
 
-})
-
-// A menu unfurls out of its anchor (#687, record 0134): the results bar's
-// button group, 181px with Removed showing on a phone.
-describe('popoverBox, unfurled', () => {
-  const GROUP = { left: 200, top: 300, width: 181.5, height: 22 }
-  const unfurl = (desiredHeight: number) => ({ ...BASE, desiredHeight, placement: 'unfurl' as const })
-
-  it("takes the anchor's width and left edge, whatever the preferred width says", () => {
-    const box = popoverBox(GROUP, VIEWPORT, unfurl(200))
-    expect(box.width).toBe(181.5)
-    expect(box.left).toBe(200)
-  })
-
-  it("stands on the anchor's bottom edge with no gap, joined below", () => {
-    const box = popoverBox(GROUP, VIEWPORT, unfurl(200))
-    expect(box.offset).toEqual({ top: 322 })
-    expect(box.joined).toBe('below')
-    expect(box.maxHeight).toBe(900 - 322 - 8)
-  })
-
-  // Too tall for the room below, and more room above: it still scrolls below
-  // while there is the floor's room there (1024x768's Columns list, 455px
-  // under a group with 227px beneath it and 503px above).
-  it('keeps to the bottom edge while the room below reaches the floor', () => {
-    const low = { ...GROUP, top: 900 - 8 - UNFURL_FLOOR_PX - 22 }
-    const box = popoverBox(low, VIEWPORT, unfurl(2000))
-    expect(box.joined).toBe('below')
-    expect(box.maxHeight).toBe(UNFURL_FLOOR_PX)
-    const lower = { ...low, top: low.top + 1 }
-    expect(popoverBox(lower, VIEWPORT, unfurl(2000)).joined).toBe('above')
-  })
-
-  it('reads the floor as three rows at the touch target', () => {
-    expect(UNFURL_FLOOR_PX).toBe(3 * 44)
-  })
-
-  // The collapsed sheet on a phone: a bar at the foot of the screen.
-  it("joins the anchor's top edge where there is no room under it", () => {
-    const low = { ...GROUP, top: 860 }
-    const box = popoverBox(low, VIEWPORT, unfurl(300))
-    expect(box.joined).toBe('above')
-    expect(box.placement).toBe('above')
-    expect(box.offset).toEqual({ bottom: 40 })
-    expect(box.maxHeight).toBe(860 - 8)
-  })
-
-  it('never shifts over its own anchor', () => {
-    for (const top of [0, 200, 440, 700, 899]) {
-      const box = popoverBox({ ...GROUP, top }, VIEWPORT, unfurl(5000))
-      expect(box.placement).not.toBe('shifted')
+  it('always anchors exactly one edge each way', () => {
+    for (const top of [100, 820]) {
+      for (const left of [10, 1300]) {
+        const box = popoverBox({ ...TRIGGER, top, left }, VIEWPORT, opts(300, 240))
+        expect(Object.keys(box.offset)).toHaveLength(1)
+        expect(Object.keys(box.align)).toHaveLength(1)
+      }
     }
   })
+})
 
-  // Record 0134's qualification: a control narrower than its menu's rows
-  // lends the menu its row, from the row's left edge to the control's right.
-  it("spans the control's row when given one, its border over the control's", () => {
-    const row = { left: 16, top: 300, width: 365, height: 46 }
-    const box = popoverBox(GROUP, VIEWPORT, { ...unfurl(200), span: row })
-    expect(box.left).toBe(16)
-    expect(box.width).toBe(200 + 181.5 - 16)
-    expect(box.offset).toEqual({ top: 322 - 1 })
-    expect(box.wide).toBe(true)
-    expect(box.joined).toBe('below')
+describe('popoverBox, across', () => {
+  // A card is never narrower than the control that opened it, which would
+  // read as a different control rather than as that one opening.
+  it('is at least as wide as its trigger, and otherwise as wide as its rows', () => {
+    const narrow = popoverBox(TRIGGER, VIEWPORT, opts(100, 40))
+    expect(narrow.width).toBeNull()
+    expect(narrow.minWidth).toBe(TRIGGER.width)
+    const wide = popoverBox(TRIGGER, VIEWPORT, opts(100, 240))
+    expect(wide.width).toBeNull()
+    expect(wide.minWidth).toBe(TRIGGER.width)
   })
 
-  it("keeps the control's own width when the row starts no further left", () => {
-    const box = popoverBox(GROUP, VIEWPORT, { ...unfurl(200), span: { ...GROUP } })
-    expect(box.width).toBe(181.5)
-    expect(box.wide).toBe(false)
+  it("lines up with the trigger's left edge where its rows fit to the right", () => {
+    expect(popoverBox(TRIGGER, VIEWPORT, opts(100, 240)).align).toEqual({ left: 300 })
   })
 
-  it('reads a row only when it unfurls', () => {
-    const row = { left: 16, top: 300, width: 365, height: 46 }
-    const box = popoverBox(TRIGGER, VIEWPORT, { ...opts(200), span: row })
-    expect(box.width).toBe(380)
-    expect(box.wide).toBeUndefined()
+  // The Removed list off the last menu button at 1024: its rows would run
+  // past the window, so it opens leftward from the button's right edge.
+  it("lines up with the trigger's right edge where the left would run off the window", () => {
+    const last = { ...TRIGGER, left: 900 }
+    const box = popoverBox(last, { width: 1024, height: 768 }, opts(100, 240))
+    expect(box.align).toEqual({ right: 1024 - 990 })
   })
 
-  it('leaves a hanging panel unjoined', () => {
-    expect(popoverBox(TRIGGER, VIEWPORT, opts(200)).joined).toBeUndefined()
+  // The model field in the panel: its list takes the Model row's width and
+  // would run 200px over the map from the field's left edge, so it opens
+  // leftward from its right edge and stays in the panel.
+  it("keeps inside the trigger's panel by its right edge", () => {
+    const field = { left: 225, top: 300, width: 118, height: 30 }
+    const box = popoverBox(field, VIEWPORT, { ...opts(400), width: 327, bound: { left: 0, right: 360 } })
+    expect(box.width).toBe(327)
+    expect(box.align).toEqual({ right: 1400 - 343 })
+  })
+
+  it('takes a width it is given whatever its rows want', () => {
+    const slot = { left: 16, top: 300, width: 327, height: 30 }
+    const box = popoverBox(slot, VIEWPORT, { ...opts(300, 900), width: 327, bound: { left: 0, right: 360 } })
+    expect(box.width).toBe(327)
+    expect(box.align).toEqual({ left: 16 })
+  })
+
+  it('stays inside the window where it fits neither edge of its trigger', () => {
+    const box = popoverBox({ ...TRIGGER, left: 40 }, { width: 400, height: 900 }, opts(100, 380))
+    expect(box.align).toEqual({ left: 400 - 380 - 8 })
+    const huge = popoverBox(TRIGGER, { width: 400, height: 900 }, opts(100, 2000))
+    expect(huge.maxWidth).toBe(400 - 16)
   })
 })
 

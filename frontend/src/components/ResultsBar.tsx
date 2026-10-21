@@ -3,6 +3,7 @@ import type { CompareNote } from '../hooks/useChartCompare'
 import { resultsHeading } from '../metrics'
 import type { ResultsMode } from '../utils/viewPrefs'
 import type { SortBy } from '../types'
+import { MenuButton } from './Menu'
 import {
   IconChart,
   IconChartTable,
@@ -53,9 +54,12 @@ interface ResultsBarProps {
   bothHasRoom: boolean
   /** Whether the results area shows, which is when Columns and Models stand. */
   showTable: boolean
-  /** The buttons' group, which every one of their menus unfurls out of. */
-  actionGroupRef: RefObject<HTMLDivElement | null>
-  /** The three popovers' triggers, their presses, and whether each is open. */
+  /**
+   * A phone (#696), where each menu is a bottom sheet rising from below, so
+   * its button carries no chevron (record 0174's rule for a phone's chips).
+   */
+  sheet: boolean
+  /** The three menus' triggers, their presses, and whether each is open. */
   columnsButtonRef: RefObject<HTMLButtonElement | null>
   onToggleColumns: () => void
   columnsOpen: boolean
@@ -100,7 +104,7 @@ export default function ResultsBar({
   chooseResultsMode,
   bothHasRoom,
   showTable,
-  actionGroupRef,
+  sheet,
   columnsButtonRef,
   onToggleColumns,
   columnsOpen,
@@ -123,6 +127,11 @@ export default function ResultsBar({
   // the word is hidden and a hidden word names nothing: a voice-control reader
   // says what the button shows, so the name is that word (#576, WCAG 2.5.3).
   // Columns keeps the longer label it always had, which holds its word.
+  //
+  // The three that open a menu are its triggers in the bar's shape (record
+  // 0200): the chevron after the word at a desk, down while shut and up while
+  // open, lit while their menu is out. Download CSV opens nothing and takes
+  // neither.
   const actions = [
     // Columns opens the picker popover. Present from the first pending row,
     // not only once a report exists: the bar keeping its full membership is
@@ -130,16 +139,17 @@ export default function ResultsBar({
     showTable && {
       key: 'columns',
       node: (
-        <button
+        <MenuButton
           ref={columnsButtonRef}
+          shape="bar"
+          open={columnsOpen}
+          chevron={!sheet}
           onClick={onToggleColumns}
-          aria-expanded={columnsOpen}
           aria-label="Choose which columns to display"
-          className={ACTION_ITEM}
         >
           <IconColumns className="flex-shrink-0" />
           <span className={BAR_LABEL}>Columns</span>
-        </button>
+        </MenuButton>
       ),
     },
     // Which of the selected models the chart draws (#232). A bar member
@@ -152,16 +162,17 @@ export default function ResultsBar({
     showTable && {
       key: 'models',
       node: (
-        <button
+        <MenuButton
           ref={modelsButtonRef}
+          shape="bar"
+          open={modelsOpen}
+          chevron={!sheet}
           onClick={onToggleModels}
-          aria-expanded={modelsOpen}
           aria-label="Models"
-          className={ACTION_ITEM}
         >
           <IconModels className="flex-shrink-0" />
           <span className={BAR_LABEL}>Models</span>
-        </button>
+        </MenuButton>
       ),
     },
     // Removed rows (#241): a removal's only undo, so it is a standing bar
@@ -171,16 +182,17 @@ export default function ResultsBar({
     removedCount > 0 && {
       key: 'removed',
       node: (
-        <button
+        <MenuButton
           ref={removedButtonRef}
+          shape="bar"
+          open={removedOpen}
+          chevron={!sheet}
           onClick={onToggleRemoved}
-          aria-expanded={removedOpen}
           aria-label={`Removed (${removedCount})`}
-          className={ACTION_ITEM}
         >
           <IconRestore className="flex-shrink-0" />
           <span className={BAR_LABEL}>Removed ({removedCount})</span>
-        </button>
+        </MenuButton>
       ),
     },
     canDownload && {
@@ -281,7 +293,7 @@ export default function ResultsBar({
               one line, its word (`BAR_LABEL`). Removed joins it whenever it
               shows, and the wide chevron stands after it. */}
           <div className="flex items-center gap-2">
-            <div ref={actionGroupRef} className={ACTION_GROUP}>
+            <div className={ACTION_GROUP}>
               {actions.map((action, i) => (
                 <Fragment key={action.key}>
                   {i > 0 && <div className={SEGMENT_DIVIDER} />}

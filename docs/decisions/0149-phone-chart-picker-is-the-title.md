@@ -1,6 +1,6 @@
 # 0149. On a phone the chart's metric picker is the plot's title, and the plot is inset under it
 
-- Status: Accepted. Amends 0144 (a finger reads the band under the title).
+- Status: Accepted. Amends 0144 (a finger reads the band under the title). Amended by 0200 (at a desk the chart's metric is the one menu rather than a native select).
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696, 2026-10-14: option A of the picker mockups (`picker.html`, seven options), with one requirement, that the title meet neither dashed line nor its label; then look 4 of six drawn for the title itself (`picker2.html`), the app's own select at the label's width, the same night
 - Issues and PRs: #696, #708, #348, #705, #336

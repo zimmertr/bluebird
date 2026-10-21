@@ -1,0 +1,55 @@
+# 0200. Every desk menu is the Layers menu's card, 4px under one of three trigger shapes
+
+- Status: Accepted. Supersedes 0134. Amends 0129 (the calendar's card stands under its field rather than in its place) and 0149 (at a desk the chart's metric is the one menu rather than a native select), and makes 0174's chip card the general case.
+- Date: 2026-10-20
+- Decider: the maintainer (TJ), on issue #714, 2026-10-20: "The chart dropdown menu behaves similarly to the Legend/Layers button menus. But it's square and the menu pops on top of it. The Forecast model dropdown menu is square and drops the menu below it and it is connected to it. Columns & Models menus in the results header are also different since they don't have a chevron, and drop down below them and the menu is the width of the three buttons together. Hovering over them makes the text white, but hovering over the Legend and Layers buttons is blue. Hovering over the model picker and chart metric picker does nothing. All of this needs to behave the same way and this needs to be reinforced." And: "they should all be the same, unless they're intentionally different. Right now it feels like chaos." He approved the before and after mockups of every menu ("LGTM"), kept the three trigger shapes ("Three shapes, recorded"), and the same day chose opaque cards everywhere.
+- Issues and PRs: #714, #759
+- Cited in code as: #714
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `usePopover.ts` + `Menu.tsx` bullet; [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `Menu.tsx`, `ModelPicker.tsx`, `ForecastCalendar.tsx`, `ColumnsPicker.tsx`, `TimeSeriesChart.tsx`, `MetricsTable.tsx`, results bar and map chrome bullets; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `listbox.ts` bullet; [`docs/STYLES.md`](../STYLES.md), Opening a menu; [`docs/USAGE.md`](../USAGE.md), At a desk and Forecast window
+- Related: 0136 (a phone's menus are bottom sheets), 0149 (a phone's chart picker)
+
+## Context
+
+Record 0174 gave a desk's Legend and Layers chips a card 4px under each, lit while it is out, with a chevron. Every other desk menu kept record 0134's join: the model list and the results bar's lists unfurled out of their control with no gap and squared corners, the bar's three lists at the whole group's width, and the calendar covered its field. The chart's metric and the Metrics aggregates were native selects, whose list the platform draws. Five looks, three hovers and two chevrons for one kind of control.
+
+## Decision
+
+- **One menu at a desk: the Layers menu's card.** It stands 4px under its trigger (`CHIP_MENU_GAP_PX`), never joined to it, with whole corners, on `SURFACE_CHIP_CARD.menu` with the `overlay` shadow. `components/Menu.tsx` draws it for every menu but the Layers menu, which stands in the map's rows rather than in a scrolling column.
+- **Opaque everywhere** (TJ, 2026-10-20). The card and the legend card lose the 95% fill and the blur the chips wear, because under the calendar the Analyze button showed through the blur. The chips, the pill, the map's round buttons, the zoom pair and the credit line keep theirs.
+- **Width.** At least the trigger's width, and otherwise the rows' width. The model list keeps the Model row's width, and the calendar its field's.
+- **Alignment.** The card lines up with the trigger's left edge, or with its right edge where the left would run it past the control panel or the window. The model list therefore stands on the field's right edge, under the Model label. Columns, Models and Removed each open under their own button.
+- **Up or down.** Under the trigger where the card fits. Where it does not, over the trigger where it fits whole there. Where it fits neither side, under the trigger while the room there is at least three 44px rows, as record 0134 had it, and over it otherwise. The middle step came after the mockups, when the calendar at 1024x768 scrolled its Hours row out of view; it was the implementer's call, pending the maintainer's.
+- **Rows.** The Layers menu's: 12px type, 10px in from the card's edge. In a list that picks one value, the row under the pointer or the keyboard takes the raised fill, and the current value is semibold with no check mark. The Columns menu keeps no heading (the maintainer, 2026-10-14, first recorded in 0134).
+- **Three trigger shapes, on purpose** (`MENU_TRIGGER`, "Three shapes, recorded"): a pill on the map (Legend, Layers), a field in the panel or over the chart (the model, the window, an aggregate, the chart's metric), and a button in the results bar's group (Columns, Models, Removed). `MenuButton` is the only way to draw one.
+- **One chevron.** Every trigger carries the chips' chevron after its label, down while shut and up while open. Download CSV opens nothing and carries none. A field's stroked chevron replaces the filled select arrow, on a phone's two native selects as well (the implementer's call, pending the maintainer's). A phone's chips and bar buttons carry none, because their sheets rise from below.
+- **One hover and one open state.** Under the pointer the accent takes the edge and the label, or the label alone on a bar button, which has no edge of its own. While its menu is out a chip or a bar button lights in the accent fill, and a field keeps its accent edge.
+- **No native select at a desk.** The chart's metric and each Metrics row's aggregate open the one menu (`MenuSelect`), a WAI-ARIA listbox: the arrows, Home and End walk it, Enter or Space picks, Escape closes it, and the keyboard returns to the field. The options keep their words. A phone keeps the native select, whose picker rises from below like every phone menu (record 0149).
+- **Motion.** A card fades in and slides 4px from its trigger's side over 150ms (`MOTION.menu`), with none under a reduced-motion setting. A close unmounts the card, so it goes at once.
+- **Enforced.** The linter fails a menu that positions itself or spells the card (`style-own-menu`), a placement handed to the hook, a listbox outside the card or a native select outside a phone's branch (`style-one-menu`), the old join's roles, attribute or placements anywhere the app ships (`style-no-unfurl`), and a plain button with `aria-expanded` where a `MenuButton` belongs (`style-menu-trigger`). `style-menu-field`, the two chip checks and `style-results-bar` require each trigger's shape.
+
+## Evidence
+
+Before and after mockups of every desk menu, built from the branch, were shown to TJ on 2026-10-20, and the rules above are his answers to them, but for the two marked as the implementer's.
+
+Measured 2026-10-20 in the Playwright image's Chromium (1.64) on a ring analysis with one row removed, the panel open, in `e2e/deskMenus.spec.ts` and a measuring run beside it:
+
+- **1440x900.** Every card's top is 4px under its trigger's bottom: Layers 96 under 92, the model list 459 under 455, the calendar 531 under 527, the Temperature aggregate 717 under 713, the chart's metric 482 under 478, and Columns, Models and Removed 440 under 436. The Layers menu and the calendar line up with their trigger's left edge; the model list is 317px wide, the Model row's, and runs from x=16 back to the field's right edge at 333. Columns opens 214px wide under a 101.4px button, Models 107.4 under 92.7 and Removed 138.8 under 123.4, each from its own button's left edge. The aggregate and the chart's metric are their fields' widths, 72 and 144, because their rows are narrower.
+- **1024x768.** The calendar's 309px card has 229px under its field and 485px over it, so it opens over the field, its bottom 4px above the field's top, with the Hours row and the month bar in view. Under the floor-only rule it scrolled in the gap below with both out of view. The Columns list, 592px of rows, fits neither side of the bar and scrolls in the 330px under it.
+- **The results bar.** The labelled group with `Removed (1)` is 437.8px at a desk, where it was 377.8 without chevrons. With the 176.7px switch and the 16px gap the line needs 630.5px, and the bar beside the docked panel at 1024 has 640. A two-digit Removed count adds 6.7px and still fits; a three-digit count wraps the group onto a line of its own there.
+- **Contrast.** The card's slate-500 edge on its opaque slate-800 fill reads 3.07:1 in the dark theme, and the light theme's edge on its floating fill 4.24:1, measured on the v4 oklch steps. Record 0174 quoted the same two numbers for the 95% fill.
+- **Cost.** The entry chunk grew 687 B raw and 167 B gzipped against the #714 branch at 6147af5, the commit this change stands on. No render-cost pair was run for it.
+
+Screens of every menu, both themes, at 1440x900 and 1024x768, and the hover on each trigger shape, were taken on the same build.
+
+## Alternatives rejected
+
+- **The joined unfurl of record 0134**, every menu one card with its control: on a 32px pill it left a dome (record 0174), and at a desk the bar's lists stood at the whole group's width, far from the button pressed.
+- **One trigger shape for everything:** a map pill in the panel or a field on the map would make each look out of place, and the results bar's group is one control. TJ kept the three.
+- **95% as mocked**, the chips' frosted fill on every card: under the calendar the Analyze button showed through the blur.
+- **Opaque in the panel and the results, 95% on the map:** two fills for one card.
+- **Native selects at a desk:** the platform draws their list, so no stylesheet can make it the one menu.
+- **Scrolling a card in the room under its trigger whenever that room reaches the floor**, record 0134's rule: the calendar then hid its Hours row and month bar at 1024x768 and on a phone.
+
+## Consequences
+
+`components/Popover.tsx` became `components/Menu.tsx`, with `MenuButton` and `MenuSelect` beside the card, and `Popover.test.tsx` became `Menu.test.tsx`. `usePopover` lost its `placement` and `preferredWidth` options and the `data-unfurled` it wrote; `popoverBox` lost `hang`, `cover`, `unfurl`, `span` and `unfurledBox`, and `UNFURL_FLOOR_PX` became `MENU_FLOOR_PX`. A trigger inside `[data-menu-bound]`, the control panel's root, keeps its card inside the panel. `styles.ts` lost `SURFACE_POPOVER`, `UNFURLED`, `UNFURL_ANCHOR` and `MAP_CHIP_CHEVRON`, and `MAP_CHIP` is private behind `MENU_TRIGGER.chip`; it gained `MENU_TRIGGER`, `MENU_CHEVRON`, `MENU` and `MOTION.menu`. `icons.tsx` lost `IconSelectArrow`. The pickers lost their `anchorRef` prop and `ResultsBar` its `actionGroupRef`. The lint checks `style-own-popover`, `style-popover-shell` and `style-menu-unfurls` became `style-own-menu`, `style-menu-shell` and `style-one-menu`, beside the new `style-no-unfurl`, `style-menu-trigger` and `style-menu-field`. `e2e/deskMenus.spec.ts` holds the gap, the edges, the widths, the lit trigger and the two new menus in a browser. The model list and the calendar take the same placement in a phone's Controls sheet, so there too the model list stands 4px under its field and the calendar opens over its field whole.
