@@ -14,7 +14,7 @@ A polygon run is a discovery (`POST /api/destinations`) and then the forecasts. 
 
 ## Decision
 
-- **Found destinations show the moment discovery answers**, the way the reader's own pending destinations do: the same `PendingRow` in the same block above the ranked rows, a dash in every metric, the neutral `PENDING_COLOR` dot, the same fly-to. A found row has no ×, since its truth is the ring. No string, style or tooltip is new, and the results bar's count leaves pending rows out, as it always has.
+- **Found destinations show the moment discovery answers**, the way the reader's own pending destinations do: the same `PendingRow` in the same block above the ranked rows, a dash in every metric, the neutral `PENDING_COLOR` dot, the same fly-to. A found row has no ×, because the ring put it there and the reader did not. No string, style or tooltip is new, and the results bar's count leaves pending rows out, as it always has.
 - **Each leaves the block when the universe holds it**: its forecast landed mid-run, or the run committed.
 - **A forecast failure keeps them.** The previous report comes back exactly, as 0093 says, and the found field stays beside it as pending rows and dots, less any row that report ranks, the reader removed, or the reader named too. It stays until the next run starts or a reset. A redrawn ring or changed types raise the existing cues and leave it in place.
 - **A cancel drops it with the run.** For a cancel, 0093 is unchanged.
