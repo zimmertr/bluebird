@@ -1,6 +1,6 @@
 # 0075. The weighted pacer spends at most its budget in any 60 seconds, as a sliding-window log
 
-- Status: Accepted
+- Status: Accepted. Its per-service premise was measured on 2026-10-21 ([0203](0203-four-open-requests-per-open-meteo-host.md)).
 - Date: 2026-10-01
 - Decider: the maintainer (TJ), on issue #581
 - Issues and PRs: #581, #180

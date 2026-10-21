@@ -36,7 +36,13 @@ from app.services.osm.query import (
 # against it still matches every line.
 log = logging.getLogger("app.services.osm")
 
-PROVIDER = "OpenStreetMap (Overpass)"
+# The name every Overpass message leads with. "OpenStreetMap (Overpass)"
+# until 2026-10-21, when the maintainer dropped the parenthetical because
+# "OpenStreetMap (Overpass) took too long. Try again later." was 324px in the
+# panel notice's 281px (12px, Mac) and every other line it headed wrapped
+# too; "OpenStreetMap took too long. Try again later." is 258px (record 0206).
+# The metrics keep their own per-mirror labels below, so nothing reads this.
+PROVIDER = "OpenStreetMap"
 
 # Called with a user-facing detail line when the chain falls over to a backup
 # mirror. Overpass is a single opaque request per mirror, so failover is the

@@ -1,15 +1,30 @@
-import { CustomDestination, DestinationResult } from '../types'
+import { CustomDestination, DestinationResult, DiscoveredDestination } from '../types'
 import { Place } from './geocode'
 import { geoKey } from './points'
 import type { IdentityMap } from './elevationLookup'
 
 // A custom destination plus the bits only the UI needs: where it came from
 // (a CSV row is removed by editing the textarea, so it gets no × ) and the
-// geocoded identity a searched place carries.
+// geocoded identity a searched place carries. A `polygon` row is one a ring's
+// search found whose forecast has not landed (#782): no × either, since its
+// truth is the ring, and its `kind` is the row type discovery gave it.
 export interface PendingDestination extends CustomDestination {
   kind?: string
   osmId?: string
-  source: 'csv' | 'search'
+  source: 'csv' | 'search' | 'polygon'
+}
+
+/** A destination a ring's search found, as the pending row it shows as until its forecast lands. */
+export function foundAsPending(d: DiscoveredDestination): PendingDestination {
+  return {
+    name: d.name,
+    latitude: d.latitude,
+    longitude: d.longitude,
+    elevation_ft: d.elevation_ft ?? undefined,
+    kind: d.type,
+    osmId: d.osm_id ?? undefined,
+    source: 'polygon',
+  }
 }
 
 /**

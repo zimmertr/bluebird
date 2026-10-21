@@ -63,7 +63,9 @@ export const AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-qu
 // requests in flight. One browser analyzing is exactly as polite to
 // Open-Meteo as the server was. Both numbers are measured on the backend
 // (issue #182) and mirrored through `mirrored_constants.json`, which is why
-// they are exported: `mirroredConstants.test.ts` reads them.
+// they are exported: `mirroredConstants.test.ts` reads them. The 4 also sizes
+// each host's pool of open requests (`HostSlots` below), one under the five
+// Open-Meteo admits per address per host (measured 2026-10-21, record 0203).
 export const BATCH_SIZE = 50
 export const MAX_CONCURRENT_BATCHES = 4
 
@@ -78,8 +80,9 @@ const FALLBACK_AQI_FORECAST_DAYS = 5
 // from a home network, a 50-location forecast batch answered in 1.5 to 1.8 s
 // typically, with cold outliers of 7.7 s and 19 s in six tries (#545). 20 s
 // keeps every measured success and still ends a hang, which would otherwise
-// hold the analysis until the reader pressed Cancel. The pacer's sleep is not
-// inside it, because the clock starts when the request does.
+// hold the analysis until the reader pressed Cancel. The pacer's sleep and the
+// wait for a host slot are not inside it, because the clock starts when the
+// request does.
 export const REQUEST_DEADLINE_MS = 20_000
 
 // ── Weighted-call pacing ───────────────────────────────────────────────────
@@ -103,11 +106,15 @@ export function callWeight(
   return nLocations * Math.max(1, days / 14) * Math.max(1, (nVariables * nModels) / 10)
 }
 
-// The visitor's own per-IP budget is 600 weighted calls/minute per service;
-// 550 leaves margin for other tabs and clock skew. Spending is paced, not
-// refused, and held to at most 550 in any 60 seconds, which is how Open-Meteo
-// states its own limit. This protects the visitor's own quota — the
-// server-side budgets protect the deployment's.
+// The visitor's own per-IP budget is 600 weighted calls/minute per host;
+// 550 leaves margin for other tabs and clock skew. Per host is measured: on
+// 2026-10-21, with the forecast host's 600 for the minute spent and refusing,
+// the air-quality and archive hosts both answered at once (record 0203),
+// so weather and air quality each get a pacer. Archive spans book on the
+// weather pacer although their host counts apart, which errs only toward
+// waiting. Spending is paced, not refused, and held to at most 550 in any 60
+// seconds, which is how Open-Meteo states its own limit. This protects the
+// visitor's own quota — the server-side budgets protect the deployment's.
 const CLIENT_WEIGHT_PER_MINUTE = 550
 const WINDOW_MS = MINUTE_MS
 
@@ -182,13 +189,72 @@ function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
+// ── Open requests per host ─────────────────────────────────────────────────
 
-// Test hook: budgets and cache are module state that must not leak between
-// unit tests.
+// Open-Meteo lets one address hold five requests open on one host and answers
+// the sixth with a 429 `Too many concurrent requests` (measured 2026-10-21,
+// record 0203). The weather and cloud fetches, the forecast grid and the model
+// comparison each run batches of their own, so without one count per host an
+// analysis would hold eight open on the forecast host and lose three. Each
+// host gets its own pool because each counts its own five: the air-quality and
+// archive hosts answered while the forecast host refused. A slot is held only
+// while a request is on the wire, never through a pacer sleep or a resume's
+// wait.
+class HostSlots {
+  private open = 0
+  // In the order they asked, so no batch waits behind one that came later.
+  private waiting: Array<() => void> = []
+  constructor(private size: number) {}
+  acquire(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
+    if (this.open < this.size) {
+      this.open++
+      return Promise.resolve()
+    }
+    const waiting = this.waiting
+    return new Promise((resolve, reject) => {
+      waiting.push(grant)
+      signal?.addEventListener('abort', onAbort, { once: true })
+      function grant() {
+        signal?.removeEventListener('abort', onAbort)
+        resolve()
+      }
+      function onAbort() {
+        waiting.splice(waiting.indexOf(grant), 1)
+        reject(new DOMException('Aborted', 'AbortError'))
+      }
+    })
+  }
+  release(): void {
+    // A waiter takes the slot over rather than the count dropping, so a
+    // request that has not queued cannot slip in ahead of one that has.
+    const next = this.waiting.shift()
+    if (next) next()
+    else this.open--
+  }
+}
+
+// Module-level for the pacers' reason: every fetch in this tab, the grid's and
+// the comparison's included, shares the host's pool.
+let hostSlots = new Map<string, HostSlots>()
+
+function slotsFor(url: string): HostSlots {
+  const host = new URL(url).host
+  let slots = hostSlots.get(host)
+  if (!slots) {
+    slots = new HostSlots(MAX_CONCURRENT_BATCHES)
+    hostSlots.set(host, slots)
+  }
+  return slots
+}
+
+// Test hook: budgets, pools and cache are module state that must not leak
+// between unit tests.
 export function resetOpenMeteoState(): void {
   resetForecastCache()
   weatherBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
   aqiBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
+  hostSlots = new Map()
 }
 
 /** One leg of a fetch: which endpoint answers, and the hours it answers for. */
@@ -331,7 +397,8 @@ function chunked<T>(items: readonly T[], size: number): T[][] {
 // a failure that aborts the shared controller upstream) actually stops the
 // queue — the pre-#180 version's comment claimed this while the workers
 // churned every remaining task, which is what kept burning quota after the
-// first 429 during the incident.
+// first 429 during the incident. It bounds one fetch; the host pool in
+// `getJson` bounds the wire, because several fetches run at once on one host.
 async function pooled<T>(
   tasks: Array<() => Promise<T>>,
   limit: number,
@@ -367,22 +434,37 @@ function utcHour(ms: number): string {
   return `${new Date(ms).toISOString().slice(0, 13)}:00`
 }
 
+// What Open-Meteo says to a request past the five one address may hold open
+// on one host, and how long that request waits before it is asked again. The
+// refusal sends no Retry-After (measured 2026-10-21) and names no quota: a
+// slot opens as soon as one of the five answers.
+const CONCURRENCY_REASON = /too many concurrent requests/i
+const CONCURRENCY_WAIT_S = 1
+
 // Open-Meteo's 429 body names the tripped quota: {"reason": "Minutely API
-// request limit exceeded..."}. Best-effort parse; an unreadable body still
+// request limit exceeded..."}, or says the host has too many of this
+// address's requests open. Best-effort parse; an unreadable body still
 // classifies as a rate limit, just without a scope.
 async function classify429(res: Response): Promise<OpenMeteoRateLimited> {
   let scope: OpenMeteoRateLimited['scope'] = null
   try {
     const body = (await res.json()) as { reason?: string }
-    const match = /\b(minutely|hourly|daily|monthly)\b/i.exec(body.reason ?? '')
+    const reason = body.reason ?? ''
+    const match = /\b(minutely|hourly|daily|monthly)\b/i.exec(reason)
     if (match) scope = match[1].toLowerCase() as NonNullable<OpenMeteoRateLimited['scope']>
+    else if (CONCURRENCY_REASON.test(reason)) scope = 'concurrency'
   } catch {
     // body unreadable; scope stays null
   }
   const floors: Record<string, number> = { minutely: 60, hourly: 900, daily: 3600, monthly: 3600 }
   // The header when it names a wait, else the scope's floor, and never under a
-  // second, so a `Retry-After: 0` cannot resume into a loop.
-  const retryAfterS = Math.max(1, retryAfterSeconds(res) ?? floors[scope ?? ''] ?? 60)
+  // second, so a `Retry-After: 0` cannot resume into a loop. A concurrency
+  // refusal waits for an open request to answer, not for a quota window, so
+  // its second stands whatever a header says.
+  const retryAfterS =
+    scope === 'concurrency'
+      ? CONCURRENCY_WAIT_S
+      : Math.max(1, retryAfterSeconds(res) ?? floors[scope ?? ''] ?? 60)
   // Whose quota it is, named. These fetches leave the reader's own browser
   // against the reader's own address, so "your quota" is literally true and is
   // the fact that makes the wait make sense; "Open-Meteo has used up
@@ -418,7 +500,46 @@ async function isOutOfDomain(res: Response): Promise<boolean> {
   }
 }
 
+// One request asked once more when the host refuses it for having too many of
+// this address's requests open (record 0203). Open-Meteo refused it before
+// counting it, so the second ask books nothing on the pacer, and it waits a
+// second holding no slot. The overlay is not told: a second is under the three
+// the pacer narrates from, and a countdown would only flash. A second refusal
+// fails the request with the rate-limit sentence. Every request takes this
+// path, air quality's too, because a refusal that costs nothing and says
+// nothing about quota is worth one more ask on any host.
 async function getJson(
+  url: string,
+  params: Record<string, string>,
+  signal: AbortSignal | undefined,
+): Promise<unknown> {
+  try {
+    return await getJsonOnce(url, params, signal)
+  } catch (e) {
+    if (!(e instanceof OpenMeteoRateLimited) || e.scope !== 'concurrency') throw e
+    await abortableSleep(e.retryAfterS * 1000, signal)
+    return await getJsonOnce(url, params, signal)
+  }
+}
+
+// One HTTP attempt, holding a slot of its host's pool from just before `fetch`
+// until the body has been read or the attempt has failed.
+async function getJsonOnce(
+  url: string,
+  params: Record<string, string>,
+  signal: AbortSignal | undefined,
+): Promise<unknown> {
+  const slots = slotsFor(url)
+  // A cancel while queued rejects with an AbortError and takes no slot.
+  await slots.acquire(signal)
+  try {
+    return await requestJson(url, params, signal)
+  } finally {
+    slots.release()
+  }
+}
+
+async function requestJson(
   url: string,
   params: Record<string, string>,
   signal: AbortSignal | undefined,
@@ -459,7 +580,7 @@ async function getJson(
     }
     if (!res.ok) {
       throw new OpenMeteoHttpError(
-        `Open-Meteo error (HTTP ${res.status}). Try again later.`,
+        `Open-Meteo error (${res.status}). Try again later.`,
         res.status,
       )
     }
@@ -569,6 +690,10 @@ const RESUME_MAX_WAIT_S = 60
 // second timeout says the service is stuck, and the analysis fails rather than
 // holding the reader a third time. No sleep and no second charge: a timeout
 // says nothing about quota, and the pacer already charged this batch.
+//
+// A concurrency refusal is asked again inside `getJson`, so the minutely
+// resume above stays the only one that pays again, and a second concurrency
+// refusal passes through here to fail the batch.
 async function getJsonWithResume(
   url: string,
   params: Record<string, string>,
@@ -858,9 +983,10 @@ export async function fetchCloud(
     const perSpan: HourlyPayload[][] = []
     for (const span of spans) {
       // Nine variables at one model: inside the floor of 1, spent on the
-      // WEATHER budget, because Open-Meteo meters per service and this is the
-      // weather endpoint. Read off the list, for the reason the weather fetch
-      // reads its own count off `HOURLY_VARIABLES`.
+      // WEATHER budget, because Open-Meteo meters per host (measured
+      // 2026-10-21, record 0203) and this is the weather host. Read off the
+      // list, for the reason the weather fetch reads its own count off
+      // `HOURLY_VARIABLES`.
       const spend = () =>
         weatherBudget.acquire(
           callWeight(chunk.length, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1),

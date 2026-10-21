@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AnalyzeResponse, CustomDestination, DestinationResult, SortBy } from '../types'
+import type { AnalyzeResponse, CustomDestination, DestinationResult, DiscoveredDestination, SortBy } from '../types'
 import type { AnalyzedView } from './analyzeTypes'
 import { windowCaption } from '../utils/calendar'
-import { pendingDestinations } from '../utils/customList'
+import { type PendingDestination, foundAsPending, pendingDestinations } from '../utils/customList'
 import type { IdentityMap } from '../utils/elevationLookup'
 import { type Place, placeType } from '../utils/geocode'
 import { geoKey } from '../utils/points'
@@ -45,6 +45,12 @@ export interface PresentedReportInputs {
   // What the paste-time lookup has learned (#673), so a pending row shows
   // its elevation before any analysis.
   identity: IdentityMap
+  /**
+   * The field a polygon run found that no report holds yet (`useAnalyze`'s
+   * `pendingField`, #782), or null. Its rows join the pending ones until
+   * their forecasts land.
+   */
+  found: readonly DiscoveredDestination[] | null
   /** The header sort a link carried, read once at mount. */
   restoredTableSort: { key: SortKey; desc: boolean } | null
 }
@@ -72,6 +78,7 @@ export function usePresentedReport({
   places,
   csvRows,
   identity,
+  found,
   restoredTableSort,
 }: PresentedReportInputs) {
   // Remembers each row's real identity (type + osm_id) by coordinate: from
@@ -207,7 +214,7 @@ export function usePresentedReport({
   // the top-`limit` rows, so asking them turned every added destination below
   // the cut back into an un-forecasted row (#205). Before the first analysis
   // there is no snapshot, so everything named is pending, which is the point.
-  const pending = useMemo(
+  const customPending = useMemo(
     () =>
       pendingDestinations(
         csvRows,
@@ -218,6 +225,26 @@ export function usePresentedReport({
       ),
     [csvRows, places, coverage, activeRemovedKeys, identity],
   )
+
+  // The field a polygon run found joins them, after the reader's own rows and
+  // in the order discovery gave (#782). A row leaves as soon as the universe
+  // holds it: its forecast landed mid-run, or the report a failure put back
+  // already ranks it. A row the reader named too shows once, as theirs, and a
+  // removed one not at all.
+  const pending = useMemo(() => {
+    if (!found?.length) return customPending
+    const shown = new Set(customPending.map((d) => geoKey(d.latitude, d.longitude)))
+    for (const r of universe ?? []) shown.add(geoKey(r.latitude, r.longitude))
+    const rows: PendingDestination[] = []
+    for (const d of found) {
+      const key = geoKey(d.latitude, d.longitude)
+      if (shown.has(key) || activeRemovedKeys.has(key)) continue
+      // Once each, since the table keys a pending row by its coordinate.
+      shown.add(key)
+      rows.push(foundAsPending(d))
+    }
+    return rows.length ? [...customPending, ...rows] : customPending
+  }, [customPending, found, universe, activeRemovedKeys])
 
   // The table bar's row count: shown, of what the knobs admit, and (only when
   // a forecast bound is hiding some) of what was analyzed. An elected top-N
@@ -267,6 +294,9 @@ export function usePresentedReport({
     sortDetail,
     tableSort,
     pending,
+    // The reader's own rows alone, which is what the commit cue counts: they
+    // are inputs to the next analysis, where a found row is its output.
+    customPendingCount: customPending.length,
     rowCount,
     emptyReason,
   }

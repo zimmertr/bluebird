@@ -13,6 +13,7 @@ from conftest import (
     assert_no_key_logged,
     dest,
     fake_response,
+    sleep_recorder,
     stub_openmeteo,
 )
 
@@ -172,6 +173,30 @@ async def test_a_rate_limit_skips_the_remaining_batches(monkeypatch):
 
     assert len(calls) == 4
     assert results == [None] * 250  # best-effort: nulls, never a raised error
+
+
+async def test_a_concurrency_refusal_is_asked_again_once(monkeypatch):
+    # Air quality stops at its first minutely 429, but a request refused for
+    # too many open requests was never counted (measured 2026-10-21, record
+    # 0203), so it is asked once more a second later like a weather batch.
+    slept = sleep_recorder(monkeypatch)
+    too_many_open = answered(429, {"reason": "Too many concurrent requests"})
+    calls = stub_openmeteo(monkeypatch, [too_many_open, [_hourly(["2026-07-21T00:00"], [80])]])
+    results = await fetch_aqi_batch(_dests(1), START, END)
+
+    assert len(calls) == 2
+    assert slept == [1]
+    assert results[0]["aqi_avg"] == 80
+
+
+async def test_a_second_concurrency_refusal_degrades_to_nulls(monkeypatch):
+    sleep_recorder(monkeypatch)
+    too_many_open = answered(429, {"reason": "Too many concurrent requests"})
+    calls = stub_openmeteo(monkeypatch, [too_many_open, too_many_open])
+    results = await fetch_aqi_batch(_dests(1), START, END)
+
+    assert len(calls) == 2
+    assert results == [None]
 
 
 async def test_rate_limited_nulls_are_not_cached(monkeypatch):

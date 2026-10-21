@@ -165,6 +165,58 @@ describe('a polygon run', () => {
     expect(seen[0].candidates[1]).toMatchObject({ name: 'Mine', type: 'peak', elevation_ft: 6000, osm_id: 'node/77' })
   })
 
+  // #782: a failed run's field stands in for discovery when the next run asks
+  // the pod the same question, so Try again buys the forecasts alone.
+  it('forecasts a held field without asking the pod, and still announces it', async () => {
+    stubDestinations({ destinations: [discovered({ name: 'Fresh' })], total: 1 })
+    const { seen, onDiscovered } = found()
+    const held = { candidates: [CANDIDATE], totalFound: 3000, truncated: true }
+    const out = await runAnalysisPipeline(REQUEST, options({ onDiscovered, found: held }))
+    expect(posted).toHaveLength(0)
+    expect(seen).toEqual([held])
+    expect(ranked.mock.calls[0][1]).toEqual([CANDIDATE])
+    expect(out.response).toMatchObject({ total_found: 3000, truncated: true })
+  })
+
+  it('asks the pod as before when no field is held', async () => {
+    stubDestinations({ destinations: [CANDIDATE], total: 1 })
+    const { seen, onDiscovered } = found()
+    await runAnalysisPipeline(REQUEST, options({ onDiscovered, found: null }))
+    expect(posted).toHaveLength(1)
+    expect(seen[0].candidates).toEqual([CANDIDATE])
+  })
+
+  // The reader's list rides in a ring's field, and the lookup may have placed
+  // one of its rows since the field was found.
+  it('gives a held field what the lookup has learned since, and the kind the browser knows', async () => {
+    stubDestinations({ destinations: [], total: 0 })
+    const { seen, onDiscovered } = found()
+    const mine = discovered({ ...MINE, type: 'custom', elevation_ft: null, osm_id: null })
+    const identity = new Map([[geoKey(47, -121), { elevation_ft: 6000, osm_id: 'node/77' }]])
+    await runAnalysisPipeline(
+      { ...REQUEST, custom_destinations: [MINE] },
+      options({
+        onDiscovered,
+        found: { candidates: [CANDIDATE, mine], totalFound: null, truncated: false },
+        identity: { latest: () => identity },
+        knownTypes: { [geoKey(47, -121)]: 'peak' },
+      }),
+    )
+    expect(posted).toHaveLength(0)
+    expect(seen[0].candidates[1]).toMatchObject({ name: 'Mine', type: 'peak', elevation_ft: 6000, osm_id: 'node/77' })
+  })
+
+  // A run with no ring discovers nothing, so a held field has nothing to stand in for.
+  it('ignores a held field for a run with no polygon', async () => {
+    stubDestinations({ destinations: [discovered({ ...MINE, type: 'custom' })], total: 1 })
+    const { seen, onDiscovered } = found()
+    await runAnalysisPipeline(
+      { ...REQUEST, polygon: undefined, custom_destinations: [MINE] },
+      options({ onDiscovered, found: { candidates: [CANDIDATE], totalFound: null, truncated: false } }),
+    )
+    expect(seen[0].candidates).toEqual([expect.objectContaining({ name: 'Mine' })])
+  })
+
   // A ring the pod could not answer has no field to rank, so the run fails
   // whole, the reader's own list with it.
   it('fails when the pod cannot discover', async () => {

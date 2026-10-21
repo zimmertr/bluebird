@@ -52,16 +52,18 @@ export function paceRemainingS(endMs: number | null, nowMs: number): number | nu
 }
 
 /**
- * The wait as a sentence, or null when there is nothing to say.
+ * The wait as one line, or null when there is nothing to say.
  *
  * Named here rather than at each surface so the analysis overlay and the
  * comparison cannot describe one wait two ways. The map's grid legend spells
- * the same wait `Waiting · 45s` instead — it is a key's value beside a label
- * rather than a line of prose, and vertical space on the map is the scarcest
- * thing the app has.
+ * the same wait `Waiting · 45s` instead — it is a key's value beside a label,
+ * and vertical space on the map is the scarcest thing the app has. The dot is
+ * the legend's, chosen by the maintainer on 2026-10-21 with the overlay's
+ * heading (analyzeOverlay.ts, record 0205): 208px at 12px in the overlay
+ * card's 230px, where the sentence it replaced was 205px.
  */
 export function paceWaitLine(remainingS: number | null): string | null {
   return remainingS !== null && remainingS > 0
-    ? `Open-Meteo quota: resuming in ${remainingS}s`
+    ? `Open-Meteo quota · resuming in ${remainingS}s`
     : null
 }

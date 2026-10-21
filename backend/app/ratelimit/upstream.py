@@ -46,7 +46,13 @@ log = logging.getLogger("bluebird_forecast.ratelimit")
 # The in-flight caps are fairness/latency knobs, not the rate protection: the
 # weighted budgets below are what actually bound spend per minute (issue #180
 # — Open-Meteo bills weighted calls per location, not HTTP requests, so a
-# concurrency semaphore alone cannot bound the thing they meter).
+# concurrency semaphore alone cannot bound the thing they meter). They also
+# keep the pod under Open-Meteo's own cap on open requests: five per address
+# per host, measured 2026-10-21 (record 0203), so 4 is one under it, and the
+# weather slots are shared by the weather and cloud batches because both go
+# to one host. The caps are per pod, so several replicas analyzing at once
+# from one egress address can still open more than five on a host; the
+# maintainer has left that open.
 UPSTREAM_CONCURRENCY_WEATHER = env_int("UPSTREAM_CONCURRENCY_WEATHER", 4)
 UPSTREAM_CONCURRENCY_AQI = env_int("UPSTREAM_CONCURRENCY_AQI", 4)
 UPSTREAM_CONCURRENCY_OVERPASS = env_int("UPSTREAM_CONCURRENCY_OVERPASS", 2)
@@ -56,10 +62,12 @@ NOMINATIM_POD_MIN_INTERVAL_MS = env_int("NOMINATIM_POD_MIN_INTERVAL_MS", 10_000)
 # Pod-wide Open-Meteo spend budgets, in the provider's own unit: weighted
 # calls, where one location in a batch is one call (times a factor for >14-day
 # windows or >10 variables — see services.openmeteo_weight). Their per-IP
-# budget is 600/min per service; 550 leaves margin on accounting we infer
-# rather than read from a spec. `WeightedBudget` holds it as at most 550 in any
-# 60 seconds, the provider's own shape for the limit, so a full burst never
-# stacks on a full refill.
+# budget is 600/min per host, measured 2026-10-21 (record 0203): the forecast
+# host refused after exactly 600 weighted calls in a minute while the
+# air-quality and archive hosts still answered, so weather and air quality
+# each get a budget, and 550 keeps a margin under the 600. `WeightedBudget`
+# holds it as at most 550 in any 60 seconds, the provider's own shape for the
+# limit, so a full burst never stacks on a full refill.
 #
 # Every pod gets the whole 550 rather than a 1/replicas share. Dividing was
 # wrong in both directions. It under-serves, because one analysis is handled

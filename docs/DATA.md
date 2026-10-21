@@ -248,7 +248,11 @@ which is why both the browser and the server pace their fetches against a
 rolling budget instead of firing everything at once. Open-Meteo's terms reserve
 the right to block abusive addresses without notice, and because the web app
 fetches from *your* browser, the address at stake is yours. Pacing is courtesy
-on the server path and self-defense on the browser path.
+on the server path and self-defense on the browser path. Open-Meteo also lets
+one address hold only five requests open on each of its hosts (measured
+2026-10-21). The app keeps four open per host, and a request refused as the
+sixth is asked once more a second later, which costs nothing because Open-Meteo
+refuses it before counting it.
 
 Pacing is visible rather than hidden. When an analysis is large enough to spend
 its budget, the progress line says it is waiting on quota and counts down to

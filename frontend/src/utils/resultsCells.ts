@@ -183,11 +183,15 @@ export function pendingChartRow(d: PendingDestination): DestinationResult {
   return { name: d.name, latitude: d.latitude, longitude: d.longitude } as DestinationResult
 }
 
-/** A pending destination as the external map link reads it. */
+/**
+ * A pending destination as the external map link reads it. A found row's kind
+ * is already the row type its ranked twin links by, a crag's Mountain Project
+ * included; a searched or clicked place's is the geocoder's word.
+ */
 export function pendingLinkRow(d: PendingDestination): DestinationResult {
   return {
     name: d.name,
-    type: isPeakKind(d.kind ?? '') ? 'peak' : 'custom',
+    type: d.source === 'polygon' ? (d.kind ?? 'custom') : isPeakKind(d.kind ?? '') ? 'peak' : 'custom',
     osm_id: d.osmId ?? null,
     latitude: d.latitude,
     longitude: d.longitude,

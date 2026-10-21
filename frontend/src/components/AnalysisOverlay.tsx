@@ -110,8 +110,9 @@ function OverlayCard({
           )}
         </div>
         {overlay.progress ? (
-          // Weather phase — countable batch progress (the union count is
-          // already in the "(x/y)" headline, so the bar just visualizes it).
+          // Weather phase — countable batch progress. The heading carries the
+          // count and the percentage (analyzeOverlay.ts, record 0205), so the
+          // bar draws the same number and nothing is printed under it.
           <div className="mt-3">
             <div className={`h-2 w-full ${RADIUS.pill} bg-raised overflow-hidden`}>
               <div
@@ -119,9 +120,6 @@ function OverlayCard({
                 style={{ width: `${overlay.progress.percent}%` }}
               />
             </div>
-            <p className={`mt-1.5 ${TEXT.caption} font-mono`}>
-              {overlay.progress.percent}%
-            </p>
           </div>
         ) : (
           // Search / analyzing phase — no countable progress; show activity.

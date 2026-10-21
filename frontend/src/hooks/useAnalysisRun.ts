@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { analysisFailure } from '../utils/analysisFailure'
+import { type AnalysisFailure, analysisFailure } from '../utils/analysisFailure'
 import type { EventNoticeKind } from '../utils/notices'
 import type { ForecastModelOption } from './useCapabilities'
 import { usePacedFetch } from './usePacedFetch'
@@ -13,8 +13,9 @@ import type { Progress, Refusal, RunError } from './analyzeTypes'
 
 export interface RunHooks {
   // A run that did not finish, cancelled or failed. It must change nothing,
-  // so this is where the report it began over is put back.
-  onFailure: () => void
+  // so this is where the report it began over is put back. Told which, since
+  // a failed polygon run keeps the field it found and a cancel does not (#782).
+  onFailure: (kind: AnalysisFailure['kind']) => void
   // Any run ending, whatever the outcome.
   onSettled: () => void
 }
@@ -88,8 +89,8 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
       await body(controller.signal)
       finished = true
     } catch (e) {
-      hooks.onFailure()
       const failure = analysisFailure(e, models)
+      hooks.onFailure(failure.kind)
       if (failure.kind === 'cancel') setStatusMessage(null)
       else if (failure.kind === 'refusal') setRefusal({ message: failure.message })
       else setError({ message: failure.message, retry: failure.retry })

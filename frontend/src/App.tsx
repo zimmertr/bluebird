@@ -240,6 +240,7 @@ export default function App() {
     fireField,
     fireSeq,
     pendingHeights,
+    pendingField,
     placeHeld,
     loading,
     arriving,
@@ -352,6 +353,7 @@ export default function App() {
     places,
     csvRows,
     identity: elevations.identity,
+    found: pendingField,
     restoredTableSort: restored?.tableSort ?? null,
   })
   const {
@@ -359,6 +361,7 @@ export default function App() {
     detailSort,
     tableSort,
     pending,
+    customPendingCount,
   } = report
 
   // The address bar mirrors the panel and the map's layers (useUrlSync).
@@ -423,7 +426,9 @@ export default function App() {
     polygon,
     destinationTypes,
     includeUnnamedPeaks,
-    pendingCount: pending.length,
+    // The reader's own rows only: a ring's found rows are pending too, but
+    // they are what the last run found rather than an input it never saw.
+    pendingCount: customPendingCount,
     sortBy,
     constraints,
   })
