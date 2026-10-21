@@ -62,6 +62,11 @@ interface Props {
    * (record 0200).
    */
   rowRef?: React.RefObject<HTMLElement | null>
+  /**
+   * A phone (record 0136): the list opens in a bottom sheet headed Model,
+   * the label's word, rather than in a card under the field.
+   */
+  sheet?: boolean
 }
 
 /**
@@ -107,6 +112,7 @@ export default function ModelPicker({
   onComparedChange,
   disabled = false,
   rowRef,
+  sheet = false,
 }: Props) {
   const [open, setOpen] = useState(false)
   const selectedIndex = models.findIndex((m) => m.id === value)
@@ -137,8 +143,9 @@ export default function ModelPicker({
   // The chip row is part of the panel's height, so a tick that wraps it onto a
   // second line has to buy another measuring pass; so does the list arriving
   // from `/api/capabilities` under an open panel. Nothing else here changes it.
+  // Closed to the hook on a phone, whose sheet places and dismisses itself.
   const { popoverRef, box, closing } = usePopover({
-    open,
+    open: open && !sheet,
     onOpenChange: setOpen,
     triggerRef,
     // 4px under the field like every menu, at its row's width (record 0200):
@@ -192,7 +199,7 @@ export default function ModelPicker({
   // from the previous box). So the effect below keys on the panel being drawn:
   // keyed on `open`, the first open would look for a list that does not exist
   // yet.
-  const shown = open && box !== null
+  const shown = open && (sheet || box !== null)
 
   useEffect(() => {
     if (!shown) return
@@ -242,10 +249,11 @@ export default function ModelPicker({
     } else if (e.key === 'Escape') {
       e.preventDefault()
       close()
-    } else if (e.key === 'Tab') {
+    } else if (e.key === 'Tab' && !(sheet && e.shiftKey)) {
       // Tab moves along the popover's own order — chips, then the list — rather
       // than the document's, which would send focus past everything else on the
-      // page first because the panel is portalled to the end of the body.
+      // page first because the panel is portalled to the end of the body. A
+      // sheet keeps Shift+Tab, which its own trap walks to Done.
       e.preventDefault()
       if (e.shiftKey) close()
       else listRef.current?.focus()
@@ -261,14 +269,19 @@ export default function ModelPicker({
     }
     if (e.key === 'Enter' || e.key === ' ') {
       // Both keys do the one thing a row does. The list stays open the way it
-      // does for a mouse: ticking three boxes is one visit, not three.
+      // does for a mouse: ticking three boxes is one visit, not three, and a
+      // sheet, which closes on an Enter pressed on its rows, never hears it.
       e.preventDefault()
+      e.stopPropagation()
       const model = models[active]
       if (model && !(model.id === value && !removable)) toggle(model.id)
     } else if (e.key === 'Escape') {
       e.preventDefault()
       close()
     } else if (e.key === 'Tab') {
+      // A sheet is modal, so Tab off the list walks on inside it rather than
+      // closing it.
+      if (sheet && !e.shiftKey) return
       e.preventDefault()
       if (e.shiftKey) focusChip(chipFocus)
       else close()
@@ -336,7 +349,7 @@ export default function ModelPicker({
         ref={triggerRef}
         shape="field"
         open={open}
-        aria-haspopup="listbox"
+        aria-haspopup={sheet ? 'dialog' : 'listbox'}
         aria-label={`Forecast model: ${selected?.label ?? value}${
           comparedCount > 0 ? ` +${comparedCount}` : ''
         }`}
@@ -364,8 +377,13 @@ export default function ModelPicker({
           <span className="flex-shrink-0 tabular-nums">+{comparedCount}</span>
         )}
       </MenuButton>
-      {box && (
-        <Menu box={box} popoverRef={popoverRef} closing={closing}>
+      {(box || (sheet && open)) && (
+        <Menu
+          box={box}
+          popoverRef={popoverRef}
+          closing={closing}
+          sheet={sheet ? { heading: 'Model', onClose: close } : undefined}
+        >
           {/* The selected set, split into what each part DOES, under
               headings of the same kind the list's own header below wears.
               Two groups rather than one row of chips is the whole

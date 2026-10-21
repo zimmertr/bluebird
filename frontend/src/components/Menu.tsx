@@ -4,6 +4,7 @@ import type { PopoverBox } from '../utils/listbox'
 import { nextActiveIndex, optionDomId } from '../utils/listbox'
 import { usePopover } from '../hooks/usePopover'
 import { MENU, MENU_CHEVRON, MENU_TRIGGER, SR_ONLY } from '../styles'
+import BottomSheet from './BottomSheet'
 import { IconChevron } from './icons'
 
 /**
@@ -20,8 +21,8 @@ import { IconChevron } from './icons'
  */
 
 interface Props {
-  /** Where the card goes, from `usePopover`. */
-  box: PopoverBox
+  /** Where the card goes, from `usePopover`; null for a sheet, which places itself. */
+  box: PopoverBox | null
   popoverRef: React.RefObject<HTMLDivElement | null>
   /**
    * The overline strip above the rows, for a menu whose contents need naming
@@ -31,6 +32,13 @@ interface Props {
   header?: ReactNode
   /** Whether the card is on its way out (`usePopover`'s `closing`), for the exit `MOTION.menu` draws. */
   closing: boolean
+  /**
+   * On a phone, the bottom sheet this menu is instead of a card (record
+   * 0136), headed by the word of the label its field stands beside, and
+   * closed by the sheet's own ways out. A caller with a sheet hands its
+   * popover hook a closed menu, so `box` is null.
+   */
+  sheet?: { heading: string; onClose: () => void }
   children: ReactNode
 }
 
@@ -48,8 +56,28 @@ interface Props {
  * It owns those decisions so that no component makes them again: the
  * linter's `style-own-menu` check fails a second `position: 'fixed'` or a
  * second copy of the card anywhere under `components/`.
+ *
+ * On a phone the panel's two field menus, the model list and the calendar,
+ * stand in a bottom sheet instead (`sheet`), as every phone menu does (record
+ * 0136). The choice is made here rather than at each caller so that the rows
+ * are written once, inside the one menu, for both.
  */
-export default function Menu({ box, popoverRef, header, closing, children }: Props) {
+export default function Menu({ box, popoverRef, header, closing, sheet, children }: Props) {
+  // The rows as one block of the sheet, so its rules fall around the menu
+  // rather than between the menu's own parts, which keep their dividers. Set
+  // off the screen's bottom edge by the sheet's side inset, where a row of a
+  // list sheet ends on it: the calendar's well would stand cut off there.
+  if (sheet) {
+    return (
+      <BottomSheet heading={sheet.heading} onClose={sheet.onClose}>
+        <div className="flex flex-col pb-4">
+          {header !== undefined && <div className={MENU.header}>{header}</div>}
+          {children}
+        </div>
+      </BottomSheet>
+    )
+  }
+  if (!box) return null
   return createPortal(
     <div
       ref={popoverRef}

@@ -1,10 +1,12 @@
-import { createRef, useRef } from 'react'
+import { createRef, useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
+import ForecastSection from './ForecastSection'
 import ModelsPicker from './ModelsPicker'
 import RemovedPicker from './RemovedPicker'
 import type { RemovedEntry } from '../utils/removals'
-import { resultRow } from '../testSupport/fixtures'
+import type { ForecastSelection } from '../utils/calendar'
+import { forecastModel, resultRow } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
 import { MENU } from '../styles'
 
@@ -116,5 +118,56 @@ describe('the Removed sheet', () => {
       <RemovedPicker open onOpenChange={() => {}} entries={[entry('Mount Baker')]} onRestore={() => {}} onRestoreAll={() => {}} sheet {...refs()} />,
     )
     expect(screen.queryByRole('button', { name: 'Restore all' })).toBeNull()
+  })
+})
+
+// The Controls sheet's two field menus (#714; record 0136): the model list and
+// the calendar are bottom sheets on a phone like every other phone menu,
+// headed by the words of the labels their fields stand beside.
+describe('the Model and When sheets', () => {
+  function Forecast({ phone }: { phone: boolean }) {
+    const [selection, setSelection] = useState<ForecastSelection>({ kind: 'now' })
+    return (
+      <ForecastSection
+        forecastModel="gfs_seamless"
+        setForecastModel={() => {}}
+        forecastModels={[forecastModel({ id: 'gfs_seamless', label: 'NOAA GFS' })]}
+        comparedModels={[]}
+        setComparedModels={() => {}}
+        defaultForecastModel="gfs_seamless"
+        modelDisabled={false}
+        selection={selection}
+        setSelection={setSelection}
+        archiveDays={365}
+        aqiForecastDays={5}
+        phone={phone}
+      />
+    )
+  }
+
+  it('opens the model list in a sheet headed Model, the listbox kept', () => {
+    render(<Forecast phone />)
+    fireEvent.click(screen.getByRole('button', { name: /^Forecast model:/ }))
+    const sheet = screen.getByRole('dialog', { name: 'Model' })
+    expect(within(sheet).getByRole('listbox', { name: 'Forecast model' })).toBeTruthy()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('opens the calendar in a sheet headed When', () => {
+    render(<Forecast phone />)
+    fireEvent.click(screen.getByRole('button', { name: 'Dates' }))
+    const sheet = screen.getByRole('dialog', { name: 'When' })
+    expect(within(sheet).getByRole('grid', { name: 'Forecast day' })).toBeTruthy()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  // A desk keeps the card under each field (record 0200).
+  it('opens no sheet at a desk', () => {
+    render(<Forecast phone={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Dates' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('grid', { name: 'Forecast day' })).toBeTruthy()
   })
 })

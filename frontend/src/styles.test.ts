@@ -3680,7 +3680,7 @@ describe('the calendar field', () => {
     expect(forecastCalendarSource).toContain('className={CALENDAR_FIELD.box}')
     expect(forecastCalendarSource).toContain('chevronClassName={CALENDAR_FIELD.arrow}')
     expect(CALENDAR_FIELD.box).not.toContain(SELECT)
-    expect(forecastCalendarSource).toContain('<Menu ')
+    expect(forecastCalendarSource).toMatch(/<Menu\s/)
     expect(forecastCalendarSource).toContain('CALENDAR_GROUND')
   })
 })

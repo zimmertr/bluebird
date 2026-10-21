@@ -28,6 +28,9 @@ interface Props {
   // published by /api/capabilities.
   archiveDays: number
   aqiForecastDays: number
+  // A phone, where the model list and the calendar open as bottom sheets
+  // (record 0136) rather than as cards under their fields.
+  phone?: boolean
 }
 
 /**
@@ -47,6 +50,7 @@ export default function ForecastSection({
   setSelection,
   archiveDays,
   aqiForecastDays,
+  phone = false,
 }: Props) {
   const forecastHours = modelForecastHours(forecastModels, forecastModel)
   // The Model row, which the model list spans (record 0134).
@@ -104,13 +108,14 @@ export default function ForecastSection({
             onComparedChange={setComparedModels}
             disabled={modelDisabled}
             rowRef={modelRowRef}
+            sheet={phone}
           />
         </div>
       </div>
       {/* Nothing between the model and the calendar, and nothing under it:
           every message this section has to make lives in the one block
           below the Analyze button (`utils/panelMessages.ts`). */}
-      <ForecastCalendar selection={selection} onChange={setSelection} band={band} />
+      <ForecastCalendar selection={selection} onChange={setSelection} band={band} sheet={phone} />
     </section>
   )
 }

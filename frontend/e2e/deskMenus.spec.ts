@@ -237,3 +237,35 @@ test.describe('a long Removed count at 1024', () => {
     near(parts.under.top, parts.bar.bottom)
   })
 })
+
+// The panel's two field menus on a phone are bottom sheets instead (record
+// 0136), headed by their labels' words, with 44px days: no card is drawn
+// under either field there.
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+
+  test('the model list and the calendar open as bottom sheets', async ({ page }) => {
+    await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await page.getByRole('button', { name: 'Open controls' }).tap()
+
+    await page.getByRole('button', { name: /^Forecast model:/ }).tap()
+    const models = page.getByRole('dialog', { name: 'Model' })
+    await expect(models.getByRole('listbox', { name: 'Forecast model' })).toBeVisible()
+    await expect(card(page)).toHaveCount(0)
+    await models.getByRole('button', { name: 'Done' }).tap()
+    await expect(models).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Dates' }).tap()
+    const when = page.getByRole('dialog', { name: 'When' })
+    await expect(when.getByRole('grid', { name: 'Forecast day' })).toBeVisible()
+    await expect(card(page)).toHaveCount(0)
+    const cell = await when.getByRole('gridcell').first().boundingBox()
+    expect(cell!.height).toBeGreaterThanOrEqual(44)
+    // The sheet stands on the screen's bottom edge.
+    const sheet = await when.boundingBox()
+    near(sheet!.y + sheet!.height, 844)
+    await when.getByRole('button', { name: 'Done' }).tap()
+    await expect(when).toHaveCount(0)
+  })
+})

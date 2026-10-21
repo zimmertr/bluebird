@@ -434,6 +434,7 @@ export default function ControlPanel({
           setSelection={setSelection}
           archiveDays={archiveDays}
           aqiForecastDays={aqiForecastDays}
+          phone={phone}
         />
 
         <MetricsTable

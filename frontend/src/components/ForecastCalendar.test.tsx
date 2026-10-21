@@ -19,7 +19,7 @@ const BAND: BandLimits = { forecastHours: 48, pastDays: 30, aqiDays: 5 }
 
 const onChange = vi.fn()
 
-function Calendar({ initial }: { initial: ForecastSelection }) {
+function Calendar({ initial, sheet = false }: { initial: ForecastSelection; sheet?: boolean }) {
   const [selection, setSelection] = useState(initial)
   return (
     <ForecastCalendar
@@ -29,6 +29,7 @@ function Calendar({ initial }: { initial: ForecastSelection }) {
         setSelection(next)
       }}
       band={BAND}
+      sheet={sheet}
     />
   )
 }
@@ -418,5 +419,39 @@ describe('the date field', () => {
     await user.click(arm('Dates'))
     expect(screen.queryByRole('grid')).toBeNull()
     expect(field().textContent).toBe('Thu, Sep 10 to Sat, Sep 12')
+  })
+})
+
+// A phone's calendar is a bottom sheet headed by the When label's word
+// (record 0136): the Hours row and the grid in it, the sheet's Done in place
+// of the card's own, and every close the card's (`dismiss`).
+describe('on a phone', () => {
+  it('opens a sheet headed When from Dates, with one Done', async () => {
+    const { user } = render(<Calendar initial={{ kind: 'now' }} sheet />)
+    await user.click(arm('Dates'))
+    const sheet = screen.getByRole('dialog', { name: 'When' })
+    expect(sheet.querySelector('[role="grid"]')).not.toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Done' })).toHaveLength(1)
+    expect(document.querySelector('body > [data-side]')).toBeNull()
+  })
+
+  it('goes back to Current on Done with no day picked', async () => {
+    const { user } = render(<Calendar initial={{ kind: 'now' }} sheet />)
+    await user.click(arm('Dates'))
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(lastSelection()).toEqual({ kind: 'now' })
+  })
+
+  it('keeps a picked range and its field on Done', async () => {
+    const { user } = render(<Calendar initial={{ kind: 'now' }} sheet />)
+    await user.click(arm('Dates'))
+    await user.click(day('2026-09-16'))
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(arm('Dates').getAttribute('aria-pressed')).toBe('true')
+    expect(field()).toBeTruthy()
+    await user.click(field())
+    expect(screen.getByRole('dialog', { name: 'When' })).toBeTruthy()
   })
 })

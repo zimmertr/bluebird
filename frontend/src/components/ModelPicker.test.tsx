@@ -19,10 +19,12 @@ function Picker({
   value = 'gfs_seamless',
   compared = [],
   disabled = false,
+  sheet = false,
 }: {
   value?: string
   compared?: string[]
   disabled?: boolean
+  sheet?: boolean
 }) {
   const [ranking, setRanking] = useState(value)
   const [extra, setExtra] = useState(compared)
@@ -41,6 +43,7 @@ function Picker({
         setExtra(ids)
       }}
       disabled={disabled}
+      sheet={sheet}
     />
   )
 }
@@ -102,6 +105,45 @@ describe('opening and closing', () => {
   it('does not open while the window takes the model out of play', () => {
     const { trigger } = setup({ disabled: true })
     expect((trigger as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
+// A phone's list is a bottom sheet headed by the label's word (record 0136),
+// the same chips and the same listbox in it, and the sheet's ways out.
+describe('on a phone', () => {
+  it('opens a sheet headed Model rather than a card, holding the one list', async () => {
+    const { user, trigger } = setup({ sheet: true })
+    expect(trigger.getAttribute('aria-haspopup')).toBe('dialog')
+    await user.click(trigger)
+    const sheet = screen.getByRole('dialog', { name: 'Model' })
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    expect(within(sheet).getByRole('listbox', { name: 'Forecast model' }).getAttribute('aria-multiselectable')).toBe('true')
+    expect(within(sheet).getAllByRole('option')).toHaveLength(MODELS.length)
+    expect(within(sheet).getByRole('toolbar')).toBeTruthy()
+    expect(document.querySelector('body > [data-side]')).toBeNull()
+  })
+
+  // The sheet closes on an Enter pressed on its body, which a row's Enter
+  // must not reach; and Tab walks on inside a modal sheet.
+  it('ticks a row on Enter and keeps the sheet open, and Tab does not close it', async () => {
+    const { user, trigger } = setup({ sheet: true })
+    await user.click(trigger)
+    list().focus()
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onComparedChange).toHaveBeenLastCalledWith(['ecmwf_ifs025'])
+    expect(screen.getByRole('dialog', { name: 'Model' })).toBeTruthy()
+    list().focus()
+    await user.tab()
+    expect(screen.getByRole('dialog', { name: 'Model' })).toBeTruthy()
+  })
+
+  it('closes on Done with the keyboard back on the field', async () => {
+    const { user, trigger } = setup({ sheet: true })
+    await user.click(trigger)
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(trigger)
   })
 })
 

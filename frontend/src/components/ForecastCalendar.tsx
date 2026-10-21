@@ -59,6 +59,12 @@ interface Props {
   // ECMWF reaches fourteen, so the same calendar draws twelve more disabled days
   // for one than for the other. The near one is the archive's reach (#123).
   band: BandLimits
+  /**
+   * A phone (record 0136): the calendar opens in a bottom sheet headed When,
+   * the label's word, with the sheet's own Done, rather than in a card under
+   * the field.
+   */
+  sheet?: boolean
 }
 
 // What the Hours toggle opens on: this hour through the end of the day.
@@ -111,7 +117,7 @@ interface Drag {
 const HOURS_NOTE =
   'Hourly sets the start time on the first day and the end time on the last day. Forecast data is inclusive.'
 
-export default function ForecastCalendar({ selection, onChange, band }: Props) {
+export default function ForecastCalendar({ selection, onChange, band, sheet = false }: Props) {
   // Captured once: a grid that recomputed against a moving `now` would redraw
   // every render, and nothing here changes meaning within a session.
   const now = useMemo(() => new Date(), [])
@@ -307,8 +313,9 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
   // Hourly adds two rows and a month can hold five weeks or six, and either
   // changes the card's height while it is open; a card that grew without
   // being placed again would scroll in a gap the viewport could give it.
+  // Closed to the hook on a phone, whose sheet places and dismisses itself.
   const { popoverRef, box, closing } = usePopover({
-    open,
+    open: open && !sheet,
     onOpenChange: dismiss,
     triggerRef,
     remeasure: [hours !== undefined, weeks.length],
@@ -445,8 +452,9 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
           stands 4px under it at its width, the field lit over it the way
           every field is while its menu is out (record 0200). The slot stays
           while a card Dates opened is out with no field in it, empty, as
-          what that card is placed under. */}
-      {revealsGrid && (fieldText !== '' || open) && (
+          what that card is placed under. A phone's sheet is placed by the
+          screen's edge, so there it is drawn for the field alone. */}
+      {revealsGrid && (fieldText !== '' || (open && !sheet)) && (
         <div ref={slotRef} className="relative mt-2">
           {fieldText !== '' && (!open || fromField) && (
             <MenuButton
@@ -469,8 +477,14 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
         </div>
       )}
 
-      {revealsGrid && box && (
-        <Menu box={box} popoverRef={popoverRef} closing={closing}>
+      {revealsGrid && (box || (sheet && open)) && (
+        <Menu
+          box={box}
+          popoverRef={popoverRef}
+          closing={closing}
+          // The sheet's Done is the card's below, closing the same way.
+          sheet={sheet ? { heading: 'When', onClose: () => dismiss(false) } : undefined}
+        >
           <div className={CALENDAR_GROUND}>
           <div className="flex items-center justify-between gap-2">
             <span className={TEXT.subheading} title={HOURS_NOTE}>
@@ -630,11 +644,13 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
               closes on Dates and its field, and with no day picked the arm
               goes back to Current, as every other close does (`dismiss`).
               The word and the button are draw mode's Done. */}
-          <div className="flex justify-end p-2">
-            <button type="button" onClick={() => dismiss(false)} className={BUTTON_ACCENT}>
-              Done
-            </button>
-          </div>
+          {!sheet && (
+            <div className="flex justify-end p-2">
+              <button type="button" onClick={() => dismiss(false)} className={BUTTON_ACCENT}>
+                Done
+              </button>
+            </div>
+          )}
         </Menu>
       )}
     </>

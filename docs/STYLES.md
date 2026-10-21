@@ -1076,13 +1076,15 @@ Record: [0174](decisions/0174-desk-map-rows.md)
 On a phone every menu is a sheet instead (`BottomSheet`, `BOTTOM_SHEET`): a
 card from the bottom edge over a dimmed map, with a grip, its heading and
 Done, and rows a finger's 44px tall with a rule between them. Layers and
-Legend from the chip row and Columns, Models and Removed from the results bar
-open in it. The dim covers the whole screen, the search row and the chips
+Legend from the chip row, the model list and the calendar from the Controls
+sheet, and Columns, Models and Removed from the results bar open in it. The
+model list and the calendar are `Menu`'s rows in a sheet (`sheet`), so they
+are written once for both widths. The dim covers the whole screen, the search row and the chips
 included, as a modal sheet's scrim does in Material. The grip and the title
 row drag the sheet, to just under the chips, shut, or anywhere between, and a
 double tap on the grip puts it back at its own height, through the gesture
 the results sheet's grips use.
-Record: [0136](decisions/0136-phone-menus-are-bottom-sheets.md) Record: [0146](decisions/0146-sheet-grips-drag.md)
+Record: [0136](decisions/0136-phone-menus-are-bottom-sheets.md) Record: [0146](decisions/0146-sheet-grips-drag.md) Record: [0200](decisions/0200-one-menu-for-every-trigger.md)
 
 ### Adding a new role
 

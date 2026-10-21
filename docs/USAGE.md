@@ -22,7 +22,7 @@ Every message the panel would show under **Analyze**, from the one asking for a 
 
 On a phone with a home indicator, nothing you press stands in the strip it keeps at the bottom of the screen: the sheets run under it, and their handles, buttons and rows stop above it.
 
-Every menu on a phone is a sheet that rises from the bottom of the screen: Legend, Layers, and the results bar's Columns, Models and Removed. **Done**, a tap on the dimmed map or Escape closes it, and its handle and title drag it the way the Controls sheet's do: up to just under the chips, down to close, anywhere between to stay, with a flick down closing it and a double tap on the handle putting it back at its own height. The Analyze button tucks away while one of these is open; the Controls sheet dims nothing and keeps it.
+Every menu on a phone is a sheet that rises from the bottom of the screen: Legend, Layers, the Controls sheet's **Model** list and calendar, and the results bar's Columns, Models and Removed. **Done**, a tap on the dimmed map or Escape closes it, and its handle and title drag it the way the Controls sheet's do: up to just under the chips, down to close, anywhere between to stay, with a flick down closing it and a double tap on the handle putting it back at its own height. The Analyze button tucks away while one of these is open; the Controls sheet dims nothing and keeps it.
 
 ## Light theme
 
@@ -122,7 +122,7 @@ Changing the model needs a new **Analyze**, like changing the polygon or the win
 
 ### Forecast window
 
-A **When** toggle reading **Current** or **Dates**, and under **Dates**, once you have picked a range, one field holding the chosen window in the words the results bar uses for it (`Wed, Oct 14 to Thu, Oct 15`). Pressing the field opens the calendar under it: an **Hours** row, the month, and the grid of days. It stays open while you pick, so a range is two clicks or a drag in one visit, and closes on **Done** under the days, on the field again, on Escape, on a click outside it, or on Tab past its last control. Choosing **Dates** with no range to bring back opens it for you, and closing it without picking a day goes back to **Current**.
+A **When** toggle reading **Current** or **Dates**, and under **Dates**, once you have picked a range, one field holding the chosen window in the words the results bar uses for it (`Wed, Oct 14 to Thu, Oct 15`). Pressing the field opens the calendar under it: an **Hours** row, the month, and the grid of days. It stays open while you pick, so a range is two clicks or a drag in one visit, and closes on **Done** under the days, on the field again, on Escape, on a click outside it, or on Tab past its last control. On a phone it rises as a sheet titled **When** instead, closed by the sheet's own **Done**. Choosing **Dates** with no range to bring back opens it for you, and closing it without picking a day goes back to **Current**.
 
 - **Current** analyzes the hour you press Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
 - **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. By default precipitation ranks by the day's total, the freezing level by its minimum, and wind, temperature and AQI by their average; the Metrics section's aggregate dropdowns change that.
