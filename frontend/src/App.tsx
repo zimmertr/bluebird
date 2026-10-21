@@ -45,6 +45,7 @@ import { useTimeline } from './hooks/useTimeline'
 import { usePresentedReport } from './hooks/usePresentedReport'
 import { useRemovals } from './hooks/useRemovals'
 import { useResultsView } from './hooks/useResultsView'
+import { useLayoutMotion } from './hooks/useLayoutMotion'
 import { useClosePopupsOnCommit } from './hooks/useClosePopupsOnCommit'
 import { useRunOnOpen } from './hooks/useRunOnOpen'
 import { useUrlSync } from './hooks/useUrlSync'
@@ -574,6 +575,13 @@ export default function App() {
     theme,
   })
   const { layout, tableView } = resultsView
+  // Which edge of a desk's layout is moving, so the map and the results
+  // hold one size while it moves (record 0201).
+  const { motion: layoutMotion, onTransitionEnd: onLayoutMoved } = useLayoutMotion({
+    isDesktop,
+    open: sidebarOpen,
+    mode: layout.resultsMode,
+  })
 
   // The tour waits while a polygon is being drawn or a run is in flight: its
   // first card frames the Destinations section, which mid-draw shows Cancel
@@ -594,7 +602,7 @@ export default function App() {
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
       <SkipLink targetId={MAIN_ID} />
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
-      <div className="flex flex-1 overflow-hidden min-h-0 relative">
+      <div className="flex flex-1 overflow-hidden min-h-0 relative" onTransitionEnd={onLayoutMoved}>
       {showWelcome && (
         <WelcomeModal onDismiss={dismissWelcome} onTutorial={startTourFromWelcome} tutorialWaits={tourWaits} />
       )}
@@ -687,6 +695,7 @@ export default function App() {
           modelId={analyzed?.forecastModel ?? forecastModel}
           showResults={showResults}
           sidebarOpen={sidebarOpen}
+          layoutMotion={layoutMotion}
           controlsPx={controlsHeldPx ?? controlsSheetPx(layout.mapPx)}
           legendInitiallyOpen={storedView.legendOpen ?? true}
           onOpenControls={openDrawer}
@@ -725,6 +734,7 @@ export default function App() {
           pendingHeights={waitingHeights}
           modelId={analyzed?.forecastModel ?? forecastModel}
           theme={theme}
+          layoutMotion={layoutMotion}
         />
       </main>
       </div>

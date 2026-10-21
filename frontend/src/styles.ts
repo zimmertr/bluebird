@@ -2463,19 +2463,104 @@ export const HEADER_BUTTON =
   'bg-raised/80 transition-colors hover:bg-raised-hover active:bg-raised-hover'
 
 /**
- * Movement that answers a reader's action, and stops where they asked their
- * system for less (#687): the drawer sliding over the map on a phone, and the
- * analysis card's progress bar filling. `motion-reduce:` drops the transition
- * to an instant change, the way `TOUR.motion` does for the tutorial's
- * spotlight; the panel's smooth scroll asks the same question through
- * `prefersReducedMotion` in `utils/motion.ts`. Both were the two transitions
- * in the app that ignored the setting.
+ * Movement that answers a reader's action, at two speeds, and stops where
+ * they asked their system for less (#687, #714; record 0201).
+ *
+ * A menu or a card is small and near the hand that opened it, so it fades and
+ * slides in 150ms. A panel, a sheet or a results pane moves an edge the whole
+ * screen is laid out against, so it takes 300ms, the same in and out. Each
+ * recipe names the one property it moves, because a sheet or a pane whose
+ * height a grip drags must not chase the finger.
+ *
+ * `motion-reduce:` drops each to an instant change, the way `TOUR.motion`
+ * does for the tutorial's spotlight; the panel's smooth scroll asks the same
+ * question through `prefersReducedMotion` in `utils/motion.ts`, and so does a
+ * closing pane, which unmounts at once rather than waiting out a transition
+ * that will not run. `PANEL_MS` is the slower speed in numbers, for script
+ * that waits out a move; `styles.test.ts` holds each class to its speed.
  */
 export const MOTION = {
-  /** The phone drawer's slide in and out. */
+  /** A menu or a card opening from its control: a fade and a short slide. */
+  menu: 'transition-[opacity,translate] duration-150 ease-out motion-reduce:transition-none',
+  /** A phone sheet rising and falling. */
   slide: 'transform transition-transform duration-300 ease-in-out motion-reduce:transition-none',
+  /** The desk panel moving the map's edge as it leaves and returns (`DESK_PANEL`). */
+  push: 'transition-[margin-left] duration-300 ease-in-out motion-reduce:transition-none',
+  /** A results pane opening or closing on a Table, Chart or Both press (`RESULTS_PANE`). */
+  pane: 'transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none',
   /** A progress bar's fill growing to its next width. */
   progress: 'transition-all duration-300 ease-out motion-reduce:transition-none',
+} as const
+
+/** The duration `MOTION.slide`, `MOTION.push` and `MOTION.pane` share, in milliseconds. */
+export const PANEL_MS = 300
+
+/**
+ * The controls panel at a desk (#714; record 0201): a column in the page's
+ * row beside the map, 360px wide, that stays in the row while it is shut.
+ * Shut, its left margin takes its own width back, so it slides off the left
+ * edge and the map's column widens in the same frames; open, the margin
+ * returns and the column narrows as the panel comes in. One property moves,
+ * and the map's edge is the panel's edge in every frame, so nothing is
+ * painted over anything.
+ *
+ * `relative` because the header's buttons stand absolutely in its top right
+ * (`PANEL_HEADER.actions`). `LAYER.base` is a docked panel's layer.
+ */
+export const DESK_PANEL = {
+  card: `relative ${LAYER.base} flex w-90 flex-shrink-0 flex-col overflow-hidden bg-panel border-r ${PANEL_EDGE} ${MOTION.push}`,
+  shut: '-ml-90',
+} as const
+
+/**
+ * A results pane at a desk, the chart or the table with its grip, as a frame
+ * that opens on a Table, Chart or Both press and closes on the next (#714;
+ * record 0201). The frame is one grid row, `1fr` open and `0fr` shut, so it
+ * opens to whatever height its body has without being told it, and only the
+ * press moves it: a drag on a grip changes the body under a row that stays
+ * `1fr`. The body keeps its own height and the frame clips it.
+ *
+ * The chart's body holds to the results bar (`top`) and the table's to the
+ * column's foot (`foot`), the edges each stands against in Both. So neither
+ * picture slides under the other: Table to Chart wipes the boundary up the
+ * column, and Table to Both lifts the bar off a chart that stays where it
+ * will stand.
+ */
+export const RESULTS_PANE = {
+  frame: 'grid flex-shrink-0',
+  open: 'grid-rows-[1fr]',
+  shut: 'grid-rows-[0fr]',
+  top: 'flex min-h-0 flex-col overflow-hidden',
+  foot: 'flex min-h-0 flex-col justify-end overflow-hidden',
+} as const
+
+/**
+ * What holds one size while a desk's layout moves (#714; record 0201,
+ * `useLayoutMotion`), so a frame of the move shifts boxes rather than
+ * resizing a map canvas or laying out a table of a thousand rows.
+ *
+ * The map's box is the window's width while the panel moves and the window's
+ * height while a pane moves, centred on the map's column, which clips it
+ * (`clip`). MapLibre keeps the centre on a resize, so the map draws the way
+ * it would at every width in between and is resized only where the box
+ * changes: at the start of a close and the end of an open, the closed width
+ * being the window's. `rest` is the box the rest of the time.
+ *
+ * The panes' bodies hold a width while the panel moves. The table's box takes
+ * the window's, the widest it will be, so a close lays it out once at the
+ * start and an open once at the end, with the spare width in its filler
+ * column. The chart keeps the width it had (`chartClosing` is the window less
+ * the panel), because drawing it is the costliest thing on the page, and is
+ * drawn once at the end.
+ */
+export const LAYOUT_HOLD = {
+  rest: 'absolute inset-0',
+  mapPush: 'absolute inset-y-0 left-[calc(50%-50vw)] w-screen',
+  mapPanes: 'absolute inset-x-0 top-[calc(50%-50dvh)] h-dvh',
+  clip: 'overflow-clip',
+  table: 'w-screen',
+  chartClosing: 'w-[calc(100vw-22.5rem)]',
+  chartOpening: 'w-screen',
 } as const
 
 /**

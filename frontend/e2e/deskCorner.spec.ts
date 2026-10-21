@@ -52,7 +52,14 @@ for (const [width, height, panel] of [
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await page.getByRole('button', { name: 'Analyze' }).click()
     await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
-    if (panel === 'shut') await page.getByRole('button', { name: 'Close controls' }).click()
+    if (panel === 'shut') {
+      await page.getByRole('button', { name: 'Close controls' }).click()
+      // The panel takes 300ms to leave (record 0201), so the corner is read
+      // once the map has the whole row.
+      await expect
+        .poll(() => page.locator('.maplibregl-map').evaluate((el) => el.getBoundingClientRect().left))
+        .toBe(0)
+    }
 
     const at = await corner(page)
     console.log(`desk corner ${width} px`, JSON.stringify(at))

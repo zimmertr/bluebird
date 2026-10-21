@@ -18,7 +18,7 @@ import type { ClosureProximityStatus } from '../utils/closureProximity'
 import type { ActionWord } from '../utils/analyzeGate'
 import type { EventNoticeKind } from '../utils/notices'
 import type { CommitReason } from '../utils/present'
-import { CONTROLS_SHEET, HEADER_BUTTON, LAYER, MOTION, PANEL_EDGE, PANEL_HEADER } from '../styles'
+import { CONTROLS_SHEET, DESK_PANEL, HEADER_BUTTON, PANEL_HEADER } from '../styles'
 import type { Theme } from '../utils/viewPrefs'
 
 interface AppDrawerProps {
@@ -324,21 +324,15 @@ export default function AppDrawer({
   }
   return (
     <>
-      {/* Controls panel — docked on desktop when open, off-canvas otherwise.
-          When closed it stays absolute + translated off-screen so it leaves the
-          layout and the map fills the full width on every breakpoint.
+      {/* The desk's panel, a column beside the map that stays in the row
+          while it is shut (record 0201): its margin takes its width back, so
+          the map's edge travels with the panel's both ways. A phone draws the
+          Controls sheet above instead.
 
           Inert while closed: off screen is not out of the Tab order, and the
           closed drawer kept some 45 stops a keyboard walked through blind
           before reaching the map (#576). */}
-      <aside
-        inert={!open}
-        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 ${MOTION.slide} flex-shrink-0 bg-panel flex flex-col overflow-hidden border-r ${PANEL_EDGE} ${
-          open
-            ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
-            : '-translate-x-full'
-        }`}
-      >
+      <aside inert={!open} className={`${DESK_PANEL.card} ${open ? '' : DESK_PANEL.shut}`}>
         {/* The header's buttons: the theme switch, then the close button,
             which collapses the panel. */}
         <div className={PANEL_HEADER.actions}>
