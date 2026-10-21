@@ -124,8 +124,8 @@ import { CHART_TICK_PX, LINE_LAYER_Z, LINE_RIM_FILTER_ID } from './utils/chartCo
 import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { CHIP_MENU_GAP_PX, CORNER_CONTROL_PX, NOTICE_BAND_MAX_PX, PHONE_LINE_PX } from './utils/resultsSheet'
-import { CREDITS_OPEN_CLASS, SCALE_MAX_WIDTH_PX } from './map/controls'
+import { CHIP_MENU_GAP_PX, NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
+import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { SNOW_RAMP } from './utils/snowDepth'
 import { contrast, mixOver, relativeLuminance, round2 } from './testSupport/contrast'
@@ -164,6 +164,7 @@ import mapLegendSource from './components/MapLegend.tsx?raw'
 import mapRowsSource from './components/MapRows.tsx?raw'
 import bottomSheetSource from './components/BottomSheet.tsx?raw'
 import phoneFootSource from './components/PhoneFoot.tsx?raw'
+import mapStageSource from './components/MapStage.tsx?raw'
 import appDrawerSource from './components/AppDrawer.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
@@ -3121,6 +3122,13 @@ describe('a desk\'s map corner', () => {
     expect(credit.filter((t) => t.startsWith('shadow'))).toEqual([])
   })
 
+  // The map's container gives the library's controls a 20px line, and the
+  // corner stands outside it: without its own the scale shrank to 17px from
+  // the vendor's 22px box (record 0162).
+  it('keeps the library\'s 20px line on the credit line', () => {
+    expect(tokens(MAP_CORNER.credit)).toContain('leading-5')
+  })
+
   // The scale's box is as wide as the bar can draw, the bar at its right, so
   // the credits stay put while the bar changes with the zoom.
   it('holds the scale in a box as wide as its widest bar', () => {
@@ -3158,86 +3166,6 @@ describe('a desk\'s map corner', () => {
   })
 })
 
-// A phone's credit line (record 0174): the desk's line mirrored into the
-// bottom-left corner, holding the (i) and the scale, on the sheet's edge.
-describe('a phone\'s credit line', () => {
-  const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
-  // A spacing step is a quarter of a rem: 4px.
-  const step = (recipe: string, prefix: string): number => {
-    const m = recipe.match(new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`))
-    expect(m, `${prefix} in ${recipe}`).not.toBeNull()
-    return Number(m![1]) * 4
-  }
-  const rule = (selector: string) => {
-    const at = mapCss.indexOf(`\n${selector} {`)
-    expect(at, selector).toBeGreaterThanOrEqual(0)
-    return mapCss.slice(at, mapCss.indexOf('}', at))
-  }
-
-  // The desk's line turned round: the same ground, its top and right edges
-  // on and its top-right corner rounded, since it stands against the map's
-  // left side and the sheet's top; no shadow, which would fall on the sheet.
-  it('wears the desk line\'s ground against the other two edges', () => {
-    const phone = tokens(MAP_CORNER.phoneCredit)
-    const desk = tokens(MAP_CORNER.credit)
-    for (const t of ['map-corner', 'py-0.5', 'bg-floating/95', 'border-frame', 'backdrop-blur-sm']) {
-      expect(desk, t).toContain(t)
-      expect(phone, t).toContain(t)
-    }
-    expect(phone).toEqual(expect.arrayContaining(['border-t', 'border-r', RADIUS.surface.replace('rounded-', 'rounded-tr-')]))
-    expect(phone).not.toContain('border-l')
-    expect(phone).not.toContain('border')
-    expect(phone.filter((t) => t.startsWith('shadow'))).toEqual([])
-    // Mirrored insets: 8px from the map's edge to the (i), 10px past the scale.
-    expect([step(MAP_CORNER.phoneCredit, 'pl'), step(MAP_CORNER.phoneCredit, 'pr')]).toEqual([8, 10])
-    expect([step(MAP_CORNER.credit, 'pl'), step(MAP_CORNER.credit, 'pr')]).toEqual([10, 8])
-  })
-
-  // Two columns, the (i)'s and the scale's box, 10px apart, each on the
-  // line's bottom, so the folded line is the (i), its padding and its edge.
-  it('is the (i)\'s column and the scale\'s box, 29px tall folded', () => {
-    expect(tokens(MAP_CORNER.phoneCredit)).toEqual(expect.arrayContaining(['map-phone-line', 'grid', 'items-end', 'grid-cols-[1.5rem_auto]']))
-    // The library's 20px line, which the map's container gives its controls
-    // and the corner, outside it, does not: the scale's 22px box is that line
-    // and its 2px foot (record 0162).
-    expect(tokens(MAP_CORNER.phoneCredit)).toContain('leading-5')
-    expect(step(MAP_CREDIT.button, 'size')).toBe(24)
-    expect(step(MAP_CORNER.phoneCredit, 'gap-x')).toBe(10)
-    expect(CORNER_CONTROL_PX).toBe(24)
-    expect(PHONE_LINE_PX).toBe(2 * step(MAP_CORNER.phoneCredit, 'py') + 1 + CORNER_CONTROL_PX)
-    // The scale's box at the desk's width, in the first row beside the (i).
-    for (const t of tokens(MAP_CORNER.scale)) expect(tokens(MAP_CORNER.phoneScale), t).toContain(t)
-    expect(tokens(MAP_CORNER.phoneScale)).toEqual(expect.arrayContaining(['col-start-2', 'row-start-1']))
-  })
-
-  // Flush left on the sheet's edge, as far right as the map's inset, so the
-  // opened line can grow to it; the box takes no press of its own.
-  it('stands flush left on the lift, as wide as the map less its inset', () => {
-    expect(tokens(MAP_CORNER.phoneBox)).toEqual(
-      expect.arrayContaining(['absolute', 'left-0', MAP_EDGE.right, 'bottom-[var(--map-corner-lift,0px)]', 'flex', 'pointer-events-none', LAYER.base]),
-    )
-  })
-
-  // The (i) stands at the line's bottom left, folded and open; folded, the
-  // attribution keeps its 24px. Open, it spans both columns and leaves its
-  // last 28px, the 24px row and 4px over it, to the (i) and the scale, and
-  // the line grows to the box.
-  it('lays the opened credits over the (i) and the scale', () => {
-    expect(rule('.map-phone-line .maplibregl-ctrl-attrib')).toContain(`min-height: ${CORNER_CONTROL_PX}px;`)
-    const button = rule('.map-phone-line .maplibregl-ctrl-attrib-button')
-    for (const decl of ['top: auto;', 'right: auto;', 'bottom: 0;', 'left: 0;']) expect(button).toContain(decl)
-    expect(rule(`.map-phone-line:has(.${CREDITS_OPEN_CLASS})`)).toContain('flex-grow: 1;')
-    const open = rule(`.map-phone-line .maplibregl-ctrl-attrib.${CREDITS_OPEN_CLASS}`)
-    expect(open).toContain('grid-column: 1 / -1;')
-    expect(open).toContain('grid-row: 1;')
-    expect(open).toContain('min-height: 0;')
-    expect(open).toContain(`padding-bottom: ${CORNER_CONTROL_PX + 4}px;`)
-    // After the desk's rule that strips the attribution's padding, which it
-    // outranks anyway.
-    expect(mapCss.indexOf(open)).toBeGreaterThan(mapCss.indexOf('\n.map-corner .maplibregl-ctrl-attrib {'))
-  })
-})
-
 // The credit line on a phone, opened, wraps short of the scale bar rather than
 // covering it (#687): map.css caps the bottom-right corner at the map's width
 // less the scale's room, which these vendor numbers and the scale's widest
@@ -3252,6 +3180,20 @@ describe('the attribution beside the scale', () => {
     const cap = Number(rule.match(/max-width: calc\(100% - (\d+)px\)/)?.[1])
     expect(SCALE_MAX_WIDTH_PX).toBe(100)
     expect(cap).toBe(SCALE_MARGIN_PX + SCALE_MAX_WIDTH_PX + CLEAR_PX - ATTRIB_MARGIN_PX)
+  })
+
+  // On a phone the credit line sits at the bottom left beside the scale, and
+  // its row stops so the line ends 8px short of the Analyze button (#696):
+  // the button's measured width, its 16px inset and the 8px clear, less the
+  // compact credit's own 10px margin inside the row. Measured 2026-10-14 at
+  // 360, 390 and 430 wide: a 120.1px button, the row ending 134.1px from the
+  // map's right edge, the line 8px short of the button.
+  it('caps a phone\'s credit row short of the Analyze button', () => {
+    const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-left:has\(> \.maplibregl-ctrl-attrib\) \{[^}]*\}/)?.[0] ?? ''
+    const clear = Number(rule.match(/right: calc\(var\(--map-fab-w, 0px\) \+ (\d+)px\);/)?.[1])
+    expect(clear).toBe(16 + CLEAR_PX - ATTRIB_MARGIN_PX)
+    expect(MAP_FAB.split(/\s+/)).toContain('right-4')
+    expect(mapStageSource).toContain("'--map-fab-w': `${fabPx}px`")
   })
 
   // Three lines at 360px wide: the corner grows up over the map, never down
@@ -3301,13 +3243,12 @@ describe('the scale bar', () => {
     for (const r of [...measure(dark), ...measure(light)]) expect(r).toBeGreaterThanOrEqual(4.5)
   })
 
-  // In a corner's credit line (record 0174), a desk's or a phone's, it
-  // stands on the line's floating surface instead, so it sheds the scrim and
-  // draws its ends in its ink in both themes. Measured 2026-10-20: the ink on
-  // the line's 95% fill over a white map and a black one, dark theme then
-  // light, for the label and the ends alike. The phone's line wears the same
-  // fill (`CREDIT_LINE`), so the numbers are the same there.
-  it('stands on the credit line\'s surface in the map\'s corner, its ends in its ink', () => {
+  // In a desk's credit line (record 0174) it stands on the line's floating
+  // surface instead, so it sheds the scrim and draws its ends in its ink in
+  // both themes. Measured 2026-10-20: the ink on the line's 95% fill over a
+  // white map and a black one, dark theme then light, for the label and the
+  // ends alike.
+  it('stands on the credit line\'s surface in a desk\'s corner, its ends in its ink', () => {
     const corner = mapCss.match(/\n\.map-corner \.maplibregl-ctrl-scale \{[^}]*\}/)?.[0] ?? ''
     expect(corner).toContain('background-color: transparent;')
     expect(corner).toContain(`border-color: var(--ui-${ink});`)

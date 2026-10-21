@@ -10,9 +10,7 @@ import {
   CONTROLS_MAP_PX,
   NOTICE_BAND_MAX_PX,
   NOTICE_LINE_PX,
-  NO_LINE,
   MAP_ROWS_PX,
-  PHONE_LINE_PX,
   PLAYER_ROOM_PX,
   LEGEND_GAP_PX,
   LEGEND_STACK_PX,
@@ -31,6 +29,7 @@ import {
   controlsSheetPx,
   fabBottomPx,
   noticeBottomPx,
+  phoneCornerLiftPx,
   phoneFootLiftPx,
   transportFits,
   transportStandPx,
@@ -287,15 +286,16 @@ describe('the drag cap', () => {
   })
 })
 
-// The phone's Analyze button (record 0135): the sheet and the notice band
-// move it, and an open credit line (record 0174), and the player stands on it.
+// The phone's Analyze button (record 0135): two things move it, the sheet and
+// the notice band, and the player stands on it.
 describe('the Analyze button', () => {
   it('rides the sheet\'s top edge 16px above it at any height', () => {
     for (const lift of [0, 84, 300]) expect(fabBottomPx(lift, 0, 844)).toBe(lift + FAB_INSET_PX)
   })
 
-  // The band stands 10px over the credit line's top edge, the line being on
-  // the sheet's, and the button 16px over the band (records 0140 and 0174).
+  // The band stands on the sheet's edge, 10px off it, the gap the scale and
+  // the (i) kept above the sheet before they moved up beside the button,
+  // and the button 16px over the band (record 0140).
   it('rises over the notice band by the band\'s height', () => {
     expect(noticeBottomPx(104)).toBe(104 + CORNER_MARGIN_PX)
     expect(CORNER_MARGIN_PX).toBe(10)
@@ -309,42 +309,13 @@ describe('the Analyze button', () => {
     expect(NOTICE_BAND_MAX_PX).toBe(3 * 16 + 2 * 8 + 2)
   })
 
-  // A phone's credit line (record 0174) stands flush on the sheet's edge,
-  // 29px tall folded: the (i)'s 24px, 2px above and below it and its 1px top
-  // edge. `styles.test.ts` holds the role to the same sum.
-  it('takes the folded credit line as the (i), its padding and its edge', () => {
-    expect(PHONE_LINE_PX).toBe(CORNER_CONTROL_PX + 2 * 2 + 1)
-    expect(PHONE_LINE_PX).toBe(29)
-    expect(NO_LINE).toEqual({ px: 0, open: false })
-  })
-
-  // The band clears the whole line, folded or open, since the line spans the
-  // band's left end.
-  it('stands the band 10px over the credit line', () => {
-    const folded = { px: PHONE_LINE_PX, open: false }
-    expect(noticeBottomPx(104, folded.px)).toBe(104 + PHONE_LINE_PX + CORNER_MARGIN_PX)
-    expect(noticeBottomPx(104, 73)).toBe(104 + 73 + CORNER_MARGIN_PX)
-    expect(fabBottomPx(104, 52, 844, folded)).toBe(noticeBottomPx(104, PHONE_LINE_PX) + 52 + FAB_INSET_PX)
-  })
-
-  // Folded, the line stands beside the button at the left, so the button
-  // keeps its 16px over the sheet's edge. Open, the credits spread under it,
-  // so it rises 16px over the line, as Material's floating button rises over
-  // a snackbar.
-  it('stands beside a folded line and over an open one', () => {
-    for (const lift of [0, 84, 300]) {
-      expect(fabBottomPx(lift, 0, 844, { px: PHONE_LINE_PX, open: false })).toBe(lift + FAB_INSET_PX)
-      expect(fabBottomPx(lift, 0, 844, { px: 73, open: true })).toBe(lift + 73 + FAB_INSET_PX)
-    }
-    // A notice over an open line: the band over the line, the button over the band.
-    expect(fabBottomPx(104, 52, 844, { px: 73, open: true })).toBe(104 + 73 + CORNER_MARGIN_PX + 52 + FAB_INSET_PX)
-  })
-
-  // An open line over a sheet dragged high goes under the button, as a
-  // notice does, rather than the button over the chips.
-  it('lets an open line under the button where the rows leave no room', () => {
-    const lift = 844 - DRAGGED_MAP_PX
-    expect(fabBottomPx(lift, 0, 844, { px: 73, open: true })).toBe(lift + FAB_INSET_PX)
+  // The scale, the (i) and the opened credit line stand on the button's
+  // row with their bottoms on the button's bottom edge (TJ, 2026-10-14): each
+  // stands on the library's 10px margin inside the corner band, so the band
+  // starts that margin under the button.
+  it('stands the map corners on the button\'s bottom edge', () => {
+    const fab = 120
+    expect(phoneCornerLiftPx(fab) + CORNER_MARGIN_PX).toBe(fab)
   })
 
   // A notice over a sheet dragged high goes under the button, which never
@@ -485,18 +456,17 @@ describe('the default panel heights', () => {
 // The Controls sheet (#696; record 0141): the panel on a phone, a fixed share
 // of the map that leaves the rows, the button's strip and a full notice band.
 describe('the Controls sheet', () => {
-  it('leaves the rows, the button, the folded credit line and the fullest band above it', () => {
-    expect(CONTROLS_MAP_PX).toBe(DRAGGED_MAP_PX + PHONE_LINE_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX)
+  it('leaves the rows, the button and the fullest band above it', () => {
+    expect(CONTROLS_MAP_PX).toBe(DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX)
     expect(controlsSheetPx(844)).toBe(844 - CONTROLS_MAP_PX)
     expect(controlsSheetPx(100)).toBe(0)
   })
 
-  // With the folded line and the fullest band over it on its edge, the button
-  // still stands under the rows.
+  // With the fullest band on its edge, the button still stands under the rows.
   it('leaves the button its place over a full band', () => {
     const lift = controlsSheetPx(844)
-    const fab = fabBottomPx(lift, NOTICE_BAND_MAX_PX, 844, { px: PHONE_LINE_PX, open: false })
-    expect(fab).toBe(lift + PHONE_LINE_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX + FAB_INSET_PX)
+    const fab = fabBottomPx(lift, NOTICE_BAND_MAX_PX, 844)
+    expect(fab).toBe(lift + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX + FAB_INSET_PX)
     expect(844 - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
   })
 

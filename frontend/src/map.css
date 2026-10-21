@@ -274,11 +274,10 @@
   opacity: 1;
 }
 
-/* The map's corner (`MAP_CORNER`, record 0174) takes the library's margins
- * off every control standing in it, as a phone's slots do. Its credit line is
- * the floating box itself, at either width, so the attribution in it sheds
- * the box `MAP_CREDIT.card` gives it everywhere else, and its padding with
- * it. */
+/* A desk's corner (`MAP_CORNER`, record 0174) takes the library's margins off
+ * every control standing in it, as a phone's slots do. The credit line there
+ * is the floating box itself, so the attribution in it sheds the box
+ * `MAP_CREDIT.card` gives it everywhere else, and its padding with it. */
 .map-corner .maplibregl-ctrl {
   margin: 0;
 }
@@ -290,43 +289,6 @@
   border-radius: 0;
   box-shadow: none;
   backdrop-filter: none;
-}
-
-/* A phone's credit line (`MAP_CORNER.phoneCredit`, record 0174): the (i) and
- * the scale on the line's one row, each standing on its bottom. The library
- * stands its (i) at the compact attribution's top right; here it stands at
- * the bottom left, where it stays while the credits are open, and the folded
- * attribution keeps the (i)'s 24px so the line keeps its height. Open, the
- * attribution is its credits and the row under them, so that floor comes
- * off, or a one-line credit would stand clear of the row by the difference.
- *
- * Opened (`CREDITS_OPEN_CLASS` in map/controls.ts), the line grows to the
- * map's inset on the right and the attribution spans both of its columns:
- * the credits on top, and its last 28px left to the 24px row and 4px over it,
- * where the (i) and the scale's box (`MAP_CORNER.phoneScale`) keep their
- * places. So the credits read across the map in two lines rather than in a
- * column beside the Analyze button, which rises over the line instead
- * (`fabBottomPx` in utils/resultsSheet.ts). */
-.map-phone-line .maplibregl-ctrl-attrib {
-  min-height: 24px;
-}
-
-.map-phone-line .maplibregl-ctrl-attrib-button {
-  top: auto;
-  right: auto;
-  bottom: 0;
-  left: 0;
-}
-
-.map-phone-line:has(.maplibregl-compact-show) {
-  flex-grow: 1;
-}
-
-.map-phone-line .maplibregl-ctrl-attrib.maplibregl-compact-show {
-  grid-column: 1 / -1;
-  grid-row: 1;
-  min-height: 0;
-  padding-bottom: 28px;
 }
 
 /* The popup's close button, for the same reason as the controls above:
@@ -529,10 +491,6 @@
 
 /* Where the library's own bottom controls go, which is not always the bottom.
  *
- * They stand here only for the moment before the map's corner mounts, at
- * either width, and after it goes: the corner's credit line holds both, and
- * rides the same lift (`MAP_CORNER`, record 0174).
- *
  * maplibre anchors the scale bar and the attribution to the map container's
  * bottom edge, and the app stands its results on that edge: docked below the
  * map at a desk, and as a sheet the map runs on behind on a phone (#249). The
@@ -599,6 +557,51 @@
   margin-top: auto;
   margin-bottom: auto;
   flex-shrink: 0;
+}
+
+/* On a phone the corner stands on the Analyze button's row rather than on the
+ * sheet's edge (record 0140): `MapStage` publishes `--map-corner-lift` from
+ * the button's bottom edge (`phoneCornerLiftPx`), 10px under it, so each
+ * control, standing on the library's 10px margin in the band, has its bottom
+ * on the button's.
+ *
+ * On a phone the attribution joins the scale at the bottom left (#696), at
+ * its native size, so the right of the map's foot is map: `addAttribution`
+ * puts it there whenever it is compact. The corner turns into a row, the scale
+ * first (`order`, since the library inserts a bottom control before the ones
+ * already there) and the (i) beside it, the library's own bottom-left form of
+ * the button. The row spans the map to the Analyze button (below), so the
+ * opened credit line wraps short of it rather than running under it, the corner keeping the
+ * vendor's `pointer-events: none` so the span takes no press; it may shrink,
+ * which in a row is what wraps it. A line taller than the band grows UP from
+ * the band's bottom edge, for the reason the column above reverses: in a row
+ * the band is the cross axis, where an auto top margin would anchor an
+ * overflowing item to the top and grow it down behind the sheet, so each
+ * control stands on the library's own 10px bottom margin instead
+ * (`CORNER_MARGIN_PX`), which the lift puts on the button's bottom edge. */
+/* The row stops short of the Analyze button (#696): the button's measured
+ * width (`--map-fab-w`, published on the map wrapper by `MapStage` from
+ * `PhoneFoot`), its 16px off the map's right edge (`FAB_INSET_PX`) and 8px
+ * clear of it, less the compact credit's own 10px right margin, which stands
+ * inside this row. So an opened credit line wraps 8px before the button, the
+ * way the scale's cap above keeps it off the scale. Measured 2026-10-14 at
+ * 360, 390 and 430 wide with the button at its reserved 120.1px: the row ends
+ * 134.1px from the map's right edge and the line 8px short of the button. */
+.maplibregl-ctrl-bottom-left:has(> .maplibregl-ctrl-attrib) {
+  right: calc(var(--map-fab-w, 0px) + 14px);
+  flex-direction: row;
+  align-items: flex-end;
+}
+
+.maplibregl-ctrl-bottom-left:has(> .maplibregl-ctrl-attrib) > .maplibregl-ctrl {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.maplibregl-ctrl-bottom-left > .maplibregl-ctrl-attrib {
+  order: 1;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 /* A marker popup too tall for the free map area scrolls its body under its

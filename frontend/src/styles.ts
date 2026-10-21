@@ -1530,68 +1530,38 @@ export const MAP_SLOT = {
 } as const
 
 /**
- * The credit line's ground at both widths (record 0174): the floating box's
- * fill, edge colour and blur, with no shadow, which would fall on the results
- * under it, and keyed `map-corner` for `map.css`, which takes the library's
- * margins off what stands in it, the floating box off the attribution inside
- * it, and the scrim off the scale. Each width adds the two edges that face
- * the map and rounds the one corner between them, since the line stands
- * against the map's side and the results' top.
- */
-// `leading-5` is the library's own 20px line, which the map's container gives
-// its controls and either corner, outside it, does not: without it the scale
-// shrank to 17px from the 22px box record 0162 holds it to, at both widths.
-const CREDIT_LINE = 'map-corner py-0.5 leading-5 bg-floating/95 border-frame backdrop-blur-sm'
-
-/** The scale's box in either line: as wide as the bar draws, the bar at its right. */
-const SCALE_BOX = 'flex w-25 justify-end'
-
-/**
- * A map's corner (record 0174), laid out as Google Maps lays out its own (TJ,
- * 2026-10-20). At a desk, the credit line flush in the map's bottom-right
- * corner, on the results' edge, with the scale at its end, and over it a
- * column of the compass, the locate button and the zoom pair, 24px in from
- * the map's right edge, 6px apart and 10px above the line. On a phone, the
- * same line flush in the bottom-LEFT corner, on the sheet's edge, holding the
- * (i) and the scale: the Analyze button stands at the right, so the line
- * takes the side the button leaves. A phone keeps its two buttons in its rows
- * (`MAP_SLOT`) and has no zoom pair.
+ * A desk's map corner (record 0174), laid out as Google Maps lays out its own
+ * (TJ, 2026-10-20): the credit line flush in the map's bottom-right corner,
+ * on the results' edge, with the scale at its end, and over it a column of
+ * the compass, the locate button and the zoom pair, 24px in from the map's
+ * right edge, 6px apart and 10px above the line. A phone keeps its two
+ * buttons in its rows (`MAP_SLOT`) and has no zoom pair.
  *
  * Each piece is the library's own control, moved into a slot here
- * (`placeControl`), so it keeps the library's states. `box` and `phoneBox`
- * ride the lift the library's bottom corners ride (`--map-corner-lift`: 0 at
- * a desk, the sheet's edge on a phone) and take no press of their own.
- * `stack` is the column and `credit` and `phoneCredit` the lines, each a
- * surface a popup stands clear of (`MapCorner` marks them). `slot` holds a
- * control in its row as if the slot were not there. `scale` is a box as wide
- * as the bar can draw (`SCALE_MAX_WIDTH_PX`), the bar flush at its right, so
- * the credits stay put while the bar grows and shrinks with the zoom.
- *
- * A phone's line is a grid of two columns, the (i)'s 24px (`MAP_CREDIT.button`)
- * and the scale's box, 10px apart, each standing on the line's bottom
- * (`PHONE_LINE_PX` folded). Either line sets the library's own 20px line
- * (`CREDIT_LINE`), which its controls lose by standing outside the map's
- * container, so the scale keeps the vendor's 22px box that record 0162 and
- * `e2e/scaleBar.spec.ts` hold it to, and the opened credits read on the
- * vendor's 20px lines. The full
- * credits, about 430px at the line's 11px, cannot fit beside the button at
- * 360 wide, so the (i) stays the library's compact form; opened, `map.css`
- * spreads the line to the map's inset on the right and stands the credits
- * over the (i) and the scale, which keep their places, and the button rises
- * over it (`fabBottomPx`). `phoneBox` spans the
- * map less that inset, so the opened line can grow to it. `phoneScale`
- * places the scale's box in the line's first row, where the opened credits
- * also stand, rather than under them.
+ * (`placeControl`), so it keeps the library's states. `box` rides the lift
+ * the library's bottom corners ride, 0 at a desk, and takes no press of its
+ * own. `stack` is the column and `credit` the line, each a surface a popup
+ * stands clear of (`MapCorner` marks them), and each keyed `map-corner` for
+ * `map.css`, which takes the library's margins off what stands in them and
+ * the floating box off the credit line inside this one. The line is the
+ * floating box's fill, edge and blur, its two outer edges off and its one
+ * inner corner rounded because it stands against two edges, with no shadow,
+ * which would fall on the results under it. `slot` holds a control in its
+ * row as if the slot were not there. `scale` is a box as wide as the bar can
+ * draw (`SCALE_MAX_WIDTH_PX`), the bar flush at its right, so the credits
+ * stay put while the bar grows and shrinks with the zoom.
  */
 export const MAP_CORNER = {
   box: `absolute right-0 bottom-[var(--map-corner-lift,0px)] flex flex-col items-end gap-2.5 pointer-events-none ${LAYER.base}`,
   stack: 'map-corner mr-6 flex flex-col items-end gap-1.5',
-  credit: `${CREDIT_LINE} flex items-center gap-2.5 pl-2.5 pr-2 border-t border-l rounded-tl-lg`,
-  phoneBox: `absolute left-0 ${MAP_EDGE.right} bottom-[var(--map-corner-lift,0px)] flex pointer-events-none ${LAYER.base}`,
-  phoneCredit: `${CREDIT_LINE} map-phone-line grid grid-cols-[1.5rem_auto] items-end gap-x-2.5 pl-2 pr-2.5 border-t border-r rounded-tr-lg`,
+  // `leading-5` is the library's own 20px line, which the map's container
+  // gives its controls and the corner, outside it, does not: without it the
+  // scale shrank to 17px from the 22px box record 0162 holds it to.
+  credit:
+    'map-corner flex items-center gap-2.5 py-0.5 pl-2.5 pr-2 leading-5 ' +
+    'bg-floating/95 border-t border-l border-frame rounded-tl-lg backdrop-blur-sm',
   slot: 'contents',
-  scale: SCALE_BOX,
-  phoneScale: `${SCALE_BOX} col-start-2 row-start-1`,
+  scale: 'flex w-25 justify-end',
 } as const
 
 /**
@@ -1616,15 +1586,14 @@ export const MAP_ZOOM_PAIR = {
 /**
  * The map's credit line in the app's chrome (record 0147): its (i) a round
  * dark button, smaller than the others at the library's 24px so it stands in
- * a phone's credit line beside the scale (`CORNER_CONTROL_PX`), with the same
- * 44px rim under a finger; and the line's own box, the floating box's
- * surface, edge and radius, which it wears only while no corner holds it: in
- * a corner the line is that box itself (`MAP_CORNER`, record 0174), so
- * `map.css` takes this one off there, as it does off a folded line.
- * `map/controls.ts` hands these to the library's markup, and `map.css`
- * dresses the links, which the library rewrites whenever a source's credit
- * changes, the way `LINK` would. The scale bar wears none of it: it is a
- * measurement drawn on the map, like the labels, rather than a control.
+ * the corner band with the scale (`CORNER_CONTROL_PX`), with the same 44px
+ * rim under a finger; and the line, folded out on a phone and always out at
+ * a desk, on the floating box's surface, edge and radius. `map/controls.ts`
+ * hands these to the library's markup; `map.css` takes the surface off a
+ * folded line, so only the button shows, and dresses the links, which the
+ * library rewrites whenever a source's credit changes, the way `LINK` would.
+ * The scale bar keeps the library's own look: it is a measurement drawn on
+ * the map, like the labels, rather than a control.
  */
 export const MAP_CREDIT = {
   button:

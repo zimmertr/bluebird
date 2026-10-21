@@ -12,7 +12,7 @@ async function corner(page: Page) {
   return page.evaluate(() => {
     const box = (el: Element | null | undefined) => {
       const r = el!.getBoundingClientRect()
-      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width }
+      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }
     }
     const q = (selector: string) => document.querySelector(selector)
     const compass = q('.maplibregl-ctrl-compass') as HTMLButtonElement
@@ -69,6 +69,10 @@ for (const [width, height, panel] of [
     near(at.line.bottom, at.map.bottom)
     near(at.scale.right, at.line.right - 8)
     expect(at.credits.right).toBeLessThanOrEqual(at.scale.left)
+    // The scale keeps the vendor's 22px box on the line's 20px line, so the
+    // line is 27px tall with its 2px padding and its 1px top edge.
+    near(at.scale.height, 22)
+    near(at.line.height, 27)
     // The column: 40px buttons 24px in, 6px apart, the zoom pair joined, and
     // 10px above the line.
     for (const button of [at.compass, at.locate, at.zoomIn, at.zoomOut]) {
@@ -95,15 +99,11 @@ for (const [width, height, panel] of [
   })
 }
 
-// A phone has no zoom pair (#696), since a pinch zooms there, and no column:
-// its corner is the credit line alone (record 0174, `phoneCorner.spec.ts`),
-// and its locate button stands at the search pill.
-test('a phone stands no zoom pair and no column', async ({ page }) => {
+// A phone has no corner and no zoom pair (#696): a pinch zooms there.
+test('a phone stands no zoom pair and no corner', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 })
   await page.goto('/')
   await expect(page.locator('.maplibregl-ctrl-geolocate')).toBeVisible()
   await expect(page.locator('.maplibregl-ctrl-zoom-in')).toBeHidden()
-  await expect(page.locator('.map-corner')).toHaveCount(1)
-  await expect(page.locator('.map-corner .maplibregl-ctrl-geolocate')).toHaveCount(0)
-  await expect(page.locator('.map-corner .maplibregl-ctrl-attrib')).toHaveCount(1)
+  await expect(page.locator('.map-corner')).toHaveCount(0)
 })
