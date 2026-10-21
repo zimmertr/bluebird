@@ -758,9 +758,9 @@ the bottom sheet the menus below are, kept mounted: modal over the same dim,
 slid below the map while shut, its height a fixed share of the map that
 leaves the rows, the button's strip and a full band. Its dim stands one layer
 under its card (`scrim` on `LAYER.scrim`). It pushes nothing. The button, the
-scale and the (i) stay where they stood under the dim, the button inert, and
-the band alone rides the sheet's edge, over the dim on the card's layer
-(`MAP_NOTICE_BAND.overDim`). Measured 2026-10-21 at 360x740 and 390x844 with a
+scale and the (i) stay where they stood under the dim, as under every phone
+sheet, and the band alone rides the sheet's edge, over the dim on the card's
+layer (`MAP_NOTICE_BAND.overDim`). Measured 2026-10-21 at 360x740 and 390x844 with a
 cue in the band: the sheet's top at 256, the band 184 to 246, and the button
 at 390 to 446 and 444 to 500, where it stood with the sheet shut. The chip is
 lit while the sheet is up, its words white on the accent fill. The sheet

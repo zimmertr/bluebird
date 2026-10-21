@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { useSheetOpen } from '../hooks/useSheetOpen'
 import { DISABLED, MAP_FAB, MAP_FAB_WORDS, MAP_NOTICE_BAND } from '../styles'
 import { ACTION_WORDS, type ActionWord } from '../utils/analyzeGate'
 import { noticeBottomPx } from '../utils/resultsSheet'
@@ -13,7 +12,8 @@ interface PhoneFootProps {
   liftPx: number
   /**
    * The Controls sheet is up (record 0207): the band rides its edge over its
-   * dim, and the button stands where it stood, under the dim and inert.
+   * dim and holds its height back, so a cue that arrives moves nothing under
+   * the dim.
    */
   controlsOpen: boolean
   /** Where the button's bottom edge stands (`fabBottomPx`), which `MapStage` works out from the band's height. */
@@ -48,10 +48,10 @@ interface PhoneFootProps {
  * edge it rides, and the band, above which it rises while the band holds a
  * notice. This component measures the band and hands its height up, and
  * `MapStage` places the button from it (`fabBottomPx`), so the player that
- * stands on the button reads the same number. The button hides under the dim
- * while a menu sheet is open, and comes back when the sheet closes. Under the
- * Controls sheet it stays where it stood, inert under the dim, while the band
- * alone rises over the dim onto the sheet's edge (record 0207).
+ * stands on the button reads the same number. No sheet moves the button or
+ * changes it: every phone sheet opens over it, and its dim and its modality
+ * keep the button from a press (record 0207). The band alone rises over the
+ * Controls sheet's dim onto its edge.
  */
 export default function PhoneFoot({
   liftPx,
@@ -88,13 +88,12 @@ export default function PhoneFoot({
     return () => observer.disconnect()
   }, [band, onBandPx, controlsOpen])
 
-  const sheetOpen = useSheetOpen()
   // The button's width is the widest word's whichever it reads, so it moves
-  // only with the face, the size or the zoom; observed for those, and left
-  // standing while a sheet hides the button, since the width it held is the
-  // width it comes back at.
-  const [button, setButton] = useState<HTMLButtonElement | null>(null)
+  // only with the face, the size or the zoom; observed for those. It is
+  // mounted for as long as the foot is, so a ref is enough.
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
   useEffect(() => {
+    const button = buttonRef.current
     if (!button) return
     const report = () => onFabPx(button.getBoundingClientRect().width)
     report()
@@ -102,16 +101,11 @@ export default function PhoneFoot({
     const observer = new ResizeObserver(report)
     observer.observe(button)
     return () => observer.disconnect()
-  }, [button, onFabPx])
+  }, [onFabPx])
   // A run disables the button under the finger that pressed it, and the
   // overlay's Cancel holds the focus meanwhile; when the run ends the focus
   // comes back here, as it does to the panel's Analyze (#576).
-  const buttonRef = useRef<HTMLButtonElement | null>(null)
   useTakeOrphanedFocus(buttonRef, analyzeEnabled)
-  const setButtonRef = useCallback((el: HTMLButtonElement | null) => {
-    buttonRef.current = el
-    setButton(el)
-  }, [])
 
   return (
     <>
@@ -120,31 +114,26 @@ export default function PhoneFoot({
         className={controlsOpen ? MAP_NOTICE_BAND.overDim : MAP_NOTICE_BAND.map}
         style={{ bottom: noticeBottomPx(liftPx) }}
       />
-      {!sheetOpen && (
-        <button
-          ref={setButtonRef}
-          // Under the Controls sheet's dim, out of reach of a press, the
-          // keyboard and a screen reader: Done, then Analyze.
-          inert={controlsOpen}
-          onClick={onAnalyze}
-          disabled={!analyzeEnabled}
-          className={`${MAP_FAB} ${DISABLED}`}
-          style={{ bottom: fabBottomPx }}
-          // The tour's Analyze step (#536): a phone's one Analyze is this.
-          data-tour="analyze"
-        >
-          {/* Every word in one cell, so the button is the widest one's width
-              whichever it reads; the others are invisible and unread. */}
-          <span className={MAP_FAB_WORDS.cell}>
-            <span>{word}</span>
-            {ACTION_WORDS.filter((w) => w !== word).map((w) => (
-              <span key={w} aria-hidden="true" className={MAP_FAB_WORDS.hidden}>
-                {w}
-              </span>
-            ))}
-          </span>
-        </button>
-      )}
+      <button
+        ref={buttonRef}
+        onClick={onAnalyze}
+        disabled={!analyzeEnabled}
+        className={`${MAP_FAB} ${DISABLED}`}
+        style={{ bottom: fabBottomPx }}
+        // The tour's Analyze step (#536): a phone's one Analyze is this.
+        data-tour="analyze"
+      >
+        {/* Every word in one cell, so the button is the widest one's width
+            whichever it reads; the others are invisible and unread. */}
+        <span className={MAP_FAB_WORDS.cell}>
+          <span>{word}</span>
+          {ACTION_WORDS.filter((w) => w !== word).map((w) => (
+            <span key={w} aria-hidden="true" className={MAP_FAB_WORDS.hidden}>
+              {w}
+            </span>
+          ))}
+        </span>
+      </button>
     </>
   )
 }

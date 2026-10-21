@@ -22,7 +22,7 @@ Every message the panel would show under **Analyze**, from the one asking for a 
 
 On a phone with a home indicator, nothing you press stands in the strip it keeps at the bottom of the screen: the sheets run under it, and their handles, buttons and rows stop above it.
 
-Every menu on a phone is a sheet that rises from the bottom of the screen: Legend, Layers, the Controls sheet's **Model** list and calendar, and the results bar's Columns, Models and Removed. **Done**, a tap on the dimmed map or Escape closes it, and its handle and title drag it the way the Controls sheet's do: up to just under the chips, down to close, anywhere between to stay, with a flick down closing it and a double tap on the handle putting it back at its own height. The Analyze button tucks away while one of these is open. The Controls sheet dims the map the same way and leaves the button where it was, under the dim.
+Every menu on a phone is a sheet that rises from the bottom of the screen: Legend, Layers, the Controls sheet's **Model** list and calendar, and the results bar's Columns, Models and Removed. **Done**, a tap on the dimmed map or Escape closes it, and its handle and title drag it the way the Controls sheet's do: up to just under the chips, down to close, anywhere between to stay, with a flick down closing it and a double tap on the handle putting it back at its own height. The Analyze button stays where it was under each of these, as it does under the Controls sheet.
 
 ## Light theme
 

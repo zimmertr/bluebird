@@ -6,6 +6,10 @@ import type { Page } from '@playwright/test'
 // nothing. The Analyze button, the scale and the (i) stand where they stood,
 // under the dim and out of reach, and the notice band alone rides the sheet's
 // edge, over the dim, so a cue that arrives while a control changes reads.
+// Every sheet leaves the button the same way: mounted where it stands, and
+// kept from a press by the sheet's dim and modality alone.
+
+const RING = '/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55'
 
 const CUE = 'A new destination type requires a new analysis.'
 
@@ -22,12 +26,18 @@ async function geometry(page: Page) {
     const band = status?.parentElement ?? null
     const sheet = document.querySelector('[role="dialog"][aria-modal="true"]')
     // What a finger lands on at the middle of each.
-    const hit = (el: Element | null) => {
+    const topAt = (el: Element | null) => {
       const r = el?.getBoundingClientRect()
-      if (!r) return null
-      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
-      return top ? el!.contains(top) : false
+      return r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null
     }
+    const hit = (el: Element | null) => {
+      if (!el) return null
+      const top = topAt(el)
+      return top ? el.contains(top) : false
+    }
+    // What stands over the button's middle: a sheet's card, or the dim.
+    const over = topAt(fab)
+    const fabUnder = !over || fab?.contains(over) ? null : over.closest('[role="dialog"]') ? 'card' : 'dim'
     return {
       fab: box(fab),
       scale: box(document.querySelector('.maplibregl-ctrl-scale')),
@@ -35,6 +45,7 @@ async function geometry(page: Page) {
       band: box(band),
       sheet: box(sheet),
       fabTakesPress: hit(fab),
+      fabUnder,
       bandTakesPress: hit(band),
     }
   }, CUE)
@@ -48,7 +59,7 @@ for (const [width, height] of [
     test.use({ viewport: { width, height }, hasTouch: true, isMobile: true })
 
     test('the Controls sheet opens over the dim, moves nothing under it, and carries the band on its edge', async ({ page }) => {
-      await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+      await page.goto(RING)
       await expect(page.locator('.maplibregl-canvas')).toBeVisible()
       await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
       await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
@@ -78,16 +89,67 @@ for (const [width, height] of [
       // The band rides the edge, over the dim.
       expect(Math.round(open.sheet!.top - open.band!.bottom)).toBe(10)
       expect(open.bandTakesPress).toBe(true)
-      // Analyze takes no press: inert, and under the sheet or its dim.
-      await expect(fab).toHaveAttribute('inert', '')
+      // Analyze takes no press: the sheet or its dim stands over it. The
+      // button itself is as it was, neither inert nor greyed.
       expect(open.fabTakesPress).toBe(false)
-
-      // A press on the dim closes it, as Done does, and the button comes
-      // back into reach.
-      await page.touchscreen.tap(width / 2, 30)
-      await expect(sheet).toHaveAttribute('inert', '')
       await expect(fab).not.toHaveAttribute('inert')
       await expect(fab).toBeEnabled()
+
+      // A press on the dim closes it, as Done does, and the button is back
+      // in reach. The cue comes down to the foot with the band, and the
+      // button rises over it as it does over any notice (record 0140).
+      await page.touchscreen.tap(width / 2, 30)
+      await expect(sheet).toHaveAttribute('inert', '')
+      await expect.poll(async () => (await geometry(page)).fabTakesPress).toBe(true)
+      const back = await geometry(page)
+      expect(back.fab!.bottom).toBeLessThan(back.band!.top)
+    })
+
+    // A menu sheet follows the same rule (TJ, 2026-10-21): the button stays
+    // mounted where it stood, under the dim, and Done gives it back.
+    test('the Layers sheet opens over the button, the scale and the (i), and moves none of them', async ({ page }) => {
+      await page.goto(RING)
+      await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+      await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
+      await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+      const fab = page.locator('[data-tour="analyze"]')
+      await expect(fab).toBeVisible()
+      const shut = await geometry(page)
+      expect(shut.fabTakesPress).toBe(true)
+
+      await page.getByRole('button', { name: 'Layers', exact: true }).tap()
+      const sheet = page.getByRole('dialog', { name: 'Layers' })
+      await expect(sheet).toBeVisible()
+      // Once the card has landed, so the probe reads where it rests.
+      await expect
+        .poll(async () => {
+          const card = (await sheet.boundingBox())!
+          return Math.round(card.y + card.height)
+        })
+        .toBe(height)
+      const open = await geometry(page)
+      const sheetTop = Math.round((await sheet.boundingBox())!.y)
+      console.log(`layers sheet ${width}x${height}: ${JSON.stringify({ shut, open, sheetTop })}`)
+
+      // Nothing under the sheet moved, and the button is the one it was.
+      await expect(fab).toHaveCount(1)
+      expect(open.fab).toEqual(shut.fab)
+      expect(open.scale).toEqual(shut.scale)
+      expect(open.info).toEqual(shut.info)
+      await expect(fab).not.toHaveAttribute('inert')
+      await expect(fab).toBeEnabled()
+      // A finger at its middle lands on the sheet or its dim.
+      expect(open.fabTakesPress).toBe(false)
+      expect(open.fabUnder).not.toBeNull()
+
+      // Done gives it back, where it stood.
+      await sheet.getByRole('button', { name: 'Done' }).tap()
+      await expect(sheet).toHaveCount(0)
+      const back = await geometry(page)
+      expect(back.fab).toEqual(shut.fab)
+      expect(back.scale).toEqual(shut.scale)
+      expect(back.info).toEqual(shut.info)
+      expect(back.fabTakesPress).toBe(true)
     })
   })
 }

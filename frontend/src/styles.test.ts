@@ -2543,6 +2543,11 @@ describe('the bottom sheet', () => {
 
   it('stands over everything a phone\'s map holds, modal over a dim', () => {
     for (const recipe of [BOTTOM_SHEET.scrim, BOTTOM_SHEET.card]) expect(recipe).toContain(LAYER.popover)
+    // The Analyze button among it: every sheet's dim covers the button where
+    // it stands, and the sheet's modality keeps it from a press, so the foot
+    // neither hides it nor makes it inert (record 0207).
+    expect(zOf(MAP_FAB.match(/(?:^|\s)(z-\S+)/)![1])).toBeLessThan(zOf(LAYER.popover))
+    expect(phoneFootSource).not.toMatch(/\binert\b/)
     expect(tokens(BOTTOM_SHEET.scrim)).toEqual(expect.arrayContaining(['fixed', 'inset-0']))
     expect(darkStep(token(BOTTOM_SHEET.dim, 'bg'))).toBe('black')
     expect(BOTTOM_SHEET.dim).toMatch(/(^|\s)bg-scrim\/\d+(\s|$)/)
@@ -2683,9 +2688,6 @@ describe('the Controls sheet', () => {
     }
     expect(bottomSheetSource).toContain('kept ? CONTROLS_SHEET.scrim : BOTTOM_SHEET.scrim')
     expect(bottomSheetSource).toContain('<div className={BOTTOM_SHEET.dim} />')
-    // The button stays under the dim, out of reach, where it stood.
-    expect(phoneFootSource).toContain('inert={controlsOpen}')
-    expect(bottomSheetSource).toContain('useHoldSheetOpen(kept === undefined)')
   })
 })
 
