@@ -22,7 +22,8 @@ import type { ResultsLayout } from '../hooks/useResultsLayout'
 import type { TableView } from '../hooks/useTableView'
 import type { Timeline } from '../hooks/useTimeline'
 import type { SortBy } from '../types'
-import { MAP_EDGE } from '../styles'
+import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
+import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { NOUN, familyOf } from '../metrics'
 import { hourlyScale, rankedScale } from '../utils/colors'
 import {
@@ -109,6 +110,8 @@ export interface MapStageProps {
   showResults: boolean
   /** Whether the controls panel is open. */
   sidebarOpen: boolean
+  /** Which edge of a desk's layout is moving, which the map's box holds still for (record 0202). */
+  layoutMotion?: LayoutMotion
   /** A phone's Controls sheet's height, wherever a drag left it (record 0146). */
   controlsPx: number
   /** Whether a desk's legend card opens unfolded (`viewPrefs.legendOpen`). */
@@ -174,6 +177,7 @@ export default function MapStage({
   modelId,
   showResults,
   sidebarOpen,
+  layoutMotion = null,
   controlsPx,
   legendInitiallyOpen,
   onOpenControls,
@@ -297,6 +301,16 @@ export default function MapStage({
     />
   )
 
+  // While the panel moves the box is the window's width, and while a pane
+  // moves the window's height, centred on the column either way, so the map
+  // is resized where the move starts or ends rather than in every frame.
+  const mapBox =
+    layoutMotion === 'opening' || layoutMotion === 'closing'
+      ? LAYOUT_HOLD.mapPush
+      : layoutMotion === 'panes'
+        ? LAYOUT_HOLD.mapPanes
+        : LAYOUT_HOLD.rest
+
   return (
     // `--map-corner-lift` and `--map-corner-band` are read by map.css:
     // how far MapLibre's own bottom controls rise off the container's
@@ -313,7 +327,7 @@ export default function MapStage({
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${
         isDesktop ? '' : drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows
-      }`}
+      } ${layoutMotion ? LAYOUT_HOLD.clip : ''}`}
       style={
         {
           // A phone's scale and (i) stand on the Analyze button's row
@@ -331,48 +345,52 @@ export default function MapStage({
         paceRemainingS={analysis.paceRemainingS}
         onCancel={analysis.cancel}
       />
-      <MapView
-        ref={mapRef}
-        drawing={drawMode.drawing}
-        pointedPois={poisPointed}
-        polygon={destinationInputs.polygon}
-        restoredPoints={destinationInputs.restoredPoints}
-        onPolygonChange={destinationInputs.setPolygon}
-        onDrawUpdate={drawMode.handleDrawUpdate}
-        results={results}
-        sortBy={sortBy}
-        modelId={modelId}
-        times={timeline.forecastTimes}
-        popupColumns={tableView.tableColumns}
-        pointSample={pointSample}
-        modelFallbackLabel={tableView.analysisModelLabel}
-        fireWarnings={fire.warnings}
-        closureWarnings={closure.warnings}
-        showWildfires={overlays.showWildfires}
-        showAreaClosures={overlays.showAreaClosures}
-        showTrailClosures={overlays.showTrailClosures}
-        showRadar={overlays.showRadar}
-        showSmoke={overlays.showSmoke}
-        showSnow={overlays.showSnow}
-        radarIndex={timeline.radarIndex}
-        gridSpec={grid.grid.spec}
-        gridCells={grid.grid.cells}
-        gridStyle={grid.gridStyle}
-        playbackIndex={playbackIndex}
-        pending={report.pending}
-        searchedPlaces={destinationInputs.places}
-        onAddPoi={handleAddPoi}
-        onRemovePoi={handleRemovePoi}
-        onRemoveResult={removeResult}
-        cameraPadBottomPx={layout.cameraPadBottomPx}
-        restoredView={restoredView}
-        onCameraMove={urlSync.reportView}
-        onBasemapFailed={onBasemapFailed}
-        maxPolygonPoints={maxPolygonPoints}
-        locateSlot={locateSlot}
-        compassSlot={compassSlot}
-        cornerSlots={cornerSlots}
-      />
+      {/* The map's box, which holds one size while the layout moves
+          (`layoutMotion`, record 0202) and fills the column otherwise. */}
+      <div className={mapBox}>
+        <MapView
+          ref={mapRef}
+          drawing={drawMode.drawing}
+          pointedPois={poisPointed}
+          polygon={destinationInputs.polygon}
+          restoredPoints={destinationInputs.restoredPoints}
+          onPolygonChange={destinationInputs.setPolygon}
+          onDrawUpdate={drawMode.handleDrawUpdate}
+          results={results}
+          sortBy={sortBy}
+          modelId={modelId}
+          times={timeline.forecastTimes}
+          popupColumns={tableView.tableColumns}
+          pointSample={pointSample}
+          modelFallbackLabel={tableView.analysisModelLabel}
+          fireWarnings={fire.warnings}
+          closureWarnings={closure.warnings}
+          showWildfires={overlays.showWildfires}
+          showAreaClosures={overlays.showAreaClosures}
+          showTrailClosures={overlays.showTrailClosures}
+          showRadar={overlays.showRadar}
+          showSmoke={overlays.showSmoke}
+          showSnow={overlays.showSnow}
+          radarIndex={timeline.radarIndex}
+          gridSpec={grid.grid.spec}
+          gridCells={grid.grid.cells}
+          gridStyle={grid.gridStyle}
+          playbackIndex={playbackIndex}
+          pending={report.pending}
+          searchedPlaces={destinationInputs.places}
+          onAddPoi={handleAddPoi}
+          onRemovePoi={handleRemovePoi}
+          onRemoveResult={removeResult}
+          cameraPadBottomPx={layout.cameraPadBottomPx}
+          restoredView={restoredView}
+          onCameraMove={urlSync.reportView}
+          onBasemapFailed={onBasemapFailed}
+          maxPolygonPoints={maxPolygonPoints}
+          locateSlot={locateSlot}
+          compassSlot={compassSlot}
+          cornerSlots={cornerSlots}
+        />
+      </div>
       <MapRows
         searchBoxRef={searchBoxRef}
         onSearchSelect={handleSearchSelect}

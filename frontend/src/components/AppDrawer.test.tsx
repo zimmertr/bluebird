@@ -10,6 +10,7 @@ import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import type { CommitReason } from '../utils/present'
 import type { DestinationResult } from '../types'
+import { DESK_PANEL } from '../styles'
 
 vi.mock('./ControlPanel', () => ({
   default: (props: {
@@ -162,11 +163,16 @@ describe('AppDrawer', () => {
     expect(screen.getByTestId('panel').dataset.phone).toBe('false')
   })
 
-  it('slides off screen when closed and stays mounted', () => {
+  // Shut, it stays in the row and its margin takes its width back, so the
+  // map's edge moves with the panel's both ways (record 0202).
+  it('pushes off the left edge when closed and stays mounted', () => {
     const { container, rerender } = render(drawer(true))
-    expect(container.querySelector('aside')?.className).toContain('translate-x-0')
+    const shut = DESK_PANEL.shut
+    expect(container.querySelector('aside')?.className).toContain(DESK_PANEL.card)
+    expect(container.querySelector('aside')?.className.split(' ')).not.toContain(shut)
     rerender(drawer(false))
-    expect(container.querySelector('aside')?.className).toContain('-translate-x-full')
+    expect(container.querySelector('aside')?.className).toContain(DESK_PANEL.card)
+    expect(container.querySelector('aside')?.className.split(' ')).toContain(shut)
     expect(screen.getByTestId('panel')).toBeTruthy()
   })
 

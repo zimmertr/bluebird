@@ -61,6 +61,10 @@ import {
   DRAW_ROW,
   METRIC_LABEL_PITCH,
   MOTION,
+  PANEL_MS,
+  DESK_PANEL,
+  RESULTS_PANE,
+  LAYOUT_HOLD,
   PANEL_BODY,
   PANEL_HEADER,
   SCROLL_BARS,
@@ -163,6 +167,7 @@ import phoneFootSource from './components/PhoneFoot.tsx?raw'
 import mapStageSource from './components/MapStage.tsx?raw'
 import appDrawerSource from './components/AppDrawer.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
+import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
 import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
@@ -2572,7 +2577,7 @@ const words = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
 
 describe('the notice band', () => {
   it('lays the drawer\'s fill under the boxes only while it holds one, and yields the rest', () => {
-    const drawerFill = appDrawerSource.match(/flex-shrink-0 (bg-[a-z-]+) flex flex-col/)?.[1]
+    const drawerFill = DESK_PANEL.card.match(/(?:^|\s)(bg-[a-z-]+)(?=\s|$)/)?.[1]
     expect(drawerFill).toBeDefined()
     expect(MAP_NOTICE_BAND).toContain(`has-[>[role=status]>*]:${drawerFill}`)
     expect(MAP_NOTICE_BAND).not.toMatch(/(^|\s)bg-/)
@@ -3642,7 +3647,8 @@ describe('the panel frame', () => {
       page: ratio(edge, dark('page')),
       wasBefore: ratio(dark(token(SURFACE_DIVIDER, 'border')), dark('panel')),
     }).toEqual(MEASURED)
-    expect(appDrawerSource).toMatch(/border-r \$\{PANEL_EDGE\}/)
+    expect(DESK_PANEL.card).toContain(`border-r ${PANEL_EDGE}`)
+    expect(appDrawerSource).toContain('DESK_PANEL.card')
     expect(appDrawerSource).not.toMatch(/SURFACE_DIVIDER/)
     expect(Math.min(MEASURED.panel, MEASURED.page)).toBeGreaterThanOrEqual(3)
     expect(MEASURED.wasBefore).toBeLessThan(3)
@@ -3702,16 +3708,80 @@ describe('the panel frame', () => {
     expect(SCROLL_SHADOW.both.split(' ').sort()).toEqual([SCROLL_SHADOW.start, SCROLL_SHADOW.end].sort())
   })
 
-  // The two movements that answer an action stop where the reader asked
-  // their system for less (#687), as the tutorial's spotlight already did.
+  // The movements that answer an action stop where the reader asked their
+  // system for less (#687), as the tutorial's spotlight already did.
   it('drops every answering movement under reduced motion', () => {
     for (const recipe of Object.values(MOTION)) {
       expect(recipe).toMatch(/(^|\s)transition/)
       expect(recipe).toContain('motion-reduce:transition-none')
     }
-    expect(appDrawerSource).toContain('MOTION.slide')
+    expect(CONTROLS_SHEET.card).toContain(MOTION.slide)
+    expect(DESK_PANEL.card).toContain(MOTION.push)
     expect(appDrawerSource).not.toMatch(/(^|\s)transition-transform duration/)
     expect(analysisOverlaySource).toContain('MOTION.progress')
+    expect(resultsPanelsSource).toContain('MOTION.pane')
+  })
+
+  // Two speeds (#714; record 0202): a menu or a card in 150ms, and a panel,
+  // a sheet or a results pane in 300ms, each the same both ways because one
+  // recipe carries both directions. The number script waits on is the panel
+  // classes' own.
+  it('moves a menu at one speed and a panel at the other', () => {
+    const duration = (recipe: string) => Number(recipe.match(/(?:^|\s)duration-(\d+)(?=\s|$)/)?.[1])
+    const easing = (recipe: string) => recipe.match(/(?:^|\s)(ease-[a-z-]+)(?=\s|$)/)?.[1]
+    expect(PANEL_MS).toBe(300)
+    expect(duration(MOTION.menu)).toBe(150)
+    for (const recipe of [MOTION.slide, MOTION.push, MOTION.pane]) {
+      expect(duration(recipe)).toBe(PANEL_MS)
+      expect(easing(recipe)).toBe('ease-in-out')
+    }
+    // Each names the one property it moves, so a grip's drag on a sheet's or
+    // a pane's height never chases the finger.
+    expect(MOTION.slide).toMatch(/(^|\s)transition-transform(\s|$)/)
+    expect(MOTION.push).toMatch(/(^|\s)transition-\[margin-left\](\s|$)/)
+    expect(MOTION.pane).toMatch(/(^|\s)transition-\[grid-template-rows\](\s|$)/)
+    expect(MOTION.menu).toMatch(/(^|\s)transition-\[opacity,translate\](\s|$)/)
+  })
+
+  // The desk panel pushes the map's edge (record 0202): it stays in the row
+  // shut, and its margin takes back exactly its own width.
+  it('takes the desk panel out of the row by its own width', () => {
+    const width = DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)?.[1]
+    expect(width).toBe('90')
+    expect(DESK_PANEL.shut).toBe(`-ml-${width}`)
+    expect(DESK_PANEL.card).not.toMatch(/(^|\s)(absolute|fixed)(\s|$)/)
+    expect(DESK_PANEL.card).toMatch(/(^|\s)relative(\s|$)/)
+    expect(DESK_PANEL.card).toContain(LAYER.base)
+  })
+
+  // While a desk's layout moves, the map and the results hold one size
+  // (record 0202). The map's box is the window's width or height, centred on
+  // its column, so MapLibre, which keeps the centre on a resize, draws what it
+  // would at every size in between. The chart closing keeps its open width,
+  // the window less the panel.
+  it('holds the map centred on its column, and the chart at the width it had', () => {
+    expect(words(LAYOUT_HOLD.mapPush)).toEqual(expect.arrayContaining(['absolute', 'inset-y-0', 'w-screen', 'left-[calc(50%-50vw)]']))
+    expect(words(LAYOUT_HOLD.mapPanes)).toEqual(expect.arrayContaining(['absolute', 'inset-x-0', 'h-dvh', 'top-[calc(50%-50dvh)]']))
+    expect(LAYOUT_HOLD.rest).toBe('absolute inset-0')
+    expect(LAYOUT_HOLD.table).toBe('w-screen')
+    expect(LAYOUT_HOLD.chartOpening).toBe('w-screen')
+    const panelRem = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) / 4
+    expect(LAYOUT_HOLD.chartClosing).toBe(`w-[calc(100vw-${panelRem}rem)]`)
+    expect(LAYOUT_HOLD.clip).toBe('overflow-clip')
+  })
+
+  // A results pane opens to its body's height and shuts to none, and the
+  // chart's body holds to the bar and the table's to the foot (record 0202).
+  it('opens a results pane by its grid row', () => {
+    expect(RESULTS_PANE.open).toBe('grid-rows-[1fr]')
+    expect(RESULTS_PANE.shut).toBe('grid-rows-[0fr]')
+    expect(RESULTS_PANE.frame).toMatch(/(^|\s)grid(\s|$)/)
+    for (const body of [RESULTS_PANE.top, RESULTS_PANE.foot]) {
+      expect(body).toMatch(/(^|\s)min-h-0(\s|$)/)
+      expect(body).toMatch(/(^|\s)overflow-hidden(\s|$)/)
+    }
+    expect(RESULTS_PANE.foot).toMatch(/(^|\s)justify-end(\s|$)/)
+    expect(RESULTS_PANE.top).not.toMatch(/justify-end/)
   })
 
   // The Metrics rows pass WCAG 2.2 SC 2.5.8 by spacing (#687, record 0130):

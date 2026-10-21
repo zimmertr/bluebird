@@ -25,8 +25,9 @@ interface ResultsSheetProps
     | 'onRemovePending'
     | 'onFocusResult'
     | 'onFocusPending'
-    // Read off `isDesktop` here (#696).
+    // Read off `isDesktop` here (#696, record 0202).
     | 'chartTitled'
+    | 'panesMove'
   > {
   /** The sheet's view (`useResultsView`): whether it shows, its layout, the chart, the table and the table's callbacks. */
   resultsView: ResultsSheetView
@@ -121,6 +122,7 @@ export default function ResultsSheet({
   pendingHeights,
   modelId,
   theme,
+  layoutMotion = null,
 }: ResultsSheetProps) {
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
   const { sheetRef, barRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
@@ -218,6 +220,8 @@ export default function ResultsSheet({
               sortBy={sortBy}
               sortDesc={sortDesc}
               chartTitled={!isDesktop}
+              panesMove={isDesktop}
+              layoutMotion={layoutMotion}
               pointSample={pointSample}
               forecastTimes={forecastTimes}
               playbackIndex={playbackIndex}

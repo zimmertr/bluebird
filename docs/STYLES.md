@@ -92,7 +92,10 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the `edge` and `panel` tokens (slate-500 on slate-800 in dark); the root's `color-scheme` turns every bar it does not reach to the theme too (#697, record 0128) |
 | `SCROLL_SHADOW` | A slate-950 shade at 70% (in light, the ink at 12%) over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
 | `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label 44px (#687, record 0130) |
-| `MOTION` | Movement that answers an action and stops under a reduced-motion setting: `menu` for a menu coming in and going, a 150ms fade and a 4px slide from its trigger's side and back, a closed card kept for its exit by `useExit`, `slide` for the phone's Controls sheet and the desk's docked panel, `progress` for the analysis card's bar (#687). `TOUR.motion` is the tutorial's own |
+| `MOTION` | Movement that answers an action and stops under a reduced-motion setting, at two speeds (#714): `menu` at 150ms for a menu or a card, a fade and a 4px slide from its trigger's side and back, with a closed card kept for its exit by `useExit`, and at 300ms `slide` for the phone's Controls sheet, `push` for the desk panel and `pane` for a results pane, each naming the one property it moves. `progress` is the analysis card's bar (#687). `PANEL_MS` is the slower speed in numbers, for script that waits out a move. `TOUR.motion` is the tutorial's own |
+| `DESK_PANEL` | The controls panel at a desk: a 360px column in the row beside the map, which stays in the row while shut and gives its width back through its left margin (`shut`), so the map's edge moves with the panel's (#714) |
+| `RESULTS_PANE` | A results pane at a desk, the chart or the table with its grip: a one-row grid frame, `1fr` open and `0fr` shut, around a body that keeps its own height, held to the results bar (`top`, the chart) or to the column's foot (`foot`, the table) (#714) |
+| `LAYOUT_HOLD` | What keeps one size while a desk's layout moves (#714): the map's box at the window's width or height, centred on its column, which clips it (`clip`); the table's box at the window's width and the chart at the width it had while the panel moves. `rest` is the map's box the rest of the time |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself. 16px square around a 10px letter, the one size under the type floor (`GLYPH_SIZE`, private to `styles.ts`), which the strip's numerals in `SWATCH_RAMP_TICK` share |
 | `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: every metric's scale and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
@@ -773,6 +776,34 @@ to Windy is underlined at rest (`TABLE.valueLink`), the way the popup's
 numbers are, since a touch screen has no hover to show a link by. The chart's plot leaves the browser only the
 vertical pan (`CHART_PLOT_TOUCH`), so a sideways drag reads it.
 Record: [0142](decisions/0142-sticky-name-column.md) Record: [0144](decisions/0144-chart-reads-a-finger.md)
+
+### Motion
+
+Two speeds, each the same both ways (#714). A menu or a card fades and slides
+in 150ms (`MOTION.menu`). A panel, a sheet or a results pane moves in 300ms
+(`MOTION.slide`, `MOTION.push`, `MOTION.pane`), because it moves an edge the
+whole screen is laid out against. Each recipe names the one property it
+moves, so nothing a grip drags is ever animated, and each stops under a
+reduced-motion setting. `PANEL_MS` is the slower speed in numbers, and
+`styles.test.ts` holds each class to its speed.
+
+The desk panel pushes the map's edge rather than sliding over the map
+(`DESK_PANEL`). It stays in the row while it is shut and its left margin takes
+its 360px back, so the map's column narrows and widens in the frames the panel
+moves in, its left edge on the panel's right edge in every one. Nothing is
+painted over anything. A results pane at a desk opens and closes on a Table,
+Chart or Both press (`RESULTS_PANE`): one grid row, `1fr` open and `0fr` shut,
+around a body that keeps its own height. The chart's body holds to the results
+bar and the table's to the column's foot.
+
+While the layout moves, the map's box and the panes' bodies hold one size
+(`LAYOUT_HOLD`), so a frame moves boxes instead of resizing the map or laying
+out the table again. At 946 destinations in the pinned browser image, a close
+went from one 77ms frame and a slide over the map to 8 frames: one of 51ms
+where the map and the table take the new width, then frames of 34ms. An open
+went from one 77ms frame to 11 frames of about 30ms and one of 46ms where they
+take theirs (medians, 2026-10-20).
+Record: [0202](decisions/0202-panel-and-panes-move-at-one-speed.md)
 
 ### Control width
 
