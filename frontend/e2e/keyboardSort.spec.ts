@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, DESTINATION_NAMES, resultRows } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, resultRows } from './fixtures'
 
 // A sortable header has to be reached and operated with the keyboard alone
 // (WCAG 2.1.1). Axe cannot see this: a header cell with only a click handler
@@ -36,7 +36,8 @@ for (const viewport of [
     // inert, and the map's own Analyze is the one in reach (#696).
     const where = viewport.width < 1024 ? page.getByRole('main') : page.locator('aside')
     await where.getByRole('button', { name: 'Analyze' }).click()
-    await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+    // The first row is read after the sort, so the ranking lands before it.
+    await expectRanked(page)
 
     const name = page.locator('th[data-col="name"]')
     await page.locator('body').focus()

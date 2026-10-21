@@ -1,4 +1,4 @@
-import { test, expect, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, expectRanked } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A phone's scale, its credit's (i) and the opened credit line stand on the
@@ -27,7 +27,9 @@ for (const width of [360, 390]) {
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
-    await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+    // Measured once the ranking has landed, so no pending row moves the
+    // corner under the reading.
+    await expectRanked(page)
 
     const folded = await bottoms(page)
     test.info().annotations.push({ type: `corner ${width} px folded`, description: JSON.stringify(folded) })
