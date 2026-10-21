@@ -773,15 +773,70 @@ export async function runClientAnalysis(
   let cloudFailure: unknown = null
 
   try {
+    // The weather goes out first, so its batches take the forecast host's
+    // first four slots (the pool in openMeteo.ts, record 0203) and the
+    // progress line and the partial rows move from the first round. The cloud
+    // fetch below queues behind them, and the two then take turns on the pool.
+    // Air quality and the cloud column both resolve at the end, so a partial
+    // field carries neither. That is invisible for a weather ranking (the
+    // columns fill in when the analysis commits) and meaningless for a
+    // ranking on either, which would be ranking nulls. So the announcements
+    // simply do not happen there.
+    let wxPending: Promise<WeatherResult[]> | null = null
+    if (coords.length > 0) {
+      const rankFamily = familyOf(sortBy)
+      const partialsWanted = onPartial != null && rankFamily !== 'aqi' && rankFamily !== 'cloud_deck'
+      wxPending = fetchWeather(coords, startMs, endMs, {
+        signal: internal.signal,
+        onPace,
+        onPartial: partialsWanted
+          ? (partial, settled) => {
+              // Only the destinations with an answer. A `null` in `partial` is
+              // "no forecast for this location", which the assembly keeps as a
+              // row; a hole is a location still in flight and must not appear.
+              const have: DiscoveredDestination[] = []
+              const wx: WeatherResult[] = []
+              for (let i = 0; i < unforecast.length; i++) {
+                if (!settled[i]) continue
+                have.push(unforecast[i])
+                wx.push(partial[i])
+              }
+              const grown = assemble(have, wx, new Array(have.length).fill(null))
+              const rows = [...reused, ...grown.results]
+              rows.sort(rankComparator(sortBy, request.sort_desc ?? false))
+              onPartial(rows, grown.times.length > 0 ? grown.times : [...(reuse?.times ?? [])])
+            }
+          : undefined,
+        model: request.forecast_model,
+        // The same clock the air-quality fetch above is given. `nowMs` is what
+        // decides which Open-Meteo endpoint answers a window (`windowSource`:
+        // older than the forecast endpoint's own data is the archive's), so
+        // weather reading the real clock while air quality reads the caller's
+        // put the two on different sides of that boundary. It was invisible
+        // until a test's fixed window aged past the boundary and the weather
+        // half silently moved to the archive endpoint (2026-09-14).
+        nowMs,
+        windowLimits,
+        onColumn: (k, column) => keepColumn(unforecastAt[k], column, 'weather'),
+        onProgress: (processed, total) =>
+          onProgress?.(
+            processed,
+            total,
+            // Byte-identical to the analyze route's progress copy, so the
+            // app and a direct API caller read alike.
+            `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
+          ),
+      })
+    }
+
     // The cloud column rides beside the weather over the same candidates
     // (#117, #683): every analysis fetches it, so a held row carries it the
-    // way it carries its weather and is not asked again. Started first so
-    // its batches overlap the weather's rather than trailing them, the two
-    // taking turns in the forecast host's one pool of open requests
-    // (openMeteo.ts); it spends the same weather budget, so the pacer still
-    // sees one analysis's worth of spend. The deck walk inserts the 2 m point
-    // at the same height the wind is read at, which is what the shared
-    // `coords` carry.
+    // way it carries its weather and is not asked again. Its batches overlap
+    // the weather's rather than trailing them, the two taking turns in the
+    // forecast host's one pool of open requests (openMeteo.ts); it spends the
+    // same weather budget, so the pacer still sees one analysis's worth of
+    // spend. The deck walk inserts the 2 m point at the same height the wind
+    // is read at, which is what the shared `coords` carry.
     const cloudPending: Promise<CloudResult[] | null> = fetchCloud(coords, startMs, endMs, {
       signal: internal.signal,
       onPace,
@@ -835,56 +890,8 @@ export async function runClientAnalysis(
     let fetched: DestinationResult[] = []
     let fetchedAqiFailed: boolean[] = []
     let times: number[] = []
-    if (coords.length > 0) {
-      // Air quality resolves at the end, so a partial field carries none. That
-      // is invisible for a weather ranking (the column fills in when the
-      // analysis commits) and meaningless for an air-quality one, which would
-      // be ranking nulls. So the announcements simply do not happen there.
-      // The cloud column resolves at the end too, so the same holds for a
-      // cloud ranking.
-      const rankFamily = familyOf(sortBy)
-      const partialsWanted = onPartial != null && rankFamily !== 'aqi' && rankFamily !== 'cloud_deck'
-      const wxList = await fetchWeather(coords, startMs, endMs, {
-        signal: internal.signal,
-        onPace,
-        onPartial: partialsWanted
-          ? (partial, settled) => {
-              // Only the destinations with an answer. A `null` in `partial` is
-              // "no forecast for this location", which the assembly keeps as a
-              // row; a hole is a location still in flight and must not appear.
-              const have: DiscoveredDestination[] = []
-              const wx: WeatherResult[] = []
-              for (let i = 0; i < unforecast.length; i++) {
-                if (!settled[i]) continue
-                have.push(unforecast[i])
-                wx.push(partial[i])
-              }
-              const grown = assemble(have, wx, new Array(have.length).fill(null))
-              const rows = [...reused, ...grown.results]
-              rows.sort(rankComparator(sortBy, request.sort_desc ?? false))
-              onPartial(rows, grown.times.length > 0 ? grown.times : [...(reuse?.times ?? [])])
-            }
-          : undefined,
-        model: request.forecast_model,
-        // The same clock the air-quality fetch above is given. `nowMs` is what
-        // decides which Open-Meteo endpoint answers a window (`windowSource`:
-        // older than the forecast endpoint's own data is the archive's), so
-        // weather reading the real clock while air quality reads the caller's
-        // put the two on different sides of that boundary. It was invisible
-        // until a test's fixed window aged past the boundary and the weather
-        // half silently moved to the archive endpoint (2026-09-14).
-        nowMs,
-        windowLimits,
-        onColumn: (k, column) => keepColumn(unforecastAt[k], column, 'weather'),
-        onProgress: (processed, total) =>
-          onProgress?.(
-            processed,
-            total,
-            // Byte-identical to the analyze route's progress copy, so the
-            // app and a direct API caller read alike.
-            `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
-          ),
-      })
+    if (wxPending !== null) {
+      const wxList = await wxPending
       await followTail(aqiPending, cloudPending, onTail)
       // Never null on this branch: the new candidates are in `aqiCoords`.
       const aqi = (await aqiPending) ?? { results: [], failed: [] }
