@@ -776,10 +776,12 @@ export async function runClientAnalysis(
     // The cloud column rides beside the weather over the same candidates
     // (#117, #683): every analysis fetches it, so a held row carries it the
     // way it carries its weather and is not asked again. Started first so
-    // its batches overlap the weather's rather than trailing them; it spends
-    // the same weather budget, so the pacer still sees one analysis's worth
-    // of spend. The deck walk inserts the 2 m point at the same height the
-    // wind is read at, which is what the shared `coords` carry.
+    // its batches overlap the weather's rather than trailing them, the two
+    // taking turns in the forecast host's one pool of open requests
+    // (openMeteo.ts); it spends the same weather budget, so the pacer still
+    // sees one analysis's worth of spend. The deck walk inserts the 2 m point
+    // at the same height the wind is read at, which is what the shared
+    // `coords` carry.
     const cloudPending: Promise<CloudResult[] | null> = fetchCloud(coords, startMs, endMs, {
       signal: internal.signal,
       onPace,
@@ -795,10 +797,12 @@ export async function runClientAnalysis(
 
     // AQI rides ALONGSIDE weather for the whole field rather than trailing the
     // ranking for the displayed rows. Open-Meteo bills weighted calls per
-    // SERVICE, and air quality has its own 600/min quota (openMeteo.ts), so
-    // this spends a bucket the weather fetch cannot touch, and the two waits
-    // overlap instead of stacking — measurably cheaper in wall clock than the
-    // lazy version it replaces, whose tail batch was a second serialized pace.
+    // HOST, and the air-quality host has its own 600/min quota and its own
+    // five open requests (measured 2026-10-21, record 0203; openMeteo.ts), so
+    // this spends a bucket and a pool the weather fetch cannot touch, and the
+    // two waits overlap instead of stacking — measurably cheaper in wall clock
+    // than the lazy version it replaces, whose tail batch was a second
+    // serialized pace.
     // It is also what lets an AQI ranking be a live presentation knob: sorting
     // the held field by air quality needs air quality for all of it (#188).
     //

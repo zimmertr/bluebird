@@ -20,9 +20,13 @@ export class OpenMeteoUnreachable extends Error {}
 
 // Thrown for HTTP 429: reachable, refusing volume. scope names which quota
 // tripped (Open-Meteo's 429 body says "Minutely/Hourly/Daily API request
-// limit exceeded"), which decides whether waiting can help.
+// limit exceeded"), which decides whether waiting can help. `concurrency` is
+// the one 429 that names no quota: "Too many concurrent requests", a request
+// past the five Open-Meteo lets one address hold open on one host (measured
+// 2026-10-21, record 0203). It was refused before it was counted, so a second
+// is all it needs before it is asked again.
 export class OpenMeteoRateLimited extends Error {
-  scope: 'minutely' | 'hourly' | 'daily' | 'monthly' | null
+  scope: 'minutely' | 'hourly' | 'daily' | 'monthly' | 'concurrency' | null
   retryAfterS: number
   constructor(message: string, scope: OpenMeteoRateLimited['scope'], retryAfterS: number) {
     super(message)
