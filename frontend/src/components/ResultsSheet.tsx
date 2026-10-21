@@ -28,6 +28,8 @@ interface ResultsSheetProps
     // Read off `isDesktop` here (#696, record 0202).
     | 'chartTitled'
     | 'panesMove'
+    // Read off the layout's collapse here (record 0202).
+    | 'collapsed'
   > {
   /** The sheet's view (`useResultsView`): whether it shows, its layout, the chart, the table and the table's callbacks. */
   resultsView: ResultsSheetView
@@ -208,7 +210,10 @@ export default function ResultsSheet({
             compareWait={compareWait}
             compareNotes={compareNotes}
           />
-          {!resultsCollapsed && (
+          {/* A desk keeps the panels while collapsed, so the chevron shuts
+              and opens their frames at the panel's speed (record 0202); a
+              phone's sheet drops them. */}
+          {(isDesktop || !resultsCollapsed) && (
             <ResultsPanels
               layout={layout}
               charts={charts}
@@ -221,6 +226,7 @@ export default function ResultsSheet({
               sortDesc={sortDesc}
               chartTitled={!isDesktop}
               panesMove={isDesktop}
+              collapsed={resultsCollapsed}
               layoutMotion={layoutMotion}
               pointSample={pointSample}
               forecastTimes={forecastTimes}

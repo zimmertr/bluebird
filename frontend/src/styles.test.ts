@@ -3784,6 +3784,20 @@ describe('the panel frame', () => {
     expect(RESULTS_PANE.top).not.toMatch(/justify-end/)
   })
 
+  // While a pane moves its body keeps the height it was drawn at, so the box
+  // around it must clip it and keep its own height, and the body must not
+  // shrink to the box: either would draw the chart or lay out the table
+  // again in the frame the box changed (record 0202).
+  it('clips a held body inside its box and never shrinks it', () => {
+    expect(words(RESULTS_PANE.box)).toEqual(expect.arrayContaining(['overflow-hidden', 'flex-shrink-0', 'min-h-0']))
+    expect(words(RESULTS_PANE.held)).toContain('flex-shrink-0')
+    expect(RESULTS_PANE.held).not.toMatch(/(^|\s)(min-h-0|flex-1|h-full)(\s|$)/)
+    expect(resultsPanelsSource).toContain('RESULTS_PANE.box')
+    expect(resultsPanelsSource).toContain('RESULTS_PANE.held')
+    expect(resultsPanelsSource).toMatch(/height: `\$\{chartPane\.drawnPx\}px`/)
+    expect(resultsPanelsSource).toMatch(/height: `\$\{tablePane\.drawnPx\}px`/)
+  })
+
   // The Metrics rows pass WCAG 2.2 SC 2.5.8 by spacing (#687, record 0130):
   // a 16px label with 5px above and below, beside the 22px boxes, with the
   // grid's row gap, is a 32px pitch on a fine pointer. Touch keeps TAP.row's

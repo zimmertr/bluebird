@@ -5,7 +5,8 @@ import type { ResultsMode } from '../utils/viewPrefs'
 
 /**
  * Which edge of a desk's layout is moving: the panel opening or closing, or a
- * results pane opening or closing. Null while nothing moves.
+ * results pane opening or closing on a press or the collapse chevron. Null
+ * while nothing moves.
  */
 export type LayoutMotion = 'opening' | 'closing' | 'panes' | null
 
@@ -18,10 +19,11 @@ const FALLBACK_MS = PANEL_MS * 3
 
 /**
  * Whether a desk's layout is moving (#714; record 0202). While the panel
- * pushes the map's edge or a results pane opens, the map's box and the panes'
- * bodies hold one size (`LAYOUT_HOLD`), so a frame of the move moves boxes
- * rather than redrawing the map, the table or the chart; each is drawn at its
- * new size once, where the move starts or where it ends.
+ * pushes the map's edge or a results pane opens or closes, on a press or the
+ * collapse chevron, the map's box and the panes' bodies hold one size
+ * (`LAYOUT_HOLD`, `usePaneMotion`), so a frame of the move moves boxes rather
+ * than redrawing the map, the table or the chart; each is drawn at its new
+ * size once, where the move starts or where it ends.
  *
  * The motion is the difference between the layout the props ask for and the
  * one the last move settled at, worked out while rendering, so the hold lands
@@ -41,37 +43,40 @@ export function useLayoutMotion({
   isDesktop,
   open,
   mode,
+  collapsed = false,
 }: {
   isDesktop: boolean
   /** Whether the controls panel is open. */
   open: boolean
   /** The results mode drawn. */
   mode: ResultsMode
+  /** Whether the results are collapsed to their bar. */
+  collapsed?: boolean
 }) {
-  const [settled, setSettled] = useState({ open, mode })
+  const [settled, setSettled] = useState({ open, mode, collapsed })
   const animate = isDesktop && !prefersReducedMotion()
-  const moved = settled.open !== open || settled.mode !== mode
+  const moved = settled.open !== open || settled.mode !== mode || settled.collapsed !== collapsed
   const motion: LayoutMotion =
     !animate || !moved ? null : settled.open !== open ? (open ? 'opening' : 'closing') : 'panes'
 
   // Where nothing animates, no end event comes to settle the layout.
   useLayoutEffect(() => {
-    if (!animate && moved) setSettled({ open, mode })
-  }, [animate, moved, open, mode])
+    if (!animate && moved) setSettled({ open, mode, collapsed })
+  }, [animate, moved, open, mode, collapsed])
 
   useEffect(() => {
     if (motion === null) return
-    const timer = window.setTimeout(() => setSettled({ open, mode }), FALLBACK_MS)
+    const timer = window.setTimeout(() => setSettled({ open, mode, collapsed }), FALLBACK_MS)
     return () => window.clearTimeout(timer)
-  }, [motion, open, mode])
+  }, [motion, open, mode, collapsed])
 
   // Only while something moves: a second end, the other pane's frame in Chart
   // to Table, finds the layout settled already.
   const onTransitionEnd = useCallback(
     (e: TransitionEvent<HTMLElement>) => {
-      if (moved && MOVES.has(e.propertyName)) setSettled({ open, mode })
+      if (moved && MOVES.has(e.propertyName)) setSettled({ open, mode, collapsed })
     },
-    [moved, open, mode],
+    [moved, open, mode, collapsed],
   )
 
   return { motion, onTransitionEnd }

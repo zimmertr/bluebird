@@ -8,7 +8,7 @@ import type { ResultsMode } from '../utils/viewPrefs'
 const reduced = vi.hoisted(() => ({ on: false }))
 vi.mock('../utils/motion', () => ({ prefersReducedMotion: () => reduced.on }))
 
-type Props = { isDesktop: boolean; open: boolean; mode: ResultsMode }
+type Props = { isDesktop: boolean; open: boolean; mode: ResultsMode; collapsed?: boolean }
 const start = (initialProps: Props) => renderHook((p: Props) => useLayoutMotion(p), { initialProps })
 const ended = (propertyName: string) => ({ propertyName }) as TransitionEvent<HTMLElement>
 
@@ -41,6 +41,17 @@ describe('useLayoutMotion', () => {
     expect(result.current.motion).toBe('panes')
     act(() => result.current.onTransitionEnd(ended('grid-template-rows')))
     expect(result.current.motion).toBeNull()
+  })
+
+  // The collapse chevron shuts and opens the panes at the press's speed.
+  it('names the results panes moving on the collapse chevron, both ways', () => {
+    const { result, rerender } = start({ isDesktop: true, open: true, mode: 'both', collapsed: false })
+    rerender({ isDesktop: true, open: true, mode: 'both', collapsed: true })
+    expect(result.current.motion).toBe('panes')
+    act(() => result.current.onTransitionEnd(ended('grid-template-rows')))
+    expect(result.current.motion).toBeNull()
+    rerender({ isDesktop: true, open: true, mode: 'both', collapsed: false })
+    expect(result.current.motion).toBe('panes')
   })
 
   it('lets go at a move\'s end and at nothing else', () => {
