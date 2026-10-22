@@ -18,6 +18,7 @@ import { featureRow, pendingFC } from '../utils/mapFeatures'
 import type { ModelRow } from '../utils/modelCompare'
 import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
 import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeatures'
+import { usStatesNow } from '../utils/usStatesLoad'
 import { emptyFC, setSource } from './basemap'
 import type { MapController } from './controller'
 import type { MapPopups, MapTargetHit } from './mapPopups'
@@ -267,6 +268,9 @@ export function mountResultsLayer(
       compact: compactGrid(map.getCanvas().clientWidth),
       mapZoom: map.getZoom(),
       removable: true,
+      // The table's crag rows asked for them, so by the time a crag's card
+      // opens they are held, and a redraw picks them up if not.
+      usStates: usStatesNow(),
     })
   }
 

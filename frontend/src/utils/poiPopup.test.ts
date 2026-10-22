@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { POI_ACTION_ATTR, poiPopupHtml } from './poiPopup'
 import { ELEVATION_COL } from './tableColumns'
+import outlines from './usStateOutlines.json'
+import { decodeUsStates, type UsStateOutlines } from './usStates'
 import {
   FINE_COLOR,
   HEADER_BAND_COLOR,
@@ -100,6 +102,17 @@ describe('poiPopupHtml', () => {
     expect(crag).toContain('https://www.mountainproject.com/search?q=Lower%20Town%20Wall')
     expect(crag).toContain('aria-label="View on Mountain Project"')
     expect(factsText(crag)).toBe('Crag | 47.82080, -121.55550')
+  })
+
+  it("names a crag's state in its search when the outlines are held", () => {
+    const states = decodeUsStates(outlines as UsStateOutlines)
+    const crag = poiPopupHtml(
+      { name: 'Lower Town Wall', kind: 'crag', lat: 47.8208, lon: -121.5555, osmId: 'relation/1234' },
+      false,
+      undefined,
+      states,
+    )
+    expect(crag).toContain('https://www.mountainproject.com/search?q=Lower%20Town%20Wall%20Washington')
   })
 
   // A lone action sits centred in the body (TJ, 2026-10-14), not against the

@@ -20,6 +20,7 @@ import {
 import type { ClosureProximityStatus, ClosureWarning } from '../utils/closureProximity'
 import type { ChartBox } from '../hooks/useChartBox'
 import { destinationUrl } from '../utils/destinationUrl'
+import { useUsStates } from '../hooks/useUsStates'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
 import { isPartialRow } from '../utils/modelCompare'
@@ -189,10 +190,14 @@ interface NameTdProps {
   label: string
   name: string
   onCenter: () => void
-  href: string
+  // The row the link out is built from (`destinationUrl`).
+  link: Parameters<typeof destinationUrl>[0]
 }
 
-function NameTd({ cellClass, widths, label, name, onCenter, href }: NameTdProps) {
+function NameTd({ cellClass, widths, label, name, onCenter, link }: NameTdProps) {
+  // A crag's search names its state once the outlines arrive, and the cell
+  // draws again then.
+  const href = destinationUrl(link, useUsStates(link.type === 'crag'))
   return (
     <td className={`${cellClass} ${TABLE.stickyNameCell}`}>
       {sized(
@@ -439,8 +444,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   // inline color beats the inherited one either way.
   const cellClass = `${TABLE.cell} whitespace-nowrap ${key === 'name' ? 'font-sans font-medium' : 'font-mono'}`
   if (key === 'name') {
-    const href = destinationUrl(row)
-    return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} href={href} />
+    return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} link={row} />
   }
   const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample)
   if (col.windyLayer) {
@@ -620,8 +624,7 @@ function PendingTableRow({
         const key = col.key as string
         if (key === 'name') {
           const cellClass = `${TABLE.cell} whitespace-nowrap font-sans font-medium`
-          const href = destinationUrl(pendingLinkRow(d))
-          return <NameTd key={key} cellClass={cellClass} widths={widths} label={d.name} name={d.name} onCenter={center} href={href} />
+          return <NameTd key={key} cellClass={cellClass} widths={widths} label={d.name} name={d.name} onCenter={center} link={pendingLinkRow(d)} />
         }
         if (key === 'elevation_ft') {
           return (

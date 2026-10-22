@@ -5,6 +5,7 @@ import { placeType } from './geocode'
 import { escapeHtml, factsRow, metaBand, popupAction, popupButton, popupCard } from './popupChrome'
 import { elevationFact } from './popupRows'
 import { TYPE_COL } from './tableColumns'
+import type { UsStates } from './usStates'
 
 // The popup a clicked map label opens (#119): a peak, a lake, a place, a
 // trailhead or a crag.
@@ -33,14 +34,17 @@ export const POI_ACTION_ATTR = 'data-poi-action'
  * rest fall back to an OSM pin at the point, which is what a custom row gets
  * for the same reason.
  */
-function poiUrl(poi: BasemapPoi): string {
-  return destinationUrl({
-    name: poi.name,
-    type: placeType(poi.kind),
-    latitude: poi.lat,
-    longitude: poi.lon,
-    osm_id: poi.osmId ?? null,
-  })
+function poiUrl(poi: BasemapPoi, states: UsStates | null): string {
+  return destinationUrl(
+    {
+      name: poi.name,
+      type: placeType(poi.kind),
+      latitude: poi.lat,
+      longitude: poi.lon,
+      osm_id: poi.osmId ?? null,
+    },
+    states,
+  )
 }
 
 /**
@@ -60,8 +64,15 @@ function poiTypeFact(poi: BasemapPoi): string | null {
  * question about that peak, and the honest answer to it is the way back out.
  * @param mapZoom The map's zoom when the card is drawn, which the coordinates'
  * CalTopo link carries (#712); a card built with no map links without one.
+ * @param states The state outlines a crag's search names its state by, when
+ * held (`usStates.ts`).
  */
-export function poiPopupHtml(poi: BasemapPoi, added: boolean, mapZoom?: number): string {
+export function poiPopupHtml(
+  poi: BasemapPoi,
+  added: boolean,
+  mapZoom?: number,
+  states: UsStates | null = null,
+): string {
   // The button stands alone in the body, under the band's edge, with the
   // body's own padding around it; it needs no gap of its own. It is centred
   // the way every card's lone action is (`popupAction`).
@@ -85,6 +96,6 @@ export function poiPopupHtml(poi: BasemapPoi, added: boolean, mapZoom?: number):
   ])
 
   // The name is OSM's, so it is third-party text on its way to setHTML.
-  const link = { href: poiUrl(poi), label: destinationLinkLabel(placeType(poi.kind)) }
+  const link = { href: poiUrl(poi, states), label: destinationLinkLabel(placeType(poi.kind)) }
   return popupCard({ title: escapeHtml(poi.name), link, meta, body: action })
 }

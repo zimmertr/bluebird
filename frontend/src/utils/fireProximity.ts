@@ -188,6 +188,20 @@ export function pointInRing(lng: number, lat: number, ring: Position[]): boolean
   return inside
 }
 
+// Miles from a point to the nearest edge of a ring. Exported for the state
+// lookup (usStates.ts), which gives a point just off a simplified coast to the
+// state whose coast it is.
+export function distanceToRingMiles(lng: number, lat: number, ring: Position[]): number {
+  let min = Infinity
+  for (let i = 0; i < ring.length - 1; i++) {
+    const [ax, ay] = toLocalMiles(ring[i][0], ring[i][1], lng, lat)
+    const [bx, by] = toLocalMiles(ring[i + 1][0], ring[i + 1][1], lng, lat)
+    const d = originToSegmentMiles(ax, ay, bx, by)
+    if (d < min) min = d
+  }
+  return min
+}
+
 // A geometry's polygons as ring lists: Polygon → one, MultiPolygon → many.
 // Anything else contributes nothing.
 export function polygonsOf(geom: Geometry | null): Position[][][] {
@@ -205,14 +219,7 @@ function distanceToFeatureMiles(lat: number, lon: number, geom: Geometry | null)
   let min = Infinity
   for (const rings of polys) {
     if (rings.length > 0 && pointInRing(lon, lat, rings[0])) return 0
-    for (const ring of rings) {
-      for (let i = 0; i < ring.length - 1; i++) {
-        const [ax, ay] = toLocalMiles(ring[i][0], ring[i][1], lon, lat)
-        const [bx, by] = toLocalMiles(ring[i + 1][0], ring[i + 1][1], lon, lat)
-        const d = originToSegmentMiles(ax, ay, bx, by)
-        if (d < min) min = d
-      }
-    }
+    for (const ring of rings) min = Math.min(min, distanceToRingMiles(lon, lat, ring))
   }
   return min
 }

@@ -6,9 +6,9 @@ services the data comes from, and the software bundled into the shipped image.
 
 ## Data providers
 
-<!-- This section transcribes frontend/src/utils/dataSources.ts, the list the
-     privacy and terms pages render. A change to either updates both in the
-     same PR. -->
+<!-- The list below transcribes frontend/src/utils/dataSources.ts, the list
+     the privacy and terms pages render. A change to either updates both in the
+     same PR. Bundled data, after it, is the repo's alone. -->
 
 - [OpenStreetMap](https://www.openstreetmap.org/copyright): destination names,
   coordinates, and elevations, from a copy the server keeps current daily, or
@@ -67,6 +67,18 @@ services the data comes from, and the software bundled into the shipped image.
   work of the US government, and so in the public domain under 17 U.S.C. §105;
   no license names Bluebird Forecast's use of it. Credited on the map's area and
   trail closure legends whenever closures are drawn.
+
+### Bundled data
+
+Data built into the app rather than fetched from its source, so it is not in
+the list above or on the privacy and terms pages: the browser never contacts
+these providers.
+
+- [US Census Bureau](https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html):
+  the state outlines that name a crag's state in its Mountain Project search,
+  simplified from the 2024 cartographic boundary files by
+  `frontend/tools/us-states/build.sh` and served by the pod. A work of the US
+  government, and so in the public domain under 17 U.S.C. §105.
 
 ## Software
 
