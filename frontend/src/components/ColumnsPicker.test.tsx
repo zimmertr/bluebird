@@ -17,6 +17,8 @@ function Picker(props: {
   open?: boolean
   onVisibilityChange?: (keys: Set<string>) => void
   onColumnMove?: (from: string, to: string) => void
+  onReset?: () => void
+  atDefault?: boolean
   sheet?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
@@ -32,6 +34,8 @@ function Picker(props: {
         visibleKeys={ALL}
         onVisibilityChange={props.onVisibilityChange ?? (() => {})}
         onColumnMove={props.onColumnMove}
+        onReset={props.onReset ?? (() => {})}
+        atDefault={props.atDefault ?? true}
         triggerRef={triggerRef}
         sheet={props.sheet}
       />
@@ -97,6 +101,64 @@ describe('visibility', () => {
     const next = onVisibilityChange.mock.lastCall?.[0] as Set<string>
     expect(next.has('type')).toBe(false)
     expect(next.size).toBe(ALL.size - 1)
+  })
+
+  // A press with Shift held reaches every row from the last pressed to this
+  // one (record 0209), and the ranked rows it crosses stay on screen.
+  it('unticks every row between the last press and a Shift-click, but a ranked one', () => {
+    const onVisibilityChange = vi.fn()
+    render(<Picker onVisibilityChange={onVisibilityChange} />)
+    const first = COLUMNS[0].label as string
+    const last = COLUMNS[COLUMNS.length - 1].label as string
+    fireEvent.click(box(first))
+    expect((onVisibilityChange.mock.lastCall?.[0] as Set<string>).size).toBe(ALL.size - 1)
+    fireEvent.click(box(last), { shiftKey: true })
+    const next = onVisibilityChange.mock.lastCall?.[0] as Set<string>
+    const ranked = COLUMNS.filter((c) => (c.key as string).startsWith('precip_')).map((c) => c.key as string)
+    expect([...next].sort()).toEqual([...ranked].sort())
+  })
+
+  it('reaches back to the last plain press, not the one before it', () => {
+    const onVisibilityChange = vi.fn()
+    render(<Picker onVisibilityChange={onVisibilityChange} />)
+    const [a, b, c] = COLUMNS.filter((col) => !(col.key as string).startsWith('precip_')).slice(0, 3)
+    fireEvent.click(box(a.label as string))
+    fireEvent.click(box(b.label as string))
+    fireEvent.click(box(c.label as string), { shiftKey: true })
+    // The anchor is b, so the run is b to c; a is outside it, and the picker
+    // reads every box off the one set it is handed, where a is still on.
+    const next = onVisibilityChange.mock.lastCall?.[0] as Set<string>
+    expect(next.has(a.key as string)).toBe(true)
+    expect(next.has(b.key as string)).toBe(false)
+    expect(next.has(c.key as string)).toBe(false)
+    expect(next.size).toBe(ALL.size - 2)
+  })
+})
+
+describe('Reset all', () => {
+  // Always drawn and greyed at the default (record 0209), the way Clear
+  // filters is, under the rows on a desk and last in the sheet.
+  it('stands greyed under the rows at the default, and resets otherwise', () => {
+    const onReset = vi.fn()
+    const { rerender } = render(<Picker onReset={onReset} atDefault />)
+    const reset = () => screen.getByRole('button', { name: 'Reset all' }) as HTMLButtonElement
+    expect(reset().disabled).toBe(true)
+    const group = screen.getByRole('group', { name: 'Columns' })
+    expect(group.compareDocumentPosition(reset()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(group.closest('[style]')!.contains(reset())).toBe(true)
+    rerender(<Picker onReset={onReset} atDefault={false} />)
+    expect(reset().disabled).toBe(false)
+    fireEvent.click(reset())
+    expect(onReset).toHaveBeenCalledOnce()
+  })
+
+  it('is the last row of the phone sheet', () => {
+    render(<Picker sheet atDefault={false} />)
+    const sheet = screen.getByRole('dialog', { name: 'Columns' })
+    const reset = screen.getByRole('button', { name: 'Reset all' })
+    expect(sheet.contains(reset)).toBe(true)
+    const boxes = within(sheet).getAllByRole('checkbox')
+    expect(boxes[boxes.length - 1].compareDocumentPosition(reset) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
 

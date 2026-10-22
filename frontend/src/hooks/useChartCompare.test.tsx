@@ -107,6 +107,15 @@ describe('useChartCompare', () => {
     expect(last().rows.map((p) => p.terrainFallback)).toEqual([true, true, false, false])
   })
 
+  // The Models menu's Reset all (record 0209): every line drawn again.
+  it('shows every model again on Reset all', () => {
+    const { result } = renderHook(() => useChartCompare(inputs({ comparedModels: ICON })))
+    act(() => result.current.toggleHiddenModel('icon_seamless'))
+    expect(result.current.hiddenModels.size).toBe(1)
+    act(() => result.current.showAllModels())
+    expect(result.current.hiddenModels.size).toBe(0)
+  })
+
   it('prunes a hidden model once the panel deselects it', () => {
     let compared = ICON
     const { result, rerender } = renderHook(() => useChartCompare(inputs({ comparedModels: compared })))

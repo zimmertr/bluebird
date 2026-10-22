@@ -106,15 +106,13 @@ export const BLOCKER_HOME: Record<AnalyzeBlocker, BlockerHome> = {
   'compare-freeze': 'model',
 }
 
-const BLOCKER_HOMES: readonly BlockerHome[] = ['destinations', 'polygon', 'types', 'model', 'when']
-
 /**
  * The blockers' lines by the field each stands under, every home present and
  * most of them empty, in `panelMessages`'s order within a home. Read by the
  * panel's sections, which draw their own home's lines and nothing else.
  */
 export function blockerLines(messages: readonly FooterMessage[]): Record<BlockerHome, FooterMessage[]> {
-  const lines = Object.fromEntries(BLOCKER_HOMES.map((home) => [home, []])) as Record<BlockerHome, FooterMessage[]>
+  const lines: Record<BlockerHome, FooterMessage[]> = { destinations: [], polygon: [], types: [], model: [], when: [] }
   for (const message of messages) {
     const blocker = blockerOf(message.key)
     if (blocker) lines[BLOCKER_HOME[blocker]].push(message)

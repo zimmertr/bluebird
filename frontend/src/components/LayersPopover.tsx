@@ -1,6 +1,8 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type ElementType, type RefObject } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type ChangeEvent, type ElementType, type RefObject } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
+import { useShiftRange } from '../hooks/useShiftRange'
+import { shiftHeld } from '../utils/rangeSelect'
 import BottomSheet from './BottomSheet'
 import { MenuButton } from './Menu'
 import {
@@ -39,7 +41,8 @@ function layerRow({
   key: string
   label: string
   checked: boolean
-  onChange: (on: boolean) => void
+  /** The press, with its event, so a Shift range can be read off it (record 0209). */
+  onChange: (on: boolean, e: ChangeEvent<HTMLInputElement>) => void
   /** Out of play for this report; `note` says why, as the row's `title` and as
    *  the hidden text its checkbox points at, since a tooltip does not exist on
    *  touch or to a screen reader. */
@@ -56,7 +59,7 @@ function layerRow({
         checked={checked}
         disabled={disabled}
         aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
-        onChange={(e) => onChange(e.target.checked)}
+        onChange={(e) => onChange(e.target.checked, e)}
         className={CHOICE_INPUT}
       />
       <span>{label}</span>
@@ -156,6 +159,7 @@ export default function LayersPopover({
   // portal at the end of the body, would read as outside the column here.
   const popoverOpen = layersOpen && !sheet
   const closeSheet = useCallback(() => setLayersOpen(false), [])
+  const press = useShiftRange(open)
   // The rows whose layer can draw nothing over the view, watched while the
   // menu is open. A label used to carry this ("US only", "OR/WA", "West"),
   // three ways at once and none of them true of the area feeds' eight states;
@@ -266,10 +270,23 @@ export default function LayersPopover({
   // On a phone each layer is one row of the sheet, its grid sub-choices
   // inside it, so the sheet's rule falls between layers and never between a
   // row and its own segment.
+  // A press with Shift held reaches every row from the last pressed one to
+  // this one (record 0209), each switched where it differs from the box the
+  // reader pressed; a greyed row stays as it is.
+  const order = MAP_LAYERS.map((layer) => layer.key)
   const Row: ElementType = sheet ? 'div' : Fragment
   const rows = MAP_LAYERS.map((layer) => (
     <Row key={layer.key}>
-      {layerRow({ ...layer, menu: !sheet })}
+      {layerRow({
+        ...layer,
+        onChange: (on, e) => {
+          for (const key of press(order, layer.key, shiftHeld(e))) {
+            const each = MAP_LAYERS.find((l) => l.key === key)
+            if (each && !each.disabled && each.checked !== on) each.onChange(on)
+          }
+        },
+        menu: !sheet,
+      })}
       {/* The grid's sub-choices, revealed by its own checkbox
           and rendered under the row they belong to rather than
           after the list, so the alphabetical order above holds

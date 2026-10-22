@@ -1,13 +1,16 @@
 import type { ComponentProps } from 'react'
-import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
 import PanelFooter from './PanelFooter'
 import type { FooterMessage } from '../utils/notices'
+import { panelMessages } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
+import { MESSAGE_BADGE } from '../styles'
 
-// The footer draws what `panelMessages` decided: the button, then one box per
-// severity with each message dismissable alone, then the two document links.
-// Which messages exist is that module's suite; this one is where they land.
+// The footer draws what `usePanelMessages` decided (record 0208): the Analyze
+// button with the count on its corner, the list the badge opens over it, and
+// the two document links. Which messages exist is that hook's suite; this one
+// is where they land and how the list opens.
 
 type Props = ComponentProps<typeof PanelFooter>
 
@@ -16,9 +19,8 @@ function props(over: Partial<Props> = {}): Props {
     analyzeEnabled: true,
     word: 'Analyze',
     onAnalyze: () => {},
-    onDismissEvent: () => {},
     onTutorial: () => {},
-    messages: [],
+    messages: panelMessages(),
     ...over,
   }
 }
@@ -30,10 +32,10 @@ const MESSAGES: FooterMessage[] = [
   { key: 'cue:window-changed', text: 'Second warning.', severity: 'warn' },
 ]
 
-const analyze = () => screen.getByRole('button', { name: /^(Analyze|Analyzing…|Try again)$/ })
-// The boxes stand inside the footer's one live region, which is mounted for
-// good so a box that arrives is announced.
-const boxes = () => [...screen.getByRole('status').children] as HTMLElement[]
+const analyze = () => screen.getByRole('button', { name: /^(Analyze|Analyzing…|Try again)$/ }) as HTMLButtonElement
+const badge = () => screen.getByRole('button', { name: /^\d+ messages?$/ })
+const list = () => screen.getByRole('group', { name: 'Messages' })
+const boxes = () => [...list().children] as HTMLElement[]
 
 describe('PanelFooter', () => {
   it('analyzes on a press while enabled', async () => {
@@ -43,9 +45,10 @@ describe('PanelFooter', () => {
     expect(onAnalyze).toHaveBeenCalledOnce()
   })
 
-  it('disables the button when the panel says so, and reads the word it is handed', () => {
+  it('disables the button while busy, and reads the word it is handed', () => {
     const { rerender } = render(<PanelFooter {...props({ analyzeEnabled: false, word: 'Analyzing…' })} />)
-    expect((analyze() as HTMLButtonElement).disabled).toBe(true)
+    expect(analyze().disabled).toBe(true)
+    expect(analyze().getAttribute('aria-disabled')).toBeNull()
     expect(analyze().textContent).toBe('Analyzing…')
     // After a failed run the one button is the retry (#736): same button,
     // same command, a different word.
@@ -56,81 +59,79 @@ describe('PanelFooter', () => {
     expect(onAnalyze).toHaveBeenCalledOnce()
   })
 
-  it('draws no box with nothing to say', () => {
+  it('wears no badge and opens no list with nothing to say', () => {
     render(<PanelFooter {...props()} />)
-    expect(boxes()).toEqual([])
+    expect(screen.queryByRole('button', { name: /messages?$/ })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
   })
 
-  it('boxes the messages by severity, error first, in order inside each box', () => {
-    render(<PanelFooter {...props({ messages: MESSAGES })} />)
+  it('counts the messages on the button in the worst one\'s colour, and opens the list from the badge', async () => {
+    const { user } = render(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES }) })} />)
+    expect(badge().textContent).toBe('4')
+    expect(badge().getAttribute('aria-label')).toBe('4 messages')
+    expect(badge().className).toContain(MESSAGE_BADGE.error)
+    // In the slot the button stands in, so a greyed button leaves it whole.
+    expect(badge().parentElement).toBe(analyze().parentElement)
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
+    await user.click(badge())
+    expect(badge().getAttribute('aria-expanded')).toBe('true')
     expect(boxes().map((b) => b.textContent)).toEqual([
       expect.stringContaining('Run failed.'),
       expect.stringMatching(/First warning\..*Second warning\./),
       expect.stringContaining('Info line.'),
     ])
-    for (const box of boxes()) {
-      expect(analyze().compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    }
+    await user.click(badge())
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
   })
 
-  // The error box used to end in a Try again of its own, a second button
-  // under Analyze that did what Analyze does (#736). Now the box holds its
-  // lines and their dismiss controls, and nothing a reader presses to run.
-  it('puts no button but the dismiss controls in any box', () => {
-    render(<PanelFooter {...props({ messages: MESSAGES, word: 'Try again' })} />)
-    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1)
-    for (const box of boxes()) {
-      expect(within(box).getAllByRole('button').every((b) => b.getAttribute('aria-label') === 'Dismiss notice')).toBe(true)
-    }
+  // A blocker greys the button and leaves it live (the maintainer,
+  // 2026-10-21): a press anywhere on it opens the list, and runs nothing.
+  it('opens the list from a press on the greyed button while a blocker holds it', async () => {
+    const onAnalyze = vi.fn()
+    const blocked = panelMessages({ messages: [MESSAGES[0]], analyzeEnabled: false, blocked: true })
+    const { user } = render(<PanelFooter {...props({ onAnalyze, analyzeEnabled: false, messages: blocked })} />)
+    expect(analyze().disabled).toBe(false)
+    expect(analyze().getAttribute('aria-disabled')).toBe('true')
+    await user.click(analyze())
+    expect(onAnalyze).not.toHaveBeenCalled()
+    expect(within(list()).getByText('Info line.')).toBeTruthy()
+    await user.click(analyze())
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
   })
 
-  it('dismisses one message and keeps its box for the rest', async () => {
-    const { user } = render(<PanelFooter {...props({ messages: MESSAGES })} />)
-    const [first] = within(boxes()[1]).getAllByRole('button', { name: 'Dismiss notice' })
-    await user.click(first)
-    expect(boxes()[1].textContent).not.toMatch(/First warning/)
-    expect(boxes()[1].textContent).toMatch(/Second warning/)
+  it('hands a dismissal up by its key, and leaves a blocker with no way to dismiss', async () => {
+    const dismiss = vi.fn()
+    const { user } = render(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES, dismiss }) })} />)
+    await user.click(badge())
+    const [error, warn, info] = boxes()
+    await user.click(within(error).getByRole('button', { name: 'Dismiss notice' }))
+    expect(dismiss).toHaveBeenCalledExactlyOnceWith('error:boom')
+    expect(within(warn).getAllByRole('button', { name: 'Dismiss notice' })).toHaveLength(2)
+    expect(within(info).queryByRole('button')).toBeNull()
   })
 
-  // An event line is one run's outcome, held as state: dismissing it clears
-  // the event (#736), so the button that read Try again off the error reads
-  // Analyze again, rather than hiding the line in this footer's ledger.
-  it('hands the dismissal of an event line up, and keeps the ledger for the derived lines', async () => {
-    const onDismissEvent = vi.fn()
-    const { user, rerender } = render(<PanelFooter {...props({ messages: MESSAGES, onDismissEvent })} />)
-    await user.click(within(boxes()[0]).getByRole('button', { name: 'Dismiss notice' }))
-    expect(onDismissEvent).toHaveBeenCalledExactlyOnceWith('error')
-    // The line stays until its state clears above; nothing here hid it.
-    expect(boxes()[0].textContent).toMatch(/Run failed/)
-    rerender(<PanelFooter {...props({ messages: MESSAGES.filter((m) => m.key !== 'error:boom'), onDismissEvent })} />)
-    expect(boxes()[0].textContent).not.toMatch(/Run failed/)
-    const refusal: FooterMessage[] = [{ key: 'refusal:Too many.', text: 'Too many.', severity: 'error' }]
-    rerender(<PanelFooter {...props({ messages: refusal, onDismissEvent })} />)
-    await user.click(screen.getByRole('button', { name: 'Dismiss notice' }))
-    expect(onDismissEvent).toHaveBeenLastCalledWith('refusal')
-  })
-
-  // A dismissal lives as long as its condition: once the message is gone and
-  // comes back, it is news again.
-  it('shows a dismissed message again after its condition clears and returns', async () => {
-    const lone: FooterMessage[] = [{ key: 'cue:model-changed', text: 'First warning.', severity: 'warn' }]
-    const { user, rerender } = render(<PanelFooter {...props({ messages: lone })} />)
-    await user.click(screen.getByRole('button', { name: 'Dismiss notice' }))
-    expect(boxes()).toEqual([])
-    rerender(<PanelFooter {...props({ messages: [] })} />)
-    rerender(<PanelFooter {...props({ messages: lone })} />)
-    expect(boxes()).toHaveLength(1)
+  // The list goes with the last message, since there is nothing left to list.
+  it('closes the list when the last message goes', async () => {
+    const { user, rerender } = render(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES }) })} />)
+    await user.click(badge())
+    expect(list()).toBeTruthy()
+    rerender(<PanelFooter {...props()} />)
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /messages?$/ })).toBeNull()
   })
 
   // A box that arrives already holding its text is not announced by most
-  // screen readers, so the region is there before anything is said (#576).
-  it('keeps one live region mounted, empty until there is something to say', () => {
+  // screen readers, so the region is there before anything is said (#576),
+  // and holds every message whether or not the list is open.
+  it('keeps one live region mounted beside the button, holding every message', () => {
     const { rerender } = render(<PanelFooter {...props()} />)
     const region = screen.getByRole('status')
     expect(region.textContent).toBe('')
-    rerender(<PanelFooter {...props({ messages: MESSAGES })} />)
+    expect(region.parentElement).toBe(analyze().parentElement)
+    rerender(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES }) })} />)
     expect(screen.getByRole('status')).toBe(region)
     expect(region.textContent).toMatch(/Run failed\./)
+    expect(screen.getAllByRole('status')).toHaveLength(1)
   })
 
   // Analyze turns disabled under the keyboard that pressed it; once the run
@@ -204,64 +205,18 @@ describe('PanelFooter', () => {
     }
   })
 
-  // The map's band, appended by hand, so its removal is registered with the
-  // test rather than left to a last line a failed assertion never reaches.
-  function mapBand(): HTMLDivElement {
-    const home = document.createElement('div')
-    document.body.appendChild(home)
-    onTestFinished(() => home.remove())
-    return home
-  }
-
-  // On a phone the whole block stands in the band the map holds (#696;
-  // record 0140), informing lines and action lines alike, and the Controls
-  // sheet keeps none of it. At a desk it is one block under the button.
-  it('sends the whole block to the home it is handed on a phone, and keeps none of it', () => {
-    const home = mapBand()
-    const { container, rerender } = render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home, phone: true })} />)
-    const regions = screen.getAllByRole('status')
-    expect(regions).toHaveLength(1)
-    const onMap = regions[0]
-    expect(home.contains(onMap)).toBe(true)
-    expect(within(onMap).getByText('First warning.')).toBeTruthy()
-    expect(within(onMap).getByText('Run failed.')).toBeTruthy()
-    expect(within(onMap).getByText('Info line.')).toBeTruthy()
-    // What the sheet keeps is the document links alone.
-    expect(container.textContent).toBe('Tutorial · Privacy · Terms')
-    rerender(<PanelFooter {...props({ messages: MESSAGES })} />)
-    expect(home.childElementCount).toBe(0)
-    expect(screen.getAllByRole('status')).toHaveLength(1)
-    expect(container.contains(screen.getByRole('status'))).toBe(true)
-  })
-
-  // The band mounts after the sheet on a phone's first frame; the block waits
-  // for it rather than flashing into the sheet.
-  it('draws the block nowhere on a phone whose band is not there yet', () => {
-    const { container } = render(<PanelFooter {...props({ messages: MESSAGES, phone: true })} />)
+  // A phone's one Analyze is the map's floating button (record 0135), which
+  // wears the badge and the region: the sheet's footer is the links alone.
+  it('draws the links alone on a phone', () => {
+    const { container, rerender } = render(
+      <PanelFooter {...props({ phone: true, messages: panelMessages({ messages: MESSAGES }) })} />,
+    )
+    expect(screen.queryByRole('button')).toBeNull()
     expect(screen.queryByRole('status')).toBeNull()
     expect(container.textContent).toBe('Tutorial · Privacy · Terms')
-  })
-
-  // A phone's one Analyze is the map's floating button (record 0135), so the
-  // sheet's footer draws none.
-  it('draws no Analyze on a phone', () => {
-    const { container, rerender } = render(<PanelFooter {...props({ phone: true })} />)
-    expect(screen.queryByRole('button', { name: 'Analyze' })).toBeNull()
     // The tour's Analyze step lights the map's button instead.
     expect(container.querySelector('[data-tour="analyze"]')).toBeNull()
     rerender(<PanelFooter {...props()} />)
     expect(screen.getByRole('button', { name: 'Analyze' })).toBeTruthy()
-  })
-
-  // A dismissal is the one ledger's wherever the block stands.
-  it('dismisses a line on the map from the same ledger', () => {
-    const home = mapBand()
-    render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home, phone: true })} />)
-    expect(within(home).getByText('First warning.')).toBeTruthy()
-    const dismiss = within(home)
-      .getAllByRole('button', { name: 'Dismiss notice' })
-      .find((b) => b.parentElement?.textContent?.includes('First warning.'))!
-    fireEvent.click(dismiss)
-    expect(within(home).queryByText('First warning.')).toBeNull()
   })
 })

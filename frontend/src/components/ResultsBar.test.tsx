@@ -3,7 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { createRef, type ComponentProps } from 'react'
 import ResultsBar from './ResultsBar'
 import { render } from '../testSupport/render'
-import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, MENU_CHEVRON, MENU_TRIGGER } from '../styles'
+import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, DISABLED, MENU_CHEVRON, MENU_TRIGGER } from '../styles'
 
 type Props = ComponentProps<typeof ResultsBar>
 const NOOP = () => {}
@@ -88,13 +88,23 @@ describe('ResultsBar', () => {
     expect(screen.queryByRole('button', { name: 'Collapse results' })).toBeNull()
   })
 
-  it('shows Removed only with something to restore, and Download only with a row', () => {
+  // Removed stands whenever Columns does (record 0209), greyed until there is
+  // a row to remove or one removed: a report emptied by removals keeps the
+  // way back. Download alone comes with a row.
+  it('draws Removed greyed before a row, live with a row or a removal, and Download only with a row', () => {
     const { rerender } = render(<ResultsBar {...props({ canDownload: false })} />)
-    expect(screen.queryByRole('button', { name: /Removed/ })).toBeNull()
+    const removed = () => screen.getByRole('button', { name: /^Removed \(\d+\)$/ }) as HTMLButtonElement
+    expect(removed().disabled).toBe(true)
+    expect(removed().textContent).toBe('Removed (0)')
     expect(screen.queryByRole('button', { name: /Download/ })).toBeNull()
-    rerender(<ResultsBar {...props({ removedCount: 3 })} />)
-    expect(screen.getByRole('button', { name: 'Removed (3)' })).toBeTruthy()
+    rerender(<ResultsBar {...props({ removedCount: 3, canDownload: false })} />)
+    expect(removed().disabled).toBe(false)
+    expect(removed().textContent).toBe('Removed (3)')
+    rerender(<ResultsBar {...props({ removedCount: 0 })} />)
+    expect(removed().disabled).toBe(false)
     expect(screen.getByRole('button', { name: 'Download CSV' })).toBeTruthy()
+    rerender(<ResultsBar {...props({ showTable: false, canDownload: false })} />)
+    expect(screen.queryByRole('button', { name: /^Removed/ })).toBeNull()
   })
 
   // WCAG 2.5.3: a voice-control reader says the words on the button, so the
@@ -120,7 +130,8 @@ describe('ResultsBar', () => {
     const menus = ['Choose which columns to display', 'Models', 'Removed (2)'].map((name) => screen.getByRole('button', { name }))
     const download = screen.getByRole('button', { name: 'Download CSV' })
     for (const button of menus) {
-      expect(button.className).toBe(MENU_TRIGGER.bar)
+      // Removed alone wears the greying role, for its zero (record 0209).
+      expect(button.className).toBe(button === menus[2] ? `${MENU_TRIGGER.bar} ${DISABLED}` : MENU_TRIGGER.bar)
       expect(button.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(2)
       expect(button.lastElementChild?.getAttribute('class')).toContain(MENU_CHEVRON.bar)
       expect(button.querySelector('span')?.className).toBe(BAR_LABEL)
@@ -157,9 +168,12 @@ describe('ResultsBar', () => {
   })
 
   it('puts no divider before the first button, whichever stand', () => {
+    // Columns, Models and a greyed Removed before a row (record 0209), and no
+    // Download.
     render(<ResultsBar {...props({ canDownload: false })} />)
     const group = screen.getByRole('button', { name: 'Models' }).parentElement as HTMLElement
-    expect([...group.children].map((c) => c.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON'])
+    expect([...group.children].map((c) => c.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON'])
+    expect(group.lastElementChild).toBe(screen.getByRole('button', { name: 'Removed (0)' }))
   })
 
   // The switch's words follow the same width rule as the buttons', so the

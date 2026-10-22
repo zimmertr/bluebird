@@ -84,13 +84,17 @@ import {
   MAP_CHIP_SUMMARY,
   MAP_CHIP_SUMMARY_TEXT,
   MAP_FAB,
+  MAP_FAB_SLOT,
   MAP_FAB_WORDS,
+  MESSAGE_BADGE,
+  MESSAGE_LIST,
+  BLOCKED,
+  BLOCKER_LINE,
   MAP_ROUND_BUTTON,
   MAP_SLOT,
   MAP_CORNER,
   MAP_ZOOM_PAIR,
   MAP_CREDIT,
-  MAP_NOTICE_BAND,
   MAP_PILL,
   MAP_PILL_FIELD,
   MAP_MENU_W,
@@ -124,7 +128,7 @@ import { CHART_TICK_PX, LINE_LAYER_Z, LINE_RIM_FILTER_ID } from './utils/chartCo
 import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { CHIP_MENU_GAP_PX, NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
+import { CHIP_MENU_GAP_PX } from './utils/resultsSheet'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { SNOW_RAMP } from './utils/snowDepth'
@@ -2494,9 +2498,12 @@ describe('the phone chrome\'s hit areas', () => {
 describe('the Analyze button on a phone', () => {
   const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
 
-  it('is 56px tall, 16px off the right edge, with a 16px corner', () => {
-    expect(tokens(MAP_FAB)).toEqual(expect.arrayContaining(['absolute', 'right-4', 'h-14', 'rounded-2xl']))
-    expect(MAP_FAB).toContain(LAYER.mapControls)
+  // The slot places the button and its badge together (record 0208); the
+  // button itself is the slot's box, so the badge's corner is its corner.
+  it('is 56px tall with a 16px corner, in a slot 16px off the right edge', () => {
+    expect(tokens(MAP_FAB)).toEqual(expect.arrayContaining(['relative', 'h-14', 'rounded-2xl']))
+    expect(tokens(MAP_FAB_SLOT)).toEqual(['absolute', 'right-4', LAYER.mapControls])
+    expect(MAP_FAB).not.toMatch(/(^|\s)(absolute|right-|z-)/)
     expect(MAP_FAB).toContain(ELEVATION.overlay)
   })
 
@@ -2525,7 +2532,7 @@ describe('the Analyze button on a phone', () => {
   it('wears BUTTON_PRIMARY\'s fill and the call to action\'s type', () => {
     for (const part of [ACCENT.fill, ACCENT.fillHover, FOCUS_RING, TEXT.cta]) expect(MAP_FAB).toContain(part)
     for (const part of [ACCENT.fill, TEXT.cta]) expect(BUTTON_PRIMARY).toContain(part)
-    expect(phoneFootSource).toContain('${MAP_FAB} ${DISABLED}')
+    expect(phoneFootSource).toContain('${MAP_FAB} ${DISABLED} ${BLOCKED}')
   })
 
   // Both words in one grid cell, so the width is the wider word's.
@@ -2546,7 +2553,7 @@ describe('the bottom sheet', () => {
     // The Analyze button among it: every sheet's dim covers the button where
     // it stands, and the sheet's modality keeps it from a press, so the foot
     // neither hides it nor makes it inert (record 0207).
-    expect(zOf(MAP_FAB.match(/(?:^|\s)(z-\S+)/)![1])).toBeLessThan(zOf(LAYER.popover))
+    expect(zOf(MAP_FAB_SLOT.match(/(?:^|\s)(z-\S+)/)![1])).toBeLessThan(zOf(LAYER.popover))
     expect(phoneFootSource).not.toMatch(/\binert\b/)
     expect(tokens(BOTTOM_SHEET.scrim)).toEqual(expect.arrayContaining(['fixed', 'inset-0']))
     expect(darkStep(token(BOTTOM_SHEET.dim, 'bg'))).toBe('black')
@@ -2578,50 +2585,89 @@ describe('the bottom sheet', () => {
   })
 })
 
-// The panel's notices on a phone's map while the drawer is shut (#696;
-// record 0140): the same translucent boxes, on the drawer's own fill.
 // A recipe's classes, for the phone chrome checks below.
 const words = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
 
-describe('the notice band', () => {
-  const bands = [MAP_NOTICE_BAND.map, MAP_NOTICE_BAND.overDim]
+// The count on the Analyze button (#786; record 0208): a 20px disc at the
+// button's corner, filled in the worst message's ink with the digit in the
+// panel's colour, so the fill is the colour a notice's text would be and the
+// digit stands out on it in either theme. The same badge on the panel's
+// button at a desk and on the map's on a phone.
+describe('the message badge', () => {
+  // The digit on each fill, in each theme, measured on the hex the browser
+  // paints; literals so a token change fails here and forces a re-measurement
+  // rather than inheriting a stale claim.
+  const MEASURED = {
+    dark: { error: 5.06, warn: 10.1, info: 8.77 },
+    light: { error: 8.33, warn: 6.31, info: 8.35 },
+  }
 
-  it('lays the drawer\'s fill under the boxes only while it holds one, and yields the rest', () => {
-    const drawerFill = DESK_PANEL.card.match(/(?:^|\s)(bg-[a-z-]+)(?=\s|$)/)?.[1]
-    expect(drawerFill).toBeDefined()
-    for (const band of bands) {
-      expect(band).toContain(`has-[>[role=status]>*]:${drawerFill}`)
-      expect(band).not.toMatch(/(^|\s)bg-/)
-      for (const part of [MAP_EDGE.left, MAP_EDGE.right, YIELD_EMPTY]) expect(band).toContain(part)
-      // The boxes' own corners, so the fill under them meets their edges.
-      expect(band).toContain(RADIUS.control)
-    }
-    expect(NOTICE.warn).toContain(RADIUS.control)
+  it('is a 20px pill at the button\'s corner, 44px to a finger, ringed in the panel', () => {
+    const t = words(MESSAGE_BADGE.base)
+    expect(t).toEqual(
+      expect.arrayContaining([
+        'absolute',
+        '-right-2',
+        '-top-2',
+        'h-5',
+        'min-w-5',
+        RADIUS.pill,
+        'ring-2',
+        'ring-panel',
+        'font-bold',
+        'tabular-nums',
+        ...words(MICRO_SIZE),
+        ...words(FOCUS_RING),
+      ]),
+    )
+    // 20px plus 12px each side on touch: the 44px a finger needs, drawn by
+    // nothing (`touch:before:-inset-3`), so the disc stays a disc.
+    expect(t).toEqual(expect.arrayContaining(['touch:before:absolute', 'touch:before:-inset-3', "touch:before:content-['']"]))
+    expect(MESSAGE_BADGE.slot).toBe('relative')
+    // The phone's slot is the positioned box, so the badge's corner is the
+    // button's there too.
+    expect(words(MAP_FAB_SLOT)).toContain('absolute')
   })
 
-  // On the map it is map chrome, under the button. On the Controls sheet's
-  // edge it stands on the panel's layer, over the sheet's dim and under a
-  // sheet opened from inside the panel (record 0207). One layer each, since
-  // two z utilities on one element resolve by stylesheet order.
-  it('stands on the map\'s layer, or over the Controls sheet\'s dim', () => {
-    const layerOf = (recipe: string) => words(recipe).filter((w) => /^z-/.test(w))
-    expect(layerOf(MAP_NOTICE_BAND.map)).toEqual([LAYER.base])
-    expect(layerOf(MAP_NOTICE_BAND.overDim)).toEqual([LAYER.drawer])
-    expect(MAP_NOTICE_BAND.map.replace(LAYER.base, '')).toBe(MAP_NOTICE_BAND.overDim.replace(LAYER.drawer, ''))
-    expect(zOf(LAYER.drawer)).toBeGreaterThan(zOf(LAYER.scrim))
-    expect(zOf(LAYER.drawer)).toBeLessThan(zOf(LAYER.popover))
-    expect(phoneFootSource).toContain('controlsOpen ? MAP_NOTICE_BAND.overDim : MAP_NOTICE_BAND.map')
+  it('fills in the severity\'s ink with the panel\'s digit, clearing AA in both themes', () => {
+    const measured = { dark: {} as Record<string, number>, light: {} as Record<string, number> }
+    for (const tone of ['error', 'warn', 'info'] as const) {
+      const fill = token(MESSAGE_BADGE[tone], 'bg')
+      expect(MESSAGE_BADGE[tone]).toBe(`bg-${fill} text-panel`)
+      // The fill is the ink a notice of that severity writes in.
+      expect(fill).toBe(token(STATUS[tone], 'text'))
+      measured.dark[tone] = ratio(dark('panel'), dark(fill))
+      measured.light[tone] = ratio(light('panel'), light(fill))
+    }
+    expect(measured).toEqual(MEASURED)
+    for (const theme of Object.values(MEASURED)) {
+      for (const [tone, r] of Object.entries(theme)) {
+        expect(r, `the ${tone} digit must clear the 4.5:1 asked of text`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+})
+
+// A blocked Analyze and the line under its field (record 0208).
+describe('a blocked Analyze and a blocker line', () => {
+  // Greyed the way a disabled button is, under aria-disabled rather than
+  // disabled, so it stays a button a press can open the list from.
+  it('greys a blocked button as a disabled one is greyed', () => {
+    expect(BLOCKED).toBe('aria-disabled:opacity-40')
+    expect(DISABLED).toContain('disabled:opacity-40')
   })
 
-  // Three lines of a box and then it scrolls inside itself (record 0140):
-  // the class and the number the layout adds up are one.
-  it('caps the band at the three lines the layout counts, and scrolls past them', () => {
-    for (const band of bands) {
-      expect(words(band)).toEqual(expect.arrayContaining([`max-h-[${NOTICE_BAND_MAX_PX}px]`, 'overflow-y-auto', 'overscroll-contain']))
-    }
-    // The box the three lines are counted in: 12px type on a 16px line, 8px
-    // of padding and a 1px border.
-    expect(words(NOTICE.warn)).toEqual(expect.arrayContaining(['text-xs', 'p-2', 'border']))
+  // The message size, no colour of its own (STATUS composes it at the call
+  // site, as a notice box does), and a dot that takes the line's colour.
+  it('sets a blocker line at the message size with a dot in the line\'s own colour', () => {
+    expect(sizes(BLOCKER_LINE.row)).toEqual(['text-xs'])
+    expect(BLOCKER_LINE.row).not.toMatch(/(^|\s)text-(?:ink|accent|ok|warn|danger|info)\b/)
+    expect(words(BLOCKER_LINE.dot)).toEqual(expect.arrayContaining(['h-1.5', 'w-1.5', 'bg-current', RADIUS.pill]))
+  })
+
+  it('stacks the list\'s boxes on the menu\'s list inset at a desk', () => {
+    expect(MESSAGE_LIST.card).toBe(`${MENU.list} space-y-2`)
+    expect(MESSAGE_LIST.sheet).toBe('space-y-2 py-2')
   })
 })
 
@@ -2679,11 +2725,11 @@ describe('the Controls sheet', () => {
 
   // Its dim is the whole screen, fixed to the viewport like a menu sheet's,
   // one layer under the card: over the map, the button and the results
-  // sheet, and under the band that rides the card's edge (record 0207).
+  // sheet (record 0207).
   it('dims the whole screen one layer under the card', () => {
     expect(words(CONTROLS_SHEET.scrim)).toEqual(['fixed', 'inset-0', LAYER.scrim])
     expect(zOf(LAYER.scrim)).toBeLessThan(zOf(LAYER.drawer))
-    for (const under of [LAYER.base, LAYER.sheet, LAYER.mapControls, MAP_FAB.match(/(?:^|\s)(z-\S+)/)![1]]) {
+    for (const under of [LAYER.base, LAYER.sheet, LAYER.mapControls, MAP_FAB_SLOT.match(/(?:^|\s)(z-\S+)/)![1]]) {
       expect(zOf(under)).toBeLessThan(zOf(LAYER.scrim))
     }
     expect(bottomSheetSource).toContain('kept ? CONTROLS_SHEET.scrim : BOTTOM_SHEET.scrim')
@@ -3231,7 +3277,7 @@ describe('the attribution beside the scale', () => {
     const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-left:has\(> \.maplibregl-ctrl-attrib\) \{[^}]*\}/)?.[0] ?? ''
     const clear = Number(rule.match(/right: calc\(var\(--map-fab-w, 0px\) \+ (\d+)px\);/)?.[1])
     expect(clear).toBe(16 + CLEAR_PX - ATTRIB_MARGIN_PX)
-    expect(MAP_FAB.split(/\s+/)).toContain('right-4')
+    expect(MAP_FAB_SLOT.split(/\s+/)).toContain('right-4')
     expect(mapStageSource).toContain("'--map-fab-w': `${fabPx}px`")
   })
 

@@ -132,7 +132,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `NOTICE.warn` | Boxed warning message |
 | `NOTICE.error` | Boxed error message |
 | `NOTICE.info` | Boxed info message |
-| `NOTICE_DISMISS` | The X that dismisses one footer message; hidden until its row is hovered, always visible on touch |
+| `NOTICE_DISMISS` | The X that dismisses one message in the list the Analyze button opens; hidden until its row is hovered, always visible on touch, and absent from a blocker's row |
 | `NOTICE_DIVIDER` | The rule between two messages in one notice box: the box's own border tint, 6px clear on each side, and no rule at all under a lone message |
 
 **Spacing and sizing**
@@ -190,7 +190,7 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `LAYER.mapControls` | The map's top-left cluster and what it opens: over the sheet and the map chrome the Layers popover hangs across |
 | `LAYER.overlay` | Analysis overlay card |
 | `LAYER.scrim` | The Controls sheet's dim: over the map, its chrome and the results sheet |
-| `LAYER.drawer` | The panel: a phone's Controls sheet, and the notice band on its edge while it is up |
+| `LAYER.drawer` | The panel: a phone's Controls sheet |
 | `LAYER.popover` | Every menu `Menu.tsx` draws, and every phone bottom sheet (above the panel, below modal) |
 | `LAYER.modal` | Modal dialogs |
 
@@ -359,14 +359,14 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | No unsafe error message patterns | `checks/data.js` | `open-meteo-copy` bans `failed: ${...}` and the retired phrases; `open-meteo-throw-tail` holds every thrown Open-Meteo message to the standing tail |
 | Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
-| Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered from one element, after the button, with one portal for a phone's lines that ask for an action; the polygon block is the one bare `STATUS` use, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
+| Every message is in the one list the Analyze button opens | `checks/styles.js` | A notice is a `NOTICE` role, only `MessageList`'s `MessageBox` wears one and the list stands on the one menu (`style-message-list`, `style-notice-once`); the one live region is `MessageRegion` beside the badge (`style-live-region`, `style-panel-no-status`); both Analyze buttons wear the badge, the region and the list, and a blocker greys the button with `aria-disabled` rather than `disabled` (`style-analyze-badge`); a blocker line is one `STATUS` colour and no box, rendered by the panel's two sections alone, three homes in `DestinationsSection.tsx` and two in `ForecastSection.tsx` (`style-blocker-line`, `style-blocker-home`, `style-forecast-blockers`); the polygon block is the other bare `STATUS` use, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
 | A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`, `MapLegend.tsx` and `ColumnsPicker.tsx` matches a `SR_ONLY` element |
 | A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_CHIP_CARD.key` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
 | The chip menus are one width and hang one way | `styles.test.ts`, `checks/styles.js` | `MAP_MENU_W` inside `MAP_CHIP_MENU`, worn once by each menu; `style-map-chrome` fails a width, offset or chip height spelled beside the roles |
-| The map's rows, a phone's sheets and its Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
+| The map's rows, a phone's sheets and its Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the message badge's 20px disc and its 44px to a finger, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend card |
 | The accent ratios are pinned | `styles.test.ts` | 4.56, 3.20, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 4.56, 4.06, 3.54, 3.17, 4.56 and the 6.45 hover |
@@ -505,6 +505,10 @@ The rest of the theme, role by role, each pinned as a literal:
   amber (PR #733); it reads 5.66:1 or better on every surface a warning stands
   on, and its dismiss glyph 5.33 on the pill. `STATUS.ok` reads 5.84 on the panel, and the danger button's
   label 7.72 on its fill and 6.59 on the hover.
+- **The message badge.** Its digit is the panel's colour on the worst
+  message's ink, so each pair above read the other way round: in light the
+  error fill 8.33, warn 6.31, info 8.35; in dark error 5.06, warn 10.1, info
+  8.77. `styles.test.ts` pins all six.
 - **Fades.** `MUTED` at 65%: 5.07, 5.34 and 5.10 on the three places a muted
   label stands (60% left 4.31, 4.50 and 4.38).
 - **Decoration.** `DAY.unservable` reads 2.45:1 on the well, as the dark
@@ -619,7 +623,7 @@ The panel is 360px on desktop (100vw − 2rem capped at 360 on phones).
 
 **Binding condition:** a 360px phone with English copy. If copy reaches ~47 chars without wrapping, it fits one line. Nothing pins the ~47 in a test; the number that is pinned is the 281px column against the 267.3px cue below.
 
-**No indent:** the messages under the Analyze button are stacked rows
+**No indent:** the messages in the list the Analyze button opens are stacked rows
 separated by a 1px rule (`NOTICE_DIVIDER`), never a bulleted list. The
 budget above is measured with the whole text column, and a list indent
 plus its marker take 16px of it — enough to wrap a line that fit on its
@@ -742,30 +746,32 @@ vendor's 10px, under the floor, because at 11px `1000 km` on its narrowest bar
 ran past the bar's end (`e2e/scaleBar.spec.ts`).
 Record: [0162](decisions/0162-scale-bar-on-the-theme-ground.md)
 
-The whole notice block stands on the map in a band (`MAP_NOTICE_BAND.map`):
-the panel's own boxes on its slate-800, 12px off each side, 10px over the
-sheet's edge, three lines of a box at most (66px) and then it scrolls inside
-itself. The button stands 16px over the band, and the scale and the (i) move
-onto the button's row, each with its bottom on the button's bottom edge, and
-the opened credit line grows up from that edge. Measured 2026-10-14: a 10px
-gap from the band to the sheet at 360, 390 and 430 wide, the gap the (i)
-kept above the sheet before; the button's, the scale's and the (i)'s bottoms
-on one edge at all three, at 446, 500 and 588 with a report landed.
-Record: [0140](decisions/0140-phone-notices-on-the-map.md)
+The Analyze button counts the panel's messages in a badge at its corner
+(`MESSAGE_BADGE`): a 20px disc in the worst message's ink with the digit in
+the panel's colour, ringed in the panel, 44px to a finger through an inset
+nothing draws. A press on it, or on the button itself while a blocker greys
+it (`BLOCKED`), opens the messages as a sheet headed Messages
+(`MESSAGE_LIST.sheet`); at a desk the same badge on the panel's button opens
+them as a card on the one menu (`MESSAGE_LIST.card`). The button stands 16px
+over the results sheet's edge, and the scale and the (i) on its row, each
+with its bottom on the button's bottom edge, the opened credit line growing
+up from that edge. The band that held the whole block on the sheet's edge
+(record 0140) is gone, since on a finger it showed one message and no sign of
+the rest.
+Record: [0208](decisions/0208-messages-badge-and-inline-blockers.md)
 
 The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`),
 the bottom sheet the menus below are, kept mounted: modal over the same dim,
 slid below the map while shut, its height a fixed share of the map that
-leaves the rows, the button's strip and a full band. Its dim stands one layer
-under its card (`scrim` on `LAYER.scrim`). It pushes nothing. The button, the
-scale and the (i) stay where they stood under the dim, as under every phone
-sheet, and the band alone rides the sheet's edge, over the dim on the card's
-layer (`MAP_NOTICE_BAND.overDim`). Measured 2026-10-21 at 360x740 and 390x844 with a
-cue in the band: the sheet's top at 256, the band 184 to 246, and the button
-at 390 to 446 and 444 to 500, where it stood with the sheet shut. The chip is
-lit while the sheet is up, its words white on the accent fill. The sheet
-carries no notice block and no fixed foot: the document links are the last
-thing in its scrolling body.
+leaves the rows, the button's strip and the 76px the notice band had above it
+(`CONTROLS_MAP_PX`, kept at 256 so the sheet opens where it did). Its dim
+stands one layer under its card (`scrim` on `LAYER.scrim`). It pushes nothing.
+The button, the scale and the (i) stay where they stood under the dim, as
+under every phone sheet. Measured 2026-10-21 at 360x740 and 390x844: the
+sheet's top at 256, and the button at 390 to 446 and 444 to 500, where it
+stood with the sheet shut. The chip is lit while the sheet is up, its words
+white on the accent fill. The sheet carries no messages, no count and no fixed
+foot: the document links are the last thing in its scrolling body.
 Record: [0207](decisions/0207-phone-controls-sheet-is-modal.md)
 
 A phone's home indicator band (`SAFE_AREA`) is padded under the results sheet,
@@ -949,16 +955,21 @@ The over-cap refusal states the problem only ("This search covers N peaks. The a
 
 ### Every message is a box
 
-There is no unboxed message. Every line under the Analyze button is one of the
-three `NOTICE` boxes, and severity is the only thing that varies. A `CUE` role once held a centred, borderless
+There is no unboxed message. Every line in the list the Analyze button's badge
+opens is one of the three `NOTICE` boxes, and severity is the only thing that
+varies. A `CUE` role once held a centred, borderless
 variant for the commit cues, and the footer showed a cue in amber text directly
 above a blocker in an amber box, saying the same kind of thing in two shapes.
-The one bare `STATUS` text left in the panel is the polygon's draw counter,
-which is a field's own readout beside the field rather than a message about the
-analysis; the linter's `style-draw-counter` check pins it by count. Since #687
+Two bare `STATUS` texts stand in the panel, both a field's own readout beside
+the field rather than a message about the analysis: the polygon's draw
+counter, which the linter's `style-draw-counter` check pins by count, and since
+#786 a blocker's line under the field it validates (`BLOCKER_LINE`, a dot and
+the sentence, no box), the same sentence the list carries, which
+`style-blocker-home` holds to the panel's two sections. Since #687
 the point count is `DrawReadout`, which the panel and the phone's draw bar both
 render, so `style-draw-readout` pins its four states there and the panel keeps
 two.
+Record: [0208](decisions/0208-messages-badge-and-inline-blockers.md)
 
 ### No raw exceptions or status
 

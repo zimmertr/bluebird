@@ -1,10 +1,9 @@
-import { useEffect } from 'react'
 import { RemovedEntry } from '../utils/removals'
 import { collidingType, lineNamed, sharedNames } from '../utils/chartData'
 import { usePopover } from '../hooks/usePopover'
 import Menu from './Menu'
 import BottomSheet from './BottomSheet'
-import { CONTROL_SIZE, FOCUS_RING, LINK_ACTION, MENU, TEXT } from '../styles'
+import { CONTROL_SIZE, DISABLED, FOCUS_RING, LINK_ACTION, MENU, TEXT } from '../styles'
 
 interface Props {
   open: boolean
@@ -37,12 +36,10 @@ export default function RemovedPicker({
   // itself: a press inside the sheet would read as a press outside the card.
   const { popoverRef, box, closing } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
 
-  // Restoring the last row empties the list out from under the popover, so it
-  // closes. Where the keyboard goes is the sheet's: the trigger hides at zero
-  // with the list, so there is no trigger to hand it back to (#576).
-  useEffect(() => {
-    if (open && entries.length === 0) onOpenChange(false)
-  }, [open, entries.length, onOpenChange])
+  // Restoring the last row leaves the list empty under an open menu, with
+  // Restore all greyed (record 0209): the menu stays, as it opens at zero,
+  // and the keyboard goes to the Removed button, which stands at zero too
+  // (`ResultsSheet`, #576).
 
   // Two removed places of one name (a crag and the peak it is named for,
   // #715) each name their type, as the chart's lines do; a name no other
@@ -66,10 +63,14 @@ export default function RemovedPicker({
       </div>
     )
   })
-  const restoreAll = entries.length > 1 && (
+  // Always drawn and greyed with nothing to restore (the maintainer,
+  // 2026-10-21; record 0209). It used to come with the second removal and go
+  // with the second last, a control that had to be found again each time.
+  const restoreAll = (
     <button
       onClick={onRestoreAll}
-      className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer`}
+      disabled={entries.length === 0}
+      className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} ${DISABLED} cursor-pointer`}
     >
       Restore all
     </button>
@@ -81,7 +82,7 @@ export default function RemovedPicker({
     return open ? (
       <BottomSheet heading="Removed rows" onClose={() => onOpenChange(false)}>
         {rows}
-        {restoreAll && <div className="flex items-center px-2">{restoreAll}</div>}
+        <div className="flex items-center px-2">{restoreAll}</div>
       </BottomSheet>
     ) : null
   }
@@ -90,9 +91,9 @@ export default function RemovedPicker({
 
   return (
     <Menu box={box} popoverRef={popoverRef} closing={closing} header="Removed rows">
-      <div className={MENU.list}>{rows}</div>
+      {rows.length > 0 && <div className={MENU.list}>{rows}</div>}
 
-      {restoreAll && <div className={MENU.foot}>{restoreAll}</div>}
+      <div className={MENU.foot}>{restoreAll}</div>
     </Menu>
   )
 }

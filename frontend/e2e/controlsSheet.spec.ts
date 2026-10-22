@@ -4,27 +4,26 @@ import type { Page } from '@playwright/test'
 // On a phone the Controls sheet opens the way Legend and Layers do (TJ,
 // 2026-10-21; record 0207): a modal sheet over the dimmed map that pushes
 // nothing. The Analyze button, the scale and the (i) stand where they stood,
-// under the dim and out of reach, and the notice band alone rides the sheet's
-// edge, over the dim, so a cue that arrives while a control changes reads.
-// Every sheet leaves the button the same way: mounted where it stands, and
-// kept from a press by the sheet's dim and modality alone.
+// under the dim and out of reach. A cue that arrives while a control changes
+// goes to the badge on the Analyze button (record 0208), which is under the
+// dim too, so it reads once the sheet closes: the band that used to carry it
+// on the sheet's edge is gone. Every sheet leaves the button the same way:
+// mounted where it stands, and kept from a press by the sheet's dim and
+// modality alone.
 
 const RING = '/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55'
 
 const CUE = 'A new destination type requires a new analysis.'
 
-// Where each piece of the foot stands, and the band holding the cue.
+// Where each piece of the foot stands.
 async function geometry(page: Page) {
-  return page.evaluate((cue) => {
+  return page.evaluate(() => {
     const box = (el: Element | null) => {
       if (!el) return null
       const r = el.getBoundingClientRect()
       return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }
     }
     const fab = document.querySelector('[data-tour="analyze"]')
-    const status = [...document.querySelectorAll('[role="status"]')].find((el) => el.textContent?.includes(cue))
-    const band = status?.parentElement ?? null
-    const sheet = document.querySelector('[role="dialog"][aria-modal="true"]')
     // What a finger lands on at the middle of each.
     const topAt = (el: Element | null) => {
       const r = el?.getBoundingClientRect()
@@ -42,13 +41,10 @@ async function geometry(page: Page) {
       fab: box(fab),
       scale: box(document.querySelector('.maplibregl-ctrl-scale')),
       info: box(document.querySelector('.maplibregl-ctrl-attrib-button')),
-      band: box(band),
-      sheet: box(sheet),
       fabTakesPress: hit(fab),
       fabUnder,
-      bandTakesPress: hit(band),
     }
-  }, CUE)
+  })
 }
 
 for (const [width, height] of [
@@ -58,7 +54,7 @@ for (const [width, height] of [
   test.describe(`at ${width}x${height}`, () => {
     test.use({ viewport: { width, height }, hasTouch: true, isMobile: true })
 
-    test('the Controls sheet opens over the dim, moves nothing under it, and carries the band on its edge', async ({ page }) => {
+    test('the Controls sheet opens over the dim, moves nothing under it, and leaves the cue to the badge', async ({ page }) => {
       await page.goto(RING)
       await expect(page.locator('.maplibregl-canvas')).toBeVisible()
       await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
@@ -66,6 +62,8 @@ for (const [width, height] of [
       const fab = page.locator('[data-tour="analyze"]')
       await expect(fab).toBeVisible()
       const shut = await geometry(page)
+      const badge = page.getByRole('button', { name: /^\d+ messages?$/ })
+      const before = (await badge.count()) === 0 ? 0 : Number((await badge.getAttribute('aria-label'))!.split(' ')[0])
 
       await page.getByRole('button', { name: 'Open controls' }).tap()
       // Hidden ones included, so the same locator finds it shut and inert.
@@ -75,20 +73,19 @@ for (const [width, height] of [
       // Once the slide has landed: its top where its share of the map puts it.
       await expect.poll(async () => Math.round((await sheet.boundingBox())!.y)).toBe(256)
 
-      // A cue arriving while a control changes stands on the sheet's edge,
-      // 10px over it, and on top of the dim.
+      // A cue arriving while a control changes joins the live region at once
+      // and the badge's count, with no list open and nothing on the sheet.
       await sheet.getByRole('checkbox', { name: 'Lakes', exact: true }).check()
-      await expect(page.getByText(CUE)).toBeVisible()
+      await expect(page.locator('[role="status"]', { hasText: CUE })).toHaveCount(1)
+      await expect(page.getByRole('dialog', { name: 'Messages' })).toHaveCount(0)
+      await expect(badge).toHaveAttribute('aria-label', `${before + 1} message${before + 1 === 1 ? '' : 's'}`)
       const open = await geometry(page)
-      console.log(`controls sheet ${width}x${height}: ${JSON.stringify({ shut, open })}`)
+      console.log(`controls sheet ${width}x${height}: ${JSON.stringify({ shut, open, before })}`)
 
       // Nothing under the sheet moved.
       expect(open.fab).toEqual(shut.fab)
       expect(open.scale).toEqual(shut.scale)
       expect(open.info).toEqual(shut.info)
-      // The band rides the edge, over the dim.
-      expect(Math.round(open.sheet!.top - open.band!.bottom)).toBe(10)
-      expect(open.bandTakesPress).toBe(true)
       // Analyze takes no press: the sheet or its dim stands over it. The
       // button itself is as it was, neither inert nor greyed.
       expect(open.fabTakesPress).toBe(false)
@@ -96,13 +93,19 @@ for (const [width, height] of [
       await expect(fab).toBeEnabled()
 
       // A press on the dim closes it, as Done does, and the button is back
-      // in reach. The cue comes down to the foot with the band, and the
-      // button rises over it as it does over any notice (record 0140).
+      // in reach with the badge at its corner; a tap on the badge opens the
+      // messages as a sheet holding the cue.
       await page.touchscreen.tap(width / 2, 30)
       await expect(sheet).toHaveAttribute('inert', '')
       await expect.poll(async () => (await geometry(page)).fabTakesPress).toBe(true)
       const back = await geometry(page)
-      expect(back.fab!.bottom).toBeLessThan(back.band!.top)
+      expect(back.fab).toEqual(shut.fab)
+      await badge.tap()
+      const messages = page.getByRole('dialog', { name: 'Messages' })
+      await expect(messages).toBeVisible()
+      await expect(messages.getByText(CUE)).toBeVisible()
+      await messages.getByRole('button', { name: 'Done' }).tap()
+      await expect(messages).toHaveCount(0)
     })
 
     // A menu sheet follows the same rule (TJ, 2026-10-21): the button stays

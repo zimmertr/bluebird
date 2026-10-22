@@ -71,7 +71,7 @@ interface ResultsBarProps {
   removedButtonRef: RefObject<HTMLButtonElement | null>
   onToggleRemoved: () => void
   removedOpen: boolean
-  /** How many rows the reader removed; the Removed button hides at zero. */
+  /** How many rows the reader removed, which the Removed button counts; at zero with no row to remove it is greyed. */
   removedCount: number
   /** Whether there is a row to write, and the press that writes the file. */
   canDownload: boolean
@@ -180,9 +180,13 @@ export default function ResultsBar({
     },
     // Removed rows (#241): a removal's only undo, so it is a standing bar
     // member rather than a transient toast; removals persist across live knobs
-    // and refreshes, and so does the way back. Hidden at zero: nothing to
-    // restore.
-    removedCount > 0 && {
+    // and refreshes, and so does the way back. Drawn whenever Columns is,
+    // and greyed until there is a row to remove or one removed (the
+    // maintainer, 2026-10-21; record 0209): it used to hide at zero, a member
+    // that came and went and moved the two beside it. A row removed from a
+    // report whose every row is gone still counts, or the way back would
+    // close behind the last removal.
+    showTable && {
       key: 'removed',
       node: (
         <MenuButton
@@ -191,6 +195,8 @@ export default function ResultsBar({
           open={removedOpen}
           chevron={!sheet}
           onClick={onToggleRemoved}
+          disabled={removedCount === 0 && !canDownload}
+          className={DISABLED}
           aria-label={`Removed (${removedCount})`}
         >
           <IconRestore className="flex-shrink-0" />
@@ -293,8 +299,8 @@ export default function ResultsBar({
           {/* The buttons' group, a sibling of the switch in its look (#687,
               the maintainer on #709): one bordered well, a divider between
               items, each its glyph and, where the bar can hold every word on
-              one line, its word (`BAR_LABEL`). Removed joins it whenever it
-              shows, and the wide chevron stands after it. */}
+              one line, its word (`BAR_LABEL`), and the wide chevron stands
+              after it. */}
           {/* At the row's right end. On one line `justify-between` stands it
               there already; where a three-digit Removed count wraps it onto a
               line of its own (beside the docked panel at 1024, #714) the

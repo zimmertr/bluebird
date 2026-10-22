@@ -196,6 +196,28 @@ describe('the list', () => {
     expect(onChange).toHaveBeenLastCalledWith('icon_seamless')
     expect(onComparedChange).toHaveBeenLastCalledWith([])
   })
+
+  // A press with Shift held reaches every row from the last pressed to this
+  // one (record 0209), the one rule applied row by row: a run that crosses
+  // the ranking model passes the ranking on, and the last model stays.
+  it('ticks and unticks a run of rows with a Shift-click, passing the ranking on', async () => {
+    const { user, trigger } = setup()
+    await user.click(trigger)
+    fireEvent.click(option('ECMWF IFS'))
+    expect(onComparedChange).toHaveBeenLastCalledWith(['ecmwf_ifs025'])
+    // Up from ECMWF to GFS: GFS is selected and the run unticks, so the
+    // ranking passes to ECMWF, which is then the last one and stays.
+    fireEvent.click(option('NOAA GFS'), { shiftKey: true })
+    expect(onChange).toHaveBeenLastCalledWith('ecmwf_ifs025')
+    expect(onComparedChange).toHaveBeenLastCalledWith([])
+    expect(option('ECMWF IFS').getAttribute('aria-selected')).toBe('true')
+    expect(option('NOAA GFS').getAttribute('aria-selected')).toBe('false')
+    // Down from GFS to ICON: GFS is unselected and the run ticks, so both
+    // join the comparison and ECMWF ranks on.
+    fireEvent.click(option('DWD ICON'), { shiftKey: true })
+    expect(onComparedChange).toHaveBeenLastCalledWith(['gfs_seamless', 'icon_seamless'])
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('the chip row', () => {

@@ -25,7 +25,7 @@ describe('the Models sheet', () => {
     const onToggle = vi.fn()
     const onOpenChange = vi.fn()
     render(
-      <ModelsPicker open onOpenChange={onOpenChange} models={MODELS} hidden={new Set(['ecmwf_ifs025'])} onToggle={onToggle} sheet {...refs()} />,
+      <ModelsPicker open onOpenChange={onOpenChange} models={MODELS} hidden={new Set(['ecmwf_ifs025'])} onToggle={onToggle} onReset={() => {}} sheet {...refs()} />,
     )
     expect(screen.getByRole('dialog', { name: 'Models' })).toBeTruthy()
     const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[]
@@ -38,7 +38,7 @@ describe('the Models sheet', () => {
   })
 
   it('draws nothing while closed', () => {
-    render(<ModelsPicker open={false} onOpenChange={() => {}} models={MODELS} hidden={new Set()} onToggle={() => {}} sheet {...refs()} />)
+    render(<ModelsPicker open={false} onOpenChange={() => {}} models={MODELS} hidden={new Set()} onToggle={() => {}} onReset={() => {}} sheet {...refs()} />)
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -47,7 +47,7 @@ describe('the Models sheet', () => {
   it('lights a row under the pointer on a desk and not in the sheet', () => {
     const lit = () => screen.getAllByRole('checkbox').map((b) => b.closest('label')!.className.split(' ').includes(MENU.hover))
     const { unmount } = render(
-      <ModelsPicker open onOpenChange={() => {}} models={MODELS} hidden={new Set()} onToggle={() => {}} sheet {...refs()} />,
+      <ModelsPicker open onOpenChange={() => {}} models={MODELS} hidden={new Set()} onToggle={() => {}} onReset={() => {}} sheet {...refs()} />,
     )
     expect(lit()).toEqual([false, false])
     unmount()
@@ -57,7 +57,7 @@ describe('the Models sheet', () => {
       return (
         <>
           <button ref={triggerRef}>Models</button>
-          <ModelsPicker open onOpenChange={() => {}} models={MODELS} hidden={new Set()} onToggle={() => {}} triggerRef={triggerRef} />
+          <ModelsPicker open onOpenChange={() => {}} models={MODELS} hidden={new Set()} onToggle={() => {}} onReset={() => {}} triggerRef={triggerRef} />
         </>
       )
     }
@@ -68,7 +68,15 @@ describe('the Models sheet', () => {
 
 describe('the Removed sheet', () => {
   // The desk card's overline is the sheet's heading, and Restore all is the
-  // last row while there is more than one to restore.
+  // last row, greyed with nothing to restore (record 0209).
+  it('stands Restore all greyed as the last row with nothing to restore', () => {
+    render(<RemovedPicker open onOpenChange={() => {}} entries={[]} onRestore={() => {}} onRestoreAll={() => {}} sheet {...refs()} />)
+    const sheet = screen.getByRole('dialog', { name: 'Removed rows' })
+    const all = screen.getByRole('button', { name: 'Restore all' }) as HTMLButtonElement
+    expect(sheet.contains(all)).toBe(true)
+    expect(all.disabled).toBe(true)
+  })
+
   it('lists the removed rows under the desk card\'s words, with Restore all last', () => {
     const onRestore = vi.fn()
     const onRestoreAll = vi.fn()
@@ -122,11 +130,12 @@ describe('the Removed sheet', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('offers no Restore all for one row', () => {
+  // One row is still something to restore all of (record 0209).
+  it('offers Restore all live for one row', () => {
     render(
       <RemovedPicker open onOpenChange={() => {}} entries={[entry('Mount Baker')]} onRestore={() => {}} onRestoreAll={() => {}} sheet {...refs()} />,
     )
-    expect(screen.queryByRole('button', { name: 'Restore all' })).toBeNull()
+    expect((screen.getByRole('button', { name: 'Restore all' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })
 
@@ -149,6 +158,8 @@ describe('the Model and When sheets', () => {
         setSelection={setSelection}
         archiveDays={365}
         aqiForecastDays={5}
+        modelLines={[]}
+        whenLines={[]}
         phone={phone}
       />
     )

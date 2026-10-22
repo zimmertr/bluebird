@@ -134,6 +134,15 @@ const PANEL = {
   metrics: 'src/components/MetricsTable.tsx',
   footer: 'src/components/PanelFooter.tsx',
 }
+// The panel's messages (#786; record 0208): the list the Analyze button's
+// badge opens, the badge with the one live region beside it, the blocker
+// line under a field, and the phone's foot, which wears the badge too.
+const MESSAGES = {
+  list: 'src/components/MessageList.tsx',
+  badge: 'src/components/MessageBadge.tsx',
+  blocker: 'src/components/BlockerLine.tsx',
+  phoneFoot: 'src/components/PhoneFoot.tsx',
+}
 
 const role = (name) => `MemberExpression[object.name="${name}"]`
 const defaultExport = (name) => `ExportDefaultDeclaration[declaration.id.name="${name}"]`
@@ -157,8 +166,9 @@ const PHONE_ONLY =
 
 const GRID = elementWith('METRICS_GRID')
 const CLEAR = 'JSXOpeningElement:has(JSXAttribute[name.name="onClick"] > JSXExpressionContainer > Identifier[name="onClearFilters"])'
-const ANALYZE = 'JSXElement:has(JSXAttribute[name.name="onClick"] > JSXExpressionContainer > Identifier[name="onAnalyze"])'
-const FOOTER_NOTICE = 'JSXOpeningElement[name.name="FooterNotice"]'
+const MESSAGE_BOX = 'JSXOpeningElement[name.name="MessageBox"]'
+const BLOCKER_LINE = 'JSXOpeningElement[name.name="BlockerLine"]'
+const LIVE_REGION = 'JSXAttribute[name.name="role"][value.value="status"]'
 const METRIC_BOX_USE = ':matches(TemplateLiteral, JSXExpressionContainer) > Identifier[name=/^METRIC_BOX(_WIDE)?$/]'
 
 // `<span className={`${ROLE} truncate`}>{windowTitle}</span>`: the role last in
@@ -341,10 +351,12 @@ export const STYLES = [
     // shapes (record 0201), so it carries the chevron, the hover and the lit
     // state every trigger shares. A plain button with aria-expanded is a
     // fourth trigger with a look of its own. The map's sidebar toggle opens
-    // the control panel, not a menu, so its file is left out.
+    // the control panel, not a menu, so its file is left out, and so is the
+    // message badge (record 0208): a count on the Analyze button's corner,
+    // which the maintainer chose over a trigger shape, opening the one list.
     name: 'style-menu-trigger',
     files: SOURCES,
-    ignores: [...TESTS, 'src/components/Menu.tsx', 'src/components/MapRows.tsx'],
+    ignores: [...TESTS, 'src/components/Menu.tsx', 'src/components/MapRows.tsx', MESSAGES.badge],
     probe: 'src/components/ResultsBar.tsx',
     ban: [
       {
@@ -703,7 +715,7 @@ export const STYLES = [
     // Every message in the app fits one line at 360px, measured with the full
     // text column. A list indent and its marker take 16px of it.
     name: 'style-panel-messages',
-    files: Object.values(PANEL),
+    files: [...Object.values(PANEL), MESSAGES.list, MESSAGES.blocker],
     ban: [
       {
         selector: `JSXOpeningElement[name.name="ul"], ${text('list-disc')}, ${text('<ul')}`,
@@ -712,65 +724,117 @@ export const STYLES = [
     ],
   },
   {
-    // Every notice renders in the one block under Analyze: a NOTICE box is
-    // built in FooterNotice alone, which is rendered once, after the button.
-    // The block has one other home, a phone's map (#696; record 0140), which
-    // takes the whole of it, every line and its live region, by one portal
-    // to the band the map hands up (`noticeHome`), so it is still rendered
-    // once, in one place, and never split between the map and the sheet.
-    name: 'style-footer-notice',
-    files: [PANEL.footer],
+    // Every message is in the one list the Analyze button's badge opens
+    // (#786; record 0208): a NOTICE box is built in MessageList's MessageBox
+    // alone, rendered from one element, on the one menu, and the list
+    // announces nothing itself, since the live region beside the badge is
+    // mounted for good and the list only while it is open.
+    name: 'style-message-list',
+    files: [MESSAGES.list],
     ban: [
       {
-        selector: `${role('NOTICE')}:not(FunctionDeclaration[id.name="FooterNotice"] *)`,
-        message: 'Build a NOTICE box inside FooterNotice alone.',
+        selector: `${role('NOTICE')}:not(FunctionDeclaration[id.name="MessageBox"] *)`,
+        message: 'Build a NOTICE box inside MessageBox alone.',
       },
       {
-        // The footer colours by status inside FooterNotice alone.
-        selector: fromExport('PanelFooter', role('STATUS')),
-        message: 'Colour nothing by STATUS in the footer body.',
+        selector: fromExport('MessageList', role('STATUS')),
+        message: 'Colour nothing by STATUS in the list body.',
       },
-      {
-        selector: 'CallExpression[callee.name="createPortal"]:not([arguments.1.name="noticeHome"])',
-        message: 'Portal the notice block to noticeHome alone, the phone\'s band.',
-      },
+      { selector: LIVE_REGION, message: 'Announce nothing from the list: the one live region is MessageRegion.' },
     ],
     require: [
-      { selector: 'FunctionDeclaration[id.name="FooterNotice"]', message: 'PanelFooter builds FooterNotice.' },
-      {
-        selector: 'CallExpression[callee.name="createPortal"][arguments.1.name="noticeHome"]',
-        count: 1,
-        message: 'Portal the notice block to noticeHome once, for a phone.',
-      },
-      {
-        selector: 'JSXAttribute[name.name="role"][value.value="status"]',
-        count: 1,
-        message: 'Draw one live region: a phone moves the whole block to the map.',
-      },
-      { selector: FOOTER_NOTICE, count: 1, message: 'Render FooterNotice in one place.' },
-      { selector: after(ANALYZE, FOOTER_NOTICE), message: 'Render FooterNotice below the Analyze button.' },
+      { selector: 'FunctionDeclaration[id.name="MessageBox"]', message: 'MessageList builds MessageBox.' },
+      { selector: MESSAGE_BOX, count: 1, message: 'Render MessageBox in one place.' },
+      { selector: 'JSXOpeningElement[name.name="Menu"]', count: 1, message: 'Stand the list on the one menu.' },
     ],
   },
   {
-    name: 'style-footer-notice-once',
+    // Nothing outside the list builds a notice box or renders the list's own.
+    name: 'style-notice-once',
     files: SOURCES,
-    ignores: [...TESTS, PANEL.footer],
-    ban: [{ selector: `${FOOTER_NOTICE}, ${text('<FooterNotice\\b')}`, message: 'Render FooterNotice in PanelFooter alone.' }],
-  },
-  {
-    // The rest of the panel builds no notice box and colours nothing by status.
-    name: 'style-panel-no-status',
-    files: [PANEL.frame, PANEL.forecast, PANEL.metrics],
+    ignores: [...TESTS, MESSAGES.list],
+    probe: PANEL.footer,
     ban: [
-      { selector: role('NOTICE'), message: 'Build no NOTICE box outside the footer.' },
-      { selector: role('STATUS'), message: 'Colour nothing by STATUS outside a notice.' },
+      { selector: role('NOTICE'), message: 'Build a NOTICE box in MessageList alone.' },
+      { selector: `${MESSAGE_BOX}, ${text('<MessageBox\\b')}`, message: 'Render MessageBox in MessageList alone.' },
     ],
   },
   {
-    // The one exception, pinned by count: the polygon's draw counter colours
-    // its captions by state. Its point count is `DrawReadout`, which the
-    // phone's draw bar renders too (#687), so the section keeps the area's
-    // two; a third is a notice that wandered out of the footer.
+    // The one live region for the panel's messages, mounted for good beside
+    // the badge so a message is announced as it arrives, list open or shut.
+    name: 'style-live-region',
+    files: [MESSAGES.badge],
+    require: [{ selector: LIVE_REGION, count: 1, message: 'MessageBadge mounts the one live region for the messages.' }],
+  },
+  {
+    // The Analyze button at either width wears the badge, the region beside
+    // it and the one list it opens, and a blocker greys the button rather
+    // than disabling it, so a press anywhere on it opens the list (the
+    // maintainer, 2026-10-21).
+    name: 'style-analyze-badge',
+    files: [PANEL.footer, MESSAGES.phoneFoot],
+    require: [
+      { selector: 'JSXOpeningElement[name.name="MessageBadge"]', count: 1, message: 'Wear one MessageBadge on the Analyze button.' },
+      { selector: 'JSXOpeningElement[name.name="MessageRegion"]', count: 1, message: 'Mount MessageRegion once beside the badge.' },
+      { selector: 'JSXOpeningElement[name.name="MessageList"]', count: 1, message: 'Open one MessageList from the badge.' },
+      {
+        selector: 'JSXAttribute[name.name="aria-disabled"] > JSXExpressionContainer > LogicalExpression[left.name="blocked"]',
+        count: 1,
+        message: 'Grey a blocked Analyze with aria-disabled on blocked, never disabled, so a press opens the list.',
+      },
+    ],
+  },
+  {
+    // The rest of the panel and the phone's foot build no notice box, colour
+    // nothing by status and announce nothing of their own.
+    name: 'style-panel-no-status',
+    files: [PANEL.frame, PANEL.forecast, PANEL.metrics, PANEL.footer, MESSAGES.phoneFoot],
+    ban: [
+      { selector: role('NOTICE'), message: 'Build no NOTICE box outside MessageList.' },
+      { selector: role('STATUS'), message: 'Colour nothing by STATUS outside MessageList and BlockerLine.' },
+      { selector: LIVE_REGION, message: 'Announce nothing of your own: the one live region is MessageRegion.' },
+    ],
+  },
+  {
+    // A blocker's line under its field (record 0208): one STATUS colour on
+    // the line, no box, and rendered by the panel's two sections alone, each
+    // for its own homes, three in Destinations and two in Forecast.
+    name: 'style-blocker-line',
+    files: [MESSAGES.blocker],
+    ban: [{ selector: role('NOTICE'), message: 'Build no NOTICE box in a blocker line.' }],
+    require: [
+      {
+        selector: fromExport('BlockerLine', role('STATUS')),
+        count: 1,
+        message: 'The blocker line colours its one line by STATUS.',
+      },
+    ],
+  },
+  {
+    name: 'style-blocker-home',
+    files: SOURCES,
+    ignores: [...TESTS, PANEL.destinations, PANEL.forecast],
+    probe: PANEL.frame,
+    ban: [
+      {
+        selector: `${BLOCKER_LINE}, ${text('<BlockerLine\\b')}`,
+        message: 'Render BlockerLine in the panel\'s two sections alone, under the field a blocker validates.',
+      },
+    ],
+  },
+  {
+    name: 'style-forecast-blockers',
+    files: [PANEL.forecast],
+    require: [
+      { selector: BLOCKER_LINE, count: 2, message: 'Draw the two blocker homes, model and when, through BlockerLine.' },
+    ],
+  },
+  {
+    // The one bare STATUS outside the list and the blocker line, pinned by
+    // count: the polygon's draw counter colours its captions by state. Its
+    // point count is `DrawReadout`, which the phone's draw bar renders too
+    // (#687), so the section keeps the area's two; a third is a message that
+    // wandered out of the list.
     name: 'style-draw-counter',
     files: [PANEL.destinations],
     ban: [{ selector: role('NOTICE'), message: 'Build no NOTICE box in the destinations section.' }],
@@ -781,6 +845,11 @@ export const STYLES = [
         message: 'The polygon block colours its area and its area warning by STATUS.',
       },
       { selector: 'JSXOpeningElement[name.name="DrawReadout"]', count: 1, message: 'Say the point count with DrawReadout.' },
+      {
+        selector: BLOCKER_LINE,
+        count: 3,
+        message: 'Draw the three blocker homes, destinations, polygon and types, through BlockerLine.',
+      },
     ],
   },
   {

@@ -3,9 +3,11 @@ import { SortBy } from '../types'
 import { ColDef, stepColumn } from '../utils/tableColumns'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { usePopover } from '../hooks/usePopover'
+import { useShiftRange } from '../hooks/useShiftRange'
+import { shiftHeld } from '../utils/rangeSelect'
 import Menu from './Menu'
 import BottomSheet from './BottomSheet'
-import { CHOICE_INPUT, CHOICE_ROW, DRAG, MENU, SR_ONLY } from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, CONTROL_SIZE, DISABLED, DRAG, FOCUS_RING, LINK_ACTION, MENU, SR_ONLY } from '../styles'
 import { IconGrip } from './icons'
 import {
   GHOST_MAX_PX,
@@ -27,6 +29,10 @@ interface Props {
   // Move one column to where another sits. The picker names the two columns
   // and nothing else: the key list is `useTableView`'s, and `moveColumn` owns the move.
   onColumnMove?: (fromKey: string, toKey: string) => void
+  /** Reset all: every box back to its default (`useTableView.resetColumns`). */
+  onReset: () => void
+  /** Whether the boxes already show the default, which greys Reset all (record 0209). */
+  atDefault: boolean
   /** The Columns button, which the menu stands 4px under at its rows' width (record 0201). */
   triggerRef: React.RefObject<HTMLButtonElement | null>
   /** A phone (#696): the menu is a bottom sheet rather than a card under its button. */
@@ -41,6 +47,8 @@ export default function ColumnsPicker({
   visibleKeys,
   onVisibilityChange,
   onColumnMove,
+  onReset,
+  atDefault,
   triggerRef,
   sheet = false,
 }: Props) {
@@ -48,6 +56,10 @@ export default function ColumnsPicker({
   // itself: a press inside the sheet would read as a press outside the card.
   const { popoverRef, box, closing } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
   const rankedNoteId = useId()
+  // A press with Shift held reaches every row from the last pressed one to
+  // this one (record 0209); the rows' order is the list's, which a drag moves.
+  const press = useShiftRange(open)
+  const order = columns.map((c) => c.key as string)
 
   const rankedGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
 
@@ -153,10 +165,12 @@ export default function ColumnsPicker({
           aria-describedby={isRanked ? rankedNoteId : undefined}
           onChange={(e) => {
             const next = new Set(visibleKeys)
-            if (e.target.checked) {
-              next.add(col.key)
-            } else {
-              next.delete(col.key)
+            // A ranked column's box is disabled, so no press lands on it, and
+            // a Shift range that crosses one leaves it as it is: shown.
+            for (const key of press(order, col.key, shiftHeld(e))) {
+              if (rankedGroup.has(key)) continue
+              if (e.target.checked) next.add(key)
+              else next.delete(key)
             }
             onVisibilityChange(next)
           }}
@@ -227,13 +241,27 @@ export default function ColumnsPicker({
     </>
   )
 
+  // Always drawn and greyed at the default (record 0209), the way Clear
+  // filters is: a control that comes and goes has to be found again.
+  const resetAll = (
+    <button
+      type="button"
+      onClick={onReset}
+      disabled={atDefault}
+      className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} ${DISABLED} cursor-pointer`}
+    >
+      Reset all
+    </button>
+  )
+
   // A phone's sheet holds the rows bare, so each is a row of the sheet with
-  // the rule between them; the dialog's own name, the button's word, is what
-  // the group's name says on a desk.
+  // the rule between them, and Reset all is its last row; the dialog's own
+  // name, the button's word, is what the group's name says on a desk.
   if (sheet) {
     return open ? (
       <BottomSheet heading="Columns" onClose={() => onOpenChange(false)} outside={outside}>
         {rows}
+        <div className="flex items-center px-2">{resetAll}</div>
       </BottomSheet>
     ) : null
   }
@@ -248,6 +276,7 @@ export default function ColumnsPicker({
       <div role="group" aria-label="Columns" className={MENU.list}>
         {rows}
       </div>
+      <div className={MENU.foot}>{resetAll}</div>
       {outside}
     </Menu>
   )

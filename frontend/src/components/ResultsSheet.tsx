@@ -79,6 +79,7 @@ interface ResultsSheetView {
     | 'selectedModelRows'
     | 'hiddenModels'
     | 'toggleHiddenModel'
+    | 'showAllModels'
     | 'compareWait'
     | 'compareNotes'
   >
@@ -129,8 +130,16 @@ export default function ResultsSheet({
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
   const { sheetRef, barRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
   const { results, windowTitle, pending, rowCount } = report
-  const { selectedModelRows, hiddenModels, toggleHiddenModel, compareWait, compareNotes } = charts
-  const { allColumns, pickerVisibleKeys, handleVisibilityChange, handleColumnMove, handleDownloadCsv } = tableView
+  const { selectedModelRows, hiddenModels, toggleHiddenModel, showAllModels, compareWait, compareNotes } = charts
+  const {
+    allColumns,
+    pickerVisibleKeys,
+    columnsAtDefault,
+    resetColumns,
+    handleVisibilityChange,
+    handleColumnMove,
+    handleDownloadCsv,
+  } = tableView
   const { removed, removeResult, restoreRemoved, restoreAllRemoved } = removals
 
   // Each popover's open flag and its trigger. Nothing outside the sheet opens
@@ -144,9 +153,10 @@ export default function ResultsSheet({
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [modelsOpen, setModelsOpen] = useState(false)
   const [removedOpen, setRemovedOpen] = useState(false)
-  // Restoring the last removed row takes the Removed button and its list away
-  // under the keyboard, so the bar member before it takes the focus (#576).
-  useTakeOrphanedFocus(modelsButtonRef, removed.size === 0)
+  // Restoring the last removed row takes its Restore button away under the
+  // keyboard; the Removed button, which stands at zero (record 0209), takes
+  // the focus (#576).
+  useTakeOrphanedFocus(removedButtonRef, removed.size === 0)
 
   // What a committed report says to a screen reader: the bar's own title, as
   // it reads in the commit that brought the report (#576). Held per report
@@ -257,6 +267,8 @@ export default function ResultsSheet({
         visibleKeys={pickerVisibleKeys}
         onVisibilityChange={handleVisibilityChange}
         onColumnMove={handleColumnMove}
+        onReset={resetColumns}
+        atDefault={columnsAtDefault}
         triggerRef={columnsButtonRef}
         sheet={sheet}
       />
@@ -268,6 +280,7 @@ export default function ResultsSheet({
         models={selectedModelRows}
         hidden={hiddenModels}
         onToggle={toggleHiddenModel}
+        onReset={showAllModels}
         triggerRef={modelsButtonRef}
         sheet={sheet}
       />

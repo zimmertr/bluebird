@@ -8,8 +8,6 @@ import {
   FAB_PX,
   FAB_STRIP_PX,
   CONTROLS_MAP_PX,
-  NOTICE_BAND_MAX_PX,
-  NOTICE_LINE_PX,
   MAP_ROWS_PX,
   PLAYER_ROOM_PX,
   LEGEND_GAP_PX,
@@ -28,8 +26,6 @@ import {
   controlsFullPx,
   controlsSheetPx,
   fabBottomPx,
-  noticeBottomPx,
-  noticeLiftPx,
   phoneCornerLiftPx,
   transportFits,
   transportStandPx,
@@ -255,8 +251,8 @@ describe('the drag cap', () => {
     expect(draggedMapFloorPx(2, true) - draggedMapFloorPx(2)).toBe(PLAYER_ROOM_PX)
     const mapPx = 740
     const lift = mapPx - DRAGGED_MAP_PX - PLAYER_ROOM_PX
-    expect(transportFits(fabBottomPx(lift, 0, mapPx), mapPx)).toBe(true)
-    expect(transportFits(fabBottomPx(lift + 1, 0, mapPx), mapPx)).toBe(false)
+    expect(transportFits(fabBottomPx(lift, mapPx), mapPx)).toBe(true)
+    expect(transportFits(fabBottomPx(lift + 1, mapPx), mapPx)).toBe(false)
   })
 
   // `clampPanelHeight` is given a map floor rather than a sheet height, and the
@@ -280,33 +276,18 @@ describe('the drag cap', () => {
     const capped = lift(clampPanelHeight(table, 600, 0, VIEWPORT, draggedMapFloorPx(1)))
     expect(capped).toBe(VIEWPORT - DRAGGED_MAP_PX)
     // The button at the sheet's edge and an inset under the rows.
-    const fab = fabBottomPx(capped, 0, VIEWPORT)
+    const fab = fabBottomPx(capped, VIEWPORT)
     expect(fab).toBe(capped + FAB_INSET_PX)
     expect(VIEWPORT - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
   })
 })
 
-// The phone's Analyze button (record 0135): two things move it, the sheet and
-// the notice band, and the player stands on it.
+// The phone's Analyze button (record 0135): one thing moves it, the sheet,
+// and the player stands on it. The notice band it used to rise over went
+// with the message badge (record 0208).
 describe('the Analyze button', () => {
   it('rides the sheet\'s top edge 16px above it at any height', () => {
-    for (const lift of [0, 84, 300]) expect(fabBottomPx(lift, 0, 844)).toBe(lift + FAB_INSET_PX)
-  })
-
-  // The band stands on the sheet's edge, 10px off it, the gap the scale and
-  // the (i) kept above the sheet before they moved up beside the button,
-  // and the button 16px over the band (record 0140).
-  it('rises over the notice band by the band\'s height', () => {
-    expect(noticeBottomPx(104)).toBe(104 + CORNER_MARGIN_PX)
-    expect(CORNER_MARGIN_PX).toBe(10)
-    expect(fabBottomPx(104, 52, 844)).toBe(noticeBottomPx(104) + 52 + FAB_INSET_PX)
-    expect(fabBottomPx(104, 52, 844) - fabBottomPx(104, 40, 844)).toBe(12)
-  })
-
-  // Three lines of a notice box, then the band scrolls inside itself.
-  it('lets the band show three lines of a box at most', () => {
-    expect(NOTICE_LINE_PX).toBe(16)
-    expect(NOTICE_BAND_MAX_PX).toBe(3 * 16 + 2 * 8 + 2)
+    for (const lift of [0, 84, 300]) expect(fabBottomPx(lift, 844)).toBe(lift + FAB_INSET_PX)
   })
 
   // The scale, the (i) and the opened credit line stand on the button's
@@ -315,15 +296,16 @@ describe('the Analyze button', () => {
   // starts that margin under the button.
   it('stands the map corners on the button\'s bottom edge', () => {
     const fab = 120
+    expect(CORNER_MARGIN_PX).toBe(10)
     expect(phoneCornerLiftPx(fab) + CORNER_MARGIN_PX).toBe(fab)
   })
 
-  // A notice over a sheet dragged high goes under the button, which never
-  // rises over the chip row.
+  // A sheet dragged to its cap puts the button under the chip row, and no
+  // lift past the cap raises it over the rows.
   it('never rises over the rows', () => {
     const lift = 844 - DRAGGED_MAP_PX
-    expect(fabBottomPx(lift, 52, 844)).toBe(lift + FAB_INSET_PX)
-    const fab = fabBottomPx(300, 400, 844)
+    expect(fabBottomPx(lift, 844)).toBe(lift + FAB_INSET_PX)
+    const fab = fabBottomPx(lift + 60, 844)
     expect(844 - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
   })
 
@@ -454,40 +436,23 @@ describe('the default panel heights', () => {
 })
 
 // The Controls sheet (#696; record 0141): the panel on a phone, a fixed share
-// of the map that leaves the rows, the strip a full results sheet leaves the
-// button, and a full notice band on its edge.
+// of the map that leaves the rows and the strip a full results sheet leaves
+// the button, plus the 76px the notice band on its edge used to take. The
+// band went with the message badge (record 0208) and the number stayed, so
+// the sheet opens where it did; taking the band's room back is a call of its
+// own.
 describe('the Controls sheet', () => {
-  it('leaves the rows, the button\'s strip and the fullest band above it', () => {
-    expect(CONTROLS_MAP_PX).toBe(DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX)
+  it('leaves the rows, the button\'s strip and the room the band had above it', () => {
+    expect(CONTROLS_MAP_PX).toBe(256)
+    expect(CONTROLS_MAP_PX).toBeGreaterThan(DRAGGED_MAP_PX)
     expect(controlsSheetPx(844)).toBe(844 - CONTROLS_MAP_PX)
     expect(controlsSheetPx(100)).toBe(0)
   })
 
-  // The fullest band on its edge tops out where a full results sheet does,
-  // so a cue arriving while a control changes never reaches the chips.
-  it('stands the fullest band on its edge under the button\'s strip', () => {
-    const bandTop = 844 - noticeBottomPx(controlsSheetPx(844)) - NOTICE_BAND_MAX_PX
-    expect(bandTop).toBe(DRAGGED_MAP_PX)
-  })
-
-  // The band alone rides it (record 0207): over its dim, wherever a drag left
-  // it, and even where a results sheet dragged high stands above it, since
-  // the Controls sheet is the one in view.
-  it('is the edge the band rides while it is up, and the results sheet\'s otherwise', () => {
-    const sheet = controlsSheetPx(844)
-    expect(noticeLiftPx(104, sheet)).toBe(sheet)
-    expect(noticeLiftPx(104, null)).toBe(104)
-    expect(noticeLiftPx(sheet + 20, sheet)).toBe(sheet)
-    // A drag moves the edge with it.
-    expect(noticeLiftPx(104, 300)).toBe(300)
-  })
-
   // Dragged up whole, it stops where a dragged results sheet does (#696;
-  // record 0146), and a full band on its edge still clears the rows.
+  // record 0146).
   it('rises under a drag to the button\'s strip and no higher', () => {
     expect(controlsFullPx(844)).toBe(844 - DRAGGED_MAP_PX)
-    const bandTop = 844 - noticeBottomPx(controlsFullPx(844)) - NOTICE_BAND_MAX_PX
-    expect(bandTop).toBeGreaterThan(MAP_ROWS_PX)
   })
 })
 

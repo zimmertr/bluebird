@@ -96,6 +96,9 @@ export function useChartCompare({
     (id: string) => setHiddenModels((prev) => toggleHidden(prev, id)),
     [],
   )
+  // The Models menu's Reset all (record 0209): every line drawn again, which
+  // is where the menu starts.
+  const showAllModels = useCallback(() => setHiddenModels(new Set()), [])
 
   // Everything the chart tracks: the displayed rows plus the pending
   // destinations no analysis has covered. Pending rows ride along as
@@ -293,6 +296,7 @@ export function useChartCompare({
     selectedModelRows,
     hiddenModels,
     toggleHiddenModel,
+    showAllModels,
     rowChartColor,
     comparingRows,
     compareWait,

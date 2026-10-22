@@ -484,7 +484,7 @@ archive's nature rather than a limitation of the wiring.
   (measured 2026-09-22 at Rainier: it echoes 4380 m by default and answers
   14 °F at 12Z, against 1941 m and 43 °F with the downscaling off), so both
   methods stand at the destination's elevation and the difference is the
-  method. The line under the Analyze button names an archive window.
+  method. The line in the Analyze button's messages names an archive window.
 - **It has no freezing level.** The archive accepts `freezing_level_height`
   and answers every hour `null` under the unit `undefined` (measured
   2026-09-13), so the three freezing-level columns read `N/A` over an

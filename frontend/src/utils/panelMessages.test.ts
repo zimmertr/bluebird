@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AQI_NOTE_KEY, panelMessages, type PanelMessageInputs } from './panelMessages'
+import { AQI_NOTE_KEY, BLOCKER_HOME, blockerLines, panelMessages, type PanelMessageInputs } from './panelMessages'
 import type { AnalyzeBlocker } from './analyzeGate'
 import type { CommitReason } from './present'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
@@ -7,11 +7,13 @@ import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import { archiveSeamPhrase } from './calendar'
 import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { NOUN } from '../metrics'
+import type { FooterMessage } from './notices'
 
-// Which lines the panel shows under the Analyze button, one case per line and
-// the condition that raises it, and one case for the order they come in. The
-// panel renders whatever this returns; `ControlPanel.test.tsx` shows that it
-// does, and `notices.test.ts` covers the boxing and dismissal that follow.
+// Which lines the panel has to say, one case per line and the condition that
+// raises it, and one case for the order they come in. The list the Analyze
+// button's badge opens renders whatever this returns; `ControlPanel.test.tsx`
+// shows that it does, and `notices.test.ts` covers the boxing and dismissal
+// that follow.
 
 const NOW = new Date('2026-09-22T12:00:00Z')
 
@@ -53,6 +55,34 @@ const only = (over: Partial<PanelMessageInputs>) => {
   expect(messages).toHaveLength(1)
   return messages[0]
 }
+
+// Where a blocker's line stands (record 0208): under the field it validates,
+// and the lines by home that the panel's sections draw.
+describe('where a blocker stands', () => {
+  it('homes every blocker on one field', () => {
+    expect(BLOCKER_HOME).toEqual({
+      area: 'polygon',
+      polygon: 'polygon',
+      types: 'types',
+      destinations: 'destinations',
+      dates: 'when',
+      window: 'when',
+      'compare-aqi': 'model',
+      'compare-freeze': 'model',
+    })
+  })
+
+  it('sorts the blockers by home, every home present, and leaves every other line out', () => {
+    const line = (key: string): FooterMessage => ({ key, text: key, severity: 'info' })
+    const lines = blockerLines([line('cue:model-changed'), line('blocker:area'), line('blocker:dates'), line('blocker:polygon')])
+    expect(Object.keys(lines).sort()).toEqual(['destinations', 'model', 'polygon', 'types', 'when'])
+    expect(lines.polygon.map((m) => m.key)).toEqual(['blocker:area', 'blocker:polygon'])
+    expect(lines.when.map((m) => m.key)).toEqual(['blocker:dates'])
+    expect(lines.destinations).toEqual([])
+    expect(lines.types).toEqual([])
+    expect(lines.model).toEqual([])
+  })
+})
 
 describe('panelMessages', () => {
   it('says nothing when nothing is wrong', () => {

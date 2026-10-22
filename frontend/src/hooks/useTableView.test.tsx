@@ -97,6 +97,32 @@ beforeEach(() => {
 })
 
 describe('useTableView', () => {
+  // The Columns picker's Reset all (record 0209): greyed while the boxes show
+  // the default, which is read off the boxes rather than the stored answers,
+  // so a reader who ticked every box back by hand is at the default too; the
+  // Model column's three-valued answer is forgotten with the rest.
+  it('knows when the columns stand at their default, and puts them back there', () => {
+    const { result } = renderHook(() => useTableView(inputs()))
+    expect(result.current.columnsAtDefault).toBe(true)
+    const all = () => new Set(result.current.pickerVisibleKeys)
+    const without = (key: string) => new Set([...all()].filter((k) => k !== key))
+    act(() => result.current.handleVisibilityChange(without('type')))
+    expect(result.current.columnsAtDefault).toBe(false)
+    expect(result.current.pickerVisibleKeys.has('type')).toBe(false)
+    act(() => result.current.handleVisibilityChange(new Set([...all(), 'type'])))
+    expect(result.current.columnsAtDefault).toBe(true)
+    // The Model column on with one model is a choice too.
+    act(() => result.current.handleVisibilityChange(new Set([...all(), MODEL_KEY])))
+    expect(result.current.columnsAtDefault).toBe(false)
+    act(() => result.current.handleVisibilityChange(without('elevation_ft')))
+    act(() => result.current.resetColumns())
+    expect(result.current.columnsAtDefault).toBe(true)
+    expect(result.current.pickerVisibleKeys.has('elevation_ft')).toBe(true)
+    expect(result.current.pickerVisibleKeys.has(MODEL_KEY)).toBe(false)
+    expect(readViewPrefs().columns).toBeNull()
+    expect(readViewPrefs().modelColumn).toBeNull()
+  })
+
   // The order the reader dragged comes back on a reload, and a new ranking
   // throws it away. An effect keyed on the ranking also runs on mount, which
   // is the case the skip exists for.

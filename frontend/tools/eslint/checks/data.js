@@ -168,9 +168,21 @@ export const DATA = [
         selector: member('aqiForecastDays', 'TSNumberKeyword'),
         message: 'The panel takes aqiForecastDays as a number prop.',
       },
+    ],
+  },
+  {
+    // The panel's messages read the same limits off the state App hands them
+    // (record 0208), the window bounds among them, which the panel itself no
+    // longer reads: a message about a window is the hook's to compose.
+    name: 'messages-limit-state',
+    files: ['src/hooks/usePanelMessages.ts'],
+    require: [
+      { selector: member('maxAreaKm2', 'TSNumberKeyword'), message: 'The messages take maxAreaKm2 as a number.' },
+      { selector: member('archiveDays', 'TSNumberKeyword'), message: 'The messages take archiveDays as a number.' },
+      { selector: member('aqiForecastDays', 'TSNumberKeyword'), message: 'The messages take aqiForecastDays as a number.' },
       {
         selector: member('windowLimits', 'TSTypeReference[typeName.name="WindowLimits"]'),
-        message: 'The panel takes windowLimits as a WindowLimits prop.',
+        message: 'The messages take windowLimits as a WindowLimits.',
       },
     ],
   },

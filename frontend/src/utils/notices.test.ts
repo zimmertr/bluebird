@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest'
 import {
   BLOCKER_SEVERITY,
   FooterMessage,
+  SEVERITY_ORDER,
+  blockerKey,
+  blockerOf,
   eventKindOf,
   listPhrase,
   isDismissed,
   noticeBoxes,
   noticeKey,
   pruneDismissals,
+  worstSeverity,
 } from './notices'
 
 describe('noticeKey', () => {
@@ -172,6 +176,40 @@ describe('noticeBoxes', () => {
     expect(eventKindOf('blocker:area')).toBeNull()
     expect(eventKindOf('cue:window-changed')).toBeNull()
     expect(eventKindOf('fire:unavailable')).toBeNull()
+  })
+})
+
+// The badge's colour (record 0208): the worst severity among the messages,
+// in the order the boxes stand in.
+describe('worstSeverity', () => {
+  const msg = (key: string, severity: FooterMessage['severity']): FooterMessage => ({ key, text: key, severity })
+
+  it('runs error, warn, info, the order the boxes stand in', () => {
+    expect(SEVERITY_ORDER).toEqual(['error', 'warn', 'info'])
+  })
+
+  it('names the worst severity present, or none', () => {
+    expect(worstSeverity([])).toBeNull()
+    expect(worstSeverity([msg('a', 'info')])).toBe('info')
+    expect(worstSeverity([msg('a', 'info'), msg('b', 'warn')])).toBe('warn')
+    expect(worstSeverity([msg('a', 'warn'), msg('b', 'error'), msg('c', 'info')])).toBe('error')
+  })
+})
+
+// A blocker's key, and the blocker read back off a key: what tells a line
+// that stands under a field from one that lives in the list alone.
+describe('blocker keys', () => {
+  it('spells a blocker key and reads it back', () => {
+    expect(blockerKey('area')).toBe('blocker:area')
+    expect(blockerOf('blocker:area')).toBe('area')
+    expect(blockerOf(blockerKey('compare-aqi'))).toBe('compare-aqi')
+  })
+
+  it('reads no blocker off any other key', () => {
+    expect(blockerOf('cue:window-changed')).toBeNull()
+    expect(blockerOf('ring:types')).toBeNull()
+    expect(blockerOf('blocker:')).toBeNull()
+    expect(blockerOf('blocker:nothing')).toBeNull()
   })
 })
 

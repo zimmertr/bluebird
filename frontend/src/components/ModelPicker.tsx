@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { nextActiveIndex, nextToolbarIndex, optionDomId } from '../utils/listbox'
 import { usePopover } from '../hooks/usePopover'
+import { useShiftRange } from '../hooks/useShiftRange'
 import Menu, { MenuButton } from './Menu'
 import {
   canRemove,
@@ -29,7 +30,7 @@ const LIST_ID = 'model'
 // Why the control is faded is NOT said here (TJ, 2026-09-14). It was a `title`
 // plus hidden `aria-describedby` text, which put one of the panel's messages
 // somewhere no phone could reach and no other message lives. It is now an info
-// line in the block under the Analyze button, where every other message about
+// line in the list the Analyze button's badge opens, where every other message about
 // the window already is — so the panel has one place that explains itself, and
 // this control is free to be nothing but disabled.
 
@@ -180,8 +181,20 @@ export default function ModelPicker({
     onComparedChange(next.compared)
   }
 
-  function toggle(id: string) {
-    apply(toggleSelected(models, value, compared, id))
+  // A press with Shift held reaches every row from the last pressed one to
+  // this one (record 0209), each toggled where it differs from the row the
+  // reader pressed, so the range ends up as that row does. One rule applied
+  // row by row, so a range that crosses the ranking model passes the ranking
+  // on the way `toggleSelected` says, and the last selected model stays.
+  const press = useShiftRange(open)
+  function toggle(id: string, shift = false) {
+    const wanted = !(id === value || compared.includes(id))
+    let next = { ranking: value, compared: [...compared] }
+    for (const each of press(models.map((m) => m.id), id, shift)) {
+      const selected = each === next.ranking || next.compared.includes(each)
+      if (selected !== wanted) next = toggleSelected(models, next.ranking, next.compared, each)
+    }
+    apply(next)
   }
 
   function rank(id: string) {
@@ -467,8 +480,8 @@ export default function ModelPicker({
                 aria-selected={isSelected}
                 aria-disabled={locked || undefined}
                 onPointerEnter={() => setActive(i)}
-                onClick={() => {
-                  if (!locked) toggle(model.id)
+                onClick={(e) => {
+                  if (!locked) toggle(model.id, e.shiftKey)
                 }}
                 className={`flex items-start gap-2 rounded px-1.5 py-1.5 ${
                   locked ? 'cursor-default' : 'cursor-pointer'
@@ -518,7 +531,7 @@ export default function ModelPicker({
                   tabIndex={-1}
                   checked={isSelected}
                   disabled={locked}
-                  onChange={() => toggle(model.id)}
+                  onChange={(e) => toggle(model.id, e.nativeEvent instanceof MouseEvent && e.nativeEvent.shiftKey)}
                   onClick={(e) => e.stopPropagation()}
                   className={`${CHOICE_INPUT} ${DISABLED} mt-0.5`}
                 />

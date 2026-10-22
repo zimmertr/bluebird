@@ -1,8 +1,10 @@
 import { visibilityRows, type VisibilityModel } from '../utils/modelVisibility'
+import { shiftHeld } from '../utils/rangeSelect'
 import { usePopover } from '../hooks/usePopover'
+import { useShiftRange } from '../hooks/useShiftRange'
 import Menu from './Menu'
 import BottomSheet from './BottomSheet'
-import { CHOICE_INPUT, CHOICE_ROW, MENU } from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, CONTROL_SIZE, DISABLED, FOCUS_RING, LINK_ACTION, MENU } from '../styles'
 
 interface Props {
   open: boolean
@@ -11,6 +13,8 @@ interface Props {
   models: readonly VisibilityModel[]
   hidden: ReadonlySet<string>
   onToggle: (id: string) => void
+  /** Reset all: every model drawn again (`useChartCompare.showAllModels`); greyed while none is hidden (record 0209). */
+  onReset: () => void
   /** The Models button, which the menu stands 4px under at its rows' width (record 0201). */
   triggerRef: React.RefObject<HTMLButtonElement | null>
   /** A phone (#696): the menu is a bottom sheet rather than a card under its button. */
@@ -45,29 +49,55 @@ export default function ModelsPicker({
   models,
   hidden,
   onToggle,
+  onReset,
   triggerRef,
   sheet = false,
 }: Props) {
   // Closed to the popover's hook on a phone, whose sheet places and dismisses
   // itself: a press inside the sheet would read as a press outside the card.
   const { popoverRef, box, closing } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
+  // A press with Shift held reaches every row from the last pressed one to
+  // this one (record 0209), each toggled only where it differs from the box
+  // the reader pressed, so the range ends up as that box does.
+  const press = useShiftRange(open)
+  const visible = visibilityRows(models, hidden)
+  const order = visible.map((row) => row.id)
 
-  const rows = visibilityRows(models, hidden).map((row) => (
+  const rows = visible.map((row) => (
     <label key={row.id} className={sheet ? CHOICE_ROW : `${CHOICE_ROW} ${MENU.row} ${MENU.hover}`}>
       <input
         type="checkbox"
         checked={row.visible}
-        onChange={() => onToggle(row.id)}
+        onChange={(e) => {
+          for (const id of press(order, row.id, shiftHeld(e))) {
+            const each = visible.find((r) => r.id === id)
+            if (each && each.visible !== e.target.checked) onToggle(id)
+          }
+        }}
         className={CHOICE_INPUT}
       />
       <span className="flex-1">{row.label}</span>
     </label>
   ))
 
+  // Always drawn and greyed while nothing is hidden (record 0209), the way
+  // Clear filters is: a control that comes and goes has to be found again.
+  const resetAll = (
+    <button
+      type="button"
+      onClick={onReset}
+      disabled={hidden.size === 0}
+      className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} ${DISABLED} cursor-pointer`}
+    >
+      Reset all
+    </button>
+  )
+
   if (sheet) {
     return open ? (
       <BottomSheet heading="Models" onClose={() => onOpenChange(false)}>
         {rows}
+        <div className="flex items-center px-2">{resetAll}</div>
       </BottomSheet>
     ) : null
   }
@@ -77,6 +107,7 @@ export default function ModelsPicker({
   return (
     <Menu box={box} popoverRef={popoverRef} closing={closing}>
       <div className={MENU.list}>{rows}</div>
+      <div className={MENU.foot}>{resetAll}</div>
     </Menu>
   )
 }
