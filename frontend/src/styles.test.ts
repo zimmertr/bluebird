@@ -26,6 +26,7 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
+  CHART_LEGEND,
   CHART_METRIC_W,
   CONTROL_W,
   FIELD,
@@ -129,6 +130,7 @@ import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { CHIP_MENU_GAP_PX } from './utils/resultsSheet'
+import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { SNOW_RAMP } from './utils/snowDepth'
@@ -3914,6 +3916,25 @@ describe('the panel frame', () => {
     }
     expect(RESULTS_PANE.foot).toMatch(/(^|\s)justify-end(\s|$)/)
     expect(RESULTS_PANE.top).not.toMatch(/justify-end/)
+  })
+
+  // The chart-only legend's tallest strip (#795): two rows of 26px chips and
+  // their 6px gap, its padding above and below, and its 1px edge. At a desk
+  // it opens in the table's floor, which Chart keeps free under the chart, so
+  // it must fit there or the map loses its floor to it.
+  it('fits the chart legend\'s tallest strip in the table\'s floor', () => {
+    const strip = CHART_LEGEND.strip.split(' ')
+    const chips = CHART_LEGEND.chips.split(' ')
+    const CHIP_PX = 26 // a chip: TEXT.control's line and its py-1
+    const gapPx = Number(chips.find((t) => /^gap-/.test(t))!.slice(4)) * 4
+    const maxPx = Number(chips.find((t) => /^max-h-\[/.test(t))!.match(/\d+/)![0])
+    expect(maxPx).toBe(2 * CHIP_PX + gapPx)
+    expect(chips).toContain('overflow-y-auto')
+    const padPx = Number(strip.find((t) => /^py-/.test(t))!.slice(3)) * 4
+    expect(strip).toContain('border-t')
+    const tallestPx = maxPx + 2 * padPx + 1
+    expect(tallestPx).toBe(71)
+    expect(tallestPx).toBeLessThanOrEqual(PANEL_FLOOR_PX)
   })
 
   // The Metrics rows pass WCAG 2.2 SC 2.5.8 by spacing (#687, record 0130):

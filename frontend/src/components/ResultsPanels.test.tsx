@@ -355,33 +355,47 @@ describe('the panes at a desk', () => {
     expect(frameOf(chart).firstElementChild!.hasAttribute('inert')).toBe(false)
   })
 
-  // The chart-only legend takes its height from the plot, so it comes and
-  // goes where the panes stand still (record 0216): a legend that changed at
-  // the press drew the chart again in the move's first frame. A shut chart
-  // keeps the one it was drawn with.
-  it('changes the legend where the panes stand still, and keeps a shut chart\'s', async () => {
+  // The chart-only legend is a pane of its own at a desk, under the chart and
+  // held to the foot like the table (#795), so the chart's box holds the plot
+  // alone in every mode and no press draws the chart again. Chart to Both
+  // shuts the legend's frame around the strip it keeps, as the table opens.
+  it('opens the legend in a pane of its own at a desk, and keeps it shut and inert in Both', async () => {
     const legend = { ...TABLE_VIEW, legend: [{ key: 'a', row: ROW, suffix: '' }] }
-    const chip = () => screen.queryByRole('button', { name: `Hide ${ROW.name} on the chart` })
-    const { rerender } = render(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), tableView: legend })} />)
-    await screen.findByTestId('chart')
-    expect(chip()).toBeNull()
-    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend, layoutMotion: 'panes' })} />)
-    expect(chip()).toBeNull()
-    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend })} />)
-    expect(chip()).toBeTruthy()
-    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), tableView: legend, layoutMotion: 'panes' })} />)
-    expect(chip()).toBeTruthy()
-    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), tableView: legend })} />)
-    expect(chip()).toBeNull()
-    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend })} />)
-    rerender(
-      <ResultsPanels
-        {...props({ panesMove: true, layout: { ...layout('table'), chartPanelPx: 0 }, tableView: legend })}
-      />,
+    const chip = () => screen.getByRole('button', { name: `Hide ${ROW.name} on the chart`, hidden: true })
+    const { rerender } = render(
+      <ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend })} />,
     )
-    expect(screen.getByTestId('chart')).toBeTruthy()
-    // Inert, so a role query finds it only by looking past that.
-    expect(screen.queryByRole('button', { name: `Hide ${ROW.name} on the chart`, hidden: true })).toBeTruthy()
+    const chart = await screen.findByTestId('chart')
+    const strip = chip()
+    const pane = frameOf(strip)
+    expect(frameOf(chart).contains(strip)).toBe(false)
+    expect(pane.className).toContain(RESULTS_PANE.open)
+    expect(pane.className).toContain(MOTION.pane)
+    expect(pane.firstElementChild!.className).toContain(RESULTS_PANE.foot)
+    expect(pane.firstElementChild!.hasAttribute('inert')).toBe(false)
+    // Between the chart's frame and the table's, which Chart keeps shut.
+    expect(frameOf(chart).nextElementSibling).toBe(pane)
+    expect(pane.nextElementSibling!.className).toContain(RESULTS_PANE.shut)
+
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: BOTH, tableView: legend, layoutMotion: 'panes' })} />)
+    expect(pane.className).toContain(RESULTS_PANE.shut)
+    expect(pane.firstElementChild!.hasAttribute('inert')).toBe(true)
+    expect(chip()).toBe(strip)
+    expect(pane.nextElementSibling).toBe(frameOf(screen.getByTestId('table')))
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend, layoutMotion: 'panes' })} />)
+    expect(pane.className).toContain(RESULTS_PANE.open)
+    expect(chip()).toBe(strip)
+    // The chevron shuts it with the chart.
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend, collapsed: true })} />)
+    expect(pane.className).toContain(RESULTS_PANE.shut)
+  })
+
+  it('shuts the legend\'s pane when there are no rows to list', async () => {
+    render(<ResultsPanels {...props({ panesMove: true, layout: layout('chart') })} />)
+    const chart = await screen.findByTestId('chart')
+    const pane = frameOf(chart).nextElementSibling as HTMLElement
+    expect(pane.className).toContain(RESULTS_PANE.shut)
+    expect(pane.firstElementChild!.childElementCount).toBe(0)
   })
 
   it('holds the chart to the bar and the table to the foot', async () => {
@@ -397,6 +411,17 @@ describe('the chart legend', () => {
   const legend = { ...TABLE_VIEW, legend: [{ key: 'a', row: ROW, suffix: '' }] }
   const charts = { ...CHARTS_QUIET, rowChartColor: () => '#fda5d5' }
   const dot = () => screen.getByRole('button', { name: `Hide ${ROW.name} on the chart` }).firstElementChild as HTMLElement
+
+  // A phone's panes change at once and its Chart fills the sheet, so the
+  // legend stands in the chart's own box there, in Chart alone (#795).
+  it('stands in the chart\'s box on a phone, in Chart alone', async () => {
+    const { rerender } = render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend })} />)
+    const chart = await screen.findByTestId('chart')
+    const chip = screen.getByRole('button', { name: `Hide ${ROW.name} on the chart` })
+    expect(chart.closest('[style*="height"]')!.contains(chip)).toBe(true)
+    rerender(<ResultsPanels {...props({ layout: BOTH, tableView: legend })} />)
+    expect(screen.queryByRole('button', { name: `Hide ${ROW.name} on the chart`, hidden: true })).toBeNull()
+  })
 
   it('rims a dot in its line colour', async () => {
     render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend, charts })} />)

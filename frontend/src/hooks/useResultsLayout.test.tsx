@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { type ResultsLayoutInputs, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
 import { RESULTS_BAR_PX, dockedMapFloorPx } from '../utils/resultsSheet'
+import { PANEL_FLOOR_PX } from '../utils/layout'
 
 // jsdom has no media queries, so the one the Both widening asks is answered
 // here: a desktop width unless a test says otherwise.
@@ -416,6 +417,28 @@ describe('useResultsLayout', () => {
     expect(panels()).toBe(estimated - (BAR - RESULTS_BAR_PX))
     // What is left is the map's whole reserve: rows, legend stack and band.
     expect(768 - BAR - 2 * 8 - panels()).toBe(dockedMapFloorPx(0) - RESULTS_BAR_PX)
+  })
+
+  // At a desk the chart stands at the height Both gives it, in Chart too
+  // (#795): Chart keeps the table's floor and its grip free under the chart,
+  // where the legend opens, so no press between the two changes the chart's
+  // size. A column 150px over Both's floors caps the chart at 150 in both,
+  // under its 220 default, and a drag in Chart stops where Both's would.
+  it('stands a desk chart at Both\'s height in Chart', () => {
+    setViewport(dockedMapFloorPx(2) + PANEL_FLOOR_PX + 150)
+    const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'chart' }))
+    expect(result.current.resultsMode).toBe('chart')
+    expect(result.current.chartPanelPx).toBe(150)
+    act(() => result.current.chooseResultsMode('both'))
+    expect(result.current.chartPanelPx).toBe(150)
+    act(() => result.current.chooseResultsMode('chart'))
+    act(() => result.current.chartGrip.onDragStart())
+    act(() => result.current.chartGrip.onDrag(1000))
+    act(() => result.current.chartGrip.onDragEnd())
+    const dragged = result.current.chartPanelPx
+    expect(dragged).toBeGreaterThan(150)
+    act(() => result.current.chooseResultsMode('both'))
+    expect(result.current.chartPanelPx).toBe(dragged)
   })
 
   // A phone's home indicator band (record 0145): the foot stands on it with
