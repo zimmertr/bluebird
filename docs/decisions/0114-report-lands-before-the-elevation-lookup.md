@@ -34,7 +34,7 @@ What makes never failing possible is a second source that is not a query service
 
 The evening's three empty lists above, and the measurements in 0101 and #655.
 
-Every measurement below was made the way 0101's were: the image built from `origin/main` and from the branch, each in a fresh container, the same 100 rows of `examples/washington-bulger-list.csv` pasted in headless Chromium, main and branch alternating, four seconds between the paste and the click as a reader would take, times from the click unless they say otherwise. Main here is v0.92.27 and later, with the 8 s deadline and 0111's split.
+Every measurement below was made the way 0101's were: the image built from `origin/main` and from the branch, each in a fresh container, the same 100 rows of `csv-examples/washington-bulger-list.csv` pasted in headless Chromium, main and branch alternating, four seconds between the paste and the click as a reader would take, times from the click unless they say otherwise. Main here is v0.92.27 and later, with the 8 s deadline and 0111's split.
 
 The first half (the report no longer waiting), 2026-10-07 morning, Overpass busy, every main lookup running to its 8 s deadline with no elevations:
 

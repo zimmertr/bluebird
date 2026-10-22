@@ -7,7 +7,7 @@
 .DS_Store
 **/*.md
 docs/
-examples/
+csv-examples/
 docker-compose.yml
 GitVersion.yml
 frontend/node_modules/

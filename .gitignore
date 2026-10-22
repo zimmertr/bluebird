@@ -42,3 +42,6 @@ venv/
 # Playwright output from a local run of the browser suite (#412).
 frontend/e2e/test-results/
 frontend/e2e/playwright-report/
+
+# Captured command output, such as a local `docker build` piped to a file.
+*.log
