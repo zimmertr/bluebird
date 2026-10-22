@@ -32,7 +32,9 @@ import { coordinateLabel } from './points'
 import { utcDayKey } from './calendarDates'
 
 /**
- * The popup's type ramp, and the face everything in it is set in.
+ * The popup's type ramp and its leading. The face is the app's own: the card
+ * sets none, and `map.css` hands the map the app's (`.maplibregl-map`), so a
+ * popup and the panel are one face (#786, record 0217).
  *
  * Three sizes and no more: the title at 13px, the body a step down at 12px so
  * the details do not compete with the thing they describe (and so the widest
@@ -41,11 +43,11 @@ import { utcDayKey } from './calendarDates'
  * were spelled in five files before #365 (`popupChrome.ts`, `poiPopup.ts`,
  * `smoke.ts`, `wildfires.ts`, `closures.ts`), which is how a popup gets a
  * fourth size: the linter's inline-style ban now fails a `font-size:` written
- * outside this file. The face and the title size are not exported: the card
- * is the only thing that sets them (#738), where three overlays used to
+ * outside this file. The leading and the title size are not exported: the
+ * card is the only thing that sets them (#738), where three overlays used to
  * compose a card of their own from them.
  */
-const POPUP_FACE = 'font-family:sans-serif;line-height:1.5'
+const POPUP_LEADING = 'line-height:1.5'
 const POPUP_TITLE_SIZE = 'font-size:13px'
 const POPUP_BODY_SIZE = 'font-size:12px'
 const POPUP_FINE_SIZE = 'font-size:11px'
@@ -96,14 +98,11 @@ export function row(label: string, value: string, href?: string | null): string 
  *
  * **Colour rather than weight, and that is a measurement rather than a taste.**
  * The obvious answer was a lighter weight than the title's 700. It does not
- * work here: this markup declares `font-family:sans-serif`, and under the
- * generic keyword Chrome on macOS resolves exactly TWO faces — 400 and 500
- * render identically, 600 and 700 render identically (measured 2026-09-14:
- * 126.73px for the first pair, 133.27px for the second). So every weight
- * available is either invisible or the title's own. Pointing the popup at the
- * app's stack instead gave four widths, but evenly spaced ones — the signature
- * of synthetic emboldening rather than four drawn faces — and the pairs still
- * read alike.
+ * hold up across faces: under the generic `sans-serif` Chrome on macOS
+ * resolves exactly two, 400 and 500 alike and 600 and 700 alike (126.73px and
+ * 133.27px, measured 2026-09-14), and under the app's stack the four weights
+ * measured evenly spaced and the pairs still read alike. A face that offers
+ * fewer weights on another system would lose the step outright.
  *
  * Colour has no such dependency: it renders the same wherever the card opens,
  * and it is the axis the app's own panels already use to step text back. The
@@ -510,10 +509,12 @@ export const GRID_RANKED_COLOR = 'var(--popup-ranked)'
  * Each band's inset a side: 5px, so a number as wide as `0.000` has visible
  * room inside its band, behind a 2px gutter (TJ, 2026-10-08; it was 3px,
  * which left the widest numbers touching the edges). A map too narrow for the
- * widest grid at 5px takes 3px instead (`compactGrid`).
+ * widest grid at 5px takes 2px instead (`compactGrid`): 3px until the card
+ * took the app's face, whose wider labels a 360px phone could hold only by
+ * giving back the 8px four bands' insets made (TJ, 2026-10-22).
  */
 export const GRID_INSET_PX = 5
-export const GRID_COMPACT_INSET_PX = 3
+export const GRID_COMPACT_INSET_PX = 2
 /**
  * The gap between a family's label and the first band: 8px (TJ, 2026-10-08),
  * or 6px on a compact grid, which is the 2px that lets a two-digit window
@@ -526,31 +527,33 @@ export const GRID_COMPACT_LABEL_GAP_PX = 6
  * The widest grid, in Chrome on macOS: `Precipitation (in/hr)` beside Min,
  * Max, Avg and Total at their widest numbers (`10,600` heights, `≥30,000`
  * under Max, and a three-digit total, `123.456`, which a stormy window's
- * snowfall can reach). 344.6px at full inset (measured 2026-10-08). A
- * two-digit total, which a winter window's rain often reaches, is 337.4px;
- * the first measurement used `0.000`, 330.1px, and undersized the card.
+ * snowfall can reach). 352.9px at full inset. A two-digit total, which a
+ * winter window's rain often reaches, is 345.7px; the first measurement used
+ * `0.000` and undersized the card. The grid was measured at 344.6px on
+ * 2026-10-08 in the card's own Helvetica, and the app's face sets the label
+ * 8.32px wider (109.03px against 100.71px at 12px, 2026-10-22).
  *
- * Compact, the same grid is 326.6px, and 319.4px with a two-digit total, which
+ * Compact, the same grid is 326.9px, and 319.7px with a two-digit total, which
  * is what a 360px phone's 320px of body holds. A change to the grid's
  * columns, insets or type re-measures these. `e2e/popupFit.spec.ts` holds the
- * built card to them with the Mac's wider monospace emulated.
+ * built card to them with the Mac's wider fonts emulated.
  */
-export const WIDEST_GRID_PX = 345
+export const WIDEST_GRID_PX = 353
 /** The result card's body padding a side, `popupCard`'s 10px. */
 export const RESULT_CARD_PAD_PX = 10
 
 /**
  * Whether a result card on a map this wide takes the compact insets: when its
  * body is narrower than the widest grid at full inset. That is every map under
- * 385px, a 360px phone among them, where a wide grid would otherwise scroll
+ * 393px, a 360px phone among them, where a wide grid would otherwise scroll
  * sideways (TJ, 2026-10-08). The card's own width does not change.
  */
 export function compactGrid(canvasWidthPx: number): boolean {
   return parseFloat(resultPopupWidth(canvasWidthPx)) - 2 * RESULT_CARD_PAD_PX < WIDEST_GRID_PX
 }
 
-// The grid's cells. A head is centred over its band and bold, the one weight
-// the popup's sans-serif has besides regular (TJ, 2026-10-08), while the
+// The grid's cells. A head is centred over its band and bold (TJ,
+// 2026-10-08), while the
 // numbers stay right-aligned so a column lines up on its last digit, the way a
 // table of figures does.
 // A label keeps 8px clear of the first band. On a phone the card is wider
@@ -618,8 +621,9 @@ export function capPopupBody(body: HTMLElement, maxHeightPx: number): void {
 export const POPUP_MAX_WIDTH_PX = 280
 
 /**
- * How wide a ranked destination's popup may get: 366px, or the map less 10px
- * a side where the map is narrower (TJ, 2026-10-08).
+ * How wide a ranked destination's popup may get: 374px, or the map less 10px
+ * a side where the map is narrower (TJ, 2026-10-08; 366px until the card took
+ * the app's wider face, 2026-10-22).
  *
  * Its grid is wider than any other popup's, `WIDEST_GRID_PX`, and the body
  * has the card less 10px a side. On a 360px phone the card is 340px, 94% of
@@ -630,7 +634,7 @@ export const POPUP_MAX_WIDTH_PX = 280
  * accepted for narrow phones. A desktop card shrinks to its grid, so the cap
  * is reached only by a card with the widest numbers.
  */
-export const RESULT_POPUP_MAX_WIDTH_PX = 366
+export const RESULT_POPUP_MAX_WIDTH_PX = 374
 
 export function resultPopupWidth(canvasWidthPx: number): string {
   return clamp(canvasWidthPx - 20, 180, RESULT_POPUP_MAX_WIDTH_PX) + 'px'
@@ -740,7 +744,7 @@ export function popupCard({ title, link = null, meta = '', warnings = [], body =
   const content = body
     ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
     : ''
-  return `<div style="${POPUP_FACE}">
+  return `<div style="${POPUP_LEADING}">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
       <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}</div>
       ${meta}

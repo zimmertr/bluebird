@@ -380,9 +380,8 @@ describe('resultPopupHtml type', () => {
     expect(html.indexOf('<strong')).toBeLessThan(html.indexOf('Mount Rainier'))
   })
 
-  // Colour rather than weight for a label, because under this card's
-  // `sans-serif` only two faces exist: one is invisible against the value, the
-  // other is the title's own. See LABEL_COLOR for the measurement. The column
+  // Colour rather than weight for a label, because a weight step does not
+  // read alike in every face. See LABEL_COLOR for the measurement. The column
   // heads are the one exception: bold, a size under the title, so they read
   // as the grid's heads rather than as one more label (TJ, 2026-10-08).
   it('keeps every label regular and only the column heads bold', () => {

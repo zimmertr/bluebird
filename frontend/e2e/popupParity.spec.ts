@@ -7,9 +7,10 @@ import type { Locator, Page } from '@playwright/test'
 // `BUTTON_ACCENT`; this reads the rendered page, where MapLibre's stylesheet
 // or a rule in map.css could still dress a popup apart from the panel.
 
-// What a button looks like, as the browser computed it. Not the face: a card
-// sets its own (`POPUP_FACE` in popupChrome.ts), which its button inherits.
+// What a button looks like, as the browser computed it, its face among it:
+// the card sets none, so a popup reads in the panel's (record 0217).
 const LOOK = [
+  'fontFamily',
   'backgroundColor',
   'color',
   'fontSize',

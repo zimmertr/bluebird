@@ -299,33 +299,34 @@ describe('the facts line', () => {
 // measured in Chrome on macOS, `WIDEST_GRID_PX`.
 describe('resultPopupWidth', () => {
   it('fits the widest grid measured on macOS', () => {
-    expect(WIDEST_GRID_PX).toBe(345)
+    expect(WIDEST_GRID_PX).toBe(353)
     expect(RESULT_POPUP_MAX_WIDTH_PX - 2 * RESULT_CARD_PAD_PX).toBeGreaterThanOrEqual(WIDEST_GRID_PX)
   })
 
   it('takes the map less 10px a side where the map is narrower', () => {
     expect(resultPopupWidth(1280)).toBe(`${RESULT_POPUP_MAX_WIDTH_PX}px`)
-    expect(RESULT_POPUP_MAX_WIDTH_PX).toBe(366)
+    expect(RESULT_POPUP_MAX_WIDTH_PX).toBe(374)
     expect(resultPopupWidth(360)).toBe('340px')
     expect(resultPopupWidth(320)).toBe('300px')
     expect(resultPopupWidth(0)).toBe('180px')
   })
 })
 
-// A map too narrow for the widest grid at full inset takes 3px insets and a
-// 6px label gap (TJ, 2026-10-08). Measured on macOS, a grid with a two-digit
-// window total is then 319.4px, which a 360px phone's 320px of body holds.
+// A map too narrow for the widest grid at full inset takes 2px insets and a
+// 6px label gap (TJ, 2026-10-08 and 2026-10-22). Measured on macOS, a grid
+// with a two-digit window total is then 319.7px, which a 360px phone's 320px
+// of body holds.
 describe('compactGrid', () => {
   it('keeps the full inset wherever the widest grid fits it', () => {
     expect(compactGrid(1280)).toBe(false)
-    expect(compactGrid(390)).toBe(false)
-    expect(compactGrid(385)).toBe(false)
+    expect(compactGrid(400)).toBe(false)
+    expect(compactGrid(393)).toBe(false)
   })
 
   it('takes the compact inset on a narrower map', () => {
-    expect(compactGrid(384)).toBe(true)
+    expect(compactGrid(392)).toBe(true)
     expect(compactGrid(360)).toBe(true)
-    expect(parseFloat(resultPopupWidth(360)) - 2 * RESULT_CARD_PAD_PX).toBeGreaterThanOrEqual(319.4)
+    expect(parseFloat(resultPopupWidth(360)) - 2 * RESULT_CARD_PAD_PX).toBeGreaterThanOrEqual(319.7)
   })
 })
 

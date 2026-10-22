@@ -1,6 +1,6 @@
 # 0215. A popup is the panel's own surface, and its button the panel's own button
 
-- Status: Accepted. Supersedes [0213](0213-popup-buttons-answer-the-pointer.md). Amends [0163](0163-popups-follow-the-theme.md) (the light card is no longer the white it always was) and [0112](0112-colour-values-have-owners.md) (`popupChrome.ts` no longer owns a colour).
+- Status: Accepted. Supersedes [0213](0213-popup-buttons-answer-the-pointer.md). Amends [0163](0163-popups-follow-the-theme.md) (the light card is no longer the white it always was) and [0112](0112-colour-values-have-owners.md) (`popupChrome.ts` no longer owns a colour). Amended by [0217](0217-popup-in-the-app-face.md).
 - Date: 2026-10-22
 - Decider: the maintainer (TJ), on the review of PR #789: "Why is Add to analysis a blue button and remove from analysis a grey button? (Or black in light mode)? This is the top of UI discrepancies that make a product like bluebird look really poor and vibe coded." TJ picked all three popup buttons blue, and the whole popup on the app's tokens, and on the approach: "i've been advocating for that for the start with the use of styles".
 - Issues and PRs: #786, #789, #740, #365, #706

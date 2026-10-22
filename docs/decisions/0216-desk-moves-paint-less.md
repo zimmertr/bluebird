@@ -23,15 +23,16 @@ The cost tracks load. On the maintainer's Mac at idle, main already drew every m
 
 ## Evidence
 
-`frontend/e2e/perf/layoutMotion.spec.ts`, headless Chromium in Docker at 1440x900, a 200-row report with every line charted, main (818b6bd) against this change, 2026-10-22. Paint is the main thread's painting across one move and the 900 ms after the press.
+`frontend/e2e/perf/layoutMotion.spec.ts`, headless Chromium in Docker at 1440x900, a 200-row report with every line charted, main (818b6bd, three samples) against this change (five), dark theme, 2026-10-22. Paint is the main thread's painting across one move and the 900 ms after the press.
 
 | Move | Main | This change |
 |---|---|---|
-| Panel close, painting | 185 to 195 ms | 33 to 36 ms |
-| Panel open, painting | 184 to 220 ms | 34 to 35 ms |
-| Table to Both, press to first moving frame (trace) | about 116 ms, 75 of them mounting the chart | about 39 ms |
-| Both to Table, press to first moving frame (trace) | about 36 ms | about 43 ms (the `inert` restyle) |
-| Chart to Both, painting per frame | 6 to 16 ms (the table repainted at the foot) | about 2.4 ms |
+| Panel close, painting | 195 ms | 34 ms |
+| Panel open, painting | 220 ms | 35 ms |
+| Table to Both, press to first moving frame | 120 ms, 75 of them mounting the chart (trace) | 54 ms |
+| Chart to Both, press to first moving frame | 144 ms | 69 ms |
+| Both to Chart, press to first moving frame | 103 ms | 76 ms |
+| Both to Table, press to first moving frame | 46 ms | 70 ms (the `inert` restyle, 7 ms in a trace, and noise) |
 
 At a quarter of the CPU (`CPU_SLOWDOWN=4`, three samples, dark): Table to Both started after 183 ms rather than 357, Chart to Both after 154 rather than 486, Both to Chart after 202 rather than 431, and the panel's open drew 13 frames rather than 5. Both to Table started after 185 ms rather than 131 in that run and 43 against 36 in the trace at full speed.
 

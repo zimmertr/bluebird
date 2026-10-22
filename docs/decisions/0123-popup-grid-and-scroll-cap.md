@@ -1,6 +1,6 @@
 # 0123. The marker popup is a grid at every width, and a card that cannot stand whole scrolls its body
 
-- Status: Accepted
+- Status: Accepted; amended by [0217](0217-popup-in-the-app-face.md)
 - Date: 2026-10-08
 - Decider: the maintainer, on #683 (2026-10-08: "Lets rework the marker popup to use the compact grid instead. On both desktop and mobile. And then when resolution reaches a certain small threshold, it switches to a capped height box with a scrollbar")
 - Issues and PRs: #683, #684, #700, #370
