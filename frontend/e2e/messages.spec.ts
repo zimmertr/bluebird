@@ -25,16 +25,18 @@ test.describe('at a desk', () => {
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     const analyze = page.getByRole('button', { name: 'Analyze', exact: true })
     // Nothing to analyze: greyed, not disabled, with the reason under the
-    // Destinations heading and in the badge's count.
+    // Destinations heading and in the badge's count. Playwright reads
+    // `aria-disabled` as disabled, so the press below is forced, which is
+    // what a reader's finger does.
     await expect(analyze).toHaveAttribute('aria-disabled', 'true')
-    await expect(analyze).toBeEnabled()
+    await expect(analyze).not.toHaveAttribute('disabled')
     const inline = page.getByText(NO_DESTINATION)
     await expect(inline).toHaveCount(2) // the line under the field and the live region's copy
     expect(await count(page)).toBeGreaterThanOrEqual(1)
     await expect(list(page)).toHaveCount(0)
 
     // A press on the greyed button opens the list over it, at least its width.
-    await analyze.click()
+    await analyze.click({ force: true })
     await expect(list(page)).toBeVisible()
     await expect(list(page).getByText(NO_DESTINATION)).toBeVisible()
     // The blocker has no ×; a dismissable line would.
@@ -104,8 +106,10 @@ for (const [width, height] of [
       expect(b.x + b.width).toBeGreaterThan(f.x + f.width)
       expect(b.y).toBeLessThan(f.y)
       // A press on the greyed button opens the sheet, headed Messages, with
-      // the blocker and no × on it; Done closes it.
-      await fab.tap()
+      // the blocker and no × on it; Done closes it. Forced, since Playwright
+      // reads `aria-disabled` as disabled.
+      await expect(fab).not.toHaveAttribute('disabled')
+      await fab.tap({ force: true })
       const sheet = page.getByRole('dialog', { name: 'Messages' })
       await expect(sheet).toBeVisible()
       await expect(sheet.getByText(NO_DESTINATION)).toBeVisible()

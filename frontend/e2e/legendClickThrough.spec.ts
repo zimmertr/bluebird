@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { test, expect, message } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // At a desk the legend is a card under its chip (#714; record 0174), as tall
@@ -46,7 +46,7 @@ test('a click under the desk legend card reaches the map', async ({ page }, test
   expect(measured.cardHeight).toBeLessThan(200)
 
   // The panel's own readout is the proof a vertex landed.
-  const counter = page.getByText('Add at least 2 more points', { exact: false })
+  const counter = message(page, 'Add at least 2 more points')
   // Retried because a click counts only once MapLibre has attached the draw
   // handler, which nothing on the page announces (see `drawRing`).
   await expect(async () => {

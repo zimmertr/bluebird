@@ -1,4 +1,4 @@
-import { test, expect, drawRing, DESTINATION_NAMES, resultRows } from './fixtures'
+import { test, expect, drawRing, message, DESTINATION_NAMES, resultRows } from './fixtures'
 import type { Route } from '@playwright/test'
 
 // #782: a polygon search whose forecasts fail keeps what it found on screen as
@@ -26,7 +26,7 @@ test('a failed polygon run keeps its found destinations, and Try again forecasts
   await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
   await page.getByRole('button', { name: 'Analyze' }).click()
 
-  await expect(page.getByText('Open-Meteo quota reached. Try again later.')).toBeVisible()
+  await expect(message(page, 'Open-Meteo quota reached. Try again later.')).toHaveCount(1)
   const retry = page.getByRole('button', { name: 'Try again' })
   await expect(retry).toBeEnabled()
   const table = page.locator('[data-results-table]')
@@ -50,6 +50,6 @@ test('a failed polygon run keeps its found destinations, and Try again forecasts
   const ranks = table.locator('tbody td:has(button[aria-label^="Remove "])')
   await expect(ranks).toHaveText(DESTINATION_NAMES.map((_, i) => String(i + 1)))
   await expect(rows).toHaveCount(DESTINATION_NAMES.length)
-  await expect(page.getByText('Open-Meteo quota reached. Try again later.')).toHaveCount(0)
+  await expect(message(page, 'Open-Meteo quota reached. Try again later.')).toHaveCount(0)
   expect(discoveries).toBe(1)
 })

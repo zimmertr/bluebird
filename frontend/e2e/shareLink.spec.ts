@@ -1,4 +1,4 @@
-import { test, expect, DESTINATION_NAMES, resultRows, isoDay } from './fixtures'
+import { test, expect, message, DESTINATION_NAMES, resultRows, isoDay } from './fixtures'
 import type { Page } from '@playwright/test'
 
 test('a share link restores the ring, the types, the window and the model', async ({ page, request }) => {
@@ -156,10 +156,10 @@ test('a link reopens at its camera, with its removals and its table order', asyn
 // loaded. Escape then cancels draw mode and leaves no ring behind.
 async function waitForMapLoad(page: Page) {
   await page.getByRole('button', { name: 'Draw polygon' }).click()
-  const counted = page.getByText('Add at least 2 more points')
+  const counted = message(page, 'Add at least 2 more points')
   await expect(async () => {
-    if (!(await counted.isVisible())) await page.locator('.maplibregl-canvas').click({ position: { x: 520, y: 260 } })
-    await expect(counted).toBeVisible({ timeout: 1_500 })
+    if ((await counted.count()) === 0) await page.locator('.maplibregl-canvas').click({ position: { x: 520, y: 260 } })
+    await expect(counted).toBeAttached({ timeout: 1_500 })
   }).toPass({ timeout: 20_000 })
   await page.keyboard.press('Escape')
 }
