@@ -24,12 +24,6 @@ interface Props {
   /** Where the card goes, from `usePopover`; null for a sheet, which places itself. */
   box: PopoverBox | null
   popoverRef: React.RefObject<HTMLDivElement | null>
-  /**
-   * The overline strip above the rows, for a menu whose contents need naming
-   * (Removed rows). A menu that names itself another way (`ModelPicker` heads
-   * two groups of chips) passes nothing and draws its own.
-   */
-  header?: ReactNode
   /** Whether the card is on its way out (`usePopover`'s `closing`), for the exit `MOTION.menu` draws. */
   closing: boolean
   /**
@@ -62,7 +56,7 @@ interface Props {
  * 0136). The choice is made here rather than at each caller so that the rows
  * are written once, inside the one menu, for both.
  */
-export default function Menu({ box, popoverRef, header, closing, sheet, children }: Props) {
+export default function Menu({ box, popoverRef, closing, sheet, children }: Props) {
   // The rows as one block of the sheet, so its rules fall around the menu
   // rather than between the menu's own parts, which keep their dividers. Set
   // off the screen's bottom edge by the sheet's side inset, where a row of a
@@ -70,10 +64,7 @@ export default function Menu({ box, popoverRef, header, closing, sheet, children
   if (sheet) {
     return (
       <BottomSheet heading={sheet.heading} onClose={sheet.onClose} tourAnchor={sheet.tourAnchor}>
-        <div className="flex flex-col pb-4">
-          {header !== undefined && <div className={MENU.header}>{header}</div>}
-          {children}
-        </div>
+        <div className="flex flex-col pb-4">{children}</div>
       </BottomSheet>
     )
   }
@@ -98,7 +89,6 @@ export default function Menu({ box, popoverRef, header, closing, sheet, children
       }}
       className={MENU.card}
     >
-      {header !== undefined && <div className={MENU.header}>{header}</div>}
       {children}
     </div>,
     document.body,

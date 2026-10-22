@@ -195,9 +195,9 @@ describe('the popup grid', () => {
     const cells = mount(html).querySelectorAll('td[style*="text-align:right"]')
     expect(cells).toHaveLength(2)
     expect(cells[0].getAttribute('style')).not.toContain(GRID_RANKED_COLOR)
-    expect(cells[0].querySelector('span')!.getAttribute('style')).not.toContain('font-weight:700')
+    expect(cells[0].querySelector('span')!.getAttribute('style')).not.toContain('font-weight:600')
     expect(cells[1].getAttribute('style')).toContain(`background:${GRID_RANKED_COLOR}`)
-    expect(cells[1].querySelector('span')!.getAttribute('style')).toContain('font-weight:700')
+    expect(cells[1].querySelector('span')!.getAttribute('style')).toContain('font-weight:600')
   })
 
   it('narrows every band and the label gap when asked', () => {
@@ -270,9 +270,9 @@ describe('widestName', () => {
 })
 
 describe('the facts line', () => {
-  it('parts the type, elevation and coordinates with a pipe a screen reader skips', () => {
+  it('parts the type, elevation and coordinates with a dot a screen reader skips', () => {
     const popup = mount(factsRow('Trailhead', '3,120 ft', 47.5, -121.25, null))
-    expect(popup.textContent).toBe('Trailhead|3,120 ft|47.50000, -121.25000')
+    expect(popup.textContent).toBe('Trailhead·3,120 ft·47.50000, -121.25000')
     expect(popup.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2)
   })
 
@@ -285,7 +285,7 @@ describe('the facts line', () => {
   it('links the coordinates, and only them, where it is given somewhere to go', () => {
     const url = 'https://caltopo.com/map.html#ll=47.50000,-121.25000&z=14'
     const popup = mount(factsRow('Peak', '7,000 ft', 47.5, -121.25, url))
-    expect(popup.textContent).toBe('Peak|7,000 ft|47.50000, -121.25000')
+    expect(popup.textContent).toBe('Peak·7,000 ft·47.50000, -121.25000')
     const links = within(popup).getAllByRole('link')
     expect(links).toHaveLength(1)
     expect(links[0].textContent).toBe('47.50000, -121.25000')
@@ -332,9 +332,9 @@ describe('compactGrid', () => {
 
 
 describe("an overlay's facts line and body", () => {
-  it('parts the kind and its figure with the pipe a destination wears, and cuts rather than wraps', () => {
+  it('parts the kind and its figure with the dot a destination wears, and cuts rather than wraps', () => {
     const line = mount(factsLine(['Trail closure', 'BACON CR 1060000']))
-    expect(line.textContent).toBe('Trail closure|BACON CR 1060000')
+    expect(line.textContent).toBe('Trail closure·BACON CR 1060000')
     expect(line.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1)
     expect(line.firstElementChild!.getAttribute('style')).toContain('text-overflow:ellipsis')
   })

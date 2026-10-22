@@ -64,12 +64,8 @@
   --popup-glyph: var(--ui-ink-soft);
   --popup-glyph-hover: var(--ui-accent-ink);
   --popup-thumb: var(--ui-edge-lifted);
-  --popup-close: var(--ui-ink-mid);
-  --popup-close-fill: var(--ui-raised);
-  --popup-close-edge: var(--ui-frame);
+  --popup-close: var(--ui-ink-soft);
   --popup-close-hover: var(--ui-ink-strong);
-  --popup-close-hover-fill: var(--ui-raised-hover);
-  --popup-close-hover-edge: var(--ui-edge);
 }
 :root[data-theme="light"] {
   --popup-scheme: light;
@@ -307,17 +303,16 @@
 /* The popup's close button, for the same reason as the controls above:
    maplibre injects it, so there is no call site to style.
 
-   The vendor ships it as a bare glyph absolutely positioned into the padding
-   box — hard against the corner, sized by whatever font the popup inherits,
-   with no hit area and no surface. It read as a stray character rather than a
-   control. This makes it an actual button: a bordered chip on the app's own
-   slate, the same radius the panel's small controls use, with a hover state.
-   In the dark theme it is the panel's own chip on the card's dark band.
+   The bare glyph every × inside a card or a field wears (`ICON_BUTTON` in
+   styles.ts; record 0222): no surface, the soft ink at rest and the strong
+   ink under a pointer, in a box the size of the vendor's that keeps it off
+   the corner. It wore a bordered chip until #796, the one × in the app that
+   did. The vendor's own glyph is a bare character pressed into the corner
+   with no hit area, which is why the box is drawn here at all.
 
    `line-height: 1` matters. Without it the inherited line box pushes the glyph
-   off-centre inside the square, which is most of what looked crooked; the
-   1px nudge below is the "×" character's own bearing, which sits fractionally
-   high in every font it is set in. */
+   off-centre inside the square; the 1px nudge below is the "×" character's
+   own bearing, which sits fractionally high in every font it is set in. */
 .maplibregl-popup-close-button {
   position: absolute;
   top: 0.375rem;
@@ -328,20 +323,18 @@
   width: 1.375rem;
   height: 1.375rem;
   padding: 0 0 1px 0;
-  border: 1px solid var(--popup-close-edge);
-  border-radius: 0.25rem;
-  font-size: 0.875rem;
+  border: 0;
+  background: none;
+  font-size: 1.125rem;
   line-height: 1;
   color: var(--popup-close);
-  background: var(--popup-close-fill);
-  transition: color 120ms, background-color 120ms, border-color 120ms;
+  transition: color 120ms;
 }
 
 .maplibregl-popup-close-button:hover,
 .maplibregl-popup-close-button:focus-visible {
   color: var(--popup-close-hover);
-  background: var(--popup-close-hover-fill);
-  border-color: var(--popup-close-hover-edge);
+  background: none;
 }
 
 /* Coarse pointers get the same 44px every other control in the app takes. */
@@ -349,7 +342,6 @@
   .maplibregl-popup-close-button {
     width: 2.75rem;
     height: 2.75rem;
-    font-size: 1.25rem;
   }
 }
 
@@ -460,20 +452,22 @@
  * on the map's own light grey and the bar lost its ends (screenshot,
  * 2026-10-16); the opaque edge reads darker than the 70% fill beside it.
  *
- * Its label keeps the vendor's 10px, under the app's 11px floor, because the
- * floor does not fit. The library joins the number and the unit with a
- * no-break space, so the label cannot wrap; it can run past the bar's end
- * where the bar is narrowest, half `SCALE_MAX_WIDTH_PX`. Measured 2026-10-16
- * in Chromium with every label the map can draw at its narrowest bar
- * (`frontend/e2e/scaleBar.spec.ts`): at 11px `1000 km` on a 50px bar, a
- * continent's zoom, ran 1.2px past the end in Liberation Sans (Arial's
- * widths) and 1.7px in Roboto; at 10px it stops 2.6px and 2.2px inside it.
+ * Its label is the attribution's size, the app's 11px floor (record 0222),
+ * where it kept the vendor's 10px until the bar had the room. The library
+ * joins the number and the unit with a no-break space, so the label cannot
+ * wrap; it can run past the bar's end where the bar is narrowest, half
+ * `SCALE_MAX_WIDTH_PX`. Measured 2026-10-16 in Chromium with every label the
+ * map can draw at its narrowest bar (`frontend/e2e/scaleBar.spec.ts`): at
+ * 11px `1000 km` on a 50px bar, a continent's zoom, ran 1.2px past the end in
+ * Liberation Sans (Arial's widths) and 1.7px in Roboto, which is why the bar
+ * now draws up to 110px and so never under 55.
  * The vendor's top border stays off: the shorthand it sets clears the style,
  * so a colour here draws no top edge. */
 .maplibregl-ctrl.maplibregl-ctrl-scale {
   background-color: color-mix(in oklab, var(--ui-recessed) 70%, transparent);
   border-color: var(--ui-recessed);
   color: var(--ui-ink);
+  font-size: var(--map-credit-size);
 }
 
 :root[data-theme="light"] .maplibregl-ctrl.maplibregl-ctrl-scale {
@@ -559,10 +553,10 @@
    * ran the map's whole width once Open-Meteo joined it and covered the
    * scale, so the corner is capped where the scale's room ends and the line
    * wraps inside it. The room: the scale's 10px vendor margin and its widest
-   * draw (`SCALE_MAX_WIDTH_PX`, 100px), then 8px clear of it, less the
+   * draw (`SCALE_MAX_WIDTH_PX`, 110px), then 8px clear of it, less the
    * attribution's own 10px left margin, which stands inside this box. Held to
    * those numbers by `styles.test.ts`. */
-  max-width: calc(100% - 108px);
+  max-width: calc(100% - 118px);
 }
 
 .maplibregl-ctrl-bottom-left .maplibregl-ctrl,

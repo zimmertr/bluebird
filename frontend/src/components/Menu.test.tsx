@@ -19,7 +19,7 @@ import { CHIP_MENU_GAP_PX } from '../utils/resultsSheet'
 const VIEWPORT_W = window.innerWidth
 const VIEWPORT_H = window.innerHeight
 
-function Harness({ trigger, header, row, panel }: { trigger: Box; header?: string; row?: Box; panel?: Box }) {
+function Harness({ trigger, row, panel }: { trigger: Box; row?: Box; panel?: Box }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
@@ -64,7 +64,7 @@ function Harness({ trigger, header, row, panel }: { trigger: Box; header?: strin
       )}
       <button>Elsewhere</button>
       {box && (
-        <Menu box={box} popoverRef={popoverRef} closing={closing} header={header}>
+        <Menu box={box} popoverRef={popoverRef} closing={closing}>
           <button>Inside</button>
           <button disabled>Unusable</button>
           <button>Last</button>
@@ -117,7 +117,7 @@ describe('placement', () => {
   })
 
   it('portals the card out of the tree it is declared in, on the chip card', async () => {
-    const { user, container } = render(<Harness trigger={TRIGGER} header="Removed rows" />)
+    const { user, container } = render(<Harness trigger={TRIGGER} />)
     await user.click(trigger())
     // Out of the scrolling column, which is the reason the box is fixed.
     expect(container.contains(card())).toBe(false)
@@ -125,7 +125,6 @@ describe('placement', () => {
     expect(card().style.position).toBe('fixed')
     expect(card().className).toBe(MENU.card)
     expect(MENU.card).toContain(SURFACE_CHIP_CARD.menu)
-    expect(screen.getByText('Removed rows').className).toBe(MENU.header)
   })
 })
 

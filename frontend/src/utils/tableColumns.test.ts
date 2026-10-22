@@ -21,6 +21,10 @@ import {
   TERRAIN_HEIGHT_MARK,
   TERRAIN_HEIGHT_NOTE,
   readAtTerrainHeight,
+  isNumberColumn,
+  ELEVATION_COL,
+  MODEL_COL,
+  TYPE_COL,
 } from './tableColumns'
 import { FAMILY_KEYS, RANKED_FAMILIES, familyOf, NOUN, SEP } from '../metrics'
 import { UNAVAILABLE } from './unavailableCell'
@@ -35,12 +39,17 @@ const LEAD = new Set(['name', 'type', 'elevation_ft'])
 // table that had gained or lost a column. It is a module export now (the CSV
 // export writes the same columns), so the fixture can be the thing itself.
 const KEYS = COLUMNS.map((c) => c.key)
-// The cloud deck's three columns (#670), last in the canonical order.
+// Each family's columns, in the order the canonical list holds the families:
+// the panel's, alphabetical by noun (record 0222).
+const AQI_KEYS = ['aqi_avg', 'aqi_min', 'aqi_max']
+// The cloud deck's three columns (#670).
 const CLOUD_KEYS = ['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft']
-
-// Snowfall's four (#678), in precipitation's shape, where the snow depth
-// column stood.
+const FREEZE_KEYS = ['freeze_min_ft', 'freeze_max_ft', 'freeze_avg_ft']
+const PRECIP_KEYS = ['precip_total_in', 'precip_avg_in_hr', 'precip_min_in_hr', 'precip_max_in_hr']
+// Snowfall's four (#678), in precipitation's shape.
 const SNOWFALL_KEYS = ['snowfall_total_in', 'snowfall_avg_in_hr', 'snowfall_min_in_hr', 'snowfall_max_in_hr'] as const
+const TEMP_KEYS = ['temp_min_f', 'temp_max_f', 'temp_avg_f']
+const WIND_KEYS = ['wind_min_mph', 'wind_max_mph', 'wind_avg_mph']
 
 const keys = (sortBy: SortBy) => orderColumns(COLUMNS, sortBy).map((c) => c.key)
 
@@ -67,16 +76,7 @@ describe('COLUMNS', () => {
   // puts a comma inside a comma-separated cell. Adding another means a file
   // cell changed shape.
   it('overrides the display formatter for exactly the columns that need it', () => {
-    expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual([
-      'type',
-      'elevation_ft',
-      'freeze_min_ft',
-      'freeze_max_ft',
-      'freeze_avg_ft',
-      'cloud_deck_min_ft',
-      'cloud_deck_max_ft',
-      'cloud_deck_avg_ft',
-    ])
+    expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual(['type', 'elevation_ft', ...CLOUD_KEYS, ...FREEZE_KEYS])
   })
 
   // A blank cell is how a spreadsheet spells "no value", which is the truth
@@ -128,33 +128,34 @@ describe('the snowfall headers', () => {
 })
 
 describe('orderColumns', () => {
-  it('keeps the canonical order when ranking by precipitation (already first)', () => {
-    expect(keys('precip_total_in')).toEqual(KEYS)
-  })
-
-  it('moves the AQI pair right after the identity columns when ranking by AQI', () => {
-    expect(keys('aqi_avg')).toEqual([
+  it('keeps the canonical order when ranking by AQI (already first)', () => {
+    expect(keys('aqi_avg')).toEqual(KEYS)
+    expect(KEYS).toEqual([
       'name',
       'type',
       'elevation_ft',
-      'aqi_avg',
-      'aqi_min',
-      'aqi_max',
-      'precip_total_in',
-      'precip_avg_in_hr',
-      'precip_min_in_hr',
-      'precip_max_in_hr',
-      'temp_min_f',
-      'temp_max_f',
-      'temp_avg_f',
-      'wind_min_mph',
-      'wind_max_mph',
-      'wind_avg_mph',
-      'freeze_min_ft',
-      'freeze_max_ft',
-      'freeze_avg_ft',
-      ...SNOWFALL_KEYS,
+      ...AQI_KEYS,
       ...CLOUD_KEYS,
+      ...FREEZE_KEYS,
+      ...PRECIP_KEYS,
+      ...SNOWFALL_KEYS,
+      ...TEMP_KEYS,
+      ...WIND_KEYS,
+    ])
+  })
+
+  it('moves the precipitation group right after the identity columns when ranking by it', () => {
+    expect(keys('precip_total_in')).toEqual([
+      'name',
+      'type',
+      'elevation_ft',
+      ...PRECIP_KEYS,
+      ...AQI_KEYS,
+      ...CLOUD_KEYS,
+      ...FREEZE_KEYS,
+      ...SNOWFALL_KEYS,
+      ...TEMP_KEYS,
+      ...WIND_KEYS,
     ])
   })
 
@@ -163,24 +164,13 @@ describe('orderColumns', () => {
       'name',
       'type',
       'elevation_ft',
-      'temp_min_f',
-      'temp_max_f',
-      'temp_avg_f',
-      'precip_total_in',
-      'precip_avg_in_hr',
-      'precip_min_in_hr',
-      'precip_max_in_hr',
-      'wind_min_mph',
-      'wind_max_mph',
-      'wind_avg_mph',
-      'freeze_min_ft',
-      'freeze_max_ft',
-      'freeze_avg_ft',
-      ...SNOWFALL_KEYS,
-      'aqi_avg',
-      'aqi_min',
-      'aqi_max',
+      ...TEMP_KEYS,
+      ...AQI_KEYS,
       ...CLOUD_KEYS,
+      ...FREEZE_KEYS,
+      ...PRECIP_KEYS,
+      ...SNOWFALL_KEYS,
+      ...WIND_KEYS,
     ])
   })
 
@@ -212,14 +202,14 @@ describe('pointModeColumns', () => {
       'name',
       'type',
       'elevation_ft',
-      'precip_avg_in_hr',
-      'temp_avg_f',
-      'wind_avg_mph',
-      'freeze_avg_ft',
-      // Collapsed onto its rate, as precipitation is (#678).
-      'snowfall_avg_in_hr',
       'aqi_avg',
       'cloud_deck_avg_ft',
+      'freeze_avg_ft',
+      'precip_avg_in_hr',
+      // Collapsed onto its rate, as precipitation is (#678).
+      'snowfall_avg_in_hr',
+      'temp_avg_f',
+      'wind_avg_mph',
     ])
   })
 
@@ -239,17 +229,17 @@ describe('pointModeColumns', () => {
   })
 
   it('composes with orderColumns — the ranked metric still leads', () => {
-    expect(orderColumns(pointModeColumns(COLUMNS), 'aqi_avg').map((c) => c.key)).toEqual([
+    expect(orderColumns(pointModeColumns(COLUMNS), 'wind_avg_mph').map((c) => c.key)).toEqual([
       'name',
       'type',
       'elevation_ft',
-      'aqi_avg',
-      'precip_avg_in_hr',
-      'temp_avg_f',
       'wind_avg_mph',
-      'freeze_avg_ft',
-      'snowfall_avg_in_hr',
+      'aqi_avg',
       'cloud_deck_avg_ft',
+      'freeze_avg_ft',
+      'precip_avg_in_hr',
+      'snowfall_avg_in_hr',
+      'temp_avg_f',
     ])
   })
 })
@@ -327,6 +317,29 @@ describe('visibleColumns', () => {
 // The wildfire column (#256): defined here so the table and the CSV share one
 // header, appended by the caller once the fire check has answered rather than
 // riding in COLUMNS, whose keys all index a DestinationResult.
+describe('the metric order', () => {
+  // One order on every surface: the panel's, alphabetical by noun (record 0222).
+  it('lists the metric families in the panel\'s order', () => {
+    const families = COLUMNS.filter((c) => c.unit !== undefined).map((c) => familyOf(c.key as string))
+    expect([...new Set(families)]).toEqual([...RANKED_FAMILIES])
+  })
+})
+
+describe('isNumberColumn', () => {
+  // The columns the table stands at the cell's end (record 0222).
+  it('holds the elevation, the wildfire distance and every metric, and no word column', () => {
+    expect(isNumberColumn(ELEVATION_COL)).toBe(true)
+    expect(isNumberColumn(WILDFIRE_COL)).toBe(true)
+    const metricKeys = new Set<string>(Object.values(FAMILY_KEYS).flat())
+    for (const col of COLUMNS.filter((c) => metricKeys.has(c.key as string))) {
+      expect(isNumberColumn(col), col.key).toBe(true)
+    }
+    for (const col of [TYPE_COL, MODEL_COL, CLOSURE_COL, COLUMNS.find((c) => c.key === 'name')!]) {
+      expect(isNumberColumn(col), col.key).toBe(false)
+    }
+  })
+})
+
 describe('WILDFIRE_COL', () => {
   it('carries the approved label under its virtual key', () => {
     expect(WILDFIRE_COL.key).toBe(WILDFIRE_KEY)

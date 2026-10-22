@@ -219,7 +219,7 @@ export default function ControlPanel({
           />
           <div className={PANEL_HEADER.title}>
             <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
-            <p className={TEXT.caption}>Weather Window Finder</p>
+            <p className={TEXT.caption}>The Weather Window Finder</p>
           </div>
         </div>
       )}

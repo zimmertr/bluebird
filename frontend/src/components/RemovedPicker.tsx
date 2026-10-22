@@ -76,8 +76,8 @@ export default function RemovedPicker({
     </button>
   )
 
-  // On a phone the sheet's heading is the words the desk card's overline
-  // says, and Restore all is its last row.
+  // On a phone the sheet is headed, as every phone menu's is, and Restore all
+  // is its last row. A desk's card is named by the trigger it stands under.
   if (sheet) {
     return open ? (
       <BottomSheet heading="Removed rows" onClose={() => onOpenChange(false)}>
@@ -90,7 +90,7 @@ export default function RemovedPicker({
   if (!box) return null
 
   return (
-    <Menu box={box} popoverRef={popoverRef} closing={closing} header="Removed rows">
+    <Menu box={box} popoverRef={popoverRef} closing={closing}>
       {rows.length > 0 && <div className={MENU.list}>{rows}</div>}
 
       <div className={MENU.foot}>{restoreAll}</div>

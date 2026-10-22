@@ -3,7 +3,7 @@ import { IconClose } from '../components/icons'
 import {
   BUTTON_ACCENT,
   BUTTON_SECONDARY,
-  ICON_BUTTON,
+  ICON_CLOSE_BUTTON,
   LAYER,
   PROSE,
   TEXT,
@@ -366,7 +366,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, cut = false 
       >
         <div className="flex items-start justify-between gap-3">
           <h2 id={titleId} className={PROSE.heading}>{step.title}</h2>
-          <button type="button" onClick={onEnd} aria-label="End tutorial" className={ICON_BUTTON}>
+          <button type="button" onClick={onEnd} aria-label="End tutorial" className={ICON_CLOSE_BUTTON}>
             <IconClose />
           </button>
         </div>

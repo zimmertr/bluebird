@@ -1,5 +1,5 @@
 import { SortBy } from '../types'
-import { FAMILY_KEYS, MetricFamily, UNIT } from '../metrics'
+import { FAMILY_KEYS, HOURLY_UNIT, MetricFamily, UNIT } from '../metrics'
 import { clamp } from './numbers'
 import { themed } from './themeColor'
 
@@ -330,7 +330,7 @@ const PRECIP_RATE: LabelledScale = {
   // of this scale existing, and the map legend shows one or the other with
   // nothing beside it to compare against — so the unit has to say which
   // reading it is on its own.
-  unit: `${UNIT.precip}/hr`,
+  unit: HOURLY_UNIT.precip,
 }
 
 /**
@@ -346,7 +346,7 @@ const SNOWFALL_RATE: LabelledScale = {
   thresholds: [0.1, 1.0, 3.0, 5.0, 10.0],
   colors: METRIC_SCALE.snowfall.colors,
   ink: METRIC_SCALE.snowfall.ink,
-  unit: `${UNIT.snowfall}/hr`,
+  unit: HOURLY_UNIT.snowfall,
 }
 
 /**

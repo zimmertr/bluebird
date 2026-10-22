@@ -2,7 +2,7 @@ import { memo, useId } from 'react'
 import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { DestinationResult } from '../types'
-import { RANK_KEY, type SortDir, type SortKey, type ColDef } from '../utils/tableColumns'
+import { RANK_KEY, isNumberColumn, type SortDir, type SortKey, type ColDef } from '../utils/tableColumns'
 import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
 import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
@@ -155,31 +155,38 @@ function ResultsTableHeader({
     column?: {
       onPointerDown: (e: PointerEvent<HTMLTableCellElement>) => void
       grip: ReactNode
+      number: boolean
     },
   ) {
+    const sorted = detailSortKey === key
     return (
       <th
         key={key}
         scope="col"
         data-col={column ? key : undefined}
-        aria-sort={detailSortKey === key ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+        aria-sort={sorted ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
         onPointerDown={column?.onPointerDown}
         onClick={() => handleSort(key)}
         tabIndex={0}
         onKeyDown={(e) => handleSortKey(e, key)}
         aria-describedby={sortHintId}
-        className={`${TABLE.head} ${FOCUS_RING_INSET} ${cellClass} cursor-pointer whitespace-nowrap hover:text-ink-strong select-none`}
+        className={`${column?.number ? TABLE.headNumber : TABLE.head} ${FOCUS_RING_INSET} ${cellClass} cursor-pointer whitespace-nowrap hover:text-ink-strong select-none`}
       >
-        {label}
         {/* The arrow's slot is drawn on every header, hidden where the sort
             is not, so a header keeps one width whether the sort lands on it
             or leaves it: a column must not move when the sort does (the
-            maintainer, 2026-10-13). Hidden, it is also out of the name. */}
-        <span
-          className={`ml-1 ${ACCENT.text} ${detailSortKey === key ? '' : 'invisible'}`}
-          aria-hidden={detailSortKey === key ? undefined : 'true'}
-        >
-          {detailSortKey === key && detailSortDir === 'desc' ? '↓' : '↑'}
+            maintainer, 2026-10-13). Hidden, it is also out of the name. A
+            number column's stands before its label on screen, so the label
+            ends on the edge its digits do (record 0222), and after it in the
+            name, as every other header's does. */}
+        <span className={`inline-flex${column?.number ? ' flex-row-reverse' : ''}`}>
+          {label}
+          <span
+            className={`${column?.number ? 'mr-1' : 'ml-1'} ${ACCENT.text} ${sorted ? '' : 'invisible'}`}
+            aria-hidden={sorted ? undefined : 'true'}
+          >
+            {sorted && detailSortDir === 'desc' ? '↓' : '↑'}
+          </span>
         </span>
         {column?.grip}
       </th>
@@ -203,6 +210,7 @@ function ResultsTableHeader({
               }`,
               {
                 onPointerDown: (e) => drag.begin(e, col.key as string),
+                number: isNumberColumn(col),
                 // The drag handle owns the header's right edge; its clicks
                 // stop here so a resize or an auto-fit never doubles as a
                 // sort. The border is the visible affordance.

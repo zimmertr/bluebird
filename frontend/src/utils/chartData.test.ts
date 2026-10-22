@@ -69,8 +69,12 @@ describe('metricForSort', () => {
     expect(metricForSort('snowfall_max_in_hr')).toBe('snowfall')
   })
 
-  it('offers every metric family in the metric select', () => {
-    expect(CHART_METRICS.map((m) => m.key).sort()).toEqual([...RANKED_FAMILIES].sort())
+  // In the panel's order, and in an hour's unit (record 0222).
+  it('offers every metric family in the panel\'s order, each in an hour\'s unit', () => {
+    expect(CHART_METRICS.map((m) => m.key)).toEqual([...RANKED_FAMILIES])
+    expect(CHART_METRICS.find((m) => m.key === 'precip')!.label).toBe('Precipitation (in/hr)')
+    expect(CHART_METRICS.find((m) => m.key === 'snowfall')!.label).toBe('Snowfall (in/hr)')
+    expect(CHART_METRICS.find((m) => m.key === 'wind')!.label).toBe('Wind (mph)')
   })
 })
 
@@ -201,7 +205,7 @@ describe('extremeLabel', () => {
     expect(extremeLabel(75.4, 'wind')).toBe('75.4 mph')
     expect(extremeLabel(0, 'temp')).toBe('0.0 °F')
     expect(extremeLabel(8398.95, 'freeze')).toBe('8399 ft')
-    expect(extremeLabel(0.04, 'precip')).toBe('0.040 in')
+    expect(extremeLabel(0.04, 'precip')).toBe('0.040 in/hr')
   })
 
   it('prints AQI, which has no unit, as the bare index', () => {

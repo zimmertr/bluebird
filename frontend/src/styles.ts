@@ -9,16 +9,16 @@
  * They are not two scales. The dialog title is the panel header's title, one
  * size for both since #687 (both are the name of the surface they head), and
  * the dialog subtitle is the caption step one size up, the same recipe the
- * tagline under the app title wears; even the copy rhymes ("Weather Window
- * Finder" / "The Weather Window Finder").
+ * tagline under the app title wears, and both say "The Weather Window Finder"
+ * (record 0222).
  * And the reading tier's small step lands exactly on the compact tier's base,
  * so the two share the 12px rung rather than running past each other. Naming
  * them as one ramp keeps a dialog from drifting into a second look.
  *
  * Within a tier, roles separate by weight and color, not only by size: two
  * sizes cover the whole compact tier because `subheading` and `control` share
- * both a size and a color and let weight alone distinguish "Elevation range
- * (ft)" from "Peaks". Roles that stand in that relationship are composed from
+ * both a size and a color and let weight alone distinguish "Polygon search"
+ * from "Peaks". Roles that stand in that relationship are composed from
  * a shared constant below rather than spelled out twice, so the relationship
  * is something a test can assert instead of a comment that rots.
  *
@@ -120,15 +120,20 @@ export const TEXT = {
   cta: 'text-sm font-semibold',
   /** Panel identity in the header. Outside the body ramp on purpose. */
   appTitle: 'text-lg font-bold text-ink-strong leading-tight',
-  /** Named sub-blocks and the labels naming a field. */
+  /** Named sub-blocks: Map search, Polygon search, a calendar's month. */
   subheading: 'text-xs font-semibold text-ink',
-  /** Anything you read or type in a control: radio labels, inputs, pickers. */
+  /**
+   * Anything you read or type in a control (radio labels, inputs, pickers)
+   * and the label beside a field: Model, When, Rank by, Hours. One weight for
+   * every field label, so none reads as a heading over the others (record
+   * 0222).
+   */
   control: 'text-xs text-ink',
   /** Secondary text: the app tagline, a place's description, a dialog's note. */
   caption: CAPTION,
   /** Prose that explains a control without being one. */
   helper: `${CAPTION} italic`,
-  /** Tiny all-caps labels: a popover header, a search result's kind. */
+  /** Tiny all-caps labels: the model list's group heads and columns, the player's axis. */
   overline: `${MICRO} font-semibold uppercase tracking-wider`,
   /** Attribution, timestamps, overflow counts — present but never first. */
   micro: MICRO,
@@ -348,9 +353,14 @@ export const ELEVATION = {
  * darker fill and a darker border, so the map carried two different ideas of
  * "floating box" within a few hundred pixels of each other. There is one legend
  * box now (#454), the key and the layers sharing it.
+ *
+ * Its edge is the structural one every menu wears (`SURFACE_CHIP_CARD`), as
+ * is every card's here and in `SURFACE_CARD`, so one floating card has one
+ * rim (record 0222). The quiet frame it wore until #796 measured under the
+ * 3:1 a boundary owes on the card's own fill (1.93:1 dark, 2.51:1 light).
  */
 export const SURFACE_FLOATING =
-  `bg-floating/95 border border-frame ${RADIUS.surface} ${ELEVATION.raised} backdrop-blur-sm`
+  `bg-floating/95 border border-edge ${RADIUS.surface} ${ELEVATION.raised} backdrop-blur-sm`
 
 /**
  * The ground every full page stands on: the app's root, the standalone pages'
@@ -365,10 +375,11 @@ export const SURFACE_PAGE = 'bg-page'
  * Opaque cards that sit above a scrim: the dialogs, the analysis overlay and
  * the tutorial's card. `ELEVATION.overlay` since #687, where it wore the `xl`
  * step alone; over the scrim the step hardly shows. A menu stands on the chip
- * card's surface instead (`SURFACE_CHIP_CARD.menu`, record 0201).
+ * card's surface instead (`SURFACE_CHIP_CARD.menu`, record 0201), and both
+ * wear the same structural edge (record 0222).
  */
 export const SURFACE_CARD =
-  `bg-panel border border-frame ${RADIUS.surface} ${ELEVATION.overlay}`
+  `bg-panel border border-edge ${RADIUS.surface} ${ELEVATION.overlay}`
 
 /**
  * The results sheet on a phone: the panel parked over the map's bottom edge
@@ -448,6 +459,17 @@ export const SURFACE_CHIP_CARD = {
   /** Every menu, which opens over whatever is under it. */
   menu: `${CHIP_CARD_FACE} ${ELEVATION.overlay}`,
 } as const
+
+/**
+ * A map popup's card: the floating card's corners, its structural edge and
+ * the overlay step, on the content box MapLibre builds, which has no call
+ * site, so `map/mapPopups.ts` adds these classes to each popup as it opens.
+ * The fill stays the popup's own (`--popup-surface` in `map.css`). MapLibre's
+ * 3px corners and faint shadow sit in the base layer and lose to these
+ * utilities. A popup wore those until #796 and was the one floating card
+ * that did not read as the app's (record 0222).
+ */
+export const POPUP_FACE = `border border-edge ${RADIUS.surface} ${ELEVATION.overlay}`
 
 /**
  * The accent, named by the jobs it does, because it does six.
@@ -928,8 +950,26 @@ export const LINE_EDGE = {
 
 export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
 
-/** A bare icon button in a header: the chart and table collapse chevrons. */
+/**
+ * A bare icon button: the glyph alone, no surface. The results' collapse
+ * chevrons wear it, and so does every × inside a card or a field (record
+ * 0222): the tutorial card's, the search's clear (`ICON_CLOSE_BUTTON`), and
+ * in their own markup a popup's (`map.css`) and a message's
+ * (`NOTICE_DISMISS`). A round button is for a header's close alone.
+ */
 export const ICON_BUTTON = `px-1 text-ink-soft hover:text-ink-strong transition-colors ${FOCUS_RING}`
+
+/**
+ * A bare × with free room around it, the tutorial card's and the search
+ * field's, and a 44px press on a coarse pointer: an invisible box 10px
+ * either side of the 24 by 16 button and 14px above and below it, the way
+ * the chips take theirs (`CHIP_HIT`). The results' chevron keeps
+ * `ICON_BUTTON` alone, because the phone's bar stands 5px under it and a
+ * box that reached it would take the bar's presses.
+ */
+export const ICON_CLOSE_BUTTON =
+  `${ICON_BUTTON} relative touch:before:absolute touch:before:-inset-x-2.5 touch:before:-inset-y-3.5 ` +
+  "touch:before:content-['']"
 
 /**
  * A glyph drawn inside a field rather than beside it: the chevron a `SELECT`
@@ -1296,13 +1336,15 @@ export const CONTROL_W = 'w-[118px]'
  * outside the panel and cannot follow it down to 118px.
  *
  * It lives in the results sheet, not the sidebar, so it lines up with nothing
- * above it and its labels carry their units: `Freezing level (ft)` measures
- * 99.3px at text-xs, where 118px of `SELECT` offers 84px of label. 144px
- * offers 110px, which clears it by 10.7px. Fixed rather than content-sized for
- * the reason #348 gave: a select that grows with its labels lets a sixth
- * metric wrap the row a phone can barely fit.
+ * above it and its labels carry their units, an hour's (record 0222):
+ * `Precipitation (in/hr)` measures 109.0px at text-xs in Chrome on macOS
+ * (2026-10-22), where 118px of `SELECT` offers 84px of label. 152px offers
+ * 118px, which clears it by 9px; the 144px it was left under a pixel once the
+ * label gained its `/hr`. Fixed rather than content-sized for the reason #348
+ * gave: a select that grows with its labels lets a sixth metric wrap the row a
+ * phone can barely fit.
  */
-export const CHART_METRIC_W = 'w-36'
+export const CHART_METRIC_W = 'w-38'
 
 /**
  * The chart's plot under a finger (#336; record 0144): the browser keeps the
@@ -1501,7 +1543,7 @@ export const MAP_ROWS = {
  * and blur to `SURFACE_FLOATING`'s.
  */
 export const MAP_PILL =
-  `bg-floating/95 border border-frame ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `h-10 flex items-center gap-2 px-3.5 transition-colors ${ACCENT.edgeFocus}`
 
 /**
@@ -1527,7 +1569,7 @@ export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
  * into one capsule instead (`MAP_ZOOM_PAIR`).
  */
 export const MAP_ROUND_BUTTON =
-  `size-10 bg-floating/95 border border-frame ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `size-10 bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `transition-colors ${ACCENT.edgeHover} ${FOCUS_RING}`
 
 /**
@@ -1580,9 +1622,9 @@ export const MAP_CORNER = {
   // scale shrank to 17px from the 22px box record 0162 holds it to.
   credit:
     'map-corner flex items-center gap-2.5 py-0.5 pl-2.5 pr-2 leading-5 ' +
-    'bg-floating/95 border-t border-l border-frame rounded-tl-lg backdrop-blur-sm',
+    'bg-floating/95 border-t border-l border-edge rounded-tl-lg backdrop-blur-sm',
   slot: 'contents',
-  scale: 'flex w-25 justify-end',
+  scale: 'flex w-27.5 justify-end',
 } as const
 
 /**
@@ -1597,7 +1639,7 @@ export const MAP_CORNER = {
  * `map/controls.ts` greys it then as it greys the idle compass (`DISABLED`).
  */
 const MAP_ZOOM_HALF =
-  `size-10 bg-floating/95 border border-frame ${ELEVATION.raised} backdrop-blur-sm ` +
+  `size-10 bg-floating/95 border border-edge ${ELEVATION.raised} backdrop-blur-sm ` +
   `transition-colors enabled:hover:bg-raised ${FOCUS_RING}`
 export const MAP_ZOOM_PAIR = {
   in: `${MAP_ZOOM_HALF} border-b-0 rounded-t-full`,
@@ -1618,19 +1660,10 @@ export const MAP_ZOOM_PAIR = {
  */
 export const MAP_CREDIT = {
   button:
-    `size-6 bg-floating/95 border border-frame ${RADIUS.pill} transition-colors ` +
+    `size-6 bg-floating/95 border border-edge ${RADIUS.pill} transition-colors ` +
     `${ACCENT.edgeHover} ${FOCUS_RING}`,
   card: `${SURFACE_FLOATING} text-ink-mid`,
 } as const
-
-/**
- * The chips' type: 13px, between the compact tier's 12 and the reading
- * tier's 14, the size the mockup drew the row at (#696). A chip is a map
- * control a thumb finds at arm's length over imagery, where the column's 12px
- * read small, and 14px would cut the summary on a 360px phone. Named for
- * `MICRO_SIZE`'s reason: an arbitrary step reads as the exception it is.
- */
-const CHIP_SIZE = 'text-[13px]'
 
 /**
  * The chips' hit area on a coarse pointer: 32px seen, 44px pressed, the way
@@ -1646,7 +1679,7 @@ const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:be
 
 /**
  * One chip in the phone's second row (#696): the pill's surface at 32px, the
- * chips' 13px type at the normal weight and 12px of padding a side. A chip
+ * control size at the normal weight and 12px of padding a side. A chip
  * takes its content's width and never shrinks, but for the summary
  * (`MAP_CHIP_SUMMARY`). The row's right end is left empty: a primary action
  * may stand there later, and nothing here is placed against it.
@@ -1664,10 +1697,15 @@ const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:be
  * resting ink is the dark one, which stands 3.75:1 on the accent, under the
  * 4.5:1 a label owes (2.66:1 on the darker fill the theme first had, where it
  * hid the summary chip's menu glyph, #706).
+ *
+ * 12px, the search pill's size above it (record 0222). The mockup drew the
+ * row at 13px (#696), between the compact tier's 12 and the reading tier's
+ * 14, the one size off the ramp, and the chips stood a step apart from the
+ * pill in the same column of chrome.
  */
 const CHIP_FACE =
-  `bg-floating/95 border border-frame ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
-  `${CHIP_SIZE} text-ink-strong h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
+  `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `${CONTROL_SIZE} text-ink-strong h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
   `transition-colors ${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-raised ` +
   `aria-expanded:bg-accent aria-expanded:border-accent aria-expanded:text-on-fill ${FOCUS_RING}`
 const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
@@ -2151,9 +2189,9 @@ export const NOTICE_DIVIDER = {
  * Three parts, because the touch target and the visible control must be
  * different sizes. The `row` is the message the X belongs to and the hover
  * surface that reveals it. The `button` carries `TAP.action`, the 44px target
- * on touch. The `pill` inside it is what the eye gets: a 20px disc, the panel
- * close button's idiom at notice scale, so the X reads as a control rather
- * than a stray character.
+ * on touch. The `pill` inside it is the glyph's 20px box and nothing more:
+ * the bare × every card and field wears (record 0222), where until #796 it
+ * stood on a faint disc of its own.
  *
  * A box with an X stands exactly as tall as one without (the maintainer,
  * 2026-10-21 on PR #789, where a phone's dismissable box stood nearly twice
@@ -2168,21 +2206,15 @@ export const NOTICE_DIVIDER = {
  * which leaves each 29px no other target covers, past the 24px WCAG 2.5.8
  * asks, and the lower one takes a press in the overlap.
  *
- * The row centres its two members against each other, so the disc sits level
+ * The row centres its two members against each other, so the × sits level
  * with the text. Every message is written to fit one line, so there is no
  * first line for the X to align to.
  *
- * The fill is `white/5` at rest — a whisper of a disc, because at `/10` TJ
- * read it as too buttony for a passive notice — rising to `white/15` on
- * hover, where the affordance question is actually being asked. Hue-free,
- * so one recipe sits on all three tints; the pill is an affordance, not the
- * boundary, and owes no ratio — the glyph is the icon and it does. The
- * glyph inherits its box's `STATUS` voice (a slate X would read as chrome
- * that escaped into a status message). Measured on the resting pill
- * backdrop (fill + white/5 over the panel): amber-300 9.06:1, red-400
- * 4.83:1, sky-300 7.47:1, all past the 3:1 a UI glyph owes; the hover's
- * white on the `white/15` hover fill is 8.9:1+. Pinned in styles.test.ts
- * so a fill or `STATUS` change forces a re-measurement.
+ * The glyph inherits its box's `STATUS` voice (a slate X would read as chrome
+ * that escaped into a status message) and stands on the box's own tint.
+ * Measured there over the panel, every voice clears the 3:1 a UI glyph owes;
+ * the figures are pinned in styles.test.ts so a tint or `STATUS` change
+ * forces a re-measurement.
  */
 export const NOTICE_DISMISS = {
   /**
@@ -2223,9 +2255,7 @@ export const NOTICE_DISMISS = {
     `group ${TAP.action} -my-0.5 touch:-my-3.5 touch:-ml-6 opacity-0 transition-[color,opacity] ` +
     `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
     `hover:text-ink-strong ${FOCUS_RING}`,
-  pill:
-    `flex h-5 w-5 items-center justify-center ${RADIUS.pill} ` +
-    `bg-lift/5 transition-colors group-hover:bg-lift/15`,
+  pill: 'flex h-5 w-5 items-center justify-center',
 } as const
 
 /**
@@ -2300,15 +2330,18 @@ export const PANEL_RULE =
  * under it rather than showing through), parted from the body by the quiet
  * rule and padded like the header above it.
  *
- * `secondary` is `BUTTON_SECONDARY` across the foot and at the primary's 40px,
- * where it was 28: two actions stacked in one foot at two heights read as a
- * button and a caption. `min-h-10` is the primary's own height on a pointer
- * (its `py-2.5` around a 20px line); on a finger `TAP.action`'s 44 is the
- * later rule and wins, the same as the primary's.
+ * `secondary` is `BUTTON_PRIMARY`'s button in `BUTTON_SECONDARY`'s fill: the
+ * same 14px semibold label, padding and 8px corners, so the two stacked
+ * actions read as one pair that differs only in which leads (record 0222).
+ * It was the panel's small secondary stretched to 40px until #796, a 12px
+ * label with 4px corners under a 14px one with 8px. Its ink is named because
+ * `TEXT.cta` carries none, where the primary's white comes with its fill.
  */
 export const DIALOG_FOOT = {
   bar: `sticky bottom-0 bg-panel border-t ${SURFACE_DIVIDER} px-6 py-4 space-y-2`,
-  secondary: `${BUTTON_SECONDARY} w-full min-h-10`,
+  secondary:
+    `${TEXT.cta} text-ink ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
+    `bg-raised hover:bg-raised-hover ${FOCUS_RING}`,
 } as const
 
 /**
@@ -2940,17 +2973,20 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  * - `card`: the Layers menu's surface (`SURFACE_CHIP_CARD.menu`), on the
  *   popover layer, as a column so a list inside it can take the room left and
  *   scroll. Placed 4px under its trigger by `usePopover`.
- * - `header` and `foot`: the overline strip over a list (Removed rows) and
- *   the strip under one (Restore all), at the rows' 10px inset.
+ * - `foot`: the strip under a list (Restore all), at the rows' 10px inset.
+ *   No card repeats its own name over its rows: it stands under the
+ *   trigger that names it (record 0222). The model picker's overlines name
+ *   groups of rows inside its card, which is a different job.
  * - `list`: the scrolling list, 4px in from the card's sides and 6px from its
  *   top and bottom, so a row's words stand 10px from the edge and the first
  *   one 8px down, where the Layers menu's `px-2.5 py-2` stands its own.
  * - `row`: a row's inset and shape, for a row that brings its own type and
  *   control (a checkbox row wears `CHOICE_ROW` beside it).
- * - `cardRow`: the same inset for a row that stands straight on a card's
- *   10px padding rather than in a `list` (the Layers rows): pulled out 6px
- *   and padded back, so its words stay where they were and its fill starts
- *   4px from the card's edge, where a `list` row's does.
+ * - `cardRow`: the same inset and pitch for a row that stands straight on a
+ *   card's 10px padding rather than in a `list` (the Layers rows): pulled out
+ *   6px and padded back, so its words stay where they were and its fill
+ *   starts 4px from the card's edge, where a `list` row's does, and 20px
+ *   apart like every other menu's rows (record 0222).
  * - `hover`: the raised fill under the pointer, on every row a press acts
  *   on: a checkbox row's whole width toggles its box, so it lights the way a
  *   pick-one row does under `active`. A disabled row takes none, because
@@ -2964,10 +3000,9 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  */
 export const MENU = {
   card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
-  header: `${TEXT.overline} border-b ${SURFACE_DIVIDER} px-2.5 py-2`,
   list: `min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1.5 ${SCROLL_BARS}`,
   row: MENU_ROW,
-  cardRow: '-mx-1.5 rounded px-1.5',
+  cardRow: '-mx-1.5 rounded px-1.5 py-0.5',
   option: `${TEXT.control} ${TAP.row} ${MENU_ROW} cursor-pointer`,
   active: 'bg-raised',
   hover: 'hover:bg-raised',
@@ -3270,6 +3305,15 @@ export const TRANSPORT_AXIS_ITEM = `${segmentHalf('flex-none')} px-3 whitespace-
 export const TABLE = {
   cell: 'px-2 py-1.5',
   head: `${TEXT.subheading} px-2 py-2 text-left`,
+  /**
+   * A number column's header and cells stand at the cell's end (record 0222):
+   * the elevation and every metric, so a column's digits line up down the
+   * table as the popup's do (`isNumberColumn`). The header is a recipe of its
+   * own rather than `head` plus `text-right`, because two alignments on one
+   * element resolve by stylesheet order rather than by which was written last.
+   */
+  headNumber: `${TEXT.subheading} px-2 py-2 text-right`,
+  number: 'text-right',
   /**
    * One data row: the rule above it and what it does under the pointer.
    *

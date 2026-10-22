@@ -1,6 +1,6 @@
 import { DestinationResult, HourlySeries, SortBy } from '../types'
 import { cloudDeckMark } from './cloudDeckMark'
-import { MetricFamily, UNIT, familyOf, formatPrecipRate, metricLabel } from '../metrics'
+import { HOURLY_UNIT, MetricFamily, RANKED_FAMILIES, familyOf, formatPrecipRate, metricLabel } from '../metrics'
 import { setKey } from './points'
 import { TYPE_COL } from './tableColumns'
 import { clamp } from './numbers'
@@ -23,14 +23,14 @@ const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   cloud_deck: 'cloud_deck_ft',
 }
 
-// The chart's metric select, in option order. No aggregate: these plot the raw
-// hourly series, so a point is that hour's own value rather than anything
-// reduced over the window. The cloud deck comes last (#117, #670): it is the
-// one a report carries only when it was asked for it, so an option that can
-// draw nothing sits under every option that always draws.
-export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
-  ['precip', 'temp', 'wind', 'freeze', 'snowfall', 'aqi', 'cloud_deck'] as const
-).map((key) => ({ key, label: metricLabel(key) }))
+// The chart's metric select, in option order: the panel's, alphabetical by noun
+// (record 0222). No aggregate: these plot the raw hourly series, so a point is
+// that hour's own value rather than anything reduced over the window, and its
+// unit is an hour's (`in/hr` for precipitation, where the window's is `in`).
+export const CHART_METRICS: { key: ChartMetric; label: string }[] = RANKED_FAMILIES.map((key) => ({
+  key,
+  label: metricLabel(key, null, HOURLY_UNIT[key]),
+}))
 
 // The chart opens on whatever metric the results were ranked by.
 //
@@ -506,7 +506,7 @@ export function extremeValue(
  * is chrome, and the number is the whole of what it says.
  */
 export function extremeLabel(v: number, metric: ChartMetric): string {
-  const unit = UNIT[metric]
+  const unit = HOURLY_UNIT[metric]
   const value = formatTooltipValue(v, metric)
   return unit ? `${value} ${unit}` : value
 }

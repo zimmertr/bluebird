@@ -5,6 +5,7 @@ import ResultsTableHeader from './ResultsTableHeader'
 import { RANK_KEY, displayedColumns } from '../utils/tableColumns'
 import { DRAG_THRESHOLD_PX } from '../utils/columnDrag'
 import { placeAt, render } from '../testSupport/render'
+import { TABLE } from '../styles'
 import { resultRow } from '../testSupport/fixtures'
 
 type Props = ComponentProps<typeof ResultsTableHeader>
@@ -53,6 +54,22 @@ const arrowSlots = (th: Element) => [...th.querySelectorAll('span')].filter((s) 
 // Every sortable header, and the key each sorts by, in the order they are drawn.
 const SORTABLE = [/^#/, /^Name/, /^Elevation/, /^Precip/]
 const SORTABLE_KEYS = [RANK_KEY, 'name', 'elevation_ft', SORT_BY] as const
+
+describe('alignment', () => {
+  // A number column's label ends on the edge its digits do (record 0222), so
+  // its arrow slot stands before the label on screen, and after it in the
+  // name as every header's does.
+  it('stands a number header at its end with the arrow drawn before its label', () => {
+    renderHeader(props({ detailSortKey: 'elevation_ft' }))
+    const elevation = header(/^Elevation/)
+    expect(elevation.className).toContain(TABLE.headNumber)
+    expect(elevation.textContent).toBe('Elevation (ft)↑')
+    expect(arrowSlots(elevation)[0].parentElement!.className).toContain('flex-row-reverse')
+    expect(arrowSlots(elevation)[0].className).toContain('mr-1')
+    expect(header(/^Name/).className).toContain(TABLE.head)
+    expect(arrowSlots(header(/^Name/))[0].parentElement!.className).not.toContain('flex-row-reverse')
+  })
+})
 
 describe('sorting', () => {
   it('sorts a new column ascending on a header click', async () => {

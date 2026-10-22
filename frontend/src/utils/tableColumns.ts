@@ -7,6 +7,7 @@ import {
   formatPrecipRate,
   formatPrecipTotal,
   HEIGHT_FAMILIES,
+  HOURLY_UNIT,
   metricLabel,
 } from '../metrics'
 import { NO_VALUE_MARK, UNAVAILABLE } from './unavailableCell'
@@ -204,6 +205,17 @@ export const ELEVATION_COL: ColDef = {
 export const TERRAIN_HEIGHT_MARK = '†'
 export const TERRAIN_HEIGHT_NOTE = `${TERRAIN_HEIGHT_MARK} Elevation data is unavailable for this destination. This value is estimated based on nearby terrain.`
 
+/**
+ * Whether a column holds a number a reader compares down the table: the
+ * elevation, the wildfire distance and every metric, which are the columns
+ * whose header names a unit. The table stands these at the cell's end so their
+ * digits line up (`TABLE.number`, record 0222). The wildfire cell's warning
+ * sign leads its distance, so the digits still end on one edge.
+ */
+export function isNumberColumn(col: ColDef): boolean {
+  return col.key === ELEVATION_COL.key || col.key === WILDFIRE_KEY || col.unit !== undefined
+}
+
 /** Whether a row's Elevation cell shows the terrain height its numbers were read at. */
 export function readAtTerrainHeight(row: DestinationResult): boolean {
   return row.elevation_ft == null && row.terrain_ft != null
@@ -217,9 +229,9 @@ export function readAtTerrainHeight(row: DestinationResult): boolean {
  * because four column definitions and the popup's grouping rule all have to
  * agree on the spelling.
  */
-const PRECIP_RATE = 'in/hr'
+const PRECIP_RATE = HOURLY_UNIT.precip
 // Snowfall's, for the same reason: a total over the window and three rates.
-const SNOWFALL_RATE = `${UNIT.snowfall}/hr`
+const SNOWFALL_RATE = HOURLY_UNIT.snowfall
 
 // A cloud deck at either edge of the walk prints as a bound rather than as the
 // level's height (`cloudDeckMark`), on screen, in the popup that reads these
@@ -246,18 +258,20 @@ export const COLUMNS: ColDef[] = [
   { key: 'name', label: 'Name' },
   TYPE_COL,
   ELEVATION_COL,
-  { key: 'precip_total_in', unit: UNIT.precip, label: metricLabel('precip', AGGREGATE.total, UNIT.precip), format: formatPrecipTotal, windyLayer: 'rain' },
-  { key: 'precip_avg_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.average, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
-  { key: 'precip_min_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.minimum, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
-  { key: 'precip_max_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.maximum, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
-  { key: 'temp_min_f', unit: UNIT.temp, label: metricLabel('temp', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'temp_max_f', unit: UNIT.temp, label: metricLabel('temp', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'temp_avg_f', unit: UNIT.temp, label: metricLabel('temp', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'wind_min_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  { key: 'wind_max_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  { key: 'wind_avg_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  // Feet above sea level, formatted like the elevation column above it,
-  // because the reading IS the comparison between the two. Null is the
+  // The metrics in the panel's order, alphabetical by the noun each family
+  // shows (`RANKED_FAMILIES`), so the table, its Columns menu, the chart's
+  // list and the panel name them in one order (record 0222).
+  { key: 'aqi_avg', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.average), format: (v) => Number(v).toFixed(0), windyLayer: 'pm2p5' },
+  { key: 'aqi_min', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => Number(v).toFixed(0), windyLayer: 'pm2p5' },
+  { key: 'aqi_max', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => Number(v).toFixed(0), windyLayer: 'pm2p5' },
+  // The cloud deck (#117, #670) is feet above sea level and grouped like the
+  // elevation it is read against; Windy's nearest layer is its cloud base,
+  // `cbase`.
+  { key: 'cloud_deck_min_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.minimum), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
+  { key: 'cloud_deck_max_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.maximum), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
+  { key: 'cloud_deck_avg_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.average), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
+  // The freezing level is feet above sea level, formatted like the elevation
+  // column, because the reading IS the comparison between the two. Null is the
   // five-model case (#295) and both surfaces draw it as N/A — the table with
   // the note in freezingLevel.ts, the file through `csvNull` — rather than the
   // dash a genuine gap gets; no formatter is handed a null, which `ColDef`'s
@@ -266,6 +280,10 @@ export const COLUMNS: ColDef[] = [
   { key: 'freeze_min_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => grouped(Number(v)), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
   { key: 'freeze_max_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => grouped(Number(v)), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
   { key: 'freeze_avg_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.average), format: (v) => grouped(Number(v)), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'precip_total_in', unit: UNIT.precip, label: metricLabel('precip', AGGREGATE.total, UNIT.precip), format: formatPrecipTotal, windyLayer: 'rain' },
+  { key: 'precip_avg_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.average, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
+  { key: 'precip_min_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.minimum, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
+  { key: 'precip_max_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.maximum, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
   // New snow over the window (#678), shaped like precipitation's group: a
   // total in inches, three rates in inches per hour, at precipitation's
   // digits. A null is an hour the forecast left blank (HRRR past its hour 45),
@@ -276,16 +294,12 @@ export const COLUMNS: ColDef[] = [
   { key: 'snowfall_avg_in_hr', unit: SNOWFALL_RATE, label: metricLabel('snowfall', AGGREGATE.average, SNOWFALL_RATE), format: formatPrecipRate, windyLayer: 'snowAccu' },
   { key: 'snowfall_min_in_hr', unit: SNOWFALL_RATE, label: metricLabel('snowfall', AGGREGATE.minimum, SNOWFALL_RATE), format: formatPrecipRate, windyLayer: 'snowAccu' },
   { key: 'snowfall_max_in_hr', unit: SNOWFALL_RATE, label: metricLabel('snowfall', AGGREGATE.maximum, SNOWFALL_RATE), format: formatPrecipRate, windyLayer: 'snowAccu' },
-  { key: 'aqi_avg', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.average), format: (v) => Number(v).toFixed(0), windyLayer: 'pm2p5' },
-  { key: 'aqi_min', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => Number(v).toFixed(0), windyLayer: 'pm2p5' },
-  { key: 'aqi_max', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => Number(v).toFixed(0), windyLayer: 'pm2p5' },
-  // The family that joined last (#117, #670), last so the columns that came
-  // before it keep the places they always had. The deck is
-  // feet above sea level and grouped like the elevation it is read against;
-  // Windy's nearest layer is its cloud base, `cbase`.
-  { key: 'cloud_deck_min_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.minimum), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
-  { key: 'cloud_deck_max_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.maximum), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
-  { key: 'cloud_deck_avg_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.average), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
+  { key: 'temp_min_f', unit: UNIT.temp, label: metricLabel('temp', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
+  { key: 'temp_max_f', unit: UNIT.temp, label: metricLabel('temp', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
+  { key: 'temp_avg_f', unit: UNIT.temp, label: metricLabel('temp', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
+  { key: 'wind_min_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
+  { key: 'wind_max_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
+  { key: 'wind_avg_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
 ]
 
 // Every key a header click can sort on: the table's columns, the three

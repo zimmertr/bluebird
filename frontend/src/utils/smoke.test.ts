@@ -148,14 +148,14 @@ describe('smokePopupHtml', () => {
   it('puts the satellite alone on the facts line, with no emoji', () => {
     const html = smokePopupHtml({ density: 'Light', satellite: 'GOES-WEST' })
     expect(html).toContain('GOES-WEST')
-    expect(markupText(html)).not.toMatch(/Smoke\s*\|/)
+    expect(markupText(html)).not.toMatch(/Smoke\s*·/)
     expect(html).not.toContain('🌫️')
     expect(html).not.toContain('Traced from')
   })
 
-  it('drops the satellite rather than leaving a bare pipe, and links nowhere', () => {
+  it('drops the satellite rather than leaving a bare dot, and links nowhere', () => {
     const html = smokePopupHtml({ density: 'Light', satellite: '' })
-    expect(html).not.toContain('|')
+    expect(html).not.toContain('·')
     expect(html).not.toContain('<a ')
     expect(html).not.toContain('data-popup-body')
   })

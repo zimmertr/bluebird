@@ -126,12 +126,17 @@ export function placeControl(
 }
 
 /**
- * The widest the scale bar draws, the library's own default stated here
- * because `map.css` keeps the attribution clear of it at that width: a phone's
- * opened credit line wraps at the scale's edge rather than covering it (#687).
- * `styles.test.ts` holds the stylesheet's arithmetic to this number.
+ * The widest the scale bar draws, stated here because `map.css` keeps the
+ * attribution clear of it at that width: a phone's opened credit line wraps at
+ * the scale's edge rather than covering it (#687). `styles.test.ts` holds the
+ * stylesheet's arithmetic to this number.
+ *
+ * 110px, 10 over the library's default, so the label fits the app's 11px
+ * floor (record 0222): the bar draws as narrow as half this width, and at 11px
+ * `1000 km` needs about 52px of the 50px a 100px bar left it
+ * (`e2e/scaleBar.spec.ts`).
  */
-export const SCALE_MAX_WIDTH_PX = 100
+export const SCALE_MAX_WIDTH_PX = 110
 
 /**
  * The class `map.css` hides a phone's compass under, set on the compass button

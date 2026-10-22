@@ -26,7 +26,7 @@ describe('poiPopupHtml', () => {
   it('says what the feature is on the facts line, in the Type column\'s word', () => {
     const html = poiPopupHtml(RAINIER, false)
     expect(html).toContain('Mount Rainier')
-    expect(factsText(html)).toBe('Peak | 14,410 ft | 46.85290, -121.76040')
+    expect(factsText(html)).toBe('Peak · 14,410 ft · 46.85290, -121.76040')
     expect(html).not.toContain('volcano')
     expect(html).not.toContain(ELEVATION_COL.label)
   })
@@ -94,14 +94,14 @@ describe('poiPopupHtml', () => {
       false,
     )
     expect(trailhead).toContain('href="https://www.openstreetmap.org/node/4578891234"')
-    expect(factsText(trailhead)).toBe('Trailhead | 47.48750, -121.74370')
+    expect(factsText(trailhead)).toBe('Trailhead · 47.48750, -121.74370')
     const crag = poiPopupHtml(
       { name: 'Lower Town Wall', kind: 'crag', lat: 47.8208, lon: -121.5555, osmId: 'relation/1234' },
       false,
     )
     expect(crag).toContain('https://www.mountainproject.com/search?q=Lower%20Town%20Wall')
     expect(crag).toContain('aria-label="View on Mountain Project"')
-    expect(factsText(crag)).toBe('Crag | 47.82080, -121.55550')
+    expect(factsText(crag)).toBe('Crag · 47.82080, -121.55550')
   })
 
   it("names a crag's state in its search when the outlines are held", () => {
@@ -133,7 +133,7 @@ describe('poiPopupHtml', () => {
   // than printing a dash, because nothing was measured and failed.
   it('drops the elevation from the facts line when the tile carries none', () => {
     const html = poiPopupHtml({ name: 'Snow Lake', kind: 'lake', lat: 47.4, lon: -121.4 }, false)
-    expect(factsText(html)).toBe('Lake | 47.40000, -121.40000')
+    expect(factsText(html)).toBe('Lake · 47.40000, -121.40000')
     expect(html).not.toContain('Elevation')
   })
 
@@ -150,14 +150,14 @@ describe('poiPopupHtml', () => {
 })
 
 /**
- * The facts line's text as a reader sees it, each hidden pipe spaced the way
+ * The facts line's text as a reader sees it, each hidden dot spaced the way
  * the eye reads it; the same reading `resultPopup.test.ts` makes of a result
  * card's line, so the two tests compare like with like.
  */
 function factsText(html: string): string {
   const line = html.match(/<div style="white-space:nowrap">(.*?)<\/div>/)![1]
   return [...`>${line}<`.matchAll(/>([^<]*)</g)]
-    .map((m) => (m[1] === '|' ? ' | ' : m[1]))
+    .map((m) => (m[1] === '·' ? ' · ' : m[1]))
     .join('')
 }
 

@@ -52,14 +52,16 @@ describe('RemovedPicker', () => {
     expect(onRestoreAll).not.toHaveBeenCalled()
   })
 
-  it('lists the removed rows in a card headed Removed rows on a desk, with Restore all under them', () => {
+  it('lists the removed rows in a card with no header on a desk, with Restore all under them', () => {
     const onRestore = vi.fn()
     const onRestoreAll = vi.fn()
     const { rerender } = render(
       <Picker entries={[entry('Mount Baker'), entry('Mount Shuksan')]} onRestore={onRestore} onRestoreAll={onRestoreAll} />,
     )
     expect(screen.queryByRole('dialog')).toBeNull()
-    const card = screen.getByText('Removed rows').parentElement as HTMLElement
+    // Named by its trigger rather than by a header of its own (record 0222).
+    expect(screen.queryByText('Removed rows')).toBeNull()
+    const card = screen.getByRole('button', { name: 'Restore all' }).closest<HTMLElement>(`[data-state]`)!
     expect(card.parentElement).toBe(document.body)
     fireEvent.click(screen.getByRole('button', { name: 'Restore Mount Baker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Restore Mount Shuksan' }))
