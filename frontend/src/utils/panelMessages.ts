@@ -4,16 +4,16 @@ import { BASEMAP_FAILED_NOTE } from './basemapFailure'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import type { CommitReason } from './present'
 import type { AnalyzeBlocker } from './analyzeGate'
-import { BLOCKER_SEVERITY, listPhrase, noticeKey, type FooterMessage } from './notices'
+import { BLOCKER_SEVERITY, blockerKey, blockerOf, listPhrase, noticeKey, type FooterMessage } from './notices'
 import { archiveSeamPhrase } from './calendar'
 import type { WindowLimits, WindowSource } from './forecastWindow'
 import { grouped } from './numbers'
 
-// Which messages the panel shows under the Analyze button, and in what order.
-// A module of its own because that decision is pure data: the panel's state in,
-// a list of lines out. `notices.ts` takes the list from here and owns what
-// happens to it next (the boxes, the dismissal keys, the pruning); this file
-// owns only which lines exist.
+// Which messages the panel has to say, and in what order. A module of its own
+// because that decision is pure data: the panel's state in, a list of lines
+// out. `notices.ts` takes the list from here and owns what happens to it next
+// (the boxes, the dismissal keys, the pruning); this file owns only which
+// lines exist, and where a blocker's stands in the panel (`BLOCKER_HOME`).
 
 // Why a knob stopped applying live. Each case names the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
@@ -78,6 +78,50 @@ function blockerText(
   }
 }
 
+/**
+ * Where a blocker's line stands in the panel (#786; record 0208): under the
+ * field it validates, as the field's own readout, the way a form marks the
+ * one field that holds it up. Every other message is a fact about the report
+ * or the run and has no field, so it lives in the list alone; a blocker is in
+ * both, since the list is the one place every message is.
+ *
+ * - `destinations`: nothing names a destination yet, under the section's
+ *   heading, since all three of its methods are the field.
+ * - `polygon`: the ring is short of three points or over the area cap, under
+ *   the point count and the area that already report it.
+ * - `types`: a finished ring with no type ticked, under the type boxes.
+ * - `model`: a ranking the picked models cannot answer, under the Model row.
+ * - `when`: no day picked, or a window nothing serves, under the When field.
+ */
+export type BlockerHome = 'destinations' | 'polygon' | 'types' | 'model' | 'when'
+
+export const BLOCKER_HOME: Record<AnalyzeBlocker, BlockerHome> = {
+  area: 'polygon',
+  polygon: 'polygon',
+  types: 'types',
+  destinations: 'destinations',
+  dates: 'when',
+  window: 'when',
+  'compare-aqi': 'model',
+  'compare-freeze': 'model',
+}
+
+const BLOCKER_HOMES: readonly BlockerHome[] = ['destinations', 'polygon', 'types', 'model', 'when']
+
+/**
+ * The blockers' lines by the field each stands under, every home present and
+ * most of them empty, in `panelMessages`'s order within a home. Read by the
+ * panel's sections, which draw their own home's lines and nothing else.
+ */
+export function blockerLines(messages: readonly FooterMessage[]): Record<BlockerHome, FooterMessage[]> {
+  const lines = Object.fromEntries(BLOCKER_HOMES.map((home) => [home, []])) as Record<BlockerHome, FooterMessage[]>
+  for (const message of messages) {
+    const blocker = blockerOf(message.key)
+    if (blocker) lines[BLOCKER_HOME[blocker]].push(message)
+  }
+  return lines
+}
+
 /** Everything the message list depends on, already derived by the panel. */
 export interface PanelMessageInputs {
   loading: boolean
@@ -117,7 +161,7 @@ export interface PanelMessageInputs {
 }
 
 /**
- * Every message under the Analyze button, as one list feeding at most three
+ * Every message the panel has to say, as one list feeding at most three
  * boxes — one per severity, in error, warning, info order (`noticeBoxes` in
  * `utils/notices.ts`). They used to box by SOURCE — the warnings in one
  * frame, the refusal and the error in frames of their own — which read as
@@ -250,7 +294,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
       : []),
     ...windowMessages,
     ...p.blockers.map((blocker) => ({
-      key: `blocker:${blocker}`,
+      key: blockerKey(blocker),
       text: blockerText(blocker, p.maxAreaKm2, p.pointsNeeded, p.freezeGaps),
       severity: BLOCKER_SEVERITY[blocker],
     })),

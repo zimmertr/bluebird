@@ -17,7 +17,6 @@
 // at both widths and is answered from the same constants.
 
 import { resolvePanelHeights } from './layout'
-import { clamp } from './numbers'
 
 /** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
 export const MAP_ROWS_PX = 92
@@ -388,40 +387,18 @@ export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
 }
 
 /**
- * The most the notice band on a phone's map shows before it scrolls inside
- * itself (#696; record 0140): three lines of a notice box, which is
- * `NOTICE`'s 12px type on its 16px line, its 8px of padding top and bottom
- * and its 1px border, so a box of one or two lines stands whole and a third
- * line is the last one the band grows for. `MAP_NOTICE_BAND` spells it as a
- * class and `styles.test.ts` holds the two to each other.
+ * Where the phone's Analyze button stands (#696; record 0135). One thing
+ * moves it and nothing else, Material's rule for a floating button: the
+ * sheet, whose top edge it rides 16px above at every height. Never higher
+ * than one inset under the chip row (`mapPx`, the map's whole height), which
+ * is where a dragged sheet stops anyway (`DRAGGED_MAP_PX`). The notice band
+ * that stood on the sheet's edge and raised the button by its height went
+ * with record 0208: the panel's messages are a count on the button now, and
+ * a list it opens.
  */
-export const NOTICE_LINE_PX = 16
-export const NOTICE_BAND_MAX_PX = 3 * NOTICE_LINE_PX + 2 * 8 + 2 * 1
-
-/**
- * Where the notice band stands on a phone (#696; record 0140): on the
- * results sheet's edge, or on the map's foot before there is one, the
- * library's own 10px off it (`CORNER_MARGIN_PX`), which is the gap the scale
- * and the (i) kept above the sheet before they moved up to the button's row.
- */
-export function noticeBottomPx(liftPx: number): number {
-  return liftPx + CORNER_MARGIN_PX
-}
-
-/**
- * Where the phone's Analyze button stands (#696; record 0135). Two things move
- * it and nothing else, Material's rule for a floating button: the sheet,
- * whose top edge it rides 16px above at every height, and the notice band,
- * which stands on that edge and which the button rises 16px above while it
- * holds a notice (`bandPx`, the band's measured height, 0 while empty). Never
- * higher than one inset under the chip row (`mapPx`, the map's whole height):
- * a notice over a sheet dragged high goes under the button rather than the
- * button over the chips.
- */
-export function fabBottomPx(liftPx: number, bandPx: number, mapPx: number): number {
-  const wanted = bandPx > 0 ? noticeBottomPx(liftPx) + bandPx + FAB_INSET_PX : liftPx + FAB_INSET_PX
+export function fabBottomPx(liftPx: number, mapPx: number): number {
   const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
-  return clamp(wanted, liftPx + FAB_INSET_PX, highest)
+  return Math.min(liftPx + FAB_INSET_PX, highest)
 }
 
 /**
@@ -439,16 +416,16 @@ export function phoneCornerLiftPx(fabBottom: number): number {
 }
 
 /**
- * The map the Controls sheet leaves on a phone (#696; record 0141): the two
- * rows, the strip a full results sheet leaves the Analyze button, and room
- * on the sheet's edge for the notice band at its fullest. The band rides
- * that edge over the sheet's dim (record 0207), so a cue that arrives while
- * the reader changes a control stands above the sheet rather than resizing
- * it under their finger. The button stays at the map's foot under the dim,
- * so the sheet no longer needs the strip; it keeps it, 88px, so the sheet
- * opens at the height a reader knows.
+ * The map the Controls sheet leaves on a phone (#696; record 0141): 256px,
+ * so its top stands 256px down the map at every size. The number was a sum,
+ * the two rows (92), the strip a full results sheet leaves the Analyze
+ * button (88), and the notice band at its fullest on the sheet's edge (10
+ * over the edge and 66 of band). The band went with record 0208 and the
+ * button stands under the sheet's dim (record 0207), so nothing above the
+ * sheet needs the 164px under the rows; the sheet keeps them so it opens at
+ * the height a reader knows, and taking them back is the maintainer's call.
  */
-export const CONTROLS_MAP_PX = DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX
+export const CONTROLS_MAP_PX = 256
 
 /** The Controls sheet's height on a phone whose map is `mapPx` tall. */
 export function controlsSheetPx(mapPx: number): number {
@@ -457,23 +434,10 @@ export function controlsSheetPx(mapPx: number): number {
 
 /**
  * The most a Controls sheet rises under a drag on its grip (#696; record
- * 0146): where a dragged results sheet stops, the strip under the chip row,
- * so a full band still stands on its edge clear of the chips.
+ * 0146): where a dragged results sheet stops, the strip under the chip row.
  */
 export function controlsFullPx(mapPx: number): number {
   return Math.max(0, mapPx - DRAGGED_MAP_PX)
-}
-
-/**
- * The edge a phone's notice band stands on (record 0207): the Controls
- * sheet's while it is up, over its dim, wherever a drag left it, or the
- * results sheet's otherwise. `controlsPx` is the Controls sheet's height, or
- * null while it is shut. The Analyze button, the scale and the (i) ride the
- * results sheet alone (`fabBottomPx`), so opening the Controls sheet moves
- * none of them: they stand under its dim where they stood.
- */
-export function noticeLiftPx(sheetLiftPx: number, controlsPx: number | null): number {
-  return controlsPx ?? sheetLiftPx
 }
 
 /**
@@ -489,9 +453,9 @@ export function transportStandPx(fabBottom: number): number {
 /**
  * Whether the player fits on a phone's map above the button, under the rows
  * and one inset clear of them. A full sheet leaves the player its room while
- * it is on; what can still take it is a notice band raising the button under
- * a sheet dragged high, and the bar then steps off until there is room again
- * rather than standing over the chips.
+ * it is on (`draggedMapFloorPx`); a sheet dragged high before the player came
+ * on leaves none, and the bar then steps off until there is room again rather
+ * than standing over the chips.
  */
 export function transportFits(fabBottom: number, mapPx: number): boolean {
   const top = fabBottom + FAB_PX + FAB_GAP_PX + TRANSPORT_HEIGHT_PX

@@ -1,31 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { DISABLED, MAP_FAB, MAP_FAB_WORDS, MAP_NOTICE_BAND } from '../styles'
+import type { PanelMessages } from '../hooks/usePanelMessages'
+import { BLOCKED, DISABLED, MAP_FAB, MAP_FAB_SLOT, MAP_FAB_WORDS } from '../styles'
 import { ACTION_WORDS, type ActionWord } from '../utils/analyzeGate'
-import { noticeBottomPx } from '../utils/resultsSheet'
+import MessageBadge, { MessageRegion } from './MessageBadge'
+import MessageList from './MessageList'
 
 interface PhoneFootProps {
-  /**
-   * The edge the notice band stands on (`noticeLiftPx`): the Controls sheet's
-   * while it is up, or the results sheet's (0 with no sheet).
-   */
-  liftPx: number
-  /**
-   * The Controls sheet is up (record 0207): the band rides its edge over its
-   * dim and holds its height back, so a cue that arrives moves nothing under
-   * the dim.
-   */
-  controlsOpen: boolean
-  /** Where the button's bottom edge stands (`fabBottomPx`), which `MapStage` works out from the band's height. */
+  /** Where the button's bottom edge stands (`fabBottomPx`), which `MapStage` works out from the sheet's lift. */
   fabBottomPx: number
-  /** Receives the band the panel portals its notice block into (record 0140). */
-  onNoticeBand: (band: HTMLDivElement | null) => void
-  /**
-   * Receives the band's height each time it changes, 0 while it holds
-   * nothing. Held while the Controls sheet is up: the band then stands on
-   * that sheet's edge, and the button stays where it stood (record 0207).
-   */
-  onBandPx: (px: number) => void
   /**
    * Receives the button's width when it is measured: the wider word's in the
    * phone's own face, which the opened credit line stops short of (map.css).
@@ -37,57 +20,24 @@ interface PhoneFootProps {
   word: ActionWord
   /** The panel's Analyze command itself, never a second path to it. */
   onAnalyze: () => void
+  /** The panel's messages (`usePanelMessages`): the badge's count and colour, and the sheet's rows. */
+  messages: PanelMessages
 }
 
 /**
- * The foot of a phone's map (#696): the band the panel's notices stand in
- * while the drawer is shut (record 0140), and the Analyze button at the
- * bottom right (record 0135), Material's extended floating action button.
+ * The foot of a phone's map (#696): the Analyze button at the bottom right
+ * (record 0135), Material's extended floating action button, wearing the
+ * message badge at its corner (record 0208), which opens the panel's
+ * messages as a bottom sheet headed Messages.
  *
- * Two things move the button and nothing else: the results sheet, whose top
- * edge it rides, and the band, above which it rises while the band holds a
- * notice. This component measures the band and hands its height up, and
- * `MapStage` places the button from it (`fabBottomPx`), so the player that
- * stands on the button reads the same number. No sheet moves the button or
- * changes it: every phone sheet opens over it, and its dim and its modality
- * keep the button from a press (record 0207). The band alone rises over the
- * Controls sheet's dim onto its edge.
+ * One thing moves the button and nothing else: the results sheet, whose top
+ * edge it rides. No sheet moves the button or changes it: every phone sheet
+ * opens over it, and its dim and its modality keep the button from a press
+ * (record 0207). The notice band that stood on the sheet's edge and raised
+ * the button by its height went with the badge: on touch it showed one
+ * message and no sign of the rest.
  */
-export default function PhoneFoot({
-  liftPx,
-  controlsOpen,
-  fabBottomPx,
-  onNoticeBand,
-  onBandPx,
-  onFabPx,
-  analyzeEnabled,
-  word,
-  onAnalyze,
-}: PhoneFootProps) {
-  const [band, setBand] = useState<HTMLDivElement | null>(null)
-  const bandRef = useCallback(
-    (el: HTMLDivElement | null) => {
-      setBand(el)
-      onNoticeBand(el)
-    },
-    [onNoticeBand],
-  )
-  // The band's height decides where the button stands, and the notices in it
-  // come and go with the panel's state, so it is observed rather than added
-  // up: a box can wrap, be dismissed or gain a line. Not while the Controls
-  // sheet is up, when the band rides that sheet's edge over the dim: a cue
-  // that arrives then would move the button under the dim, and opening the
-  // sheet moves nothing (record 0207). Its closing reports the band again.
-  useEffect(() => {
-    if (!band || controlsOpen) return
-    const report = () => onBandPx(Math.round(band.getBoundingClientRect().height))
-    report()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(report)
-    observer.observe(band)
-    return () => observer.disconnect()
-  }, [band, onBandPx, controlsOpen])
-
+export default function PhoneFoot({ fabBottomPx, onFabPx, analyzeEnabled, word, onAnalyze, messages }: PhoneFootProps) {
   // The button's width is the widest word's whichever it reads, so it moves
   // only with the face, the size or the zoom; observed for those. It is
   // mounted for as long as the foot is, so a ref is enough.
@@ -107,33 +57,45 @@ export default function PhoneFoot({
   // comes back here, as it does to the panel's Analyze (#576).
   useTakeOrphanedFocus(buttonRef, analyzeEnabled)
 
+  // The sheet, open or shut: the badge opens it, and so does a press anywhere
+  // on the button while a blocker greys it (the maintainer, 2026-10-21). It
+  // goes with the last message, since there is nothing left to list.
+  const { count, blocked } = messages
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (count === 0) setOpen(false)
+  }, [count])
+  const toggle = () => setOpen((o) => !o)
+
   return (
     <>
-      <div
-        ref={bandRef}
-        className={controlsOpen ? MAP_NOTICE_BAND.overDim : MAP_NOTICE_BAND.map}
-        style={{ bottom: noticeBottomPx(liftPx) }}
-      />
-      <button
-        ref={buttonRef}
-        onClick={onAnalyze}
-        disabled={!analyzeEnabled}
-        className={`${MAP_FAB} ${DISABLED}`}
-        style={{ bottom: fabBottomPx }}
-        // The tour's Analyze step (#536): a phone's one Analyze is this.
-        data-tour="analyze"
-      >
-        {/* Every word in one cell, so the button is the widest one's width
-            whichever it reads; the others are invisible and unread. */}
-        <span className={MAP_FAB_WORDS.cell}>
-          <span>{word}</span>
-          {ACTION_WORDS.filter((w) => w !== word).map((w) => (
-            <span key={w} aria-hidden="true" className={MAP_FAB_WORDS.hidden}>
-              {w}
-            </span>
-          ))}
-        </span>
-      </button>
+      <div className={MAP_FAB_SLOT} style={{ bottom: fabBottomPx }}>
+        <button
+          ref={buttonRef}
+          onClick={blocked ? toggle : onAnalyze}
+          disabled={!analyzeEnabled && !blocked}
+          aria-disabled={blocked || undefined}
+          className={`${MAP_FAB} ${DISABLED} ${BLOCKED}`}
+          // The tour's Analyze step (#536): a phone's one Analyze is this.
+          data-tour="analyze"
+        >
+          {/* Every word in one cell, so the button is the widest one's width
+              whichever it reads; the others are invisible and unread. */}
+          <span className={MAP_FAB_WORDS.cell}>
+            <span>{word}</span>
+            {ACTION_WORDS.filter((w) => w !== word).map((w) => (
+              <span key={w} aria-hidden="true" className={MAP_FAB_WORDS.hidden}>
+                {w}
+              </span>
+            ))}
+          </span>
+        </button>
+        <MessageBadge count={count} worst={messages.worst} open={open} onPress={toggle} />
+        <MessageRegion messages={messages.messages} />
+      </div>
+      {open && (
+        <MessageList messages={messages.messages} onDismiss={messages.dismiss} sheet={{ onClose: () => setOpen(false) }} />
+      )}
     </>
   )
 }

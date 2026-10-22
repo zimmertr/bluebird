@@ -1,8 +1,10 @@
 import { useMemo, useRef } from 'react'
+import BlockerLine from './BlockerLine'
 import ForecastCalendar from './ForecastCalendar'
 import ModelPicker from './ModelPicker'
 import { CONTROL_W, TEXT } from '../styles'
 import type { ForecastSelection } from '../utils/calendar'
+import type { FooterMessage } from '../utils/notices'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
 
 interface Props {
@@ -28,6 +30,12 @@ interface Props {
   // published by /api/capabilities.
   archiveDays: number
   aqiForecastDays: number
+  // The blockers that stand under this section's two fields (record 0208):
+  // a ranking the picked models cannot answer under Model, and no day picked
+  // or a window nothing serves under When. Decided above the panel
+  // (`BLOCKER_HOME`); this section draws its own homes' lines and no other.
+  modelLines: readonly FooterMessage[]
+  whenLines: readonly FooterMessage[]
   // A phone, where the model list and the calendar open as bottom sheets
   // (record 0136) rather than as cards under their fields.
   phone?: boolean
@@ -35,8 +43,9 @@ interface Props {
 
 /**
  * The panel's second section: which model answers, and over which hours. It
- * says nothing of its own; every message about the window reads in the one
- * block under the Analyze button.
+ * says nothing of its own beyond a blocker's line under the field holding
+ * Analyze up; every other message about the window is a line in the list
+ * the Analyze button's badge opens.
  */
 export default function ForecastSection({
   forecastModel,
@@ -50,6 +59,8 @@ export default function ForecastSection({
   setSelection,
   archiveDays,
   aqiForecastDays,
+  modelLines,
+  whenLines,
   phone = false,
 }: Props) {
   const forecastHours = modelForecastHours(forecastModels, forecastModel)
@@ -112,10 +123,14 @@ export default function ForecastSection({
           />
         </div>
       </div>
-      {/* Nothing between the model and the calendar, and nothing under it:
-          every message this section has to make lives in the one block
-          below the Analyze button (`utils/panelMessages.ts`). */}
+      {/* A blocker about the models picked stands under the Model row, and
+          one about the window under the When field, each where its fix is
+          (record 0208). Nothing else stands between the model and the
+          calendar or under it: every other message this section has to
+          make is a line in the list (`utils/panelMessages.ts`). */}
+      <BlockerLine lines={modelLines} />
       <ForecastCalendar selection={selection} onChange={setSelection} band={band} sheet={phone} />
+      <BlockerLine lines={whenLines} />
     </section>
   )
 }

@@ -1,103 +1,12 @@
-import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { type MouseEvent, useEffect, useRef, useState } from 'react'
 import { TUTORIAL_PATH } from '../utils/tourSteps'
-import {
-  BUTTON_PRIMARY,
-  DISABLED,
-  LINK,
-  LINK_INERT,
-  NOTICE,
-  NOTICE_DIVIDER,
-  NOTICE_DISMISS,
-  PANEL_EDGE,
-  STATUS,
-  TEXT,
-} from '../styles'
-import { IconClose } from './icons'
+import { BLOCKED, BUTTON_PRIMARY, DISABLED, LINK, LINK_INERT, MESSAGE_BADGE, PANEL_EDGE, TEXT } from '../styles'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { usePopover } from '../hooks/usePopover'
+import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { ActionWord } from '../utils/analyzeGate'
-import {
-  type EventNoticeKind,
-  type FooterMessage,
-  type NoticeSeverity,
-  eventKindOf,
-  isDismissed,
-  noticeBoxes,
-  pruneDismissals,
-} from '../utils/notices'
-
-/**
- * One shape for every message under the Analyze button.
- *
- * There were two shapes and the difference said nothing. A commit cue was
- * centred, unboxed, amber text; a blocker was a left-aligned amber box; the two
- * appeared together, so the panel showed one warning as a caption and the next
- * as a notice for no reason a reader could act on. Severity is the only thing
- * that varies now, and it varies by hue, which is what hue means everywhere
- * else in this app.
- *
- * The colour lives on the box rather than on each line inside it, so a notice
- * that grows a second paragraph cannot forget it. `NOTICE` sets a size and no
- * colour and `STATUS` sets a colour and no size, which is what lets the two
- * compose without the stylesheet-order collision this file keeps warning about.
- */
-function NoticeMessage({
-  text,
-  onDismiss,
-}: {
-  text: string
-  onDismiss: () => void
-}) {
-  return (
-    <div className={NOTICE_DISMISS.row}>
-      <span className="flex-1">{text}</span>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss notice"
-        className={NOTICE_DISMISS.button}
-      >
-        <span className={NOTICE_DISMISS.pill}>
-          <IconClose size="micro" />
-        </span>
-      </button>
-    </div>
-  )
-}
-
-function FooterNotice({
-  severity,
-  messages,
-  onDismiss,
-}: {
-  severity: NoticeSeverity
-  // Whatever this severity currently has to say, one entry per message. Each
-  // message carries its own X (`NoticeMessage`), and the box carries nothing
-  // else: the error box used to end in a `Try again` of its own, a second
-  // button a few pixels under Analyze that did what Analyze does, until #736
-  // made the Analyze button the one retry.
-  messages: readonly FooterMessage[]
-  // Dismisses ONE message by its key — a message for the event notices, a
-  // condition for the derived lines — which `utils/notices.ts` owns.
-  onDismiss: (key: string) => void
-}) {
-  return (
-    <div className={`${NOTICE[severity]} ${STATUS[severity]}`}>
-      {/* Every message renders the same way, alone or one of several: a row
-          under a row, separated by the rule `NOTICE_DIVIDER` draws in the box's
-          own border tint. A bulleted list did the separating before and spent
-          16px of the text column on the indent and the marker, which is more
-          than a message written to fit one line at 360px can give up — so the
-          second message arriving used to wrap the first. A lone message gets no
-          rule, because there is nothing to separate it from. */}
-      <div className={NOTICE_DIVIDER[severity]}>
-        {messages.map((m) => (
-          <NoticeMessage key={m.key} text={m.text} onDismiss={() => onDismiss(m.key)} />
-        ))}
-      </div>
-    </div>
-  )
-}
+import MessageBadge, { MessageRegion } from './MessageBadge'
+import MessageList from './MessageList'
 
 interface Props {
   analyzeEnabled: boolean
@@ -107,39 +16,38 @@ interface Props {
   // panel, because the phone's floating button reads the same word.
   word: ActionWord
   onAnalyze: () => void
-  // The reader dismissed the run error or the refusal: the event clears
-  // rather than joining the ledger below (`useAnalysisRun.dismissEvent`).
-  onDismissEvent: (kind: EventNoticeKind) => void
   /** Open the guided tutorial (#536). */
   onTutorial: () => void
   /** The tour cannot start now (a draw or a run is under way), so the link is inert. */
   tutorialWaits?: boolean
-  // Every message the panel has to say, in order (`utils/panelMessages.ts`).
-  // This file decides only how they are boxed and which are dismissed.
-  messages: readonly FooterMessage[]
-  // The band on a phone's map the whole block stands in (#696; record 0140),
-  // or null at a desk, where the block is under the button as ever.
-  noticeHome?: HTMLElement | null
+  // Every message the panel has to say, with its count, its worst severity
+  // and its dismissals (`usePanelMessages`). This file decides only where the
+  // badge and the list stand.
+  messages: PanelMessages
   // A phone, where the map's floating button is the one Analyze (record
-  // 0135) and the block is the map's, so the footer is the document links
-  // alone, the last thing in the Controls sheet's scrolling body.
+  // 0135) and wears the badge, so the footer is the document links alone,
+  // the last thing in the Controls sheet's scrolling body.
   phone?: boolean
 }
 
 /**
- * The panel's footer: the Analyze button, the one notice block under it, and
- * the two document links. The block is here and nowhere else, so a message
- * about any section of the panel still reads in the one place the rule puts it.
+ * The panel's footer: the Analyze button with the message badge at its
+ * corner, the list the badge opens over it, and the two document links.
+ *
+ * The messages used to stand in one block under the button (record 0028).
+ * Since record 0208 the button carries a count of them in the worst one's
+ * colour, and a press on the badge, or anywhere on the button while a
+ * blocker greys it, opens the one list that holds them all, on the one menu's
+ * card over the button. A blocker's sentence stands under its field as well
+ * (`BlockerLine`), so what stops Analyze reads where the fix is.
  */
 export default function PanelFooter({
   analyzeEnabled,
   word,
   onAnalyze,
-  onDismissEvent,
   onTutorial,
   tutorialWaits = false,
   messages,
-  noticeHome = null,
   phone = false,
 }: Props) {
   // A plain click starts the tour over this page; a modified click or a
@@ -155,24 +63,6 @@ export default function PanelFooter({
     e.preventDefault()
     onTutorial()
   }
-  // The dismissal ledger (#253) for the derived lines: every footer message
-  // is dismissable, each alone. `pruneDismissals` retires a dismissal the
-  // moment its key stops being active, which is what makes a
-  // cleared-then-retriggered warning return, while panning, sorting and knob
-  // twiddling, which change no key, resurface nothing. Local state on
-  // purpose: the panel stays mounted while closed, and a dismissal is
-  // presentation, not part of the analysis. The two event notices are not in
-  // it: dismissing the run error or the refusal clears the event itself
-  // (`onDismissEvent`, #736), so the Analyze button that reads `Try again`
-  // off the error reads `Analyze` again in the same render.
-  const [dismissed, setDismissed] = useState<readonly string[]>([])
-  const activeKeySig = messages
-    .map((m) => m.key)
-    .join('\u0000')
-  useEffect(() => {
-    setDismissed((prev) => pruneDismissals(prev, activeKeySig.split('\u0000')))
-  }, [activeKeySig])
-  const shown = messages.filter((m) => !isDismissed(m.key, dismissed))
 
   // A run disables this button under the keyboard that pressed it, and the
   // overlay's Cancel takes the focus meanwhile; when the run ends and Cancel
@@ -180,15 +70,27 @@ export default function PanelFooter({
   const analyzeRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(analyzeRef, analyzeEnabled)
 
-  // On a phone the whole block stands in the band the map holds over the
-  // sheet's edge (record 0140), informing lines and action lines alike, so the
-  // Controls sheet spends none of its height on it and a cue is read with the
-  // sheet shut, beside the one Analyze that answers it. At a desk it is under
-  // the button. A portal, so the dismissals above are one ledger's wherever
-  // the block stands; a phone whose band is not mounted yet draws it nowhere
-  // for that frame rather than in the sheet.
-  const place = (region: ReactNode) =>
-    noticeHome ? createPortal(region, noticeHome) : phone ? null : region
+  // The list, open or shut. The card stands against the slot the button and
+  // its badge share, so it is at least the button's width, and the badge is
+  // its trigger: Escape and Tab out hand the keyboard back there. A press on
+  // the button is the button's own (`ownPressRef`), so a blocked button can
+  // toggle the list without the press-outside rule closing it first. The
+  // card goes with the last message, since there is nothing left to list.
+  const { count, blocked } = messages
+  const [open, setOpen] = useState(false)
+  const badgeRef = useRef<HTMLButtonElement>(null)
+  const slotRef = useRef<HTMLDivElement>(null)
+  const { popoverRef, box, closing } = usePopover({
+    open,
+    onOpenChange: setOpen,
+    triggerRef: badgeRef,
+    anchorRef: slotRef,
+    ownPressRef: analyzeRef,
+  })
+  useEffect(() => {
+    if (count === 0) setOpen(false)
+  }, [count])
+  const toggle = () => setOpen((o) => !o)
 
   return (
     // The tour's Analyze step lights this footer at a desk; a phone's Analyze
@@ -197,35 +99,29 @@ export default function PanelFooter({
     // draws the rule above it the way it rules off each section.
     <div className={phone ? undefined : `px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour={phone ? undefined : 'analyze'}>
       {!phone && (
-        <button
-          ref={analyzeRef}
-          onClick={onAnalyze}
-          disabled={!analyzeEnabled}
-          className={`${BUTTON_PRIMARY} ${DISABLED}`}
-        >
-          {word}
-        </button>
+        <div ref={slotRef} className={MESSAGE_BADGE.slot}>
+          {/* Disabled only while busy: a blocker greys the button and leaves
+              it live, so a press anywhere on it opens the list that says
+              why (the maintainer, 2026-10-21). */}
+          <button
+            ref={analyzeRef}
+            onClick={blocked ? toggle : onAnalyze}
+            disabled={!analyzeEnabled && !blocked}
+            aria-disabled={blocked || undefined}
+            className={`${BUTTON_PRIMARY} ${DISABLED} ${BLOCKED}`}
+          >
+            {word}
+          </button>
+          <MessageBadge ref={badgeRef} count={count} worst={messages.worst} open={open} onPress={toggle} />
+          <MessageRegion messages={messages.messages} />
+        </div>
       )}
-
-      {/* One live region, mounted for good: a box that arrives already
-          holding its text is not announced by most screen readers, which is
-          what each box's own role="status" did (#576). Collapsed while empty,
-          so it adds no gap under the button. */}
-      {place(
-        <div role="status" className="space-y-3 empty:mb-0">
-          {noticeBoxes(shown).map((box) => (
-            <FooterNotice
-              key={box.severity}
-              severity={box.severity}
-              messages={box.messages}
-              onDismiss={(key) => {
-                const event = eventKindOf(key)
-                if (event) onDismissEvent(event)
-                else setDismissed((prev) => [...prev, key])
-              }}
-            />
-          ))}
-        </div>,
+      {!phone && box && (
+        <MessageList
+          messages={messages.messages}
+          onDismiss={messages.dismiss}
+          card={{ box, popoverRef, closing }}
+        />
       )}
 
       {/* Two labels, two pages, and each label goes where it says. The

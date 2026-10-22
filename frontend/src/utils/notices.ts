@@ -1,7 +1,11 @@
 /**
- * Dismissal for the footer notices (#253). Every message under the Analyze
- * button is dismissable (TJ, 2026-08-22), and each dismisses alone — the
- * boxes group by severity, never by dismissal.
+ * Dismissal for the panel's messages (#253). Every message in the list the
+ * Analyze button's badge opens is dismissable (TJ, 2026-08-22), and each
+ * dismisses alone — the boxes group by severity, never by dismissal. The one
+ * class that is not is a blocker (#786; record 0208): it is the field's own
+ * state, standing inline beside the field until the reader supplies what it
+ * asks, and a dismissed blocker would leave a greyed button with nothing to
+ * say for itself.
  *
  * The identity a dismissal is keyed to differs by class, and the choice is
  * what keeps dismissal from being annoying or dangerous:
@@ -11,7 +15,7 @@
  * - Derived warnings (commit cues, Analyze blockers, the fire line, the AQI
  *   line) key on their CONDITION (`blocker:polygon`, `cue:window-changed`),
  *   not their text — the polygon blocker counts down as you draw, and keyed
- *   by text it would resurface on every click.
+ *   by text it would be a new line on every click.
  *
  * The two classes are dismissed differently too (#736). An event notice is
  * one run's outcome, held as state, so dismissing it clears that state
@@ -34,7 +38,7 @@ import type { AnalyzeBlocker } from './analyzeGate'
 export type EventNoticeKind = 'error' | 'refusal'
 
 /**
- * The three footer boxes, one per severity, and what each hue answers
+ * The three severities, one box each in the list, and what each hue answers
  * (TJ, 2026-08-22):
  *
  * - `error`: the app cannot or will not do what was asked — a failed run, an
@@ -48,11 +52,28 @@ export type EventNoticeKind = 'error' | 'refusal'
  */
 export type NoticeSeverity = 'error' | 'warn' | 'info'
 
-/** One message bound for a footer box: identity, text, and which box. */
+/**
+ * The severities worst first: the order the list's boxes stand in, and the
+ * order the badge on the Analyze button picks its colour by (record 0208), so
+ * a late-arriving error can neither stand below the info line it outranks nor
+ * leave the badge reading blue.
+ */
+export const SEVERITY_ORDER: readonly NoticeSeverity[] = ['error', 'warn', 'info']
+
+/** One message bound for the list: identity, text, and which box. */
 export interface FooterMessage {
   key: string
   text: string
   severity: NoticeSeverity
+}
+
+/**
+ * The worst severity among the messages current, or null with none: what
+ * colours the badge on the Analyze button, and the one summary the button
+ * carries of a list it has not opened.
+ */
+export function worstSeverity(messages: readonly FooterMessage[]): NoticeSeverity | null {
+  return SEVERITY_ORDER.find((severity) => messages.some((m) => m.severity === severity)) ?? null
 }
 
 /**
@@ -80,21 +101,18 @@ export const BLOCKER_SEVERITY: Record<AnalyzeBlocker, NoticeSeverity> = {
 
 
 /**
- * Assemble the footer's boxes: at most three, always in error, warning, info
- * order — the fixed order is what keeps a late-arriving error from appearing
- * below the info line it outranks. Within a box, messages keep the caller's
- * order. An empty box is not rendered, so this returns only the boxes that
- * have something to say.
+ * Assemble the list's boxes: at most three, always in error, warning, info
+ * order (`SEVERITY_ORDER`). Within a box, messages keep the caller's order.
+ * An empty box is not rendered, so this returns only the boxes that have
+ * something to say.
  */
 export function noticeBoxes(
   messages: readonly FooterMessage[],
 ): { severity: NoticeSeverity; messages: FooterMessage[] }[] {
-  return (['error', 'warn', 'info'] as const)
-    .map((severity) => ({
-      severity,
-      messages: messages.filter((m) => m.severity === severity),
-    }))
-    .filter((box) => box.messages.length > 0)
+  return SEVERITY_ORDER.map((severity) => ({
+    severity,
+    messages: messages.filter((m) => m.severity === severity),
+  })).filter((box) => box.messages.length > 0)
 }
 
 /** The identity of one event notice: what was said, and which box said it. */
@@ -103,7 +121,7 @@ export function noticeKey(kind: EventNoticeKind, message: string): string {
 }
 
 /**
- * Which event a key names, or null for a derived line's key. The footer reads
+ * Which event a key names, or null for a derived line's key. The list reads
  * it to decide how a dismissal lands: an event's clears its state, a derived
  * line's joins the ledger.
  */
@@ -111,6 +129,22 @@ export function eventKindOf(key: string): EventNoticeKind | null {
   if (key.startsWith('error:')) return 'error'
   if (key.startsWith('refusal:')) return 'refusal'
   return null
+}
+
+/** The key every blocker's line carries: its condition, as `panelMessages` spells it. */
+export function blockerKey(blocker: AnalyzeBlocker): string {
+  return `blocker:${blocker}`
+}
+
+/**
+ * Which blocker a key names, or null for any other line. A blocker's line
+ * stands inline beside its field as well as in the list (record 0208), and
+ * is the one kind of line a dismissal passes over.
+ */
+export function blockerOf(key: string): AnalyzeBlocker | null {
+  if (!key.startsWith('blocker:')) return null
+  const blocker = key.slice('blocker:'.length)
+  return blocker in BLOCKER_SEVERITY ? (blocker as AnalyzeBlocker) : null
 }
 
 /**

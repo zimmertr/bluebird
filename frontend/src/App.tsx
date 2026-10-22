@@ -69,7 +69,9 @@ import {
 import { removalScopeFor } from './utils/analyzeRequest'
 import { controlsSummary } from './utils/controlsSummary'
 import { pendingDestinations } from './utils/customList'
-import { actionWord, analyzeGateFor, canAnalyze, retryStands } from './utils/analyzeGate'
+import { actionWord, retryStands } from './utils/analyzeGate'
+import { usePanelMessages } from './hooks/usePanelMessages'
+import { checkNoticeDue } from './utils/fireProximity'
 import {
   panelCommitCues,
   reportView,
@@ -164,9 +166,6 @@ export default function App() {
   // A phone's Controls sheet under a drag on its grip (record 0146): the height
   // the drag left it at, or null for its own share of the map.
   const [controlsHeldPx, setControlsHeldPx] = useHeldSheetPx(sidebarOpen)
-  // The band on a phone's map that holds the panel's notices that ask for an
-  // action (record 0140). State, so the panel hears it arrive.
-  const [noticeBand, setNoticeBand] = useState<HTMLDivElement | null>(null)
   // A phone's home indicator band, which the chrome on the map's foot stands
   // above (record 0145); 0 on a desk.
   const safeBottomPx = useSafeAreaBottom()
@@ -176,8 +175,8 @@ export default function App() {
   // The same hover glows every clickable feature on the map: the Map group
   // covers both map-borne methods, so its cue lights both controls at once.
   const [poisPointed, setPoisPointed] = useState(false)
-  // The basemap style is failing to load: the map reports it and the panel
-  // says so below Analyze (#580).
+  // The basemap style is failing to load: the map reports it and the panel's
+  // messages say so (#580).
   const [basemapFailed, setBasemapFailed] = useState(false)
   const overlays = useMapOverlays(restored, isDesktop)
   const {
@@ -484,25 +483,38 @@ export default function App() {
     setShowResults,
   })
 
-  // The phone's Analyze button (#696) opens exactly when the panel's does:
-  // the same gate from the same inputs the panel builds it from.
-  const mapAnalyzeEnabled = canAnalyze(
-    analyzeGateFor({
-      selection,
-      hasWindowWarning: forecastSelection.windowWarning !== null,
-      loading,
-      polygonAreaKm2: destinationInputs.polygonAreaKm2,
-      maxAreaKm2: caps.maxPolygonAreaKm2,
-      drawPointCount,
-      destinationTypes,
-      hasCustom: csvRows.length > 0,
-      hasPins: places.length > 0,
-      sortBy,
-      forecastModels: caps.forecastModels,
-      forecastModel,
-      comparedModels,
-    }).gate,
-  )
+  // The panel's messages and the Analyze gate, derived once for both widths
+  // (record 0208): the panel's Analyze and the phone's read one gate from
+  // one set of inputs, and the badge on either counts the same list.
+  const messages = usePanelMessages({
+    selection,
+    windowWarning: forecastSelection.windowWarning,
+    modelClamped: forecastSelection.modelClamped,
+    forecastModel,
+    comparedModels,
+    forecastModels: caps.forecastModels,
+    polygonAreaKm2: destinationInputs.polygonAreaKm2,
+    maxAreaKm2: caps.maxPolygonAreaKm2,
+    drawPointCount,
+    drawing,
+    destinationTypes,
+    hasCustom: csvRows.length > 0,
+    hasPins: places.length > 0,
+    sortBy,
+    loading,
+    error,
+    refusal,
+    commitReasons,
+    hasReport: response !== null,
+    aqiAllNull: response !== null && results.length > 0 && results.every((r) => r.aqi_avg == null),
+    wildfireCheckFailed: checkNoticeDue(fire.status, showWildfires, results.length),
+    closureCheckFailed: checkNoticeDue(closure.status, showAreaClosures, results.length),
+    basemapFailed,
+    archiveDays: caps.archiveDays,
+    aqiForecastDays: caps.aqiForecastDays,
+    windowLimits: caps.windowLimits,
+    dismissEvent,
+  })
 
   // A link that asks to run its analysis on open (`analyze=1`, #511).
   const { autoAnalyze, capsApplied, runAutoAnalyze } = useRunOnOpen({
@@ -646,26 +658,14 @@ export default function App() {
         mapRef={mapRef}
         onPointAtSearch={setSearchPointed}
         onPointAtMapPois={setPoisPointed}
-        commitReasons={commitReasons}
+        messages={messages}
         onAnalyze={handleAnalyze}
         autoAnalyze={autoAnalyze}
         capabilitiesSettled={capsApplied}
         onAutoAnalyze={runAutoAnalyze}
-        loading={loading}
-        error={error}
-        refusal={refusal}
         actionWord={word}
-        onDismissEvent={dismissEvent}
         onTutorial={tour.start}
         tutorialWaits={tourWaits}
-        response={response}
-        results={results}
-        fireStatus={fire.status}
-        closureStatus={closure.status}
-        showWildfires={showWildfires}
-        showAreaClosures={showAreaClosures}
-        basemapFailed={basemapFailed}
-        noticeHome={isDesktop ? null : noticeBand}
       />
 
       {/* Map + results column. On a phone the results leave the flow and stand
@@ -703,13 +703,11 @@ export default function App() {
           showResults={showResults}
           sidebarOpen={sidebarOpen}
           layoutMotion={layoutMotion}
-          controlsPx={controlsHeldPx ?? controlsSheetPx(layout.mapPx)}
           legendInitiallyOpen={storedView.legendOpen ?? true}
           onOpenControls={openDrawer}
           onCloseControls={closeDrawer}
           controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
-          onNoticeBand={setNoticeBand}
-          analyzeEnabled={mapAnalyzeEnabled}
+          messages={messages}
           actionWord={word}
           onAnalyze={handleAnalyze}
           layersForcedOpen={tour.layersOpen}

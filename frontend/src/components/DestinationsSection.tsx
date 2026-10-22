@@ -13,6 +13,8 @@ import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
+import type { FooterMessage } from '../utils/notices'
+import BlockerLine from './BlockerLine'
 import DrawReadout from './DrawReadout'
 import { grouped } from '../utils/numbers'
 
@@ -83,6 +85,14 @@ interface Props {
   // A paste landed in the CSV box and parsed to at least one destination —
   // App frames the list on the map. Paste only: typing never moves the camera.
   onCsvPasted: (points: CustomDestination[]) => void
+  // The blockers that stand under this section's fields (record 0208):
+  // nothing named yet under the heading, a ring short of three points or
+  // over the cap under the point count, and a finished ring with no type
+  // under the type boxes. Decided above the panel (`BLOCKER_HOME`); this
+  // section draws its own homes' lines and no other.
+  destinationsLines: readonly FooterMessage[]
+  polygonLines: readonly FooterMessage[]
+  typesLines: readonly FooterMessage[]
 }
 
 /**
@@ -110,6 +120,9 @@ export default function DestinationsSection({
   setCustomCsv,
   parsedCount,
   onCsvPasted,
+  destinationsLines,
+  polygonLines,
+  typesLines,
 }: Props) {
   // True between a paste into the CSV box and the change event it produces —
   // how onChange tells a pasted list (frame it on the map) from typing (leave
@@ -143,6 +156,15 @@ export default function DestinationsSection({
       <h2 className={`${TEXT.section} mb-2.5`}>
         Destinations
       </h2>
+      {/* Nothing names a destination yet: the one blocker whose field is the
+          whole section, under its heading (record 0208). It leaves the
+          margin the heading keeps, so the first subheading does not move
+          when the line goes. */}
+      {destinationsLines.length > 0 && (
+        <div className="mb-3 -mt-1.5">
+          <BlockerLine lines={destinationsLines} />
+        </div>
+      )}
 
       {/* Map search: the two methods whose control is the map itself, the
           floating search box and the clickable labels, grouped as one
@@ -248,6 +270,9 @@ export default function DestinationsSection({
                   Large polygon areas may be slow and hit limits.
                 </p>
               )}
+            {/* A ring short of three points, or over the cap: under the
+                count and the area that report it (record 0208). */}
+            <BlockerLine lines={polygonLines} />
           </div>
         )}
         {/* The controls that switch the map between placing points and
@@ -335,6 +360,9 @@ export default function DestinationsSection({
             <span>Include unnamed peaks</span>
           </label>
         )}
+        {/* A finished ring with no type ticked: under the boxes that would
+            tick one (record 0208). */}
+        <BlockerLine lines={typesLines} />
       </div>
     </section>
   )
