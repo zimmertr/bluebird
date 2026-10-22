@@ -204,10 +204,18 @@ export default function ResultsBar({
         </MenuButton>
       ),
     },
-    canDownload && {
+    // Download CSV stands with them too, greyed until there is a row to
+    // download (the maintainer, 2026-10-22; record 0219), for Removed's
+    // reason: a member that came and went shortened the bar under the reader.
+    showTable && {
       key: 'download',
       node: (
-        <button onClick={onDownloadCsv} aria-label="Download CSV" className={ACTION_ITEM}>
+        <button
+          onClick={onDownloadCsv}
+          disabled={!canDownload}
+          aria-label="Download CSV"
+          className={`${ACTION_ITEM} ${DISABLED}`}
+        >
           <IconDownload className="flex-shrink-0" />
           <span className={BAR_LABEL}>Download CSV</span>
         </button>

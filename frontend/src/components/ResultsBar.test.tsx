@@ -90,21 +90,25 @@ describe('ResultsBar', () => {
 
   // Removed stands whenever Columns does (record 0209), greyed until there is
   // a row to remove or one removed: a report emptied by removals keeps the
-  // way back. Download alone comes with a row.
-  it('draws Removed greyed before a row, live with a row or a removal, and Download only with a row', () => {
+  // way back. Download CSV stands with it, greyed until there is a row to
+  // download (record 0219).
+  it('draws Removed and Download CSV greyed before a row, and live with one', () => {
     const { rerender } = render(<ResultsBar {...props({ canDownload: false })} />)
     const removed = () => screen.getByRole('button', { name: /^Removed \(\d+\)$/ }) as HTMLButtonElement
     expect(removed().disabled).toBe(true)
     expect(removed().textContent).toBe('Removed (0)')
-    expect(screen.queryByRole('button', { name: /Download/ })).toBeNull()
+    const download = () => screen.getByRole('button', { name: 'Download CSV' }) as HTMLButtonElement
+    expect(download().disabled).toBe(true)
     rerender(<ResultsBar {...props({ removedCount: 3, canDownload: false })} />)
     expect(removed().disabled).toBe(false)
     expect(removed().textContent).toBe('Removed (3)')
+    expect(download().disabled).toBe(true)
     rerender(<ResultsBar {...props({ removedCount: 0 })} />)
     expect(removed().disabled).toBe(false)
-    expect(screen.getByRole('button', { name: 'Download CSV' })).toBeTruthy()
+    expect(download().disabled).toBe(false)
     rerender(<ResultsBar {...props({ showTable: false, canDownload: false })} />)
     expect(screen.queryByRole('button', { name: /^Removed/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Download CSV' })).toBeNull()
   })
 
   // WCAG 2.5.3: a voice-control reader says the words on the button, so the
@@ -137,7 +141,7 @@ describe('ResultsBar', () => {
       expect(button.querySelector('span')?.className).toBe(BAR_LABEL)
     }
     expect(MENU_TRIGGER.bar.startsWith(ACTION_ITEM)).toBe(true)
-    expect(download.className).toBe(ACTION_ITEM)
+    expect(download.className).toBe(`${ACTION_ITEM} ${DISABLED}`)
     expect(download.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
     expect(download.querySelector('span')?.className).toBe(BAR_LABEL)
     const buttons = [...menus, download]
@@ -168,12 +172,12 @@ describe('ResultsBar', () => {
   })
 
   it('puts no divider before the first button, whichever stand', () => {
-    // Columns, Models and a greyed Removed before a row (record 0209), and no
-    // Download.
+    // Columns, Models, and a greyed Removed and Download CSV before a row
+    // (records 0209 and 0219).
     render(<ResultsBar {...props({ canDownload: false })} />)
     const group = screen.getByRole('button', { name: 'Models' }).parentElement as HTMLElement
-    expect([...group.children].map((c) => c.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON'])
-    expect(group.lastElementChild).toBe(screen.getByRole('button', { name: 'Removed (0)' }))
+    expect([...group.children].map((c) => c.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON'])
+    expect(group.lastElementChild).toBe(screen.getByRole('button', { name: 'Download CSV' }))
   })
 
   // The switch's words follow the same width rule as the buttons', so the
