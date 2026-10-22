@@ -224,6 +224,8 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     prev,
     /** The Layers menu is held open for its step. */
     layersOpen: step?.reveal === 'layers',
+    /** The message list is held open over its demonstration for its step (`demoMessages.ts`). */
+    messagesHeld: step?.reveal === 'messages',
     /** The results sheet shows this instead of the real report for its steps. */
     demo,
     /**

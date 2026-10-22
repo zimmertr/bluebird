@@ -534,6 +534,7 @@ export function panelMessages(over: Partial<PanelMessages> = {}): PanelMessages 
     areaTooLarge: false,
     pointsNeeded: 3,
     modelDisabled: false,
+    held: false,
     ...over,
   }
 }

@@ -12,10 +12,9 @@
  * card saying "or" made the four after it say the list twice.
  *
  * The Messages card (#786, the maintainer 2026-10-21) points at the count on
- * the Analyze button. The badge is drawn only while there is something to
- * count, so a tour that starts with nothing to say skips the card, the way it
- * skips any step whose control is not on the screen (`useTour.ts`). A first
- * visit always has one: the blocker asking for a destination.
+ * the Analyze button and the list it opens, over a demonstration
+ * (`tour/demoMessages.ts`): a reader's own messages may be none, and the
+ * maintainer wants every tour to explain them, so the card always runs.
  */
 
 /** The attribute a component marks its control with. */
@@ -38,8 +37,10 @@ type TourPlace = 'panel' | 'map'
  * `chart` turns that sheet to its chart with the readout standing on the
  * window's middle hour, as a resting finger shows it (#696).
  * `marker` flies to one of that report's markers and opens its popup.
+ * `messages` greys Analyze under a demonstration's count and holds the list
+ * open over it.
  */
-type TourReveal = 'layers' | 'results' | 'chart' | 'marker'
+type TourReveal = 'layers' | 'messages' | 'results' | 'chart' | 'marker'
 
 /**
  * How the spotlight fits its target. `section` runs from the rule above the
@@ -102,8 +103,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     anchor: 'analyze',
     title: 'Analyze',
     text: 'Fetch the forecast for every destination and rank them.',
-    // The whole footer, rule to edge, so it lights up like the sections above.
-    place: 'panel',
+    // The whole footer at a desk, rule to edge, so it lights up like the
+    // sections above. A phone's Analyze is the map's button, which the
+    // Controls sheet stands over, so the step lowers the sheet.
+    place: 'map',
   },
   {
     anchor: 'messages',
@@ -111,7 +114,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
     title: 'Messages',
     text: 'The number on Analyze counts messages about your settings. Select it to read them. While Analyze is greyed out, something must be fixed before it can run, and the messages say what.',
     // On the Analyze button at either width, so it lives where that step does.
-    place: 'panel',
+    place: 'map',
+    reveal: 'messages',
+    frames: ['messages-list'],
   },
   {
     anchor: 'layers',

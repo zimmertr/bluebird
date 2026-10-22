@@ -93,6 +93,12 @@ export interface PanelMessages {
   pointsNeeded: number
   /** The selected window is one the archive answers, where no model applies. */
   modelDisabled: boolean
+  /**
+   * The list stands open whatever the badge says: the tutorial's Messages
+   * card holds it over its demonstration (`tour/demoMessages.ts`, #786).
+   * Never true from this hook.
+   */
+  held: boolean
 }
 
 /**
@@ -223,5 +229,6 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     areaTooLarge: gate.areaTooLarge,
     pointsNeeded,
     modelDisabled: source === 'archive',
+    held: false,
   }
 }

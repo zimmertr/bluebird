@@ -155,6 +155,17 @@ describe('PhoneFoot', () => {
     expect(screen.queryByRole('button', { name: /messages?$/ })).toBeNull()
   })
 
+  // The tutorial's Messages card holds the sheet open (#786) and frames it
+  // whole, and the sheet leaves the keyboard to the card, as the Layers sheet
+  // does for its own.
+  it('holds the sheet open for the tutorial under the anchor its card frames', () => {
+    const { rerender } = render(foot({ messages: panelMessages({ messages: MESSAGES, held: true }) }))
+    const sheet = screen.getByRole('dialog', { name: 'Messages' })
+    expect(sheet.closest('[data-tour="messages-list"]')).not.toBeNull()
+    rerender(foot({ messages: panelMessages({ messages: MESSAGES }) }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   // Every phone sheet opens over the button and leaves it alone (TJ,
   // 2026-10-21; record 0207): the same element where it stood, neither inert
   // nor greyed, while the sheet holds the keyboard. The sheet's dim and its

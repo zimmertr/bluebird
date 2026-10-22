@@ -51,10 +51,12 @@ describe('poiPopupHtml', () => {
     const [primary, secondary, danger] = (['primary', 'secondary', 'danger'] as const).map((v) =>
       popupButton('data-x', v, 'Go'),
     )
-    const look = (html: string) => html.replace(/background:[^;]+;color:[^;"]+/, '')
+    // The variant's name and its two colours are what differ.
+    const look = (html: string) =>
+      html.replace(/background:[^;]+;color:[^;"]+/, '').replace(/data-popup-button="\w+"/, '')
     expect(look(primary)).toBe(look(secondary))
     expect(look(primary)).toBe(look(danger))
-    expect(primary).toContain('<button data-x style="')
+    expect(primary).toContain('<button data-x data-popup-button="primary" style="')
     expect(popupButton('data-x', 'danger', 'Go', 'margin-top:6px')).toMatch(/;margin-top:6px">Go<\/button>$/)
   })
 

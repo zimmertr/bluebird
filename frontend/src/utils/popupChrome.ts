@@ -262,12 +262,17 @@ export function updatedAt(ms: number | null | undefined): string | null {
  * handler finds the button by, written whole (`data-rm`, or
  * `data-poi-action="add"`); `extra` is appended last, as `popupLink`'s is, for
  * the one button that sits under rows and needs a margin above it.
+ *
+ * Each fill is a `--popup-*` value the button reads inline, and `map.css`
+ * steps it to its hover value on the hovered or pressed button
+ * (`data-popup-button`), so a popup's buttons answer the pointer as the
+ * app's do (#786); an inline fill alone cannot answer a hover.
  */
 export type PopupButtonVariant = 'primary' | 'secondary' | 'danger'
 const POPUP_BUTTON_LOOK: Record<PopupButtonVariant, string> = {
   primary: 'background:var(--popup-primary);color:#fff',
   secondary: 'background:var(--popup-secondary);color:var(--popup-secondary-ink)',
-  danger: 'background:#ef4444;color:#fff',
+  danger: 'background:var(--popup-danger);color:#fff',
 }
 export function popupButton(
   attr: string,
@@ -275,7 +280,7 @@ export function popupButton(
   label: string,
   extra = '',
 ): string {
-  return `<button ${attr} style="border:none;padding:5px 12px;border-radius:4px;cursor:pointer;${POPUP_BODY_SIZE};font-family:sans-serif;font-weight:600;${POPUP_BUTTON_LOOK[variant]}${extra ? ';' + extra : ''}">${label}</button>`
+  return `<button ${attr} data-popup-button="${variant}" style="border:none;padding:5px 12px;border-radius:4px;cursor:pointer;${POPUP_BODY_SIZE};font-family:sans-serif;font-weight:600;transition:background-color 150ms;${POPUP_BUTTON_LOOK[variant]}${extra ? ';' + extra : ''}">${label}</button>`
 }
 
 /**

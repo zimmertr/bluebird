@@ -62,7 +62,11 @@
   --popup-glyph: var(--ui-ink-soft);
   --popup-glyph-hover: var(--ui-accent-ink);
   --popup-primary: var(--ui-accent);
+  --popup-primary-hover: var(--ui-accent-hover);
   --popup-secondary: var(--ui-raised-hover);
+  --popup-secondary-hover: color-mix(in oklab, var(--ui-raised-hover) 50%, var(--ui-edge));
+  --popup-danger: #ef4444;
+  --popup-danger-hover: #dc2626;
   --popup-secondary-ink: var(--ui-ink);
   --popup-thumb: var(--ui-edge-lifted);
   --popup-close: var(--ui-ink-mid);
@@ -86,7 +90,11 @@
   --popup-glyph: #475569;
   --popup-glyph-hover: #0284c7;
   --popup-primary: #0284c7;
+  --popup-primary-hover: #0369a1;
   --popup-secondary: #334155;
+  --popup-secondary-hover: #475569;
+  --popup-danger: #ef4444;
+  --popup-danger-hover: #dc2626;
   --popup-secondary-ink: #e2e8f0;
   --popup-thumb: #64748b;
   --popup-close: #475569;
@@ -138,6 +146,34 @@
     text-decoration: underline;
     text-decoration-color: var(--popup-label);
   }
+}
+
+/* A popup's buttons answer the pointer as the app's do (#786): under a
+   hovering pointer, and under a pressing finger, each variant's fill steps to
+   its hover value, set on the button where its inline fill reads it
+   (`popupButton`). A white label's fill darkens, which gains contrast, save
+   the dark card's accent, which lightens to the panel's own Analyze hover;
+   the dark card's grey lightens halfway to the edge step, as far as its label
+   keeps AA. */
+@media (hover: hover) {
+  .maplibregl-popup [data-popup-button="primary"]:hover {
+    --popup-primary: var(--popup-primary-hover);
+  }
+  .maplibregl-popup [data-popup-button="secondary"]:hover {
+    --popup-secondary: var(--popup-secondary-hover);
+  }
+  .maplibregl-popup [data-popup-button="danger"]:hover {
+    --popup-danger: var(--popup-danger-hover);
+  }
+}
+.maplibregl-popup [data-popup-button="primary"]:active {
+  --popup-primary: var(--popup-primary-hover);
+}
+.maplibregl-popup [data-popup-button="secondary"]:active {
+  --popup-secondary: var(--popup-secondary-hover);
+}
+.maplibregl-popup [data-popup-button="danger"]:active {
+  --popup-danger: var(--popup-danger-hover);
 }
 
 /* The scheme is said for the card so the browser draws its native chrome for

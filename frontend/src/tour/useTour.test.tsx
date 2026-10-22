@@ -69,19 +69,22 @@ describe('the tour hands the keyboard back', () => {
   })
 })
 
-// The Messages card points at the count on the Analyze button, which is
-// drawn only while there is something to count, so a tour that starts with
-// nothing to say skips it, the way it skips any step whose control is absent
-// (#786).
+// The Messages card runs on a demonstration (#786), so it stands in every
+// tour whether or not the reader has a message, and holds the list open for
+// its own step alone.
 describe('the Messages card', () => {
-  it('stands in the tour only while the badge does', () => {
+  it('stands in every tour, and holds the list for its step alone', () => {
     const { result } = setup()
     act(() => result.current.start())
-    expect(result.current.steps.map((s) => s.anchor)).not.toContain('messages')
-    act(() => result.current.end())
-    append(document.createElement('button')).setAttribute(TOUR_ATTR, 'messages')
-    act(() => result.current.start())
-    expect(result.current.steps.map((s) => s.anchor)).toContain('messages')
+    const seen: [string, boolean][] = []
+    for (;;) {
+      const i = result.current.index
+      if (i === null) break
+      seen.push([result.current.steps[i].anchor, result.current.messagesHeld])
+      act(() => result.current.next())
+    }
+    expect(seen.filter(([, held]) => held)).toEqual([['messages', true]])
+    expect(result.current.messagesHeld).toBe(false)
   })
 })
 

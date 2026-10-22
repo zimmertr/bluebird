@@ -11,6 +11,7 @@ import metricsTableSource from '../components/MetricsTable.tsx?raw'
 import panelFooterSource from '../components/PanelFooter.tsx?raw'
 import phoneFootSource from '../components/PhoneFoot.tsx?raw'
 import messageBadgeSource from '../components/MessageBadge.tsx?raw'
+import messageListSource from '../components/MessageList.tsx?raw'
 import layersPopoverSource from '../components/LayersPopover.tsx?raw'
 import resultsSheetSource from '../components/ResultsSheet.tsx?raw'
 import timeSeriesChartSource from '../components/TimeSeriesChart.tsx?raw'
@@ -28,6 +29,7 @@ const SOURCES: Record<string, string> = {
   'PanelFooter.tsx': panelFooterSource,
   'PhoneFoot.tsx': phoneFootSource,
   'MessageBadge.tsx': messageBadgeSource,
+  'MessageList.tsx': messageListSource,
   'LayersPopover.tsx': layersPopoverSource,
   'ResultsSheet.tsx': resultsSheetSource,
   'TimeSeriesChart.tsx': timeSeriesChartSource,
@@ -72,6 +74,10 @@ describe('the tutorial steps', () => {
     expect(TOUR_STEPS.find((s) => s.anchor === 'layers')?.frames).toEqual(['layers-menu'])
   })
 
+  it('frames the message list with the count that opens it', () => {
+    expect(TOUR_STEPS.find((s) => s.anchor === 'messages')?.frames).toEqual(['messages-list'])
+  })
+
   it('carries the approved copy, in sentence case and without an em dash', () => {
     for (const step of TOUR_STEPS) {
       expect(step.text.endsWith('.'), step.anchor).toBe(true)
@@ -101,14 +107,14 @@ describe('the tutorial steps', () => {
     })
   })
 
-  it('names the four steps that bring their own target on screen', () => {
+  it('names the five steps that bring their own target on screen', () => {
     const reveals = Object.fromEntries(TOUR_STEPS.map((s) => [s.anchor, s.reveal]))
     expect(reveals).toEqual({
       destinations: undefined,
       forecast: undefined,
       metrics: undefined,
       analyze: undefined,
-      messages: undefined,
+      messages: 'messages',
       layers: 'layers',
       results: 'results',
       chart: 'chart',
@@ -118,7 +124,8 @@ describe('the tutorial steps', () => {
 
   // The Messages card's words, picked by the maintainer 2026-10-21 (#786). It
   // lights the badge on the Analyze button, which stands beside that step's
-  // control at either width.
+  // control at either width. A phone's Analyze is the map's button, so both
+  // steps lower the Controls sheet that would stand over it.
   it('carries the Messages card as approved, after Analyze and where it stands', () => {
     const i = TOUR_STEPS.findIndex((s) => s.anchor === 'messages')
     expect(TOUR_STEPS[i - 1].anchor).toBe('analyze')
@@ -127,6 +134,7 @@ describe('the tutorial steps', () => {
       'The number on Analyze counts messages about your settings. Select it to read them. While Analyze is greyed out, something must be fixed before it can run, and the messages say what.',
     )
     expect(TOUR_STEPS[i].place).toBe(TOUR_STEPS[i - 1].place)
+    expect(TOUR_STEPS[i].place).toBe('map')
   })
 
   // The Chart card's words, approved by the maintainer 2026-10-14.

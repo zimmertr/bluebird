@@ -71,6 +71,7 @@ import { controlsSummary } from './utils/controlsSummary'
 import { pendingDestinations } from './utils/customList'
 import { actionWord, retryStands } from './utils/analyzeGate'
 import { usePanelMessages } from './hooks/usePanelMessages'
+import { useDemoMessages } from './tour/demoMessages'
 import { checkNoticeDue } from './utils/fireProximity'
 import {
   panelCommitCues,
@@ -516,6 +517,15 @@ export default function App() {
     dismissEvent,
   })
 
+  // What the panel and the phone's map show: the reader's messages, or the
+  // tutorial's demonstration while its Messages card holds the list (#786).
+  const shownMessages = useDemoMessages(tour.messagesHeld, messages, {
+    aqiForecastDays: caps.aqiForecastDays,
+    archiveDays: caps.archiveDays,
+    maxAreaKm2: caps.maxPolygonAreaKm2,
+    windowLimits: caps.windowLimits,
+  })
+
   // A link that asks to run its analysis on open (`analyze=1`, #511).
   const { autoAnalyze, capsApplied, runAutoAnalyze } = useRunOnOpen({
     settled: caps.settled,
@@ -657,7 +667,7 @@ export default function App() {
         mapRef={mapRef}
         onPointAtSearch={setSearchPointed}
         onPointAtMapPois={setPoisPointed}
-        messages={messages}
+        messages={shownMessages}
         onAnalyze={handleAnalyze}
         autoAnalyze={autoAnalyze}
         capabilitiesSettled={capsApplied}
@@ -706,7 +716,7 @@ export default function App() {
           onOpenControls={openDrawer}
           onCloseControls={closeDrawer}
           controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
-          messages={messages}
+          messages={shownMessages}
           actionWord={word}
           onAnalyze={handleAnalyze}
           layersForcedOpen={tour.layersOpen}

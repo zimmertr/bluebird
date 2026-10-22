@@ -342,7 +342,11 @@ card is in the colour of the text around it, the way the results table's are:
 a grid number in the ink, the coordinates in the facts line's grey. It
 underlines on hover and keyboard focus at a desk, and on a touch screen it
 wears a thin underline at rest in the label grey (`[data-popup-link]` in
-`map.css`), as the table's links do (`LINK_QUIET`, record [0212](decisions/0212-links-underline-on-hover-and-touch.md)). The warning amber is the one colour both cards share,
+`map.css`), as the table's links do (`LINK_QUIET`, record [0212](decisions/0212-links-underline-on-hover-and-touch.md)).
+A card's buttons answer a hover and a press as the app's do: each fill is a
+`--popup-*` value the button reads inline, and `map.css` steps it to its
+`-hover` value on the hovered or pressed button (`data-popup-button`). Record:
+[0213](decisions/0213-popup-buttons-answer-the-pointer.md) The warning amber is the one colour both cards share,
 because on the dark card it clears AA. `styles.test.ts` measures every pair in
 both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 

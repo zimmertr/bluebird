@@ -75,8 +75,10 @@ export default function PanelFooter({
   // the button is the button's own (`ownPressRef`), so a blocked button can
   // toggle the list without the press-outside rule closing it first. The
   // card goes with the last message, since there is nothing left to list.
-  const { count, blocked } = messages
-  const [open, setOpen] = useState(false)
+  // The tutorial's Messages card holds it open (`messages.held`).
+  const { count, blocked, held } = messages
+  const [pressedOpen, setOpen] = useState(false)
+  const open = pressedOpen || held
   const badgeRef = useRef<HTMLButtonElement>(null)
   const slotRef = useRef<HTMLDivElement>(null)
   const { popoverRef, box, closing } = usePopover({
@@ -120,6 +122,7 @@ export default function PanelFooter({
           messages={messages.messages}
           onDismiss={messages.dismiss}
           card={{ box, popoverRef, closing }}
+          held={held}
         />
       )}
 

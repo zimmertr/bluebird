@@ -38,7 +38,7 @@ interface Props {
    * closed by the sheet's own ways out. A caller with a sheet hands its
    * popover hook a closed menu, so `box` is null.
    */
-  sheet?: { heading: string; onClose: () => void }
+  sheet?: { heading: string; onClose: () => void; tourAnchor?: string }
   children: ReactNode
 }
 
@@ -69,7 +69,7 @@ export default function Menu({ box, popoverRef, header, closing, sheet, children
   // list sheet ends on it: the calendar's well would stand cut off there.
   if (sheet) {
     return (
-      <BottomSheet heading={sheet.heading} onClose={sheet.onClose}>
+      <BottomSheet heading={sheet.heading} onClose={sheet.onClose} tourAnchor={sheet.tourAnchor}>
         <div className="flex flex-col pb-4">
           {header !== undefined && <div className={MENU.header}>{header}</div>}
           {children}

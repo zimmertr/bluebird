@@ -120,6 +120,16 @@ describe('PanelFooter', () => {
     expect(screen.queryByRole('button', { name: /messages?$/ })).toBeNull()
   })
 
+  // The tutorial's Messages card holds the list open over its demonstration
+  // (#786), under the anchor the card frames, and lets it go when it moves on.
+  it('holds the list open for the tutorial, and lets it go with the card', () => {
+    const { rerender } = render(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES, held: true }) })} />)
+    expect(list().getAttribute('data-tour')).toBe('messages-list')
+    expect(badge().getAttribute('aria-expanded')).toBe('true')
+    rerender(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES }) })} />)
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
+  })
+
   // A box that arrives already holding its text is not announced by most
   // screen readers, so the region is there before anything is said (#576),
   // and holds every message whether or not the list is open.

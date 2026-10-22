@@ -3519,6 +3519,31 @@ describe('the popup card', () => {
     expect(measure('var(--popup-close-hover)', 'var(--popup-close-hover-fill)', 'dark')).toBe(7.58)
   })
 
+  // And on the fill each steps to under a pointer or a finger (#786), which
+  // `map.css` sets on the button where its inline fill reads it.
+  it('reads every button label on its hover fill, and steps the fill on hover and press', () => {
+    const onHover = (variant: PopupButtonVariant, theme: Theme) => {
+      const [, , label] = popupButton('data-x', variant, 'Go').match(/background:([^;]+);color:([^;"]+)/)!
+      return measure(label, `var(--popup-${variant}-hover)`, theme)
+    }
+    expect((['primary', 'secondary', 'danger'] as const).map((v) => [onHover(v, 'dark'), onHover(v, 'light')])).toEqual([
+      // The dark accent's hover is the panel's own Analyze hover, 4.02:1 by
+      // design (record 0008); the light card's darkens to sky-700.
+      [4.02, 5.93],
+      // The dark grey lightens halfway to the edge step, as far as AA allows.
+      [4.89, 6.15],
+      // Red-600 under white in both.
+      [4.83, 4.83],
+    ])
+    for (const variant of ['primary', 'secondary', 'danger']) {
+      expect(popupButton('data-x', variant as PopupButtonVariant, 'Go')).toContain(`data-popup-button="${variant}"`)
+      const rule = String.raw`\.maplibregl-popup \[data-popup-button="${variant}"\]`
+      const body = String.raw` \{\s*--popup-${variant}: var\(--popup-${variant}-hover\);\s*\}`
+      expect(mapCss).toMatch(new RegExp(String.raw`@media \(hover: hover\) \{[^@]*${rule}:hover${body}`))
+      expect(mapCss).toMatch(new RegExp(rule + ':active' + body))
+    }
+  })
+
   // The ranked family's colours (#740) are the table's, so the dark card,
   // which stands on the table's own panel, reads every band's ink at the
   // ratios `colors.test.ts` pins. The light card is white where the light

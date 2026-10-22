@@ -59,9 +59,11 @@ export default function PhoneFoot({ fabBottomPx, onFabPx, analyzeEnabled, word, 
 
   // The sheet, open or shut: the badge opens it, and so does a press anywhere
   // on the button while a blocker greys it (the maintainer, 2026-10-21). It
-  // goes with the last message, since there is nothing left to list.
-  const { count, blocked } = messages
-  const [open, setOpen] = useState(false)
+  // goes with the last message, since there is nothing left to list. The
+  // tutorial's Messages card holds it open (`messages.held`).
+  const { count, blocked, held } = messages
+  const [pressedOpen, setOpen] = useState(false)
+  const open = pressedOpen || held
   useEffect(() => {
     if (count === 0) setOpen(false)
   }, [count])
@@ -94,7 +96,12 @@ export default function PhoneFoot({ fabBottomPx, onFabPx, analyzeEnabled, word, 
         <MessageRegion messages={messages.messages} />
       </div>
       {open && (
-        <MessageList messages={messages.messages} onDismiss={messages.dismiss} sheet={{ onClose: () => setOpen(false) }} />
+        <MessageList
+          messages={messages.messages}
+          onDismiss={messages.dismiss}
+          sheet={{ onClose: () => setOpen(false) }}
+          held={held}
+        />
       )}
     </>
   )

@@ -66,7 +66,17 @@ interface Props {
   card?: { box: PopoverBox; popoverRef: RefObject<HTMLDivElement | null>; closing: boolean }
   /** A phone: a bottom sheet headed Messages, closed by the sheet's own ways out. */
   sheet?: { onClose: () => void }
+  /**
+   * The tutorial's Messages card holds the list open and frames it (#786): a
+   * phone's sheet then leaves the keyboard to the tour's card, as the Layers
+   * sheet does for its card.
+   */
+  held?: boolean
 }
+
+// The tour anchor the list stands under: the group at a desk, and on a phone
+// the sheet as well, which the tour finds first and frames whole.
+const MESSAGES_LIST_ANCHOR = 'messages-list'
 
 // A sheet places itself, so `Menu` reads no ref for it.
 const NO_REF: RefObject<HTMLDivElement | null> = { current: null }
@@ -80,15 +90,25 @@ const NO_REF: RefObject<HTMLDivElement | null> = { current: null }
  * phone reader with four messages sees all four rather than the first and no
  * sign of the rest, which is the failure the band on the map's foot had.
  */
-export default function MessageList({ messages, onDismiss, card, sheet }: Props) {
+export default function MessageList({ messages, onDismiss, card, sheet, held = false }: Props) {
   return (
     <Menu
       box={card?.box ?? null}
       popoverRef={card?.popoverRef ?? NO_REF}
       closing={card?.closing ?? false}
-      sheet={sheet ? { heading: MESSAGES_HEADING, onClose: sheet.onClose } : undefined}
+      sheet={
+        sheet
+          ? { heading: MESSAGES_HEADING, onClose: sheet.onClose, tourAnchor: held ? MESSAGES_LIST_ANCHOR : undefined }
+          : undefined
+      }
     >
-      <div role="group" aria-label={MESSAGES_HEADING} className={sheet ? MESSAGE_LIST.sheet : MESSAGE_LIST.card}>
+      {/* The tutorial's Messages card frames the list with the badge. */}
+      <div
+        role="group"
+        aria-label={MESSAGES_HEADING}
+        className={sheet ? MESSAGE_LIST.sheet : MESSAGE_LIST.card}
+        data-tour="messages-list"
+      >
         {noticeBoxes(messages).map((box) => (
           <MessageBox key={box.severity} severity={box.severity} messages={box.messages} onDismiss={onDismiss} />
         ))}
