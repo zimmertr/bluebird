@@ -35,7 +35,7 @@ describe('pointCardHtml', () => {
   it('names two readings together, and opens each section on its own name', () => {
     const html = pointCardHtml([rain, snow])
     expect(text(html)).toBe(
-      `${BOTH_TITLE} NEXRAD radar|NOAA snow analysis ` +
+      `${BOTH_TITLE} NEXRAD radar·NOAA snow analysis ` +
         'Light precipitation Rate: ~0.02 in/h Reflectivity: 16.5 dBZ Updated: now ' +
         'Very deep snow Depth: 151 in Snow water equivalent: 83 in Updated: Oct 16, 2026, 5:00 AM',
     )

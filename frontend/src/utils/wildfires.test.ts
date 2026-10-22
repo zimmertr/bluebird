@@ -97,7 +97,7 @@ describe('wildfirePopupHtml', () => {
   // the size on the facts line, the containment under the band's edge.
   it('puts the kind and the size on the facts line and the containment in the body', () => {
     const html = wildfirePopupHtml({ poly_GISAcres: 5649, attr_PercentContained: 0 }, NIFC)
-    expect(textOf(html)).toContain('Wildfire|5,649 acres')
+    expect(textOf(html)).toContain('Wildfire·5,649 acres')
     expect(html.indexOf('0% contained')).toBeGreaterThan(html.indexOf('data-popup-body'))
     expect(html.indexOf('5,649 acres')).toBeLessThan(html.indexOf('data-popup-body'))
   })

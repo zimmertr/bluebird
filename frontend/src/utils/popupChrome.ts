@@ -730,8 +730,8 @@ export interface PopupCard {
  * and the step also narrows the widest row, which is what lets the card itself
  * be narrower.
  *
- * The band's top corners are the card's 8px less its 1px edge
- * (`POPUP_FACE`), so the band's fill meets the edge without a gap.
+ * The band's top corners are the card's 8px (`POPUP_FACE`), so its fill meets
+ * the card's corners without a gap.
  *
  * The card draws its own padding (`map.css` zeroes MapLibre's for
  * `.popup-card`), so the band can run edge to edge and the grid can stand 10px
@@ -756,7 +756,7 @@ export function popupCard({ title, link = null, meta = '', warnings = [], body =
     ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
     : ''
   return `<div style="${POPUP_LEADING}">
-    <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:7px 7px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
+    <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
       <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}</div>
       ${meta}
     </div>${notice}${content}${

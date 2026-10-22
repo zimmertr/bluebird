@@ -468,8 +468,14 @@ export const SURFACE_CHIP_CARD = {
  * 3px corners and faint shadow sit in the base layer and lose to these
  * utilities. A popup wore those until #796 and was the one floating card
  * that did not read as the app's (record 0222).
+ *
+ * The edge is a 1px ring outside the box rather than a border inside it: the
+ * ranked card's cap (`RESULT_POPUP_MAX_WIDTH_PX`) holds its widest grid to
+ * the pixel, and a border took 2px of that room, so a two-digit total
+ * scrolled on a 360px phone. A ring composes with the shadow and draws the
+ * same line a card's border does.
  */
-export const POPUP_FACE = `border border-edge ${RADIUS.surface} ${ELEVATION.overlay}`
+export const POPUP_FACE = `ring-1 ring-edge ${RADIUS.surface} ${ELEVATION.overlay}`
 
 /**
  * The accent, named by the jobs it does, because it does six.

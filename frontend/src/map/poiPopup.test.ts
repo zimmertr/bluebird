@@ -55,11 +55,16 @@ vi.mock('maplibre-gl', () => ({
     }
     getElement() {
       return {
-        querySelector: () => ({
-          addEventListener: (_type: string, fn: () => void) => {
-            this.state.press = fn
-          },
-        }),
+        // The library's content box, which takes the app's card (POPUP_FACE),
+        // and otherwise the one button a popup arms.
+        querySelector: (selector: string) =>
+          selector === '.maplibregl-popup-content'
+            ? { classList: { add: () => {} } }
+            : {
+                addEventListener: (_type: string, fn: () => void) => {
+                  this.state.press = fn
+                },
+              },
       }
     }
   },
