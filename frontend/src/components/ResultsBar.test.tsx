@@ -172,13 +172,17 @@ describe('ResultsBar', () => {
   })
 
   // At a desk the bar is the results' top, where they meet the map, and wears
-  // the panel's edge there (record 0220); a phone's sheet draws its own top.
-  it('edges the bar\'s top where it meets the map at a desk, and not in a sheet', () => {
+  // the panel's edge there (record 0220). Neither side rules its foot, where
+  // the grip draws one; a sheet draws its own top.
+  it('edges the bar\'s top where it meets the map at a desk, and rules no foot', () => {
     const { container, rerender } = render(<ResultsBar {...props()} />)
     const bar = () => (container.firstElementChild as HTMLElement).className.split(' ')
     expect(bar()).toEqual(expect.arrayContaining(['border-t', PANEL_EDGE]))
+    expect(bar()).not.toContain('border-b')
+    expect(bar()).not.toContain('border-frame')
     rerender(<ResultsBar {...props({ sheet: true })} />)
     expect(bar()).not.toContain('border-t')
+    expect(bar()).not.toContain('border-b')
   })
 
   it('puts no divider before the first button, whichever stand', () => {

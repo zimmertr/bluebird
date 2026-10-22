@@ -13,11 +13,11 @@ The panel wears `PANEL_EDGE` down its right edge, where it meets the map and the
 
 ## Decision
 
-At a desk the results bar, the top of the docked results, wears `border-t` in `PANEL_EDGE`. A phone's sheet draws its own top and takes none.
+At a desk the results bar, the top of the docked results, wears `border-t` in `PANEL_EDGE`. On neither side does it rule its foot, where the grip under it draws one. A phone's sheet draws its own top and takes no edge.
 
 ## Evidence
 
-The colours above, from `index.css`, 2026-10-22. The edge adds 1px to the bar, which `useResultsLayout` measures (`barRef`), so the map's floor counts it; the one-line estimate, `RESULTS_BAR_PX`, was measured at 35px and rounded up to 36, which still holds.
+The colours above, from `index.css`, 2026-10-22. On the preview of PR #796 the bar first kept its foot's `border-frame` beside the new edge: a border colour sets every side, so the top rendered in the frame's `rgb(154,160,168)` rather than the edge's `rgb(114,120,127)`, and the foot stood on the grip's own top rule, a 2px line, at a desk and on a phone alike (`getComputedStyle`, light theme, 1389px and 500px wide, 2026-10-22). Moving the bar's one rule from its foot to its top keeps it 35px, so the one-line estimate, `RESULTS_BAR_PX` at 36, still holds.
 
 ## Alternatives rejected
 

@@ -177,7 +177,7 @@ export const PLAYER_ROOM_PX = FAB_GAP_PX + TRANSPORT_HEIGHT_PX
 /**
  * The results bar above the docked panels: the mode segment, the row count and
  * the export links. Measured in Chrome at 1440x1000, 2026-09-14 (35px) and
- * rounded up, which still holds since #795 gave the bar a 1px top edge. The sheet's own header is taller and is `SHEET_HEADER_PX`; this
+ * rounded up. The sheet's own header is taller and is `SHEET_HEADER_PX`; this
  * is the docked half of the same bar, with no grab handle and no sheet border.
  *
  * One line, which is the bar wherever it is 896px wide or more. It is the
