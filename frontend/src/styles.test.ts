@@ -1979,17 +1979,38 @@ describe('status and notices', () => {
     expect(NOTICE_DISMISS.row).toContain('py-1.5')
   })
 
-  // The message and its X are centred against each other. On a coarse pointer
-  // the button is 44px and the message is one line, so the text sits level with
-  // the disc rather than at the top of a target three times its height; the
-  // offset that used to pin the X to a wrapped message's first line is gone
-  // with the wrap it existed for.
+  // The message and its X are centred against each other, so the text sits
+  // level with the disc; the offset that used to pin the X to a wrapped
+  // message's first line is gone with the wrap it existed for.
   it('sets the message level with the X it carries', () => {
     expect(NOTICE_DISMISS.row).toContain('items-center')
     expect(NOTICE_DISMISS.button).not.toContain('self-start')
-    // No UNPREFIXED negative margin: the one the button carries is the
+    // No unprefixed sideways margin: the one the button carries is the
     // coarse-pointer overlay below, and a mouse must not inherit it.
-    expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)-m[trblxy]?-/)
+    expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)-m[lrx]?-/)
+  })
+
+  // A box with an X stands exactly as tall as one without (the maintainer,
+  // 2026-10-21 on PR #789): the button's negative block margins hand back
+  // everything past the message's line, the disc's overhang on a mouse and the
+  // 44px target's on touch, so the row is the line and its padding. The
+  // browser suite's `messages.spec.ts` measures the boxes themselves.
+  it('stands a box with an X as tall as one without', () => {
+    const rem = (name: string) => {
+      const value = palette.match(new RegExp(String.raw`--${name}:\s*([\d.]+)rem;`))
+      return Number(value![1]) * 16
+    }
+    const ratio = palette.match(/--text-xs--line-height:\s*calc\(1 \/ ([\d.]+)\);/)
+    for (const recipe of Object.values(NOTICE)) expect(recipe.split(' ')).toContain('text-xs')
+    const line = rem('text-xs') / Number(ratio![1])
+    expect(line).toBe(16)
+    const step = (recipe: string, cls: RegExp) => Number(recipe.match(cls)![1]) * 4
+    const disc = step(NOTICE_DISMISS.pill, /(?<![-\w])h-(\d+)(?:\s|$)/)
+    const target = step(TAP.action, /touch:min-h-(\d+)/)
+    const mouse = Number(NOTICE_DISMISS.button.match(/(?:^|\s)-my-([\d.]+)(?:\s|$)/)![1]) * 4
+    const touch = Number(NOTICE_DISMISS.button.match(/(?:^|\s)touch:-my-([\d.]+)(?:\s|$)/)![1]) * 4
+    expect(disc - 2 * mouse).toBe(line)
+    expect(target - 2 * touch).toBe(line)
   })
 
   // The 44px target and the 20px disc differ by 24px, and that difference used
@@ -2036,12 +2057,30 @@ describe('the results table rank cell', () => {
     expect(STYLES.TABLE.cell.split(' ')).toContain('px-2')
   })
 
-  // A touch screen has no hover, so a linked value is underlined at rest, as
-  // the marker popup's numbers are (`popupLink`'s text-decoration).
-  it('underlines a linked value at rest, the way the popup does', () => {
-    const cls = STYLES.TABLE.valueLink.split(' ')
-    expect(cls).toContain('underline')
-    expect(cls.some((c) => c.startsWith('hover:'))).toBe(false)
+  // A link in the table reads in its text's colour (#786, record 0212): no
+  // underline at rest at a desk, one on hover and on keyboard focus, and on a
+  // touch screen, which has no hover, a thin one at rest in the secondary ink
+  // so a finger can find it. The marker popup's links read the same way.
+  it('underlines a table link on hover and focus, and at rest on touch only', () => {
+    const cls = STYLES.LINK_QUIET.split(' ')
+    expect(cls).toEqual(expect.arrayContaining(['hover:underline', 'focus-visible:underline', 'touch:underline', 'touch:decoration-ink-soft', 'cursor-pointer']))
+    expect(cls).not.toContain('underline')
+    // The text's own colour: no ink of its own, so a ranked value keeps the
+    // band's and a name the row's.
+    expect(cls.some((c) => /^text-/.test(c))).toBe(false)
+    expect('valueLink' in STYLES.TABLE).toBe(false)
+  })
+
+  // The popup's links say the same through `map.css`, since an inline style
+  // cannot answer a hover, and its link-out glyph rests in the same grey and
+  // takes the accent on hover and focus.
+  it('gives the popup\'s links and glyph the table\'s hover, focus and touch rules', () => {
+    expect(mapCss).toMatch(/\.maplibregl-popup \[data-popup-link\] \{\s*text-decoration: none;/)
+    expect(mapCss).toMatch(/\.maplibregl-popup \[data-popup-link\]:focus-visible \{\s*text-decoration: underline;/)
+    expect(mapCss).toMatch(/@media \(hover: hover\) \{\s*\.maplibregl-popup \[data-popup-link\]:hover \{\s*text-decoration: underline;/)
+    expect(mapCss).toMatch(/@media \(hover: none\) \{\s*\.maplibregl-popup \[data-popup-link\] \{\s*text-decoration: underline;\s*text-decoration-color: var\(--popup-label\);/)
+    expect(mapCss).toMatch(/\.maplibregl-popup \[data-popup-glyph\]:focus-visible \{\s*--popup-glyph: var\(--popup-glyph-hover\);/)
+    expect(mapCss).toMatch(/\.maplibregl-popup \[data-popup-glyph\]:hover \{\s*--popup-glyph: var\(--popup-glyph-hover\);/)
   })
 
   // The tutorial's spotlight lit a section with a scroll shade lying across
@@ -3408,7 +3447,10 @@ describe('the popup card', () => {
     // The title on its band, and a grid number, which links in the ink (#740),
     // on its column and on the ranked cell.
     expect([HEADER_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, 'light'))).toEqual([19.17, 17.03])
-    expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'light')).toBe(3.74)
+    // The link-out glyph rests in the label grey and takes the accent on
+    // hover (#786, record 0212); both owe an icon's 3:1 on the band.
+    expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'light')).toBe(6.92)
+    expect(measure('var(--popup-glyph-hover)', HEADER_BAND_COLOR, 'light')).toBe(3.74)
     // The pipes are decoration, hidden from a screen reader; they need only show.
     expect(measure(FINE_COLOR, HEADER_BAND_COLOR, 'light')).toBe(2.34)
     // The warning amber sits under AA on white by the maintainer's choice (TJ
@@ -3441,8 +3483,21 @@ describe('the popup card', () => {
 
   // The link-out glyph and the scroll bar's thumb owe 3:1.
   it('keeps the dark glyph and thumb above the 3:1 a graphic owes', () => {
-    expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'dark')).toBe(5.69)
+    expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'dark')).toBe(4.71)
+    expect(measure('var(--popup-glyph-hover)', HEADER_BAND_COLOR, 'dark')).toBe(5.69)
     expect(measure('var(--popup-thumb)', GRID_BAND_COLOR, 'dark')).toBe(4.71)
+  })
+
+  // On a touch screen a link's underline rests in the label grey (#786,
+  // record 0212). It is the one cue that marks the link there, so it owes 3:1
+  // on every surface a link stands on: the card, the grid's band and its
+  // ranked cell.
+  it('keeps the touch underline above 3:1 wherever a popup link stands', () => {
+    const ratios = (['dark', 'light'] as const).map((theme) =>
+      [SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure('var(--popup-label)', on, theme)),
+    )
+    expect(ratios[0]).toEqual([5.56, 4.71, 3.94])
+    expect(ratios[1]).toEqual([7.58, 6.92, 6.15])
   })
 
   // The fine print steps back as far as the light card's does (2.98:1 on

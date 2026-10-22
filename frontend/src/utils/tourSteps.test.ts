@@ -10,6 +10,7 @@ import forecastSectionSource from '../components/ForecastSection.tsx?raw'
 import metricsTableSource from '../components/MetricsTable.tsx?raw'
 import panelFooterSource from '../components/PanelFooter.tsx?raw'
 import phoneFootSource from '../components/PhoneFoot.tsx?raw'
+import messageBadgeSource from '../components/MessageBadge.tsx?raw'
 import layersPopoverSource from '../components/LayersPopover.tsx?raw'
 import resultsSheetSource from '../components/ResultsSheet.tsx?raw'
 import timeSeriesChartSource from '../components/TimeSeriesChart.tsx?raw'
@@ -26,6 +27,7 @@ const SOURCES: Record<string, string> = {
   'MetricsTable.tsx': metricsTableSource,
   'PanelFooter.tsx': panelFooterSource,
   'PhoneFoot.tsx': phoneFootSource,
+  'MessageBadge.tsx': messageBadgeSource,
   'LayersPopover.tsx': layersPopoverSource,
   'ResultsSheet.tsx': resultsSheetSource,
   'TimeSeriesChart.tsx': timeSeriesChartSource,
@@ -41,8 +43,8 @@ const occurrences = (anchor: string): string[] =>
   })
 
 describe('the tutorial steps', () => {
-  it('has eight steps, each with a distinct anchor', () => {
-    expect(TOUR_STEPS).toHaveLength(8)
+  it('has nine steps, each with a distinct anchor', () => {
+    expect(TOUR_STEPS).toHaveLength(9)
     expect(new Set(TOUR_STEPS.map((s) => s.anchor)).size).toBe(TOUR_STEPS.length)
   })
 
@@ -80,7 +82,7 @@ describe('the tutorial steps', () => {
 
   it('walks the panel top to bottom, then the map, then the results', () => {
     const anchors = TOUR_STEPS.map((s) => s.anchor)
-    expect(anchors).toEqual(['destinations', 'forecast', 'metrics', 'analyze', 'layers', 'results', 'chart', 'marker'])
+    expect(anchors).toEqual(['destinations', 'forecast', 'metrics', 'analyze', 'messages', 'layers', 'results', 'chart', 'marker'])
     expect(TOUR_STEPS[0].text).toMatch(/^Provide a list of destinations to compare by .*, or drawing a polygon/)
   })
 
@@ -91,6 +93,7 @@ describe('the tutorial steps', () => {
       forecast: 'section',
       metrics: 'section',
       analyze: 'box',
+      messages: 'control',
       layers: 'control',
       results: 'box',
       chart: 'box',
@@ -105,11 +108,25 @@ describe('the tutorial steps', () => {
       forecast: undefined,
       metrics: undefined,
       analyze: undefined,
+      messages: undefined,
       layers: 'layers',
       results: 'results',
       chart: 'chart',
       marker: 'marker',
     })
+  })
+
+  // The Messages card's words, picked by the maintainer 2026-10-21 (#786). It
+  // lights the badge on the Analyze button, which stands beside that step's
+  // control at either width.
+  it('carries the Messages card as approved, after Analyze and where it stands', () => {
+    const i = TOUR_STEPS.findIndex((s) => s.anchor === 'messages')
+    expect(TOUR_STEPS[i - 1].anchor).toBe('analyze')
+    expect(TOUR_STEPS[i].title).toBe('Messages')
+    expect(TOUR_STEPS[i].text).toBe(
+      'The number on Analyze counts messages about your settings. Select it to read them. While Analyze is greyed out, something must be fixed before it can run, and the messages say what.',
+    )
+    expect(TOUR_STEPS[i].place).toBe(TOUR_STEPS[i - 1].place)
   })
 
   // The Chart card's words, approved by the maintainer 2026-10-14.

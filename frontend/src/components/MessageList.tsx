@@ -9,10 +9,11 @@ import { type FooterMessage, type NoticeSeverity, blockerOf, noticeBoxes } from 
 export const MESSAGES_HEADING = 'Messages'
 
 /**
- * One message in a box, with its × unless it is a blocker: a blocker is the
- * field's state, standing inline beside the field as well, and a dismissed
- * one would leave a greyed button with nothing to say for itself (record
- * 0208). Which dismissal the × triggers is `utils/notices.ts`'s.
+ * One message in a box, with its × unless it is a blocker: a blocker stands
+ * until the reader supplies what it asks, and a dismissed one would leave a
+ * greyed button with nothing to say for itself (record 0208). A row with an ×
+ * is as tall as one without (`NOTICE_DISMISS`). Which dismissal the ×
+ * triggers is `utils/notices.ts`'s.
  */
 function MessageRow({ message, onDismiss }: { message: FooterMessage; onDismiss: () => void }) {
   return (

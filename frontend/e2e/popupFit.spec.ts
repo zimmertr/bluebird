@@ -31,7 +31,9 @@ async function openMarkerCard(page: Page) {
   await page.goto('/tutorial')
   const heading = page.locator('[data-tour-card]').getByRole('heading')
   await expect(heading).toHaveText('Destinations')
-  for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight')
+  // Eight cards before Markers, the Messages card among them: a page with
+  // nothing named has its blocker to count.
+  for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight')
   await expect(heading).toHaveText('Markers')
   await expect(page.locator('.maplibregl-popup [data-popup-body] table')).toBeVisible()
 }

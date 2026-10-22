@@ -1,5 +1,5 @@
 import { test, expect, drawRing, expectRanked, message, resultRows, DESTINATION_NAMES } from './fixtures'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 // The Analyze button counts the panel's messages in a badge at its corner and
 // opens the one list that holds them (#786; record 0208): a card over the
@@ -16,6 +16,23 @@ const badge = (page: Page) => page.getByRole('button', { name: /^\d+ messages?$/
 const count = async (page: Page) =>
   (await badge(page).count()) === 0 ? 0 : Number((await badge(page).getAttribute('aria-label'))!.split(' ')[0])
 const list = (page: Page) => page.getByRole('group', { name: 'Messages' })
+
+// A message's row is its line of text and its padding, × or not, so a box
+// with an × stands as tall as one without (the maintainer, 2026-10-21 on PR
+// #789): the × overhangs its row rather than growing it. Read off the live
+// page, from the text's own box and the row's computed padding.
+async function expectRowFitsItsLine(text: Locator) {
+  const m = await text.evaluate((span) => {
+    const row = span.parentElement!
+    const style = getComputedStyle(row)
+    return {
+      row: row.getBoundingClientRect().height,
+      line: span.getBoundingClientRect().height,
+      padding: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom),
+    }
+  })
+  expect(m.row).toBeCloseTo(m.line + m.padding, 1)
+}
 
 test.describe('at a desk', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
@@ -53,6 +70,7 @@ test.describe('at a desk', () => {
     // The blocker has no ×; a dismissable line would.
     const row = list(page).getByText(NO_DESTINATION).locator('..')
     await expect(row.getByRole('button', { name: 'Dismiss notice' })).toHaveCount(0)
+    await expectRowFitsItsLine(list(page).getByText(NO_DESTINATION))
     const card = (await list(page).locator('..').boundingBox())!
     const button = (await analyze.boundingBox())!
     expect(card.width).toBeGreaterThanOrEqual(button.width - 0.5)
@@ -86,6 +104,7 @@ test.describe('at a desk', () => {
     await expect(badge(page)).toHaveAttribute('aria-label', `${before + 1} message${before + 1 === 1 ? '' : 's'}`)
     await badge(page).click()
     await expect(list(page).getByText(CUE)).toBeVisible()
+    await expectRowFitsItsLine(list(page).getByText(CUE))
     await list(page).getByText(CUE).locator('..').getByRole('button', { name: 'Dismiss notice' }).click()
     await expect(list(page).getByText(CUE)).toHaveCount(0)
     if (before === 0) {
@@ -125,6 +144,7 @@ for (const [width, height] of [
       await expect(sheet).toBeVisible()
       await expect(sheet.getByText(NO_DESTINATION)).toBeVisible()
       await expect(sheet.getByRole('button', { name: 'Dismiss notice' })).toHaveCount(0)
+      await expectRowFitsItsLine(sheet.getByText(NO_DESTINATION))
       await sheet.getByRole('button', { name: 'Done' }).tap()
       await expect(sheet).toHaveCount(0)
       // And the badge itself.
@@ -148,7 +168,13 @@ for (const [width, height] of [
       await badge(page).tap()
       const sheet = page.getByRole('dialog', { name: 'Messages' })
       await expect(sheet.getByText(CUE)).toBeVisible()
-      await sheet.getByText(CUE).locator('..').getByRole('button', { name: 'Dismiss notice' }).tap()
+      // As tall as a blocker's row, and still a full-size target for a finger.
+      await expectRowFitsItsLine(sheet.getByText(CUE))
+      const dismiss = sheet.getByText(CUE).locator('..').getByRole('button', { name: 'Dismiss notice' })
+      const target = (await dismiss.boundingBox())!
+      expect(target.width).toBeGreaterThanOrEqual(44)
+      expect(target.height).toBeGreaterThanOrEqual(44)
+      await dismiss.tap()
       await expect(sheet.getByText(CUE)).toHaveCount(0)
       if (before === 0) {
         await expect(sheet).toHaveCount(0)

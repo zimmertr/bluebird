@@ -59,7 +59,8 @@
   --popup-shadow: rgba(2, 6, 23, 0.5);
   --popup-label: var(--ui-ink-soft);
   --popup-fine: var(--ui-ink-faint);
-  --popup-glyph: var(--ui-accent-ink);
+  --popup-glyph: var(--ui-ink-soft);
+  --popup-glyph-hover: var(--ui-accent-ink);
   --popup-primary: var(--ui-accent);
   --popup-secondary: var(--ui-raised-hover);
   --popup-secondary-ink: var(--ui-ink);
@@ -82,7 +83,8 @@
   --popup-shadow: rgba(15, 23, 42, 0.08);
   --popup-label: #475569;
   --popup-fine: #94a3b8;
-  --popup-glyph: #0284c7;
+  --popup-glyph: #475569;
+  --popup-glyph-hover: #0284c7;
   --popup-primary: #0284c7;
   --popup-secondary: #334155;
   --popup-secondary-ink: #e2e8f0;
@@ -103,6 +105,39 @@
 }
 :root[data-theme="light"] .maplibregl-popup [data-tint] {
   --popup-tint: var(--tint-light);
+}
+
+/* A link in a card reads as the results table's do (#786, record 0212; the
+   table's are `LINK_QUIET`): the colour of the text around it, which
+   `popupLink` says inline, no underline at rest at a desk, one on hover and
+   on keyboard focus, and on a touch screen, where nothing hovers, a thin one
+   at rest in the label grey so a finger can find it. The link-out glyph rests
+   in the same grey and takes the accent on hover and focus, by setting the
+   value its own inline colour reads. Rules here because an inline style
+   cannot answer a hover. */
+.maplibregl-popup [data-popup-link] {
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+.maplibregl-popup [data-popup-link]:focus-visible {
+  text-decoration: underline;
+}
+.maplibregl-popup [data-popup-glyph]:focus-visible {
+  --popup-glyph: var(--popup-glyph-hover);
+}
+@media (hover: hover) {
+  .maplibregl-popup [data-popup-link]:hover {
+    text-decoration: underline;
+  }
+  .maplibregl-popup [data-popup-glyph]:hover {
+    --popup-glyph: var(--popup-glyph-hover);
+  }
+}
+@media (hover: none) {
+  .maplibregl-popup [data-popup-link] {
+    text-decoration: underline;
+    text-decoration-color: var(--popup-label);
+  }
 }
 
 /* The scheme is said for the card so the browser draws its native chrome for

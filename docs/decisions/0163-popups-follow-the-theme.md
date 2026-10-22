@@ -1,6 +1,6 @@
 # 0163. The map popups follow the theme: dark cards in the dark theme, white in the light
 
-- Status: Accepted. Supersedes the popup clause of 0158.
+- Status: Accepted. Amended by 0212: a link underlines on hover and focus, and faintly at rest on touch, and the link-out glyph rests in the label grey. Supersedes the popup clause of 0158.
 - Date: 2026-10-16
 - Decider: the maintainer (TJ), on PR #744, 2026-10-16: option B of #740, the dark palette, links in the colour of the text around them, and the ranked family in the table's colours
 - Issues and PRs: #740, #744, #738, #741, #706, #739

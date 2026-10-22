@@ -137,21 +137,23 @@ describe('the popup grid', () => {
     expect(html.split(`;background:${GRID_RANKED_COLOR}`)).toHaveLength(2)
   })
 
-  // A link is underlined in the colour of the text around it, as the table's
-  // numbers are (TJ, 2026-10-16, #740): a grid number in the card's ink, the
-  // coordinates in the facts line's grey. Sky stays on the title's glyph.
-  it('underlines a link in the colour of the text around it', () => {
+  // A link reads in the colour of the text around it, as the table's numbers
+  // do (TJ, 2026-10-16, #740): a grid number in the card's ink, the
+  // coordinates in the facts line's grey. Its underline is `map.css`'s, on
+  // the attribute, which answers a hover and a touch screen (#786).
+  it('marks a link in the colour of the text around it, for the stylesheet to underline', () => {
     const html = metricGrid({
       columns: [AGGREGATE.minimum],
       rows: [{ kind: 'aggregates', label: 'Wind (mph)', cells: [{ text: '3.2', href: 'https://example.com', ranked: false }] }],
     })
     const link = mount(html).querySelector('td a')!
     expect(link.closest('td')!.getAttribute('style')).not.toMatch(/(^|;)color:/)
-    expect(link.getAttribute('style')).toMatch(/^color:inherit;text-decoration:underline;/)
+    expect(link.hasAttribute('data-popup-link')).toBe(true)
+    expect(link.getAttribute('style')).toBe('color:inherit;')
     const facts = metaBand([factsRow('Peak', null, 47.5, -121.7, 'https://example.com')])
     // The band's own tag carries the label grey the coordinates inherit.
     expect(facts.slice(0, facts.indexOf('>'))).toContain(LABEL_COLOR)
-    expect(facts).toMatch(/<a [^>]*style="color:inherit;text-decoration:underline;"/)
+    expect(facts).toMatch(/<a data-popup-link [^>]*style="color:inherit;"/)
   })
 
   it('stands a one-value line across Min, Max and Avg and leaves Total empty', () => {

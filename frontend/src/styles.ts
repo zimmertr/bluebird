@@ -191,10 +191,22 @@ export const PROSE = {
  * the dimmest step that keeps every link in the app readable — several of
  * these sat at 3.1:1 by inheriting the prose around them.
  *
- * `LINK_ACTION` is for a link inside the content itself, where following it is
- * the point rather than a footnote: today, the results table's destination
- * names. Keeping that the only thing wearing sky at rest is what lets sky mean
- * one thing across the app.
+ * `LINK_ACTION` is a command that stands as words rather than as a button: a
+ * menu's Reset all, Restore all and Remove all, and a sheet's Done. Sky at rest
+ * says a thing acts, so it is kept to commands. The results table's
+ * destination names wore it until #786, and read as text now (`LINK_QUIET`).
+ *
+ * `LINK_QUIET` is a link inside the content itself, in the colour of the text
+ * it stands in: the results table's names, a linked value and a footnote mark
+ * (the maintainer, 2026-10-21 on PR #789, record 0212). Nothing marks it at
+ * rest at a desk; a hover underlines it, and so does keyboard focus, the cue
+ * WCAG's technique G183 asks of a link that colour cannot tell apart. A touch
+ * screen has no hover, so there it wears a thin underline at rest in the
+ * secondary ink, which a finger can find: 5.5:1 on the dark panel and 7.47:1
+ * at the least on a light surface. The faint ink, one step quieter, measured
+ * 2.6:1 on the popup's grid band, under the 3:1 the one cue that marks a link
+ * owes. The marker popup's links read the same way (`[data-popup-link]` in
+ * `map.css`).
  *
  * Neither sets a size, because a link takes the size of the sentence holding
  * it. That means they belong inside text a role has already sized — put one on
@@ -203,6 +215,8 @@ export const PROSE = {
  */
 export const LINK = 'text-ink-mid hover:text-accent-ink underline'
 export const LINK_ACTION = 'text-accent-ink hover:text-accent-ink-hover hover:underline'
+export const LINK_QUIET =
+  'cursor-pointer underline-offset-2 hover:underline focus-visible:underline touch:underline touch:decoration-ink-soft'
 /**
  * A link that cannot answer right now, said through `aria-disabled` because
  * an anchor has no `disabled` of its own: the footer's Tutorial while a draw
@@ -2133,18 +2147,27 @@ export const NOTICE_DIVIDER = {
  *
  * Three parts, because the touch target and the visible control must be
  * different sizes. The `row` is the message the X belongs to and the hover
- * surface that reveals it. The `button` carries `TAP.action` in-flow, so on
- * touch the 44px target grows its own row rather than overhanging it —
- * the Analyze button sits directly above, and an absolutely-positioned
- * square would cover its bottom edge. The `pill` inside it is what the eye
- * gets: a 20px disc, the panel close button's idiom at notice scale, so the
- * X reads as a control rather than a stray character.
+ * surface that reveals it. The `button` carries `TAP.action`, the 44px target
+ * on touch. The `pill` inside it is what the eye gets: a 20px disc, the panel
+ * close button's idiom at notice scale, so the X reads as a control rather
+ * than a stray character.
  *
- * The row centres its two members against each other. On a coarse pointer the
- * button is 44px tall and the message is one line, so the text sits level with
- * the disc rather than at the top of a target three times its height; on a
- * mouse the row is the text line itself and nothing moves. Every message is
- * written to fit one line, so there is no first line for the X to align to.
+ * A box with an X stands exactly as tall as one without (the maintainer,
+ * 2026-10-21 on PR #789, where a phone's dismissable box stood nearly twice
+ * the height of a blocker's beside it): the button's negative block margins
+ * hand back everything past the 16px line of text, 2px each side of the disc
+ * on a mouse and 14px each side of the target on touch, so the row is the
+ * line, its padding and nothing else. The target overhangs its row instead:
+ * a lone message's reaches 5px past its box, into the 8px between boxes
+ * (`MESSAGE_LIST`), and nothing interactive borders a box but another
+ * message, since the list is a card or a sheet of its own. In a box of
+ * several dismissable messages two neighbouring targets overlap by 15px,
+ * which leaves each 29px no other target covers, past the 24px WCAG 2.5.8
+ * asks, and the lower one takes a press in the overlap.
+ *
+ * The row centres its two members against each other, so the disc sits level
+ * with the text. Every message is written to fit one line, so there is no
+ * first line for the X to align to.
  *
  * The fill is `white/5` at rest — a whisper of a disc, because at `/10` TJ
  * read it as too buttony for a passive notice — rising to `white/15` on
@@ -2194,7 +2217,7 @@ export const NOTICE_DISMISS = {
    * visible distance from the disc to the last word.
    */
   button:
-    `group ${TAP.action} touch:-ml-6 opacity-0 transition-[color,opacity] ` +
+    `group ${TAP.action} -my-0.5 touch:-my-3.5 touch:-ml-6 opacity-0 transition-[color,opacity] ` +
     `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
     `hover:text-ink-strong ${FOCUS_RING}`,
   pill:
@@ -3236,16 +3259,6 @@ export const TABLE = {
    * alone. A pending row has no forecast card to open and does not wear it.
    */
   rowOpens: 'cursor-pointer',
-  /**
-   * A value in a cell that is a link (Windy for a metric, NIFC for a fire, the
-   * Forest Service for an order): underlined at rest, the way the marker
-   * popup underlines every number in its grid (`popupLink`), so the table and
-   * the card say "link" the same way (TJ, 2026-10-14). It was underlined on
-   * hover alone, which a touch screen never has, so a phone showed no cue
-   * that a number opens anything. The value keeps the colour its band gives
-   * it: the line is the cue, and a link colour would erase the ranking's.
-   */
-  valueLink: 'underline cursor-pointer',
   /**
    * The Name column stands still while the rest of the table scrolls
    * sideways under it, at both widths (#696; record 0142): on a phone the

@@ -127,12 +127,15 @@ function rowLabel(label: string): string {
 }
 
 /**
- * A link inside a popup body: underlined, in the colour of the text around
- * it (TJ, 2026-10-16, #740). A grid number links in the card's ink and the
- * coordinates in the facts line's grey, the way the results table underlines
- * a number in its own ink, because sky at rest is the accent that says a
- * thing acts, and on every number of a grid it was the card's loudest colour.
- * The underline is what says link. Sky stays on the title's link-out glyph.
+ * A link inside a popup body, in the colour of the text around it (TJ,
+ * 2026-10-16, #740): a grid number links in the card's ink and the
+ * coordinates in the facts line's grey, because sky at rest is the accent
+ * that says a thing acts, and on every number of a grid it was the card's
+ * loudest colour. Its underline is `map.css`'s, on `data-popup-link`, since
+ * an inline style cannot answer a hover: none at rest at a desk, one on hover
+ * and keyboard focus, and a thin one at rest in the label grey on a touch
+ * screen, the way the results table's links read (`LINK_QUIET`, #786, record
+ * 0212).
  *
  * `extra` is appended AFTER the colour, so a caller that owns its own colour —
  * the fire warning, which is amber before it is a link — overrides it by
@@ -144,7 +147,7 @@ function rowLabel(label: string): string {
  * caller to remember (#621). `inner` is markup the caller has already built.
  */
 function popupLink(href: string, inner: string, extra = ''): string {
-  return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;${extra}">${inner}</a>`
+  return `<a data-popup-link href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;${extra}">${inner}</a>`
 }
 
 /**
@@ -670,8 +673,8 @@ export function popupWidth(canvasWidthPx: number): string {
 /**
  * The link-out glyph, sitting to the right of a popup's title.
  *
- * The anchor is this file's — where it goes, and the sky the header band
- * gives it — and the glyph inside it is `iconPaths.ts`'s, the same shape the
+ * The anchor is this file's — where it goes, and the grey the header band
+ * gives it, the accent on hover — and the glyph inside it is `iconPaths.ts`'s, the same shape the
  * results table draws through `IconExternalLink` (#435). The shape was typed
  * out here until then, which made it the one icon in the app that could drift
  * without anything noticing: the component lint reads the React tree, and this
@@ -683,7 +686,7 @@ export function popupWidth(canvasWidthPx: number): string {
  * carries its id from the link's text, and so does a place the geocoder named.
  */
 function linkIcon({ href, label }: PopupCardLink): string {
-  return `<a href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" target="_blank" rel="noopener noreferrer" style="color:${HEADER_ICON_COLOR};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
+  return `<a data-popup-glyph href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" target="_blank" rel="noopener noreferrer" style="color:${HEADER_ICON_COLOR};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
 }
 
 /**
@@ -844,10 +847,12 @@ function warningList(warnings: readonly string[]): string {
 }
 
 /**
- * The link-out glyph on the band, sky-600 at 3.74:1 on the light card. The
- * sky-400 the old ruled shell gave it would fall under the 3:1 an icon owes
- * there; on the dark card's band that same sky-400, the panel's accent ink,
- * is what clears it.
+ * The link-out glyph on the band, in the label grey at rest, as the results
+ * table's matching glyph rests in a grey (#786, record 0212), and the accent
+ * on hover and keyboard focus, which `map.css` swaps in by setting
+ * `--popup-glyph` on the hovered anchor. The table's glyph wears the faint
+ * ink, which measures 2.6:1 on the dark card's band, under the 3:1 an icon
+ * owes, so the card's takes the next ink up.
  */
 export const HEADER_ICON_COLOR = 'var(--popup-glyph)'
 

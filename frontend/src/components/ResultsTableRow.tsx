@@ -34,7 +34,7 @@ import {
   unavailableCell,
   windyCellUrl,
 } from '../utils/resultsCells'
-import { CHOICE_INPUT, ICON_ACTION, LINE_EDGE, LINK_ACTION, SR_ONLY, TABLE, TEXT } from '../styles'
+import { CHOICE_INPUT, ICON_ACTION, LINE_EDGE, LINK_QUIET, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
@@ -156,7 +156,7 @@ function FootnoteMark({ glyph, target }: { glyph: string; target: keyof NoteTarg
       {id ? (
         <a
           href={`#${id}`}
-          className={LINK_ACTION}
+          className={LINK_QUIET}
           onClick={(event) => {
             event.preventDefault()
             jumpToNote(id)
@@ -202,7 +202,7 @@ function NameTd({ cellClass, widths, label, name, onCenter, href }: NameTdProps)
           <button
             onClick={onCenter}
             aria-label={`Center map on ${name}`}
-            className={`${LINK_ACTION} min-w-0 cursor-pointer truncate text-left`}
+            className={`${LINK_QUIET} min-w-0 truncate text-left`}
           >
             {label}
           </button>
@@ -277,7 +277,7 @@ function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`Open ${warning.name} on the NIFC map. Opens in a new tab.`}
-        className={TABLE.valueLink}
+        className={LINK_QUIET}
       >
         {text}
       </a>
@@ -322,7 +322,7 @@ function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
         // The whole title on hover: the cell clips a long one (TABLE.clip),
         // and the link is the only element a pointer can rest on.
         title={warning.name}
-        className={TABLE.valueLink}
+        className={LINK_QUIET}
       >
         {text}
       </a>
@@ -462,7 +462,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
             // a metric spelled at a call site, which the linter's metric-name
             // ban forbids.
             aria-describedby={windyNoteId(ctx.rowId)}
-            className={TABLE.valueLink}
+            className={LINK_QUIET}
           >
             {display}
           </a>,

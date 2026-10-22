@@ -69,6 +69,22 @@ describe('the tour hands the keyboard back', () => {
   })
 })
 
+// The Messages card points at the count on the Analyze button, which is
+// drawn only while there is something to count, so a tour that starts with
+// nothing to say skips it, the way it skips any step whose control is absent
+// (#786).
+describe('the Messages card', () => {
+  it('stands in the tour only while the badge does', () => {
+    const { result } = setup()
+    act(() => result.current.start())
+    expect(result.current.steps.map((s) => s.anchor)).not.toContain('messages')
+    act(() => result.current.end())
+    append(document.createElement('button')).setAttribute(TOUR_ATTR, 'messages')
+    act(() => result.current.start())
+    expect(result.current.steps.map((s) => s.anchor)).toContain('messages')
+  })
+})
+
 // The Results and Chart steps ask the sheet to open at rest in their view
 // before their spotlight reads it (#696); the marker step after them
 // collapses it.

@@ -31,7 +31,8 @@ The app has two themes since #706, dark by default and light behind the switch i
 | Role | Purpose |
 |---|---|
 | `LINK` | Ambient link: data credits, provider lists, privacy dialog |
-| `LINK_ACTION` | Link inside content: results table destination names |
+| `LINK_ACTION` | A command that stands as words: a menu's Reset all, Restore all and Remove all, a sheet's Done |
+| `LINK_QUIET` | A link inside content, in its text's colour: the results table's names, linked values and footnote marks. Underlined on hover and focus at a desk, and faintly at rest on touch |
 
 **Surfaces**
 
@@ -336,9 +337,12 @@ names them in its markup as `var(--popup-label)` and the rest. The light card
 is the white it has always been, value for value. The dark card is the
 panel's own: its surface `panel`, its header band and grid columns halfway
 between `panel` and `raised`, its ranked cell `raised`, its inks the panel's,
-its link-out glyph `accent-ink`. A link in a card is underlined in the colour
-of the text around it, the way the results table's numbers are: a grid number
-in the ink, the coordinates in the facts line's grey. The warning amber is the one colour both cards share,
+its link-out glyph the label grey, taking `accent-ink` on hover. A link in a
+card is in the colour of the text around it, the way the results table's are:
+a grid number in the ink, the coordinates in the facts line's grey. It
+underlines on hover and keyboard focus at a desk, and on a touch screen it
+wears a thin underline at rest in the label grey (`[data-popup-link]` in
+`map.css`), as the table's links do (`LINK_QUIET`, record [0212](decisions/0212-links-underline-on-hover-and-touch.md)). The warning amber is the one colour both cards share,
 because on the dark card it clears AA. `styles.test.ts` measures every pair in
 both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 
@@ -644,6 +648,11 @@ the tail of the text (`touch:-ml-6` on `NOTICE_DISMISS.button`) rather
 than out of the column. Nothing moves on screen. Measured at 402px with
 the panel at 360: the column is 281px, where the longest commit cue
 ("A new destination type requires a new analysis.") needs 267.3px.
+It costs the row no height either: negative block margins hand back
+everything past the 16px line (`-my-0.5` round the disc on a mouse,
+`touch:-my-3.5` round the target on touch), so a box with an X stands as
+tall as a blocker's box without one, and the target overhangs its row
+instead (the maintainer, 2026-10-21 on PR #789).
 
 **Line allowance:** messages in the panel body hold to one line. The list
 the Analyze button opens — blockers, commit cues, refusals, provider
@@ -796,9 +805,11 @@ Record: [0145](decisions/0145-safe-area-bottom.md), [0152](decisions/0152-sheets
 The results table's Name column sticks at the left edge on an opaque fill
 (`TABLE.stickyNameCell`, `TABLE.stickyNameHead`), with the row's hover tint
 laid over it as a gradient. On a phone it opens no wider than 45% of the
-sheet (`TABLE.nameCap`), and a longer name truncates. Every number that links
-to Windy is underlined at rest (`TABLE.valueLink`), the way the popup's
-numbers are, since a touch screen has no hover to show a link by. The chart's plot leaves the browser only the
+sheet (`TABLE.nameCap`), and a longer name truncates. A name, a number that
+links to Windy and a footnote mark are links in their text's own colour
+(`LINK_QUIET`): no underline at rest at a desk, one on hover and keyboard
+focus, and a thin one at rest in the secondary ink on a touch screen, which
+has no hover to show a link by (record [0212](decisions/0212-links-underline-on-hover-and-touch.md)). The chart's plot leaves the browser only the
 vertical pan (`CHART_PLOT_TOUCH`), so a sideways drag reads it.
 Record: [0142](decisions/0142-sticky-name-column.md) Record: [0144](decisions/0144-chart-reads-a-finger.md)
 

@@ -3,12 +3,19 @@
  * and which side of the app it lives on. Pure data, so the suite can prove
  * every anchor is a real control without a page: `tourSteps.test.ts` reads
  * the component sources as text and fails an anchor that appears nowhere, or
- * twice. The copy is TJ's, verbatim (2026-09-29; the Chart card 2026-10-14).
+ * twice. The copy is TJ's, verbatim (2026-09-29; the Chart card 2026-10-14;
+ * the Messages card 2026-10-21).
  *
  * One card per panel section rather than one per control. A card per control
  * was built and cut the same day: numbered cards read as steps to take in
  * order, so four destination methods read as four things to do, and a lead
  * card saying "or" made the four after it say the list twice.
+ *
+ * The Messages card (#786, the maintainer 2026-10-21) points at the count on
+ * the Analyze button. The badge is drawn only while there is something to
+ * count, so a tour that starts with nothing to say skips the card, the way it
+ * skips any step whose control is not on the screen (`useTour.ts`). A first
+ * visit always has one: the blocker asking for a destination.
  */
 
 /** The attribute a component marks its control with. */
@@ -96,6 +103,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     title: 'Analyze',
     text: 'Fetch the forecast for every destination and rank them.',
     // The whole footer, rule to edge, so it lights up like the sections above.
+    place: 'panel',
+  },
+  {
+    anchor: 'messages',
+    spot: 'control',
+    title: 'Messages',
+    text: 'The number on Analyze counts messages about your settings. Select it to read them. While Analyze is greyed out, something must be fixed before it can run, and the messages say what.',
+    // On the Analyze button at either width, so it lives where that step does.
     place: 'panel',
   },
   {

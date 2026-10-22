@@ -40,6 +40,9 @@ export default function MessageBadge({ count, worst, open, onPress, ref }: Props
       aria-label={messagesLabel(count)}
       aria-expanded={open}
       onClick={onPress}
+      // The tutorial's Messages card, which the tour skips while there is no
+      // badge to point at.
+      data-tour="messages"
       className={`${MESSAGE_BADGE.base} ${MESSAGE_BADGE[worst]}`}
     >
       {count}

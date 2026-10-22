@@ -12,6 +12,7 @@ const STEPS = [
   { title: 'Forecast', anchor: 'forecast' },
   { title: 'Metrics', anchor: 'metrics' },
   { title: 'Analyze', anchor: 'analyze' },
+  { title: 'Messages', anchor: 'messages' },
   { title: 'Layers', anchor: 'layers' },
   { title: 'Results', anchor: 'results' },
   { title: 'Chart', anchor: 'chart' },
@@ -113,7 +114,7 @@ async function expectReadoutMidWindow(page: Page) {
   }).toPass({ timeout: 5_000 })
 }
 
-test('walks the eight cards from the footer link and puts the app back', async ({ page }) => {
+test('walks the nine cards from the footer link and puts the app back', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const before = await page.evaluate(() => history.length)
