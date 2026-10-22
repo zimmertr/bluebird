@@ -4,8 +4,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // open, keeps the one button a POI popup carries, and fires `close` when
 // removed, as MapLibre's does. Hoisted, because `vi.mock` runs before the
 // imports.
-const { popups } = vi.hoisted(() => ({
+const { popups, outlines } = vi.hoisted(() => ({
   popups: [] as { html: string; removed: boolean; press: () => void }[],
+  // The state outlines as the loader holds them, and what its fetch resolves.
+  outlines: {
+    held: null as import('../utils/usStates').UsStates | null,
+    load: null as null | ((states: import('../utils/usStates').UsStates) => void),
+    calls: 0,
+  },
+}))
+vi.mock('../utils/usStatesLoad', () => ({
+  usStatesNow: () => outlines.held,
+  loadUsStates: () => {
+    outlines.calls++
+    return new Promise((resolve) => {
+      outlines.load = (states) => {
+        outlines.held = states
+        resolve(states)
+      }
+    })
+  },
 }))
 vi.mock('maplibre-gl', () => ({
   Popup: class {
@@ -27,6 +45,9 @@ vi.mock('maplibre-gl', () => ({
     on(_type: string, fn: () => void) {
       this.closers.push(fn)
       return this
+    }
+    isOpen() {
+      return !this.state.removed
     }
     remove() {
       this.state.removed = true
@@ -53,6 +74,8 @@ import { POI_LAYERS, poiFromFeature, poiToPlace } from '../utils/basemapPoi'
 import { poiPopupHtml } from '../utils/poiPopup'
 import type { Place } from '../utils/geocode'
 import { stubMap } from '../testSupport/stubMap'
+import stateOutlines from '../utils/usStateOutlines.json'
+import { decodeUsStates, type UsStateOutlines } from '../utils/usStates'
 
 const PEAK_LAYER = 'ofm-peaks'
 const SUMMIT: [number, number] = [-121.76, 46.85]
@@ -62,6 +85,9 @@ const PEAK = poiFromFeature(PEAK_LAYER, PEAK_PROPS, SUMMIT)!
 beforeEach(() => {
   vi.useFakeTimers()
   popups.length = 0
+  outlines.held = null
+  outlines.load = null
+  outlines.calls = 0
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -200,6 +226,27 @@ describe('mountPoiPopups', () => {
       lngLat: { lng: DRAWN[0], lat: DRAWN[1] },
     })
     expect(popups[1].html).toBe(poiPopupHtml(poiFromFeature('landmark-crags', { ...props, osm_id: 'way/9' }, DRAWN)!, false, MAP_ZOOM))
+  })
+
+  // A crag's search names its state from outlines the markers asked for when
+  // the crag came into view; a card opened before they land draws again then.
+  it("redraws an open crag's card with its state once the outlines land, and asks nothing for a peak", async () => {
+    const props = { name: 'Family Wall', kind: 'crag', osm_id: 'way/1307110189', elevation_ft: null }
+    const at: [number, number] = [-121.75024, 47.48886]
+    const { click, peakClick } = setup()
+    peakClick()
+    expect(outlines.calls).toBe(0)
+    click([{ layer: { id: 'landmark-crags' }, geometry: { type: 'Point', coordinates: at }, properties: props }], {
+      lngLat: { lng: at[0], lat: at[1] },
+    })
+    const card = popups[popups.length - 1]
+    expect(card.html).toContain('search?q=Family%20Wall"')
+    expect(outlines.calls).toBe(1)
+    outlines.load!(decodeUsStates(stateOutlines as UsStateOutlines))
+    await vi.runAllTimersAsync()
+    expect(card.html).toContain('search?q=Family%20Wall%20Washington"')
+    // The redraw re-arms the button it replaced.
+    card.press()
   })
 
   it('replaces the open popup on a click and keeps it on a shift-click', () => {

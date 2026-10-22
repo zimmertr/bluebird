@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import ResultsTableRow, { FireClock, PendingRow } from './ResultsTableRow'
 import type { ChartBox } from '../hooks/useChartBox'
 import { CLOSURE_COL, displayedColumns, MODEL_COL, WILDFIRE_COL, type ColDef } from '../utils/tableColumns'
@@ -14,7 +14,8 @@ import { FREEZE_UNAVAILABLE_NOTE } from '../utils/freezingLevel'
 import { pendingChartRow } from '../utils/resultsCells'
 import { CHOICE_INPUT, LINE_EDGE, TABLE } from '../styles'
 import { formatPrecipTotal } from '../metrics'
-import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
+import { closureWarning, fakeResponse, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
+import outlines from '../utils/usStateOutlines.json'
 import { render } from '../testSupport/render'
 
 type Props = ComponentProps<typeof ResultsTableRow>
@@ -97,6 +98,25 @@ describe('a ranked row', () => {
     expect(onFocusResult).toHaveBeenCalledTimes(1)
     expect(onRemove).toHaveBeenCalledOnce()
     expect(box.onToggle).toHaveBeenCalledOnce()
+  })
+
+  // The outlines are fetched when the first crag row draws, and the link it
+  // drew before them gains the crag's state when they land.
+  it("names a crag's state in its Mountain Project search once the outlines arrive", async () => {
+    const fetchMock = vi.fn(async () => fakeResponse(outlines))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const crag = resultRow({ name: 'Family Wall', type: 'crag', latitude: 47.48886, longitude: -121.75024 })
+      inTable(<ResultsTableRow {...props({ row: crag })} />)
+      const link = screen.getByRole('link', { name: /Open Family Wall in an external map/ })
+      expect(link.getAttribute('href')).toBe('https://www.mountainproject.com/search?q=Family%20Wall')
+      await waitFor(() =>
+        expect(link.getAttribute('href')).toBe('https://www.mountainproject.com/search?q=Family%20Wall%20Washington'),
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   // The Name cell stands still while the table scrolls sideways (record 0142).

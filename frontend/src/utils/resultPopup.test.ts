@@ -18,6 +18,8 @@ import {
 } from './popupChrome'
 import { displayedColumns } from './tableColumns'
 import { closureWarning, resultRow, series } from '../testSupport/fixtures'
+import outlines from './usStateOutlines.json'
+import { decodeUsStates, type UsStateOutlines } from './usStates'
 
 // Every aggregate is a different number so a test can tell which column a
 // value came from.
@@ -49,6 +51,20 @@ const WINDOW_COLS = displayedColumns(false, 'precip_total_in')
 const POINT_COLS = displayedColumns(true, 'precip_total_in')
 
 const base = { rank: 1, row, columns: WINDOW_COLS, warning: null as FireWarning | null }
+
+describe('resultPopupHtml link out', () => {
+  const crag = resultRow({ name: 'Family Wall', type: 'crag', latitude: 47.48886, longitude: -121.75024 })
+
+  it("names a crag's state in its search when the outlines are held, and the name alone before", () => {
+    const states = decodeUsStates(outlines as UsStateOutlines)
+    expect(resultPopupHtml({ ...base, row: crag, usStates: states })).toContain(
+      'https://www.mountainproject.com/search?q=Family%20Wall%20Washington'
+    )
+    expect(resultPopupHtml({ ...base, row: crag })).toContain(
+      'https://www.mountainproject.com/search?q=Family%20Wall"'
+    )
+  })
+})
 
 describe('resultPopupHtml fire warning', () => {
   it('omits the warning line when no fire is nearby', () => {
