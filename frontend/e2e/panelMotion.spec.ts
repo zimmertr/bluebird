@@ -144,12 +144,10 @@ const shutChart = (page: Page) => page.locator('[data-tour="results"] [inert] .r
 const shutTable = (page: Page) => page.locator('[data-tour="results"] [inert] [data-results-table]')
 
 test('a press on Both opens the chart pane at the panel speed, holding the map to the results', async ({ page }) => {
-  await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
-  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
-  // Measured frame by frame, so the ranking lands first rather than mid-move.
-  await expectRanked(page)
-  await page.getByRole('button', { name: 'Show table only' }).click()
+  // Read once the press to Table has finished moving: the chart's pane is
+  // inert from the press, so its shut body says nothing about where the map
+  // stands.
+  await analyzedAt(page, 'Show table only')
   await expect(shutChart(page)).toHaveCount(1)
   const mapBottom = () => page.locator('main > div').first().evaluate((el) => el.getBoundingClientRect().bottom)
   const before = await mapBottom()
