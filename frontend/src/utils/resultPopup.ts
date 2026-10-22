@@ -135,6 +135,6 @@ export function resultPopupHtml(d: {
   const title = `${d.rank ? `#${escapeHtml(String(d.rank))} ` : ''}${escapeHtml(r.name)}`
   // The clicked feature's remove, in its words and its look (#712), so the
   // one destination says "out" the same way before and after an analysis.
-  const action = d.removable ? popupButton(`${RESULT_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis') : ''
+  const action = d.removable ? popupButton(`${RESULT_ACTION_ATTR}="remove"`, 'Remove from analysis') : ''
   return popupCard({ title, link: { href: url, label: destinationLinkLabel(r.type) }, meta, warnings: [fire, closure].filter(Boolean), body, action })
 }

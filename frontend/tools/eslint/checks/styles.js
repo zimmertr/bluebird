@@ -14,8 +14,7 @@ const TESTS = ['src/**/*.test.ts', 'src/**/*.test.tsx']
 const SHIPPED = ['src/**/*.ts', 'src/**/*.tsx']
 
 // The modules that OWN a colour, each for a stated reason: the metric scales
-// and the chart palette, the design system itself, the popup chrome (handed to
-// MapLibre's setHTML, outside the stylesheet), the map's own paint and the
+// and the chart palette, the design system itself, the map's own paint and the
 // basemap's terrain-matched labels, each overlay's pure module (which feeds
 // the map layer and the legend swatch from one constant), the two keys to a
 // third party's ramp (NOAA's snow bands, IEM's reflectivity), and the SVG
@@ -28,7 +27,9 @@ const COLOR_OWNERS = [
   // carries both themes (#786); it names no colour of its own.
   'src/utils/themeColor.ts',
   'src/utils/resultFeatures.ts',
-  'src/utils/popupChrome.ts',
+  // Not the popup chrome: every colour a card wears is a `--popup-*` value
+  // that names an app token in map.css (#786, record 0215), and a literal
+  // there would be a second palette beside the app's.
   'src/map/mapStyles.ts',
   'src/map/basemap.ts',
   'src/utils/wildfires.ts',
@@ -931,7 +932,7 @@ export const STYLES = [
     ban: [
       {
         selector: text(COLOR_VALUE),
-        message: 'Name a colour in the module that owns it (colors.ts, chartColors.ts, popupChrome.ts, map/mapStyles.ts or an overlay module), never at the call site.',
+        message: 'Name a colour in the module that owns it (colors.ts, chartColors.ts, map/mapStyles.ts or an overlay module), never at the call site.',
       },
     ],
   },

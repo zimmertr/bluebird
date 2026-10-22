@@ -3,9 +3,8 @@ import type { Locator, Page } from '@playwright/test'
 
 // A link in the results table or a popup reads in its text's colour (#786;
 // record 0212): at a desk no underline until a hover, and on a touch screen,
-// which never hovers, a thin underline at rest in the secondary ink; and a
-// popup's button answers a hover (record 0213). Read off the live page, since
-// jsdom answers no media query and computes no hover.
+// which never hovers, a thin underline at rest in the secondary ink. Read off
+// the live page, since jsdom answers no media query and computes no hover.
 
 async function analyze(page: Page, phone: boolean) {
   await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
@@ -65,26 +64,6 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
   await expect(async () => {
     await glyph.hover()
     expect((await look(glyph)).color).toBe(accent)
-  }).toPass({ timeout: 5_000 })
-
-  // Its button answers the pointer as the app's buttons do.
-  const remove = popup.getByRole('button', { name: 'Remove from analysis' })
-  const fill = () => remove.evaluate((el) => getComputedStyle(el).backgroundColor)
-  const background = (value: string) =>
-    page.evaluate((v) => {
-      const probe = document.createElement('span')
-      probe.style.backgroundColor = v
-      document.body.append(probe)
-      const color = getComputedStyle(probe).backgroundColor
-      probe.remove()
-      return color
-    }, value)
-  await page.mouse.move(0, 0)
-  await expect.poll(fill).toBe(await background('var(--popup-secondary)'))
-  const hovered = await background('var(--popup-secondary-hover)')
-  await expect(async () => {
-    await remove.hover()
-    expect(await fill()).toBe(hovered)
   }).toPass({ timeout: 5_000 })
 })
 

@@ -146,7 +146,6 @@ import {
   RULE_COLOR,
   WARNING_COLOR,
   popupButton,
-  type PopupButtonVariant,
 } from './utils/popupChrome'
 // The map's chip is the chip shape of the one menu trigger (record 0201), and
 // that is the only name it is exported under.
@@ -3398,31 +3397,24 @@ describe('the scale bar', () => {
   })
 })
 
-// The map's popups follow the theme (#740): white in the light theme, every
-// value the one the card has always painted, and the panel's own surfaces and
-// inks in the dark one. A card names `var(--popup-*)` in its markup and
-// `map.css` gives each one value per theme, so every pair is measured here,
-// where the stylesheets are read, on the surface it lands on. Measured
-// 2026-10-16.
+// The map's popups follow the theme (#740), and are the panel's own surface
+// in either one (#786, record 0215): every `--popup-*` value in `map.css` is
+// an app token, declared once on the root, where the light theme redefines
+// the tokens. So every pair is measured here, where the stylesheets are read,
+// on the surface it lands on, in both themes. Measured 2026-10-22.
 describe('the popup card', () => {
   type Theme = 'dark' | 'light'
   const popupBlock = (selector: string): Record<string, string> => {
     const body = mapCss.match(new RegExp(String.raw`\n${selector} \{([^}]*)\}`))![1]
     return Object.fromEntries([...body.matchAll(/--popup-([\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]))
   }
-  const POPUP: Record<Theme, Record<string, string>> = {
-    dark: popupBlock(':root'),
-    light: popupBlock(String.raw`:root\[data-theme="light"\]`),
-  }
+  const POPUP = popupBlock(':root')
   /** The hex a value paints in a theme: a popup value, a theme token, a step, a mix. */
   const paint = (value: string, theme: Theme): string => {
     const v = value.replace(/^color:/, '').trim()
     if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase()
-    if (v === '#fff') return '#ffffff'
-    // The scheme's own text colour, which the light card resolves to black.
-    if (v === 'CanvasText') return theme === 'light' ? '#000000' : '#ffffff'
     const popup = v.match(/^var\(--popup-([\w-]+)\)$/)
-    if (popup) return paint(POPUP[theme][popup[1]], theme)
+    if (popup) return paint(POPUP[popup[1]], theme)
     const ui = v.match(/^var\(--ui-([\w-]+)\)$/)
     if (ui) return theme === 'light' ? light(ui[1]) : paint(DARK_TOKENS[ui[1]], theme)
     const own = v.match(/^var\(--color-([\w-]+)\)$/)
@@ -3432,72 +3424,59 @@ describe('the popup card', () => {
     throw new Error(`cannot resolve ${v}`)
   }
   const measure = (a: string, b: string, theme: Theme) => ratio(paint(a, theme), paint(b, theme))
+  const both = (a: string, b: string) => [measure(a, b, 'dark'), measure(a, b, 'light')]
   const SURFACE = GRID_GUTTER_COLOR
   const INK = 'var(--popup-ink)'
-  // A button's fill and its label, as `popupButton` writes them.
-  const onFill = (variant: PopupButtonVariant, theme: Theme) => {
-    const [, fill, label] = popupButton('data-x', variant, 'Go').match(/background:([^;]+);color:([^;"]+)/)!
-    return measure(label, fill, theme)
-  }
 
-  it('declares every popup colour in both themes, and paints the vendor parts with them', () => {
-    expect(Object.keys(POPUP.dark).sort()).toEqual(Object.keys(POPUP.light).sort())
+  // One source for every colour a card wears: a value here that is not a
+  // token is a second palette, which is how the light card's buttons came to
+  // be a near-black and a blue the app never wore. The light block says the
+  // scheme and nothing else, because the tokens it would name already turn
+  // with the theme.
+  it('names an app token for every popup colour, once, for both themes', () => {
+    const TOKEN = String.raw`var\(--(?:ui-[\w-]+|scroll-shade)\)`
+    const VALUE = new RegExp(String.raw`^(?:${TOKEN}|color-mix\(in oklab, ${TOKEN} \d+%, ${TOKEN}\))$`)
+    const { scheme, ...colours } = POPUP
+    expect(scheme).toBe('dark')
+    for (const [name, value] of Object.entries(colours)) expect([name, VALUE.test(value)]).toEqual([name, true])
+    expect(popupBlock(String.raw`:root\[data-theme="light"\]`)).toEqual({ scheme: 'light' })
     expect(mapCss).toMatch(/\n\.maplibregl-popup-content \{\s*background: var\(--popup-surface\);/)
     expect(mapCss.match(/border-(top|bottom|left|right)-color: var\(--popup-surface\);/g)).toHaveLength(4)
     expect(mapCss).toContain('scrollbar-color: var(--popup-thumb) var(--popup-band);')
   })
 
-  // Light: the white card, pixel for pixel, with the ratios it always had.
-  it('keeps the light card the white it always was', () => {
-    expect([SURFACE, INK, HEADER_BAND_COLOR, GRID_RANKED_COLOR, LABEL_COLOR].map((c) => paint(c, 'light'))).toEqual([
-      '#ffffff', '#000000', '#f1f5f9', '#e2e8f0', '#475569',
-    ])
-    // A label, and the coordinates, which link in the facts line's own grey
-    // (#740), on the band.
-    expect(measure(LABEL_COLOR, GRID_BAND_COLOR, 'light')).toBe(6.92)
-    expect(measure(GRID_RANKED_COLOR, GRID_BAND_COLOR, 'light')).toBe(1.13)
-    // The title on its band, and a grid number, which links in the ink (#740),
-    // on its column and on the ranked cell.
-    expect([HEADER_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, 'light'))).toEqual([19.17, 17.03])
-    // The link-out glyph rests in the label grey and takes the accent on
-    // hover (#786, record 0212); both owe an icon's 3:1 on the band.
-    expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'light')).toBe(6.92)
-    expect(measure('var(--popup-glyph-hover)', HEADER_BAND_COLOR, 'light')).toBe(3.74)
-    // The pipes are decoration, hidden from a screen reader; they need only show.
-    expect(measure(FINE_COLOR, HEADER_BAND_COLOR, 'light')).toBe(2.34)
-    // The warning amber sits under AA on white by the maintainer's choice (TJ
-    // kept amber-500 over amber-700, 2026-10-08).
-    expect(measure(WARNING_COLOR, SURFACE, 'light')).toBe(2.15)
-    expect(measure('var(--popup-thumb)', GRID_BAND_COLOR, 'light')).toBe(4.34)
+  // The card is the panel every popover stands on, and its band and ranked
+  // cell one and two half steps toward the raised step.
+  it('stands the card on the panel, in both themes', () => {
+    for (const theme of ['dark', 'light'] as const) expect(paint(SURFACE, theme)).toBe(paint('var(--ui-panel)', theme))
+    expect(both(HEADER_BAND_COLOR, SURFACE)).toEqual([1.18, 1.06])
+    expect(both(GRID_RANKED_COLOR, GRID_BAND_COLOR)).toEqual([1.2, 1.06])
   })
 
-  // Dark: the panel's own surface, and the band and ranked cell one and two
-  // half steps toward the raised slate, so they part from it about as far as
-  // the light card's do from white (1.1 and 1.13).
-  it('stands the dark band and ranked cell on the panel surface', () => {
-    expect(POPUP.dark.surface).toBe('var(--ui-panel)')
-    expect(darkStep('panel')).toBe('slate-800')
-    expect(measure(HEADER_BAND_COLOR, SURFACE, 'dark')).toBe(1.18)
-    expect(measure(GRID_RANKED_COLOR, GRID_BAND_COLOR, 'dark')).toBe(1.2)
-  })
-
-  it('reads every dark text above AA on each surface it lands on', () => {
+  it('reads every text above AA on each surface it lands on', () => {
     // A link takes the colour of the text around it (#740), so the ink is the
     // title's and every grid number's, linked or not.
-    expect([SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, 'dark'))).toEqual([11.86, 10.05, 8.4])
-    // Labels and the coordinates beside them. Neither stands on the ranked
-    // cell, which holds a number alone.
-    expect([SURFACE, GRID_BAND_COLOR].map((on) => measure(LABEL_COLOR, on, 'dark'))).toEqual([5.56, 4.71])
-    // The maintainer's amber, which clears AA on the dark card where on white
-    // it does not.
-    expect(measure(WARNING_COLOR, SURFACE, 'dark')).toBe(6.81)
+    for (const theme of ['dark', 'light'] as const) {
+      expect([SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, theme))).toEqual(
+        theme === 'dark' ? [11.86, 10.05, 8.4] : [15.25, 14.42, 13.66],
+      )
+      // Labels and the coordinates beside them. Neither stands on the ranked
+      // cell, which holds a number alone.
+      expect([SURFACE, GRID_BAND_COLOR].map((on) => measure(LABEL_COLOR, on, theme))).toEqual(
+        theme === 'dark' ? [5.56, 4.71] : [8.34, 7.89],
+      )
+    }
+    // A safety warning in the table's own amber, which clears AA in both
+    // themes where the popup's copy, amber-500, read 2.15:1 on white.
+    expect(both(WARNING_COLOR, SURFACE)).toEqual([10.1, 6.31])
   })
 
-  // The link-out glyph and the scroll bar's thumb owe 3:1.
-  it('keeps the dark glyph and thumb above the 3:1 a graphic owes', () => {
-    expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'dark')).toBe(4.71)
-    expect(measure('var(--popup-glyph-hover)', HEADER_BAND_COLOR, 'dark')).toBe(5.69)
-    expect(measure('var(--popup-thumb)', GRID_BAND_COLOR, 'dark')).toBe(4.71)
+  // The link-out glyph, at rest and under the pointer, and the scroll bar's
+  // thumb owe 3:1.
+  it('keeps the glyph and the thumb above the 3:1 a graphic owes', () => {
+    expect(both(HEADER_ICON_COLOR, HEADER_BAND_COLOR)).toEqual([4.71, 7.89])
+    expect(both('var(--popup-glyph-hover)', HEADER_BAND_COLOR)).toEqual([5.69, 5.43])
+    expect(both('var(--popup-thumb)', GRID_BAND_COLOR)).toEqual([4.71, 3.76])
   })
 
   // On a touch screen a link's underline rests in the label grey (#786,
@@ -3509,74 +3488,45 @@ describe('the popup card', () => {
       [SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure('var(--popup-label)', on, theme)),
     )
     expect(ratios[0]).toEqual([5.56, 4.71, 3.94])
-    expect(ratios[1]).toEqual([7.58, 6.92, 6.15])
+    expect(ratios[1]).toEqual([8.34, 7.89, 7.47])
   })
 
-  // The fine print steps back as far as the light card's does (2.98:1 on
-  // white), and stays under AA for the reason `FINE_COLOR` gives.
-  it('steps the dark fine print back as far as the light card does', () => {
-    expect([SURFACE, HEADER_BAND_COLOR].map((on) => measure(FINE_COLOR, on, 'dark'))).toEqual([3.07, 2.6])
-  })
-
-  it('reads every button label and the close glyph on its own fill', () => {
-    expect((['primary', 'secondary', 'danger'] as const).map((v) => [onFill(v, 'dark'), onFill(v, 'light')])).toEqual([
-      // The app's accent fill in dark, where the light card's sky-600 is 4.1.
-      [4.56, 4.1],
-      [6.15, 8.4],
-      // Red-500 under white in both, unchanged; only the ring's remove-point
-      // popup wears it.
-      [3.76, 3.76],
+  // The fine print steps back, under AA for the reason `FINE_COLOR` gives.
+  it('steps the fine print back', () => {
+    expect([SURFACE, HEADER_BAND_COLOR].map((on) => both(FINE_COLOR, on))).toEqual([
+      [3.07, 4.32],
+      [2.6, 4.09],
     ])
-    expect(measure('var(--popup-close)', 'var(--popup-close-fill)', 'dark')).toBe(6.97)
-    expect(measure('var(--popup-close-hover)', 'var(--popup-close-hover-fill)', 'dark')).toBe(7.58)
   })
 
-  // And on the fill each steps to under a pointer or a finger (#786), which
-  // `map.css` sets on the button where its inline fill reads it.
-  it('reads every button label on its hover fill, and steps the fill on hover and press', () => {
-    const onHover = (variant: PopupButtonVariant, theme: Theme) => {
-      const [, , label] = popupButton('data-x', variant, 'Go').match(/background:([^;]+);color:([^;"]+)/)!
-      return measure(label, `var(--popup-${variant}-hover)`, theme)
-    }
-    expect((['primary', 'secondary', 'danger'] as const).map((v) => [onHover(v, 'dark'), onHover(v, 'light')])).toEqual([
-      // The dark accent's hover is the panel's own Analyze hover, 4.02:1 by
-      // design (record 0008); the light card's darkens to sky-700.
-      [4.02, 5.93],
-      // The dark grey lightens halfway to the edge step, as far as AA allows.
-      [4.89, 6.15],
-      // Red-600 under white in both.
-      [4.83, 4.83],
-    ])
-    for (const variant of ['primary', 'secondary', 'danger']) {
-      expect(popupButton('data-x', variant as PopupButtonVariant, 'Go')).toContain(`data-popup-button="${variant}"`)
-      const rule = String.raw`\.maplibregl-popup \[data-popup-button="${variant}"\]`
-      const body = String.raw` \{\s*--popup-${variant}: var\(--popup-${variant}-hover\);\s*\}`
-      expect(mapCss).toMatch(new RegExp(String.raw`@media \(hover: hover\) \{[^@]*${rule}:hover${body}`))
-      expect(mapCss).toMatch(new RegExp(rule + ':active' + body))
-    }
+  // The button is the panel's own (#786, record 0215): its class list is
+  // `BUTTON_ACCENT` and nothing else sets its look, so its fill, label and
+  // hover are the ones the app's buttons measure; `popupParity.spec.ts`
+  // reads the rendered button against the panel's in a browser.
+  it('dresses its button as the panel\'s accent button and nothing else', () => {
+    expect(popupButton('data-x', 'Go')).toBe(`<button data-x class="${BUTTON_ACCENT}">Go</button>`)
+    expect(mapCss).not.toMatch(/data-popup-button|--popup-(?:primary|secondary|danger)/)
+    expect(both('var(--popup-close)', 'var(--popup-close-fill)')).toEqual([6.97, 10.31])
+    expect(both('var(--popup-close-hover)', 'var(--popup-close-hover-fill)')).toEqual([7.58, 12.17])
   })
 
-  // The ranked family's colours (#740) are the table's, so the dark card,
-  // which stands on the table's own panel, reads every band's ink at the
-  // ratios `colors.test.ts` pins. The light card is white where the light
-  // table is its panel, so each band's ink is measured again on its 20% tint
-  // over white.
-  it('reads every coloured number above AA on the card, in both themes', () => {
-    expect(paint(SURFACE, 'dark')).toBe(paint('var(--ui-panel)', 'dark'))
-    const tintOver = (band: string, under: string) => mixOver(band, under, 0.2)
-    const white = paint(SURFACE, 'light')
-    const lightest = Math.min(
-      ...Object.values(METRIC_SCALE).flatMap((scale) => scale.colors.map((band, i) => contrast(scale.ink[i], tintOver(band, white)))),
-    )
-    expect(round2(lightest)).toBe(6)
+  // The ranked family's colours (#740) are the table's, and the card stands
+  // on the table's own panel in both themes, so every band's ink reads at the
+  // ratios `colors.test.ts` pins.
+  it('reads the ranked family on the table\'s own panel, in both themes', () => {
+    for (const theme of ['dark', 'light'] as const) expect(paint(SURFACE, theme)).toBe(paint('var(--ui-panel)', theme))
     expect(mapCss).toMatch(/\.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-dark\);/)
     expect(mapCss).toMatch(/:root\[data-theme="light"\] \.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-light\);/)
   })
 
   // The quiet lines, the header's edge and the grid's hairline, and the
   // firmer rule under the grid's heads.
-  it('draws the dark lines a step and two off the surface', () => {
-    expect([HEADER_EDGE_COLOR, GRID_LINE_COLOR, RULE_COLOR].map((l) => measure(l, SURFACE, 'dark'))).toEqual([1.41, 1.41, 1.93])
+  it('draws the lines a step and two off the surface', () => {
+    expect([HEADER_EDGE_COLOR, GRID_LINE_COLOR, RULE_COLOR].map((l) => both(l, SURFACE))).toEqual([
+      [1.41, 1.5],
+      [1.41, 1.5],
+      [1.93, 2.35],
+    ])
   })
 })
 

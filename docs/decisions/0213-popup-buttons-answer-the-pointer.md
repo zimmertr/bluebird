@@ -1,6 +1,6 @@
 # 0213. A popup's buttons answer a hover and a press as the app's do
 
-- Status: Accepted.
+- Status: Superseded by [0215](0215-popup-is-the-panel.md): the buttons wear the app's own `BUTTON_ACCENT`, whose hover is the app's.
 - Date: 2026-10-21
 - Decider: the maintainer (TJ), on the review of PR #789: "Add to analysis and Remove from analysis buttons also don't have any hover effect to indicate they are buttons when a cursor or touch is over them like the other buttons like Analyze." The hover shades are Claude's, measured below.
 - Issues and PRs: #786, #789, #365, #740

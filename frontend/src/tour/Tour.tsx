@@ -85,10 +85,10 @@ const SETTLE_FRAMES = 10
  *
  * The light and the card move between steps by a glide the same loop runs
  * (`glide` in `place.ts`), from what stood on the screen toward what the
- * step measures in each frame, and at no other time (#786). It replaced a
- * transition class worn for 250 ms after a step change, which a target
- * moving under it restarted every frame: the light crawled behind a phone's
- * sliding sheet and jumped the rest of the way when the class came off.
+ * step measures in each frame, and at no other time (#786). Not a CSS
+ * transition: a target moving under one hands it a new end every frame,
+ * which restarts it, so the light would crawl behind a sliding sheet and
+ * then jump the rest of the way. Where the tour cuts there is no glide.
  */
 export default function Tour({ steps, index, onNext, onPrev, onEnd, cut = false }: Props) {
   const step = steps[index]

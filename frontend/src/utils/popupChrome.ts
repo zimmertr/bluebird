@@ -10,19 +10,21 @@
 // popup builder that does not return `popupCard`, so a new layer's card
 // cannot start a fourth look.
 //
-// Every colour in it is a `--popup-*` value `map.css` declares once per theme
-// (#740), named here as `var(--popup-label)` and resolved where the markup
-// lands, so one card is dark in the dark theme and white in the light one.
-// The hexes and ratios below are the light card's, which is the white it has
-// always been; `styles.test.ts` measures every pair in both themes.
+// Every colour in it is a `--popup-*` value `map.css` declares once, each the
+// app's own `--ui-*` token for the part it is (#740, #786), named here as
+// `var(--popup-label)` and resolved where the markup lands, so the card is the
+// panel's surface, inks and rules in either theme and cannot drift from them.
+// `styles.test.ts` fails a `--popup-*` value that is not a token and measures
+// every pair in both themes.
 //
-// It lives in utils, like the popup bodies that compose it, because this markup
-// is handed to MapLibre's setHTML and the design system in styles.ts cannot
-// reach it: Tailwind scans source for class names and generates CSS for the
-// document, but a string passed to setHTML is not a class list the scanner ever
-// sees. Keeping it out of the component is also what makes it unit-testable
+// The popup is in the same document as the panel, and Tailwind emits a class
+// for any name it finds in the source, wherever that string ends up, so the
+// design system reaches a card handed to MapLibre's `setHTML`: its button is
+// the panel's `BUTTON_ACCENT` itself (`popupButton`). It lives in utils, like
+// the popup bodies that compose it, because a string module is unit-testable
 // without pulling maplibre-gl into a node test.
 import { externalLinkMarkup } from '../iconPaths'
+import { BUTTON_ACCENT } from '../styles'
 import { AGGREGATE } from '../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
 import { clamp, isFiniteNumber } from './numbers'
@@ -104,11 +106,10 @@ export function row(label: string, value: string, href?: string | null): string 
  * read alike.
  *
  * Colour has no such dependency: it renders the same wherever the card opens,
- * and it is the axis the app's own panels already use to step text back.
- * Slate-600 measures 7.4:1 on the light card's white, well past AA for text,
- * so the label recedes without becoming hard to read. Anything lighter starts
- * to: slate-500 is 4.76:1, which is a pass for text you glance at and thin for
- * text you read. The dark card's label is the panel's own soft ink.
+ * and it is the axis the app's own panels already use to step text back. The
+ * label is the panel's own soft ink, 5.56:1 on the dark card and 8.34:1 on
+ * the light one (pinned in `styles.test.ts`), so it recedes without becoming
+ * hard to read.
  *
  * A row's label and value therefore never go bold. The bold in a card is the
  * title's, and a section's name where a card holds two (`sectionHeading`).
@@ -151,7 +152,7 @@ function popupLink(href: string, inner: string, extra = ''): string {
 }
 
 /**
- * The firmer of the grid's two rules, slate-300, under its heads. It was the
+ * The firmer of the grid's two rules, the panel's frame, under its heads. It was the
  * rule between a popup's title and its body until every popup became a card
  * (#738), whose header band parts the two instead.
  */
@@ -159,15 +160,11 @@ export const RULE_COLOR = 'var(--popup-rule)'
 
 /**
  * The amber a safety warning wears in a popup: the fire line and the closure
- * line, which are flags rather than measurements. Amber-500, the popup-side
- * counterpart of the `STATUS` amber the table's Wildfire column wears in the
- * stylesheet. On white it measures 2.15:1, under the 4.5:1 AA asks of 12px
- * text, and stays by the maintainer's choice: amber-700 (5.02:1) was tried on
- * the #700 preview and TJ kept this one (2026-10-08). The one colour the two
- * themes share, because on the dark card the same amber clears AA. Pinned in
- * `styles.test.ts`, so a change re-measures rather than inherits.
+ * line, which are flags rather than measurements. The `STATUS` amber the
+ * table's Wildfire column wears, the same token, so the two cannot part
+ * (#786, record 0215); it clears AA on the card in both themes.
  */
-export const WARNING_COLOR = '#f59e0b'
+export const WARNING_COLOR = 'var(--popup-warn)'
 
 /**
  * One safety warning, the whole sentence a link where it has one. It carries
@@ -190,11 +187,10 @@ const ONE_LINE = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
 
 /**
  * The colour of the one line that qualifies a card rather than adding to it:
- * an overlay popup's "last updated" date, set small and italic in slate-400.
- * It is the colour those popups shipped with and #365 only named it; on the
- * light card's white it measures 2.98:1, under AA for text, and raising it is
- * a colour decision for the maintainer rather than a move. The dark card's is
- * the panel's faint ink, the same step back from its label.
+ * an overlay popup's "last updated" date, set small and italic in the
+ * panel's faint ink, a step back from its label. It measures 3.07:1 on the
+ * dark card, under AA for text, and 4.32:1 on the light one; raising the dark
+ * one is a colour decision for the maintainer rather than a move.
  */
 export const FINE_COLOR = 'var(--popup-fine)'
 
@@ -249,38 +245,17 @@ export function updatedAt(ms: number | null | undefined): string | null {
 }
 
 /**
- * A button inside a popup.
- *
- * MapLibre's popup is outside the stylesheet, so `BUTTON_PRIMARY` and its
- * siblings in `styles.ts` cannot dress it; these are their popup-side
- * counterparts, one recipe with the colour as the only variable, where three
- * files used to spell three near-identical buttons (#365). `primary` acts
- * (sky-600 under white on the light card, the app's accent fill on the dark
- * one), `secondary` undoes (slate-700 under slate-200 on the light card, the
- * panel's raised hover on the dark one), and `danger` removes (red-500 under
- * white in both). `attr` is the attribute the map
- * handler finds the button by, written whole (`data-rm`, or
- * `data-poi-action="add"`); `extra` is appended last, as `popupLink`'s is, for
- * the one button that sits under rows and needs a margin above it.
- *
- * Each fill is a `--popup-*` value the button reads inline, and `map.css`
- * steps it to its hover value on the hovered or pressed button
- * (`data-popup-button`), so a popup's buttons answer the pointer as the
- * app's do (#786); an inline fill alone cannot answer a hover.
+ * A popup's one action, the add, the remove or a ring's remove-point: the
+ * panel's own `BUTTON_ACCENT`, worn as its class list (#786, record 0215), so
+ * its fill, label, corners, size and hover are the app's button's in both
+ * themes rather than a copy of them, which would be free to drift. One look
+ * for all three, because a card has one action and the app marks every
+ * command in the accent. `attr` is the
+ * attribute the map handler finds the button by, written whole (`data-rm`, or
+ * `data-poi-action="add"`).
  */
-export type PopupButtonVariant = 'primary' | 'secondary' | 'danger'
-const POPUP_BUTTON_LOOK: Record<PopupButtonVariant, string> = {
-  primary: 'background:var(--popup-primary);color:#fff',
-  secondary: 'background:var(--popup-secondary);color:var(--popup-secondary-ink)',
-  danger: 'background:var(--popup-danger);color:#fff',
-}
-export function popupButton(
-  attr: string,
-  variant: PopupButtonVariant,
-  label: string,
-  extra = '',
-): string {
-  return `<button ${attr} data-popup-button="${variant}" style="border:none;padding:5px 12px;border-radius:4px;cursor:pointer;${POPUP_BODY_SIZE};font-family:sans-serif;font-weight:600;transition:background-color 150ms;${POPUP_BUTTON_LOOK[variant]}${extra ? ';' + extra : ''}">${label}</button>`
+export function popupButton(attr: string, label: string): string {
+  return `<button ${attr} class="${BUTTON_ACCENT}">${label}</button>`
 }
 
 /**
@@ -440,7 +415,7 @@ export function bodySection(inner: string): string {
  *
  * A real table, so a screen reader hears each number with its row and column:
  * the family is the row header and the aggregate the column header. Each
- * column is a shaded band with a white gutter on its left, so Min, Max, Avg
+ * column is a shaded band with a gutter of the card's surface on its left, so Min, Max, Avg
  * and Total read as four columns rather than as numbers that happen to line
  * up (TJ, 2026-10-08, column bands over striped rows or tiles). A family's
  * label keeps one line: the card is sized to the widest label beside the
@@ -504,9 +479,9 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
 }
 
 /**
- * The shade behind each column, slate-100 on the light card: 6.92:1 under
- * `LABEL_COLOR` and 19.17:1 under the ink its numbers take, so both stay well
- * above AA's 4.5. It is 1.1:1 against the white beside it, which is
+ * The shade behind each column, halfway from the panel to its raised step:
+ * the label and the ink its numbers take both stay well above AA's 4.5 on it.
+ * It stands 1.18:1 off the dark card and 1.06:1 off the light one, which is
  * enough to read as a band and no more: the heads and the alignment carry the
  * columns, and the shade only groups them. Pinned in `styles.test.ts`.
  */
@@ -515,7 +490,7 @@ export const GRID_BAND_COLOR = 'var(--popup-band)'
 export const GRID_GUTTER_COLOR = 'var(--popup-surface)'
 
 /**
- * The hairline between the grid's lines, slate-200, and the firmer rule under
+ * The hairline between the grid's lines, the panel's rule, and the firmer rule under
  * its heads, `RULE_COLOR` (TJ, 2026-10-08: "very thin minimal lines"). The
  * heads take a rule rather than an underline because every number in the grid
  * is an underlined link, and an underlined head would read as one more.
@@ -523,18 +498,17 @@ export const GRID_GUTTER_COLOR = 'var(--popup-surface)'
 export const GRID_LINE_COLOR = 'var(--popup-line)'
 
 /**
- * The ranked number's cell, slate-200 on the light card: one step darker than
- * the column's slate-100, with no hue, so the card's only colour is its links
- * (TJ, 2026-10-08, option H, over a sky-100 cell). It is 1.13:1 against the
- * column, so the number's bold carries most of the mark. The number on it
- * is the ink, 17.03:1. The dark card's is the panel's raised slate, a step past its
- * column the other way. Pinned in `styles.test.ts`.
+ * The ranked number's cell, the panel's raised step: one half step past the
+ * column's band, with no hue, so the card's only colour is its links (TJ,
+ * 2026-10-08, option H, over a sky-100 cell). It stands 1.2:1 off the column
+ * on the dark card and 1.06:1 on the light one, so the number's bold carries
+ * most of the mark. Pinned in `styles.test.ts`.
  */
 export const GRID_RANKED_COLOR = 'var(--popup-ranked)'
 
 /**
  * Each band's inset a side: 5px, so a number as wide as `0.000` has visible
- * room inside its band, behind a 2px white gutter (TJ, 2026-10-08; it was 3px,
+ * room inside its band, behind a 2px gutter (TJ, 2026-10-08; it was 3px,
  * which left the widest numbers touching the edges). A map too narrow for the
  * widest grid at 5px takes 3px instead (`compactGrid`).
  */
@@ -806,12 +780,11 @@ const TITLE_ROW = `display:flex;align-items:center;gap:6px;min-width:0;${POPUP_T
 const TITLE_TEXT = `min-width:0;${ONE_LINE}`
 
 /**
- * The result card's header band: slate-100 on the light card, the grid's own
- * band colour, under an edge of slate-200 and a faint slate shadow (TJ, 2026-10-08, option H of
- * eight). It replaced a sky-100 band, which was the one light blue surface
- * in an app of slate, and sky is the accent that says a thing acts. The
- * labels on it measure 6.92:1 and the title 19.17:1 (pinned in
- * `styles.test.ts`).
+ * The result card's header band: the grid's own band colour, under an edge
+ * of the panel's rule and the shade the app's scroll shadows wear (TJ,
+ * 2026-10-08, option H of eight). It replaced a sky-100 band, which was the
+ * one light blue surface in an app of slate, and sky is the accent that says
+ * a thing acts. Every text on it is pinned in `styles.test.ts`.
  */
 export const HEADER_BAND_COLOR = 'var(--popup-band)'
 export const HEADER_EDGE_COLOR = 'var(--popup-line)'

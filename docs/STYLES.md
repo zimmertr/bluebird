@@ -331,24 +331,26 @@ follow the theme like any floating box, which is why in light their glyphs keep
 MapLibre's own dark drawing where `map.css` inverts them in dark, and the credit
 line reads in `ink-mid`.
 
-**The popups follow the theme** (#740). Every colour a card wears is a
-`--popup-*` value that `map.css` declares once per theme, and `popupChrome.ts`
-names them in its markup as `var(--popup-label)` and the rest. The light card
-is the white it has always been, value for value. The dark card is the
-panel's own: its surface `panel`, its header band and grid columns halfway
-between `panel` and `raised`, its ranked cell `raised`, its inks the panel's,
-its link-out glyph the label grey, taking `accent-ink` on hover. A link in a
+**The popups follow the theme** (#740), **and are the panel's own surface** (#786). Every colour a card wears is a
+`--popup-*` value that `map.css` declares once, each the app's `--ui-*` token
+for the part it is, and `popupChrome.ts` names them in its markup as
+`var(--popup-label)` and the rest. The card is the panel: its surface `panel`,
+its header band and grid columns halfway between `panel` and `raised`, its
+ranked cell `raised`, its inks the panel's, its warning the table's `warn`,
+its link-out glyph the label grey, taking `accent-ink` on hover. The light
+theme redefines the tokens, so the light card is the light panel and its
+`map.css` block says only the colour scheme. A link in a
 card is in the colour of the text around it, the way the results table's are:
 a grid number in the ink, the coordinates in the facts line's grey. It
 underlines on hover and keyboard focus at a desk, and on a touch screen it
 wears a thin underline at rest in the label grey (`[data-popup-link]` in
 `map.css`), as the table's links do (`LINK_QUIET`, record [0212](decisions/0212-links-underline-on-hover-and-touch.md)).
-A card's buttons answer a hover and a press as the app's do: each fill is a
-`--popup-*` value the button reads inline, and `map.css` steps it to its
-`-hover` value on the hovered or pressed button (`data-popup-button`). Record:
-[0213](decisions/0213-popup-buttons-answer-the-pointer.md) The warning amber is the one colour both cards share,
-because on the dark card it clears AA. `styles.test.ts` measures every pair in
-both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
+A card's one action, Add to analysis, Remove from analysis or ✕ Remove point,
+is `BUTTON_ACCENT` itself, worn as its class list: a popup is in the same
+document as the panel, and Tailwind emits a class for any name in the source.
+`styles.test.ts` fails a `--popup-*` value that is not a token and measures
+every pair in both themes; `popupParity.spec.ts` reads the rendered card and
+button against the panel's in a browser. Record: [0163](decisions/0163-popups-follow-the-theme.md) Record: [0215](decisions/0215-popup-is-the-panel.md)
 
 ## What is enforced
 
@@ -402,7 +404,7 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | Nothing pressed reads at the micro step | `checks/styles.js` | `style-micro-not-pressed` bans `TEXT.micro` in the class of any `button` or `a` in the app's sources; `styles.test.ts` holds `MICRO_SIZE` at 11px and `GLYPH_SIZE` to the two swatch roles |
 | Every shadow is a step of one scale | `styles.test.ts` | Every surface role's shadow is an `ELEVATION` value, the sheet and the banner wear `none`, and no component spells a `shadow-` utility |
 | Every exported role is rendered by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some non-test file's import list under `src/`, or in a `TEST_ONLY` list that carries its reason and is itself checked for a real importer |
-| No call site names a colour value | `checks/styles.js` | `value-hex` bans a hex triplet, sextet or colour function (`rgb()`, `hsl()`, `oklch()` and the rest) in any string or template under `src/`, tests aside, outside the modules that own a colour (`styles.ts`, `colors.ts`, `chartColors.ts`, `resultFeatures.ts`, `popupChrome.ts`, `map/mapStyles.ts`, `map/basemap.ts`, the four overlay modules, `radar.ts`, `iconPaths.ts`, `logo.ts`). This is the hue ban's reach into the four channels a Tailwind class never touches: MapLibre paint, canvas drawing, popup HTML and Recharts props (#365) |
+| No call site names a colour value | `checks/styles.js` | `value-hex` bans a hex triplet, sextet or colour function (`rgb()`, `hsl()`, `oklch()` and the rest) in any string or template under `src/`, tests aside, outside the modules that own a colour (`styles.ts`, `colors.ts`, `chartColors.ts`, `resultFeatures.ts`, `map/mapStyles.ts`, `map/basemap.ts`, the four overlay modules, `radar.ts`, `iconPaths.ts`, `logo.ts`). This is the hue ban's reach into the four channels a Tailwind class never touches: MapLibre paint, canvas drawing, popup HTML and Recharts props (#365) |
 | No popup spells its own type size, padding, radius or background | `checks/styles.js` | `value-inline-style` bans `font-size:`, `padding:`, `border-radius:` and `background:` in any string or template under `src/`, tests aside, outside `popupChrome.ts`, which owns the popup's three sizes, its button and its rule |
 | The app's own layers read their paint from one module | `checks/styles.js` | `map-paint-named` bans a numeric literal under a `circle-`, `line-`, `fill-`, `text-` or `icon-` key in `map/*.ts` outside `mapStyles.ts` and `basemap.ts`; the result and pending markers and the ring's handles spread one recipe each |
 
@@ -419,7 +421,7 @@ values (#365):
 |---|---|---|
 | MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
 | Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow) | The same |
-| Popup HTML handed to `setHTML` | `utils/popupChrome.ts` | The three type sizes, the face, the rule, the label, glyph, fine-print and warning colours, the one button recipe in three variants, the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
+| Popup HTML handed to `setHTML` | `utils/popupChrome.ts` | The three type sizes, the face, the names of the card's colours (each a `--popup-*` value, an app token in `map.css`, record 0215), the one button (`BUTTON_ACCENT` as its class list), the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
 | Recharts props | `utils/chartColors.ts` | The axis, grid and playhead colours beside the line palette |
 
 A colour in one of those channels is measured against the surface it actually

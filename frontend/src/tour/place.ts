@@ -227,10 +227,9 @@ export const GLIDE_FRAME_MS = 33
  * What to draw `elapsed` ms into the move from what stood on the screen when
  * the step changed (`from`) to what the step measures now (`to`), easing out
  * (#786). `to` is read again every frame, so a target riding a sheet as it
- * slides is followed where it is rather than chased: a CSS transition handed
- * a new end every frame restarts every frame, and on a phone the light
- * crawled behind the Chart step's sheet and then jumped 351px when the
- * transition was taken off. A target yet to appear holds the light where it
+ * slides is followed where it is rather than chased, as a CSS transition
+ * handed a new end every frame would chase it, restarting each time and
+ * barely moving. A target yet to appear holds the light where it
  * stood; a part with nothing to start from (the first step, a card that was
  * a sheet) stands at its end at once.
  */
