@@ -106,7 +106,7 @@ describe('poiPopupHtml', () => {
   // card's left edge where the facts line's width left it hanging.
   it('centres the button in the body', () => {
     const html = poiPopupHtml(RAINIER, false)
-    expect(html).toMatch(new RegExp(`<div style="text-align:center"><button ${POI_ACTION_ATTR}="add"`))
+    expect(html).toMatch(new RegExp(`<div style="display:flex;justify-content:center"><button ${POI_ACTION_ATTR}="add"`))
   })
 
   it('offers the way in, then the way back out', () => {

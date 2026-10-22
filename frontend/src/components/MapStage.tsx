@@ -313,7 +313,7 @@ export default function MapStage({
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${
         isDesktop ? '' : drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows
-      } ${layoutMotion ? LAYOUT_HOLD.clip : ''}`}
+      } ${layoutMotion ? LAYOUT_HOLD.clip : ''} ${layoutMotion === 'opening' || layoutMotion === 'closing' ? LAYOUT_HOLD.layer : ''}`}
       style={
         {
           // A phone's scale and (i) stand on the Analyze button's row

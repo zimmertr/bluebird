@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react'
 import ResultsSheet from './ResultsSheet'
 import { render } from '../testSupport/render'
 import { DEFAULT_FAMILY_KEY, resultsHeading } from '../metrics'
+import { LAYOUT_HOLD } from '../styles'
 
 // The panels and the bar have suites of their own. What this one is about is
 // what the sheet hands them, so both are replaced by stand-ins that keep what
@@ -69,6 +70,7 @@ function props(
     sortDesc?: boolean
     removed?: number
     isDesktop?: boolean
+    layoutMotion?: 'opening' | 'closing' | 'panes' | null
   } = {},
 ): Props {
   return {
@@ -96,6 +98,7 @@ function props(
     fire: { status: 'ready', warnings: new Map(), uncovered: new Set() },
     closure: { status: 'ready', warnings: new Map(), uncovered: new Set() },
     modelId: 'gfs_seamless',
+    layoutMotion: over.layoutMotion ?? null,
   } as unknown as Props
 }
 
@@ -131,6 +134,20 @@ describe('ResultsSheet', () => {
 
   // The sheet takes the results view as one object and hands its members on
   // as they are: the table and the chart under the panels are memoized.
+  // The desk's results stand on a layer of their own while the panel moves
+  // (record 0216), and only then.
+  it('gives a desk\'s results a layer of their own while the panel moves', () => {
+    const results = () => document.querySelector('[data-tour="results"]') as HTMLElement
+    const { rerender } = render(<ResultsSheet {...props()} />)
+    expect(results().className).not.toContain(LAYOUT_HOLD.layer)
+    rerender(<ResultsSheet {...props({ layoutMotion: 'closing' })} />)
+    expect(results().className).toContain(LAYOUT_HOLD.layer)
+    rerender(<ResultsSheet {...props({ layoutMotion: 'opening' })} />)
+    expect(results().className).toContain(LAYOUT_HOLD.layer)
+    rerender(<ResultsSheet {...props({ layoutMotion: 'panes' })} />)
+    expect(results().className).not.toContain(LAYOUT_HOLD.layer)
+  })
+
   it('hands the panels each member of the results view by identity', () => {
     seen.panels.length = 0
     const given = props()

@@ -8,7 +8,7 @@ import { panelMessages, place, resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import { DRAGGED_MAP_PX, FAB_INSET_PX, phoneCornerLiftPx, transportStandPx } from '../utils/resultsSheet'
-import { MAP_EDGE } from '../styles'
+import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
 import type { Place } from '../utils/geocode'
 
 // MapView draws with WebGL, which jsdom has none of, and what this suite is
@@ -229,6 +229,25 @@ describe('MapStage', () => {
   // The chip row holds Legend and Layers at both widths (#714, record 0174),
   // each handed to the rows rather than drawn beside them; their order is
   // the rows' own (MapRows.test.tsx).
+  // While a desk's layout moves the map's column clips the map it holds to
+  // one size (record 0202), and while the panel moves it stands on a layer
+  // of its own (record 0216).
+  it('clips the map\'s column while the layout moves, and gives it a layer while the panel does', () => {
+    const { container, rerender } = render(<MapStage {...props()} />)
+    const column = () => container.firstElementChild as HTMLElement
+    expect(column().className).toContain('flex-1')
+    expect(column().className).not.toContain(LAYOUT_HOLD.clip)
+    expect(column().className).not.toContain(LAYOUT_HOLD.layer)
+    rerender(<MapStage {...props({ layoutMotion: 'panes' })} />)
+    expect(column().className).toContain(LAYOUT_HOLD.clip)
+    expect(column().className).not.toContain(LAYOUT_HOLD.layer)
+    for (const layoutMotion of ['opening', 'closing'] as const) {
+      rerender(<MapStage {...props({ layoutMotion })} />)
+      expect(column().className).toContain(LAYOUT_HOLD.clip)
+      expect(column().className).toContain(LAYOUT_HOLD.layer)
+    }
+  })
+
   it('hands the rows the Legend and Layers chips at both widths', () => {
     const { rerender } = render(<MapStage {...props()} />)
     for (const desk of [true, false]) {

@@ -138,6 +138,11 @@ test('under a reduced-motion setting the panel moves at once', async ({ page }) 
   expect(opening[0].mapWidth).toBe(width - PANEL_PX)
 })
 
+// A shut pane keeps its body, inert, so the next press opens a frame around a
+// body already drawn (record 0216).
+const shutChart = (page: Page) => page.locator('[data-tour="results"] [inert] .recharts-wrapper')
+const shutTable = (page: Page) => page.locator('[data-tour="results"] [inert] [data-results-table]')
+
 test('a press on Both opens the chart pane at the panel speed, holding the map to the results', async ({ page }) => {
   await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
@@ -145,7 +150,7 @@ test('a press on Both opens the chart pane at the panel speed, holding the map t
   // Measured frame by frame, so the ranking lands first rather than mid-move.
   await expectRanked(page)
   await page.getByRole('button', { name: 'Show table only' }).click()
-  await expect(page.locator('[data-tour="results"] .recharts-wrapper')).toHaveCount(0)
+  await expect(shutChart(page)).toHaveCount(1)
   const mapBottom = () => page.locator('main > div').first().evaluate((el) => el.getBoundingClientRect().bottom)
   const before = await mapBottom()
 
@@ -159,10 +164,11 @@ test('a press on Both opens the chart pane at the panel speed, holding the map t
   const closing = await framesAfter(page, 'button[aria-label="Show table only"]', 900)
   for (const f of closing) expect(Math.abs(f.mapBottom - f.resultsTop)).toBeLessThan(1)
   expect([...new Set(closing.map((f) => Math.round(f.mapBottom)))].length).toBeGreaterThan(1)
-  // Back where it started, with the chart gone once its pane had shut.
+  // Back where it started, with the chart kept, inert, behind its shut pane.
   expect(closing[closing.length - 1].mapBottom).toBeCloseTo(before, 0)
-  await expect(page.locator('[data-tour="results"] .recharts-wrapper')).toHaveCount(0)
+  await expect(shutChart(page)).toHaveCount(1)
 })
+
 
 // Every frame for `ms` after a press on a results control, read in the frame:
 // the map's foot and the results' top, the map's canvas size, the chart
@@ -254,8 +260,8 @@ test('the collapse chevron shuts and opens the results at the panel speed', asyn
   expect(blankFrames(collapsing)).toBe(0)
   expect(distinct(collapsing.flatMap((f) => (f.chartSize ? [f.chartSize] : [])))).toBe(1)
   expect(collapsing[collapsing.length - 1].chartFrame).toBe(0)
-  await expect(page.locator('[data-tour="results"] .recharts-wrapper')).toHaveCount(0)
-  await expect(page.locator('[data-results-table]')).toHaveCount(0)
+  await expect(shutChart(page)).toHaveCount(1)
+  await expect(shutTable(page)).toHaveCount(1)
 
   const expanding = await paneFramesAfter(page, 'Expand results', 900)
   for (const f of expanding) expect(Math.abs(f.mapBottom - f.resultsTop)).toBeLessThan(1)
@@ -267,6 +273,8 @@ test('the collapse chevron shuts and opens the results at the panel speed', asyn
   expect(partOpen(expanding, 'tableFrame')).toBeGreaterThan(0)
   expect(blankFrames(expanding)).toBe(0)
   await expect(page.locator('[data-tour="results"] .recharts-wrapper')).toHaveCount(1)
+  await expect(shutChart(page)).toHaveCount(0)
+  await expect(shutTable(page)).toHaveCount(0)
   await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
 })
 
@@ -284,10 +292,12 @@ test('an opening pane\'s chart is mounted and drawn at its end size in every mov
   for (const f of opening) expect(f.table).toBe(true)
 })
 
-// A chart that stays open is drawn once, at the press, at the size the mode
-// pressed gives it: Both to Chart brings the chart-only legend under the
-// plot. A closing chart keeps the size it was drawn at until it goes.
-test('the chart is drawn once a pane move, at its end size', async ({ page }) => {
+// A chart that stays open is drawn once a pane move, where the panes stand
+// still: Both to Chart brings the chart-only legend under the plot, which
+// takes height from it, and the legend comes once the table's frame has shut
+// rather than at the press, where drawing the chart again held the move's
+// first frame (record 0216). A closing chart keeps the size it was drawn at.
+test('the chart is drawn once a pane move, once the panes stand still', async ({ page }) => {
   await analyzedAt(page, 'Show both chart and table')
   const before = await page.locator('[data-tour="results"] .recharts-surface').evaluate((el) => `${el.getAttribute('width')}x${el.getAttribute('height')}`)
   const toChart = await paneFramesAfter(page, 'Show chart only', 900)
@@ -295,15 +305,14 @@ test('the chart is drawn once a pane move, at its end size', async ({ page }) =>
   const after = sizes[sizes.length - 1]
   expect(after).not.toBe(before)
   expect(distinct([before, ...sizes])).toBe(2)
-  // Drawn at its end size before the table's frame is half shut.
-  const full = toChart[0].tableFrame
-  const late = toChart.filter((f) => f.tableFrame > 0.5 && f.tableFrame < full / 2)
-  expect(late.length).toBeGreaterThan(0)
-  for (const f of late) expect(f.chartSize).toBe(after)
+  // The size it had while the table's frame shuts.
+  const moving = toChart.filter((f) => f.tableFrame > 0.5)
+  expect(moving.length).toBeGreaterThan(0)
+  for (const f of moving) expect(f.chartSize).toBe(before)
 
   const toTable = await paneFramesAfter(page, 'Show table only', 900)
   expect(distinct(toTable.flatMap((f) => (f.chartSize ? [f.chartSize] : [])))).toBe(1)
   expect(partOpen(toTable, 'chartFrame')).toBeGreaterThan(0)
   expect(blankFrames(toTable)).toBe(0)
-  await expect(page.locator('[data-tour="results"] .recharts-wrapper')).toHaveCount(0)
+  await expect(shutChart(page)).toHaveCount(1)
 })

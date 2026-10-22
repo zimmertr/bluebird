@@ -81,8 +81,17 @@ for (const theme of ['dark', 'light'] as const) {
     await expect.poll(() => popup.evaluate((el) => getComputedStyle(el).color)).toBe(ink)
 
     // The button looks the way the same class list does in the panel, at rest
-    // and under the pointer.
+    // and under the pointer, and stands in the middle of its row.
     const button = popup.getByRole('button', { name: 'Remove from analysis' })
+    const offCentre = await button.evaluate((el) => {
+      const own = el.getBoundingClientRect()
+      const row = el.parentElement!.getBoundingClientRect()
+      return Math.abs(own.left + own.width / 2 - (row.left + row.width / 2))
+    })
+    expect(offCentre).toBeLessThan(1)
+    expect(await button.evaluate((el) => el.getBoundingClientRect().width)).toBeLessThan(
+      await button.evaluate((el) => el.parentElement!.getBoundingClientRect().width),
+    )
     const className = await button.getAttribute('class')
     expect(className).toBeTruthy()
     await page.mouse.move(0, 0)

@@ -3894,6 +3894,8 @@ describe('the panel frame', () => {
     const panelRem = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) / 4
     expect(LAYOUT_HOLD.chartClosing).toBe(`w-[calc(100vw-${panelRem}rem)]`)
     expect(LAYOUT_HOLD.clip).toBe('overflow-clip')
+    // What moves stands on a layer of its own while it moves (record 0216).
+    expect(LAYOUT_HOLD.layer).toBe('will-change-transform')
   })
 
   // A results pane opens to its body's height and shuts to none, and the

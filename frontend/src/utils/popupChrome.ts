@@ -762,9 +762,12 @@ export function popupCard({ title, link = null, meta = '', warnings = [], body =
  * left against the edge of a card the facts line made wider than it read as a
  * row that lost its label. One spelling for the clicked feature's add or
  * remove and the ranked result's remove, so the two cards place it alike.
+ * Centred by flex rather than by `text-align`, which centres only an inline
+ * box: the button wears the panel's class, whose tap target is a flex box
+ * (`TAP.action`), and a flex box is a block.
  */
 export function popupAction(button: string): string {
-  return `<div style="text-align:center">${button}</div>`
+  return `<div style="display:flex;justify-content:center">${button}</div>`
 }
 
 /**

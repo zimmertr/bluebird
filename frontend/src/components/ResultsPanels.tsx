@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useRef } from 'react'
+import { Suspense, lazy, memo, useMemo, useRef, type ReactNode } from 'react'
 import type { DestinationResult, SortBy } from '../types'
 import type { ChartCompare } from '../hooks/useChartCompare'
 import type { FireProximity } from '../hooks/useFireProximity'
@@ -58,6 +58,19 @@ const TimeSeriesChart = lazy(() => {
 // because the comparison composes every line itself. A module constant so the
 // chart's line memo is not rebuilt by a fresh empty array on every render.
 const NO_CHART_ROWS: DestinationResult[] = []
+
+/**
+ * A shut pane's body as it was last drawn (record 0216): while `holding`,
+ * React skips it, so a pane kept mounted behind its shut frame draws nothing
+ * for a sort, a cut or a tick of the player until it opens again, and draws
+ * once then if anything changed. Its frame clips it to nothing meanwhile.
+ */
+const Held = memo(
+  function Held({ children }: { holding: boolean; children: ReactNode }) {
+    return children
+  },
+  (_, next) => next.holding,
+)
 
 export interface ResultsPanelsProps {
   /** The panels shown, their heights, and their grips (`useResultsLayout`). */
@@ -170,11 +183,14 @@ export default function ResultsPanels({
   // the press at the height the mode pressed gives it, and at a desk kept
   // while its frame closes, at the height it had (record 0202).
   const chartShown = !collapsed && resultsMode !== 'table'
+  const tableShown = !collapsed && resultsMode !== 'chart'
   const chartPane = usePaneMotion(chartShown, chartPanelPx, panesMove)
-  const tablePane = usePaneMotion(!collapsed && resultsMode !== 'chart', tablePanelPx, panesMove)
-  // The chart-only legend takes its height from the plot, so a closing chart
-  // keeps the one it was drawn with rather than being drawn again as it goes.
-  const legendShown = useHeldWhile(resultsMode === 'chart', !chartShown)
+  const tablePane = usePaneMotion(tableShown, tablePanelPx, panesMove)
+  // The chart-only legend takes its height from the plot, so it comes and
+  // goes where the panes stand still: a legend that left at the press of Both
+  // gave the plot its height back and drew the chart again in the move's
+  // first frame (record 0216).
+  const legendShown = useHeldWhile(resultsMode === 'chart', !chartShown || layoutMotion === 'panes')
   const paneMotion = panesMove ? MOTION.pane : ''
   // While the panel moves the chart keeps the width it had and the table's
   // box takes the window's, so neither is drawn again in every frame.
@@ -183,6 +199,13 @@ export default function ResultsPanels({
   const chartHold = chartWidth
   const pushing = layoutMotion === 'closing' || layoutMotion === 'opening'
   const tableHold = pushing ? LAYOUT_HOLD.table : ''
+  // Each body on a layer of its own while the panel moves (record 0216): the
+  // box of a fixed height inside the frame, which moves whole. Not while the
+  // panes move, where the table stands still on the screen and the chart is
+  // cheap to paint where it now stands, and lifting both onto layers at the
+  // press painted them whole: Both to Table started 237 ms after the press
+  // rather than 131 at a quarter of the CPU (2026-10-22).
+  const layer = pushing ? LAYOUT_HOLD.layer : ''
   useScrollShadows(tableScrollRef, tablePane.mounted)
   const { chart, compare, rowChartColor, shared } = charts
   const {
@@ -209,11 +232,8 @@ export default function ResultsPanels({
   )
   return (
     <>
-      <div
-        onTransitionEnd={chartPane.onTransitionEnd}
-        className={`${RESULTS_PANE.frame} ${chartPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}
-      >
-        <div className={`${RESULTS_PANE.top} ${chartHold}`}>
+      <div className={`${RESULTS_PANE.frame} ${chartPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
+        <div inert={!chartShown} className={`${RESULTS_PANE.top} ${chartHold}`}>
           {chartPane.mounted && (
             <>
               <ResizeGrip
@@ -223,107 +243,106 @@ export default function ResultsPanels({
                 onDragEnd={chartGrip.onDragEnd}
               />
               <div
-                className="flex min-h-0 flex-shrink-0 flex-col"
+                className={`flex min-h-0 flex-shrink-0 flex-col ${layer}`}
                 style={{ height: `${chartPane.px}px` }}
               >
-                <div className="min-h-0 flex-1">
-                  <Suspense fallback={null}>
-                    <TimeSeriesChart
-                      times={forecastTimes}
-                      tooltipIndex={chartTooltipIndex}
-                      // While a comparison is up every line on the chart is
-                      // a (destination, model) pair, composed once by the
-                      // hook so each one is named and coloured the same
-                      // way; the chart has no plain destination rows to
-                      // draw. With nothing compared it is the row list it
-                      // has always been.
-                      rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
-                      metric={chart.metric}
-                      onMetricChange={chart.setMetric}
-                      sortBy={sortBy}
-                      sortDesc={sortDesc}
-                      colorFor={chart.colorFor}
-                      sharedNames={shared}
-                      playheadMs={playbackIndex !== null ? forecastTimes[playbackIndex] ?? null : null}
-                      onPlayheadChange={
-                        timelineAxes.includes('forecast') ? movePlayheadTo : undefined
-                      }
-                      extraLines={compare.lines}
-                      modelEnds={compare.endLines}
-                      controls={compareControls}
-                      titled={chartTitled}
-                    />
-                  </Suspense>
-                </div>
-                {/* Chart-only legend. In Both mode the table's checkbox
-                    column is the series picker and this would be a
-                    second copy of it, so it exists exactly where that
-                    column does not, and lists the rows that column
-                    would. Each chip toggles its destination; the ×
-                    is the same removal as the table row's and obeys the
-                    same rules (searched places deregister, removals
-                    survive live knobs). The NAME keeps a fixed budget
-                    (max-w-44) and truncates; the model suffix beside it
-                    never truncates, so a compared chip is wider by its
-                    suffix. max-w-full keeps a chip inside the legend
-                    row, so on a phone a wide chip wraps to its own row
-                    and shrinks its name rather than overflowing. Two
-                    chip rows at most — 26px chips + the 6px gap =
-                    58px — then it scrolls. */}
-                {legendShown && legend.length > 0 && (
-                  <div className="flex-shrink-0 border-t border-frame bg-page/50 px-3 py-1.5">
-                    <div className={`${SCROLL_BARS} flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto`}>
-                      {legend.map(({ key, row, suffix }) => {
-                        const plotted = chart.isSelected(row)
-                        return (
-                          <span
-                            key={key}
-                            className={`inline-flex max-w-full items-center ${RADIUS.control} ${
-                              plotted ? 'bg-raised' : 'bg-panel/50'
-                            }`}
-                          >
-                            <button
-                              onClick={() => chart.toggle(row)}
-                              aria-pressed={plotted}
-                              aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
-                              className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
-                            >
-                              {/* The line's colour, wearing the line's rim,
-                                  which only the light theme draws (PR #733). */}
-                              <span
-                                className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED} ${LINE_EDGE.swatch}`}
-                                style={{ backgroundColor: rowChartColor(row) }}
-                              />
-                              <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>
-                                <span className="min-w-0 max-w-44 truncate">{row.name}</span>
-                                {suffix && (
-                                  <span className="flex-shrink-0 whitespace-pre">{suffix}</span>
-                                )}
-                              </span>
-                            </button>
-                            <button
-                              onClick={() => removeResult(row)}
-                              aria-label={`Remove ${row.name}`}
-                              className={`${ICON_ACTION} ${FOCUS_RING} cursor-pointer py-1 pl-1 pr-2 leading-none`}
-                            >
-                              <IconClose size="chip" />
-                            </button>
-                          </span>
-                        )
-                      })}
-                    </div>
+                <Held holding={!chartShown}>
+                  <div className="min-h-0 flex-1">
+                    <Suspense fallback={null}>
+                      <TimeSeriesChart
+                        times={forecastTimes}
+                        tooltipIndex={chartTooltipIndex}
+                        // While a comparison is up every line on the chart is
+                        // a (destination, model) pair, composed once by the
+                        // hook so each one is named and coloured the same
+                        // way; the chart has no plain destination rows to
+                        // draw. With nothing compared it is the row list it
+                        // has always been.
+                        rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
+                        metric={chart.metric}
+                        onMetricChange={chart.setMetric}
+                        sortBy={sortBy}
+                        sortDesc={sortDesc}
+                        colorFor={chart.colorFor}
+                        sharedNames={shared}
+                        playheadMs={playbackIndex !== null ? forecastTimes[playbackIndex] ?? null : null}
+                        onPlayheadChange={
+                          timelineAxes.includes('forecast') ? movePlayheadTo : undefined
+                        }
+                        extraLines={compare.lines}
+                        modelEnds={compare.endLines}
+                        controls={compareControls}
+                        titled={chartTitled}
+                      />
+                    </Suspense>
                   </div>
-                )}
+                  {/* Chart-only legend. In Both mode the table's checkbox
+                      column is the series picker and this would be a
+                      second copy of it, so it exists exactly where that
+                      column does not, and lists the rows that column
+                      would. Each chip toggles its destination; the ×
+                      is the same removal as the table row's and obeys the
+                      same rules (searched places deregister, removals
+                      survive live knobs). The NAME keeps a fixed budget
+                      (max-w-44) and truncates; the model suffix beside it
+                      never truncates, so a compared chip is wider by its
+                      suffix. max-w-full keeps a chip inside the legend
+                      row, so on a phone a wide chip wraps to its own row
+                      and shrinks its name rather than overflowing. Two
+                      chip rows at most — 26px chips + the 6px gap =
+                      58px — then it scrolls. */}
+                  {legendShown && legend.length > 0 && (
+                    <div className="flex-shrink-0 border-t border-frame bg-page/50 px-3 py-1.5">
+                      <div className={`${SCROLL_BARS} flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto`}>
+                        {legend.map(({ key, row, suffix }) => {
+                          const plotted = chart.isSelected(row)
+                          return (
+                            <span
+                              key={key}
+                              className={`inline-flex max-w-full items-center ${RADIUS.control} ${
+                                plotted ? 'bg-raised' : 'bg-panel/50'
+                              }`}
+                            >
+                              <button
+                                onClick={() => chart.toggle(row)}
+                                aria-pressed={plotted}
+                                aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
+                                className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
+                              >
+                                {/* The line's colour, wearing the line's rim,
+                                    which only the light theme draws (PR #733). */}
+                                <span
+                                  className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED} ${LINE_EDGE.swatch}`}
+                                  style={{ backgroundColor: rowChartColor(row) }}
+                                />
+                                <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>
+                                  <span className="min-w-0 max-w-44 truncate">{row.name}</span>
+                                  {suffix && (
+                                    <span className="flex-shrink-0 whitespace-pre">{suffix}</span>
+                                  )}
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => removeResult(row)}
+                                aria-label={`Remove ${row.name}`}
+                                className={`${ICON_ACTION} ${FOCUS_RING} cursor-pointer py-1 pl-1 pr-2 leading-none`}
+                              >
+                                <IconClose size="chip" />
+                              </button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </Held>
               </div>
             </>
           )}
         </div>
       </div>
-      <div
-        onTransitionEnd={tablePane.onTransitionEnd}
-        className={`${RESULTS_PANE.frame} ${tablePane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}
-      >
-        <div className={`${RESULTS_PANE.foot} ${tableHold}`}>
+      <div className={`${RESULTS_PANE.frame} ${tablePane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
+        <div inert={!tableShown} className={`${RESULTS_PANE.foot} ${tableHold}`}>
           {tablePane.mounted && (
             <>
               <ResizeGrip
@@ -342,42 +361,44 @@ export default function ResultsPanels({
                   2026-10-06). */}
               <div
                 ref={tableScrollRef}
-                className={`@container relative overflow-auto min-h-0 ${SCROLL_BARS} ${SCROLL_SHADOW.end} flex-shrink-0`}
+                className={`@container relative overflow-auto min-h-0 ${SCROLL_BARS} ${SCROLL_SHADOW.end} flex-shrink-0 ${layer}`}
                 style={{ height: `${tablePane.px}px` }}
               >
-                <ResultsTable
-                  emptyReason={emptyReason}
-                  results={tableRows}
-                  sortBy={sortBy}
-                  detailSortKey={detailSort.key}
-                  detailSortDir={detailSort.dir}
-                  onDetailSort={sortDetail}
-                  pointSample={pointSample}
-                  columns={tableColumns}
-                  columnWidths={tableColWidths}
-                  onColumnWidthsChange={setTableColWidths}
-                  modelFallbackLabel={analysisModelLabel}
-                  onColumnMove={handleColumnMove}
-                  fireWarnings={fire.warnings}
-                  fireUncovered={fire.uncovered}
-                  fireStatus={fire.status}
-                  closureWarnings={closure.warnings}
-                  closureUncovered={closure.uncovered}
-                  closureStatus={closure.status}
-                  pendingHeights={pendingHeights}
-                  pending={pending}
-                  onRemove={removeResult}
-                  onRemovePending={onRemovePending}
-                  onFocusResult={onFocusResult}
-                  onFocusPending={onFocusPending}
-                  modelId={modelId}
-                  times={forecastTimes}
-                  onToggleChart={chart.toggle}
-                  isCharted={chart.isSelected}
-                  chartColor={rowChartColor}
-                  onChartRange={chart.setRange}
-                  partialNote={partialNote}
-                />
+                <Held holding={!tableShown}>
+                  <ResultsTable
+                    emptyReason={emptyReason}
+                    results={tableRows}
+                    sortBy={sortBy}
+                    detailSortKey={detailSort.key}
+                    detailSortDir={detailSort.dir}
+                    onDetailSort={sortDetail}
+                    pointSample={pointSample}
+                    columns={tableColumns}
+                    columnWidths={tableColWidths}
+                    onColumnWidthsChange={setTableColWidths}
+                    modelFallbackLabel={analysisModelLabel}
+                    onColumnMove={handleColumnMove}
+                    fireWarnings={fire.warnings}
+                    fireUncovered={fire.uncovered}
+                    fireStatus={fire.status}
+                    closureWarnings={closure.warnings}
+                    closureUncovered={closure.uncovered}
+                    closureStatus={closure.status}
+                    pendingHeights={pendingHeights}
+                    pending={pending}
+                    onRemove={removeResult}
+                    onRemovePending={onRemovePending}
+                    onFocusResult={onFocusResult}
+                    onFocusPending={onFocusPending}
+                    modelId={modelId}
+                    times={forecastTimes}
+                    onToggleChart={chart.toggle}
+                    isCharted={chart.isSelected}
+                    chartColor={rowChartColor}
+                    onChartRange={chart.setRange}
+                    partialNote={partialNote}
+                  />
+                </Held>
               </div>
             </>
           )}

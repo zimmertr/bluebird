@@ -95,8 +95,8 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label 44px (#687, record 0130) |
 | `MOTION` | Movement that answers an action and stops under a reduced-motion setting, at two speeds (#714): `menu` at 150ms for a menu or a card, a fade and a 4px slide from its trigger's side and back, with a closed card kept for its exit by `useExit`, and at 300ms `slide` for the phone's Controls sheet, `push` for the desk panel and `pane` for a results pane on a press or the collapse chevron, each naming the one property it moves. `progress` is the analysis card's bar (#687). `PANEL_MS` is the slower speed in numbers, for script that waits out a move. The tutorial wears no transition: at a desk its light and card glide in script (`glide` in `tour/place.ts`), and on a phone it cuts from card to card and stands every transition in the app down while it runs (`data-touring="cut"`, record [0214](decisions/0214-phone-tour-cuts-desk-tour-glides.md)) |
 | `DESK_PANEL` | The controls panel at a desk: a 360px column in the row beside the map, which stays in the row while shut and gives its width back through its left margin (`shut`), so the map's edge moves with the panel's (#714) |
-| `RESULTS_PANE` | A results pane at a desk, the chart or the table with its grip: a one-row grid frame, `1fr` open and `0fr` shut, around a body mounted at the press at the height it will stand at, held to the results bar (`top`, the chart) or to the column's foot (`foot`, the table) (#714) |
-| `LAYOUT_HOLD` | What keeps one size while a desk's layout moves (#714): the map's box at the window's width or height, centred on its column, which clips it (`clip`); the table's box at the window's width and the chart at the width it had while the panel moves. `rest` is the map's box the rest of the time |
+| `RESULTS_PANE` | A results pane at a desk, the chart or the table with its grip: a one-row grid frame, `1fr` open and `0fr` shut, around a body mounted at the press at the height it will stand at and kept, inert, while the pane is shut (#786), held to the results bar (`top`, the chart) or to the column's foot (`foot`, the table) (#714) |
+| `LAYOUT_HOLD` | What keeps one size while a desk's layout moves (#714): the map's box at the window's width or height, centred on its column, which clips it (`clip`); the table's box at the window's width and the chart at the width it had while the panel moves. `rest` is the map's box the rest of the time. `layer` puts what moves with the panel on a layer of its own while it moves: the panel, the map's column, the results and each pane's body (#786) |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself. 16px square around a 10px letter, the one size under the type floor (`GLYPH_SIZE`, private to `styles.ts`), which the strip's numerals in `SWATCH_RAMP_TICK` share |
 | `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: every metric's scale and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
@@ -839,7 +839,8 @@ row, `1fr` open and `0fr` shut, around a body that keeps its own height. An
 opening pane mounts its body at the press at the height it will stand at, so
 the chart is drawn once and the data is on screen as the frame uncovers it.
 The chart comes down from the results bar and the table up from the column's
-foot. A closing pane keeps its body until its frame has shut.
+foot. A shut pane keeps its body, inert and drawing nothing new, so the next
+press opens a frame around a body already drawn.
 
 While the layout moves, the map's box and the panes' bodies hold one size
 (`LAYOUT_HOLD`), so a frame moves boxes instead of resizing the map or laying
@@ -856,6 +857,16 @@ moves in 14 frames shut and 15 open. At 946 the mount takes 383 to 707ms, and
 some presses then show only one or two frames of motion (medians,
 2026-10-21).
 Record: [0202](decisions/0202-panel-and-panes-move-at-one-speed.md)
+
+While the panel moves, the panel, the map's column, the results and each
+pane's body stand on layers of their own (`LAYOUT_HOLD.layer`), so a frame
+shifts layers rather than painting them again: at 200 rows a close painted for
+185 to 195ms in all and now paints for about 35. Since #786 a pane press opens
+a body already drawn rather than mounting one, so Table to Both starts moving
+about 39ms after the press rather than 116, and the chart-only legend arrives
+once the panes stand still rather than drawing the chart again in the move's
+first frame (2026-10-22).
+Record: [0216](decisions/0216-desk-moves-paint-less.md)
 
 ### Control width
 

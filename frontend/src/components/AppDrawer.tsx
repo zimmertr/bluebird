@@ -12,7 +12,7 @@ import type { ForecastSelectionState } from '../hooks/useForecastSelection'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
 import type { ActionWord } from '../utils/analyzeGate'
-import { DESK_PANEL, HEADER_BUTTON, PANEL_HEADER } from '../styles'
+import { DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER } from '../styles'
 import type { Theme } from '../utils/viewPrefs'
 
 interface AppDrawerProps {
@@ -20,6 +20,8 @@ interface AppDrawerProps {
   open: boolean
   /** A desk, where the panel docks beside the map; a phone raises it as a sheet. */
   isDesktop: boolean
+  /** A desk's panel is opening or closing (`useLayoutMotion`), on a layer of its own meanwhile. */
+  moving?: boolean
   /** The Controls sheet's height on a phone: its own share (`controlsSheetPx`), or where a drag left it. */
   sheetPx: number
   /** Its own share, which a release near it or a double press on the grip gives back (record 0146). */
@@ -113,6 +115,7 @@ interface AppDrawerProps {
 export default function AppDrawer({
   open,
   isDesktop,
+  moving = false,
   sheetPx,
   sheetRestPx,
   sheetFullPx,
@@ -260,8 +263,12 @@ export default function AppDrawer({
 
           Inert while closed: off screen is not out of the Tab order, and the
           closed drawer kept some 45 stops a keyboard walked through blind
-          before reaching the map (#576). */}
-      <aside inert={!open} className={`${DESK_PANEL.card} ${open ? '' : DESK_PANEL.shut}`}>
+          before reaching the map (#576). On a layer of its own while it
+          moves, so a frame of the move paints none of it (record 0216). */}
+      <aside
+        inert={!open}
+        className={`${DESK_PANEL.card} ${open ? '' : DESK_PANEL.shut} ${moving ? LAYOUT_HOLD.layer : ''}`}
+      >
         {/* The header's buttons: the theme switch, then the close button,
             which collapses the panel. */}
         <div className={PANEL_HEADER.actions}>

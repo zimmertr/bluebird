@@ -9,7 +9,7 @@ import { DEFAULT_SELECTION } from '../utils/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import type { PanelMessages } from '../hooks/usePanelMessages'
-import { DESK_PANEL } from '../styles'
+import { DESK_PANEL, LAYOUT_HOLD } from '../styles'
 
 vi.mock('./ControlPanel', () => ({
   default: (props: { pointSample: boolean; messages: PanelMessages; phone?: boolean }) => (
@@ -141,6 +141,17 @@ describe('AppDrawer', () => {
     expect(container.querySelector('aside')?.className).toContain(DESK_PANEL.card)
     expect(container.querySelector('aside')?.className.split(' ')).toContain(shut)
     expect(screen.getByTestId('panel')).toBeTruthy()
+  })
+
+  // On a layer of its own while it moves, so a frame of the move paints none
+  // of it (record 0216), and only then.
+  it('stands on a layer of its own while it moves', () => {
+    const { container, rerender } = render(drawer(true))
+    expect(container.querySelector('aside')?.className).not.toContain(LAYOUT_HOLD.layer)
+    rerender(drawer(false, NOOP, { moving: true }))
+    expect(container.querySelector('aside')?.className).toContain(LAYOUT_HOLD.layer)
+    rerender(drawer(false))
+    expect(container.querySelector('aside')?.className).not.toContain(LAYOUT_HOLD.layer)
   })
 
   // Off screen is not out of the Tab order: closed, the drawer kept some 45

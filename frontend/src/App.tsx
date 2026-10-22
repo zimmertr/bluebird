@@ -652,6 +652,7 @@ export default function App() {
       <AppDrawer
         open={sidebarOpen}
         isDesktop={isDesktop}
+        moving={layoutMotion === 'opening' || layoutMotion === 'closing'}
         sheetPx={controlsHeldPx ?? controlsSheetPx(layout.mapPx)}
         sheetRestPx={controlsSheetPx(layout.mapPx)}
         sheetFullPx={controlsFullPx(layout.mapPx)}

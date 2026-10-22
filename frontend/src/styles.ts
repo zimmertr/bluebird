@@ -2591,12 +2591,24 @@ export const RESULTS_PANE = {
  * column. The chart keeps the width it had (`chartClosing` is the window less
  * the panel), because drawing it is the costliest thing on the page, and is
  * drawn once at the end.
+ *
+ * While the panel moves, what moves with it stands on a layer of its own
+ * (`layer`): the panel, the map's column, the results and each pane's body
+ * (record 0216). A frame of the move then shifts layers the GPU already holds
+ * rather than painting the panel, the table and the chart again where they
+ * now stand, which was 185 ms of painting across a 300 ms close of a 200-row
+ * report, and 35 ms on layers (2026-10-22). Only while it moves, because a
+ * layer is a containing block for anything fixed inside it, and the table's
+ * column-drag ghost is. Not while the panes move: the table stands still on
+ * the screen then, the chart is cheap to paint where it now stands, and
+ * lifting both onto layers at the press cost more than the frames saved.
  */
 export const LAYOUT_HOLD = {
   rest: 'absolute inset-0',
   mapPush: 'absolute inset-y-0 left-[calc(50%-50vw)] w-screen',
   mapPanes: 'absolute inset-x-0 top-[calc(50%-50dvh)] h-dvh',
   clip: 'overflow-clip',
+  layer: 'will-change-transform',
   table: 'w-screen',
   chartClosing: 'w-[calc(100vw-22.5rem)]',
   chartOpening: 'w-screen',
