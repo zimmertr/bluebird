@@ -3,7 +3,7 @@
 - Status: Accepted. Amends [0159](0159-crags-destination-type.md) (a crag row's name links to a Mountain Project search by name).
 - Date: 2026-10-22
 - Decider: the maintainer (TJ), after Family Wall at Little Si linked to other states' walls: of the options put to him, "State only, drop the tag".
-- Issues and PRs: PR #797
+- Issues and PRs: #798, PR #797
 - Cited in code as: none
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), `destinationUrl.ts`, `usStates.ts` and `usStatesLoad.ts`; [`docs/DATA.md`](../DATA.md), Mountain Project
 
