@@ -25,7 +25,7 @@ A polygon run is unchanged. Its lookup rides inside the discovery request, and t
 
 ## Evidence
 
-Measured 2026-10-06 with the 100 rows of `examples/washington-bulger-list.csv`:
+Measured 2026-10-06 with the 100 rows of `csv-examples/washington-bulger-list.csv`:
 
 | Request | Time | Result |
 |---|---|---|
