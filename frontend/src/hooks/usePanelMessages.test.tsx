@@ -6,8 +6,8 @@ import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { forecastModel } from '../testSupport/fixtures'
 
 // The panel's messages and the Analyze gate from one set of inputs (record
-// 0208): what the badge counts, which severity colours it, which line stands
-// under which field, and how a dismissal is kept. Which lines exist is
+// 0208): what the badge counts, which severity colours it, and how a
+// dismissal is kept. Which lines exist is
 // `panelMessages.test.ts`; which reason wins the gate is `analyzeGate.test.ts`.
 
 const MODELS = [
@@ -53,8 +53,6 @@ function state(over: Partial<PanelMessageState> = {}): PanelMessageState {
 const hook = (over: Partial<PanelMessageState> = {}) =>
   renderHook((s: PanelMessageState) => usePanelMessages(s), { initialProps: state(over) })
 
-const EMPTY_HOMES = { destinations: [], polygon: [], types: [], model: [], when: [] }
-
 describe('usePanelMessages', () => {
   it('says nothing with a pin and nothing wrong, and opens the gate', () => {
     const { result } = hook()
@@ -62,7 +60,6 @@ describe('usePanelMessages', () => {
       messages: [],
       count: 0,
       worst: null,
-      blockers: EMPTY_HOMES,
       analyzeEnabled: true,
       blocked: false,
       areaTooLarge: false,
@@ -71,44 +68,36 @@ describe('usePanelMessages', () => {
     })
   })
 
-  it('holds Analyze up for a blocker, counts it, and homes it on its field', () => {
+  it('holds Analyze up for a blocker, counts it, and reads it red', () => {
     const { result } = hook({ hasPins: false })
     expect(result.current.analyzeEnabled).toBe(false)
     expect(result.current.blocked).toBe(true)
     expect(result.current.count).toBe(1)
-    expect(result.current.worst).toBe('info')
-    expect(result.current.blockers).toMatchObject({ ...EMPTY_HOMES, destinations: [{ key: 'blocker:destinations' }] })
+    expect(result.current.worst).toBe('error')
+    expect(result.current.messages.map((m) => m.key)).toEqual(['blocker:destinations'])
   })
 
-  // Each blocker under the field it validates (`BLOCKER_HOME`).
-  const HOMES: [string, Partial<PanelMessageState>, string, string][] = [
-    ['an oversized ring', { drawPointCount: 4, polygonAreaKm2: 200_000 }, 'polygon', 'blocker:area'],
-    ['a ring short of points', { hasPins: false, drawPointCount: 2 }, 'polygon', 'blocker:polygon'],
-    ['a ring with no type', { hasPins: false, drawPointCount: 3, destinationTypes: [] }, 'types', 'blocker:types'],
-    ['no day picked', { selection: { kind: 'days', startDate: null, endDate: null } }, 'when', 'blocker:dates'],
-    ['a window nothing serves', { windowWarning: 'order' }, 'when', 'blocker:window'],
-    [
-      'air quality compared',
-      { sortBy: DEFAULT_FAMILY_KEY.aqi, comparedModels: ['ecmwf_ifs025'] },
-      'model',
-      'blocker:compare-aqi',
-    ],
+  // Every blocker the gate names holds the button up and reads red on the
+  // badge (record 0210), whatever it is about.
+  const BLOCKED: [string, Partial<PanelMessageState>, string][] = [
+    ['an oversized ring', { drawPointCount: 4, polygonAreaKm2: 200_000 }, 'blocker:area'],
+    ['a ring short of points', { hasPins: false, drawPointCount: 2 }, 'blocker:polygon'],
+    ['a ring with no type', { hasPins: false, drawPointCount: 3, destinationTypes: [] }, 'blocker:types'],
+    ['no day picked', { selection: { kind: 'days', startDate: null, endDate: null } }, 'blocker:dates'],
+    ['a window nothing serves', { windowWarning: 'order' }, 'blocker:window'],
+    ['air quality compared', { sortBy: DEFAULT_FAMILY_KEY.aqi, comparedModels: ['ecmwf_ifs025'] }, 'blocker:compare-aqi'],
     [
       'a freezing level compared on a model without one',
       { sortBy: DEFAULT_FAMILY_KEY.freeze, comparedModels: ['ecmwf_ifs025'] },
-      'model',
       'blocker:compare-freeze',
     ],
   ]
 
-  it.each(HOMES)('homes %s under its field', (_case, over, home, key) => {
+  it.each(BLOCKED)('holds Analyze up for %s and reads red', (_case, over, key) => {
     const { result } = hook(over)
     expect(result.current.blocked).toBe(true)
-    const lines = result.current.blockers[home as keyof typeof EMPTY_HOMES]
-    expect(lines.map((m) => m.key)).toContain(key)
-    for (const [other, those] of Object.entries(result.current.blockers)) {
-      if (other !== home) expect(those).toEqual([])
-    }
+    expect(result.current.messages.find((m) => m.key === key)?.severity).toBe('error')
+    expect(result.current.worst).toBe('error')
   })
 
   it('reads the area cap and the points still needed off the gate', () => {
@@ -121,7 +110,9 @@ describe('usePanelMessages', () => {
 
   it('colours the badge by the worst severity present', () => {
     expect(hook({ commitReasons: ['model-changed'] }).result.current.worst).toBe('warn')
-    expect(hook({ commitReasons: ['model-changed'], hasPins: false }).result.current.worst).toBe('warn')
+    // A blocker beside a stale report: the button is held up, and the badge
+    // says so before the list is opened.
+    expect(hook({ commitReasons: ['model-changed'], hasPins: false }).result.current.worst).toBe('error')
     expect(hook({ commitReasons: ['model-changed'], error: { message: 'boom', retry: true } }).result.current.worst).toBe('error')
   })
 
@@ -155,7 +146,7 @@ describe('usePanelMessages', () => {
     expect(result.current.messages.map((m) => m.key)).toEqual(['error:boom'])
   })
 
-  // A blocker is the field's state until the reader supplies what it asks.
+  // A blocker stands until the reader supplies what it asks.
   it('passes over the dismissal of a blocker', () => {
     const dismissEvent = vi.fn()
     const { result } = hook({ hasPins: false, dismissEvent })

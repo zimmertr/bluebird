@@ -5,15 +5,18 @@
 // The chart's CHROME lives here too (#365): Recharts takes a `stroke` or a
 // `fill` as a prop, not a class, so the design system in styles.ts cannot
 // reach it, and the axis colour was spelled five times in two files before it
-// had a name. Since #706 every value here comes in a pair, one per theme,
-// and is resolved by the theme at render time: Recharts writes them as SVG
-// presentation attributes, which do not resolve `var()`, so the CSS tokens
-// that theme every class cannot reach them. The dark values are the Tailwind
-// slate steps the surrounding panel wears, as Tailwind v4 computes them from
-// its oklch steps (#687); the light ones are the light theme's tokens in
-// `index.css`, spelled as the hexes they are there.
+// had a name. Since #706 every value here comes in a pair, one per theme.
+// Recharts writes them as SVG presentation attributes, which do not resolve
+// `var()`, so the CSS tokens that theme every class cannot reach them; since
+// #786 the chart is handed both at once as `light-dark()` (`themed`), which an
+// attribute does resolve, against the root's colour scheme, so a theme
+// switch repaints the chart without re-rendering it. The dark values are the
+// Tailwind slate steps the surrounding panel wears, as Tailwind v4 computes
+// them from its oklch steps (#687); the light ones are the light theme's
+// tokens in `index.css`, spelled as the hexes they are there.
 import type { Theme } from './viewPrefs'
 import { clamp } from './numbers'
+import { themed } from './themeColor'
 
 /** The chart's chrome in one theme. */
 export interface ChartChrome {
@@ -75,6 +78,23 @@ const LIGHT_CHROME: ChartChrome = {
 }
 
 export const CHART_CHROME: Record<Theme, ChartChrome> = { dark: DARK_CHROME, light: LIGHT_CHROME }
+
+/**
+ * The chrome as the chart draws it (#786): every value both themes' at once,
+ * resolved by the root's colour scheme. The rim is transparent in dark, where
+ * the lines need none, so a mark can wear it in either theme.
+ */
+export const CHROME: Record<Exclude<keyof ChartChrome, 'lineEdge'>, string> & { lineEdge: string } = {
+  axis: themed(LIGHT_CHROME.axis, DARK_CHROME.axis),
+  grid: themed(LIGHT_CHROME.grid, DARK_CHROME.grid),
+  surface: themed(LIGHT_CHROME.surface, DARK_CHROME.surface),
+  playhead: themed(LIGHT_CHROME.playhead, DARK_CHROME.playhead),
+  unassigned: themed(LIGHT_CHROME.unassigned, DARK_CHROME.unassigned),
+  lineEdge: themed(LIGHT_INK_SOFT, 'transparent'),
+}
+
+/** The rim's own ink, which the light theme's filter floods with (PR #733). */
+export const LINE_RIM_INK = LIGHT_INK_SOFT
 
 /**
  * How much wider a line's edge is drawn than the line: a pixel each side, so
@@ -190,15 +210,21 @@ export function colorForIndex(index: number, theme: Theme): string {
 }
 
 /**
- * Every allocated index as the hex it paints in a theme, for a reader that
- * wants colours by key (the comparison's pairs, `seedPairColors`).
+ * An allocated index as the chart and its swatches paint it: both themes'
+ * shades at once (`themed`, #786), so a line, its legend chip and its table
+ * checkbox keep one value across a switch.
  */
-export function paletteColors(
-  indices: Readonly<Record<string, number>>,
-  theme: Theme,
-): Record<string, string> {
+export function lineColor(index: number): string {
+  return themed(colorForIndex(index, 'light'), colorForIndex(index, 'dark'))
+}
+
+/**
+ * Every allocated index as the colour it paints, for a reader that wants
+ * colours by key (the comparison's pairs, `seedPairColors`).
+ */
+export function paletteColors(indices: Readonly<Record<string, number>>): Record<string, string> {
   const out: Record<string, string> = {}
-  for (const [key, index] of Object.entries(indices)) out[key] = colorForIndex(index, theme)
+  for (const [key, index] of Object.entries(indices)) out[key] = lineColor(index)
   return out
 }
 
@@ -207,8 +233,8 @@ export function paletteColors(
  *
  * What it hands out is a palette INDEX rather than a hex (#706): a theme
  * switch must recolour the lines a reader has already charted, and a stored
- * hex would keep the old theme's. The hex is resolved where it is read
- * (`colorForIndex`), so a line keeps its place in the palette and takes the
+ * hex would keep the old theme's. The colour is resolved where it is read
+ * (`lineColor`), so a line keeps its place in the palette and takes the
  * theme's shade of it.
  *
  * This is the app's ONE colour allocator and it hands out to two kinds of key:

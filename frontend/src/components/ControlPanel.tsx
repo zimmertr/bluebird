@@ -21,8 +21,7 @@ import { logoUrl } from '../logo'
 // it draws. Every message the panel has to say is composed in
 // `utils/panelMessages.ts` and held by `usePanelMessages` above the panel,
 // since the phone's map reads it too (record 0208): the footer draws the
-// Analyze button with the badge and the list, and each section draws the
-// blockers that stand under its own fields.
+// Analyze button with the badge and the list.
 
 // Each field that one section alone draws is described on that section's own
 // props, beside the code that reads it.
@@ -73,9 +72,9 @@ interface Props {
   comparedModels: readonly string[]
   setComparedModels: (ids: string[]) => void
   defaultForecastModel: string
-  // Every message the panel has to say, the Analyze gate and the blockers by
-  // the field each stands under (`usePanelMessages`): held above the panel,
-  // because the phone's map reads the same messages on its own button.
+  // Every message the panel has to say and the Analyze gate
+  // (`usePanelMessages`): held above the panel, because the phone's map reads
+  // the same messages on its own button.
   messages: PanelMessages
   // What the Analyze button reads (#736): decided by App from the run's
   // error and the panel, because the phone's floating button reads the same
@@ -162,7 +161,7 @@ export default function ControlPanel({
   // A line pasted twice is one destination, and the count says so (#579).
   // Parsed once per change for the count; the gate reads App's parse.
   const customCount = useMemo(() => distinctRows(parseCustomCsv(customCsv)).length, [customCsv])
-  const { analyzeEnabled, areaTooLarge, pointsNeeded, modelDisabled, blockers } = messages
+  const { analyzeEnabled, areaTooLarge, pointsNeeded, modelDisabled } = messages
 
   // A link's run on open fires from here rather than from App because the
   // panel is what the link opens on. The ref keeps it to once per panel even
@@ -258,9 +257,6 @@ export default function ControlPanel({
           setCustomCsv={setCustomCsv}
           parsedCount={customCount}
           onCsvPasted={onCsvPasted}
-          destinationsLines={blockers.destinations}
-          polygonLines={blockers.polygon}
-          typesLines={blockers.types}
         />
 
         {/* which model answers, and over which hours. One calendar,
@@ -279,8 +275,6 @@ export default function ControlPanel({
           setSelection={setSelection}
           archiveDays={archiveDays}
           aqiForecastDays={aqiForecastDays}
-          modelLines={blockers.model}
-          whenLines={blockers.when}
           phone={phone}
         />
 

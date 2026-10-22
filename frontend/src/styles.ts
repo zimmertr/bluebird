@@ -898,7 +898,8 @@ export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
  * on the panel), which every pastel reads 3:1 or better against. A mark in a
  * line's colour is the same pastel on the same panel and owes the same
  * boundary, so it wears the same rim; dark marks stand off their panel by
- * themselves and wear none, so a call site adds this in light only.
+ * themselves, so the rim's token is transparent there (`--ui-line-edge`) and
+ * a call site wears this in both themes, naming neither (#786).
  *
  * An outline, 1px, so the rim takes no room from the colour inside it and a
  * native checkbox keeps the box the browser draws: Chromium follows the
@@ -907,8 +908,8 @@ export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
  * box had relied on.
  */
 export const LINE_EDGE = {
-  swatch: 'outline-1 outline-ink-soft',
-  input: `outline-1 outline-ink-soft ${FOCUS_RING}`,
+  swatch: 'outline-1 outline-line-edge',
+  input: `outline-1 outline-line-edge ${FOCUS_RING}`,
 } as const
 
 export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
@@ -1793,19 +1794,6 @@ export const MESSAGE_BADGE = {
  */
 export const BLOCKED = 'aria-disabled:opacity-40'
 
-/**
- * A blocker's line under the field it validates (record 0208): a 6px dot in
- * the severity's ink and the sentence beside it at the message size, with no
- * box and no ×, the field's own readout the way the draw counter is. The
- * colour is `STATUS`'s, composed at the call site as `NOTICE` composes it,
- * and the dot takes it from the text (`bg-current`), so one colour utility
- * reaches both.
- */
-export const BLOCKER_LINE = {
-  row: 'mt-1.5 flex items-center gap-1.5 text-xs',
-  dot: `h-1.5 w-1.5 flex-shrink-0 ${RADIUS.pill} bg-current`,
-} as const
-
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 /**
  * The same segmented control sized by the box it is placed in, for a row whose
@@ -2088,9 +2076,7 @@ export const ACCENT_RING = 'ring-4 ring-accent-ink shadow-[0_0_18px_var(--ui-acc
  * as centred amber text directly above a blocker in an amber box, saying the
  * same kind of thing in two shapes for no reason a reader could act on. Every
  * message in the list is one of these three now, and severity is the only
- * thing that varies (`MessageBox` in `MessageList.tsx`). The one line that
- * stands outside the list, a blocker's under its field, is `BLOCKER_LINE`,
- * which is a readout rather than a notice (record 0208).
+ * thing that varies (`MessageBox` in `MessageList.tsx`, record 0208).
  *
  * Four boxes, and before this they were four recipes. Three had settled on a
  * `-950/40` fill with a `-800/60` border and the fourth — the error, the one

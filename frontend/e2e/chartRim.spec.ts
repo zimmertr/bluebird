@@ -5,8 +5,10 @@ import { test, expect, resultRows, isoDay } from './fixtures'
 // draws the lines into. That group is Recharts' own, named by a class it
 // writes, so only a browser can say the rule still reaches it: a Recharts
 // release that renamed it would leave every pastel under 2:1 on the panel
-// with every unit test green. Dark lines carry no rim, and a ticked chart box
-// wears the same rim as an outline in light.
+// with every unit test green. The hover dot's rim is a rule on Recharts' own
+// classes too. Dark lines carry no rim: the filter stays defined and goes
+// unapplied, and the rim every mark wears is transparent, so a switch changes
+// no element of the chart (record 0211).
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
@@ -26,10 +28,19 @@ test('rims the light chart lines and the ticked chart boxes, and nothing in dark
   await expect(page.locator('#chart-line-rim')).toHaveCount(1)
   const box = resultRows(page).first().getByRole('checkbox')
   await expect(box).toBeChecked()
-  expect(await box.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid')
+  // The light `ink-soft`, #42474e.
+  const rim = 'rgb(66, 71, 78)'
+  expect(await box.evaluate((el) => getComputedStyle(el).outlineColor)).toBe(rim)
+  const dot = page.locator('.recharts-active-dot .recharts-dot').first()
+  await page.locator('svg.recharts-surface').first().hover()
+  await expect(dot).toBeAttached()
+  expect(await dot.evaluate((el) => getComputedStyle(el).stroke)).toBe(rim)
 
   await page.getByRole('button', { name: 'Switch to dark theme' }).first().click()
   await expect.poll(() => layer.evaluate((g) => getComputedStyle(g).filter)).toBe('none')
-  await expect(page.locator('#chart-line-rim')).toHaveCount(0)
-  expect(await box.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('solid')
+  expect(await box.evaluate((el) => getComputedStyle(el).outlineColor)).toBe('rgba(0, 0, 0, 0)')
+  await page.locator('svg.recharts-surface').first().hover({ position: { x: 200, y: 60 } })
+  await expect(dot).toBeAttached()
+  // Recharts' own white ring, which is the dark theme's.
+  expect(await dot.evaluate((el) => getComputedStyle(el).stroke)).toBe('rgb(255, 255, 255)')
 })

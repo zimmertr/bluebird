@@ -15,7 +15,7 @@ import {
   pruneDismissals,
   worstSeverity,
 } from '../utils/notices'
-import { type BlockerHome, blockerLines, panelMessages } from '../utils/panelMessages'
+import { panelMessages } from '../utils/panelMessages'
 import type { CommitReason } from '../utils/present'
 import { classifyAqiCoverage } from '../utils/urlState'
 
@@ -68,8 +68,8 @@ export interface PanelMessageState {
 /**
  * What the panel, the Analyze button and the phone's map read of the
  * messages (record 0208): the list as the reader sees it, its count and its
- * worst severity for the badge, the blockers' lines by the field each stands
- * under, and the gate's own answers, which the panel's sections draw.
+ * worst severity for the badge, and the gate's own answers, which the
+ * panel's sections draw.
  */
 export interface PanelMessages {
   /** Every message current and not dismissed, in `panelMessages`'s order. */
@@ -83,8 +83,6 @@ export interface PanelMessages {
    * is the field's state until the reader supplies what it asks.
    */
   dismiss: (key: string) => void
-  /** The blockers' lines by home, every home present and most of them empty. */
-  blockers: Readonly<Record<BlockerHome, FooterMessage[]>>
   /** The gate's answer, which the panel's button and the phone's share. */
   analyzeEnabled: boolean
   /** Shut for a reason the reader can act on, as against busy: a press opens the list. */
@@ -218,7 +216,6 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     count: messages.length,
     worst: worstSeverity(messages),
     dismiss,
-    blockers: blockerLines(all),
     analyzeEnabled,
     // Busy is the button's own news; a blocker is a reason the reader can
     // act on, and the list is where every reason is.

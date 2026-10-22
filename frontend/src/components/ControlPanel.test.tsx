@@ -12,9 +12,9 @@ import { render } from '../testSupport/render'
 import { CONTROLS_SHEET, MESSAGE_BADGE, PANEL_BODY, PANEL_RULE } from '../styles'
 
 // The panel's contract with its reader (record 0208): the Analyze button is
-// held up for each reason the gate in `utils/analyzeGate.ts` names, each
-// reason stands under the field it is about, and every message is in the
-// list the button's badge opens. The gate's own suite pins which reason wins
+// held up for each reason the gate in `utils/analyzeGate.ts` names, and
+// every message, each of those reasons included, is in the list the
+// button's badge opens and nowhere else in the panel. The gate's own suite pins which reason wins
 // and `usePanelMessages`'s what the list holds; this one pins that the panel
 // draws what they decided, where the rule says it goes.
 
@@ -130,7 +130,7 @@ const list = () => screen.getByRole('group', { name: 'Messages' })
 /** The text of every message in the list, box by box. */
 const boxes = () => [...list().children].map((box) => box.textContent ?? '')
 /** The elements saying a line in the panel's body, the live region left out. */
-const inline = (line: RegExp) => screen.getAllByText(line).filter((el) => !screen.getByRole('status').contains(el))
+const inBody = (line: RegExp) => screen.queryAllByText(line).filter((el) => !screen.getByRole('status').contains(el))
 
 describe('the Analyze button', () => {
   // One case per blocker, each the smallest panel that raises it alone. The
@@ -159,35 +159,19 @@ describe('the Analyze button', () => {
   ]
 
   // Greyed and live rather than disabled (the maintainer, 2026-10-21): the
-  // reason stands under its field, the count on the button, and a press on
-  // either the badge or the button opens the list that holds it.
-  it.each(blocked)('is greyed for %s, says why under the field, and lists it from the badge', async (_case, over, line) => {
+  // count on the button in the error colour (record 0210), the reason in the
+  // list alone, and a press on either the badge or the button opens it.
+  it.each(blocked)('is greyed for %s, counts it in red, and lists it from the button', async (_case, over, line) => {
     const onAnalyze = vi.fn()
     const { user } = render(<Panel {...over} onAnalyze={onAnalyze} />)
     expect(analyze().disabled).toBe(false)
     expect(analyze().getAttribute('aria-disabled')).toBe('true')
-    expect(inline(line)).toHaveLength(1)
     expect(Number(badge().textContent)).toBeGreaterThanOrEqual(1)
+    expect(badge().className).toContain(MESSAGE_BADGE.error)
+    expect(inBody(line)).toHaveLength(0)
     await user.click(analyze())
     expect(onAnalyze).not.toHaveBeenCalled()
     expect(within(list()).getByText(line)).toBeTruthy()
-  })
-
-  // Where each reason stands: the polygon's in its block, the window's under
-  // the calendar, the destinations one under the section's heading.
-  it('stands each reason under the field it is about', () => {
-    const { rerender } = render(<Panel drawPointCount={2} />)
-    const polygon = screen.getByRole('heading', { name: 'Polygon search' }).parentElement!
-    expect(polygon.contains(inline(/1 more point/)[0])).toBe(true)
-    rerender(<Panel hasPins windowWarning="order" />)
-    const calendar = screen.getByRole('button', { name: 'Current' })
-    const [when] = inline(/forecast window/)
-    expect(calendar.compareDocumentPosition(when) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    rerender(<Panel />)
-    const heading = screen.getByRole('heading', { name: 'Destinations' })
-    const [destinations] = inline(/at least one destination/)
-    expect(heading.compareDocumentPosition(destinations) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(heading.parentElement!.contains(destinations)).toBe(true)
   })
 
   // Snowfall is each model's own forecast, so unlike the snow depth it
@@ -206,14 +190,14 @@ describe('the Analyze button', () => {
   })
 
   // A finished ring with no type checked beside a pin: Analyze stays open, and
-  // the types line says as information that the ring adds nothing (#579), in
-  // the list alone, since it blocks no field.
+  // the types line says as information that the ring adds nothing (#579), so
+  // the badge reads blue rather than a blocker's red.
   it('stays enabled beside a finished ring with no type, and says the ring adds nothing', async () => {
     const { user } = render(<Panel hasPins drawPointCount={3} destinationTypes={[]} />)
     expect(analyze().disabled).toBe(false)
     expect(analyze().getAttribute('aria-disabled')).toBeNull()
     expect(badge().textContent).toBe('1')
-    expect(inline(/destination type/)).toHaveLength(0)
+    expect(badge().className).toContain(MESSAGE_BADGE.info)
     await user.click(badge())
     expect(within(list()).getByText(/destination type/)).toBeTruthy()
   })
@@ -280,7 +264,7 @@ describe('the run on open', () => {
     const onAutoAnalyze = vi.fn()
     render(<Panel {...ready} hasPins={false} onAutoAnalyze={onAutoAnalyze} />)
     expect(onAutoAnalyze).not.toHaveBeenCalled()
-    expect(inline(/at least one destination/)).toHaveLength(1)
+    expect(screen.getByRole('status').textContent).toMatch(/at least one destination/)
   })
 
   it('runs nothing for a link that did not ask', () => {
@@ -291,8 +275,8 @@ describe('the run on open', () => {
 })
 
 describe('the messages', () => {
-  // A panel with something to say at every severity at once: a failed run, a
-  // stale report, and a blocker.
+  // A panel with something to say at two severities at once: a failed run
+  // and a blocker in the error box, and a stale report in the warn box.
   const crowded: Over = {
     error: { message: 'Open-Meteo request failed. Try again later.', retry: true },
     actionWord: 'Try again',
@@ -303,21 +287,20 @@ describe('the messages', () => {
 
   // The badge counts them all in the worst one's colour, and the list opens
   // from it boxed by severity, error first. Nothing stands under the button:
-  // the list is the one menu's card over it.
+  // the list is the one menu's card over it, and a blocker is an error
+  // (record 0210), so it shares the run error's box.
   it('counts every message on the button and lists them from the badge, error first', async () => {
     const { user } = render(<Panel {...crowded} />)
     expect(badge().textContent).toBe('5')
     expect(badge().className).toContain(MESSAGE_BADGE.error)
     expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
     await user.click(badge())
-    const [error, warn, info] = boxes()
-    expect(boxes()).toHaveLength(3)
-    expect(error).toMatch(/Open-Meteo request failed/)
+    const [error, warn] = boxes()
+    expect(boxes()).toHaveLength(2)
+    expect(error).toMatch(/Open-Meteo request failed.*2 more points/)
     // Both stale-report reasons at once, the model's first, then the clamp:
     // every warning in one box.
     expect(warn).toMatch(/forecast model.*forecast range.*shortened the window/)
-    // An input still to give is information rather than a warning.
-    expect(info).toMatch(/2 more points/)
     const slot = analyze().parentElement!
     expect(slot.contains(list())).toBe(false)
     expect([...slot.children].map((el) => el.getAttribute('role') ?? el.tagName)).toEqual(['BUTTON', 'BUTTON', 'status'])
@@ -375,15 +358,15 @@ describe('the messages', () => {
     expect(boxes()[1]).not.toBe(before)
   })
 
-  // A blocker is the field's state until the reader supplies what it asks:
-  // no × in the list, and the line under its field stays.
+  // A blocker stands until the reader supplies what it asks: no × on its
+  // row, where the run error beside it in the same box keeps its own.
   it('offers no dismissal for a blocker', async () => {
     const { user } = render(<Panel {...crowded} />)
-    expect(inline(/2 more points/)).toHaveLength(1)
     await user.click(badge())
-    const info = [...list().children][2] as HTMLElement
-    expect(info.textContent).toMatch(/2 more points/)
-    expect(within(info).queryByRole('button')).toBeNull()
+    const row = within(list()).getByText(/2 more points/).parentElement!
+    expect(within(row).queryByRole('button')).toBeNull()
+    const error = within(list()).getByText(/Open-Meteo request failed/).parentElement!
+    expect(within(error).getByRole('button', { name: 'Dismiss notice' })).toBeTruthy()
   })
 })
 

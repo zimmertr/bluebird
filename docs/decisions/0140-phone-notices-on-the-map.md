@@ -1,6 +1,6 @@
 # 0140. On a phone, the notice block stands on the map, on the sheet's edge
 
-- Status: Superseded by 0208 (the band is gone: the Analyze button counts the messages in a badge that opens the one list, and a blocker stands under its field). Amended 0028 on a phone (the whole block stood on the map; on a desk it stayed under Analyze). Amended by 0207 (the band rode the Controls sheet's edge over its dim, and the Analyze button, the scale and the (i) stayed at the map's foot under it).
+- Status: Superseded by 0208 (the band is gone: the Analyze button counts the messages in a badge that opens the one list). Amended 0028 on a phone (the whole block stood on the map; on a desk it stayed under Analyze). Amended by 0207 (the band rode the Controls sheet's edge over its dim, and the Analyze button, the scale and the (i) stayed at the map's foot under it).
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696: frame 9 of the phone flow mockup approved 2026-10-14; placement B of the band comparison (frames A, B and C) chosen the same day; the split between action and information that day's cut made, reversed by the maintainer on a Pixel the same evening, with the corner bottom-aligned
 - Issues and PRs: #696, #708, #253, #123

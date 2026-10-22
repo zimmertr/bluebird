@@ -74,7 +74,6 @@ function props(
     layout?: unknown
     charts?: unknown
     tableView?: unknown
-    theme?: string
     panesMove?: boolean
     collapsed?: boolean
     layoutMotion?: 'opening' | 'closing' | 'panes' | null
@@ -87,7 +86,6 @@ function props(
     layout: over.layout ?? BOTH,
     charts: over.charts ?? CHARTS_QUIET,
     tableView: over.tableView ?? TABLE_VIEW,
-    theme: over.theme ?? 'dark',
     report: REPORT,
     pending: [],
     removeResult,
@@ -313,20 +311,17 @@ describe('the panes at a desk', () => {
   })
 })
 
-describe('the chart legend in each theme', () => {
+// A legend dot wears the line's rim, which only the light theme draws: its
+// token is transparent in dark (#786), so the dot names no theme.
+describe('the chart legend', () => {
   const legend = { ...TABLE_VIEW, legend: [{ key: 'a', row: ROW, suffix: '' }] }
   const charts = { ...CHARTS_QUIET, rowChartColor: () => '#fda5d5' }
   const dot = () => screen.getByRole('button', { name: `Hide ${ROW.name} on the chart` }).firstElementChild as HTMLElement
 
-  it('rims a light dot', async () => {
-    render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend, charts, theme: 'light' })} />)
+  it('rims a dot in its line colour', async () => {
+    render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend, charts })} />)
     await screen.findByTestId('chart')
     expect(dot().className).toContain(LINE_EDGE.swatch)
-  })
-
-  it('leaves a dark dot bare', async () => {
-    render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend, charts, theme: 'dark' })} />)
-    await screen.findByTestId('chart')
-    expect(dot().className).not.toContain(LINE_EDGE.swatch)
+    expect(dot().style.backgroundColor).toBe('rgb(253, 165, 213)')
   })
 })

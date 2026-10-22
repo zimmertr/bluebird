@@ -2,10 +2,9 @@
  * Dismissal for the panel's messages (#253). Every message in the list the
  * Analyze button's badge opens is dismissable (TJ, 2026-08-22), and each
  * dismisses alone — the boxes group by severity, never by dismissal. The one
- * class that is not is a blocker (#786; record 0208): it is the field's own
- * state, standing inline beside the field until the reader supplies what it
- * asks, and a dismissed blocker would leave a greyed button with nothing to
- * say for itself.
+ * class that is not is a blocker (#786; record 0208): it stands until the
+ * reader supplies what it asks, and a dismissed blocker would leave a greyed
+ * button with nothing to say for itself.
  *
  * The identity a dismissal is keyed to differs by class, and the choice is
  * what keeps dismissal from being annoying or dangerous:
@@ -41,14 +40,15 @@ export type EventNoticeKind = 'error' | 'refusal'
  * The three severities, one box each in the list, and what each hue answers
  * (TJ, 2026-08-22):
  *
- * - `error`: the app cannot or will not do what was asked — a failed run, an
- *   oversized polygon, an over-cap refusal, a data supplier that is
- *   unreachable.
+ * - `error`: the app cannot or will not do what was asked — every blocker
+ *   that holds the Analyze button (record 0210), a failed run, an over-cap
+ *   refusal, a data supplier that is unreachable.
  * - `warn`: the report on screen no longer answers what the panel asks —
  *   every commit cue (a changed window, model, band, ring, type set, or an
  *   un-analyzed addition; all one severity, TJ 2026-08-22), and a column
  *   that came back empty.
- * - `info`: nothing is wrong; the request is not finished yet.
+ * - `info`: nothing is wrong and nothing is held up; a fact about the
+ *   request worth knowing, such as where the archive's hours end.
  */
 export type NoticeSeverity = 'error' | 'warn' | 'info'
 
@@ -77,26 +77,26 @@ export function worstSeverity(messages: readonly FooterMessage[]): NoticeSeverit
 }
 
 /**
- * Which box each Analyze blocker speaks from. Not one box for all six: an
- * oversized polygon rejects finished work where every other blocker reports
- * an input that is not finished yet, and coloring them all amber flattened
- * that difference (TJ, 2026-08-22). A drawing mid-stroke is one of the
- * unfinished inputs, not a warning: nothing is wrong, the request is not
- * complete.
+ * Which box each Analyze blocker speaks from: every one of them the error
+ * box (record 0210, the maintainer, 2026-10-21). A blocker is the one kind
+ * of message that holds the button up, and the badge on the button wears the
+ * worst severity current, so a red badge says the button will not run before
+ * the list is opened. They were three severities until then: the oversized
+ * polygon an error, the two comparison blockers warnings, and the five inputs
+ * still to give information (TJ, 2026-08-22 and 2026-09-14), which left a
+ * greyed button under a blue badge. A table rather than one constant because
+ * `blockerOf` reads its keys, and the type holds it to every blocker the gate
+ * names.
  */
 export const BLOCKER_SEVERITY: Record<AnalyzeBlocker, NoticeSeverity> = {
   area: 'error',
-  window: 'info',
-  dates: 'info',
-  // Warn, not info: these two report a contradiction in settings the reader
-  // has already made, where every info line above reports an input they have
-  // yet to give. Nothing is unfinished — the models picked and the metric
-  // ranked cannot both be had (TJ, 2026-09-14).
-  'compare-aqi': 'warn',
-  'compare-freeze': 'warn',
-  destinations: 'info',
-  polygon: 'info',
-  types: 'info',
+  window: 'error',
+  dates: 'error',
+  'compare-aqi': 'error',
+  'compare-freeze': 'error',
+  destinations: 'error',
+  polygon: 'error',
+  types: 'error',
 }
 
 
@@ -137,9 +137,8 @@ export function blockerKey(blocker: AnalyzeBlocker): string {
 }
 
 /**
- * Which blocker a key names, or null for any other line. A blocker's line
- * stands inline beside its field as well as in the list (record 0208), and
- * is the one kind of line a dismissal passes over.
+ * Which blocker a key names, or null for any other line. A blocker's is the
+ * one kind of line a dismissal passes over (record 0208).
  */
 export function blockerOf(key: string): AnalyzeBlocker | null {
   if (!key.startsWith('blocker:')) return null

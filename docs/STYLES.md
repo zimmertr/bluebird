@@ -283,13 +283,18 @@ session, not a browser's habit. A page would paint dark for a frame before React
 read the key, so `frontend/public/theme.js` (291 bytes, a classic script on the
 same origin, which the CSP's `script-src 'self'` allows) sets the attribute from
 the head of every HTML entry before the stylesheet; `theme.test.ts` holds its key
-to `THEME_KEY` and its place in the four files.
+to `THEME_KEY` and its place in the four files. A switch lands in one frame:
+`useTheme` holds every CSS transition off while the new tokens resolve
+(`.theme-switching` in `index.css`), so no hover fade starts on every row at
+once (record [0211](decisions/0211-theme-switch-renders-nothing.md)).
 
 **Ranked cells.** In dark a ranked cell is the band's colour as its text over
 the same colour at 20%, exactly as before. In light that text fails, so the
 tint stays and the text is the same hue's Tailwind 800 step, interpolated
 between bands the way the tint is (`ink` on each `ColorScale` in `colors.ts`,
-read by `cellStyle(value, scale, theme)`). The 700 steps measured 3.8 to 5.0:1,
+read by `cellInks`). `cellStyle` hands a cell both inks at once as
+`light-dark()`, so the root's colour scheme picks one and a switch re-renders
+no row (record [0211](decisions/0211-theme-switch-renders-nothing.md)). The 700 steps measured 3.8 to 5.0:1,
 which is why it is the 800s. `colors.test.ts` pins every band's ink on the light
 panel over its tint: the verdict ramp 5.42 to 6.27:1, temperature 5.44 to
 7.26:1, the freezing level 5.83 to 8.06:1, and the cloud deck and snowfall as
@@ -305,11 +310,15 @@ over the group Recharts draws the lines into, which measured half the cost of
 a second line under each; record 0158 has the numbers), and every mark in
 a line's colour wears the same rim: the hover dot, a point sample's dots, the
 readout's swatches, the chart-only legend's dots and a ticked chart checkbox
-(`LINE_EDGE` in `styles.ts`, `lineEdge` in `CHART_CHROME`). The chart can carry
+(`LINE_EDGE` in `styles.ts`, on the `line-edge` token, which is transparent in
+dark; `lineEdge` in `CHROME`). The chart can carry
 a line per displayed row, hundreds of them, so the generator is held to the
 same 3:1 at every hue it can land on, in both themes. The allocator stores an
 index rather than a colour, so a switch recolours every line, swatch and table
-checkbox without reallocating which destination has which slot. The chrome
+checkbox without reallocating which destination has which slot. Every colour
+reaches the chart as `light-dark()` (`lineColor` and `CHROME`), so a switch
+repaints it without re-rendering it (record
+[0211](decisions/0211-theme-switch-renders-nothing.md)). The chrome
 follows the tokens: axis `ink-soft`, grid `rule`, surface `panel`, playhead
 `accent-ink`, and the light lines' rim `ink-soft`.
 
@@ -359,7 +368,7 @@ both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 | No unsafe error message patterns | `checks/data.js` | `open-meteo-copy` bans `failed: ${...}` and the retired phrases; `open-meteo-throw-tail` holds every thrown Open-Meteo message to the standing tail |
 | Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
-| Every message is in the one list the Analyze button opens | `checks/styles.js` | A notice is a `NOTICE` role, only `MessageList`'s `MessageBox` wears one and the list stands on the one menu (`style-message-list`, `style-notice-once`); the one live region is `MessageRegion` beside the badge (`style-live-region`, `style-panel-no-status`); both Analyze buttons wear the badge, the region and the list, and a blocker greys the button with `aria-disabled` rather than `disabled` (`style-analyze-badge`); a blocker line is one `STATUS` colour and no box, rendered by the panel's two sections alone, three homes in `DestinationsSection.tsx` and two in `ForecastSection.tsx` (`style-blocker-line`, `style-blocker-home`, `style-forecast-blockers`); the polygon block is the other bare `STATUS` use, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
+| Every message is in the one list the Analyze button opens | `checks/styles.js` | A notice is a `NOTICE` role, only `MessageList`'s `MessageBox` wears one and the list stands on the one menu (`style-message-list`, `style-notice-once`); the one live region is `MessageRegion` beside the badge (`style-live-region`, `style-panel-no-status`); both Analyze buttons wear the badge, the region and the list, and a blocker greys the button with `aria-disabled` rather than `disabled` (`style-analyze-badge`); the polygon block is the one bare `STATUS` use outside the list, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
 | A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`, `MapLegend.tsx` and `ColumnsPicker.tsx` matches a `SR_ONLY` element |
 | A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
@@ -636,8 +645,8 @@ than out of the column. Nothing moves on screen. Measured at 402px with
 the panel at 360: the column is 281px, where the longest commit cue
 ("A new destination type requires a new analysis.") needs 267.3px.
 
-**Line allowance:** messages in the panel body hold to one line. The area
-below the Analyze button — blockers, commit cues, refusals, provider
+**Line allowance:** messages in the panel body hold to one line. The list
+the Analyze button opens — blockers, commit cues, refusals, provider
 errors, and the warnings that qualify a report — may run to two lines,
 because that is where the app explains why it will not or could not act
 and a truncated reason is worse than a second line.
@@ -758,7 +767,7 @@ with its bottom on the button's bottom edge, the opened credit line growing
 up from that edge. The band that held the whole block on the sheet's edge
 (record 0140) is gone, since on a finger it showed one message and no sign of
 the rest.
-Record: [0208](decisions/0208-messages-badge-and-inline-blockers.md)
+Record: [0208](decisions/0208-analyze-button-counts-the-messages.md)
 
 The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`),
 the bottom sheet the menus below are, kept mounted: modal over the same dim,
@@ -960,16 +969,13 @@ opens is one of the three `NOTICE` boxes, and severity is the only thing that
 varies. A `CUE` role once held a centred, borderless
 variant for the commit cues, and the footer showed a cue in amber text directly
 above a blocker in an amber box, saying the same kind of thing in two shapes.
-Two bare `STATUS` texts stand in the panel, both a field's own readout beside
-the field rather than a message about the analysis: the polygon's draw
-counter, which the linter's `style-draw-counter` check pins by count, and since
-#786 a blocker's line under the field it validates (`BLOCKER_LINE`, a dot and
-the sentence, no box), the same sentence the list carries, which
-`style-blocker-home` holds to the panel's two sections. Since #687
+The one bare `STATUS` text left in the panel is the polygon's draw counter,
+which is a field's own readout beside the field rather than a message about the
+analysis; the linter's `style-draw-counter` check pins it by count. Since #687
 the point count is `DrawReadout`, which the panel and the phone's draw bar both
 render, so `style-draw-readout` pins its four states there and the panel keeps
 two.
-Record: [0208](decisions/0208-messages-badge-and-inline-blockers.md)
+Record: [0208](decisions/0208-analyze-button-counts-the-messages.md)
 
 ### No raw exceptions or status
 

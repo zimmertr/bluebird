@@ -19,7 +19,6 @@ import { modelRows, pruneHidden, shownModels, toggleHidden } from '../utils/mode
 import { terrainFallbackFor } from '../utils/openMeteo'
 import { paceWaitLine } from '../utils/pacing'
 import { geoKey } from '../utils/points'
-import type { Theme } from '../utils/viewPrefs'
 
 // No compared model came back empty: one identity, so the bar is handed the
 // same empty list on every render where there is nothing to say.
@@ -57,8 +56,6 @@ export interface ChartCompareInputs {
   windowLimits: WindowLimits
   /** Whether the chart panel is on screen (`useResultsLayout`). */
   chartShowing: boolean
-  /** The theme every line's colour is painted in (`useTheme`, #706). */
-  theme: Theme
 }
 
 /**
@@ -85,7 +82,6 @@ export function useChartCompare({
   times,
   windowLimits,
   chartShowing,
-  theme,
 }: ChartCompareInputs) {
   // Models whose lines the reader has put down (#232). Presentation and
   // nothing else: the forecasts behind them are bought either way, so this
@@ -117,7 +113,7 @@ export function useChartCompare({
   // tracks, the displayed rows and the pending ones, so a × that leaves one
   // place with the name takes the type off it again.
   const shared = useMemo(() => sharedNames(chartCandidates), [chartCandidates])
-  const chart = useChartSelection(chartCandidates, sortBy, theme)
+  const chart = useChartSelection(chartCandidates, sortBy)
 
   // Every DISPLAYED row as a point the comparison can fetch for. Wider than
   // the charted set: the results table shows one row per model for everything
@@ -158,8 +154,8 @@ export function useChartCompare({
         color: colorFor(r),
       }))
     // `colorFor` rather than the whole `chart`, which useChartSelection
-    // rebuilds every render; it is listed because a theme switch changes what
-    // it answers for a row that has not changed (#706).
+    // rebuilds every render. A theme switch no longer changes what it answers
+    // (#786): the colour carries both themes' shades.
   }, [chart.selectedRows, results, colorFor, shared])
   // The ranking model's own numbers per destination, on the chart's grid: a
   // pinned row carries its own stamps, so the alignment the chart does for its
@@ -202,11 +198,11 @@ export function useChartCompare({
   const chartedPairColors = useMemo(
     () =>
       seedPairColors(
-        paletteColors(allocateColors(chart.colorByKey, chartedPairKeys), theme),
+        paletteColors(allocateColors(chart.colorByKey, chartedPairKeys)),
         analyzed?.forecastModel,
         chartedDestinations,
       ),
-    [analyzed, chart.colorByKey, chartedDestinations, chartedPairKeys, theme],
+    [analyzed, chart.colorByKey, chartedDestinations, chartedPairKeys],
   )
   // The allocation above is for the frame that draws the lines; this is what
   // makes it stick, so a pair hidden and shown again comes back the colour it

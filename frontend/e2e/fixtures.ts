@@ -236,8 +236,8 @@ export { expect }
 
 // One of the panel's messages, read from the live region the Analyze button's
 // badge stands beside (record 0208): the one copy that is in the page whether
-// or not the list is open. A blocker has a second copy under its field and a
-// message in the opened list a third, so a bare text locator would find two.
+// or not the list is open. A message in the opened list has a second copy, so
+// a bare text locator would find two.
 export const message = (page: Page, text: string | RegExp) => page.locator('[role="status"]').getByText(text)
 
 // A click on the map counts only once MapLibre has fired `load` and the draw

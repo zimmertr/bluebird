@@ -38,8 +38,7 @@ interface Props {
  * Since record 0208 the button carries a count of them in the worst one's
  * colour, and a press on the badge, or anywhere on the button while a
  * blocker greys it, opens the one list that holds them all, on the one menu's
- * card over the button. A blocker's sentence stands under its field as well
- * (`BlockerLine`), so what stops Analyze reads where the fix is.
+ * card over the button.
  */
 export default function PanelFooter({
   analyzeEnabled,

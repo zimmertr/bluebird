@@ -254,7 +254,7 @@ The per-file checks, by module:
 | `checks/styles.js` | `style-map-chrome`, `style-map-wrapper`, `style-map-legend-chip`, `style-map-rows`, `style-map-layers-chip`, `style-results-bar`, `style-app-micro`, `style-legend-ramp`, `style-layer-rows`, `style-search-box`, `style-chart-metric`, `style-axis-item`, `style-rank-cell` | The map's rows and chips, the results bar, the legend strip, the Layers rows, the search box, the chart select and the rank cell wear their roles |
 | `checks/styles.js` | `value-hex`, `value-inline-style`, `map-paint-named` | A colour, a popup's type size and an app layer's paint number are written only in their owners: `colors.ts`, `chartColors.ts`, `popupChrome.ts`, `map/mapStyles.ts` and each overlay's pure module |
 | `checks/styles.js` | `style-menu-unfurls`, `style-popup-card`, `style-no-os-theme` | Every menu unfurls out of its control as one card; every popup is `popupCard`'s card; nothing paints by the operating system's theme under the app's own switch |
-| `checks/styles.js` | `style-metrics-table`, `style-panel-messages`, `style-message-list`, `style-notice-once`, `style-live-region`, `style-analyze-badge`, `style-panel-no-status`, `style-blocker-line`, `style-blocker-home`, `style-forecast-blockers`, `style-draw-counter`, `style-draw-readout`, `style-model-picker-quiet`, `style-window-messages`, `style-popup-glyph` | The Metrics grid's boxes and buttons; every message is in the one list the Analyze button's badge opens, with one live region beside the badge and a blocked button greyed rather than disabled; a blocker's line stands under its field in the panel's two sections alone; the draw counter is the other bare `STATUS`, its point count in `DrawReadout`; the popup draws no glyph |
+| `checks/styles.js` | `style-metrics-table`, `style-panel-messages`, `style-message-list`, `style-notice-once`, `style-live-region`, `style-analyze-badge`, `style-panel-no-status`, `style-draw-counter`, `style-draw-readout`, `style-model-picker-quiet`, `style-window-messages`, `style-popup-glyph` | The Metrics grid's boxes and buttons; every message is in the one list the Analyze button's badge opens, with one live region beside the badge and a blocked button greyed rather than disabled; the draw counter is the one bare `STATUS` outside it, its point count in `DrawReadout`; the popup draws no glyph |
 
 The text tests that stay, and why:
 
@@ -357,6 +357,13 @@ config ignores `perf/` and CI never runs it. Run it on `main` and on your branch
 on the same machine, and put both lines in the PR: the numbers compare with
 each other, not with a measurement taken on other hardware. A failed run leaves
 the served container running, and `docker rm -f perf-target` clears it.
+
+The same run measures a theme switch (`frontend/e2e/perf/themeSwitch.spec.ts`,
+#786): with no report, at 946 rows in Table and in Both mode, and cut to 200 in
+both. It presses the theme button ten times in each state, five each way, and prints a
+`theme switch:` line with the medians: the synchronous work, the first frame
+painted after the press, the end of the last transition the switch started, and
+the page's element count, which is what the cost grows with (#790).
 
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model

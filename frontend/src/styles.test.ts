@@ -89,7 +89,6 @@ import {
   MESSAGE_BADGE,
   MESSAGE_LIST,
   BLOCKED,
-  BLOCKER_LINE,
   MAP_ROUND_BUTTON,
   MAP_SLOT,
   MAP_CORNER,
@@ -125,6 +124,7 @@ import {
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
 import { CHART_TICK_PX, LINE_LAYER_Z, LINE_RIM_FILTER_ID } from './utils/chartColors'
+import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
 import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
@@ -2649,20 +2649,12 @@ describe('the message badge', () => {
 })
 
 // A blocked Analyze and the line under its field (record 0208).
-describe('a blocked Analyze and a blocker line', () => {
+describe('a blocked Analyze and the message list', () => {
   // Greyed the way a disabled button is, under aria-disabled rather than
   // disabled, so it stays a button a press can open the list from.
   it('greys a blocked button as a disabled one is greyed', () => {
     expect(BLOCKED).toBe('aria-disabled:opacity-40')
     expect(DISABLED).toContain('disabled:opacity-40')
-  })
-
-  // The message size, no colour of its own (STATUS composes it at the call
-  // site, as a notice box does), and a dot that takes the line's colour.
-  it('sets a blocker line at the message size with a dot in the line\'s own colour', () => {
-    expect(sizes(BLOCKER_LINE.row)).toEqual(['text-xs'])
-    expect(BLOCKER_LINE.row).not.toMatch(/(^|\s)text-(?:ink|accent|ok|warn|danger|info)\b/)
-    expect(words(BLOCKER_LINE.dot)).toEqual(expect.arrayContaining(['h-1.5', 'w-1.5', 'bg-current', RADIUS.pill]))
   })
 
   it('stacks the list\'s boxes on the menu\'s list inset at a desk', () => {
@@ -4184,6 +4176,24 @@ describe('the light theme', () => {
     expect(rule).not.toBeNull()
     expect([Number(rule![1]), rule![2]]).toEqual([LINE_LAYER_Z, LINE_RIM_FILTER_ID])
     expect(indexCss.match(/recharts-zIndex-layer_/g)).toHaveLength(1)
+  })
+
+  // The hover dot wears the line's rim in light by a rule rather than by
+  // Recharts' `activeDot` prop, which would name a theme and re-render the
+  // chart on every switch (#786; record 0211).
+  it('rims the hover dot through the line-edge token, in light alone', () => {
+    const rule = indexCss.match(/(\S+) \.recharts-active-dot \.recharts-dot \{([^}]*)\}/)
+    expect(rule?.[1]).toBe(':root[data-theme="light"]')
+    expect(rule?.[2]).toContain('stroke: var(--ui-line-edge);')
+  })
+
+  // A theme switch holds every transition off while it lands (#786; record
+  // 0211): the hook's class must be the one the rule names, and the rule must
+  // reach every element and its two generated boxes.
+  it('turns every transition off under the theme hook\'s class', () => {
+    const c = THEME_SWITCHING_CLASS
+    const rule = indexCss.match(new RegExp(String.raw`\.${c} \*,\s*\.${c} \*::before,\s*\.${c} \*::after \{([^}]*)\}`))
+    expect(rule?.[1].trim()).toBe('transition: none !important;')
   })
 
   // A mark in a chart line's colour wears the line's rim in light, and the

@@ -1,12 +1,12 @@
-import { test, expect, drawRing, expectRanked, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, drawRing, expectRanked, message, resultRows, DESTINATION_NAMES } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // The Analyze button counts the panel's messages in a badge at its corner and
 // opens the one list that holds them (#786; record 0208): a card over the
 // button at a desk, a sheet headed Messages on a phone. A blocker greys the
-// button and leaves it live, so a press anywhere on it opens the list, and
-// the blocker's sentence stands under its field as well. Measured on the live
-// page, since jsdom lays nothing out.
+// button and leaves it live, so a press anywhere on it opens the list, and the
+// badge reads red (record 0210). Measured on the live page, since jsdom lays
+// nothing out.
 
 const RING = '/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55'
 const CUE = 'A new destination type requires a new analysis.'
@@ -20,19 +20,30 @@ const list = (page: Page) => page.getByRole('group', { name: 'Messages' })
 test.describe('at a desk', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('a blocker greys Analyze, stands under its field, and opens the list from the button or the badge', async ({ page }) => {
+  test('a blocker greys Analyze, reads red on the badge, and opens the list from the button or the badge', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     const analyze = page.getByRole('button', { name: 'Analyze', exact: true })
-    // Nothing to analyze: greyed, not disabled, with the reason under the
-    // Destinations heading and in the badge's count. Playwright reads
-    // `aria-disabled` as disabled, so the press below is forced, which is
-    // what a reader's finger does.
+    // Nothing to analyze: greyed, not disabled, with the reason in the
+    // badge's count and nowhere in the panel but the live region's copy.
+    // Playwright reads `aria-disabled` as disabled, so the press below is
+    // forced, which is what a reader's finger does.
     await expect(analyze).toHaveAttribute('aria-disabled', 'true')
     await expect(analyze).not.toHaveAttribute('disabled')
-    const inline = page.getByText(NO_DESTINATION)
-    await expect(inline).toHaveCount(2) // the line under the field and the live region's copy
+    await expect(page.getByText(NO_DESTINATION)).toHaveCount(1)
+    await expect(message(page, NO_DESTINATION)).toHaveCount(1)
     expect(await count(page)).toBeGreaterThanOrEqual(1)
+    // Red, whatever else the list holds: a blocker is an error. The danger
+    // ink is read off a probe, so the check follows the theme's token.
+    const danger = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.className = 'text-danger'
+      document.body.append(probe)
+      const ink = getComputedStyle(probe).color
+      probe.remove()
+      return ink
+    })
+    expect(await badge(page).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(danger)
     await expect(list(page)).toHaveCount(0)
 
     // A press on the greyed button opens the list over it, at least its width.
@@ -57,7 +68,7 @@ test.describe('at a desk', () => {
     await expect(list(page)).toHaveCount(0)
 
     // A ring and a type clear the blocker: the button is live and the line
-    // under the field is gone.
+    // is gone from the live region.
     await drawRing(page)
     await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
     await expect(analyze).not.toHaveAttribute('aria-disabled')

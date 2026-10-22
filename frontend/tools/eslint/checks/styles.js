@@ -24,6 +24,9 @@ const COLOR_OWNERS = [
   'src/styles.ts',
   'src/utils/colors.ts',
   'src/utils/chartColors.ts',
+  // Composes a pair the two owners above measured into the one string that
+  // carries both themes (#786); it names no colour of its own.
+  'src/utils/themeColor.ts',
   'src/utils/resultFeatures.ts',
   'src/utils/popupChrome.ts',
   'src/map/mapStyles.ts',
@@ -42,7 +45,7 @@ const COLOR_OWNERS = [
 // which since #706 are as fixed to one theme as a hex is). Three-digit hex is
 // matched only after a `:`, `(` or `,`, because `#123` is also how a string
 // names an issue.
-const COLOR_VALUE = String.raw`#[0-9a-fA-F]{6}(?![0-9a-zA-Z])|[:(,]\s*#[0-9a-fA-F]{3}(?![0-9a-zA-Z])|^#[0-9a-fA-F]{3}$|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(`
+const COLOR_VALUE = String.raw`#[0-9a-fA-F]{6}(?![0-9a-zA-Z])|[:(,]\s*#[0-9a-fA-F]{3}(?![0-9a-zA-Z])|^#[0-9a-fA-F]{3}$|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|light-dark)\(`
 
 // How many interpolations into one template the helpers below look through.
 // No class template in the app comes near it.
@@ -135,12 +138,11 @@ const PANEL = {
   footer: 'src/components/PanelFooter.tsx',
 }
 // The panel's messages (#786; record 0208): the list the Analyze button's
-// badge opens, the badge with the one live region beside it, the blocker
-// line under a field, and the phone's foot, which wears the badge too.
+// badge opens, the badge with the one live region beside it, and the phone's
+// foot, which wears the badge too.
 const MESSAGES = {
   list: 'src/components/MessageList.tsx',
   badge: 'src/components/MessageBadge.tsx',
-  blocker: 'src/components/BlockerLine.tsx',
   phoneFoot: 'src/components/PhoneFoot.tsx',
 }
 
@@ -167,7 +169,6 @@ const PHONE_ONLY =
 const GRID = elementWith('METRICS_GRID')
 const CLEAR = 'JSXOpeningElement:has(JSXAttribute[name.name="onClick"] > JSXExpressionContainer > Identifier[name="onClearFilters"])'
 const MESSAGE_BOX = 'JSXOpeningElement[name.name="MessageBox"]'
-const BLOCKER_LINE = 'JSXOpeningElement[name.name="BlockerLine"]'
 const LIVE_REGION = 'JSXAttribute[name.name="role"][value.value="status"]'
 const METRIC_BOX_USE = ':matches(TemplateLiteral, JSXExpressionContainer) > Identifier[name=/^METRIC_BOX(_WIDE)?$/]'
 
@@ -715,7 +716,7 @@ export const STYLES = [
     // Every message in the app fits one line at 360px, measured with the full
     // text column. A list indent and its marker take 16px of it.
     name: 'style-panel-messages',
-    files: [...Object.values(PANEL), MESSAGES.list, MESSAGES.blocker],
+    files: [...Object.values(PANEL), MESSAGES.list],
     ban: [
       {
         selector: `JSXOpeningElement[name.name="ul"], ${text('list-disc')}, ${text('<ul')}`,
@@ -791,50 +792,16 @@ export const STYLES = [
     files: [PANEL.frame, PANEL.forecast, PANEL.metrics, PANEL.footer, MESSAGES.phoneFoot],
     ban: [
       { selector: role('NOTICE'), message: 'Build no NOTICE box outside MessageList.' },
-      { selector: role('STATUS'), message: 'Colour nothing by STATUS outside MessageList and BlockerLine.' },
+      { selector: role('STATUS'), message: 'Colour nothing by STATUS outside MessageList.' },
       { selector: LIVE_REGION, message: 'Announce nothing of your own: the one live region is MessageRegion.' },
     ],
   },
   {
-    // A blocker's line under its field (record 0208): one STATUS colour on
-    // the line, no box, and rendered by the panel's two sections alone, each
-    // for its own homes, three in Destinations and two in Forecast.
-    name: 'style-blocker-line',
-    files: [MESSAGES.blocker],
-    ban: [{ selector: role('NOTICE'), message: 'Build no NOTICE box in a blocker line.' }],
-    require: [
-      {
-        selector: fromExport('BlockerLine', role('STATUS')),
-        count: 1,
-        message: 'The blocker line colours its one line by STATUS.',
-      },
-    ],
-  },
-  {
-    name: 'style-blocker-home',
-    files: SOURCES,
-    ignores: [...TESTS, PANEL.destinations, PANEL.forecast],
-    probe: PANEL.frame,
-    ban: [
-      {
-        selector: `${BLOCKER_LINE}, ${text('<BlockerLine\\b')}`,
-        message: 'Render BlockerLine in the panel\'s two sections alone, under the field a blocker validates.',
-      },
-    ],
-  },
-  {
-    name: 'style-forecast-blockers',
-    files: [PANEL.forecast],
-    require: [
-      { selector: BLOCKER_LINE, count: 2, message: 'Draw the two blocker homes, model and when, through BlockerLine.' },
-    ],
-  },
-  {
-    // The one bare STATUS outside the list and the blocker line, pinned by
-    // count: the polygon's draw counter colours its captions by state. Its
-    // point count is `DrawReadout`, which the phone's draw bar renders too
-    // (#687), so the section keeps the area's two; a third is a message that
-    // wandered out of the list.
+    // The one bare STATUS outside the list, pinned by count: the polygon's
+    // draw counter colours its captions by state. Its point count is
+    // `DrawReadout`, which the phone's draw bar renders too (#687), so the
+    // section keeps the area's two; a third is a message that wandered out
+    // of the list.
     name: 'style-draw-counter',
     files: [PANEL.destinations],
     ban: [{ selector: role('NOTICE'), message: 'Build no NOTICE box in the destinations section.' }],
@@ -845,11 +812,6 @@ export const STYLES = [
         message: 'The polygon block colours its area and its area warning by STATUS.',
       },
       { selector: 'JSXOpeningElement[name.name="DrawReadout"]', count: 1, message: 'Say the point count with DrawReadout.' },
-      {
-        selector: BLOCKER_LINE,
-        count: 3,
-        message: 'Draw the three blocker homes, destinations, polygon and types, through BlockerLine.',
-      },
     ],
   },
   {

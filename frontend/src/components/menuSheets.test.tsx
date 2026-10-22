@@ -158,8 +158,6 @@ describe('the Model and When sheets', () => {
         setSelection={setSelection}
         archiveDays={365}
         aqiForecastDays={5}
-        modelLines={[]}
-        whenLines={[]}
         phone={phone}
       />
     )

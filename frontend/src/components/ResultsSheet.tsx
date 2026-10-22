@@ -124,7 +124,6 @@ export default function ResultsSheet({
   closure,
   pendingHeights,
   modelId,
-  theme,
   layoutMotion = null,
 }: ResultsSheetProps) {
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
@@ -250,7 +249,6 @@ export default function ResultsSheet({
               onRemovePending={onRemovePending}
               onFocusResult={onFocusResult}
               onFocusPending={onFocusPending}
-              theme={theme}
             />
           )}
         </div>

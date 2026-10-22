@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AQI_NOTE_KEY, BLOCKER_HOME, blockerLines, panelMessages, type PanelMessageInputs } from './panelMessages'
+import { AQI_NOTE_KEY, panelMessages, type PanelMessageInputs } from './panelMessages'
 import type { AnalyzeBlocker } from './analyzeGate'
 import type { CommitReason } from './present'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
@@ -7,7 +7,6 @@ import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import { archiveSeamPhrase } from './calendar'
 import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { NOUN } from '../metrics'
-import type { FooterMessage } from './notices'
 
 // Which lines the panel has to say, one case per line and the condition that
 // raises it, and one case for the order they come in. The list the Analyze
@@ -55,34 +54,6 @@ const only = (over: Partial<PanelMessageInputs>) => {
   expect(messages).toHaveLength(1)
   return messages[0]
 }
-
-// Where a blocker's line stands (record 0208): under the field it validates,
-// and the lines by home that the panel's sections draw.
-describe('where a blocker stands', () => {
-  it('homes every blocker on one field', () => {
-    expect(BLOCKER_HOME).toEqual({
-      area: 'polygon',
-      polygon: 'polygon',
-      types: 'types',
-      destinations: 'destinations',
-      dates: 'when',
-      window: 'when',
-      'compare-aqi': 'model',
-      'compare-freeze': 'model',
-    })
-  })
-
-  it('sorts the blockers by home, every home present, and leaves every other line out', () => {
-    const line = (key: string): FooterMessage => ({ key, text: key, severity: 'info' })
-    const lines = blockerLines([line('cue:model-changed'), line('blocker:area'), line('blocker:dates'), line('blocker:polygon')])
-    expect(Object.keys(lines).sort()).toEqual(['destinations', 'model', 'polygon', 'types', 'when'])
-    expect(lines.polygon.map((m) => m.key)).toEqual(['blocker:area', 'blocker:polygon'])
-    expect(lines.when.map((m) => m.key)).toEqual(['blocker:dates'])
-    expect(lines.destinations).toEqual([])
-    expect(lines.types).toEqual([])
-    expect(lines.model).toEqual([])
-  })
-})
 
 describe('panelMessages', () => {
   it('says nothing when nothing is wrong', () => {
@@ -213,21 +184,21 @@ describe('panelMessages', () => {
   describe('the Analyze blockers', () => {
     const BLOCKERS: [AnalyzeBlocker, Partial<PanelMessageInputs>, string, string][] = [
       ['area', {}, 'error', `The polygon is too large. The maximum supported size is ${(100_000).toLocaleString()} km².`],
-      ['window', {}, 'info', 'Adjust the forecast window to continue.'],
-      ['dates', {}, 'info', 'Select at least one date to analyze.'],
-      ['destinations', {}, 'info', 'Provide at least one destination to analyze.'],
-      ['polygon', { pointsNeeded: 1 }, 'info', 'Add at least 1 more point to the polygon to continue.'],
-      ['types', {}, 'info', 'Select at least one destination type for the polygon search.'],
+      ['window', {}, 'error', 'Adjust the forecast window to continue.'],
+      ['dates', {}, 'error', 'Select at least one date to analyze.'],
+      ['destinations', {}, 'error', 'Provide at least one destination to analyze.'],
+      ['polygon', { pointsNeeded: 1 }, 'error', 'Add at least 1 more point to the polygon to continue.'],
+      ['types', {}, 'error', 'Select at least one destination type for the polygon search.'],
       [
         'compare-aqi',
         {},
-        'warn',
+        'error',
         `${NOUN.aqi} data is retrieved independently of the model and cannot be compared.`,
       ],
       [
         'compare-freeze',
         { freezeGaps: ['ECMWF IFS', 'DWD ICON'] },
-        'warn',
+        'error',
         `${NOUN.freeze} data is not available for ECMWF IFS and DWD ICON.`,
       ],
     ]

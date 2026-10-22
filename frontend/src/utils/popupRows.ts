@@ -1,6 +1,6 @@
 import { DestinationResult, SortBy } from '../types'
 import { AGGREGATE, FAMILY_KEYS, MetricFamily, aggregateToken, familyOf, metricLabel, windowAggregate } from '../metrics'
-import { cellColor } from './resultsCells'
+import { cellTint } from './resultsCells'
 import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
@@ -51,7 +51,7 @@ type PopupValue = {
 
 /**
  * The colour a ranked family's number wears, the results table's own
- * (`cellColor`, TJ 2026-10-16, #740): every number in the family the report
+ * (`cellTint`, TJ 2026-10-16, #740): every number in the family the report
  * ranks by is scored on its own column's scale, so the card and the table
  * colour one number alike, and both agree with the marker under the card.
  * The fill is the band at 20% in both themes; the ink is the theme's, so
@@ -186,9 +186,7 @@ export function popupGroups(
   const colored = new Set<string>(rankedFamily ? FAMILY_KEYS[rankedFamily] : [])
   const tintOf = (col: ColDef): PopupTint | null => {
     const raw = row[col.key as keyof DestinationResult]
-    const at = (theme: 'dark' | 'light') => cellColor(col.key as string, raw, colored, context.pointSample ?? false, theme)
-    const [dark, light] = [at('dark'), at('light')]
-    return dark && light ? { fill: dark.backgroundColor, ink: { dark: dark.color, light: light.color } } : null
+    return cellTint(col.key as string, raw, colored, context.pointSample ?? false) ?? null
   }
   const out: PopupGroup[] = []
   for (const [bucket, cols] of groups) {

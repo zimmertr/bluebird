@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { RESULT_ACTION_ATTR, resultPopupHtml } from './resultPopup'
 import { poiPopupHtml, POI_ACTION_ATTR } from './poiPopup'
 import { POPUP_BODY_ATTR, POPUP_TINT_ATTR } from './popupChrome'
-import { cellColor } from './resultsCells'
+import { cellTint } from './resultsCells'
 import type { FireWarning } from './fireProximity'
 import { FAMILY_KEYS, NOUN, SEP } from '../metrics'
 import {
@@ -414,9 +414,8 @@ describe('resultPopupHtml ranked number and insets', () => {
     expect(tinted).toHaveLength(wind.length)
     const group = new Set<string>(FAMILY_KEYS.wind)
     wind.forEach((key, i) => {
-      const dark = cellColor(key, row[key], group, false, 'dark')!
-      const light = cellColor(key, row[key], group, false, 'light')!
-      expect(tinted[i].slice(1)).toEqual([dark.backgroundColor, dark.color, light.color])
+      const tint = cellTint(key, row[key], group, false)!
+      expect(tinted[i].slice(1)).toEqual([tint.fill, tint.ink.dark, tint.ink.light])
     })
     expect(html).not.toContain(`;background:${GRID_RANKED_COLOR}`)
   })

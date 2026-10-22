@@ -4,7 +4,7 @@ import { BASEMAP_FAILED_NOTE } from './basemapFailure'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import type { CommitReason } from './present'
 import type { AnalyzeBlocker } from './analyzeGate'
-import { BLOCKER_SEVERITY, blockerKey, blockerOf, listPhrase, noticeKey, type FooterMessage } from './notices'
+import { BLOCKER_SEVERITY, blockerKey, listPhrase, noticeKey, type FooterMessage } from './notices'
 import { archiveSeamPhrase } from './calendar'
 import type { WindowLimits, WindowSource } from './forecastWindow'
 import { grouped } from './numbers'
@@ -13,7 +13,7 @@ import { grouped } from './numbers'
 // because that decision is pure data: the panel's state in, a list of lines
 // out. `notices.ts` takes the list from here and owns what happens to it next
 // (the boxes, the dismissal keys, the pruning); this file owns only which
-// lines exist, and where a blocker's stands in the panel (`BLOCKER_HOME`).
+// lines exist.
 
 // Why a knob stopped applying live. Each case names the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
@@ -76,48 +76,6 @@ function blockerText(
       // about (TJ, 2026-09-14).
       return `${NOUN.freeze} data is not available for ${listPhrase(freezeGaps)}.`
   }
-}
-
-/**
- * Where a blocker's line stands in the panel (#786; record 0208): under the
- * field it validates, as the field's own readout, the way a form marks the
- * one field that holds it up. Every other message is a fact about the report
- * or the run and has no field, so it lives in the list alone; a blocker is in
- * both, since the list is the one place every message is.
- *
- * - `destinations`: nothing names a destination yet, under the section's
- *   heading, since all three of its methods are the field.
- * - `polygon`: the ring is short of three points or over the area cap, under
- *   the point count and the area that already report it.
- * - `types`: a finished ring with no type ticked, under the type boxes.
- * - `model`: a ranking the picked models cannot answer, under the Model row.
- * - `when`: no day picked, or a window nothing serves, under the When field.
- */
-export type BlockerHome = 'destinations' | 'polygon' | 'types' | 'model' | 'when'
-
-export const BLOCKER_HOME: Record<AnalyzeBlocker, BlockerHome> = {
-  area: 'polygon',
-  polygon: 'polygon',
-  types: 'types',
-  destinations: 'destinations',
-  dates: 'when',
-  window: 'when',
-  'compare-aqi': 'model',
-  'compare-freeze': 'model',
-}
-
-/**
- * The blockers' lines by the field each stands under, every home present and
- * most of them empty, in `panelMessages`'s order within a home. Read by the
- * panel's sections, which draw their own home's lines and nothing else.
- */
-export function blockerLines(messages: readonly FooterMessage[]): Record<BlockerHome, FooterMessage[]> {
-  const lines: Record<BlockerHome, FooterMessage[]> = { destinations: [], polygon: [], types: [], model: [], when: [] }
-  for (const message of messages) {
-    const blocker = blockerOf(message.key)
-    if (blocker) lines[BLOCKER_HOME[blocker]].push(message)
-  }
-  return lines
 }
 
 /** Everything the message list depends on, already derived by the panel. */
@@ -298,13 +256,15 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     })),
     // The `types` sentence, unchanged, where it blocks nothing: the ring is
     // finished and finds nothing, while another input runs the analysis. Its
-    // own key, because it is a different condition from the blocker.
+    // own key, because it is a different condition from the blocker, and
+    // information rather than the blocker's error (#579; record 0210):
+    // nothing is held up, so the badge must not read red for it.
     ...(p.ringIgnored
       ? [
           {
             key: 'ring:types',
             text: blockerText('types', p.maxAreaKm2, p.pointsNeeded, p.freezeGaps),
-            severity: BLOCKER_SEVERITY.types,
+            severity: 'info' as const,
           },
         ]
       : []),

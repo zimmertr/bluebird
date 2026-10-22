@@ -28,7 +28,6 @@ import {
 import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { useHeldWhile, usePaneMotion } from '../hooks/usePaneMotion'
 import { useScrollShadows } from '../hooks/useScrollShadows'
-import type { Theme } from '../utils/viewPrefs'
 
 // Lazy, because `recharts` is the one large library the first screen does not
 // need: the map mounts before any chart exists, and a reader who never opens
@@ -109,8 +108,6 @@ export interface ResultsPanelsProps {
   onRemovePending: (d: { latitude: number; longitude: number }) => void
   onFocusResult: (row: DestinationResult) => void
   onFocusPending: (at: { latitude: number; longitude: number }) => void
-  /** The theme the chart's chrome and the table's ranked cells paint in (#706). */
-  theme: Theme
 }
 
 /**
@@ -148,7 +145,6 @@ export default function ResultsPanels({
   onRemovePending,
   onFocusResult,
   onFocusPending,
-  theme,
 }: ResultsPanelsProps) {
   const { resultsMode, chartGrip, chartPanelPx, tableGrip, tablePanelPx } = layout
   const tableScrollRef = useRef<HTMLDivElement>(null)
@@ -238,7 +234,6 @@ export default function ResultsPanels({
                       modelEnds={compare.endLines}
                       controls={compareControls}
                       titled={chartTitled}
-                      theme={theme}
                     />
                   </Suspense>
                 </div>
@@ -275,12 +270,10 @@ export default function ResultsPanels({
                               aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
                               className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
                             >
-                              {/* The line's colour, wearing the line's rim in
-                                  light (PR #733). */}
+                              {/* The line's colour, wearing the line's rim,
+                                  which only the light theme draws (PR #733). */}
                               <span
-                                className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED} ${
-                                  theme === 'light' ? LINE_EDGE.swatch : ''
-                                }`}
+                                className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED} ${LINE_EDGE.swatch}`}
                                 style={{ backgroundColor: rowChartColor(row) }}
                               />
                               <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>
@@ -366,7 +359,6 @@ export default function ResultsPanels({
                   chartColor={rowChartColor}
                   onChartRange={chart.setRange}
                   partialNote={partialNote}
-                  theme={theme}
                 />
               </div>
             </>

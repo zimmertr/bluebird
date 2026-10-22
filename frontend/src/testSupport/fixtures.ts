@@ -18,7 +18,6 @@ import type { MapInputs } from '../map/controller'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import { worstSeverity } from '../utils/notices'
-import { blockerLines } from '../utils/panelMessages'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
 // out in full.
@@ -519,9 +518,9 @@ export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
 
 /**
  * The panel's messages as `usePanelMessages` hands them down (record 0208):
- * nothing to say and an open gate unless told otherwise. The count, the worst
- * severity and the blockers by home are derived from the messages given, so
- * a fake cannot disagree with itself the way a hand-written one could.
+ * nothing to say and an open gate unless told otherwise. The count and the
+ * worst severity are derived from the messages given, so a fake cannot
+ * disagree with itself the way a hand-written one could.
  */
 export function panelMessages(over: Partial<PanelMessages> = {}): PanelMessages {
   const messages = over.messages ?? []
@@ -530,7 +529,6 @@ export function panelMessages(over: Partial<PanelMessages> = {}): PanelMessages 
     count: messages.length,
     worst: worstSeverity(messages),
     dismiss: () => {},
-    blockers: blockerLines(messages),
     analyzeEnabled: true,
     blocked: false,
     areaTooLarge: false,

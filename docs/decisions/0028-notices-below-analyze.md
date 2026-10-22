@@ -1,6 +1,6 @@
 # 0028. Every notice renders in the one block under the Analyze button
 
-- Status: Accepted. Amended by 0140 (on a phone the whole block stood on the map, on the sheet's edge; superseded by 0208) and by 0208 (the one block is now the one list, which the Analyze button's badge opens at both widths, and a blocker stands under its field as well; the boxes, the ledger and the one-place rule stand).
+- Status: Accepted. Amended by 0140 (on a phone the whole block stood on the map, on the sheet's edge; superseded by 0208) and by 0208 (the one block is now the one list, which the Analyze button's badge opens at both widths; the boxes, the ledger and the one-place rule stand).
 - Date: 2026-09-13 (git: the merge of #334), whose review found the scattered lines
 - Decider: TJ (git: author and merger of #334)
 - Issues and PRs: #123, #334

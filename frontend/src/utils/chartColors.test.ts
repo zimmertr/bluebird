@@ -2,9 +2,12 @@ import { describe, it, expect } from 'vitest'
 import {
   allocateColors,
   colorForIndex,
+  lineColor,
   paletteColors,
   BASE_PALETTE_SIZE,
   CHART_CHROME,
+  CHROME,
+  LINE_RIM_INK,
 } from './chartColors'
 import { contrast, relativeLuminance, round2 } from '../testSupport/contrast'
 
@@ -97,26 +100,40 @@ describe('the palette in each theme (#706)', () => {
     expect(CHART_CHROME.dark.lineEdge).toBeNull()
   })
 
-  it('resolves a whole allocation for one theme', () => {
+  // A line's colour is both themes' shades of its index at once, light
+  // first, which the root's colour scheme picks between (#786).
+  it('resolves a whole allocation to both themes\' shades at once', () => {
     const held = allocateColors({}, ['a', 'b'])
-    expect(paletteColors(held, 'dark')).toEqual({ a: '#38bdf8', b: '#f472b6' })
-    expect(paletteColors(held, 'light')).toEqual({ a: '#74d4ff', b: '#fda5d5' })
+    expect(paletteColors(held)).toEqual({
+      a: 'light-dark(#74d4ff, #38bdf8)',
+      b: 'light-dark(#fda5d5, #f472b6)',
+    })
   })
 
-  // The allocator knows nothing of the theme: a key keeps its index across a
-  // switch, past the curated ten as well, and takes that index's shade in
-  // whichever theme paints it.
-  it('keeps a key on the same index across a theme switch', () => {
+  // The allocator knows nothing of the theme: a key keeps its index, past the
+  // curated ten as well, and its colour carries that index's shade in each.
+  it('keeps a key on the same index, its colour carrying both shades', () => {
     const keys = Array.from({ length: 25 }, (_, i) => `k${i}`)
     const held = allocateColors({}, keys)
     expect(allocateColors(held, keys)).toBe(held)
-    const dark = paletteColors(held, 'dark')
-    const light = paletteColors(held, 'light')
+    const colors = paletteColors(held)
     for (const key of keys) {
-      expect(dark[key]).toBe(colorForIndex(held[key], 'dark'))
-      expect(light[key]).toBe(colorForIndex(held[key], 'light'))
+      expect(colors[key]).toBe(lineColor(held[key]))
+      expect(colors[key]).toBe(`light-dark(${colorForIndex(held[key], 'light')}, ${colorForIndex(held[key], 'dark')})`)
     }
     expect(held.k24).toBe(24)
+  })
+
+  // The chrome the chart draws is the measured pair above, both at once; the
+  // rim is transparent in dark, and the light filter floods with the rim ink.
+  it('draws the chrome as the measured pairs, light first', () => {
+    expect(CHROME.axis).toBe(`light-dark(${CHART_CHROME.light.axis}, ${CHART_CHROME.dark.axis})`)
+    expect(CHROME.grid).toBe(`light-dark(${CHART_CHROME.light.grid}, ${CHART_CHROME.dark.grid})`)
+    expect(CHROME.surface).toBe(`light-dark(${CHART_CHROME.light.surface}, ${CHART_CHROME.dark.surface})`)
+    expect(CHROME.playhead).toBe(`light-dark(${CHART_CHROME.light.playhead}, ${CHART_CHROME.dark.playhead})`)
+    expect(CHROME.unassigned).toBe(`light-dark(${CHART_CHROME.light.unassigned}, ${CHART_CHROME.dark.unassigned})`)
+    expect(CHROME.lineEdge).toBe(`light-dark(${CHART_CHROME.light.lineEdge}, transparent)`)
+    expect(LINE_RIM_INK).toBe(CHART_CHROME.light.lineEdge)
   })
 })
 

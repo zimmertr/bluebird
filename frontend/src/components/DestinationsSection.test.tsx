@@ -4,7 +4,6 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
 import type { DiscoveryType } from '../types'
-import type { FooterMessage } from '../utils/notices'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
 // that enter and leave draw mode, the type set and the unnamed-peaks knob
@@ -36,18 +35,9 @@ function props(over: Partial<Props> = {}): Props {
     setCustomCsv: noop,
     parsedCount: 0,
     onCsvPasted: noop,
-    destinationsLines: [],
-    polygonLines: [],
-    typesLines: [],
     ...over,
   }
 }
-
-// One blocker per home the section draws (record 0208).
-const LINE = (key: string, text: string): FooterMessage => ({ key, text, severity: 'info' })
-const DESTINATIONS_LINE = LINE('blocker:destinations', 'Name a destination.')
-const POLYGON_LINE = LINE('blocker:polygon', 'Add a point.')
-const TYPES_LINE = LINE('blocker:types', 'Tick a type.')
 
 // A ring a search can use: the types and the unnamed-peaks knob are greyed
 // without one.
@@ -63,35 +53,6 @@ const polygonButtons = () =>
 const disabled = (name: string) => (screen.getByRole('button', { name }) as HTMLButtonElement).disabled
 
 describe('DestinationsSection', () => {
-  // Each blocker stands under the field it validates (record 0208): the
-  // destinations line under the section's heading, the polygon line in the
-  // counter block, the types line under the type boxes, and none of them
-  // announced here.
-  describe('the blocker lines', () => {
-    const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
-
-    it('draws none by default', () => {
-      render(<DestinationsSection {...props()} />)
-      expect(screen.queryByText(/Name a destination|Add a point|Tick a type/)).toBeNull()
-    })
-
-    it('stands each line under its own field', () => {
-      render(
-        <DestinationsSection
-          {...props({ ...RING, destinationsLines: [DESTINATIONS_LINE], polygonLines: [POLYGON_LINE], typesLines: [TYPES_LINE] })}
-        />,
-      )
-      const heading = screen.getByRole('heading', { name: 'Destinations' })
-      const destinations = screen.getByText('Name a destination.')
-      expect(follows(heading, destinations)).toBe(true)
-      expect(follows(destinations, screen.getByRole('heading', { name: 'Map search' }))).toBe(true)
-      expect(polygonBlock().contains(screen.getByText('Add a point.'))).toBe(true)
-      const types = screen.getByText('Tick a type.')
-      expect(follows(screen.getByRole('checkbox', { name: 'Include unnamed peaks' }), types)).toBe(true)
-      expect(screen.queryAllByRole('status')).toEqual([])
-    })
-  })
-
   describe('the draw counter', () => {
     it('is absent before the first point', () => {
       render(<DestinationsSection {...props()} />)

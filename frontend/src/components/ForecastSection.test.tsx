@@ -4,12 +4,10 @@ import { screen } from '@testing-library/react'
 import ForecastSection from './ForecastSection'
 import { forecastModel } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
-import type { FooterMessage } from '../utils/notices'
 
 // The section's own decisions: the model picker stands beside its label and
 // fades for an archive window, a model the deployment does not offer still
-// shows by name, the calendar sits under the picker with nothing between,
-// and a blocker's line stands under the field it is about (record 0208).
+// shows by name, and the calendar sits under the picker with nothing between.
 
 const MODELS = [
   forecastModel({ id: 'gfs_seamless', label: 'NOAA GFS' }),
@@ -32,15 +30,11 @@ function props(over: Partial<Props> = {}): Props {
     setSelection: noop,
     archiveDays: 365,
     aqiForecastDays: 5,
-    modelLines: [],
-    whenLines: [],
     ...over,
   }
 }
 
 const trigger = () => screen.getByRole('button', { name: /^Forecast model:/ })
-const MODEL_LINE: FooterMessage = { key: 'blocker:compare-aqi', text: 'Cannot compare.', severity: 'warn' }
-const WHEN_LINE: FooterMessage = { key: 'blocker:dates', text: 'Pick a date.', severity: 'info' }
 
 describe('ForecastSection', () => {
   it('names the ranking model and the ones compared with it', () => {
@@ -65,21 +59,6 @@ describe('ForecastSection', () => {
     render(<ForecastSection {...props()} />)
     const calendar = screen.getByRole('button', { name: 'Current' })
     expect(trigger().compareDocumentPosition(calendar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.queryAllByRole('status')).toEqual([])
-    expect(screen.queryByText(/\./)).toBeNull()
-  })
-
-  // A blocker about the models stands between the Model row and the
-  // calendar; one about the window stands under the When field.
-  it('stands a model blocker under the Model row and a window blocker under the When field', () => {
-    render(<ForecastSection {...props({ modelLines: [MODEL_LINE], whenLines: [WHEN_LINE] })} />)
-    const model = screen.getByText('Cannot compare.')
-    const when = screen.getByText('Pick a date.')
-    const calendar = screen.getByRole('button', { name: 'Current' })
-    const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
-    expect(follows(trigger(), model)).toBe(true)
-    expect(follows(model, calendar)).toBe(true)
-    expect(follows(calendar, when)).toBe(true)
     expect(screen.queryAllByRole('status')).toEqual([])
   })
 })

@@ -589,7 +589,6 @@ export default function App() {
     closure,
     mapRef,
     removePlace,
-    theme,
   })
   const { layout, tableView } = resultsView
   // Which edge of a desk's layout is moving, so the map and the results
@@ -738,7 +737,6 @@ export default function App() {
           closure={closure}
           pendingHeights={waitingHeights}
           modelId={analyzed?.forecastModel ?? forecastModel}
-          theme={theme}
           layoutMotion={layoutMotion}
         />
       </main>
