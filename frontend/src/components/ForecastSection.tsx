@@ -35,8 +35,8 @@ interface Props {
 
 /**
  * The panel's second section: which model answers, and over which hours. It
- * says nothing of its own; every message about the window reads in the one
- * block under the Analyze button.
+ * says nothing of its own; every message about the window is a line in the
+ * list the Analyze button's badge opens.
  */
 export default function ForecastSection({
   forecastModel,
@@ -112,9 +112,9 @@ export default function ForecastSection({
           />
         </div>
       </div>
-      {/* Nothing between the model and the calendar, and nothing under it:
-          every message this section has to make lives in the one block
-          below the Analyze button (`utils/panelMessages.ts`). */}
+      {/* Nothing stands between the model and the calendar or under it:
+          every message this section has to make is a line in the list the
+          Analyze button's badge opens (`utils/panelMessages.ts`). */}
       <ForecastCalendar selection={selection} onChange={setSelection} band={band} sheet={phone} />
     </section>
   )

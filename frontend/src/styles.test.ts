@@ -84,13 +84,16 @@ import {
   MAP_CHIP_SUMMARY,
   MAP_CHIP_SUMMARY_TEXT,
   MAP_FAB,
+  MAP_FAB_SLOT,
   MAP_FAB_WORDS,
+  MESSAGE_BADGE,
+  MESSAGE_LIST,
+  BLOCKED,
   MAP_ROUND_BUTTON,
   MAP_SLOT,
   MAP_CORNER,
   MAP_ZOOM_PAIR,
   MAP_CREDIT,
-  MAP_NOTICE_BAND,
   MAP_PILL,
   MAP_PILL_FIELD,
   MAP_MENU_W,
@@ -121,10 +124,11 @@ import {
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
 import { CHART_TICK_PX, LINE_LAYER_Z, LINE_RIM_FILTER_ID } from './utils/chartColors'
+import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
 import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { CHIP_MENU_GAP_PX, NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
+import { CHIP_MENU_GAP_PX } from './utils/resultsSheet'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { SNOW_RAMP } from './utils/snowDepth'
@@ -142,7 +146,6 @@ import {
   RULE_COLOR,
   WARNING_COLOR,
   popupButton,
-  type PopupButtonVariant,
 } from './utils/popupChrome'
 // The map's chip is the chip shape of the one menu trigger (record 0201), and
 // that is the only name it is exported under.
@@ -1975,17 +1978,38 @@ describe('status and notices', () => {
     expect(NOTICE_DISMISS.row).toContain('py-1.5')
   })
 
-  // The message and its X are centred against each other. On a coarse pointer
-  // the button is 44px and the message is one line, so the text sits level with
-  // the disc rather than at the top of a target three times its height; the
-  // offset that used to pin the X to a wrapped message's first line is gone
-  // with the wrap it existed for.
+  // The message and its X are centred against each other, so the text sits
+  // level with the disc; the offset that used to pin the X to a wrapped
+  // message's first line is gone with the wrap it existed for.
   it('sets the message level with the X it carries', () => {
     expect(NOTICE_DISMISS.row).toContain('items-center')
     expect(NOTICE_DISMISS.button).not.toContain('self-start')
-    // No UNPREFIXED negative margin: the one the button carries is the
+    // No unprefixed sideways margin: the one the button carries is the
     // coarse-pointer overlay below, and a mouse must not inherit it.
-    expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)-m[trblxy]?-/)
+    expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)-m[lrx]?-/)
+  })
+
+  // A box with an X stands exactly as tall as one without (the maintainer,
+  // 2026-10-21 on PR #789): the button's negative block margins hand back
+  // everything past the message's line, the disc's overhang on a mouse and the
+  // 44px target's on touch, so the row is the line and its padding. The
+  // browser suite's `messages.spec.ts` measures the boxes themselves.
+  it('stands a box with an X as tall as one without', () => {
+    const rem = (name: string) => {
+      const value = palette.match(new RegExp(String.raw`--${name}:\s*([\d.]+)rem;`))
+      return Number(value![1]) * 16
+    }
+    const ratio = palette.match(/--text-xs--line-height:\s*calc\(1 \/ ([\d.]+)\);/)
+    for (const recipe of Object.values(NOTICE)) expect(recipe.split(' ')).toContain('text-xs')
+    const line = rem('text-xs') / Number(ratio![1])
+    expect(line).toBe(16)
+    const step = (recipe: string, cls: RegExp) => Number(recipe.match(cls)![1]) * 4
+    const disc = step(NOTICE_DISMISS.pill, /(?<![-\w])h-(\d+)(?:\s|$)/)
+    const target = step(TAP.action, /touch:min-h-(\d+)/)
+    const mouse = Number(NOTICE_DISMISS.button.match(/(?:^|\s)-my-([\d.]+)(?:\s|$)/)![1]) * 4
+    const touch = Number(NOTICE_DISMISS.button.match(/(?:^|\s)touch:-my-([\d.]+)(?:\s|$)/)![1]) * 4
+    expect(disc - 2 * mouse).toBe(line)
+    expect(target - 2 * touch).toBe(line)
   })
 
   // The 44px target and the 20px disc differ by 24px, and that difference used
@@ -2032,12 +2056,30 @@ describe('the results table rank cell', () => {
     expect(STYLES.TABLE.cell.split(' ')).toContain('px-2')
   })
 
-  // A touch screen has no hover, so a linked value is underlined at rest, as
-  // the marker popup's numbers are (`popupLink`'s text-decoration).
-  it('underlines a linked value at rest, the way the popup does', () => {
-    const cls = STYLES.TABLE.valueLink.split(' ')
-    expect(cls).toContain('underline')
-    expect(cls.some((c) => c.startsWith('hover:'))).toBe(false)
+  // A link in the table reads in its text's colour (#786, record 0212): no
+  // underline at rest at a desk, one on hover and on keyboard focus, and on a
+  // touch screen, which has no hover, a thin one at rest in the secondary ink
+  // so a finger can find it. The marker popup's links read the same way.
+  it('underlines a table link on hover and focus, and at rest on touch only', () => {
+    const cls = STYLES.LINK_QUIET.split(' ')
+    expect(cls).toEqual(expect.arrayContaining(['hover:underline', 'focus-visible:underline', 'touch:underline', 'touch:decoration-ink-soft', 'cursor-pointer']))
+    expect(cls).not.toContain('underline')
+    // The text's own colour: no ink of its own, so a ranked value keeps the
+    // band's and a name the row's.
+    expect(cls.some((c) => /^text-/.test(c))).toBe(false)
+    expect('valueLink' in STYLES.TABLE).toBe(false)
+  })
+
+  // The popup's links say the same through `map.css`, since an inline style
+  // cannot answer a hover, and its link-out glyph rests in the same grey and
+  // takes the accent on hover and focus.
+  it('gives the popup\'s links and glyph the table\'s hover, focus and touch rules', () => {
+    expect(mapCss).toMatch(/\.maplibregl-popup \[data-popup-link\] \{\s*text-decoration: none;/)
+    expect(mapCss).toMatch(/\.maplibregl-popup \[data-popup-link\]:focus-visible \{\s*text-decoration: underline;/)
+    expect(mapCss).toMatch(/@media \(hover: hover\) \{\s*\.maplibregl-popup \[data-popup-link\]:hover \{\s*text-decoration: underline;/)
+    expect(mapCss).toMatch(/@media \(hover: none\) \{\s*\.maplibregl-popup \[data-popup-link\] \{\s*text-decoration: underline;\s*text-decoration-color: var\(--popup-label\);/)
+    expect(mapCss).toMatch(/\.maplibregl-popup \[data-popup-glyph\]:focus-visible \{\s*--popup-glyph: var\(--popup-glyph-hover\);/)
+    expect(mapCss).toMatch(/\.maplibregl-popup \[data-popup-glyph\]:hover \{\s*--popup-glyph: var\(--popup-glyph-hover\);/)
   })
 
   // The tutorial's spotlight lit a section with a scroll shade lying across
@@ -2055,6 +2097,21 @@ describe('the results table rank cell', () => {
     for (const shade of ['.scroll-shadow-start::before', '.scroll-shadow-end::after', '.scroll-shadow-head th::after']) {
       expect(selectors).toContain(`:root[data-touring] ${shade}`)
     }
+  })
+
+  // A phone's tutorial cuts from card to card (#786): every transition, and
+  // its pseudo-elements', stands down while the attribute says so.
+  it('stands every transition down while a phone\'s tutorial cuts', () => {
+    const start = indexCss.indexOf(':root[data-touring="cut"]')
+    expect(start).toBeGreaterThan(-1)
+    const open = indexCss.indexOf('{', start)
+    const selectors = indexCss.slice(start, open).split(',').map((x) => x.trim())
+    expect(selectors).toEqual([
+      ':root[data-touring="cut"] *',
+      ':root[data-touring="cut"] *::before',
+      ':root[data-touring="cut"] *::after',
+    ])
+    expect(indexCss.slice(open + 1, indexCss.indexOf('}', open)).trim()).toBe('transition: none !important;')
   })
 
   // A finger removes from the marker card its row tap opens (#696), so the ×
@@ -2494,9 +2551,12 @@ describe('the phone chrome\'s hit areas', () => {
 describe('the Analyze button on a phone', () => {
   const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
 
-  it('is 56px tall, 16px off the right edge, with a 16px corner', () => {
-    expect(tokens(MAP_FAB)).toEqual(expect.arrayContaining(['absolute', 'right-4', 'h-14', 'rounded-2xl']))
-    expect(MAP_FAB).toContain(LAYER.mapControls)
+  // The slot places the button and its badge together (record 0208); the
+  // button itself is the slot's box, so the badge's corner is its corner.
+  it('is 56px tall with a 16px corner, in a slot 16px off the right edge', () => {
+    expect(tokens(MAP_FAB)).toEqual(expect.arrayContaining(['relative', 'h-14', 'rounded-2xl']))
+    expect(tokens(MAP_FAB_SLOT)).toEqual(['absolute', 'right-4', LAYER.mapControls])
+    expect(MAP_FAB).not.toMatch(/(^|\s)(absolute|right-|z-)/)
     expect(MAP_FAB).toContain(ELEVATION.overlay)
   })
 
@@ -2525,7 +2585,7 @@ describe('the Analyze button on a phone', () => {
   it('wears BUTTON_PRIMARY\'s fill and the call to action\'s type', () => {
     for (const part of [ACCENT.fill, ACCENT.fillHover, FOCUS_RING, TEXT.cta]) expect(MAP_FAB).toContain(part)
     for (const part of [ACCENT.fill, TEXT.cta]) expect(BUTTON_PRIMARY).toContain(part)
-    expect(phoneFootSource).toContain('${MAP_FAB} ${DISABLED}')
+    expect(phoneFootSource).toContain('${MAP_FAB} ${DISABLED} ${BLOCKED}')
   })
 
   // Both words in one grid cell, so the width is the wider word's.
@@ -2546,7 +2606,7 @@ describe('the bottom sheet', () => {
     // The Analyze button among it: every sheet's dim covers the button where
     // it stands, and the sheet's modality keeps it from a press, so the foot
     // neither hides it nor makes it inert (record 0207).
-    expect(zOf(MAP_FAB.match(/(?:^|\s)(z-\S+)/)![1])).toBeLessThan(zOf(LAYER.popover))
+    expect(zOf(MAP_FAB_SLOT.match(/(?:^|\s)(z-\S+)/)![1])).toBeLessThan(zOf(LAYER.popover))
     expect(phoneFootSource).not.toMatch(/\binert\b/)
     expect(tokens(BOTTOM_SHEET.scrim)).toEqual(expect.arrayContaining(['fixed', 'inset-0']))
     expect(darkStep(token(BOTTOM_SHEET.dim, 'bg'))).toBe('black')
@@ -2578,50 +2638,85 @@ describe('the bottom sheet', () => {
   })
 })
 
-// The panel's notices on a phone's map while the drawer is shut (#696;
-// record 0140): the same translucent boxes, on the drawer's own fill.
 // A recipe's classes, for the phone chrome checks below.
 const words = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
 
-describe('the notice band', () => {
-  const bands = [MAP_NOTICE_BAND.map, MAP_NOTICE_BAND.overDim]
+// The count on the Analyze button (#786; record 0208): a 20px disc at the
+// button's corner, filled in the worst message's ink with the digit in the
+// panel's colour, so the fill is the colour a notice's text would be and the
+// digit stands out on it in either theme. The same badge on the panel's
+// button at a desk and on the map's on a phone.
+describe('the message badge', () => {
+  // The digit on each fill, in each theme, measured on the hex the browser
+  // paints; literals so a token change fails here and forces a re-measurement
+  // rather than inheriting a stale claim.
+  const MEASURED = {
+    dark: { error: 5.06, warn: 10.1, info: 8.77 },
+    light: { error: 8.33, warn: 6.31, info: 8.35 },
+  }
 
-  it('lays the drawer\'s fill under the boxes only while it holds one, and yields the rest', () => {
-    const drawerFill = DESK_PANEL.card.match(/(?:^|\s)(bg-[a-z-]+)(?=\s|$)/)?.[1]
-    expect(drawerFill).toBeDefined()
-    for (const band of bands) {
-      expect(band).toContain(`has-[>[role=status]>*]:${drawerFill}`)
-      expect(band).not.toMatch(/(^|\s)bg-/)
-      for (const part of [MAP_EDGE.left, MAP_EDGE.right, YIELD_EMPTY]) expect(band).toContain(part)
-      // The boxes' own corners, so the fill under them meets their edges.
-      expect(band).toContain(RADIUS.control)
-    }
-    expect(NOTICE.warn).toContain(RADIUS.control)
+  // A 20px disc inside a 2px edge, which is a border so the button is the 24px
+  // a target owes (WCAG 2.5.8, Lighthouse's target-size audit), standing
+  // where the disc and a ring outside it stood.
+  it('is a 20px pill edged in the panel, a 24px button at the button\'s corner, 44px to a finger', () => {
+    const t = words(MESSAGE_BADGE.base)
+    expect(t).toEqual(
+      expect.arrayContaining([
+        'absolute',
+        '-right-2.5',
+        '-top-2.5',
+        'h-6',
+        'min-w-6',
+        RADIUS.pill,
+        'border-2',
+        'border-panel',
+        'font-bold',
+        'tabular-nums',
+        ...words(MICRO_SIZE),
+        ...words(FOCUS_RING),
+      ]),
+    )
+    expect(t).not.toContain('ring-2')
+    // 24px plus 10px each side on touch: the 44px a finger needs, drawn by
+    // nothing (`touch:before:-inset-2.5`), so the disc stays a disc.
+    expect(t).toEqual(expect.arrayContaining(['touch:before:absolute', 'touch:before:-inset-2.5', "touch:before:content-['']"]))
+    expect(MESSAGE_BADGE.slot).toBe('relative')
+    // The phone's slot is the positioned box, so the badge's corner is the
+    // button's there too.
+    expect(words(MAP_FAB_SLOT)).toContain('absolute')
   })
 
-  // On the map it is map chrome, under the button. On the Controls sheet's
-  // edge it stands on the panel's layer, over the sheet's dim and under a
-  // sheet opened from inside the panel (record 0207). One layer each, since
-  // two z utilities on one element resolve by stylesheet order.
-  it('stands on the map\'s layer, or over the Controls sheet\'s dim', () => {
-    const layerOf = (recipe: string) => words(recipe).filter((w) => /^z-/.test(w))
-    expect(layerOf(MAP_NOTICE_BAND.map)).toEqual([LAYER.base])
-    expect(layerOf(MAP_NOTICE_BAND.overDim)).toEqual([LAYER.drawer])
-    expect(MAP_NOTICE_BAND.map.replace(LAYER.base, '')).toBe(MAP_NOTICE_BAND.overDim.replace(LAYER.drawer, ''))
-    expect(zOf(LAYER.drawer)).toBeGreaterThan(zOf(LAYER.scrim))
-    expect(zOf(LAYER.drawer)).toBeLessThan(zOf(LAYER.popover))
-    expect(phoneFootSource).toContain('controlsOpen ? MAP_NOTICE_BAND.overDim : MAP_NOTICE_BAND.map')
+  it('fills in the severity\'s ink with the panel\'s digit, clearing AA in both themes', () => {
+    const measured = { dark: {} as Record<string, number>, light: {} as Record<string, number> }
+    for (const tone of ['error', 'warn', 'info'] as const) {
+      const fill = token(MESSAGE_BADGE[tone], 'bg')
+      expect(MESSAGE_BADGE[tone]).toBe(`bg-${fill} text-panel`)
+      // The fill is the ink a notice of that severity writes in.
+      expect(fill).toBe(token(STATUS[tone], 'text'))
+      measured.dark[tone] = ratio(dark('panel'), dark(fill))
+      measured.light[tone] = ratio(light('panel'), light(fill))
+    }
+    expect(measured).toEqual(MEASURED)
+    for (const theme of Object.values(MEASURED)) {
+      for (const [tone, r] of Object.entries(theme)) {
+        expect(r, `the ${tone} digit must clear the 4.5:1 asked of text`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+})
+
+// A blocked Analyze and the line under its field (record 0208).
+describe('a blocked Analyze and the message list', () => {
+  // Greyed the way a disabled button is, under aria-disabled rather than
+  // disabled, so it stays a button a press can open the list from.
+  it('greys a blocked button as a disabled one is greyed', () => {
+    expect(BLOCKED).toBe('aria-disabled:opacity-40')
+    expect(DISABLED).toContain('disabled:opacity-40')
   })
 
-  // Three lines of a box and then it scrolls inside itself (record 0140):
-  // the class and the number the layout adds up are one.
-  it('caps the band at the three lines the layout counts, and scrolls past them', () => {
-    for (const band of bands) {
-      expect(words(band)).toEqual(expect.arrayContaining([`max-h-[${NOTICE_BAND_MAX_PX}px]`, 'overflow-y-auto', 'overscroll-contain']))
-    }
-    // The box the three lines are counted in: 12px type on a 16px line, 8px
-    // of padding and a 1px border.
-    expect(words(NOTICE.warn)).toEqual(expect.arrayContaining(['text-xs', 'p-2', 'border']))
+  it('stacks the list\'s boxes on the menu\'s list inset at a desk', () => {
+    expect(MESSAGE_LIST.card).toBe(`${MENU.list} space-y-2`)
+    expect(MESSAGE_LIST.sheet).toBe('space-y-2 py-2')
   })
 })
 
@@ -2679,11 +2774,11 @@ describe('the Controls sheet', () => {
 
   // Its dim is the whole screen, fixed to the viewport like a menu sheet's,
   // one layer under the card: over the map, the button and the results
-  // sheet, and under the band that rides the card's edge (record 0207).
+  // sheet (record 0207).
   it('dims the whole screen one layer under the card', () => {
     expect(words(CONTROLS_SHEET.scrim)).toEqual(['fixed', 'inset-0', LAYER.scrim])
     expect(zOf(LAYER.scrim)).toBeLessThan(zOf(LAYER.drawer))
-    for (const under of [LAYER.base, LAYER.sheet, LAYER.mapControls, MAP_FAB.match(/(?:^|\s)(z-\S+)/)![1]]) {
+    for (const under of [LAYER.base, LAYER.sheet, LAYER.mapControls, MAP_FAB_SLOT.match(/(?:^|\s)(z-\S+)/)![1]]) {
       expect(zOf(under)).toBeLessThan(zOf(LAYER.scrim))
     }
     expect(bottomSheetSource).toContain('kept ? CONTROLS_SHEET.scrim : BOTTOM_SHEET.scrim')
@@ -3006,16 +3101,13 @@ describe('the tutorial', () => {
     expect(STYLES.TOUR.spotlight).not.toMatch(/rounded/)
     // Its corners are read off the target it frames (tour/place.ts), not a role.
     expect(STYLES.TOUR).not.toHaveProperty('spotlightControl')
-    // The one transition the tour wears yields to a reduced-motion setting.
-    expect(STYLES.TOUR.motion).toContain('motion-reduce:transition-none')
     expect(STYLES.TOUR.spotlight).toContain('pointer-events-none')
   })
 
-  it('moves only between steps, never with the layout', () => {
-    for (const role of [STYLES.TOUR.spotlight, STYLES.TOUR.card, STYLES.TOUR.sheet, STYLES.TOUR.sheetTop]) {
-      expect(role).not.toMatch(/transition/)
-    }
-    expect(STYLES.TOUR.motion).toContain('duration-200')
+  // The glide in `Tour.tsx` moves them (#786): a transition handed a new end
+  // every frame by a target riding a sheet restarts every frame.
+  it('moves by no transition of its own', () => {
+    for (const role of Object.values(STYLES.TOUR)) expect(role).not.toMatch(/transition/)
   })
 
   it('stands the card on the welcome dialog surface, fixed, at the welcome card width', () => {
@@ -3231,7 +3323,7 @@ describe('the attribution beside the scale', () => {
     const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-left:has\(> \.maplibregl-ctrl-attrib\) \{[^}]*\}/)?.[0] ?? ''
     const clear = Number(rule.match(/right: calc\(var\(--map-fab-w, 0px\) \+ (\d+)px\);/)?.[1])
     expect(clear).toBe(16 + CLEAR_PX - ATTRIB_MARGIN_PX)
-    expect(MAP_FAB.split(/\s+/)).toContain('right-4')
+    expect(MAP_FAB_SLOT.split(/\s+/)).toContain('right-4')
     expect(mapStageSource).toContain("'--map-fab-w': `${fabPx}px`")
   })
 
@@ -3309,31 +3401,24 @@ describe('the scale bar', () => {
   })
 })
 
-// The map's popups follow the theme (#740): white in the light theme, every
-// value the one the card has always painted, and the panel's own surfaces and
-// inks in the dark one. A card names `var(--popup-*)` in its markup and
-// `map.css` gives each one value per theme, so every pair is measured here,
-// where the stylesheets are read, on the surface it lands on. Measured
-// 2026-10-16.
+// The map's popups follow the theme (#740), and are the panel's own surface
+// in either one (#786, record 0215): every `--popup-*` value in `map.css` is
+// an app token, declared once on the root, where the light theme redefines
+// the tokens. So every pair is measured here, where the stylesheets are read,
+// on the surface it lands on, in both themes. Measured 2026-10-22.
 describe('the popup card', () => {
   type Theme = 'dark' | 'light'
   const popupBlock = (selector: string): Record<string, string> => {
     const body = mapCss.match(new RegExp(String.raw`\n${selector} \{([^}]*)\}`))![1]
     return Object.fromEntries([...body.matchAll(/--popup-([\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]))
   }
-  const POPUP: Record<Theme, Record<string, string>> = {
-    dark: popupBlock(':root'),
-    light: popupBlock(String.raw`:root\[data-theme="light"\]`),
-  }
+  const POPUP = popupBlock(':root')
   /** The hex a value paints in a theme: a popup value, a theme token, a step, a mix. */
   const paint = (value: string, theme: Theme): string => {
     const v = value.replace(/^color:/, '').trim()
     if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase()
-    if (v === '#fff') return '#ffffff'
-    // The scheme's own text colour, which the light card resolves to black.
-    if (v === 'CanvasText') return theme === 'light' ? '#000000' : '#ffffff'
     const popup = v.match(/^var\(--popup-([\w-]+)\)$/)
-    if (popup) return paint(POPUP[theme][popup[1]], theme)
+    if (popup) return paint(POPUP[popup[1]], theme)
     const ui = v.match(/^var\(--ui-([\w-]+)\)$/)
     if (ui) return theme === 'light' ? light(ui[1]) : paint(DARK_TOKENS[ui[1]], theme)
     const own = v.match(/^var\(--color-([\w-]+)\)$/)
@@ -3343,110 +3428,109 @@ describe('the popup card', () => {
     throw new Error(`cannot resolve ${v}`)
   }
   const measure = (a: string, b: string, theme: Theme) => ratio(paint(a, theme), paint(b, theme))
+  const both = (a: string, b: string) => [measure(a, b, 'dark'), measure(a, b, 'light')]
   const SURFACE = GRID_GUTTER_COLOR
   const INK = 'var(--popup-ink)'
-  // A button's fill and its label, as `popupButton` writes them.
-  const onFill = (variant: PopupButtonVariant, theme: Theme) => {
-    const [, fill, label] = popupButton('data-x', variant, 'Go').match(/background:([^;]+);color:([^;"]+)/)!
-    return measure(label, fill, theme)
-  }
 
-  it('declares every popup colour in both themes, and paints the vendor parts with them', () => {
-    expect(Object.keys(POPUP.dark).sort()).toEqual(Object.keys(POPUP.light).sort())
+  // One source for every colour a card wears: a value here that is not a
+  // token is a second palette, which is how the light card's buttons came to
+  // be a near-black and a blue the app never wore. The light block says the
+  // scheme and nothing else, because the tokens it would name already turn
+  // with the theme.
+  it('names an app token for every popup colour, once, for both themes', () => {
+    const TOKEN = String.raw`var\(--(?:ui-[\w-]+|scroll-shade)\)`
+    const VALUE = new RegExp(String.raw`^(?:${TOKEN}|color-mix\(in oklab, ${TOKEN} \d+%, ${TOKEN}\))$`)
+    const { scheme, ...colours } = POPUP
+    expect(scheme).toBe('dark')
+    for (const [name, value] of Object.entries(colours)) expect([name, VALUE.test(value)]).toEqual([name, true])
+    expect(popupBlock(String.raw`:root\[data-theme="light"\]`)).toEqual({ scheme: 'light' })
     expect(mapCss).toMatch(/\n\.maplibregl-popup-content \{\s*background: var\(--popup-surface\);/)
     expect(mapCss.match(/border-(top|bottom|left|right)-color: var\(--popup-surface\);/g)).toHaveLength(4)
     expect(mapCss).toContain('scrollbar-color: var(--popup-thumb) var(--popup-band);')
   })
 
-  // Light: the white card, pixel for pixel, with the ratios it always had.
-  it('keeps the light card the white it always was', () => {
-    expect([SURFACE, INK, HEADER_BAND_COLOR, GRID_RANKED_COLOR, LABEL_COLOR].map((c) => paint(c, 'light'))).toEqual([
-      '#ffffff', '#000000', '#f1f5f9', '#e2e8f0', '#475569',
-    ])
-    // A label, and the coordinates, which link in the facts line's own grey
-    // (#740), on the band.
-    expect(measure(LABEL_COLOR, GRID_BAND_COLOR, 'light')).toBe(6.92)
-    expect(measure(GRID_RANKED_COLOR, GRID_BAND_COLOR, 'light')).toBe(1.13)
-    // The title on its band, and a grid number, which links in the ink (#740),
-    // on its column and on the ranked cell.
-    expect([HEADER_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, 'light'))).toEqual([19.17, 17.03])
-    expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'light')).toBe(3.74)
-    // The pipes are decoration, hidden from a screen reader; they need only show.
-    expect(measure(FINE_COLOR, HEADER_BAND_COLOR, 'light')).toBe(2.34)
-    // The warning amber sits under AA on white by the maintainer's choice (TJ
-    // kept amber-500 over amber-700, 2026-10-08).
-    expect(measure(WARNING_COLOR, SURFACE, 'light')).toBe(2.15)
-    expect(measure('var(--popup-thumb)', GRID_BAND_COLOR, 'light')).toBe(4.34)
+  // The card is the panel every popover stands on, and its band and ranked
+  // cell one and two half steps toward the raised step.
+  it('stands the card on the panel, in both themes', () => {
+    for (const theme of ['dark', 'light'] as const) expect(paint(SURFACE, theme)).toBe(paint('var(--ui-panel)', theme))
+    expect(both(HEADER_BAND_COLOR, SURFACE)).toEqual([1.18, 1.06])
+    expect(both(GRID_RANKED_COLOR, GRID_BAND_COLOR)).toEqual([1.2, 1.06])
   })
 
-  // Dark: the panel's own surface, and the band and ranked cell one and two
-  // half steps toward the raised slate, so they part from it about as far as
-  // the light card's do from white (1.1 and 1.13).
-  it('stands the dark band and ranked cell on the panel surface', () => {
-    expect(POPUP.dark.surface).toBe('var(--ui-panel)')
-    expect(darkStep('panel')).toBe('slate-800')
-    expect(measure(HEADER_BAND_COLOR, SURFACE, 'dark')).toBe(1.18)
-    expect(measure(GRID_RANKED_COLOR, GRID_BAND_COLOR, 'dark')).toBe(1.2)
-  })
-
-  it('reads every dark text above AA on each surface it lands on', () => {
+  it('reads every text above AA on each surface it lands on', () => {
     // A link takes the colour of the text around it (#740), so the ink is the
     // title's and every grid number's, linked or not.
-    expect([SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, 'dark'))).toEqual([11.86, 10.05, 8.4])
-    // Labels and the coordinates beside them. Neither stands on the ranked
-    // cell, which holds a number alone.
-    expect([SURFACE, GRID_BAND_COLOR].map((on) => measure(LABEL_COLOR, on, 'dark'))).toEqual([5.56, 4.71])
-    // The maintainer's amber, which clears AA on the dark card where on white
-    // it does not.
-    expect(measure(WARNING_COLOR, SURFACE, 'dark')).toBe(6.81)
+    for (const theme of ['dark', 'light'] as const) {
+      expect([SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, theme))).toEqual(
+        theme === 'dark' ? [11.86, 10.05, 8.4] : [15.25, 14.42, 13.66],
+      )
+      // Labels and the coordinates beside them. Neither stands on the ranked
+      // cell, which holds a number alone.
+      expect([SURFACE, GRID_BAND_COLOR].map((on) => measure(LABEL_COLOR, on, theme))).toEqual(
+        theme === 'dark' ? [5.56, 4.71] : [8.34, 7.89],
+      )
+    }
+    // A safety warning in the table's own amber, which clears AA in both
+    // themes where the popup's copy, amber-500, read 2.15:1 on white.
+    expect(both(WARNING_COLOR, SURFACE)).toEqual([10.1, 6.31])
   })
 
-  // The link-out glyph and the scroll bar's thumb owe 3:1.
-  it('keeps the dark glyph and thumb above the 3:1 a graphic owes', () => {
-    expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'dark')).toBe(5.69)
-    expect(measure('var(--popup-thumb)', GRID_BAND_COLOR, 'dark')).toBe(4.71)
+  // The link-out glyph, at rest and under the pointer, and the scroll bar's
+  // thumb owe 3:1.
+  it('keeps the glyph and the thumb above the 3:1 a graphic owes', () => {
+    expect(both(HEADER_ICON_COLOR, HEADER_BAND_COLOR)).toEqual([4.71, 7.89])
+    expect(both('var(--popup-glyph-hover)', HEADER_BAND_COLOR)).toEqual([5.69, 5.43])
+    expect(both('var(--popup-thumb)', GRID_BAND_COLOR)).toEqual([4.71, 3.76])
   })
 
-  // The fine print steps back as far as the light card's does (2.98:1 on
-  // white), and stays under AA for the reason `FINE_COLOR` gives.
-  it('steps the dark fine print back as far as the light card does', () => {
-    expect([SURFACE, HEADER_BAND_COLOR].map((on) => measure(FINE_COLOR, on, 'dark'))).toEqual([3.07, 2.6])
-  })
-
-  it('reads every button label and the close glyph on its own fill', () => {
-    expect((['primary', 'secondary', 'danger'] as const).map((v) => [onFill(v, 'dark'), onFill(v, 'light')])).toEqual([
-      // The app's accent fill in dark, where the light card's sky-600 is 4.1.
-      [4.56, 4.1],
-      [6.15, 8.4],
-      // Red-500 under white in both, unchanged; only the ring's remove-point
-      // popup wears it.
-      [3.76, 3.76],
-    ])
-    expect(measure('var(--popup-close)', 'var(--popup-close-fill)', 'dark')).toBe(6.97)
-    expect(measure('var(--popup-close-hover)', 'var(--popup-close-hover-fill)', 'dark')).toBe(7.58)
-  })
-
-  // The ranked family's colours (#740) are the table's, so the dark card,
-  // which stands on the table's own panel, reads every band's ink at the
-  // ratios `colors.test.ts` pins. The light card is white where the light
-  // table is its panel, so each band's ink is measured again on its 20% tint
-  // over white.
-  it('reads every coloured number above AA on the card, in both themes', () => {
-    expect(paint(SURFACE, 'dark')).toBe(paint('var(--ui-panel)', 'dark'))
-    const tintOver = (band: string, under: string) => mixOver(band, under, 0.2)
-    const white = paint(SURFACE, 'light')
-    const lightest = Math.min(
-      ...Object.values(METRIC_SCALE).flatMap((scale) => scale.colors.map((band, i) => contrast(scale.ink[i], tintOver(band, white)))),
+  // On a touch screen a link's underline rests in the label grey (#786,
+  // record 0212). It is the one cue that marks the link there, so it owes 3:1
+  // on every surface a link stands on: the card, the grid's band and its
+  // ranked cell.
+  it('keeps the touch underline above 3:1 wherever a popup link stands', () => {
+    const ratios = (['dark', 'light'] as const).map((theme) =>
+      [SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure('var(--popup-label)', on, theme)),
     )
-    expect(round2(lightest)).toBe(6)
+    expect(ratios[0]).toEqual([5.56, 4.71, 3.94])
+    expect(ratios[1]).toEqual([8.34, 7.89, 7.47])
+  })
+
+  // The fine print steps back, under AA for the reason `FINE_COLOR` gives.
+  it('steps the fine print back', () => {
+    expect([SURFACE, HEADER_BAND_COLOR].map((on) => both(FINE_COLOR, on))).toEqual([
+      [3.07, 4.32],
+      [2.6, 4.09],
+    ])
+  })
+
+  // The button is the panel's own (#786, record 0215): its class list is
+  // `BUTTON_ACCENT` and nothing else sets its look, so its fill, label and
+  // hover are the ones the app's buttons measure; `popupParity.spec.ts`
+  // reads the rendered button against the panel's in a browser.
+  it('dresses its button as the panel\'s accent button and nothing else', () => {
+    expect(popupButton('data-x', 'Go')).toBe(`<button data-x class="${BUTTON_ACCENT}">Go</button>`)
+    expect(mapCss).not.toMatch(/data-popup-button|--popup-(?:primary|secondary|danger)/)
+    expect(both('var(--popup-close)', 'var(--popup-close-fill)')).toEqual([6.97, 10.31])
+    expect(both('var(--popup-close-hover)', 'var(--popup-close-hover-fill)')).toEqual([7.58, 12.17])
+  })
+
+  // The ranked family's colours (#740) are the table's, and the card stands
+  // on the table's own panel in both themes, so every band's ink reads at the
+  // ratios `colors.test.ts` pins.
+  it('reads the ranked family on the table\'s own panel, in both themes', () => {
+    for (const theme of ['dark', 'light'] as const) expect(paint(SURFACE, theme)).toBe(paint('var(--ui-panel)', theme))
     expect(mapCss).toMatch(/\.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-dark\);/)
     expect(mapCss).toMatch(/:root\[data-theme="light"\] \.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-light\);/)
   })
 
   // The quiet lines, the header's edge and the grid's hairline, and the
   // firmer rule under the grid's heads.
-  it('draws the dark lines a step and two off the surface', () => {
-    expect([HEADER_EDGE_COLOR, GRID_LINE_COLOR, RULE_COLOR].map((l) => measure(l, SURFACE, 'dark'))).toEqual([1.41, 1.41, 1.93])
+  it('draws the lines a step and two off the surface', () => {
+    expect([HEADER_EDGE_COLOR, GRID_LINE_COLOR, RULE_COLOR].map((l) => both(l, SURFACE))).toEqual([
+      [1.41, 1.5],
+      [1.41, 1.5],
+      [1.93, 2.35],
+    ])
   })
 })
 
@@ -3814,6 +3898,8 @@ describe('the panel frame', () => {
     const panelRem = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) / 4
     expect(LAYOUT_HOLD.chartClosing).toBe(`w-[calc(100vw-${panelRem}rem)]`)
     expect(LAYOUT_HOLD.clip).toBe('overflow-clip')
+    // What moves stands on a layer of its own while it moves (record 0216).
+    expect(LAYOUT_HOLD.layer).toBe('will-change-transform')
   })
 
   // A results pane opens to its body's height and shuts to none, and the
@@ -4138,6 +4224,24 @@ describe('the light theme', () => {
     expect(rule).not.toBeNull()
     expect([Number(rule![1]), rule![2]]).toEqual([LINE_LAYER_Z, LINE_RIM_FILTER_ID])
     expect(indexCss.match(/recharts-zIndex-layer_/g)).toHaveLength(1)
+  })
+
+  // The hover dot wears the line's rim in light by a rule rather than by
+  // Recharts' `activeDot` prop, which would name a theme and re-render the
+  // chart on every switch (#786; record 0211).
+  it('rims the hover dot through the line-edge token, in light alone', () => {
+    const rule = indexCss.match(/(\S+) \.recharts-active-dot \.recharts-dot \{([^}]*)\}/)
+    expect(rule?.[1]).toBe(':root[data-theme="light"]')
+    expect(rule?.[2]).toContain('stroke: var(--ui-line-edge);')
+  })
+
+  // A theme switch holds every transition off while it lands (#786; record
+  // 0211): the hook's class must be the one the rule names, and the rule must
+  // reach every element and its two generated boxes.
+  it('turns every transition off under the theme hook\'s class', () => {
+    const c = THEME_SWITCHING_CLASS
+    const rule = indexCss.match(new RegExp(String.raw`\.${c} \*,\s*\.${c} \*::before,\s*\.${c} \*::after \{([^}]*)\}`))
+    expect(rule?.[1].trim()).toBe('transition: none !important;')
   })
 
   // A mark in a chart line's colour wears the line's rim in light, and the

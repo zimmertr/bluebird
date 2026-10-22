@@ -234,6 +234,12 @@ export const test = base.extend<{ traffic: Traffic }>({
 })
 export { expect }
 
+// One of the panel's messages, read from the live region the Analyze button's
+// badge stands beside (record 0208): the one copy that is in the page whether
+// or not the list is open. A message in the opened list has a second copy, so
+// a bare text locator would find two.
+export const message = (page: Page, text: string | RegExp) => page.locator('[role="status"]').getByText(text)
+
 // A click on the map counts only once MapLibre has fired `load` and the draw
 // handler is attached, and nothing in the page says when that is. So click,
 // wait for the panel's own readout to move, and click again while it has not.
@@ -244,13 +250,13 @@ async function placeVertices(page: Page, vertices: readonly [number, number][]) 
     const moved =
       remaining === 0
         ? page.getByRole('button', { name: 'Done' })
-        : page.getByText(`Add at least ${remaining} more point${remaining === 1 ? '' : 's'}`)
-    const hasMoved = () => (remaining === 0 ? moved.isEnabled() : moved.isVisible())
+        : message(page, `Add at least ${remaining} more point${remaining === 1 ? '' : 's'}`)
+    const hasMoved = async () => (remaining === 0 ? moved.isEnabled() : (await moved.count()) > 0)
     await expect(async () => {
       // A slow readout must not earn the ring a second vertex at this spot.
       if (!(await hasMoved())) await page.locator('.maplibregl-canvas').click({ position: { x, y } })
       if (remaining === 0) await expect(moved).toBeEnabled({ timeout: 1_500 })
-      else await expect(moved).toBeVisible({ timeout: 1_500 })
+      else await expect(moved).toBeAttached({ timeout: 1_500 })
     }).toPass({ timeout: 20_000 })
   }
   await page.getByRole('button', { name: 'Done' }).click()

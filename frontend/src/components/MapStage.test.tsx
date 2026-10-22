@@ -4,18 +4,11 @@ import { createRef, type ReactNode } from 'react'
 import MapStage, { type MapStageProps } from './MapStage'
 import type { MapViewHandle } from './MapView'
 import { render } from '../testSupport/render'
-import { place, resultRow } from '../testSupport/fixtures'
+import { panelMessages, place, resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
-import {
-  DRAGGED_MAP_PX,
-  FAB_INSET_PX,
-  controlsSheetPx,
-  fabBottomPx,
-  phoneCornerLiftPx,
-  transportStandPx,
-} from '../utils/resultsSheet'
-import { MAP_EDGE } from '../styles'
+import { DRAGGED_MAP_PX, FAB_INSET_PX, phoneCornerLiftPx, transportStandPx } from '../utils/resultsSheet'
+import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
 import type { Place } from '../utils/geocode'
 
 // MapView draws with WebGL, which jsdom has none of, and what this suite is
@@ -41,23 +34,14 @@ vi.mock('./TimelineTransport', () => ({
 }))
 vi.mock('./PhoneFoot', () => ({
   default: (props: {
-    liftPx: number
-    controlsOpen: boolean
     fabBottomPx: number
-    onBandPx: (px: number) => void
     onFabPx: (px: number) => void
     analyzeEnabled: boolean
     word: string
     onAnalyze: () => void
+    messages: { count: number }
   }) => (
-    <div
-      data-testid="foot"
-      data-lift={String(props.liftPx)}
-      data-controls={String(props.controlsOpen)}
-      data-fab={String(props.fabBottomPx)}
-      data-word={props.word}
-    >
-      <button onClick={() => props.onBandPx(40)}>Band</button>
+    <div data-testid="foot" data-fab={String(props.fabBottomPx)} data-word={props.word} data-count={String(props.messages.count)}>
       <button onClick={() => props.onFabPx(120)}>Fab</button>
       <button onClick={props.onAnalyze} disabled={!props.analyzeEnabled}>
         Analyze
@@ -154,6 +138,7 @@ const DRAW: MapStageProps['drawMode'] = {
   handleCancelDrawing: NOOP,
 }
 const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP, removeResult: NOOP }
+const MESSAGES = panelMessages()
 const MAP_REF = createRef<MapViewHandle>()
 const URL_SYNC: MapStageProps['urlSync'] = { reportView: NOOP }
 const ON_BASEMAP_FAILED = (_failed: boolean) => {}
@@ -182,7 +167,6 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     modelId: 'gfs_seamless',
     showResults: true,
     sidebarOpen: true,
-    controlsPx: 540,
     legendInitiallyOpen: true,
     urlSync: URL_SYNC,
     restoredView: null,
@@ -190,8 +174,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     maxPolygonPoints: MAX_POLYGON_POINTS,
     onOpenControls: NOOP,
     controlsSummary: 'Current · NOAA GFS',
-    onNoticeBand: NOOP,
-    analyzeEnabled: true,
+    messages: MESSAGES,
     actionWord: 'Analyze',
     onAnalyze: NOOP,
     searchPointed: false,
@@ -246,6 +229,25 @@ describe('MapStage', () => {
   // The chip row holds Legend and Layers at both widths (#714, record 0174),
   // each handed to the rows rather than drawn beside them; their order is
   // the rows' own (MapRows.test.tsx).
+  // While a desk's layout moves the map's column clips the map it holds to
+  // one size (record 0202), and while the panel moves it stands on a layer
+  // of its own (record 0216).
+  it('clips the map\'s column while the layout moves, and gives it a layer while the panel does', () => {
+    const { container, rerender } = render(<MapStage {...props()} />)
+    const column = () => container.firstElementChild as HTMLElement
+    expect(column().className).toContain('flex-1')
+    expect(column().className).not.toContain(LAYOUT_HOLD.clip)
+    expect(column().className).not.toContain(LAYOUT_HOLD.layer)
+    rerender(<MapStage {...props({ layoutMotion: 'panes' })} />)
+    expect(column().className).toContain(LAYOUT_HOLD.clip)
+    expect(column().className).not.toContain(LAYOUT_HOLD.layer)
+    for (const layoutMotion of ['opening', 'closing'] as const) {
+      rerender(<MapStage {...props({ layoutMotion })} />)
+      expect(column().className).toContain(LAYOUT_HOLD.clip)
+      expect(column().className).toContain(LAYOUT_HOLD.layer)
+    }
+  })
+
   it('hands the rows the Legend and Layers chips at both widths', () => {
     const { rerender } = render(<MapStage {...props()} />)
     for (const desk of [true, false]) {
@@ -387,14 +389,20 @@ describe('MapStage', () => {
     expect(stage().className).not.toContain(MAP_EDGE.belowRows)
   })
 
-  // The foot of a phone's map (#696): the notice band and the Analyze
-  // button, the panel's own gate and command. A desk has neither.
-  it('stands the Analyze button on a phone only, on the panel\'s gate and command', () => {
+  // The foot of a phone's map (#696): the Analyze button with the badge,
+  // on the panel's own gate, command and messages. A desk has none.
+  it('stands the Analyze button on a phone only, on the panel\'s gate, command and messages', () => {
     const onAnalyze = vi.fn()
     const { rerender } = render(<MapStage {...props({ onAnalyze })} />)
     expect(screen.queryByTestId('foot')).toBeNull()
-    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, onAnalyze, analyzeEnabled: false })} />)
+    const shut = panelMessages({
+      analyzeEnabled: false,
+      blocked: true,
+      messages: [{ key: 'blocker:dates', text: 'Pick a date.', severity: 'info' }],
+    })
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, onAnalyze, messages: shut })} />)
     expect((screen.getByRole('button', { name: 'Analyze' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByTestId('foot').dataset.count).toBe('1')
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, onAnalyze })} />)
     fireEvent.click(screen.getByRole('button', { name: 'Analyze' }))
     expect(onAnalyze).toHaveBeenCalledOnce()
@@ -403,20 +411,15 @@ describe('MapStage', () => {
     expect(screen.getByTestId('foot').dataset.word).toBe('Try again')
   })
 
-  // Two things move the button (record 0135): the sheet it rides, and the
-  // notice band it rises over. The player stands on the button.
-  it('rides the sheet, rises over the band, and carries the player', () => {
+  // One thing moves the button (record 0135): the sheet it rides. The
+  // player stands on the button.
+  it('rides the sheet and carries the player', () => {
     const layout = { ...LAYOUT, sheetLiftPx: 104 }
     const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
     render(<MapStage {...props({ isDesktop: false, sidebarOpen: false, layout, timeline })} />)
-    const foot = () => screen.getByTestId('foot').dataset
-    expect(foot().lift).toBe('104')
-    expect(foot().fab).toBe(String(104 + FAB_INSET_PX))
-    fireEvent.click(screen.getByRole('button', { name: 'Band' }))
-    const risen = fabBottomPx(104, 40, 800)
-    expect(foot().fab).toBe(String(risen))
-    expect(risen).toBeGreaterThan(104 + FAB_INSET_PX)
-    expect(screen.getByTestId('transport').dataset.lift).toBe(String(transportStandPx(risen)))
+    const fab = 104 + FAB_INSET_PX
+    expect(screen.getByTestId('foot').dataset.fab).toBe(String(fab))
+    expect(screen.getByTestId('transport').dataset.lift).toBe(String(transportStandPx(fab)))
   })
 
   // The opened credit line stops short of the button (map.css), so a phone
@@ -441,15 +444,12 @@ describe('MapStage', () => {
     expect(screen.getByTestId('foot').dataset.fab).toBe(String(800 - DRAGGED_MAP_PX + FAB_INSET_PX))
   })
 
-  // The Controls sheet opens over the foot (record 0207): the band alone
-  // rides its edge, and the button, the player and the corner stay where
-  // they stood, on the results sheet's edge.
-  it('rides the band on the Controls sheet while it is up, and moves nothing else', () => {
+  // The Controls sheet opens over the foot (record 0207): the button, the
+  // player and the corner stay where they stood, on the results sheet's edge.
+  it('moves nothing on the foot while the Controls sheet is up', () => {
     const layout = { ...LAYOUT, sheetLiftPx: 104 }
     const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
-    const controlsPx = controlsSheetPx(800)
-    const phone = (sidebarOpen: boolean, px = controlsPx) =>
-      props({ isDesktop: false, sidebarOpen, controlsPx: px, layout, timeline })
+    const phone = (sidebarOpen: boolean) => props({ isDesktop: false, sidebarOpen, layout, timeline })
     const { container, rerender } = render(<MapStage {...phone(false)} />)
     const foot = () => screen.getByTestId('foot').dataset
     const shut = {
@@ -457,18 +457,10 @@ describe('MapStage', () => {
       player: screen.getByTestId('transport').dataset.lift,
       corner: (container.firstElementChild as HTMLElement).style.getPropertyValue('--map-corner-lift'),
     }
-    expect(foot().lift).toBe('104')
-    expect(foot().controls).toBe('false')
     rerender(<MapStage {...phone(true)} />)
-    expect(foot().lift).toBe(String(controlsPx))
-    expect(foot().controls).toBe('true')
     expect(foot().fab).toBe(shut.fab)
     expect(screen.getByTestId('transport').dataset.lift).toBe(shut.player)
     expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--map-corner-lift')).toBe(shut.corner)
-    // Wherever a drag on its grip leaves it (record 0146).
-    rerender(<MapStage {...phone(true, 300)} />)
-    expect(foot().lift).toBe('300')
-    expect(foot().fab).toBe(shut.fab)
   })
 
   // A phone's scale and (i) stand on the button's row (record 0140); a desk's

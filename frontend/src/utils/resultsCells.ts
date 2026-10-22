@@ -1,6 +1,5 @@
 import type { DestinationResult } from '../types'
-import { cellStyle, scaleFor } from './colors'
-import type { Theme } from './viewPrefs'
+import { cellInks, cellStyle, scaleFor } from './colors'
 import type { ColDef } from './tableColumns'
 import type { ModelRow } from './modelCompare'
 import {
@@ -117,10 +116,24 @@ export function cellColor(
   raw: unknown,
   coloredGroup: ReadonlySet<string>,
   pointSample: boolean,
-  theme: Theme = 'dark',
 ): { backgroundColor: string; color: string } | undefined {
   const scale = coloredGroup.has(key) ? scaleFor(key, pointSample) : null
-  return scale && raw != null ? cellStyle(raw as number, scale, theme) : undefined
+  return scale && raw != null ? cellStyle(raw as number, scale) : undefined
+}
+
+/**
+ * The same cell's tint with its two inks apart (`cellInks`), for the map
+ * popup, which colours a number exactly as the table does and picks the ink
+ * in its own stylesheet (#740).
+ */
+export function cellTint(
+  key: string,
+  raw: unknown,
+  coloredGroup: ReadonlySet<string>,
+  pointSample: boolean,
+): { fill: string; ink: { dark: string; light: string } } | undefined {
+  const scale = coloredGroup.has(key) ? scaleFor(key, pointSample) : null
+  return scale && raw != null ? cellInks(raw as number, scale) : undefined
 }
 
 /**

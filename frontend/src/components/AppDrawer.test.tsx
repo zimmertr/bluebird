@@ -4,29 +4,16 @@ import { type ComponentProps, createRef } from 'react'
 import AppDrawer from './AppDrawer'
 import type { MapViewHandle } from './MapView'
 import { render } from '../testSupport/render'
-import { capabilities, resultRow } from '../testSupport/fixtures'
+import { capabilities, panelMessages } from '../testSupport/fixtures'
 import { DEFAULT_SELECTION } from '../utils/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
-import type { CommitReason } from '../utils/present'
-import type { DestinationResult } from '../types'
-import { DESK_PANEL } from '../styles'
+import type { PanelMessages } from '../hooks/usePanelMessages'
+import { DESK_PANEL, LAYOUT_HOLD } from '../styles'
 
 vi.mock('./ControlPanel', () => ({
-  default: (props: {
-    pointSample: boolean
-    basemapFailed?: boolean
-    wildfireCheckFailed?: boolean
-    closureCheckFailed?: boolean
-    phone?: boolean
-  }) => (
-    <div
-      data-testid="panel"
-      data-phone={String(props.phone)}
-      data-basemap-failed={String(props.basemapFailed)}
-      data-wildfire-failed={String(props.wildfireCheckFailed)}
-      data-closure-failed={String(props.closureCheckFailed)}
-    >
+  default: (props: { pointSample: boolean; messages: PanelMessages; phone?: boolean }) => (
+    <div data-testid="panel" data-phone={String(props.phone)} data-messages={String(props.messages.count)}>
       {props.pointSample ? 'point' : 'window'}
     </div>
   ),
@@ -49,17 +36,14 @@ const INPUTS = {
   setCustomCsv: NOOP,
   includeUnnamedPeaks: false,
   setIncludeUnnamedPeaks: NOOP,
-  places: [],
 }
 const SELECTION = {
   selection: DEFAULT_SELECTION,
   changeSelection: NOOP,
-  windowWarning: null,
   forecastModel: 'gfs_seamless',
   changeForecastModel: NOOP,
   comparedModels: [],
   setComparedModels: NOOP,
-  modelClamped: false,
   panelPointSample: true,
 }
 const KNOBS = {
@@ -76,15 +60,9 @@ const KNOBS = {
 }
 const CAPS = { ...capabilities(), settled: true }
 const MAP = createRef<MapViewHandle>()
-const NO_REASONS: CommitReason[] = []
-const NO_ROWS: DestinationResult[] = []
+const MESSAGES = panelMessages()
 
-function drawer(
-  open: boolean,
-  onClose = NOOP,
-  basemapFailed = false,
-  over: Partial<ComponentProps<typeof AppDrawer>> = {},
-) {
+function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<typeof AppDrawer>> = {}) {
   return (
     <AppDrawer
       open={open}
@@ -105,23 +83,12 @@ function drawer(
       mapRef={MAP}
       onPointAtSearch={NOOP}
       onPointAtMapPois={NOOP}
-      commitReasons={NO_REASONS}
+      messages={MESSAGES}
       onAnalyze={NOOP}
       autoAnalyze={false}
       capabilitiesSettled
       onAutoAnalyze={NOOP}
-      loading={false}
-      error={null}
-      refusal={null}
       actionWord="Analyze"
-      onDismissEvent={NOOP}
-      response={null}
-      results={NO_ROWS}
-      fireStatus="idle"
-      closureStatus="idle"
-      showWildfires={false}
-      showAreaClosures={false}
-      basemapFailed={basemapFailed}
       {...over}
     />
   )
@@ -132,7 +99,7 @@ describe('AppDrawer', () => {
   // button and in its box, offering the theme it goes to.
   it('carries the theme switch beside its close button at a desk', () => {
     const onToggleTheme = vi.fn()
-    render(drawer(true, NOOP, false, { onToggleTheme }))
+    render(drawer(true, NOOP, { onToggleTheme }))
     const toLight = screen.getByRole('button', { name: 'Switch to light theme' })
     const close = screen.getByRole('button', { name: 'Close controls' })
     expect(toLight.parentElement).toBe(close.parentElement)
@@ -143,7 +110,7 @@ describe('AppDrawer', () => {
   })
 
   it('offers the dark theme while light', () => {
-    render(drawer(true, NOOP, false, { theme: 'light' }))
+    render(drawer(true, NOOP, { theme: 'light' }))
     expect(screen.getByRole('button', { name: 'Switch to dark theme' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Switch to light theme' })).toBeNull()
   })
@@ -176,6 +143,17 @@ describe('AppDrawer', () => {
     expect(screen.getByTestId('panel')).toBeTruthy()
   })
 
+  // On a layer of its own while it moves, so a frame of the move paints none
+  // of it (record 0216), and only then.
+  it('stands on a layer of its own while it moves', () => {
+    const { container, rerender } = render(drawer(true))
+    expect(container.querySelector('aside')?.className).not.toContain(LAYOUT_HOLD.layer)
+    rerender(drawer(false, NOOP, { moving: true }))
+    expect(container.querySelector('aside')?.className).toContain(LAYOUT_HOLD.layer)
+    rerender(drawer(false))
+    expect(container.querySelector('aside')?.className).not.toContain(LAYOUT_HOLD.layer)
+  })
+
   // Off screen is not out of the Tab order: closed, the drawer kept some 45
   // stops a keyboard walked through blind (#576).
   it('leaves the Tab order while closed', () => {
@@ -206,40 +184,28 @@ describe('AppDrawer', () => {
     expect(screen.getByTestId('panel').textContent).toBe('point')
   })
 
-  // #580: the map's failure reaches the panel's one notice block.
-  it('hands the panel whether the basemap is failing', () => {
+  // The messages are App's (record 0208), derived once for the panel and the
+  // phone's map: the drawer hands them through untouched.
+  it('hands the panel the messages it is given', () => {
     const { rerender } = render(drawer(true))
-    expect(screen.getByTestId('panel').dataset.basemapFailed).toBe('false')
-    rerender(drawer(true, NOOP, true))
-    expect(screen.getByTestId('panel').dataset.basemapFailed).toBe('true')
-  })
-
-  // A failed check's note follows its own layer (#642): the wildfire one the
-  // Wildfires layer, the closure one the area closures layer, neither the other's.
-  it('passes a failed check on to the panel only while its layer is on', () => {
-    const failed: Partial<ComponentProps<typeof AppDrawer>> = {
-      results: [resultRow()],
-      fireStatus: 'unavailable',
-      closureStatus: 'unavailable',
-    }
-    const { rerender } = render(drawer(true, NOOP, false, failed))
-    expect(screen.getByTestId('panel').dataset.wildfireFailed).toBe('false')
-    expect(screen.getByTestId('panel').dataset.closureFailed).toBe('false')
-    rerender(drawer(true, NOOP, false, { ...failed, showWildfires: true }))
-    expect(screen.getByTestId('panel').dataset.wildfireFailed).toBe('true')
-    expect(screen.getByTestId('panel').dataset.closureFailed).toBe('false')
-    rerender(drawer(true, NOOP, false, { ...failed, showAreaClosures: true }))
-    expect(screen.getByTestId('panel').dataset.wildfireFailed).toBe('false')
-    expect(screen.getByTestId('panel').dataset.closureFailed).toBe('true')
+    expect(screen.getByTestId('panel').dataset.messages).toBe('0')
+    const two = panelMessages({
+      messages: [
+        { key: 'map:style', text: 'Map failed.', severity: 'error' },
+        { key: 'blocker:dates', text: 'Pick a date.', severity: 'info' },
+      ],
+    })
+    rerender(drawer(true, NOOP, { messages: two }))
+    expect(screen.getByTestId('panel').dataset.messages).toBe('2')
   })
 
   // A phone raises the panel as the Controls sheet (#696; record 0141): the
   // bottom sheet every phone menu is, modal over the dim (record 0207), its
   // height set from where it stands, and mounted for good so the panel keeps
-  // its state and the notice portal its home.
+  // its state.
   describe('on a phone', () => {
     const phone = (open: boolean, onClose = NOOP, over: Partial<ComponentProps<typeof AppDrawer>> = {}) =>
-      drawer(open, onClose, false, { isDesktop: false, sheetPx: 540, ...over })
+      drawer(open, onClose, { isDesktop: false, sheetPx: 540, ...over })
     const sheet = () => screen.getByRole('dialog', { name: 'Controls' })
     const dim = () => sheet().previousElementSibling as HTMLElement | null
 
@@ -249,8 +215,7 @@ describe('AppDrawer', () => {
       expect(sheet().style.height).toBe('540px')
       expect(screen.getByTestId('panel').dataset.phone).toBe('true')
       expect(container.querySelector('aside')).toBeNull()
-      // In place rather than portalled, so the notice band can stand between
-      // its dim and a sheet opened from inside it.
+      // In place rather than portalled, under a sheet opened from inside it.
       expect(container.contains(sheet())).toBe(true)
     })
 
@@ -258,7 +223,7 @@ describe('AppDrawer', () => {
     // beside Done (#706).
     it('carries the theme switch in its title row, beside Done', () => {
       const onToggleTheme = vi.fn()
-      render(drawer(true, NOOP, false, { isDesktop: false, sheetPx: 540, onToggleTheme }))
+      render(drawer(true, NOOP, { isDesktop: false, sheetPx: 540, onToggleTheme }))
       const toLight = screen.getByRole('button', { name: 'Switch to light theme' })
       const done = screen.getByRole('button', { name: 'Done' })
       expect(toLight.nextElementSibling).toBe(done)
@@ -290,7 +255,7 @@ describe('AppDrawer', () => {
     })
 
     // Its grip and title drag it the way a menu's do (record 0146), with the
-    // heights App holds: the notice band rides its edge.
+    // heights App holds.
     it('hands App the height a drag on its title holds it at, and its own back on a double press', () => {
       // The gesture reads each press's timeStamp, which jsdom stamps from the
       // clock: frozen, the two presses are a double press by construction
@@ -298,7 +263,7 @@ describe('AppDrawer', () => {
       vi.useFakeTimers({ toFake: ['Date', 'performance'] })
       onTestFinished(() => void vi.useRealTimers())
       const onSheetPx = vi.fn()
-      render(drawer(true, NOOP, false, { isDesktop: false, sheetPx: 540, sheetRestPx: 540, sheetFullPx: 700, onSheetPx }))
+      render(drawer(true, NOOP, { isDesktop: false, sheetPx: 540, sheetRestPx: 540, sheetFullPx: 700, onSheetPx }))
       const title = screen.getByRole('heading', { name: 'Controls' })
       fireEvent.pointerDown(title, { clientY: 500, pointerId: 1 })
       fireEvent.pointerMove(document, { clientY: 400, pointerId: 1 })

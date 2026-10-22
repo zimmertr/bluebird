@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { nextActiveIndex, nextToolbarIndex, optionDomId } from '../utils/listbox'
 import { usePopover } from '../hooks/usePopover'
+import { useShiftRange } from '../hooks/useShiftRange'
 import Menu, { MenuButton } from './Menu'
 import {
   canRemove,
@@ -15,7 +16,10 @@ import {
   BADGE_ACCENT,
   CHIP,
   CHOICE_INPUT,
+  CONTROL_SIZE,
   DISABLED,
+  FOCUS_RING,
+  LINK_ACTION,
   MENU,
   SURFACE_DIVIDER,
   SCROLL_BARS,
@@ -29,7 +33,7 @@ const LIST_ID = 'model'
 // Why the control is faded is NOT said here (TJ, 2026-09-14). It was a `title`
 // plus hidden `aria-describedby` text, which put one of the panel's messages
 // somewhere no phone could reach and no other message lives. It is now an info
-// line in the block under the Analyze button, where every other message about
+// line in the list the Analyze button's badge opens, where every other message about
 // the window already is — so the panel has one place that explains itself, and
 // this control is free to be nothing but disabled.
 
@@ -123,6 +127,7 @@ export default function ModelPicker({
   const [chipFocus, setChipFocus] = useState(0)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const removeAllRef = useRef<HTMLButtonElement>(null)
   const chipRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   // Which chip to focus once the row has re-rendered without the removed one.
   const wantChipFocus = useRef<number | null>(null)
@@ -134,7 +139,9 @@ export default function ModelPicker({
   const removable = canRemove(value, compared)
   // The chips in two groups, named for what each part does. `chipIds` leads
   // with the ranking model (see `selectedIds`), so the split is positional and
-  // the tab order still runs straight down the two groups.
+  // the tab order still runs straight down the two groups. Both stand on every
+  // open, Comparing with no chips at all while nothing is compared, because
+  // its row ends in Remove all, which stands greyed there (record 0209).
   const CHIP_GROUPS: { heading: string; ids: string[] }[] = [
     { heading: 'Ranking', ids: chipIds.slice(0, 1) },
     { heading: 'Comparing', ids: chipIds.slice(1) },
@@ -180,8 +187,20 @@ export default function ModelPicker({
     onComparedChange(next.compared)
   }
 
-  function toggle(id: string) {
-    apply(toggleSelected(models, value, compared, id))
+  // A press with Shift held reaches every row from the last pressed one to
+  // this one (record 0209), each toggled where it differs from the row the
+  // reader pressed, so the range ends up as that row does. One rule applied
+  // row by row, so a range that crosses the ranking model passes the ranking
+  // on the way `toggleSelected` says, and the last selected model stays.
+  const press = useShiftRange(open)
+  function toggle(id: string, shift = false) {
+    const wanted = !(id === value || compared.includes(id))
+    let next = { ranking: value, compared: [...compared] }
+    for (const each of press(models.map((m) => m.id), id, shift)) {
+      const selected = each === next.ranking || next.compared.includes(each)
+      if (selected !== wanted) next = toggleSelected(models, next.ranking, next.compared, each)
+    }
+    apply(next)
   }
 
   function rank(id: string) {
@@ -192,6 +211,17 @@ export default function ModelPicker({
     if (!removable) return
     wantChipFocus.current = chipFocusAfterRemoval(at, chipIds.length - 1)
     toggle(id)
+  }
+
+  // Every compared chip's × at once (record 0209): the ranking model stays and
+  // ranks, so the report keeps its model and the chart drops to one. The
+  // button greys under the keyboard as it acts, so the keyboard goes to the
+  // ranking chip, the one chip left.
+  const comparedCount = compared.filter((id) => id !== value).length
+  function removeAll() {
+    if (comparedCount === 0) return
+    wantChipFocus.current = 0
+    apply({ ranking: value, compared: [] })
   }
 
   // The panel is on screen only once `usePopover` has placed it, and on the
@@ -250,12 +280,28 @@ export default function ModelPicker({
       e.preventDefault()
       close()
     } else if (e.key === 'Tab' && !(sheet && e.shiftKey)) {
-      // Tab moves along the popover's own order — chips, then the list — rather
-      // than the document's, which would send focus past everything else on the
-      // page first because the panel is portalled to the end of the body. A
-      // sheet keeps Shift+Tab, which its own trap walks to Done.
+      // Tab moves along the popover's own order — chips, Remove all while it
+      // can act, then the list — rather than the document's, which would send
+      // focus past everything else on the page first because the panel is
+      // portalled to the end of the body. A sheet keeps Shift+Tab, which its
+      // own trap walks to Done.
       e.preventDefault()
       if (e.shiftKey) close()
+      else if (comparedCount > 0) removeAllRef.current?.focus()
+      else listRef.current?.focus()
+    }
+  }
+
+  // Remove all is the toolbar's one stop after the chips: Tab goes on to the
+  // list, Shift+Tab back to the chip in the Tab order, by the same rule the
+  // chips follow, and Escape closes.
+  function onRemoveAllKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      close()
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
+      if (e.shiftKey) focusChip(chipFocus)
       else listRef.current?.focus()
     }
   }
@@ -283,12 +329,11 @@ export default function ModelPicker({
       // closing it.
       if (sheet && !e.shiftKey) return
       e.preventDefault()
-      if (e.shiftKey) focusChip(chipFocus)
-      else close()
+      if (!e.shiftKey) close()
+      else if (comparedCount > 0) removeAllRef.current?.focus()
+      else focusChip(chipFocus)
     }
   }
-
-  const comparedCount = compared.filter((id) => id !== value).length
 
   // One chip, by id. Lifted out of the JSX because the row is drawn twice now,
   // once per group, and a chip must be the same object in both: same shape,
@@ -393,9 +438,10 @@ export default function ModelPicker({
               (TJ, 2026-09-14). Promoting a compared chip then shows itself
               — the chip moves up into the other group.
 
-              `Comparing` is drawn only when something is compared. A reader
-              with one model selected sees one heading and one chip, which
-              is the height the single header cost before.
+              `Comparing` stands with nothing compared, its row holding
+              Remove all greyed, the way every menu's reset stands greyed at
+              its default (record 0209), so the list does not jump down a
+              row under the pointer on the first tick.
 
               One toolbar across both groups, not one each: the roving
               tabindex walks `chipIds`, and that order now leads with the
@@ -407,16 +453,31 @@ export default function ModelPicker({
             role="toolbar"
             className={`flex flex-shrink-0 flex-col border-b ${SURFACE_DIVIDER}`}
           >
-            {CHIP_GROUPS.map(({ heading, ids }) =>
-              ids.length === 0 ? null : (
-                <Fragment key={heading}>
-                  <div className={`${TEXT.overline} px-2.5 pb-1 pt-2`}>{heading}</div>
-                  <div className="flex flex-wrap items-center gap-1.5 px-2.5 pb-2">
-                    {ids.map(renderChip)}
-                  </div>
-                </Fragment>
-              ),
-            )}
+            {CHIP_GROUPS.map(({ heading, ids }) => (
+              <Fragment key={heading}>
+                <div className={`${TEXT.overline} px-2.5 pb-1 pt-2`}>{heading}</div>
+                <div className="flex flex-wrap items-center gap-1.5 px-2.5 pb-2">
+                  {ids.map(renderChip)}
+                  {/* Every compared chip's × at once, named for them:
+                      each × is `Remove <model>`. At the row's right end,
+                      after the last chip, so it never stands between two
+                      of them. Out of the toolbar's roving order: a Tab stop
+                      of its own after the chips (`onChipKeyDown`). */}
+                  {heading === 'Comparing' && (
+                    <button
+                      ref={removeAllRef}
+                      type="button"
+                      onClick={removeAll}
+                      onKeyDown={onRemoveAllKeyDown}
+                      disabled={comparedCount === 0}
+                      className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} ${DISABLED} ml-auto cursor-pointer`}
+                    >
+                      Remove all
+                    </button>
+                  )}
+                </div>
+              </Fragment>
+            ))}
           </div>
           {/* Names the right-hand column once instead of eight times. The
               figures are two bare numbers otherwise, and "3 km" beside a
@@ -467,8 +528,8 @@ export default function ModelPicker({
                 aria-selected={isSelected}
                 aria-disabled={locked || undefined}
                 onPointerEnter={() => setActive(i)}
-                onClick={() => {
-                  if (!locked) toggle(model.id)
+                onClick={(e) => {
+                  if (!locked) toggle(model.id, e.shiftKey)
                 }}
                 className={`flex items-start gap-2 rounded px-1.5 py-1.5 ${
                   locked ? 'cursor-default' : 'cursor-pointer'
@@ -518,7 +579,7 @@ export default function ModelPicker({
                   tabIndex={-1}
                   checked={isSelected}
                   disabled={locked}
-                  onChange={() => toggle(model.id)}
+                  onChange={(e) => toggle(model.id, e.nativeEvent instanceof MouseEvent && e.nativeEvent.shiftKey)}
                   onClick={(e) => e.stopPropagation()}
                   className={`${CHOICE_INPUT} ${DISABLED} mt-0.5`}
                 />

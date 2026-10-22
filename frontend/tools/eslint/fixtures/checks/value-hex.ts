@@ -5,5 +5,7 @@ export const chunk = `color:#fff;display:inline-flex`
 export const scrim = 'rgba(220,38,38,0.35)'
 export const wash = 'hsl(204 100% 38%)'
 export const accent = 'oklch(0.55 0.15 240)'
+// A pair for both themes, which `themed` in themeColor.ts alone spells.
+export const pair = 'light-dark(white, black)'
 // Not a colour: a string that names an issue the way a message might.
 export const note = 'see #123 for why'

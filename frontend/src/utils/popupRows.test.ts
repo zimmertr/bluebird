@@ -11,7 +11,7 @@ import {
 import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT } from '../metrics'
 import type { DestinationResult } from '../types'
 import { resultRow } from '../testSupport/fixtures'
-import { cellColor } from './resultsCells'
+import { cellTint } from './resultsCells'
 
 // Every aggregate differs, so a test can tell which column a value came from.
 const row = resultRow({
@@ -424,15 +424,13 @@ describe('popupGrid', () => {
 })
 
 // The ranked family wears the results table's colours (#740): each number is
-// scored by `cellColor`, the table's own, on its own column's scale, and
+// scored by `cellTint`, the table's own, on its own column's scale, and
 // every other family stays plain.
 describe('popupGroups colours the ranked family', () => {
   // A wet hour: heavy on the hourly scale, light as a window's whole total.
   const wet = { ...row, precip_max_in_hr: 0.3 }
-  const tintOf = (key: string, pointSample: boolean) => {
-    const at = (theme: 'dark' | 'light') => cellColor(key, wet[key as keyof DestinationResult], new Set(FAMILY_KEYS.precip), pointSample, theme)!
-    return { fill: at('dark').backgroundColor, ink: { dark: at('dark').color, light: at('light').color } }
-  }
+  const tintOf = (key: string, pointSample: boolean) =>
+    cellTint(key, wet[key as keyof DestinationResult], new Set(FAMILY_KEYS.precip), pointSample)!
   it('tints every number in the ranked family, and only those', () => {
     const groups = popupGroups(row, displayedColumns(false, 'precip_total_in'), { rankedBy: 'precip_total_in' })
     for (const g of groups) {

@@ -64,8 +64,6 @@ export interface ResultsViewInputs {
   mapRef: RefObject<MapViewHandle | null>
   /** Removes a searched place or pasted row by its coordinate. */
   removePlace: (latitude: number, longitude: number) => void
-  /** The theme the chart's lines are painted in (`useTheme`, #706). */
-  theme: ChartCompareInputs['theme']
 }
 
 /**
@@ -104,7 +102,6 @@ export function useResultsView({
   closure,
   mapRef,
   removePlace,
-  theme,
 }: ResultsViewInputs) {
   // A report stays on screen even when the knobs admit none of it. Collapsing
   // the panels would answer "why is nothing listed?" by removing the place the
@@ -140,7 +137,6 @@ export function useResultsView({
     times,
     windowLimits,
     chartShowing: layout.chartShowing,
-    theme,
   })
   const { compare, pendingRows, comparingRows, shared } = charts
 

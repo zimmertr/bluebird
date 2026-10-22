@@ -33,21 +33,22 @@
   color: CanvasText;
 }
 
-/* The popups follow the theme (#740): dark cards in the dark theme, the white
-   cards they always were in the light one. Every colour a card wears is one
-   of the `--popup-*` values below, which `utils/popupChrome.ts` names in its
-   markup (`var(--popup-label)`) and the rules further down name for the
-   parts MapLibre draws itself: the card's surface, its tip, the close button
-   and the scroll bar. Here rather than in index.css, which every page loads,
+/* The popups follow the theme (#740), and are the app's own surface in
+   either one (#786, record 0215). Every colour a card wears is one of the
+   `--popup-*` values below, which `utils/popupChrome.ts` names in its markup
+   (`var(--popup-label)`) and the rules further down name for the parts
+   MapLibre draws itself: the card's surface, its tip, the close button and
+   the scroll bar. Here rather than in index.css, which every page loads,
    because nothing but the map draws a popup.
 
-   The dark card is the app's own: its surface the panel every popover
-   stands on, its header band and grid columns halfway between that and the
-   raised step, its ranked cell the raised step, its inks the panel's. Each
-   is a `--ui-*` token, so the dark card cannot drift from the panel beside
-   it. The light values are the hexes the white card has always painted,
-   pixel for pixel, so the light theme is unchanged. Every pair is measured in
-   `styles.test.ts`, in both themes. */
+   Each value is the app's `--ui-*` token for the part it is, declared once
+   on the root, where the light theme redefines the tokens, so a card is the
+   panel every popover stands on, its header band and grid columns halfway
+   between that and the raised step, its ranked cell the raised step, its
+   inks, rules, warning amber and header shade the panel's. A value here
+   that is not a token would be a second palette beside the app's, free to
+   drift from it, so `styles.test.ts` fails one, and a light block that says
+   more than the scheme, and measures every pair in both themes. */
 :root {
   --popup-scheme: dark;
   --popup-surface: var(--ui-panel);
@@ -56,13 +57,12 @@
   --popup-ranked: var(--ui-raised);
   --popup-line: var(--ui-rule);
   --popup-rule: var(--ui-frame);
-  --popup-shadow: rgba(2, 6, 23, 0.5);
+  --popup-shadow: var(--scroll-shade);
   --popup-label: var(--ui-ink-soft);
   --popup-fine: var(--ui-ink-faint);
-  --popup-glyph: var(--ui-accent-ink);
-  --popup-primary: var(--ui-accent);
-  --popup-secondary: var(--ui-raised-hover);
-  --popup-secondary-ink: var(--ui-ink);
+  --popup-warn: var(--ui-warn);
+  --popup-glyph: var(--ui-ink-soft);
+  --popup-glyph-hover: var(--ui-accent-ink);
   --popup-thumb: var(--ui-edge-lifted);
   --popup-close: var(--ui-ink-mid);
   --popup-close-fill: var(--ui-raised);
@@ -73,26 +73,6 @@
 }
 :root[data-theme="light"] {
   --popup-scheme: light;
-  --popup-surface: #ffffff;
-  --popup-ink: CanvasText;
-  --popup-band: #f1f5f9;
-  --popup-ranked: #e2e8f0;
-  --popup-line: #e2e8f0;
-  --popup-rule: #cbd5e1;
-  --popup-shadow: rgba(15, 23, 42, 0.08);
-  --popup-label: #475569;
-  --popup-fine: #94a3b8;
-  --popup-glyph: #0284c7;
-  --popup-primary: #0284c7;
-  --popup-secondary: #334155;
-  --popup-secondary-ink: #e2e8f0;
-  --popup-thumb: #64748b;
-  --popup-close: #475569;
-  --popup-close-fill: #f8fafc;
-  --popup-close-edge: #cbd5e1;
-  --popup-close-hover: #0f172a;
-  --popup-close-hover-fill: #e2e8f0;
-  --popup-close-hover-edge: #94a3b8;
 }
 
 /* A ranked family's grid cell carries the table's ink for both themes
@@ -103,6 +83,39 @@
 }
 :root[data-theme="light"] .maplibregl-popup [data-tint] {
   --popup-tint: var(--tint-light);
+}
+
+/* A link in a card reads as the results table's do (#786, record 0212; the
+   table's are `LINK_QUIET`): the colour of the text around it, which
+   `popupLink` says inline, no underline at rest at a desk, one on hover and
+   on keyboard focus, and on a touch screen, where nothing hovers, a thin one
+   at rest in the label grey so a finger can find it. The link-out glyph rests
+   in the same grey and takes the accent on hover and focus, by setting the
+   value its own inline colour reads. Rules here because an inline style
+   cannot answer a hover. */
+.maplibregl-popup [data-popup-link] {
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+.maplibregl-popup [data-popup-link]:focus-visible {
+  text-decoration: underline;
+}
+.maplibregl-popup [data-popup-glyph]:focus-visible {
+  --popup-glyph: var(--popup-glyph-hover);
+}
+@media (hover: hover) {
+  .maplibregl-popup [data-popup-link]:hover {
+    text-decoration: underline;
+  }
+  .maplibregl-popup [data-popup-glyph]:hover {
+    --popup-glyph: var(--popup-glyph-hover);
+  }
+}
+@media (hover: none) {
+  .maplibregl-popup [data-popup-link] {
+    text-decoration: underline;
+    text-decoration-color: var(--popup-label);
+  }
 }
 
 /* The scheme is said for the card so the browser draws its native chrome for

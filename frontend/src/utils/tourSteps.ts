@@ -3,12 +3,18 @@
  * and which side of the app it lives on. Pure data, so the suite can prove
  * every anchor is a real control without a page: `tourSteps.test.ts` reads
  * the component sources as text and fails an anchor that appears nowhere, or
- * twice. The copy is TJ's, verbatim (2026-09-29; the Chart card 2026-10-14).
+ * twice. The copy is TJ's, verbatim (2026-09-29; the Chart card 2026-10-14;
+ * the Messages card 2026-10-21).
  *
  * One card per panel section rather than one per control. A card per control
  * was built and cut the same day: numbered cards read as steps to take in
  * order, so four destination methods read as four things to do, and a lead
  * card saying "or" made the four after it say the list twice.
+ *
+ * The Messages card (#786, the maintainer 2026-10-21) points at the count on
+ * the Analyze button and the list it opens, over a demonstration
+ * (`tour/demoMessages.ts`): a reader's own messages may be none, and the
+ * maintainer wants every tour to explain them, so the card always runs.
  */
 
 /** The attribute a component marks its control with. */
@@ -31,8 +37,10 @@ type TourPlace = 'panel' | 'map'
  * `chart` turns that sheet to its chart with the readout standing on the
  * window's middle hour, as a resting finger shows it (#696).
  * `marker` flies to one of that report's markers and opens its popup.
+ * `messages` greys Analyze under a demonstration's count and holds the list
+ * open over it.
  */
-type TourReveal = 'layers' | 'results' | 'chart' | 'marker'
+type TourReveal = 'layers' | 'messages' | 'results' | 'chart' | 'marker'
 
 /**
  * How the spotlight fits its target. `section` runs from the rule above the
@@ -95,8 +103,20 @@ export const TOUR_STEPS: readonly TourStep[] = [
     anchor: 'analyze',
     title: 'Analyze',
     text: 'Fetch the forecast for every destination and rank them.',
-    // The whole footer, rule to edge, so it lights up like the sections above.
-    place: 'panel',
+    // The whole footer at a desk, rule to edge, so it lights up like the
+    // sections above. A phone's Analyze is the map's button, which the
+    // Controls sheet stands over, so the step lowers the sheet.
+    place: 'map',
+  },
+  {
+    anchor: 'messages',
+    spot: 'control',
+    title: 'Messages',
+    text: 'The number on Analyze counts messages about your settings. Select it to read them. While Analyze is greyed out, something must be fixed before it can run, and the messages say what.',
+    // On the Analyze button at either width, so it lives where that step does.
+    place: 'map',
+    reveal: 'messages',
+    frames: ['messages-list'],
   },
   {
     anchor: 'layers',

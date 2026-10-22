@@ -206,6 +206,56 @@ export function placeCard(light: Box, card: Size, viewport: Size): { top: number
   return { top: clamp(insideBottom, m, maxTop), left: centredLeft }
 }
 
+/** What the overlay draws in one frame: the light, its corner radius, and a box card's corner. */
+export interface Drawn {
+  light: Box | null
+  radius: number
+  card: { top: number; left: number } | null
+}
+
+/**
+ * How long the light and the card take to reach a new step, and the most of
+ * it one frame may use, in milliseconds. A frame held up by a long task (the
+ * demonstration report mounting under the Results card, 210 ms on a phone)
+ * moves the glide on by two frames' worth rather than by its whole length,
+ * so the light still travels after it rather than appearing at the end.
+ */
+export const GLIDE_MS = 250
+export const GLIDE_FRAME_MS = 33
+
+/**
+ * What to draw `elapsed` ms into the move from what stood on the screen when
+ * the step changed (`from`) to what the step measures now (`to`), easing out
+ * (#786). `to` is read again every frame, so a target riding a sheet as it
+ * slides is followed where it is rather than chased, as a CSS transition
+ * handed a new end every frame would chase it, restarting each time and
+ * barely moving. A target yet to appear holds the light where it
+ * stood; a part with nothing to start from (the first step, a card that was
+ * a sheet) stands at its end at once.
+ */
+export function glide(from: Drawn | null, to: Drawn, elapsed: number): Drawn {
+  if (from === null || elapsed >= GLIDE_MS) return to
+  if (to.light === null) return from
+  const k = 1 - (1 - Math.max(0, elapsed) / GLIDE_MS) ** 3
+  const mix = (a: number, b: number) => a + (b - a) * k
+  return {
+    light:
+      from.light === null
+        ? to.light
+        : {
+            top: mix(from.light.top, to.light.top),
+            left: mix(from.light.left, to.light.left),
+            width: mix(from.light.width, to.light.width),
+            height: mix(from.light.height, to.light.height),
+          },
+    radius: from.light === null ? to.radius : mix(from.radius, to.radius),
+    card:
+      from.card === null || to.card === null
+        ? to.card
+        : { top: mix(from.card.top, to.card.top), left: mix(from.card.left, to.card.left) },
+  }
+}
+
 /** Two boxes that draw the same pixels; a re-measure that changed nothing paints nothing. */
 export function sameBox(a: Box | null, b: Box | null): boolean {
   if (a === null || b === null) return a === b

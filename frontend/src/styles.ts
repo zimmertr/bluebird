@@ -191,10 +191,22 @@ export const PROSE = {
  * the dimmest step that keeps every link in the app readable — several of
  * these sat at 3.1:1 by inheriting the prose around them.
  *
- * `LINK_ACTION` is for a link inside the content itself, where following it is
- * the point rather than a footnote: today, the results table's destination
- * names. Keeping that the only thing wearing sky at rest is what lets sky mean
- * one thing across the app.
+ * `LINK_ACTION` is a command that stands as words rather than as a button: a
+ * menu's Reset all, Restore all and Remove all, and a sheet's Done. Sky at rest
+ * says a thing acts, so it is kept to commands. The results table's
+ * destination names wore it until #786, and read as text now (`LINK_QUIET`).
+ *
+ * `LINK_QUIET` is a link inside the content itself, in the colour of the text
+ * it stands in: the results table's names, a linked value and a footnote mark
+ * (the maintainer, 2026-10-21 on PR #789, record 0212). Nothing marks it at
+ * rest at a desk; a hover underlines it, and so does keyboard focus, the cue
+ * WCAG's technique G183 asks of a link that colour cannot tell apart. A touch
+ * screen has no hover, so there it wears a thin underline at rest in the
+ * secondary ink, which a finger can find: 5.5:1 on the dark panel and 7.47:1
+ * at the least on a light surface. The faint ink, one step quieter, measured
+ * 2.6:1 on the popup's grid band, under the 3:1 the one cue that marks a link
+ * owes. The marker popup's links read the same way (`[data-popup-link]` in
+ * `map.css`).
  *
  * Neither sets a size, because a link takes the size of the sentence holding
  * it. That means they belong inside text a role has already sized — put one on
@@ -203,6 +215,8 @@ export const PROSE = {
  */
 export const LINK = 'text-ink-mid hover:text-accent-ink underline'
 export const LINK_ACTION = 'text-accent-ink hover:text-accent-ink-hover hover:underline'
+export const LINK_QUIET =
+  'cursor-pointer underline-offset-2 hover:underline focus-visible:underline touch:underline touch:decoration-ink-soft'
 /**
  * A link that cannot answer right now, said through `aria-disabled` because
  * an anchor has no `disabled` of its own: the footer's Tutorial while a draw
@@ -898,7 +912,8 @@ export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
  * on the panel), which every pastel reads 3:1 or better against. A mark in a
  * line's colour is the same pastel on the same panel and owes the same
  * boundary, so it wears the same rim; dark marks stand off their panel by
- * themselves and wear none, so a call site adds this in light only.
+ * themselves, so the rim's token is transparent there (`--ui-line-edge`) and
+ * a call site wears this in both themes, naming neither (#786).
  *
  * An outline, 1px, so the rim takes no room from the colour inside it and a
  * native checkbox keeps the box the browser draws: Chromium follows the
@@ -907,8 +922,8 @@ export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
  * box had relied on.
  */
 export const LINE_EDGE = {
-  swatch: 'outline-1 outline-ink-soft',
-  input: `outline-1 outline-ink-soft ${FOCUS_RING}`,
+  swatch: 'outline-1 outline-line-edge',
+  input: `outline-1 outline-line-edge ${FOCUS_RING}`,
 } as const
 
 export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
@@ -1054,14 +1069,13 @@ export const LAYER = {
   overlay: 'z-20',
   /**
    * The Controls sheet's dim on a phone (record 0207): over the map, its
-   * chrome and the results sheet, under the sheet and the notice band.
+   * chrome and the results sheet, under the sheet.
    */
   scrim: 'z-30',
   /**
-   * The panel on a phone: the Controls sheet (record 0141), and the notice
-   * band while the sheet is up, which stands on its edge over the dim so a
-   * cue reads while a control changes (record 0207). Below `popover`, so a
-   * sheet opened from inside the panel dims the band with the rest.
+   * The panel on a phone: the Controls sheet (record 0141), one layer over
+   * its own dim (record 0207). Below `popover`, so a sheet opened from
+   * inside the panel stands over it.
    */
   drawer: 'z-40',
   /**
@@ -1422,11 +1436,10 @@ export const DRAW_BAR =
  * On a box laid over the map: the box gives its empty area back to the map,
  * and each member it holds takes pointer events again.
  *
- * The map's rows and the phone's notice band span more of the map than their
- * members cover, and a press in the gaps belongs to the map: a vertex in draw
- * mode, a peak, a fire perimeter. Written on the box with a child variant
- * rather than as two roles, so a member added later yields nothing by
- * accident.
+ * The map's rows span more of the map than their members cover, and a press
+ * in the gaps belongs to the map: a vertex in draw mode, a peak, a fire
+ * perimeter. Written on the box with a child variant rather than as two
+ * roles, so a member added later yields nothing by accident.
  */
 export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
 
@@ -1712,20 +1725,28 @@ const MAP_FAB_PRESSED =
 /**
  * The phone's Analyze (#696; record 0135): an extended floating action
  * button in Material's sense, the form for a screen's one primary action. 56px
- * tall (`FAB_PX` in `resultsSheet.ts`, which places it), 16px off the map's
- * right edge, a 16px corner rather than the capsule the chips wear, and the
- * label in the call to action's 14px semibold. The accent fill is
- * `BUTTON_PRIMARY`'s, `ACCENT.fill` on `--color-sky-650`, so the white label
- * keeps its 4.56:1 (record 0008); the call site adds `DISABLED`, the
- * panel's grey, because the gate is the panel's. The deepest shadow, since it
- * stands over the map and over the sheet's edge alike.
+ * tall (`FAB_PX` in `resultsSheet.ts`, which places it), a 16px corner rather
+ * than the capsule the chips wear, and the label in the call to action's 14px
+ * semibold. The accent fill is `BUTTON_PRIMARY`'s, `ACCENT.fill` on
+ * `--color-sky-650`, so the white label keeps its 4.56:1 (record 0008); the
+ * call site adds `DISABLED` and `BLOCKED`, the panel's grey, because the gate
+ * is the panel's. The deepest shadow, since it stands over the map and over
+ * the sheet's edge alike.
+ *
+ * It stands in `MAP_FAB_SLOT`, which is what is placed: 16px off the map's
+ * right edge on the map chrome's layer, with the button's bottom set in
+ * pixels by `fabBottomPx`. The slot rather than the button, so the count
+ * badge the button wears (`MESSAGE_BADGE`, record 0208) can stand at its
+ * corner as a sibling, outside the button's own grey when it is blocked. The
+ * button is `relative` for its pressed state's layer.
  *
  * No icon: none of `icons.tsx` says "run this" without also meaning
  * something else on the same screen (the player's triangle plays the
  * timeline), so the button is its label.
  */
+export const MAP_FAB_SLOT = `absolute right-4 ${LAYER.mapControls}`
 export const MAP_FAB =
-  `absolute right-4 ${LAYER.mapControls} h-14 rounded-2xl px-5 ${ELEVATION.overlay} ` +
+  `relative h-14 rounded-2xl px-5 ${ELEVATION.overlay} ` +
   `${TEXT.cta} transition-[color,background-color,box-shadow] ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING} ` +
   MAP_FAB_PRESSED
 
@@ -1743,36 +1764,52 @@ export const MAP_FAB_WORDS = {
 } as const
 
 /**
- * Where a phone's notices that ask for an action stand (#696; record 0140): a
- * band across the map, one inset off each side, on the sheet's edge, or the
- * map's foot before there is one, the library's 10px above it
- * (`noticeBottomPx`), with the Analyze button 16px over it. The block's own
- * boxes are the panel's `NOTICE` tints, which are translucent and were
- * measured over the drawer's slate-800, so the band lays that same slate-800
- * under them while it holds one; empty, it is a box of no height that draws
- * nothing. Every press outside a box is the map's (`YIELD_EMPTY`).
+ * The count the Analyze button wears while the panel has something to say
+ * (#786; record 0208): a disc at the button's top-right corner, saying how
+ * many messages are current in the colour of the worst of them, which opens
+ * the list that holds them all. The same disc on the panel's button at a
+ * desk and on the map's button on a phone, in a `relative` slot each, as a
+ * sibling after the button rather than a child, so a blocked button's grey
+ * (`BLOCKED`) does not fade the count.
  *
- * At most three lines of a box (`NOTICE_BAND_MAX_PX` in `resultsSheet.ts`,
- * 66px), and past that the band scrolls inside itself rather than climbing
- * the map: a second box or a long run error is read by scrolling the band,
- * which `overscroll-contain` keeps from handing the flick on to the map.
+ * The fill is the severity's ink (`STATUS`), with the panel's own colour as
+ * the digit: the ink is the one colour of each severity that is solid, and
+ * the tints and lines the boxes wear are translucent, which over the button's
+ * accent fill would be a fourth colour nobody chose. Measured in `styles.test.ts`:
+ * the panel on the danger ink is the tightest pair, and clears 4.5:1 in both
+ * themes. A 2px edge in the panel colour parts the disc from the button it
+ * overhangs, the way a badge is cut out of what it sits on.
  *
- * Two layers, one per place it stands, because two z-index utilities on one
- * element resolve by stylesheet order. `map` is the map chrome's own, under
- * the button. `overDim` is the panel's, for the band on the Controls sheet's
- * edge while the sheet is up (record 0207): above the sheet's dim, so a cue
- * that arrives while a control changes reads at full contrast and its × and
- * retry still take a press. Under the dim it would read through 40% black,
- * and a press on its × would land on the dim and close the sheet.
+ * A 20px disc, the dismiss pill's size, and the floor's 11px type: a count a
+ * reader presses. The edge is a border rather than a ring outside the box, so
+ * the button is the 24px the disc and its edge draw, the least a target owes
+ * (WCAG 2.5.8); as a 20px box with a ring it failed Lighthouse's target-size
+ * audit on the cold load. On touch that is still no target, so it takes a
+ * 44px hit area through an invisible box drawn 10px past its edge on every
+ * side (the `before:` box, as `TAP` would size it), without growing the disc.
+ * The box overhangs the button's corner, where the label is not.
  */
-const NOTICE_BAND =
-  `absolute ${MAP_EDGE.left} ${MAP_EDGE.right} ${RADIUS.control} ` +
-  `max-h-[66px] overflow-y-auto overscroll-contain ` +
-  `has-[>[role=status]>*]:bg-panel ${YIELD_EMPTY}`
-export const MAP_NOTICE_BAND = {
-  map: `${NOTICE_BAND} ${LAYER.base}`,
-  overDim: `${NOTICE_BAND} ${LAYER.drawer}`,
+export const MESSAGE_BADGE = {
+  /** The box the button and its badge share, which the badge's corner is placed in. */
+  slot: 'relative',
+  base:
+    `absolute -right-2.5 -top-2.5 flex h-6 min-w-6 items-center justify-center border-2 border-panel px-1 ${RADIUS.pill} ` +
+    `${MICRO_SIZE} font-bold leading-none tabular-nums transition-colors ` +
+    `touch:before:absolute touch:before:-inset-2.5 touch:before:content-[''] ${FOCUS_RING}`,
+  error: 'bg-danger text-panel',
+  warn: 'bg-warn text-panel',
+  info: 'bg-info text-panel',
 } as const
+
+/**
+ * A control that is shut for a reason the reader can act on, as against one
+ * that is busy (`DISABLED`): the Analyze button while a blocker holds it,
+ * which a press then opens the message list from (record 0208, the
+ * maintainer's call of 2026-10-21: a greyed button opens the list from
+ * anywhere on it). The same 40% as `DISABLED`, keyed on `aria-disabled` since
+ * the button is not disabled, and no cursor claim: a press does something.
+ */
+export const BLOCKED = 'aria-disabled:opacity-40'
 
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 /**
@@ -2051,12 +2088,12 @@ export const ACCENT_RING = 'ring-4 ring-accent-ink shadow-[0_0_18px_var(--ui-acc
  * forecast-window warning, the AQI-coverage note, the refusal, the run error,
  * and the failed wildfire check.
  *
- * There is no unboxed alternative any more. A `CUE` role used to hold the
+ * There is no unboxed alternative in the list. A `CUE` role used to hold the
  * centred, borderless variant, and the panel's footer showed both: a commit cue
  * as centred amber text directly above a blocker in an amber box, saying the
  * same kind of thing in two shapes for no reason a reader could act on. Every
- * message under the Analyze button is one of these three now, and severity is
- * the only thing that varies (`FooterNotice` in `PanelFooter.tsx`).
+ * message in the list is one of these three now, and severity is the only
+ * thing that varies (`MessageBox` in `MessageList.tsx`, record 0208).
  *
  * Four boxes, and before this they were four recipes. Three had settled on a
  * `-950/40` fill with a `-800/60` border and the fourth — the error, the one
@@ -2106,25 +2143,34 @@ export const NOTICE_DIVIDER = {
 } as const
 
 /**
- * The X that dismisses one footer message (#253). Every message under the
- * Analyze button carries its own — a box dismisses line by line, not whole
- * (TJ, 2026-08-22); which dismissal it triggers, and when that dismissal
+ * The X that dismisses one message in the list (#253). Every message but a
+ * blocker carries its own — a box dismisses line by line, not whole (TJ,
+ * 2026-08-22); which dismissal it triggers, and when that dismissal
  * expires, is `utils/notices.ts`'s business, not this recipe's.
  *
  * Three parts, because the touch target and the visible control must be
  * different sizes. The `row` is the message the X belongs to and the hover
- * surface that reveals it. The `button` carries `TAP.action` in-flow, so on
- * touch the 44px target grows its own row rather than overhanging it —
- * the Analyze button sits directly above, and an absolutely-positioned
- * square would cover its bottom edge. The `pill` inside it is what the eye
- * gets: a 20px disc, the panel close button's idiom at notice scale, so the
- * X reads as a control rather than a stray character.
+ * surface that reveals it. The `button` carries `TAP.action`, the 44px target
+ * on touch. The `pill` inside it is what the eye gets: a 20px disc, the panel
+ * close button's idiom at notice scale, so the X reads as a control rather
+ * than a stray character.
  *
- * The row centres its two members against each other. On a coarse pointer the
- * button is 44px tall and the message is one line, so the text sits level with
- * the disc rather than at the top of a target three times its height; on a
- * mouse the row is the text line itself and nothing moves. Every message is
- * written to fit one line, so there is no first line for the X to align to.
+ * A box with an X stands exactly as tall as one without (the maintainer,
+ * 2026-10-21 on PR #789, where a phone's dismissable box stood nearly twice
+ * the height of a blocker's beside it): the button's negative block margins
+ * hand back everything past the 16px line of text, 2px each side of the disc
+ * on a mouse and 14px each side of the target on touch, so the row is the
+ * line, its padding and nothing else. The target overhangs its row instead:
+ * a lone message's reaches 5px past its box, into the 8px between boxes
+ * (`MESSAGE_LIST`), and nothing interactive borders a box but another
+ * message, since the list is a card or a sheet of its own. In a box of
+ * several dismissable messages two neighbouring targets overlap by 15px,
+ * which leaves each 29px no other target covers, past the 24px WCAG 2.5.8
+ * asks, and the lower one takes a press in the overlap.
+ *
+ * The row centres its two members against each other, so the disc sits level
+ * with the text. Every message is written to fit one line, so there is no
+ * first line for the X to align to.
  *
  * The fill is `white/5` at rest — a whisper of a disc, because at `/10` TJ
  * read it as too buttony for a passive notice — rising to `white/15` on
@@ -2174,7 +2220,7 @@ export const NOTICE_DISMISS = {
    * visible distance from the disc to the last word.
    */
   button:
-    `group ${TAP.action} touch:-ml-6 opacity-0 transition-[color,opacity] ` +
+    `group ${TAP.action} -my-0.5 touch:-my-3.5 touch:-ml-6 opacity-0 transition-[color,opacity] ` +
     `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
     `hover:text-ink-strong ${FOCUS_RING}`,
   pill:
@@ -2335,8 +2381,8 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  * the two drawn side by side). Where the browser reports 0, as Chrome does on
  * the maintainer's Pixel, nothing changes. `probe` is an invisible
  * box as tall as the band, which `useSafeAreaBottom` reads, because the
- * chrome placed in pixels over the map (the Analyze button, the notice band,
- * the player, the scale and the credit) measures from the sheet's edge, and
+ * chrome placed in pixels over the map (the Analyze button, the player, the
+ * scale and the credit) measures from the sheet's edge, and
  * before there is a sheet that edge is the band's top rather than the
  * screen's foot.
  */
@@ -2459,9 +2505,9 @@ export const HEADER_BUTTON =
  * recipe names the one property it moves, because a sheet or a pane whose
  * height a grip drags must not chase the finger.
  *
- * `motion-reduce:` drops each to an instant change, the way `TOUR.motion`
- * does for the tutorial's spotlight; the panel's smooth scroll asks the same
- * question through `prefersReducedMotion` in `utils/motion.ts`, and so does a
+ * `motion-reduce:` drops each to an instant change; the panel's smooth
+ * scroll and the tutorial's glide ask the same question through
+ * `prefersReducedMotion` in `utils/motion.ts`, and so does a
  * closing pane, which unmounts at once rather than waiting out a transition
  * that will not run. `PANEL_MS` is the slower speed in numbers, for script
  * that waits out a move; `styles.test.ts` holds each class to its speed.
@@ -2548,12 +2594,24 @@ export const RESULTS_PANE = {
  * column. The chart keeps the width it had (`chartClosing` is the window less
  * the panel), because drawing it is the costliest thing on the page, and is
  * drawn once at the end.
+ *
+ * While the panel moves, what moves with it stands on a layer of its own
+ * (`layer`): the panel, the map's column, the results and each pane's body
+ * (record 0216). A frame of the move then shifts layers the GPU already holds
+ * rather than painting the panel, the table and the chart again where they
+ * now stand, which was 185 ms of painting across a 300 ms close of a 200-row
+ * report, and 35 ms on layers (2026-10-22). Only while it moves, because a
+ * layer is a containing block for anything fixed inside it, and the table's
+ * column-drag ghost is. Not while the panes move: the table stands still on
+ * the screen then, the chart is cheap to paint where it now stands, and
+ * lifting both onto layers at the press cost more than the frames saved.
  */
 export const LAYOUT_HOLD = {
   rest: 'absolute inset-0',
   mapPush: 'absolute inset-y-0 left-[calc(50%-50vw)] w-screen',
   mapPanes: 'absolute inset-x-0 top-[calc(50%-50dvh)] h-dvh',
   clip: 'overflow-clip',
+  layer: 'will-change-transform',
   table: 'w-screen',
   chartClosing: 'w-[calc(100vw-22.5rem)]',
   chartOpening: 'w-screen',
@@ -2566,15 +2624,13 @@ export const LAYOUT_HOLD = {
  * moves nothing under it: the Analyze button, the scale and the (i) stand
  * where they stood, under the dim and out of reach (record 0207). Three
  * differences come from what it holds. It never unmounts, so the panel's
- * state and the notice block's portal outlive a close, and shut it slides
- * below the map's foot (`shut`) and goes inert. Its height is set where it
- * is placed (`controlsSheetPx`), a fixed share of the map that leaves the
- * notice band its room on the edge. And it stands on the panel's own layer,
+ * state outlives a close, and shut it slides below the map's foot (`shut`)
+ * and goes inert. Its height is set where it is placed (`controlsSheetPx`),
+ * a fixed share of the map. And it stands on the panel's own layer,
  * `LAYER.drawer`, with its dim (`scrim`) one layer under, where the menu
- * sheets stand both on `popover`: the band rides its edge over the dim on
- * the same layer as the card (`MAP_NOTICE_BAND.overDim`), and a sheet opened
- * from inside the panel stands over all three. `focus:outline-none` because
- * the card itself takes the keyboard as it opens, as a menu sheet's does.
+ * sheets stand both on `popover`, so a sheet opened from inside the panel
+ * stands over both. `focus:outline-none` because the card itself takes the
+ * keyboard as it opens, as a menu sheet's does.
  */
 export const CONTROLS_SHEET = {
   scrim: `fixed inset-0 ${LAYER.scrim}`,
@@ -2903,6 +2959,19 @@ export const MENU = {
 } as const
 
 /**
+ * The message list the Analyze button's badge opens (record 0208): the
+ * severity boxes in a column, 8px apart, on the one menu's card at a desk,
+ * where they stand in `MENU.list`'s inset and scroll in it when the card is
+ * capped, and in a bottom sheet headed Messages on a phone, where the
+ * sheet's body carries the side inset and the column takes 8px top and
+ * bottom.
+ */
+export const MESSAGE_LIST = {
+  card: `${MENU.list} space-y-2`,
+  sheet: 'space-y-2 py-2',
+} as const
+
+/**
  * The calendar's field under Dates (#687, record 0129): a field holding the
  * window in the results bar's words, which may wrap to two lines. It is a
  * menu trigger like any field (`MENU_TRIGGER.field`), and these are the two
@@ -3206,16 +3275,6 @@ export const TABLE = {
    */
   rowOpens: 'cursor-pointer',
   /**
-   * A value in a cell that is a link (Windy for a metric, NIFC for a fire, the
-   * Forest Service for an order): underlined at rest, the way the marker
-   * popup underlines every number in its grid (`popupLink`), so the table and
-   * the card say "link" the same way (TJ, 2026-10-14). It was underlined on
-   * hover alone, which a touch screen never has, so a phone showed no cue
-   * that a number opens anything. The value keeps the colour its band gives
-   * it: the line is the cue, and a link colour would erase the ranking's.
-   */
-  valueLink: 'underline cursor-pointer',
-  /**
    * The Name column stands still while the rest of the table scrolls
    * sideways under it, at both widths (#696; record 0142): on a phone the
    * table is three or four columns of a dozen wide, and a number read two
@@ -3326,7 +3385,11 @@ export const TABLE = {
  * fixed and sized by the same 320px the welcome card reads at on a phone. Under
  * `SHEET_MAX_W` (`tour/place.ts`) it is a full-width sheet along the bottom
  * edge instead, because a card beside a control has nowhere to go at 360px. Every colour here is a role the
- * app already wears; the dim is the welcome backdrop's black at 60%.
+ * app already wears; the dim is the welcome backdrop's black at 60%. No role
+ * here carries a transition: the light and the card move between steps by a
+ * glide `Tour.tsx` runs a frame at a time (`glide` in `tour/place.ts`), since
+ * a transition handed a new end every frame by a moving target restarts
+ * every frame and stands still (#786).
  */
 export const TOUR = {
   spotlight: 'absolute pointer-events-none shadow-[0_0_0_200vmax_rgba(0,0,0,0.6)]',
@@ -3334,13 +3397,4 @@ export const TOUR = {
   sheet: `${SURFACE_CARD} fixed inset-x-4 bottom-4 p-4 space-y-3 focus:outline-none`,
   /** The sheet at the top edge, for a target that stands where the bottom sheet would. */
   sheetTop: `${SURFACE_CARD} fixed inset-x-4 top-4 p-4 space-y-3 focus:outline-none`,
-  /**
-   * Worn for the moment after a step changes and at no other time. A standing
-   * transition made the spotlight trail its control whenever the layout moved
-   * for another reason, such as the preview banner wrapping on a resize.
-   */
-  // `motion-reduce:` drops the transition where the reader asked the system
-  // for less motion; the panel's smooth scroll asks the same question through
-  // `prefersReducedMotion`, and MapLibre's camera moves answer it themselves.
-  motion: 'transition-all duration-200 motion-reduce:transition-none',
 }

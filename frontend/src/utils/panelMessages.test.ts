@@ -8,10 +8,11 @@ import { archiveSeamPhrase } from './calendar'
 import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { NOUN } from '../metrics'
 
-// Which lines the panel shows under the Analyze button, one case per line and
-// the condition that raises it, and one case for the order they come in. The
-// panel renders whatever this returns; `ControlPanel.test.tsx` shows that it
-// does, and `notices.test.ts` covers the boxing and dismissal that follow.
+// Which lines the panel has to say, one case per line and the condition that
+// raises it, and one case for the order they come in. The list the Analyze
+// button's badge opens renders whatever this returns; `ControlPanel.test.tsx`
+// shows that it does, and `notices.test.ts` covers the boxing and dismissal
+// that follow.
 
 const NOW = new Date('2026-09-22T12:00:00Z')
 
@@ -183,21 +184,21 @@ describe('panelMessages', () => {
   describe('the Analyze blockers', () => {
     const BLOCKERS: [AnalyzeBlocker, Partial<PanelMessageInputs>, string, string][] = [
       ['area', {}, 'error', `The polygon is too large. The maximum supported size is ${(100_000).toLocaleString()} km².`],
-      ['window', {}, 'info', 'Adjust the forecast window to continue.'],
-      ['dates', {}, 'info', 'Select at least one date to analyze.'],
-      ['destinations', {}, 'info', 'Provide at least one destination to analyze.'],
-      ['polygon', { pointsNeeded: 1 }, 'info', 'Add at least 1 more point to the polygon to continue.'],
-      ['types', {}, 'info', 'Select at least one destination type for the polygon search.'],
+      ['window', {}, 'error', 'Adjust the forecast window to continue.'],
+      ['dates', {}, 'error', 'Select at least one date to analyze.'],
+      ['destinations', {}, 'error', 'Provide at least one destination to analyze.'],
+      ['polygon', { pointsNeeded: 1 }, 'error', 'Add at least 1 more point to the polygon to continue.'],
+      ['types', {}, 'error', 'Select at least one destination type for the polygon search.'],
       [
         'compare-aqi',
         {},
-        'warn',
+        'error',
         `${NOUN.aqi} data is retrieved independently of the model and cannot be compared.`,
       ],
       [
         'compare-freeze',
         { freezeGaps: ['ECMWF IFS', 'DWD ICON'] },
-        'warn',
+        'error',
         `${NOUN.freeze} data is not available for ECMWF IFS and DWD ICON.`,
       ],
     ]

@@ -4,6 +4,7 @@ import {
   METRIC_SCALE,
   VERDICT_RAMP,
   VERDICT_RAMP_REVERSED,
+  cellInks,
   cellStyle,
   hexToRgb,
   hourlyScale,
@@ -126,11 +127,11 @@ describe('markerColor', () => {
 })
 
 describe('cellStyle', () => {
-  it('returns a translucent background and solid text of the same hue', () => {
+  it('returns a translucent background and, in dark, solid text of the same hue', () => {
     // Green anchor #22c55e === rgb(34, 197, 94).
-    expect(cellStyle(0, METRIC_SCALE.precip)).toEqual({
-      backgroundColor: 'rgba(34,197,94,0.2)',
-      color: 'rgb(34,197,94)',
+    expect(cellInks(0, METRIC_SCALE.precip)).toEqual({
+      fill: 'rgba(34,197,94,0.2)',
+      ink: { dark: 'rgb(34,197,94)', light: 'rgb(1,102,48)' },
     })
   })
 
@@ -784,21 +785,27 @@ describe('the light theme\'s cell ink (#706)', () => {
   })
 
   it('keeps the tint and changes only the ink', () => {
-    const dark = cellStyle(0, METRIC_SCALE.precip, 'dark')
-    const light = cellStyle(0, METRIC_SCALE.precip, 'light')
-    expect(light.backgroundColor).toBe(dark.backgroundColor)
-    // green-800, #016630.
-    expect(light.color).toBe('rgb(1,102,48)')
-    // Dark is the recipe it always was, and the default.
-    expect(dark).toEqual(cellStyle(0, METRIC_SCALE.precip))
-    expect(dark.color).toBe('rgb(34,197,94)')
+    const { fill, ink } = cellInks(0, METRIC_SCALE.precip)
+    expect(fill).toBe('rgba(34,197,94,0.2)')
+    // green-800, #016630, in light; the band itself in dark, as always.
+    expect(ink.light).toBe('rgb(1,102,48)')
+    expect(ink.dark).toBe('rgb(34,197,94)')
+  })
+
+  // Both inks ride the one style, and CSS picks by the root's colour scheme
+  // (#786), so a cell's style is one string in either theme.
+  it('hands a cell both inks at once, the light one first', () => {
+    expect(cellStyle(0, METRIC_SCALE.precip)).toEqual({
+      backgroundColor: 'rgba(34,197,94,0.2)',
+      color: 'light-dark(rgb(1,102,48), rgb(34,197,94))',
+    })
   })
 
   it('interpolates the ink between bands the way it interpolates the band', () => {
     // At 0.10 the ink is yellow-800 exactly; between 0.01 and 0.10 it lies
     // between green-800 and yellow-800, channel by channel.
-    expect(cellStyle(0.1, METRIC_SCALE.precip, 'light').color).toBe('rgb(137,75,0)')
-    const [r, g, b] = cellStyle(0.04, METRIC_SCALE.precip, 'light').color.match(/\d+/g)!.map(Number)
+    expect(cellInks(0.1, METRIC_SCALE.precip).ink.light).toBe('rgb(137,75,0)')
+    const [r, g, b] = cellInks(0.04, METRIC_SCALE.precip).ink.light.match(/\d+/g)!.map(Number)
     expect(r).toBeGreaterThan(1)
     expect(r).toBeLessThan(137)
     expect(g).toBeLessThan(102)

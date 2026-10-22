@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { test, expect, resultRows } from './fixtures'
 
 // The guided tutorial (#536), walked the way a reader walks it. The unit
@@ -12,6 +12,7 @@ const STEPS = [
   { title: 'Forecast', anchor: 'forecast' },
   { title: 'Metrics', anchor: 'metrics' },
   { title: 'Analyze', anchor: 'analyze' },
+  { title: 'Messages', anchor: 'messages' },
   { title: 'Layers', anchor: 'layers' },
   { title: 'Results', anchor: 'results' },
   { title: 'Chart', anchor: 'chart' },
@@ -26,6 +27,33 @@ interface Box {
 }
 
 const card = (page: Page) => page.locator('[data-tour-card]')
+
+// The Messages card's demonstration (#786): two lines from the app's own
+// derivation, a blocker and a note, whatever the reader's own state.
+const DEMO_LINES = ['Select at least one date to analyze.', 'AQI forecasts only extend 5 days.']
+
+async function expectDemoMessages(page: Page, list: Locator) {
+  for (const line of DEMO_LINES) await expect(list.getByText(line)).toBeVisible()
+  await expect(page.getByRole('button', { name: '2 messages' })).toBeVisible()
+}
+
+// Nothing of the app stands over the target: under its middle, past the
+// tour's own layer (the spotlight's parent, which holds the presses while the
+// tour runs), the first element is the target's, which is what a reader sees
+// lit.
+async function expectUncovered(page: Page, anchor: string) {
+  await expect(async () => {
+    const own = await page.locator(`[data-tour="${anchor}"]`).evaluate((el, spotlight) => {
+      const layer = document.querySelector(spotlight)?.parentElement ?? null
+      const r = el.getBoundingClientRect()
+      const hit = document
+        .elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        .find((e) => layer === null || !layer.contains(e))
+      return hit !== undefined && el.contains(hit)
+    }, SPOTLIGHT)
+    expect(own).toBe(true)
+  }).toPass({ timeout: 5_000 })
+}
 const heading = (page: Page) => card(page).getByRole('heading')
 
 async function box(page: Page, selector: string): Promise<Box | null> {
@@ -113,7 +141,7 @@ async function expectReadoutMidWindow(page: Page) {
   }).toPass({ timeout: 5_000 })
 }
 
-test('walks the eight cards from the footer link and puts the app back', async ({ page }) => {
+test('walks the nine cards from the footer link and puts the app back', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const before = await page.evaluate(() => history.length)
@@ -129,6 +157,13 @@ test('walks the eight cards from the footer link and puts the app back', async (
     await expect(card(page)).toContainText(`${i + 1} of ${STEPS.length}`)
     await expectSpotlightOn(page, step.anchor)
     if (step.anchor === 'metrics') await expectSectionInPanel(page, 'metrics')
+    if (step.anchor === 'messages') {
+      // Analyze greyed under the demonstration, its list open beside the card.
+      await expectDemoMessages(page, page.getByRole('group', { name: 'Messages' }))
+      await expect(page.locator('aside').getByRole('button', { name: 'Analyze', exact: true })).toHaveAttribute('aria-disabled', 'true')
+      await expectSpotlightOn(page, 'messages-list')
+    }
+    if (step.anchor === 'layers') await expect(page.getByRole('group', { name: 'Messages' })).toHaveCount(0)
     if (step.anchor === 'layers') await expect(page.locator('[data-tour="layers-menu"]')).toBeVisible()
     if (step.anchor === 'results') await expect(resultRows(page)).toHaveCount(5)
     if (step.anchor === 'chart') await expectReadoutMidWindow(page)
@@ -159,6 +194,11 @@ test('a link to /tutorial opens the tour on a phone, and the keys walk it', asyn
   await expect(heading(page)).toHaveText('Destinations')
   // The card is the drawer's, so the panel step opened the drawer.
   await expectSpotlightOn(page, 'destinations')
+  // A phone's tour cuts from card to card (#786): the drawer's slide stands
+  // down while it runs, and comes back when it ends.
+  const drawer = page.locator('[role="dialog"]').filter({ has: page.locator('[data-tour="destinations"]') })
+  const slide = () => drawer.evaluate((el) => getComputedStyle(el).transitionProperty)
+  expect(await slide()).toBe('none')
 
   for (let i = 0; i < STEPS.length - 1; i++) await page.keyboard.press('ArrowRight')
   await expect(heading(page)).toHaveText('Markers')
@@ -172,6 +212,7 @@ test('a link to /tutorial opens the tour on a phone, and the keys walk it', asyn
   await page.keyboard.press('Escape')
   await expect(card(page)).toHaveCount(0)
   await expect(page).toHaveURL(/\/(\?|$)/)
+  expect(await slide()).toContain('transform')
 })
 
 test.describe('on a phone with a report', () => {
@@ -199,6 +240,8 @@ test.describe('on a phone with a report', () => {
 
     for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight')
     await expect(heading(page)).toHaveText('Analyze')
+    // The Controls sheet is lowered, so nothing stands over the map's button.
+    await expectUncovered(page, 'analyze')
     await expect(async () => {
       const fab = (await box(page, '[data-tour="analyze"]'))!
       const light = (await box(page, SPOTLIGHT))!
@@ -211,8 +254,17 @@ test.describe('on a phone with a report', () => {
       expect(radius).toBe(`${own + 8}px`)
     }).toPass({ timeout: 5_000 })
 
+    // The Messages card holds its sheet open over the demonstration, whatever
+    // the report says, and the next card puts the reader's own back.
+    await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText('Messages')
+    const messages = page.getByRole('dialog', { name: 'Messages' })
+    await expectDemoMessages(page, messages)
+    await expectSpotlightOn(page, 'messages-list')
+
     await page.keyboard.press('ArrowRight')
     await expect(heading(page)).toHaveText('Layers')
+    await expect(messages).toHaveCount(0)
     // A phone's Layers card opens the sheet and switches Wildfires on
     // (record 0153), and the next card puts both back.
     const layers = page.locator('[data-tour="layers-menu"]')

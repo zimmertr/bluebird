@@ -29,11 +29,11 @@ import { hourlyScale, rankedScale } from '../utils/colors'
 import {
   TRANSPORT_GAP_PX,
   fabBottomPx,
-  noticeLiftPx,
   phoneCornerLiftPx,
   transportFits,
   transportStandPx,
 } from '../utils/resultsSheet'
+import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { Place } from '../utils/geocode'
 import { fieldHasValue } from '../utils/present'
 import type { CameraView } from '../utils/mapView'
@@ -112,8 +112,6 @@ export interface MapStageProps {
   sidebarOpen: boolean
   /** Which edge of a desk's layout is moving, which the map's box holds still for (record 0202). */
   layoutMotion?: LayoutMotion
-  /** A phone's Controls sheet's height, wherever a drag left it (record 0146), whose edge the notice band rides. */
-  controlsPx: number
   /** Whether a desk's legend card opens unfolded (`viewPrefs.legendOpen`). */
   legendInitiallyOpen: boolean
   /** Reopens the controls panel. */
@@ -122,14 +120,8 @@ export interface MapStageProps {
   onCloseControls: () => void
   /** The summary chip's words: the When arm and the model (`controlsSummary`). */
   controlsSummary: string
-  /**
-   * Receives the band a phone's map holds the panel's notice block in while
-   * the drawer is shut (record 0140), which `PanelFooter` portals into. A
-   * state setter, so stable.
-   */
-  onNoticeBand: (band: HTMLDivElement | null) => void
-  /** The panel's Analyze gate (`analyzeGateFor`), which the phone's Analyze button shares. */
-  analyzeEnabled: boolean
+  /** The panel's messages and Analyze gate (`usePanelMessages`), which the phone's Analyze button and its badge read (record 0208). */
+  messages: PanelMessages
   /** What the panel's Analyze reads (#736, `actionWord`), which the phone's button reads too. */
   actionWord: ActionWord
   /** The panel's Analyze command, which the phone's Analyze button calls. */
@@ -178,13 +170,11 @@ export default function MapStage({
   showResults,
   sidebarOpen,
   layoutMotion = null,
-  controlsPx,
   legendInitiallyOpen,
   onOpenControls,
   onCloseControls,
   controlsSummary,
-  onNoticeBand,
-  analyzeEnabled,
+  messages,
   actionWord,
   onAnalyze,
   layersForcedOpen,
@@ -206,9 +196,6 @@ export default function MapStage({
   // A desk's corner (`MapCorner`, record 0174), which stands the compass, the
   // locate button, the zoom pair, the credit line and the scale.
   const [cornerSlots, setCornerSlots] = useState<CornerSlots | null>(null)
-  // The height of the phone's notice band, which the Analyze button rises
-  // above (`PhoneFoot` measures it), 0 while it holds nothing.
-  const [bandPx, setBandPx] = useState(0)
   // The Analyze button's width, which a phone's opened credit line stops
   // short of (`--map-fab-w`, read by map.css); `PhoneFoot` measures it,
   // since it is the wider word's in whatever face the phone draws.
@@ -268,14 +255,12 @@ export default function MapStage({
   // (#687, #696), and the player steps out meanwhile: playback is no use
   // while points are being placed.
   const drawBarShown = drawMode.drawing && !isDesktop
-  // A phone's Analyze button rides the results sheet and rises over the
-  // notice band (record 0135), and the player stands on the button rather
-  // than on the sheet, stepping off while a sheet dragged high leaves it no
-  // room. The Controls sheet moves none of them: it opens over them, modal,
-  // and the band alone leaves the foot to ride its edge (record 0207).
+  // A phone's Analyze button rides the results sheet (record 0135), and the
+  // player stands on the button rather than on the sheet, stepping off while
+  // a sheet dragged high leaves it no room. The Controls sheet moves none of
+  // them: it opens over them, modal (record 0207).
   const footLift = layout.sheetLiftPx
-  const controlsOpen = !isDesktop && sidebarOpen
-  const fabBottom = fabBottomPx(footLift, bandPx, layout.mapPx)
+  const fabBottom = fabBottomPx(footLift, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
   // Legend and Layers are chips in the row under the search pill at both
@@ -328,7 +313,7 @@ export default function MapStage({
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${
         isDesktop ? '' : drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows
-      } ${layoutMotion ? LAYOUT_HOLD.clip : ''}`}
+      } ${layoutMotion ? LAYOUT_HOLD.clip : ''} ${layoutMotion === 'opening' || layoutMotion === 'closing' ? LAYOUT_HOLD.layer : ''}`}
       style={
         {
           // A phone's scale and (i) stand on the Analyze button's row
@@ -409,21 +394,16 @@ export default function MapStage({
       {/* A desk's map buttons, credit line and scale, in the map's
           bottom-right corner (record 0174). */}
       {isDesktop && <MapCorner onSlots={setCornerSlots} />}
-      {/* The foot of a phone's map: the band the panel's notice block
-          stands in while the drawer is shut (record 0140), which
-          `PanelFooter` portals the one block it renders into, and the
-          Analyze button (record 0135). */}
+      {/* The foot of a phone's map: the Analyze button (record 0135) with
+          the message badge at its corner (record 0208). */}
       {!isDesktop && (
         <PhoneFoot
-          liftPx={noticeLiftPx(footLift, controlsOpen ? controlsPx : null)}
-          controlsOpen={controlsOpen}
           fabBottomPx={fabBottom}
-          onNoticeBand={onNoticeBand}
-          onBandPx={setBandPx}
           onFabPx={setFabPx}
-          analyzeEnabled={analyzeEnabled}
+          analyzeEnabled={messages.analyzeEnabled}
           word={actionWord}
           onAnalyze={onAnalyze}
+          messages={messages}
         />
       )}
       {/* The timeline, present exactly while something spans time: radar

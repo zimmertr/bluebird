@@ -132,6 +132,33 @@ describe('LayersPopover', () => {
     expect(rows()).toHaveLength(8)
   })
 
+  // A press with Shift held reaches every row from the last pressed to this
+  // one (record 0209), switching each that differs from the pressed box, and
+  // a greyed row in the run stays as it is.
+  it('switches every layer between the last press and a Shift-click, but a greyed one', () => {
+    const setShowAreaClosures = vi.fn()
+    const setShowGrid = vi.fn()
+    const setShowPlayer = vi.fn()
+    const setShowRadar = vi.fn()
+    render(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...OVERLAYS, setShowAreaClosures, setShowGrid, setShowPlayer, setShowRadar }}
+        grid={ARCHIVE}
+        playerOffered
+      />,
+    )
+    open()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Area closures' }))
+    expect(setShowAreaClosures).toHaveBeenCalledWith(true)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Rain radar' }), { shiftKey: true })
+    expect(setShowPlayer).toHaveBeenCalledWith(true)
+    expect(setShowRadar).toHaveBeenCalledWith(true)
+    // The grid is greyed for an archive window, and the run crosses it.
+    expect(setShowGrid).not.toHaveBeenCalled()
+  })
+
   it('switches a layer through its setter', () => {
     const setShowSmoke = vi.fn()
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={{ ...OVERLAYS, setShowSmoke }} grid={GRID} playerOffered />)

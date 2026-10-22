@@ -196,18 +196,41 @@ describe('the list', () => {
     expect(onChange).toHaveBeenLastCalledWith('icon_seamless')
     expect(onComparedChange).toHaveBeenLastCalledWith([])
   })
+
+  // A press with Shift held reaches every row from the last pressed to this
+  // one (record 0209), the one rule applied row by row: a run that crosses
+  // the ranking model passes the ranking on, and the last model stays.
+  it('ticks and unticks a run of rows with a Shift-click, passing the ranking on', async () => {
+    const { user, trigger } = setup()
+    await user.click(trigger)
+    fireEvent.click(option('ECMWF IFS'))
+    expect(onComparedChange).toHaveBeenLastCalledWith(['ecmwf_ifs025'])
+    // Up from ECMWF to GFS: GFS is selected and the run unticks, so the
+    // ranking passes to ECMWF, which is then the last one and stays.
+    fireEvent.click(option('NOAA GFS'), { shiftKey: true })
+    expect(onChange).toHaveBeenLastCalledWith('ecmwf_ifs025')
+    expect(onComparedChange).toHaveBeenLastCalledWith([])
+    expect(option('ECMWF IFS').getAttribute('aria-selected')).toBe('true')
+    expect(option('NOAA GFS').getAttribute('aria-selected')).toBe('false')
+    // Down from GFS to ICON: GFS is unselected and the run ticks, so both
+    // join the comparison and ECMWF ranks on.
+    fireEvent.click(option('DWD ICON'), { shiftKey: true })
+    expect(onComparedChange).toHaveBeenLastCalledWith(['gfs_seamless', 'icon_seamless'])
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('the chip row', () => {
   const toolbar = () => screen.getByRole('toolbar')
   const chip = (label: string) => within(toolbar()).getByRole('button', { name: label })
+  const removeAll = () => within(toolbar()).getByRole('button', { name: 'Remove all' }) as HTMLButtonElement
 
   it('draws one chip per selected model, the ranking one first', async () => {
     const { user, trigger } = setup({ compared: ['icon_seamless', 'ecmwf_ifs025'] })
     await user.click(trigger)
     const labels = within(toolbar())
       .getAllByRole('button')
-      .filter((b) => !b.getAttribute('aria-label'))
+      .filter((b) => !b.getAttribute('aria-label') && b !== removeAll())
       .map((b) => b.textContent)
     // Ranking first, then the compared ones in the published order.
     expect(labels).toEqual(['NOAA GFS', 'ECMWF IFS', 'DWD ICON'])
@@ -249,6 +272,52 @@ describe('the chip row', () => {
     chip('NOAA GFS').focus()
     await user.keyboard('{Delete}')
     expect(onComparedChange).not.toHaveBeenCalled()
+  })
+
+  // Remove all ends the Comparing row and stands greyed with nothing compared
+  // (record 0209), so the Comparing heading stands too.
+  it('stands Remove all greyed under Comparing with nothing compared', async () => {
+    const { user, trigger } = setup()
+    await user.click(trigger)
+    expect(within(toolbar()).getByText('Comparing')).toBeTruthy()
+    expect(removeAll().disabled).toBe(true)
+  })
+
+  it('removes every compared model and keeps the ranking one, with the keyboard on its chip', async () => {
+    const { user, trigger } = setup({ compared: ['icon_seamless', 'ecmwf_ifs025'] })
+    await user.click(trigger)
+    expect(removeAll().disabled).toBe(false)
+    await user.click(removeAll())
+    expect(onComparedChange).toHaveBeenLastCalledWith([])
+    expect(onChange).not.toHaveBeenCalled()
+    expect(trigger.getAttribute('aria-label')).toBe('Forecast model: NOAA GFS')
+    expect(removeAll().disabled).toBe(true)
+    expect(document.activeElement).toBe(chip('NOAA GFS'))
+  })
+
+  // One Tab stop after the chips while it can act: chips, Remove all, list,
+  // and back the same way.
+  it('walks the chips, Remove all and the list with Tab and Shift+Tab', async () => {
+    const { user, trigger } = setup({ compared: ['ecmwf_ifs025'] })
+    await user.click(trigger)
+    expect(document.activeElement).toBe(list())
+    await user.keyboard('{Shift>}{Tab}{/Shift}')
+    expect(document.activeElement).toBe(removeAll())
+    await user.keyboard('{Shift>}{Tab}{/Shift}')
+    expect(document.activeElement).toBe(chip('NOAA GFS'))
+    await user.keyboard('{Tab}')
+    expect(document.activeElement).toBe(removeAll())
+    await user.keyboard('{Tab}')
+    expect(document.activeElement).toBe(list())
+  })
+
+  it('steps over a greyed Remove all between the chips and the list', async () => {
+    const { user, trigger } = setup()
+    await user.click(trigger)
+    await user.keyboard('{Shift>}{Tab}{/Shift}')
+    expect(document.activeElement).toBe(chip('NOAA GFS'))
+    await user.keyboard('{Tab}')
+    expect(document.activeElement).toBe(list())
   })
 })
 

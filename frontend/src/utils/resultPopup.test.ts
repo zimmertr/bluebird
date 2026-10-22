@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { RESULT_ACTION_ATTR, resultPopupHtml } from './resultPopup'
 import { poiPopupHtml, POI_ACTION_ATTR } from './poiPopup'
 import { POPUP_BODY_ATTR, POPUP_TINT_ATTR } from './popupChrome'
-import { cellColor } from './resultsCells'
+import { cellTint } from './resultsCells'
 import type { FireWarning } from './fireProximity'
 import { FAMILY_KEYS, NOUN, SEP } from '../metrics'
 import {
@@ -197,7 +197,7 @@ describe('resultPopupHtml remove', () => {
     // On a line of its own at the foot of the card, after the body the scroll
     // cap shortens rather than inside it, so a capped card keeps it in view.
     expect(html).toMatch(
-      new RegExp(`<div style="padding:8px 10px;border-top:1px solid ${escapeRegExp(HEADER_EDGE_COLOR)}"><div style="text-align:center"><button ${RESULT_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div>\\s*</div>$`),
+      new RegExp(`<div style="padding:8px 10px;border-top:1px solid ${escapeRegExp(HEADER_EDGE_COLOR)}"><div style="display:flex;justify-content:center"><button ${RESULT_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div>\\s*</div>$`),
     )
     expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(RESULT_ACTION_ATTR))
   })
@@ -210,7 +210,7 @@ describe('resultPopupHtml remove', () => {
     for (const compact of [false, true]) {
       const html = resultPopupHtml({ ...base, compact, removable: true, warning: fire })
       const warnings = html.match(/<div style="font-size:12px;display:flex;align-items:flex-start;padding:(\d+px) 0 (\d+px) 10px;border-bottom:([^"]+)">/)!
-      const action = html.match(new RegExp(`<div style="padding:(\\d+px) 10px;border-top:([^"]+)"><div style="text-align:center"><button ${RESULT_ACTION_ATTR}`))!
+      const action = html.match(new RegExp(`<div style="padding:(\\d+px) 10px;border-top:([^"]+)"><div style="display:flex;justify-content:center"><button ${RESULT_ACTION_ATTR}`))!
       expect(action[2]).toBe(warnings[3])
       expect(action[2]).toBe(SECTION_EDGE)
       expect([warnings[1], warnings[2]]).toEqual([SECTION_PAD_Y, SECTION_PAD_Y])
@@ -380,9 +380,8 @@ describe('resultPopupHtml type', () => {
     expect(html.indexOf('<strong')).toBeLessThan(html.indexOf('Mount Rainier'))
   })
 
-  // Colour rather than weight for a label, because under this card's
-  // `sans-serif` only two faces exist: one is invisible against the value, the
-  // other is the title's own. See LABEL_COLOR for the measurement. The column
+  // Colour rather than weight for a label, because a weight step does not
+  // read alike in every face. See LABEL_COLOR for the measurement. The column
   // heads are the one exception: bold, a size under the title, so they read
   // as the grid's heads rather than as one more label (TJ, 2026-10-08).
   it('keeps every label regular and only the column heads bold', () => {
@@ -414,9 +413,8 @@ describe('resultPopupHtml ranked number and insets', () => {
     expect(tinted).toHaveLength(wind.length)
     const group = new Set<string>(FAMILY_KEYS.wind)
     wind.forEach((key, i) => {
-      const dark = cellColor(key, row[key], group, false, 'dark')!
-      const light = cellColor(key, row[key], group, false, 'light')!
-      expect(tinted[i].slice(1)).toEqual([dark.backgroundColor, dark.color, light.color])
+      const tint = cellTint(key, row[key], group, false)!
+      expect(tinted[i].slice(1)).toEqual([tint.fill, tint.ink.dark, tint.ink.light])
     })
     expect(html).not.toContain(`;background:${GRID_RANKED_COLOR}`)
   })

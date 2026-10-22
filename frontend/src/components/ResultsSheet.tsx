@@ -11,7 +11,7 @@ import ResultsBar from './ResultsBar'
 import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
 import { resultsHeading } from '../metrics'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { LAYER, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
+import { LAYER, LAYOUT_HOLD, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
   extends Omit<
@@ -79,6 +79,7 @@ interface ResultsSheetView {
     | 'selectedModelRows'
     | 'hiddenModels'
     | 'toggleHiddenModel'
+    | 'showAllModels'
     | 'compareWait'
     | 'compareNotes'
   >
@@ -123,14 +124,21 @@ export default function ResultsSheet({
   closure,
   pendingHeights,
   modelId,
-  theme,
   layoutMotion = null,
 }: ResultsSheetProps) {
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
   const { sheetRef, barRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
   const { results, windowTitle, pending, rowCount } = report
-  const { selectedModelRows, hiddenModels, toggleHiddenModel, compareWait, compareNotes } = charts
-  const { allColumns, pickerVisibleKeys, handleVisibilityChange, handleColumnMove, handleDownloadCsv } = tableView
+  const { selectedModelRows, hiddenModels, toggleHiddenModel, showAllModels, compareWait, compareNotes } = charts
+  const {
+    allColumns,
+    pickerVisibleKeys,
+    columnsAtDefault,
+    resetColumns,
+    handleVisibilityChange,
+    handleColumnMove,
+    handleDownloadCsv,
+  } = tableView
   const { removed, removeResult, restoreRemoved, restoreAllRemoved } = removals
 
   // Each popover's open flag and its trigger. Nothing outside the sheet opens
@@ -144,9 +152,10 @@ export default function ResultsSheet({
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [modelsOpen, setModelsOpen] = useState(false)
   const [removedOpen, setRemovedOpen] = useState(false)
-  // Restoring the last removed row takes the Removed button and its list away
-  // under the keyboard, so the bar member before it takes the focus (#576).
-  useTakeOrphanedFocus(modelsButtonRef, removed.size === 0)
+  // Restoring the last removed row takes its Restore button away under the
+  // keyboard; the Removed button, which stands at zero (record 0209), takes
+  // the focus (#576).
+  useTakeOrphanedFocus(removedButtonRef, removed.size === 0)
 
   // What a committed report says to a screen reader: the bar's own title, as
   // it reads in the commit that brought the report (#576). Held per report
@@ -173,7 +182,9 @@ export default function ResultsSheet({
           data-readout-room=""
           className={
             isDesktop
-              ? 'flex flex-shrink-0 flex-col bg-panel'
+              ? // On a layer of its own while a desk's panel moves (record 0216).
+                'flex flex-shrink-0 flex-col bg-panel' +
+                (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '')
               : // The sheet's surface runs under a phone's home indicator and
                 // its grip and header stand above it (record 0145).
                 `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${LAYER.sheet}`
@@ -240,7 +251,6 @@ export default function ResultsSheet({
               onRemovePending={onRemovePending}
               onFocusResult={onFocusResult}
               onFocusPending={onFocusPending}
-              theme={theme}
             />
           )}
         </div>
@@ -257,6 +267,8 @@ export default function ResultsSheet({
         visibleKeys={pickerVisibleKeys}
         onVisibilityChange={handleVisibilityChange}
         onColumnMove={handleColumnMove}
+        onReset={resetColumns}
+        atDefault={columnsAtDefault}
         triggerRef={columnsButtonRef}
         sheet={sheet}
       />
@@ -268,6 +280,7 @@ export default function ResultsSheet({
         models={selectedModelRows}
         hidden={hiddenModels}
         onToggle={toggleHiddenModel}
+        onReset={showAllModels}
         triggerRef={modelsButtonRef}
         sheet={sheet}
       />

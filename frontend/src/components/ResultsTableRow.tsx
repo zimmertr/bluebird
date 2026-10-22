@@ -34,11 +34,10 @@ import {
   unavailableCell,
   windyCellUrl,
 } from '../utils/resultsCells'
-import { CHOICE_INPUT, ICON_ACTION, LINE_EDGE, LINK_ACTION, SR_ONLY, TABLE, TEXT } from '../styles'
+import { CHOICE_INPUT, ICON_ACTION, LINE_EDGE, LINK_QUIET, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
-import type { Theme } from '../utils/viewPrefs'
 import { NO_VALUE_MARK } from '../utils/unavailableCell'
 import { grouped } from '../utils/numbers'
 
@@ -85,19 +84,18 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
 //
 // A ticked box is filled with its line's colour, which in light is a pastel
 // under 3:1 on the panel, so it wears the rim the line is drawn over (PR
-// #733). An unticked box is the browser's own and needs none.
+// #733), which the dark theme draws transparent (`LINE_EDGE`). An unticked
+// box is the browser's own and needs none.
 function ChartToggle({
   row,
   on,
   color,
   box,
-  theme,
 }: {
   row: DestinationResult
   on: boolean
   color?: string
   box: ChartBox
-  theme: Theme
 }) {
   const tinted = on && color
   return (
@@ -108,7 +106,7 @@ function ChartToggle({
         onClick={(e) => box.onShift(e.shiftKey)}
         onChange={() => box.onToggle(row)}
         aria-label={`Chart ${row.name}`}
-        className={tinted && theme === 'light' ? `${CHOICE_INPUT} ${LINE_EDGE.input}` : CHOICE_INPUT}
+        className={tinted ? `${CHOICE_INPUT} ${LINE_EDGE.input}` : CHOICE_INPUT}
         style={tinted ? { accentColor: color } : undefined}
       />
     </td>
@@ -158,7 +156,7 @@ function FootnoteMark({ glyph, target }: { glyph: string; target: keyof NoteTarg
       {id ? (
         <a
           href={`#${id}`}
-          className={LINK_ACTION}
+          className={LINK_QUIET}
           onClick={(event) => {
             event.preventDefault()
             jumpToNote(id)
@@ -204,7 +202,7 @@ function NameTd({ cellClass, widths, label, name, onCenter, href }: NameTdProps)
           <button
             onClick={onCenter}
             aria-label={`Center map on ${name}`}
-            className={`${LINK_ACTION} min-w-0 cursor-pointer truncate text-left`}
+            className={`${LINK_QUIET} min-w-0 truncate text-left`}
           >
             {label}
           </button>
@@ -227,7 +225,6 @@ interface CellContext {
   widths: Record<string, number>
   coloredGroup: ReadonlySet<string>
   pointSample: boolean
-  theme: Theme
   modelFallbackLabel?: string | null
   modelId?: string | null
   times?: readonly number[]
@@ -280,7 +277,7 @@ function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`Open ${warning.name} on the NIFC map. Opens in a new tab.`}
-        className={TABLE.valueLink}
+        className={LINK_QUIET}
       >
         {text}
       </a>
@@ -325,7 +322,7 @@ function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
         // The whole title on hover: the cell clips a long one (TABLE.clip),
         // and the link is the only element a pointer can rest on.
         title={warning.name}
-        className={TABLE.valueLink}
+        className={LINK_QUIET}
       >
         {text}
       </a>
@@ -445,7 +442,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
     const href = destinationUrl(row)
     return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} href={href} />
   }
-  const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample, ctx.theme)
+  const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample)
   if (col.windyLayer) {
     return (
       <td className={cellClass} style={colorSty}>
@@ -465,7 +462,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
             // a metric spelled at a call site, which the linter's metric-name
             // ban forbids.
             aria-describedby={windyNoteId(ctx.rowId)}
-            className={TABLE.valueLink}
+            className={LINK_QUIET}
           >
             {display}
           </a>,
@@ -490,9 +487,6 @@ interface RowProps {
   widths: Record<string, number>
   coloredGroup: ReadonlySet<string>
   pointSample: boolean
-  // A string, so the memoized row compares it by value and a theme switch is
-  // the one change that redraws every ranked cell (#706).
-  theme: Theme
   modelFallbackLabel?: string | null
   modelId?: string | null
   times?: readonly number[]
@@ -518,7 +512,6 @@ function ResultsTableRow({
   widths,
   coloredGroup,
   pointSample,
-  theme,
   modelFallbackLabel,
   modelId,
   times,
@@ -540,7 +533,6 @@ function ResultsTableRow({
     widths,
     coloredGroup,
     pointSample,
-    theme,
     modelFallbackLabel,
     modelId,
     times,
@@ -564,7 +556,7 @@ function ResultsTableRow({
   }
   return (
     <tr className={`${TABLE.row} ${onFocusResult ? TABLE.rowOpens : ''}`} onClick={openFromRow}>
-      {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} theme={theme} />}
+      {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} />}
       <RankRemoveCell rank={rank} name={row.name} onRemove={onRemove ? () => onRemove(row) : undefined} />
       {columns.map((col) => (
         <BodyTd key={col.key as string} col={col} row={row} ctx={ctx} />
@@ -589,8 +581,6 @@ interface PendingProps {
   chartBox?: ChartBox
   charted: boolean
   chartColor?: string
-  // The theme its chart box's rim follows (PR #733).
-  theme: Theme
   // Used for a searched place only. A CSV row's truth is the textarea text and
   // a found row's is the ring (#782), so each is removed by editing that, not
   // by an × here.
@@ -607,7 +597,6 @@ function PendingTableRow({
   chartBox,
   charted,
   chartColor,
-  theme,
   onRemovePending,
   onFocusPending,
 }: PendingProps) {
@@ -620,7 +609,7 @@ function PendingTableRow({
   return (
     <tr className={TABLE.row}>
       {chartBox && (
-        <ChartToggle row={pendingChartRow(d)} on={charted} color={chartColor} box={chartBox} theme={theme} />
+        <ChartToggle row={pendingChartRow(d)} on={charted} color={chartColor} box={chartBox} />
       )}
       <RankRemoveCell
         rank={NO_VALUE_MARK}

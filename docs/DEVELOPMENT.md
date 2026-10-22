@@ -243,7 +243,7 @@ The per-file checks, by module:
 | `checks/app.js` | `grid-layer-hook`, `app-grid-gate`, `app-grid-asked-once`, `app-grid-pixels`, `app-paced-fetch`, `app-grid-pace`, `app-compare-pace`, `app-compare-pace-bar` | One flag gates the forecast grid; the grid gets decoded pixels; every paced fetch hands over `onPace` and clears its wait |
 | `checks/app.js` | `app-url-writes`, `app-no-storage`, `app-pair-color`, `app-pair-color-index`, `app-pair-color-rows` | `useUrlSync.ts` writes history in one place, and `App.tsx` and its hooks name no storage; one allocator gives every comparison colour |
 | `checks/data.js` | `one-api-door`, `schema-types-only`, `entries-inside-boundary`, `chart-lazy`, `chart-never-static`, `logo-hashed` | One module calls `fetch`; the generated schema is imported for types; every entry renders inside the boundary; the chart loads lazily; the logo is the hashed asset |
-| `checks/data.js` | `area-cap-published`, `archive-reach-published`, `aqi-horizon-published`, `panel-limit-props`, `calendar-limit-args`, `aqi-fetch-horizon-arg` | A published limit is read from `/api/capabilities` and reaches a surface as a prop or an argument, never as a number |
+| `checks/data.js` | `area-cap-published`, `archive-reach-published`, `aqi-horizon-published`, `panel-limit-props`, `messages-limit-state`, `calendar-limit-args`, `aqi-fetch-horizon-arg` | A published limit is read from `/api/capabilities` and reaches a surface as a prop or an argument, never as a number |
 | `checks/data.js` | `open-meteo-throw-tail`, `open-meteo-copy`, `comparison-blocker-copy` | Error copy ends on the standing tail and avoids the retired phrases; the approved blocker lines |
 | `checks/data.js` | `column-drag-shared`, `column-drag-header`, `column-drag-picker`, `drag-ghost-inert`, `column-drag-draw`, `column-gesture-document`, `column-resize-handle` | Both surfaces that reorder columns use the shared gesture module and draw a drag the same way; both header gestures track the document, and the resize handle's press reaches neither the reorder nor the sort |
 | `checks/data.js` | `terrain-elevation-fallback` | A fetch of places decides the terrain-height fallback per place, from its type, never for the whole fetch |
@@ -254,7 +254,7 @@ The per-file checks, by module:
 | `checks/styles.js` | `style-map-chrome`, `style-map-wrapper`, `style-map-legend-chip`, `style-map-rows`, `style-map-layers-chip`, `style-results-bar`, `style-app-micro`, `style-legend-ramp`, `style-layer-rows`, `style-search-box`, `style-chart-metric`, `style-axis-item`, `style-rank-cell` | The map's rows and chips, the results bar, the legend strip, the Layers rows, the search box, the chart select and the rank cell wear their roles |
 | `checks/styles.js` | `value-hex`, `value-inline-style`, `map-paint-named` | A colour, a popup's type size and an app layer's paint number are written only in their owners: `colors.ts`, `chartColors.ts`, `popupChrome.ts`, `map/mapStyles.ts` and each overlay's pure module |
 | `checks/styles.js` | `style-menu-unfurls`, `style-popup-card`, `style-no-os-theme` | Every menu unfurls out of its control as one card; every popup is `popupCard`'s card; nothing paints by the operating system's theme under the app's own switch |
-| `checks/styles.js` | `style-metrics-table`, `style-panel-messages`, `style-footer-notice`, `style-footer-notice-once`, `style-panel-no-status`, `style-draw-counter`, `style-draw-readout`, `style-model-picker-quiet`, `style-window-messages`, `style-popup-glyph` | The Metrics grid's boxes and buttons; every notice renders once, below Analyze; the draw counter is the one bare `STATUS`, its point count in `DrawReadout`; the popup draws no glyph |
+| `checks/styles.js` | `style-metrics-table`, `style-panel-messages`, `style-message-list`, `style-notice-once`, `style-live-region`, `style-analyze-badge`, `style-panel-no-status`, `style-draw-counter`, `style-draw-readout`, `style-model-picker-quiet`, `style-window-messages`, `style-popup-glyph` | The Metrics grid's boxes and buttons; every message is in the one list the Analyze button's badge opens, with one live region beside the badge and a blocked button greyed rather than disabled; the draw counter is the one bare `STATUS` outside it, its point count in `DrawReadout`; the popup draws no glyph |
 
 The text tests that stay, and why:
 
@@ -357,6 +357,30 @@ config ignores `perf/` and CI never runs it. Run it on `main` and on your branch
 on the same machine, and put both lines in the PR: the numbers compare with
 each other, not with a measurement taken on other hardware. A failed run leaves
 the served container running, and `docker rm -f perf-target` clears it.
+
+The same run measures a theme switch (`frontend/e2e/perf/themeSwitch.spec.ts`,
+#786): with no report, at 946 rows in Table and in Both mode, and cut to 200 in
+both. It presses the theme button ten times in each state, five each way, and prints a
+`theme switch:` line with the medians: the synchronous work, the first frame
+painted after the press, the end of the last transition the switch started, and
+the page's element count, which is what the cost grows with (#790).
+
+It also walks the tutorial (`frontend/e2e/perf/tourMotion.spec.ts`, #786) at a
+phone's size and a desk's and prints a `tour motion` line per card: how long
+the light took to stand still after the key, the frames that missed 60 Hz, and
+the largest share of its path it covered in one frame. A desk glides, so a
+share near 100 there is a snap; a phone cuts, so the number to read there is
+how soon it lands. `CPU_SLOWDOWN=4` in the Playwright container's environment
+runs it at about a mid phone's speed.
+
+And it moves a desk's layout (`frontend/e2e/perf/layoutMotion.spec.ts`, #786)
+over a 200-row report with every line charted, in both themes: the panel
+closing and opening, then Table, Chart and Both each way. It prints a
+`layout motion` line per move with how long the moving edge took to start and
+to stop, how many places it stood in between, the longest wait between two
+frames, and the main thread's work by kind from Chrome's trace, where `Paint`
+is the number a layer saves. `CPU_SLOWDOWN` works here too, and shows what a
+loaded machine sees.
 
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model

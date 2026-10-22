@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useChartSelection } from './useChartSelection'
-import { CHART_CHROME } from '../utils/chartColors'
+import { CHROME } from '../utils/chartColors'
 import { resultRow } from '../testSupport/fixtures'
 import type { DestinationResult } from '../types'
 
@@ -13,7 +13,7 @@ const ADAMS = resultRow({ name: 'Mount Adams', latitude: 46.2, longitude: -121.4
 const HOOD = resultRow({ name: 'Mount Hood', latitude: 45.37, longitude: -121.7 })
 
 function setup(results: DestinationResult[]) {
-  return renderHook((rows: DestinationResult[]) => useChartSelection(rows, 'aqi_max', 'dark'), {
+  return renderHook((rows: DestinationResult[]) => useChartSelection(rows, 'aqi_max'), {
     initialProps: results,
   })
 }
@@ -49,6 +49,6 @@ describe('useChartSelection', () => {
 
   it('draws a row the chart never charted in the unassigned colour', () => {
     const { result } = setup([RAINIER])
-    expect(result.current.colorFor(HOOD)).toBe(CHART_CHROME.dark.unassigned)
+    expect(result.current.colorFor(HOOD)).toBe(CHROME.unassigned)
   })
 })

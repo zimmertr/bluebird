@@ -66,8 +66,8 @@ export function poiPopupHtml(poi: BasemapPoi, added: boolean, mapZoom?: number):
   // body's own padding around it; it needs no gap of its own. It is centred
   // the way every card's lone action is (`popupAction`).
   const button = added
-    ? popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis')
-    : popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis')
+    ? popupButton(`${POI_ACTION_ATTR}="remove"`, 'Remove from analysis')
+    : popupButton(`${POI_ACTION_ATTR}="add"`, 'Add to analysis')
   const action = popupAction(button)
 
   // The facts line a ranked result wears, from what the tile knows: the kind,

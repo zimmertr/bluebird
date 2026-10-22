@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest'
 import {
   BLOCKER_SEVERITY,
   FooterMessage,
+  SEVERITY_ORDER,
+  blockerKey,
+  blockerOf,
   eventKindOf,
   listPhrase,
   isDismissed,
   noticeBoxes,
   noticeKey,
   pruneDismissals,
+  worstSeverity,
 } from './notices'
 
 describe('noticeKey', () => {
@@ -103,22 +107,19 @@ describe('derived warnings keyed by condition', () => {
 })
 
 describe('blocker severities', () => {
-  // The severity table as decided (TJ, 2026-08-22): an oversized polygon
-  // rejects finished work (error), and every other blocker reports an
-  // unfinished input where nothing is wrong (info) — a drawing mid-stroke
-  // included. The two comparison blockers joined as warnings (TJ,
-  // 2026-09-14): nothing is unfinished there, so info would be wrong, and
-  // nothing was refused, so error would be too.
-  it('pins each blocker to its box', () => {
+  // Every blocker is an error (record 0210, the maintainer, 2026-10-21): it
+  // holds the Analyze button up, and the badge on the button wears the worst
+  // severity current, so a greyed button never sits under a blue badge.
+  it('pins every blocker to the error box', () => {
     expect(BLOCKER_SEVERITY).toEqual({
       area: 'error',
-      window: 'info',
-      dates: 'info',
-      'compare-aqi': 'warn',
-      'compare-freeze': 'warn',
-      destinations: 'info',
-      polygon: 'info',
-      types: 'info',
+      window: 'error',
+      dates: 'error',
+      'compare-aqi': 'error',
+      'compare-freeze': 'error',
+      destinations: 'error',
+      polygon: 'error',
+      types: 'error',
     })
   })
 })
@@ -172,6 +173,40 @@ describe('noticeBoxes', () => {
     expect(eventKindOf('blocker:area')).toBeNull()
     expect(eventKindOf('cue:window-changed')).toBeNull()
     expect(eventKindOf('fire:unavailable')).toBeNull()
+  })
+})
+
+// The badge's colour (record 0208): the worst severity among the messages,
+// in the order the boxes stand in.
+describe('worstSeverity', () => {
+  const msg = (key: string, severity: FooterMessage['severity']): FooterMessage => ({ key, text: key, severity })
+
+  it('runs error, warn, info, the order the boxes stand in', () => {
+    expect(SEVERITY_ORDER).toEqual(['error', 'warn', 'info'])
+  })
+
+  it('names the worst severity present, or none', () => {
+    expect(worstSeverity([])).toBeNull()
+    expect(worstSeverity([msg('a', 'info')])).toBe('info')
+    expect(worstSeverity([msg('a', 'info'), msg('b', 'warn')])).toBe('warn')
+    expect(worstSeverity([msg('a', 'warn'), msg('b', 'error'), msg('c', 'info')])).toBe('error')
+  })
+})
+
+// A blocker's key, and the blocker read back off a key: what tells a line
+// that stands under a field from one that lives in the list alone.
+describe('blocker keys', () => {
+  it('spells a blocker key and reads it back', () => {
+    expect(blockerKey('area')).toBe('blocker:area')
+    expect(blockerOf('blocker:area')).toBe('area')
+    expect(blockerOf(blockerKey('compare-aqi'))).toBe('compare-aqi')
+  })
+
+  it('reads no blocker off any other key', () => {
+    expect(blockerOf('cue:window-changed')).toBeNull()
+    expect(blockerOf('ring:types')).toBeNull()
+    expect(blockerOf('blocker:')).toBeNull()
+    expect(blockerOf('blocker:nothing')).toBeNull()
   })
 })
 

@@ -74,10 +74,10 @@ function props(
     layout?: unknown
     charts?: unknown
     tableView?: unknown
-    theme?: string
     panesMove?: boolean
     collapsed?: boolean
     layoutMotion?: 'opening' | 'closing' | 'panes' | null
+    sortDesc?: boolean
   } = {},
 ): Props {
   return {
@@ -87,12 +87,11 @@ function props(
     layout: over.layout ?? BOTH,
     charts: over.charts ?? CHARTS_QUIET,
     tableView: over.tableView ?? TABLE_VIEW,
-    theme: over.theme ?? 'dark',
     report: REPORT,
     pending: [],
     removeResult,
     sortBy: DEFAULT_FAMILY_KEY.temp,
-    sortDesc: false,
+    sortDesc: over.sortDesc ?? false,
     chartTitled: false,
     pointSample: false,
     forecastTimes: TIMES,
@@ -126,6 +125,26 @@ describe('ResultsPanels', () => {
   })
 
   // The Open-Meteo credit is the map's (#687): no results mode draws one.
+  // A chart whose module has loaded draws in the render that mounts its
+  // pane, with no empty fallback first (#786): React holds a boundary's
+  // reveal 300 ms behind a fallback it showed, which stood the tutorial's
+  // Chart card empty after its chunk had arrived. Each half on a fresh copy
+  // of the module, whose lazy has never resolved.
+  it('draws a loaded chart in the render that mounts it, and waits for one that is not', async () => {
+    vi.resetModules()
+    const cold = await import('./ResultsPanels')
+    const first = render(<cold.default {...props({ layout: layout('chart') })} />)
+    expect(screen.queryByTestId('chart')).toBeNull()
+    await screen.findByTestId('chart')
+    first.unmount()
+
+    vi.resetModules()
+    const warm = await import('./ResultsPanels')
+    await warm.loadTimeSeriesChart()
+    render(<warm.default {...props({ layout: layout('chart') })} />)
+    expect(screen.getByTestId('chart')).toBeTruthy()
+  })
+
   it('draws no Open-Meteo credit in any mode', async () => {
     for (const mode of ['table', 'chart', 'both'] as const) {
       const { unmount } = render(<ResultsPanels {...props({ layout: layout(mode) })} />)
@@ -205,7 +224,8 @@ describe('ResultsPanels', () => {
 const frameOf = (body: HTMLElement) => body.closest('[class*="grid-rows-"]') as HTMLElement
 
 // At a desk a Table, Chart or Both press opens and closes the panes at the
-// panel's speed, the same both ways (#714; record 0202).
+// panel's speed, the same both ways (#714; record 0202), around bodies that
+// stay mounted once drawn (#786; record 0216).
 describe('the panes at a desk', () => {
   it('moves the panes at a desk and nowhere else', async () => {
     const { unmount } = render(<ResultsPanels {...props({ panesMove: true })} />)
@@ -219,17 +239,42 @@ describe('the panes at a desk', () => {
     expect(frameOf(await screen.findByTestId('chart')).className).not.toContain(MOTION.pane)
   })
 
-  it('keeps a closing chart drawn, at its height, until its frame has shut', async () => {
+  it('keeps a shut chart mounted, inert, at the height it had, after its frame has shut', async () => {
     const { rerender } = render(<ResultsPanels {...props({ panesMove: true })} />)
     const chart = await screen.findByTestId('chart')
     rerender(<ResultsPanels {...props({ panesMove: true, layout: { ...layout('table'), chartPanelPx: 0 } })} />)
-    expect(screen.getByTestId('chart')).toBe(chart)
     const frame = frameOf(chart)
     expect(frame.className).toContain(RESULTS_PANE.shut)
-    expect(frame.querySelector<HTMLElement>('[style]')!.style.height).toBe('200px')
     fireEvent.transitionEnd(frame)
-    expect(screen.queryByTestId('chart')).toBeNull()
-    expect(screen.getByTestId('table')).toBeTruthy()
+    expect(screen.getByTestId('chart')).toBe(chart)
+    expect(frame.querySelector<HTMLElement>('[style]')!.style.height).toBe('200px')
+    // Out of the reader's way: no focus, nothing a screen reader reads.
+    expect(frame.firstElementChild!.hasAttribute('inert')).toBe(true)
+    expect(frameOf(screen.getByTestId('table')).firstElementChild!.hasAttribute('inert')).toBe(false)
+  })
+
+  // A shut body draws nothing new until its pane opens, and then once.
+  it('draws a shut pane\'s body again only when it opens', async () => {
+    const tableView = (rows: unknown[]) => ({ ...TABLE_VIEW, tableRows: rows })
+    const { rerender } = render(<ResultsPanels {...props({ panesMove: true })} />)
+    await screen.findByTestId('chart')
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart') })} />)
+    const tableDraws = seen.table.length
+    // A sort, a cut or a removal while the table is shut.
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: tableView([]) })} />)
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: tableView([ROW, ROW]) })} />)
+    expect(seen.table.length).toBe(tableDraws)
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), tableView: tableView([ROW, ROW]) })} />)
+    expect(seen.table.length).toBe(tableDraws + 1)
+    expect(last(seen.table).results).toEqual([ROW, ROW])
+
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('table'), tableView: tableView([ROW, ROW]) })} />)
+    const chartDraws = seen.chart.length
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('table'), sortDesc: true })} />)
+    expect(seen.chart.length).toBe(chartDraws)
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), sortDesc: true })} />)
+    expect(seen.chart.length).toBe(chartDraws + 1)
+    expect(last(seen.chart).sortDesc).toBe(true)
   })
 
   // While the panel moves the chart keeps the width it had and the table's
@@ -248,6 +293,28 @@ describe('the panes at a desk', () => {
     rerender(<ResultsPanels {...props({ panesMove: true, layoutMotion: 'panes' })} />)
     expect(body('chart')).toBe(`${RESULTS_PANE.top} `)
     expect(body('table')).toBe(`${RESULTS_PANE.foot} `)
+  })
+
+  // Each body stands on a layer of its own while the panel moves, so a frame
+  // of the move shifts it rather than painting it again (record 0216). The
+  // layer is the box of fixed height inside the frame, which moves whole. Not
+  // while the panes move, where lifting both onto layers at the press costs
+  // more than the frames save.
+  it('puts each body on a layer of its own while the panel moves, and only then', async () => {
+    const sized = (id: string) => screen.getByTestId(id).closest<HTMLElement>('[style]')!
+    const { rerender } = render(<ResultsPanels {...props({ panesMove: true })} />)
+    await screen.findByTestId('chart')
+    for (const layoutMotion of [null, 'panes'] as const) {
+      rerender(<ResultsPanels {...props({ panesMove: true, layoutMotion })} />)
+      expect(sized('chart').className).not.toContain(LAYOUT_HOLD.layer)
+      expect(sized('table').className).not.toContain(LAYOUT_HOLD.layer)
+    }
+    for (const layoutMotion of ['opening', 'closing'] as const) {
+      rerender(<ResultsPanels {...props({ panesMove: true, layoutMotion })} />)
+      expect(sized('chart').className).toContain(LAYOUT_HOLD.layer)
+      expect(sized('table').className).toContain(LAYOUT_HOLD.layer)
+      expect(frameOf(sized('table')).firstElementChild!.className).not.toContain(LAYOUT_HOLD.layer)
+    }
   })
 
   // TJ on 2026-10-21: "I think the data should be there as it extends up."
@@ -275,35 +342,46 @@ describe('the panes at a desk', () => {
     fireEvent.transitionEnd(frameOf(chart))
     fireEvent.transitionEnd(frameOf(table))
     rerender(<ResultsPanels {...props({ panesMove: true, collapsed: true })} />)
-    expect(screen.queryByTestId('chart')).toBeNull()
-    expect(screen.queryByTestId('table')).toBeNull()
-    expect(screen.queryAllByTestId('grip')).toHaveLength(0)
-    // Expanded, both bodies are back at the press.
+    // Kept, and inert, behind the shut frames.
+    expect(screen.getByTestId('chart')).toBe(chart)
+    expect(screen.getByTestId('table')).toBe(table)
+    expect(frameOf(chart).firstElementChild!.hasAttribute('inert')).toBe(true)
+    expect(frameOf(table).firstElementChild!.hasAttribute('inert')).toBe(true)
+    // Expanded, both open again around the bodies they kept.
     rerender(<ResultsPanels {...props({ panesMove: true, layoutMotion: 'panes' })} />)
     expect(screen.getAllByTestId('grip')).toHaveLength(2)
-    expect(screen.getByTestId('table')).toBeTruthy()
-    await screen.findByTestId('chart')
+    expect(screen.getByTestId('chart')).toBe(chart)
+    expect(screen.getByTestId('table')).toBe(table)
+    expect(frameOf(chart).firstElementChild!.hasAttribute('inert')).toBe(false)
   })
 
-  // The chart-only legend takes its height from the plot. A chart that stays
-  // takes the legend its new mode gives it at the press, drawn once at its
-  // end size; a closing chart keeps the one it was drawn with as it goes.
-  it('draws the legend for the mode pressed, and keeps a closing chart\'s', async () => {
+  // The chart-only legend takes its height from the plot, so it comes and
+  // goes where the panes stand still (record 0216): a legend that changed at
+  // the press drew the chart again in the move's first frame. A shut chart
+  // keeps the one it was drawn with.
+  it('changes the legend where the panes stand still, and keeps a shut chart\'s', async () => {
     const legend = { ...TABLE_VIEW, legend: [{ key: 'a', row: ROW, suffix: '' }] }
     const chip = () => screen.queryByRole('button', { name: `Hide ${ROW.name} on the chart` })
     const { rerender } = render(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), tableView: legend })} />)
     await screen.findByTestId('chart')
     expect(chip()).toBeNull()
     rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend, layoutMotion: 'panes' })} />)
+    expect(chip()).toBeNull()
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend })} />)
     expect(chip()).toBeTruthy()
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), tableView: legend, layoutMotion: 'panes' })} />)
+    expect(chip()).toBeTruthy()
+    rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('both'), tableView: legend })} />)
+    expect(chip()).toBeNull()
     rerender(<ResultsPanels {...props({ panesMove: true, layout: layout('chart'), tableView: legend })} />)
     rerender(
       <ResultsPanels
-        {...props({ panesMove: true, layout: { ...layout('table'), chartPanelPx: 0 }, tableView: legend, layoutMotion: 'panes' })}
+        {...props({ panesMove: true, layout: { ...layout('table'), chartPanelPx: 0 }, tableView: legend })}
       />,
     )
     expect(screen.getByTestId('chart')).toBeTruthy()
-    expect(chip()).toBeTruthy()
+    // Inert, so a role query finds it only by looking past that.
+    expect(screen.queryByRole('button', { name: `Hide ${ROW.name} on the chart`, hidden: true })).toBeTruthy()
   })
 
   it('holds the chart to the bar and the table to the foot', async () => {
@@ -313,20 +391,17 @@ describe('the panes at a desk', () => {
   })
 })
 
-describe('the chart legend in each theme', () => {
+// A legend dot wears the line's rim, which only the light theme draws: its
+// token is transparent in dark (#786), so the dot names no theme.
+describe('the chart legend', () => {
   const legend = { ...TABLE_VIEW, legend: [{ key: 'a', row: ROW, suffix: '' }] }
   const charts = { ...CHARTS_QUIET, rowChartColor: () => '#fda5d5' }
   const dot = () => screen.getByRole('button', { name: `Hide ${ROW.name} on the chart` }).firstElementChild as HTMLElement
 
-  it('rims a light dot', async () => {
-    render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend, charts, theme: 'light' })} />)
+  it('rims a dot in its line colour', async () => {
+    render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend, charts })} />)
     await screen.findByTestId('chart')
     expect(dot().className).toContain(LINE_EDGE.swatch)
-  })
-
-  it('leaves a dark dot bare', async () => {
-    render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend, charts, theme: 'dark' })} />)
-    await screen.findByTestId('chart')
-    expect(dot().className).not.toContain(LINE_EDGE.swatch)
+    expect(dot().style.backgroundColor).toBe('rgb(253, 165, 213)')
   })
 })

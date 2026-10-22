@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cellColor,
   cellText,
+  cellTint,
   closureCell,
   fireCell,
   modelCellText,
@@ -129,14 +130,22 @@ describe('cellColor', () => {
     expect(cellColor('precip_total_in', null, group, false)).toBeUndefined()
   })
 
-  // The light theme's ink reaches the cell through the same call (#706).
-  it('paints the light theme\'s ink when handed the light theme', () => {
-    expect(cellColor('precip_max_in_hr', 0.2, group, false, 'light')).toEqual(
-      cellStyle(0.2, scaleFor('precip_max_in_hr', false)!, 'light'),
-    )
-    expect(cellColor('precip_max_in_hr', 0.2, group, false, 'light')).not.toEqual(
-      cellColor('precip_max_in_hr', 0.2, group, false),
-    )
+  // Both themes' inks ride the one call (#706, #786), so the cell needs no
+  // theme to be handed.
+  it('carries both themes\' inks in one style', () => {
+    expect(cellColor('precip_max_in_hr', 0.2, group, false)).toEqual(cellStyle(0.2, scaleFor('precip_max_in_hr', false)!))
+    expect(cellColor('precip_max_in_hr', 0.2, group, false)!.color).toMatch(/^light-dark\(rgb\(\d+,\d+,\d+\), rgb\(\d+,\d+,\d+\)\)$/)
+  })
+
+  // The popup reads the same tint with its inks apart, and picks in its own
+  // stylesheet (#740).
+  it('hands the popup the same tint with its two inks apart', () => {
+    const tint = cellTint('precip_max_in_hr', 0.2, group, false)!
+    const style = cellColor('precip_max_in_hr', 0.2, group, false)!
+    expect(tint.fill).toBe(style.backgroundColor)
+    expect(style.color).toBe(`light-dark(${tint.ink.light}, ${tint.ink.dark})`)
+    expect(cellTint('temp_min_f', 20, group, false)).toBeUndefined()
+    expect(cellTint('precip_total_in', null, group, false)).toBeUndefined()
   })
 })
 

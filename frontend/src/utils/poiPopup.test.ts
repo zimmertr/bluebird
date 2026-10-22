@@ -35,27 +35,13 @@ describe('poiPopupHtml', () => {
     expect(poiPopupHtml({ ...RAINIER, kind: 'water' }, false)).toContain('aria-label="View on OpenStreetMap"')
   })
 
-  // The add and remove buttons are popupChrome's one button recipe in two of
-  // its three variants (#365). The button stands alone in the body under the
-  // band, so it carries no gap of its own.
-  it('dresses its buttons through popupButton', () => {
-    expect(poiPopupHtml(RAINIER, false)).toContain(
-      popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis'),
-    )
-    expect(poiPopupHtml(RAINIER, true)).toContain(
-      popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis'),
-    )
-  })
-
-  it('keeps one recipe across the three button variants', () => {
-    const [primary, secondary, danger] = (['primary', 'secondary', 'danger'] as const).map((v) =>
-      popupButton('data-x', v, 'Go'),
-    )
-    const look = (html: string) => html.replace(/background:[^;]+;color:[^;"]+/, '')
-    expect(look(primary)).toBe(look(secondary))
-    expect(look(primary)).toBe(look(danger))
-    expect(primary).toContain('<button data-x style="')
-    expect(popupButton('data-x', 'danger', 'Go', 'margin-top:6px')).toMatch(/;margin-top:6px">Go<\/button>$/)
+  // The add and the remove are one button, the panel's accent (#786, record
+  // 0215), so the two states of one place say "in" and "out" in one look. The
+  // button stands alone in the body under the band, so it carries no gap of
+  // its own.
+  it('dresses both its buttons as the one popup button', () => {
+    expect(poiPopupHtml(RAINIER, false)).toContain(popupButton(`${POI_ACTION_ATTR}="add"`, 'Add to analysis'))
+    expect(poiPopupHtml(RAINIER, true)).toContain(popupButton(`${POI_ACTION_ATTR}="remove"`, 'Remove from analysis'))
   })
 
   it('sets fine print small, italic and stepped back', () => {
@@ -120,7 +106,7 @@ describe('poiPopupHtml', () => {
   // card's left edge where the facts line's width left it hanging.
   it('centres the button in the body', () => {
     const html = poiPopupHtml(RAINIER, false)
-    expect(html).toMatch(new RegExp(`<div style="text-align:center"><button ${POI_ACTION_ATTR}="add"`))
+    expect(html).toMatch(new RegExp(`<div style="display:flex;justify-content:center"><button ${POI_ACTION_ATTR}="add"`))
   })
 
   it('offers the way in, then the way back out', () => {

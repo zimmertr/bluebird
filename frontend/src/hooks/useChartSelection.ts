@@ -7,8 +7,7 @@ import {
   debutRows,
   metricForSort,
 } from '../utils/chartData'
-import { CHART_CHROME, allocateColors, colorForIndex } from '../utils/chartColors'
-import type { Theme } from '../utils/viewPrefs'
+import { CHROME, allocateColors, lineColor } from '../utils/chartColors'
 
 // Chart selection for the results table and the chart-only legend: which
 // destinations are overlaid, their stable line colors, and the active metric.
@@ -23,10 +22,11 @@ import type { Theme } from '../utils/viewPrefs'
 // removals and re-analyses never uncheck a box (a key whose row leaves the
 // report simply stops rendering, and returns if the row does).
 //
-// A colour is kept as its palette index and painted in the theme's shade of it
-// (#706), so a theme switch recolours every line already charted, its swatch
-// and its checkbox with it, without re-allocating one.
-export function useChartSelection(results: DestinationResult[], sortBy: SortBy, theme: Theme) {
+// A colour is kept as its palette index and painted in both themes' shades of
+// it at once (#706, #786), so a theme switch recolours every line already
+// charted, its swatch and its checkbox with it, without re-allocating one or
+// re-rendering anything that draws it.
+export function useChartSelection(results: DestinationResult[], sortBy: SortBy) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [colorByKey, setColorByKey] = useState<Record<string, number>>({})
   const [metric, setMetric] = useState<ChartMetric>(() => metricForSort(sortBy))
@@ -125,9 +125,9 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy, 
   const colorFor = useCallback(
     (row: DestinationResult): string => {
       const index = colorByKey[chartKey(row)]
-      return index === undefined ? CHART_CHROME[theme].unassigned : colorForIndex(index, theme)
+      return index === undefined ? CHROME.unassigned : lineColor(index)
     },
-    [colorByKey, theme],
+    [colorByKey],
   )
 
   /**

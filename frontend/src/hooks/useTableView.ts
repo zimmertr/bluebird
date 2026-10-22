@@ -205,6 +205,21 @@ export function useTableView({
     return keys
   }, [effectiveVisibleKeys, modelColumnOn])
 
+  // The picker's Reset all (record 0209): the two answers forgotten, so every
+  // column is on and the Model column follows the model count again. Greyed
+  // while the picker already shows that, which is read off the boxes rather
+  // than off the two answers: a reader who ticked every box back by hand is
+  // at the default too, and a Reset all that still offered would do nothing.
+  const columnsAtDefault = useMemo(() => {
+    const wanted = new Set([...csvColumns.map((c) => c.key as string), WILDFIRE_KEY, CLOSURE_KEY])
+    if (comparingRows) wanted.add(MODEL_KEY)
+    return wanted.size === pickerVisibleKeys.size && [...wanted].every((key) => pickerVisibleKeys.has(key))
+  }, [csvColumns, comparingRows, pickerVisibleKeys])
+  const resetColumns = useCallback(() => {
+    setColumnVisibility(null)
+    setModelColumn(null)
+  }, [])
+
   // The ranking pulls its own metric group to the front, and the maintainer
   // chose to let it win over an order the reader set (TJ, 2026-09-14). Keyed on
   // the ranking alone: a live sort, a limit or a bound re-presents the same
@@ -409,6 +424,8 @@ export function useTableView({
     tableColumns,
     allColumns,
     pickerVisibleKeys,
+    columnsAtDefault,
+    resetColumns,
     tableColWidths,
     setTableColWidths,
     analysisModelLabel,

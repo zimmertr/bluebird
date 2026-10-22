@@ -1,7 +1,7 @@
 import { SortBy } from '../types'
 import { FAMILY_KEYS, MetricFamily, UNIT } from '../metrics'
-import type { Theme } from './viewPrefs'
 import { clamp } from './numbers'
+import { themed } from './themeColor'
 
 /**
  * A set of band boundaries and the colors they anchor.
@@ -509,18 +509,25 @@ export function colorOnScale(value: number, scale: ColorScale): string {
  * The theme picks the ink (#706; record 0158): the band itself on the dark
  * panel, as it always was, and the band's 800 step (`ColorScale.ink`) on the
  * light one, where the band is too pale to read as text. The tint is the band
- * at 20% in both.
+ * at 20% in both. Both inks are carried and CSS picks one (`themed`, #786),
+ * so a cell's style is the same string in either theme and a switch
+ * re-renders no row.
  */
-export function cellStyle(
-  value: number,
-  scale: ColorScale,
-  theme: Theme = 'dark',
-): { backgroundColor: string; color: string } {
+export function cellStyle(value: number, scale: ColorScale): { backgroundColor: string; color: string } {
+  const { fill, ink } = cellInks(value, scale)
+  return { backgroundColor: fill, color: themed(ink.light, ink.dark) }
+}
+
+/**
+ * A cell's tint and its two inks, one per theme, for a reader that picks
+ * between them itself: the map popup's grid, whose markup carries both and
+ * lets `map.css` choose (#740).
+ */
+export function cellInks(value: number, scale: ColorScale): { fill: string; ink: { dark: string; light: string } } {
   const [r, g, b] = interpolateRgb(value, scale.thresholds, scale.colors)
-  const [ir, ig, ib] =
-    theme === 'light' ? interpolateRgb(value, scale.thresholds, scale.ink) : [r, g, b]
+  const [ir, ig, ib] = interpolateRgb(value, scale.thresholds, scale.ink)
   return {
-    backgroundColor: `rgba(${r},${g},${b},0.2)`,
-    color: `rgb(${ir},${ig},${ib})`,
+    fill: `rgba(${r},${g},${b},0.2)`,
+    ink: { dark: `rgb(${r},${g},${b})`, light: `rgb(${ir},${ig},${ib})` },
   }
 }

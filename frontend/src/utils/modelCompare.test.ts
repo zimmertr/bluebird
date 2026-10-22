@@ -193,7 +193,7 @@ describe('compareSeries', () => {
     const keys = models
       .filter((m) => m.id !== RANKING)
       .flatMap((m) => DESTINATIONS.map((d) => pairKey(m.id, d.key)))
-    return { ...paletteColors(allocateColors(held, keys), 'dark'), ...seeded }
+    return { ...paletteColors(allocateColors(held, keys)), ...seeded }
   }
 
   function series(values: (number | null)[]) {

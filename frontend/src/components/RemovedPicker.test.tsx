@@ -35,14 +35,21 @@ function Picker({ entries, onOpenChange = () => {}, onRestore = () => {}, onRest
 }
 
 describe('RemovedPicker', () => {
-  // Restoring the last row empties the list under the card.
-  it('closes itself once the last row is restored', () => {
+  // Restore all always stands, greyed with nothing to restore (record 0209),
+  // and the menu stays open when its last row goes rather than closing on
+  // the one state it opens in.
+  it('stays open with Restore all greyed once the last row is restored', () => {
     const onOpenChange = vi.fn()
-    const { rerender } = render(<Picker entries={[entry('Mount Baker')]} onOpenChange={onOpenChange} />)
+    const onRestoreAll = vi.fn()
+    const { rerender } = render(<Picker entries={[entry('Mount Baker')]} onOpenChange={onOpenChange} onRestoreAll={onRestoreAll} />)
+    const all = () => screen.getByRole('button', { name: 'Restore all' }) as HTMLButtonElement
+    expect(all().disabled).toBe(false)
+    rerender(<Picker entries={[]} onOpenChange={onOpenChange} onRestoreAll={onRestoreAll} />)
     expect(onOpenChange).not.toHaveBeenCalled()
-    rerender(<Picker entries={[]} onOpenChange={onOpenChange} />)
-    expect(onOpenChange).toHaveBeenCalledOnce()
-    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(all().disabled).toBe(true)
+    expect(screen.queryAllByRole('button', { name: /^Restore Mount/ })).toEqual([])
+    fireEvent.click(all())
+    expect(onRestoreAll).not.toHaveBeenCalled()
   })
 
   it('lists the removed rows in a card headed Removed rows on a desk, with Restore all under them', () => {
@@ -64,7 +71,8 @@ describe('RemovedPicker', () => {
     fireEvent.click(all)
     expect(onRestoreAll).toHaveBeenCalledOnce()
 
+    // One row is still something to restore all of.
     rerender(<Picker entries={[entry('Mount Baker')]} />)
-    expect(screen.queryByRole('button', { name: 'Restore all' })).toBeNull()
+    expect((screen.getByRole('button', { name: 'Restore all' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })

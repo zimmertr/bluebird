@@ -10,19 +10,21 @@
 // popup builder that does not return `popupCard`, so a new layer's card
 // cannot start a fourth look.
 //
-// Every colour in it is a `--popup-*` value `map.css` declares once per theme
-// (#740), named here as `var(--popup-label)` and resolved where the markup
-// lands, so one card is dark in the dark theme and white in the light one.
-// The hexes and ratios below are the light card's, which is the white it has
-// always been; `styles.test.ts` measures every pair in both themes.
+// Every colour in it is a `--popup-*` value `map.css` declares once, each the
+// app's own `--ui-*` token for the part it is (#740, #786), named here as
+// `var(--popup-label)` and resolved where the markup lands, so the card is the
+// panel's surface, inks and rules in either theme and cannot drift from them.
+// `styles.test.ts` fails a `--popup-*` value that is not a token and measures
+// every pair in both themes.
 //
-// It lives in utils, like the popup bodies that compose it, because this markup
-// is handed to MapLibre's setHTML and the design system in styles.ts cannot
-// reach it: Tailwind scans source for class names and generates CSS for the
-// document, but a string passed to setHTML is not a class list the scanner ever
-// sees. Keeping it out of the component is also what makes it unit-testable
+// The popup is in the same document as the panel, and Tailwind emits a class
+// for any name it finds in the source, wherever that string ends up, so the
+// design system reaches a card handed to MapLibre's `setHTML`: its button is
+// the panel's `BUTTON_ACCENT` itself (`popupButton`). It lives in utils, like
+// the popup bodies that compose it, because a string module is unit-testable
 // without pulling maplibre-gl into a node test.
 import { externalLinkMarkup } from '../iconPaths'
+import { BUTTON_ACCENT } from '../styles'
 import { AGGREGATE } from '../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
 import { clamp, isFiniteNumber } from './numbers'
@@ -30,7 +32,9 @@ import { coordinateLabel } from './points'
 import { utcDayKey } from './calendarDates'
 
 /**
- * The popup's type ramp, and the face everything in it is set in.
+ * The popup's type ramp and its leading. The face is the app's own: the card
+ * sets none, and `map.css` hands the map the app's (`.maplibregl-map`), so a
+ * popup and the panel are one face (#786, record 0217).
  *
  * Three sizes and no more: the title at 13px, the body a step down at 12px so
  * the details do not compete with the thing they describe (and so the widest
@@ -39,11 +43,11 @@ import { utcDayKey } from './calendarDates'
  * were spelled in five files before #365 (`popupChrome.ts`, `poiPopup.ts`,
  * `smoke.ts`, `wildfires.ts`, `closures.ts`), which is how a popup gets a
  * fourth size: the linter's inline-style ban now fails a `font-size:` written
- * outside this file. The face and the title size are not exported: the card
- * is the only thing that sets them (#738), where three overlays used to
+ * outside this file. The leading and the title size are not exported: the
+ * card is the only thing that sets them (#738), where three overlays used to
  * compose a card of their own from them.
  */
-const POPUP_FACE = 'font-family:sans-serif;line-height:1.5'
+const POPUP_LEADING = 'line-height:1.5'
 const POPUP_TITLE_SIZE = 'font-size:13px'
 const POPUP_BODY_SIZE = 'font-size:12px'
 const POPUP_FINE_SIZE = 'font-size:11px'
@@ -94,21 +98,17 @@ export function row(label: string, value: string, href?: string | null): string 
  *
  * **Colour rather than weight, and that is a measurement rather than a taste.**
  * The obvious answer was a lighter weight than the title's 700. It does not
- * work here: this markup declares `font-family:sans-serif`, and under the
- * generic keyword Chrome on macOS resolves exactly TWO faces — 400 and 500
- * render identically, 600 and 700 render identically (measured 2026-09-14:
- * 126.73px for the first pair, 133.27px for the second). So every weight
- * available is either invisible or the title's own. Pointing the popup at the
- * app's stack instead gave four widths, but evenly spaced ones — the signature
- * of synthetic emboldening rather than four drawn faces — and the pairs still
- * read alike.
+ * hold up across faces: under the generic `sans-serif` Chrome on macOS
+ * resolves exactly two, 400 and 500 alike and 600 and 700 alike (126.73px and
+ * 133.27px, measured 2026-09-14), and under the app's stack the four weights
+ * measured evenly spaced and the pairs still read alike. A face that offers
+ * fewer weights on another system would lose the step outright.
  *
  * Colour has no such dependency: it renders the same wherever the card opens,
- * and it is the axis the app's own panels already use to step text back.
- * Slate-600 measures 7.4:1 on the light card's white, well past AA for text,
- * so the label recedes without becoming hard to read. Anything lighter starts
- * to: slate-500 is 4.76:1, which is a pass for text you glance at and thin for
- * text you read. The dark card's label is the panel's own soft ink.
+ * and it is the axis the app's own panels already use to step text back. The
+ * label is the panel's own soft ink, 5.56:1 on the dark card and 8.34:1 on
+ * the light one (pinned in `styles.test.ts`), so it recedes without becoming
+ * hard to read.
  *
  * A row's label and value therefore never go bold. The bold in a card is the
  * title's, and a section's name where a card holds two (`sectionHeading`).
@@ -127,12 +127,15 @@ function rowLabel(label: string): string {
 }
 
 /**
- * A link inside a popup body: underlined, in the colour of the text around
- * it (TJ, 2026-10-16, #740). A grid number links in the card's ink and the
- * coordinates in the facts line's grey, the way the results table underlines
- * a number in its own ink, because sky at rest is the accent that says a
- * thing acts, and on every number of a grid it was the card's loudest colour.
- * The underline is what says link. Sky stays on the title's link-out glyph.
+ * A link inside a popup body, in the colour of the text around it (TJ,
+ * 2026-10-16, #740): a grid number links in the card's ink and the
+ * coordinates in the facts line's grey, because sky at rest is the accent
+ * that says a thing acts, and on every number of a grid it was the card's
+ * loudest colour. Its underline is `map.css`'s, on `data-popup-link`, since
+ * an inline style cannot answer a hover: none at rest at a desk, one on hover
+ * and keyboard focus, and a thin one at rest in the label grey on a touch
+ * screen, the way the results table's links read (`LINK_QUIET`, #786, record
+ * 0212).
  *
  * `extra` is appended AFTER the colour, so a caller that owns its own colour —
  * the fire warning, which is amber before it is a link — overrides it by
@@ -144,11 +147,11 @@ function rowLabel(label: string): string {
  * caller to remember (#621). `inner` is markup the caller has already built.
  */
 function popupLink(href: string, inner: string, extra = ''): string {
-  return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;${extra}">${inner}</a>`
+  return `<a data-popup-link href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;${extra}">${inner}</a>`
 }
 
 /**
- * The firmer of the grid's two rules, slate-300, under its heads. It was the
+ * The firmer of the grid's two rules, the panel's frame, under its heads. It was the
  * rule between a popup's title and its body until every popup became a card
  * (#738), whose header band parts the two instead.
  */
@@ -156,15 +159,11 @@ export const RULE_COLOR = 'var(--popup-rule)'
 
 /**
  * The amber a safety warning wears in a popup: the fire line and the closure
- * line, which are flags rather than measurements. Amber-500, the popup-side
- * counterpart of the `STATUS` amber the table's Wildfire column wears in the
- * stylesheet. On white it measures 2.15:1, under the 4.5:1 AA asks of 12px
- * text, and stays by the maintainer's choice: amber-700 (5.02:1) was tried on
- * the #700 preview and TJ kept this one (2026-10-08). The one colour the two
- * themes share, because on the dark card the same amber clears AA. Pinned in
- * `styles.test.ts`, so a change re-measures rather than inherits.
+ * line, which are flags rather than measurements. The `STATUS` amber the
+ * table's Wildfire column wears, the same token, so the two cannot part
+ * (#786, record 0215); it clears AA on the card in both themes.
  */
-export const WARNING_COLOR = '#f59e0b'
+export const WARNING_COLOR = 'var(--popup-warn)'
 
 /**
  * One safety warning, the whole sentence a link where it has one. It carries
@@ -187,11 +186,10 @@ const ONE_LINE = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
 
 /**
  * The colour of the one line that qualifies a card rather than adding to it:
- * an overlay popup's "last updated" date, set small and italic in slate-400.
- * It is the colour those popups shipped with and #365 only named it; on the
- * light card's white it measures 2.98:1, under AA for text, and raising it is
- * a colour decision for the maintainer rather than a move. The dark card's is
- * the panel's faint ink, the same step back from its label.
+ * an overlay popup's "last updated" date, set small and italic in the
+ * panel's faint ink, a step back from its label. It measures 3.07:1 on the
+ * dark card, under AA for text, and 4.32:1 on the light one; raising the dark
+ * one is a colour decision for the maintainer rather than a move.
  */
 export const FINE_COLOR = 'var(--popup-fine)'
 
@@ -246,33 +244,17 @@ export function updatedAt(ms: number | null | undefined): string | null {
 }
 
 /**
- * A button inside a popup.
- *
- * MapLibre's popup is outside the stylesheet, so `BUTTON_PRIMARY` and its
- * siblings in `styles.ts` cannot dress it; these are their popup-side
- * counterparts, one recipe with the colour as the only variable, where three
- * files used to spell three near-identical buttons (#365). `primary` acts
- * (sky-600 under white on the light card, the app's accent fill on the dark
- * one), `secondary` undoes (slate-700 under slate-200 on the light card, the
- * panel's raised hover on the dark one), and `danger` removes (red-500 under
- * white in both). `attr` is the attribute the map
- * handler finds the button by, written whole (`data-rm`, or
- * `data-poi-action="add"`); `extra` is appended last, as `popupLink`'s is, for
- * the one button that sits under rows and needs a margin above it.
+ * A popup's one action, the add, the remove or a ring's remove-point: the
+ * panel's own `BUTTON_ACCENT`, worn as its class list (#786, record 0215), so
+ * its fill, label, corners, size and hover are the app's button's in both
+ * themes rather than a copy of them, which would be free to drift. One look
+ * for all three, because a card has one action and the app marks every
+ * command in the accent. `attr` is the
+ * attribute the map handler finds the button by, written whole (`data-rm`, or
+ * `data-poi-action="add"`).
  */
-export type PopupButtonVariant = 'primary' | 'secondary' | 'danger'
-const POPUP_BUTTON_LOOK: Record<PopupButtonVariant, string> = {
-  primary: 'background:var(--popup-primary);color:#fff',
-  secondary: 'background:var(--popup-secondary);color:var(--popup-secondary-ink)',
-  danger: 'background:#ef4444;color:#fff',
-}
-export function popupButton(
-  attr: string,
-  variant: PopupButtonVariant,
-  label: string,
-  extra = '',
-): string {
-  return `<button ${attr} style="border:none;padding:5px 12px;border-radius:4px;cursor:pointer;${POPUP_BODY_SIZE};font-family:sans-serif;font-weight:600;${POPUP_BUTTON_LOOK[variant]}${extra ? ';' + extra : ''}">${label}</button>`
+export function popupButton(attr: string, label: string): string {
+  return `<button ${attr} class="${BUTTON_ACCENT}">${label}</button>`
 }
 
 /**
@@ -432,7 +414,7 @@ export function bodySection(inner: string): string {
  *
  * A real table, so a screen reader hears each number with its row and column:
  * the family is the row header and the aggregate the column header. Each
- * column is a shaded band with a white gutter on its left, so Min, Max, Avg
+ * column is a shaded band with a gutter of the card's surface on its left, so Min, Max, Avg
  * and Total read as four columns rather than as numbers that happen to line
  * up (TJ, 2026-10-08, column bands over striped rows or tiles). A family's
  * label keeps one line: the card is sized to the widest label beside the
@@ -496,9 +478,9 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
 }
 
 /**
- * The shade behind each column, slate-100 on the light card: 6.92:1 under
- * `LABEL_COLOR` and 19.17:1 under the ink its numbers take, so both stay well
- * above AA's 4.5. It is 1.1:1 against the white beside it, which is
+ * The shade behind each column, halfway from the panel to its raised step:
+ * the label and the ink its numbers take both stay well above AA's 4.5 on it.
+ * It stands 1.18:1 off the dark card and 1.06:1 off the light one, which is
  * enough to read as a band and no more: the heads and the alignment carry the
  * columns, and the shade only groups them. Pinned in `styles.test.ts`.
  */
@@ -507,7 +489,7 @@ export const GRID_BAND_COLOR = 'var(--popup-band)'
 export const GRID_GUTTER_COLOR = 'var(--popup-surface)'
 
 /**
- * The hairline between the grid's lines, slate-200, and the firmer rule under
+ * The hairline between the grid's lines, the panel's rule, and the firmer rule under
  * its heads, `RULE_COLOR` (TJ, 2026-10-08: "very thin minimal lines"). The
  * heads take a rule rather than an underline because every number in the grid
  * is an underlined link, and an underlined head would read as one more.
@@ -515,23 +497,24 @@ export const GRID_GUTTER_COLOR = 'var(--popup-surface)'
 export const GRID_LINE_COLOR = 'var(--popup-line)'
 
 /**
- * The ranked number's cell, slate-200 on the light card: one step darker than
- * the column's slate-100, with no hue, so the card's only colour is its links
- * (TJ, 2026-10-08, option H, over a sky-100 cell). It is 1.13:1 against the
- * column, so the number's bold carries most of the mark. The number on it
- * is the ink, 17.03:1. The dark card's is the panel's raised slate, a step past its
- * column the other way. Pinned in `styles.test.ts`.
+ * The ranked number's cell, the panel's raised step: one half step past the
+ * column's band, with no hue, so the card's only colour is its links (TJ,
+ * 2026-10-08, option H, over a sky-100 cell). It stands 1.2:1 off the column
+ * on the dark card and 1.06:1 on the light one, so the number's bold carries
+ * most of the mark. Pinned in `styles.test.ts`.
  */
 export const GRID_RANKED_COLOR = 'var(--popup-ranked)'
 
 /**
  * Each band's inset a side: 5px, so a number as wide as `0.000` has visible
- * room inside its band, behind a 2px white gutter (TJ, 2026-10-08; it was 3px,
+ * room inside its band, behind a 2px gutter (TJ, 2026-10-08; it was 3px,
  * which left the widest numbers touching the edges). A map too narrow for the
- * widest grid at 5px takes 3px instead (`compactGrid`).
+ * widest grid at 5px takes 2px instead (`compactGrid`): 3px until the card
+ * took the app's face, whose wider labels a 360px phone could hold only by
+ * giving back the 8px four bands' insets made (TJ, 2026-10-22).
  */
 export const GRID_INSET_PX = 5
-export const GRID_COMPACT_INSET_PX = 3
+export const GRID_COMPACT_INSET_PX = 2
 /**
  * The gap between a family's label and the first band: 8px (TJ, 2026-10-08),
  * or 6px on a compact grid, which is the 2px that lets a two-digit window
@@ -544,31 +527,33 @@ export const GRID_COMPACT_LABEL_GAP_PX = 6
  * The widest grid, in Chrome on macOS: `Precipitation (in/hr)` beside Min,
  * Max, Avg and Total at their widest numbers (`10,600` heights, `≥30,000`
  * under Max, and a three-digit total, `123.456`, which a stormy window's
- * snowfall can reach). 344.6px at full inset (measured 2026-10-08). A
- * two-digit total, which a winter window's rain often reaches, is 337.4px;
- * the first measurement used `0.000`, 330.1px, and undersized the card.
+ * snowfall can reach). 352.9px at full inset. A two-digit total, which a
+ * winter window's rain often reaches, is 345.7px; the first measurement used
+ * `0.000` and undersized the card. The grid was measured at 344.6px on
+ * 2026-10-08 in the card's own Helvetica, and the app's face sets the label
+ * 8.32px wider (109.03px against 100.71px at 12px, 2026-10-22).
  *
- * Compact, the same grid is 326.6px, and 319.4px with a two-digit total, which
+ * Compact, the same grid is 326.9px, and 319.7px with a two-digit total, which
  * is what a 360px phone's 320px of body holds. A change to the grid's
  * columns, insets or type re-measures these. `e2e/popupFit.spec.ts` holds the
- * built card to them with the Mac's wider monospace emulated.
+ * built card to them with the Mac's wider fonts emulated.
  */
-export const WIDEST_GRID_PX = 345
+export const WIDEST_GRID_PX = 353
 /** The result card's body padding a side, `popupCard`'s 10px. */
 export const RESULT_CARD_PAD_PX = 10
 
 /**
  * Whether a result card on a map this wide takes the compact insets: when its
  * body is narrower than the widest grid at full inset. That is every map under
- * 385px, a 360px phone among them, where a wide grid would otherwise scroll
+ * 393px, a 360px phone among them, where a wide grid would otherwise scroll
  * sideways (TJ, 2026-10-08). The card's own width does not change.
  */
 export function compactGrid(canvasWidthPx: number): boolean {
   return parseFloat(resultPopupWidth(canvasWidthPx)) - 2 * RESULT_CARD_PAD_PX < WIDEST_GRID_PX
 }
 
-// The grid's cells. A head is centred over its band and bold, the one weight
-// the popup's sans-serif has besides regular (TJ, 2026-10-08), while the
+// The grid's cells. A head is centred over its band and bold (TJ,
+// 2026-10-08), while the
 // numbers stay right-aligned so a column lines up on its last digit, the way a
 // table of figures does.
 // A label keeps 8px clear of the first band. On a phone the card is wider
@@ -636,8 +621,9 @@ export function capPopupBody(body: HTMLElement, maxHeightPx: number): void {
 export const POPUP_MAX_WIDTH_PX = 280
 
 /**
- * How wide a ranked destination's popup may get: 366px, or the map less 10px
- * a side where the map is narrower (TJ, 2026-10-08).
+ * How wide a ranked destination's popup may get: 374px, or the map less 10px
+ * a side where the map is narrower (TJ, 2026-10-08; 366px until the card took
+ * the app's wider face, 2026-10-22).
  *
  * Its grid is wider than any other popup's, `WIDEST_GRID_PX`, and the body
  * has the card less 10px a side. On a 360px phone the card is 340px, 94% of
@@ -648,7 +634,7 @@ export const POPUP_MAX_WIDTH_PX = 280
  * accepted for narrow phones. A desktop card shrinks to its grid, so the cap
  * is reached only by a card with the widest numbers.
  */
-export const RESULT_POPUP_MAX_WIDTH_PX = 366
+export const RESULT_POPUP_MAX_WIDTH_PX = 374
 
 export function resultPopupWidth(canvasWidthPx: number): string {
   return clamp(canvasWidthPx - 20, 180, RESULT_POPUP_MAX_WIDTH_PX) + 'px'
@@ -670,8 +656,8 @@ export function popupWidth(canvasWidthPx: number): string {
 /**
  * The link-out glyph, sitting to the right of a popup's title.
  *
- * The anchor is this file's — where it goes, and the sky the header band
- * gives it — and the glyph inside it is `iconPaths.ts`'s, the same shape the
+ * The anchor is this file's — where it goes, and the grey the header band
+ * gives it, the accent on hover — and the glyph inside it is `iconPaths.ts`'s, the same shape the
  * results table draws through `IconExternalLink` (#435). The shape was typed
  * out here until then, which made it the one icon in the app that could drift
  * without anything noticing: the component lint reads the React tree, and this
@@ -683,7 +669,7 @@ export function popupWidth(canvasWidthPx: number): string {
  * carries its id from the link's text, and so does a place the geocoder named.
  */
 function linkIcon({ href, label }: PopupCardLink): string {
-  return `<a href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" target="_blank" rel="noopener noreferrer" style="color:${HEADER_ICON_COLOR};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
+  return `<a data-popup-glyph href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" target="_blank" rel="noopener noreferrer" style="color:${HEADER_ICON_COLOR};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
 }
 
 /**
@@ -758,7 +744,7 @@ export function popupCard({ title, link = null, meta = '', warnings = [], body =
   const content = body
     ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
     : ''
-  return `<div style="${POPUP_FACE}">
+  return `<div style="${POPUP_LEADING}">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
       <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}</div>
       ${meta}
@@ -780,9 +766,12 @@ export function popupCard({ title, link = null, meta = '', warnings = [], body =
  * left against the edge of a card the facts line made wider than it read as a
  * row that lost its label. One spelling for the clicked feature's add or
  * remove and the ranked result's remove, so the two cards place it alike.
+ * Centred by flex rather than by `text-align`, which centres only an inline
+ * box: the button wears the panel's class, whose tap target is a flex box
+ * (`TAP.action`), and a flex box is a block.
  */
 export function popupAction(button: string): string {
-  return `<div style="text-align:center">${button}</div>`
+  return `<div style="display:flex;justify-content:center">${button}</div>`
 }
 
 /**
@@ -798,12 +787,11 @@ const TITLE_ROW = `display:flex;align-items:center;gap:6px;min-width:0;${POPUP_T
 const TITLE_TEXT = `min-width:0;${ONE_LINE}`
 
 /**
- * The result card's header band: slate-100 on the light card, the grid's own
- * band colour, under an edge of slate-200 and a faint slate shadow (TJ, 2026-10-08, option H of
- * eight). It replaced a sky-100 band, which was the one light blue surface
- * in an app of slate, and sky is the accent that says a thing acts. The
- * labels on it measure 6.92:1 and the title 19.17:1 (pinned in
- * `styles.test.ts`).
+ * The result card's header band: the grid's own band colour, under an edge
+ * of the panel's rule and the shade the app's scroll shadows wear (TJ,
+ * 2026-10-08, option H of eight). It replaced a sky-100 band, which was the
+ * one light blue surface in an app of slate, and sky is the accent that says
+ * a thing acts. Every text on it is pinned in `styles.test.ts`.
  */
 export const HEADER_BAND_COLOR = 'var(--popup-band)'
 export const HEADER_EDGE_COLOR = 'var(--popup-line)'
@@ -844,10 +832,12 @@ function warningList(warnings: readonly string[]): string {
 }
 
 /**
- * The link-out glyph on the band, sky-600 at 3.74:1 on the light card. The
- * sky-400 the old ruled shell gave it would fall under the 3:1 an icon owes
- * there; on the dark card's band that same sky-400, the panel's accent ink,
- * is what clears it.
+ * The link-out glyph on the band, in the label grey at rest, as the results
+ * table's matching glyph rests in a grey (#786, record 0212), and the accent
+ * on hover and keyboard focus, which `map.css` swaps in by setting
+ * `--popup-glyph` on the hovered anchor. The table's glyph wears the faint
+ * ink, which measures 2.6:1 on the dark card's band, under the 3:1 an icon
+ * owes, so the card's takes the next ink up.
  */
 export const HEADER_ICON_COLOR = 'var(--popup-glyph)'
 

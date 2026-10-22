@@ -4,6 +4,9 @@ import {
   cardMode,
   clipAbove,
   cornerRadius,
+  glide,
+  GLIDE_FRAME_MS,
+  GLIDE_MS,
   placeCard,
   sameBox,
   scrollBlock,
@@ -235,5 +238,48 @@ describe('the scroll to a step', () => {
     it('never asks for a negative position', () => {
       expect(scrollTopFor('start', { top: 20, left: 0, width: 360, height: 60 }, view, 0)).toBe(0)
     })
+  })
+})
+
+// The move between two steps (#786): from what stood on the screen toward
+// what the step measures in this frame, easing out.
+describe('glide', () => {
+  const from = { light: { top: 0, left: 0, width: 100, height: 40 }, radius: 0, card: { top: 0, left: 200 } }
+  const to = { light: { top: 400, left: 100, width: 300, height: 80 }, radius: 24, card: { top: 400, left: 500 } }
+
+  it('starts where the last step stood and ends on this one', () => {
+    expect(glide(from, to, 0)).toEqual(from)
+    expect(glide(from, to, GLIDE_MS)).toEqual(to)
+    expect(glide(from, to, GLIDE_MS * 2)).toEqual(to)
+  })
+
+  it('eases out, so the light leaves at once and settles', () => {
+    const half = glide(from, to, GLIDE_MS / 2)
+    // Seven eighths of the way at half the time.
+    expect(half.light).toEqual({ top: 350, left: 87.5, width: 275, height: 75 })
+    expect(half.radius).toBe(21)
+    expect(half.card).toEqual({ top: 350, left: 462.5 })
+    const first = glide(from, to, GLIDE_FRAME_MS).light!.top
+    expect(first).toBeGreaterThan(400 * (GLIDE_FRAME_MS / GLIDE_MS))
+  })
+
+  // A target riding a sheet is a new end every frame; the glide reaches it
+  // wherever it is by then rather than where it was when the step changed.
+  it('ends on where the target is now, not where it was', () => {
+    const moved = { ...to, light: { ...to.light!, top: 600 } }
+    expect(glide(from, moved, GLIDE_MS / 2).light!.top).toBe(525)
+    expect(glide(from, moved, GLIDE_MS)).toEqual(moved)
+  })
+
+  it('holds where it stood while the target has yet to appear', () => {
+    expect(glide(from, { ...to, light: null }, GLIDE_MS / 2)).toEqual(from)
+  })
+
+  it('stands a part with nothing to start from at its end at once', () => {
+    expect(glide(null, to, 0)).toEqual(to)
+    expect(glide({ ...from, light: null }, to, 0)).toMatchObject({ light: to.light, radius: to.radius })
+    // A card that was a sheet, or is one now, has no corner to move.
+    expect(glide({ ...from, card: null }, to, 0).card).toEqual(to.card)
+    expect(glide(from, { ...to, card: null }, 0).card).toBeNull()
   })
 })

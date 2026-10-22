@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react'
 import ResultsSheet from './ResultsSheet'
 import { render } from '../testSupport/render'
 import { DEFAULT_FAMILY_KEY, resultsHeading } from '../metrics'
+import { LAYOUT_HOLD } from '../styles'
 
 // The panels and the bar have suites of their own. What this one is about is
 // what the sheet hands them, so both are replaced by stand-ins that keep what
@@ -16,12 +17,12 @@ vi.mock('./ResultsPanels', () => ({
   },
 }))
 vi.mock('./ResultsBar', () => ({
-  default: (props: { onToggleColumns: () => void; modelsButtonRef: React.RefObject<HTMLButtonElement | null> }) => (
+  default: (props: { onToggleColumns: () => void; removedButtonRef: React.RefObject<HTMLButtonElement | null> }) => (
     <>
       <button data-testid="bar" onClick={props.onToggleColumns}>
         Columns
       </button>
-      <button ref={props.modelsButtonRef}>Models</button>
+      <button ref={props.removedButtonRef}>Removed</button>
     </>
   ),
 }))
@@ -38,8 +39,22 @@ vi.mock('./RemovedPicker', () => ({ default: (props: { sheet?: boolean }) => <di
 type Props = ComponentProps<typeof ResultsSheet>
 const NOOP = () => {}
 const LAYOUT = { sheetRef: { current: null }, resultsCollapsed: false, toggleCollapsed: NOOP }
-const CHARTS = { selectedModelRows: [], hiddenModels: new Set(), toggleHiddenModel: NOOP, compareWait: null, compareNotes: [] }
-const TABLE_VIEW = { allColumns: [], pickerVisibleKeys: [], handleVisibilityChange: NOOP, handleColumnMove: NOOP }
+const CHARTS = {
+  selectedModelRows: [],
+  hiddenModels: new Set(),
+  toggleHiddenModel: NOOP,
+  showAllModels: NOOP,
+  compareWait: null,
+  compareNotes: [],
+}
+const TABLE_VIEW = {
+  allColumns: [],
+  pickerVisibleKeys: [],
+  columnsAtDefault: true,
+  resetColumns: NOOP,
+  handleVisibilityChange: NOOP,
+  handleColumnMove: NOOP,
+}
 const REPORT = { results: [], windowTitle: null, pending: [], rowCount: 0 }
 const REMOVALS = { removed: new Map(), removeResult: NOOP, restoreRemoved: NOOP, restoreAllRemoved: NOOP }
 const onRemovePending = () => {}
@@ -55,6 +70,7 @@ function props(
     sortDesc?: boolean
     removed?: number
     isDesktop?: boolean
+    layoutMotion?: 'opening' | 'closing' | 'panes' | null
   } = {},
 ): Props {
   return {
@@ -82,6 +98,7 @@ function props(
     fire: { status: 'ready', warnings: new Map(), uncovered: new Set() },
     closure: { status: 'ready', warnings: new Map(), uncovered: new Set() },
     modelId: 'gfs_seamless',
+    layoutMotion: over.layoutMotion ?? null,
   } as unknown as Props
 }
 
@@ -117,6 +134,20 @@ describe('ResultsSheet', () => {
 
   // The sheet takes the results view as one object and hands its members on
   // as they are: the table and the chart under the panels are memoized.
+  // The desk's results stand on a layer of their own while the panel moves
+  // (record 0216), and only then.
+  it('gives a desk\'s results a layer of their own while the panel moves', () => {
+    const results = () => document.querySelector('[data-tour="results"]') as HTMLElement
+    const { rerender } = render(<ResultsSheet {...props()} />)
+    expect(results().className).not.toContain(LAYOUT_HOLD.layer)
+    rerender(<ResultsSheet {...props({ layoutMotion: 'closing' })} />)
+    expect(results().className).toContain(LAYOUT_HOLD.layer)
+    rerender(<ResultsSheet {...props({ layoutMotion: 'opening' })} />)
+    expect(results().className).toContain(LAYOUT_HOLD.layer)
+    rerender(<ResultsSheet {...props({ layoutMotion: 'panes' })} />)
+    expect(results().className).not.toContain(LAYOUT_HOLD.layer)
+  })
+
   it('hands the panels each member of the results view by identity', () => {
     seen.panels.length = 0
     const given = props()
@@ -146,9 +177,9 @@ describe('ResultsSheet', () => {
     expect(region.textContent).toBe(resultsHeading(DEFAULT_FAMILY_KEY.temp, true, false, '4 of 5', 0))
   })
 
-  // The last restore takes the Removed button and its list away under the
-  // keyboard, so the bar member before it takes the focus (#576).
-  it('hands the keyboard to Models when the last removed row is restored', () => {
+  // The last restore takes its own button away under the keyboard, and the
+  // Removed button, which stands at zero (record 0209), takes the focus (#576).
+  it('hands the keyboard to Removed when the last removed row is restored', () => {
     const page = (removed: number) => (
       <>
         <ResultsSheet {...props({ removed })} />
@@ -158,7 +189,7 @@ describe('ResultsSheet', () => {
     const { rerender } = render(page(1))
     screen.getByRole('button', { name: 'Restore' }).focus()
     rerender(page(0))
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Models' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Removed' }))
   })
 
   it('opens the Columns popover from the bar', () => {

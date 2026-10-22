@@ -69,6 +69,25 @@ describe('the tour hands the keyboard back', () => {
   })
 })
 
+// The Messages card runs on a demonstration (#786), so it stands in every
+// tour whether or not the reader has a message, and holds the list open for
+// its own step alone.
+describe('the Messages card', () => {
+  it('stands in every tour, and holds the list for its step alone', () => {
+    const { result } = setup()
+    act(() => result.current.start())
+    const seen: [string, boolean][] = []
+    for (;;) {
+      const i = result.current.index
+      if (i === null) break
+      seen.push([result.current.steps[i].anchor, result.current.messagesHeld])
+      act(() => result.current.next())
+    }
+    expect(seen.filter(([, held]) => held)).toEqual([['messages', true]])
+    expect(result.current.messagesHeld).toBe(false)
+  })
+})
+
 // The Results and Chart steps ask the sheet to open at rest in their view
 // before their spotlight reads it (#696); the marker step after them
 // collapses it.

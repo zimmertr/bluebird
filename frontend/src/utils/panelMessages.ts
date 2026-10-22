@@ -4,16 +4,16 @@ import { BASEMAP_FAILED_NOTE } from './basemapFailure'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import type { CommitReason } from './present'
 import type { AnalyzeBlocker } from './analyzeGate'
-import { BLOCKER_SEVERITY, listPhrase, noticeKey, type FooterMessage } from './notices'
+import { BLOCKER_SEVERITY, blockerKey, listPhrase, noticeKey, type FooterMessage } from './notices'
 import { archiveSeamPhrase } from './calendar'
 import type { WindowLimits, WindowSource } from './forecastWindow'
 import { grouped } from './numbers'
 
-// Which messages the panel shows under the Analyze button, and in what order.
-// A module of its own because that decision is pure data: the panel's state in,
-// a list of lines out. `notices.ts` takes the list from here and owns what
-// happens to it next (the boxes, the dismissal keys, the pruning); this file
-// owns only which lines exist.
+// Which messages the panel has to say, and in what order. A module of its own
+// because that decision is pure data: the panel's state in, a list of lines
+// out. `notices.ts` takes the list from here and owns what happens to it next
+// (the boxes, the dismissal keys, the pruning); this file owns only which
+// lines exist.
 
 // Why a knob stopped applying live. Each case names the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
@@ -117,7 +117,7 @@ export interface PanelMessageInputs {
 }
 
 /**
- * Every message under the Analyze button, as one list feeding at most three
+ * Every message the panel has to say, as one list feeding at most three
  * boxes — one per severity, in error, warning, info order (`noticeBoxes` in
  * `utils/notices.ts`). They used to box by SOURCE — the warnings in one
  * frame, the refusal and the error in frames of their own — which read as
@@ -250,19 +250,21 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
       : []),
     ...windowMessages,
     ...p.blockers.map((blocker) => ({
-      key: `blocker:${blocker}`,
+      key: blockerKey(blocker),
       text: blockerText(blocker, p.maxAreaKm2, p.pointsNeeded, p.freezeGaps),
       severity: BLOCKER_SEVERITY[blocker],
     })),
     // The `types` sentence, unchanged, where it blocks nothing: the ring is
     // finished and finds nothing, while another input runs the analysis. Its
-    // own key, because it is a different condition from the blocker.
+    // own key, because it is a different condition from the blocker, and
+    // information rather than the blocker's error (#579; record 0210):
+    // nothing is held up, so the badge must not read red for it.
     ...(p.ringIgnored
       ? [
           {
             key: 'ring:types',
             text: blockerText('types', p.maxAreaKm2, p.pointsNeeded, p.freezeGaps),
-            severity: BLOCKER_SEVERITY.types,
+            severity: 'info' as const,
           },
         ]
       : []),

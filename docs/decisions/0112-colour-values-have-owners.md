@@ -1,6 +1,6 @@
 # 0112. Every colour value and popup style has an owning module, and the linter reaches the four channels the stylesheet never sees
 
-- Status: Accepted
+- Status: Accepted. Amended by [0215](0215-popup-is-the-panel.md): `popupChrome.ts` owns no colour; a popup names app tokens, and its button wears the panel's classes.
 - Date: 2026-10-06
 - Decider: the maintainer (TJ), choosing the issue's option B (audit, centralize, extend the guardrail) on 2026-10-06
 - Issues and PRs: #365, #167, #379

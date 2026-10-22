@@ -3,7 +3,7 @@ import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import { CHART_METRICS, extremeValue } from '../utils/chartData'
-import { CHART_CHROME, LINE_EDGE_EXTRA_PX, LINE_LAYER_Z, LINE_RIM_FILTER_ID } from '../utils/chartColors'
+import { CHROME, LINE_EDGE_EXTRA_PX, LINE_LAYER_Z, LINE_RIM_FILTER_ID, LINE_RIM_INK } from '../utils/chartColors'
 import { PLOT_MARGIN, TITLED_PLOT_MARGIN } from '../utils/chartPointer'
 import { CHART_TITLE, LINE_EDGE } from '../styles'
 import { placeAt, render } from '../testSupport/render'
@@ -362,7 +362,7 @@ describe('TimeSeriesChart extreme line', () => {
     const labels = (chart.lines as LineProps[]).map((p) => p.label)
     expect(labels.map((l) => l?.value)).toEqual(['Now', 'NOAA HRRR', '75.4 mph'])
     for (const label of labels) {
-      expect(label?.stroke, label?.value).toBe(CHART_CHROME.dark.surface)
+      expect(label?.stroke, label?.value).toBe(CHROME.surface)
       expect(label?.strokeWidth, label?.value).toBe(3)
       expect(label?.paintOrder, label?.value).toBe('stroke')
     }
@@ -371,7 +371,7 @@ describe('TimeSeriesChart extreme line', () => {
     render(<>{Content({ ...extreme.label, viewBox: { x: 52, y: 120, width: 292, height: 0 } })}</>)
     const drawn = screen.getByTestId('label')
     expect(drawn.dataset.paintOrder).toBe('stroke')
-    expect(drawn.dataset.stroke).toBe(CHART_CHROME.dark.surface)
+    expect(drawn.dataset.stroke).toBe(CHROME.surface)
   })
 
   // A hover changes the focused line and nothing the extreme reads, so the
@@ -447,6 +447,8 @@ describe('TimeSeriesChart line names', () => {
 // In light every series is a pastel drawn over a rim of the secondary ink,
 // which carries the 3:1 the pastel cannot on the light panel; every mark in
 // a line's colour wears the same rim. Dark lines stand on their own (PR #733).
+// The chart names no theme (#786): the rim is drawn in both, and the light
+// theme's stylesheet applies it, or its token is transparent in dark.
 describe('TimeSeriesChart line rims', () => {
   const PASTEL = '#fda5d5'
   const TWO = [
@@ -464,43 +466,34 @@ describe('TimeSeriesChart line rims', () => {
   // light: it grows their shape a pixel each side and fills the growth with
   // the rim's ink. Every series line stands in that layer, and nothing else
   // the chart draws does.
-  it('draws the light lines in their own layer under one rim filter', () => {
-    render(<TimeSeriesChart {...props({ rows: TWO, colorFor: () => PASTEL, theme: 'light' })} />)
+  it('draws the lines in their own layer under one rim filter', () => {
+    render(<TimeSeriesChart {...props({ rows: TWO, colorFor: () => PASTEL })} />)
     expect(chart.series).toHaveLength(2)
     for (const line of chart.series) expect(line.zIndex).toBe(LINE_LAYER_Z)
     const rim = filter()!
     expect(rim).not.toBeNull()
-    expect(rim.querySelector('feflood, feFlood')!.getAttribute('flood-color')).toBe(CHART_CHROME.light.lineEdge)
+    expect(rim.querySelector('feflood, feFlood')!.getAttribute('flood-color')).toBe(LINE_RIM_INK)
     expect(rim.querySelector('femorphology, feMorphology')!.getAttribute('radius')).toBe(String(LINE_EDGE_EXTRA_PX / 2))
-    // The hovered hour's dot wears the rim rather than Recharts' white ring.
-    expect(chart.series[0].activeDot).toMatchObject({ stroke: CHART_CHROME.light.lineEdge, strokeWidth: 1 })
+    // The hovered hour's dot is Recharts' own; the light theme's stylesheet
+    // rings it in the rim.
+    expect(chart.series[0].activeDot).toBeUndefined()
     // The extreme line stays over the filtered lines; the seams stay under.
     const extreme = (chart.lines as LineProps[] & { zIndex?: number }[]).find((l) => l.y !== undefined) as { zIndex?: number }
     expect(extreme.zIndex).toBe(LINE_LAYER_Z + 1)
   })
 
-  it('draws a dark line with no rim and Recharts\' own hover dot', () => {
-    render(<TimeSeriesChart {...props({ rows: TWO, colorFor: () => PASTEL, theme: 'dark' })} />)
-    expect(filter()).toBeNull()
-    expect(chart.series).toHaveLength(2)
-    expect(chart.series[0].activeDot).toBe(true)
-  })
-
   // A point sample draws dots and no segment, and dots stand in a layer of
-  // their own, so they carry the rim themselves.
-  it('rims a light point sample\'s dots and leaves the dark ones bare', () => {
+  // their own, so they carry the rim themselves, transparent in dark.
+  it('rims a point sample\'s dots', () => {
     const point = [T0]
     const row = resultRow({ name: 'Mount Alpha', series: series({ aqi: [30] }) })
-    render(<TimeSeriesChart {...props({ times: point, rows: [row], colorFor: () => PASTEL, theme: 'light' })} />)
-    expect(chart.series[0].dot).toMatchObject({ stroke: CHART_CHROME.light.lineEdge, strokeWidth: 1, fill: PASTEL })
-    chart.series = []
-    render(<TimeSeriesChart {...props({ times: point, rows: [row], colorFor: () => PASTEL, theme: 'dark' })} />)
-    expect(chart.series[0].dot).toMatchObject({ strokeWidth: 0, fill: PASTEL })
+    render(<TimeSeriesChart {...props({ times: point, rows: [row], colorFor: () => PASTEL })} />)
+    expect(chart.series[0].dot).toMatchObject({ stroke: CHROME.lineEdge, strokeWidth: 1, fill: PASTEL })
   })
 
-  // The readout's swatch is a mark in the line's colour, rimmed in light only.
-  function readout(theme: 'dark' | 'light') {
-    const { container } = render(<TimeSeriesChart {...props({ rows: TWO, colorFor: () => PASTEL, theme })} />)
+  // The readout's swatch is a mark in the line's colour, and wears the rim.
+  function readout() {
+    const { container } = render(<TimeSeriesChart {...props({ rows: TWO, colorFor: () => PASTEL })} />)
     // Room for every line, so the card lists them all rather than a count.
     Object.defineProperty(plotIn(container), 'clientHeight', { value: 400 })
     const payload = chart.series.map((p) => ({ dataKey: p.dataKey as string, value: 30 }))
@@ -508,15 +501,9 @@ describe('TimeSeriesChart line rims', () => {
     return screen.getAllByText(/Mount (Alpha|Beta)/).map((name) => name.firstElementChild as HTMLElement)
   }
 
-  it('rims a light readout swatch', () => {
-    const swatches = readout('light')
+  it('rims a readout swatch', () => {
+    const swatches = readout()
     expect(swatches).toHaveLength(2)
     for (const swatch of swatches) expect(swatch.className).toContain(LINE_EDGE.swatch)
-  })
-
-  it('leaves a dark readout swatch bare', () => {
-    const swatches = readout('dark')
-    expect(swatches).toHaveLength(2)
-    for (const swatch of swatches) expect(swatch.className).not.toContain(LINE_EDGE.swatch)
   })
 })
