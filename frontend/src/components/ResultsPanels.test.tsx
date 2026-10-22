@@ -124,6 +124,26 @@ describe('ResultsPanels', () => {
   })
 
   // The Open-Meteo credit is the map's (#687): no results mode draws one.
+  // A chart whose module has loaded draws in the render that mounts its
+  // pane, with no empty fallback first (#786): React holds a boundary's
+  // reveal 300 ms behind a fallback it showed, which stood the tutorial's
+  // Chart card empty after its chunk had arrived. Each half on a fresh copy
+  // of the module, whose lazy has never resolved.
+  it('draws a loaded chart in the render that mounts it, and waits for one that is not', async () => {
+    vi.resetModules()
+    const cold = await import('./ResultsPanels')
+    const first = render(<cold.default {...props({ layout: layout('chart') })} />)
+    expect(screen.queryByTestId('chart')).toBeNull()
+    await screen.findByTestId('chart')
+    first.unmount()
+
+    vi.resetModules()
+    const warm = await import('./ResultsPanels')
+    await warm.loadTimeSeriesChart()
+    render(<warm.default {...props({ layout: layout('chart') })} />)
+    expect(screen.getByTestId('chart')).toBeTruthy()
+  })
+
   it('draws no Open-Meteo credit in any mode', async () => {
     for (const mode of ['table', 'chart', 'both'] as const) {
       const { unmount } = render(<ResultsPanels {...props({ layout: layout(mode) })} />)

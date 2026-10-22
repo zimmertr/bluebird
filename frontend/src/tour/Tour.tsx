@@ -10,6 +10,7 @@ import {
   TOUR,
 } from '../styles'
 import { prefersReducedMotion } from '../utils/motion'
+import { clamp } from '../utils/numbers'
 import { anchorSelector, type TourStep } from '../utils/tourSteps'
 import { scrollParent } from './useTour'
 import {
@@ -17,6 +18,10 @@ import {
   cardMode,
   clipAbove,
   cornerRadius,
+  type Drawn,
+  glide,
+  GLIDE_FRAME_MS,
+  GLIDE_MS,
   placeCard,
   sameBox,
   scrollBlock,
@@ -37,13 +42,19 @@ interface Props {
   onNext: () => void
   onPrev: () => void
   onEnd: () => void
+  /**
+   * Whether a step change cuts rather than moves: the app's phone layout,
+   * where the panel is a sheet over the map and the reader sees one part of
+   * the app at a time, so a scroll or a slide they did not make reads as a
+   * glitch rather than a move (#786). The panel jumps to the step's control,
+   * the light stands on it at once, and every transition in the app stands
+   * down while the tour runs (`data-touring="cut"`, read by `index.css`).
+   */
+  cut?: boolean
 }
 
 /** The root's attribute while a tour runs, which hides every scroll shadow (`index.css`). */
 const TOURING_ATTR = 'data-touring'
-
-/** How long after a step change the spotlight and the card animate, unless a scroll ends it sooner. */
-const MOTION_MS = 250
 
 /**
  * How many frames in a row the target must hold still before the overlay
@@ -70,12 +81,16 @@ const SETTLE_FRAMES = 10
  * `SETTLE_FRAMES`, or for as long as it has yet to appear, and then stops
  * (#696): it ran every frame for the whole tour, reading every target's box
  * and corners sixty times a second over a page with nothing moving. A pass
- * that measures the same boxes sets nothing. The motion role is worn only for the moment after
- * a step changes, and not while the panel scrolls to the step's control;
- * always on, it made the spotlight trail its control by 200 ms whenever
- * the layout moved for another reason.
+ * that measures the same boxes sets nothing.
+ *
+ * The light and the card move between steps by a glide the same loop runs
+ * (`glide` in `place.ts`), from what stood on the screen toward what the
+ * step measures in each frame, and at no other time (#786). It replaced a
+ * transition class worn for 250 ms after a step change, which a target
+ * moving under it restarted every frame: the light crawled behind a phone's
+ * sliding sheet and jumped the rest of the way when the class came off.
  */
-export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
+export default function Tour({ steps, index, onNext, onPrev, onEnd, cut = false }: Props) {
   const step = steps[index]
   const cardRef = useRef<HTMLDivElement>(null)
   const nextRef = useRef<HTMLButtonElement>(null)
@@ -91,7 +106,19 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const [opened, setOpened] = useState<{ own: Box; floor: number } | null>(null)
   const [cardSize, setCardSize] = useState({ width: 320, height: 160 })
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight })
-  const [moving, setMoving] = useState(false)
+  // The move to this step: what stood on the screen when the step changed,
+  // and how many milliseconds of the glide from there have run. Set during
+  // the render that sees the new index, so no frame draws the new step's
+  // place before the glide starts from the old one.
+  const [move, setMove] = useState<{ index: number; from: Drawn | null; elapsed: number }>({
+    index,
+    from: null,
+    elapsed: GLIDE_MS,
+  })
+  const moveRef = useRef(move)
+  moveRef.current = move
+  // What the last commit drew, which the next step's glide starts from.
+  const shown = useRef<Drawn | null>(null)
   // Where the card last stood, kept for the frames a step's target has yet
   // to appear in (a popup on its way), so the card holds still rather than
   // falling back to an unplaced box.
@@ -173,18 +200,30 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
         box(scroller.getBoundingClientRect()),
         scroller.scrollTop,
       )
-      if (top !== scroller.scrollTop) scroller.scrollTo({ top, behavior: prefersReducedMotion() ? 'instant' : 'smooth' })
+      if (top !== scroller.scrollTop) {
+        scroller.scrollTo({ top, behavior: cut || prefersReducedMotion() ? 'instant' : 'smooth' })
+      }
     }
     // Followed a frame at a time until it settles, and woken again by any
     // scroll or resize; a target still on its way keeps the loop going.
+    // The glide runs on the frames its target is there for, a frame's share
+    // at most each (`GLIDE_FRAME_MS`), and the loop runs until it ends.
     let frame = 0
     let still = 0
     let last: Box | null = null
-    const follow = () => {
+    let then: number | null = null
+    const follow = (now: number) => {
       const box = measure()
       still = box !== null && sameBox(box, last) ? still + 1 : 0
       last = box
-      frame = box !== null && still >= SETTLE_FRAMES ? 0 : requestAnimationFrame(follow)
+      const { from, elapsed } = moveRef.current
+      const gliding = from !== null && elapsed < GLIDE_MS
+      if (gliding && box !== null && then !== null) {
+        const ms = clamp(now - then, 0, GLIDE_FRAME_MS)
+        setMove((m) => (m.index === index ? { ...m, elapsed: Math.min(GLIDE_MS, m.elapsed + ms) } : m))
+      }
+      then = box === null ? null : now
+      frame = box !== null && still >= SETTLE_FRAMES && !gliding ? 0 : requestAnimationFrame(follow)
     }
     const wake = () => {
       measure()
@@ -199,28 +238,14 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
       document.removeEventListener('scroll', wake, true)
       cancelAnimationFrame(frame)
     }
-  }, [step.anchor, step.spot, measure])
+  }, [step.anchor, step.spot, measure, index, cut])
 
   // Focus lands on Next at every step, so Enter walks the tour and a screen
-  // reader hears the new card; the motion role is worn for the move and shed.
-  // The panel scrolls smoothly to a control it has to reach, so the reader
-  // sees where the next section stands rather than a jump, and the first
-  // scroll event sheds the motion role early: the spotlight then rides the
-  // section up the panel frame by frame. Under a transition it would not,
-  // because a transition restarted every frame stands still (measured: it
-  // held its old place for the whole 330 ms scroll and moved after it).
+  // reader hears the new card.
   useEffect(() => {
     // `preventScroll`, because a focus call scrolls every scrollable ancestor
     // to the focused element the way `scrollIntoView` does.
     nextRef.current?.focus({ preventScroll: true })
-    setMoving(true)
-    const timer = window.setTimeout(() => setMoving(false), MOTION_MS)
-    const shed = () => setMoving(false)
-    document.addEventListener('scroll', shed, true)
-    return () => {
-      window.clearTimeout(timer)
-      document.removeEventListener('scroll', shed, true)
-    }
   }, [index])
 
   // Tab cycles inside the card; Escape ends it; the arrow keys step either
@@ -233,11 +258,12 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   // showed it lying across the top of the section it lit (the Forecast step,
   // on a phone's Controls sheet). The hole lights what is there, and a shade
   // that says "more above" says nothing a reader being shown one control can
-  // use. One attribute on the root, which `index.css` reads.
+  // use. One attribute on the root, which `index.css` reads, and which also
+  // stands every transition down where the tour cuts.
   useEffect(() => {
-    document.documentElement.setAttribute(TOURING_ATTR, '')
+    document.documentElement.setAttribute(TOURING_ATTR, cut ? 'cut' : '')
     return () => document.documentElement.removeAttribute(TOURING_ATTR)
-  }, [])
+  }, [cut])
 
   const handlers = useRef({ onNext, onPrev, onEnd })
   handlers.current = { onNext, onPrev, onEnd }
@@ -287,23 +313,35 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const light = target ? spotlight(target, pad) : null
   const sheet = cardMode(viewport.width) === 'sheet'
   if (light && !sheet) lastAt.current = placeCard(light, cardSize, viewport)
-  const at = sheet ? null : lastAt.current
+  // A new step glides from what is on the screen, or stands at once where
+  // the tour cuts or the reader asked for less motion.
+  if (move.index !== index) {
+    setMove({ index, from: cut || prefersReducedMotion() ? null : shown.current, elapsed: 0 })
+  }
+  const drawn = glide(
+    move.from,
+    { light, radius: spotRadius(targetRadius, pad), card: sheet ? null : lastAt.current },
+    move.elapsed,
+  )
+  const at = drawn.card
   // Between the target and the surface it opened below it, where the band
   // holds the card; along an edge otherwise.
   const betweenTop =
     sheet && opened ? sheetBetween(spotlight(opened.own, pad), opened.floor, cardSize.height) : null
   const sheetRole =
     betweenTop !== null || sheetEdge(light, cardSize.height, viewport.height) === 'top' ? TOUR.sheetTop : TOUR.sheet
-  const motion = moving ? ` ${TOUR.motion}` : ''
   const last = index === steps.length - 1
   // With no target yet, the dim still covers the screen: a spotlight of no
   // size at the centre is a dim with no hole in it.
-  const hole = light ?? { top: viewport.height / 2, left: viewport.width / 2, width: 0, height: 0 }
+  const hole = drawn.light ?? { top: viewport.height / 2, left: viewport.width / 2, width: 0, height: 0 }
+  useLayoutEffect(() => {
+    shown.current = drawn
+  })
 
   return (
     <div className={`fixed inset-0 ${LAYER.modal} overflow-hidden`}>
       <div
-        className={`${TOUR.spotlight}${motion}`}
+        className={TOUR.spotlight}
         style={{
           top: hole.top,
           left: hole.left,
@@ -311,7 +349,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
           height: hole.height,
           // Measured off the target rather than a role, since the light
           // follows whatever it frames: the target's radius plus the pad.
-          borderRadius: spotRadius(targetRadius, pad),
+          borderRadius: drawn.radius,
         }}
         aria-hidden="true"
       />
@@ -323,7 +361,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
         aria-describedby={textId}
         tabIndex={-1}
         data-tour-card=""
-        className={`${sheet ? sheetRole : TOUR.card}${motion}`}
+        className={sheet ? sheetRole : TOUR.card}
         style={at ? { top: at.top, left: at.left } : betweenTop !== null ? { top: betweenTop } : undefined}
       >
         <div className="flex items-start justify-between gap-3">

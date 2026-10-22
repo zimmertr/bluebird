@@ -21,6 +21,15 @@ describe('Tour', () => {
     for (const call of focusCalls) expect(call).toBe('.focus({ preventScroll: true })')
   })
 
+  // The Results and Chart cards wait on two chunks the cold load leaves out,
+  // so starting the tour fetches both while the reader reads the first card
+  // (#786), the chart's through the loader its lazy pane reads.
+  it('warms the chunks its later cards wait on when it starts', () => {
+    const start = useTourSource.slice(useTourSource.indexOf('const start = useCallback'), useTourSource.indexOf('const end = useCallback'))
+    expect(start).toContain("import('./demoReport')")
+    expect(start).toContain('loadTimeSeriesChart()')
+  })
+
   // The hook hands the keyboard back when the tour ends, to a phone's
   // Tutorial link in a Controls sheet still sliding up from below the
   // screen: a bare focus scrolled the app's column 588px and the slide wound

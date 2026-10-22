@@ -34,7 +34,25 @@ import { useScrollShadows } from '../hooks/useScrollShadows'
 // the chart never downloads it. No fallback: the panel is empty for the length
 // of the fetch either way, and a word there would be a new string for a wait
 // measured in a hundred milliseconds off an already warm connection.
-const TimeSeriesChart = lazy(() => import('./TimeSeriesChart'))
+//
+// Once the module has loaded, the lazy is handed it as a settled thenable,
+// which React's lazy reads in the render that mounts the pane. A promise,
+// even a settled `import()`, suspends that render, and React holds a
+// boundary's reveal 300 ms behind the empty fallback it showed, so a chart
+// whose chunk the tutorial had already fetched stood empty for 340 ms on the
+// Chart card (#786). `loadTimeSeriesChart` is the fetch, for a caller that
+// knows the chart is coming.
+type ChartModule = typeof import('./TimeSeriesChart')
+let chartModule: ChartModule | null = null
+const keep = (loaded: ChartModule) => (chartModule = loaded)
+export function loadTimeSeriesChart(): Promise<ChartModule> {
+  return import('./TimeSeriesChart').then(keep)
+}
+const TimeSeriesChart = lazy(() => {
+  const loaded = chartModule
+  if (loaded === null) return import('./TimeSeriesChart').then(keep)
+  return { then: (done: (m: ChartModule) => void) => done(loaded) } as unknown as Promise<ChartModule>
+})
 
 // What the chart draws for its rows while a model comparison is up: nothing,
 // because the comparison composes every line itself. A module constant so the

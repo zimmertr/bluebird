@@ -2100,6 +2100,21 @@ describe('the results table rank cell', () => {
     }
   })
 
+  // A phone's tutorial cuts from card to card (#786): every transition, and
+  // its pseudo-elements', stands down while the attribute says so.
+  it('stands every transition down while a phone\'s tutorial cuts', () => {
+    const start = indexCss.indexOf(':root[data-touring="cut"]')
+    expect(start).toBeGreaterThan(-1)
+    const open = indexCss.indexOf('{', start)
+    const selectors = indexCss.slice(start, open).split(',').map((x) => x.trim())
+    expect(selectors).toEqual([
+      ':root[data-touring="cut"] *',
+      ':root[data-touring="cut"] *::before',
+      ':root[data-touring="cut"] *::after',
+    ])
+    expect(indexCss.slice(open + 1, indexCss.indexOf('}', open)).trim()).toBe('transition: none !important;')
+  })
+
   // A finger removes from the marker card its row tap opens (#696), so the ×
   // is not drawn on a coarse pointer; an invisible button over the number
   // would take the tap aimed at the row and remove the row.
@@ -3083,16 +3098,13 @@ describe('the tutorial', () => {
     expect(STYLES.TOUR.spotlight).not.toMatch(/rounded/)
     // Its corners are read off the target it frames (tour/place.ts), not a role.
     expect(STYLES.TOUR).not.toHaveProperty('spotlightControl')
-    // The one transition the tour wears yields to a reduced-motion setting.
-    expect(STYLES.TOUR.motion).toContain('motion-reduce:transition-none')
     expect(STYLES.TOUR.spotlight).toContain('pointer-events-none')
   })
 
-  it('moves only between steps, never with the layout', () => {
-    for (const role of [STYLES.TOUR.spotlight, STYLES.TOUR.card, STYLES.TOUR.sheet, STYLES.TOUR.sheetTop]) {
-      expect(role).not.toMatch(/transition/)
-    }
-    expect(STYLES.TOUR.motion).toContain('duration-200')
+  // The glide in `Tour.tsx` moves them (#786): a transition handed a new end
+  // every frame by a target riding a sheet restarts every frame.
+  it('moves by no transition of its own', () => {
+    for (const role of Object.values(STYLES.TOUR)) expect(role).not.toMatch(/transition/)
   })
 
   it('stands the card on the welcome dialog surface, fixed, at the welcome card width', () => {

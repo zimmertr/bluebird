@@ -365,6 +365,14 @@ both. It presses the theme button ten times in each state, five each way, and pr
 painted after the press, the end of the last transition the switch started, and
 the page's element count, which is what the cost grows with (#790).
 
+It also walks the tutorial (`frontend/e2e/perf/tourMotion.spec.ts`, #786) at a
+phone's size and a desk's and prints a `tour motion` line per card: how long
+the light took to stand still after the key, the frames that missed 60 Hz, and
+the largest share of its path it covered in one frame. A desk glides, so a
+share near 100 there is a snap; a phone cuts, so the number to read there is
+how soon it lands. `CPU_SLOWDOWN=4` in the Playwright container's environment
+runs it at about a mid phone's speed.
+
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model
 regenerates the committed OpenAPI snapshot with

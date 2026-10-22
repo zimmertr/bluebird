@@ -194,6 +194,11 @@ test('a link to /tutorial opens the tour on a phone, and the keys walk it', asyn
   await expect(heading(page)).toHaveText('Destinations')
   // The card is the drawer's, so the panel step opened the drawer.
   await expectSpotlightOn(page, 'destinations')
+  // A phone's tour cuts from card to card (#786): the drawer's slide stands
+  // down while it runs, and comes back when it ends.
+  const drawer = page.locator('[role="dialog"]').filter({ has: page.locator('[data-tour="destinations"]') })
+  const slide = () => drawer.evaluate((el) => getComputedStyle(el).transitionProperty)
+  expect(await slide()).toBe('none')
 
   for (let i = 0; i < STEPS.length - 1; i++) await page.keyboard.press('ArrowRight')
   await expect(heading(page)).toHaveText('Markers')
@@ -207,6 +212,7 @@ test('a link to /tutorial opens the tour on a phone, and the keys walk it', asyn
   await page.keyboard.press('Escape')
   await expect(card(page)).toHaveCount(0)
   await expect(page).toHaveURL(/\/(\?|$)/)
+  expect(await slide()).toContain('transform')
 })
 
 test.describe('on a phone with a report', () => {

@@ -470,6 +470,16 @@ body,
 :root[data-touring] .scroll-shadow-head th::after {
   visibility: hidden;
 }
+/* A phone's tutorial cuts from card to card (#786): the panel is a sheet
+   over the map and the reader sees one part of the app at a time, so a
+   slide they did not make reads as a glitch rather than a move. Every
+   transition stands down while it runs; the panel's scroll jumps and the
+   light stands on each control at once (the `cut` prop in tour/Tour.tsx). */
+:root[data-touring="cut"] *,
+:root[data-touring="cut"] *::before,
+:root[data-touring="cut"] *::after {
+  transition: none !important;
+}
 
 /* Native form-widget chrome on the panel. The root's `color-scheme` above
    draws the glyphs for the theme (light on the dark fields, matching

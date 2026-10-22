@@ -2502,9 +2502,9 @@ export const HEADER_BUTTON =
  * recipe names the one property it moves, because a sheet or a pane whose
  * height a grip drags must not chase the finger.
  *
- * `motion-reduce:` drops each to an instant change, the way `TOUR.motion`
- * does for the tutorial's spotlight; the panel's smooth scroll asks the same
- * question through `prefersReducedMotion` in `utils/motion.ts`, and so does a
+ * `motion-reduce:` drops each to an instant change; the panel's smooth
+ * scroll and the tutorial's glide ask the same question through
+ * `prefersReducedMotion` in `utils/motion.ts`, and so does a
  * closing pane, which unmounts at once rather than waiting out a transition
  * that will not run. `PANEL_MS` is the slower speed in numbers, for script
  * that waits out a move; `styles.test.ts` holds each class to its speed.
@@ -3370,7 +3370,11 @@ export const TABLE = {
  * fixed and sized by the same 320px the welcome card reads at on a phone. Under
  * `SHEET_MAX_W` (`tour/place.ts`) it is a full-width sheet along the bottom
  * edge instead, because a card beside a control has nowhere to go at 360px. Every colour here is a role the
- * app already wears; the dim is the welcome backdrop's black at 60%.
+ * app already wears; the dim is the welcome backdrop's black at 60%. No role
+ * here carries a transition: the light and the card move between steps by a
+ * glide `Tour.tsx` runs a frame at a time (`glide` in `tour/place.ts`), since
+ * a transition handed a new end every frame by a moving target restarts
+ * every frame and stands still (#786).
  */
 export const TOUR = {
   spotlight: 'absolute pointer-events-none shadow-[0_0_0_200vmax_rgba(0,0,0,0.6)]',
@@ -3378,13 +3382,4 @@ export const TOUR = {
   sheet: `${SURFACE_CARD} fixed inset-x-4 bottom-4 p-4 space-y-3 focus:outline-none`,
   /** The sheet at the top edge, for a target that stands where the bottom sheet would. */
   sheetTop: `${SURFACE_CARD} fixed inset-x-4 top-4 p-4 space-y-3 focus:outline-none`,
-  /**
-   * Worn for the moment after a step changes and at no other time. A standing
-   * transition made the spotlight trail its control whenever the layout moved
-   * for another reason, such as the preview banner wrapping on a resize.
-   */
-  // `motion-reduce:` drops the transition where the reader asked the system
-  // for less motion; the panel's smooth scroll asks the same question through
-  // `prefersReducedMotion`, and MapLibre's camera moves answer it themselves.
-  motion: 'transition-all duration-200 motion-reduce:transition-none',
 }

@@ -1,6 +1,6 @@
 # 0066. The tutorial points at controls and never acts on them
 
-- Status: Accepted. Amended by [0150](0150-tour-opens-the-results-at-rest.md) (the results step opens the sheet and leaves it open), [0151](0151-spotlight-pads-rounded-targets.md) (the light's pad and corners) and [0153](0153-tour-chart-and-layers-steps-act.md) (the Chart card's readout and a phone's Layers card switching a layer on)
+- Status: Accepted. Amended by [0150](0150-tour-opens-the-results-at-rest.md) (the results step opens the sheet and leaves it open), [0151](0151-spotlight-pads-rounded-targets.md) (the light's pad and corners) [0153](0153-tour-chart-and-layers-steps-act.md) (the Chart card's readout and a phone's Layers card switching a layer on) and [0214](0214-phone-tour-cuts-desk-tour-glides.md) (a phone cuts from card to card, a desk glides)
 - Date: 2026-09-29
 - Decider: TJ
 - Issues and PRs: #536

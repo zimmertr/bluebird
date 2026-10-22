@@ -2,6 +2,7 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import type { MapCamera, MapViewHandle } from '../components/MapView'
 import { anchorSelector, stepLayout, TOUR_STEPS, TUTORIAL_PATH, type TourStep } from '../utils/tourSteps'
 import type { DemoReport } from './demoReport'
+import { loadTimeSeriesChart } from '../components/ResultsPanels'
 import { cardMode, sheetKeepOut, SPOTLIGHT_PAD } from './place'
 
 interface Args {
@@ -78,6 +79,15 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     returnFocus.current = active instanceof HTMLElement && active !== document.body ? active : null
     setSteps(present)
     setIndex(0)
+    // The two chunks later cards wait on, fetched while the reader reads the
+    // first (#786): the demonstration report the Results card stands on, and
+    // the chart, whose lazy chunk holds the Chart card's anchor, so that
+    // card's light had nothing to stand on until it arrived (a download on a
+    // phone's network) and then rendered (`loadTimeSeriesChart` says why it
+    // renders at once once loaded). A failure here is the step's own to meet
+    // when it asks again.
+    void import('./demoReport').catch(() => undefined)
+    void loadTimeSeriesChart().catch(() => undefined)
     if (window.location.pathname !== TUTORIAL_PATH) {
       window.history.pushState(null, '', TUTORIAL_PATH + window.location.search)
       pushed.current = true
