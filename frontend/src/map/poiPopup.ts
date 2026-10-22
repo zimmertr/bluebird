@@ -29,7 +29,9 @@ import {
   poiToPlace,
   samePoi,
 } from '../utils/basemapPoi'
+import { placeType } from '../utils/geocode'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
+import { loadUsStates, usStatesNow } from '../utils/usStatesLoad'
 import { lakeAnchor } from './basemap'
 import type { MapController } from './controller'
 import type { LandmarkLayer } from './landmarks'
@@ -58,7 +60,7 @@ export function mountPoiPopups(
     // only catches up on React's next render, and the button has to
     // flip on the click that caused it.
     let registered = controller.inputs.searchedPlaces.find((p) => samePoi(poi, p)) ?? null
-    const html = () => poiPopupHtml(poi, registered !== null, map.getZoom())
+    const html = () => poiPopupHtml(poi, registered !== null, map.getZoom(), usStatesNow())
 
     // The result card's width (#712), the rule the facts line was measured
     // against, and the fit every card gets (`openCard`, #738), built with its
@@ -89,6 +91,17 @@ export function mountPoiPopups(
       }, 0)
     }
     arm()
+
+    // A crag's search names its state once the outlines are held. The
+    // markers asked for them when the crag came into view, so this waits
+    // only on a card opened before they landed.
+    if (placeType(poi.kind) === 'crag' && usStatesNow() === null) {
+      void loadUsStates().then((states) => {
+        if (!states || !popup.isOpen()) return
+        popup.setHTML(html())
+        arm()
+      })
+    }
   }
 
   // A label under a ranked marker, a draw handle or anything else that

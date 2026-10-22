@@ -1391,4 +1391,16 @@ map pin at its coordinates.
 search for that name, where a climber looks a crag up. A search is not the
 crag's own page, so the crag is one of its results rather than where you land:
 checked 2026-10-15, a search for `Lower Town Wall` lists that area in its Areas
-section.
+section. A common name lists other states first, so inside the fifty states
+the search names the crag's state as well: Mountain Project files every US
+area under its state and matches the words of an area's path. On 2026-10-22
+`Family Wall` listed North Carolina's, California's and Colorado's walls ahead
+of the one at Little Si, and `Family Wall Washington` listed that one alone.
+The state comes from the Census Bureau's 2024 state outlines, simplified so a
+crag within about 100 m of a state line can be given its neighbour, and one
+in Canada or Mexico within about a kilometre of the border (3 km in Alaska) the
+state across it, and either makes the search miss it. Outside the fifty states, or in the moment before
+the outlines arrive, the search is the name alone. A direct link to the crag's
+page was looked at and dropped: OpenStreetMap carries one on about 3% of
+climbing features, OpenBeta's copy of Mountain Project predates Family Wall,
+and Mountain Project has had no public API since 2020.

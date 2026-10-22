@@ -1,6 +1,6 @@
 # 0159. Crags are the fourth polygon destination type, found from crags, areas and boulders
 
-- Status: Accepted; amended by [0177](0177-one-place-per-kind-and-name-within-300-m.md), [0178](0178-crag-rule-widened.md) and [0180](0180-trailhead-and-crag-markers-from-the-places-table.md)
+- Status: Accepted; amended by [0177](0177-one-place-per-kind-and-name-within-300-m.md), [0178](0178-crag-rule-widened.md), [0180](0180-trailhead-and-crag-markers-from-the-places-table.md) and [0221](0221-crag-search-names-its-state.md)
 - Date: 2026-10-15
 - Decider: the maintainer (TJ), on issue #715, 2026-10-15
 - Issues and PRs: #715, PR #731

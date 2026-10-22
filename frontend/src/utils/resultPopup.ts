@@ -14,6 +14,7 @@ import {
 } from './popupChrome'
 import { ColDef } from './tableColumns'
 import { popupGrid, popupGroups, popupIdentity } from './popupRows'
+import type { UsStates } from './usStates'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from './wildfires'
 
 // The attribute the map handler finds a card's remove button by. Its own
@@ -76,15 +77,20 @@ export function resultPopupHtml(d: {
   // row's × does (#696). It is how a finger removes a row: a phone's row tap
   // opens this card, where the × beside the rank shows only on hover.
   removable?: boolean
+  // The state outlines a crag's search names its state by, when held.
+  usStates?: UsStates | null
 }): string {
   const r = d.row
-  const url = destinationUrl({
-    name: r.name,
-    type: r.type,
-    latitude: r.latitude,
-    longitude: r.longitude,
-    osm_id: r.osm_id ?? null,
-  })
+  const url = destinationUrl(
+    {
+      name: r.name,
+      type: r.type,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      osm_id: r.osm_id ?? null,
+    },
+    d.usStates ?? null,
+  )
   // Fire-proximity alert, matching the table's. The incident name inside the
   // text is third-party NIFC data rendered via setHTML, so it is escaped.
   //

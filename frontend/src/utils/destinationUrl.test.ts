@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { destinationLinkLabel, destinationUrl } from './destinationUrl'
+import outlines from './usStateOutlines.json'
+import { decodeUsStates, type UsStateOutlines } from './usStates'
+
+const STATES = decodeUsStates(outlines as UsStateOutlines)
 
 const blackPeak = {
   name: 'Black Peak',
@@ -52,6 +56,26 @@ describe('destinationUrl', () => {
     expect(
       destinationUrl({ name: 'Castle & Rock', type: 'crag', latitude: 0, longitude: 0, osm_id: null })
     ).toBe('https://www.mountainproject.com/search?q=Castle%20%26%20Rock')
+  })
+
+  // `Family Wall` alone lists North Carolina's, California's and Colorado's
+  // first; with the state, Little Si's is the one area it lists (2026-10-22).
+  it("names a crag's state in the search once the outlines are held", () => {
+    const familyWall = { name: 'Family Wall', type: 'crag', latitude: 47.48886, longitude: -121.75024, osm_id: 'way/1307110189' }
+    expect(destinationUrl(familyWall, STATES)).toBe(
+      'https://www.mountainproject.com/search?q=Family%20Wall%20Washington'
+    )
+    expect(destinationUrl(familyWall)).toBe('https://www.mountainproject.com/search?q=Family%20Wall')
+  })
+
+  it('searches by name alone for a crag outside the fifty states', () => {
+    expect(
+      destinationUrl({ name: 'The Chief', type: 'crag', latitude: 49.6817, longitude: -123.153, osm_id: null }, STATES)
+    ).toBe('https://www.mountainproject.com/search?q=The%20Chief')
+  })
+
+  it('leaves every other type alone when the outlines are held', () => {
+    expect(destinationUrl(blackPeak, STATES)).toBe(destinationUrl(blackPeak))
   })
 
   it('falls back to an OSM map pin for rows without an osm_id', () => {

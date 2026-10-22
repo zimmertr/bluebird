@@ -22,6 +22,7 @@ import {
 } from './basemap'
 import { isAbort } from '../utils/abort'
 import { LANDMARK_LAYERS, LANDMARK_MINZOOM, fetchLandmarks, landmarkKindOf } from '../utils/landmarks'
+import { loadUsStates } from '../utils/usStatesLoad'
 import type { BBox } from '../utils/wildfires'
 import { FIRE_REFETCH_DEBOUNCE_MS } from './overlays/wildfires'
 import { overlayRecovery, retryAfterOf } from './overlays/recovery'
@@ -116,6 +117,10 @@ export function mountLandmarks(
       }
       setSource(map, LANDMARK_SOURCE, fc)
       recovery.succeeded()
+      // A crag in view is one a reader may click, and its card's search
+      // names its state from outlines fetched once, so they are asked for now
+      // rather than after the click.
+      if (fc.features.some((f) => f.properties.kind === 'crag')) void loadUsStates()
     } catch (err) {
       if (ac.signal.aborted || isAbort(err)) return
       console.warn('Landmark fetch failed', err)

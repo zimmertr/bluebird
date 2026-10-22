@@ -27,7 +27,7 @@ the README linking to it. It was split out of a 560-line README in #192
 | [`docs/CICD.md`](docs/CICD.md) | The pipeline from merge to production, with diagrams |
 | [`docs/STYLES.md`](docs/STYLES.md) | The design system: roles, enforcement, measured numbers; keep it current like CICD.md |
 | [`docs/decisions/`](docs/decisions/README.md) | One file per design decision: context, decision, evidence, date, decider. The README is the index |
-| [`NOTICES.md`](NOTICES.md) | Third-party attribution, at the repo root: the data-provider half transcribes `frontend/src/utils/dataSources.ts` (change one, change both in the same PR), plus bundled-software licenses, whose two tables `backend/tests/test_notices.py` holds to `frontend/package.json` and `backend/requirements.in` |
+| [`NOTICES.md`](NOTICES.md) | Third-party attribution, at the repo root: the data-provider list transcribes `frontend/src/utils/dataSources.ts` (change one, change both in the same PR), data bundled into the app rather than fetched is listed beside it and nowhere in the app, plus bundled-software licenses, whose two tables `backend/tests/test_notices.py` holds to `frontend/package.json` and `backend/requirements.in` |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How the project accepts work, at the repo root so GitHub surfaces it on new PRs: one maintainer, an issue before code, and the short list of rules a change must meet |
 | [`backend/CLAUDE.md`](backend/CLAUDE.md) | Every module under `backend/`: what it owns and why it is separate |
 | [`fill/CLAUDE.md`](fill/CLAUDE.md) | The same for the planet fill under `fill/`, an image of its own that carries none of the app's dependencies |

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchLandmarks } = vi.hoisted(() => ({ fetchLandmarks: vi.fn() }))
+const { fetchLandmarks, loadUsStates } = vi.hoisted(() => ({ fetchLandmarks: vi.fn(), loadUsStates: vi.fn() }))
+vi.mock('../utils/usStatesLoad', () => ({ loadUsStates: () => loadUsStates() }))
 vi.mock('../utils/landmarks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../utils/landmarks')>()),
   fetchLandmarks: (...args: unknown[]) => fetchLandmarks(...args),
@@ -55,6 +56,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   fetchLandmarks.mockReset()
   fetchLandmarks.mockResolvedValue(LANDMARKS)
+  loadUsStates.mockReset()
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -117,6 +119,23 @@ describe('mountLandmarks', () => {
     expect(fetchLandmarks).toHaveBeenCalledTimes(1)
     expect(fetchLandmarks.mock.calls[0][0]).toEqual([-122, 47, -121, 48])
     await vi.waitFor(() => expect(stub.sources[LANDMARK_SOURCE].data).toBe(LANDMARKS))
+  })
+
+  // A crag's card names its state in its search, from outlines fetched once,
+  // so a crag coming into view asks for them before anyone clicks it.
+  it('asks for the state outlines when a crag comes into view, and not for trailheads alone', async () => {
+    setup()
+    await vi.runAllTimersAsync()
+    expect(loadUsStates).not.toHaveBeenCalled()
+    const crag = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [-121.75024, 47.48886] },
+      properties: { name: 'Family Wall', kind: 'crag', osm_id: 'way/1307110189', elevation_ft: null },
+    }
+    fetchLandmarks.mockResolvedValue({ ...LANDMARKS, features: [...LANDMARKS.features, crag] })
+    setup()
+    await vi.runAllTimersAsync()
+    expect(loadUsStates).toHaveBeenCalledTimes(1)
   })
 
   it('answers a held marker\'s exact point by its OSM id, and null for one it does not hold', async () => {
