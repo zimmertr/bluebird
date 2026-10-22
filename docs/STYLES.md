@@ -772,7 +772,8 @@ Record: [0162](decisions/0162-scale-bar-on-the-theme-ground.md)
 
 The Analyze button counts the panel's messages in a badge at its corner
 (`MESSAGE_BADGE`): a 20px disc in the worst message's ink with the digit in
-the panel's colour, ringed in the panel, 44px to a finger through an inset
+the panel's colour, edged in the panel so the button is the 24px a target
+owes, 44px to a finger through an inset
 nothing draws. A press on it, or on the button itself while a blocker greys
 it (`BLOCKED`), opens the messages as a sheet headed Messages
 (`MESSAGE_LIST.sheet`); at a desk the same badge on the panel's button opens

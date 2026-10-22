@@ -1777,22 +1777,25 @@ export const MAP_FAB_WORDS = {
  * the tints and lines the boxes wear are translucent, which over the button's
  * accent fill would be a fourth colour nobody chose. Measured in `styles.test.ts`:
  * the panel on the danger ink is the tightest pair, and clears 4.5:1 in both
- * themes. A 2px ring in the panel colour parts the disc from the button it
+ * themes. A 2px edge in the panel colour parts the disc from the button it
  * overhangs, the way a badge is cut out of what it sits on.
  *
- * 20px tall, the dismiss pill's size, and the floor's 11px type: a count a
- * reader presses. On touch a 20px disc is no target, so the disc takes a 44px
- * hit area through an invisible box drawn 12px past its edge on every side
- * (the `before:` box, as `TAP` would size it), without growing the disc. The
- * box overhangs the button's corner, where the label is not.
+ * A 20px disc, the dismiss pill's size, and the floor's 11px type: a count a
+ * reader presses. The edge is a border rather than a ring outside the box, so
+ * the button is the 24px the disc and its edge draw, the least a target owes
+ * (WCAG 2.5.8); as a 20px box with a ring it failed Lighthouse's target-size
+ * audit on the cold load. On touch that is still no target, so it takes a
+ * 44px hit area through an invisible box drawn 10px past its edge on every
+ * side (the `before:` box, as `TAP` would size it), without growing the disc.
+ * The box overhangs the button's corner, where the label is not.
  */
 export const MESSAGE_BADGE = {
   /** The box the button and its badge share, which the badge's corner is placed in. */
   slot: 'relative',
   base:
-    `absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center px-1 ${RADIUS.pill} ` +
-    `${MICRO_SIZE} font-bold leading-none tabular-nums ring-2 ring-panel transition-colors ` +
-    `touch:before:absolute touch:before:-inset-3 touch:before:content-[''] ${FOCUS_RING}`,
+    `absolute -right-2.5 -top-2.5 flex h-6 min-w-6 items-center justify-center border-2 border-panel px-1 ${RADIUS.pill} ` +
+    `${MICRO_SIZE} font-bold leading-none tabular-nums transition-colors ` +
+    `touch:before:absolute touch:before:-inset-2.5 touch:before:content-[''] ${FOCUS_RING}`,
   error: 'bg-danger text-panel',
   warn: 'bg-warn text-panel',
   info: 'bg-info text-panel',

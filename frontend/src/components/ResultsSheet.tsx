@@ -183,7 +183,8 @@ export default function ResultsSheet({
           className={
             isDesktop
               ? // On a layer of its own while a desk's panel moves (record 0216).
-                `flex flex-shrink-0 flex-col bg-panel ${layoutMotion === 'opening' || layoutMotion === 'closing' ? LAYOUT_HOLD.layer : ''}`
+                'flex flex-shrink-0 flex-col bg-panel' +
+                (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '')
               : // The sheet's surface runs under a phone's home indicator and
                 // its grip and header stand above it (record 0145).
                 `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${LAYER.sheet}`

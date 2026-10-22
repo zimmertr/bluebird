@@ -2655,27 +2655,31 @@ describe('the message badge', () => {
     light: { error: 8.33, warn: 6.31, info: 8.35 },
   }
 
-  it('is a 20px pill at the button\'s corner, 44px to a finger, ringed in the panel', () => {
+  // A 20px disc inside a 2px edge, which is a border so the button is the 24px
+  // a target owes (WCAG 2.5.8, Lighthouse's target-size audit), standing
+  // where the disc and a ring outside it stood.
+  it('is a 20px pill edged in the panel, a 24px button at the button\'s corner, 44px to a finger', () => {
     const t = words(MESSAGE_BADGE.base)
     expect(t).toEqual(
       expect.arrayContaining([
         'absolute',
-        '-right-2',
-        '-top-2',
-        'h-5',
-        'min-w-5',
+        '-right-2.5',
+        '-top-2.5',
+        'h-6',
+        'min-w-6',
         RADIUS.pill,
-        'ring-2',
-        'ring-panel',
+        'border-2',
+        'border-panel',
         'font-bold',
         'tabular-nums',
         ...words(MICRO_SIZE),
         ...words(FOCUS_RING),
       ]),
     )
-    // 20px plus 12px each side on touch: the 44px a finger needs, drawn by
-    // nothing (`touch:before:-inset-3`), so the disc stays a disc.
-    expect(t).toEqual(expect.arrayContaining(['touch:before:absolute', 'touch:before:-inset-3', "touch:before:content-['']"]))
+    expect(t).not.toContain('ring-2')
+    // 24px plus 10px each side on touch: the 44px a finger needs, drawn by
+    // nothing (`touch:before:-inset-2.5`), so the disc stays a disc.
+    expect(t).toEqual(expect.arrayContaining(['touch:before:absolute', 'touch:before:-inset-2.5', "touch:before:content-['']"]))
     expect(MESSAGE_BADGE.slot).toBe('relative')
     // The phone's slot is the positioned box, so the badge's corner is the
     // button's there too.
