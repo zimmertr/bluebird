@@ -861,9 +861,9 @@ Record: [0202](decisions/0202-panel-and-panes-move-at-one-speed.md)
 While the panel moves, the panel, the map's column, the results and each
 pane's body stand on layers of their own (`LAYOUT_HOLD.layer`), so a frame
 shifts layers rather than painting them again: at 200 rows a close painted for
-185 to 195ms in all and now paints for about 35. Since #786 a pane press opens
-a body already drawn rather than mounting one, so Table to Both starts moving
-about 39ms after the press rather than 116, and the chart-only legend arrives
+195ms in all and now paints for 34. Since #786 a pane press opens a body
+already drawn rather than mounting one, so Table to Both starts moving 54ms
+after the press rather than 120, and the chart-only legend arrives
 once the panes stand still rather than drawing the chart again in the move's
 first frame (2026-10-22).
 Record: [0216](decisions/0216-desk-moves-paint-less.md)
