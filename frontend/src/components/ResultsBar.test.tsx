@@ -3,7 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { createRef, type ComponentProps } from 'react'
 import ResultsBar from './ResultsBar'
 import { render } from '../testSupport/render'
-import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, DISABLED, MENU_CHEVRON, MENU_TRIGGER } from '../styles'
+import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, DISABLED, MENU_CHEVRON, MENU_TRIGGER, PANEL_EDGE } from '../styles'
 
 type Props = ComponentProps<typeof ResultsBar>
 const NOOP = () => {}
@@ -169,6 +169,16 @@ describe('ResultsBar', () => {
     rerender(<ResultsBar {...props({ columnsOpen: true })} />)
     expect(points()).not.toBe(shut)
     expect(COLUMNS.current?.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  // At a desk the bar is the results' top, where they meet the map, and wears
+  // the panel's edge there (record 0220); a phone's sheet draws its own top.
+  it('edges the bar\'s top where it meets the map at a desk, and not in a sheet', () => {
+    const { container, rerender } = render(<ResultsBar {...props()} />)
+    const bar = () => (container.firstElementChild as HTMLElement).className.split(' ')
+    expect(bar()).toEqual(expect.arrayContaining(['border-t', PANEL_EDGE]))
+    rerender(<ResultsBar {...props({ sheet: true })} />)
+    expect(bar()).not.toContain('border-t')
   })
 
   it('puts no divider before the first button, whichever stand', () => {

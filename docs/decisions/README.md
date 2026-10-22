@@ -234,3 +234,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0217](0217-popup-in-the-app-face.md) | A popup is set in the app's face | 2026-10-22 | Accepted | `utils/` guide: `popupChrome.ts` |
 | [0218](0218-chart-legend-is-a-pane.md) | At a desk the chart's legend is a pane of its own, and the chart keeps one size in every mode | 2026-10-22 | Accepted | `components/` guide: `ResultsSheet.tsx`/`ResultsPanels.tsx`; `hooks/` guide: `useResultsLayout.ts`; `utils/` guide: `layout.ts`; `STYLES.md` |
 | [0219](0219-download-csv-stands-greyed.md) | Download CSV stands greyed when there is nothing to download | 2026-10-22 | Accepted | `components/` guide: `ResultsBar.tsx`; `USAGE.md` |
+| [0220](0220-results-edged-where-they-meet-the-map.md) | At a desk the results wear the panel's edge where they meet the map | 2026-10-22 | Accepted | `components/` guide: `ResultsBar.tsx`; `STYLES.md` |

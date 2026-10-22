@@ -23,6 +23,7 @@ import {
   CONTROL_SIZE,
   DISABLED,
   ICON_BUTTON,
+  PANEL_EDGE,
   SEGMENT_DIVIDER,
   SEGMENT_FLUID,
   SEGMENT_IDLE,
@@ -223,7 +224,13 @@ export default function ResultsBar({
     },
   ].filter((action) => action !== false)
   return (
-    <div ref={barRef} className={`@container flex-shrink-0 px-3 py-1.5 bg-raised border-b border-frame`}>
+    // At a desk the bar is the results' top, where they meet the map, so it
+    // wears the edge the panel wears where it meets the map (record 0220). A
+    // phone's sheet draws its own top.
+    <div
+      ref={barRef}
+      className={`@container flex-shrink-0 px-3 py-1.5 bg-raised border-b border-frame ${sheet ? '' : `border-t ${PANEL_EDGE}`}`}
+    >
       <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           {/* Before the first analysis the title is the same ranked

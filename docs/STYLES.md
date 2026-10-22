@@ -615,7 +615,9 @@ is drawn on except the calendar's ground in its popover:
 Only the first is meant to be seen as a boundary, and it is the one step that
 clears the 3:1 a UI boundary owes. It closes the panel on three sides: under the
 header, over the footer, and since #697 down the panel's right edge, where it
-meets the map and the docked results. That edge was `SURFACE_DIVIDER` at 1.41:1,
+meets the map and the docked results. Since #795 the docked results bar wears it
+along its top, where the results meet the map, so the map's column is edged the
+same way on both sides, which the light theme's pale bar needs (record 0220). That edge was `SURFACE_DIVIDER` at 1.41:1,
 which left the panel and the slate-800 results one L-shaped block; `PANEL_EDGE`
 is 3.07:1 there and 3.74:1 on slate-900. An 8px slate-900 gutter was mocked
 beside it and declined (record 0128). The other two are the same quiet line, and
