@@ -84,6 +84,7 @@ import {
   CHART_PLOT_TOUCH,
   CHART_TITLE,
   MENU,
+  MODEL_ROW,
   MENU_CHEVRON,
   MENU_TRIGGER,
   MAP_CHIP_MENU,
@@ -124,6 +125,7 @@ import {
   SWATCH_RAMP_SCRIM,
   SWATCH_RAMP_TICK,
   TAP,
+  TAGLINE,
   TEXT,
   YIELD_EMPTY,
 } from './styles'
@@ -453,6 +455,15 @@ describe('the reading tier', () => {
   // tiers have stopped rhyming and the tagline needs a role of its own again.
   it('keeps the dialog subtitle one size up from the caption step', () => {
     expect(PROSE.subtitle.replace('text-sm', 'text-xs')).toBe(TEXT.caption)
+  })
+
+  // The tagline is each surface's secondary line set in italics, and the
+  // italic is the tagline's alone (#801).
+  it('sets the tagline in italics on the roles it would otherwise wear', () => {
+    expect(TAGLINE.panel).toBe(`${TEXT.caption} italic`)
+    expect(TAGLINE.dialog).toBe(`${PROSE.subtitle} italic`)
+    expect(TEXT.caption).not.toContain('italic')
+    expect(PROSE.subtitle).not.toContain('italic')
   })
 
 })
@@ -3725,6 +3736,19 @@ describe('the one menu', () => {
     expect(MENU.row).toContain('whitespace-nowrap')
   })
 
+  // The model list (#801): a hairline between rows and every name semibold,
+  // a mouse's fill and the keyboard's while the list shows its ring, and no
+  // other fill, so a finger leaves none.
+  it('parts the model rows by a hairline and lights them for a mouse or the keyboard', () => {
+    const row = MODEL_ROW.row.split(' ')
+    expect(row).toEqual(expect.arrayContaining(['border-t', 'first:border-t-0', SURFACE_DIVIDER, MENU.hover]))
+    expect(stepPx(MODEL_ROW.row, 'py')).toBe(8)
+    expect(row.filter((c) => /bg-/.test(c) && c !== MENU.hover)).toEqual([])
+    expect(MODEL_ROW.keys).toBe(`group-focus-visible/list:${MENU.active}`)
+    expect(MODEL_ROW.list).toBe('group/list')
+    expect(MODEL_ROW.name).toBe(TEXT.subheading)
+  })
+
   it('fills the row under the pointer and sets the current value semibold', () => {
     expect(MENU.active).toBe(`bg-${token(MAP_CHIP, 'active:bg')}`)
     expect(MENU.current).toBe('font-semibold')
@@ -3862,6 +3886,20 @@ describe('the panel frame', () => {
     expect(TITLE_AND_TAGLINE_PX + 2 * px(PANEL_HEADER.title, 'py')).toBeLessThanOrEqual(logo)
     expect(controlPanelSource).toContain('PANEL_HEADER.logo')
     expect(controlPanelSource).toContain('PANEL_HEADER.title')
+  })
+
+  // The round buttons centre where the logo and the title block do (#801):
+  // measured 2026-10-22, all three at 28px once the buttons stand 12px down,
+  // where at 8px the buttons' centre was 24.
+  it('centres the header buttons on the logo', () => {
+    const logo = stepPx(PANEL_HEADER.logo, 'h') + 2 * stepPx(PANEL_HEADER.logo, 'm')
+    expect(stepPx(PANEL_HEADER.actions, 'top') + stepPx(HEADER_BUTTON, 'h') / 2).toBe(logo / 2)
+    expect(PANEL_HEADER.title).toContain('justify-center')
+  })
+
+  // The name centres over the tagline (#801).
+  it('centres the title over the tagline', () => {
+    expect(PANEL_HEADER.title.split(' ')).toContain('text-center')
   })
 
   // One bar style on every dark surface, and the panel body reserves its
