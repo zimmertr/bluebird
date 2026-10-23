@@ -31,7 +31,12 @@ Measured 2026-10-22 on the PR #796 preview at 390 by 844, dark theme, with CSS i
 
 32px is past the AA minimum of 24 (SC 2.5.8) and under the enhanced 44. A day cell at 32px is about 8.5mm on a 390px phone, a little under the ~9mm that touch studies find a finger needs.
 
-The results sheet's header, which is its collapsed height, goes from 84px to 72px (`SHEET_HEADER_PX`). The draw bar goes from 58px to 46px, so the compass under it moves up 12px (`MAP_EDGE.belowDrawBar`).
+Measured after the change on the same preview, 2026-10-22, at 360, 390, 402 and 430 wide on a coarse pointer:
+
+- The results sheet's header, which is its collapsed height, is 71px (`SHEET_HEADER_PX`; 84 before, with a rule of its own that record 0220 moved to the grip).
+- The player with two axes is 68px (`TRANSPORT_HEIGHT_PX`; 80 before), and 50.5px with one. The band reserved for it is 12px smaller, so a phone's resting sheet stands 12px taller, a phone offers Both from 540px of viewport rather than 553, and a desk opens on Both from 779px rather than 791.
+- The draw bar is 46px (58 before), so the compass under it moves up 12px (`MAP_EDGE.belowDrawBar`).
+- The results bar's presses reach 6px over and under each button and stay inside the bar: 1px over the title's line box and clear of the collapse chevron above it.
 
 ## Alternatives rejected
 
