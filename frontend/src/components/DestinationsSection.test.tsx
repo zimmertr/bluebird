@@ -224,6 +224,34 @@ describe('DestinationsSection', () => {
       expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak', 'crag'])
     })
 
+    // A press with Shift held reaches every type from the last pressed to
+    // this one, as every checkbox group in the app does (record 0209, #801).
+    it('ticks every type between the last press and a Shift-click', () => {
+      const setDestinationTypes = vi.fn()
+      const page = (types: DiscoveryType[]) => (
+        <DestinationsSection {...props({ ...RING, destinationTypes: types, setDestinationTypes })} />
+      )
+      const { rerender } = render(page([]))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Peaks' }))
+      expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak'])
+      rerender(page(['peak']))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Trailheads' }), { shiftKey: true })
+      expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak', 'crag', 'lake', 'trailhead'])
+    })
+
+    it('unticks every type between the last press and a Shift-click', () => {
+      const setDestinationTypes = vi.fn()
+      const page = (types: DiscoveryType[]) => (
+        <DestinationsSection {...props({ ...RING, destinationTypes: types, setDestinationTypes })} />
+      )
+      const { rerender } = render(page(['peak', 'crag', 'lake', 'trailhead']))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Trailheads' }))
+      expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak', 'crag', 'lake'])
+      rerender(page(['peak', 'crag', 'lake']))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Crags' }), { shiftKey: true })
+      expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak'])
+    })
+
     // A type with no usable ring discovers nothing, so the row is greyed until
     // there is one and greyed again when it is cleared or grows past the cap;
     // the ticks survive the grey (the maintainer, 2026-10-15).

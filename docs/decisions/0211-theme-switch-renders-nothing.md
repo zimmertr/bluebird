@@ -1,6 +1,6 @@
 # 0211. A theme switch re-renders no row or line, and holds transitions off while it lands
 
-- Status: Accepted. Amends 0158 (a switch no longer re-renders the table and the chart).
+- Status: Accepted. Amends 0158 (a switch no longer re-renders the table and the chart). Amended by 0228: the `line-edge` token and the hover dot's rule are gone.
 - Date: 2026-10-21
 - Decider: the maintainer (TJ), on the review of PR #789: reported that a switch took "almost 1 second" and chose to fold the fix into #786. How it is fixed is Claude's call, flagged on the PR.
 - Issues and PRs: #786, #789, #790, #706, #733

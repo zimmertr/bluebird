@@ -60,7 +60,6 @@ import {
   TRANSPORT_AXIS_ITEM,
   TRANSPORT_PLAY,
   HEADER_BUTTON,
-  LINE_EDGE,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
   DRAW_ROW,
@@ -84,6 +83,7 @@ import {
   CHART_PLOT_TOUCH,
   CHART_TITLE,
   MENU,
+  MODEL_ROW,
   MENU_CHEVRON,
   MENU_TRIGGER,
   MAP_CHIP_MENU,
@@ -124,14 +124,14 @@ import {
   SWATCH_RAMP_SCRIM,
   SWATCH_RAMP_TICK,
   TAP,
+  TAGLINE,
   TEXT,
   YIELD_EMPTY,
 } from './styles'
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
-import { CHART_TICK_PX, LINE_LAYER_Z, LINE_RIM_FILTER_ID } from './utils/chartColors'
+import { CHART_TICK_PX } from './utils/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
-import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { CHIP_MENU_GAP_PX } from './utils/resultsSheet'
@@ -453,6 +453,15 @@ describe('the reading tier', () => {
   // tiers have stopped rhyming and the tagline needs a role of its own again.
   it('keeps the dialog subtitle one size up from the caption step', () => {
     expect(PROSE.subtitle.replace('text-sm', 'text-xs')).toBe(TEXT.caption)
+  })
+
+  // The tagline is each surface's secondary line set in italics, and the
+  // italic is the tagline's alone (#801).
+  it('sets the tagline in italics on the roles it would otherwise wear', () => {
+    expect(TAGLINE.panel).toBe(`${TEXT.caption} italic`)
+    expect(TAGLINE.dialog).toBe(`${PROSE.subtitle} italic`)
+    expect(TEXT.caption).not.toContain('italic')
+    expect(PROSE.subtitle).not.toContain('italic')
   })
 
 })
@@ -3725,6 +3734,19 @@ describe('the one menu', () => {
     expect(MENU.row).toContain('whitespace-nowrap')
   })
 
+  // The model list (#801): a hairline between rows and every name semibold,
+  // a mouse's fill and the keyboard's while the list shows its ring, and no
+  // other fill, so a finger leaves none.
+  it('parts the model rows by a hairline and lights them for a mouse or the keyboard', () => {
+    const row = MODEL_ROW.row.split(' ')
+    expect(row).toEqual(expect.arrayContaining(['border-t', 'first:border-t-0', SURFACE_DIVIDER, MENU.hover]))
+    expect(stepPx(MODEL_ROW.row, 'py')).toBe(8)
+    expect(row.filter((c) => /bg-/.test(c) && c !== MENU.hover)).toEqual([])
+    expect(MODEL_ROW.keys).toBe(`group-focus-visible/list:${MENU.active}`)
+    expect(MODEL_ROW.list).toBe('group/list')
+    expect(MODEL_ROW.name).toBe(TEXT.subheading)
+  })
+
   it('fills the row under the pointer and sets the current value semibold', () => {
     expect(MENU.active).toBe(`bg-${token(MAP_CHIP, 'active:bg')}`)
     expect(MENU.current).toBe('font-semibold')
@@ -3862,6 +3884,20 @@ describe('the panel frame', () => {
     expect(TITLE_AND_TAGLINE_PX + 2 * px(PANEL_HEADER.title, 'py')).toBeLessThanOrEqual(logo)
     expect(controlPanelSource).toContain('PANEL_HEADER.logo')
     expect(controlPanelSource).toContain('PANEL_HEADER.title')
+  })
+
+  // The round buttons centre where the logo and the title block do (#801):
+  // measured 2026-10-22, all three at 28px once the buttons stand 12px down,
+  // where at 8px the buttons' centre was 24.
+  it('centres the header buttons on the logo', () => {
+    const logo = stepPx(PANEL_HEADER.logo, 'h') + 2 * stepPx(PANEL_HEADER.logo, 'm')
+    expect(stepPx(PANEL_HEADER.actions, 'top') + stepPx(HEADER_BUTTON, 'h') / 2).toBe(logo / 2)
+    expect(PANEL_HEADER.title).toContain('justify-center')
+  })
+
+  // The name centres over the tagline (#801).
+  it('centres the title over the tagline', () => {
+    expect(PANEL_HEADER.title.split(' ')).toContain('text-center')
   })
 
   // One bar style on every dark surface, and the panel body reserves its
@@ -4296,28 +4332,6 @@ describe('the light theme', () => {
     expect(token(SCRUBBER, '[&::-moz-range-thumb]:bg')).toBe(token(SCRUBBER, '[&::-webkit-slider-thumb]:bg'))
   })
 
-  // The chart's light lines are drawn over a rim, one SVG filter over the
-  // group Recharts draws the series lines into (PR #733), applied by a rule
-  // here: the layer must be the one the lines stand in, one above Recharts'
-  // own line layer, and the rule must name it and the filter, in light alone.
-  // The browser suite's `chartRim.spec.ts` holds that the rule reaches it.
-  it('points the light rule at the chart lines\' own layer and its rim filter', () => {
-    expect(LINE_LAYER_Z).toBe(DefaultZIndexes.line + 1)
-    const rule = indexCss.match(/:root\[data-theme="light"\] \.recharts-zIndex-layer_(\d+) \{\s*filter: url\(#([\w-]+)\);\s*\}/)
-    expect(rule).not.toBeNull()
-    expect([Number(rule![1]), rule![2]]).toEqual([LINE_LAYER_Z, LINE_RIM_FILTER_ID])
-    expect(indexCss.match(/recharts-zIndex-layer_/g)).toHaveLength(1)
-  })
-
-  // The hover dot wears the line's rim in light by a rule rather than by
-  // Recharts' `activeDot` prop, which would name a theme and re-render the
-  // chart on every switch (#786; record 0211).
-  it('rims the hover dot through the line-edge token, in light alone', () => {
-    const rule = indexCss.match(/(\S+) \.recharts-active-dot \.recharts-dot \{([^}]*)\}/)
-    expect(rule?.[1]).toBe(':root[data-theme="light"]')
-    expect(rule?.[2]).toContain('stroke: var(--ui-line-edge);')
-  })
-
   // A theme switch holds every transition off while it lands (#786; record
   // 0211): the hook's class must be the one the rule names, and the rule must
   // reach every element and its two generated boxes.
@@ -4325,14 +4339,6 @@ describe('the light theme', () => {
     const c = THEME_SWITCHING_CLASS
     const rule = indexCss.match(new RegExp(String.raw`\.${c} \*,\s*\.${c} \*::before,\s*\.${c} \*::after \{([^}]*)\}`))
     expect(rule?.[1].trim()).toBe('transition: none !important;')
-  })
-
-  // A mark in a chart line's colour wears the line's rim in light, and the
-  // chart checkbox's half of it brings the app's focus ring: an author outline
-  // replaces the browser's own, which the box had relied on.
-  it('keeps a focus ring under the chart checkbox\'s rim', () => {
-    expect(LINE_EDGE.input).toContain(LINE_EDGE.swatch)
-    expect(LINE_EDGE.input).toContain(FOCUS_RING)
   })
 
   // The shade under a fixed edge: the ink at 12% stands 1.27:1 off the light

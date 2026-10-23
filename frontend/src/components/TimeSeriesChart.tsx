@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_METRIC_W, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, LINE_EDGE, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
+import { CHART_METRIC_W, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
 import { IconChevron } from './icons'
 import { MenuSelect } from './Menu'
 import {
@@ -49,14 +49,7 @@ import {
   hourIndexAt,
   readoutPlace,
 } from '../utils/chartPointer'
-import {
-  CHART_TICK_PX,
-  CHROME,
-  LINE_EDGE_EXTRA_PX,
-  LINE_LAYER_Z,
-  LINE_RIM_FILTER_ID,
-  LINE_RIM_INK,
-} from '../utils/chartColors'
+import { BASE_PALETTE_SIZE, CHART_TICK_PX, CHROME, LINE_DRAW } from '../utils/chartColors'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
@@ -82,11 +75,6 @@ const Y_AXIS_WIDTH = Y_AXIS_WIDTH_PX
 // (#786), hoisted, so Recharts is handed one object rather than a new one a
 // render.
 const CHROME_LINE = { stroke: CHROME.axis, strokeDasharray: '4 3' }
-
-// The hovered hour's dot on each line is Recharts' own, ringed in white,
-// which is the dark theme's. A light line is a pastel that owes its 3:1 to
-// the rim it is drawn over (PR #733), so in light `index.css` rings its dot
-// in that rim instead, and the chart names no theme.
 
 // Every label wears a halo in the panel's own colour: the stroke is painted
 // first (`paintOrder`), so it erases whatever line runs under the letters and
@@ -569,9 +557,11 @@ function TimeSeriesChart({
               />
               {ordered.map((line) => {
                 const key = line.key
-                const dimmed = focusedKey != null && focusedKey !== key
-                const width = focusedKey === key ? 2.5 : 1.5
-                const opacity = dimmed ? 0.25 : 1
+                const focused = focusedKey === key
+                const dimmed = focusedKey != null && !focused
+                const crowded = ordered.length > BASE_PALETTE_SIZE
+                const width = focused ? LINE_DRAW.focusedWidth : crowded ? LINE_DRAW.crowdedWidth : LINE_DRAW.width
+                const opacity = dimmed ? LINE_DRAW.dimmedOpacity : crowded && !focused ? LINE_DRAW.crowdedOpacity : 1
                 return (
                   <Line
                     key={key}
@@ -583,17 +573,14 @@ function TimeSeriesChart({
                       pointGrid
                         ? {
                             r: focusedKey === key ? 4.5 : 3.5,
-                            // A light dot wears the line's rim (PR #733),
-                            // which is transparent in dark.
-                            stroke: CHROME.lineEdge,
-                            strokeWidth: 1,
-                            strokeOpacity: opacity,
+                            // The fill alone: a dot in the line's colour
+                            // stands 3:1 off the panel by itself (#801).
+                            stroke: 'none',
                             fill: line.color,
                             fillOpacity: opacity,
                           }
                         : false
                     }
-                    zIndex={LINE_LAYER_Z}
                     connectNulls={false}
                     isAnimationActive={false}
                     strokeWidth={width}
@@ -601,31 +588,6 @@ function TimeSeriesChart({
                   />
                 )
               })}
-              {/* In light every series line is drawn over its rim (PR #733):
-                  the lines' own layer (`LINE_LAYER_Z`) is filtered in
-                  `index.css` by this, which grows their shape a pixel each
-                  side, fills the growth with the secondary ink and lays the
-                  lines back over it, so a pastel reads 3:1 against the rim
-                  where it reads under 2:1 against the panel. One filter for
-                  every line rather than a second line under each, which
-                  measured twice the cost; where two lines cross they share
-                  one outline rather than each keeping its own. A dimmed line
-                  dims its rim with it, since the rim is grown from its alpha.
-                  A point sample's dots and the hover dots are other layers,
-                  and carry their rim themselves. Defined in both themes and
-                  applied in light alone, so a switch changes no element
-                  here. */}
-              <defs>
-                <filter id={LINE_RIM_FILTER_ID} colorInterpolationFilters="sRGB">
-                  <feMorphology in="SourceAlpha" operator="dilate" radius={LINE_EDGE_EXTRA_PX / 2} result="grown" />
-                  <feFlood floodColor={LINE_RIM_INK} result="ink" />
-                  <feComposite in="ink" in2="grown" operator="in" result="rim" />
-                  <feMerge>
-                    <feMergeNode in="rim" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
               {/* The most extreme value among the ranked lines drawn (#699),
                   as one dashed line across the plot in the Now seam's style,
                   labelled with the value. A line rather than a mark on a point,
@@ -636,10 +598,6 @@ function TimeSeriesChart({
               {extreme !== null && (
                 <ReferenceLine
                   y={extreme}
-                  // Above the lines' own layer, which is filtered in light,
-                  // so it stays whole over them as it did when it shared
-                  // their layer and was drawn after them.
-                  zIndex={LINE_LAYER_Z + 1}
                   {...CHROME_LINE}
                   label={{ ...chromeLabel(extremeLabel(extreme, metric), 'insideBottomRight'), content: titled ? TITLED_HEADROOM_LABEL : HEADROOM_LABEL }}
                 />
@@ -727,7 +685,7 @@ function ChartTooltip({
         >
           <span className="flex items-center gap-1.5">
             <span
-              className={`h-2 w-2 ${RADIUS.control} ${LINE_EDGE.swatch}`}
+              className={`h-2 w-2 ${RADIUS.control}`}
               style={{ backgroundColor: it.line.color }}
             />
             {it.line.label}

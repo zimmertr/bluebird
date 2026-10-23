@@ -20,7 +20,7 @@ import {
   DISABLED,
   FOCUS_RING,
   LINK_ACTION,
-  MENU,
+  MODEL_ROW,
   SURFACE_DIVIDER,
   SCROLL_BARS,
   TEXT,
@@ -510,7 +510,7 @@ export default function ModelPicker({
             }
             tabIndex={-1}
             onKeyDown={onListKeyDown}
-            className={`min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none ${SCROLL_BARS}`}
+            className={`${MODEL_ROW.list} min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none ${SCROLL_BARS}`}
           >
           {models.map((model, i) => {
             const isRanking = model.id === value
@@ -527,24 +527,43 @@ export default function ModelPicker({
                 role="option"
                 aria-selected={isSelected}
                 aria-disabled={locked || undefined}
-                onPointerEnter={() => setActive(i)}
+                // A mouse moves the keyboard's cursor with it, so the arrow
+                // keys go on from the row under the pointer. A finger does
+                // not: its row is the one it ticks.
+                onPointerEnter={(e) => {
+                  if (e.pointerType === 'mouse') setActive(i)
+                }}
                 onClick={(e) => {
                   if (!locked) toggle(model.id, e.shiftKey)
                 }}
-                className={`flex items-start gap-2 rounded px-1.5 py-1.5 ${
-                  locked ? 'cursor-default' : 'cursor-pointer'
-                } ${i === active ? MENU.active : ''}`}
+                className={`${MODEL_ROW.row} ${locked ? 'cursor-default' : 'cursor-pointer'} ${
+                  i === active ? MODEL_ROW.keys : ''
+                }`}
               >
+                {/* Drawn, not announced: `aria-selected` on the row already
+                    carries this state, and a focusable input inside a
+                    `role="option"` would be a second stop in a list whose
+                    whole keyboard model is one element with
+                    `aria-activedescendant`. Enter and Space are the keys that
+                    toggle it. First in the row, as every checkbox menu's box
+                    is (#801). */}
+                <input
+                  type="checkbox"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  checked={isSelected}
+                  disabled={locked}
+                  onChange={(e) => toggle(model.id, e.nativeEvent instanceof MouseEvent && e.nativeEvent.shiftKey)}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`${CHOICE_INPUT} ${DISABLED} mt-0.5`}
+                />
                 <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="flex items-baseline gap-1.5">
-                    {/* Two roles that differ only in weight, so the ranking
-                        row reads as the ranking one without a second color
-                        competing with the active highlight behind it. */}
                     {/* Whole, never broken across two lines: `NOAA GFS`
                         beside its badge is the widest first line, 255.7px,
                         in a 317px card (record 0134). */}
-                    <span className={`${isRanking ? TEXT.subheading : TEXT.control} whitespace-nowrap`}>
+                    <span className={`${MODEL_ROW.name} whitespace-nowrap`}>
                       {model.label}
                     </span>
                     {model.id === defaultId && (
@@ -567,22 +586,6 @@ export default function ModelPicker({
                   <p className={TEXT.helper}>{model.summary}</p>
                 )}
                 </div>
-                {/* Drawn, not announced: `aria-selected` on the row above
-                    already carries this state, and a focusable input inside a
-                    `role="option"` would be a second stop in a list whose
-                    whole keyboard model is one element with
-                    `aria-activedescendant`. Enter and Space are the keys that
-                    toggle it. */}
-                <input
-                  type="checkbox"
-                  aria-hidden="true"
-                  tabIndex={-1}
-                  checked={isSelected}
-                  disabled={locked}
-                  onChange={(e) => toggle(model.id, e.nativeEvent instanceof MouseEvent && e.nativeEvent.shiftKey)}
-                  onClick={(e) => e.stopPropagation()}
-                  className={`${CHOICE_INPUT} ${DISABLED} mt-0.5`}
-                />
               </div>
             )
           })}

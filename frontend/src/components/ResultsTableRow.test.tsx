@@ -12,7 +12,7 @@ import {
 } from '../utils/closureProximity'
 import { FREEZE_UNAVAILABLE_NOTE } from '../utils/freezingLevel'
 import { pendingChartRow } from '../utils/resultsCells'
-import { CHOICE_INPUT, LINE_EDGE, TABLE } from '../styles'
+import { CHOICE_INPUT, TABLE } from '../styles'
 import { formatPrecipTotal } from '../metrics'
 import { closureWarning, fakeResponse, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 import outlines from '../utils/usStateOutlines.json'
@@ -409,29 +409,31 @@ describe('a pending row', () => {
     expect(onFocusPending).toHaveBeenCalledWith({ latitude: 47.1, longitude: -121.2 })
   })
 
-  it('rims its ticked box as a ranked row does', () => {
+  it('fills its ticked box as a ranked row does', () => {
     const box: ChartBox = { onShift: vi.fn(), onToggle: vi.fn() }
-    inTable(<PendingRow {...pendingProps({ chartBox: box, charted: true, chartColor: 'rgb(253, 165, 213)' })} />)
-    expect(screen.getByRole('checkbox', { name: 'Chart Probe Peak' }).className).toBe(`${CHOICE_INPUT} ${LINE_EDGE.input}`)
+    inTable(<PendingRow {...pendingProps({ chartBox: box, charted: true, chartColor: 'rgb(210, 86, 69)' })} />)
+    const check = screen.getByRole('checkbox', { name: 'Chart Probe Peak' }) as HTMLInputElement
+    expect(check.className).toBe(CHOICE_INPUT)
+    expect(check.style.accentColor).toBe('rgb(210, 86, 69)')
   })
 })
 
-// A ticked chart box is filled with its line's colour, which in light is a
-// pastel under 3:1 on the panel, so it wears the rim the line is drawn over
-// (PR #733), whose token is transparent in dark (#786). Unticked boxes are
-// the browser's own.
+// A ticked chart box is filled with its line's colour, which stands 3:1 off
+// the panel by itself in either theme (#801), so it wears no rim. Unticked
+// boxes are the browser's own.
 describe('the chart box', () => {
   const BOX: ChartBox = { onShift: vi.fn(), onToggle: vi.fn() }
   const check = () => screen.getByRole('checkbox', { name: 'Chart Mount Adams' }) as HTMLInputElement
 
-  it('rims a ticked box and keeps the line colour as its fill', () => {
-    inTable(<ResultsTableRow {...props({ chartBox: BOX, charted: true, chartColor: 'rgb(253, 165, 213)' })} />)
-    expect(check().className).toBe(`${CHOICE_INPUT} ${LINE_EDGE.input}`)
-    expect(check().style.accentColor).toBe('rgb(253, 165, 213)')
+  it('fills a ticked box with the line colour', () => {
+    inTable(<ResultsTableRow {...props({ chartBox: BOX, charted: true, chartColor: 'rgb(210, 86, 69)' })} />)
+    expect(check().className).toBe(CHOICE_INPUT)
+    expect(check().style.accentColor).toBe('rgb(210, 86, 69)')
   })
 
-  it('draws no rim on an unticked box', () => {
+  it('leaves an unticked box the browser\'s own', () => {
     inTable(<ResultsTableRow {...props({ chartBox: BOX, charted: false })} />)
     expect(check().className).toBe(CHOICE_INPUT)
+    expect(check().style.accentColor).toBe('')
   })
 })

@@ -5,7 +5,7 @@ import ResultsPanels from './ResultsPanels'
 import { render } from '../testSupport/render'
 import { resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
-import { LAYOUT_HOLD, LINE_EDGE, MOTION, RESULTS_PANE } from '../styles'
+import { LAYOUT_HOLD, MOTION, RESULTS_PANE } from '../styles'
 
 // The table and the chart are memoized and have suites of their own. What
 // this one is about is what the panels hand them, so both are replaced by
@@ -218,8 +218,6 @@ describe('ResultsPanels', () => {
   })
 })
 
-// The chart-only legend's dot is a mark in its line's colour, so in light it
-// wears the rim the line is drawn over (PR #733), and in dark none.
 // The frame a pane's body stands in: the body's box, then the frame.
 const frameOf = (body: HTMLElement) => body.closest('[class*="grid-rows-"]') as HTMLElement
 
@@ -405,11 +403,11 @@ describe('the panes at a desk', () => {
   })
 })
 
-// A legend dot wears the line's rim, which only the light theme draws: its
-// token is transparent in dark (#786), so the dot names no theme.
+// A legend dot is its line's colour alone, which stands 3:1 off the panel by
+// itself in either theme (#801).
 describe('the chart legend', () => {
   const legend = { ...TABLE_VIEW, legend: [{ key: 'a', row: ROW, suffix: '' }] }
-  const charts = { ...CHARTS_QUIET, rowChartColor: () => '#fda5d5' }
+  const charts = { ...CHARTS_QUIET, rowChartColor: () => '#d25645' }
   const dot = () => screen.getByRole('button', { name: `Hide ${ROW.name} on the chart` }).firstElementChild as HTMLElement
 
   // A phone's panes change at once and its Chart fills the sheet, so the
@@ -423,10 +421,10 @@ describe('the chart legend', () => {
     expect(screen.queryByRole('button', { name: `Hide ${ROW.name} on the chart`, hidden: true })).toBeNull()
   })
 
-  it('rims a dot in its line colour', async () => {
+  it('paints a dot in its line colour, with no outline', async () => {
     render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend, charts })} />)
     await screen.findByTestId('chart')
-    expect(dot().className).toContain(LINE_EDGE.swatch)
-    expect(dot().style.backgroundColor).toBe('rgb(253, 165, 213)')
+    expect(dot().className).not.toMatch(/(^|\s)outline/)
+    expect(dot().style.backgroundColor).toBe('rgb(210, 86, 69)')
   })
 })
