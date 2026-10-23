@@ -3,7 +3,7 @@ import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import { CHART_METRICS, extremeValue } from '../utils/chartData'
-import { CHROME } from '../utils/chartColors'
+import { BASE_PALETTE_SIZE, CHROME, LINE_DRAW } from '../utils/chartColors'
 import { PLOT_MARGIN, TITLED_PLOT_MARGIN } from '../utils/chartPointer'
 import { CHART_TITLE } from '../styles'
 import { placeAt, render } from '../testSupport/render'
@@ -470,6 +470,22 @@ describe('TimeSeriesChart line marks', () => {
     expect(chart.series[0].activeDot).toBeUndefined()
     const extreme = (chart.lines as LineProps[] & { zIndex?: number }[]).find((l) => l.y !== undefined) as { zIndex?: number }
     expect(extreme.zIndex).toBeUndefined()
+  })
+
+  // Up to the palette's ten every line is full strength at 1.5px; past ten
+  // the colours repeat, so every line thins and fades into one band (#801).
+  it('thins and fades every line once the chart holds more than ten', () => {
+    render(<TimeSeriesChart {...props({ rows: TWO, colorFor: () => COLOR })} />)
+    for (const line of chart.series) expect([line.strokeWidth, line.strokeOpacity]).toEqual([LINE_DRAW.width, 1])
+    const crowd = Array.from({ length: BASE_PALETTE_SIZE + 1 }, (_, i) =>
+      resultRow({ name: `Peak ${i}`, latitude: 46 + i / 10, longitude: -121, series: series({ aqi: TIMES.map(() => 30 + i) }) }),
+    )
+    chart.series = []
+    render(<TimeSeriesChart {...props({ rows: crowd, colorFor: () => COLOR })} />)
+    expect(chart.series).toHaveLength(BASE_PALETTE_SIZE + 1)
+    for (const line of chart.series) {
+      expect([line.strokeWidth, line.strokeOpacity]).toEqual([LINE_DRAW.crowdedWidth, LINE_DRAW.crowdedOpacity])
+    }
   })
 
   // A point sample draws dots and no segment: each is its line's colour, filled.

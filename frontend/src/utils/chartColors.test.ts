@@ -7,90 +7,75 @@ import {
   BASE_PALETTE_SIZE,
   CHART_CHROME,
   CHROME,
+  LINE_DRAW,
 } from './chartColors'
-import { contrast, relativeLuminance, round2 } from '../testSupport/contrast'
+import { contrast, mixOver, round2 } from '../testSupport/contrast'
+import { themed } from './themeColor'
 
 const THEMES = ['dark', 'light'] as const
 
+// Tableau 10 (#801), in its own order: blue, orange, red, teal, green,
+// yellow, purple, pink, brown, grey. Dark as published; light with the six
+// that fall under 3:1 on the light panel darkened, hue kept, until they clear.
+const TABLEAU_10 = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac']
+const ten = (theme: (typeof THEMES)[number]) => Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => colorForIndex(i, theme))
+
 describe('colorForIndex', () => {
-  // The curated ten, spelled as the hexes their hues paint at each theme's
-  // lightness (#801), in allocation order: blue, red, green, purple, orange,
-  // teal, pink, gold, indigo, olive.
-  it('paints the curated ten', () => {
-    const ten = (theme: (typeof THEMES)[number]) => Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => colorForIndex(i, theme))
+  it('paints Tableau 10, fitted to 3:1 in light', () => {
+    expect(ten('dark')).toEqual(TABLEAU_10)
     expect(ten('light')).toEqual([
-      '#0089d8', '#d25645', '#1a9d4b', '#a063ca', '#ba6f00', '#009696', '#c65491', '#a57c00', '#6977e1', '#6e9200',
-    ])
-    expect(ten('dark')).toEqual([
-      '#59b6ff', '#fe8674', '#5dc879', '#cb91f4', '#ee9733', '#00c7c7', '#f383bb', '#ccac16', '#96a7ff', '#98be49',
+      '#4e79a7', '#cf7200', '#e15759', '#559591', '#529a48', '#a68700', '#b07aa1', '#cc6f7a', '#9c755f', '#928884',
     ])
   })
 
-  // Past the ten the walk carries on round the wheel at the same lightness,
-  // darker in light than in dark, as the curated ten are.
-  it('generates distinct hex colours past the curated palette, darker in light', () => {
-    expect([colorForIndex(BASE_PALETTE_SIZE, 'light'), colorForIndex(BASE_PALETTE_SIZE, 'dark')]).toEqual(['#009886', '#00c9b1'])
+  // Past ten the palette comes round again, as Tableau's does.
+  it('repeats the ten past the tenth line', () => {
     for (const theme of THEMES) {
-      const a = colorForIndex(BASE_PALETTE_SIZE, theme)
-      const b = colorForIndex(BASE_PALETTE_SIZE + 1, theme)
-      expect(a).toMatch(/^#[0-9a-f]{6}$/)
-      expect(a).not.toBe(b)
+      for (const index of [BASE_PALETTE_SIZE, 17, 42, 999]) {
+        expect(colorForIndex(index, theme)).toBe(colorForIndex(index % BASE_PALETTE_SIZE, theme))
+      }
     }
-    for (const index of [BASE_PALETTE_SIZE, 17, 42]) {
-      expect(relativeLuminance(colorForIndex(index, 'light'))).toBeLessThan(relativeLuminance(colorForIndex(index, 'dark')))
-    }
-  })
-
-  // Worked out once and kept, so a long chart's renders read the same string.
-  it('answers the same colour for an index every time', () => {
-    for (const theme of THEMES) expect(colorForIndex(123, theme)).toBe(colorForIndex(123, theme))
   })
 })
 
 describe('the palette in each theme (#706)', () => {
   // Ten colours a theme, at the same index in each, so a switch recolours a
   // line without moving it along the palette.
-  it('keeps ten curated colours a theme, all different', () => {
-    for (const theme of THEMES) {
-      const ten = Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => colorForIndex(i, theme))
-      expect(new Set(ten).size).toBe(BASE_PALETTE_SIZE)
-    }
+  it('keeps ten colours a theme, all different', () => {
+    for (const theme of THEMES) expect(new Set(ten(theme)).size).toBe(BASE_PALETTE_SIZE)
   })
 
-  // A series line is a graphic the reader tells apart from its ground, so it
-  // owes the panel 3:1 (WCAG 1.4.11), by itself, in both themes (#801). One
-  // lightness a theme keeps the ten close together: measured 2026-10-22,
-  // light 3.13 to 3.68 on the light panel and dark 6.11 to 6.96 on slate-800.
-  it('stands every curated line at 3:1 or better on the panel', () => {
-    const ratios = (theme: (typeof THEMES)[number]) =>
-      Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => contrast(colorForIndex(i, theme), CHART_CHROME[theme].surface))
+  // A series line is a graphic the reader tells apart from its ground, so at
+  // full strength it owes the panel 3:1 (WCAG 1.4.11) by itself, in both
+  // themes (#801). Measured 2026-10-22: light 3.04 to 4.05 on the light panel,
+  // dark 3.21 to 9.08 on slate-800.
+  it('stands every colour at 3:1 or better on the panel', () => {
+    const ratios = (theme: (typeof THEMES)[number]) => ten(theme).map((c) => contrast(c, CHART_CHROME[theme].surface))
     for (const theme of THEMES) for (const ratio of ratios(theme)) expect(ratio, theme).toBeGreaterThanOrEqual(3)
     const span = (xs: number[]) => [round2(Math.min(...xs)), round2(Math.max(...xs))]
-    expect(span(ratios('light'))).toEqual([3.13, 3.68])
-    expect(span(ratios('dark'))).toEqual([6.11, 6.96])
+    expect(span(ratios('light'))).toEqual([3.04, 4.05])
+    expect(span(ratios('dark'))).toEqual([3.21, 9.08])
   })
 
-  // The chart draws a line per displayed row, hundreds of them, so the
-  // generated colours past the tenth are most of a big chart and owe the
-  // same 3:1. The first thousand allocator indices in each theme, measured
-  // 2026-10-22: light 3.13 to 3.70 on the light panel, dark 6.10 to 7.05 on
-  // slate-800.
-  it('stands every generated line at 3:1 or better for the first thousand indices', () => {
-    const indices = Array.from({ length: 1000 }, (_, i) => i).slice(BASE_PALETTE_SIZE)
-    const ratios = (theme: (typeof THEMES)[number]) => indices.map((i) => contrast(colorForIndex(i, theme), CHART_CHROME[theme].surface))
-    for (const theme of THEMES) for (const ratio of ratios(theme)) expect(ratio, theme).toBeGreaterThanOrEqual(3)
+  // Past ten lines each is drawn at 55%, which the maintainer accepted under
+  // 3:1 with Tableau's lead (#801). Pinned so a change to the palette or the
+  // fade re-measures the claim in `LINE_DRAW`'s comment.
+  it('measures a crowded line at its fade', () => {
+    const faded = (theme: (typeof THEMES)[number]) =>
+      ten(theme).map((c) => contrast(mixOver(c, CHART_CHROME[theme].surface, LINE_DRAW.crowdedOpacity), CHART_CHROME[theme].surface))
     const span = (xs: number[]) => [round2(Math.min(...xs)), round2(Math.max(...xs))]
-    expect(span(ratios('light'))).toEqual([3.13, 3.7])
-    expect(span(ratios('dark'))).toEqual([6.1, 7.05])
+    expect(span(faded('light'))).toEqual([1.75, 2.01])
+    expect(span(faded('dark'))).toEqual([1.9, 3.75])
   })
 
   // A line's colour is both themes' shades of its index at once, light
-  // first, which the root's colour scheme picks between (#786).
+  // first, which the root's colour scheme picks between (#786). Tableau's
+  // blue is the same in both, so it is written once.
   it('resolves a whole allocation to both themes\' shades at once', () => {
     const held = allocateColors({}, ['a', 'b'])
     expect(paletteColors(held)).toEqual({
-      a: 'light-dark(#0089d8, #59b6ff)',
-      b: 'light-dark(#d25645, #fe8674)',
+      a: '#4e79a7',
+      b: 'light-dark(#cf7200, #f28e2b)',
     })
   })
 
@@ -103,7 +88,7 @@ describe('the palette in each theme (#706)', () => {
     const colors = paletteColors(held)
     for (const key of keys) {
       expect(colors[key]).toBe(lineColor(held[key]))
-      expect(colors[key]).toBe(`light-dark(${colorForIndex(held[key], 'light')}, ${colorForIndex(held[key], 'dark')})`)
+      expect(colors[key]).toBe(themed(colorForIndex(held[key], 'light'), colorForIndex(held[key], 'dark')))
     }
     expect(held.k24).toBe(24)
   })

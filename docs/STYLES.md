@@ -309,16 +309,14 @@ panel over its tint: the verdict ramp 5.42 to 6.27:1, temperature 5.44 to
 7.26:1, the freezing level 5.83 to 8.06:1, and the cloud deck and snowfall as
 the reverses of the two they mirror.
 
-**The chart.** `chartColors.ts` draws every line at one OKLCH lightness per
-theme, 0.61 in light and 0.75 in dark, with chroma capped at 0.16 and 0.15. The
-first ten sit at fixed hues (blue, red, green, purple, orange, teal, pink, gold,
-indigo and olive) and the rest walk the golden angle from the first. One
-lightness means one ratio against the panel, so every line stands 3:1 off it
-by itself, and nothing in a line's colour wears an edge: not the lines, the
-dots, the readout's swatches, the legend's dots or a ticked chart box (record
-[0228](decisions/0228-chart-lines-one-lightness-no-rim.md)). The chart can carry
-a line per displayed row, hundreds of them, so the generator is held to the
-same 3:1 at every hue it can land on, in both themes. The allocator stores an
+**The chart.** `chartColors.ts` draws the lines in Tableau 10: as published in
+dark, and in light with the six that fall under 3:1 on the panel darkened, hue
+kept, until they clear it. Every colour stands 3:1 off its panel at full
+strength, so nothing in a line's colour wears an edge: not the lines, the dots,
+the readout's swatches, the legend's dots or a ticked chart box. Past ten lines
+the colours repeat, as Tableau's do, and every line drops from 1.5px to 1px at
+55% (`LINE_DRAW`), so a crowd reads as one band (record
+[0228](decisions/0228-chart-lines-tableau-10.md)). The allocator stores an
 index rather than a colour, so a switch recolours every line, swatch and table
 checkbox without reallocating which destination has which slot. Every colour
 reaches the chart as `light-dark()` (`lineColor` and `CHROME`), so a switch
@@ -543,11 +541,10 @@ The rest of the theme, role by role, each pinned as a literal:
   dark white thumb's 2.71 on its own.
 - **The scroll shade** is the ink at 12%, 1.27:1 off the light panel, where
   dark's slate-950 at 70% stands 1.29:1 off its own.
-- **Chart lines** read 3.13 to 3.68:1 on the light panel for the curated
-  ten and 3.13 to 3.70 for the first thousand allocator slots; in dark, 6.11
-  to 6.96 and 6.10 to 7.05 on slate-800. At light lightness 0.62 the worst hue
-  would read 3.01, which is why it is 0.61 (#801). The axis reads 8.34 in
-  light and 5.56 in dark.
+- **Chart lines** read 3.04 to 4.05:1 on the light panel and 3.21 to 9.08
+  on slate-800. Past ten lines, at 55%, they read 1.75 to 2.01 in light and
+  1.90 to 3.75 in dark, under 3:1, which the maintainer accepted with
+  Tableau's lead (#801). The axis reads 8.34 in light and 5.56 in dark.
 
 **Re-measure condition:** every one of these numbers is a literal in
 `styles.test.ts`, `colors.test.ts` or `chartColors.test.ts`, so changing a

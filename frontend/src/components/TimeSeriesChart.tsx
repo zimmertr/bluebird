@@ -49,7 +49,7 @@ import {
   hourIndexAt,
   readoutPlace,
 } from '../utils/chartPointer'
-import { CHART_TICK_PX, CHROME } from '../utils/chartColors'
+import { BASE_PALETTE_SIZE, CHART_TICK_PX, CHROME, LINE_DRAW } from '../utils/chartColors'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
@@ -557,9 +557,11 @@ function TimeSeriesChart({
               />
               {ordered.map((line) => {
                 const key = line.key
-                const dimmed = focusedKey != null && focusedKey !== key
-                const width = focusedKey === key ? 2.5 : 1.5
-                const opacity = dimmed ? 0.25 : 1
+                const focused = focusedKey === key
+                const dimmed = focusedKey != null && !focused
+                const crowded = ordered.length > BASE_PALETTE_SIZE
+                const width = focused ? LINE_DRAW.focusedWidth : crowded ? LINE_DRAW.crowdedWidth : LINE_DRAW.width
+                const opacity = dimmed ? LINE_DRAW.dimmedOpacity : crowded && !focused ? LINE_DRAW.crowdedOpacity : 1
                 return (
                   <Line
                     key={key}

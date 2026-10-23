@@ -86,102 +86,68 @@ export const CHROME: Record<keyof ChartChrome, string> = {
  * had a name (#687), and `styles.test.ts` holds it to the ramp.
  */
 export const CHART_TICK_PX = 11
-// Every line, curated or generated, is one OKLCH lightness per theme (#801):
-// equal lightness is what lets ten hues read as ten lines rather than three
-// loud ones and seven quiet ones, and it is one ratio against the panel, so
-// every line owes the panel its 3:1 (WCAG 1.4.11) by itself and needs no
-// edge. Light walks at 0.61, where the worst hue on the wheel reads 3.13:1 on
-// the light panel (0.62 leaves it 3.01, too close to round on), and dark at
-// 0.75, where the worst reads 6.10:1 on slate-800. The chroma is capped (0.16
-// in light, 0.15 in dark) so no hue shouts over the rest, and taken lower
-// wherever sRGB cannot show it.
-// The maintainer picked this from ten published chart palettes mocked side by
-// side on #801 (2026-10-22): it was the only one whose every line cleared
-// 3:1 in both themes. `chartColors.test.ts` measures every curated line and
-// the first thousand generated ones.
-const LINE_LIGHTNESS: Record<Theme, number> = { light: 0.61, dark: 0.75 }
-const LINE_CHROMA: Record<Theme, number> = { light: 0.16, dark: 0.15 }
-
-// The first ten, the lines most charts draw, at hues picked by hand so
-// neighbours in the allocation order sit far apart on the wheel. Light's gold
-// sits ten degrees warmer than dark's, the shade the maintainer saw in the
-// mockups. An index means the same hue in either theme, which is what lets a
-// switch recolour a line rather than re-allocate it. `chartColors.test.ts`
-// spells the hexes these paint.
-const CURATED_HUES: Record<Theme, readonly number[]> = {
-  // blue, red, green, purple, orange, teal, pink, gold, indigo, olive
-  light: [245, 30, 150, 310, 65, 195, 350, 85, 275, 125],
-  dark: [245, 30, 150, 310, 65, 195, 350, 95, 275, 125],
+// Tableau 10 (#801): ten colours of middling lightness and saturation, made
+// to be told apart and to sit on a light page or a dark one alike. A chart
+// past ten lines repeats them, as Tableau does, because no reader matches a
+// fortieth colour to a legend; the hover box names the line, and
+// `TimeSeriesChart` thins and fades a crowded chart's lines so the repeats
+// blend into a band. Each owes the panel 3:1 (WCAG 1.4.11) at full strength.
+// Dark is Tableau 10 as published, 3.21 to 9.08:1 on slate-800. On the light
+// panel six of them fall under 3:1, so each of those is darkened in OKLCH,
+// hue and chroma kept, only until it clears it (3.06 to 3.09:1), and the light ten read 3.04 to 4.05:1. The
+// maintainer picked this from mockups at five lines and at seventy-one in
+// both themes, 2026-10-22. `chartColors.test.ts` measures every one. An index
+// means the same colour family in either theme, which is what lets a switch
+// recolour a line rather than re-allocate it.
+const BASE_PALETTE: Record<Theme, readonly string[]> = {
+  light: [
+    '#4e79a7', // blue
+    '#cf7200', // orange, darkened from #f28e2b
+    '#e15759', // red
+    '#559591', // teal, darkened from #76b7b2
+    '#529a48', // green, darkened from #59a14f
+    '#a68700', // yellow, darkened from #edc948
+    '#b07aa1', // purple
+    '#cc6f7a', // pink, darkened from #ff9da7
+    '#9c755f', // brown
+    '#928884', // grey, darkened from #bab0ac
+  ],
+  dark: [
+    '#4e79a7', // blue
+    '#f28e2b', // orange
+    '#e15759', // red
+    '#76b7b2', // teal
+    '#59a14f', // green
+    '#edc948', // yellow
+    '#b07aa1', // purple
+    '#ff9da7', // pink
+    '#9c755f', // brown
+    '#bab0ac', // grey
+  ],
 }
 
-export const BASE_PALETTE_SIZE = CURATED_HUES.dark.length
-
-// OKLCH to linear sRGB, through Björn Ottosson's published OKLab matrices.
-function oklchToLinearRgb(l: number, c: number, h: number): [number, number, number] {
-  const a = c * Math.cos((h * Math.PI) / 180)
-  const b = c * Math.sin((h * Math.PI) / 180)
-  const lc = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3
-  const mc = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3
-  const sc = (l - 0.0894841775 * a - 1.291485548 * b) ** 3
-  return [
-    4.0767416621 * lc - 3.3077115913 * mc + 0.2309699292 * sc,
-    -1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc,
-    -0.0041960863 * lc - 0.7034186147 * mc + 1.707614701 * sc,
-  ]
-}
-
-const inGamut = (rgb: readonly number[]) => rgb.every((v) => v >= -1e-6 && v <= 1 + 1e-6)
-
-// A colour sRGB cannot show keeps its lightness and hue and gives up chroma,
-// found by halving: clipping a channel instead would move the lightness, and
-// the lightness is what holds the 3:1.
-function oklchHex(l: number, cap: number, h: number): string {
-  let rgb = oklchToLinearRgb(l, cap, h)
-  if (!inGamut(rgb)) {
-    let lo = 0
-    let hi = cap
-    for (let i = 0; i < 30; i++) {
-      const mid = (lo + hi) / 2
-      if (inGamut(oklchToLinearRgb(l, mid, h))) lo = mid
-      else hi = mid
-    }
-    rgb = oklchToLinearRgb(l, lo, h)
-  }
-  const channel = (v: number) => {
-    const x = Math.min(1, Math.max(0, v))
-    const encoded = x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055
-    return Math.round(255 * encoded)
-      .toString(16)
-      .padStart(2, '0')
-  }
-  return `#${rgb.map(channel).join('')}`
-}
-
-// Past the curated ten, walk the hue wheel by the golden angle from the first
-// line's hue, so each new line lands ~137.5° from the one before, maximally
-// spaced for any count. The chart can carry a line per displayed row,
-// hundreds of them, so these are most of a big chart's colours.
-function hueAt(index: number, theme: Theme): number {
-  const curated = CURATED_HUES[theme]
-  return index < curated.length ? curated[index] : (curated[0] + index * 137.508) % 360
-}
-
-// Kept once worked out, because a long chart asks for the same few hundred
-// colours on every render.
-const painted = new Map<string, string>()
+export const BASE_PALETTE_SIZE = BASE_PALETTE.dark.length
 
 /**
- * The hex an allocated index paints in a theme. Always hex, so the same value
- * drives the swatch, the table's checkbox tint and the Recharts stroke.
+ * How a series line is drawn (#801), following Tableau. Up to the palette's
+ * ten, every line has a colour of its own and is drawn at 1.5px, full
+ * strength. Past ten the colours come round again, so every line drops to
+ * 1px at 55% and a crowd blends into one band rather than a tangle of
+ * repeats; at 55% a line reads under 3:1 on its panel (1.75 to 2.01 in light,
+ * 1.90 to 3.75 in dark), which the maintainer accepted with Tableau's lead
+ * (2026-10-22). The focused line stands at 2.5px and full strength either
+ * way, and the rest dim to a quarter while it does.
+ */
+export const LINE_DRAW = { width: 1.5, crowdedWidth: 1, focusedWidth: 2.5, crowdedOpacity: 0.55, dimmedOpacity: 0.25 } as const
+
+/**
+ * The hex an allocated index paints in a theme: the palette, round again past
+ * its tenth. Always hex, so the same value drives the swatch, the table's
+ * checkbox tint and the Recharts stroke.
  */
 export function colorForIndex(index: number, theme: Theme): string {
-  const key = `${theme}${index}`
-  let hex = painted.get(key)
-  if (hex === undefined) {
-    hex = oklchHex(LINE_LIGHTNESS[theme], LINE_CHROMA[theme], hueAt(index, theme))
-    painted.set(key, hex)
-  }
-  return hex
+  const palette = BASE_PALETTE[theme]
+  return palette[index % palette.length]
 }
 
 /**
@@ -215,9 +181,10 @@ export function paletteColors(indices: Readonly<Record<string, number>>): Record
  * This is the app's ONE colour allocator and it hands out to two kinds of key:
  * a charted destination (by `chartKey`), and a (destination, compared model)
  * pair on the comparison chart (by `pairKey`). One counter for both is the
- * whole point — two allocators over one palette would eventually hand the same
- * colour to a destination and to a line standing beside it, which is exactly
- * what a comparison must never do.
+ * whole point — two allocators over one palette would hand the same colour to
+ * a destination and to a line standing beside it while the chart still had
+ * colours to spare. One counter keeps the first ten lines, of either kind,
+ * ten colours; only past ten does the palette come round again (#801).
  *
  * Monotonic in what is already assigned, so a colour is allocated once and
  * kept: a line never changes hue because another was added or taken away, and
