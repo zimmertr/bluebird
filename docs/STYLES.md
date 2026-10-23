@@ -309,18 +309,14 @@ panel over its tint: the verdict ramp 5.42 to 6.27:1, temperature 5.44 to
 7.26:1, the freezing level 5.83 to 8.06:1, and the cloud deck and snowfall as
 the reverses of the two they mirror.
 
-**The chart.** `chartColors.ts` holds a twin of the ten-line palette for light,
-the same hues at Tailwind's 300 step (sky, pink, lime, amber, purple, emerald,
-orange, blue, fuchsia and teal), and the golden-angle generator past the ten
-walks at saturation 70, lightness 78, where dark walks at 70 and 64. A pastel
-alone cannot stand off the light panel, so every light line is drawn over a
-rim of `ink-soft`, a pixel wider than the line on each side (one SVG filter
-over the group Recharts draws the lines into, which measured half the cost of
-a second line under each; record 0158 has the numbers), and every mark in
-a line's colour wears the same rim: the hover dot, a point sample's dots, the
-readout's swatches, the chart-only legend's dots and a ticked chart checkbox
-(`LINE_EDGE` in `styles.ts`, on the `line-edge` token, which is transparent in
-dark; `lineEdge` in `CHROME`). The chart can carry
+**The chart.** `chartColors.ts` draws every line at one OKLCH lightness per
+theme, 0.61 in light and 0.75 in dark, with chroma capped at 0.16 and 0.15. The
+first ten sit at fixed hues (blue, red, green, purple, orange, teal, pink, gold,
+indigo and olive) and the rest walk the golden angle from the first. One
+lightness means one ratio against the panel, so every line stands 3:1 off it
+by itself, and nothing in a line's colour wears an edge: not the lines, the
+dots, the readout's swatches, the legend's dots or a ticked chart box (record
+[0228](decisions/0228-chart-lines-one-lightness-no-rim.md)). The chart can carry
 a line per displayed row, hundreds of them, so the generator is held to the
 same 3:1 at every hue it can land on, in both themes. The allocator stores an
 index rather than a colour, so a switch recolours every line, swatch and table
@@ -328,8 +324,8 @@ checkbox without reallocating which destination has which slot. Every colour
 reaches the chart as `light-dark()` (`lineColor` and `CHROME`), so a switch
 repaints it without re-rendering it (record
 [0211](decisions/0211-theme-switch-renders-nothing.md)). The chrome
-follows the tokens: axis `ink-soft`, grid `rule`, surface `panel`, playhead
-`accent-ink`, and the light lines' rim `ink-soft`.
+follows the tokens: axis `ink-soft`, grid `rule`, surface `panel` and playhead
+`accent-ink`.
 
 **What does not change.** The map is terrain and light in both themes: the
 basemap, the markers, the ring, the labels and their halo, and every overlay's
@@ -547,16 +543,11 @@ The rest of the theme, role by role, each pinned as a literal:
   dark white thumb's 2.71 on its own.
 - **The scroll shade** is the ink at 12%, 1.27:1 off the light panel, where
   dark's slate-950 at 70% stands 1.29:1 off its own.
-- **Chart lines** are pastels that read only 1.16 to 1.62:1 on the light
-  panel, so the boundary is the rim each is drawn over, `ink-soft` at 8.34:1
-  on the panel. Against the rim the curated ten read 5.14 (pink) to 7.21
-  (lime), and the golden-angle colours past the tenth, at saturation 70 and
-  lightness 78, read 3.90 at the wheel's worst hue (pure blue) and 7.75 at its
-  best, so a chart of any size clears 3:1. Dark's lines read 5.52 and up on
-  its panel, and its generator now walks at lightness 64, the lowest whole
-  value at which pure blue clears 3:1 on slate-800 (3.08); at the 60 it
-  walked at before, the colours past the tenth read as low as 2.53 (PR #733).
-  The axis reads 8.34 in light and 5.56 in dark.
+- **Chart lines** read 3.13 to 3.68:1 on the light panel for the curated
+  ten and 3.13 to 3.70 for the first thousand allocator slots; in dark, 6.11
+  to 6.96 and 6.10 to 7.05 on slate-800. At light lightness 0.62 the worst hue
+  would read 3.01, which is why it is 0.61 (#801). The axis reads 8.34 in
+  light and 5.56 in dark.
 
 **Re-measure condition:** every one of these numbers is a literal in
 `styles.test.ts`, `colors.test.ts` or `chartColors.test.ts`, so changing a

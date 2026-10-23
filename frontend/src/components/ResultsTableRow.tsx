@@ -37,7 +37,7 @@ import {
   unavailableCell,
   windyCellUrl,
 } from '../utils/resultsCells'
-import { CHOICE_INPUT, ICON_ACTION, LINE_EDGE, LINK_QUIET, SR_ONLY, TABLE, TEXT } from '../styles'
+import { CHOICE_INPUT, ICON_ACTION, LINK_QUIET, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
@@ -85,10 +85,8 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
 // (and shows its sticky color) so the line appears the moment an analysis
 // gives it data. Only the shift-range path insists on series rows.
 //
-// A ticked box is filled with its line's colour, which in light is a pastel
-// under 3:1 on the panel, so it wears the rim the line is drawn over (PR
-// #733), which the dark theme draws transparent (`LINE_EDGE`). An unticked
-// box is the browser's own and needs none.
+// A ticked box is filled with its line's colour, which stands 3:1 off the
+// panel by itself in either theme (#801).
 function ChartToggle({
   row,
   on,
@@ -109,7 +107,7 @@ function ChartToggle({
         onClick={(e) => box.onShift(e.shiftKey)}
         onChange={() => box.onToggle(row)}
         aria-label={`Chart ${row.name}`}
-        className={tinted ? `${CHOICE_INPUT} ${LINE_EDGE.input}` : CHOICE_INPUT}
+        className={CHOICE_INPUT}
         style={tinted ? { accentColor: color } : undefined}
       />
     </td>

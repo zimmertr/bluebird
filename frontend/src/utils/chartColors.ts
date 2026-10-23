@@ -15,7 +15,6 @@
 // them from its oklch steps (#687); the light ones are the light theme's
 // tokens in `index.css`, spelled as the hexes they are there.
 import type { Theme } from './viewPrefs'
-import { clamp } from './numbers'
 import { themed } from './themeColor'
 
 /** The chart's chrome in one theme. */
@@ -46,15 +45,6 @@ export interface ChartChrome {
    * rather than as a destination that happens to be grey.
    */
   unassigned: string
-  /**
-   * The thin edge every series line and every mark in a line's colour wears
-   * (PR #733), or null where the lines need none. The light lines are pastels
-   * that read 1.16 to 1.62:1 on the light panel, under the 3:1 a graphic owes
-   * its ground (WCAG 1.4.11), so the boundary is carried by this edge, which
-   * every pastel reads 3:1 or better against and which reads 8.34:1 on the
-   * panel. The dark lines read 3:1 on their panel by themselves.
-   */
-  lineEdge: string | null
 }
 
 // slate-400, slate-700, slate-800 and sky-400.
@@ -64,7 +54,6 @@ const DARK_CHROME: ChartChrome = {
   surface: '#1d293d',
   playhead: '#00bcff',
   unassigned: '#90a1b9',
-  lineEdge: null,
 }
 // The secondary ink (`ink-soft`), the quiet rule, the panel and the accent ink.
 const LIGHT_INK_SOFT = '#42474e'
@@ -74,54 +63,21 @@ const LIGHT_CHROME: ChartChrome = {
   surface: '#eef2f9',
   playhead: '#00639b',
   unassigned: LIGHT_INK_SOFT,
-  lineEdge: LIGHT_INK_SOFT,
 }
 
 export const CHART_CHROME: Record<Theme, ChartChrome> = { dark: DARK_CHROME, light: LIGHT_CHROME }
 
 /**
  * The chrome as the chart draws it (#786): every value both themes' at once,
- * resolved by the root's colour scheme. The rim is transparent in dark, where
- * the lines need none, so a mark can wear it in either theme.
+ * resolved by the root's colour scheme.
  */
-export const CHROME: Record<Exclude<keyof ChartChrome, 'lineEdge'>, string> & { lineEdge: string } = {
+export const CHROME: Record<keyof ChartChrome, string> = {
   axis: themed(LIGHT_CHROME.axis, DARK_CHROME.axis),
   grid: themed(LIGHT_CHROME.grid, DARK_CHROME.grid),
   surface: themed(LIGHT_CHROME.surface, DARK_CHROME.surface),
   playhead: themed(LIGHT_CHROME.playhead, DARK_CHROME.playhead),
   unassigned: themed(LIGHT_CHROME.unassigned, DARK_CHROME.unassigned),
-  lineEdge: themed(LIGHT_INK_SOFT, 'transparent'),
 }
-
-/** The rim's own ink, which the light theme's filter floods with (PR #733). */
-export const LINE_RIM_INK = LIGHT_INK_SOFT
-
-/**
- * How much wider a line's edge is drawn than the line: a pixel each side, so
- * the edge shows as a 1px rim and the colour inside it keeps the line's width.
- */
-export const LINE_EDGE_EXTRA_PX = 2
-
-/**
- * How the chart draws that rim (PR #733): one SVG filter over every series
- * line at once, rather than a second, wider line under each. Measured
- * 2026-10-15 against the built image at 946 charted lines over a three-day
- * window, a theme switch took about 1.1 s with the filter, the same as
- * before the rim, and 2.3 s with a second line each, which doubles what
- * Recharts lays out; a hover's raster work stayed at the no-rim figure with
- * the filter and doubled with the second lines.
- *
- * Recharts 3 draws each z-index into its own SVG group, so the series lines
- * stand one above its line layer (`DefaultZIndexes.line`, 400), alone in a
- * group of their own, and `index.css` filters that group in light: the
- * reference lines, the dots and the hover dots stay unfiltered at their
- * own layers. Both numbers are spelled here rather than read from Recharts,
- * which this module must not import (it would pull Recharts into the entry
- * chunk); `chartColors.test.ts` holds the layer to Recharts' own constant
- * and the id and the layer to the stylesheet's rule.
- */
-export const LINE_LAYER_Z = 401
-export const LINE_RIM_FILTER_ID = 'chart-line-rim'
 
 /**
  * The type size of every word the chart draws: its tick labels and the Now and
@@ -130,83 +86,102 @@ export const LINE_RIM_FILTER_ID = 'chart-line-rim'
  * had a name (#687), and `styles.test.ts` holds it to the ramp.
  */
 export const CHART_TICK_PX = 11
-// A curated, reasonably colorblind-aware palette used first — where distinction
-// matters most (the common case of a handful of lines). The light theme's is
-// the same ten hues at Tailwind's 300 step (PR #733): the maintainer found
-// the 600/700 twin too dark, and a pastel reads 3:1 or better against the
-// dark edge it is drawn over (`lineEdge`), which is what stands it off the
-// light panel. The dark ones stand 3:1 on the dark panel by themselves.
-// `chartColors.test.ts` measures both. An index means the same hue in either
-// theme, which is what lets a switch recolour a line rather than re-allocate
-// it.
-const BASE_PALETTE: Record<Theme, readonly string[]> = {
-  dark: [
-    '#38bdf8', // sky
-    '#f472b6', // pink
-    '#a3e635', // lime
-    '#fbbf24', // amber
-    '#c084fc', // purple
-    '#34d399', // emerald
-    '#fb923c', // orange
-    '#60a5fa', // blue
-    '#e879f9', // fuchsia
-    '#2dd4bf', // teal
-  ],
-  light: [
-    '#74d4ff', // sky-300
-    '#fda5d5', // pink-300
-    '#bbf451', // lime-300
-    '#ffd230', // amber-300
-    '#dab2ff', // purple-300
-    '#5ee9b5', // emerald-300
-    '#ffb86a', // orange-300
-    '#8ec5ff', // blue-300
-    '#f4a8ff', // fuchsia-300
-    '#46ecd5', // teal-300
-  ],
+// Every line, curated or generated, is one OKLCH lightness per theme (#801):
+// equal lightness is what lets ten hues read as ten lines rather than three
+// loud ones and seven quiet ones, and it is one ratio against the panel, so
+// every line owes the panel its 3:1 (WCAG 1.4.11) by itself and needs no
+// edge. Light walks at 0.61, where the worst hue on the wheel reads 3.13:1 on
+// the light panel (0.62 leaves it 3.01, too close to round on), and dark at
+// 0.75, where the worst reads 6.10:1 on slate-800. The chroma is capped (0.16
+// in light, 0.15 in dark) so no hue shouts over the rest, and taken lower
+// wherever sRGB cannot show it.
+// The maintainer picked this from ten published chart palettes mocked side by
+// side on #801 (2026-10-22): it was the only one whose every line cleared
+// 3:1 in both themes. `chartColors.test.ts` measures every curated line and
+// the first thousand generated ones.
+const LINE_LIGHTNESS: Record<Theme, number> = { light: 0.61, dark: 0.75 }
+const LINE_CHROMA: Record<Theme, number> = { light: 0.16, dark: 0.15 }
+
+// The first ten, the lines most charts draw, at hues picked by hand so
+// neighbours in the allocation order sit far apart on the wheel. Light's gold
+// sits ten degrees warmer than dark's, the shade the maintainer saw in the
+// mockups. An index means the same hue in either theme, which is what lets a
+// switch recolour a line rather than re-allocate it. `chartColors.test.ts`
+// spells the hexes these paint.
+const CURATED_HUES: Record<Theme, readonly number[]> = {
+  // blue, red, green, purple, orange, teal, pink, gold, indigo, olive
+  light: [245, 30, 150, 310, 65, 195, 350, 85, 275, 125],
+  dark: [245, 30, 150, 310, 65, 195, 350, 95, 275, 125],
 }
 
-export const BASE_PALETTE_SIZE = BASE_PALETTE.dark.length
+export const BASE_PALETTE_SIZE = CURATED_HUES.dark.length
 
-function hslToHex(h: number, s: number, l: number): string {
-  s /= 100
-  l /= 100
-  const k = (n: number) => (n + h / 30) % 12
-  const a = s * Math.min(l, 1 - l)
-  const f = (n: number) => {
-    const c = l - a * clamp(Math.min(k(n) - 3, 9 - k(n)), -1, 1)
-    return Math.round(255 * c)
+// OKLCH to linear sRGB, through Björn Ottosson's published OKLab matrices.
+function oklchToLinearRgb(l: number, c: number, h: number): [number, number, number] {
+  const a = c * Math.cos((h * Math.PI) / 180)
+  const b = c * Math.sin((h * Math.PI) / 180)
+  const lc = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3
+  const mc = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3
+  const sc = (l - 0.0894841775 * a - 1.291485548 * b) ** 3
+  return [
+    4.0767416621 * lc - 3.3077115913 * mc + 0.2309699292 * sc,
+    -1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc,
+    -0.0041960863 * lc - 0.7034186147 * mc + 1.707614701 * sc,
+  ]
+}
+
+const inGamut = (rgb: readonly number[]) => rgb.every((v) => v >= -1e-6 && v <= 1 + 1e-6)
+
+// A colour sRGB cannot show keeps its lightness and hue and gives up chroma,
+// found by halving: clipping a channel instead would move the lightness, and
+// the lightness is what holds the 3:1.
+function oklchHex(l: number, cap: number, h: number): string {
+  let rgb = oklchToLinearRgb(l, cap, h)
+  if (!inGamut(rgb)) {
+    let lo = 0
+    let hi = cap
+    for (let i = 0; i < 30; i++) {
+      const mid = (lo + hi) / 2
+      if (inGamut(oklchToLinearRgb(l, mid, h))) lo = mid
+      else hi = mid
+    }
+    rgb = oklchToLinearRgb(l, lo, h)
+  }
+  const channel = (v: number) => {
+    const x = Math.min(1, Math.max(0, v))
+    const encoded = x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055
+    return Math.round(255 * encoded)
       .toString(16)
       .padStart(2, '0')
   }
-  return `#${f(0)}${f(8)}${f(4)}`
+  return `#${rgb.map(channel).join('')}`
 }
 
-// Past the curated palette, walk the hue wheel by the golden angle so each new
-// line lands ~137.5° from the previous — maximally spaced for any count. Always
-// hex, so the same value drives the swatch, the table's checkbox tint, and the
-// Recharts stroke. The chart can carry a line per displayed row, hundreds of
-// them, so these are most of a big chart's colours and every one owes 3:1 to
-// whatever stands it off the panel, at any hue the walk lands on.
-//
-// Saturation 70 in both themes. Dark walks at 64, the lowest whole lightness
-// at which the worst hue on the wheel (pure blue) still clears 3:1 on
-// slate-800, at 3.08:1; the 60 it walked at before bottomed out at 2.53.
-// Light walks at 78, the maintainer's pastel (PR #733), against the dark edge
-// rather than the panel: pure blue is again the worst at 3.90:1 and the best
-// reads 7.75, so a line clears 3:1 however many there are. A higher
-// saturation fails sooner there (80 bottoms at 3.70, 90 at about 3.5).
-const GENERATED_SATURATION = 70
-const GENERATED_LIGHTNESS: Record<Theme, number> = { dark: 64, light: 78 }
-
-function generatedHex(index: number, theme: Theme): string {
-  return hslToHex((index * 137.508) % 360, GENERATED_SATURATION, GENERATED_LIGHTNESS[theme])
+// Past the curated ten, walk the hue wheel by the golden angle from the first
+// line's hue, so each new line lands ~137.5° from the one before, maximally
+// spaced for any count. The chart can carry a line per displayed row,
+// hundreds of them, so these are most of a big chart's colours.
+function hueAt(index: number, theme: Theme): number {
+  const curated = CURATED_HUES[theme]
+  return index < curated.length ? curated[index] : (curated[0] + index * 137.508) % 360
 }
 
-/** The hex an allocated index paints in a theme. */
+// Kept once worked out, because a long chart asks for the same few hundred
+// colours on every render.
+const painted = new Map<string, string>()
+
+/**
+ * The hex an allocated index paints in a theme. Always hex, so the same value
+ * drives the swatch, the table's checkbox tint and the Recharts stroke.
+ */
 export function colorForIndex(index: number, theme: Theme): string {
-  const palette = BASE_PALETTE[theme]
-  return index < palette.length ? palette[index] : generatedHex(index, theme)
+  const key = `${theme}${index}`
+  let hex = painted.get(key)
+  if (hex === undefined) {
+    hex = oklchHex(LINE_LIGHTNESS[theme], LINE_CHROMA[theme], hueAt(index, theme))
+    painted.set(key, hex)
+  }
+  return hex
 }
 
 /**

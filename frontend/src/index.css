@@ -112,8 +112,6 @@ body,
   --color-rule: var(--ui-rule);
   --color-frame: var(--ui-frame);
   --color-edge: var(--ui-edge);
-  /* The rim a mark in a chart line's colour wears (`LINE_EDGE`). */
-  --color-line-edge: var(--ui-line-edge);
   /* Text and glyphs, brightest first in dark and darkest first in light. */
   --color-ink-strong: var(--ui-ink-strong);
   --color-ink: var(--ui-ink);
@@ -200,9 +198,6 @@ body,
      the v3 slate-600 it always was). */
   --ui-accent-glow: rgba(56, 189, 248, 0.65);
   --ui-swatch-edge: #475569;
-  /* No rim on a chart line's colour in dark, where the lines stand off the
-     panel by themselves (`LINE_EDGE`, PR #733). */
-  --ui-line-edge: transparent;
   /* How far a control that still works but is not in force fades
      (`MUTED`). */
   --ui-muted: 0.6;
@@ -269,28 +264,7 @@ body,
   --ui-scrim: #000000;
   --ui-accent-glow: rgba(0, 99, 155, 0.45);
   --ui-swatch-edge: #9aa0a8;
-  --ui-line-edge: var(--ui-ink-soft);
   --ui-muted: 0.65;
-}
-
-/* The chart's series lines in light (PR #733): pastels drawn over a rim of
-   the secondary ink, which is one SVG filter over the group Recharts draws
-   the lines into (`LINE_LAYER_Z` and `LINE_RIM_FILTER_ID` in
-   `utils/chartColors.ts`; `TimeSeriesChart` defines the filter in both
-   themes, so a switch adds no element to the chart).
-   A rule here rather than an attribute, because Recharts creates that group
-   itself and hands no prop for it. Dark lines carry no rim. */
-:root[data-theme="light"] .recharts-zIndex-layer_401 {
-  filter: url(#chart-line-rim);
-}
-
-/* The hover dot on a light line wears the line's rim rather than Recharts'
-   white ring, which is the dark theme's (PR #733). A rule here rather than a
-   prop, so the chart names no theme and a switch re-renders none of it
-   (#786). */
-:root[data-theme="light"] .recharts-active-dot .recharts-dot {
-  stroke: var(--ui-line-edge);
-  stroke-width: 1px;
 }
 
 /* A theme switch lands in one frame (#786): the hook puts this class on the

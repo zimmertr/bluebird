@@ -60,7 +60,6 @@ import {
   TRANSPORT_AXIS_ITEM,
   TRANSPORT_PLAY,
   HEADER_BUTTON,
-  LINE_EDGE,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
   DRAW_ROW,
@@ -131,9 +130,8 @@ import {
 } from './styles'
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
-import { CHART_TICK_PX, LINE_LAYER_Z, LINE_RIM_FILTER_ID } from './utils/chartColors'
+import { CHART_TICK_PX } from './utils/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
-import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { CHIP_MENU_GAP_PX } from './utils/resultsSheet'
@@ -4334,28 +4332,6 @@ describe('the light theme', () => {
     expect(token(SCRUBBER, '[&::-moz-range-thumb]:bg')).toBe(token(SCRUBBER, '[&::-webkit-slider-thumb]:bg'))
   })
 
-  // The chart's light lines are drawn over a rim, one SVG filter over the
-  // group Recharts draws the series lines into (PR #733), applied by a rule
-  // here: the layer must be the one the lines stand in, one above Recharts'
-  // own line layer, and the rule must name it and the filter, in light alone.
-  // The browser suite's `chartRim.spec.ts` holds that the rule reaches it.
-  it('points the light rule at the chart lines\' own layer and its rim filter', () => {
-    expect(LINE_LAYER_Z).toBe(DefaultZIndexes.line + 1)
-    const rule = indexCss.match(/:root\[data-theme="light"\] \.recharts-zIndex-layer_(\d+) \{\s*filter: url\(#([\w-]+)\);\s*\}/)
-    expect(rule).not.toBeNull()
-    expect([Number(rule![1]), rule![2]]).toEqual([LINE_LAYER_Z, LINE_RIM_FILTER_ID])
-    expect(indexCss.match(/recharts-zIndex-layer_/g)).toHaveLength(1)
-  })
-
-  // The hover dot wears the line's rim in light by a rule rather than by
-  // Recharts' `activeDot` prop, which would name a theme and re-render the
-  // chart on every switch (#786; record 0211).
-  it('rims the hover dot through the line-edge token, in light alone', () => {
-    const rule = indexCss.match(/(\S+) \.recharts-active-dot \.recharts-dot \{([^}]*)\}/)
-    expect(rule?.[1]).toBe(':root[data-theme="light"]')
-    expect(rule?.[2]).toContain('stroke: var(--ui-line-edge);')
-  })
-
   // A theme switch holds every transition off while it lands (#786; record
   // 0211): the hook's class must be the one the rule names, and the rule must
   // reach every element and its two generated boxes.
@@ -4363,14 +4339,6 @@ describe('the light theme', () => {
     const c = THEME_SWITCHING_CLASS
     const rule = indexCss.match(new RegExp(String.raw`\.${c} \*,\s*\.${c} \*::before,\s*\.${c} \*::after \{([^}]*)\}`))
     expect(rule?.[1].trim()).toBe('transition: none !important;')
-  })
-
-  // A mark in a chart line's colour wears the line's rim in light, and the
-  // chart checkbox's half of it brings the app's focus ring: an author outline
-  // replaces the browser's own, which the box had relied on.
-  it('keeps a focus ring under the chart checkbox\'s rim', () => {
-    expect(LINE_EDGE.input).toContain(LINE_EDGE.swatch)
-    expect(LINE_EDGE.input).toContain(FOCUS_RING)
   })
 
   // The shade under a fixed edge: the ink at 12% stands 1.27:1 off the light

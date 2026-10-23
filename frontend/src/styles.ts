@@ -952,29 +952,6 @@ export const SWATCH_RAMP_TICK =
  */
 export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
 
-/**
- * The dark rim a mark in a chart line's colour wears in the light theme (PR
- * #733): the readout's swatches, the chart-only legend's dots and the table's
- * chart checkbox. The light lines are pastels that read 1.16 to 1.62:1 on the
- * light panel, under the 3:1 a graphic owes its ground, so the chart draws
- * each over a rim of the secondary ink (`CHART_CHROME.light.lineEdge`, 8.34:1
- * on the panel), which every pastel reads 3:1 or better against. A mark in a
- * line's colour is the same pastel on the same panel and owes the same
- * boundary, so it wears the same rim; dark marks stand off their panel by
- * themselves, so the rim's token is transparent there (`--ui-line-edge`) and
- * a call site wears this in both themes, naming neither (#786).
- *
- * An outline, 1px, so the rim takes no room from the colour inside it and a
- * native checkbox keeps the box the browser draws: Chromium follows the
- * control's rounded corners with it. The checkbox's half carries `FOCUS_RING`
- * because an author outline replaces the browser's own focus ring, which the
- * box had relied on.
- */
-export const LINE_EDGE = {
-  swatch: 'outline-1 outline-line-edge',
-  input: `outline-1 outline-line-edge ${FOCUS_RING}`,
-} as const
-
 export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
 
 /**
