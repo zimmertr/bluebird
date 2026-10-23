@@ -262,14 +262,23 @@ export const RADIUS = {
  * SC 2.5.8 *Target Size (Minimum)* is the AA bar at 24x24 CSS px, with an
  * exception where spacing does the work. SC 2.5.5 *Target Size (Enhanced)* is
  * AAA at 44x44, which is also Apple's 44pt and the nearest web equivalent of
- * Material's 48dp. Bluebird Forecast takes the 44, and takes it where a control stands
- * in its own space: the control panel, the calendar, the map chrome.
+ * Material's 48dp. Bluebird Forecast draws a finger's controls 32px tall and
+ * presses what it draws (record 0223): past the AA 24 with room to spare,
+ * where 44 read chunky on a phone and stood a stack of rows, a calendar or the
+ * Metrics list a quarter taller than its content. A control that stands in a
+ * band of its own on the map or the results sheet, the chips (`CHIP_HIT`) and
+ * the results bar's buttons (`BAR_PRESS`), still presses 44 around what it
+ * draws, because nothing above or below it is a target. A button that draws
+ * no box of its own, a glyph or a word, takes 44px of width, which a row has
+ * to give; a round or square button draws its own box and is no wider
+ * (`HEADER_BUTTON`, `TRANSPORT_PLAY`).
  *
  * It does **not** reach into the results panel — not the table's rows, not the
  * two header bars, not the search field. Those are surfaces you read rather
  * than operate, and every pixel a control takes there is a pixel of ranking or
- * of map that a phone stops showing. A 44px table row costs about eight rows
- * of a phone's ranking; a 44px chevron costs its bar permanently. The
+ * of map that a phone stops showing. A finger's 32px table row would show 18
+ * rows of a phone's ranking where 28 shows 21, and a 32px chevron would cost
+ * its bar for good. The
  * exception is deliberate and it is the whole reason the rule is written down
  * here rather than inferred from whatever each component happened to do.
  *
@@ -290,17 +299,17 @@ export const RADIUS = {
  * size to land on the same number — which is how BUTTON_PRIMARY's `py-3` came
  * to be the only control in the app that actually met the target.
  *
- * The keys are layouts, not sizes. Three reach 44 by different routes, because
+ * The keys are layouts, not sizes. Three reach 32 by different routes, because
  * three kinds of control lay their contents out differently and one display
  * value would have been wrong for two of them.
  */
 export const TAP = {
   /** A button: grow the box, keep its own label centered inside it. */
-  action: 'touch:min-h-11 touch:min-w-11 flex items-center justify-center',
+  action: 'touch:min-h-8 touch:min-w-11 flex items-center justify-center',
   /** A left-aligned strip — a label and its radio. Growing it is the point; centering it would move the label. */
-  row: 'touch:min-h-11 flex items-center',
+  row: 'touch:min-h-8 flex items-center',
   /** Height alone, for anything that already lays its own content out: a two-line list item. */
-  height: 'touch:min-h-11',
+  height: 'touch:min-h-8',
   /**
    * A full-width drag handle (the chart/table resizers). The AA floor rather
    * than the 44, because only the vertical axis is scarce here and a 44px bar
@@ -615,8 +624,8 @@ export const FOCUS_RING_INSET =
  *
  * Its own coarse-pointer padding is gone. It reached 44px by a number derived
  * from this role's font size, so it was a target only as long as nobody
- * restyled the label. `TAP.action` states the 44 directly, and states it the
- * same way as every other control in the app (#160).
+ * restyled the label. `TAP.action` states a finger's height directly, and
+ * states it the same way as every other control in the app (#160).
  *
  * The utility itself is deliberately not named above. v4 scans this file as
  * raw text, so quoting a class we just deleted puts its CSS back in the
@@ -1454,13 +1463,13 @@ export const MAP_EDGE = {
    * On a phone, where the app's two rows span the map's top (#696), the
    * vendor's stack, which is the compass alone there, starts one inset below
    * them rather than beside the pill: 92 + 12. While a ring is drawn the draw
-   * bar stands under the rows (`MAP_ROWS.drawBar`, 58px tall at 100), so the
-   * stack starts one inset under it instead: 100 + 58 + 12. `map.css` reads
+   * bar stands under the rows (`MAP_ROWS.drawBar`, 46px tall at 100), so the
+   * stack starts one inset under it instead: 100 + 46 + 12. `map.css` reads
    * `--map-vendor-top` as the stack's top margin, and `styles.test.ts` holds
    * both numbers to the rows' geometry.
    */
   belowRows: '[--map-vendor-top:104px]',
-  belowDrawBar: '[--map-vendor-top:170px]',
+  belowDrawBar: '[--map-vendor-top:158px]',
 } as const
 
 /**
@@ -1470,8 +1479,8 @@ export const MAP_EDGE = {
  * reopening Controls.
  *
  * A floating box like the player it stands in place of, the map's own inset
- * off both sides, and as tall as its 44px buttons plus the box's padding:
- * 366 by 58 on a 390px phone. Its bottom is the player's (`transportBottomPx`),
+ * off both sides, and as tall as its 32px buttons plus the box's padding:
+ * 366 by 46 on a 390px phone. Its bottom is the player's (`transportBottomPx`),
  * which puts it in the band above the scale bar that the legend stack already
  * clears. Phone only: a desk keeps Done and Cancel in the docked panel beside
  * the map, where they were never out of reach.
@@ -1557,7 +1566,8 @@ export const MAP_PILL =
  * transparent, so it stretches to the height inside the pill's 1px border
  * (38) and reaches 3px past that at each edge, 2px past the pill, which is a
  * target the reader cannot see. The clear button is
- * `ICON_BUTTON` with `TAP.action`, which reaches 44 the same way by itself.
+ * `ICON_BUTTON` with `TAP.action`: 44 wide and a finger's 32 tall, a glyph
+ * with no box of its own inside the pill's 38.
  */
 export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
 
@@ -1673,7 +1683,9 @@ export const MAP_CREDIT = {
 
 /**
  * The chips' hit area on a coarse pointer: 32px seen, 44px pressed, the way
- * Material's chips take their 48dp target (`TAP`'s 44 here). An invisible
+ * Material's chips take their 48dp target: a band of map chrome with no
+ * target above or below it keeps the 44 the rest of a finger's controls gave
+ * up (`TAP`, record 0223). An invisible
  * box 6px above and below the chip, its own pseudo-element so a press on it
  * is the chip's: 7px from inside the chip's 1px border, which is where a
  * pseudo-element's inset is measured (the 30px inside plus 14 is 44, measured
@@ -1993,9 +2005,27 @@ export const SEGMENT_ITEM = `${SEGMENT_ITEM_SHAPE} px-1`
 export const SEGMENT_DIVIDER = 'border-l border-edge'
 
 /**
+ * The results bar's two groups, the mode switch and the buttons, on a finger
+ * (record 0223): each button draws 32px and presses 44, its own pseudo-element
+ * 6px above and below it, the way a chip takes its press (`CHIP_HIT`). The bar
+ * stands in a band of its own on the sheet, so nothing above or below it is a
+ * target. Its halves are `segmentHalf`'s, so this is added to them rather than
+ * built into a segment: the panel's segments press what they draw.
+ *
+ * A group that clipped its halves to its corners would clip that press too,
+ * so `BAR_GROUP` is `SEGMENT_FLUID`'s well without the clip, and the two end
+ * halves round their own outer corners instead: 3px, the group's 4px less its
+ * 1px edge, so a lit end's fill follows the edge's curve.
+ */
+export const BAR_GROUP = `inline-flex ${RADIUS.control} ${RECESSED_EDGE}`
+export const BAR_PRESS =
+  'relative first:rounded-l-[3px] last:rounded-r-[3px] ' +
+  "touch:before:absolute touch:before:inset-x-0 touch:before:-inset-y-1.5 touch:before:content-['']"
+
+/**
  * The results bar's buttons, Columns, Models, Removed and Download CSV, as one
  * group that reads as the mode switch's sibling (#687, the maintainer on
- * #709): the same bordered well (`SEGMENT_FLUID`), the same half
+ * #709): the same bordered well (`BAR_GROUP`), the same half
  * (`segmentHalf`, so the same height on either pointer) and the same idle
  * fill, divided by `SEGMENT_DIVIDER`. They were ghost buttons that wrapped to
  * three rows on a 402px phone with Removed showing.
@@ -2006,7 +2036,8 @@ export const SEGMENT_DIVIDER = 'border-l border-edge'
  * an icon-only item is short of the 24px of WCAG 2.2's target size, and it
  * passes by spacing instead, the way record 0130 settles the Metrics rows: a
  * 24px circle on its centre reaches 12px either side, inside its own 28px, so
- * it meets neither neighbour. On a coarse pointer `TAP.action` makes each 44px.
+ * it meets neither neighbour. On a coarse pointer `TAP.action` makes each 44px
+ * wide and 32 tall, and `BAR_PRESS` presses 44 around it.
  * The label is the slate-400 idle half's, as on the switch beside it.
  *
  * Under the pointer the label takes the accent, the hover every menu trigger
@@ -2015,9 +2046,9 @@ export const SEGMENT_DIVIDER = 'border-l border-edge'
  * of its hover. The three that open a menu wear `MENU_TRIGGER.bar` over this,
  * which adds the lit state; Download CSV opens nothing and wears this alone.
  */
-export const ACTION_GROUP = SEGMENT_FLUID
+export const ACTION_GROUP = BAR_GROUP
 export const ACTION_ITEM =
-  `${segmentHalf('flex-none')} px-1.5 cursor-pointer whitespace-nowrap ${RECESSED_FILL} text-ink-soft ${ACCENT.hoverText}`
+  `${segmentHalf('flex-none')} ${BAR_PRESS} px-1.5 cursor-pointer whitespace-nowrap ${RECESSED_FILL} text-ink-soft ${ACCENT.hoverText}`
 
 /**
  * The word on a results bar control, shown only where the bar can hold the
@@ -2194,23 +2225,20 @@ export const NOTICE_DIVIDER = {
  *
  * Three parts, because the touch target and the visible control must be
  * different sizes. The `row` is the message the X belongs to and the hover
- * surface that reveals it. The `button` carries `TAP.action`, the 44px target
- * on touch. The `pill` inside it is the glyph's 20px box and nothing more:
- * the bare × every card and field wears (record 0222), where until #796 it
- * stood on a faint disc of its own.
+ * surface that reveals it. The `button` carries `TAP.action`, 44 wide and 32
+ * tall on touch. The `pill` inside it is the glyph's 20px box and nothing more:
+ * the bare × every card and field wears (record 0222).
  *
  * A box with an X stands exactly as tall as one without (the maintainer,
  * 2026-10-21 on PR #789, where a phone's dismissable box stood nearly twice
  * the height of a blocker's beside it): the button's negative block margins
- * hand back everything past the 16px line of text, 2px each side of the disc
- * on a mouse and 14px each side of the target on touch, so the row is the
- * line, its padding and nothing else. The target overhangs its row instead:
- * a lone message's reaches 5px past its box, into the 8px between boxes
- * (`MESSAGE_LIST`), and nothing interactive borders a box but another
- * message, since the list is a card or a sheet of its own. In a box of
- * several dismissable messages two neighbouring targets overlap by 15px,
- * which leaves each 29px no other target covers, past the 24px WCAG 2.5.8
- * asks, and the lower one takes a press in the overlap.
+ * hand back everything past the 16px line of text, 2px each side of the
+ * glyph's box on a mouse and 8px each side of the target on touch, so the row
+ * is the line, its padding and nothing else. The target overhangs the line
+ * into the row's padding instead, and a lone message's stays inside its box.
+ * In a box of several dismissable messages two neighbouring targets overlap
+ * by 3px, which leaves each 29px no other target covers, past the 24px WCAG
+ * 2.5.8 asks, and the lower one takes a press in the overlap.
  *
  * The row centres its two members against each other, so the × sits level
  * with the text. Every message is written to fit one line, so there is no
@@ -2245,20 +2273,22 @@ export const NOTICE_DISMISS = {
    * tooltip rule, applied to a button). Opacity rather than `hidden`, so the
    * reveal can fade and the row never reflows.
    *
-   * On a coarse pointer the target is 44px and the disc inside it is 20, and
-   * the difference used to come out of the message beside it: the text column
-   * was 257px on a 360px panel, where the longest commit cue needs 267. The
-   * negative left margin hands those 24px back. Nothing moves on screen — the
-   * button's box still ends at the row's right edge, so the centred disc sits
-   * exactly where it did — and the target simply reaches further left, over
+   * On a coarse pointer the target is 44px wide and the glyph's box inside it
+   * is 20, and the difference used to come out of the message beside it: the
+   * text column was 257px on a 360px panel, where the longest commit cue needs
+   * 267. The negative left margin hands those 24px back. Nothing moves on
+   * screen — the button's box still ends at the row's right edge, so the
+   * centred × sits exactly where it did — and the target simply reaches further left, over
    * the tail of the text. That costs nothing, because the text is not a target
    * and a press on it has never done anything; what it buys is the one-line
    * budget every message in this app is written to, which is measured against
    * the column rather than against the box. `gap-2` on the row stays the
-   * visible distance from the disc to the last word.
+   * visible distance from the × to the last word. The negative vertical
+   * margins hold the row at the glyph's height on either pointer: 2px of a
+   * fine pointer's 20px box, 8px of a finger's 32 (`TAP.action`).
    */
   button:
-    `group ${TAP.action} -my-0.5 touch:-my-3.5 touch:-ml-6 opacity-0 transition-[color,opacity] ` +
+    `group ${TAP.action} -my-0.5 touch:-my-2 touch:-ml-6 opacity-0 transition-[color,opacity] ` +
     `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
     `hover:text-ink-strong ${FOCUS_RING}`,
   pill: 'flex h-5 w-5 items-center justify-center',
@@ -2396,7 +2426,8 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  * 0146), with the title row beside it. `head`
  * is the title at the left and Done at the right; `title` the sheet's own
  * word, the chip's or the button's that opened it. `body` scrolls, and every
- * row in it is at least a finger's 44px, one line, with a rule between rows.
+ * row in it is at least a finger's 32px (`TAP`, record 0223), one line, with
+ * a rule between rows.
  * It ends at its last row and then a phone's home indicator band
  * (`SAFE_AREA.pad`; record 0152), so where no band is reported the space
  * under the last line is the space every line keeps above its rule.
@@ -2448,7 +2479,7 @@ export const BOTTOM_SHEET = {
   actions: 'ml-auto flex items-center gap-2',
   body:
     `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 ${SAFE_AREA.pad} ` +
-    'divide-y divide-rule [&>*]:min-h-11',
+    'divide-y divide-rule [&>*]:min-h-8',
 } as const
 
 /**
@@ -2508,8 +2539,7 @@ export const PANEL_BODY =
  * logo's 56px sets the height. That is 24px back to the scrolling body on
  * every screen, 9% of a 900px window spent on fixed chrome becoming 6%
  * (measured 2026-10-13: 81 to 57px). The close button keeps its place at the
- * top right, inside the 56px on a touch screen too, where `TAP` makes it 44px
- * from 8px down.
+ * top right, a 32px circle 8px down on either pointer.
  */
 export const PANEL_HEADER = {
   logo: 'm-2 h-10 w-10 flex-shrink-0 object-cover',
@@ -2525,13 +2555,14 @@ export const PANEL_HEADER = {
 /**
  * A round button in a panel's header: the desk panel's close button and the
  * theme switch beside it, and the switch again in a phone's Controls sheet
- * beside Done (#706). 32px on a fine pointer and 44 under a finger through
- * `TAP.action`, the glyph in the control ink, on the raised surface at 80%.
+ * beside Done (#706). A 32px circle on either pointer, a finger's height
+ * (`TAP`, record 0223), and no wider: `TAP.action`'s 44px width would draw it
+ * as a capsule. The glyph in the control ink, on the raised surface at 80%.
  * The close button's recipe, named once it had a twin, so the two cannot
  * drift apart.
  */
 export const HEADER_BUTTON =
-  `${TAP.action} flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} ` +
+  `flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} ` +
   'bg-raised/80 transition-colors hover:bg-raised-hover active:bg-raised-hover'
 
 /**
@@ -2718,8 +2749,9 @@ export const CONTROLS_SHEET = {
  * spacing rather than by growing. 24px targets at a 30px pitch were mocked
  * beside it and declined. The Metrics section grows from 359 to 387px.
  *
- * Fine pointer only: on a touch screen `TAP.row` already makes the label 44px,
- * past both bars, and the margin there would only spend height.
+ * Fine pointer only: on a touch screen `TAP.row` already makes the label a
+ * finger's 32px, the pitch the margin buys here, and the margin there would
+ * only spend height.
  */
 export const METRIC_LABEL_PITCH = 'my-[5px] touch:my-0'
 
@@ -2801,24 +2833,22 @@ export const DAY = {
    * The cell box itself. Seven columns split the calendar card, and the card's
    * width is the drawer's minus the gutters: at the 360px panel (#238) a phone
    * drawer is 100vw − 2rem, so a 375px phone yields ~295px of card and ~42px
-   * cells — closer to the 44px target than the old 320px drawer's ~38px, but
-   * still the one control in the app that cannot promise 44 on both axes,
-   * because the width is the phone's to give. Height it can have, and a
-   * calendar's mis-taps are overwhelmingly vertical: the columns are a whole
-   * finger apart in meaning (a week) while the rows are a day.
+   * cells, wider than they are tall.
    *
    * 28px on a fine pointer (#687), where it was 36: a mouse needs no more,
    * and five or six week rows at 36px made the calendar the tallest thing in
    * the panel. The popover card is 312x265px with five week rows at 28px,
-   * 40px shorter than at 36 (measured 2026-10-13). A touch screen keeps 44.
+   * 40px shorter than at 36 (measured 2026-10-13). A touch screen takes 32,
+   * every finger's row height (`TAP`, record 0223), where it took 44: the
+   * phone's calendar sheet stands 108px shorter for it.
    */
-  cell: 'flex h-7 touch:h-11 items-center justify-center',
+  cell: 'flex h-7 touch:h-8 items-center justify-center',
   /**
    * The weekday initials over the grid: the height the day rows had, kept
    * when they came down to 28px, so the initials stand apart from the first
-   * week rather than reading as a row of days.
+   * week rather than reading as a row of days, on either pointer.
    */
-  head: 'flex h-9 touch:h-11 items-center justify-center',
+  head: 'flex h-9 items-center justify-center',
   full: 'text-ink hover:bg-raised',
   partial: 'text-ink-soft hover:bg-raised',
   unservable: 'text-ink-ghost',
@@ -3044,14 +3074,14 @@ export const MESSAGE_LIST = {
  * So the box aligns to its top and grows downward only when the words need a
  * second line: the first line and the chevron stand exactly where a one-line
  * field centres them. 7px is the 1px border plus `py-1.5` on a fine pointer
- * (one line is 30px); 14px is the border plus 13px on a touch screen, where a
- * one-line field is `TAP.height`'s 44px. The chevron is `ICON_ADORNMENT`'s
+ * (one line is 30px); 8px is the border plus 7px on a touch screen, where a
+ * one-line field is `TAP.height`'s 32px. The chevron is `ICON_ADORNMENT`'s
  * placement pinned to that first line rather than to the middle of the box,
  * in the field chevron's inks (`FIELD_CHEVRON_INK`).
  */
 export const CALENDAR_FIELD = {
-  box: 'flex w-full items-start px-2 py-1.5 touch:py-[13px] text-left',
-  arrow: `pointer-events-none absolute right-2 top-[7px] touch:top-[14px] text-ink-soft ${FIELD_CHEVRON_INK}`,
+  box: 'flex w-full items-start px-2 py-1.5 touch:py-[7px] text-left',
+  arrow: `pointer-events-none absolute right-2 top-[7px] touch:top-[8px] text-ink-soft ${FIELD_CHEVRON_INK}`,
 } as const
 
 /**
@@ -3138,7 +3168,7 @@ export const SR_ONLY = 'sr-only'
  * stands on the white well there, where a white thumb would vanish, and the
  * ink reads 3.75:1 on the light theme's mark, beside the white thumb's 2.71:1
  * on the dark one's. It is 14px,
- * which is under the 44px target — deliberately, and it is the exception
+ * which is under a finger's 32px — deliberately, and it is the exception
  * `TAP.grip` already argues for: the control is a horizontal drag on a bar that
  * is itself the target, so the height that matters is the input's, and the
  * thumb is a mark on it rather than a thing to hit.
@@ -3299,12 +3329,19 @@ const TRANSPORT_AXIS_W = 'min-w-[58px] touch:min-w-[58px]'
 export const TRANSPORT_AXIS_ITEM = `${segmentHalf('flex-none')} px-3 whitespace-nowrap ${TRANSPORT_AXIS_W}`
 
 /**
+ * The player's play button: a 28px square on a fine pointer and a finger's
+ * 32 on touch (`TAP`, record 0223), square on both. `TAP.action` would give
+ * it 44px of width under a finger and draw it as a bar.
+ */
+export const TRANSPORT_PLAY = 'flex h-7 w-7 touch:h-8 touch:w-8 flex-shrink-0 items-center justify-center'
+
+/**
  * The results grid's two cell insets, which had been spelled out ten times
  * across one file.
  *
  * A row is 28px and stays 28px: this is the one surface that holds the 24px AA
- * floor (`TAP.dense`) rather than the app's 44, because the ranking is the
- * thing the phone is there to read and 44px rows would show 13 of them instead
+ * floor (`TAP.dense`) rather than a finger's 32, because the ranking is the
+ * thing the phone is there to read and 32px rows would show 18 of them instead
  * of 21. The controls living in a cell — the remove ×, the chart checkbox, the
  * destination link — get the floor; the row keeps its density.
  */

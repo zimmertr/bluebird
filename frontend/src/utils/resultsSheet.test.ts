@@ -229,7 +229,7 @@ describe('the resting height', () => {
     })
     expect(chart).toBe(0)
     expect(table).toBe(120)
-    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(439)
+    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(451)
   })
 })
 
@@ -327,7 +327,7 @@ describe('the camera padding', () => {
   const defaults = { chartPx: 288, tablePx: 280 }
 
   it('is the lift the sheet reserves at 402x874', () => {
-    // The sheet's chrome plus a default-height table (84 + 24 + 280) is 388,
+    // The sheet's chrome plus a default-height table (72 + 24 + 280) is 376,
     // and the resting reserve leaves 412 at this height (874 less
     // `RESTING_MAP_PX`), so the table stands at its own default and the lift
     // is the sheet's own height. #454's last 14px are what bought that: at a
@@ -341,7 +341,7 @@ describe('the camera padding', () => {
       availPx: 874,
       ...defaults,
     })
-    expect(lift).toBe(388)
+    expect(lift).toBe(376)
     expect(874 - lift).toBeGreaterThanOrEqual(RESTING_MAP_PX)
   })
 
@@ -362,7 +362,7 @@ describe('the camera padding', () => {
       ...defaults,
     })
     expect(lift).toBe(sheetChromePx(1) + 120)
-    expect(lift).toBe(228)
+    expect(lift).toBe(216)
     expect(667 - lift).toBeLessThan(RESTING_MAP_PX)
   })
 

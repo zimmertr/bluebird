@@ -257,7 +257,8 @@ test.describe('on a phone', () => {
     await expect(when.getByRole('grid', { name: 'Forecast day' })).toBeVisible()
     await expect(card(page)).toHaveCount(0)
     const cell = await when.getByRole('gridcell').first().boundingBox()
-    expect(cell!.height).toBeGreaterThanOrEqual(44)
+    // A finger's row height (record 0223).
+    expect(cell!.height).toBeGreaterThanOrEqual(32)
     // The sheet stands on the screen's bottom edge.
     const sheet = await when.boundingBox()
     near(sheet!.y + sheet!.height, 844)

@@ -118,13 +118,14 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
 /**
  * The sheet's header bar, which is also the sheet's collapsed height.
  *
- * Measured on a coarse pointer, 2026-10-13: 84px at 360, 390, 402 and 430
- * wide, with Removed showing or not. 12px of padding, the 19.5px title row,
- * the 4px gap, the 46px actions line (the mode switch and the button group,
- * each 44px controls in a 1px-bordered well, side by side on one line since
- * #687 drops their words where the bar is narrow, `BAR_LABEL`), then the 1px
- * rule and the sheet's own 1px top border. It was 104 when the actions were
- * links that wrapped onto a second row, and briefly 106 when they were
+ * 72px on a coarse pointer: 12px of padding, the 19.5px title row, the 4px
+ * gap, the 34px actions line (the mode switch and the button group, each 32px
+ * controls in a 1px-bordered well since record 0223, side by side on one line
+ * since #687 drops their words where the bar is narrow, `BAR_LABEL`), then the
+ * 1px rule and the sheet's own 1px top border. Measured at 84 on 2026-10-13
+ * at 360, 390, 402 and 430 wide, with Removed showing or not, when the
+ * controls were 44px; 12 less with them at 32. It was 104 when the actions
+ * were links that wrapped onto a second row, and briefly 106 when they were
  * buttons that wrapped onto three.
  *
  * Re-measure when the bar gains a member, because one glyph more than the
@@ -137,7 +138,7 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  * because an estimate that was 20px out put a different gap under the player in
  * every results mode. Re-measure if a member joins or leaves the bar.
  */
-export const SHEET_HEADER_PX = 84
+export const SHEET_HEADER_PX = 72
 
 /**
  * One drag grip, of which the sheet carries one or two. `h-2` is 8px, but

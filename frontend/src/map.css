@@ -245,8 +245,8 @@
 /* The buttons' hit area on a coarse pointer (#696): 40px seen and 44
    pressed, an invisible rim on the vendor's own button, so a press on it is
    the button's. 3px, because the rim stands inside the button's 1px border
-   (38px), and 38 plus 6 is 44. The rule every other piece of map chrome
-   follows (`TAP` in styles.ts), spelled here because the markup is the
+   (38px), and 38 plus 6 is 44. The press every piece of map chrome takes
+   (`CHIP_HIT` in styles.ts), spelled here because the markup is the
    library's. They were 44px seen until the buttons took the app's chrome. */
 @media (hover: none) {
   .maplibregl-ctrl-group,
@@ -337,7 +337,8 @@
   background: none;
 }
 
-/* Coarse pointers get the same 44px every other control in the app takes. */
+/* Coarse pointers press 44px around the bare ×: it draws no box, so the
+   press costs the card nothing (`TAP` in styles.ts). */
 @media (hover: none) {
   .maplibregl-popup-close-button {
     width: 2.75rem;

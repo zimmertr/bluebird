@@ -18,14 +18,15 @@ import {
   ACCENT,
   ACTION_GROUP,
   ACTION_ITEM,
+  BAR_GROUP,
   BAR_LABEL,
+  BAR_PRESS,
   CAPTION_LIFTED,
   CONTROL_SIZE,
   DISABLED,
   ICON_BUTTON,
   PANEL_EDGE,
   SEGMENT_DIVIDER,
-  SEGMENT_FLUID,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   STATUS,
@@ -270,12 +271,13 @@ export default function ResultsBar({
           {/* Mode switch: table, chart, or both — fluid width, since
               three icon-plus-label halves cannot fit the panel's
               144px column (SEGMENT_FLUID exists because this shipped
-              clipped). */}
+              clipped). The bar's own well, which presses 44 on a finger
+              (BAR_GROUP, BAR_PRESS). */}
           {showResults && (
-            <div className={SEGMENT_FLUID}>
+            <div className={BAR_GROUP}>
               <button
                 onClick={() => chooseResultsMode('table')}
-                className={`${SEGMENT_ITEM} ${resultsMode === 'table' ? ACCENT.fill : SEGMENT_IDLE}`}
+                className={`${SEGMENT_ITEM} ${BAR_PRESS} ${resultsMode === 'table' ? ACCENT.fill : SEGMENT_IDLE}`}
                 aria-pressed={resultsMode === 'table'}
                 aria-label="Show table only"
               >
@@ -285,7 +287,7 @@ export default function ResultsBar({
               <div className={SEGMENT_DIVIDER} />
               <button
                 onClick={() => chooseResultsMode('chart')}
-                className={`${SEGMENT_ITEM} ${resultsMode === 'chart' ? ACCENT.fill : SEGMENT_IDLE}`}
+                className={`${SEGMENT_ITEM} ${BAR_PRESS} ${resultsMode === 'chart' ? ACCENT.fill : SEGMENT_IDLE}`}
                 aria-pressed={resultsMode === 'chart'}
                 aria-label="Show chart only"
               >
@@ -300,7 +302,7 @@ export default function ResultsBar({
               <button
                 onClick={() => chooseResultsMode('both')}
                 disabled={!bothHasRoom}
-                className={`${SEGMENT_ITEM} ${DISABLED} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
+                className={`${SEGMENT_ITEM} ${BAR_PRESS} ${DISABLED} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
                 aria-pressed={resultsMode === 'both'}
                 // Holds the word the button shows, for a reader using voice
                 // control (#576); the word itself is hidden on a phone, so the

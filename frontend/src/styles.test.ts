@@ -13,7 +13,9 @@ import {
   BUTTON_FLOATING,
   ACTION_GROUP,
   ACTION_ITEM,
+  BAR_GROUP,
   BAR_LABEL,
+  BAR_PRESS,
   DIALOG_FOOT,
   DRAG,
   DRAW_BAR,
@@ -56,6 +58,8 @@ import {
   SPINNER,
   STATUS,
   TRANSPORT_AXIS_ITEM,
+  TRANSPORT_PLAY,
+  HEADER_BUTTON,
   LINE_EDGE,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
@@ -175,6 +179,7 @@ import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
 import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
+import resultsBarSource from './components/ResultsBar.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
@@ -1564,9 +1569,10 @@ describe('shared recipes', () => {
 })
 
 // WCAG 2.2 gives two numbers: SC 2.5.8 (AA) wants 24x24 CSS px, SC 2.5.5 (AAA)
-// wants 44x44. The app takes the 44 wherever a control stands on its own and
-// holds the 24 floor inside the results grid, where 44px rows would cost more
-// ranking than the reach is worth. What these guard is that the two numbers
+// wants 44x44. The app draws a finger's controls 32 tall (record 0223), presses
+// 44 only in a band with nothing above or below, and holds the 24 floor inside
+// the results grid, where taller rows would cost more ranking than the reach is
+// worth. What these guard is that the two numbers
 // stay two numbers rather than becoming a spectrum.
 describe('tap targets', () => {
   const px = (recipe: string, axis: 'h' | 'w') => {
@@ -1575,12 +1581,42 @@ describe('tap targets', () => {
     return step ? Number(step[1] ?? step[2]) * 4 : null
   }
 
+  // 32px on a finger, past AA's 24 and under the enhanced 44 (record 0223):
+  // a stack of rows presses what it draws.
   it.each(['action', 'row', 'height'] as const)(
-    'TAP.%s reaches the enhanced target',
+    'TAP.%s draws and presses 32 on a finger',
     (key) => {
-      expect(px(TAP[key], 'h')).toBe(44)
+      expect(px(TAP[key], 'h')).toBe(32)
     },
   )
+
+  // A band of chrome with no target above or below it still presses 44 around
+  // a 32px control: the chips and the results bar's buttons, each by a
+  // pseudo-element 6px over and under, which a clipping group would cut off.
+  it('presses 44 around the chips and the results bar', () => {
+    expect(BAR_PRESS).toContain("touch:before:content-['']")
+    expect(BAR_PRESS).toMatch(/touch:before:-inset-y-1\.5(\s|$)/)
+    expect(32 + 2 * 6).toBe(44)
+    expect(ACTION_ITEM).toContain(BAR_PRESS)
+    expect(ACTION_GROUP).toBe(BAR_GROUP)
+    expect(BAR_GROUP).not.toContain('overflow-hidden')
+    // The ends round themselves where the group no longer clips them: its 4px
+    // less its 1px edge.
+    expect(BAR_PRESS).toContain('first:rounded-l-[3px]')
+    expect(BAR_PRESS).toContain('last:rounded-r-[3px]')
+    expect(resultsBarSource.match(/\$\{SEGMENT_ITEM\} \$\{BAR_PRESS\}/g)).toHaveLength(3)
+  })
+
+  // A round or square button draws its own box, so `TAP.action`'s 44px width
+  // would stretch it into a capsule or a bar: it stays as wide as it is tall.
+  it('keeps a round or square button as wide as it is tall', () => {
+    expect(HEADER_BUTTON).not.toContain(TAP.action)
+    expect(HEADER_BUTTON).not.toContain('touch:')
+    expect(px(HEADER_BUTTON, 'h')).toBe(32)
+    expect(px(HEADER_BUTTON, 'w')).toBe(32)
+    expect(TRANSPORT_PLAY).not.toContain('min-w')
+    expect(TRANSPORT_PLAY.split(' ')).toEqual(expect.arrayContaining(['h-7', 'w-7', 'touch:h-8', 'touch:w-8']))
+  })
 
   // Height on every key, width only where the control has none of its own. A
   // full-width row is already wider than any thumb; a bare `min-w` on one
@@ -1608,7 +1644,7 @@ describe('tap targets', () => {
     expect(TAP.grip).toContain('touch:')
   })
 
-  // Three reach 44 by different display values because three kinds of control
+  // Three reach 32 by different display values because three kinds of control
   // lay their contents out differently. A single one would have been wrong for
   // two of them, so the keys are layouts, not sizes.
   it('gives each layout the display its contents need', () => {
@@ -2378,10 +2414,10 @@ describe('the map rows', () => {
     expect(drawBarTop).toBe(BOTTOM + GAP)
     const vendor = (cls: string) => Number(cls.match(/--map-vendor-top:(\d+)px/)![1])
     expect(vendor(MAP_EDGE.belowRows)).toBe(BOTTOM + INSET)
-    // The draw bar: its 44px buttons (`TAP`) and its 6px of padding a side.
-    const drawBarPx = 44 + 2 * step(DRAW_BAR, 'py')
-    expect(drawBarPx).toBe(56)
-    // Its 1px border, top and bottom, is the 58 the bar measures.
+    // The draw bar: its 32px buttons (`TAP`) and its 6px of padding a side.
+    const drawBarPx = 32 + 2 * step(DRAW_BAR, 'py')
+    expect(drawBarPx).toBe(44)
+    // Its 1px border, top and bottom, is the 46 the bar measures.
     expect(vendor(MAP_EDGE.belowDrawBar)).toBe(drawBarTop + drawBarPx + 2 + INSET)
     expect(BOTTOM_SHEET.card).toContain(`max-h-[calc(100dvh-${BOTTOM + INSET}px)]`)
     const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child'))
@@ -2634,7 +2670,7 @@ describe('the bottom sheet', () => {
   // Every row a finger's 44px, one rule between rows, and the body the one
   // part that scrolls, in the shared dark bar.
   it('gives every row a finger\'s height and the body the scroll', () => {
-    expect(tokens(BOTTOM_SHEET.body)).toEqual(expect.arrayContaining(['[&>*]:min-h-11', 'overflow-y-auto', 'divide-y', SCROLL_BARS]))
+    expect(tokens(BOTTOM_SHEET.body)).toEqual(expect.arrayContaining(['[&>*]:min-h-8', 'overflow-y-auto', 'divide-y', SCROLL_BARS]))
     expect(BOTTOM_SHEET.title).toBe(TEXT.subheading)
     for (const part of [CONTROL_SIZE, TAP.action, LINK_ACTION, FOCUS_RING]) expect(BOTTOM_SHEET.done).toContain(part)
   })
@@ -3567,7 +3603,10 @@ describe('the results bar buttons', () => {
   // same well, the same half and the same idle fill, so the two read as
   // siblings and stand at one height on either pointer.
   it('reads as the sibling of the mode switch', () => {
-    expect(ACTION_GROUP).toBe(SEGMENT_FLUID)
+    // SEGMENT_FLUID's well without its clip, so the bar's press can reach
+    // past its edges (record 0223).
+    expect(BAR_GROUP).toBe(SEGMENT_FLUID.replace(' overflow-hidden', ''))
+    expect(ACTION_GROUP).toBe(BAR_GROUP)
     // The switch's idle fill and ink, with the accent label every menu
     // trigger takes under the pointer in place of its white (record 0201).
     expect(token(ACTION_ITEM, 'bg')).toBe(token(SEGMENT_IDLE, 'bg'))
@@ -3975,8 +4014,11 @@ describe('the calendar field', () => {
   // keeps the 36px the rows had (#687, record 0129).
   it('sizes the day rows for the pointer', () => {
     expect(DAY.cell).toMatch(/(^|\s)h-7(\s|$)/)
-    expect(DAY.cell).toContain('touch:h-11')
+    // A finger's row height (record 0223), and the initials over them one
+    // height on either pointer.
+    expect(DAY.cell).toContain('touch:h-8')
     expect(DAY.head).toMatch(/(^|\s)h-9(\s|$)/)
+    expect(DAY.head).not.toContain('touch:')
   })
 
   // The field is a field trigger, the same recessed box with a chevron that
@@ -4017,15 +4059,15 @@ describe('the calendar field wraps', () => {
   // The one panel control that may stand two lines tall (#687, record 0129):
   // it aligns to its top so a second line grows the box downward, and the
   // first line and the arrow stand where a one-line field centres them. 7px
-  // is the 1px border plus py-1.5 (one line 30px); 14px is the border plus
-  // 13px under touch (one line 44px, TAP.height's floor).
+  // is the 1px border plus py-1.5 (one line 30px); 8px is the border plus
+  // 7px under touch (one line 32px, TAP.height's floor, record 0223).
   it('keeps the first line and the arrow where a one-line field has them', () => {
     const LINE_PX = 16 // text-xs line box
     const BORDER_PX = 1
     const fine = stepPx(CALENDAR_FIELD.box, 'py')
     const touch = Number(CALENDAR_FIELD.box.match(/touch:py-\[(\d+)px\]/)![1])
     expect(2 * BORDER_PX + 2 * fine + LINE_PX).toBe(30)
-    expect(2 * BORDER_PX + 2 * touch + LINE_PX).toBe(44)
+    expect(2 * BORDER_PX + 2 * touch + LINE_PX).toBe(32)
     expect(CALENDAR_FIELD.box).toContain('items-start')
     expect(CALENDAR_FIELD.arrow).toContain(`top-[${BORDER_PX + fine}px]`)
     expect(CALENDAR_FIELD.arrow).toContain(`touch:top-[${BORDER_PX + touch}px]`)
