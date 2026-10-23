@@ -626,6 +626,7 @@ export const STYLES = [
       },
       { selector: interp('DROPDOWN'), count: 2, message: 'The list and the message both ride DROPDOWN.' },
       { selector: interp('CAPTION_LIFTED'), message: 'The result captions wear CAPTION_LIFTED.' },
+      { selector: interp('SEARCH_KIND'), count: 1, message: "A result's kind wears SEARCH_KIND." },
       { selector: interp('STATUS.warn'), message: 'The search message takes STATUS.warn.' },
     ],
   },

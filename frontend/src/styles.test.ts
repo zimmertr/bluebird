@@ -77,6 +77,7 @@ import {
   LINK,
   LINK_ACTION,
   CAPTION_LIFTED,
+  SEARCH_KIND,
   BOTTOM_SHEET,
   CONTROLS_SHEET,
   SAFE_AREA,
@@ -1485,6 +1486,14 @@ describe('shared recipes', () => {
     // 3.93:1 on the caption tier; slate-300 is 6.97:1 there.
     expect(darkStep(token(CAPTION_LIFTED, 'text'))).not.toBe('slate-400')
     expect(sizes(CAPTION_LIFTED)).toEqual(sizes(TEXT.caption))
+  })
+
+  // A result's kind is the lifted caption, ink and size alike, set at the
+  // heading weight so it reads apart from the name beside it (record 0222).
+  it('sets a search result\'s kind in the lifted caption at the heading weight', () => {
+    expect(SEARCH_KIND.split(' ').filter((c) => c !== 'font-semibold').join(' ')).toBe(CAPTION_LIFTED)
+    expect(SEARCH_KIND.split(' ')).toContain('font-semibold')
+    expect(TEXT.subheading.split(' ')).toContain('font-semibold')
   })
 
   // The search results list stands on the one menu card (record 0201), the

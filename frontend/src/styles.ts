@@ -1295,6 +1295,13 @@ const FIELD_LOOK = `${TEXT.control} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.c
 export const CAPTION_LIFTED = 'text-xs text-ink-mid'
 
 /**
+ * A search result's kind beside its name: the lifted caption at the app's
+ * heading weight, so a list of places with similar names still reads by what
+ * each one is at a glance (the maintainer on #796; record 0222).
+ */
+export const SEARCH_KIND = `${CAPTION_LIFTED} font-semibold`
+
+/**
  * The idle half of a segmented choice: the ranking direction toggle's unchosen
  * side, and the calendar's Hours toggle.
  *

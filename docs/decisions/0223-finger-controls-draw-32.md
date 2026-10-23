@@ -2,7 +2,7 @@
 
 - Status: Accepted. Amends 0129 (a day row and the window field are 32px under touch), 0130 (a metric label is 32px under touch), 0132 (the draw bar is 46px tall), 0133 (the results bar's buttons are 44 wide and 32 tall, pressing 44), 0135 (sheet rows are 32px) and 0136 (sheet rows are 32px).
 - Date: 2026-10-22
-- Decider: the maintainer (TJ), on PR #796, item A of the UI audit. He had found the phone chunky. After seeing the two options drawn on the preview, he chose "Tighten stacks to 32" over keeping stacks 44 apart, and "44 wide, 32 tall" for the results bar over 32 by 32.
+- Decider: the maintainer (TJ), on PR #796, item A of the UI audit. TJ had found the phone chunky, and after seeing the two options drawn on the preview chose "Tighten stacks to 32" over keeping stacks 44 apart, and "44 wide, 32 tall" for the results bar over 32 by 32.
 - Issues and PRs: #796
 - Cited in code as: none; source comments cite the record by number
 - Guide: [`docs/STYLES.md`](../STYLES.md), tap targets; `TAP` in `frontend/src/styles.ts`

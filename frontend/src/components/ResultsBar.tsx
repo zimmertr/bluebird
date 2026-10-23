@@ -182,12 +182,10 @@ export default function ResultsBar({
     },
     // Removed rows (#241): a removal's only undo, so it is a standing bar
     // member rather than a transient toast; removals persist across live knobs
-    // and refreshes, and so does the way back. Drawn whenever Columns is,
-    // and greyed until there is a row to remove or one removed (the
-    // maintainer, 2026-10-21; record 0209): it used to hide at zero, a member
-    // that came and went and moved the two beside it. A row removed from a
-    // report whose every row is gone still counts, or the way back would
-    // close behind the last removal.
+    // and refreshes, and so does the way back. Drawn whenever Columns is
+    // (record 0209), and greyed while nothing is removed, as Download CSV is
+    // with nothing to download (record 0224): a menu that opens on an empty
+    // list says nothing the count beside its name has not.
     showTable && {
       key: 'removed',
       node: (
@@ -197,7 +195,7 @@ export default function ResultsBar({
           open={removedOpen}
           chevron={!sheet}
           onClick={onToggleRemoved}
-          disabled={removedCount === 0 && !canDownload}
+          disabled={removedCount === 0}
           className={DISABLED}
           aria-label={`Removed (${removedCount})`}
         >

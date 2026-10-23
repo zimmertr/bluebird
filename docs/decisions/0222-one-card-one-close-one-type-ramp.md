@@ -2,7 +2,7 @@
 
 - Status: Accepted. Amends 0123 (the popup's heads are 600, not bold), 0136 (a desk's Removed menu has no heading of its own) and 0162 (the scale's label is 11px).
 - Date: 2026-10-22
-- Decider: the maintainer (TJ), on PR #796, from a UI audit of every screen at 6f4d277. He took items 1 to 14 except 15 and 16, moved the chips to 12px (B), took C and D, and kept E to H as they were. He set the tagline's words, the chart's unit and the scale's width.
+- Decider: the maintainer (TJ), on PR #796, from a UI audit of every screen at 6f4d277. TJ took items 1 to 14 except 15 and 16, moved the chips to 12px (B), took C and D, and kept E to H as they were, and set the tagline's words, the chart's unit and the scale's width.
 - Issues and PRs: #796
 - Cited in code as: none; source comments cite the record by number
 - Guide: [`docs/STYLES.md`](../STYLES.md); [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), `popupChrome.ts`, `chartData.ts`, `tableColumns.ts` and `metrics.ts`; [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), `controls.ts` and `mapPopups.ts`
@@ -26,7 +26,7 @@ The audit compared the computed styles of every panel, map, results, menu, dialo
 - **One separator**, the middle dot. The popups used a bar.
 - **The scale bar's label is 11px**, the app's floor. The bar draws up to 110px (`SCALE_MAX_WIDTH_PX`) so its widest label still fits.
 - **The chips are 12px** (`CONTROL_SIZE`), the size of the search pill above them. They were 13px.
-- **Search result kinds are in sentence case** in the caption ink, where they were capitals. The table and the popups name the kinds the same way.
+- **Search result kinds are in sentence case** in the caption ink at the heading weight (`SEARCH_KIND`), where they were capitals. The table and the popups name the kinds the same way. TJ asked for the weight on reading the first build, so the kinds stand apart from the names beside them.
 - **One tagline**: "The Weather Window Finder", in the panel and the welcome dialog.
 
 ## Evidence

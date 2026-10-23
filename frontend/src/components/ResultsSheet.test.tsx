@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import ResultsSheet from './ResultsSheet'
@@ -9,20 +9,43 @@ import { LAYOUT_HOLD } from '../styles'
 // The panels and the bar have suites of their own. What this one is about is
 // what the sheet hands them, so both are replaced by stand-ins that keep what
 // they were given.
-const seen = vi.hoisted(() => ({ panels: [] as Record<string, unknown>[] }))
+// The panels' stand-in draws a table of the rows `seen.tableKeys` names, in
+// that order, as the table marks them.
+const seen = vi.hoisted(() => ({ panels: [] as Record<string, unknown>[], tableKeys: [] as string[] }))
 vi.mock('./ResultsPanels', () => ({
   default: (props: Record<string, unknown>) => {
     seen.panels.push(props)
-    return <div data-testid="panels" />
+    return (
+      <div data-testid="panels">
+        <table data-results-table>
+          <tbody>
+            {seen.tableKeys.map((key) => (
+              <tr key={key} data-key={key}>
+                <td>
+                  <button data-row-name="">{`Center map on ${key}`}</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
   },
 }))
 vi.mock('./ResultsBar', () => ({
-  default: (props: { onToggleColumns: () => void; removedButtonRef: React.RefObject<HTMLButtonElement | null> }) => (
+  default: (props: {
+    onToggleColumns: () => void
+    columnsButtonRef: React.RefObject<HTMLButtonElement | null>
+    onToggleRemoved: () => void
+    removedButtonRef: React.RefObject<HTMLButtonElement | null>
+  }) => (
     <>
-      <button data-testid="bar" onClick={props.onToggleColumns}>
+      <button data-testid="bar" ref={props.columnsButtonRef} onClick={props.onToggleColumns}>
         Columns
       </button>
-      <button ref={props.removedButtonRef}>Removed</button>
+      <button ref={props.removedButtonRef} onClick={props.onToggleRemoved}>
+        Removed
+      </button>
     </>
   ),
 }))
@@ -34,7 +57,22 @@ vi.mock('./ColumnsPicker', () => ({
   ),
 }))
 vi.mock('./ModelsPicker', () => ({ default: (props: { sheet?: boolean }) => <div data-testid="models" data-sheet={String(props.sheet)} /> }))
-vi.mock('./RemovedPicker', () => ({ default: (props: { sheet?: boolean }) => <div data-testid="removed" data-sheet={String(props.sheet)} /> }))
+vi.mock('./RemovedPicker', () => ({
+  default: (props: {
+    sheet?: boolean
+    open: boolean
+    entries: [string, unknown][]
+    onRestore: (key: string) => void
+    onRestoreAll: () => void
+  }) => (
+    <div data-testid="removed" data-sheet={String(props.sheet)} data-open={String(props.open)}>
+      {props.entries.map(([key]) => (
+        <button key={key} onClick={() => props.onRestore(key)}>{`Restore ${key}`}</button>
+      ))}
+      {props.entries.length > 0 && <button onClick={props.onRestoreAll}>Restore all</button>}
+    </div>
+  ),
+}))
 
 type Props = ComponentProps<typeof ResultsSheet>
 const NOOP = () => {}
@@ -177,19 +215,52 @@ describe('ResultsSheet', () => {
     expect(region.textContent).toBe(resultsHeading(DEFAULT_FAMILY_KEY.temp, true, false, '4 of 5', 0))
   })
 
-  // The last restore takes its own button away under the keyboard, and the
-  // Removed button, which stands at zero (record 0209), takes the focus (#576).
-  it('hands the keyboard to Removed when the last removed row is restored', () => {
-    const page = (removed: number) => (
-      <>
-        <ResultsSheet {...props({ removed })} />
-        {removed > 0 && <button>Restore</button>}
-      </>
-    )
-    const { rerender } = render(page(1))
-    screen.getByRole('button', { name: 'Restore' }).focus()
-    rerender(page(0))
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Removed' }))
+  // The last restore takes its own button, the menu and Removed (greyed at
+  // zero) away under the keyboard, and the row it brought back takes the
+  // focus (record 0224, #576). The removals are App's, so each case restores
+  // through the menu and then hands the sheet the count that follows.
+  describe('the last restore', () => {
+    afterEach(() => {
+      seen.tableKeys = []
+    })
+
+    it('closes the Removed menu', () => {
+      const { rerender } = render(<ResultsSheet {...props({ removed: 1 })} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Removed' }))
+      expect(screen.getByTestId('removed').dataset.open).toBe('true')
+      rerender(<ResultsSheet {...props({ removed: 0 })} />)
+      expect(screen.getByTestId('removed').dataset.open).toBe('false')
+    })
+
+    it('hands the keyboard to the restored row\'s name', () => {
+      seen.tableKeys = ['r1', 'r0']
+      const { rerender } = render(<ResultsSheet {...props({ removed: 1 })} />)
+      const restore = screen.getByRole('button', { name: 'Restore r0' })
+      restore.focus()
+      fireEvent.click(restore)
+      rerender(<ResultsSheet {...props({ removed: 0 })} />)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Center map on r0' }))
+    })
+
+    it('hands it to the first restored row in the table after Restore all', () => {
+      seen.tableKeys = ['x', 'r1', 'r0']
+      const { rerender } = render(<ResultsSheet {...props({ removed: 2 })} />)
+      const restoreAll = screen.getByRole('button', { name: 'Restore all' })
+      restoreAll.focus()
+      fireEvent.click(restoreAll)
+      rerender(<ResultsSheet {...props({ removed: 0 })} />)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Center map on r1' }))
+    })
+
+    it('hands it to Columns when the table does not show the row', () => {
+      seen.tableKeys = ['x']
+      const { rerender } = render(<ResultsSheet {...props({ removed: 1 })} />)
+      const restore = screen.getByRole('button', { name: 'Restore r0' })
+      restore.focus()
+      fireEvent.click(restore)
+      rerender(<ResultsSheet {...props({ removed: 0 })} />)
+      expect(document.activeElement).toBe(screen.getByTestId('bar'))
+    })
   })
 
   it('opens the Columns popover from the bar', () => {

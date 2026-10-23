@@ -25,6 +25,7 @@ import { useUsStates } from '../hooks/useUsStates'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
 import { isPartialRow } from '../utils/modelCompare'
+import { geoKey } from '../utils/points'
 import {
   cellColor,
   cellText,
@@ -207,6 +208,8 @@ function NameTd({ cellClass, widths, label, name, onCenter, link }: NameTdProps)
         <span className={`flex min-w-0 items-center gap-1.5 ${widths.name === undefined ? TABLE.nameCap : ''}`}>
           <button
             onClick={onCenter}
+            // Where the keyboard lands when a restore brings the row back (`ResultsSheet`).
+            data-row-name=""
             aria-label={`Center map on ${name}`}
             className={`${LINK_QUIET} min-w-0 truncate text-left`}
           >
@@ -565,7 +568,11 @@ function ResultsTableRow({
     if (onFocusResult && rowTapOpens(e.target, e.currentTarget, window.getSelection()?.toString() ?? '')) onFocusResult(row)
   }
   return (
-    <tr className={`${TABLE.row} ${onFocusResult ? TABLE.rowOpens : ''}`} onClick={openFromRow}>
+    <tr
+      data-key={geoKey(row.latitude, row.longitude)}
+      className={`${TABLE.row} ${onFocusResult ? TABLE.rowOpens : ''}`}
+      onClick={openFromRow}
+    >
       {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} />}
       <RankRemoveCell rank={rank} name={row.name} onRemove={onRemove ? () => onRemove(row) : undefined} />
       {columns.map((col) => (
@@ -617,7 +624,7 @@ function PendingTableRow({
   // already says what is known.
   const center = () => onFocusPending?.({ latitude: d.latitude, longitude: d.longitude })
   return (
-    <tr className={TABLE.row}>
+    <tr data-key={geoKey(d.latitude, d.longitude)} className={TABLE.row}>
       {chartBox && (
         <ChartToggle row={pendingChartRow(d)} on={charted} color={chartColor} box={chartBox} />
       )}

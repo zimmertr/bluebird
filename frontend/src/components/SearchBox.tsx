@@ -9,6 +9,7 @@ import {
   MAP_PILL,
   MAP_PILL_FIELD,
   RADIUS,
+  SEARCH_KIND,
   SEARCH_LIST,
   SPINNER,
   STATUS,
@@ -313,8 +314,9 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
               <span className={`${TEXT.control} block truncate`}>
                 {p.label}
                 {/* The kind as the Type column spells it, in the caption
-                    ink, rather than in capitals (record 0222). */}
-                {p.kind && <span className={`${CAPTION_LIFTED} ml-2`}>{TYPE_COL.format!(p.kind)}</span>}
+                    ink at the heading weight, rather than in capitals
+                    (record 0222). */}
+                {p.kind && <span className={`${SEARCH_KIND} ml-2`}>{TYPE_COL.format!(p.kind)}</span>}
               </span>
               {p.description && (
                 <span className={`${CAPTION_LIFTED} block truncate`}>{p.description}</span>

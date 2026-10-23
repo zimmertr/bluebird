@@ -88,11 +88,10 @@ describe('ResultsBar', () => {
     expect(screen.queryByRole('button', { name: 'Collapse results' })).toBeNull()
   })
 
-  // Removed stands whenever Columns does (record 0209), greyed until there is
-  // a row to remove or one removed: a report emptied by removals keeps the
-  // way back. Download CSV stands with it, greyed until there is a row to
-  // download (record 0219).
-  it('draws Removed and Download CSV greyed before a row, and live with one', () => {
+  // Removed stands whenever Columns does (record 0209), greyed while nothing
+  // is removed (record 0224), and Download CSV stands with it, greyed until
+  // there is a row to download (record 0219).
+  it('greys Removed at zero and Download CSV with nothing to download', () => {
     const { rerender } = render(<ResultsBar {...props({ canDownload: false })} />)
     const removed = () => screen.getByRole('button', { name: /^Removed \(\d+\)$/ }) as HTMLButtonElement
     expect(removed().disabled).toBe(true)
@@ -104,7 +103,7 @@ describe('ResultsBar', () => {
     expect(removed().textContent).toBe('Removed (3)')
     expect(download().disabled).toBe(true)
     rerender(<ResultsBar {...props({ removedCount: 0 })} />)
-    expect(removed().disabled).toBe(false)
+    expect(removed().disabled).toBe(true)
     expect(download().disabled).toBe(false)
     rerender(<ResultsBar {...props({ showTable: false, canDownload: false })} />)
     expect(screen.queryByRole('button', { name: /^Removed/ })).toBeNull()

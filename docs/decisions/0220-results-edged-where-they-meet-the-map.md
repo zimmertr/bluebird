@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-22
-- Decider: the maintainer (TJ), on PR #796, asking why the panel had a line beside the results and the map's other edges had none; of the options put to him, "Add top edge".
+- Decider: the maintainer (TJ), on PR #796, asking why the panel had a line beside the results and the map's other edges had none; choosing "Add top edge" from the options put to them.
 - Issues and PRs: #795, #796
 - Cited in code as: none; `ResultsBar.tsx` cites the record by number
 - Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `ResultsSheet.tsx`/`ResultsBar.tsx` bullet; [`docs/STYLES.md`](../STYLES.md), `PANEL_EDGE`
