@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { ChartCompare } from '../hooks/useChartCompare'
 import type { PresentedReport } from '../hooks/usePresentedReport'
 import type { Removals } from '../hooks/useRemovals'
@@ -10,7 +10,7 @@ import RemovedPicker from './RemovedPicker'
 import ResultsBar from './ResultsBar'
 import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
 import { resultsHeading } from '../metrics'
-import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { LAYER, LAYOUT_HOLD, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
@@ -152,10 +152,32 @@ export default function ResultsSheet({
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [modelsOpen, setModelsOpen] = useState(false)
   const [removedOpen, setRemovedOpen] = useState(false)
-  // Restoring the last removed row takes its Restore button away under the
-  // keyboard; the Removed button, which stands at zero (record 0209), takes
-  // the focus (#576).
-  useTakeOrphanedFocus(removedButtonRef, removed.size === 0)
+  // Removed greys at zero (record 0224), so the menu closes once nothing is
+  // removed, whatever emptied it. Set while rendering, so the commit that
+  // empties the list is the one that shuts the menu.
+  if (removedOpen && removed.size === 0) setRemovedOpen(false)
+  // Restoring the last removed row takes its Restore button, the menu and the
+  // Removed button out from under the keyboard. The row brought back takes it,
+  // by its name's button in the table, or Columns when the table is not
+  // showing it: under the limit's cut, outside a bound, or in Chart (#576).
+  const restoredKeys = useRef<readonly string[]>([])
+  const restoreOne = (key: string) => {
+    restoredKeys.current = [key]
+    restoreRemoved(key)
+  }
+  const restoreAll = () => {
+    restoredKeys.current = [...removed.keys()]
+    restoreAllRemoved()
+  }
+  useLayoutEffect(() => {
+    if (removed.size > 0 || restoredKeys.current.length === 0) return
+    const keys = new Set(restoredKeys.current)
+    restoredKeys.current = []
+    const rows = sheetRef.current?.querySelectorAll<HTMLElement>('[data-results-table] tr[data-key]') ?? []
+    const row = [...rows].find((tr) => keys.has(tr.dataset.key ?? ''))
+    takeOrphanedFocus(row?.querySelector<HTMLElement>('[data-row-name]') ?? null)
+    takeOrphanedFocus(columnsButtonRef.current)
+  }, [removed.size, sheetRef])
 
   // What a committed report says to a screen reader: the bar's own title, as
   // it reads in the commit that brought the report (#576). Held per report
@@ -290,8 +312,8 @@ export default function ResultsSheet({
         open={removedOpen}
         onOpenChange={setRemovedOpen}
         entries={[...removed.entries()]}
-        onRestore={restoreRemoved}
-        onRestoreAll={restoreAllRemoved}
+        onRestore={restoreOne}
+        onRestoreAll={restoreAll}
         triggerRef={removedButtonRef}
         sheet={sheet}
       />

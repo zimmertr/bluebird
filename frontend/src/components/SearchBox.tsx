@@ -5,10 +5,11 @@ import {
   CAPTION_LIFTED,
   CONTROL_SIZE,
   ICON_ACTION,
-  ICON_BUTTON,
+  ICON_CLOSE_BUTTON,
   MAP_PILL,
   MAP_PILL_FIELD,
   RADIUS,
+  SEARCH_KIND,
   SEARCH_LIST,
   SPINNER,
   STATUS,
@@ -18,6 +19,7 @@ import {
 } from '../styles'
 import { IconClose, IconSearch } from './icons'
 import { coordinateLabel } from '../utils/points'
+import { TYPE_COL } from '../utils/tableColumns'
 
 // The panel under the field, in both of the states it has: the list of places,
 // and the line that says why there is no list. One recipe, because they are one
@@ -251,7 +253,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           <button
             onClick={clear}
             aria-label="Clear search"
-            className={`${ICON_BUTTON} flex-shrink-0`}
+            className={`${ICON_CLOSE_BUTTON} flex-shrink-0`}
           >
             <IconClose />
           </button>
@@ -311,11 +313,10 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
             >
               <span className={`${TEXT.control} block truncate`}>
                 {p.label}
-                {p.kind && (
-                  <span className={`${TEXT.overline} ml-2`}>
-                    {p.kind}
-                  </span>
-                )}
+                {/* The kind as the Type column spells it, in the caption
+                    ink at the heading weight, rather than in capitals
+                    (record 0222). */}
+                {p.kind && <span className={`${SEARCH_KIND} ml-2`}>{TYPE_COL.format!(p.kind)}</span>}
               </span>
               {p.description && (
                 <span className={`${CAPTION_LIFTED} block truncate`}>{p.description}</span>

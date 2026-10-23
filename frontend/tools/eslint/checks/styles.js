@@ -506,8 +506,11 @@ export const STYLES = [
     require: [
       {
         // Download CSV opens nothing, so it is the one button that is not a
-        // menu's trigger and carries no chevron (record 0201).
-        selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="ACTION_ITEM"]',
+        // menu's trigger and carries no chevron (record 0201). It may add
+        // DISABLED, greyed until there is a row to download (record 0219).
+        selector:
+          'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="ACTION_ITEM"], ' +
+          'JSXAttribute[name.name="className"] > JSXExpressionContainer > TemplateLiteral > Identifier[name="ACTION_ITEM"]',
         count: 1,
         message: 'Download CSV wears ACTION_ITEM.',
       },
@@ -623,6 +626,7 @@ export const STYLES = [
       },
       { selector: interp('DROPDOWN'), count: 2, message: 'The list and the message both ride DROPDOWN.' },
       { selector: interp('CAPTION_LIFTED'), message: 'The result captions wear CAPTION_LIFTED.' },
+      { selector: interp('SEARCH_KIND'), count: 1, message: "A result's kind wears SEARCH_KIND." },
       { selector: interp('STATUS.warn'), message: 'The search message takes STATUS.warn.' },
     ],
   },

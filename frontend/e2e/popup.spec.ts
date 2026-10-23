@@ -67,7 +67,7 @@ test('an open popup marks whichever number the panel ranks by', async ({ page })
   const marked = () =>
     popup.evaluate((el) => {
       const bold = [...el.querySelectorAll<HTMLElement>('[data-popup-body] span')].filter(
-        (s) => s.style.fontWeight === '700',
+        (s) => s.style.fontWeight === '600',
       )
       return bold.map((s) => {
         const tr = s.closest('tr')!

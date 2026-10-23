@@ -195,6 +195,19 @@ export const UNIT: Record<MetricFamily, string> = {
 }
 
 /**
+ * The unit one hour of a family reads in. An amount that adds up over the
+ * window is a total in `UNIT` and an hour of it is a rate, so precipitation
+ * and snowfall say `in/hr` wherever an hour is shown: the chart's line, the
+ * table's rate columns and the legend under playback (record 0222). Every
+ * other family reads the same in an hour as over the window.
+ */
+export const HOURLY_UNIT: Record<MetricFamily, string> = {
+  ...UNIT,
+  precip: `${UNIT.precip}/hr`,
+  snowfall: `${UNIT.snowfall}/hr`,
+}
+
+/**
  * How many digits a precipitation figure is printed to, on every surface
  * (#395).
  *

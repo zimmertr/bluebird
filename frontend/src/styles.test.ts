@@ -13,7 +13,9 @@ import {
   BUTTON_FLOATING,
   ACTION_GROUP,
   ACTION_ITEM,
+  BAR_GROUP,
   BAR_LABEL,
+  BAR_PRESS,
   DIALOG_FOOT,
   DRAG,
   DRAW_BAR,
@@ -26,6 +28,7 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
+  CHART_LEGEND,
   CHART_METRIC_W,
   CONTROL_W,
   FIELD,
@@ -55,6 +58,8 @@ import {
   SPINNER,
   STATUS,
   TRANSPORT_AXIS_ITEM,
+  TRANSPORT_PLAY,
+  HEADER_BUTTON,
   LINE_EDGE,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
@@ -72,6 +77,7 @@ import {
   LINK,
   LINK_ACTION,
   CAPTION_LIFTED,
+  SEARCH_KIND,
   BOTTOM_SHEET,
   CONTROLS_SHEET,
   SAFE_AREA,
@@ -129,6 +135,7 @@ import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { CHIP_MENU_GAP_PX } from './utils/resultsSheet'
+import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { SNOW_RAMP } from './utils/snowDepth'
@@ -173,6 +180,7 @@ import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
 import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
+import resultsBarSource from './components/ResultsBar.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
@@ -573,8 +581,8 @@ describe('every component', () => {
 
     expect(uses.length).toBeGreaterThan(5)
     for (const use of uses) expect(use).toMatch(/\bborder-[trbl]\b/)
-    // The menu's header and foot draw theirs inside the design system now.
-    for (const role of [MENU.header, MENU.foot]) expect(role).toMatch(/\bborder-[trbl]\b/)
+    // The menu's foot draws its own inside the design system now.
+    expect(MENU.foot).toMatch(/\bborder-[trbl]\b/)
   })
 
   // L6 used to fail any `title=` outright. Tooltips are now an approved LIST
@@ -1203,12 +1211,14 @@ describe('shared recipes', () => {
 
   // The chart's metric select is the one control that borrowed CONTROL_W from
   // outside the panel, and it cannot follow it down: it lines up with nothing
-  // above it, and its labels carry their units. `Freezing level (ft)` is
-  // 99.27px, where the panel column would leave 84px.
+  // above it, and its labels carry their units, where the panel column would
+  // leave 84px.
   it('keeps the chart metric select off the panel column', () => {
-    const FREEZING_LEVEL_UNIT_PX = 100
+    // `Precipitation (in/hr)`, the widest option (record 0222), measured
+    // 109.03px; held with 8px to spare, about the margin it had at 144px.
+    const WIDEST_OPTION_PX = 109.03
     const chartPx = stepPx(CHART_METRIC_W, 'w')
-    expect(chartPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(FREEZING_LEVEL_UNIT_PX)
+    expect(chartPx - 8 - selectArrowPx() - 2 - WIDEST_OPTION_PX).toBeGreaterThanOrEqual(8)
   })
 
   // The Metrics grid (#341) sizes no control itself: its three control columns
@@ -1478,6 +1488,14 @@ describe('shared recipes', () => {
     expect(sizes(CAPTION_LIFTED)).toEqual(sizes(TEXT.caption))
   })
 
+  // A result's kind is the lifted caption, ink and size alike, set at the
+  // heading weight so it reads apart from the name beside it (record 0222).
+  it('sets a search result\'s kind in the lifted caption at the heading weight', () => {
+    expect(SEARCH_KIND.split(' ').filter((c) => c !== 'font-semibold').join(' ')).toBe(CAPTION_LIFTED)
+    expect(SEARCH_KIND.split(' ')).toContain('font-semibold')
+    expect(TEXT.subheading.split(' ')).toContain('font-semibold')
+  })
+
   // The search results list stands on the one menu card (record 0201), the
   // card the pill drops it onto lifted by the overlay shadow over the pill's
   // raised one.
@@ -1527,7 +1545,7 @@ describe('shared recipes', () => {
     const card = dark(token(SURFACE_CHIP_CARD.key, 'bg'))
     expect({
       dark: ratio(dark(token(SURFACE_CHIP_CARD.menu, 'border')), card),
-      frameWas: ratio(dark(token(SURFACE_FLOATING, 'border')), card),
+      frameWas: ratio(dark('frame'), card),
     }).toEqual(MEASURED)
     expect(MEASURED.dark).toBeGreaterThanOrEqual(3)
     expect(MEASURED.frameWas).toBeLessThan(3)
@@ -1560,9 +1578,10 @@ describe('shared recipes', () => {
 })
 
 // WCAG 2.2 gives two numbers: SC 2.5.8 (AA) wants 24x24 CSS px, SC 2.5.5 (AAA)
-// wants 44x44. The app takes the 44 wherever a control stands on its own and
-// holds the 24 floor inside the results grid, where 44px rows would cost more
-// ranking than the reach is worth. What these guard is that the two numbers
+// wants 44x44. The app draws a finger's controls 32 tall (record 0223), presses
+// 44 only in a band with nothing above or below, and holds the 24 floor inside
+// the results grid, where taller rows would cost more ranking than the reach is
+// worth. What these guard is that the two numbers
 // stay two numbers rather than becoming a spectrum.
 describe('tap targets', () => {
   const px = (recipe: string, axis: 'h' | 'w') => {
@@ -1571,12 +1590,42 @@ describe('tap targets', () => {
     return step ? Number(step[1] ?? step[2]) * 4 : null
   }
 
+  // 32px on a finger, past AA's 24 and under the enhanced 44 (record 0223):
+  // a stack of rows presses what it draws.
   it.each(['action', 'row', 'height'] as const)(
-    'TAP.%s reaches the enhanced target',
+    'TAP.%s draws and presses 32 on a finger',
     (key) => {
-      expect(px(TAP[key], 'h')).toBe(44)
+      expect(px(TAP[key], 'h')).toBe(32)
     },
   )
+
+  // A band of chrome with no target above or below it still presses 44 around
+  // a 32px control: the chips and the results bar's buttons, each by a
+  // pseudo-element 6px over and under, which a clipping group would cut off.
+  it('presses 44 around the chips and the results bar', () => {
+    expect(BAR_PRESS).toContain("touch:before:content-['']")
+    expect(BAR_PRESS).toMatch(/touch:before:-inset-y-1\.5(\s|$)/)
+    expect(32 + 2 * 6).toBe(44)
+    expect(ACTION_ITEM).toContain(BAR_PRESS)
+    expect(ACTION_GROUP).toBe(BAR_GROUP)
+    expect(BAR_GROUP).not.toContain('overflow-hidden')
+    // The ends round themselves where the group no longer clips them: its 4px
+    // less its 1px edge.
+    expect(BAR_PRESS).toContain('first:rounded-l-[3px]')
+    expect(BAR_PRESS).toContain('last:rounded-r-[3px]')
+    expect(resultsBarSource.match(/\$\{SEGMENT_ITEM\} \$\{BAR_PRESS\}/g)).toHaveLength(3)
+  })
+
+  // A round or square button draws its own box, so `TAP.action`'s 44px width
+  // would stretch it into a capsule or a bar: it stays as wide as it is tall.
+  it('keeps a round or square button as wide as it is tall', () => {
+    expect(HEADER_BUTTON).not.toContain(TAP.action)
+    expect(HEADER_BUTTON).not.toContain('touch:')
+    expect(px(HEADER_BUTTON, 'h')).toBe(32)
+    expect(px(HEADER_BUTTON, 'w')).toBe(32)
+    expect(TRANSPORT_PLAY).not.toContain('min-w')
+    expect(TRANSPORT_PLAY.split(' ')).toEqual(expect.arrayContaining(['h-7', 'w-7', 'touch:h-8', 'touch:w-8']))
+  })
 
   // Height on every key, width only where the control has none of its own. A
   // full-width row is already wider than any thumb; a bare `min-w` on one
@@ -1604,7 +1653,7 @@ describe('tap targets', () => {
     expect(TAP.grip).toContain('touch:')
   })
 
-  // Three reach 44 by different display values because three kinds of control
+  // Three reach 32 by different display values because three kinds of control
   // lay their contents out differently. A single one would have been wrong for
   // two of them, so the keys are layouts, not sizes.
   it('gives each layout the display its contents need', () => {
@@ -1891,23 +1940,21 @@ describe('status and notices', () => {
     expect(NOTICE.warn).toContain(RADIUS.control)
   })
 
-  // #253. The dismiss X inherits its box's STATUS color, so neither part of
+  // #253. The dismiss × inherits its box's STATUS color, so neither part of
   // the recipe may set a resting color of its own — one would override the
-  // voice on every box at once. The ratios are the inherited glyph on the
-  // resting pill backdrop (box fill + white/5 over the panel); literals so
-  // a fill, STATUS or pill change fails here and forces a re-measurement
-  // rather than inheriting a stale claim.
-  const DISMISS_MEASURED = { warn: 9.06, error: 4.83, info: 7.47 }
+  // voice on every box at once. A bare glyph since record 0222, as every ×
+  // inside a card is, so the ratios are the inherited glyph on the box's own
+  // tint over the panel; literals so a fill or STATUS change fails here and
+  // forces a re-measurement rather than inheriting a stale claim.
+  const DISMISS_MEASURED = { warn: 10.53, error: 5.56, info: 8.68 }
 
   it('dismisses in the voice of the box it sits in', () => {
     expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)text-/)
-    expect(NOTICE_DISMISS.pill).not.toMatch(/(^|\s)text-/)
+    expect(NOTICE_DISMISS.pill).not.toMatch(/(^|\s)(text|bg)-/)
     const panel = dark('panel')
-    const lift = Number(NOTICE_DISMISS.pill.match(/(?:^|\s)bg-lift\/(\d+)(?:\s|$)/)![1]) / 100
-    for (const tone of ['warn', 'error', 'info'] as const) {
-      const pill = over(dark('lift'), lift, dark(token(NOTICE[tone], 'bg'), panel))
-      expect(ratio(dark(token(STATUS[tone], 'text')), pill), tone).toBe(DISMISS_MEASURED[tone])
-    }
+    const glyph = (tone: 'warn' | 'error' | 'info') =>
+      ratio(dark(token(STATUS[tone], 'text')), dark(token(NOTICE[tone], 'bg'), panel))
+    expect({ warn: glyph('warn'), error: glyph('error'), info: glyph('info') }).toEqual(DISMISS_MEASURED)
     for (const [tone, r] of Object.entries(DISMISS_MEASURED)) {
       expect(r, `${tone} glyph must clear the 3:1 asked of a UI glyph`).toBeGreaterThanOrEqual(3)
     }
@@ -1915,14 +1962,14 @@ describe('status and notices', () => {
 
   // The Analyze button sits directly above the notices, so the 44px touch
   // target must grow the box in-flow rather than positioning itself over the
-  // button's bottom edge. The visible pill is the separate, smaller part —
-  // and hue-free, so one recipe sits on all three tints.
+  // button's bottom edge. The glyph's own box is the separate, smaller part,
+  // and bare (record 0222), so one recipe sits on all three tints.
   it('earns its touch target by growing the box, not by overhanging it', () => {
     expect(NOTICE_DISMISS.button).toContain(TAP.action)
     expect(NOTICE_DISMISS.button).toContain(FOCUS_RING)
     expect(NOTICE_DISMISS.button).not.toContain('absolute')
-    expect(NOTICE_DISMISS.pill).toContain(RADIUS.pill)
-    expect(darkStep(token(NOTICE_DISMISS.pill, 'bg'))).toBe('white')
+    expect(NOTICE_DISMISS.pill).not.toContain(RADIUS.pill)
+    expect(NOTICE_DISMISS.pill).not.toMatch(/(^|\s)bg-/)
   })
 
   // The X rests hidden and appears when its own message is pointed at, so a
@@ -2328,15 +2375,15 @@ describe('the map rows', () => {
     }
   })
 
-  // The mockup's original size (#696): 13px type and 12px a side, at the
-  // normal weight. The one 13px role in the app, so nothing else drifts onto
-  // it by accident.
-  it('sets the chips at 13px with 12px a side', () => {
-    for (const recipe of [MAP_CHIP, MAP_CHIP_SUMMARY]) expect(sizes(recipe)).toEqual(['text-[13px]'])
+  // The search pill's size (record 0222) and 12px a side, at the normal
+  // weight. The 13px the mockup drew them at (#696) was the one size off the
+  // ramp, so no role may drift back onto it.
+  it('sets the chips at the control size with 12px a side', () => {
+    for (const recipe of [MAP_CHIP, MAP_CHIP_SUMMARY]) expect(sizes(recipe)).toEqual([CONTROL_SIZE])
     const recipes = Object.values(STYLES).flatMap((v) =>
       typeof v === 'string' ? [v] : Object.values(v as Record<string, unknown>).filter((x): x is string => typeof x === 'string'),
     )
-    expect(recipes.filter((r) => sizes(r).includes('text-[13px]')).sort()).toEqual([MAP_CHIP, MAP_CHIP_SUMMARY].sort())
+    expect(recipes.filter((r) => sizes(r).includes('text-[13px]'))).toEqual([])
     expect(step(MAP_CHIP, 'px')).toBe(12)
     expect(tokens(MAP_CHIP)).not.toContain('font-semibold')
   })
@@ -2376,10 +2423,10 @@ describe('the map rows', () => {
     expect(drawBarTop).toBe(BOTTOM + GAP)
     const vendor = (cls: string) => Number(cls.match(/--map-vendor-top:(\d+)px/)![1])
     expect(vendor(MAP_EDGE.belowRows)).toBe(BOTTOM + INSET)
-    // The draw bar: its 44px buttons (`TAP`) and its 6px of padding a side.
-    const drawBarPx = 44 + 2 * step(DRAW_BAR, 'py')
-    expect(drawBarPx).toBe(56)
-    // Its 1px border, top and bottom, is the 58 the bar measures.
+    // The draw bar: its 32px buttons (`TAP`) and its 6px of padding a side.
+    const drawBarPx = 32 + 2 * step(DRAW_BAR, 'py')
+    expect(drawBarPx).toBe(44)
+    // Its 1px border, top and bottom, is the 46 the bar measures.
     expect(vendor(MAP_EDGE.belowDrawBar)).toBe(drawBarTop + drawBarPx + 2 + INSET)
     expect(BOTTOM_SHEET.card).toContain(`max-h-[calc(100dvh-${BOTTOM + INSET}px)]`)
     const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child'))
@@ -2632,7 +2679,7 @@ describe('the bottom sheet', () => {
   // Every row a finger's 44px, one rule between rows, and the body the one
   // part that scrolls, in the shared dark bar.
   it('gives every row a finger\'s height and the body the scroll', () => {
-    expect(tokens(BOTTOM_SHEET.body)).toEqual(expect.arrayContaining(['[&>*]:min-h-11', 'overflow-y-auto', 'divide-y', SCROLL_BARS]))
+    expect(tokens(BOTTOM_SHEET.body)).toEqual(expect.arrayContaining(['[&>*]:min-h-8', 'overflow-y-auto', 'divide-y', SCROLL_BARS]))
     expect(BOTTOM_SHEET.title).toBe(TEXT.subheading)
     for (const part of [CONTROL_SIZE, TAP.action, LINK_ACTION, FOCUS_RING]) expect(BOTTOM_SHEET.done).toContain(part)
   })
@@ -3309,7 +3356,7 @@ describe('the attribution beside the scale', () => {
   it('caps the corner where the room the scale bar takes ends', () => {
     const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-right \{[^}]*max-width[^}]*\}/)?.[0] ?? ''
     const cap = Number(rule.match(/max-width: calc\(100% - (\d+)px\)/)?.[1])
-    expect(SCALE_MAX_WIDTH_PX).toBe(100)
+    expect(SCALE_MAX_WIDTH_PX).toBe(110)
     expect(cap).toBe(SCALE_MARGIN_PX + SCALE_MAX_WIDTH_PX + CLEAR_PX - ATTRIB_MARGIN_PX)
   })
 
@@ -3357,9 +3404,11 @@ describe('the scale bar', () => {
     expect(mapCss).toMatch(
       new RegExp(String.raw`:root\[data-theme="light"\] \.maplibregl-ctrl\.maplibregl-ctrl-scale \{\s*border-color: var\(--ui-${ink}\);\s*\}`),
     )
-    // A ruler, not a control (record 0147): no corner, no shadow, and the
-    // vendor's own 10px label, which e2e/scaleBar.spec.ts holds inside the bar.
-    expect(rule).not.toMatch(/radius|shadow|font-size/)
+    // A ruler, not a control (record 0147): no corner and no shadow. Its
+    // label is the attribution's 11px (record 0222), which
+    // e2e/scaleBar.spec.ts holds inside the bar.
+    expect(rule).not.toMatch(/radius|shadow/)
+    expect(rule).toContain('font-size: var(--map-credit-size);')
   })
 
   // Measured 2026-10-16: the ink on the scrim over a white map and a black
@@ -3510,8 +3559,16 @@ describe('the popup card', () => {
   it('dresses its button as the panel\'s accent button and nothing else', () => {
     expect(popupButton('data-x', 'Go')).toBe(`<button data-x class="${BUTTON_ACCENT}">Go</button>`)
     expect(mapCss).not.toMatch(/data-popup-button|--popup-(?:primary|secondary|danger)/)
-    expect(both('var(--popup-close)', 'var(--popup-close-fill)')).toEqual([6.97, 10.31])
-    expect(both('var(--popup-close-hover)', 'var(--popup-close-hover-fill)')).toEqual([7.58, 12.17])
+  })
+
+  // The × is the bare glyph every card's close is (record 0222), standing on
+  // the header band, at rest and under the pointer, dark theme then light.
+  it('draws its × bare on the header band, past 3:1 in both themes', () => {
+    expect({
+      rest: both('var(--popup-close)', HEADER_BAND_COLOR),
+      hover: both('var(--popup-close-hover)', HEADER_BAND_COLOR),
+    }).toEqual({ rest: [4.71, 7.89], hover: [12.39, 14.42] })
+    expect(mapCss).not.toMatch(/--popup-close-(?:fill|edge|hover-fill|hover-edge)/)
   })
 
   // The ranked family's colours (#740) are the table's, and the card stands
@@ -3555,7 +3612,10 @@ describe('the results bar buttons', () => {
   // same well, the same half and the same idle fill, so the two read as
   // siblings and stand at one height on either pointer.
   it('reads as the sibling of the mode switch', () => {
-    expect(ACTION_GROUP).toBe(SEGMENT_FLUID)
+    // SEGMENT_FLUID's well without its clip, so the bar's press can reach
+    // past its edges (record 0223).
+    expect(BAR_GROUP).toBe(SEGMENT_FLUID.replace(' overflow-hidden', ''))
+    expect(ACTION_GROUP).toBe(BAR_GROUP)
     // The switch's idle fill and ink, with the accent label every menu
     // trigger takes under the pointer in place of its white (record 0201).
     expect(token(ACTION_ITEM, 'bg')).toBe(token(SEGMENT_IDLE, 'bg'))
@@ -3615,12 +3675,16 @@ describe('the welcome dialog foot', () => {
     expect(DIALOG_FOOT.bar).toContain(SURFACE_DIVIDER)
   })
 
-  // The tutorial button at the primary's height: py-2.5 around text-sm's 20px
-  // line is 40, and min-h-10 is 40.
-  it('stands the second action at the primary height', () => {
-    expect(DIALOG_FOOT.secondary).toContain(BUTTON_SECONDARY)
-    const primaryPx = 2 * stepPx(BUTTON_PRIMARY, 'py') + 20
-    expect(stepPx(DIALOG_FOOT.secondary, 'min-h')).toBe(primaryPx)
+  // The tutorial button is the primary's button in the secondary's fill
+  // (record 0222): the same label, padding, width and corners, so the pair
+  // differs only in which one leads.
+  it('draws the second action as the primary in the secondary fill', () => {
+    const shape = (recipe: string) =>
+      recipe.split(' ').filter((c) => !/^(hover:)?bg-|^text-(ink|on-)|^(hover:)?text-white/.test(c) && !c.includes('accent'))
+    const without = (recipe: string, role: string) => recipe.split(' ').filter((c) => !role.split(' ').includes(c))
+    expect(shape(DIALOG_FOOT.secondary).sort()).toEqual(shape(without(BUTTON_PRIMARY, ACCENT.fill + ' ' + ACCENT.fillHover).join(' ')).sort())
+    const fills = (recipe: string) => recipe.split(' ').filter((c) => /^(hover:)?bg-/.test(c))
+    expect(fills(DIALOG_FOOT.secondary)).toEqual(fills(BUTTON_SECONDARY))
   })
 })
 
@@ -3654,7 +3718,6 @@ describe('the one menu', () => {
     expect(layersInset).toBe(10)
     expect(stepPx(MENU.list, 'px') + stepPx(MENU.row, 'px')).toBe(layersInset)
     expect(stepPx(MENU.list, 'py') + stepPx(MENU.row, 'py')).toBe(stepPx(MAP_CHIP_MENU, 'py'))
-    expect(stepPx(MENU.header, 'px')).toBe(layersInset)
     expect(stepPx(MENU.foot, 'px')).toBe(layersInset)
     expect(MENU.option).toContain(MENU.row)
     expect(words(MENU.option)).toEqual(expect.arrayContaining(words(TEXT.control)))
@@ -3678,6 +3741,8 @@ describe('the one menu', () => {
     expect(stepPx(MENU.cardRow, 'px')).toBe(stepPx(MENU.row, 'px'))
     expect(layersInset - stepPx(MENU.cardRow, 'px')).toBe(stepPx(MENU.list, 'px'))
     expect(MENU.cardRow).toContain('rounded')
+    // And 20px apart, the list rows' pitch (record 0222).
+    expect(stepPx(MENU.cardRow, 'py')).toBe(stepPx(MENU.row, 'py'))
     // A disabled row takes none: each wiring names the condition.
     expect(layersPopoverSource).toContain("disabled ? '' : ` ${MENU.hover}`")
     expect(columnsPickerSource).toContain('!sheet && !isRanked ? MENU.hover')
@@ -3689,7 +3754,7 @@ describe('the one menu', () => {
   // results bar's group. Everything else is the one menu.
   it('keeps three trigger shapes and no more', () => {
     expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field'])
-    expect(sizes(MENU_TRIGGER.chip)).toEqual(['text-[13px]'])
+    expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.field.startsWith(SELECT)).toBe(true)
     expect(MENU_TRIGGER.bar.startsWith(ACTION_ITEM)).toBe(true)
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())
@@ -3916,6 +3981,25 @@ describe('the panel frame', () => {
     expect(RESULTS_PANE.top).not.toMatch(/justify-end/)
   })
 
+  // The chart-only legend's tallest strip (#795): two rows of 26px chips and
+  // their 6px gap, its padding above and below, and its 1px edge. At a desk
+  // it opens in the table's floor, which Chart keeps free under the chart, so
+  // it must fit there or the map loses its floor to it.
+  it('fits the chart legend\'s tallest strip in the table\'s floor', () => {
+    const strip = CHART_LEGEND.strip.split(' ')
+    const chips = CHART_LEGEND.chips.split(' ')
+    const CHIP_PX = 26 // a chip: TEXT.control's line and its py-1
+    const gapPx = Number(chips.find((t) => /^gap-/.test(t))!.slice(4)) * 4
+    const maxPx = Number(chips.find((t) => /^max-h-\[/.test(t))!.match(/\d+/)![0])
+    expect(maxPx).toBe(2 * CHIP_PX + gapPx)
+    expect(chips).toContain('overflow-y-auto')
+    const padPx = Number(strip.find((t) => /^py-/.test(t))!.slice(3)) * 4
+    expect(strip).toContain('border-t')
+    const tallestPx = maxPx + 2 * padPx + 1
+    expect(tallestPx).toBe(71)
+    expect(tallestPx).toBeLessThanOrEqual(PANEL_FLOOR_PX)
+  })
+
   // The Metrics rows pass WCAG 2.2 SC 2.5.8 by spacing (#687, record 0130):
   // a 16px label with 5px above and below, beside the 22px boxes, with the
   // grid's row gap, is a 32px pitch on a fine pointer. Touch keeps TAP.row's
@@ -3939,8 +4023,11 @@ describe('the calendar field', () => {
   // keeps the 36px the rows had (#687, record 0129).
   it('sizes the day rows for the pointer', () => {
     expect(DAY.cell).toMatch(/(^|\s)h-7(\s|$)/)
-    expect(DAY.cell).toContain('touch:h-11')
+    // A finger's row height (record 0223), and the initials over them one
+    // height on either pointer.
+    expect(DAY.cell).toContain('touch:h-8')
     expect(DAY.head).toMatch(/(^|\s)h-9(\s|$)/)
+    expect(DAY.head).not.toContain('touch:')
   })
 
   // The field is a field trigger, the same recessed box with a chevron that
@@ -3981,15 +4068,15 @@ describe('the calendar field wraps', () => {
   // The one panel control that may stand two lines tall (#687, record 0129):
   // it aligns to its top so a second line grows the box downward, and the
   // first line and the arrow stand where a one-line field centres them. 7px
-  // is the 1px border plus py-1.5 (one line 30px); 14px is the border plus
-  // 13px under touch (one line 44px, TAP.height's floor).
+  // is the 1px border plus py-1.5 (one line 30px); 8px is the border plus
+  // 7px under touch (one line 32px, TAP.height's floor, record 0223).
   it('keeps the first line and the arrow where a one-line field has them', () => {
     const LINE_PX = 16 // text-xs line box
     const BORDER_PX = 1
     const fine = stepPx(CALENDAR_FIELD.box, 'py')
     const touch = Number(CALENDAR_FIELD.box.match(/touch:py-\[(\d+)px\]/)![1])
     expect(2 * BORDER_PX + 2 * fine + LINE_PX).toBe(30)
-    expect(2 * BORDER_PX + 2 * touch + LINE_PX).toBe(44)
+    expect(2 * BORDER_PX + 2 * touch + LINE_PX).toBe(32)
     expect(CALENDAR_FIELD.box).toContain('items-start')
     expect(CALENDAR_FIELD.arrow).toContain(`top-[${BORDER_PX + fine}px]`)
     expect(CALENDAR_FIELD.arrow).toContain(`touch:top-[${BORDER_PX + touch}px]`)
@@ -4130,7 +4217,7 @@ describe('the light theme', () => {
     // A desk chip card's outline on the card it overlaps (#714).
     const card = hex(SURFACE_CHIP_CARD.menu, 'border')
     expect(ratio(card, hex(SURFACE_CHIP_CARD.key, 'bg'))).toBe(4.24)
-    expect(ratio(hex(SURFACE_CARD, 'border'), FLOATING)).toBe(2.51)
+    expect(ratio(light('frame'), FLOATING)).toBe(2.51)
     const mark = hex(ACCENT.input, 'accent')
     expect([PANEL, RAISED, WELL].map((g) => ratio(mark, g))).toEqual([4.06, 3.64, 4.56])
     expect(mark).toBe(hex(ACCENT.fill, 'bg'))
@@ -4142,10 +4229,10 @@ describe('the light theme', () => {
 
   // The two quiet lines stay quiet, as the dark ones are (the rule 1.41 and
   // the outline 1.93 on slate-800), and the structural edge still reads on
-  // the floating box.
+  // the floating box, where every floating card's rim is since record 0222.
   it('keeps the quiet rule and the outline quiet and the structural edge seen', () => {
     expect(ratio(hex(SURFACE_DIVIDER, 'border'), PANEL)).toBe(1.5)
-    const frame = hex(SURFACE_CARD, 'border')
+    const frame = light('frame')
     expect(ratio(frame, PANEL)).toBe(2.35)
     // Derived halfway between the quiet rule and the structural edge.
     const mid = hexToRgb(light('rule')).map((v, i) => Math.floor((v + hexToRgb(light('edge'))[i]) / 2))
@@ -4153,8 +4240,8 @@ describe('the light theme', () => {
     expect(ratio(hex(PANEL_EDGE, 'border'), FLOATING)).toBe(4.24)
   })
 
-  // Notices: each ink on its own tint and on the panel, and the dismiss glyph
-  // on its pill.
+  // Notices: each ink on its own tint and on the panel, which the dismiss
+  // glyph stands on too.
   it('keeps every notice ink at 4.5:1 or better on its tint and the panel', () => {
     const tones = { warn: [5.85, 6.31], error: [7.24, 8.33], info: [7.44, 8.35] }
     for (const [tone, [onTint, onPanel]] of Object.entries(tones)) {
@@ -4171,13 +4258,9 @@ describe('the light theme', () => {
     const warn = hex(STATUS.warn, 'text')
     expect([FLOATING, RAISED, WELL].map((g) => ratio(warn, g))).toEqual([6.75, 5.66, 7.09])
     expect(ratio(hex(STATUS.ok, 'text'), PANEL)).toBe(5.84)
-    // The dismiss X, its box's ink on the pill's lift over the tint.
-    const lift = Number(NOTICE_DISMISS.pill.match(/bg-lift\/(\d+)/)![1]) / 100
-    for (const [tone, want] of Object.entries({ warn: 5.33, error: 6.6, info: 6.77 })) {
-      const tint = hex(NOTICE[tone as keyof typeof NOTICE], 'bg')
-      const ink = hex(STATUS[tone as keyof typeof STATUS], 'text')
-      expect(ratio(ink, over(light('lift'), lift, tint)), tone).toBe(want)
-    }
+    // The dismiss ×, bare since record 0222, is its box's ink on the tint:
+    // the first ratio of each pair above.
+    expect(NOTICE_DISMISS.pill).not.toMatch(/(^|\s)bg-/)
   })
 
   // `MUTED` fades a working control, whose text still owes 4.5:1. The light

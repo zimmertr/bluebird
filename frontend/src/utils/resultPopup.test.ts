@@ -257,8 +257,9 @@ describe('resultPopupHtml mirrors the table', () => {
   it('collapses a Current lookup to one value per family', () => {
     const html = resultPopupHtml({ ...base, columns: POINT_COLS })
     // The table drops the aggregate word because every aggregate is the same
-    // hour, and the popup follows it.
-    expect(html).not.toContain(SEP)
+    // hour, and the popup follows it. (The facts line under the title joins
+    // its parts with the same dot, so the labels alone are read.)
+    for (const label of html.match(/<th scope="row"[^>]*>[^<]*</g) ?? []) expect(label).not.toContain(SEP)
     expect(html).toContain(`${NOUN.temp} (°F)`)
     // One line per family, each a label and its value, and no aggregate
     // columns to head, because every family is one number.
@@ -342,19 +343,19 @@ describe('resultPopupHtml identity band', () => {
   })
 
   // The type, the elevation and the coordinates share one line under the name,
-  // parted by a pipe a screen reader skips (TJ, 2026-10-08). The line never
+  // parted by a dot a screen reader skips (TJ, 2026-10-08). The line never
   // wraps: a latitude and a longitude are one value in two halves, and a break
   // between them leaves a bare negative number looking like a third figure.
   it('puts the type, elevation and coordinates on one unlabelled line', () => {
     const html = resultPopupHtml({ ...base })
-    expect(factsText(html)).toBe('Peak | 14,406 ft | 46.85173, -121.76040')
+    expect(factsText(html)).toBe('Peak · 14,406 ft · 46.85173, -121.76040')
     expect(html).not.toContain('Coordinates')
     expect(html).not.toContain('Elevation (ft)')
   })
 
   it('leaves the elevation off the line when the place has none', () => {
     const html = resultPopupHtml({ ...base, row: { ...base.row, elevation_ft: null } })
-    expect(factsText(html)).toBe('Peak | 46.85173, -121.76040')
+    expect(factsText(html)).toBe('Peak · 46.85173, -121.76040')
   })
 
   // The pair links to CalTopo centred on the point, one level above the
@@ -407,7 +408,7 @@ describe('resultPopupHtml type', () => {
     for (const th of rowHeads) expect(th).toContain('font-weight:normal')
     const colHeads = html.match(/<th scope="col" style="[^"]*"/g) ?? []
     expect(colHeads).toHaveLength(4)
-    for (const th of colHeads) expect(th).toContain('font-weight:700')
+    for (const th of colHeads) expect(th).toContain('font-weight:600')
   })
 })
 
@@ -420,7 +421,7 @@ describe('resultPopupHtml ranked number and insets', () => {
   it('bolds the ranked number and colours its family as the table does', () => {
     const columns = displayedColumns(false, 'wind_max_mph')
     const html = resultPopupHtml({ ...base, columns, rankedBy: 'wind_max_mph' })
-    const bold = [...html.matchAll(/<span style="[^"]*font-weight:700[^"]*">([^<]*)<\/span>/g)].map((m) => m[1])
+    const bold = [...html.matchAll(/<span style="[^"]*font-weight:600[^"]*">([^<]*)<\/span>/g)].map((m) => m[1])
     expect(bold).toEqual(['41.8'])
     const tinted = [...html.matchAll(new RegExp(`<td ${POPUP_TINT_ATTR} style="[^"]*;background:([^;]+);--tint-dark:([^;]+);--tint-light:([^;]+);`, 'g'))]
     // The grid's column order, Min, Max, Avg.
@@ -567,14 +568,14 @@ describe('resultPopupHtml names no datum', () => {
 })
 
 /**
- * The facts line's text as a reader sees it, with each hidden pipe spaced the
+ * The facts line's text as a reader sees it, with each hidden dot spaced the
  * way the eye reads it. Read from the text runs between tags rather than by
  * deleting tags, so nothing here looks like a sanitizer to CodeQL.
  */
 function factsText(html: string): string {
   const line = html.match(/<div style="white-space:nowrap">(.*?)<\/div>/)![1]
   return [...`>${line}<`.matchAll(/>([^<]*)</g)]
-    .map((m) => (m[1] === '|' ? ' | ' : m[1]))
+    .map((m) => (m[1] === '·' ? ' · ' : m[1]))
     .join('')
 }
 

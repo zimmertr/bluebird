@@ -8,6 +8,7 @@ import {
   TERRAIN_HEIGHT_MARK,
   WILDFIRE_KEY,
   heightDependentKey,
+  isNumberColumn,
   readAtTerrainHeight,
   type ColDef,
 } from '../utils/tableColumns'
@@ -24,6 +25,7 @@ import { useUsStates } from '../hooks/useUsStates'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
 import { isPartialRow } from '../utils/modelCompare'
+import { geoKey } from '../utils/points'
 import {
   cellColor,
   cellText,
@@ -206,6 +208,8 @@ function NameTd({ cellClass, widths, label, name, onCenter, link }: NameTdProps)
         <span className={`flex min-w-0 items-center gap-1.5 ${widths.name === undefined ? TABLE.nameCap : ''}`}>
           <button
             onClick={onCenter}
+            // Where the keyboard lands when a restore brings the row back (`ResultsSheet`).
+            data-row-name=""
             aria-label={`Center map on ${name}`}
             className={`${LINK_QUIET} min-w-0 truncate text-left`}
           >
@@ -302,7 +306,7 @@ function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
       </>
     )
   }
-  return <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>{sized(ctx.widths, colKey, body)}</td>
+  return <td className={`${TABLE.cell} ${TABLE.number} whitespace-nowrap font-mono`}>{sized(ctx.widths, colKey, body)}</td>
 }
 
 // The Closure column (#550), the wildfire cell's twin: the same clock, the
@@ -359,6 +363,8 @@ function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
 function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: CellContext }) {
   const key = col.key as string
   const frame = useContext(FireFrame)
+  // Elevation and every metric stand at the cell's end (record 0222).
+  const align = isNumberColumn(col) ? ` ${TABLE.number}` : ''
   if (col.key === WILDFIRE_KEY) return <FireTd colKey={key} ctx={ctx} />
   if (col.key === CLOSURE_KEY) return <ClosureTd colKey={key} ctx={ctx} />
   // A row whose elevation is still being looked up has a forecast, but its
@@ -367,7 +373,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   // rather than print a number the answer replaces.
   if (ctx.heightPending && frame !== null && heightDependentKey(key)) {
     return (
-      <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+      <td className={`${TABLE.cell}${align} whitespace-nowrap font-mono`}>
         {sized(ctx.widths, key, <span className={TEXT.caption}>{frame}</span>)}
       </td>
     )
@@ -401,7 +407,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   // cell's; the note it points at is the table's.
   if (key === 'elevation_ft' && readAtTerrainHeight(row)) {
     return (
-      <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+      <td className={`${TABLE.cell}${align} whitespace-nowrap font-mono`}>
         {sized(
           ctx.widths,
           key,
@@ -419,7 +425,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   const missing = unavailableCell(key, raw)
   if (missing !== null) {
     return (
-      <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+      <td className={`${TABLE.cell}${align} whitespace-nowrap font-mono`}>
         {sized(
           ctx.widths,
           key,
@@ -442,7 +448,10 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   const display = cellText(col, raw)
   // Color comes from the table's own base, or inline for a ranked column: an
   // inline color beats the inherited one either way.
-  const cellClass = `${TABLE.cell} whitespace-nowrap ${key === 'name' ? 'font-sans font-medium' : 'font-mono'}`
+  // Words in the sans, numbers in the mono: the name and the type are words
+  // (record 0222), the type in the table's own sans and weight.
+  const face = key === 'name' ? 'font-sans font-medium' : key === 'type' ? '' : 'font-mono'
+  const cellClass = `${TABLE.cell}${align} whitespace-nowrap ${face}`.trimEnd()
   if (key === 'name') {
     return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} link={row} />
   }
@@ -559,7 +568,11 @@ function ResultsTableRow({
     if (onFocusResult && rowTapOpens(e.target, e.currentTarget, window.getSelection()?.toString() ?? '')) onFocusResult(row)
   }
   return (
-    <tr className={`${TABLE.row} ${onFocusResult ? TABLE.rowOpens : ''}`} onClick={openFromRow}>
+    <tr
+      data-key={geoKey(row.latitude, row.longitude)}
+      className={`${TABLE.row} ${onFocusResult ? TABLE.rowOpens : ''}`}
+      onClick={openFromRow}
+    >
       {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} />}
       <RankRemoveCell rank={rank} name={row.name} onRemove={onRemove ? () => onRemove(row) : undefined} />
       {columns.map((col) => (
@@ -611,7 +624,7 @@ function PendingTableRow({
   // already says what is known.
   const center = () => onFocusPending?.({ latitude: d.latitude, longitude: d.longitude })
   return (
-    <tr className={TABLE.row}>
+    <tr data-key={geoKey(d.latitude, d.longitude)} className={TABLE.row}>
       {chartBox && (
         <ChartToggle row={pendingChartRow(d)} on={charted} color={chartColor} box={chartBox} />
       )}
@@ -626,15 +639,16 @@ function PendingTableRow({
           const cellClass = `${TABLE.cell} whitespace-nowrap font-sans font-medium`
           return <NameTd key={key} cellClass={cellClass} widths={widths} label={d.name} name={d.name} onCenter={center} link={pendingLinkRow(d)} />
         }
+        const align = isNumberColumn(col) ? ` ${TABLE.number}` : ''
         if (key === 'elevation_ft') {
           return (
-            <td key={key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+            <td key={key} className={`${TABLE.cell}${align} whitespace-nowrap font-mono`}>
               {sized(widths, 'elevation_ft', cellText(ELEVATION_COL, d.elevation_ft))}
             </td>
           )
         }
         return (
-          <td key={key} className={`${TABLE.cell} whitespace-nowrap font-mono ${TEXT.caption}`}>
+          <td key={key} className={`${TABLE.cell}${align} whitespace-nowrap font-mono ${TEXT.caption}`}>
             {sized(widths, key, NO_VALUE_MARK)}
           </td>
         )

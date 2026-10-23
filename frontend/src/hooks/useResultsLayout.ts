@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
+  PANEL_FLOOR_PX,
   type SinglePanel,
   bothFits,
   bothOpensWithRoom,
@@ -301,27 +302,35 @@ export function useResultsLayout({
   const chartLifted = !isDesktop && resultsMode === 'chart' && !chartDragged
   // The tutorial's Chart step holds it there whatever the reader did before.
   const heldFull = !isDesktop && (fullOverride || chartLifted)
+  // At a desk the chart stands at the height Both gives it, in Chart too
+  // (#795): Chart keeps the table's floor and its grip free under the chart,
+  // and the legend opens inside that room, so no press between Chart and Both
+  // changes the chart's size, under a short column or after a long drag. The
+  // map keeps whatever of that room the legend leaves.
+  const chartAsBoth = isDesktop && resultsMode === 'chart'
   const mapFloorPx = isDesktop
     ? heightsChosen
       ? undefined
-      : dockedMapFloorPx(gripCount, barMeasuredPx ?? undefined)
+      : dockedMapFloorPx(chartAsBoth ? 2 : gripCount, barMeasuredPx ?? undefined)
     : heightsChosen || heldFull
       ? dragFloorPx
       : restingMapFloorPx(gripCount)
+  const tableRoomPx = chartAsBoth && chartShowing ? PANEL_FLOOR_PX : 0
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     heldFull ? usableH : chartHeight,
     heldFull ? usableH : tableHeight,
     {
       chartShown: chartShowing,
       tableShown: tableShowing && showTable,
-      availPx: usableH,
+      availPx: usableH - tableRoomPx,
       mapMinPx: mapFloorPx,
     },
   )
-  // What the map│chart grip may not drag the chart over. The table's height
-  // counts only while the table is rendered, which is the one thing that
-  // differs between Both and chart-only mode.
-  const chartReservedPx = (resultsMode === 'both' ? tablePanelPx : 0) + reservedPx
+  // What the map│chart grip may not drag the chart over: the table while it
+  // is rendered, which is the one thing that differs between Both and
+  // chart-only mode, and at a desk in Chart the table's floor, which the
+  // legend stands in.
+  const chartReservedPx = (resultsMode === 'both' ? tablePanelPx : 0) + tableRoomPx + reservedPx
   // The results' real height, which is what the map's bottom chrome rides.
   //
   // Two paths, because the height moves for two different kinds of reason.

@@ -99,7 +99,7 @@ describe('closurePopupHtml', () => {
   it('names the order and its kind on the band and the forest and dates in the body', () => {
     const html = closurePopupHtml(props(), 'trail')
     expect(textOf(bandOf(html))).toContain('Probe Fire Closure')
-    expect(textOf(bandOf(html))).toContain('Trail closure|Eagle Creek 440')
+    expect(textOf(bandOf(html))).toContain('Trail closure·Eagle Creek 440')
     expect(textOf(bodyOf(html))).toContain('Columbia River Gorge NSA')
     expect(textOf(bodyOf(html))).toContain(`Effective: ${medium(START)} to ${medium(END)}`)
     expect(html).not.toContain('🚫')
@@ -125,8 +125,8 @@ describe('closurePopupHtml', () => {
   })
 
   it('gives an area its acres where the route would stand, and only an area', () => {
-    expect(textOf(closurePopupHtml(props({ GIS_Acres: 4210.4 }), 'area'))).toContain('Area closure|4,210 acres')
-    expect(textOf(closurePopupHtml(props({ GIS_Acres: null }), 'area'))).not.toContain('Area closure|')
+    expect(textOf(closurePopupHtml(props({ GIS_Acres: 4210.4 }), 'area'))).toContain('Area closure·4,210 acres')
+    expect(textOf(closurePopupHtml(props({ GIS_Acres: null }), 'area'))).not.toContain('Area closure·')
     expect(textOf(closurePopupHtml(props({ GIS_Acres: 4210 }), 'trail'))).not.toContain('acres')
   })
 
@@ -146,13 +146,13 @@ describe('closurePopupHtml', () => {
     expect(html).not.toContain('<a ')
     expect(html).not.toContain('⚠️')
     expect(textOf(html)).toContain('Trail closure')
-    expect(textOf(html)).not.toContain('Trail closure|')
+    expect(textOf(html)).not.toContain('Trail closure·')
   })
 
   it('joins whichever half of the route exists', () => {
-    expect(textOf(closurePopupHtml(props({ RouteName: null }), 'trail'))).toContain('Trail closure|440')
+    expect(textOf(closurePopupHtml(props({ RouteName: null }), 'trail'))).toContain('Trail closure·440')
     const named = textOf(closurePopupHtml(props({ RouteNum: null }), 'trail'))
-    expect(named).toContain('Trail closure|Eagle Creek')
+    expect(named).toContain('Trail closure·Eagle Creek')
     expect(named).not.toContain('440')
   })
 

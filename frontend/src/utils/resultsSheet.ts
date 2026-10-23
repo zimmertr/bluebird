@@ -102,11 +102,12 @@ export const TRANSPORT_GAP_PX = CORNER_CONTROL_PX + 2 * CORNER_MARGIN_PX
 
 /**
  * The transport's own height, in its tallest state: the axis switch appears
- * once two axes exist, and on a coarse pointer its halves take the 44px target
- * every other button takes. Measured at 402x874 with radar and a multi-hour
- * report, 2026-09-13; the one-axis bar is 62px and is left the same band.
+ * once two axes exist, and on a coarse pointer its halves and the play button
+ * are a finger's 32px (record 0223). Measured 2026-10-22 at 360, 390, 402 and
+ * 430 wide with radar and a two-day report; the one-axis bar is 50.5px and is
+ * left the same band.
  */
-export const TRANSPORT_HEIGHT_PX = 80
+export const TRANSPORT_HEIGHT_PX = 68
 
 /**
  * The band the timeline transport occupies, which the legend stack clears while
@@ -118,14 +119,15 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
 /**
  * The sheet's header bar, which is also the sheet's collapsed height.
  *
- * Measured on a coarse pointer, 2026-10-13: 84px at 360, 390, 402 and 430
- * wide, with Removed showing or not. 12px of padding, the 19.5px title row,
- * the 4px gap, the 46px actions line (the mode switch and the button group,
- * each 44px controls in a 1px-bordered well, side by side on one line since
- * #687 drops their words where the bar is narrow, `BAR_LABEL`), then the 1px
- * rule and the sheet's own 1px top border. It was 104 when the actions were
- * links that wrapped onto a second row, and briefly 106 when they were
- * buttons that wrapped onto three.
+ * 71px on a coarse pointer: 12px of padding, the 20px title row, the 4px
+ * gap, the 34px actions line (the mode switch and the button group, 32px
+ * controls in a 1px-bordered well, record 0223, side by side on one line
+ * since #687 drops their words where the bar is narrow, `BAR_LABEL`), and the
+ * sheet's own 1px top border. The rule under the bar is the grip's, counted
+ * in `GRIP_PX`. Measured 2026-10-22 at 360, 390, 402 and 430 wide on a coarse
+ * pointer. It was 84 with 44px controls and a rule of its own, 104 when the
+ * actions were links that wrapped onto a second row, and briefly 106 when
+ * they were buttons that wrapped onto three.
  *
  * Re-measure when the bar gains a member, because one glyph more than the
  * line holds at 360px wide wraps the group and moves this number.
@@ -137,7 +139,7 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  * because an estimate that was 20px out put a different gap under the player in
  * every results mode. Re-measure if a member joins or leaves the bar.
  */
-export const SHEET_HEADER_PX = 84
+export const SHEET_HEADER_PX = 71
 
 /**
  * One drag grip, of which the sheet carries one or two. `h-2` is 8px, but

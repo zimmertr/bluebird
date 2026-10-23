@@ -35,10 +35,10 @@ function Picker({ entries, onOpenChange = () => {}, onRestore = () => {}, onRest
 }
 
 describe('RemovedPicker', () => {
-  // Restore all always stands, greyed with nothing to restore (record 0209),
-  // and the menu stays open when its last row goes rather than closing on
-  // the one state it opens in.
-  it('stays open with Restore all greyed once the last row is restored', () => {
+  // Restore all always stands (record 0209) and greys on an empty list. The
+  // menu leaves closing to its caller: `ResultsSheet` shuts it at zero
+  // (record 0224).
+  it('leaves closing to its caller, with Restore all greyed on an empty list', () => {
     const onOpenChange = vi.fn()
     const onRestoreAll = vi.fn()
     const { rerender } = render(<Picker entries={[entry('Mount Baker')]} onOpenChange={onOpenChange} onRestoreAll={onRestoreAll} />)
@@ -52,14 +52,16 @@ describe('RemovedPicker', () => {
     expect(onRestoreAll).not.toHaveBeenCalled()
   })
 
-  it('lists the removed rows in a card headed Removed rows on a desk, with Restore all under them', () => {
+  it('lists the removed rows in a card with no header on a desk, with Restore all under them', () => {
     const onRestore = vi.fn()
     const onRestoreAll = vi.fn()
     const { rerender } = render(
       <Picker entries={[entry('Mount Baker'), entry('Mount Shuksan')]} onRestore={onRestore} onRestoreAll={onRestoreAll} />,
     )
     expect(screen.queryByRole('dialog')).toBeNull()
-    const card = screen.getByText('Removed rows').parentElement as HTMLElement
+    // Named by its trigger rather than by a header of its own (record 0222).
+    expect(screen.queryByText('Removed rows')).toBeNull()
+    const card = screen.getByRole('button', { name: 'Restore all' }).closest<HTMLElement>(`[data-state]`)!
     expect(card.parentElement).toBe(document.body)
     fireEvent.click(screen.getByRole('button', { name: 'Restore Mount Baker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Restore Mount Shuksan' }))

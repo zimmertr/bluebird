@@ -8,9 +8,9 @@ import {
   SEGMENT_FLUID,
   SEGMENT_IDLE,
   SURFACE_FLOATING,
-  TAP,
   TEXT,
   TRANSPORT_AXIS_ITEM,
+  TRANSPORT_PLAY,
 } from '../styles'
 import { IconPlay } from './icons'
 import { transportBottomPx } from '../utils/resultsSheet'
@@ -111,7 +111,7 @@ export default function TimelineTransport({
         // The key itself is useTimeline's, which listens on the window so it
         // works wherever focus is; this only tells assistive technology.
         aria-keyshortcuts="Space"
-        className={`${ACCENT.fill} ${ACCENT.fillHover} ${TAP.action} h-7 w-7 flex-shrink-0 ${RADIUS.control} transition-colors`}
+        className={`${ACCENT.fill} ${ACCENT.fillHover} ${TRANSPORT_PLAY} ${RADIUS.control} transition-colors`}
       >
         <IconPlay playing={playing} />
       </button>

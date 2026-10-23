@@ -1,6 +1,6 @@
 # 0130. The Metrics rows pass WCAG 2.2's target spacing by a 32px pitch, not by bigger targets
 
-- Status: Accepted
+- Status: Accepted. Amended by 0223 (under touch the label is 32px).
 - Date: 2026-10-13
 - Decider: the maintainer, on #687 (2026-10-13: the 32px pitch chosen over 24px targets from the round-2 mockup)
 - Issues and PRs: #687

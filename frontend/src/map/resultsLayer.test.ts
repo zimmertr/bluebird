@@ -21,6 +21,8 @@ const { popups } = vi.hoisted(() => ({
     removed: boolean
     attrs: Record<string, string>
     body: FakeBody
+    // The classes the library's content box was handed (POPUP_FACE).
+    face: string[]
     // Each setHTML, with whether MapLibre would have moved focus for it.
     sets: { html: string; focus: unknown }[]
   }[],
@@ -40,7 +42,7 @@ vi.mock('maplibre-gl', () => ({
         addEventListener: (_type, fn) => (body.press = fn),
       }
       this.options = { ...options }
-      this.state = { at: null, html: '', options, removed: false, attrs: {}, body, sets: [] }
+      this.state = { at: null, html: '', options, removed: false, attrs: {}, body, face: [], sets: [] }
       popups.push(this.state)
     }
     setLngLat(at: unknown) {
@@ -71,7 +73,10 @@ vi.mock('maplibre-gl', () => ({
         offsetWidth: CARD_W,
         offsetHeight: CARD_H - BODY_H + shown,
         setAttribute: (k: string, v: string) => (this.state.attrs[k] = v),
-        querySelector: () => body,
+        querySelector: (selector: string) =>
+          selector === '.maplibregl-popup-content'
+            ? { classList: { add: (...cs: string[]) => this.state.face.push(...cs) } }
+            : body,
       }
     }
     on(_type: string, fn: () => void) {
@@ -99,6 +104,7 @@ import { closurePopupText } from '../utils/closureProximity'
 import { geoKey } from '../utils/points'
 import { stubMap } from '../testSupport/stubMap'
 import { MARKER_LABEL_PAINT, MARKER_PAINT, PENDING_COLOR } from './mapStyles'
+import { POPUP_FACE } from '../styles'
 
 // A full card's size, and a map tall enough to hold one below a centred marker.
 const CARD_W = 280
@@ -391,6 +397,13 @@ describe('mountResultsLayer', () => {
     expect(popups).toHaveLength(1)
     expect(popups[0].options).toMatchObject({ anchor: 'top', closeOnClick: false })
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+  })
+
+  // A card wears the app's card on the library's own box (record 0222).
+  it('dresses the card in the app\'s face', () => {
+    const { layer } = setup()
+    layer.openPopup(RAINIER)
+    expect(popups[0].face).toEqual(POPUP_FACE.split(' '))
   })
 
   // A card too tall for the free map area keeps its title and scrolls its body

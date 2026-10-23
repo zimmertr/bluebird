@@ -168,12 +168,13 @@ for (const [width, height] of [
       await badge(page).tap()
       const sheet = page.getByRole('dialog', { name: 'Messages' })
       await expect(sheet.getByText(CUE)).toBeVisible()
-      // As tall as a blocker's row, and still a full-size target for a finger.
+      // As tall as a blocker's row, and a finger's target: 44 wide and 32
+      // tall, the height every finger's control draws (record 0223).
       await expectRowFitsItsLine(sheet.getByText(CUE))
       const dismiss = sheet.getByText(CUE).locator('..').getByRole('button', { name: 'Dismiss notice' })
       const target = (await dismiss.boundingBox())!
       expect(target.width).toBeGreaterThanOrEqual(44)
-      expect(target.height).toBeGreaterThanOrEqual(44)
+      expect(target.height).toBeGreaterThanOrEqual(32)
       await dismiss.tap()
       await expect(sheet.getByText(CUE)).toHaveCount(0)
       if (before === 0) {

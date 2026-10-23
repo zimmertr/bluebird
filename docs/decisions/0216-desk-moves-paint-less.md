@@ -1,6 +1,6 @@
 # 0216. A desk's layout moves paint less: layers while the panel moves, and shut panes keep their bodies
 
-- Status: Accepted. Amends [0202](0202-panel-and-panes-move-at-one-speed.md): a closing pane no longer unmounts its body once its frame has shut, and the chart-only legend no longer changes at the press.
+- Status: Accepted; amended by [0218](0218-chart-legend-is-a-pane.md). Amends [0202](0202-panel-and-panes-move-at-one-speed.md): a closing pane no longer unmounts its body once its frame has shut, and the chart-only legend no longer changes at the press.
 - Date: 2026-10-22
 - Decider: the maintainer (TJ), on the review of PR #789. The report, 2026-10-22: "the animation that plays when updating the results from table or chart to both is really laggy and slow and not good when compared to other animations like opening and closing the side panel. Actually, opening the side panel appears kind of sloppy and choppy now too." On the build below: "the animations are much smoother now ... LGTM". The mechanisms are Claude's, measured below.
 - Issues and PRs: #786, #789, #714, #759

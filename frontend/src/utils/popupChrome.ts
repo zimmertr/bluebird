@@ -25,7 +25,7 @@
 // without pulling maplibre-gl into a node test.
 import { externalLinkMarkup } from '../iconPaths'
 import { BUTTON_ACCENT } from '../styles'
-import { AGGREGATE } from '../metrics'
+import { AGGREGATE, SEP } from '../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
 import { clamp, isFiniteNumber } from './numbers'
 import { coordinateLabel } from './points'
@@ -51,6 +51,13 @@ const POPUP_LEADING = 'line-height:1.5'
 const POPUP_TITLE_SIZE = 'font-size:13px'
 const POPUP_BODY_SIZE = 'font-size:12px'
 const POPUP_FINE_SIZE = 'font-size:11px'
+
+/**
+ * The card's one bold, the app's: 600, the weight its headings and the
+ * table's heads take (record 0222). The title, the grid's heads, a section's
+ * name and the ranked value wear it; a `<strong>` alone would draw 700.
+ */
+const BOLD = 'font-weight:600'
 
 /**
  * The face a value is set in. Monospace, because that is what the results table
@@ -97,7 +104,7 @@ export function row(label: string, value: string, href?: string | null): string 
  * first half of the value (TJ, 2026-09-14).
  *
  * **Colour rather than weight, and that is a measurement rather than a taste.**
- * The obvious answer was a lighter weight than the title's 700. It does not
+ * The obvious answer was a lighter weight than the title's 600. It does not
  * hold up across faces: under the generic `sans-serif` Chrome on macOS
  * resolves exactly two, 400 and 500 alike and 600 and 700 alike (126.73px and
  * 133.27px, measured 2026-09-14), and under the app's stack the four weights
@@ -278,12 +285,13 @@ export function metaBand(lines: string[]): string {
 
 /**
  * A destination's facts on one line under its name: the type, the elevation
- * and the coordinates, parted by a light pipe (TJ, 2026-10-08). A ranked
+ * and the coordinates, parted by a light dot (TJ, 2026-10-08), the app's
+ * one separator (`SEP`; record 0222). A ranked
  * result and a clicked basemap feature both draw it, so the same mountain
  * reads the same before and after an analysis (TJ, 2026-10-14, #712); a
  * fact the card does not have is left off rather than filled in.
  *
- * The pipe is drawn in `FINE_COLOR`, which shows on the header band where
+ * The dot is drawn in `FINE_COLOR`, which shows on the header band where
  * `RULE_COLOR` all but vanishes, and is hidden from a screen reader, which
  * hears the three facts as a list; it is a divider, not a character to read.
  *
@@ -292,7 +300,7 @@ export function metaBand(lines: string[]): string {
  * line looking like a third figure; it stays at the popup's own size, since a
  * line that shrank to fit would read as an afterthought, so the room comes
  * from the card's width instead. A trailhead's is the longest, 274.7px
- * measured on macOS with the pipes' 5px, which the 340px card holds beside a
+ * measured on macOS with the bars' 5px, which the 340px card holds beside a
  * touch screen's close-button lane.
  *
  * `href` is where the pair links to: CalTopo, centred on the point (#712, TJ
@@ -315,17 +323,17 @@ export function factsRow(
     elevation ? `<span style="${VALUE_FACE}">${escapeHtml(elevation)}</span>` : '',
     coords,
   ].filter(Boolean)
-  return `<div style="white-space:nowrap">${parts.join(FACTS_PIPE)}</div>`
+  return `<div style="white-space:nowrap">${parts.join(FACTS_DOT)}</div>`
 }
 
-/** The light pipe between two facts, which a screen reader skips. */
-const FACTS_PIPE = `<span aria-hidden="true" style="color:${FINE_COLOR};padding:0 5px">|</span>`
+/** The light dot between two facts, which a screen reader skips. */
+const FACTS_DOT = `<span aria-hidden="true" style="color:${FINE_COLOR};padding:0 5px">${SEP}</span>`
 
 /**
  * An overlay's facts line: what kind of thing it is, in the Layers menu's own
- * word for it, and the one figure that identifies it, parted by the pipe a
- * destination's facts wear (#738, TJ 2026-10-16). `Wildfire | 138,285 acres`
- * under a fire's name reads the way `Peak | 7,000 ft` does under a summit's.
+ * word for it, and the one figure that identifies it, parted by the dot a
+ * destination's facts wear (#738, TJ 2026-10-16). `Wildfire · 138,285 acres`
+ * under a fire's name reads the way `Peak · 7,000 ft` does under a summit's.
  *
  * Unlike a destination's it may be cut with an ellipsis: a route name or a
  * satellite is third-party text with no bound on its length, where a
@@ -333,7 +341,7 @@ const FACTS_PIPE = `<span aria-hidden="true" style="color:${FINE_COLOR};padding:
  * caller has escaped; an empty one is left off.
  */
 export function factsLine(parts: readonly (string | null | undefined)[]): string {
-  return `<div style="${ONE_LINE}">${parts.filter(Boolean).join(FACTS_PIPE)}</div>`
+  return `<div style="${ONE_LINE}">${parts.filter(Boolean).join(FACTS_DOT)}</div>`
 }
 
 /**
@@ -372,7 +380,7 @@ export function pendingValue(): string {
  * the caller escaped.
  */
 export function sectionHeading(inner: string): string {
-  return `<div style="font-weight:700">${inner}</div>`
+  return `<div style="${BOLD}">${inner}</div>`
 }
 
 /**
@@ -440,7 +448,7 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
   const band = gridBand(compact ? GRID_COMPACT_INSET_PX : GRID_INSET_PX)
   const labelLoose = gridLabel(compact ? GRID_COMPACT_LABEL_GAP_PX : GRID_LABEL_GAP_PX)
   const label = `${labelLoose};white-space:nowrap`
-  const headStyle = `text-align:center;font-weight:700;vertical-align:bottom;white-space:nowrap;${band};${GRID_HEAD_RULE};${LABEL_COLOR}`
+  const headStyle = `text-align:center;${BOLD};vertical-align:bottom;white-space:nowrap;${band};${GRID_HEAD_RULE};${LABEL_COLOR}`
   const valueStyle = `text-align:right;white-space:nowrap;vertical-align:bottom;${band}`
   const value = (c: PopupGridCell, line: string, span = '') =>
     `<td${span}${c.tint ? ` ${POPUP_TINT_ATTR}` : ''} style="${valueStyle}${shade(c)}${line}">${cell(c)}</td>`
@@ -453,7 +461,7 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
         ? `;background:${GRID_RANKED_COLOR}`
         : ''
   const cell = (c: PopupGridCell) => {
-    const shown = `<span style="${VALUE_FACE}${c.ranked ? ';font-weight:700' : ''}">${c.text}</span>`
+    const shown = `<span style="${VALUE_FACE}${c.ranked ? `;${BOLD}` : ''}">${c.text}</span>`
     return c.href ? popupLink(c.href, shown) : shown
   }
   // A one-value line stands across Min, Max and Avg and leaves the Total
@@ -722,6 +730,9 @@ export interface PopupCard {
  * and the step also narrows the widest row, which is what lets the card itself
  * be narrower.
  *
+ * The band's top corners are the card's 8px (`POPUP_FACE`), so its fill meets
+ * the card's corners without a gap.
+ *
  * The card draws its own padding (`map.css` zeroes MapLibre's for
  * `.popup-card`), so the band can run edge to edge and the grid can stand 10px
  * from both sides. The band keeps a lane on its right for the close button,
@@ -745,7 +756,7 @@ export function popupCard({ title, link = null, meta = '', warnings = [], body =
     ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
     : ''
   return `<div style="${POPUP_LEADING}">
-    <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
+    <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
       <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}</div>
       ${meta}
     </div>${notice}${content}${
@@ -784,7 +795,7 @@ export function popupAction(button: string): string {
  * the link-out glyph never shrinks, so it stays beside the visible part.
  */
 const TITLE_ROW = `display:flex;align-items:center;gap:6px;min-width:0;${POPUP_TITLE_SIZE}`
-const TITLE_TEXT = `min-width:0;${ONE_LINE}`
+const TITLE_TEXT = `min-width:0;${BOLD};${ONE_LINE}`
 
 /**
  * The result card's header band: the grid's own band colour, under an edge

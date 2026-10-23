@@ -5,6 +5,12 @@ import { clamp } from './numbers'
 // does not fit.
 export type SinglePanel = Exclude<ResultsMode, 'both'>
 
+/**
+ * The shortest a results panel stands, chart or table: under it the plot or
+ * the rows stop being usable.
+ */
+export const PANEL_FLOOR_PX = 120
+
 // Height a resizable bottom panel (the results table or the comparison chart)
 // should settle at after a vertical drag. Two clamps apply: the panel stays at
 // least `floorPx` tall to remain usable, and the map above it keeps at least
@@ -19,7 +25,7 @@ export function clampPanelHeight(
   reservedPx: number,
   viewportPx: number,
   mapMinPx = 280,
-  floorPx = 120,
+  floorPx = PANEL_FLOOR_PX,
 ): number {
   const ceil = Math.max(floorPx, viewportPx - mapMinPx - reservedPx)
   return clamp(startHeight + dragUpPx, floorPx, ceil)
@@ -44,7 +50,7 @@ export function resolvePanelHeights(
     tableShown,
     availPx,
     mapMinPx = 280,
-    floorPx = 120,
+    floorPx = PANEL_FLOOR_PX,
   }: {
     chartShown: boolean
     tableShown: boolean
@@ -83,7 +89,7 @@ export function resolvePanelHeights(
 // between constrained and broken.
 export function bothFits(
   availPx: number,
-  { mapMinPx = 280, floorPx = 120 }: { mapMinPx?: number; floorPx?: number } = {},
+  { mapMinPx = 280, floorPx = PANEL_FLOOR_PX }: { mapMinPx?: number; floorPx?: number } = {},
 ): boolean {
   return availPx - mapMinPx > 2 * floorPx
 }
@@ -104,7 +110,7 @@ export function bothOpensWithRoom(
   availPx: number,
   panelPx: number,
   mapMinPx: number,
-  floorPx = 120,
+  floorPx = PANEL_FLOOR_PX,
 ): boolean {
   const { table } = resolvePanelHeights(panelPx, panelPx, {
     chartShown: true,
@@ -164,7 +170,7 @@ export function splitChartTable(
   chartStart: number,
   tableStart: number,
   dragUpPx: number,
-  floorPx = 120,
+  floorPx = PANEL_FLOOR_PX,
 ): { chart: number; table: number } {
   const maxUp = Math.max(0, chartStart - floorPx) // chart shrinks no further than its floor
   const maxDown = Math.max(0, tableStart - floorPx) // table shrinks no further than its floor

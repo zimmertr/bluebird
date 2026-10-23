@@ -1,6 +1,6 @@
 # 0133. The results bar's actions are buttons, the Open-Meteo credit joins the map's attribution line, and a short desk opens on the table
 
-- Status: Accepted
+- Status: Accepted. Amended by 0223 (under touch the buttons are 44 wide and 32 tall, and press 44).
 - Date: 2026-10-13, recorded with the change that ships it
 - Decider: the maintainer (TJ), accepting rows R01 and R03 of the #687 visual audit, and placing the credit on #709 the same day
 - Issues and PRs: #687, #709, #242, #430, #560

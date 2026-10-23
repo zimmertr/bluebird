@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { renderHook } from '@testing-library/react'
-import { useHeldWhile, usePaneMotion } from './usePaneMotion'
+import { usePaneMotion } from './usePaneMotion'
 
 type Props = { shown: boolean; px: number; animated: boolean }
 const start = (initialProps: Props) =>
@@ -57,19 +57,5 @@ describe('usePaneMotion', () => {
     expect(result.current).toMatchObject({ mounted: false, open: false })
     rerender({ shown: true, px: 220, animated: false })
     expect(result.current).toMatchObject({ mounted: true, open: true })
-  })
-})
-
-describe('useHeldWhile', () => {
-  it('follows its value, and holds the last one while told to', () => {
-    const { result, rerender } = renderHook(({ value, holding }) => useHeldWhile(value, holding), {
-      initialProps: { value: 'chart', holding: false },
-    })
-    rerender({ value: 'both', holding: false })
-    expect(result.current).toBe('both')
-    rerender({ value: 'table', holding: true })
-    expect(result.current).toBe('both')
-    rerender({ value: 'table', holding: false })
-    expect(result.current).toBe('table')
   })
 })

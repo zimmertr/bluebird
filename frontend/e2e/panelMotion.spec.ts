@@ -169,9 +169,9 @@ test('a press on Both opens the chart pane at the panel speed, holding the map t
 
 
 // Every frame for `ms` after a press on a results control, read in the frame:
-// the map's foot and the results' top, the map's canvas size, the chart
-// pane's frame height, the chart's drawn size, and whether the chart and the
-// table are mounted.
+// the map's foot and the results' top, the map's canvas size, the heights of
+// the chart's, the legend's and the table's frames, the chart's drawn size,
+// and whether the table is mounted.
 function paneFramesAfter(page: Page, label: string, ms: number) {
   return page.evaluate(
     async ([name, windowMs]) => {
@@ -183,6 +183,7 @@ function paneFramesAfter(page: Page, label: string, ms: number) {
         resultsTop: number
         canvas: string
         chartFrame: number
+        legendFrame: number
         tableFrame: number
         chartSize: string | null
         table: boolean
@@ -198,7 +199,8 @@ function paneFramesAfter(page: Page, label: string, ms: number) {
             resultsTop: results.getBoundingClientRect().top,
             canvas: `${canvas.width}x${canvas.height}`,
             chartFrame: results.children[1].getBoundingClientRect().height,
-            tableFrame: results.children[2].getBoundingClientRect().height,
+            legendFrame: results.children[2].getBoundingClientRect().height,
+            tableFrame: results.children[3].getBoundingClientRect().height,
             chartSize: svg ? `${svg.getAttribute('width')}x${svg.getAttribute('height')}` : null,
             table: results.querySelector('[data-results-table]') !== null,
           })
@@ -233,7 +235,8 @@ async function analyzedAt(page: Page, mode: 'Show both chart and table' | 'Show 
 // data is on screen as a pane grows and as it shrinks (TJ, 2026-10-21).
 const blankFrames = (frames: { chartFrame: number; tableFrame: number; chartSize: string | null; table: boolean }[]) =>
   frames.filter((f) => (f.chartFrame > 0.5 && f.chartSize === null) || (f.tableFrame > 0.5 && !f.table)).length
-const partOpen = (frames: { chartFrame: number; tableFrame: number }[], key: 'chartFrame' | 'tableFrame') => {
+type Frame = 'chartFrame' | 'legendFrame' | 'tableFrame'
+const partOpen = (frames: Record<Frame, number>[], key: Frame) => {
   const end = frames[frames.length - 1][key]
   return frames.filter((f) => f[key] > 0.5 && Math.abs(f[key] - end) > 0.5).length
 }
@@ -290,26 +293,42 @@ test('an opening pane\'s chart is mounted and drawn at its end size in every mov
   for (const f of opening) expect(f.table).toBe(true)
 })
 
-// A chart that stays open is drawn once a pane move, where the panes stand
-// still: Both to Chart brings the chart-only legend under the plot, which
-// takes height from it, and the legend comes once the table's frame has shut
-// rather than at the press, where drawing the chart again held the move's
-// first frame (record 0216). A closing chart keeps the size it was drawn at.
-test('the chart is drawn once a pane move, once the panes stand still', async ({ page }) => {
+// The chart stands at one size in every mode (#795). Its legend is a pane of
+// its own under it, which opens as the table's frame shuts and shuts as it
+// opens, so no press draws the chart again, in any frame or after: TJ found
+// the legend popping in and out once each move had ended "disjointed and
+// chaotic" (2026-10-22). A closing chart keeps the size it was drawn at.
+test('the chart keeps one size through every press, and its legend moves with the table', async ({ page }) => {
   await analyzedAt(page, 'Show both chart and table')
-  const before = await page.locator('[data-tour="results"] .recharts-surface').evaluate((el) => `${el.getAttribute('width')}x${el.getAttribute('height')}`)
+  const size = await page
+    .locator('[data-tour="results"] .recharts-surface')
+    .evaluate((el) => `${el.getAttribute('width')}x${el.getAttribute('height')}`)
+  const drawn = (frames: { chartSize: string | null }[]) => frames.flatMap((f) => (f.chartSize ? [f.chartSize] : []))
+  const end = <T,>(frames: T[]) => frames[frames.length - 1]
+
   const toChart = await paneFramesAfter(page, 'Show chart only', 900)
-  const sizes = toChart.flatMap((f) => (f.chartSize ? [f.chartSize] : []))
-  const after = sizes[sizes.length - 1]
-  expect(after).not.toBe(before)
-  expect(distinct([before, ...sizes])).toBe(2)
-  // The size it had while the table's frame shuts.
-  const moving = toChart.filter((f) => f.tableFrame > 0.5)
-  expect(moving.length).toBeGreaterThan(0)
-  for (const f of moving) expect(f.chartSize).toBe(before)
+  expect(distinct([size, ...drawn(toChart)])).toBe(1)
+  for (const f of toChart) expect(Math.abs(f.mapBottom - f.resultsTop)).toBeLessThan(1)
+  expect(partOpen(toChart, 'legendFrame')).toBeGreaterThan(0)
+  expect(partOpen(toChart, 'tableFrame')).toBeGreaterThan(0)
+  expect(end(toChart).legendFrame).toBeGreaterThan(0)
+  expect(end(toChart).tableFrame).toBe(0)
+
+  const toBoth = await paneFramesAfter(page, 'Show both chart and table', 900)
+  expect(distinct([size, ...drawn(toBoth)])).toBe(1)
+  expect(partOpen(toBoth, 'legendFrame')).toBeGreaterThan(0)
+  expect(end(toBoth).legendFrame).toBe(0)
+  expect(end(toBoth).tableFrame).toBeGreaterThan(0)
+
+  // Table to Chart opens the chart at the size it stood at, and the legend
+  // under it as the table's frame shuts.
+  await paneFramesAfter(page, 'Show table only', 900)
+  const tableToChart = await paneFramesAfter(page, 'Show chart only', 900)
+  expect(distinct([size, ...drawn(tableToChart)])).toBe(1)
+  expect(partOpen(tableToChart, 'legendFrame')).toBeGreaterThan(0)
 
   const toTable = await paneFramesAfter(page, 'Show table only', 900)
-  expect(distinct(toTable.flatMap((f) => (f.chartSize ? [f.chartSize] : [])))).toBe(1)
+  expect(distinct([size, ...drawn(toTable)])).toBe(1)
   expect(partOpen(toTable, 'chartFrame')).toBeGreaterThan(0)
   expect(blankFrames(toTable)).toBe(0)
   await expect(shutChart(page)).toHaveCount(1)

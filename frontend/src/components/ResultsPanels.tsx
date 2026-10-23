@@ -14,6 +14,7 @@ import ResultsTable from './ResultsTable'
 import { IconClose } from './icons'
 import {
   FOCUS_RING,
+  CHART_LEGEND,
   ICON_ACTION,
   LAYOUT_HOLD,
   LINE_EDGE,
@@ -26,7 +27,7 @@ import {
   TEXT,
 } from '../styles'
 import type { LayoutMotion } from '../hooks/useLayoutMotion'
-import { useHeldWhile, usePaneMotion } from '../hooks/usePaneMotion'
+import { usePaneMotion } from '../hooks/usePaneMotion'
 import { useScrollShadows } from '../hooks/useScrollShadows'
 
 // Lazy, because `recharts` is the one large library the first screen does not
@@ -186,11 +187,6 @@ export default function ResultsPanels({
   const tableShown = !collapsed && resultsMode !== 'chart'
   const chartPane = usePaneMotion(chartShown, chartPanelPx, panesMove)
   const tablePane = usePaneMotion(tableShown, tablePanelPx, panesMove)
-  // The chart-only legend takes its height from the plot, so it comes and
-  // goes where the panes stand still: a legend that left at the press of Both
-  // gave the plot its height back and drew the chart again in the move's
-  // first frame (record 0216).
-  const legendShown = useHeldWhile(resultsMode === 'chart', !chartShown || layoutMotion === 'panes')
   const paneMotion = panesMove ? MOTION.pane : ''
   // While the panel moves the chart keeps the width it had and the table's
   // box takes the window's, so neither is drawn again in every frame.
@@ -219,6 +215,70 @@ export default function ResultsPanels({
     handleColumnMove,
   } = tableView
   const { detailSort, sortDetail, emptyReason } = report
+  // The chart-only legend. In Both mode the table's checkbox column is the
+  // series picker and this would be a second copy of it, so it exists exactly
+  // where that column does not, and lists the rows that column would. Each
+  // chip toggles its destination; the × is the same removal as the table
+  // row's and obeys the same rules (searched places deregister, removals
+  // survive live knobs). The NAME keeps a fixed budget (max-w-44) and
+  // truncates; the model suffix beside it never truncates, so a compared chip
+  // is wider by its suffix. max-w-full keeps a chip inside the legend row, so
+  // on a phone a wide chip wraps to its own row and shrinks its name rather
+  // than overflowing.
+  //
+  // At a desk it is a pane of its own under the chart, held to the foot the
+  // way the table is (#795): Chart to Both shuts it while the table opens, at
+  // the panes' speed, so the chart stands at one size in every mode and no
+  // press draws it again. In the chart's box it would take its height from
+  // the plot, and every press that brought it or took it away would redraw
+  // the chart once the move had ended.
+  const legendStrip =
+    legend.length > 0 ? (
+      <div className={CHART_LEGEND.strip}>
+        <div className={CHART_LEGEND.chips}>
+          {legend.map(({ key, row, suffix }) => {
+            const plotted = chart.isSelected(row)
+            return (
+              <span
+                key={key}
+                className={`inline-flex max-w-full items-center ${RADIUS.control} ${
+                  plotted ? 'bg-raised' : 'bg-panel/50'
+                }`}
+              >
+                <button
+                  onClick={() => chart.toggle(row)}
+                  aria-pressed={plotted}
+                  aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
+                  className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
+                >
+                  {/* The line's colour, wearing the line's rim,
+                      which only the light theme draws (PR #733). */}
+                  <span
+                    className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED} ${LINE_EDGE.swatch}`}
+                    style={{ backgroundColor: rowChartColor(row) }}
+                  />
+                  <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>
+                    <span className="min-w-0 max-w-44 truncate">{row.name}</span>
+                    {suffix && (
+                      <span className="flex-shrink-0 whitespace-pre">{suffix}</span>
+                    )}
+                  </span>
+                </button>
+                <button
+                  onClick={() => removeResult(row)}
+                  aria-label={`Remove ${row.name}`}
+                  className={`${ICON_ACTION} ${FOCUS_RING} cursor-pointer py-1 pl-1 pr-2 leading-none`}
+                >
+                  <IconClose size="chip" />
+                </button>
+              </span>
+            )
+          })}
+        </div>
+      </div>
+    ) : null
+  const legendShown = !collapsed && resultsMode === 'chart' && legendStrip !== null
+  const legendPane = usePaneMotion(legendShown, 0, panesMove)
   // The comparison's controls, which the chart draws under its plot. An
   // element is a prop like any other, and one built in the render would be a
   // new one every time, redrawing the memoized chart on every popover, toggle
@@ -276,71 +336,22 @@ export default function ResultsPanels({
                       />
                     </Suspense>
                   </div>
-                  {/* Chart-only legend. In Both mode the table's checkbox
-                      column is the series picker and this would be a
-                      second copy of it, so it exists exactly where that
-                      column does not, and lists the rows that column
-                      would. Each chip toggles its destination; the ×
-                      is the same removal as the table row's and obeys the
-                      same rules (searched places deregister, removals
-                      survive live knobs). The NAME keeps a fixed budget
-                      (max-w-44) and truncates; the model suffix beside it
-                      never truncates, so a compared chip is wider by its
-                      suffix. max-w-full keeps a chip inside the legend
-                      row, so on a phone a wide chip wraps to its own row
-                      and shrinks its name rather than overflowing. Two
-                      chip rows at most — 26px chips + the 6px gap =
-                      58px — then it scrolls. */}
-                  {legendShown && legend.length > 0 && (
-                    <div className="flex-shrink-0 border-t border-frame bg-page/50 px-3 py-1.5">
-                      <div className={`${SCROLL_BARS} flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto`}>
-                        {legend.map(({ key, row, suffix }) => {
-                          const plotted = chart.isSelected(row)
-                          return (
-                            <span
-                              key={key}
-                              className={`inline-flex max-w-full items-center ${RADIUS.control} ${
-                                plotted ? 'bg-raised' : 'bg-panel/50'
-                              }`}
-                            >
-                              <button
-                                onClick={() => chart.toggle(row)}
-                                aria-pressed={plotted}
-                                aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
-                                className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
-                              >
-                                {/* The line's colour, wearing the line's rim,
-                                    which only the light theme draws (PR #733). */}
-                                <span
-                                  className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED} ${LINE_EDGE.swatch}`}
-                                  style={{ backgroundColor: rowChartColor(row) }}
-                                />
-                                <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>
-                                  <span className="min-w-0 max-w-44 truncate">{row.name}</span>
-                                  {suffix && (
-                                    <span className="flex-shrink-0 whitespace-pre">{suffix}</span>
-                                  )}
-                                </span>
-                              </button>
-                              <button
-                                onClick={() => removeResult(row)}
-                                aria-label={`Remove ${row.name}`}
-                                className={`${ICON_ACTION} ${FOCUS_RING} cursor-pointer py-1 pl-1 pr-2 leading-none`}
-                              >
-                                <IconClose size="chip" />
-                              </button>
-                            </span>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  {/* A phone's legend stands in the chart's box: its panes
+                      change at once, and its Chart fills the sheet. */}
+                  {!panesMove && resultsMode === 'chart' && legendStrip}
                 </Held>
               </div>
             </>
           )}
         </div>
       </div>
+      {panesMove && (
+        <div className={`${RESULTS_PANE.frame} ${legendPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
+          <div inert={!legendShown} className={`${RESULTS_PANE.foot} ${chartHold}`}>
+            {legendPane.mounted && <Held holding={!legendShown}>{legendStrip}</Held>}
+          </div>
+        </div>
+      )}
       <div className={`${RESULTS_PANE.frame} ${tablePane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
         <div inert={!tableShown} className={`${RESULTS_PANE.foot} ${tableHold}`}>
           {tablePane.mounted && (

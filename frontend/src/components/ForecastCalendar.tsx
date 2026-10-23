@@ -403,7 +403,7 @@ export default function ForecastCalendar({ selection, onChange, band, sheet = fa
           relevant, and Current has no next thing: it takes no input at all, so
           a calendar under it would be 250px of card that does nothing. */}
       <div className="flex items-center justify-between gap-2">
-        <span id={whenId} className={TEXT.subheading}>
+        <span id={whenId} className={TEXT.control}>
           When
         </span>
         <div ref={segmentRef} className={SEGMENT}>
@@ -487,7 +487,7 @@ export default function ForecastCalendar({ selection, onChange, band, sheet = fa
         >
           <div className={CALENDAR_GROUND}>
           <div className="flex items-center justify-between gap-2">
-            <span className={TEXT.subheading} title={HOURS_NOTE}>
+            <span className={TEXT.control} title={HOURS_NOTE}>
               Hours
             </span>
             <div className={SEGMENT} title={HOURS_NOTE}>

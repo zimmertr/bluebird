@@ -46,15 +46,3 @@ export function usePaneMotion(shown: boolean, px: number, animated: boolean): Pa
 
   return { open: shown, mounted: shown || (animated && kept), px: shown ? px : heldPx }
 }
-
-/**
- * `value` as it stood in the last render where `holding` was false: what a
- * shut chart was drawn with, kept while its frame shuts. Tracked while
- * rendering, as `heldPx` above is, because a dropped update here costs at
- * most a body held one render old.
- */
-export function useHeldWhile<T>(value: T, holding: boolean): T {
-  const [held, setHeld] = useState(value)
-  if (!holding && !Object.is(held, value)) setHeld(value)
-  return holding ? held : value
-}

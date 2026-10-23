@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import ResultsTableRow, { FireClock, PendingRow } from './ResultsTableRow'
 import type { ChartBox } from '../hooks/useChartBox'
-import { CLOSURE_COL, displayedColumns, MODEL_COL, WILDFIRE_COL, type ColDef } from '../utils/tableColumns'
+import { CLOSURE_COL, displayedColumns, MODEL_COL, TYPE_COL, WILDFIRE_COL, type ColDef } from '../utils/tableColumns'
 import { FIRE_UNCOVERED_NOTE, fireLoadingFrame } from '../utils/fireProximity'
 import {
   CLOSURE_UNAVAILABLE_NOTE,
@@ -124,6 +124,16 @@ describe('a ranked row', () => {
     inTable(<ResultsTableRow {...props()} />)
     const cell = screen.getByRole('button', { name: 'Center map on Mount Adams' }).closest('td')!
     expect(cell.className).toContain(TABLE.stickyNameCell)
+  })
+
+  // Numbers end on one edge and words keep the sans (record 0222): the
+  // elevation, a metric and the wildfire distance against the name and type.
+  it('stands its number cells at their end, and sets its words in the sans', () => {
+    const { container } = inTable(<ResultsTableRow {...props({ columns: [...COLUMNS, TYPE_COL] })} />)
+    // After the rank: name, elevation, precipitation, wildfire, type.
+    const cells = [...container.querySelectorAll('td')].slice(1, 6)
+    expect(cells.map((td) => td.classList.contains(TABLE.number))).toEqual([false, true, true, true, false])
+    expect(cells.map((td) => td.classList.contains('font-mono'))).toEqual([false, true, true, true, false])
   })
 
   // A phone's stuck Name column stops at 45% of the sheet until the reader

@@ -411,7 +411,7 @@ export default function ModelPicker({
         // box to the tap floor there, and a baseline left the model name
         // against the top edge of a box half again as tall as its text
         // (TJ, 2026-09-14).
-        className={`${DISABLED} flex w-full items-center justify-center gap-1 px-2 py-1.5 text-center`}
+        className={`${DISABLED} flex w-full items-center justify-center gap-1 px-2 py-0.5 text-center`}
       >
         {/* The label gives way, never the count: `+2` is the only thing on the
             trigger that a reader cannot otherwise see, so a long model name

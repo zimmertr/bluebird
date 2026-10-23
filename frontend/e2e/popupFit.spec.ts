@@ -116,7 +116,7 @@ test.describe('on a desktop', () => {
   test('the widest grid fits the card, with a three-digit total', async ({ page }) => {
     await openMarkerCard(page)
     // The demonstration report is ranked, and the card marks that one number.
-    await expect(page.locator('[data-popup-body] span[style*="font-weight:700"]')).toHaveCount(1)
+    await expect(page.locator('[data-popup-body] span[style*="font-weight:600"]')).toHaveCount(1)
     await widenToMac(page, '123.456')
     await expectFits(page)
   })

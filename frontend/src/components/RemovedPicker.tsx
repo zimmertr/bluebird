@@ -36,10 +36,8 @@ export default function RemovedPicker({
   // itself: a press inside the sheet would read as a press outside the card.
   const { popoverRef, box, closing } = usePopover({ open: open && !sheet, onOpenChange, triggerRef })
 
-  // Restoring the last row leaves the list empty under an open menu, with
-  // Restore all greyed (record 0209): the menu stays, as it opens at zero,
-  // and the keyboard goes to the Removed button, which stands at zero too
-  // (`ResultsSheet`, #576).
+  // Restoring the last row empties the list, and `ResultsSheet` closes the
+  // menu then and hands the keyboard to the row brought back (record 0224).
 
   // Two removed places of one name (a crag and the peak it is named for,
   // #715) each name their type, as the chart's lines do; a name no other
@@ -63,9 +61,10 @@ export default function RemovedPicker({
       </div>
     )
   })
-  // Always drawn and greyed with nothing to restore (the maintainer,
-  // 2026-10-21; record 0209). It used to come with the second removal and go
-  // with the second last, a control that had to be found again each time.
+  // Always drawn (the maintainer, 2026-10-21; record 0209). It used to come
+  // with the second removal and go with the second last, a control that had
+  // to be found again each time. Greyed on an empty list, which the sheet
+  // closes rather than leaving open (record 0224).
   const restoreAll = (
     <button
       onClick={onRestoreAll}
@@ -76,8 +75,8 @@ export default function RemovedPicker({
     </button>
   )
 
-  // On a phone the sheet's heading is the words the desk card's overline
-  // says, and Restore all is its last row.
+  // On a phone the sheet is headed, as every phone menu's is, and Restore all
+  // is its last row. A desk's card is named by the trigger it stands under.
   if (sheet) {
     return open ? (
       <BottomSheet heading="Removed rows" onClose={() => onOpenChange(false)}>
@@ -90,7 +89,7 @@ export default function RemovedPicker({
   if (!box) return null
 
   return (
-    <Menu box={box} popoverRef={popoverRef} closing={closing} header="Removed rows">
+    <Menu box={box} popoverRef={popoverRef} closing={closing}>
       {rows.length > 0 && <div className={MENU.list}>{rows}</div>}
 
       <div className={MENU.foot}>{restoreAll}</div>

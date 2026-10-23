@@ -11,14 +11,15 @@ import { test, expect } from './fixtures'
 // number and the unit with a no-break space), so what this measures is the
 // label against the bar's inner edge, and the box's height.
 //
-// This is what holds the label at the vendor's 10px, under the app's 11px
-// floor: at 11px `1000 km` on its 50px bar ran 1.2px past the end here.
+// This is what sized the bar for the app's 11px floor (record 0222): at 11px
+// `1000 km` on a 50px bar, half the library's default, ran 1.2px past the end
+// here, so the bar draws up to 110px and never under 55.
 
-const SCALE_MAX_WIDTH_PX = 100 // map/controls.ts; styles.test.ts pins it there
+const SCALE_MAX_WIDTH_PX = 110 // map/controls.ts; styles.test.ts pins it there
 const LEAST_RATIO: Record<number, number> = { 1: 1 / 2, 2: 2 / 3, 3: 3 / 5, 5: 1 / 2 }
-// A 512px world at zoom 0 spans about 7,800 km in 100px at the equator, so
+// A 512px world at zoom 0 spans about 78 km a pixel at the equator, so
 // `5000 km` is never drawn under 64px; the other labels can reach their least.
-const WIDEST_KM = 7_800
+const WIDEST_KM = 78 * SCALE_MAX_WIDTH_PX
 
 const LABELS: { label: string; width: number }[] = []
 const add = (distance: number, unit: string, leading: number, span = Infinity) =>
@@ -39,7 +40,7 @@ for (const theme of ['dark', 'light']) {
     await page.goto('/')
     const scale = page.locator('.maplibregl-ctrl-scale')
     await expect(scale).toBeVisible()
-    expect(await scale.evaluate((el) => getComputedStyle(el).fontSize)).toBe('10px')
+    expect(await scale.evaluate((el) => getComputedStyle(el).fontSize)).toBe('11px')
 
     const fits = await scale.evaluate((el, cases) => {
       const box = el as HTMLElement

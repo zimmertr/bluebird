@@ -18,13 +18,15 @@ import {
   ACCENT,
   ACTION_GROUP,
   ACTION_ITEM,
+  BAR_GROUP,
   BAR_LABEL,
+  BAR_PRESS,
   CAPTION_LIFTED,
   CONTROL_SIZE,
   DISABLED,
   ICON_BUTTON,
+  PANEL_EDGE,
   SEGMENT_DIVIDER,
-  SEGMENT_FLUID,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   STATUS,
@@ -180,12 +182,10 @@ export default function ResultsBar({
     },
     // Removed rows (#241): a removal's only undo, so it is a standing bar
     // member rather than a transient toast; removals persist across live knobs
-    // and refreshes, and so does the way back. Drawn whenever Columns is,
-    // and greyed until there is a row to remove or one removed (the
-    // maintainer, 2026-10-21; record 0209): it used to hide at zero, a member
-    // that came and went and moved the two beside it. A row removed from a
-    // report whose every row is gone still counts, or the way back would
-    // close behind the last removal.
+    // and refreshes, and so does the way back. Drawn whenever Columns is
+    // (record 0209), and greyed while nothing is removed, as Download CSV is
+    // with nothing to download (record 0224): a menu that opens on an empty
+    // list says nothing the count beside its name has not.
     showTable && {
       key: 'removed',
       node: (
@@ -195,7 +195,7 @@ export default function ResultsBar({
           open={removedOpen}
           chevron={!sheet}
           onClick={onToggleRemoved}
-          disabled={removedCount === 0 && !canDownload}
+          disabled={removedCount === 0}
           className={DISABLED}
           aria-label={`Removed (${removedCount})`}
         >
@@ -204,10 +204,18 @@ export default function ResultsBar({
         </MenuButton>
       ),
     },
-    canDownload && {
+    // Download CSV stands with them too, greyed until there is a row to
+    // download (the maintainer, 2026-10-22; record 0219), for Removed's
+    // reason: a member that came and went shortened the bar under the reader.
+    showTable && {
       key: 'download',
       node: (
-        <button onClick={onDownloadCsv} aria-label="Download CSV" className={ACTION_ITEM}>
+        <button
+          onClick={onDownloadCsv}
+          disabled={!canDownload}
+          aria-label="Download CSV"
+          className={`${ACTION_ITEM} ${DISABLED}`}
+        >
           <IconDownload className="flex-shrink-0" />
           <span className={BAR_LABEL}>Download CSV</span>
         </button>
@@ -215,7 +223,14 @@ export default function ResultsBar({
     },
   ].filter((action) => action !== false)
   return (
-    <div ref={barRef} className={`@container flex-shrink-0 px-3 py-1.5 bg-raised border-b border-frame`}>
+    // At a desk the bar is the results' top, where they meet the map, so it
+    // wears the edge the panel wears where it meets the map (record 0220). It
+    // has no rule at its foot on either side: the grip under it draws one,
+    // and with both it stood on a 2px line. A phone's sheet draws its own top.
+    <div
+      ref={barRef}
+      className={`@container flex-shrink-0 px-3 py-1.5 bg-raised ${sheet ? '' : `border-t ${PANEL_EDGE}`}`}
+    >
       <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           {/* Before the first analysis the title is the same ranked
@@ -254,12 +269,13 @@ export default function ResultsBar({
           {/* Mode switch: table, chart, or both — fluid width, since
               three icon-plus-label halves cannot fit the panel's
               144px column (SEGMENT_FLUID exists because this shipped
-              clipped). */}
+              clipped). The bar's own well, which presses 44 on a finger
+              (BAR_GROUP, BAR_PRESS). */}
           {showResults && (
-            <div className={SEGMENT_FLUID}>
+            <div className={BAR_GROUP}>
               <button
                 onClick={() => chooseResultsMode('table')}
-                className={`${SEGMENT_ITEM} ${resultsMode === 'table' ? ACCENT.fill : SEGMENT_IDLE}`}
+                className={`${SEGMENT_ITEM} ${BAR_PRESS} ${resultsMode === 'table' ? ACCENT.fill : SEGMENT_IDLE}`}
                 aria-pressed={resultsMode === 'table'}
                 aria-label="Show table only"
               >
@@ -269,7 +285,7 @@ export default function ResultsBar({
               <div className={SEGMENT_DIVIDER} />
               <button
                 onClick={() => chooseResultsMode('chart')}
-                className={`${SEGMENT_ITEM} ${resultsMode === 'chart' ? ACCENT.fill : SEGMENT_IDLE}`}
+                className={`${SEGMENT_ITEM} ${BAR_PRESS} ${resultsMode === 'chart' ? ACCENT.fill : SEGMENT_IDLE}`}
                 aria-pressed={resultsMode === 'chart'}
                 aria-label="Show chart only"
               >
@@ -284,7 +300,7 @@ export default function ResultsBar({
               <button
                 onClick={() => chooseResultsMode('both')}
                 disabled={!bothHasRoom}
-                className={`${SEGMENT_ITEM} ${DISABLED} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
+                className={`${SEGMENT_ITEM} ${BAR_PRESS} ${DISABLED} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
                 aria-pressed={resultsMode === 'both'}
                 // Holds the word the button shows, for a reader using voice
                 // control (#576); the word itself is hidden on a phone, so the

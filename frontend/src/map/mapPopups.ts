@@ -37,6 +37,7 @@ import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import { mapCursor, pointTargetsToAsk, rankedTargets, type MapTarget } from '../utils/mapClick'
 import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody } from '../utils/popupChrome'
+import { POPUP_FACE } from '../styles'
 import { pointCardHtml, type PointReading, type PointSection } from '../utils/pointReadout'
 import { POPUP_PAN_MS, capHeight, placePopup, type Point, type PopupSide, type Rect } from '../utils/popupFit'
 import type { MapController } from './controller'
@@ -393,6 +394,8 @@ export function mountMapPopups(
     options: maplibregl.PopupOptions,
   ) => {
     const popup = new Popup({ ...options, closeOnClick: false }).setLngLat(at).setHTML(html).addTo(map)
+    // The app's card on the box the library built (record 0222).
+    popup.getElement()?.querySelector('.maplibregl-popup-content')?.classList.add(...POPUP_FACE.split(' '))
     board.track(popup, owner)
     return popup
   }

@@ -220,7 +220,7 @@ describe('the resting height', () => {
   // the panels hold their own floors and the legend scrolls, which is what it
   // does on any map too short for it. It must not collapse the sheet instead.
   it('keeps the panels usable on a viewport too short for both', () => {
-    const VIEWPORT = 667
+    const VIEWPORT = 650
     const { chart, table } = resolvePanelHeights(288, 280, {
       chartShown: false,
       tableShown: true,
@@ -229,7 +229,7 @@ describe('the resting height', () => {
     })
     expect(chart).toBe(0)
     expect(table).toBe(120)
-    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(439)
+    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(435)
   })
 })
 
@@ -327,7 +327,7 @@ describe('the camera padding', () => {
   const defaults = { chartPx: 288, tablePx: 280 }
 
   it('is the lift the sheet reserves at 402x874', () => {
-    // The sheet's chrome plus a default-height table (84 + 24 + 280) is 388,
+    // The sheet's chrome plus a default-height table (71 + 24 + 280) is 375,
     // and the resting reserve leaves 412 at this height (874 less
     // `RESTING_MAP_PX`), so the table stands at its own default and the lift
     // is the sheet's own height. #454's last 14px are what bought that: at a
@@ -341,7 +341,7 @@ describe('the camera padding', () => {
       availPx: 874,
       ...defaults,
     })
-    expect(lift).toBe(388)
+    expect(lift).toBe(375)
     expect(874 - lift).toBeGreaterThanOrEqual(RESTING_MAP_PX)
   })
 
@@ -351,19 +351,21 @@ describe('the camera padding', () => {
   // the sheet's own smallest height rather than the reserve. The line moves
   // with the reserve: 757 crossed it when the column above the legends grew by
   // a row (2026-09-14) and crossed back when #454 took 83px out of the stack,
-  // so the case is asserted at 667 now — the shortest phone the app is read on.
+  // and 667, the shortest phone the app is read on, crossed back when the
+  // player and the sheet's header came down to a finger's 32px (record 0223),
+  // so the case is asserted at 650.
   it('falls back to the sheet floor on a viewport the reserve cannot have', () => {
     const lift = restingLiftPx({
       collapsed: false,
       gripCount: 1,
       chartShown: false,
       tableShown: true,
-      availPx: 667,
+      availPx: 650,
       ...defaults,
     })
     expect(lift).toBe(sheetChromePx(1) + 120)
-    expect(lift).toBe(228)
-    expect(667 - lift).toBeLessThan(RESTING_MAP_PX)
+    expect(lift).toBe(215)
+    expect(650 - lift).toBeLessThan(RESTING_MAP_PX)
   })
 
   it('is the header alone while the results are collapsed', () => {

@@ -3,7 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { createRef, type ComponentProps } from 'react'
 import ResultsBar from './ResultsBar'
 import { render } from '../testSupport/render'
-import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, DISABLED, MENU_CHEVRON, MENU_TRIGGER } from '../styles'
+import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, DISABLED, MENU_CHEVRON, MENU_TRIGGER, PANEL_EDGE } from '../styles'
 
 type Props = ComponentProps<typeof ResultsBar>
 const NOOP = () => {}
@@ -88,23 +88,26 @@ describe('ResultsBar', () => {
     expect(screen.queryByRole('button', { name: 'Collapse results' })).toBeNull()
   })
 
-  // Removed stands whenever Columns does (record 0209), greyed until there is
-  // a row to remove or one removed: a report emptied by removals keeps the
-  // way back. Download alone comes with a row.
-  it('draws Removed greyed before a row, live with a row or a removal, and Download only with a row', () => {
+  // Removed stands whenever Columns does (record 0209), greyed while nothing
+  // is removed (record 0224), and Download CSV stands with it, greyed until
+  // there is a row to download (record 0219).
+  it('greys Removed at zero and Download CSV with nothing to download', () => {
     const { rerender } = render(<ResultsBar {...props({ canDownload: false })} />)
     const removed = () => screen.getByRole('button', { name: /^Removed \(\d+\)$/ }) as HTMLButtonElement
     expect(removed().disabled).toBe(true)
     expect(removed().textContent).toBe('Removed (0)')
-    expect(screen.queryByRole('button', { name: /Download/ })).toBeNull()
+    const download = () => screen.getByRole('button', { name: 'Download CSV' }) as HTMLButtonElement
+    expect(download().disabled).toBe(true)
     rerender(<ResultsBar {...props({ removedCount: 3, canDownload: false })} />)
     expect(removed().disabled).toBe(false)
     expect(removed().textContent).toBe('Removed (3)')
+    expect(download().disabled).toBe(true)
     rerender(<ResultsBar {...props({ removedCount: 0 })} />)
-    expect(removed().disabled).toBe(false)
-    expect(screen.getByRole('button', { name: 'Download CSV' })).toBeTruthy()
+    expect(removed().disabled).toBe(true)
+    expect(download().disabled).toBe(false)
     rerender(<ResultsBar {...props({ showTable: false, canDownload: false })} />)
     expect(screen.queryByRole('button', { name: /^Removed/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Download CSV' })).toBeNull()
   })
 
   // WCAG 2.5.3: a voice-control reader says the words on the button, so the
@@ -137,7 +140,7 @@ describe('ResultsBar', () => {
       expect(button.querySelector('span')?.className).toBe(BAR_LABEL)
     }
     expect(MENU_TRIGGER.bar.startsWith(ACTION_ITEM)).toBe(true)
-    expect(download.className).toBe(ACTION_ITEM)
+    expect(download.className).toBe(`${ACTION_ITEM} ${DISABLED}`)
     expect(download.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
     expect(download.querySelector('span')?.className).toBe(BAR_LABEL)
     const buttons = [...menus, download]
@@ -167,13 +170,27 @@ describe('ResultsBar', () => {
     expect(COLUMNS.current?.getAttribute('aria-expanded')).toBe('true')
   })
 
+  // At a desk the bar is the results' top, where they meet the map, and wears
+  // the panel's edge there (record 0220). Neither side rules its foot, where
+  // the grip draws one; a sheet draws its own top.
+  it('edges the bar\'s top where it meets the map at a desk, and rules no foot', () => {
+    const { container, rerender } = render(<ResultsBar {...props()} />)
+    const bar = () => (container.firstElementChild as HTMLElement).className.split(' ')
+    expect(bar()).toEqual(expect.arrayContaining(['border-t', PANEL_EDGE]))
+    expect(bar()).not.toContain('border-b')
+    expect(bar()).not.toContain('border-frame')
+    rerender(<ResultsBar {...props({ sheet: true })} />)
+    expect(bar()).not.toContain('border-t')
+    expect(bar()).not.toContain('border-b')
+  })
+
   it('puts no divider before the first button, whichever stand', () => {
-    // Columns, Models and a greyed Removed before a row (record 0209), and no
-    // Download.
+    // Columns, Models, and a greyed Removed and Download CSV before a row
+    // (records 0209 and 0219).
     render(<ResultsBar {...props({ canDownload: false })} />)
     const group = screen.getByRole('button', { name: 'Models' }).parentElement as HTMLElement
-    expect([...group.children].map((c) => c.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON'])
-    expect(group.lastElementChild).toBe(screen.getByRole('button', { name: 'Removed (0)' }))
+    expect([...group.children].map((c) => c.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON'])
+    expect(group.lastElementChild).toBe(screen.getByRole('button', { name: 'Download CSV' }))
   })
 
   // The switch's words follow the same width rule as the buttons', so the
