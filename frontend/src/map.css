@@ -306,8 +306,7 @@
    The bare glyph every × inside a card or a field wears (`ICON_BUTTON` in
    styles.ts; record 0222): no surface, the soft ink at rest and the strong
    ink under a pointer, in a box the size of the vendor's that keeps it off
-   the corner. It wore a bordered chip until #796, the one × in the app that
-   did. The vendor's own glyph is a bare character pressed into the corner
+   the corner. The vendor's own glyph is a bare character pressed into the corner
    with no hit area, which is why the box is drawn here at all.
 
    `line-height: 1` matters. Without it the inherited line box pushes the glyph

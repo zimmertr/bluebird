@@ -286,7 +286,7 @@ export function metaBand(lines: string[]): string {
 /**
  * A destination's facts on one line under its name: the type, the elevation
  * and the coordinates, parted by a light dot (TJ, 2026-10-08), the app's
- * one separator (`SEP`; record 0222), which a bar wore until #796. A ranked
+ * one separator (`SEP`; record 0222). A ranked
  * result and a clicked basemap feature both draw it, so the same mountain
  * reads the same before and after an analysis (TJ, 2026-10-14, #712); a
  * fact the card does not have is left off rather than filled in.

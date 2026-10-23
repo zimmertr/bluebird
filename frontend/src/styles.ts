@@ -365,8 +365,9 @@ export const ELEVATION = {
  *
  * Its edge is the structural one every menu wears (`SURFACE_CHIP_CARD`), as
  * is every card's here and in `SURFACE_CARD`, so one floating card has one
- * rim (record 0222). The quiet frame it wore until #796 measured under the
- * 3:1 a boundary owes on the card's own fill (1.93:1 dark, 2.51:1 light).
+ * rim (record 0222). The quiet `frame` token measures under the 3:1 a
+ * boundary owes on the card's own fill (1.93:1 dark, 2.51:1 light), so no
+ * floating card wears it.
  */
 export const SURFACE_FLOATING =
   `bg-floating/95 border border-edge ${RADIUS.surface} ${ELEVATION.raised} backdrop-blur-sm`
@@ -475,8 +476,7 @@ export const SURFACE_CHIP_CARD = {
  * site, so `map/mapPopups.ts` adds these classes to each popup as it opens.
  * The fill stays the popup's own (`--popup-surface` in `map.css`). MapLibre's
  * 3px corners and faint shadow sit in the base layer and lose to these
- * utilities. A popup wore those until #796 and was the one floating card
- * that did not read as the app's (record 0222).
+ * utilities, so a popup reads as the app's floating card (record 0222).
  *
  * The edge is a 1px ring outside the box rather than a border inside it: the
  * ranked card's cap (`RESULT_POPUP_MAX_WIDTH_PX`) holds its widest grid to
@@ -2369,8 +2369,7 @@ export const PANEL_RULE =
  * `secondary` is `BUTTON_PRIMARY`'s button in `BUTTON_SECONDARY`'s fill: the
  * same 14px semibold label, padding and 8px corners, so the two stacked
  * actions read as one pair that differs only in which leads (record 0222).
- * It was the panel's small secondary stretched to 40px until #796, a 12px
- * label with 4px corners under a 14px one with 8px. Its ink is named because
+ * Its ink is named because
  * `TEXT.cta` carries none, where the primary's white comes with its fill.
  */
 export const DIALOG_FOOT = {
@@ -2839,8 +2838,7 @@ export const DAY = {
    * and five or six week rows at 36px made the calendar the tallest thing in
    * the panel. The popover card is 312x265px with five week rows at 28px,
    * 40px shorter than at 36 (measured 2026-10-13). A touch screen takes 32,
-   * every finger's row height (`TAP`, record 0223), where it took 44: the
-   * phone's calendar sheet stands 108px shorter for it.
+   * every finger's row height (`TAP`, record 0223).
    */
   cell: 'flex h-7 touch:h-8 items-center justify-center',
   /**

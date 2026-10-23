@@ -1,6 +1,6 @@
 # 0136. On a phone every menu is a bottom sheet
 
-- Status: Accepted. Amends 0134 on a phone (a desk's menus still unfurl from their control), 0019 (on a phone the Layers menu is a sheet) and 0048 (on a phone the legend's keys are the Legend sheet's, not a box on the map). Amended by 0146 (the grip drags the sheet), 0201 (the Controls sheet's model list and calendar are sheets too) and 0207 (the Controls sheet is a bottom sheet too, and no sheet hides the Analyze button: it stays where it stood under every sheet's dim).
+- Status: Accepted. Amends 0134 on a phone (a desk's menus still unfurl from their control), 0019 (on a phone the Layers menu is a sheet) and 0048 (on a phone the legend's keys are the Legend sheet's, not a box on the map). Amended by 0146 (the grip drags the sheet), 0201 (the Controls sheet's model list and calendar are sheets too) and 0207 (the Controls sheet is a bottom sheet too, and no sheet hides the Analyze button: it stays where it stood under every sheet's dim), 0222 (a desk's Removed menu has no heading of its own) and 0223 (rows are 32px).
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696: the phone flow mockup approved 2026-10-14, "one menu shape on a phone: a bottom sheet with a title and Done"
 - Issues and PRs: #696, #708, #687

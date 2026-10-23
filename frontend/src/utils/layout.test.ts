@@ -130,17 +130,18 @@ describe('bothFits', () => {
     expect(bothFits(521)).toBe(true)
   })
 
-  // `draggedMapFloorPx(2)` is 312 since #696: the phone's two rows and the
-  // Analyze button's strip (180), the sheet's 84px header and its two 24px
-  // grips. So Both needs more than 552px of viewport: a 540px phone is under
-  // it and a 640 one over. It was 652 while the floor kept the old button
-  // column and the player's band (412), and 672 before the results bar's
-  // actions became one line of glyphs on a phone (#687).
-  it('puts the phone threshold at 552px', () => {
-    expect(draggedMapFloorPx(2)).toBe(312)
-    expect(bothFits(552, phone)).toBe(false)
-    expect(bothFits(553, phone)).toBe(true)
+  // `draggedMapFloorPx(2)` is 300: the phone's two rows and the Analyze
+  // button's strip (180), the sheet's 72px header (its 32px controls, record
+  // 0223) and its two 24px grips. So Both needs more than 540px of viewport: a
+  // 520px phone is under it and a 640 one over. It was 552 while the bar's
+  // controls were 44px, 652 while the floor kept the old button column and the
+  // player's band (412), and 672 before the results bar's actions became one
+  // line of glyphs on a phone (#687).
+  it('puts the phone threshold at 540px', () => {
+    expect(draggedMapFloorPx(2)).toBe(300)
     expect(bothFits(540, phone)).toBe(false)
+    expect(bothFits(541, phone)).toBe(true)
+    expect(bothFits(520, phone)).toBe(false)
     expect(bothFits(640, phone)).toBe(true)
   })
 
