@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import ForecastCalendar from './ForecastCalendar'
-import { DAY_END, type BandLimits, type ForecastSelection } from '../utils/calendar'
+import { DAY_END, type BandLimits, type ForecastSelection } from '../utils/calendar/calendar'
 import { render } from '../testSupport/render'
 
-// The calendar is wiring over the reducers in `utils/calendar.ts`, which carry
+// The calendar is wiring over the reducers in `utils/calendar/calendar.ts`, which carry
 // their own suite. What is pinned here is the wiring: that a press, a drag and
 // a toggle reach the right reducer and the answer reaches `onChange`.
 

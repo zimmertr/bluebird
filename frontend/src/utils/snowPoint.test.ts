@@ -24,7 +24,7 @@ import { heldTiles } from './heldTiles'
 import { storeHolding } from '../testSupport/heldTiles'
 import { fakeResponse, snowIdentify } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'
-import { updatedAt, updatedLine } from './popupChrome'
+import { updatedAt, updatedLine } from './popup/popupChrome'
 import type { GlacierCheck } from './glacierCell'
 
 // The ArcGIS error the service sometimes answers with a 200 (2026-10-16).

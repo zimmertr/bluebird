@@ -6,8 +6,8 @@
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { DEFAULT_FAMILY_KEY, MetricFamily, RANKED_FAMILIES } from '../metrics'
 import { Constraints, hasConstraints } from './constraints'
-import { type GridStyle } from './forecastGrid'
-import { ForecastSelection } from './calendar'
+import { type GridStyle } from './forecastGrid/forecastGrid'
+import { ForecastSelection } from './calendar/calendar'
 import { Place } from './geocode'
 import { type CameraView } from './mapView'
 import { type SortKey } from './tableColumns'
@@ -26,7 +26,7 @@ import { clamp } from './numbers'
 // The window classifiers read the calendar band and live beside it. The
 // air-quality one is re-exported here because the panel imports it by this
 // module's name.
-export { classifyAqiCoverage } from './calendar'
+export { classifyAqiCoverage } from './calendar/calendar'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
 // they're re-fetched fresh so a shared link never replays stale forecasts.

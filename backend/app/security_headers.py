@@ -76,7 +76,7 @@ _SHARED_CSP: tuple[tuple[str, str], ...] = (
     ("script-src", "'self'"),
     # style-src is the one loosened directive, and only for the ATTRIBUTE case:
     # map popups are built as HTML strings with inline style attributes and
-    # handed to MapLibre's setHTML (frontend/src/utils/popupChrome.ts and the
+    # handed to MapLibre's setHTML (frontend/src/utils/popup/popupChrome.ts and the
     # popup builders beside it), because a string passed to setHTML is not a
     # class list Tailwind's scanner ever sees. Inline style attributes are
     # exactly what style-src blocks without this, so a strict value renders

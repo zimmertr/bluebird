@@ -25,7 +25,7 @@ import {
   ringPolygon,
 } from '../utils/drawGeometry'
 import { addVertex } from '../utils/polygonEdit'
-import { popupButton } from '../utils/popupChrome'
+import { popupButton } from '../utils/popup/popupChrome'
 import {
   DRAW_COLOR,
   DRAW_FILL_OPACITY,

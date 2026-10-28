@@ -4,7 +4,7 @@ import type { AnalyzeBlocker } from './analyzeGate'
 import type { CommitReason } from './present'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
-import { archiveSeamPhrase } from './calendar'
+import { archiveSeamPhrase } from './calendar/calendar'
 import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { NOUN } from '../metrics'
 

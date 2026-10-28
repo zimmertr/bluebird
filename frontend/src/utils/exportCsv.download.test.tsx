@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { downloadCsv } from './exportCsv'
-import { csvFilename } from './resultsCsv'
+import { csvFilename } from './results/resultsCsv'
 
 // A .tsx for the DOM project: the download is an anchor the browser clicks,
 // which the node project has no document to build. jsdom has no object URLs

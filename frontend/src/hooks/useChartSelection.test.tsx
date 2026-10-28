@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useChartSelection } from './useChartSelection'
-import { CHROME } from '../utils/chartColors'
+import { CHROME } from '../utils/chart/chartColors'
 import { resultRow } from '../testSupport/fixtures'
 import type { DestinationResult } from '../types'
 

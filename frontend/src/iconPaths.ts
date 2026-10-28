@@ -3,7 +3,7 @@
 //
 // `components/icons.tsx` owns every glyph the app draws (#386), and it cannot
 // own this one by itself. A popup is an HTML string handed to MapLibre's
-// setHTML, and `utils/popupChrome.ts` records why that string lives in utils:
+// setHTML, and `utils/popup/popupChrome.ts` records why that string lives in utils:
 // it has to stay free of anything component-shaped so a node test can read it.
 // A util importing the icon module would be the first import of a component in
 // the app, so the shape sits below both instead and each side renders it in
