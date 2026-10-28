@@ -6,7 +6,7 @@
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { DEFAULT_FAMILY_KEY, MetricFamily, RANKED_FAMILIES } from '../metrics'
 import { Constraints, hasConstraints } from './constraints'
-import { type GridStyle } from './forecastGrid'
+import { type GridStyle } from './forecastGrid/forecastGrid'
 import { ForecastSelection } from './calendar'
 import { Place } from './geocode'
 import { type CameraView } from './mapView'

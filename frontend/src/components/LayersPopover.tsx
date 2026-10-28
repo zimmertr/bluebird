@@ -19,7 +19,7 @@ import {
   SR_ONLY,
   SURFACE_CHIP_CARD,
 } from '../styles'
-import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid'
+import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid/forecastGrid'
 import { useExit } from '../hooks/useExit'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useLayerReach } from '../hooks/useLayerReach'

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { gridArrowFeatures } from './forecastGridArrows'
-import { gridCell, gridRow, series } from '../testSupport/fixtures'
+import { gridCell, gridRow, series } from '../../testSupport/fixtures'
 
 describe('gridArrowFeatures', () => {
   const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]

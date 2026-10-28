@@ -2,7 +2,7 @@
 // centre, carrying the bearing the timeline's current hour reads.
 
 import type { FeatureCollection } from 'geojson'
-import { bearingAt } from './resultFeatures'
+import { bearingAt } from '../resultFeatures'
 import type { GridCell } from './forecastGridLattice'
 
 /**

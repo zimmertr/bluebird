@@ -14,8 +14,8 @@ import {
   gridImageCoordinates,
   pairCells,
 } from './forecastGridLattice'
-import { NO_VALUE, fillColor } from './resultFeatures'
-import type { AqiResult, CloudResult, WeatherResult } from './openMeteo'
+import { NO_VALUE, fillColor } from '../resultFeatures'
+import type { AqiResult, CloudResult, WeatherResult } from '../openMeteo'
 import {
   CASCADES,
   fetchedSeries,
@@ -26,7 +26,7 @@ import {
   gridSpec,
   mesh,
   weatherResult,
-} from '../testSupport/fixtures'
+} from '../../testSupport/fixtures'
 
 describe('buildGrid', () => {
   it('covers the field with cells at the model pitch', () => {

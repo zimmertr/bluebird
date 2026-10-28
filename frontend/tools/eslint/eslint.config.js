@@ -152,7 +152,7 @@ const METRIC_SURFACES_ELSEWHERE = [
   // The panel's messages, which name metrics in whole sentences for the same
   // reason.
   'src/utils/panelMessages.ts',
-  'src/utils/popupRows.ts',
+  'src/utils/popup/popupRows.ts',
   'src/utils/resultPopup.ts',
   // A downloaded file is read in a spreadsheet, where nothing around it says
   // which app wrote the header.

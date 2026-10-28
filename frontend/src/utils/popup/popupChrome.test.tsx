@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { within } from '@testing-library/react'
-import { render } from '../testSupport/render'
-import { closureFeature, closureWarning, resultRow } from '../testSupport/fixtures'
+import { render } from '../../testSupport/render'
+import { closureFeature, closureWarning, resultRow } from '../../testSupport/fixtures'
 import {
   GRID_BAND_COLOR,
   GRID_COMPACT_INSET_PX,
@@ -30,12 +30,12 @@ import {
   dateOfMs,
   widestName,
 } from './popupChrome'
-import { AGGREGATE } from '../metrics'
-import { closurePopupHtml } from './closures'
-import { resultPopupHtml } from './resultPopup'
-import { smokePopupHtml } from './smoke'
-import { wildfirePopupHtml } from './wildfires'
-import { displayedColumns } from './tableColumns'
+import { AGGREGATE } from '../../metrics'
+import { closurePopupHtml } from '../closures'
+import { resultPopupHtml } from '../resultPopup'
+import { smokePopupHtml } from '../smoke'
+import { wildfirePopupHtml } from '../wildfires'
+import { displayedColumns } from '../tableColumns'
 
 // A popup is a string MapLibre hands to innerHTML (`Popup.setHTML`), so these
 // mount it the same way and read the DOM a reader would get. A link's href is

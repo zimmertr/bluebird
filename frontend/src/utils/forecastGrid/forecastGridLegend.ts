@@ -1,8 +1,8 @@
 // The forecast grid's legend row: the pitch the field was drawn at, or the
 // state that stands in for it while the samples are still arriving.
 
-import { SEP } from '../metrics'
-import { roundTo } from './numbers'
+import { SEP } from '../../metrics'
+import { roundTo } from '../numbers'
 
 /**
  * The pitch as a distance, formatted the way the model picker formats the same

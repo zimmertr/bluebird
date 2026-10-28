@@ -1,11 +1,11 @@
-import { DestinationResult, SortBy } from '../types'
-import { AGGREGATE, FAMILY_KEYS, MetricFamily, aggregateToken, familyOf, metricLabel, windowAggregate } from '../metrics'
-import { cellTint } from './resultsCells'
-import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
-import { ModelRow } from './modelCompare'
-import { extremeHourMs, windyUrl } from './windy'
-import { NO_VALUE_MARK, isUnavailableKey, unavailableCellText } from './unavailableCell'
-import { isCloudDeckMark } from './cloudDeckMark'
+import { DestinationResult, SortBy } from '../../types'
+import { AGGREGATE, FAMILY_KEYS, MetricFamily, aggregateToken, familyOf, metricLabel, windowAggregate } from '../../metrics'
+import { cellTint } from '../resultsCells'
+import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from '../tableColumns'
+import { ModelRow } from '../modelCompare'
+import { extremeHourMs, windyUrl } from '../windy'
+import { NO_VALUE_MARK, isUnavailableKey, unavailableCellText } from '../unavailableCell'
+import { isCloudDeckMark } from '../cloudDeckMark'
 
 /**
  * A marker popup's body, derived from the columns the results table is showing

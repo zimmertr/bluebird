@@ -11,9 +11,9 @@ import {
   popupButton,
   popupCard,
   warningLine,
-} from './popupChrome'
+} from './popup/popupChrome'
 import { ColDef } from './tableColumns'
-import { popupGrid, popupGroups, popupIdentity } from './popupRows'
+import { popupGrid, popupGroups, popupIdentity } from './popup/popupRows'
 import type { UsStates } from './usStates'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from './wildfires'
 

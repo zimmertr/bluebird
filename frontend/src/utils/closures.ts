@@ -18,7 +18,7 @@
 // order says, and nothing here decides whether a closure is still in force.
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, overlayFeatures } from './apiFetch'
-import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard, warningLine } from './popupChrome'
+import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard, warningLine } from './popup/popupChrome'
 import { type BBox, type FireDetail, formatAcres } from './wildfires'
 import { isFiniteNumber } from './numbers'
 import { utcDayKey } from './calendarDates'

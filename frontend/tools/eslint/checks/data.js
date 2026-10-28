@@ -135,7 +135,7 @@ export const DATA = [
       'src/components/ForecastSection.tsx',
       'src/utils/panelMessages.ts',
     ],
-    ignores: ['src/utils/*.test.ts'],
+    ignores: ['src/utils/**/*.test.ts'],
     probe: 'src/utils/calendarBand.ts',
     ban: [
       {

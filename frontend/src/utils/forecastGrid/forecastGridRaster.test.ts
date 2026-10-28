@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { buildGrid, type GridCell, type GridSpec } from './forecastGridLattice'
 import { gridRaster } from './forecastGridRaster'
-import { resultsFeatureCollection } from './resultFeatures'
-import { CASCADES, field, gridCell, gridRow, gridSpec, mesh, series, squareLattice } from '../testSupport/fixtures'
+import { resultsFeatureCollection } from '../resultFeatures'
+import { CASCADES, field, gridCell, gridRow, gridSpec, mesh, series, squareLattice } from '../../testSupport/fixtures'
 
 // Every kept sample answered: cells built the way pairCells builds them, with
 // the VIRTUAL lattice index from spec.indices — a position-as-index shortcut

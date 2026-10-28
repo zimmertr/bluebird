@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BOTH_TITLE, inBounds, pointCardHtml, type PointSection } from './pointReadout'
-import { SECTION_EDGE, row, sectionHeading, updatedLine, widestName } from './popupChrome'
+import { SECTION_EDGE, row, sectionHeading, updatedLine, widestName } from './popup/popupChrome'
 import { markupText } from '../testSupport/markupText'
 
 // The text a reader reads, a space between blocks: `markupText` joins

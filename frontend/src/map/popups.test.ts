@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createPopupBoard, isPinning, popupOptions, type BoardPopup } from './popups'
-import { popupWidth, resultPopupWidth } from '../utils/popupChrome'
+import { popupWidth, resultPopupWidth } from '../utils/popup/popupChrome'
 import { stubMap } from '../testSupport/stubMap'
 
 // A popup that says whether it is open and fires `close` when taken down, the

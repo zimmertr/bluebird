@@ -293,7 +293,7 @@ export const STYLES = [
     // The placement is wired from a hook, so the files a second caller could
     // hide in are wider than the components.
     name: 'style-one-placement',
-    files: ['src/App.tsx', 'src/components/*.tsx', 'src/hooks/*.ts', 'src/map/**/*.{ts,tsx}', 'src/utils/*.ts'],
+    files: ['src/App.tsx', 'src/components/*.tsx', 'src/hooks/*.ts', 'src/map/**/*.{ts,tsx}', 'src/utils/**/*.ts'],
     ignores: [...TESTS, 'src/utils/listbox.ts', 'src/hooks/usePopover.ts'],
     ban: [
       {
@@ -861,7 +861,7 @@ export const STYLES = [
     // A map popup is markup for setHTML, and the one glyph it draws comes from
     // iconPaths.ts rather than being typed out again.
     name: 'style-popup-glyph',
-    files: ['src/utils/popupChrome.ts'],
+    files: ['src/utils/popup/popupChrome.ts'],
     ban: [{ selector: text('<svg[\\s>]'), message: 'Draw the popup glyph from iconPaths.ts.' }],
     require: [
       {
@@ -881,7 +881,7 @@ export const STYLES = [
     // line break or a rule written by hand.
     name: 'style-popup-card',
     files: SHIPPED,
-    ignores: [...TESTS, 'src/utils/popupChrome.ts'],
+    ignores: [...TESTS, 'src/utils/popup/popupChrome.ts'],
     probe: 'src/utils/wildfires.ts',
     ban: [
       {
@@ -966,7 +966,7 @@ export const STYLES = [
     // carry one size in five files.
     name: 'value-inline-style',
     files: SHIPPED,
-    ignores: [...TESTS, 'src/utils/popupChrome.ts'],
+    ignores: [...TESTS, 'src/utils/popup/popupChrome.ts'],
     probe: 'src/utils/poiPopup.ts',
     ban: [
       {

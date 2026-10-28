@@ -4,12 +4,12 @@
 // rule that decides it lives here, beside the reach and the cell cap that bound
 // it.
 
-import { DestinationResult, DiscoveredDestination } from '../types'
-import type { Coordinate, WeatherResult, AqiResult, CloudResult } from './openMeteo'
-import { assemble } from './clientAnalyze'
-import { alignRowToGrid } from './chartData'
-import type { WindowSource } from './forecastWindow'
-import { clamp } from './numbers'
+import { DestinationResult, DiscoveredDestination } from '../../types'
+import type { Coordinate, WeatherResult, AqiResult, CloudResult } from '../openMeteo'
+import { assemble } from '../clientAnalyze'
+import { alignRowToGrid } from '../chartData'
+import type { WindowSource } from '../forecastWindow'
+import { clamp } from '../numbers'
 
 /** One cell's extent: `[west, south, east, north]` in degrees. */
 export type CellBox = [number, number, number, number]

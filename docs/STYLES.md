@@ -397,7 +397,7 @@ button against the panel's in a browser. Record: [0163](decisions/0163-popups-fo
 | The theme is the switch's, never the operating system's | `checks/styles.js`, `styles.test.ts` | `style-no-os-theme` bans a `dark:` variant and `prefers-color-scheme` in any string or template under `src/`, tests aside, because either paints by the system's setting under a switch that may say the opposite; the test holds `index.css` and `map.css` to the same, since ESLint does not read CSS (#706) |
 | A stored light theme paints before React does | `theme.test.ts` | `public/theme.js` reads `THEME_KEY`, stays under 400 bytes, and is in the head of all four HTML entries before the module script, with no inline script anywhere |
 | No component draws its own glyph | `checks/styles.js` | Ban a literal SVG opening tag everywhere under `components/` and `map/` and in `App.tsx`, except `icons.tsx` |
-| Nor does the map popup | `checks/styles.js`, `styles.test.ts` | `style-popup-glyph` bans the same tag in `utils/popupChrome.ts`, which builds markup rather than elements; the test pins its glyph size to the `inline` step |
+| Nor does the map popup | `checks/styles.js`, `styles.test.ts` | `style-popup-glyph` bans the same tag in `utils/popup/popupChrome.ts`, which builds markup rather than elements; the test pins its glyph size to the `inline` step |
 | No call site sizes an icon | `checks/styles.js`, `styles.test.ts` | `style-call-site-classes` bans a height or width utility on any `<Icon…>` element; the test pins the four `ICON` steps by measured pixels, and the key set too |
 | Every glyph is hidden from assistive technology | `checks/accessibility.js` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
 | No component positions its own menu | `checks/styles.js` | `style-own-menu` bans a fixed-position style object and the menu card everywhere under `components/` and `map/` and in `App.tsx`, except `Menu.tsx`; `style-menu-shell` holds `Menu.tsx` to the card, the portal, the trigger role and the one chevron |
@@ -425,7 +425,7 @@ values (#365):
 |---|---|---|
 | MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
 | Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow) | The same |
-| Popup HTML handed to `setHTML` | `utils/popupChrome.ts` | The three type sizes, the face, the names of the card's colours (each a `--popup-*` value, an app token in `map.css`, record 0215), the one button (`BUTTON_ACCENT` as its class list), the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
+| Popup HTML handed to `setHTML` | `utils/popup/popupChrome.ts` | The three type sizes, the face, the names of the card's colours (each a `--popup-*` value, an app token in `map.css`, record 0215), the one button (`BUTTON_ACCENT` as its class list), the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
 | Recharts props | `utils/chartColors.ts` | The axis, grid and playhead colours beside the line palette |
 
 A colour in one of those channels is measured against the surface it actually
@@ -1118,7 +1118,7 @@ or not at all — the key set is pinned as well as the values.
 MapLibre's `setHTML`, so Tailwind never sees its class names and the icon
 module cannot draw it. The link-out arrow in a popup's title row is therefore
 the same shape as the results table's, read from `frontend/src/iconPaths.ts`
-by both `icons.tsx` and `utils/popupChrome.ts` (#435). That module carries the
+by both `icons.tsx` and `utils/popup/popupChrome.ts` (#435). That module carries the
 geometry, the stroke, and the one size a string has to spell; the linter's
 `style-popup-glyph` check bans a literal SVG tag in `popupChrome.ts`, and
 `styles.test.ts` pins that size to the `inline` step. It sits at `src/` rather than in `components/`, beside `styles.ts` and

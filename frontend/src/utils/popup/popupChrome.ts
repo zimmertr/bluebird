@@ -23,13 +23,13 @@
 // the panel's `BUTTON_ACCENT` itself (`popupButton`). It lives in utils, like
 // the popup bodies that compose it, because a string module is unit-testable
 // without pulling maplibre-gl into a node test.
-import { externalLinkMarkup } from '../iconPaths'
-import { BUTTON_ACCENT } from '../styles'
-import { AGGREGATE, SEP } from '../metrics'
+import { externalLinkMarkup } from '../../iconPaths'
+import { BUTTON_ACCENT } from '../../styles'
+import { AGGREGATE, SEP } from '../../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
-import { clamp, isFiniteNumber } from './numbers'
-import { coordinateLabel } from './points'
-import { utcDayKey } from './calendarDates'
+import { clamp, isFiniteNumber } from '../numbers'
+import { coordinateLabel } from '../points'
+import { utcDayKey } from '../calendarDates'
 
 /**
  * The popup's type ramp and its leading. The face is the app's own: the card

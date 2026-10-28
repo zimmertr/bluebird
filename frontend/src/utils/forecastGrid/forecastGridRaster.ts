@@ -3,10 +3,10 @@
 // style names. A buffer rather than a canvas, so Vitest can assert on it
 // without a DOM.
 
-import { SortBy } from '../types'
-import { NO_VALUE, fillColor } from './resultFeatures'
+import { SortBy } from '../../types'
+import { NO_VALUE, fillColor } from '../resultFeatures'
 import type { GridCell, GridSpec } from './forecastGridLattice'
-import { hexToRgb } from './colors'
+import { hexToRgb } from '../colors'
 
 /**
  * How the field is drawn. `blocks` is the default because it is the style that

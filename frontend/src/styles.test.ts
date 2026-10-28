@@ -152,7 +152,7 @@ import {
   RULE_COLOR,
   WARNING_COLOR,
   popupButton,
-} from './utils/popupChrome'
+} from './utils/popup/popupChrome'
 // The map's chip is the chip shape of the one menu trigger (record 0201), and
 // that is the only name it is exported under.
 const MAP_CHIP = MENU_TRIGGER.chip

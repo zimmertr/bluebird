@@ -35,10 +35,9 @@
 // buffer rather than a canvas so Vitest can assert on it without a DOM. The
 // fetching lives in `hooks/useForecastGrid.ts` and the drawing in `MapView`.
 //
-// The overlay is four flat sibling modules, and this file re-exports them so
+// The overlay is four sibling modules, and this file re-exports them so
 // every importer reads one name: the lattice, the raster, the legend row and
-// the arrows. Flat rather than a folder, because the style guardrails in
-// `styles.test.ts` glob `./utils/*.ts` and a sub-folder would escape them.
+// the arrows.
 
 export * from './forecastGridLattice'
 export * from './forecastGridRaster'
