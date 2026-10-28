@@ -1,4 +1,4 @@
-# 0236. A pitched map fetches the box its view would cover lying flat
+# 0235. A pitched map fetches the box its view would cover lying flat
 
 - Status: Accepted
 - Date: 2026-10-27

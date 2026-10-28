@@ -1005,7 +1005,7 @@ VIIRS feed ends on 2026-11-02, which is why two VIIRS satellites are read and
 not three. The geostationary GOES detections are left out: they are 2 km
 pixels every few minutes, a different picture. See
 [API.md](API.md#fire-detections) for the route, and
-[record 0234](decisions/0234-fire-activity-from-firms-files.md) for why it is
+[record 0236](decisions/0236-fire-activity-from-firms-files.md) for why it is
 built this way.
 
 ## Smoke
