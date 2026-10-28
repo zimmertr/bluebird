@@ -23,11 +23,17 @@ concurrency:
 permissions:
   contents: read
 
+# Every job stops at 15 minutes, one flat number rather than one per job. It
+# is over twice the slowest any job has taken: Browser Smoke & Axe peaked at
+# 389 s over 150 runs measured 2026-10-15 to 2026-10-22 from the Actions API
+# (issue #794). Without it a hung step holds its runner until GitHub's
+# 360-minute default rather than failing in minutes.
 jobs:
   # Catch TypeScript type errors and unit-test failures before they reach main
   frontend:
     name: Frontend Typecheck & Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -70,6 +76,7 @@ jobs:
   lint:
     name: Python Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -89,6 +96,7 @@ jobs:
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -128,6 +136,7 @@ jobs:
   backend-db:
     name: Database Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -169,6 +178,7 @@ jobs:
   fill:
     name: Planet Fill
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -235,6 +245,7 @@ jobs:
     # this job strands PRs on a phantom "Expected" check that never reports.
     name: Docker Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write  # Sticky scan-result comment on PRs
@@ -265,6 +276,19 @@ jobs:
             APP_BUILT_AT=1970-01-01T00:00:00Z
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # TEMPORARY, for issue #794's measurement: these two steps hand the image
+      # to the `artifact` variant of browser-measure. Delete them with that job
+      # before the PR is reviewed.
+      - name: 'Hand-off: save'
+        run: docker save bluebird:pr-scan -o /tmp/bluebird-image.tar
+      - name: 'Hand-off: upload'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bluebird-image
+          path: /tmp/bluebird-image.tar
+          retention-days: 1
+          compression-level: 1
 
       # ignore-unfixed everywhere: Debian/Alpine ship CVEs upstream has not
       # patched; flagging those would perma-red the pipeline over vulns nobody
@@ -424,6 +448,7 @@ jobs:
     name: Lighthouse Budgets
     needs: docker-build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -473,6 +498,7 @@ jobs:
     name: Browser Smoke & Axe
     needs: docker-build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -527,5 +553,141 @@ jobs:
         if: failure()
         with:
           name: playwright-report
+          path: frontend/e2e/playwright-report
+          retention-days: 7
+
+  # TEMPORARY, for issue #794's measurement: delete this job, and the two
+  # Hand-off steps in Docker Build, before the PR is reviewed. Each variant
+  # runs the browser suite ten times, so the worker count and the install
+  # route can be chosen on numbers. `w<N>` is the worker count; the second
+  # token is how the browser and the image arrive:
+  #   deps      what Browser Smoke & Axe does today: host Node, cached
+  #             Chromium, `playwright install --with-deps`
+  #   chromium  the same without `--with-deps`, so no apt step
+  #   image     no host Node and no install: the suite runs inside the pinned
+  #             Playwright image, as `make browser` does
+  #   artifact  `deps`, but the served image comes from Docker Build as an
+  #             artifact rather than a cache replay
+  # The timed steps carry the same names in every variant (Hand-off: *,
+  # Install browser, Install suite, Run suite) so the Actions API can be
+  # aggregated per name. continue-on-error keeps a flake from turning the PR
+  # red; the Run suite step's own conclusion still records it.
+  browser-measure:
+    name: Measure ${{ matrix.variant }} ${{ matrix.repeat }}
+    needs: docker-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [w1-deps, w2-deps, w4-deps, w1-chromium, w4-chromium, w1-image, w4-image, w1-artifact]
+        repeat: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    env:
+      VARIANT: ${{ matrix.variant }}
+      BASE_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the variant
+        id: v
+        run: |
+          workers="${VARIANT%%-*}"
+          echo "workers=${workers#w}" >> "$GITHUB_OUTPUT"
+
+      - name: 'Hand-off: buildx'
+        if: ${{ !endsWith(matrix.variant, '-artifact') }}
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: 'Hand-off: build'
+        if: ${{ !endsWith(matrix.variant, '-artifact') }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: bluebird:browser
+          cache-from: type=gha
+      - name: 'Hand-off: download'
+        if: ${{ endsWith(matrix.variant, '-artifact') }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bluebird-image
+      - name: 'Hand-off: load'
+        if: ${{ endsWith(matrix.variant, '-artifact') }}
+        run: |
+          docker load -i bluebird-image.tar
+          docker tag bluebird:pr-scan bluebird:browser
+
+      - name: Serve the built image
+        run: |
+          docker run -d --rm --name browser-target -p 8000:8000 bluebird:browser
+          for _ in $(seq 1 30); do
+            curl -fsS localhost:8000/healthz >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS localhost:8000/ >/dev/null
+
+      - name: Read the Playwright version
+        id: pw
+        run: echo "version=$(jq -r '.packages["node_modules/@playwright/test"].version' frontend/e2e/package-lock.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        if: ${{ !endsWith(matrix.variant, '-image') }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      # Two Install suite steps, one per route, because the order differs: on
+      # the host the browser install needs the package first, and in the
+      # container the package install needs the pulled image first.
+      - name: Install suite
+        if: ${{ !endsWith(matrix.variant, '-image') }}
+        working-directory: frontend/e2e
+        run: npm ci --ignore-scripts
+      - name: Restore the browser cache
+        if: ${{ !endsWith(matrix.variant, '-image') }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ steps.pw.outputs.version }}
+
+      # The image variants pull here, so the pull is timed as their install.
+      - name: Install browser
+        working-directory: frontend/e2e
+        env:
+          IMAGE: mcr.microsoft.com/playwright:v${{ steps.pw.outputs.version }}-noble
+        run: |
+          case "$VARIANT" in
+            *-image) docker pull -q "$IMAGE" ;;
+            *-chromium) npx playwright install chromium ;;
+            *) npx playwright install --with-deps chromium ;;
+          esac
+
+      # The node_modules the container writes land in the mounted checkout, so
+      # the Run suite container below finds them.
+      - name: Install suite
+        if: ${{ endsWith(matrix.variant, '-image') }}
+        env:
+          IMAGE: mcr.microsoft.com/playwright:v${{ steps.pw.outputs.version }}-noble
+        run: docker run --rm -v "$GITHUB_WORKSPACE":/repo -w /repo/frontend/e2e "$IMAGE" npm ci --ignore-scripts
+
+      - name: Run suite
+        id: suite
+        working-directory: frontend/e2e
+        env:
+          IMAGE: mcr.microsoft.com/playwright:v${{ steps.pw.outputs.version }}-noble
+          WORKERS: ${{ steps.v.outputs.workers }}
+        run: |
+          case "$VARIANT" in
+            *-image) docker run --rm --network host --ipc=host -e CI=true -e BASE_URL -v "$GITHUB_WORKSPACE":/repo -w /repo/frontend/e2e "$IMAGE" npx playwright test --workers="$WORKERS" ;;
+            *) npx playwright test --workers="$WORKERS" ;;
+          esac
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ failure() && steps.suite.outcome == 'failure' }}
+        with:
+          name: playwright-report-${{ matrix.variant }}-${{ matrix.repeat }}
           path: frontend/e2e/playwright-report
           retention-days: 7

@@ -13,9 +13,12 @@ RUFF_VERSION := 0.16.0
 # The pip-compile Dependabot runs, so a lock written here and one Dependabot
 # rewrites come out the same. 7.5 breaks on pip 26, hence the older pip beside it.
 PIP_TOOLS_VERSION := 7.5.3
-# Must match @playwright/test in frontend/e2e/package.json: each release pins
-# its own Chromium build, and the image carries the build for its own version.
-PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.64.0-noble
+# Read off @playwright/test in frontend/e2e/package.json, so a Dependabot bump
+# moves the image too: each release pins its own Chromium build, and the image
+# carries the build for its own version. sed rather than node or jq, which a
+# Mac running these targets may not have.
+PLAYWRIGHT_VERSION := $(shell sed -n 's/.*"@playwright\/test": "\([0-9.]*\)".*/\1/p' frontend/e2e/package.json)
+PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v$(PLAYWRIGHT_VERSION)-noble
 
 .PHONY: typecheck lint-frontend test-frontend check-api test-backend test-backend-db test-fill check-openapi typecheck-backend lint-backend lock-backend coverage-frontend coverage-backend check-unused lighthouse browser perf
 
