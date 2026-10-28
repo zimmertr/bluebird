@@ -12,6 +12,7 @@
 | [EOX Sentinel-2 cloudless](https://s2maps.eu) | Aerial imagery for the satellite layer everywhere USGS has none | Free (non-commercial) | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
+| [NASA FIRMS](https://earthdata.nasa.gov/firms) | Satellite fire detections from VIIRS and MODIS, worldwide, the last 48 hours | Free (public files, no quota) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
 | [US Forest Service](https://www.fs.usda.gov/) | Closure orders: closed areas in Regions 3, 4 and 6 (Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington), and closed trails, roads and sites in Region 6 alone | Free (public domain; quota shared across all consumers) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
@@ -922,6 +923,50 @@ say the check never happened. Perimeters are a surveyed product with reporting
 lag, so read them as where a fire has been mapped, not where it is burning right
 now. For decisions about an active incident, use
 [InciWeb](https://inciweb.wildfire.gov) and the responsible agency.
+
+## Fire activity
+
+The optional fire activity layer draws the satellite fire detections NASA's
+**Fire Information for Resource Management System** (FIRMS) publishes. A
+detection is one pixel that was hot when a satellite passed: 375 m across for
+the VIIRS instruments on NOAA-20 and NOAA-21, 1 km for the MODIS instruments on
+Terra and Aqua. It says something was burning there at that moment. It is not
+a fire's outline, which is what the wildfire perimeters above are, and a
+large fire shows as a cluster of pixels along its active edge rather than as
+its burned area.
+
+Read it with four things in mind.
+
+**It is about 3 hours behind the pass.** FIRMS publishes a detection about 3
+hours after the satellite saw it, and each satellite passes a given place about
+twice a day. So the newest dot can be hours old, and a fire that started since
+the last pass is not on the map at all.
+
+**False alarms happen.** Anything hot enough looks like fire from orbit: gas
+flares, industrial roofs, volcanoes, and sun glint off water or metal. FIRMS
+grades each detection's confidence, and the layer drops nothing for it, so a
+lone dot over a refinery is probably the refinery.
+
+**Cloud and smoke hide fire.** A pass under cloud sees nothing below it, so an
+empty map means no detection, not no fire.
+
+**Colour is age.** A dot is red under 12 hours old, orange from 12 to 24 hours
+and yellow from 24 to 48, measured against your own clock, so it changes colour
+while the map is open. Nothing older than 48 hours is drawn. The layer draws
+nothing below zoom 5, where a view can hold a continent's fires.
+
+FIRMS's files carry no CORS header, so the browser cannot read them. Bluebird
+Forecast's server fetches the three global 48-hour files (NOAA-20, NOAA-21 and
+MODIS, 27.7 MB together on 2026-10-27) every hour, FIRMS's own cadence, one pod
+for every pod while its database is up, and answers the map's view from that
+copy. A copy is served through a failed refresh for up to 24 hours, like the
+perimeters; past that the layer is empty until FIRMS answers again. Suomi NPP's
+VIIRS feed ends on 2026-11-02, which is why two VIIRS satellites are read and
+not three. The geostationary GOES detections are left out: they are 2 km
+pixels every few minutes, a different picture. See
+[API.md](API.md#fire-detections) for the route, and
+[record 0234](decisions/0234-fire-activity-from-firms-files.md) for why it is
+built this way.
 
 ## Smoke
 
