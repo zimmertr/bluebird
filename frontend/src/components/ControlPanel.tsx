@@ -12,7 +12,7 @@ import type { PanelMessages } from '../hooks/usePanelMessages'
 import { MetricFamily } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
 import { type ActionWord, shouldAutoAnalyze } from '../utils/analyzeGate'
-import { ForecastSelection } from '../utils/calendar'
+import { ForecastSelection } from '../utils/calendar/calendar'
 import { type ForecastModelOption } from '../hooks/useCapabilities'
 import { logoUrl } from '../logo'
 

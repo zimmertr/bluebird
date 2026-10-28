@@ -3,7 +3,7 @@
 // `ForecastCalendar.tsx`, because what a click means given a pending anchor is
 // the part most likely to regress, and the node project can pin it here.
 
-import { nowLocal } from './datetimeLocal'
+import { nowLocal } from '../datetimeLocal'
 import { DAY_END, DAY_START, orderDays } from './calendarDates'
 import { type BandLimits, bandEnd, bandStart } from './calendarBand'
 

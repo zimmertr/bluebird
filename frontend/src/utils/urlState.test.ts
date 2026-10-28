@@ -17,7 +17,7 @@ import {
   ForecastSelection,
   bandEnd,
   classifyWindow,
-} from './calendar'
+} from './calendar/calendar'
 import { GeoPolygon } from '../types'
 import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'
 import { MAX_ANALYZE_DESTINATIONS, NO_CONSTRAINTS } from './clientAnalyze'

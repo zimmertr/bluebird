@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename, isoLocalMinute } from './resultsCsv'
-import { PARTIAL_COVERAGE_NOTE } from './model/modelCompare'
-import { DATA_SOURCES } from './dataSources'
-import { CLOSURE_COL, COLUMNS, TERRAIN_HEIGHT_NOTE, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
-import { FireWarning } from './fireProximity'
-import { geoKey } from './points'
-import { DestinationResult } from '../types'
-import { closureWarning, resultRow } from '../testSupport/fixtures'
-import { SEP } from '../metrics'
-import { normalizeWindow } from './forecastWindow'
+import { PARTIAL_COVERAGE_NOTE } from '../model/modelCompare'
+import { DATA_SOURCES } from '../dataSources'
+import { CLOSURE_COL, COLUMNS, TERRAIN_HEIGHT_NOTE, WILDFIRE_COL, displayedColumns, withModelColumn } from '../tableColumns'
+import { FireWarning } from '../fireProximity'
+import { geoKey } from '../points'
+import { DestinationResult } from '../../types'
+import { closureWarning, resultRow } from '../../testSupport/fixtures'
+import { SEP } from '../../metrics'
+import { normalizeWindow } from '../forecastWindow'
 
 // The coordinates are spelled out because this suite asserts on them: the file
 // must not carry a destination's position, and a fire warning is keyed by one.

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Capabilities, modelForecastHours, publishesModels } from './useCapabilities'
-import { DEFAULT_SELECTION, type ForecastSelection, selectionLocalWindow } from '../utils/calendar'
+import { DEFAULT_SELECTION, type ForecastSelection, selectionLocalWindow } from '../utils/calendar/calendar'
 import { isPointSample } from '../utils/forecastWindow'
 import { panelWindowMs as toWindowMs, planModelChange, windowWarningFor } from '../utils/forecastSelection'
 import type { ShareableState } from '../utils/urlState'

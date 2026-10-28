@@ -2,7 +2,7 @@
 // the snapshot caption, and the archive seam line under Analyze, with the one
 // rule that decides whether a date carries its year.
 
-import { FALLBACK_WINDOW_LIMITS, archiveSeamMs, type WindowLimits } from './forecastWindow'
+import { FALLBACK_WINDOW_LIMITS, archiveSeamMs, type WindowLimits } from '../forecastWindow'
 import { addDays, dayDate, dayKey } from './calendarDates'
 import type { SelectionKind } from './calendarSelection'
 

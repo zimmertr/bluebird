@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { RESULT_ACTION_ATTR, resultPopupHtml } from './resultPopup'
 import { poiPopupHtml, POI_ACTION_ATTR } from './poiPopup'
 import { POPUP_BODY_ATTR, POPUP_TINT_ATTR } from './popup/popupChrome'
-import { cellTint } from './resultsCells'
+import { cellTint } from './results/resultsCells'
 import type { FireWarning } from './fireProximity'
 import { FAMILY_KEYS, NOUN, SEP } from '../metrics'
 import {

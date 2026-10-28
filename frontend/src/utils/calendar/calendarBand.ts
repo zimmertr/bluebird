@@ -5,7 +5,7 @@
 // warning calls out of range can never be different sets.
 
 import { DAY_END, DAY_START, addDays, dayKey, isValidDatetimeLocal, utcDayKey } from './calendarDates'
-import { DAY_MS, HOUR_MS } from './forecastWindow'
+import { DAY_MS, HOUR_MS } from '../forecastWindow'
 
 // The servable band, as day offsets from today. These live here rather than in
 // urlState.ts because the calendar is what makes them visible: they are the

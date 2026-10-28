@@ -18,7 +18,7 @@ import { Constraints, filterConstraints, rankComparator } from './clientAnalyze'
 import { compareAdded } from './model/modelCompare'
 import { geoKey } from './points'
 import { isPointSample } from './forecastWindow'
-import type { SelectionKind } from './calendarSelection'
+import type { SelectionKind } from './calendar/calendarSelection'
 
 /**
  * The knobs that decide presentation rather than what gets fetched.

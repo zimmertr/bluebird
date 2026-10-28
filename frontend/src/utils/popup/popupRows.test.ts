@@ -11,7 +11,7 @@ import {
 import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT } from '../../metrics'
 import type { DestinationResult } from '../../types'
 import { resultRow } from '../../testSupport/fixtures'
-import { cellTint } from '../resultsCells'
+import { cellTint } from '../results/resultsCells'
 
 // Every aggregate differs, so a test can tell which column a value came from.
 const row = resultRow({

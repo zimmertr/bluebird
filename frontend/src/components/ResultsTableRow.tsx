@@ -36,7 +36,7 @@ import {
   pendingLinkRow,
   unavailableCell,
   windyCellUrl,
-} from '../utils/resultsCells'
+} from '../utils/results/resultsCells'
 import { CHOICE_INPUT, ICON_ACTION, LINK_QUIET, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'

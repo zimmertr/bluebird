@@ -12,7 +12,7 @@
 // environment with no jsdom, so a module reaching for Blob or document could
 // not be unit-tested at all; the download itself is `downloadCsv` in exportCsv.ts.
 
-import { DestinationResult } from '../types'
+import { DestinationResult } from '../../types'
 import {
   CLOSURE_COL,
   CLOSURE_KEY,
@@ -23,14 +23,14 @@ import {
   WILDFIRE_COL,
   WILDFIRE_KEY,
   readAtTerrainHeight,
-} from './tableColumns'
-import { isPartialRow, PARTIAL_COVERAGE_NOTE, type ModelEnd, type ModelRow } from './model/modelCompare'
-import { DATA_SOURCES } from './dataSources'
-import { FireWarning } from './fireProximity'
-import type { ClosureWarning } from './closureProximity'
-import { MINUTE_MS, type ResolvedWindow } from './forecastWindow'
-import { geoKey } from './points'
-import { UNAVAILABLE } from './unavailableCell'
+} from '../tableColumns'
+import { isPartialRow, PARTIAL_COVERAGE_NOTE, type ModelEnd, type ModelRow } from '../model/modelCompare'
+import { DATA_SOURCES } from '../dataSources'
+import { FireWarning } from '../fireProximity'
+import type { ClosureWarning } from '../closureProximity'
+import { MINUTE_MS, type ResolvedWindow } from '../forecastWindow'
+import { geoKey } from '../points'
+import { UNAVAILABLE } from '../unavailableCell'
 
 /**
  * The leading position column, named rather than numbered.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { clampPanelHeight, resolvePanelHeights } from './layout'
+import { clampPanelHeight, resolvePanelHeights } from '../layout'
 import {
   DEFAULT_PANEL_HEIGHT,
   DRAGGED_MAP_PX,
@@ -46,7 +46,7 @@ import {
 // which is the trap `styles.test.ts` documents. What App.tsx,
 // useResultsLayout.ts and TimelineTransport.tsx spell is held by the `app-` checks in
 // tools/eslint/checks/app.js.
-import stylesSource from '../styles.ts?raw'
+import stylesSource from '../../styles.ts?raw'
 
 describe('sheetHeightPx', () => {
   it('is the header alone while the results are collapsed', () => {

@@ -130,13 +130,13 @@ export const DATA = [
     // The calendar is a barrel over sibling modules, and the reach must not
     // appear in any of them.
     files: [
-      'src/utils/calendar*.ts',
+      'src/utils/calendar/*.ts',
       'src/components/ControlPanel.tsx',
       'src/components/ForecastSection.tsx',
       'src/utils/panelMessages.ts',
     ],
     ignores: ['src/utils/**/*.test.ts'],
-    probe: 'src/utils/calendarBand.ts',
+    probe: 'src/utils/calendar/calendarBand.ts',
     ban: [
       {
         selector: spelled('365'),
@@ -192,7 +192,7 @@ export const DATA = [
     // calendar.ts without failing an array index, so the guarantee is the
     // shape: there is nowhere for a module-level count to be read from.
     name: 'calendar-limit-args',
-    files: ['src/utils/calendarBand.ts'],
+    files: ['src/utils/calendar/calendarBand.ts'],
     require: [
       { selector: member('pastDays', 'TSNumberKeyword'), message: 'The band carries pastDays as a number.' },
       {
@@ -576,7 +576,7 @@ export const DATA = [
     name: 'unavailable-mark-one-home',
     files: APP_CODE,
     ignores: [...TESTS, 'src/utils/unavailableCell.ts'],
-    probe: 'src/utils/resultsCsv.ts',
+    probe: 'src/utils/results/resultsCsv.ts',
     ban: [
       {
         selector: 'Literal[value="N/A"]',

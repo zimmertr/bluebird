@@ -1,6 +1,6 @@
 import { DestinationResult, SortBy } from '../../types'
 import { AGGREGATE, FAMILY_KEYS, MetricFamily, aggregateToken, familyOf, metricLabel, windowAggregate } from '../../metrics'
-import { cellTint } from '../resultsCells'
+import { cellTint } from '../results/resultsCells'
 import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from '../tableColumns'
 import { ModelRow } from '../model/modelCompare'
 import { extremeHourMs, windyUrl } from '../windy'

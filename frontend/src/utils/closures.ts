@@ -21,7 +21,7 @@ import { apiFetch, overlayFeatures } from './apiFetch'
 import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard, warningLine } from './popup/popupChrome'
 import { type BBox, type FireDetail, formatAcres } from './wildfires'
 import { isFiniteNumber } from './numbers'
-import { utcDayKey } from './calendarDates'
+import { utcDayKey } from './calendar/calendarDates'
 import { hexToRgb } from './colors'
 
 const CLOSURES_URL = '/api/closures'

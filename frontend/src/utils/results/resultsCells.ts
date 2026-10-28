@@ -1,7 +1,7 @@
-import type { DestinationResult } from '../types'
-import { cellInks, cellStyle, scaleFor } from './colors'
-import type { ColDef } from './tableColumns'
-import type { ModelRow } from './model/modelCompare'
+import type { DestinationResult } from '../../types'
+import { cellInks, cellStyle, scaleFor } from '../colors'
+import type { ColDef } from '../tableColumns'
+import type { ModelRow } from '../model/modelCompare'
 import {
   FIRE_UNAVAILABLE_NOTE,
   FIRE_UNCOVERED_NOTE,
@@ -9,7 +9,7 @@ import {
   type FireWarning,
   fireCellText,
   fireWarningText,
-} from './fireProximity'
+} from '../fireProximity'
 import {
   CLOSURE_UNAVAILABLE_NOTE,
   CLOSURE_UNCOVERED_NOTE,
@@ -17,13 +17,13 @@ import {
   type ClosureWarning,
   closureCellText,
   closureWarningText,
-} from './closureProximity'
-import { FREEZE_UNAVAILABLE_NOTE, isFreezeKey } from './freezingLevel'
-import { NO_VALUE_MARK, UNAVAILABLE, isUnavailableKey, unavailableCellText } from './unavailableCell'
-import { extremeHourMs, windyUrl } from './windy'
-import { isPeakKind } from './geocode'
-import type { PendingDestination } from './customList'
-import { geoKey } from './points'
+} from '../closureProximity'
+import { FREEZE_UNAVAILABLE_NOTE, isFreezeKey } from '../freezingLevel'
+import { NO_VALUE_MARK, UNAVAILABLE, isUnavailableKey, unavailableCellText } from '../unavailableCell'
+import { extremeHourMs, windyUrl } from '../windy'
+import { isPeakKind } from '../geocode'
+import type { PendingDestination } from '../customList'
+import { geoKey } from '../points'
 
 // What a results-table cell SAYS, apart from how it is drawn. The row
 // component in ResultsTableRow.tsx is the markup; every decision about which

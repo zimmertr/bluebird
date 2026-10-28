@@ -9,7 +9,7 @@ import {
   resolveResultsMode,
   splitChartTable,
 } from './layout'
-import { dockedMapFloorPx, draggedMapFloorPx } from './resultsSheet'
+import { dockedMapFloorPx, draggedMapFloorPx } from './results/resultsSheet'
 
 describe('clampPanelHeight', () => {
   it('grows with an upward drag when there is room', () => {
