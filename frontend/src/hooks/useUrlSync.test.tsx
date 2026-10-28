@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type UrlSyncInputs, useUrlSync } from './useUrlSync'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
-import { DEFAULT_SELECTION } from '../utils/calendar'
+import { DEFAULT_SELECTION } from '../utils/calendar/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_LIMIT, DEFAULT_SORT } from '../utils/urlState'
 

@@ -5,7 +5,7 @@ import Menu, { MenuButton, MenuSelect } from './Menu'
 import { usePopover } from '../hooks/usePopover'
 import { placeAt, render, type Box } from '../testSupport/render'
 import { ACCENT, MENU, MENU_CHEVRON, MENU_TRIGGER, SURFACE_CHIP_CARD } from '../styles'
-import { CHIP_MENU_GAP_PX } from '../utils/resultsSheet'
+import { CHIP_MENU_GAP_PX } from '../utils/results/resultsSheet'
 
 // The one menu every desk control opens (#714; record 0201): `usePopover`
 // decides where the card goes and what closes it, `Menu` draws the card and

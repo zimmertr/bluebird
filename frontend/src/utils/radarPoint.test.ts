@@ -26,7 +26,7 @@ import {
 import { heldTiles } from './heldTiles'
 import { storeHolding } from '../testSupport/heldTiles'
 import { markupText } from '../testSupport/markupText'
-import { updatedLine } from './popupChrome'
+import { updatedLine } from './popup/popupChrome'
 
 // A moderate echo's colour, index 130 of the palette: 32.5 dBZ.
 const MODERATE = [9, 111, 12, 255] as const

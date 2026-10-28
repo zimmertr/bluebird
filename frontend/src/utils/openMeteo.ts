@@ -49,7 +49,7 @@ import {
   TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
 import { isAbort } from './abort'
-import { utcDayKey } from './calendarDates'
+import { utcDayKey } from './calendar/calendarDates'
 import { retryAfterSeconds } from './apiFetch'
 
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'

@@ -10,7 +10,7 @@ import {
 } from '../utils/openMeteo'
 import { canonicalTimes } from '../utils/clientAnalyze'
 import { normalizeWindow, type WindowLimits } from '../utils/forecastWindow'
-import { GridCell, GridSpec, buildGrid, gridView, pairCells, reachKmFor } from '../utils/forecastGrid'
+import { GridCell, GridSpec, buildGrid, gridView, pairCells, reachKmFor } from '../utils/forecastGrid/forecastGrid'
 import { usePacedFetch } from './usePacedFetch'
 import { isAbort } from '../utils/abort'
 

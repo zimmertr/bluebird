@@ -65,7 +65,7 @@
  * `MAP_EDGE.publish` carries it as `--map-credit-size` for MapLibre's credit
  * line, which has no call site to hand a role to. `styles.test.ts` holds the
  * two spellings to one number, which is the only place that can be done, and
- * the chart's ticks a third time (`CHART_TICK_PX` in `utils/chartColors.ts`),
+ * the chart's ticks a third time (`CHART_TICK_PX` in `utils/chart/chartColors.ts`),
  * since Recharts takes a number rather than a class.
  *
  * 11px since #687, which made this the floor for text that is read: it was

@@ -35,7 +35,7 @@ import { watchBasemap } from '../map/basemapWatch'
 import { createPopupBoard } from '../map/popups'
 import { createCentring } from '../map/centring'
 import { CAMERA_MS, FIT_PADDING_PX, PLACE_PADDING_PX } from '../map/mapStyles'
-import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
+import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid/forecastGrid'
 
 /** Where the map stands, enough to put it back (#536). */
 /** A rectangle in viewport pixels, the shape `getBoundingClientRect` answers. */

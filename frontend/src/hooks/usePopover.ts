@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { popoverBox, type PopoverBox } from '../utils/listbox'
-import { CHIP_MENU_GAP_PX } from '../utils/resultsSheet'
+import { CHIP_MENU_GAP_PX } from '../utils/results/resultsSheet'
 import { useExit } from './useExit'
 import { useTakeOrphanedFocus } from './useFocusHandoff'
 

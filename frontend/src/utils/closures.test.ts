@@ -12,7 +12,7 @@ import {
   fetchClosures,
   formatClosureDates,
 } from './closures'
-import { fineprint } from './popupChrome'
+import { fineprint } from './popup/popupChrome'
 import { isRateLimited } from './wildfires'
 import { closureFeature, fakeResponse } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'

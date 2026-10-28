@@ -29,7 +29,7 @@ import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closu
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF, radarSwatchCss } from '../utils/radar'
-import { legendMaxCss } from '../utils/resultsSheet'
+import { legendMaxCss } from '../utils/results/resultsSheet'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from '../utils/smoke'
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../utils/snowDepth'
 import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'

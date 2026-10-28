@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { HourlySeries } from '../types'
 import type { ForecastModelOption } from './useCapabilities'
-import { ChartLine } from '../utils/chartData'
+import { ChartLine } from '../utils/chart/chartData'
 import { normalizeWindow, type WindowLimits } from '../utils/forecastWindow'
 import {
   CompareDestination,
@@ -15,8 +15,8 @@ import {
   modelSeriesOnGrid,
   pairKey,
   type ModelEndLine,
-} from '../utils/modelCompare'
-import { shownModels } from '../utils/modelVisibility'
+} from '../utils/model/modelCompare'
+import { shownModels } from '../utils/model/modelVisibility'
 import { fetchWeather } from '../utils/openMeteo'
 import { COVERAGE_PHRASE, OpenMeteoModelCoverage } from '../utils/openMeteoErrors'
 import type { WeatherResult } from '../utils/openMeteo'
@@ -27,7 +27,7 @@ import { isAbort } from '../utils/abort'
  * Comparing models across the charted destinations (issue #232): the spend, and
  * the state that survives between clicks.
  *
- * Everything decidable without a network sits in `utils/modelCompare.ts`; this
+ * Everything decidable without a network sits in `utils/model/modelCompare.ts`; this
  * is the part that cannot, so it holds as little as possible. WHICH models are
  * picked is not held here at all — it is panel state, selected in the model
  * picker and carried in the link — so what is left is the forecasts themselves.

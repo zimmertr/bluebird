@@ -15,7 +15,7 @@ import type { FeatureCollection, Point } from 'geojson'
 import type { DestinationResult, SortBy } from '../types'
 import type { PendingDestination } from '../utils/customList'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
-import type { ModelRow } from '../utils/modelCompare'
+import type { ModelRow } from '../utils/model/modelCompare'
 import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
 import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeatures'
 import { usStatesNow } from '../utils/usStatesLoad'
@@ -32,8 +32,8 @@ import {
   WIND_ARROW_FILL,
   WIND_ARROW_OUTLINE,
 } from './mapStyles'
-import type { Point as ScreenPoint, Rect } from '../utils/popupFit'
-import { POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popupChrome'
+import type { Point as ScreenPoint, Rect } from '../utils/popup/popupFit'
+import { POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popup/popupChrome'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'

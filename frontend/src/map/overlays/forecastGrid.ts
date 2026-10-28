@@ -3,7 +3,7 @@
  * field is painted into, the per-cell wind arrows, and the canvas that turns a
  * raster into pixels.
  *
- * Everything that decides what the field looks like is `utils/forecastGrid.ts`,
+ * Everything that decides what the field looks like is `utils/forecastGrid/forecastGrid.ts`,
  * which is pure and tested; this file is the part that needs a map and a
  * canvas. The layers are added once, when the map loads, lowest of every
  * overlay, because the field is the ground the rain, smoke, fire and markers
@@ -23,7 +23,7 @@ import {
   type GridRaster,
   type GridSpec,
   type GridStyle,
-} from '../../utils/forecastGrid'
+} from '../../utils/forecastGrid/forecastGrid'
 
 /**
  * How solid the forecast field is drawn.
@@ -78,7 +78,7 @@ export function gridRedraws(
 // The raster as something an image source will take: a decoded canvas, handed
 // straight to `updateImage` with no encode, no fetch and no decode in between.
 // A canvas is what carries the pixels, which is why this lives here rather
-// than in utils/forecastGrid.ts: everything up to the buffer is pure and
+// than in utils/forecastGrid/forecastGrid.ts: everything up to the buffer is pure and
 // tested, and this is the DOM the last step needs. Returns null where there is
 // no canvas at all (jsdom-less test environments), which simply leaves the
 // field undrawn.

@@ -37,8 +37,8 @@ import {
   tooltipCapacity,
   collidingType,
   lineNamed,
-} from '../utils/chartData'
-import type { ModelEndLine } from '../utils/modelCompare'
+} from '../utils/chart/chartData'
+import type { ModelEndLine } from '../utils/model/modelCompare'
 import {
   PLOT_MARGIN,
   READOUT_ROOM_GAP_PX,
@@ -48,12 +48,12 @@ import {
   fingerReading,
   hourIndexAt,
   readoutPlace,
-} from '../utils/chartPointer'
-import { CHART_TICK_PX, CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chartColors'
+} from '../utils/chart/chartPointer'
+import { CHART_TICK_PX, CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
-// The numbers are `utils/chartPointer.ts`', which a finger's reading and a
+// The numbers are `utils/chart/chartPointer.ts`', which a finger's reading and a
 // click's hour invert through too. A phone's plot takes the titled margins,
 // its picker standing as a title over the plot (#696).
 const X_AXIS_HEIGHT = X_AXIS_HEIGHT_PX

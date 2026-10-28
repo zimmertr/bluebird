@@ -16,8 +16,8 @@ import {
   familyOf,
 } from '../metrics'
 import { type Constraints, NO_CONSTRAINTS } from './constraints'
-import { GRID_REACH_DEFAULT_FRAC, isGridStyle } from './forecastGrid'
-import { type ForecastSelection, isDayKey, isTimeOfDay, orderDays } from './calendar'
+import { GRID_REACH_DEFAULT_FRAC, isGridStyle } from './forecastGrid/forecastGrid'
+import { type ForecastSelection, isDayKey, isTimeOfDay, orderDays } from './calendar/calendar'
 import type { Place } from './geocode'
 import { decodeView, encodeView } from './mapView'
 import { coordinateLabel, geoKey, onGlobe } from './points'

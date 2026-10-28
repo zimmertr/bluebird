@@ -1,7 +1,7 @@
 import type { FeatureCollection } from 'geojson'
 import { DestinationResult, SortBy } from '../types'
 import { colorOnScale, hourlyScale, markerColor } from './colors'
-import { valueAt } from './chartData'
+import { valueAt } from './chart/chartData'
 import { familyOf } from '../metrics'
 import { isFiniteNumber } from './numbers'
 
