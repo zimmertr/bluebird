@@ -81,7 +81,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.15'
       # Pin ruff: its default rule set changes between releases, so an unpinned
@@ -106,7 +106,7 @@ jobs:
       # restoring the 25 MB it saved, so this job lands in the same 26-29 s it
       # takes without it. The wheels are small and already close to the runner;
       # the cache was never paying for a slow download (issue #368).
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.15'
       - run: pip install -r requirements-dev.txt
@@ -146,7 +146,7 @@ jobs:
           (docker build -q -t bluebird:test-db backend/tests/db \
             && docker run -d --rm --name db-test -p 5432:5432 -e POSTGRES_PASSWORD=test bluebird:test-db) \
             > db.log 2>&1 &
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.15'
       - run: pip install -r requirements-dev.txt
