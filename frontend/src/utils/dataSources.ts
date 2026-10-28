@@ -88,6 +88,23 @@ export const DATA_SOURCES: readonly DataSource[] = [
     provides: 'The vector tiles the basemap is drawn from, and the glaciers the snow card names.',
   },
   {
+    name: 'Mapterhorn',
+    href: 'https://mapterhorn.com/attribution',
+    provides: 'Elevation tiles for the optional contours, shaded relief and 3D terrain.',
+  },
+  {
+    name: 'USGS The National Map',
+    href: 'https://www.usgs.gov/programs/national-geospatial-program/national-map',
+    provides: 'Aerial imagery of the United States, for the optional satellite layer.',
+  },
+  {
+    name: 'EOX IT Services',
+    href: 'https://s2maps.eu',
+    provides: 'Sentinel-2 cloudless imagery outside the United States, for the optional satellite layer.',
+    license: 'CC BY-NC-SA 4.0',
+    licenseHref: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+  },
+  {
     name: 'Nominatim',
     href: 'https://nominatim.org',
     provides: 'Place lookup for the map search box.',

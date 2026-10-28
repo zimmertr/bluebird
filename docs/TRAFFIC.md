@@ -423,20 +423,24 @@ default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';
 form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
 style-src-elem 'self'; style-src-attr 'unsafe-inline';
 img-src 'self' data: blob: https://tiles.openfreemap.org https://mesonet.agron.iastate.edu
-  https://mapservices.weather.noaa.gov;
+  https://mapservices.weather.noaa.gov https://tiles.mapterhorn.com https://basemap.nationalmap.gov
+  https://tiles.maps.eox.at;
 connect-src 'self' data: https://api.open-meteo.com https://air-quality-api.open-meteo.com
   https://archive-api.open-meteo.com https://tiles.openfreemap.org https://mesonet.agron.iastate.edu
-  https://mapservices.weather.noaa.gov;
+  https://mapservices.weather.noaa.gov https://tiles.mapterhorn.com https://basemap.nationalmap.gov
+  https://tiles.maps.eox.at;
 worker-src 'self' blob:; child-src 'self' blob:
 ```
 
 Five points in it are measurements rather than habits.
 
 - **`connect-src` is the browser's third-party surface, and nothing else.**
-  The six origins are the ones in the "Outbound" table marked **browser**:
+  The nine origins are the ones in the "Outbound" table marked **browser**:
   Open-Meteo's three services (forecast, air quality, and the archive that
-  answers the calendar's older windows), the basemap, the radar frames, and
-  NOAA's snow analysis, its renders and the point a click on it asks about. Overpass, Nominatim, NIFC, the Forest
+  answers the calendar's older windows), the basemap, the radar frames,
+  NOAA's snow analysis, its renders and the point a click on it asks about,
+  and the three ground layer hosts: Mapterhorn's elevation tiles and the two
+  imagery services, USGS and EOX (#799). Overpass, Nominatim, NIFC, the Forest
   Service's closure layers and NOAA's HMS smoke
   files are absent because the pod fetches those, so for them the browser talks
   to this origin only. NOAA appears on both sides for that reason: the smoke
@@ -580,6 +584,10 @@ release.
 | [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) (`mapservices.weather.noaa.gov`; snow depth overlay) | **browser**, one server-side render per visible tile | visitor IP | none published; a public National Weather Service GIS endpoint with no key | off by default, and the service refuses caching (`max-age=0, must-revalidate`) so every pan re-renders. Bounded by a 512 px tile rather than 256, which is four times fewer renders per screen at the same ~0.46 s each; by the source's `bounds`, so nothing is requested outside the analysis extent; and by a zoom cap at the point the 1 km analysis has no more detail to give, past which MapLibre magnifies what it holds. The tiles load through the app, which keeps a copy of each, so the pointer over painted snow asks for nothing; a click on it is one `identify` request of about 0.8 s, asked once more only after an ArcGIS error inside a 200 (#737), plus, for the glacier check, the zoom-12 basemap tile under the click from `tiles.openfreemap.org`, one to four of them, kept for the next click nearby (#748) |
 | [OpenStreetMap planet](https://planet.openstreetmap.org/) (`planet.openstreetmap.org/pbf/`) | the planet fill (`fill/fill.py`, a weekly CronJob), one download of the planet file (95.4 GB on 2026-10-15) and its `.md5` per fill: the first, and one per change to the rules. A run that finds the table current downloads nothing | cluster egress IP | none published; the planet is what OpenStreetMap offers bulk users in place of its API | one fill at a time (an advisory lock and `concurrencyPolicy: Forbid`), the digest checked, a dropped connection resumed where it stopped rather than started over |
 | [OpenStreetMap replication](https://planet.openstreetmap.org/replication/day/) (`planet.openstreetmap.org/replication/day`) | backend (`services/places/update.py`), one pod for every pod: `state.txt` once an hour, and each new day file (about 110 MB) once. The fill reads `state.txt` once per fill | cluster egress IP | none published | one refresh an hour for the whole deployment, chosen by an advisory lock, and a shared backoff from a minute to an hour after a failure |
+| [OpenFreeMap](https://openfreemap.org) (`tiles.openfreemap.org`; the basemap) | **browser**, through MapLibre: the style JSON, its TileJSON, the vector tiles for the view, the glyphs and the sprites, all from the one origin. The snow card's glacier check reads one to four zoom-12 tiles under a click (#748) | visitor IP | none published; keyless and free, with no registration | MapLibre's own tile cache and the browser's HTTP cache. Nothing is fetched beyond what the view needs |
+| [Mapterhorn](https://mapterhorn.com) (`tiles.mapterhorn.com`; contours, shaded relief and 3D terrain) | **browser**, Terrarium elevation tiles per visible tile (#799) | visitor IP | none published; keyless. Its privacy policy keeps each request's IP address, referrer and user agent for up to 30 days | off by default. No layer draws them yet: the switches and the CSP are in, and the next phase of #799 draws the layers |
+| [USGS The National Map](https://www.usgs.gov/programs/national-geospatial-program/national-map) (`basemap.nationalmap.gov`; satellite) | **browser**, NAIP imagery tiles per visible tile over the United States (#799) | visitor IP | none published; keyless, and the imagery is in the public domain | off by default, and not drawn yet, as for Mapterhorn |
+| [EOX](https://s2maps.eu) (`tiles.maps.eox.at`; satellite) | **browser**, Sentinel-2 cloudless tiles per visible tile wherever USGS has none (#799) | visitor IP | keyless; the imagery is CC BY-NC-SA 4.0, so noncommercial use only | off by default, and not drawn yet, as for Mapterhorn |
 | Open-Meteo forecast + air quality (forecast grid overlay) | **browser** (`useForecastGrid.ts`), 1 lattice of ≤ 600 points per analysis while the layer is on, weather, the cloud column and AQI concurrently | visitor IP | same weighted accounting as the rows above, on the same per-visitor quota | off by default, and the toggle is the spend gate: nothing is fetched until it is on with an analysis held. Sequenced behind the ranked report by construction, so it can never delay a ranking; capped at 600 cells by coarsening the lattice; shares the ranked fetch's ~550 weighted/min pacer, its 4 open requests per host and its 15-min per-location cache, so a re-toggle or a second analysis over the same ground costs ~0, and a grid fetch beside an analysis waits its turn on the host rather than opening more |
 
 Everything the browser fetches itself costs our egress IP nothing — that is

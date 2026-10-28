@@ -347,7 +347,7 @@ describe('the privacy copy, held to the code', () => {
   )
 
   it('dates the policy to the change that last corrected it', () => {
-    expect(privacyPage).toMatch(/Last updated 18 October 2026\./)
+    expect(privacyPage).toMatch(/Last updated 27 October 2026\./)
   })
 
   // The page names each key by what it keeps, and says how many there are.
@@ -406,6 +406,9 @@ describe('the privacy copy, held to the code', () => {
       ['openfreemap.org', 'OpenFreeMap'],
       ['mesonet.agron.iastate.edu', 'Iowa Environmental Mesonet'],
       ['mapservices.weather.noaa.gov', 'NOAA NOHRSC'],
+      ['tiles.mapterhorn.com', 'Mapterhorn'],
+      ['basemap.nationalmap.gov', 'USGS The National Map'],
+      ['tiles.maps.eox.at', 'EOX IT Services'],
     ]
     const expected = new Set<string>()
     for (const host of hosts) {

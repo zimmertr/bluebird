@@ -1,5 +1,5 @@
 // Every host the browser fetches is answered here, so a run spends no
-// Open-Meteo quota and no third-party outage can turn it red. The six
+// Open-Meteo quota and no third-party outage can turn it red. The nine
 // third-party origins are the ones BROWSER_FETCH_ORIGINS in
 // backend/app/security_headers.py lists; the CSP would refuse any other.
 // A request to a host no handler claims is aborted and counted as a leak,
@@ -183,6 +183,10 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
   await page.route('https://tiles.openfreemap.org/styles/**', answer((r) => r.fulfill(json(style))))
   await page.route('https://mesonet.agron.iastate.edu/**', answer(blankTile))
   await page.route('https://mapservices.weather.noaa.gov/**', answer(blankTile))
+  // The ground layers' elevation and imagery tiles (#799).
+  await page.route('https://tiles.mapterhorn.com/**', answer(blankTile))
+  await page.route('https://basemap.nationalmap.gov/**', answer(blankTile))
+  await page.route('https://tiles.maps.eox.at/**', answer(blankTile))
   const weather = answer((r) =>
     r.fulfill(json(hourlyBodies(new URL(r.request().url()), WEATHER_INPUTS, isCloud(r) ? CLOUD_UNITS : WEATHER_UNITS))),
   )
