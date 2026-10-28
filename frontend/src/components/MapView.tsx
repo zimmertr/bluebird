@@ -157,6 +157,18 @@ interface Props {
   // straight from the browser like the radar. An observation layer like the
   // three above it, and no more a knob than they are.
   showSnow: boolean
+  // The ground layers (#799): contour lines and shaded relief, both drawn from
+  // Mapterhorn's elevation tiles, and the aerial imagery, USGS's over the
+  // United States and EOX's Sentinel-2 mosaic elsewhere (`terrainSources.ts`).
+  // Like every layer above, a picture beside the ranking and never a knob.
+  // Accepted and not yet read: the memo already compares them, and phase 2 of
+  // #799 draws them.
+  showContours: boolean
+  showRelief: boolean
+  showSatellite: boolean
+  // Whether the map stands the ground up in 3D on the same elevation tiles
+  // (#799). Accepted and not yet read, like the three above.
+  showTerrain: boolean
   // Which radar frame is on screen, as an index into `radarOffsets()`. Driven
   // by the timeline; ignored entirely while the layer is off.
   radarIndex: number

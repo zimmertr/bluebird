@@ -111,6 +111,10 @@ const OVERLAYS = {
   showRadar: false,
   showSmoke: false,
   showSnow: true,
+  showContours: true,
+  showRelief: false,
+  showSatellite: true,
+  showTerrain: true,
 } as unknown as MapStageProps['overlays']
 const REPORT: MapStageProps['report'] = { results: [ROW], pending: [] }
 const TABLE_VIEW = { tableColumns: [], analysisModelLabel: 'GFS' } as unknown as MapStageProps['tableView']
@@ -221,6 +225,7 @@ describe('MapStage', () => {
     expect(got.showSnow).toBe(true)
     expect(got.showAreaClosures).toBe(false)
     expect(got.showTrailClosures).toBe(true)
+    expect([got.showContours, got.showRelief, got.showSatellite, got.showTerrain]).toEqual([true, false, true, true])
     expect(got.cameraPadBottomPx).toBe(40)
     expect(got.modelId).toBe('gfs_seamless')
     expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)

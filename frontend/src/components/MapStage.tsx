@@ -357,6 +357,10 @@ export default function MapStage({
           showRadar={overlays.showRadar}
           showSmoke={overlays.showSmoke}
           showSnow={overlays.showSnow}
+          showContours={overlays.showContours}
+          showRelief={overlays.showRelief}
+          showSatellite={overlays.showSatellite}
+          showTerrain={overlays.showTerrain}
           radarIndex={timeline.radarIndex}
           gridSpec={grid.grid.spec}
           gridCells={grid.grid.cells}
