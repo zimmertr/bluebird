@@ -1,6 +1,6 @@
 # 0162. The scale bar stands on the theme's ground, and keeps its 10px label
 
-- Status: Accepted. Amends 0147 (the scale bar no longer keeps the library's look, though it still wears no chrome). Amended by 0174 (in a desk's credit line the scale takes no scrim and draws its ends in its ink) and 0222 (the label is 11px, the floor).
+- Status: Accepted. Amends 0147 (the scale bar no longer keeps the library's look, though it still wears no chrome). Amended by 0174 (in a desk's credit line the scale takes no scrim and draws its ends in its ink), 0222 (the label is 11px, the floor) and 0232 (its ends are a dark line and a light one, for the satellite imagery's dark ground).
 - Date: 2026-10-16
 - Decider: the maintainer (TJ), on issue #739, 2026-10-16: the ground for the scale in both themes, and the 11px floor "only if it measures in a way that doesn't cause word wrapping on mobile", then "or any clipping"
 - Issues and PRs: #739, #696, #706, #687

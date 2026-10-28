@@ -824,9 +824,10 @@ a gap in a map that otherwise drew, and says nothing.
 ### Elevation and imagery
 
 The Contours, Shaded relief and Satellite rows, and the 3D terrain, read tiles
-the browser fetches itself from three more hosts, each keyless (#799). None of
-them is drawn yet: the switches, the link and the Content-Security-Policy are
-in, and the layers come next.
+the browser fetches itself from three more hosts, each keyless (#799). The
+satellite imagery is drawn; the contours, the relief and the 3D terrain are
+not yet, though their switches, the link and the Content-Security-Policy are
+in.
 
 **Elevation is Mapterhorn's**, one model behind the contours, the relief and
 the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere, with finer national
@@ -845,11 +846,42 @@ territories it is USGS's NAIP aerial photography, to zoom 16, in the public
 domain. NAIP is flown in summer with the leaves out, in the
 2017 to 2021 seasons, so it shows no snow you could plan on and nothing that
 has changed since. Everywhere else it is EOX's Sentinel-2 cloudless mosaic,
-one cloud-free picture of the year at 10 m per pixel, which goes soft past
-zoom 13. The 2025 mosaic is under CC BY-NC-SA 4.0, as every vintage from 2018
-on is, so it is free for noncommercial use only. Neither is a recent pass:
-both are a still of the ground as it was, not a picture of the conditions on
-it.
+one cloud-free picture of the year at 10 m per pixel. Its tiles stop adding
+detail at zoom 14: a zoom 15 tile differs from its zoom 14 parent, stretched,
+by 1.7 to 3.2 points of 255 on average, where a zoom 14 tile differs from its
+own parent by 8.7 to 12.6 (measured 2026-10-27 over a forest, a town and a
+range in Washington, British Columbia and the Alps). So the map asks EOX for
+nothing past 14 and stretches what it has. The 2025 mosaic is under
+CC BY-NC-SA 4.0, as every vintage from 2018 on is, so it is free for
+noncommercial use only. Neither is a recent pass: both are a still of the
+ground as it was, not a picture of the conditions on it.
+
+The two are drawn as one layer, EOX everywhere with USGS over it, both under
+Liberty's roads, trails and labels, with Liberty's own land, water and
+building fills faded out while the layer is on. USGS draws from zoom 13 up,
+and only over a box from American Samoa to the Arctic and the Aleutians to the
+Virgin Islands. Both limits are its cache's, measured 2026-10-27:
+
+- **Below zoom 13 it fills the land outside its coverage with white.** Zooms 9
+  to 12 answer opaque white JPEGs over British Columbia, Ontario and Sonora,
+  which would paint over EOX. Zoom 8 and under are a coarse world mosaic, not
+  NAIP. From zoom 13 the edge of its coverage is a transparent PNG and beyond
+  it a 404, which MapLibre leaves empty, so EOX shows through. Below 13 EOX
+  alone draws everywhere, which costs nothing: a screen pixel there is already
+  coarser than EOX's 10 m. The seam where USGS stops shows as a straight tile
+  edge where the two pictures' colours differ.
+- **Outside the box every tile is a 404**, about 30 a screen over the Alps,
+  each one logged in the browser's console. Its service metadata states the
+  whole world as its extent, so the box is drawn from where tiles were found
+  instead. Guam, the Northern Marianas and the western Aleutians have USGS
+  photos too, but lie past the antimeridian, where one box cannot reach them
+  without the whole Pacific, so they get EOX's.
+
+A tile host that fails, rather than answering 404, is asked again each time
+the browser reports it is back online, the rule the pod's overlays follow. A
+tile failure carries no `Retry-After` to wait out, and says nothing on screen,
+the way a failed basemap tile says nothing: the roads and labels still draw,
+and over the United States the other picture does too.
 
 ## Wildfires
 

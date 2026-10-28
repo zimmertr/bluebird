@@ -327,9 +327,14 @@ repaints it without re-rendering it (record
 follows the tokens: axis `ink-soft`, grid `rule`, surface `panel` and playhead
 `accent-ink`.
 
-**What does not change.** The map is terrain and light in both themes: the
-basemap, the markers, the ring, the labels and their halo, and every overlay's
-fill and edge keep their values in `mapStyles.ts` and the overlay modules. The
+**What does not change.** The map's ground does not follow the theme: it is
+Liberty's light terrain unless the Satellite row puts imagery under it, which is
+dark. The basemap, the markers, the ring, the labels and their halo, and every
+overlay's fill and edge keep their values in `mapStyles.ts` and the overlay
+modules, and the markers, their labels and the scale bar are built to read on
+either ground: a marker wears a dark ring outside its white stroke, and the
+scale's ends are a dark line and a light one (#799). Record:
+[0232](decisions/0232-map-reads-on-a-dark-ground.md) The
 map's control buttons and its credit box are the app's chrome and
 follow the theme like any floating box, which is why in light their glyphs keep
 MapLibre's own dark drawing where `map.css` inverts them in dark, and the credit
@@ -765,10 +770,14 @@ centred on its button's whole box. The scale bar is a ruler on the map, not a
 control, so it wears none of that chrome.
 Record: [0147](decisions/0147-map-buttons-wear-the-app-chrome.md) It stands on
 the legend ramp's scrim in the ramp's ink instead, so it follows the theme
-(5.35:1 over a white map in the dark theme, its worst), with its ends dark in
-both themes because the basemap is light in both. In a desk's credit line it
-stands on the line instead, so there it takes no scrim and draws its ends in
-its ink (record 0174). Its label is 11px, the floor, on a bar that draws up
+(5.35:1 over a white map in the dark theme, its worst). Its ends are two
+lines, dark outside and light inside in both themes, because the map under it
+is Liberty's light ground or the satellite imagery's forest and snow: the dark
+line clears 14.41:1 or better on snow and on Liberty, the light one 7.72:1 or
+better on a forest, and the two stand 14.46:1 apart (record
+[0232](decisions/0232-map-reads-on-a-dark-ground.md)). In a desk's credit line
+it stands on the line instead, so there it takes no scrim and draws its ends
+in one line of its ink (record 0174). Its label is 11px, the floor, on a bar that draws up
 to 110px so `1000 km` stays inside its narrowest bar (`e2e/scaleBar.spec.ts`,
 record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)).
 Record: [0162](decisions/0162-scale-bar-on-the-theme-ground.md)

@@ -26,7 +26,7 @@ Every menu on a phone is a sheet that rises from the bottom of the screen: Legen
 
 ## Light theme
 
-The app opens dark, whatever your system is set to. The round sun button at the top right of the panel, beside the close button, switches it to light, and the same button, now a moon, switches it back. On a phone it sits beside **Done** in the Controls sheet's title row. Your browser remembers the choice, so the next visit opens in it; it does not ride a shared link, so whoever opens yours sees their own. The map, its markers and overlays look the same in both: the map is terrain, and it is light either way. The popups follow the switch, dark in dark and white in light. In light the results table's shaded cells print their numbers in a darker shade of the band's own colour, so they stay legible on a light page, and the chart draws eight of its twenty line colors darker for the same reason.
+The app opens dark, whatever your system is set to. The round sun button at the top right of the panel, beside the close button, switches it to light, and the same button, now a moon, switches it back. On a phone it sits beside **Done** in the Controls sheet's title row. Your browser remembers the choice, so the next visit opens in it; it does not ride a shared link, so whoever opens yours sees their own. The map, its markers and overlays look the same in both: the map's ground does not follow the switch. It is Liberty's light terrain unless the **Satellite** layer puts photos under it, and the markers, their names and the scale bar read on either. The popups follow the switch, dark in dark and white in light. In light the results table's shaded cells print their numbers in a darker shade of the band's own colour, so they stay legible on a light page, and the chart draws eight of its twenty line colors darker for the same reason.
 
 ## Destinations
 
@@ -230,10 +230,20 @@ again. Each of the six that draw somebody else's data is credited in its own sec
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 | **Contours** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
 | **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
-| **Satellite** | Aerial imagery of the ground | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
+| **Satellite** | Aerial photos of the ground, under the map's roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
 
-The last three rows are in the list and ride in the shared link, but draw
-nothing yet (#799).
+Contours and Shaded relief are in the list and ride in the shared link, but
+draw nothing yet (#799).
+
+**Satellite** puts photos under the map's roads, trails and labels, and takes
+away the map's own colours for land, water and buildings. Over the United
+States, zoomed in, they are USGS's NAIP aerial photos at about a metre, flown
+in summer in the 2017 to 2021 seasons. Everywhere else, and over the US when
+zoomed out, they are EOX's Sentinel-2 cloudless mosaic at 10 m, which goes soft
+past a few streets' width. Neither is a recent pass, so neither shows the snow
+on the ground today: for that, use **Snow depth**. Tick **Contours** as well
+for a hybrid look. The two providers are credited in the map's corner, with
+the map's own.
 
 The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the
 timeline bar at the bottom of the map on and off. It is on by default in a
