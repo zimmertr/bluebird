@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildCustomList, distinctRows, foundAsPending, pendingAsResult, pendingDestinations } from './customList'
 import { destinationUrl } from './destinationUrl'
-import { pendingLinkRow } from './resultsCells'
+import { pendingLinkRow } from './results/resultsCells'
 import { geoKey } from './points'
 import { CustomDestination, DestinationResult } from '../types'
 import { NO_CONSTRAINTS } from './clientAnalyze'

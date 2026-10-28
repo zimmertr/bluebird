@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import ModelsPicker from './ModelsPicker'
-import { toggleHidden } from '../utils/modelVisibility'
+import { toggleHidden } from '../utils/model/modelVisibility'
 import { render } from '../testSupport/render'
 
 // The desk's Models menu: the card 4px under the results bar's own button

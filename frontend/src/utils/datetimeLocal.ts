@@ -1,6 +1,6 @@
 // Formats a Date as the `datetime-local` string ("YYYY-MM-DDTHH:MM"), in the
 // user's local timezone: the shape a calendar selection resolves to before it
-// is converted to UTC for the API (`utils/calendar.ts`).
+// is converted to UTC for the API (`utils/calendar/calendar.ts`).
 
 /** Local `now`, formatted for a datetime-local value. */
 export function nowLocal(now: Date = new Date()): string {

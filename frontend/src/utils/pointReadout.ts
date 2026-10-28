@@ -22,7 +22,7 @@
  * with `registerPoint` in `map/mapPopups.ts`; the card, the rank, the abort of
  * a stale answer and the failure posture are all here or there already.
  */
-import { bodyLines, bodySection, escapeHtml, factsLine, metaBand, popupCard, sectionHeading, widestName } from './popupChrome'
+import { bodyLines, bodySection, escapeHtml, factsLine, metaBand, popupCard, sectionHeading, widestName } from './popup/popupChrome'
 
 /** What one layer says at the clicked point. Every string is markup the reader has escaped. */
 export interface PointSection {

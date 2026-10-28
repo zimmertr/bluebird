@@ -2,9 +2,9 @@ import type { ComponentProps, ReactNode } from 'react'
 import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
-import { CHART_METRICS, extremeValue } from '../utils/chartData'
-import { CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chartColors'
-import { PLOT_MARGIN, TITLED_PLOT_MARGIN } from '../utils/chartPointer'
+import { CHART_METRICS, extremeValue } from '../utils/chart/chartData'
+import { CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
+import { PLOT_MARGIN, TITLED_PLOT_MARGIN } from '../utils/chart/chartPointer'
 import { CHART_TITLE } from '../styles'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
@@ -81,8 +81,8 @@ vi.mock('recharts', () => {
 })
 
 // The real walk, counted, so a test can say how often the chart ran it.
-vi.mock('../utils/chartData', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../utils/chartData')>()
+vi.mock('../utils/chart/chartData', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../utils/chart/chartData')>()
   return { ...real, extremeValue: vi.fn(real.extremeValue) }
 })
 

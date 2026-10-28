@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import ForecastCalendar from './ForecastCalendar'
 import ModelPicker from './ModelPicker'
 import { CONTROL_W, TEXT } from '../styles'
-import type { ForecastSelection } from '../utils/calendar'
+import type { ForecastSelection } from '../utils/calendar/calendar'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
 
 interface Props {

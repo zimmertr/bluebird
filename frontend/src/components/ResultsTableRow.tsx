@@ -24,7 +24,7 @@ import { destinationUrl } from '../utils/destinationUrl'
 import { useUsStates } from '../hooks/useUsStates'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
-import { isPartialRow } from '../utils/modelCompare'
+import { isPartialRow } from '../utils/model/modelCompare'
 import { geoKey } from '../utils/points'
 import {
   cellColor,
@@ -36,7 +36,7 @@ import {
   pendingLinkRow,
   unavailableCell,
   windyCellUrl,
-} from '../utils/resultsCells'
+} from '../utils/results/resultsCells'
 import { CHOICE_INPUT, ICON_ACTION, LINK_QUIET, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'

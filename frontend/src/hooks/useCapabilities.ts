@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiJson } from '../utils/apiFetch'
-import { AQI_LIMIT_DAYS } from '../utils/calendar'
+import { AQI_LIMIT_DAYS } from '../utils/calendar/calendar'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'

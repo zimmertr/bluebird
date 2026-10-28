@@ -11,7 +11,7 @@ import {
   closureWarningText,
 } from '../utils/closureProximity'
 import { FREEZE_UNAVAILABLE_NOTE } from '../utils/freezingLevel'
-import { pendingChartRow } from '../utils/resultsCells'
+import { pendingChartRow } from '../utils/results/resultsCells'
 import { CHOICE_INPUT, TABLE } from '../styles'
 import { formatPrecipTotal } from '../metrics'
 import { closureWarning, fakeResponse, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'

@@ -1,4 +1,4 @@
-import type { SelectionKind } from './calendarSelection'
+import type { SelectionKind } from './calendar/calendarSelection'
 
 /**
  * The When control's two arms, by the word each one shows.

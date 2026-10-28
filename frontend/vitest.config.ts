@@ -35,7 +35,7 @@ function rawAsText(): Plugin {
 // way (`document is not defined`), where a wrong extension is visible in review.
 //
 // The timezone is pinned for both, because a calendar day is a local idea and
-// some of what utils/calendar.ts guarantees only has content in a zone that
+// some of what utils/calendar/calendar.ts guarantees only has content in a zone that
 // observes DST: a local day is 23 or 25 hours across a transition, and on a UTC
 // runner those assertions would pass while proving nothing. The calendar's
 // component test reads the same days, so it needs the same zone.

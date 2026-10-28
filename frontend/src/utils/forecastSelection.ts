@@ -6,7 +6,7 @@ import {
   classifyWindow,
   clampSelection,
   dayKey,
-} from './calendar'
+} from './calendar/calendar'
 
 /** What a model change leaves the panel holding. */
 export interface ModelChangePlan {

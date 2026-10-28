@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type ChartCompareInputs, useChartCompare } from './useChartCompare'
 import { analyzedSnapshot, forecastModel, pendingDestination, resultRow } from '../testSupport/fixtures'
-import { chartKey } from '../utils/chartData'
+import { chartKey } from '../utils/chart/chartData'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
-import { type ModelRow, pairKey } from '../utils/modelCompare'
+import { type ModelRow, pairKey } from '../utils/model/modelCompare'
 import { paceWaitLine } from '../utils/pacing'
 
 // The fetch is its own hook with its own tests. Here it records what it was

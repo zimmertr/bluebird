@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type BandLimits, type ForecastSelection, addDays, dayKey } from './calendar'
+import { type BandLimits, type ForecastSelection, addDays, dayKey } from './calendar/calendar'
 import { panelWindowMs, planModelChange, windowWarningFor } from './forecastSelection'
 
 const NOW = new Date(2026, 8, 20, 10, 30)
