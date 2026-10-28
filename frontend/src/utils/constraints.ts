@@ -4,6 +4,7 @@
 // fetches anything: every bound re-reads rows already in hand, which is what
 // makes each one a live knob rather than another Analyze.
 
+import type { MetricFamily } from '../metrics'
 import type { AnalyzeRequest, DestinationResult } from '../types'
 
 /**
@@ -84,6 +85,38 @@ const UPPER_BOUNDS = [
   ['maxAqi', 'aqi_max'],
   ['maxCloudDeckFt', 'cloud_deck_max_ft'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
+
+/**
+ * Each metric's floor and ceiling, as the Metrics table's row for it edits
+ * them. One table, read by the row and by `invertedFamilies`, so the boxes the
+ * table marks and the pair the gate refuses are the same two.
+ */
+export const FAMILY_BOUNDS: Record<MetricFamily, readonly [lower: keyof Constraints, upper: keyof Constraints]> = {
+  precip: ['minPrecipTotalIn', 'maxPrecipTotalIn'],
+  temp: ['minTempF', 'maxTempF'],
+  wind: ['minWindMph', 'maxWindMph'],
+  freeze: ['minFreezeFt', 'maxFreezeFt'],
+  snowfall: ['minSnowfallTotalIn', 'maxSnowfallTotalIn'],
+  aqi: ['minAqi', 'maxAqi'],
+  cloud_deck: ['minCloudDeckFt', 'maxCloudDeckFt'],
+}
+
+/**
+ * The metrics whose floor is above their ceiling (#803, W7), which admit no
+ * row at all: every row fails one end or the other, nulls aside. A panel or a
+ * link (`?mintemp=50&maxtemp=20`) can set one, and the table then read `No
+ * destinations match these filters`, as if the weather had answered. The gate
+ * holds Analyze on one instead, the misreading #563 fixed on the API. Equal
+ * ends are a bound on one value, not a contradiction.
+ */
+export function invertedFamilies(c: Constraints): MetricFamily[] {
+  return (Object.keys(FAMILY_BOUNDS) as MetricFamily[]).filter((family) => {
+    const [lower, upper] = FAMILY_BOUNDS[family]
+    const lo = c[lower]
+    const hi = c[upper]
+    return lo !== null && hi !== null && lo > hi
+  })
+}
 
 /** Is any bound set? Decides whether the count line mentions matching at all. */
 export function hasConstraints(c: Constraints): boolean {

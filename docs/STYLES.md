@@ -952,8 +952,8 @@ The ones in the tree today, each approved on its own:
   picker's reason over an archive window was a tooltip here until it moved into
   the panel's message block (2026-09-14), which is why `ModelPicker.tsx`'s
   approved count is pinned at zero.
-- The freezing-level cell's *"Freezing level is only available from the GFS
-  Seamless, HRRR and ICON models."* answers a question only that cell raises:
+- The freezing-level cell's *"Freezing level is only available from the NOAA
+  GFS, NOAA HRRR and DWD ICON models."* answers a question only that cell raises:
   it reads `N/A` rather than a number, and without the note the reader cannot
   tell a model that does not carry the variable from an app that failed to
   fetch it. It is the same `N/A`-plus-`title` idiom the Wildfire (mi) column

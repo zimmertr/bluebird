@@ -102,6 +102,22 @@ describe('useModelCompare', () => {
     expect(result.current.lines).toHaveLength(2)
   })
 
+  // #803, W3: the archive answers one reanalysis whatever model is named, so
+  // a compared model over an archive report would buy the same numbers again
+  // and draw them under its own label. Nothing is fetched or drawn.
+  it('compares nothing over an archive report', () => {
+    const { result } = mount(options({ analyzed: { ...ANALYZED, windowSource: 'archive' } }))
+    expect(calls).toHaveLength(0)
+    expect(result.current.active).toBe(false)
+    expect(result.current.compared).toEqual([])
+    expect(result.current.lines).toEqual([])
+  })
+
+  it('compares as before over a report that spans the archive boundary', () => {
+    mount(options({ analyzed: { ...ANALYZED, windowSource: 'spanning' } }))
+    expect(calls.map((c) => c.model)).toEqual(['icon_seamless'])
+  })
+
   // A new analysis is a new question. An answer to the old one that lands
   // after it must not be filed under the new one.
   it('drops a late answer to an analysis that has been replaced', async () => {

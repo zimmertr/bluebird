@@ -5,7 +5,7 @@
 
 import { nowLocal } from '../datetimeLocal'
 import { DAY_END, DAY_START, orderDays } from './calendarDates'
-import { type BandLimits, bandEnd, bandStart } from './calendarBand'
+import { type BandLimits, bandEnd, bandStart, modelEnd } from './calendarBand'
 
 /** Narrowed hours within a day selection, local, `HH:MM`. */
 interface DayHours {
@@ -129,6 +129,13 @@ export function applyDayClick(
  * when something actually moved — an equality check on the result would fire on
  * every model change.
  *
+ * One more refit reads the model's reach as the instant it is rather than as
+ * its day (#803, W4). Hours narrowed on the band's last day can lie wholly past
+ * the reach, which the clamp to the day alone left in place: a window of
+ * nothing but empty hours. The hours are dropped then, so the window is the
+ * whole last day, whose early hours the model does answer, and the caller
+ * warns that the model shortened it.
+ *
  * `now` needs no clamp: it is the current hour, which every model reaches.
  */
 export function clampSelection(
@@ -142,8 +149,11 @@ export function clampSelection(
   const clampDay = (day: string): string => (day < first ? first : day > last ? last : day)
   const startDate = clampDay(selection.startDate)
   const endDate = clampDay(selection.endDate)
-  if (startDate === selection.startDate && endDate === selection.endDate) return null
-  return { ...selection, startDate, endDate }
+  const { hours, ...days } = selection
+  const unreached =
+    hours !== undefined && new Date(`${startDate}T${hours.start}`).getTime() > modelEnd(now, band.forecastHours)
+  if (startDate === selection.startDate && endDate === selection.endDate && !unreached) return null
+  return unreached ? { ...days, startDate, endDate } : { ...selection, startDate, endDate }
 }
 
 /** A day selection with real days, which is what a mode switch remembers. */

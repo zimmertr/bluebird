@@ -240,9 +240,15 @@ export function useTableView({
   // The model every row came from when only one did, so the column says
   // something rather than a dash on a report with no comparison. The ANALYZED
   // model, not the panel's: the numbers are the analysis's, and the picker can
-  // move after it.
+  // move after it. None over an archive report (#803, W3): the archive
+  // answers from a reanalysis with no `models=`, so naming the picker's model
+  // there credited it with numbers it never produced, and the column's dash
+  // says no model, which is the truth `Archive data uses no forecast model.`
+  // already tells the panel.
   const analysisModelLabel =
-    models.find((m) => m.id === (analyzed?.forecastModel ?? forecastModel))?.label ?? null
+    analyzed?.windowSource === 'archive'
+      ? null
+      : (models.find((m) => m.id === (analyzed?.forecastModel ?? forecastModel))?.label ?? null)
 
   // Every displayed row under every model that answered, grouped by
   // destination. `modelRowsFor` owns the rules; this only decides whether to

@@ -6,6 +6,7 @@ import {
   aqiHorizon,
   bandEnd,
   bandStart,
+  classifyWindow,
   inBand,
 } from './calendarBand'
 import { addDays, dayKey, monthKey } from './calendarDates'
@@ -152,5 +153,23 @@ describe('the servable band under a short-range model', () => {
   it('bounds the month navigation by the model, not by the API', () => {
     expect(monthHasBandDay('2026-08', NOW, LONG)).toBe(false)
     expect(monthHasBandDay('2026-07', NOW, HRRR)).toBe(true)
+  })
+})
+
+// #803, W4: the band offers the day HRRR's reach lands in, 2026-07-17, whose
+// hours past 06:00 have no forecast. Hours narrowed wholly past the reach
+// would fetch nothing but nulls, so the window warning holds them.
+describe('a window held against the model\'s last hour', () => {
+  it('calls hours narrowed wholly past the reach out of range', () => {
+    expect(classifyWindow('2026-07-17T08:00', '2026-07-17T12:00', NOW, HRRR)).toBe('future')
+    expect(classifyWindow('2026-07-17T08:00', '2026-07-17T12:00', NOW, LONG)).toBe('ok')
+  })
+
+  // The partial day's own design: its early hours have data, so a window
+  // that only runs past the reach passes, whole day and narrowed alike.
+  it('passes a window that starts inside the reach and runs past it', () => {
+    expect(classifyWindow('2026-07-17T00:00', '2026-07-17T23:59', NOW, HRRR)).toBe('ok')
+    expect(classifyWindow('2026-07-17T04:00', '2026-07-17T12:00', NOW, HRRR)).toBe('ok')
+    expect(classifyWindow('2026-07-16T18:00', '2026-07-17T23:59', NOW, HRRR)).toBe('ok')
   })
 })
