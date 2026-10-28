@@ -4,7 +4,7 @@ import { type GridLayerInputs, useGridLayer } from './useGridLayer'
 import type { ForecastGridInputs } from './useForecastGrid'
 import { analyzedSnapshot, forecastModel, resultRow } from '../testSupport/fixtures'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
-import { GRID_REACH_DEFAULT_FRAC } from '../utils/forecastGrid'
+import { GRID_REACH_DEFAULT_FRAC } from '../utils/forecastGrid/forecastGrid'
 
 // The fetch is its own hook with its own tests. Here it only records what it
 // was fed, and answers a status the test sets.

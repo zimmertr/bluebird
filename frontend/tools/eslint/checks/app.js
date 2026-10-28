@@ -928,7 +928,7 @@ export const APP = [
     // and the table both read it through pairColor. A second indexing of the
     // map is a second answer one spelling away.
     name: 'app-pair-color',
-    files: ['src/utils/modelCompare.ts'],
+    files: ['src/utils/model/modelCompare.ts'],
     require: [
       { selector: 'MemberExpression[computed=true][object.name="colors"]', count: 1, message: 'Index the colour map once.' },
       {

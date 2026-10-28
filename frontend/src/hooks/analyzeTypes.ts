@@ -5,7 +5,7 @@
 
 import type { WindowSource } from '../utils/forecastWindow'
 import type { ElevationLookup } from './useElevationLookup'
-import type { SelectionKind } from '../utils/calendar'
+import type { SelectionKind } from '../utils/calendar/calendar'
 import type { AnalyzedSnapshot } from '../utils/present'
 
 export type Progress = {

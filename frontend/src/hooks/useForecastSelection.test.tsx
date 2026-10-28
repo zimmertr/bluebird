@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { useForecastSelection } from './useForecastSelection'
 import { FALLBACK_FORECAST_MODELS } from './useCapabilities'
 import { capabilities, forecastModel } from '../testSupport/fixtures'
-import { type ForecastSelection, addDays, dayKey } from '../utils/calendar'
+import { type ForecastSelection, addDays, dayKey } from '../utils/calendar/calendar'
 
 // The hook reads the clock at render, so the selections are built from the
 // same fixed local noon rather than from an import-time read a run across

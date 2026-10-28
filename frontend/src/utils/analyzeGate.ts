@@ -1,10 +1,10 @@
 import { familyOf } from '../metrics'
 import type { AnalyzedView, Refusal, RunError } from '../hooks/analyzeTypes'
 import type { DiscoveryType, SortBy } from '../types'
-import { type ForecastSelection, hasDates } from './calendarSelection'
+import { type ForecastSelection, hasDates } from './calendar/calendarSelection'
 import { discoveryNoun } from './clientAnalyze'
 import { modelsWithoutFreeze } from './freezingLevel'
-import { type OrderedModel, selectedIds } from './modelSelection'
+import { type OrderedModel, selectedIds } from './model/modelSelection'
 import { type PanelState, discoveryKeys, panelCommitCues } from './present'
 
 // Whether the Analyze button should be enabled.

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type ResultsLayoutInputs, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
-import { RESULTS_BAR_PX, dockedMapFloorPx } from '../utils/resultsSheet'
+import { RESULTS_BAR_PX, dockedMapFloorPx } from '../utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from '../utils/layout'
 
 // jsdom has no media queries, so the one the Both widening asks is answered

@@ -145,20 +145,20 @@ const METRIC_SURFACES_IN_COMPONENTS = [
   'src/components/TimelineTransport.tsx',
 ]
 const METRIC_SURFACES_ELSEWHERE = [
-  'src/utils/chartData.ts',
+  'src/utils/chart/chartData.ts',
   'src/utils/colors.ts',
   // The one file that writes a whole SENTENCE about a metric (#295).
   'src/utils/freezingLevel.ts',
   // The panel's messages, which name metrics in whole sentences for the same
   // reason.
   'src/utils/panelMessages.ts',
-  'src/utils/popupRows.ts',
+  'src/utils/popup/popupRows.ts',
   'src/utils/resultPopup.ts',
   // A downloaded file is read in a spreadsheet, where nothing around it says
   // which app wrote the header.
-  'src/utils/resultsCsv.ts',
+  'src/utils/results/resultsCsv.ts',
   // What each results-table cell says.
-  'src/utils/resultsCells.ts',
+  'src/utils/results/resultsCells.ts',
   'src/utils/tableColumns.ts',
 ]
 

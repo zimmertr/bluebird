@@ -3,7 +3,7 @@ import type { MapViewHandle } from '../components/MapView'
 import type { AnalyzeRequest, GeoPolygon } from '../types'
 import type { AnalyzeOptions } from './analyzeTypes'
 import { type AnalyzeInputs, planAnalysis } from '../utils/analyzeRequest'
-import { type ForecastSelection, type SelectionKind, selectionLocalWindow } from '../utils/calendarSelection'
+import { type ForecastSelection, type SelectionKind, selectionLocalWindow } from '../utils/calendar/calendarSelection'
 import type { DiscoveryRecord } from '../utils/clientAnalyze'
 
 export type AnalyzeCommandInputs = Omit<AnalyzeInputs, 'kind' | 'window' | 'polygon' | 'previous'> & {

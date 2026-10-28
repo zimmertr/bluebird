@@ -32,7 +32,7 @@ import {
   phoneCornerLiftPx,
   transportFits,
   transportStandPx,
-} from '../utils/resultsSheet'
+} from '../utils/results/resultsSheet'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { Place } from '../utils/geocode'
 import { fieldHasValue } from '../utils/present'

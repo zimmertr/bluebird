@@ -6,8 +6,8 @@ import {
   chartKey,
   debutRows,
   metricForSort,
-} from '../utils/chartData'
-import { CHROME, allocateColors, lineColor } from '../utils/chartColors'
+} from '../utils/chart/chartData'
+import { CHROME, allocateColors, lineColor } from '../utils/chart/chartColors'
 
 // Chart selection for the results table and the chart-only legend: which
 // destinations are overlaid, their stable line colors, and the active metric.

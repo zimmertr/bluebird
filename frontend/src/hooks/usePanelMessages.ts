@@ -9,7 +9,7 @@ import {
   canAnalyze,
   ringAddsNothing,
 } from '../utils/analyzeGate'
-import { type ForecastSelection, selectionLocalWindow } from '../utils/calendar'
+import { type ForecastSelection, selectionLocalWindow } from '../utils/calendar/calendar'
 import { type WindowLimits, windowSource } from '../utils/forecastWindow'
 import {
   type EventNoticeKind,

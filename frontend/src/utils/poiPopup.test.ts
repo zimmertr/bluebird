@@ -11,7 +11,7 @@ import {
   fineprint,
   popupButton,
   popupWidth,
-} from './popupChrome'
+} from './popup/popupChrome'
 
 const RAINIER = { name: 'Mount Rainier', kind: 'volcano', lat: 46.8529, lon: -121.7604, elevationFt: 14410 }
 

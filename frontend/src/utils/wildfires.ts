@@ -15,7 +15,7 @@
 // not "nothing burning".
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, overlayFeatures, type OverlayFailure } from './apiFetch'
-import { bodyLines, escapeHtml, factsLine, metaBand, popupCard, updatedAt, updatedLine } from './popupChrome'
+import { bodyLines, escapeHtml, factsLine, metaBand, popupCard, updatedAt, updatedLine } from './popup/popupChrome'
 import { grouped, isFiniteNumber, roundTo } from './numbers'
 import { hexToRgb } from './colors'
 

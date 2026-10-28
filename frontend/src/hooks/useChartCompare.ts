@@ -4,8 +4,8 @@ import type { AnalyzedView } from './analyzeTypes'
 import type { ForecastModelOption } from './useCapabilities'
 import { useChartSelection } from './useChartSelection'
 import { useModelCompare } from './useModelCompare'
-import { allocateColors, paletteColors } from '../utils/chartColors'
-import { alignRowToGrid, chartKey, collidingType, sharedNames } from '../utils/chartData'
+import { allocateColors, paletteColors } from '../utils/chart/chartColors'
+import { alignRowToGrid, chartKey, collidingType, sharedNames } from '../utils/chart/chartData'
 import { type PendingDestination, pendingAsResult } from '../utils/customList'
 import type { WindowLimits } from '../utils/forecastWindow'
 import {
@@ -14,8 +14,8 @@ import {
   pairColor,
   pairKeysFor,
   seedPairColors,
-} from '../utils/modelCompare'
-import { modelRows, pruneHidden, shownModels, toggleHidden } from '../utils/modelVisibility'
+} from '../utils/model/modelCompare'
+import { modelRows, pruneHidden, shownModels, toggleHidden } from '../utils/model/modelVisibility'
 import { terrainFallbackFor } from '../utils/openMeteo'
 import { paceWaitLine } from '../utils/pacing'
 import { geoKey } from '../utils/points'
@@ -67,7 +67,7 @@ export interface ChartCompareInputs {
  * colour per LINE, which under a comparison is a colour per (destination,
  * model) pair, allocated before the lines are composed so the chart, the
  * table's checkboxes and the Models popover agree. The rules are pure, in
- * `utils/modelCompare.ts` and `utils/modelVisibility.ts`.
+ * `utils/model/modelCompare.ts` and `utils/model/modelVisibility.ts`.
  */
 export function useChartCompare({
   results,

@@ -26,7 +26,7 @@
  */
 import type { HeldTiles, Rgba } from './heldTiles'
 import { inBounds, type PointReading, type PointSection } from './pointReadout'
-import { escapeHtml, row, updatedLine } from './popupChrome'
+import { escapeHtml, row, updatedLine } from './popup/popupChrome'
 import { RADAR_EXTENTS } from './radar'
 import { clamp } from './numbers'
 import { UNAVAILABLE } from './unavailableCell'
