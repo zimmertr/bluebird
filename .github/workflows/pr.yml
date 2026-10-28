@@ -278,7 +278,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       # The browser and Lighthouse jobs load this image rather than build it
-      # again (see the browser job's comment for the measurement).
+      # again (the Lighthouse job's comment has the measurement).
       - name: Save the image for the browser and Lighthouse jobs
         run: docker save bluebird:pr-scan -o /tmp/bluebird-image.tar
       - name: Upload the image
@@ -626,10 +626,11 @@ jobs:
       # cannot overwrite the report of a failure before it.
       - name: Run suite
         id: suite
-        run: npx playwright test --project=chromium --workers=${{ matrix.workers }}
+        run: npx playwright test --project=chromium --workers="$PW_WORKERS"
         working-directory: frontend/e2e
         env:
           BASE_URL: http://localhost:8000
+          PW_WORKERS: ${{ matrix.workers }}
       - name: Run motion
         id: motion
         if: ${{ !cancelled() }}
