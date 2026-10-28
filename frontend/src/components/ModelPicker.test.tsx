@@ -106,6 +106,17 @@ describe('opening and closing', () => {
     const { trigger } = setup({ disabled: true })
     expect((trigger as HTMLButtonElement).disabled).toBe(true)
   })
+
+  // #803, W3: an archive window sets the comparison aside, so the closed
+  // trigger counts no compared model there, and counts them again after.
+  it('counts no compared model while the window takes the model out of play', () => {
+    const { trigger, rerender } = setup({ compared: ['ecmwf_ifs025'], disabled: true })
+    expect(trigger.getAttribute('aria-label')).toBe('Forecast model: NOAA GFS')
+    expect(trigger.textContent).not.toContain('+1')
+    rerender(<Picker compared={['ecmwf_ifs025']} />)
+    expect(trigger.getAttribute('aria-label')).toBe('Forecast model: NOAA GFS +1')
+    expect(trigger.textContent).toContain('+1')
+  })
 })
 
 // A phone's list is a bottom sheet headed by the label's word (record 0136),

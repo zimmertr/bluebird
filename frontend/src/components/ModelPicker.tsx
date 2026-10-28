@@ -26,6 +26,7 @@ import {
   TEXT,
 } from '../styles'
 import { IconClose } from './icons'
+import { comparedInPlay } from '../utils/model/modelSelection'
 
 // Namespaces this listbox's option ids inside the document.
 const LIST_ID = 'model'
@@ -218,6 +219,11 @@ export default function ModelPicker({
   // button greys under the keyboard as it acts, so the keyboard goes to the
   // ranking chip, the one chip left.
   const comparedCount = compared.filter((id) => id !== value).length
+  // What the closed trigger counts: the compared models the run will fetch.
+  // The picker is disabled for an archive window and nothing else, and there
+  // the comparison is set aside (`comparedInPlay`, #803, W3), so a `+2` would
+  // promise lines the run never draws. The selection itself is untouched.
+  const countedOnTrigger = comparedInPlay(compared, disabled ? 'archive' : null).filter((id) => id !== value).length
   function removeAll() {
     if (comparedCount === 0) return
     wantChipFocus.current = 0
@@ -396,7 +402,7 @@ export default function ModelPicker({
         open={open}
         aria-haspopup={sheet ? 'dialog' : 'listbox'}
         aria-label={`Forecast model: ${selected?.label ?? value}${
-          comparedCount > 0 ? ` +${comparedCount}` : ''
+          countedOnTrigger > 0 ? ` +${countedOnTrigger}` : ''
         }`}
         disabled={disabled}
         onClick={() => (open ? close() : openList())}
@@ -418,8 +424,8 @@ export default function ModelPicker({
             ellipsizes rather than pushing it out of a control that must stay
             CONTROL_W wide on both breakpoints. */}
         <span className="min-w-0 truncate">{selected?.label ?? value}</span>
-        {comparedCount > 0 && (
-          <span className="flex-shrink-0 tabular-nums">+{comparedCount}</span>
+        {countedOnTrigger > 0 && (
+          <span className="flex-shrink-0 tabular-nums">+{countedOnTrigger}</span>
         )}
       </MenuButton>
       {(box || (sheet && open)) && (
