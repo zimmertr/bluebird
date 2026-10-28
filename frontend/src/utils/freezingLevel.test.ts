@@ -1,6 +1,9 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+// @ts-expect-error node builtin, untyped in this project
+import { readFileSync } from 'fs'
+// @ts-expect-error node builtin, untyped in this project
+import { dirname, join } from 'path'
+// @ts-expect-error node builtin, untyped in this project
+import { fileURLToPath } from 'url'
 import { describe, expect, it } from 'vitest'
 import {
   FREEZE_MODELS,
@@ -42,7 +45,9 @@ describe('FREEZE_UNAVAILABLE_NOTE', () => {
     )
     expect(FREEZE_UNAVAILABLE_NOTE).not.toContain('\n')
     expect(FREEZE_UNAVAILABLE_NOTE).not.toContain('—')
-    expect(FREEZE_UNAVAILABLE_NOTE.length).toBeLessThanOrEqual(80)
+    // The picker's labels made the approved sentence 82 characters (#803, W9),
+    // where the old short names fitted 80.
+    expect(FREEZE_UNAVAILABLE_NOTE.length).toBeLessThanOrEqual(82)
   })
 })
 
