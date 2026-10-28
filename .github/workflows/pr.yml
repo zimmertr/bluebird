@@ -501,7 +501,7 @@ jobs:
   # Playwright image, the other way to skip apt, pulled in 29 s median and 34 s
   # at most. Neither flaked, and the two specs that measure text width
   # (popupFit, scaleBar) passed without the fonts apt installed. The image
-  # stays the way to run the suite locally (docs/DEVELOPMENT.md).
+  # stays the way to run the suite locally (docs/DEVELOPMENT.md; record 0232).
   browser:
     name: Browser Smoke & Axe
     needs: docker-build
@@ -561,90 +561,4 @@ jobs:
         with:
           name: playwright-report
           path: frontend/e2e/playwright-report
-          retention-days: 7
-
-  # TEMPORARY, for issue #794's second measurement round: delete this job
-  # before the PR is reviewed. It is the browser job's final shape (the image
-  # artifact, Chromium alone), with the parallel invocation's worker count in
-  # the matrix, so 2 and 4 can be chosen between on numbers. The timed steps
-  # carry the same names in every job so the Actions API can be aggregated per
-  # name. continue-on-error keeps a flake from turning the PR red; each step's
-  # own conclusion still records it.
-  browser-measure:
-    name: Measure w${{ matrix.workers }} ${{ matrix.repeat }}
-    needs: docker-build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        workers: [2, 4]
-        repeat: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: 'Hand-off: download'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: bluebird-image
-      - name: 'Hand-off: load'
-        run: |
-          docker load -i bluebird-image.tar
-          docker tag bluebird:pr-scan bluebird:browser
-
-      - name: Serve the built image
-        run: |
-          docker run -d --rm --name browser-target -p 8000:8000 bluebird:browser
-          for _ in $(seq 1 30); do
-            curl -fsS localhost:8000/healthz >/dev/null 2>&1 && break
-            sleep 1
-          done
-          curl -fsS localhost:8000/ >/dev/null
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .node-version
-      - name: Install suite
-        run: npm ci --ignore-scripts
-        working-directory: frontend/e2e
-
-      - name: Read the Playwright version
-        id: pw
-        run: echo "version=$(jq -r '.packages["node_modules/@playwright/test"].version' frontend/e2e/package-lock.json)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ steps.pw.outputs.version }}
-      - name: Install browser
-        run: npx playwright install chromium
-        working-directory: frontend/e2e
-
-      # Run motion runs even when Run suite fails, so each records its own
-      # flakes, and it writes its report to a folder of its own so a pass
-      # cannot overwrite the report of a failure before it.
-      - name: Run suite
-        id: suite
-        run: npx playwright test --project=chromium --workers="$PW_WORKERS"
-        working-directory: frontend/e2e
-        env:
-          BASE_URL: http://localhost:8000
-          PW_WORKERS: ${{ matrix.workers }}
-      - name: Run motion
-        id: motion
-        if: ${{ !cancelled() }}
-        run: npx playwright test --project=motion --workers=1
-        working-directory: frontend/e2e
-        env:
-          BASE_URL: http://localhost:8000
-          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-motion
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: ${{ failure() && (steps.suite.outcome == 'failure' || steps.motion.outcome == 'failure') }}
-        with:
-          name: playwright-report-w${{ matrix.workers }}-${{ matrix.repeat }}
-          path: |
-            frontend/e2e/playwright-report
-            frontend/e2e/playwright-report-motion
           retention-days: 7

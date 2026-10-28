@@ -7,10 +7,11 @@ import { defineConfig } from '@playwright/test'
 // at four (measured 2026-10-27, run 40623715965, issue #794). The fourth,
 // rowTap, taps a card while the phone sheet moves, and failed 1 of 10 at four
 // workers and 0 of 10 at two (run 40626408663, 2026-10-27). So `chromium`
-// runs the rest in parallel and `motion` runs those four alone after it. The
+// runs the rest on four workers, which passed ten runs of ten with those four
+// apart (run 40733848241, 2026-10-28), and `motion` runs them alone after it. The
 // two are joined by `&&`, so the playwright-report/ left behind is always the
 // failed invocation's. No retries: a retry would hide exactly the flake this
-// suite is meant to show.
+// suite is meant to show (record 0232).
 const MOTION = ['**/panelMotion.spec.ts', '**/centring.spec.ts', '**/chartTap.spec.ts', '**/rowTap.spec.ts']
 // The render probe runs on request (`make perf`), never in CI.
 const PERF = 'perf/**'
