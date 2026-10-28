@@ -41,6 +41,6 @@ describe('branding', () => {
 
   it('reads the files it claims to lint', () => {
     expect(Object.keys(sources).some((p) => p.endsWith('/App.tsx'))).toBe(true)
-    expect(Object.keys(sources).some((p) => p.endsWith('/utils/resultsCsv.ts'))).toBe(true)
+    expect(Object.keys(sources).some((p) => p.endsWith('/utils/results/resultsCsv.ts'))).toBe(true)
   })
 })

@@ -7,7 +7,7 @@ export type DiscoveryType = Exclude<DestinationType, 'custom'>
 
 // The panel's forecast selection is not mirrored here: it is a browser-side
 // idea (a local calendar day) with no Pydantic counterpart, so it lives in
-// utils/calendar.ts. On the wire an analysis is only ever two timestamps, and a
+// utils/calendar/calendar.ts. On the wire an analysis is only ever two timestamps, and a
 // point sample is start == end == the moment, which the backend normalizes to
 // the hour containing it.
 

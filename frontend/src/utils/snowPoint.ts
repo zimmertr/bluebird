@@ -40,7 +40,7 @@
  */
 import type { HeldTiles, Rgba } from './heldTiles'
 import { inBounds, layerFetch, type PointReading, type PointSection } from './pointReadout'
-import { escapeHtml, pendingValue, row, updatedAt, updatedLine } from './popupChrome'
+import { escapeHtml, pendingValue, row, updatedAt, updatedLine } from './popup/popupChrome'
 import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_SERVICE_URL } from './snowDepth'
 import { GLACIERS, type GlacierCheck } from './glacierCell'
 import { clamp, grouped } from './numbers'

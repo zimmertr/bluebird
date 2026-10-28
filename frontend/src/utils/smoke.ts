@@ -20,7 +20,7 @@
 // answer means "not covered", not "clear".
 import type { FeatureCollection } from 'geojson'
 import { apiFetch, overlayFeatures } from './apiFetch'
-import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard } from './popupChrome'
+import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard } from './popup/popupChrome'
 import { hexToRgb } from './colors'
 
 const SMOKE_URL = '/api/smoke'

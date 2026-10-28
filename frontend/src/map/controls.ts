@@ -94,7 +94,7 @@ export function addControls(map: maplibregl.Map): MapControls {
   dressZoomPair(zoom._container)
   // The scale's corner is the bottom left, where a phone's stands beside the
   // (i) in the one band the map's bottom chrome reserves (`TRANSPORT_GAP_PX`
-  // in `utils/resultsSheet.ts`). A desk's stands at the end of the credit line
+  // in `utils/results/resultsSheet.ts`). A desk's stands at the end of the credit line
   // in the bottom-right corner instead (`MapCorner`).
   const scale = new ScaleControl({ maxWidth: SCALE_MAX_WIDTH_PX })
   map.addControl(scale, 'bottom-left')
