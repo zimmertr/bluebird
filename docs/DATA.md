@@ -835,9 +835,8 @@ where you look. 30 m is enough for a ridge and a valley, and too coarse for a
 gully or a cliff band. Past the zoom a region's survey reaches, a tile answers
 404, so the layers ask for nothing past zoom 12, which the 30 m fill holds over
 all land, and stretch those tiles further in. Open ocean has no tile at any
-zoom. The
-data is licensed per source, mostly CC BY 4.0 and US public domain, and
-Mapterhorn asks for one credit, `© Mapterhorn`, linked to its attribution
+zoom. The data is licensed per source, mostly CC BY 4.0 and US public domain,
+and Mapterhorn asks for one credit, `© Mapterhorn`, linked to its attribution
 page. Its privacy policy says it keeps each request's IP address, referrer and
 user agent for up to 30 days.
 
@@ -866,8 +865,10 @@ noncommercial use only. Neither is a recent pass: both are a still of the
 ground as it was, not a picture of the conditions on it.
 
 The two are drawn as one layer, EOX everywhere with USGS over it, both under
-Liberty's roads, trails and labels, with Liberty's own land, water and
-building fills faded out while the layer is on. USGS draws from zoom 13 up,
+Liberty's roads, trails and labels and under the relief and the contours, with
+Liberty's own land, water and building fills faded out while the layer is on.
+The trails wear a light casing over it, because their brown reads 1.69:1 on a
+forest (record [0233](decisions/0233-map-reads-on-a-dark-ground.md)). USGS draws from zoom 13 up,
 and only over a box from American Samoa to the Arctic and the Aleutians to the
 Virgin Islands. Both limits are its cache's, measured 2026-10-27:
 

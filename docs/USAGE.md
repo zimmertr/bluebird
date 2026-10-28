@@ -217,7 +217,7 @@ controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Each of the seven that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
+again. Seven of them are credited in their own section of the map's legend, and the three that draw the ground, Contours, Shaded relief and Satellite, in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
@@ -253,9 +253,10 @@ States, zoomed in, they are USGS's NAIP aerial photos at about a metre, flown
 in summer in the 2017 to 2021 seasons. Everywhere else, and over the US when
 zoomed out, they are EOX's Sentinel-2 cloudless mosaic at 10 m, which goes soft
 past a few streets' width. Neither is a recent pass, so neither shows the snow
-on the ground today: for that, use **Snow depth**. Tick **Contours** as well
-for a hybrid look. The two providers are credited in the map's corner, with
-the map's own.
+on the ground today: for that, use **Snow depth**. **Shaded relief** and
+**Contours** draw over the photos; tick **Contours** for a hybrid look. While
+the photos are on, the trails wear a light edge so they read over the woods.
+The two providers are credited in the map's corner, with the map's own.
 
 The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the
 timeline bar at the bottom of the map on and off. It is on by default in a
@@ -356,7 +357,7 @@ layers above, it changes nothing about the analysis.
 
 ### The forecast grid
 
-The other three overlays draw somebody else's data. This one draws yours: the same
+Every other overlay draws somebody else's data. This one draws yours: the same
 metric your results are ranked by, asked for on a lattice of points across the area
 your analysis covered, and painted on the colors the marker legend already shows. It answers the question the markers cannot — is this one summit's
 weather, or is the whole valley like that?
