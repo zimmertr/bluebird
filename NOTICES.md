@@ -62,6 +62,15 @@ services the data comes from, and the software bundled into the shipped image.
   services, under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
   Credited on the map's fire legend whenever fire data is drawn, and in an
   exported CSV whenever the file carries the wildfire column.
+- [NASA FIRMS](https://earthdata.nasa.gov/firms): active fire detections from
+  the VIIRS instruments on NOAA-20 and NOAA-21 and the MODIS instruments on
+  Terra and Aqua, for the optional fire activity layer. The server fetches
+  them, so the browser never contacts FIRMS. NASA data is free to use with no
+  restriction, and FIRMS asks to be acknowledged in these words: "We
+  acknowledge the use of data and/or imagery from NASA's Fire Information for
+  Resource Management System (FIRMS) (https://earthdata.nasa.gov/firms), part
+  of NASA's Earth Science Data and Information System (ESDIS)." Credited on the
+  map's fire activity legend whenever detections are drawn.
 - [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html): smoke plumes
   traced from GOES imagery by analysts at the Hazard Mapping System. A work of
   the US government, and so in the public domain under 17 U.S.C. §105; no
