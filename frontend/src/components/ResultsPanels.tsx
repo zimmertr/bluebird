@@ -17,7 +17,6 @@ import {
   CHART_LEGEND,
   ICON_ACTION,
   LAYOUT_HOLD,
-  LINE_EDGE,
   MOTION,
   MUTED,
   RADIUS,
@@ -251,10 +250,8 @@ export default function ResultsPanels({
                   aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
                   className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
                 >
-                  {/* The line's colour, wearing the line's rim,
-                      which only the light theme draws (PR #733). */}
                   <span
-                    className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED} ${LINE_EDGE.swatch}`}
+                    className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED}`}
                     style={{ backgroundColor: rowChartColor(row) }}
                   />
                   <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>

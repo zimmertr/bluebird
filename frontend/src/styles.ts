@@ -9,7 +9,7 @@
  * They are not two scales. The dialog title is the panel header's title, one
  * size for both since #687 (both are the name of the surface they head), and
  * the dialog subtitle is the caption step one size up, the same recipe the
- * tagline under the app title wears, and both say "The Weather Window Finder"
+ * tagline under the app title wears, and both say "Weather Window Finder"
  * (record 0222).
  * And the reading tier's small step lands exactly on the compact tier's base,
  * so the two share the 12px rung rather than running past each other. Naming
@@ -939,29 +939,6 @@ export const SWATCH_RAMP_TICK =
  * four call sites in `App.tsx` until #454.
  */
 export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
-
-/**
- * The dark rim a mark in a chart line's colour wears in the light theme (PR
- * #733): the readout's swatches, the chart-only legend's dots and the table's
- * chart checkbox. The light lines are pastels that read 1.16 to 1.62:1 on the
- * light panel, under the 3:1 a graphic owes its ground, so the chart draws
- * each over a rim of the secondary ink (`CHART_CHROME.light.lineEdge`, 8.34:1
- * on the panel), which every pastel reads 3:1 or better against. A mark in a
- * line's colour is the same pastel on the same panel and owes the same
- * boundary, so it wears the same rim; dark marks stand off their panel by
- * themselves, so the rim's token is transparent there (`--ui-line-edge`) and
- * a call site wears this in both themes, naming neither (#786).
- *
- * An outline, 1px, so the rim takes no room from the colour inside it and a
- * native checkbox keeps the box the browser draws: Chromium follows the
- * control's rounded corners with it. The checkbox's half carries `FOCUS_RING`
- * because an author outline replaces the browser's own focus ring, which the
- * box had relied on.
- */
-export const LINE_EDGE = {
-  swatch: 'outline-1 outline-line-edge',
-  input: `outline-1 outline-line-edge ${FOCUS_RING}`,
-} as const
 
 export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
 
@@ -2544,18 +2521,20 @@ export const PANEL_BODY =
  * their roles and sizes, so the block is 54.5px of text and padding and the
  * logo's 56px sets the height. That is 24px back to the scrolling body on
  * every screen, 9% of a 900px window spent on fixed chrome becoming 6%
- * (measured 2026-10-13: 81 to 57px). The close button keeps its place at the
- * top right, a 32px circle 8px down on either pointer.
+ * (measured 2026-10-13: 81 to 57px). The name and the tagline start together
+ * at the block's left edge, as they always have: the maintainer tried them
+ * centred and had them put back (#801, record 0229).
  */
 export const PANEL_HEADER = {
   logo: 'm-2 h-10 w-10 flex-shrink-0 object-cover',
   title: 'flex flex-col justify-center px-3 py-2',
   /**
    * Where the header's round buttons stand: the theme switch and the close
-   * button, at the top right, 8px apart (#706). The close button's own spot,
-   * which it held alone until the switch joined it on its left.
+   * button, at the top right, 8px apart (#706). 12px down, so a 32px circle's
+   * centre stands at 28px, on the logo's and the title block's in the 56px
+   * header (#801).
    */
-  actions: 'absolute top-2 right-2 z-10 flex gap-2',
+  actions: 'absolute top-3 right-2 z-10 flex gap-2',
 } as const
 
 /**
@@ -3049,6 +3028,28 @@ export const MENU = {
   hover: 'hover:bg-raised',
   current: 'font-semibold',
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
+} as const
+
+/**
+ * A row of the model list (#801). The checkbox comes first, as in every other
+ * checkbox menu (`CHOICE_ROW`), and a hairline parts each model from the next
+ * with 8px over and under it: a row is a name, two figures and a sentence or
+ * two, and eight of them with nothing between read as one paragraph, most of
+ * all on a phone. Every name is semibold (`name`), so each row starts on its
+ * box and its name; the ranking model is the one under the Ranking chip, its
+ * tick fixed.
+ *
+ * The raised fill follows a mouse (`MENU.hover`) and the keyboard (`keys`,
+ * while the list shows its focus ring), never a finger. The list's cursor
+ * stands on the ranking row from the moment it opens and moves to wherever a
+ * tap lands; lit for a finger, with nothing to steer it away, it read as the
+ * selection. `keys` reads the listbox's focus through `list`.
+ */
+export const MODEL_ROW = {
+  list: 'group/list',
+  row: `flex items-start gap-2 border-t first:border-t-0 ${SURFACE_DIVIDER} px-1.5 py-2 ${MENU.hover}`,
+  keys: 'group-focus-visible/list:bg-raised',
+  name: TEXT.subheading,
 } as const
 
 /**

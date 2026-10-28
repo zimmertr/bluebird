@@ -59,7 +59,7 @@ export default function WelcomeModal({ onDismiss, onTutorial, tutorialWaits = fa
           />
           <div>
             <h1 id="welcome-title" className={PROSE.title}>Welcome to Bluebird Forecast</h1>
-            <p className={PROSE.subtitle}>The Weather Window Finder</p>
+            <p className={PROSE.subtitle}>Weather Window Finder</p>
           </div>
         </div>
 

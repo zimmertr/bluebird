@@ -10,6 +10,8 @@ import {
   TEXT,
 } from '../styles'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { useShiftRange } from '../hooks/useShiftRange'
+import { shiftHeld } from '../utils/rangeSelect'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
@@ -130,6 +132,11 @@ export default function DestinationsSection({
   }, [drawing, drawPointCount])
   const row = drawControls(drawing, drawPointCount)
   const peaksOn = destinationTypes.includes('peak')
+  // Shift reaches every type between this box and the last one pressed, as in
+  // every checkbox group in the app (record 0209, #801). The row never closes,
+  // so the anchor stands until the next press.
+  const pressType = useShiftRange(true)
+  const typeOrder = DESTINATION_TYPES.filter((t) => t.implemented).map((t) => t.value)
   // The types and the unnamed-peaks knob are live only over a ring a search
   // can use, and grey again when it is cleared or grows past the cap. Greyed
   // keeps the ticks, so the next ring searches what the reader chose, and a
@@ -301,13 +308,14 @@ export default function DestinationsSection({
                 value={value}
                 checked={destinationTypes.includes(value)}
                 disabled={!implemented || !typesLive}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const reached = new Set(pressType(typeOrder, value, shiftHeld(e)))
                   setDestinationTypes(
                     e.target.checked
-                      ? [...destinationTypes, value]
-                      : destinationTypes.filter((t) => t !== value),
+                      ? [...destinationTypes, ...typeOrder.filter((t) => reached.has(t) && !destinationTypes.includes(t))]
+                      : destinationTypes.filter((t) => !reached.has(t)),
                   )
-                }
+                }}
                 className={CHOICE_INPUT}
               />
               <span>{label}</span>

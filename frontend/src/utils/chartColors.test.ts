@@ -7,106 +7,86 @@ import {
   BASE_PALETTE_SIZE,
   CHART_CHROME,
   CHROME,
-  LINE_RIM_INK,
+  CROWDED_PAST,
+  LINE_DRAW,
 } from './chartColors'
-import { contrast, relativeLuminance, round2 } from '../testSupport/contrast'
+import { contrast, round2 } from '../testSupport/contrast'
+import { themed } from './themeColor'
 
 const THEMES = ['dark', 'light'] as const
 
+// ColorBrewer Set1 (#801): Brewer's nine, then a lighter shade of each and a
+// darker shade of the first two, every one turned five degrees toward red,
+// as the Chart Palette Lab drew them for the maintainer. Light makes its
+// shades darker first, and darkens the eight of its twenty that fell under
+// 3:1 on the light panel.
+const DARK = [
+  '#e41534', '#2c80b6', '#5dad3d', '#9350a9', '#ff7e30', '#fff9a8', '#a85430', '#f382c8', '#999999', '#fe5a4a',
+  '#619cd1', '#76cd77', '#b471bc', '#ffb484', '#f5f859', '#c07850', '#fdb6d7', '#b8b8b8', '#a33417', '#365f8d',
+]
+const LIGHT = [
+  '#e41534', '#2c80b6', '#4d9d2a', '#9350a9', '#e46602', '#958e3f', '#a85430', '#d365ab', '#8a8a8a', '#ac221a',
+  '#256092', '#368e3a', '#76367d', '#cd6b19', '#8f9000', '#803d13', '#ce699d', '#7b7b7b', '#e9603f', '#648ebf',
+]
+const all = (theme: (typeof THEMES)[number]) => Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => colorForIndex(i, theme))
+
 describe('colorForIndex', () => {
-  it('uses the curated palette for the first indices', () => {
-    expect(colorForIndex(0, 'dark')).toBe('#38bdf8')
-    expect(colorForIndex(0, 'light')).toBe('#74d4ff')
-    expect(colorForIndex(1, 'dark')).toMatch(/^#[0-9a-f]{6}$/)
+  it('paints the lab\'s twenty in dark, and the eight under 3:1 darkened in light', () => {
+    expect(BASE_PALETTE_SIZE).toBe(20)
+    expect(all('dark')).toEqual(DARK)
+    expect(all('light')).toEqual(LIGHT)
+    // Brewer's own nine that clear 3:1 in light are the same hex in both.
+    for (const i of [0, 1, 3, 6]) expect(LIGHT[i]).toBe(DARK[i])
   })
 
-  it('generates distinct hex hues past the curated palette', () => {
+  // Past twenty the palette comes round again, as Tableau's does.
+  it('repeats the twenty past the twentieth line', () => {
     for (const theme of THEMES) {
-      const a = colorForIndex(BASE_PALETTE_SIZE, theme)
-      const b = colorForIndex(BASE_PALETTE_SIZE + 1, theme)
-      expect(a).toMatch(/^#[0-9a-f]{6}$/)
-      expect(b).toMatch(/^#[0-9a-f]{6}$/)
-      expect(a).not.toBe(b)
+      for (const index of [BASE_PALETTE_SIZE, 37, 42, 999]) {
+        expect(colorForIndex(index, theme)).toBe(colorForIndex(index % BASE_PALETTE_SIZE, theme))
+      }
     }
   })
 
-  // The light walk is the dark one's hue at lightness 78 rather than 64
-  // (PR #733): a generated line keeps its hue across a switch and takes the
-  // light theme's pastel, drawn over its edge.
-  it('walks the same hues past the palette in both themes, paler in light', () => {
-    for (const index of [BASE_PALETTE_SIZE, 17, 42]) {
-      const dark = colorForIndex(index, 'dark')
-      const light = colorForIndex(index, 'light')
-      expect(hue(light)).toBeCloseTo(hue(dark), -1)
-      expect(relativeLuminance(light)).toBeGreaterThan(relativeLuminance(dark))
-    }
+  // The line settings: 1.5px up to thirty lines, 1px past, full strength at
+  // any count, 2.5px under the pointer with the rest at half.
+  it('thins every line past thirty and never fades a crowd', () => {
+    expect(CROWDED_PAST).toBe(30)
+    expect(LINE_DRAW).toEqual({ width: 1.5, crowdedWidth: 1, focusedWidth: 2.5, dimmedOpacity: 0.5 })
   })
 })
 
 describe('the palette in each theme (#706)', () => {
-  // Ten hues a theme, at the same index in each, so a switch recolours a line
-  // without moving it along the palette.
-  it('keeps ten curated hues a theme, one for one', () => {
-    for (let i = 0; i < BASE_PALETTE_SIZE; i++) {
-      for (const theme of THEMES) expect(colorForIndex(i, theme)).toMatch(/^#[0-9a-f]{6}$/)
-    }
-    const light = Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => colorForIndex(i, 'light'))
-    expect(new Set(light).size).toBe(BASE_PALETTE_SIZE)
+  // Twenty colours a theme, at the same index in each, so a switch recolours
+  // a line without moving it along the palette.
+  it('keeps twenty colours a theme, all different', () => {
+    for (const theme of THEMES) expect(new Set(all(theme)).size).toBe(BASE_PALETTE_SIZE)
   })
 
-  // A series line is a graphic the reader tells apart from its ground, so
-  // 3:1 (WCAG 1.4.11) against whatever stands it off the panel. In dark that
-  // is the panel itself: 5.52 (pink) to 9.69 (lime) on slate-800. In light
-  // it is the dark edge the line is drawn over (PR #733), because the pastels
-  // alone read 1.16 (lime) to 1.62 on the light panel: against the edge they
-  // read 5.14 (pink) to 7.21 (lime). Measured 2026-10-15.
-  it('stands every curated line at 3:1 or better against its boundary', () => {
-    const ratios = (theme: (typeof THEMES)[number], ground: string) =>
-      Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => contrast(colorForIndex(i, theme), ground))
-    const dark = ratios('dark', CHART_CHROME.dark.surface)
-    for (const ratio of dark) expect(ratio, 'dark').toBeGreaterThanOrEqual(3)
-    expect(round2(Math.min(...dark))).toBe(5.52)
-    const light = ratios('light', CHART_CHROME.light.lineEdge!)
-    for (const ratio of light) expect(ratio, 'light').toBeGreaterThanOrEqual(3)
-    expect([round2(Math.min(...light)), round2(Math.max(...light))]).toEqual([5.14, 7.21])
-    // Why the edge exists: no light line clears 3:1 on the panel alone.
-    const bare = ratios('light', CHART_CHROME.light.surface)
-    expect([round2(Math.min(...bare)), round2(Math.max(...bare))]).toEqual([1.16, 1.62])
-  })
-
-  // The chart draws a line per displayed row, hundreds of them, so the
-  // generated colours past the tenth are most of a big chart and owe the
-  // same 3:1. The first thousand allocator indices in each theme, measured
-  // 2026-10-15: dark 3.08 to 10.74 on slate-800 (the walk's lightness is the
-  // lowest whole number that clears it at every hue), light 3.90 to 7.75
-  // against the edge.
-  it('stands every generated line at 3:1 or better for the first thousand indices', () => {
-    const indices = Array.from({ length: 1000 }, (_, i) => i)
-    const dark = indices.map((i) => contrast(colorForIndex(i, 'dark'), CHART_CHROME.dark.surface))
-    const light = indices.map((i) => contrast(colorForIndex(i, 'light'), CHART_CHROME.light.lineEdge!))
-    for (const ratio of dark) expect(ratio, 'dark').toBeGreaterThanOrEqual(3)
-    for (const ratio of light) expect(ratio, 'light').toBeGreaterThanOrEqual(3)
-    const generated = (xs: number[]) => xs.slice(BASE_PALETTE_SIZE)
-    expect([round2(Math.min(...generated(dark))), round2(Math.max(...generated(dark)))]).toEqual([3.08, 10.74])
-    expect([round2(Math.min(...generated(light))), round2(Math.max(...generated(light)))]).toEqual([3.9, 7.75])
-  })
-
-  // The edge itself is what stands a light line off the panel, so it owes
-  // the panel 3:1 too: it is the light theme's secondary ink, 8.34:1 there.
-  // Dark lines carry no edge.
-  it('draws the light lines over an edge that stands off the panel, and the dark ones over none', () => {
-    expect(CHART_CHROME.light.lineEdge).toBe(CHART_CHROME.light.axis)
-    expect(round2(contrast(CHART_CHROME.light.lineEdge!, CHART_CHROME.light.surface))).toBe(8.34)
-    expect(CHART_CHROME.dark.lineEdge).toBeNull()
+  // A series line is a graphic the reader tells apart from its ground, so it
+  // owes the panel 3:1 (WCAG 1.4.11). Light clears it everywhere, 3.01 to
+  // 7.21 on the light panel, because its eight were darkened to it. Dark is
+  // the lab's output untouched, 2.13 to 13.48 on slate-800, with four of the
+  // twenty under 3:1 (the two dark shades, purple and brown), which the
+  // maintainer accepted with Tableau's lead (#801). Measured 2026-10-27.
+  it('stands every light colour at 3:1 or better on the panel, and dark all but four', () => {
+    const ratios = (theme: (typeof THEMES)[number]) => all(theme).map((c) => contrast(c, CHART_CHROME[theme].surface))
+    const span = (xs: number[]) => [round2(Math.min(...xs)), round2(Math.max(...xs))]
+    for (const ratio of ratios('light')) expect(ratio).toBeGreaterThanOrEqual(3)
+    expect(span(ratios('light'))).toEqual([3.01, 7.21])
+    expect(span(ratios('dark'))).toEqual([2.13, 13.48])
+    expect(ratios('dark').filter((r) => r < 3)).toHaveLength(4)
   })
 
   // A line's colour is both themes' shades of its index at once, light
-  // first, which the root's colour scheme picks between (#786).
+  // first, which the root's colour scheme picks between (#786). A colour the
+  // same in both is written once.
   it('resolves a whole allocation to both themes\' shades at once', () => {
-    const held = allocateColors({}, ['a', 'b'])
+    const held = allocateColors({}, ['a', 'b', 'c'])
     expect(paletteColors(held)).toEqual({
-      a: 'light-dark(#74d4ff, #38bdf8)',
-      b: 'light-dark(#fda5d5, #f472b6)',
+      a: '#e41534',
+      b: '#2c80b6',
+      c: 'light-dark(#4d9d2a, #5dad3d)',
     })
   })
 
@@ -119,21 +99,18 @@ describe('the palette in each theme (#706)', () => {
     const colors = paletteColors(held)
     for (const key of keys) {
       expect(colors[key]).toBe(lineColor(held[key]))
-      expect(colors[key]).toBe(`light-dark(${colorForIndex(held[key], 'light')}, ${colorForIndex(held[key], 'dark')})`)
+      expect(colors[key]).toBe(themed(colorForIndex(held[key], 'light'), colorForIndex(held[key], 'dark')))
     }
     expect(held.k24).toBe(24)
   })
 
-  // The chrome the chart draws is the measured pair above, both at once; the
-  // rim is transparent in dark, and the light filter floods with the rim ink.
+  // The chrome the chart draws is the measured pair above, both at once.
   it('draws the chrome as the measured pairs, light first', () => {
     expect(CHROME.axis).toBe(`light-dark(${CHART_CHROME.light.axis}, ${CHART_CHROME.dark.axis})`)
     expect(CHROME.grid).toBe(`light-dark(${CHART_CHROME.light.grid}, ${CHART_CHROME.dark.grid})`)
     expect(CHROME.surface).toBe(`light-dark(${CHART_CHROME.light.surface}, ${CHART_CHROME.dark.surface})`)
     expect(CHROME.playhead).toBe(`light-dark(${CHART_CHROME.light.playhead}, ${CHART_CHROME.dark.playhead})`)
     expect(CHROME.unassigned).toBe(`light-dark(${CHART_CHROME.light.unassigned}, ${CHART_CHROME.dark.unassigned})`)
-    expect(CHROME.lineEdge).toBe(`light-dark(${CHART_CHROME.light.lineEdge}, transparent)`)
-    expect(LINE_RIM_INK).toBe(CHART_CHROME.light.lineEdge)
   })
 })
 
@@ -216,16 +193,3 @@ describe('chart chrome contrast', () => {
     expect(CHART_CHROME.light.surface).toBe('#eef2f9')
   })
 })
-
-function rgbOf(hex: string): number[] {
-  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
-}
-
-function hue(hex: string): number {
-  const [r, g, b] = rgbOf(hex)
-  const max = Math.max(r, g, b)
-  const d = max - Math.min(r, g, b)
-  if (d === 0) return 0
-  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
-  return (h * 60 + 360) % 360
-}

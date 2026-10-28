@@ -1,6 +1,6 @@
 # 0209. Shift-click selects a range of boxes, and a menu's reset stands greyed at the default
 
-- Status: Accepted; amended by [0219](0219-download-csv-stands-greyed.md) and [0224](0224-removed-greys-at-zero.md)
+- Status: Accepted; amended by [0219](0219-download-csv-stands-greyed.md), [0224](0224-removed-greys-at-zero.md) and [0227](0227-shift-range-every-checkbox-group.md)
 - Date: 2026-10-21
 - Decider: the maintainer (TJ), on the review of #786, in three asks the same day: Shift-click in the Columns, Models, Layers and results-bar Models menus should select every box between the pressed one and the last pressed, as a file manager does; and Restore all should always be in the Removed menu, greyed with nothing to restore, with the Removed button always in the bar, greyed until the results area has rows, and a Reset all of the same kind in the Columns and results-bar Models menus, greyed at the default; and, on the review of PR #789, a way to clear the panel's model comparison, chosen as `Remove all` at the end of the Comparing chip row, greyed when that row is empty, over `Clear comparison` and over clearing every model
 - Issues and PRs: #786, #789
