@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { ShareableState } from '../utils/urlState'
 
 /**
- * The map's overlay switches (#121, #246, #446, #550) and the forecast player's.
+ * The map's overlay switches (#121, #246, #446, #550, #799), the forecast
+ * player's and the 3D terrain's.
  *
  * None of them is a knob: each changes what is drawn over the map and nothing
  * about what was asked for, so no ranking moves and `commitNeeded` does not
@@ -38,6 +39,18 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
   // analyzed field, and leaving it on is standing consent for the next
   // analysis to do the same. It still changes nothing about the ranking.
   const [showGrid, setShowGrid] = useState(() => restored?.showGrid ?? false)
+  // The terrain and imagery layers (#799): contour lines and shaded relief,
+  // both drawn from one elevation model, and the aerial imagery. Unlike the
+  // layers above they show the ground rather than a condition on it, and they
+  // ask nothing of the pod: the browser fetches every tile itself.
+  const [showContours, setShowContours] = useState(() => restored?.showContours ?? false)
+  const [showRelief, setShowRelief] = useState(() => restored?.showRelief ?? false)
+  const [showSatellite, setShowSatellite] = useState(() => restored?.showSatellite ?? false)
+  // Whether the map stands the ground up in 3D (#799). Kept with the layers
+  // because it changes what the map draws and nothing about the report, but it
+  // is the map's own button rather than a Layers row: it changes how the whole
+  // map is seen, where a row adds one picture to it.
+  const [showTerrain, setShowTerrain] = useState(() => restored?.showTerrain ?? false)
   // Whether the forecast player is on the map. `null` means "this device's
   // default": on at a desktop width, off on a phone, where the bar is a band
   // across a map that can be a third of the screen. A boolean means the reader
@@ -63,6 +76,14 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
     setShowSnow,
     showGrid,
     setShowGrid,
+    showContours,
+    setShowContours,
+    showRelief,
+    setShowRelief,
+    showSatellite,
+    setShowSatellite,
+    showTerrain,
+    setShowTerrain,
     showPlayer,
     setShowPlayer,
     playerShown,

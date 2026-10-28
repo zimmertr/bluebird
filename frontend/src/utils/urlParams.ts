@@ -258,6 +258,10 @@ function flag(
     | 'showRadar'
     | 'showSmoke'
     | 'showSnow'
+    | 'showContours'
+    | 'showRelief'
+    | 'showSatellite'
+    | 'showTerrain'
     | 'includeUnnamedPeaks',
 ): ParamCodec {
   return {
@@ -558,6 +562,10 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   flag('radar', 'showRadar'),
   flag('smoke', 'showSmoke'),
   flag('snow', 'showSnow'),
+  flag('contours', 'showContours'),
+  flag('relief', 'showRelief'),
+  flag('satellite', 'showSatellite'),
+  flag('terrain', 'showTerrain'),
   // The value names the style rather than being a bare `1`, which keeps the
   // link hand-editable and self-describing: `grid=smooth` says what it will
   // draw. One param rather than two, because a layer that is off has no style
@@ -693,6 +701,10 @@ export const FIELD_PARAMS = {
   showRadar: ['radar'],
   showSmoke: ['smoke'],
   showSnow: ['snow'],
+  showContours: ['contours'],
+  showRelief: ['relief'],
+  showSatellite: ['satellite'],
+  showTerrain: ['terrain'],
   showGrid: ['grid'],
   // The style rides the toggle's own param rather than one of its own.
   gridStyle: ['grid'],

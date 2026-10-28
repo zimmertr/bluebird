@@ -90,6 +90,10 @@ const base: ShareableState = {
   showSmoke: false,
   showSnow: false,
   showGrid: false,
+  showContours: false,
+  showRelief: false,
+  showSatellite: false,
+  showTerrain: false,
   showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
@@ -124,6 +128,10 @@ const pristine: ShareableState = {
   showSmoke: false,
   showSnow: false,
   showGrid: false,
+  showContours: false,
+  showRelief: false,
+  showSatellite: false,
+  showTerrain: false,
   showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
@@ -256,6 +264,27 @@ describe('encodeState / decodeState round-trip', () => {
     expect(clean).not.toContain('grid')
   })
 
+  // The terrain and imagery layers and the 3D switch (#799): four flags, each
+  // written as `1` while on, none implying another, and off for all four
+  // leaves the link as it was before they existed.
+  it('round-trips the terrain, imagery and 3D switches independently', () => {
+    const fields = ['showContours', 'showRelief', 'showSatellite', 'showTerrain'] as const
+    for (const field of fields) {
+      const out = roundTrip({ ...base, [field]: true })
+      expect(out![field]).toBe(true)
+      for (const other of fields) if (other !== field) expect(out![other]).toBeUndefined()
+    }
+    const clean = encodeState(base, DEFAULT_MODEL)
+    for (const key of ['contours', 'relief', 'satellite', 'terrain']) {
+      expect(new URLSearchParams(clean).get(key)).toBeNull()
+    }
+  })
+
+  it('opens a link written before the terrain layers with all four off', () => {
+    const out = decodeState('?fires=1&radar=1&snow=1')
+    expect(out).toEqual({ showWildfires: true, showRadar: true, showSnow: true })
+  })
+
   it('writes the forecast player only once the reader has decided', () => {
     // The default is the DEVICE's — on at a desktop width, off on a phone — so
     // `null` is "not decided" and writes nothing at all. A link that spelled
@@ -343,6 +372,10 @@ describe('encodeState / decodeState round-trip', () => {
     expect(encodeState({ ...pristine, showSnow: true }, DEFAULT_MODEL)).toContain('snow=1')
     expect(encodeState({ ...pristine, showAreaClosures: true }, DEFAULT_MODEL)).toContain('closedareas=1')
     expect(encodeState({ ...pristine, showTrailClosures: true }, DEFAULT_MODEL)).toContain('closedtrails=1')
+    expect(encodeState({ ...pristine, showContours: true }, DEFAULT_MODEL)).toContain('contours=1')
+    expect(encodeState({ ...pristine, showRelief: true }, DEFAULT_MODEL)).toContain('relief=1')
+    expect(encodeState({ ...pristine, showSatellite: true }, DEFAULT_MODEL)).toContain('satellite=1')
+    expect(encodeState({ ...pristine, showTerrain: true }, DEFAULT_MODEL)).toContain('terrain=1')
     // The grid needs an analysis before it draws anything, so a grid-only link
     // reopens on an empty map with the layer armed — which is still the state
     // that was shared, and dropping it would lose the one thing it said.
@@ -365,6 +398,13 @@ describe('encodeState / decodeState round-trip', () => {
       showTrailClosures: true,
     })
     expect(decodeState('?closedareas=true&closedtrails=0')).toBeNull()
+    expect(decodeState('?contours=1&relief=1&satellite=1&terrain=1')).toEqual({
+      showContours: true,
+      showRelief: true,
+      showSatellite: true,
+      showTerrain: true,
+    })
+    expect(decodeState('?contours=true&relief=0&satellite=yes&terrain=on')).toBeNull()
   })
 
   it('restores a CSV-only analysis without a polygon', () => {

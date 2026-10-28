@@ -65,7 +65,7 @@ export interface ShareableState {
   constraints: Constraints
   limit: number
   customCsv: string
-  // The seven live map overlays. Persisted so a shared link reproduces the
+  // The ten live map overlays. Persisted so a shared link reproduces the
   // picture, and deliberately not part of the analysis request: an overlay is
   // drawn beside the ranking, never fed into it. That holds for the forecast
   // grid too, even though it is the one whose toggle costs upstream calls —
@@ -77,6 +77,15 @@ export interface ShareableState {
   showSmoke: boolean
   showSnow: boolean
   showGrid: boolean
+  // The terrain and imagery layers (#799): contours, shaded relief and the
+  // aerial imagery.
+  showContours: boolean
+  showRelief: boolean
+  showSatellite: boolean
+  // Whether the map stands the ground up in 3D (#799). Not an overlay, since
+  // it changes how the whole map is seen, but it rides the link for their
+  // reason: a shared picture of a ridge in 3D should open in 3D.
+  showTerrain: boolean
   // Which of the grid's two drawings. Rides the SAME param as the toggle
   // (`grid=blocks`, `grid=smooth`) rather than taking a second one: it is one
   // control's state, and two params for it would let a link say the layer is
@@ -179,6 +188,10 @@ export function encodeState(
     state.showSmoke ||
     state.showSnow ||
     state.showGrid ||
+    state.showContours ||
+    state.showRelief ||
+    state.showSatellite ||
+    state.showTerrain ||
     state.showPlayer !== null ||
     state.selection.kind !== 'now' ||
     state.forecastModel !== defaultForecastModel ||

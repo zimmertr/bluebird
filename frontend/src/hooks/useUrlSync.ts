@@ -35,6 +35,11 @@ export interface UrlSyncInputs {
   showSmoke: boolean
   showSnow: boolean
   showGrid: boolean
+  showContours: boolean
+  showRelief: boolean
+  showSatellite: boolean
+  /** The map's 3D switch. */
+  showTerrain: boolean
   /** The player switch: the reader's answer, or null for the device default. */
   showPlayer: ShareableState['showPlayer']
   /** The forecast grid's style and coverage. */
@@ -97,6 +102,10 @@ export function useUrlSync({
   showSmoke,
   showSnow,
   showGrid,
+  showContours,
+  showRelief,
+  showSatellite,
+  showTerrain,
   showPlayer,
   gridStyle,
   gridReachFrac,
@@ -191,6 +200,10 @@ export function useUrlSync({
         showSmoke,
         showSnow,
         showGrid,
+        showContours,
+        showRelief,
+        showSatellite,
+        showTerrain,
         showPlayer,
         gridStyle,
         gridReachFrac,
@@ -224,6 +237,10 @@ export function useUrlSync({
     showSmoke,
     showSnow,
     showGrid,
+    showContours,
+    showRelief,
+    showSatellite,
+    showTerrain,
     showPlayer,
     gridStyle,
     gridReachFrac,
