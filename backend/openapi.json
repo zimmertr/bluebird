@@ -1274,6 +1274,136 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "FireActivityCollection": {
+        "description": "A GeoJSON FeatureCollection of detections, plus when Bluebird Forecast last heard from FIRMS.\n\nDeclared for the schema only: the handler writes the text itself, because\na view can hold tens of thousands of points and every one has the same\nshape.",
+        "properties": {
+          "features": {
+            "description": "Every detection inside the requested bounding box, edges included.",
+            "items": {
+              "$ref": "#/components/schemas/FireDetection"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "fetched_at": {
+            "description": "When Bluebird Forecast last fetched the detections from FIRMS, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Detections are served past their refresh deadline when FIRMS is unreachable, so this is the only honest statement of how current the set is. Every detection was acquired within 48 hours of this moment.",
+            "title": "Fetched At",
+            "type": "integer"
+          },
+          "type": {
+            "const": "FeatureCollection",
+            "description": "Always `FeatureCollection`, so the body drops straight into a map library.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "fetched_at",
+          "features"
+        ],
+        "title": "FireActivityCollection",
+        "type": "object"
+      },
+      "FireDetection": {
+        "description": "One active fire detection, as a GeoJSON Feature.",
+        "properties": {
+          "geometry": {
+            "$ref": "#/components/schemas/FirePoint"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/FireDetectionProperties"
+          },
+          "type": {
+            "const": "Feature",
+            "description": "Always `Feature`.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "geometry",
+          "properties"
+        ],
+        "title": "FireDetection",
+        "type": "object"
+      },
+      "FireDetectionProperties": {
+        "description": "What FIRMS says about one detection.",
+        "properties": {
+          "acquired": {
+            "description": "When the satellite saw the pixel, as ISO 8601 UTC to the minute (`2026-10-27T19:36:00Z`). An instant rather than an age, because the age moves while a map is open.",
+            "title": "Acquired",
+            "type": "string"
+          },
+          "confidence": {
+            "description": "FIRMS's confidence as it spells it: `low`, `nominal` or `high` for VIIRS, and a number from `0` to `100`, as text, for MODIS. Nothing is dropped for its confidence.",
+            "title": "Confidence",
+            "type": "string"
+          },
+          "frp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fire radiative power in megawatts, or null when FIRMS gave none.",
+            "title": "Frp"
+          },
+          "instrument": {
+            "description": "`VIIRS` for a 375 m pixel, `MODIS` for a 1 km pixel. A detection is the pixel that was hot, not the fire's outline.",
+            "enum": [
+              "VIIRS",
+              "MODIS"
+            ],
+            "title": "Instrument",
+            "type": "string"
+          },
+          "satellite": {
+            "description": "The satellite as FIRMS spells it: `N20` (NOAA-20) or `N21` (NOAA-21) for VIIRS, `T` (Terra) or `A` (Aqua) for MODIS.",
+            "title": "Satellite",
+            "type": "string"
+          }
+        },
+        "required": [
+          "acquired",
+          "instrument",
+          "satellite",
+          "confidence",
+          "frp"
+        ],
+        "title": "FireDetectionProperties",
+        "type": "object"
+      },
+      "FirePoint": {
+        "description": "A GeoJSON Point.",
+        "properties": {
+          "coordinates": {
+            "description": "`[longitude, latitude]`, the centre of the pixel, in decimal degrees.",
+            "items": {
+              "type": "number"
+            },
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "type": {
+            "const": "Point",
+            "description": "Always `Point`.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "FirePoint",
+        "type": "object"
+      },
       "ForecastMode": {
         "enum": [
           "current",
@@ -1753,6 +1883,16 @@
             "title": "Destinations Per Minute",
             "type": "integer"
           },
+          "fire_activity_burst": {
+            "description": "How many fire activity requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan, which refetches on a 400 ms debounce.",
+            "title": "Fire Activity Burst",
+            "type": "integer"
+          },
+          "fire_activity_per_minute": {
+            "description": "Sustained `GET /api/fire-activity` requests per client address per minute. As loose as the wildfire bucket and for the same reason: it answers from a snapshot this instance already holds and reaches no upstream. 0 means the limit is disabled.",
+            "title": "Fire Activity Per Minute",
+            "type": "integer"
+          },
           "geocode_burst": {
             "description": "How many geocode requests an idle client can send back-to-back before the per-minute pace applies.",
             "title": "Geocode Burst",
@@ -1808,7 +1948,9 @@
           "closures_per_minute",
           "closures_burst",
           "landmarks_per_minute",
-          "landmarks_burst"
+          "landmarks_burst",
+          "fire_activity_per_minute",
+          "fire_activity_burst"
         ],
         "title": "RateLimits",
         "type": "object"
@@ -2430,6 +2572,74 @@
         ]
       }
     },
+    "/api/fire-activity": {
+      "get": {
+        "description": "Active fire detections from NASA FIRMS inside `bbox`: every hot pixel the VIIRS instruments on NOAA-20 and NOAA-21 and the MODIS instruments on Terra and Aqua flagged in the 48 hours before the last fetch, worldwide.\n\nA detection is one pixel, 375 m across for VIIRS and 1 km for MODIS, that was hot when the satellite passed. It is not a fire's outline: `GET /api/wildfires` has the surveyed perimeters, for the United States. FIRMS publishes a detection about 3 hours after the pass, so the newest are that old when they arrive.\n\nThis exists because FIRMS's files carry no CORS header, so a browser cannot read them. Bluebird Forecast fetches the global files every 60 minutes, FIRMS's own cadence, and serves a box's slice to everyone.\n\nDetections are served past their refresh deadline when FIRMS is unreachable. Read `fetched_at` to see how current the answer is. It answers 503 when no fetch has completed yet, or when every refresh has failed for more than 24 hours since the last good one.",
+        "operationId": "fire_activity_in_box_api_fire_activity_get",
+        "parameters": [
+          {
+            "description": "Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A west greater than its east is a box across the antimeridian.",
+            "in": "query",
+            "name": "bbox",
+            "required": true,
+            "schema": {
+              "description": "Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A west greater than its east is a box across the antimeridian.",
+              "examples": [
+                "-121.9,46.7,-121.5,47.0"
+              ],
+              "title": "Bbox",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FireActivityCollection"
+                }
+              }
+            },
+            "description": "Detections inside the box, with the fetch timestamp."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`bbox` was missing, malformed, or outside valid coordinate ranges."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No fetch from FIRMS has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve. Transient; `Retry-After` says when to retry."
+          }
+        },
+        "summary": "Satellite fire detections from the last 48 hours in a bounding box",
+        "tags": [
+          "fire activity"
+        ]
+      }
+    },
     "/api/geocode": {
       "get": {
         "description": "Thin proxy to Nominatim, forwarding its JSON verbatim. The response shape is therefore Nominatim's `jsonv2` format, not something Bluebird Forecast defines, and each row carries `lat`, `lon`, `display_name`, and `extratags` (which is where a summit's `ele` lives).\n\nThis exists because Nominatim's usage policy asks callers to identify themselves with a real User-Agent, which a browser fetch cannot set. That same policy forbids autocomplete, so call this on an explicit search action rather than on every keystroke.",
@@ -2777,6 +2987,10 @@
     {
       "description": "Active US wildfire perimeters, cached from NIFC. Served from this instance's snapshot rather than proxied per request, because the upstream quota is NIFC's and shared with every other consumer of the public dataset.",
       "name": "wildfires"
+    },
+    {
+      "description": "Hot pixels the VIIRS and MODIS satellites flagged in the last 48 hours, worldwide, cached from NASA FIRMS's files every hour. A detection is where something was burning when a satellite passed, not a fire's outline.",
+      "name": "fire activity"
     },
     {
       "description": "Smoke plumes traced by NOAA analysts from satellite imagery, cached from their file server. Roughly two analyses land per day, so this is a picture of the smoke rather than a forecast of it.",

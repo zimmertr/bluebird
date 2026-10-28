@@ -1,3 +1,5 @@
+import type { FeatureCollection, Point } from 'geojson'
+
 export type DestinationType = 'peak' | 'trailhead' | 'lake' | 'crag' | 'custom'
 
 // What polygon discovery can find. The UI's type picker offers only these:
@@ -270,4 +272,22 @@ export interface DestinationsResponse {
   truncated?: boolean
   // Whether the pod's elevation lookup finished (#673); absent reads as true.
   elevation_lookup_complete?: boolean
+}
+
+// One satellite fire detection from GET /api/fire-activity (#799): a hot pixel
+// VIIRS or MODIS flagged, as NASA FIRMS reported it. `acquired` is an instant
+// in ISO 8601 UTC rather than an age, because the browser colours by its own
+// clock and the age moves while the map is open.
+export interface FireDetectionProps {
+  acquired: string
+  instrument: 'VIIRS' | 'MODIS'
+  satellite: string
+  confidence: string
+  frp: number | null
+}
+
+// The route's answer: Point features, plus `fetched_at`, when the pod last
+// fetched from FIRMS (a foreign member the map does not read).
+export interface FireActivityResponse extends FeatureCollection<Point, FireDetectionProps> {
+  fetched_at?: number
 }
