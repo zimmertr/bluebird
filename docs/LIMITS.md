@@ -134,13 +134,20 @@ body.
 **What the browser spends in an hour.** The web app fetches every forecast
 from your own address, on your own share of Open-Meteo's free tier, which is
 metered in weighted calls a minute, an hour and a day.
-`limits.open_meteo_hourly_calls` publishes the hourly figure, and the browser
-refuses an analysis whose weighted cost is past it once discovery answers and
-before any forecast is fetched, because no pacing finishes it inside the hour.
-It is the browser's half of the refusal above, and the same two things set the
-cost: the candidate count and the window. A year-long archive window reaches it
-with a small fraction of the destinations a forecast window takes. The
-deployment does not enforce the figure on its own path, whose pacer meters
+`limits.open_meteo_hourly_calls` publishes the hourly figure, and no pacing
+finishes an analysis past it inside the hour. Whenever the browser knows the
+count before you press Analyze (a pasted list, or a ring counted from the
+deployment's own copy of OpenStreetMap), it greys Analyze over an analysis
+whose weighted cost is past the figure; otherwise it refuses the run once
+discovery answers and before any forecast is fetched. It is the browser's half
+of the refusal above, and the same two things set the cost: the candidate count
+and the window. The cost counts the weather and the cloud column for every
+destination, air quality over the hours its forecast reaches, and the weather
+of every compared model for the rows the table shows. Inside the air-quality
+horizon that puts the figure below the candidate cap for any window of two
+weeks or less, so a full-cap analysis there is held; a year-long archive window
+reaches it with a small fraction of the destinations a forecast window takes.
+The deployment does not enforce the figure on its own path, whose pacer meters
 minutes.
 
 **Request pacing.** Analyze, discovery, search, wildfire perimeters, smoke
