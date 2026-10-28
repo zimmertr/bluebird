@@ -42,4 +42,4 @@ The gate was also the main caller of the path it tested. The web app analyzes in
 - Nothing shows the release reaching Open-Meteo from inside the cluster before promotion.
 - PR previews, port-forwards and self-hosted instances still take the unkeyed analyze path. The release probe does not.
 - The two PRs can merge in either order. A mismatch costs one rollout whose gate route has no 5xx series created at 0, so `error-rate` would forgive two 5xx on that route where it means to forgive one.
-- The `api-test` time in `docs/CICD.md`, a 13 s median measured 2026-09-15, is the analyze gate's. The discovery gate has not been timed in the cluster.
+- The discovery gate's `api-test` took under a second on revision 56 (2026-10-28), against the analyze gate's 13 s median measured 2026-09-15.
