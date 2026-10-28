@@ -1,7 +1,8 @@
-import { type MouseEvent, useEffect, useRef, useState } from 'react'
+import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { TUTORIAL_PATH } from '../utils/tourSteps'
 import { BLOCKED, BUTTON_PRIMARY, DISABLED, LINK, LINK_INERT, MESSAGE_BADGE, PANEL_EDGE, TEXT } from '../styles'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import { usePopover } from '../hooks/usePopover'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { ActionWord } from '../utils/analyzeGate'
@@ -75,7 +76,9 @@ export default function PanelFooter({
   // the button is the button's own (`ownPressRef`), so a blocked button can
   // toggle the list without the press-outside rule closing it first. The
   // card goes with the last message, since there is nothing left to list.
-  // The tutorial's Messages card holds it open (`messages.held`).
+  // The tutorial's Messages card holds it open (`messages.held`), and a run
+  // that fails opens it (#803): a failure that showed only as a count read as
+  // no failure at all. A phone's footer has no list to open.
   const { count, blocked, held } = messages
   const [pressedOpen, setOpen] = useState(false)
   const open = pressedOpen || held
@@ -91,6 +94,8 @@ export default function PanelFooter({
   useEffect(() => {
     if (count === 0) setOpen(false)
   }, [count])
+  const openList = useCallback(() => setOpen(true), [])
+  useOpenOnFailure(messages.failureSeq, openList, !phone)
   const toggle = () => setOpen((o) => !o)
 
   return (

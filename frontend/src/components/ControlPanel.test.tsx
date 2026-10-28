@@ -7,7 +7,7 @@ import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { NO_CONSTRAINTS } from '../utils/clientAnalyze'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { DEFAULT_LIMIT } from '../utils/urlState'
-import { forecastModel } from '../testSupport/fixtures'
+import { forecastModel, refusalPanel } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
 import { CONTROLS_SHEET, MESSAGE_BADGE, PANEL_BODY, PANEL_RULE } from '../styles'
 
@@ -51,6 +51,11 @@ function state(over: Partial<State> = {}): State {
     loading: false,
     error: null,
     refusal: null,
+    failedView: null,
+    failedPanel: refusalPanel(),
+    customCount: 0,
+    maxDestinations: 1500,
+    failureSeq: 0,
     commitReasons: [],
     hasReport: false,
     aqiAllNull: false,

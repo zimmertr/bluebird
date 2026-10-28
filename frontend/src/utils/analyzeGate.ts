@@ -1,10 +1,11 @@
 import { familyOf } from '../metrics'
-import type { AnalyzedView, RunError } from '../hooks/analyzeTypes'
+import type { AnalyzedView, Refusal, RunError } from '../hooks/analyzeTypes'
 import type { DiscoveryType, SortBy } from '../types'
 import { type ForecastSelection, hasDates } from './calendarSelection'
+import { discoveryNoun } from './clientAnalyze'
 import { modelsWithoutFreeze } from './freezingLevel'
 import { type OrderedModel, selectedIds } from './modelSelection'
-import { type PanelState, panelCommitCues } from './present'
+import { type PanelState, discoveryKeys, panelCommitCues } from './present'
 
 // Whether the Analyze button should be enabled.
 //
@@ -52,6 +53,29 @@ export interface AnalyzeGate {
   // draws most of its lines as columns of nulls. `freezingLevel.ts` owns which
   // ones, and why that has to be a list rather than read off the data.
   compareFreeze: boolean
+  // The last run was refused, and the panel still describes the request that
+  // was (`refusalStands`, #803). A refusal is deterministic: the same request
+  // is refused the same way, so the button holds until the panel changes.
+  refused: boolean
+  // The analysis would cover more destinations than the published cap, known
+  // before any request: today the pasted list and the pins (#803, D4). The
+  // count and the noun the line quotes ride with it, since `capDetail` says
+  // both and the limit it was measured against.
+  overCap: { found: number; noun: string; limit: number } | null
+  // The rest are vetoes whose inputs later work wires in (#803); each is off
+  // until its input is given. A field whose weighted Open-Meteo cost is past
+  // the hourly quota, with both numbers its line quotes.
+  spend: { needed: number; limit: number } | null
+  // A ranking or a bound on a column the archive does not publish.
+  archiveCloud: boolean
+  archiveFreeze: boolean
+  // A ranking on air quality over a window the air-quality forecast misses.
+  aqiHorizon: boolean
+  // A bound whose minimum is above its maximum.
+  boundOrder: boolean
+  // A regional model with no coverage for the area, by the label its line
+  // names, or null.
+  modelDomain: string | null
 }
 
 /**
@@ -68,9 +92,18 @@ export function ringUsable(drawPointCount: number, areaTooLarge: boolean): boole
 
 export function canAnalyze(g: AnalyzeGate): boolean {
   if (g.hasWindowWarning || g.datesPending || g.loading || g.areaTooLarge) return false
+  if (g.refused || g.overCap !== null || g.spend !== null) return false
   if (g.compareAqi || g.compareFreeze) return false
+  if (g.archiveCloud || g.archiveFreeze || g.aqiHorizon || g.boundOrder || g.modelDomain !== null) return false
   return g.polygonReady || g.hasCustom || g.hasPins
 }
+
+/**
+ * The panel as `refusalStands` compares it with the refused run: what
+ * `panelCommitCues` reads, and how many destinations the pasted list and the
+ * pins come to (`customListSize`).
+ */
+export type RefusalPanel = Omit<PanelState, 'settled'> & { customCount: number }
 
 /**
  * The gate from the panel's own inputs, which is the one way to build it.
@@ -96,6 +129,23 @@ export interface AnalyzeGateInputs {
   forecastModels: readonly (OrderedModel & { label: string })[]
   forecastModel: string
   comparedModels: readonly string[]
+  /** The refusal the last run ended in, or null (`useAnalysisRun`). */
+  refusal: Refusal | null
+  /** The snapshot of the run that last failed (`useAnalyze.failedView`). */
+  failedView: AnalyzedView | null
+  /** The panel as it stands, compared with that run (`refusalStands`). */
+  panel: RefusalPanel
+  /** How many destinations the pasted list and the pins come to (`customListSize`). */
+  customCount: number
+  /** The published analysis cap (`useCapabilities`'s `maxDestinations`). */
+  maxDestinations: number
+  // The vetoes later work wires in (#803), off when not given.
+  spend?: { needed: number; limit: number } | null
+  archiveCloud?: boolean
+  archiveFreeze?: boolean
+  aqiHorizon?: boolean
+  boundOrder?: boolean
+  modelDomain?: string | null
 }
 
 export function analyzeGateFor(i: AnalyzeGateInputs): { gate: AnalyzeGate; freezeGaps: string[] } {
@@ -128,6 +178,25 @@ export function analyzeGateFor(i: AnalyzeGateInputs): { gate: AnalyzeGate; freez
       // the picker shows several chips.
       compareAqi: rankFamily === 'aqi' && selected.length > 1,
       compareFreeze: freezeGaps.length > 0,
+      refused: refusalStands(i.refusal, i.failedView, i.panel),
+      // Every row of the list is a destination the run would forecast, ring
+      // or none, so a list over the cap is refused whatever the ring finds
+      // (#803, D4). The noun follows `analysisNoun`: a list makes it
+      // `destination`.
+      overCap:
+        i.customCount > i.maxDestinations
+          ? {
+              found: i.customCount,
+              noun: discoveryNoun(i.destinationTypes, i.customCount > 0),
+              limit: i.maxDestinations,
+            }
+          : null,
+      spend: i.spend ?? null,
+      archiveCloud: i.archiveCloud ?? false,
+      archiveFreeze: i.archiveFreeze ?? false,
+      aqiHorizon: i.aqiHorizon ?? false,
+      boundOrder: i.boundOrder ?? false,
+      modelDomain: i.modelDomain ?? null,
     },
     freezeGaps,
   }
@@ -142,9 +211,12 @@ export function analyzeGateFor(i: AnalyzeGateInputs): { gate: AnalyzeGate; freez
  * `canAnalyze` above are independent, so the reasons are too, and the panel
  * stacks whatever this returns.
  *
- * Order is fixed rather than incidental: the two vetoes come first because they
- * are about work already done, and the missing-input line last because it is
- * the one that says the app has nothing to do at all.
+ * Order is fixed rather than incidental: the vetoes about the work come first,
+ * because they are about work already done or already sized (the refused run,
+ * the ring, the count and the spend, then the window's own problems); the
+ * settings the reader made that contradict each other second; and the
+ * missing-input line last, because it is the one that says the app has
+ * nothing to do at all.
  *
  * The polygon has two distinct unfinished states and never both at once. Under
  * three points it is being drawn, and "one more point" is a better instruction
@@ -163,11 +235,19 @@ export function analyzeGateFor(i: AnalyzeGateInputs): { gate: AnalyzeGate; freez
  * on one.
  */
 export type AnalyzeBlocker =
+  | 'refusal'
   | 'area'
+  | 'over-cap'
+  | 'spend'
   | 'window'
   | 'dates'
   | 'compare-aqi'
   | 'compare-freeze'
+  | 'archive-cloud'
+  | 'archive-freeze'
+  | 'aqi-horizon'
+  | 'model-domain'
+  | 'bound-order'
   | 'destinations'
   | 'polygon'
   | 'types'
@@ -177,14 +257,30 @@ export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): An
   // says itself. Nothing here is a reason the reader can act on.
   if (g.loading) return []
   const blockers: AnalyzeBlocker[] = []
+  // The refused run leads: it is the one line about a press the reader just
+  // made. An over-cap line says the same thing with the count as it stands
+  // now, so it speaks in the refusal's place rather than beside it.
+  if (g.refused && g.overCap === null) blockers.push('refusal')
+  // How big the search is and what it would cost, both known before a run.
   if (g.areaTooLarge) blockers.push('area')
+  if (g.overCap !== null) blockers.push('over-cap')
+  if (g.spend !== null) blockers.push('spend')
   if (g.hasWindowWarning) blockers.push('window')
   if (g.datesPending) blockers.push('dates')
   // With the vetoes about work already done, and before the missing-input
   // lines: a contradiction between the models picked and the metric ranked is
-  // a setting the reader made, not an input they have yet to give.
+  // a setting the reader made, not an input they have yet to give. So are a
+  // ranking or a bound the window cannot answer, a model that does not reach
+  // the area, and a bound that contradicts itself, in that order: the window
+  // and the model before the bound, because a bound is the last setting made
+  // and the cheapest to change.
   if (g.compareAqi) blockers.push('compare-aqi')
   if (g.compareFreeze) blockers.push('compare-freeze')
+  if (g.archiveCloud) blockers.push('archive-cloud')
+  if (g.archiveFreeze) blockers.push('archive-freeze')
+  if (g.aqiHorizon) blockers.push('aqi-horizon')
+  if (g.modelDomain !== null) blockers.push('model-domain')
+  if (g.boundOrder) blockers.push('bound-order')
   if (!g.polygonReady && !g.hasCustom && !g.hasPins) {
     if (g.drawPointCount > 0 && g.drawPointCount < 3) blockers.push('polygon')
     // A finished polygon with nothing checked is not an unfinished polygon
@@ -279,6 +375,29 @@ export function retryStands(
   panel: Omit<PanelState, 'settled'>,
 ): boolean {
   if (error === null || !error.retry || failed === null) return false
+  return panelCommitCues(failed, { ...panel, settled: true }).length === 0
+}
+
+/**
+ * Whether the last refused run still holds Analyze (#803): a refusal stands
+ * while the panel describes the request that was refused. It is a blocker
+ * rather than the old dismissable line, because the same request is refused
+ * the same way, and a button that stayed live sent it again on every press.
+ *
+ * Stricter than `retryStands`, which only relabels a button that runs: a
+ * refusal holds the button shut, so every change that makes the request a
+ * different one must lift it, or the reader is held with no way out. The
+ * commit cues' comparison catches the model, the window, the ring, the
+ * types and a destination added; two more catch what the cues pass over,
+ * because a report can still answer them and a refused request cannot. A
+ * cleared ring is a different request (the cues stay silent without one),
+ * and so is a shorter list (the cues count additions only), which is the
+ * remedy for a list too long.
+ */
+export function refusalStands(refusal: Refusal | null, failed: AnalyzedView | null, panel: RefusalPanel): boolean {
+  if (refusal === null || failed === null) return false
+  const { polygonKey } = discoveryKeys(panel.polygon, panel.destinationTypes, panel.includeUnnamedPeaks)
+  if (polygonKey !== failed.polygonKey || panel.customCount !== failed.customKeys.size) return false
   return panelCommitCues(failed, { ...panel, settled: true }).length === 0
 }
 

@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { type PanelMessageState, usePanelMessages } from './usePanelMessages'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
-import { forecastModel } from '../testSupport/fixtures'
+import { forecastModel, refusalPanel } from '../testSupport/fixtures'
 
 // The panel's messages and the Analyze gate from one set of inputs (record
 // 0208): what the badge counts, which severity colours it, and how a
@@ -36,6 +36,11 @@ function state(over: Partial<PanelMessageState> = {}): PanelMessageState {
     loading: false,
     error: null,
     refusal: null,
+    failedView: null,
+    failedPanel: refusalPanel(),
+    customCount: 0,
+    maxDestinations: 1500,
+    failureSeq: 0,
     commitReasons: [],
     hasReport: false,
     aqiAllNull: false,

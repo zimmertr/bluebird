@@ -18,6 +18,7 @@ import type { MapInputs } from '../map/controller'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import { worstSeverity } from '../utils/notices'
+import type { RefusalPanel } from '../utils/analyzeGate'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
 // out in full.
@@ -453,6 +454,29 @@ export function analyzedSnapshot(over: Partial<AnalyzedView> = {}): AnalyzedView
 }
 
 /**
+ * The panel as `refusalStands` reads it (#803): the window, model and sort
+ * `analyzedSnapshot` holds, with no ring, no type and no list. A test that
+ * compares the two gives both the same discovery keys.
+ */
+export function refusalPanel(over: Partial<RefusalPanel> = {}): RefusalPanel {
+  const snapshot = analyzedSnapshot()
+  return {
+    selectionKind: snapshot.kind,
+    windowMs: snapshot.window,
+    forecastModel: snapshot.forecastModel,
+    comparedModels: [],
+    polygon: null,
+    destinationTypes: [],
+    includeUnnamedPeaks: false,
+    pendingCount: 0,
+    sortBy: snapshot.sortBy,
+    constraints: NO_CONSTRAINTS,
+    customCount: 0,
+    ...over,
+  }
+}
+
+/**
  * The paste-time elevation lookup as a test hands it to an analysis (#673):
  * what it knows, as of now and of the last render alike, with nothing still
  * being asked about.
@@ -535,6 +559,7 @@ export function panelMessages(over: Partial<PanelMessages> = {}): PanelMessages 
     pointsNeeded: 3,
     modelDisabled: false,
     held: false,
+    failureSeq: 0,
     ...over,
   }
 }

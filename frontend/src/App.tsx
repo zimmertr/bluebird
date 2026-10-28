@@ -56,6 +56,7 @@ import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { useTheme } from './hooks/useTheme'
 import { useDrawer } from './hooks/useDrawer'
+import { useOpenOnFailure } from './hooks/useOpenOnFailure'
 import { useSafeAreaBottom } from './hooks/useSafeAreaBottom'
 import { controlsFullPx, controlsSheetPx } from './utils/resultsSheet'
 import { useHeldSheetPx } from './hooks/useHeldSheetPx'
@@ -68,7 +69,7 @@ import {
 } from './utils/urlState'
 import { removalScopeFor } from './utils/analyzeRequest'
 import { controlsSummary } from './utils/controlsSummary'
-import { pendingDestinations } from './utils/customList'
+import { customListSize, pendingDestinations } from './utils/customList'
 import { actionWord, retryStands } from './utils/analyzeGate'
 import { usePanelMessages } from './hooks/usePanelMessages'
 import { useDemoMessages } from './tour/demoMessages'
@@ -246,6 +247,7 @@ export default function App() {
     arriving,
     error,
     refusal,
+    failureSeq,
     response,
     universe,
   } = analysis
@@ -438,7 +440,9 @@ export default function App() {
   // describes the request that failed, read against that run's snapshot the
   // way the cues above read against the report's. Destinations are counted
   // against the failed run's own list, since the committed report's `pending`
-  // describes a different question.
+  // describes a different question. The list's size rides along for the
+  // refusal, which a shorter list lifts (`refusalStands`, #803).
+  const customCount = useMemo(() => customListSize(csvRows, places), [csvRows, places])
   const panelForRetry = {
     selectionKind: selection.kind,
     windowMs: panelWindowMs,
@@ -452,6 +456,7 @@ export default function App() {
       : 0,
     sortBy,
     constraints,
+    customCount,
   }
   const word = actionWord(loading, retryStands(error, failedView, panelForRetry))
 
@@ -505,6 +510,11 @@ export default function App() {
     loading,
     error,
     refusal,
+    failedView,
+    failedPanel: panelForRetry,
+    customCount,
+    maxDestinations: caps.maxDestinations,
+    failureSeq,
     commitReasons,
     hasReport: response !== null,
     aqiAllNull: response !== null && results.length > 0 && results.every((r) => r.aqi_avg == null),
@@ -533,16 +543,22 @@ export default function App() {
     analyze: handleAnalyze,
   })
 
+  // A failure at a desk reopens a panel the reader closed while the run was
+  // up (#803): the list that says what went wrong is the panel's, and a shut
+  // panel is inert, its badge and its live region with it.
+  useOpenOnFailure(failureSeq, openDrawer, isDesktop)
+
   // On mobile the controls are an off-canvas drawer, and it closes when an
   // analysis SUCCEEDS rather than when the button is pressed. Closing on press
   // meant a failure was invisible: the drawer slid away, the overlay finished,
   // and the reader was left looking at an empty map while the error sat in a
   // panel they had to think to reopen. Keyed on `analysisSeq`, which only moves
-  // when a report commits, so a refusal or an upstream error simply leaves the
-  // drawer where it is with the message already in it — including the refusal
-  // remedies, which are buttons and could not live anywhere else.
+  // when a report commits, so a refusal or an upstream error leaves the drawer
+  // where it is, and the message list opens over the map's Analyze, where the
+  // phone's badge is (`useOpenOnFailure` in `PhoneFoot`, #803).
   //
-  // Desktop is unaffected: the panel is docked there and never closes.
+  // Desktop is unaffected: the panel is docked there and closes only when the
+  // reader closes it.
   useEffect(() => {
     if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
     // Kept: listing `isDesktop` would close the drawer when a window crossed

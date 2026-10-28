@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Refusal, RunError } from './analyzeTypes'
+import type { AnalyzedView, Refusal, RunError } from './analyzeTypes'
 import type { ForecastModelOption } from './useCapabilities'
 import type { DiscoveryType, SortBy } from '../types'
-import { analyzeBlockers, analyzeGateFor, canAnalyze, ringAddsNothing } from '../utils/analyzeGate'
+import {
+  type RefusalPanel,
+  analyzeBlockers,
+  analyzeGateFor,
+  canAnalyze,
+  ringAddsNothing,
+} from '../utils/analyzeGate'
 import { type ForecastSelection, selectionLocalWindow } from '../utils/calendar'
 import { type WindowLimits, windowSource } from '../utils/forecastWindow'
 import {
@@ -47,6 +53,16 @@ export interface PanelMessageState {
   loading: boolean
   error: RunError | null
   refusal: Refusal | null
+  /** The snapshot of the run that last failed (`useAnalyze.failedView`), which a refusal stands against. */
+  failedView: AnalyzedView | null
+  /** The panel as `refusalStands` compares it with that run. */
+  failedPanel: RefusalPanel
+  /** How many destinations the pasted list and the pins come to (`customListSize`). */
+  customCount: number
+  /** The published analysis cap. */
+  maxDestinations: number
+  /** Moves once per run that ends in an error or a refusal (`useAnalysisRun`, #803). */
+  failureSeq: number
   /** Every knob that has stopped applying live, in `commitNeeded`'s order. */
   commitReasons: readonly CommitReason[]
   /** Whether a report is on screen at all. */
@@ -61,7 +77,7 @@ export interface PanelMessageState {
   archiveDays: number
   aqiForecastDays: number
   windowLimits: WindowLimits
-  /** Dismissing the run error or the refusal clears the event (`useAnalysisRun.dismissEvent`, #736). */
+  /** Dismissing the run error clears the event (`useAnalysisRun.dismissEvent`, #736). */
   dismissEvent: (kind: EventNoticeKind) => void
 }
 
@@ -99,6 +115,12 @@ export interface PanelMessages {
    * Never true from this hook.
    */
   held: boolean
+  /**
+   * Moves once per run that ends in an error or a refusal, which opens the
+   * list (`useOpenOnFailure`, #803): a failure that showed only as a count
+   * on the badge read as no failure at all.
+   */
+  failureSeq: number
 }
 
 /**
@@ -118,10 +140,10 @@ export interface PanelMessages {
  * of the analysis, and `pruneDismissals` retires a dismissal the moment its
  * key stops being active, which is what makes a cleared-then-retriggered
  * warning return while panning, sorting and knob twiddling, which change no
- * key, resurface nothing. The two event notices are not in it: dismissing the
- * run error or the refusal clears the event itself (`dismissEvent`, #736), so
- * the Analyze button that read `Try again` off the error reads `Analyze`
- * again in the same render.
+ * key, resurface nothing. The run error is not in it: dismissing it clears
+ * the event itself (`dismissEvent`, #736), so the Analyze button that read
+ * `Try again` off the error reads `Analyze` again in the same render. A
+ * refusal is a blocker (#803), which no dismissal reaches.
  */
 export function usePanelMessages(s: PanelMessageState): PanelMessages {
   // Falls back to the id so a link naming a model this deployment stopped
@@ -144,6 +166,11 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     forecastModels: s.forecastModels,
     forecastModel: s.forecastModel,
     comparedModels: s.comparedModels,
+    refusal: s.refusal,
+    failedView: s.failedView,
+    panel: s.failedPanel,
+    customCount: s.customCount,
+    maxDestinations: s.maxDestinations,
   })
   const analyzeEnabled = canAnalyze(gate)
   const blockers = analyzeBlockers({ ...gate, drawPointCount: s.drawPointCount })
@@ -183,6 +210,9 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     source,
     aqiCoverage,
     blockers,
+    overCap: gate.overCap,
+    spend: gate.spend,
+    modelDomain: gate.modelDomain,
     ringIgnored,
     pointsNeeded,
     freezeGaps,
@@ -230,5 +260,6 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     pointsNeeded,
     modelDisabled: source === 'archive',
     held: false,
+    failureSeq: s.failureSeq,
   }
 }

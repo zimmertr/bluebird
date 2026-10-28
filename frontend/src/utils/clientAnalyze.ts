@@ -72,12 +72,21 @@ const NOUNS: Record<string, string> = {
 }
 
 export function analysisNoun(request: AnalyzeRequest): string {
+  return discoveryNoun(request.destination_types, (request.custom_destinations?.length ?? 0) > 0)
+}
+
+/**
+ * `analysisNoun`'s rule from the panel's own inputs, before any request is
+ * built: the Analyze gate's over-cap line counts the same field and must name
+ * it the same way (#803).
+ */
+export function discoveryNoun(types: readonly string[], hasCustom: boolean): string {
   // Port of _noun: a specific noun only when the set holds exactly one
   // kind, because "1,842 peaks" beats "1,842 destinations"; anything mixed
   // merges rather than listing types, since a refusal is read for its
   // remedy and an inventory buries that.
-  const kinds = new Set(request.destination_types)
-  if (request.custom_destinations?.length || kinds.size !== 1) return 'destination'
+  const kinds = new Set(types)
+  if (hasCustom || kinds.size !== 1) return 'destination'
   return NOUNS[[...kinds][0]] ?? 'destination'
 }
 
@@ -96,6 +105,18 @@ export function capDetail(
   return (
     `This search covers ${count.toLocaleString('en-US')} ${noun}s. The ` +
     `analysis limit is ${cap.toLocaleString('en-US')} destinations.`
+  )
+}
+
+/**
+ * The spend veto's sentence (#803): an analysis whose weighted Open-Meteo
+ * calls are past the hourly quota. Grouped in `en-US` beside `capDetail`, the
+ * other refusal that quotes a count against a limit, so the two read alike.
+ */
+export function spendDetail(needed: number, limit: number): string {
+  return (
+    `This analysis needs ${needed.toLocaleString('en-US')} Open-Meteo calls. ` +
+    `The hourly limit is ${limit.toLocaleString('en-US')}.`
   )
 }
 

@@ -31,6 +31,9 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     source: null,
     aqiCoverage: 'full',
     blockers: [],
+    overCap: null,
+    spend: null,
+    modelDomain: null,
     ringIgnored: false,
     pointsNeeded: 0,
     freezeGaps: [],
@@ -72,21 +75,25 @@ describe('panelMessages', () => {
     })
 
     it('gives way to a refusal', () => {
-      expect(keys({ error: { message: 'boom' }, refusal: { message: 'Too many.' } })).toEqual(['refusal:Too many.'])
+      expect(
+        keys({ error: { message: 'boom' }, refusal: { message: 'Too many.' }, blockers: ['refusal'] }),
+      ).toEqual(['blocker:refusal'])
     })
   })
 
+  // A refusal is a blocker (#803): it says its sentence once, as the gate's
+  // line, and never as an event line of its own beside it.
   describe('the refusal', () => {
-    it('is one error line, keyed on its message', () => {
-      expect(only({ refusal: { message: 'Too many.' } })).toEqual({
-        key: 'refusal:Too many.',
+    it('is said once, as its blocker, in its own words', () => {
+      expect(only({ refusal: { message: 'Too many.' }, blockers: ['refusal'] })).toEqual({
+        key: 'blocker:refusal',
         text: 'Too many.',
         severity: 'error',
       })
     })
 
-    it('waits while an analysis runs', () => {
-      expect(keys({ refusal: { message: 'Too many.' }, loading: true })).toEqual([])
+    it('says nothing once the gate no longer names it', () => {
+      expect(keys({ refusal: { message: 'Too many.' } })).toEqual([])
     })
   })
 
@@ -201,6 +208,31 @@ describe('panelMessages', () => {
         'error',
         `${NOUN.freeze} data is not available for ECMWF IFS and DWD ICON.`,
       ],
+      // The approved lines of #803, each spelled out in full here so a
+      // reword anywhere fails this table.
+      [
+        'refusal',
+        { refusal: { message: 'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.' } },
+        'error',
+        'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.',
+      ],
+      [
+        'over-cap',
+        { overCap: { found: 2613, noun: 'destination', limit: 1500 } },
+        'error',
+        'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.',
+      ],
+      [
+        'spend',
+        { spend: { needed: 8357, limit: 5000 } },
+        'error',
+        'This analysis needs 8,357 Open-Meteo calls. The hourly limit is 5,000.',
+      ],
+      ['archive-cloud', {}, 'error', 'Cloud deck data is not available for archive windows.'],
+      ['archive-freeze', {}, 'error', 'Freezing level data is not available for archive windows.'],
+      ['aqi-horizon', {}, 'error', `${NOUN.aqi} data is not available for this forecast window.`],
+      ['model-domain', { modelDomain: 'NOAA HRRR' }, 'error', 'NOAA HRRR has no forecast coverage for this area.'],
+      ['bound-order', {}, 'error', 'A filter minimum is above its maximum.'],
     ]
 
     it.each(BLOCKERS)('says why %s blocks, at its severity', (blocker, over, severity, text) => {
@@ -335,6 +367,7 @@ describe('panelMessages', () => {
         modelClamped: true,
         aqiCoverage: 'partial',
         refusal: { message: 'Too many.' },
+        blockers: ['refusal', 'dates'],
         hasReport: true,
         wildfireCheckFailed: true,
         closureCheckFailed: true,
@@ -343,9 +376,10 @@ describe('panelMessages', () => {
       'window:archive-model',
       'window:clamped',
       'window:aqi-horizon',
+      'blocker:refusal',
+      'blocker:dates',
       'fire:unavailable',
       'closure:unavailable',
-      'refusal:Too many.',
     ])
     expect(keys({ hasReport: true, aqiAllNull: true, aqiCoverage: 'partial', blockers: ['types'] })).toEqual([
       'window:aqi-horizon',

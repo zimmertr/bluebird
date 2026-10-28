@@ -5,6 +5,7 @@ import {
   analyzeBlockers,
   analyzeGateFor,
   canAnalyze,
+  refusalStands,
   retryStands,
   ringAddsNothing,
   ringUsable,
@@ -12,13 +13,27 @@ import {
   AnalyzeGate,
   AnalyzeGateInputs,
   AutoAnalyzeState,
+  type AnalyzeBlocker,
 } from './analyzeGate'
 import { NO_CONSTRAINTS } from './clientAnalyze'
 import { discoveryKeys, type PanelState } from './present'
-import { analyzedSnapshot, forecastModel } from '../testSupport/fixtures'
+import { analyzedSnapshot, forecastModel, refusalPanel } from '../testSupport/fixtures'
+
+// Every veto #803 added, off.
+const NO_VETOES = {
+  refused: false,
+  overCap: null,
+  spend: null,
+  archiveCloud: false,
+  archiveFreeze: false,
+  aqiHorizon: false,
+  boundOrder: false,
+  modelDomain: null,
+} satisfies Partial<AnalyzeGate>
 
 // A fully-ready polygon analysis: three points drawn, no vetoes.
 const READY_POLYGON: AnalyzeGate = {
+  ...NO_VETOES,
   hasWindowWarning: false,
   datesPending: false,
   loading: false,
@@ -151,28 +166,114 @@ describe('analyzeBlockers', () => {
 
   // The two must agree, or the panel disables a button and gives no reason —
   // or gives a reason for a button that works. Exhaustive over every
-  // combination of the eight flags plus a representative point count each.
+  // combination of the sixteen flags plus a representative point count each,
+  // the three that carry a payload on or off with one. Mismatches are
+  // gathered and compared once, since 393,216 expects would be the slow part.
   it('is non-empty exactly when canAnalyze is false', () => {
-    for (let bits = 0; bits < 256; bits++) {
+    const wrong: string[] = []
+    for (let bits = 0; bits < 1 << 16; bits++) {
       for (const drawPointCount of [0, 2, 3]) {
+        const on = (bit: number) => (bits & (1 << bit)) !== 0
         const gate: AnalyzeGate = {
           loading: false,
-          hasWindowWarning: (bits & 1) !== 0,
-          areaTooLarge: (bits & 2) !== 0,
-          polygonReady: (bits & 4) !== 0,
-          hasCustom: (bits & 8) !== 0,
-          hasPins: (bits & 16) !== 0,
-          datesPending: (bits & 32) !== 0,
-          compareAqi: (bits & 64) !== 0,
-          compareFreeze: (bits & 128) !== 0,
+          hasWindowWarning: on(0),
+          areaTooLarge: on(1),
+          polygonReady: on(2),
+          hasCustom: on(3),
+          hasPins: on(4),
+          datesPending: on(5),
+          compareAqi: on(6),
+          compareFreeze: on(7),
+          refused: on(8),
+          overCap: on(9) ? { found: 1501, noun: 'destination', limit: 1500 } : null,
+          spend: on(10) ? { needed: 8357, limit: 5000 } : null,
+          archiveCloud: on(11),
+          archiveFreeze: on(12),
+          aqiHorizon: on(13),
+          boundOrder: on(14),
+          modelDomain: on(15) ? 'NOAA HRRR' : null,
         }
-        const label = `${JSON.stringify(gate)} points=${drawPointCount}`
-
-        expect(analyzeBlockers({ ...gate, drawPointCount }).length > 0, label).toBe(
-          !canAnalyze(gate),
-        )
+        if (analyzeBlockers({ ...gate, drawPointCount }).length > 0 !== !canAnalyze(gate)) {
+          wrong.push(`${JSON.stringify(gate)} points=${drawPointCount}`)
+        }
       }
     }
+    expect(wrong).toEqual([])
+  })
+
+  // Each veto #803 added holds a ready analysis up alone, under its own name.
+  it.each([
+    ['refusal', { refused: true }],
+    ['over-cap', { overCap: { found: 1501, noun: 'destination', limit: 1500 } }],
+    ['spend', { spend: { needed: 8357, limit: 5000 } }],
+    ['archive-cloud', { archiveCloud: true }],
+    ['archive-freeze', { archiveFreeze: true }],
+    ['aqi-horizon', { aqiHorizon: true }],
+    ['model-domain', { modelDomain: 'NOAA HRRR' }],
+    ['bound-order', { boundOrder: true }],
+  ] as [AnalyzeBlocker, Partial<AnalyzeGate>][])('holds a ready analysis up for %s', (blocker, over) => {
+    const gate = { ...READY_POLYGON, ...over }
+    expect(canAnalyze(gate)).toBe(false)
+    expect(analyzeBlockers({ ...gate, drawPointCount: 3 })).toEqual([blocker])
+  })
+
+  // The order the gate's comment states: the work first (the refused run,
+  // the ring, the count, the spend, the window), the settings second, the
+  // missing input last.
+  it('keeps every blocker in its fixed order', () => {
+    expect(
+      analyzeBlockers({
+        ...READY_POLYGON,
+        polygonReady: false,
+        drawPointCount: 0,
+        refused: true,
+        areaTooLarge: true,
+        spend: { needed: 8357, limit: 5000 },
+        hasWindowWarning: true,
+        datesPending: true,
+        compareAqi: true,
+        compareFreeze: true,
+        archiveCloud: true,
+        archiveFreeze: true,
+        aqiHorizon: true,
+        modelDomain: 'NOAA HRRR',
+        boundOrder: true,
+      }),
+    ).toEqual([
+      'refusal',
+      'area',
+      'spend',
+      'window',
+      'dates',
+      'compare-aqi',
+      'compare-freeze',
+      'archive-cloud',
+      'archive-freeze',
+      'aqi-horizon',
+      'model-domain',
+      'bound-order',
+    ])
+    expect(
+      analyzeBlockers({ ...READY_POLYGON, polygonReady: false, drawPointCount: 0, boundOrder: true }),
+    ).toEqual(['bound-order', 'destinations'])
+    expect(
+      analyzeBlockers({
+        ...READY_POLYGON,
+        drawPointCount: 3,
+        areaTooLarge: true,
+        overCap: { found: 1501, noun: 'destination', limit: 1500 },
+        spend: { needed: 8357, limit: 5000 },
+      }),
+    ).toEqual(['area', 'over-cap', 'spend'])
+  })
+
+  // The over-cap line says what the refusal said, with the count as it
+  // stands now, so the two never stand side by side.
+  it('lets an over-cap line speak in the refusal\'s place', () => {
+    const overCap = { found: 2613, noun: 'destination', limit: 1500 }
+    const gate = { ...READY_POLYGON, refused: true, overCap }
+    expect(canAnalyze(gate)).toBe(false)
+    expect(analyzeBlockers({ ...gate, drawPointCount: 3 })).toEqual(['over-cap'])
   })
 })
 
@@ -180,6 +281,7 @@ describe('analyzeBlockers', () => {
 // finished polygon is no longer proof of an input (#119 follow-on).
 describe('a polygon with nothing checked', () => {
   const drawn = {
+    ...NO_VETOES,
     hasWindowWarning: false,
     loading: false,
     areaTooLarge: false,
@@ -364,6 +466,11 @@ describe('analyzeGateFor', () => {
     forecastModels: MODELS,
     forecastModel: 'gfs_seamless',
     comparedModels: [],
+    refusal: null,
+    failedView: null,
+    panel: refusalPanel(),
+    customCount: 0,
+    maxDestinations: 1500,
   }
   const gateOf = (over: Partial<AnalyzeGateInputs> = {}) => analyzeGateFor({ ...PINNED, ...over }).gate
 
@@ -396,6 +503,53 @@ describe('analyzeGateFor', () => {
     expect(freeze.freezeGaps).toEqual(['UK Met Office'])
     expect(freeze.gate.compareFreeze).toBe(true)
     expect(analyzeGateFor({ ...PINNED, sortBy: 'freeze_min_ft' }).freezeGaps).toEqual([])
+  })
+
+  // #803, D4: the list's size is known before any request, so a list over
+  // the published cap is held here rather than refused after a press. The
+  // noun is `analysisNoun`'s: a list makes it `destination`, ring or none.
+  it('holds a list over the cap, with the count, the noun and the cap its line quotes', () => {
+    expect(gateOf({ customCount: 1500 }).overCap).toBeNull()
+    expect(gateOf({ customCount: 1501 }).overCap).toEqual({ found: 1501, noun: 'destination', limit: 1500 })
+    const ring = { drawPointCount: 3, polygonAreaKm2: 10, destinationTypes: ['peak' as const] }
+    expect(gateOf({ ...ring, customCount: 1501, maxDestinations: 1000 }).overCap).toEqual({
+      found: 1501,
+      noun: 'destination',
+      limit: 1000,
+    })
+    expect(canAnalyze(gateOf({ customCount: 1501 }))).toBe(false)
+  })
+
+  it('holds a refusal that stands, and lets one go once the panel moves', () => {
+    const failed = analyzedSnapshot(discoveryKeys(null, [], false))
+    const refusal = { message: 'This search covers 1,501 destinations. The analysis limit is 1,500 destinations.' }
+    expect(gateOf({ refusal, failedView: failed }).refused).toBe(true)
+    expect(canAnalyze(gateOf({ refusal, failedView: failed }))).toBe(false)
+    expect(gateOf({ refusal, failedView: failed, panel: refusalPanel({ forecastModel: 'ecmwf_ifs025' }) }).refused).toBe(
+      false,
+    )
+    expect(gateOf({ refusal: null, failedView: failed }).refused).toBe(false)
+  })
+
+  it('leaves every veto later work wires in off until it is given', () => {
+    expect(gateOf()).toMatchObject(NO_VETOES)
+    expect(
+      gateOf({
+        spend: { needed: 8357, limit: 5000 },
+        archiveCloud: true,
+        archiveFreeze: true,
+        aqiHorizon: true,
+        boundOrder: true,
+        modelDomain: 'NOAA HRRR',
+      }),
+    ).toMatchObject({
+      spend: { needed: 8357, limit: 5000 },
+      archiveCloud: true,
+      archiveFreeze: true,
+      aqiHorizon: true,
+      boundOrder: true,
+      modelDomain: 'NOAA HRRR',
+    })
   })
 })
 
@@ -463,6 +617,63 @@ describe('retryStands', () => {
   // keeps the word until the run or the error goes.
   it('ignores the ring while none is drawn, as the commit cue does', () => {
     expect(retryStands(transient, failed, panel({ polygon: null }))).toBe(true)
+  })
+})
+
+// A refused run holds Analyze until the panel describes a different request
+// (#803). It reads the commit cues the way `retryStands` does, and two more
+// changes the cues pass over, since a blocker with no way out is a trap.
+describe('refusalStands', () => {
+  const RING = { coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
+  const WINDOW = { startMs: Date.UTC(2026, 6, 20, 6), endMs: Date.UTC(2026, 6, 20, 18) }
+  // The run that was refused: peaks inside RING with two listed destinations.
+  const failed = analyzedSnapshot({
+    window: WINDOW,
+    ...discoveryKeys(RING, ['peak'], true),
+    customKeys: new Set(['47.1,-121.2', '47.2,-121.3']),
+  })
+  const refusal = { message: 'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.' }
+  const panel = (over: Partial<Parameters<typeof refusalStands>[2]> = {}) =>
+    refusalPanel({
+      windowMs: WINDOW,
+      polygon: RING,
+      destinationTypes: ['peak'],
+      includeUnnamedPeaks: true,
+      customCount: 2,
+      ...over,
+    })
+
+  it('stands while the panel still describes the refused request', () => {
+    expect(refusalStands(refusal, failed, panel())).toBe(true)
+  })
+
+  it('does not stand with no refusal or no refused run to compare against', () => {
+    expect(refusalStands(null, failed, panel())).toBe(false)
+    expect(refusalStands(refusal, null, panel())).toBe(false)
+  })
+
+  it.each([
+    ['the model', { forecastModel: 'ecmwf_ifs025' }],
+    ['a compared model', { comparedModels: ['ecmwf_ifs025'] }],
+    ['the window', { windowMs: { startMs: WINDOW.startMs, endMs: WINDOW.endMs + 3_600_000 } }],
+    ['the selection arm', { selectionKind: 'now' as const }],
+    ['the ring', { polygon: { coordinates: [[[-122, 47], [-121, 47], [-121, 48], [-122, 47]]] } }],
+    ['the types', { destinationTypes: ['peak', 'lake'] }],
+    // The remedy for the reported case: unnamed peaks unticked.
+    ['the unnamed-peaks toggle', { includeUnnamedPeaks: false }],
+    ['a destination the run never saw', { pendingCount: 1, customCount: 3 }],
+    // The two the commit cues pass over: a cleared ring, and a shorter list.
+    ['the ring is cleared', { polygon: null }],
+    ['a listed destination is taken out', { customCount: 1 }],
+  ] as [string, Partial<Parameters<typeof refusalStands>[2]>][])('falls when %s changes', (_what, over) => {
+    expect(refusalStands(refusal, failed, panel(over))).toBe(false)
+  })
+
+  // A sort or a bound changes nothing the pod is asked, so the same request
+  // would be refused the same way.
+  it('stands through a changed sort or bound', () => {
+    expect(refusalStands(refusal, failed, panel({ sortBy: 'aqi_avg' }))).toBe(true)
+    expect(refusalStands(refusal, failed, panel({ constraints: { ...NO_CONSTRAINTS, maxPrecipTotalIn: 0.5 } }))).toBe(true)
   })
 })
 

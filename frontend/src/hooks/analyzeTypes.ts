@@ -15,11 +15,11 @@ export type Progress = {
 }
 
 // An over-limit refusal, normalized from whichever path produced it (the
-// server's structured 400 or the client-only paths' AnalysisRefusalError).
-// Drives the warn box instead of the error box, and leaves the Analyze
-// button reading `Analyze` rather than `Try again`: a deterministic refusal
-// run again can only repeat itself, and the message already names the
-// remedies in prose. The server's structured
+// server's structured 400, its 422, or the client-only paths'
+// AnalysisRefusalError). It stands as a blocker on the Analyze button until
+// the panel describes a different request (#803, `refusalStands`), and the
+// button never reads `Try again` over it: a deterministic refusal run again
+// can only repeat itself. The server's structured
 // remedy fields stay on the API for direct callers; the SPA renders none of
 // them (removed with #253's PR at TJ's request, 2026-08-22).
 export type Refusal = {

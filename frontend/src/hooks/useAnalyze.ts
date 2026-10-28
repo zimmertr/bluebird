@@ -263,6 +263,9 @@ export function useAnalyze(
     // The run `error` describes, for the button's word (#736).
     failedView,
     refusal: run.refusal,
+    // Moves each time a run ends in an error or a refusal (#803), which opens
+    // the message list where the reader can see it.
+    failureSeq: run.failureSeq,
     response: report.response,
     universe: report.universe,
     // The committed rows still waiting on their elevation (#673).

@@ -26,6 +26,11 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
+  // How many runs have ended in an error or a refusal (#803): a cancel is the
+  // reader's own doing and counts nothing. A number rather than a flag, so
+  // the message list opens for each failure, the same one twice included,
+  // and an effect keyed on it fires once per failure rather than per render.
+  const [failureSeq, setFailureSeq] = useState(0)
   // The overlay's live countdown while the client pacer sleeps off a quota
   // deficit. Shared with the forecast grid and the model comparison, which
   // sleep against the same budget (#394).
@@ -45,14 +50,14 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     setRefusal(null)
   }
 
-  // The reader dismissed the error or the refusal line (#253, #736). An event
-  // notice is a fact about one run, so dismissing it clears the event rather
-  // than hiding its text: the next run sets it afresh if it fails the same
-  // way, and the Analyze button, which reads `Try again` off the error
-  // (`retryStands`), reads `Analyze` again at once.
+  // The reader dismissed the error line (#253, #736). An event notice is a
+  // fact about one run, so dismissing it clears the event rather than hiding
+  // its text: the next run sets it afresh if it fails the same way, and the
+  // Analyze button, which reads `Try again` off the error (`retryStands`),
+  // reads `Analyze` again at once. A refusal is never dismissed: it is a
+  // blocker that stands until the panel changes (#803, `refusalStands`).
   function dismissEvent(kind: EventNoticeKind) {
     if (kind === 'error') setError(null)
-    else setRefusal(null)
   }
 
   // Announce the retrieval phase with the final count the moment discovery
@@ -92,8 +97,11 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
       const failure = analysisFailure(e, models)
       hooks.onFailure(failure.kind)
       if (failure.kind === 'cancel') setStatusMessage(null)
-      else if (failure.kind === 'refusal') setRefusal({ message: failure.message })
-      else setError({ message: failure.message, retry: failure.retry })
+      else {
+        if (failure.kind === 'refusal') setRefusal({ message: failure.message })
+        else setError({ message: failure.message, retry: failure.retry })
+        setFailureSeq((n) => n + 1)
+      }
     } finally {
       abortRef.current = null
       setLoading(false)
@@ -117,6 +125,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     loading,
     error,
     refusal,
+    failureSeq,
     statusMessage,
     progress,
     paceRemainingS,

@@ -96,6 +96,16 @@ export function buildCustomList(
   }))
 }
 
+/**
+ * How many destinations the pasted list and the pins come to, counted the way
+ * a run sends them (`buildCustomList`): a coordinate once, a pin over a pasted
+ * row at its point. The Analyze gate holds a list over the cap with it before
+ * any request (#803), and the refused run's list is compared by it.
+ */
+export function customListSize(csvRows: CustomDestination[], places: Place[]): number {
+  return mergeCustom(csvRows, places).length
+}
+
 // Custom destinations no analysis has covered yet — freshly pasted, freshly
 // searched, or waiting on the first run. Drawn as neutral pending dots and
 // un-forecasted table rows so pasting a CSV gives the same immediate feedback a

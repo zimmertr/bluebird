@@ -8,6 +8,8 @@ import { BLOCKER_SEVERITY, blockerKey, listPhrase, noticeKey, type FooterMessage
 import { archiveSeamPhrase } from './calendar'
 import type { WindowLimits, WindowSource } from './forecastWindow'
 import { grouped } from './numbers'
+import { capDetail, spendDetail } from './clientAnalyze'
+import { COVERAGE_PHRASE } from './openMeteoErrors'
 
 // Which messages the panel has to say, and in what order. A module of its own
 // because that decision is pure data: the panel's state in, a list of lines
@@ -36,21 +38,51 @@ const COMMIT_CUE: Record<CommitReason, string> = {
 // every derived line's.
 export const AQI_NOTE_KEY = 'aqi:none'
 
+// One sentence for the AQI warning over a report and for the blocker that
+// stops a ranking on air quality the window has none of (#803), so the two
+// cannot describe one gap two ways.
+const AQI_UNAVAILABLE = `${NOUN.aqi} data is not available for this forecast window.`
+const archiveGap = (subject: string) => `${subject} data is not available for archive windows.`
+
 // What each Analyze blocker reads as. A function rather than a record because
-// two of the four quote a number the panel holds, and the area cap in
+// several quote a number or a name the panel holds, and the area cap in
 // particular is published by /api/capabilities rather than written here.
 //
 // The destinations line names no method. It used to list all three ("Draw a
 // search area, paste custom coordinates, or search for a place"), which is the
 // panel's own table of contents read back to someone who is looking straight at
 // it; what they are missing is a destination, not a menu.
-function blockerText(
-  blocker: AnalyzeBlocker,
-  maxAreaKm2: number,
-  pointsNeeded: number,
-  freezeGaps: readonly string[],
-): string {
+type BlockerFacts = Pick<
+  PanelMessageInputs,
+  'maxAreaKm2' | 'pointsNeeded' | 'freezeGaps' | 'refusal' | 'overCap' | 'spend' | 'modelDomain'
+>
+
+function blockerText(blocker: AnalyzeBlocker, facts: BlockerFacts): string {
+  const { maxAreaKm2, pointsNeeded, freezeGaps } = facts
   switch (blocker) {
+    // The refused run's own sentence, which the pod or the browser wrote.
+    // The gate names this blocker only while a refusal stands, so the
+    // fallback is never read.
+    case 'refusal':
+      return facts.refusal?.message ?? ''
+    // The over-cap refusal's sentence, said before the run rather than after
+    // it (#803). The gate names this blocker only with its count.
+    case 'over-cap':
+      return facts.overCap ? capDetail(facts.overCap.found, facts.overCap.noun, facts.overCap.limit) : ''
+    case 'spend':
+      return facts.spend ? spendDetail(facts.spend.needed, facts.spend.limit) : ''
+    case 'archive-cloud':
+      return archiveGap(NOUN.cloud_deck)
+    case 'archive-freeze':
+      return archiveGap(NOUN.freeze)
+    case 'aqi-horizon':
+      return AQI_UNAVAILABLE
+    // The model-coverage failure's first sentence, said before the run: the
+    // model is a control in the panel, so the line names it.
+    case 'model-domain':
+      return `${facts.modelDomain ?? ''} ${COVERAGE_PHRASE}`
+    case 'bound-order':
+      return 'A filter minimum is above its maximum.'
     case 'area':
       return `The polygon is too large. The maximum supported size is ${grouped(maxAreaKm2)} km².`
     case 'window':
@@ -96,6 +128,11 @@ export interface PanelMessageInputs {
   // How much of the window the air-quality forecast covers.
   aqiCoverage: 'full' | 'partial' | 'none'
   blockers: readonly AnalyzeBlocker[]
+  // What the gate's vetoes quote (`AnalyzeGate`): the count over the cap, the
+  // spend over the quota, and the model with no coverage, each null when off.
+  overCap: { found: number; noun: string; limit: number } | null
+  spend: { needed: number; limit: number } | null
+  modelDomain: string | null
   // A finished ring with no type checked beside another input that keeps
   // Analyze open (`ringAddsNothing`): the `types` line as information.
   ringIgnored: boolean
@@ -128,14 +165,14 @@ export interface PanelMessageInputs {
  * delivered report is missing.
  *
  * Each line carries the key its dismissal lives under — the CONDITION for
- * derived lines, the MESSAGE for the two event notices — so the polygon
+ * derived lines, the MESSAGE for the run error — so the polygon
  * blocker counting down as you draw stays one dismissed thing (see
  * `utils/notices.ts`).
  */
 export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
-  // The event keys: the run error and the refusal key on their MESSAGE,
-  // because each new message is a new fact the reader has not seen.
-  const refusalKey = p.refusal ? noticeKey('refusal', p.refusal.message) : null
+  // The event key: the run error keys on its MESSAGE, because each new
+  // message is a new fact the reader has not seen. The refusal is a blocker
+  // (#803), keyed on its condition like every blocker.
   const errorKey = p.error ? noticeKey('error', p.error.message) : null
   // Lines about the report on screen, which a run in flight is replacing
   // and a failed or refused one is not the subject of.
@@ -251,7 +288,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     ...windowMessages,
     ...p.blockers.map((blocker) => ({
       key: blockerKey(blocker),
-      text: blockerText(blocker, p.maxAreaKm2, p.pointsNeeded, p.freezeGaps),
+      text: blockerText(blocker, p),
       severity: BLOCKER_SEVERITY[blocker],
     })),
     // The `types` sentence, unchanged, where it blocks nothing: the ring is
@@ -263,7 +300,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
       ? [
           {
             key: 'ring:types',
-            text: blockerText('types', p.maxAreaKm2, p.pointsNeeded, p.freezeGaps),
+            text: blockerText('types', p),
             severity: 'info' as const,
           },
         ]
@@ -296,19 +333,11 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     ...(p.basemapFailed
       ? [{ key: 'map:style', text: BASEMAP_FAILED_NOTE, severity: 'error' as const }]
       : []),
-    // The refusal is an error like the area cap: a finished request, refused
-    // for its size (TJ, 2026-08-22). It never coexists with the run error
-    // above, and the Analyze button offers no `Try again` over it: a
-    // deterministic refusal run again re-buys the same map query for the
-    // same answer.
-    ...(p.refusal && refusalKey && !p.loading
-      ? [{ key: refusalKey, text: p.refusal.message, severity: 'error' as const }]
-      : []),
     ...(aqiNoteActive
       ? [
           {
             key: AQI_NOTE_KEY,
-            text: `${NOUN.aqi} data is not available for this forecast window.`,
+            text: AQI_UNAVAILABLE,
             severity: 'warn' as const,
           },
         ]

@@ -121,10 +121,14 @@ export async function discoverCandidates(
 }
 
 // The pod's answer to a destinations call, or the refusal or error it sent.
+// A 422 is a refusal too, though its body carries no count (#803, D4): the
+// pod validated the request and found it wrong, a list too long among the
+// ways, so the same request is refused the same way and the Analyze button
+// must not offer it again as `Try again`.
 async function discoveryAnswer(res: Response): Promise<DestinationsResponse> {
   if (!res.ok) {
     const { message, refusal } = await readErrorBody(res)
-    if (refusal) throw new AnalysisRefusalError(message)
+    if (refusal || res.status === 422) throw new AnalysisRefusalError(message)
     throw new Error(message)
   }
   return (await res.json()) as DestinationsResponse

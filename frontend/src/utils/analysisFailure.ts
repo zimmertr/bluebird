@@ -10,7 +10,8 @@ import { isAbort } from './abort'
 export type AnalysisFailure =
   // The reader stopped the run. Not an error worth surfacing.
   | { kind: 'cancel' }
-  // Deterministic, so it gets the warn box and no retry.
+  // Deterministic, so it gets no retry: it stands as a blocker until the
+  // panel describes a different request (#803, `refusalStands`).
   | { kind: 'refusal'; message: string }
   // `retry`: whether the Analyze button should offer the run again as `Try
   // again` (#736, `retryStands`).
