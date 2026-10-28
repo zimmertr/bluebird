@@ -29,7 +29,7 @@ import { AGGREGATE, SEP } from '../../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
 import { clamp, isFiniteNumber } from '../numbers'
 import { coordinateLabel } from '../points'
-import { utcDayKey } from '../calendarDates'
+import { utcDayKey } from '../calendar/calendarDates'
 
 /**
  * The popup's type ramp and its leading. The face is the app's own: the card

@@ -13,14 +13,14 @@ import {
   unavailableCell,
   windyCellUrl,
 } from './resultsCells'
-import { FIRE_UNAVAILABLE_NOTE, FIRE_UNCOVERED_NOTE, fireWarningText } from './fireProximity'
-import { CLOSURE_UNAVAILABLE_NOTE, CLOSURE_UNCOVERED_NOTE, closureWarningText } from './closureProximity'
-import { FREEZE_UNAVAILABLE_NOTE } from './freezingLevel'
-import { cellStyle, scaleFor } from './colors'
-import { displayedColumns, type ColDef } from './tableColumns'
-import { windyUrl } from './windy'
-import type { ModelRow } from './modelCompare'
-import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
+import { FIRE_UNAVAILABLE_NOTE, FIRE_UNCOVERED_NOTE, fireWarningText } from '../fireProximity'
+import { CLOSURE_UNAVAILABLE_NOTE, CLOSURE_UNCOVERED_NOTE, closureWarningText } from '../closureProximity'
+import { FREEZE_UNAVAILABLE_NOTE } from '../freezingLevel'
+import { cellStyle, scaleFor } from '../colors'
+import { displayedColumns, type ColDef } from '../tableColumns'
+import { windyUrl } from '../windy'
+import type { ModelRow } from '../modelCompare'
+import { closureWarning, fireWarning, pendingDestination, resultRow } from '../../testSupport/fixtures'
 
 const WARNING = fireWarning()
 const column = (key: string): ColDef => {

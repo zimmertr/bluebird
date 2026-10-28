@@ -16,7 +16,7 @@
 // out of the same column, so "enough map for the legend" is the same question
 // at both widths and is answered from the same constants.
 
-import { resolvePanelHeights } from './layout'
+import { resolvePanelHeights } from '../layout'
 
 /** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
 export const MAP_ROWS_PX = 92

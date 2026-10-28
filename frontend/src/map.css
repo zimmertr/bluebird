@@ -506,7 +506,7 @@
  * rather than each control taking an offset of its own.
  *
  * `--map-corner-lift` is that one step, published by App on the map wrapper and
- * derived in `utils/resultsSheet.ts` beside every other anchor on this edge. It
+ * derived in `utils/results/resultsSheet.ts` beside every other anchor on this edge. It
  * is absent wherever nothing stands there — a phone before the first report,
  * and any width where the results are closed — which is what the 0px fallback
  * covers.

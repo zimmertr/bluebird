@@ -7,7 +7,7 @@ import type {
   SortBy,
 } from '../types'
 import type { AnalyzeOptions } from '../hooks/analyzeTypes'
-import type { SelectionKind } from './calendarSelection'
+import type { SelectionKind } from './calendar/calendarSelection'
 import {
   type DiscoveryRecord,
   discoveryBase,

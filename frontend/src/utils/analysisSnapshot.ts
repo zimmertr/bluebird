@@ -1,6 +1,6 @@
 import type { AnalyzeRequest } from '../types'
 import type { AnalyzedView } from '../hooks/analyzeTypes'
-import type { SelectionKind } from './calendar'
+import type { SelectionKind } from './calendar/calendar'
 import { constraintsFromRequest } from './clientAnalyze'
 import { windowSource, type WindowLimits } from './forecastWindow'
 import { geoKey } from './points'

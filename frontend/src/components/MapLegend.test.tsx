@@ -5,7 +5,7 @@ import MapLegend, { LegendSections, legendSections, type LegendInputs } from './
 import { render } from '../testSupport/render'
 import { rankedScale } from '../utils/colors'
 import { SMOKE_DENSITIES } from '../utils/smoke'
-import { legendMaxCss } from '../utils/resultsSheet'
+import { legendMaxCss } from '../utils/results/resultsSheet'
 import { readViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
 import { IconChevron } from './icons'
 import { MENU_CHEVRON } from '../styles'

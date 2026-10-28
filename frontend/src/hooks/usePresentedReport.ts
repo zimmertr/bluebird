@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AnalyzeResponse, CustomDestination, DestinationResult, DiscoveredDestination, SortBy } from '../types'
 import type { AnalyzedView } from './analyzeTypes'
-import { windowCaption } from '../utils/calendar'
+import { windowCaption } from '../utils/calendar/calendar'
 import { type PendingDestination, foundAsPending, pendingDestinations } from '../utils/customList'
 import type { IdentityMap } from '../utils/elevationLookup'
 import { type Place, placeType } from '../utils/geocode'

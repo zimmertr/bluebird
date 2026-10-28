@@ -16,10 +16,8 @@
 // overflow rather than adding 86,400,000 ms — a local day is 23 or 25 hours on
 // a DST transition, and millisecond arithmetic would land on the wrong day.
 //
-// The calendar is five flat sibling modules, and this file re-exports them so
-// every importer reads one name. Flat rather than a folder, because the style
-// guardrails in `styles.test.ts` glob `./utils/*.ts` and a sub-folder would
-// escape them.
+// The calendar is five sibling modules, and this file re-exports them so
+// every importer reads one name.
 
 export * from './calendarDates'
 export * from './calendarBand'

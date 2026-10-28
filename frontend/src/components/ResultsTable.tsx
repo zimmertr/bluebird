@@ -7,7 +7,7 @@ import { checkRunning, type FireProximityStatus, type FireWarning } from '../uti
 import type { ClosureProximityStatus, ClosureWarning } from '../utils/closureProximity'
 import type { PendingDestination } from '../utils/customList'
 import { geoKey } from '../utils/points'
-import { pendingChartRow, rankText, rowKeys } from '../utils/resultsCells'
+import { pendingChartRow, rankText, rowKeys } from '../utils/results/resultsCells'
 import { useChartBox } from '../hooks/useChartBox'
 import { TEXT } from '../styles'
 import ResultsTableHeader from './ResultsTableHeader'

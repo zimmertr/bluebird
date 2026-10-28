@@ -156,9 +156,9 @@ const METRIC_SURFACES_ELSEWHERE = [
   'src/utils/resultPopup.ts',
   // A downloaded file is read in a spreadsheet, where nothing around it says
   // which app wrote the header.
-  'src/utils/resultsCsv.ts',
+  'src/utils/results/resultsCsv.ts',
   // What each results-table cell says.
-  'src/utils/resultsCells.ts',
+  'src/utils/results/resultsCells.ts',
   'src/utils/tableColumns.ts',
 ]
 

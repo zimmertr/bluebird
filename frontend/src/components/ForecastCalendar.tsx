@@ -29,7 +29,7 @@ import {
   selectionLocalWindow,
   weekdayInitials,
   windowCaption,
-} from '../utils/calendar'
+} from '../utils/calendar/calendar'
 import {
   ACCENT,
   BUTTON_ACCENT,
@@ -97,7 +97,7 @@ interface Drag {
  *
  * One click picks a whole day, a second click extends to a range, and dragging
  * either end adjusts it. The interaction rules themselves live in
- * `utils/calendar.ts` as pure reducers, where the node test project checks
+ * `utils/calendar/calendar.ts` as pure reducers, where the node test project checks
  * every case without a page. So this file is deliberately only wiring: events
  * in, reducer, `onChange` out, which is all `ForecastCalendar.test.tsx` has to
  * show.
