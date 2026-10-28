@@ -5,7 +5,7 @@
 - Decider: the maintainer (TJ), on 2026-10-27, in the session that opened the pull request for #773
 - Issues and PRs: #773
 - Cited in code as: none
-- Guide: [`CLAUDE.md`](../../CLAUDE.md), the Documentation table, the convention on nested `CLAUDE.md` files, the "A new source module gets a bullet" rule, and Architecture, "The module layouts live beside the code they describe"; [`frontend/src/utils/forecastGrid/CLAUDE.md`](../../frontend/src/utils/forecastGrid/CLAUDE.md) and [`frontend/src/utils/popup/CLAUDE.md`](../../frontend/src/utils/popup/CLAUDE.md)
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), the Documentation table, the convention on nested `CLAUDE.md` files, the "A new source module gets a bullet" rule, and Architecture, "The module layouts live beside the code they describe"; the six guides under `frontend/src/utils/`: [`forecastGrid/`](../../frontend/src/utils/forecastGrid/CLAUDE.md), [`popup/`](../../frontend/src/utils/popup/CLAUDE.md), [`model/`](../../frontend/src/utils/model/CLAUDE.md), [`results/`](../../frontend/src/utils/results/CLAUDE.md), [`chart/`](../../frontend/src/utils/chart/CLAUDE.md) and [`calendar/`](../../frontend/src/utils/calendar/CLAUDE.md)
 
 ## Context
 
@@ -32,15 +32,15 @@ The bullets of each family, measured 2026-10-27 at 24f7165:
 | `chart` | 3 | 6.2k |
 | `calendar` | 6 | 4.7k |
 
-With the first two families moved, `frontend/src/utils/CLAUDE.md` measured 130,475 characters (`wc -c`, 2026-10-27), `forecastGrid/CLAUDE.md` 13,737 and `popup/CLAUDE.md` 11,356.
+With all six moved, `frontend/src/utils/CLAUDE.md` measured 98,891 characters (`wc -c`, 2026-10-27), down from 155,350. The six new guides: `forecastGrid/` 13,745, `popup/` 11,356, `model/` 12,992, `results/` 7,867, `chart/` 6,247 and `calendar/` 4,695.
 
-A `popoverBox(` call planted in `src/utils/popup/popupFit.ts` failed `make lint-frontend` under `style-one-placement`, and a hex colour planted in `src/utils/forecastGrid/forecastGridArrows.ts` failed it under `value-hex` (2026-10-27).
+A `popoverBox(` call planted in `src/utils/popup/popupFit.ts` failed `make lint-frontend` under `style-one-placement`, and a hex colour planted in `src/utils/forecastGrid/forecastGridArrows.ts` failed it under `value-hex`; the same hex in `src/utils/model/modelVisibility.ts` and `src/utils/results/resultsSheet.ts`, and a spelled `365` in `src/utils/calendar/calendarGrid.ts` under `archive-reach-published`, failed it the same way (2026-10-27).
 
 ## Alternatives rejected
 
 - **Trimming the longest bullets** (#773, option B): it buys a few thousand characters once, cuts detail a session reads before writing code, and the file grows back.
 - **Several guide files in `utils/`, joined by `@` imports** (#773, option C): Claude Code loads an imported file with the one that imports it, so a session reads the same number of characters.
-- **A folder name in place of each file's prefix** (`forecastGrid/lattice.ts`), or an `index.ts` per folder: a file's name is how every guide, record and comment finds it, and a renamed file would break each of them.
+- **A folder name in place of each file's prefix** (`forecastGrid/lattice.ts`), or an `index.ts` per folder so the barrel's importers kept their paths: a kept name means `git mv` alone carries the history, every bullet changes only its path, and every check that names a file is a one-line edit; the repository has no `index.ts` anywhere, and one folder would start a convention the other five would then owe.
 
 ## Consequences
 
