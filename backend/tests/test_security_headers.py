@@ -345,6 +345,10 @@ LINK_ONLY_HOSTS = {
     # The map a popup's coordinate pair opens (#712); nothing is fetched from it.
     "caltopo.com",
     "climate.copernicus.eu",
+    # The address inside EOX's own credit line, which the satellite layer's
+    # source carries to the map corner (#799); its tiles come from
+    # tiles.maps.eox.at.
+    "cloudless.eox.at",
     "creativecommons.org",
     "data-nifc.opendata.arcgis.com",
     "github.com",
