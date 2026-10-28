@@ -3,7 +3,7 @@
 - Status: Accepted. Changes no earlier record: the key header of [0025](0025-keyed-analyze-api.md) stays optional in the code.
 - Date: 2026-10-27
 - Decider: the maintainer (TJ), on #787, choosing C from options A, B and C
-- Issues and PRs: #787, #806, #760, #317, #289, bluebird-helm#103, and the companion `Kubernetes-Manifests` PR that changes `analysisTemplate-apiTest.yml`
+- Issues and PRs: #787, #806, #760, #317, #289, bluebird-helm#103, Kubernetes-Manifests#1727
 - Cited in code as: #787
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, the bullet "The browser path is the only path"; [`docs/CICD.md`](../CICD.md), Step 2
 
@@ -27,7 +27,7 @@ The gate was also the main caller of the path it tested. The web app analyzes in
 ## Evidence
 
 - One request to production through the gateway on 2026-10-27, with the gate's new body: `200`, 8 peaks (the first East Tiger Mountain, 2995 ft), in 0.27 s.
-- Argo Rollouts v1.10.1, the installed version, marks every non-2xx answer an Error in its web provider before `successCondition` runs (`metricproviders/webmetric/webmetric.go`, line 110, read 2026-10-27). No condition on the old body could tell a spent quota from a broken release.
+- Argo Rollouts v1.10.1, the installed version, marks every non-2xx answer an Error in its web provider before `successCondition` runs (`metricproviders/webmetric/webmetric.go`, line 110, per #787). No condition on the old body could tell a spent quota from a broken release.
 
 ## Alternatives rejected
 
