@@ -141,12 +141,16 @@ deployment's own copy of OpenStreetMap), it greys Analyze over an analysis
 whose weighted cost is past the figure; otherwise it refuses the run once
 discovery answers and before any forecast is fetched. It is the browser's half
 of the refusal above, and the same two things set the cost: the candidate count
-and the window. The cost counts the weather and the cloud column for every
-destination, air quality over the hours its forecast reaches, and the weather
-of every compared model for the rows the table shows. Inside the air-quality
-horizon that puts the figure below the candidate cap for any window of two
-weeks or less, so a full-cap analysis there is held; a year-long archive window
-reaches it with a small fraction of the destinations a forecast window takes.
+and the window. Open-Meteo meters each of its hosts apart, so the cost is
+counted per host and an analysis is held when any one host passes the figure:
+the forecast host carries the weather and the cloud column for every
+destination and the weather of every compared model for the rows the table
+shows, the archive host the same for an archive window, and the air-quality
+host air quality over the hours its forecast reaches. The candidate cap over
+sixteen days fits on every host; compare a model on every row of it and the
+forecast host does not. A year-long archive window reaches the figure with a
+small fraction of the destinations a forecast window takes. Only the minute
+has been measured per host; the hour is assumed to be metered the same way.
 The deployment does not enforce the figure on its own path, whose pacer meters
 minutes.
 

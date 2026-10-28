@@ -29,7 +29,7 @@ import { postDestinations } from './apiFetch'
 import { type Place, placeType } from './geocode'
 import { geoKey } from './points'
 import type { WindowLimits } from './forecastWindow'
-import { airCalls, modelCalls, spendOver } from './analysisSpend'
+import { addCalls, airCalls, modelCalls, spendOver } from './analysisSpend'
 import {
   AqiFetch,
   AqiResult,
@@ -790,7 +790,8 @@ export async function runClientAnalysis(
 
   // The spend backstop (#803, D2): with the field known and nothing fetched
   // yet, a field that costs more than the visitor's hourly budget is refused
-  // here rather than spending the hour and failing on the hourly 429. It is
+  // here rather than spending the hour and failing on the hourly 429, on
+  // whichever host would pass it first. It is
   // what holds a deployment with no count ahead of Analyze, where the gate
   // never learns the ring's size. Priced on what this run would really ask
   // for: the rows with no held forecast, the held rows whose air quality is
@@ -799,10 +800,12 @@ export async function runClientAnalysis(
   // same every time.
   if (hourlyCalls !== undefined) {
     const priced = { startMs, endMs, nowMs: nowMs ?? Date.now(), windowLimits, aqiForecastDays }
-    const calls =
-      modelCalls(coords.length, priced, true) +
-      airCalls(aqiCoords.length, priced) +
-      comparedModels * modelCalls(Math.min(request.limit, candidates.length), priced, false)
+    // Host by host, as Open-Meteo meters it (`HostCalls`).
+    const calls = addCalls(
+      addCalls(modelCalls(coords.length, priced, true), airCalls(aqiCoords.length, priced)),
+      modelCalls(Math.min(request.limit, candidates.length), priced, false),
+      comparedModels,
+    )
     const over = spendOver(calls, hourlyCalls)
     if (over) throw new AnalysisRefusalError(spendDetail(over.needed, over.limit))
   }

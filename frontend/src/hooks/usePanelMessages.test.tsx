@@ -147,18 +147,19 @@ describe('usePanelMessages', () => {
     expect(hook({ ...ring, destinationTypes: [], hasPins: true }).result.current.analyzeEnabled).toBe(true)
   })
 
-  // #803, D2: the known count priced against the hourly budget. The current
-  // hour is one weighted day: 3.6 calls a destination with air quality.
+  // #803, D2: the known count priced against the hourly budget, host by host.
+  // The current hour is one weighted day: 2.6 calls a destination on the
+  // forecast host, and 1 on the air-quality host.
   it('says the spend past the hourly budget, and prices compared models on the rows shown', () => {
     const { result } = hook({ hasCustom: true, customCount: 2000, maxDestinations: 2500 })
     expect(result.current.analyzeEnabled).toBe(false)
     expect(result.current.messages.map((m) => m.text)).toEqual([
-      'This analysis needs 7,200 Open-Meteo calls. The hourly limit is 5,000.',
+      'This analysis needs 5,200 Open-Meteo calls. The hourly limit is 5,000.',
     ])
-    expect(hook({ hasCustom: true, customCount: 1300 }).result.current.analyzeEnabled).toBe(true)
-    const compared = hook({ hasCustom: true, customCount: 1300, comparedModels: ['ecmwf_ifs025'], limit: 300 })
+    expect(hook({ hasCustom: true, customCount: 1500 }).result.current.analyzeEnabled).toBe(true)
+    const compared = hook({ hasCustom: true, customCount: 1500, comparedModels: ['ecmwf_ifs025'], limit: 1500 })
     expect(compared.result.current.messages.map((m) => m.text)).toEqual([
-      'This analysis needs 5,160 Open-Meteo calls. The hourly limit is 5,000.',
+      'This analysis needs 6,300 Open-Meteo calls. The hourly limit is 5,000.',
     ])
   })
 

@@ -33,37 +33,69 @@ export interface SpendInputs extends SpendWindow {
 }
 
 /**
- * One model's weather for `n` destinations, and its cloud column with it when
- * `cloud` is set, each priced per span: a window crossing the archive
- * boundary is two requests per batch (`fetchSpans`), as `fetchWeather` and
- * `fetchCloud` book them.
+ * Weighted calls by Open-Meteo host. Each host meters its own budget: record
+ * 0203 measured the minute bucket per host (with `api.open-meteo.com` refusing
+ * at 600, the air-quality and archive hosts both still answered), and records
+ * 0004 and 0203 rest on that. How the HOUR is counted is unmeasured; it is
+ * taken to be per host like the minute, so an analysis is held when any one
+ * host would pass the hourly budget, not when their sum would. If the hour
+ * proves to be one count per address, the veto reads `totalCalls` instead.
  */
-export function modelCalls(n: number, w: SpendWindow, cloud: boolean): number {
-  if (n <= 0) return 0
-  return fetchSpans(w.startMs, w.endMs, w.nowMs, w.windowLimits).reduce(
-    (sum, span) =>
-      sum +
-      callWeight(n, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1) +
-      (cloud ? callWeight(n, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1) : 0),
-    0,
-  )
+export interface HostCalls {
+  /** `api.open-meteo.com`: the forecast spans' weather and cloud column, and the compared models' weather. */
+  forecast: number
+  /** `archive-api.open-meteo.com`: the archive spans' weather and cloud column. */
+  archive: number
+  /** `air-quality-api.open-meteo.com`: air quality. */
+  airQuality: number
 }
 
-/** Air quality for `n` destinations, over the hours `fetchAqi` asks for (`aqiSpan`). */
-export function airCalls(n: number, w: SpendWindow): number {
-  if (n <= 0) return 0
-  const span = aqiSpan(w.startMs, w.endMs, w.nowMs, w.aqiForecastDays)
-  return span === null ? 0 : callWeight(n, w.startMs, span.reqEndMs, 1)
+export const NO_CALLS: HostCalls = { forecast: 0, archive: 0, airQuality: 0 }
+
+/** Two prices together, the second taken `times` times. */
+export function addCalls(a: HostCalls, b: HostCalls, times = 1): HostCalls {
+  return {
+    forecast: a.forecast + times * b.forecast,
+    archive: a.archive + times * b.archive,
+    airQuality: a.airQuality + times * b.airQuality,
+  }
+}
+
+/** Every host's calls in one number, for the day it proves the hour is one count. */
+export function totalCalls(c: HostCalls): number {
+  return c.forecast + c.archive + c.airQuality
 }
 
 /**
- * The weighted calls an analysis spends, priced the way the browser fetches
- * it, batch for batch:
+ * One model's weather for `n` destinations, and its cloud column with it when
+ * `cloud` is set, each priced per span and booked to the span's host: a window
+ * crossing the archive boundary is two requests per batch (`fetchSpans`), one
+ * to each host, as `fetchWeather` and `fetchCloud` send them.
+ */
+export function modelCalls(n: number, w: SpendWindow, cloud: boolean): HostCalls {
+  if (n <= 0) return NO_CALLS
+  return fetchSpans(w.startMs, w.endMs, w.nowMs, w.windowLimits).reduce((sum, span) => {
+    const calls =
+      callWeight(n, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1) +
+      (cloud ? callWeight(n, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1) : 0)
+    return addCalls(sum, span.archive ? { ...NO_CALLS, archive: calls } : { ...NO_CALLS, forecast: calls })
+  }, NO_CALLS)
+}
+
+/** Air quality for `n` destinations, over the hours `fetchAqi` asks for (`aqiSpan`). */
+export function airCalls(n: number, w: SpendWindow): HostCalls {
+  if (n <= 0) return NO_CALLS
+  const span = aqiSpan(w.startMs, w.endMs, w.nowMs, w.aqiForecastDays)
+  return span === null ? NO_CALLS : { ...NO_CALLS, airQuality: callWeight(n, w.startMs, span.reqEndMs, 1) }
+}
+
+/**
+ * The weighted calls an analysis spends on each host, priced the way the
+ * browser fetches it, batch for batch:
  *
  * - the ranking model's weather (`HOURLY_VARIABLES`) and cloud column
- *   (`CLOUD_VARIABLES`) for every destination, each priced per span, because
- *   a window crossing the archive boundary is two requests per batch
- *   (`fetchSpans`), as `fetchWeather` and `fetchCloud` book them;
+ *   (`CLOUD_VARIABLES`) for every destination, each priced per span on the
+ *   span's host, as `fetchWeather` and `fetchCloud` book them;
  * - air quality once, over the hours `fetchAqi` asks for (`aqiSpan`), and
  *   nothing for a window wholly past the horizon;
  * - each compared model's weather for the displayed rows, which is what
@@ -77,31 +109,28 @@ export function airCalls(n: number, w: SpendWindow): number {
  * (`services/weather.py`) prices its own plan the same way, weather and cloud
  * per span per batch, and differs on purpose in two places: it leaves air
  * quality out, because the pod fetches air quality lazily and on a budget of
- * its own, and it has no comparison, which the browser alone draws. Air
- * quality is counted here although Open-Meteo meters each host's minute apart
- * (record 0203): how it counts the hour is unmeasured, and counting it is
- * the side that never lets an analysis spend into an hourly refusal.
+ * its own, and it has no comparison, which the browser alone draws.
  */
-export function analysisCalls(i: SpendInputs): number {
-  return (
-    modelCalls(i.destinations, i, true) +
-    airCalls(i.destinations, i) +
-    i.comparedModels * modelCalls(Math.min(i.compareRows, i.destinations), i, false)
+export function analysisCalls(i: SpendInputs): HostCalls {
+  return addCalls(
+    addCalls(modelCalls(i.destinations, i, true), airCalls(i.destinations, i)),
+    modelCalls(Math.min(i.compareRows, i.destinations), i, false),
+    i.comparedModels,
   )
 }
 
 /**
- * The spend veto's numbers when an analysis costs more than the hourly
- * budget, or null when it fits. `needed` is rounded up to a whole call,
- * because the line quotes it and a fraction of a call is not a thing the
- * reader can spend.
+ * The spend veto's numbers when any host's calls are past the hourly budget,
+ * or null when every host fits. `needed` is the dearest host's total, rounded
+ * up to a whole call, because the line quotes it and a fraction of a call is
+ * not a thing the reader can spend.
  */
-export function spendOver(calls: number, limit: number): { needed: number; limit: number } | null {
+export function spendOver(calls: HostCalls, limit: number): { needed: number; limit: number } | null {
   // Rounded to a millionth of a call first: 1.6 is not exact in binary, so
   // 3 x 1.6 + 3.2 sums to a hair over 14 and would quote 15, or refuse an
   // analysis that costs the budget exactly.
-  const priced = roundTo(calls, 6)
-  return priced > limit ? { needed: Math.ceil(priced), limit } : null
+  const dearest = roundTo(Math.max(calls.forecast, calls.archive, calls.airQuality), 6)
+  return dearest > limit ? { needed: Math.ceil(dearest), limit } : null
 }
 
 /** What the Analyze gate's spend veto reads off the panel. */
@@ -125,7 +154,8 @@ export interface SpendVetoInputs {
 
 /**
  * The gate's spend veto from the panel (#803, D2): the known count priced
- * over the selected window against the published hourly budget.
+ * over the selected window, host by host, against the published hourly
+ * budget.
  *
  * Off with no count, with no window, and over the cap: a field over the cap
  * is refused by the over-cap line in its own words, and its spend would be a
