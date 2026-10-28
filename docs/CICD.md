@@ -1117,7 +1117,7 @@ sources named in the last column.
 | Argo CD applies the sync | 4 s | 3–8 s | `deployStartedAt` → `deployedAt` (n=9) |
 | canary pod up (`setCanaryScale`) | 21 s | 21 s | Rollout step 0 → 1 (revisions 206, 207) |
 | `version-check` | 1 s | — | Rollout step 1 → 2 (revision 206) |
-| `api-test` | under 1 s | | Revision 56 (2026-10-28), the first rollout on the discovery gate: its one measurement started and finished in the same second. The 13 s median of revisions 206 and 207 was the analyze gate's, before #787 |
+| `api-test` | under 1 s | — | Revision 56 (2026-10-28), the first rollout on the discovery gate: its one measurement started and finished in the same second. The 13 s median of revisions 206 and 207 was the analyze gate's, before #787 |
 | `error-rate` | **120 s** | fixed | Rollout step 3 → 4 (revisions 206, 207) |
 | promotion + service cutover | 23 s | 21–25 s | step 4 → `RolloutCompleted` |
 | stable scale-up, old ReplicaSet down | 30 s | 30–31 s | `RolloutCompleted` → `RolloutHealthy` |
