@@ -96,6 +96,7 @@ import {
   MESSAGE_LIST,
   BLOCKED,
   MAP_ROUND_BUTTON,
+  MAP_TERRAIN_BUTTON,
   MAP_SLOT,
   MAP_CORNER,
   MAP_ZOOM_PAIR,
@@ -129,11 +130,11 @@ import {
 } from './styles'
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
-import { CHART_TICK_PX } from './utils/chartColors'
+import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
-import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
+import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chart/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { CHIP_MENU_GAP_PX } from './utils/resultsSheet'
+import { CHIP_MENU_GAP_PX } from './utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
@@ -153,7 +154,7 @@ import {
   RULE_COLOR,
   WARNING_COLOR,
   popupButton,
-} from './utils/popupChrome'
+} from './utils/popup/popupChrome'
 // The map's chip is the chip shape of the one menu trigger (record 0201), and
 // that is the only name it is exported under.
 const MAP_CHIP = MENU_TRIGGER.chip
@@ -2366,12 +2367,33 @@ describe('the map rows', () => {
     for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
     expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
     expect(mapRowsSource).toContain('{!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}')
-    // A phone's compass, the chip row's last member (record 0147): no size of
-    // its own, so a hidden compass leaves the row's end to the map. A desk
-    // has neither slot.
+    // A phone's compass, the chip row's last member (record 0147), with the
+    // 3D button after it (#799), 6px apart as a desk's column stands them: no
+    // size of its own, so a hidden compass leaves the 3D button alone at the
+    // row's end, and its empty group goes with it. A desk has neither slot.
     expect(mapRowsSource).toContain('{!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}')
     expect(Object.keys(MAP_SLOT)).toEqual(['locate', 'compass'])
-    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0'])
+    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0', 'flex', 'items-center', 'gap-1.5'])
+    expect(step(MAP_SLOT.compass, 'gap')).toBe(step(MAP_CORNER.stack, 'gap'))
+    expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group:has(> .compass-idle) {\n  display: none;\n}')
+  })
+
+  // The 3D button (#799) is a map button whose glyph is a word: the round
+  // button's chrome, the control size in bold in the chrome's ink, and the
+  // hook map.css fills it on while it is pressed, with the accent fill's two
+  // tokens, the fill and the label on it, as `ACCENT.fill` paints them.
+  it('draws the 3D button as a map button, filled with the accent while pressed', () => {
+    for (const t of tokens(MAP_ROUND_BUTTON)) expect(tokens(MAP_TERRAIN_BUTTON)).toContain(t)
+    for (const t of tokens(TEXT.control)) expect(tokens(MAP_TERRAIN_BUTTON)).toContain(t)
+    expect(tokens(MAP_TERRAIN_BUTTON)).toEqual(expect.arrayContaining(['map-terrain', 'font-bold']))
+    const at = mapCss.indexOf('.map-terrain[aria-pressed="true"] {')
+    expect(at).toBeGreaterThan(-1)
+    const rule = mapCss.slice(at, mapCss.indexOf('}', at))
+    expect(tokens(ACCENT.fill)).toEqual(['bg-accent', 'text-on-fill'])
+    expect(rule).toContain('background-color: var(--ui-accent);')
+    expect(rule).toContain('border-color: var(--ui-accent);')
+    expect(rule).toContain('color: var(--ui-on-fill);')
+    expect(mapCss).toMatch(/\.map-terrain\[aria-pressed="true"\]:hover \{\s*background-color: var\(--ui-accent-hover\);/)
   })
 
   // One floating chrome for the pill, the locate button and the chips: the
@@ -3110,7 +3132,7 @@ describe('the selection chip', () => {
   // the 3:1 WCAG 1.4.11 asks of a boundary carrying meaning alone — so the
   // state is carried by shape as well, the × that a resting chip has and an
   // active one never does (`chipRemovable`, held in
-  // `utils/modelSelection.test.ts`). Measured here so a change to either fill
+  // `utils/model/modelSelection.test.ts`). Measured here so a change to either fill
   // is forced through a re-measurement rather than inheriting this sentence.
   const MEASURED = { activeVsRest: 2.27, restLabel: 8.4, activeLabel: 4.56 }
 

@@ -56,9 +56,9 @@ test('a click under the desk legend card reaches the map', async ({ page }, test
 })
 
 // A phone's keys are in a sheet the Legend chip opens, and the map holds no
-// legend box at all; the chip row leaves its right end empty, and a press
-// there is the map's.
-test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is the map\'s', async ({ page }) => {
+// legend box at all. The chip row's right end is the 3D button's (#799),
+// under the locate button, and the summary chip gives way to it.
+test('a phone keeps its keys in the Legend sheet, and the row ends at the 3D button', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 })
   await page.goto('/?fires=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
@@ -66,17 +66,15 @@ test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is th
   await expect(legend).toBeEnabled()
   await expect(page.getByText('Active wildfire')).toHaveCount(0)
 
-  // About 20px at 360 wide, where the three chips take 316 of 336. Layers is
-  // the row's last chip, after Legend (TJ, 2026-10-18).
+  // Layers is the row's last chip, after Legend (TJ, 2026-10-18), and the 3D
+  // button stands at the row's end, 6px or more past it.
   const end = await page.getByRole('button', { name: 'Layers', exact: true }).evaluate((chip) => {
     const row = chip.parentElement!.getBoundingClientRect()
-    const right = chip.getBoundingClientRect().right
-    const x = Math.round((right + row.right) / 2)
-    const y = Math.round(row.top + row.height / 2)
-    return { free: Math.round(row.right - right), hit: !!document.elementFromPoint(x, y)?.closest('.maplibregl-canvas-container') }
+    const button = document.querySelector('button[aria-label="3D terrain"]')!.getBoundingClientRect()
+    return { gap: Math.round(button.left - chip.getBoundingClientRect().right), flush: Math.round(row.right - button.right) }
   })
-  expect(end.free).toBeGreaterThan(10)
-  expect(end.hit).toBe(true)
+  expect(end.gap).toBeGreaterThanOrEqual(6)
+  expect(end.flush).toBe(0)
 
   await legend.click()
   const sheet = page.getByRole('dialog', { name: 'Legend' })

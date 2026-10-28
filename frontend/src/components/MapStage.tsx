@@ -32,7 +32,7 @@ import {
   phoneCornerLiftPx,
   transportFits,
   transportStandPx,
-} from '../utils/resultsSheet'
+} from '../utils/results/resultsSheet'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { Place } from '../utils/geocode'
 import { fieldHasValue } from '../utils/present'
@@ -361,6 +361,7 @@ export default function MapStage({
           showRelief={overlays.showRelief}
           showSatellite={overlays.showSatellite}
           showTerrain={overlays.showTerrain}
+          onTerrainChange={overlays.setShowTerrain}
           showFireActivity={overlays.showFireActivity}
           radarIndex={timeline.radarIndex}
           gridSpec={grid.grid.spec}

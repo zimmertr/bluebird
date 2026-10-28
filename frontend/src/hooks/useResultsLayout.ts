@@ -20,13 +20,13 @@ import {
   restingMapFloorPx,
   resolveSheetLift,
   sheetHeightPx,
-} from '../utils/resultsSheet'
+} from '../utils/results/resultsSheet'
 import { type ResultsMode, writeViewPrefs } from '../utils/viewPrefs'
 
 // Opening heights for the two docked panels, and where a double-click on a
 // resizer puts them back. A drag is easy to overshoot and there was no way
 // back short of dragging until it looked right again. One number for both,
-// measured in `utils/resultsSheet.ts` against the docked map floor.
+// measured in `utils/results/resultsSheet.ts` against the docked map floor.
 const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT
 const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 
@@ -108,7 +108,7 @@ export interface ResultsLayoutInputs {
  * lift the map's bottom chrome rides.
  *
  * State and wiring only. Every number it decides with is a pure function in
- * `utils/layout.ts` or `utils/resultsSheet.ts`, and the grip's markup and its
+ * `utils/layout.ts` or `utils/results/resultsSheet.ts`, and the grip's markup and its
  * double-press clock are `ResizeGrip`'s; what is left here is which of those
  * answers applies this render, and the measurement of the sheet that nothing
  * can derive.

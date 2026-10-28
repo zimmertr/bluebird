@@ -3,7 +3,7 @@ import type { Refusal, RunError } from './analyzeTypes'
 import type { ForecastModelOption } from './useCapabilities'
 import type { DiscoveryType, SortBy } from '../types'
 import { analyzeBlockers, analyzeGateFor, canAnalyze, ringAddsNothing } from '../utils/analyzeGate'
-import { type ForecastSelection, selectionLocalWindow } from '../utils/calendar'
+import { type ForecastSelection, selectionLocalWindow } from '../utils/calendar/calendar'
 import { type WindowLimits, windowSource } from '../utils/forecastWindow'
 import {
   type EventNoticeKind,

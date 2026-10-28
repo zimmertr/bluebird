@@ -12,7 +12,7 @@
  */
 import type * as maplibregl from 'maplibre-gl'
 import type { MapTarget } from '../utils/mapClick'
-import { popupWidth, resultPopupWidth } from '../utils/popupChrome'
+import { popupWidth, resultPopupWidth } from '../utils/popup/popupChrome'
 
 /**
  * Whether a click should keep the popups already open.

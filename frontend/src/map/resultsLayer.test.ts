@@ -91,12 +91,12 @@ vi.mock('maplibre-gl', () => ({
 }))
 
 import { makeArrowImage, mountResultsLayer, RESULT_MARKER_LAYER } from './resultsLayer'
-import { POPUP_PAN_MS } from '../utils/popupFit'
+import { POPUP_PAN_MS } from '../utils/popup/popupFit'
 import { createMapController, type MapInputs } from './controller'
 import { mountTestPopups } from '../testSupport/mapPopups'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
 import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
-import { POPUP_TINT_ATTR } from '../utils/popupChrome'
+import { POPUP_TINT_ATTR } from '../utils/popup/popupChrome'
 import { displayedColumns } from '../utils/tableColumns'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { closureWarning, mapInputs, resultRow } from '../testSupport/fixtures'

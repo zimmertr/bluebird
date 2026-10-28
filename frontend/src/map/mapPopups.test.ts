@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { POPUP_CARD_CLASS } from '../utils/popupChrome'
-import { POPUP_PAN_MS } from '../utils/popupFit'
+import { POPUP_CARD_CLASS } from '../utils/popup/popupChrome'
+import { POPUP_PAN_MS } from '../utils/popup/popupFit'
 
 // MapLibre's Popup needs a DOM. This one records the options it was made with
 // and whether it is open, and fires `close` when removed, as MapLibre's does.

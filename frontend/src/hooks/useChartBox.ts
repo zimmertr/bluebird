@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import type { DestinationResult } from '../types'
-import { chartKey, rowsBetween } from '../utils/chartData'
+import { chartKey, rowsBetween } from '../utils/chart/chartData'
 
 /** What a row's chart checkbox needs from the table. */
 export interface ChartBox {

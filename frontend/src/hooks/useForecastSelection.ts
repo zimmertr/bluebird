@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Capabilities, modelForecastHours, publishesModels } from './useCapabilities'
-import { DEFAULT_SELECTION, type ForecastSelection, selectionLocalWindow } from '../utils/calendar'
+import { DEFAULT_SELECTION, type ForecastSelection, selectionLocalWindow } from '../utils/calendar/calendar'
 import { isPointSample } from '../utils/forecastWindow'
 import { panelWindowMs as toWindowMs, planModelChange, windowWarningFor } from '../utils/forecastSelection'
 import type { ShareableState } from '../utils/urlState'
@@ -94,7 +94,7 @@ export function useForecastSelection(restored: Partial<ShareableState> | null, c
       untouchedModelRef.current = false
       // The compared set is not touched here. A model is on the chart once
       // whichever way it got there, and which models are selected is the
-      // picker's own answer (`utils/modelSelection.ts`), handed over beside this
+      // picker's own answer (`utils/model/modelSelection.ts`), handed over beside this
       // call rather than recomputed from a state this function cannot see.
       // The band as the NEW model leaves it: only the far edge moves with a model.
       const nextBand = { ...band, forecastHours: modelForecastHours(caps.forecastModels, id) }

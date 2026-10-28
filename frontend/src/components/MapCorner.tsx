@@ -10,17 +10,18 @@ interface Props {
 /**
  * A desk's map corner (record 0174), laid out as Google Maps lays out its own
  * (TJ, 2026-10-20): the credit line flush in the bottom-right corner with the
- * scale at its end, and over it a column of the compass, the locate button and
- * the zoom pair. Empty slots, each handed to `MapView`, which stands the
- * library's own control in it (`placeControl`), so every button keeps the
+ * scale at its end, and over it a column of the compass, the 3D button (#799),
+ * the locate button and the zoom pair. Empty slots, each handed to `MapView`,
+ * which stands the control in it (`placeControl`), so every button keeps the
  * library's states and its permission prompt. A phone has no corner: its
- * compass and locate button stand in its rows (`MapRows`).
+ * compass, 3D button and locate button stand in its rows (`MapRows`).
  *
- * Reported together, once, because the five mount and go together, so the map
+ * Reported together, once, because the six mount and go together, so the map
  * moves its controls in and out of the corner in one pass.
  */
 export default function MapCorner({ onSlots }: Props) {
   const compass = useRef<HTMLDivElement>(null)
+  const terrain = useRef<HTMLDivElement>(null)
   const locate = useRef<HTMLDivElement>(null)
   const zoom = useRef<HTMLDivElement>(null)
   const credit = useRef<HTMLDivElement>(null)
@@ -29,6 +30,7 @@ export default function MapCorner({ onSlots }: Props) {
   useLayoutEffect(() => {
     onSlots({
       compass: compass.current!,
+      terrain: terrain.current!,
       locate: locate.current!,
       zoom: zoom.current!,
       credit: credit.current!,
@@ -43,6 +45,7 @@ export default function MapCorner({ onSlots }: Props) {
           rows, rather than of the box, which is mostly map. */}
       <div data-map-overlay="" className={MAP_CORNER.stack}>
         <div ref={compass} className={MAP_CORNER.slot} />
+        <div ref={terrain} className={MAP_CORNER.slot} />
         <div ref={locate} className={MAP_CORNER.slot} />
         <div ref={zoom} className={MAP_CORNER.slot} />
       </div>

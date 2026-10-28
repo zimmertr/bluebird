@@ -14,7 +14,10 @@ interface MapRowsProps {
   searchPointed: boolean
   /** Receives a phone's locate button slot, which the map stands its own button in; null at a desk. */
   onLocateSlot: (slot: HTMLDivElement | null) => void
-  /** Receives a phone's compass slot, under the locate button at the chip row's end (record 0147); null at a desk. */
+  /**
+   * Receives a phone's compass slot, under the locate button at the chip row's
+   * end (record 0147), where the 3D button stands too (#799); null at a desk.
+   */
   onCompassSlot: (slot: HTMLDivElement | null) => void
   /** A desk's width (#714): the panel is docked, so the summary chip stands only while it is shut. */
   desk: boolean
@@ -37,8 +40,9 @@ interface MapRowsProps {
  * #714 (record 0174): the search pill, and the chip row under it, the controls
  * summary, Legend and Layers. The row keeps that one shape from arrival to
  * results: Legend greys until it has a key to show rather than coming and
- * going. On a phone the locate button stands at the pill's right and the
- * compass, while the map is turned, at the chip row's end under it. A desk's
+ * going. On a phone the locate button stands at the pill's right, and at the
+ * chip row's end under it the 3D button and, while the map is turned or
+ * tilted, the compass before it (#799). A desk's
  * map buttons stand in the map's bottom-right corner instead (`MapCorner`), so
  * a desk's rows have no slots (record 0174).
  *
@@ -110,9 +114,10 @@ export default function MapRows({
             the map's left edge and covers less of it (TJ, 2026-10-18). */}
         {legend}
         {layers}
-        {/* The compass's on a phone, the row's empty right end under the
-            locate button (record 0147): the map stands its own compass in
-            it, which shows only while the map is turned or tilted. */}
+        {/* The compass's on a phone, the row's right end under the locate
+            button (record 0147): the map stands its own compass in it, which
+            shows only while the map is turned or tilted, and the 3D button
+            after it (#799). */}
         {!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}
       </div>
     </div>

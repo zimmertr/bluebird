@@ -12,7 +12,7 @@ import {
 // a lint rule could only do by copying the numbers. The rest of the rule that a
 // published limit has one source lives in the linter (tools/eslint/checks).
 import forecastWindowSource from '../utils/forecastWindow.ts?raw'
-import { AQI_LIMIT_DAYS } from '../utils/calendar'
+import { AQI_LIMIT_DAYS } from '../utils/calendar/calendar'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import {
   FALLBACK_WINDOW_LIMITS,

@@ -4,8 +4,9 @@
  *
  * Lowest of all, the satellite imagery, which adds nothing until it is
  * switched on and then goes directly above the style's background, under
- * every other layer of the style (#799). The basemap patch goes under the style's own labels, and the trailhead and
- * crag markers over it, still under those labels. Above the style: the
+ * every other layer of the style (#799). The basemap patch goes under the
+ * style's own labels, and the trailhead and crag markers over it, still under
+ * those labels. Above the style: the
  * forecast grid, which is the ground everything else is read against, then
  * smoke, then the fire perimeters, then the closures over the fires that
  * caused them (the closed ground under the closed trails, so a trail reads on
@@ -14,8 +15,10 @@
  * never under the outline of the area it was found in, then the markers and
  * the pending dots. The radar loop and the snow field are created when they
  * are switched on, beneath the first smoke fill, so the chain comes out grid,
- * snow, radar, smoke, fire, closures, detections, draw, results. The basemap POI popups add no
- * layers and go last.
+ * snow, radar, smoke, fire, closures, detections, draw, results. The basemap
+ * POI popups add no layers and go last. The ground (`terrain.ts`, #799) adds
+ * nothing on load either: its relief and contours go in the first time they
+ * are switched on, under the basemap patch and the style's labels.
  *
  * The map's popups mount first of all (`map/mapPopups.ts`): every feature that
  * opens a popup registers itself there as it mounts, and the one click that
@@ -45,6 +48,7 @@ import { mountWildfires, type WildfireOverlay } from './overlays/wildfires'
 import { mountPoiPopups, type PoiPopups } from './poiPopup'
 import type { PopupBoard } from './popups'
 import { mountResultsLayer, type ResultsLayer } from './resultsLayer'
+import { mountTerrain, type TerrainLayers } from './terrain'
 
 export interface MapFeatures {
   imagery: ImageryOverlay
@@ -60,6 +64,7 @@ export interface MapFeatures {
   drawRing: DrawRing
   results: ResultsLayer
   pois: PoiPopups
+  terrain: TerrainLayers
 }
 
 export function mountFeatures(
@@ -96,6 +101,9 @@ export function mountFeatures(
   enhanceBasemap(map)
   // After the basemap patch, which registers the icons its layers name.
   const landmarks = mountLandmarks(map, {})
+  // Adds nothing until a switch asks: no elevation tile and no contour code
+  // on the cold load.
+  const terrain = mountTerrain(map)
   const grid = mountForecastGrid(map)
   const smoke = mountSmoke(map, { popups: mapPopups })
   const wildfires = mountWildfires(map, { popups: mapPopups })
@@ -131,5 +139,6 @@ export function mountFeatures(
     drawRing,
     results,
     pois,
+    terrain,
   }
 }

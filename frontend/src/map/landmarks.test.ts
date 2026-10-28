@@ -12,6 +12,7 @@ import { CLIMBING_IMAGE, POI_GLOW_IMAGE, POI_LABEL_PAINT, TRAILHEAD_IMAGE } from
 import { FIRE_REFETCH_DEBOUNCE_MS } from './overlays/wildfires'
 import { LANDMARK_MINZOOM } from '../utils/landmarks'
 import { stubMap } from '../testSupport/stubMap'
+import { visibleBox } from '../utils/viewBox'
 
 const LANDMARKS = {
   type: 'FeatureCollection',
@@ -117,8 +118,23 @@ describe('mountLandmarks', () => {
   it('fetches the viewport on mount at the floor and above, and fills the source', async () => {
     const { stub } = setup({ zoom: 11 })
     expect(fetchLandmarks).toHaveBeenCalledTimes(1)
-    expect(fetchLandmarks.mock.calls[0][0]).toEqual([-122, 47, -121, 48])
+    expect(fetchLandmarks.mock.calls[0][0]).toEqual(visibleBox(stub.map.getCenter(), 11, 0, 0, 0))
     await vi.waitFor(() => expect(stub.sources[LANDMARK_SOURCE].data).toBe(LANDMARKS))
+  })
+
+  // A pitched camera's bounds run to the horizon (#799), and the markers ask
+  // for the box the view would cover lying flat.
+  it('asks for the view as it would lie flat, not to the horizon', () => {
+    const stub = stubMap({
+      styleLayers: STYLE_LAYERS,
+      zoom: 13,
+      canvasWidth: 1000,
+      canvasHeight: 700,
+      pitch: 60,
+      bounds: { west: -140, south: 40, east: -100, north: 70 },
+    })
+    mountLandmarks(stub.map, { online: null })
+    expect(fetchLandmarks.mock.calls[0][0]).toEqual(visibleBox(stub.map.getCenter(), 13, 1000, 700, 0))
   })
 
   // A crag's card names its state in its search, from outlines fetched once,

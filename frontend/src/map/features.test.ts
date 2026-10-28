@@ -123,7 +123,31 @@ describe('mountFeatures', () => {
   it('hands back every feature the component drives', () => {
     const { features } = setup()
     expect(Object.keys(features).sort()).toEqual(
-      ['areaClosures', 'drawRing', 'fireActivity', 'grid', 'imagery', 'landmarks', 'pois', 'radar', 'results', 'smoke', 'snow', 'trailClosures', 'wildfires'].sort(),
+      [
+        'areaClosures',
+        'drawRing',
+        'fireActivity',
+        'grid',
+        'imagery',
+        'landmarks',
+        'pois',
+        'radar',
+        'results',
+        'smoke',
+        'snow',
+        'terrain',
+        'trailClosures',
+        'wildfires',
+      ].sort(),
     )
+  })
+
+  // The ground waits for a switch (#799): the cold load adds no elevation
+  // source, no relief and no contours.
+  it('adds nothing of the ground until a switch asks for it', () => {
+    const { stub } = setup()
+    const added = stub.calls.filter((c) => c[0] === 'addSource').map((c) => c[1])
+    expect(added.filter((id) => /dem|contour/.test(String(id)))).toEqual([])
+    expect(stub.stack.filter((id) => /relief|contour/.test(id))).toEqual([])
   })
 })

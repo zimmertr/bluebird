@@ -35,7 +35,7 @@
 
 /* The popups follow the theme (#740), and are the app's own surface in
    either one (#786, record 0215). Every colour a card wears is one of the
-   `--popup-*` values below, which `utils/popupChrome.ts` names in its markup
+   `--popup-*` values below, which `utils/popup/popupChrome.ts` names in its markup
    (`var(--popup-label)`) and the rules further down name for the parts
    MapLibre draws itself: the card's surface, its tip, the close button and
    the scroll bar. Here rather than in index.css, which every page loads,
@@ -72,7 +72,7 @@
 }
 
 /* A ranked family's grid cell carries the table's ink for both themes
-   (`PopupTint` in utils/popupRows.ts) and takes the one the root is in, so
+   (`PopupTint` in utils/popup/popupRows.ts) and takes the one the root is in, so
    the card's markup names no theme and an open card follows a switch. */
 .maplibregl-popup [data-tint] {
   --popup-tint: var(--tint-dark);
@@ -277,6 +277,32 @@
   display: none;
 }
 
+/* Its group goes with it, since a phone's slot stands the 3D button after the
+   compass (#799) and an empty group would hold the gap between them open. */
+.map-slot .maplibregl-ctrl-group:has(> .compass-idle) {
+  display: none;
+}
+
+/* The 3D button while it is on (#799): the accent fill under the label's
+   white, as a chosen segment wears it (`ACCENT.fill`), its edge the fill so
+   the button reads as one solid disc. Keyed on `aria-pressed` here rather
+   than handed a class, because the button is markup the map makes once and
+   the attribute is its state. Unlayered, so it beats the map button's own
+   floating fill and the sky edge it takes on hover; the hover darkens or
+   lightens as a filled accent button's does in each theme. */
+.map-terrain[aria-pressed="true"] {
+  background-color: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: var(--ui-on-fill);
+}
+
+@media (hover: hover) {
+  .map-terrain[aria-pressed="true"]:hover {
+    background-color: var(--ui-accent-hover);
+    border-color: var(--ui-accent-hover);
+  }
+}
+
 .maplibregl-ctrl-compass:disabled .maplibregl-ctrl-icon,
 .maplibregl-ctrl-zoom-in:disabled .maplibregl-ctrl-icon,
 .maplibregl-ctrl-zoom-out:disabled .maplibregl-ctrl-icon {
@@ -365,7 +391,7 @@
 }
 
 /* A card draws its own padding, so its header band can run edge to edge
-   (`popupCard` in utils/popupChrome.ts, TJ, 2026-10-08), and its band keeps
+   (`popupCard` in utils/popup/popupChrome.ts, TJ, 2026-10-08), and its band keeps
    the same lane itself. Every popup but a bare button is one (#738). */
 .popup-card .maplibregl-popup-content {
   padding: 0;
@@ -530,7 +556,7 @@
  * rather than each control taking an offset of its own.
  *
  * `--map-corner-lift` is that one step, published by App on the map wrapper and
- * derived in `utils/resultsSheet.ts` beside every other anchor on this edge. It
+ * derived in `utils/results/resultsSheet.ts` beside every other anchor on this edge. It
  * is absent wherever nothing stands there — a phone before the first report,
  * and any width where the results are closed — which is what the 0px fallback
  * covers.
@@ -636,7 +662,7 @@
 }
 
 /* A marker popup too tall for the free map area scrolls its body under its
-   title (TJ, 2026-10-08; `capPopupBody` in utils/popupChrome.ts sets the
+   title (TJ, 2026-10-08; `capPopupBody` in utils/popup/popupChrome.ts sets the
    height). The bar stays drawn while the body overflows, because overlay
    scrollbars vanish until scrolled and a card cut mid-list would give no hint
    there is more: `scrollbar-color` gives Chrome and Firefox a classic bar and

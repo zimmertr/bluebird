@@ -10,7 +10,7 @@ import {
   gridLegendLine,
   modelPitchKm,
   type GridStyle,
-} from '../utils/forecastGrid'
+} from '../utils/forecastGrid/forecastGrid'
 import type { ShareableState } from '../utils/urlState'
 
 export interface GridLayerInputs {

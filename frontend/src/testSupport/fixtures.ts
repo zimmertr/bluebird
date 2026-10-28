@@ -8,7 +8,7 @@ import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import type { Place } from '../utils/geocode'
 import type { Coordinate, WeatherResult } from '../utils/openMeteo'
 import type { WeatherSeries } from '../utils/openMeteoAggregate'
-import type { CellBox, GridCell, GridSpec } from '../utils/forecastGridLattice'
+import type { CellBox, GridCell, GridSpec } from '../utils/forecastGrid/forecastGridLattice'
 import type { FireWarning } from '../utils/fireProximity'
 import type { ClosureWarning } from '../utils/closureProximity'
 import type { PendingDestination } from '../utils/customList'
@@ -512,6 +512,7 @@ export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,
+    onTerrainChange: () => {},
     ...over,
   }
 }

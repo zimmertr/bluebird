@@ -233,8 +233,19 @@ again. Each of the seven that draw somebody else's data is credited in its own s
 | **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
 | **Satellite** | Aerial photos of the ground, under the map's roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
 
-Contours and Shaded relief are in the list and ride in the shared link, but
-draw nothing yet (#799).
+**Contours** and **Shaded relief** draw the shape of the ground from one
+elevation model, under the trails, the peaks and every name on the map. The
+contours are in feet, like every height in the app. They start at about the
+zoom a whole volcano fills the map, 1,000 feet apart, and close to 40 feet as
+you zoom in; further out there are none. Every fifth line is drawn heavier with
+its height written along it. The relief shades the slopes facing away from a light in
+the northwest, lightly enough that the woods, the ice and the water still read
+through it. The model is 30 m everywhere and finer where a country has
+surveyed its own ground, which in the United States it has, so a gully that
+shows over Rainier may not show over the Alps. Its heights are the model's,
+which can differ from the height a summit's label gives
+([DATA.md](DATA.md#elevation-and-imagery)). Neither layer downloads anything
+until you switch it on.
 
 **Satellite** puts photos under the map's roads, trails and labels, and takes
 away the map's own colours for land, water and buildings. Over the United
@@ -330,6 +341,18 @@ Smoke is an analyst's tracing of what a satellite could see, updated about twice
 day, and it describes a column of air rather than the ground: a plume overhead can
 mean a hazy sky and clean air to breathe, or the opposite. The AQI columns in the
 table are what measure air.
+
+### 3D terrain
+
+The **3D** button stands with the map's own buttons, under the compass at a
+desk and at the end of the chip row on a phone, beside the compass. Press it
+and the map stands the ground up on the same elevation model and tilts to look
+across it; press it again and the map lies flat, facing the way it faced. It is
+off by default, lit while it is on, and rides in the shared link as `terrain`,
+so a link made in 3D opens tilted. Drag with the right mouse button, or with two
+fingers, to change the tilt and the heading; the compass puts both back.
+3D draws nothing of its own, so it is best with **Shaded relief** on. Like the
+layers above, it changes nothing about the analysis.
 
 ### The forecast grid
 
