@@ -3774,8 +3774,10 @@ describe('the one menu', () => {
     expect(MENU.cardRow).toContain('rounded')
     // And 20px apart, the list rows' pitch (record 0222).
     expect(stepPx(MENU.cardRow, 'py')).toBe(stepPx(MENU.row, 'py'))
-    // A disabled row takes none: each wiring names the condition.
-    expect(layersPopoverSource).toContain("disabled ? '' : ` ${MENU.hover}`")
+    // A disabled row takes none: each wiring names the condition. A Layers
+    // row is locked when it greys unticked; greyed and ticked, a press still
+    // unticks it, so it lights (#803).
+    expect(layersPopoverSource).toContain("locked ? '' : ` ${MENU.hover}`")
     expect(columnsPickerSource).toContain('!sheet && !isRanked ? MENU.hover')
     expect(modelsPickerSource).toContain('${MENU.row} ${MENU.hover}')
   })
