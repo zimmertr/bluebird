@@ -5,6 +5,7 @@
 
 import type { WindowSource } from '../utils/forecastWindow'
 import type { ElevationLookup } from './useElevationLookup'
+import type { CountedField } from './useDestinationCount'
 import type { SelectionKind } from '../utils/calendar/calendar'
 import type { AnalyzedSnapshot } from '../utils/present'
 
@@ -131,4 +132,10 @@ export interface AnalyzeOptions {
    * because the run's commit, not the click, is when they apply.
    */
   onCommit?: () => void
+  /**
+   * The ring's field as the count ahead of Analyze found it, with the
+   * discovery it answers (#803, D1): the run forecasts it in place of its own
+   * discovery when the request asks the same question.
+   */
+  counted?: CountedField | null
 }

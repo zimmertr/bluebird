@@ -8,6 +8,7 @@ import {
   analyzeGateFor,
   canAnalyze,
   ringAddsNothing,
+  ringUsable,
 } from '../utils/analyzeGate'
 import { type ForecastSelection, selectionLocalWindow } from '../utils/calendar/calendar'
 import { type WindowLimits, windowSource } from '../utils/forecastWindow'
@@ -22,6 +23,9 @@ import {
   worstSeverity,
 } from '../utils/notices'
 import { panelMessages } from '../utils/panelMessages'
+import { spendVeto } from '../utils/analysisSpend'
+import { knownCount } from '../utils/destinationCount'
+import { selectedIds } from '../utils/model/modelSelection'
 import type { CommitReason } from '../utils/present'
 import { classifyAqiCoverage } from '../utils/urlState'
 
@@ -61,6 +65,16 @@ export interface PanelMessageState {
   customCount: number
   /** The published analysis cap. */
   maxDestinations: number
+  // ── #803 D1, D2, D5 ──
+  /** How many destinations the ring holds, counted ahead of Analyze (`useDestinationCount`), or null. */
+  ringCount: number | null
+  /** The results cap, which bounds the rows a compared model is fetched for. */
+  limit: number
+  /** Open-Meteo's hourly budget (`limits.open_meteo_hourly_calls`). */
+  hourlyCalls: number
+  /** The report's air quality failed for some of its field and not all of it (`useAnalyze.aqiPartial`). */
+  aqiPartial: boolean
+  // ── end #803 ──
   /** Moves once per run that ends in an error or a refusal (`useAnalysisRun`, #803). */
   failureSeq: number
   /** Every knob that has stopped applying live, in `commitNeeded`'s order. */
@@ -150,6 +164,28 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
   // publishing still reads as something rather than as an empty gap in a
   // sentence.
   const modelLabel = s.forecastModels.find((m) => m.id === s.forecastModel)?.label ?? s.forecastModel
+  // ── #803 D1, D2: what the analysis is known to cover, and what it costs ──
+  // A ring searches when it would be a polygon input: finished, inside the
+  // cap and with a kind ticked. Its count joins the list's; with no ring
+  // searching, the list is the whole field.
+  const ringSearches =
+    ringUsable(s.drawPointCount, s.polygonAreaKm2 !== null && s.polygonAreaKm2 > s.maxAreaKm2) &&
+    s.destinationTypes.length > 0
+  const known = knownCount(ringSearches, s.ringCount, s.customCount)
+  const spend = spendVeto({
+    selection: s.selection,
+    known,
+    maxDestinations: s.maxDestinations,
+    // The ranking model is priced on its own: every other model picked is a
+    // comparison, fetched for the rows the table shows.
+    comparedModels: selectedIds(s.forecastModels, s.forecastModel, s.comparedModels).length - 1,
+    limit: s.limit,
+    hourlyCalls: s.hourlyCalls,
+    windowLimits: s.windowLimits,
+    aqiForecastDays: s.aqiForecastDays,
+    now: new Date(),
+  })
+  // ── end #803 D1, D2 ──
   // The gate the two Analyze buttons read (#696): one function from the same
   // inputs, so the two cannot disagree about whether a run may start.
   const { gate, freezeGaps } = analyzeGateFor({
@@ -171,6 +207,9 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     panel: s.failedPanel,
     customCount: s.customCount,
     maxDestinations: s.maxDestinations,
+    // #803 D1, D2
+    ringCount: ringSearches ? s.ringCount : null,
+    spend,
   })
   const analyzeEnabled = canAnalyze(gate)
   const blockers = analyzeBlockers({ ...gate, drawPointCount: s.drawPointCount })
@@ -222,6 +261,7 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     windowLimits: s.windowLimits,
     hasReport: s.hasReport,
     aqiAllNull: s.aqiAllNull,
+    aqiPartial: s.aqiPartial,
     wildfireCheckFailed: s.wildfireCheckFailed,
     closureCheckFailed: s.closureCheckFailed,
     basemapFailed: s.basemapFailed,

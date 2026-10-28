@@ -47,6 +47,7 @@ export function demoMessageList(limits: {
     windowLimits: limits.windowLimits,
     hasReport: false,
     aqiAllNull: false,
+    aqiPartial: false,
     wildfireCheckFailed: false,
     closureCheckFailed: false,
     basemapFailed: false,

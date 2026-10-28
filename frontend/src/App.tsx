@@ -34,6 +34,7 @@ import { TUTORIAL_PATH } from './utils/tourSteps'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useElevationLookup } from './hooks/useElevationLookup'
+import { useDestinationCount } from './hooks/useDestinationCount'
 import { useCapabilities } from './hooks/useCapabilities'
 import { useForecastSelection } from './hooks/useForecastSelection'
 import { useRankingKnobs } from './hooks/useRankingKnobs'
@@ -229,6 +230,7 @@ export default function App() {
     caps.forecastModels,
     caps.windowLimits,
     caps.aqiForecastDays,
+    caps.openMeteoHourlyCalls,
   )
   const {
     analyze,
@@ -255,6 +257,23 @@ export default function App() {
   // holds rows (#673): usually done before Analyze is pressed, and an answer
   // that lands after a report is placed on it.
   const elevations = useElevationLookup({ csvRows, places, cap: caps.maxDestinations, onPlaced: placeHeld })
+  // ── #803 D1, M7: the ring's count ahead of Analyze ────────────────────────
+  // Where the pod answers from its places table, the ring is counted once it
+  // and its kinds are still, so a ring over the cap greys Analyze before any
+  // press and the run forecasts the counted field without asking again. A
+  // cleared ring or no kind left releases a failed run's found field.
+  const destinationCount = useDestinationCount({
+    polygon,
+    drawPointCount,
+    drawing,
+    polygonAreaKm2: destinationInputs.polygonAreaKm2,
+    maxAreaKm2: caps.maxPolygonAreaKm2,
+    destinationTypes,
+    includeUnnamedPeaks,
+    discoverySource: caps.discoverySource,
+    onRingGone: analysis.dropFound,
+  })
+  // ── end #803 D1, M7 ───────────────────────────────────────────────────────
   // The committed rows whose height-read cells tick: waiting on an elevation
   // the lookup still means to answer. A row the lookup has given up on stops
   // ticking and reads blank, and a row placed is no longer waiting.
@@ -487,6 +506,7 @@ export default function App() {
     forgetPreClamp,
     clearRemovalsForScope,
     setShowResults,
+    counted: destinationCount.counted,
   })
 
   // The panel's messages and the Analyze gate, derived once for both widths
@@ -514,6 +534,12 @@ export default function App() {
     failedPanel: panelForRetry,
     customCount,
     maxDestinations: caps.maxDestinations,
+    // #803 D1, D2, D5: the ring's count, what the spend is priced on, and
+    // whether the report's air quality failed for part of its field.
+    ringCount: destinationCount.ringCount,
+    limit,
+    hourlyCalls: caps.openMeteoHourlyCalls,
+    aqiPartial: analysis.aqiPartial,
     failureSeq,
     commitReasons,
     hasReport: response !== null,

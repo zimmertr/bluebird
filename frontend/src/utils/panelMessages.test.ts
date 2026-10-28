@@ -43,6 +43,7 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     windowLimits: FALLBACK_WINDOW_LIMITS,
     hasReport: false,
     aqiAllNull: false,
+    aqiPartial: false,
     wildfireCheckFailed: false,
     closureCheckFailed: false,
     basemapFailed: false,

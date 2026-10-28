@@ -37,6 +37,8 @@ const COMMIT_CUE: Record<CommitReason, string> = {
 // The AQI info line's dismissal key (#253): a condition, not a message, like
 // every derived line's.
 export const AQI_NOTE_KEY = 'aqi:none'
+// The partial line's (#803, D5), its own condition beside the one above.
+export const AQI_PARTIAL_KEY = 'aqi:partial'
 
 // One sentence for the AQI warning over a report and for the blocker that
 // stops a ranking on air quality the window has none of (#803), so the two
@@ -146,6 +148,9 @@ export interface PanelMessageInputs {
   // Whether a report is on screen at all.
   hasReport: boolean
   aqiAllNull: boolean
+  // The report's air quality failed for some of its field and not all of it
+  // (#803, D5): one refused batch nulls every batch after it (`fetchAqi`).
+  aqiPartial: boolean
   wildfireCheckFailed: boolean
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
@@ -180,6 +185,10 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
   // The AQI line qualifies the ANALYSIS rather than the view of it: every
   // displayed row has null AQI although the window is inside the horizon.
   const aqiNoteActive = reportSettled && p.aqiAllNull && p.aqiCoverage !== 'none'
+  // Part of the field ranks with no air quality because its fetch failed
+  // (#803, D5). The line above already speaks when every displayed row is
+  // null, so this one stays quiet then rather than saying it twice.
+  const aqiPartialActive = reportSettled && p.aqiPartial && !aqiNoteActive
 
   // Everything the Forecast section has to say, said below the button with
   // every other message (#123 review). These used to render inside that section
@@ -338,6 +347,16 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
           {
             key: AQI_NOTE_KEY,
             text: AQI_UNAVAILABLE,
+            severity: 'warn' as const,
+          },
+        ]
+      : []),
+    // Approved by the maintainer on #803 (2026-10-27).
+    ...(aqiPartialActive
+      ? [
+          {
+            key: AQI_PARTIAL_KEY,
+            text: 'Air quality data is missing for some destinations.',
             severity: 'warn' as const,
           },
         ]

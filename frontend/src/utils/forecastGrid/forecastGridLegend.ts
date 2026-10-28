@@ -37,8 +37,8 @@ export function pitchLabel(pitchKm: number): string {
  * first samples land — which after a large analysis is minutes, because the
  * grid shares its weighted budget with the analysis that just ran and inherits
  * that analysis's quota debt. Silence there reads as broken, and so does a
- * layer that was switched on and drew nothing, which is what `Unavailable` is
- * for.
+ * layer that was switched on and drew nothing, or stopped part way, which is
+ * what `Unavailable` is for (#803).
  *
  * `Waiting` outranks `Loading` because it is the more specific answer to the
  * same question: not merely that nothing has arrived, but that nothing is being
@@ -79,9 +79,11 @@ export function gridLegendLine(
       ? `${Math.round(paceRemainingS / 60)}m`
       : `${paceRemainingS}s`
   const waiting = { label, value: `Waiting ${SEP} ${wait}`, kind: 'status' as const }
+  // Failed before painted (#803, D3): a field that stopped part way is not the
+  // field its pitch describes, and the cells that did land stay on the map.
+  if (failed) return { label, value: 'Unavailable', kind: 'error' }
   if (painted && !complete && pacing) return waiting
   if (painted) return { label, value: pitchLabel(pitchKm), kind: 'pitch' }
-  if (failed) return { label, value: 'Unavailable', kind: 'error' }
   if (pacing) return waiting
   return { label, value: 'Loading', kind: 'status' }
 }

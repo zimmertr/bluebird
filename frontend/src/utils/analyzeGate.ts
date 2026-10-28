@@ -139,13 +139,31 @@ export interface AnalyzeGateInputs {
   customCount: number
   /** The published analysis cap (`useCapabilities`'s `maxDestinations`). */
   maxDestinations: number
-  // The vetoes later work wires in (#803), off when not given.
+  /**
+   * How many destinations the ring holds, counted ahead of Analyze
+   * (`useDestinationCount`, #803 D1), or null while unknown. Given only while
+   * the ring searches; it joins the list's count for the over-cap veto.
+   */
+  ringCount?: number | null
+  // The vetoes later work wires in (#803), off when not given. The spend is
+  // priced off the panel by `spendVeto` (`analysisSpend.ts`, #803 D2).
   spend?: { needed: number; limit: number } | null
   archiveCloud?: boolean
   archiveFreeze?: boolean
   aqiHorizon?: boolean
   boundOrder?: boolean
   modelDomain?: string | null
+}
+
+// The over-cap veto's numbers (#803, D1 and D4): the list and the ring's
+// count together, against the published cap. The pod refuses the union of
+// the two, so the count is what a run would be refused for; a pasted row on a
+// destination the ring also finds is one row there and two here
+// (`knownCount`).
+function overCapOf(i: AnalyzeGateInputs): AnalyzeGate['overCap'] {
+  const found = i.customCount + (i.ringCount ?? 0)
+  if (found <= i.maxDestinations) return null
+  return { found, noun: discoveryNoun(i.destinationTypes, i.customCount > 0), limit: i.maxDestinations }
 }
 
 export function analyzeGateFor(i: AnalyzeGateInputs): { gate: AnalyzeGate; freezeGaps: string[] } {
@@ -181,16 +199,10 @@ export function analyzeGateFor(i: AnalyzeGateInputs): { gate: AnalyzeGate; freez
       refused: refusalStands(i.refusal, i.failedView, i.panel),
       // Every row of the list is a destination the run would forecast, ring
       // or none, so a list over the cap is refused whatever the ring finds
-      // (#803, D4). The noun follows `analysisNoun`: a list makes it
-      // `destination`.
-      overCap:
-        i.customCount > i.maxDestinations
-          ? {
-              found: i.customCount,
-              noun: discoveryNoun(i.destinationTypes, i.customCount > 0),
-              limit: i.maxDestinations,
-            }
-          : null,
+      // (#803, D4), and the ring's count ahead of Analyze joins it (D1): the
+      // pod refuses the union. The noun follows `analysisNoun`: a list makes
+      // it `destination`.
+      overCap: overCapOf(i),
       spend: i.spend ?? null,
       archiveCloud: i.archiveCloud ?? false,
       archiveFreeze: i.archiveFreeze ?? false,

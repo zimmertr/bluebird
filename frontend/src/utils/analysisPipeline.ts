@@ -169,6 +169,12 @@ export interface PipelineOptions {
   // retrying the forecasts, and the ring, its kinds and its list have not
   // moved since. The caller decides that it still matches.
   found?: Discovered | null
+  // Open-Meteo's hourly budget, which the run refuses to spend past once its
+  // field is known and before any forecast is fetched (#803, D2), and how
+  // many models the chart compares beside the ranking one, whose weather the
+  // same budget pays for. No budget, no check.
+  hourlyCalls?: number
+  comparedModels?: number
 }
 
 export interface PipelineResult {
@@ -240,6 +246,8 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     maxDestinations: options.maxDestinations,
     windowLimits: options.windowLimits,
     aqiForecastDays: options.aqiForecastDays,
+    hourlyCalls: options.hourlyCalls,
+    comparedModels: options.comparedModels,
     reuse: reuse && { rows: reuse.rows, times: reuse.times, aqiFailed: reuse.aqiFailed, columns: reuse.columns },
     onPace: options.onPace,
     onPartial: (rows, times) =>

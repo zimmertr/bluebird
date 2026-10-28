@@ -1051,6 +1051,33 @@ export interface FetchAqiOptions {
  * window past the horizon) is `false`, so a re-analysis that reuses held rows
  * asks again only for the ones that failed (#580).
  */
+/**
+ * The hours an air-quality request asks for, or null when the window lies
+ * wholly past the CAMS horizon and nothing is asked. One spelling for the
+ * fetch and for what an analysis is priced at before it runs
+ * (`analysisSpend.ts`, #803), so the two cannot price different hours.
+ *
+ * The cap ends at 23:00 on the day the horizon names, which is where the
+ * whole-day request this replaced already ended, so the clamp keeps its old
+ * reach exactly. Both bounds are ISO hour strings, so the lexical comparison
+ * orders them the same way the dates did. `reqEndMs` is what the request is
+ * priced on, as the backend prices it: a 16-day window asks air quality for
+ * its first few days only, so pricing all sixteen books 16/14 of what the
+ * request costs (#581).
+ */
+export function aqiSpan(
+  startMs: number,
+  endMs: number,
+  nowMs: number,
+  aqiForecastDays: number = FALLBACK_AQI_FORECAST_DAYS,
+): { reqStart: string; reqEnd: string; reqEndMs: number } | null {
+  const endCap = `${utcDayKey(nowMs + aqiForecastDays * DAY_MS)}T23:00`
+  const reqStart = utcHour(startMs)
+  const reqEnd = utcHour(endMs) < endCap ? utcHour(endMs) : endCap
+  if (reqStart > reqEnd) return null
+  return { reqStart, reqEnd, reqEndMs: Math.min(endMs, Date.parse(`${endCap}:00Z`)) }
+}
+
 export interface AqiFetch {
   results: AqiResult[]
   failed: boolean[]
@@ -1078,21 +1105,11 @@ export async function fetchAqi(
 ): Promise<AqiFetch> {
   if (destinations.length === 0) return { results: [], failed: [] }
 
-  // Clamp to the CAMS horizon; a window entirely beyond it skips the fetch.
-  // The cap ends at 23:00 on the day the horizon names, which is where the
-  // whole-day request this replaced already ended, so the clamp keeps its old
-  // reach exactly. Both bounds are ISO hour strings, so the lexical
-  // comparisons below order them the same way the dates did.
-  const endCap = `${utcDayKey(nowMs + aqiForecastDays * DAY_MS)}T23:00`
-  const reqStart = utcHour(startMs)
-  const reqEnd = utcHour(endMs) < endCap ? utcHour(endMs) : endCap
-  if (reqStart > reqEnd) {
+  const span = aqiSpan(startMs, endMs, nowMs, aqiForecastDays)
+  if (span === null) {
     return { results: destinations.map(() => null), failed: destinations.map(() => false) }
   }
-  // Priced on the clamped hours the request asks for, as the backend prices
-  // it: a 16-day window asks air quality for its first few days only, so
-  // pricing all sixteen books 16/14 of what the request costs (#581).
-  const reqEndMs = Math.min(endMs, Date.parse(`${endCap}:00Z`))
+  const { reqStart, reqEnd, reqEndMs } = span
 
   const results: AqiResult[] = new Array(destinations.length).fill(null)
   const failed: boolean[] = new Array(destinations.length).fill(false)
