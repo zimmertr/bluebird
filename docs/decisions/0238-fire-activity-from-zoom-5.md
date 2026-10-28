@@ -1,4 +1,4 @@
-# 0237. The fire detections neither fetch nor draw below zoom 5, and their row does not grey there
+# 0238. The fire detections neither fetch nor draw below zoom 5, and their row does not grey there
 
 - Status: Accepted
 - Date: 2026-10-27
@@ -6,7 +6,7 @@
 - Issues and PRs: #799
 - Cited in code as: #799
 - Guide: [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), the `overlays/fireActivity.ts` bullet
-- Related: 0236 (fire activity is a pod snapshot of FIRMS's files), 0180 (the trailhead and crag markers, which fetch nothing below zoom 11), 0117 (a Layers row greys over a view its layer cannot draw on)
+- Related: 0237 (fire activity is a pod snapshot of FIRMS's files), 0180 (the trailhead and crag markers, which fetch nothing below zoom 11), 0117 (a Layers row greys over a view its layer cannot draw on)
 
 ## Context
 

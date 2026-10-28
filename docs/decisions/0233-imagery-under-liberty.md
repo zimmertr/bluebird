@@ -1,4 +1,4 @@
-# 0232. Satellite imagery is two rasters under Liberty, and Liberty's ground fades by opacity
+# 0233. Satellite imagery is two rasters under Liberty, and Liberty's ground fades by opacity
 
 - Status: Accepted
 - Date: 2026-10-27

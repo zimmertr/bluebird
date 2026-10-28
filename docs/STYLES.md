@@ -334,7 +334,7 @@ overlay's fill and edge keep their values in `mapStyles.ts` and the overlay
 modules, and the markers, their labels and the scale bar are built to read on
 either ground: a marker wears a dark ring outside its white stroke, and the
 scale's ends are a dark line and a light one (#799). Record:
-[0233](decisions/0233-map-reads-on-a-dark-ground.md) The
+[0234](decisions/0234-map-reads-on-a-dark-ground.md) The
 map's control buttons and its credit box are the app's chrome and
 follow the theme like any floating box, which is why in light their glyphs keep
 MapLibre's own dark drawing where `map.css` inverts them in dark, and the credit
@@ -783,7 +783,7 @@ lines, dark outside and light inside in both themes, because the map under it
 is Liberty's light ground or the satellite imagery's forest and snow: the dark
 line clears 14.41:1 or better on snow and on Liberty, the light one 7.72:1 or
 better on a forest, and the two stand 14.46:1 apart (record
-[0233](decisions/0233-map-reads-on-a-dark-ground.md)). In a desk's credit line
+[0234](decisions/0234-map-reads-on-a-dark-ground.md)). In a desk's credit line
 it stands on the line instead, so there it takes no scrim and draws its ends
 in one line of its ink (record 0174). Its label is 11px, the floor, on a bar that draws up
 to 110px so `1000 km` stays inside its narrowest bar (`e2e/scaleBar.spec.ts`,

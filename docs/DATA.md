@@ -874,7 +874,7 @@ The two are drawn as one layer, EOX everywhere with USGS over it, both under
 Liberty's roads, trails and labels and under the relief and the contours, with
 Liberty's own land, water and building fills faded out while the layer is on.
 The trails wear a light casing over it, because their brown reads 1.69:1 on a
-forest (record [0233](decisions/0233-map-reads-on-a-dark-ground.md)). USGS draws from zoom 13 up,
+forest (record [0234](decisions/0234-map-reads-on-a-dark-ground.md)). USGS draws from zoom 13 up,
 and only over a box from American Samoa to the Arctic and the Aleutians to the
 Virgin Islands. Both limits are its cache's, measured 2026-10-27:
 
@@ -1012,7 +1012,7 @@ VIIRS feed ends on 2026-11-02, which is why two VIIRS satellites are read and
 not three. The geostationary GOES detections are left out: they are 2 km
 pixels every few minutes, a different picture. See
 [API.md](API.md#fire-detections) for the route, and
-[record 0236](decisions/0236-fire-activity-from-firms-files.md) for why it is
+[record 0237](decisions/0237-fire-activity-from-firms-files.md) for why it is
 built this way.
 
 ## Smoke

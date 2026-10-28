@@ -3449,7 +3449,7 @@ describe('the markers on the map', () => {
   })
 })
 
-// The trails over the imagery (#799; record 0233): the sienna is lost on a
+// The trails over the imagery (#799; record 0234): the sienna is lost on a
 // forest, so a light casing goes under it while the Satellite row is on. The
 // casing clears 3:1 on the forest, and the trail as drawn, at its opacity
 // over the casing, clears 3:1 on it. Measured 2026-10-28.
