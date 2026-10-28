@@ -2350,15 +2350,19 @@ describe('the map rows', () => {
     expect(step(MAP_ROWS.chips, 'gap')).toBe(6)
   })
 
-  // A phone's pill leaves the locate button and the 8px between them at
-  // rest, and takes the whole row while it is searching. A desk's is 320px
+  // A phone's pill leaves the 3D and locate buttons and the 8px before each
+  // at rest (#799), and takes the whole row while it is searching. A desk's is 320px
   // either way, with no button beside it (record 0174).
   it('stands a phone\'s pill beside a 40px round locate button, and a desk\'s alone', () => {
     expect(step(MAP_SLOT.locate, 'size')).toBe(ROW)
     expect(tokens(MAP_SLOT.locate)).toEqual(expect.arrayContaining(['absolute', 'right-0', 'top-0']))
+    // The 3D button's slot, one button and one gap left of the locate button.
+    expect(step(MAP_SLOT.terrain, 'size')).toBe(ROW)
+    expect(tokens(MAP_SLOT.terrain)).toEqual(expect.arrayContaining(['absolute', 'top-0']))
+    expect(step(MAP_SLOT.terrain, 'right')).toBe(ROW + GAP)
     expect(step(MAP_ROUND_BUTTON, 'size')).toBe(ROW)
     expect(step(MAP_PILL, 'h')).toBe(ROW)
-    expect(step(MAP_ROWS.pill, 'right')).toBe(ROW + GAP)
+    expect(step(MAP_ROWS.pill, 'right')).toBe(2 * (ROW + GAP))
     expect(MAP_ROWS.pillWide).toMatch(/(^|\s)right-0(\s|$)/)
     for (const pill of [MAP_ROWS.pill, MAP_ROWS.pillWide]) {
       expect(tokens(pill)).toEqual(expect.arrayContaining(['lg:right-auto', 'lg:w-80']))
@@ -2368,15 +2372,13 @@ describe('the map rows', () => {
     for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
     expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
     expect(mapRowsSource).toContain('{!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}')
-    // A phone's compass, the chip row's last member (record 0147), with the
-    // 3D button after it (#799), 6px apart as a desk's column stands them: no
-    // size of its own, so a hidden compass leaves the 3D button alone at the
-    // row's end, and its empty group goes with it. A desk has neither slot.
+    expect(mapRowsSource).toContain('{!desk && <div ref={onTerrainSlot} className={MAP_SLOT.terrain} />}')
+    // A phone's compass, the chip row's last member (record 0147): no size of
+    // its own, so a hidden compass leaves the row's end to the map. A desk
+    // has none of the three slots.
     expect(mapRowsSource).toContain('{!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}')
-    expect(Object.keys(MAP_SLOT)).toEqual(['locate', 'compass'])
-    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0', 'flex', 'items-center', 'gap-1.5'])
-    expect(step(MAP_SLOT.compass, 'gap')).toBe(step(MAP_CORNER.stack, 'gap'))
-    expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group:has(> .compass-idle) {\n  display: none;\n}')
+    expect(Object.keys(MAP_SLOT)).toEqual(['locate', 'terrain', 'compass'])
+    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0'])
   })
 
   // The 3D button (#799) is a map button whose glyph is a word: the round

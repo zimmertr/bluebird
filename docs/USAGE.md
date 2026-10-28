@@ -345,9 +345,9 @@ table are what measure air.
 
 ### 3D terrain
 
-The **3D** button stands with the map's own buttons, under the compass at a
-desk and at the end of the chip row on a phone, beside the compass. Press it
-and the map stands the ground up on the same elevation model and tilts to look
+The **3D** button stands with the map's own buttons: under the compass at a
+desk, and beside the locate button at the end of the search box on a phone.
+Press it and the map stands the ground up on the same elevation model and tilts to look
 across it; press it again and the map lies flat, facing the way it faced. It is
 off by default, lit while it is on, and rides in the shared link as `terrain`,
 so a link made in 3D opens tilted. Drag with the right mouse button, or with two

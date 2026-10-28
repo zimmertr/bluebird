@@ -236,6 +236,9 @@ interface Props {
   // The slot at the right end of a phone's chip row the compass stands in
   // (record 0147); null at a desk and before the rows mount.
   compassSlot: HTMLElement | null
+  // The round slot left of a phone's locate button, which the 3D button
+  // stands in (#799); null at a desk and before the rows mount.
+  terrainSlot: HTMLElement | null
   // A desk's corner, every slot at once (`MapCorner`, record 0174): the
   // compass, the locate button and the zoom pair, and the credit line with
   // the scale at its end. Null on a phone and before the corner mounts, when
@@ -301,6 +304,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       maxPolygonPoints,
       locateSlot,
       compassSlot,
+      terrainSlot,
       cornerSlots,
     },
     ref,
@@ -750,10 +754,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const controls = controlsRef.current
       if (!map || !controls) return
       placeControl(map, controls.compass, corner?.compass ?? compassSlot, { first: true })
-      // Under the compass in a desk's column, and after it in a phone's slot,
-      // in this order so the compass stands first in the slot they share.
-      placeControl(map, controls.terrain, corner?.terrain ?? compassSlot)
     }, [corner, compassSlot])
+    // Under the compass in a desk's column, and beside the locate button at
+    // the end of a phone's search row.
+    useEffect(() => {
+      const map = mapRef.current
+      const controls = controlsRef.current
+      if (map && controls) placeControl(map, controls.terrain, corner?.terrain ?? terrainSlot)
+    }, [corner, terrainSlot])
     useEffect(() => {
       const map = mapRef.current
       const controls = controlsRef.current

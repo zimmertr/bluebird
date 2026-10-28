@@ -1516,13 +1516,14 @@ export const MAP_ROWS = {
   stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-max lg:min-w-80 flex flex-col gap-2 pointer-events-none`,
   row: `relative h-10 ${YIELD_EMPTY}`,
   /**
-   * Where the pill stands: on a phone across the row less the locate button
-   * and the 8px between them (`right-12`, 40 + 8) at rest, and across the
-   * whole row while the field has the keyboard or its list is open, over the
-   * button. At a desk 320px either way (`lg:w-80`), with no button beside it.
-   * Raised so its results list paints over the chip row and the map.
+   * Where the pill stands: on a phone across the row less the 3D and locate
+   * buttons and the 8px before each (`right-24`, 2 × (40 + 8)) at rest, and
+   * across the whole row while the field has the keyboard or its list is
+   * open, over the buttons. At a desk 320px either way (`lg:w-80`), with no
+   * button beside it. Raised so its results list paints over the chip row and
+   * the map.
    */
-  pill: 'absolute inset-y-0 left-0 right-12 lg:right-auto lg:w-80 z-10',
+  pill: 'absolute inset-y-0 left-0 right-24 lg:right-auto lg:w-80 z-10',
   pillWide: 'absolute inset-y-0 left-0 right-0 lg:right-auto lg:w-80 z-10',
   /** The second row: one line of chips, 6px apart, never wrapping. */
   chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
@@ -1591,20 +1592,20 @@ export const MAP_TERRAIN_BUTTON = `map-terrain ${MAP_ROUND_BUTTON} ${TEXT.contro
  * on `map-slot`, takes the library's margin off it. A desk's rows have no
  * slots: its buttons stand in the map's bottom-right corner (`MAP_CORNER`).
  *
- * `locate` is a 40px box beside the search pill. `compass` is the chip row's
- * last member, under the locate button (record 0147), and holds the compass
- * and, after it, the 3D button (#799), 6px apart as a desk's column stands
- * them: the 3D button at the row's very end, under the locate button, so it
- * stays where it was pressed when the tilt it makes wakes the compass beside
- * it. While the map is north-up and flat the compass is hidden and the slot
- * is the 3D button's 40px. While the compass shows, the slot is 86px and the
- * summary chip, the one member that gives way, gives it up; at 32px the row is
- * shorter than the buttons, which stand 4px proud of it top and bottom,
- * centred on it.
+ * `locate` is a 40px box at the search pill's right, and `terrain` the same
+ * box 8px left of it, for the 3D button (#799), so the pill's row ends in
+ * two round buttons the way a desk's column stacks them. `compass` is the
+ * chip row's last member, under the locate button (record 0147), and takes no
+ * room of its own: while the map is north-up the compass is hidden and the
+ * slot is nothing, so the row's empty end stays the map's, about 20px at 360
+ * wide. While it shows, the slot is the button's 40px and the summary chip,
+ * the one member that gives way, gives it up; at 32px the row is shorter than
+ * the button, which stands 4px proud of it top and bottom, centred on it.
  */
 export const MAP_SLOT = {
   locate: 'map-slot absolute right-0 top-0 size-10',
-  compass: 'map-slot ml-auto flex-shrink-0 flex items-center gap-1.5',
+  terrain: 'map-slot absolute right-12 top-0 size-10',
+  compass: 'map-slot ml-auto flex-shrink-0',
 } as const
 
 /**

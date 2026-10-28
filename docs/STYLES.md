@@ -763,8 +763,9 @@ disabled: greyed by `DISABLED` at a desk, so the column keeps one shape, and
 hidden in a phone's chip row. The 3D button (#799) is the one map button the
 app draws itself, as a library control so it stands with the rest: the same
 round chrome with the word `3D` at the control size in bold
-(`MAP_TERRAIN_BUTTON`), under the compass at a desk and after it at the end of
-a phone's chip row, where the summary chip gives way to it. While it is on,
+(`MAP_TERRAIN_BUTTON`), under the compass at a desk and left of the locate
+button in a phone's search row, which gives up one more button and its gap
+for it. While it is on,
 `map.css` fills it with the accent and its label with `--ui-on-fill`, keyed on
 `aria-pressed`, which is the accent fill `ACCENT.fill` paints (white 4.56:1 in
 both themes). The credit line's (i) is the same dark

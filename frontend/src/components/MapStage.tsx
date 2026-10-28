@@ -193,6 +193,7 @@ export default function MapStage({
   const [locateSlot, setLocateSlot] = useState<HTMLDivElement | null>(null)
   // The compass's, under it at a phone's chip row's end (record 0147).
   const [compassSlot, setCompassSlot] = useState<HTMLDivElement | null>(null)
+  const [terrainSlot, setTerrainSlot] = useState<HTMLDivElement | null>(null)
   // A desk's corner (`MapCorner`, record 0174), which stands the compass, the
   // locate button, the zoom pair, the credit line and the scale.
   const [cornerSlots, setCornerSlots] = useState<CornerSlots | null>(null)
@@ -380,6 +381,7 @@ export default function MapStage({
           maxPolygonPoints={maxPolygonPoints}
           locateSlot={locateSlot}
           compassSlot={compassSlot}
+          terrainSlot={terrainSlot}
           cornerSlots={cornerSlots}
         />
       </div>
@@ -389,6 +391,7 @@ export default function MapStage({
         searchPointed={searchPointed}
         onLocateSlot={setLocateSlot}
         onCompassSlot={setCompassSlot}
+        onTerrainSlot={setTerrainSlot}
         desk={isDesktop}
         sidebarOpen={sidebarOpen}
         onOpenControls={onOpenControls}

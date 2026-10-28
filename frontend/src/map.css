@@ -277,12 +277,6 @@
   display: none;
 }
 
-/* Its group goes with it, since a phone's slot stands the 3D button after the
-   compass (#799) and an empty group would hold the gap between them open. */
-.map-slot .maplibregl-ctrl-group:has(> .compass-idle) {
-  display: none;
-}
-
 /* The 3D button while it is on (#799): the accent fill under the label's
    white, as a chosen segment wears it (`ACCENT.fill`), its edge the fill so
    the button reads as one solid disc. Keyed on `aria-pressed` here rather

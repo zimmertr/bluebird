@@ -14,10 +14,9 @@ interface MapRowsProps {
   searchPointed: boolean
   /** Receives a phone's locate button slot, which the map stands its own button in; null at a desk. */
   onLocateSlot: (slot: HTMLDivElement | null) => void
-  /**
-   * Receives a phone's compass slot, under the locate button at the chip row's
-   * end (record 0147), where the 3D button stands too (#799); null at a desk.
-   */
+  /** Receives a phone's 3D button slot, left of the locate button (#799); null at a desk. */
+  onTerrainSlot: (slot: HTMLDivElement | null) => void
+  /** Receives a phone's compass slot, under the locate button at the chip row's end (record 0147); null at a desk. */
   onCompassSlot: (slot: HTMLDivElement | null) => void
   /** A desk's width (#714): the panel is docked, so the summary chip stands only while it is shut. */
   desk: boolean
@@ -40,11 +39,11 @@ interface MapRowsProps {
  * #714 (record 0174): the search pill, and the chip row under it, the controls
  * summary, Legend and Layers. The row keeps that one shape from arrival to
  * results: Legend greys until it has a key to show rather than coming and
- * going. On a phone the locate button stands at the pill's right, and at the
- * chip row's end under it the 3D button and, while the map is turned or
- * tilted, the compass before it (#799). A desk's
- * map buttons stand in the map's bottom-right corner instead (`MapCorner`), so
- * a desk's rows have no slots (record 0174).
+ * going. On a phone the locate button stands at the pill's right, the 3D
+ * button beside it (#799), and the compass, while the map is turned or
+ * tilted, at the chip row's end under them. A desk's map buttons stand in the
+ * map's bottom-right corner instead (`MapCorner`), so a desk's rows have no
+ * slots (record 0174).
  *
  * The summary chip opens the panel. A phone's raises the Controls sheet and
  * lowers it again, lit while it is up. A desk's panel is docked beside the map
@@ -52,7 +51,7 @@ interface MapRowsProps {
  * as the one way back to it from the map.
  *
  * While the field has the keyboard or its list is open, a phone's pill takes
- * the whole first row, over the locate button, and the chip row steps aside
+ * the whole first row, over the two buttons, and the chip row steps aside
  * at both widths, so the list hangs over the map rather than over the chips.
  */
 export default function MapRows({
@@ -60,6 +59,7 @@ export default function MapRows({
   onSearchSelect,
   searchPointed,
   onLocateSlot,
+  onTerrainSlot,
   onCompassSlot,
   desk,
   sidebarOpen,
@@ -86,8 +86,10 @@ export default function MapRows({
         <div className={searching ? MAP_ROWS.pillWide : MAP_ROWS.pill}>
           <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} onExpandedChange={setSearching} />
         </div>
-        {/* Empty here: the map stands its own locate button in it, so the
-            button keeps the library's states and its permission prompt. */}
+        {/* Empty here: the map stands its own 3D and locate buttons in them,
+            so each keeps its states and the locate button its permission
+            prompt. */}
+        {!desk && <div ref={onTerrainSlot} className={MAP_SLOT.terrain} />}
         {!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}
       </div>
       {/* Hidden rather than unmounted while the pill is wide, so an open
@@ -114,10 +116,9 @@ export default function MapRows({
             the map's left edge and covers less of it (TJ, 2026-10-18). */}
         {legend}
         {layers}
-        {/* The compass's on a phone, the row's right end under the locate
-            button (record 0147): the map stands its own compass in it, which
-            shows only while the map is turned or tilted, and the 3D button
-            after it (#799). */}
+        {/* The compass's on a phone, the row's empty right end under the
+            locate button (record 0147): the map stands its own compass in it,
+            which shows only while the map is turned or tilted. */}
         {!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}
       </div>
     </div>

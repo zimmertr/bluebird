@@ -65,3 +65,40 @@ test('a link carrying terrain opens tilted, with the button pressed', async ({ p
   await expect(page.getByRole('button', { name: '3D terrain' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('.maplibregl-ctrl-compass')).toBeEnabled()
 })
+
+// On a phone the 3D button stands in the search row, left of the locate
+// button, the same round button 8px from it, and the pill ends 8px short of
+// it. The chip row keeps its own end for the map (`legendClickThrough`). The
+// pill still holds its placeholder whole at the narrowest phone.
+for (const width of [360, 390]) {
+  test(`a phone stands the 3D button beside the locate button at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto('/?view=-121.76,46.853,11')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    const at = await page.evaluate(() => {
+      const box = (el: Element) => el.getBoundingClientRect()
+      const input = document.querySelector('input[placeholder]') as HTMLInputElement
+      const pill = input.closest('.rounded-full') as HTMLElement
+      const cs = getComputedStyle(input)
+      const ctx = document.createElement('canvas').getContext('2d')!
+      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+      return {
+        terrain: box(document.querySelector('button[aria-label="3D terrain"]')!).toJSON(),
+        locate: box(document.querySelector('.maplibregl-ctrl-geolocate')!).toJSON(),
+        pill: box(pill).toJSON(),
+        field: input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+        words: ctx.measureText(input.placeholder).width,
+        chipRow: box(document.querySelector('button[aria-label="Open controls"]')!.parentElement!).toJSON(),
+      }
+    })
+    test.info().annotations.push({ type: `search row ${width} px`, description: JSON.stringify(at) })
+    expect(at.terrain.width).toBe(40)
+    expect(at.terrain.height).toBe(at.locate.height)
+    expect(at.terrain.top).toBe(at.locate.top)
+    expect(Math.round(at.locate.left - at.terrain.right)).toBe(8)
+    expect(Math.round(at.terrain.left - at.pill.right)).toBe(8)
+    // Not in the chip row.
+    expect(at.terrain.bottom).toBeLessThanOrEqual(at.chipRow.top)
+    expect(at.words).toBeLessThanOrEqual(at.field)
+  })
+}

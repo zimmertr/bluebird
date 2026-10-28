@@ -56,6 +56,7 @@ vi.mock('./MapRows', () => ({
     onSearchSelect: (place: Place) => void
     onLocateSlot: (slot: HTMLDivElement | null) => void
     onCompassSlot: (slot: HTMLDivElement | null) => void
+    onTerrainSlot: (slot: HTMLDivElement | null) => void
     controlsSummary: string
     layers: ReactNode
     legend: ReactNode
@@ -63,6 +64,7 @@ vi.mock('./MapRows', () => ({
     <div data-testid="rows" data-desk={String(props.desk)} data-summary={props.controlsSummary}>
       <button onClick={props.onOpenControls}>Controls</button>
       <button onClick={() => props.onSearchSelect(PLACE)}>Pick</button>
+      <div data-testid="terrain" ref={props.onTerrainSlot} />
       <div data-testid="locate" ref={props.onLocateSlot} />
       {props.layers}
       {props.legend}
@@ -369,6 +371,7 @@ describe('MapStage', () => {
       const last = seen.mapView[seen.mapView.length - 1]
       expect(last.locateSlot).toBe(screen.getByTestId('locate'))
       expect(last.compassSlot).toBe(screen.getByTestId('compass'))
+      expect(last.terrainSlot).toBe(screen.getByTestId('terrain'))
       unmount()
     }
   })

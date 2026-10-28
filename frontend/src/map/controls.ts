@@ -13,8 +13,8 @@
  *
  * The fifth button is the app's own, the 3D switch (#799, `TerrainControl`),
  * a MapLibre control so it stands among the library's and moves with them:
- * under the compass in a desk's column, and after it at the end of a phone's
- * chip row.
+ * under the compass in a desk's column, and left of the locate button at the
+ * end of a phone's search row.
  *
  * Every button wears the app's map button (`MAP_ROUND_BUTTON`, record 0147),
  * the zoom pair the same chrome joined (`MAP_ZOOM_PAIR`), and the credit line
@@ -37,7 +37,7 @@ export interface MapControls {
   /** The zoom pair, which only a desk's corner stands. */
   zoom: NavigationControl
   scale: ScaleControl
-  /** The 3D button, which stands with the compass. */
+  /** The 3D button: under the compass at a desk, beside the locate button on a phone. */
   terrain: TerrainControl
 }
 
@@ -147,7 +147,7 @@ export function addControls(map: maplibregl.Map, deps: { onTerrainChange: (on: b
   const locate = new GeolocateControl({ positionOptions: { enableHighAccuracy: true } })
   map.addControl(locate, 'top-right')
   dressButtons(locate._container)
-  // The app's own button, which stands with the compass wherever it stands.
+  // The app's own button, which stands among the library's at both widths.
   const terrain = new TerrainControl(deps.onTerrainChange)
   map.addControl(terrain, 'top-right')
   const zoom = new NavigationControl({ showCompass: false })

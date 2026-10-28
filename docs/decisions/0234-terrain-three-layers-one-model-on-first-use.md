@@ -19,7 +19,7 @@
 - The sources ask for nothing past zoom 12 and stretch those tiles further in.
 - The contours are in feet: 1,000 at zoom 10, 500 at 11, 200 at 12, 100 at 13 and 40 from 14, every fifth an index line labelled with its height in feet and nothing else.
 - The relief is `standard` at 0.3, a brown shadow (`#5c4a32`) and a white light at 45%, under the app's `ofm-` layers and the style's first label.
-- 3D is the map's own button, `3D`, named `3D terrain`, under the compass at a desk and at the end of a phone's chip row. It turns a flat map to 45 degrees and lays it flat again keeping the heading; `maxPitch` stays MapLibre's 60. Its exaggeration is 1. The link carries it as `terrain`; pitch and bearing stay out of the link.
+- 3D is the map's own button, `3D`, named `3D terrain`, under the compass at a desk and in a phone's search row, left of the locate button. It turns a flat map to 45 degrees and lays it flat again keeping the heading; `maxPitch` stays MapLibre's 60. Its exaggeration is 1. The link carries it as `terrain`; pitch and bearing stay out of the link.
 
 ## Evidence
 
@@ -42,5 +42,5 @@
 
 - `map/terrain.test.ts` holds the first-switch load, the `terrarium` encoding, the stack under the labels, the two sources, the pitch both ways and the interval table; `e2e/terrain.spec.ts` holds the cold load to no elevation request and no contour chunk.
 - `map/terrain.ts` owns its colours and paint numbers (`value-hex`, `map-paint-named`).
-- On a phone the 3D button takes the chip row's right end, which was the map's, and the summary chip gives way to it.
+- On a phone the 3D button stands in the search row, left of the locate button and 8px from it, and the search pill gives up its 40px and the 8px before it. It stood at the chip row's right end first, where the summary chip gave way to it and read `Current · NO…` at 390px; the maintainer moved it on 2026-10-28, and the chip row keeps its empty end for the map.
 - Mapterhorn keeps each request's address, referrer and user agent for up to 30 days; nobody who leaves the three switches off sends it a request.
