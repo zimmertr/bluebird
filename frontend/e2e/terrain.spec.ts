@@ -77,7 +77,7 @@ for (const width of [360, 390]) {
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     const at = await page.evaluate(() => {
       const box = (el: Element) => el.getBoundingClientRect()
-      const input = document.querySelector('input[placeholder]') as HTMLInputElement
+      const input = document.querySelector('input[placeholder="Search for a destination"]') as HTMLInputElement
       const pill = input.closest('.rounded-full') as HTMLElement
       const cs = getComputedStyle(input)
       const ctx = document.createElement('canvas').getContext('2d')!
