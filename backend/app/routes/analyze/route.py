@@ -49,9 +49,10 @@ API_KEY_HEADER = "X-Open-Meteo-Key"
 
 # Optional on purpose. The key requirement is enforced at the public edge: the
 # gateway forwards an analyze request only when this header is present, so a
-# request that reaches an unkeyed path arrived in-cluster (the release probe, a
-# PR preview, a port-forward) or on a self-hosted instance, where the free tier
-# is the deployment's own to spend. `auto_error=False` is what leaves those
+# request that reaches an unkeyed path arrived in-cluster (a PR preview, a
+# port-forward) or on a self-hosted instance, where the free tier is the
+# deployment's own to spend. The release probe asks for discovery only and
+# calls no analyze route (#787). `auto_error=False` is what leaves those
 # alone while still declaring the scheme on both routes in the OpenAPI
 # document.
 open_meteo_key = APIKeyHeader(
