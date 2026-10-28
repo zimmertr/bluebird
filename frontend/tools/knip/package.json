@@ -5,6 +5,6 @@
   "license": "PolyForm-Noncommercial-1.0.0",
   "description": "Finds unused files, exports, types and dependencies in frontend/. Knip parses with oxc and loads no TypeScript compiler, so it could sit in frontend/package.json; it is a package of its own so the app's install and the image build never download it, and so Dependabot sees it.",
   "devDependencies": {
-    "knip": "^6.41.0"
+    "knip": "^6.42.1"
   }
 }
