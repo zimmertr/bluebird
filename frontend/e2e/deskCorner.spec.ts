@@ -4,8 +4,8 @@ import type { Page } from '@playwright/test'
 // A desk's map corner (record 0174), laid out as Google Maps lays out its own
 // (TJ, 2026-10-20): the credit line flush in the map's bottom-right corner on
 // the results' edge, with the scale at its end, and over it the compass, the
-// locate button and the zoom pair, 24px in from the map's right edge, 6px
-// apart and 10px above the line. Measured on the live controls, since jsdom
+// 3D button (#799), the locate button and the zoom pair, 24px in from the
+// map's right edge, 6px apart and 10px above the line. Measured on the live controls, since jsdom
 // lays nothing out.
 
 async function corner(page: Page) {
@@ -21,6 +21,7 @@ async function corner(page: Page) {
     return {
       map: box(q('.maplibregl-map')),
       compass: box(compass),
+      terrain: box(q('button[aria-label="3D terrain"]')),
       locate: box(q('.maplibregl-ctrl-geolocate')),
       zoomIn: box(q('.maplibregl-ctrl-zoom-in')),
       zoomOut: box(q('.maplibregl-ctrl-zoom-out')),
@@ -75,11 +76,12 @@ for (const [width, height, panel] of [
     near(at.line.height, 27)
     // The column: 40px buttons 24px in, 6px apart, the zoom pair joined, and
     // 10px above the line.
-    for (const button of [at.compass, at.locate, at.zoomIn, at.zoomOut]) {
+    for (const button of [at.compass, at.terrain, at.locate, at.zoomIn, at.zoomOut]) {
       near(button.width, 40)
       near(button.right, at.map.right - 24)
     }
-    near(at.locate.top - at.compass.bottom, 6)
+    near(at.terrain.top - at.compass.bottom, 6)
+    near(at.locate.top - at.terrain.bottom, 6)
     near(at.zoomIn.top - at.locate.bottom, 6)
     near(at.zoomOut.top, at.zoomIn.bottom)
     near(at.line.top - at.zoomOut.bottom, 10)

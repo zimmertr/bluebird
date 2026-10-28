@@ -9,6 +9,12 @@ import { test as base, expect, type Page, type Route } from '@playwright/test'
 
 const here = new URL('.', import.meta.url)
 const style = JSON.parse(readFileSync(new URL('fixtures/style.json', here), 'utf8'))
+// One Terrarium elevation tile for every request to the elevation host (#799):
+// a cone 2,500 m high on a 500 m plain, 64px square, so the relief has a slope
+// to shade, the contours heights to trace and the 3D terrain a hill to stand
+// up. MapLibre refuses a DEM tile that is not square, and a 1px one has no
+// slope at all.
+const TERRARIUM_PNG = readFileSync(new URL('fixtures/terrarium.png', here))
 
 // The forecast bodies reuse the inputs of the shared aggregation vectors, so the
 // rows and the chart carry the shapes the aggregation is pinned against rather
@@ -184,7 +190,10 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
   await page.route('https://mesonet.agron.iastate.edu/**', answer(blankTile))
   await page.route('https://mapservices.weather.noaa.gov/**', answer(blankTile))
   // The ground layers' elevation and imagery tiles (#799).
-  await page.route('https://tiles.mapterhorn.com/**', answer(blankTile))
+  await page.route(
+    'https://tiles.mapterhorn.com/**',
+    answer((r) => r.fulfill({ status: 200, contentType: 'image/png', body: TERRARIUM_PNG })),
+  )
   await page.route('https://basemap.nationalmap.gov/**', answer(blankTile))
   await page.route('https://tiles.maps.eox.at/**', answer(blankTile))
   const weather = answer((r) =>
