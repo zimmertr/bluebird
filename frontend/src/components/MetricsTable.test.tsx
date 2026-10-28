@@ -148,7 +148,7 @@ describe('MetricsTable', () => {
     })
   })
 
-  // --- #803, W6 and W7 (record 0235): a metric the window or the models
+  // --- #803, W6 and W7 (record 0236): a metric the window or the models
   // cannot answer greys its row, the way a Layers row greys outside its
   // coverage, and a floor above its ceiling is marked invalid.
   describe('a metric the window cannot answer', () => {

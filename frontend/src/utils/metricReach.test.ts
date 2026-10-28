@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ALL_ANSWERED, unansweredMetrics } from './metricReach'
 
-// Which metrics the window and the models cannot answer (#803, record 0235):
+// Which metrics the window and the models cannot answer (#803, record 0236):
 // the one answer the Metrics table greys and the Analyze gate blocks on.
 
 const GFS = { id: 'gfs_seamless', label: 'NOAA GFS' }

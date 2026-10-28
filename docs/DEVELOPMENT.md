@@ -315,13 +315,15 @@ every runner.
 network, and runs the suite from the pinned Playwright image with the repo
 root mounted (the fixtures read `backend/tests/data/weather_vectors.json`). A
 failed run leaves the served container running, and `docker rm -f e2e-target`
-clears it.
+clears it. It runs the suite as `npm test` in `frontend/e2e`, as CI does, and
+that is two invocations: every spec but four on four workers, then the four
+that read layout mid-move on one, for the reason in `playwright.config.ts`.
 
-The image tag, `PLAYWRIGHT_IMAGE` in the `Makefile`, must match the
+The image tag, `PLAYWRIGHT_IMAGE` in the `Makefile`, is read off the
 `@playwright/test` version in `frontend/e2e/package.json`: each Playwright
 release pins its own browser build, and the image carries the build for its
-own version only. When Dependabot bumps the package, move the tag in the same
-PR. The image brings its own Node, so this is the one container `.node-version`
+own version only. A Dependabot bump of the package moves the tag with it. The
+image brings its own Node, so this is the one container `.node-version`
 does not pick. CI does not use
 the image; it installs Chromium alone on the runner.
 

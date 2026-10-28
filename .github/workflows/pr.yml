@@ -23,11 +23,17 @@ concurrency:
 permissions:
   contents: read
 
+# Every job stops at 15 minutes, one flat number rather than one per job. It
+# is over twice the slowest any job has taken: Browser Smoke & Axe peaked at
+# 389 s over 150 runs measured 2026-10-15 to 2026-10-22 from the Actions API
+# (issue #794). Without it a hung step holds its runner until GitHub's
+# 360-minute default rather than failing in minutes.
 jobs:
   # Catch TypeScript type errors and unit-test failures before they reach main
   frontend:
     name: Frontend Typecheck & Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -70,6 +76,7 @@ jobs:
   lint:
     name: Python Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -89,6 +96,7 @@ jobs:
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -128,6 +136,7 @@ jobs:
   backend-db:
     name: Database Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -169,6 +178,7 @@ jobs:
   fill:
     name: Planet Fill
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -235,6 +245,7 @@ jobs:
     # this job strands PRs on a phantom "Expected" check that never reports.
     name: Docker Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write  # Sticky scan-result comment on PRs
@@ -265,6 +276,20 @@ jobs:
             APP_BUILT_AT=1970-01-01T00:00:00Z
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # The browser and Lighthouse jobs load this image rather than build it
+      # again (the Lighthouse job's comment has the measurement).
+      - name: Save the image for the browser and Lighthouse jobs
+        run: docker save bluebird:pr-scan -o /tmp/bluebird-image.tar
+      - name: Upload the image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bluebird-image
+          path: /tmp/bluebird-image.tar
+          retention-days: 1
+          # The image's layers are already compressed, so a higher level buys
+          # bytes slowly.
+          compression-level: 1
 
       # ignore-unfixed everywhere: Debian/Alpine ship CVEs upstream has not
       # patched; flagging those would perma-red the pipeline over vulns nobody
@@ -416,27 +441,29 @@ jobs:
   # job's name is branch-protected and because a red Lighthouse run should say
   # "the first screen got heavier", not hide inside a scan report.
   #
-  # `needs: docker-build` is what makes the second build cheap: by the time
-  # this runs, every layer is in the GitHub Actions cache that job filled, so
-  # the build below is a cache replay rather than a second npm ci. Running the
-  # two in parallel would build the image twice for real.
+  # `needs: docker-build` is for the image: that job saves the one it built as
+  # an artifact, and this one loads it rather than building it again. Measured
+  # 2026-10-27 over ten runs each (issue #794): the download and load take 6 s
+  # median against 16 s for setting up buildx and replaying the build from the
+  # Actions cache, and Docker Build pays 4 s once to save and upload a 50 MB
+  # artifact.
   lighthouse:
     name: Lighthouse Budgets
     needs: docker-build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      - name: Download the image
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          context: .
-          platforms: linux/amd64
-          push: false
-          load: true
-          tags: bluebird:lighthouse
-          cache-from: type=gha
+          name: bluebird-image
+      - name: Load the image
+        run: |
+          docker load -i bluebird-image.tar
+          docker tag bluebird:pr-scan bluebird:lighthouse
 
       - name: Serve the built image
         run: |
@@ -464,28 +491,34 @@ jobs:
   # in frontend/e2e/fixtures.ts, so it spends no Open-Meteo quota and no
   # upstream outage can turn it red.
   #
-  # Shaped like the Lighthouse job for the same reason: `needs: docker-build`
-  # makes the build below a cache replay. Chromium is installed on the plain
-  # runner rather than run from the Playwright image, because that image is a
-  # 956 MB compressed pull on every run and Chromium alone is a fraction of it.
-  # The image stays the way to run the suite locally (docs/DEVELOPMENT.md).
+  # Shaped like the Lighthouse job: `needs: docker-build` is for the image
+  # artifact, which this job loads rather than building again.
+  #
+  # Chromium alone is installed on the plain runner, which already carries the
+  # libraries it needs. `--with-deps` ran apt on every run, and on 2026-10-22 a
+  # slow mirror held it for 588 s (job 120075136268). Measured 2026-10-27 over
+  # ten runs each (issue #794): Chromium alone installs in 1 s median, and the
+  # Playwright image, the other way to skip apt, pulled in 29 s median and 34 s
+  # at most. Neither flaked, and the two specs that measure text width
+  # (popupFit, scaleBar) passed without the fonts apt installed. The image
+  # stays the way to run the suite locally (docs/DEVELOPMENT.md; record 0232).
   browser:
     name: Browser Smoke & Axe
     needs: docker-build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      - name: Download the image
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          context: .
-          platforms: linux/amd64
-          push: false
-          load: true
-          tags: bluebird:browser
-          cache-from: type=gha
+          name: bluebird-image
+      - name: Load the image
+        run: |
+          docker load -i bluebird-image.tar
+          docker tag bluebird:pr-scan bluebird:browser
 
       - name: Serve the built image
         run: |
@@ -504,8 +537,6 @@ jobs:
 
       # Keyed on the exact Playwright version, because each release pins its
       # own Chromium build and a browser from another release will not launch.
-      # The install step runs on a hit too: it skips the download and still
-      # installs the system libraries, which live outside the cached folder.
       - name: Read the Playwright version
         id: pw
         run: echo "version=$(jq -r '.packages["node_modules/@playwright/test"].version' frontend/e2e/package-lock.json)" >> "$GITHUB_OUTPUT"
@@ -513,10 +544,12 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ steps.pw.outputs.version }}
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install chromium
         working-directory: frontend/e2e
 
-      - run: npx playwright test
+      # Two invocations, the motion specs alone after the rest: the reason is
+      # in frontend/e2e/playwright.config.ts.
+      - run: npm test
         working-directory: frontend/e2e
         env:
           BASE_URL: http://localhost:8000

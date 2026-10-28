@@ -263,7 +263,7 @@ describe('usePanelMessages', () => {
     expect(result.current.messages.map((m) => m.key)).toContain('window:archive-model')
   })
 
-  // --- #803, W1 to W8 (record 0235): the window's source and the bounds
+  // --- #803, W1 to W8 (record 0236): the window's source and the bounds
   // reach the gate, and the greyed rows ride out beside it.
   const archiveDay = () => {
     const day = new Date()

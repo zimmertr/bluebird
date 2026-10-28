@@ -200,7 +200,7 @@ export function analyzeGateFor(i: AnalyzeGateInputs): {
   )
   const rankFamily = familyOf(i.sortBy)
   // The metrics this window and these models cannot answer, which the Metrics
-  // table greys from the same answer (record 0235). A ranking on one blocks,
+  // table greys from the same answer (record 0236). A ranking on one blocks,
   // with the line its reason names.
   const unanswered = unansweredMetrics({ source, aqiCoverage: i.aqiCoverage ?? 'full', models: selected })
   const rankGap = unanswered.get(rankFamily)
@@ -380,7 +380,7 @@ export function ringAddsNothing(
  * Whatever the gate learns after capabilities settle comes too late for this.
  * The ring's count before Analyze is fetched once they have, so a link whose
  * ring finds more than the cap can still run once and be refused by the pod,
- * and that refusal is a blocker of its own (record 0232).
+ * and that refusal is a blocker of its own (record 0233).
  *
  * `fired` makes it once per page load: the gate closes while the analysis runs
  * and opens again when it ends, and without it that reopening would run the

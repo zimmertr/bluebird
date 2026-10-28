@@ -2,7 +2,7 @@
 // (#803, W8). A regional model refuses a location outside its grid, and one
 // such location fails its whole batch of 50, so the run used to fail with the
 // coverage sentence after it had spent. `/api/capabilities` now publishes each
-// regional model's grid as `domain` (record 0233), and the gate holds the run
+// regional model's grid as `domain` (record 0234), and the gate holds the run
 // before it starts, naming the model in the coverage sentence.
 //
 // Pure and apart from the gate so the node project checks the cases, and so

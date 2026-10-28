@@ -3,7 +3,7 @@
 // surfaces: the Metrics table greys the row of each (its rank radio, its
 // aggregate menu and both bound boxes), and the Analyze gate blocks a ranking
 // on one, so a row the reader cannot pick and a ranking the gate refuses are
-// the same set. Record 0235.
+// the same set. Record 0236.
 //
 // Pure and apart from both readers for the reason `freezingLevel.ts` is: the
 // node project checks every case without a page, and two spellings of the

@@ -1,6 +1,6 @@
-# 0233. /api/capabilities publishes where discovery answers, each regional model's grid, and Open-Meteo's hourly budget
+# 0234. /api/capabilities publishes where discovery answers, each regional model's grid, and Open-Meteo's hourly budget
 
-- Status: Accepted. Amends 0098 (its evidence called the candidate cap over 16 days the largest analysis the calendar offers, and the calendar reaches the archive's year). Extended by 0234 (how the browser reads the source and the budget).
+- Status: Accepted. Amends 0098 (its evidence called the candidate cap over 16 days the largest analysis the calendar offers, and the calendar reaches the archive's year). Extended by 0235 (how the browser reads the source and the budget).
 - Date: 2026-10-27
 - Decider: the maintainer (TJ), on issue #803, 2026-10-27: option B's count before Analyze only where the places table answers, publishing the regional domain rather than splitting the failing batch, and refusing a field past the hourly budget rather than capping the calendar's span
 - Issues and PRs: #803

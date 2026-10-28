@@ -174,7 +174,7 @@ const NOT_COMPARED: readonly string[] = []
  * numbers and draw identical lines under different labels, for N times the
  * spend. The picker is disabled on such a window, so the selection stays as
  * the reader left it, in the link too, and comes back into play the moment the
- * window leaves the archive. Record 0235.
+ * window leaves the archive. Record 0236.
  */
 export function comparedInPlay(compared: readonly string[], source: WindowSource | null): readonly string[] {
   return source === 'archive' ? NOT_COMPARED : compared

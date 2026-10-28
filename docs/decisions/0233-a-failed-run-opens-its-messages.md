@@ -1,4 +1,4 @@
-# 0232. A failed run opens its messages, and a refused run is a blocker
+# 0233. A failed run opens its messages, and a refused run is a blocker
 
 - Status: Accepted. Amends 0208 (the list opens itself when a run fails, a desk's shut panel opens again around it, and a refusal is a blocker rather than a dismissable line).
 - Date: 2026-10-27

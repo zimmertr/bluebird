@@ -132,7 +132,7 @@ flow starve real analyses. The browser also spends it ahead of Analyze: where
 its kinds have been still for 1.5 s, one count at a time and never two within
 2 s, which is the bucket's refill interval, so a reader reshaping a ring cannot
 drain the token the analysis then needs (#803, record
-[0234](decisions/0234-count-the-ring-and-price-the-spend-before-analyze.md)).
+[0235](decisions/0235-count-the-ring-and-price-the-spend-before-analyze.md)).
 The analysis takes the counted field rather than asking again. On `overpass` it
 counts nothing.
 

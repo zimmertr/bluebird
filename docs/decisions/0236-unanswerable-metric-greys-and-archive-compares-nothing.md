@@ -1,4 +1,4 @@
-# 0235. A metric the window cannot answer greys its row and blocks its ranking, and compared models are ignored on archive
+# 0236. A metric the window cannot answer greys its row and blocks its ranking, and compared models are ignored on archive
 
 - Status: Accepted. Extends 0027 (the archive endpoint, whose disabled model picker now also sets the comparison aside) and 0117 (a Layers row greys where its layer has nothing to say; a Metrics row now greys the same way).
 - Date: 2026-10-28
@@ -6,7 +6,7 @@
 - Issues and PRs: #803, #808
 - Cited in code as: #803
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, the paragraph "Key constraints shared between frontend and backend", the archive endpoint's sentence on the picker; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `metricReach.ts`, `analyzeGate.ts`, `constraints.ts` and `freezingLevel.ts` bullets; [`frontend/src/utils/model/CLAUDE.md`](../../frontend/src/utils/model/CLAUDE.md), the `modelDomain.ts` and `modelSelection.ts` bullets; [`frontend/src/utils/calendar/CLAUDE.md`](../../frontend/src/utils/calendar/CLAUDE.md), the `calendarBand.ts` and `calendarSelection.ts` bullets; [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `MetricsTable.tsx` bullet; [`docs/USAGE.md`](../USAGE.md), Model, Forecast window, Metrics; [`docs/DATA.md`](../DATA.md), the archive's bullets
-- Related: 0013 (the accept edge is not the data edge), 0026 (the freezing level outside the zip), 0062 (every blocker is named), 0072 (the browser joins spans at local midnight), 0113 (the cloud deck), 0232 (a refused run is a blocker), 0233 (each regional model's grid is published)
+- Related: 0013 (the accept edge is not the data edge), 0026 (the freezing level outside the zip), 0062 (every blocker is named), 0072 (the browser joins spans at local midnight), 0113 (the cloud deck), 0233 (a refused run is a blocker), 0234 (each regional model's grid is published)
 
 ## Context
 
@@ -28,7 +28,7 @@ Issue #803's audit of the window, the model, the ranking and the bounds (rows W1
 - **A window that spans the archive boundary greys nothing.** Its forecast half is the chosen model's and answers the cloud deck and the freezing level, and the seam line already names where that half begins (record 0072).
 - **Compared models are ignored on an archive window** (`comparedInPlay`): the gate counts the ranking model alone, so neither comparison veto can stand on a disabled picker; the comparison fetches and draws nothing over an archive report; the Models menu lists the ranking model alone; and the table's Model column reads a dash rather than the picker's model, which produced none of those numbers. The selection itself is kept, in the link too, and returns when the window leaves the archive.
 - **A floor above its ceiling blocks** (`invertedFamilies`), with its two boxes marked `aria-invalid`. The panel has no invalid look for a field, so the line is what says it on screen. A pair only a greyed box holds does not block, since no one can edit it.
-- **A regional model whose published grid leaves out a point to analyze blocks** (`modelOutsideDomain`, record 0233's `domain`), naming the first such model, the ranking model first. The points are the ring's vertices when the ring is searched, every pasted row and every pin, as one array the found field can join. A ring with a vertex outside is held whatever it would find. An archive window names no model, so it never holds there.
+- **A regional model whose published grid leaves out a point to analyze blocks** (`modelOutsideDomain`, record 0234's `domain`), naming the first such model, the ranking model first. The points are the ring's vertices when the ring is searched, every pasted row and every pin, as one array the found field can join. A ring with a vertex outside is held whatever it would find. An archive window names no model, so it never holds there.
 - **A window that starts after the model's last hour is out of range** (`classifyWindow`), so the existing `${model} does not reach that far.` blocks it; one that only runs past the reach keeps its early hours, as the band's partial last day always has. The model-change clamp (`clampSelection`) drops narrowed hours that the reach leaves wholly empty, leaving the whole last day, and warns that the model shortened the window.
 - **The empty table says `No forecast data for this window.`** when destinations were found and every one was dropped for empty hours.
 - **The freezing-level note names the models by the picker's labels**, composed from `FREEZE_MODELS`, the table the gate's list is now read from; a test holds each label to the backend's `MODEL_INFO`.

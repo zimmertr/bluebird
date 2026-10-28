@@ -573,7 +573,7 @@ describe('analyzeGateFor', () => {
     expect(gateOf({ spend: { needed: 8357, limit: 5000 } }).spend).toEqual({ needed: 8357, limit: 5000 })
   })
 
-  // --- #803, W1 to W8 (record 0235)
+  // --- #803, W1 to W8 (record 0236)
   const DAY = { kind: 'days' as const, startDate: '2026-01-10', endDate: '2026-01-11' }
 
   // W1, W2: a ranking on a column the archive does not publish.
