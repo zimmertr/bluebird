@@ -175,7 +175,7 @@ describe('mountTerrain', () => {
     // No layer: the terrain is the map's, not a picture on it.
     expect(stub.calls.some((c) => c[0] === 'addLayer')).toBe(false)
     terrain.update(OFF)
-    expect(stub.calls.filter((c) => c[0] === 'setTerrain').at(-1)).toEqual(['setTerrain', null])
+    expect(stub.calls.filter((c) => c[0] === 'setTerrain').pop()).toEqual(['setTerrain', null])
     expect([stub.camera.pitch, stub.camera.bearing]).toEqual([0, 30])
   })
 
