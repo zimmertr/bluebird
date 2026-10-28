@@ -864,6 +864,12 @@ CC BY-NC-SA 4.0, as every vintage from 2018 on is, so it is free for
 noncommercial use only. Neither is a recent pass: both are a still of the
 ground as it was, not a picture of the conditions on it.
 
+While the layer is on, the map's corner credits the two by short name, `USGS`
+and `EOX Sentinel-2 cloudless`, each linked to its provider. The full line each
+asks for is in [NOTICES.md](../NOTICES.md), and the data sources list names
+and links both. EOX's own wording asks for its full line in the map; the
+maintainer chose the short names on 2026-10-28 to keep the corner to one line.
+
 The two are drawn as one layer, EOX everywhere with USGS over it, both under
 Liberty's roads, trails and labels and under the relief and the contours, with
 Liberty's own land, water and building fills faded out while the layer is on.

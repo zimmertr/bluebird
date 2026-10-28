@@ -91,9 +91,16 @@ describe('mountImagery', () => {
     expect(spec(IMAGERY_USGS)).toMatchObject({ type: 'raster', tiles: [USGS_IMAGERY_TILES], tileSize: 256, minzoom: 13, maxzoom: 16 })
     // Nothing is asked of USGS over Europe, where every tile is a 404.
     expect(spec(IMAGERY_USGS)).toHaveProperty('bounds', [-180, -15, -64, 72])
-    // Each carries its provider's credit, for the map corner.
-    expect(spec(IMAGERY_EOX)).toHaveProperty('attribution', expect.stringContaining('EOX IT Services GmbH'))
-    expect(spec(IMAGERY_USGS)).toHaveProperty('attribution', expect.stringContaining('U.S. Geological Survey'))
+    // Each carries its provider's short name, linked, for the map corner,
+    // which keeps it to one line at a desk; the full lines are in NOTICES.md.
+    expect(spec(IMAGERY_EOX)).toHaveProperty(
+      'attribution',
+      '<a href="https://cloudless.eox.at" target="_blank" rel="noopener noreferrer">EOX Sentinel-2 cloudless</a>',
+    )
+    expect(spec(IMAGERY_USGS)).toHaveProperty(
+      'attribution',
+      '<a href="https://www.usgs.gov/programs/national-geospatial-program/national-map" target="_blank" rel="noopener noreferrer">USGS</a>',
+    )
   })
 
   it('fades the basemap\'s ground by opacity and never hides a layer', () => {

@@ -73,12 +73,15 @@ const USGS_BOUNDS: [number, number, number, number] = [-180, -15, -64, 72]
 /** Both imagery services tile at 256px. */
 const IMAGERY_TILE_SIZE = 256
 
-// Each provider's own credit, as `NOTICES.md` transcribes it, carried by its
-// source so the map corner credits it while the layer draws.
+// Each provider by a short name, carried by its source so the map corner
+// credits it while the layer draws. The full lines each asks for are in
+// `NOTICES.md`; EOX's asks for its line in the map, and the maintainer chose
+// the short names on 2026-10-28 to keep a desk's corner to one line.
+// USGS links where the data sources list does.
 const USGS_ATTRIBUTION =
-  'Map services and data available from U.S. Geological Survey, National Geospatial Program'
+  '<a href="https://www.usgs.gov/programs/national-geospatial-program/national-map" target="_blank" rel="noopener noreferrer">USGS</a>'
 const EOX_ATTRIBUTION =
-  'EOxCloudless <a href="https://cloudless.eox.at" target="_blank">https://cloudless.eox.at</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2025)'
+  '<a href="https://cloudless.eox.at" target="_blank" rel="noopener noreferrer">EOX Sentinel-2 cloudless</a>'
 
 /** Liberty's two sources: its vector tiles and its Natural Earth relief. */
 const BASEMAP_VECTOR = 'openmaptiles'
