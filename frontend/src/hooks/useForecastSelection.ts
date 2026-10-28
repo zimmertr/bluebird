@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Capabilities, modelForecastHours, publishesModels } from './useCapabilities'
-import { DEFAULT_SELECTION, type ForecastSelection, selectionLocalWindow } from '../utils/calendar/calendar'
+import { DEFAULT_SELECTION, type ForecastSelection, clampSelection, selectionLocalWindow } from '../utils/calendar/calendar'
 import { isPointSample } from '../utils/forecastWindow'
 import { panelWindowMs as toWindowMs, planModelChange, windowWarningFor } from '../utils/forecastSelection'
 import type { ShareableState } from '../utils/urlState'
@@ -16,7 +16,12 @@ import type { ShareableState } from '../utils/urlState'
  * `forgetPreClamp` reaches across, because running an analysis retires the
  * pre-clamp memory.
  */
-export function useForecastSelection(restored: Partial<ShareableState> | null, caps: Capabilities) {
+export function useForecastSelection(
+  restored: Partial<ShareableState> | null,
+  caps: Capabilities,
+  /** The link carried a `model=` its decoder could not read (`decodeLink`, #803). */
+  linkModelDropped = false,
+) {
   // What Analyze asks about: the current hour, or days off the calendar (#166).
   // One value where there used to be four — a mode plus three sets of
   // timestamps, two of them always dormant. Defaults to the current hour: the
@@ -44,14 +49,31 @@ export function useForecastSelection(restored: Partial<ShareableState> | null, c
   const [comparedModels, setComparedModels] = useState<string[]>(
     () => restored?.compareModels ?? [],
   )
+  // --- #803 (M4, M6): what a link restored that the deployment cannot serve ---
+  // The link's ranking model is not one this deployment offers, so the ranking
+  // fell back to the default: an info line says so until the reader picks a
+  // model. Raised by the decoder for a `model=` it could not read, and below
+  // once the published list refuses one it could.
+  const [modelLost, setModelLost] = useState(linkModelDropped)
+  // The link's dates, still to be held to the band once the published limits
+  // land. Spent then, or by the reader's own edit of the window first.
+  const restoreClampRef = useRef(restored?.selection !== undefined)
+  // --- end #803 ---
   // The initializers above run against the compiled fallback. Once
   // capabilities land, adopt the real default when the link named nothing and
   // the user has not chosen, or this would overwrite a deliberate pick a moment
   // after it was made. And once the deployment's own list is in, a model or a
-  // compared id the link named that the list does not offer is dropped
-  // silently: the ranking falls back to the default, and the next URL write
-  // carries it. Never against the fallback list, which holds one model only
-  // because the real list has not answered, or never will.
+  // compared id the link named that the list does not offer is dropped: the
+  // ranking falls back to the default, the next URL write carries it, and the
+  // panel says the link's model is not available here (#803, M6). The compared
+  // ids go without a word: the chart simply draws the ones there are. Never
+  // against the fallback list, which holds one model only because the real
+  // list has not answered, or never will.
+  //
+  // The same moment holds the link's dates to the band (#803, M4), the way a
+  // model change clamps them, under the model that ends up ranking: a link
+  // whose days lie outside it opened the calendar on a month with every day
+  // greyed. Said by nothing more than the window the calendar then shows.
   useEffect(() => {
     const models = caps.forecastModels
     const offered = (id: string) => models.some((m) => m.id === id)
@@ -62,9 +84,29 @@ export function useForecastSelection(restored: Partial<ShareableState> | null, c
         : forecastModel
     if (ranking !== forecastModel) setForecastModel(ranking)
     if (!known) return
+    if (ranking !== forecastModel && forecastModel === restored?.forecastModel) setModelLost(true)
+    if (restoreClampRef.current) {
+      restoreClampRef.current = false
+      const restoredBand = {
+        forecastHours: modelForecastHours(models, ranking),
+        pastDays: caps.archiveDays,
+        aqiDays: caps.aqiForecastDays,
+      }
+      const clamped = clampSelection(selection, new Date(), restoredBand)
+      if (clamped) setSelection(clamped)
+    }
     const kept = comparedModels.filter((id) => offered(id) && id !== ranking)
     if (kept.length !== comparedModels.length) setComparedModels(kept)
-  }, [caps.defaultForecastModel, caps.forecastModels, forecastModel, comparedModels])
+  }, [
+    caps.defaultForecastModel,
+    caps.forecastModels,
+    caps.archiveDays,
+    caps.aqiForecastDays,
+    forecastModel,
+    comparedModels,
+    restored,
+    selection,
+  ])
   // The last model change trimmed the forecast window to fit the new model's
   // reach. Held rather than derived because a clamp leaves no trace: afterwards
   // the selection simply is inside the band, and nothing distinguishes a window
@@ -92,6 +134,8 @@ export function useForecastSelection(restored: Partial<ShareableState> | null, c
   const changeForecastModel = useCallback(
     (id: string) => {
       untouchedModelRef.current = false
+      // The reader has picked a model, so the link's is no longer the question.
+      setModelLost(false)
       // The compared set is not touched here. A model is on the chart once
       // whichever way it got there, and which models are selected is the
       // picker's own answer (`utils/model/modelSelection.ts`), handed over beside this
@@ -112,6 +156,7 @@ export function useForecastSelection(restored: Partial<ShareableState> | null, c
   // the model picker — and the pre-clamp memory with it, for the same reason.
   const changeSelection = useCallback((next: ForecastSelection) => {
     preClampSelectionRef.current = null
+    restoreClampRef.current = false
     setModelClamped(false)
     setSelection(next)
   }, [])
@@ -144,6 +189,7 @@ export function useForecastSelection(restored: Partial<ShareableState> | null, c
     comparedModels,
     setComparedModels,
     modelClamped,
+    modelLost,
     panelWindowMs,
     panelPointSample,
     windowWarning,

@@ -182,11 +182,15 @@ export function modelPitchKm(
  * report still sits on screen, and the layer must follow the rows it draws
  * under.
  *
- * `null` is a report that does not exist yet, and forbids nothing. The layer is
- * a standing preference, so the analysis decides when it commits.
+ * `null` is a report that does not exist yet, and there is nothing to grid:
+ * the lattice covers the analyzed field, so before the first analysis a
+ * checked row drew nothing and said nothing (#803, M5). The row greys then, the
+ * way the player's does when nothing spans time, and the layer stays a
+ * standing preference: the box keeps its tick, and the report that commits
+ * puts it in play.
  */
 export function gridAllowed(analyzed: { windowSource: WindowSource } | null): boolean {
-  return analyzed === null || analyzed.windowSource === 'forecast'
+  return analyzed !== null && analyzed.windowSource === 'forecast'
 }
 
 // One degree of latitude, in km. Longitude shrinks by cos(lat), which is what

@@ -55,4 +55,18 @@ describe('useRunOnOpen', () => {
     expect(calls).toEqual(['flush', 'analyze'])
     expect(result.current.autoAnalyze).toBe(false)
   })
+
+  // A link that opened blocked (#803, M3): the request is consumed unspent,
+  // and the address bar loses the flag the same way, so a reload does not
+  // ask again.
+  it('drops the request without running it', () => {
+    openAt('?analyze=1')
+    const flushUrl = vi.fn()
+    const analyze = vi.fn()
+    const { result } = renderHook(() => useRunOnOpen({ settled: true, flushUrl, analyze }))
+    act(() => result.current.runAutoAnalyze('drop'))
+    expect(flushUrl).toHaveBeenCalledOnce()
+    expect(analyze).not.toHaveBeenCalled()
+    expect(result.current.autoAnalyze).toBe(false)
+  })
 })

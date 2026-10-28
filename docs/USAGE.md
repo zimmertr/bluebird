@@ -219,7 +219,7 @@ controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Each of the six that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
+again. Each of the six that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer is never switched on, though one that is still on gets switched off with the rest.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
@@ -247,7 +247,10 @@ row but the forecast grid and the player does. A gray row says the layer has
 nothing to draw here, which is the one thing an empty layer cannot say for
 itself: outside a feed's coverage, empty means "not covered", never "open" or
 "clear". Pan back into coverage and the row returns. A layer you switched on
-before panning out stays checked while gray, and draws again where it can. No
+before panning out stays checked while gray, and draws again where it can. Its
+box still works while it is gray, so you can switch it off there; once it is off
+it stays gray, and you cannot switch it back on until the layer has something to
+draw. No
 label carries the coverage, because the one row that most needed a word for its
 coverage has none: the area feeds cover eight states, and "West" is not their
 name.
@@ -336,6 +339,14 @@ covers a window that crosses the join as well as one wholly behind it: half such
 report is that dataset, and one stated spacing cannot be true of both halves.
 Hovering the row says so, and so does a screen reader; analyze a recent window and
 the layer comes back.
+
+It is faded out before your first analysis too, because there is no field yet to
+grid, and over a report ranked by a metric with no number anywhere in it, such as a
+freezing level under a model that publishes none, because the picture would be
+every square empty. Neither says why: the gray row is the whole message, as it is
+for the player. A box you ticked before analyzing, or one a shared link ticked,
+stays ticked, and the layer draws as soon as a report can carry it. Rank by
+something with numbers and it comes back without fetching anything again.
 
 A segment under the row picks how it is drawn, and both readings are true:
 
@@ -467,9 +478,11 @@ A pan or a zoom alone makes a link, so a link copied after you move the map reop
 
 The link stays readable. Commas, semicolons, colons and slashes show as they are, except a comma or a semicolon inside a pinned place's name, which shows as `%2C` or `%3B`, and a space shows as `+`. A pinned place reads as its coordinates, its kind, its elevation, its OpenStreetMap id and its name: `?model=gfs_seamless&mode=now&pins=-121.94734,47.48844,peak,2995,node/349018340,East+Tiger+Mountain`. Only the pasted list is compressed, because 100 rows of plain text would make a link too long to share.
 
-A link is read back only in the shapes the app writes. A polygon with a corner past a pole or the antimeridian is dropped, and so is a pinned place there. A pinned place keeps its spot but loses an OpenStreetMap id that is not `node/`, `way/` or `relation/` and a number, and a kind that is not plain words. A pasted list longer than a link can carry, or holding more rows than the [candidate cap](LIMITS.md), is dropped whole rather than cut short, since a list missing rows would be a different list from the one shared. Nothing says so on screen: the rest of the link restores as usual.
+A link is read back only in the shapes the app writes. A polygon with a corner past a pole or the antimeridian is dropped, and so is a pinned place there. A pinned place keeps its spot but loses an OpenStreetMap id that is not `node/`, `way/` or `relation/` and a number, and a kind that is not plain words. A pasted list longer than a link can carry, or holding more rows than the [candidate cap](LIMITS.md), is dropped whole rather than cut short, since a list missing rows would be a different list from the one shared, and so is a polygon with more corners than the [ring cap](LIMITS.md) allows. The rest of the link restores as usual, and the Analyze button's messages say what did not: `The link's search area could not be restored.` for a polygon, and `The link's destination list could not be restored.` for a list. A link naming a forecast model this deployment does not offer opens on the default model, and says `The link's forecast model is not available here.` Each line stays until you dismiss it or give the panel what it lost: draw a polygon, paste a list, or pick a model.
 
-A link you build by hand can also carry `analyze=1`. The app then runs the analysis once when the page opens, as if you had clicked **Analyze**, after it has read this deployment's limits. It runs only when **Analyze** would be enabled; if an input is missing or out of bounds, nothing runs and the panel shows the usual reasons below the button. The flag leaves the address bar when the analysis starts, so a reload restores the link without running it again. The app never writes `analyze=1` itself, so a link you copy from the address bar after an edit does not run on open. There is no control for it: you add it to the link yourself.
+A link whose days lie outside what the calendar can reach opens on the nearest days it can, once the app has read this deployment's limits: days past the far end come back as its last day, and days older than the archive's reach as its first. The calendar opens on those days. If it ever stands on a month with nothing to pick, the arrow pointing back toward the days it can serve still works.
+
+A link you build by hand can also carry `analyze=1`. The app then runs the analysis once when the page opens, as if you had clicked **Analyze**, after it has read this deployment's limits. It runs only when **Analyze** would be enabled at that moment; if an input is missing or out of bounds, nothing runs and the panel shows the usual reasons below the button. The request is spent either way: making the panel ready afterwards does not run it, so the first edit you make never spends on the link's behalf, and you press **Analyze** yourself. The flag leaves the address bar when the analysis starts, or when it is dropped, so a reload restores the link without running it again. The app never writes `analyze=1` itself, so a link you copy from the address bar after an edit does not run on open. There is no control for it: you add it to the link yourself.
 
 ## Analyze
 

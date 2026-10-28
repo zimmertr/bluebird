@@ -244,9 +244,9 @@ describe('the Analyze button', () => {
   })
 })
 
-// A link carrying `analyze=1` (#511). The decision is `shouldAutoAnalyze`'s and
+// A link carrying `analyze=1` (#511). The decision is `autoAnalyzeStep`'s and
 // its suite pins it; this pins that the panel feeds it the button's own gate
-// and fires the run once.
+// and decides once: the run, or the request dropped (#803, M3).
 describe('the run on open', () => {
   const ready: Over = { hasPins: true, autoAnalyze: true, capabilitiesSettled: true }
 
@@ -260,6 +260,7 @@ describe('the run on open', () => {
     rerender(<Panel {...ready} onAutoAnalyze={onAutoAnalyze} loading />)
     rerender(<Panel {...ready} onAutoAnalyze={onAutoAnalyze} />)
     expect(onAutoAnalyze).toHaveBeenCalledOnce()
+    expect(onAutoAnalyze).toHaveBeenCalledWith('run')
     expect(onAnalyze).not.toHaveBeenCalled()
   })
 
@@ -271,11 +272,22 @@ describe('the run on open', () => {
     expect(onAutoAnalyze).toHaveBeenCalledOnce()
   })
 
-  it('runs nothing while the gate is closed, and says why as usual', () => {
+  it('drops the request while the gate is closed, and says why as usual', () => {
     const onAutoAnalyze = vi.fn()
     render(<Panel {...ready} hasPins={false} onAutoAnalyze={onAutoAnalyze} />)
-    expect(onAutoAnalyze).not.toHaveBeenCalled()
+    expect(onAutoAnalyze).toHaveBeenCalledOnce()
+    expect(onAutoAnalyze).toHaveBeenCalledWith('drop')
     expect(screen.getByRole('status').textContent).toMatch(/at least one destination/)
+  })
+
+  // The edit that opens the gate later is the reader's, not the link's: the
+  // request was dropped when the limits settled, so it does not run.
+  it('does not run on the edit that later opens the gate', () => {
+    const onAutoAnalyze = vi.fn()
+    const { rerender } = render(<Panel {...ready} hasPins={false} onAutoAnalyze={onAutoAnalyze} />)
+    rerender(<Panel {...ready} onAutoAnalyze={onAutoAnalyze} />)
+    expect(onAutoAnalyze).toHaveBeenCalledOnce()
+    expect(onAutoAnalyze).toHaveBeenCalledWith('drop')
   })
 
   it('runs nothing for a link that did not ask', () => {

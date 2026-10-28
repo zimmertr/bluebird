@@ -1059,6 +1059,15 @@ describe('shared recipes', () => {
     expect(CHOICE_INPUT).not.toContain('touch:')
   })
 
+  // A greyed row whose box is still live for unticking (#803, M9) fades
+  // exactly as far as a disabled one, and only its cursor differs.
+  it('greys a row marked greyed as far as a disabled one', () => {
+    const fade = (variant: string) => CHOICE_ROW.match(new RegExp(`${variant}:opacity-(\\d+)`))?.[1]
+    expect(fade('data-\\[greyed\\]')).toBe(fade('has-\\[:disabled\\]'))
+    expect(fade('data-\\[greyed\\]')).toBeDefined()
+    expect(CHOICE_ROW).not.toMatch(/data-\[greyed\]:cursor-/)
+  })
+
   // Placeholders are content, held to the same 4.5:1 as the text typed over
   // them. slate-400 is 7.0:1 on the field surface; the slate-600 the call
   // sites had drifted into read at 2.4:1, and the color lives in the recipe
@@ -3765,8 +3774,10 @@ describe('the one menu', () => {
     expect(MENU.cardRow).toContain('rounded')
     // And 20px apart, the list rows' pitch (record 0222).
     expect(stepPx(MENU.cardRow, 'py')).toBe(stepPx(MENU.row, 'py'))
-    // A disabled row takes none: each wiring names the condition.
-    expect(layersPopoverSource).toContain("disabled ? '' : ` ${MENU.hover}`")
+    // A disabled row takes none: each wiring names the condition. A Layers
+    // row is locked when it greys unticked; greyed and ticked, a press still
+    // unticks it, so it lights (#803).
+    expect(layersPopoverSource).toContain("locked ? '' : ` ${MENU.hover}`")
     expect(columnsPickerSource).toContain('!sheet && !isRanked ? MENU.hover')
     expect(modelsPickerSource).toContain('${MENU.row} ${MENU.hover}')
   })

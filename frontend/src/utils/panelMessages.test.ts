@@ -296,6 +296,37 @@ describe('panelMessages', () => {
     })
   })
 
+  // A share link that opened without part of what it carried (#803, M6):
+  // one info line each, keyed on the condition, in a fixed order.
+  describe('what a link could not restore', () => {
+    it.each([
+      ['ring', "The link's search area could not be restored."],
+      ['list', "The link's destination list could not be restored."],
+      ['model', "The link's forecast model is not available here."],
+    ] as const)('says the %s is gone, as information', (what, text) => {
+      expect(only({ linkLost: [what] })).toEqual({ key: `link:${what}`, text, severity: 'info' })
+    })
+
+    it('says nothing with nothing lost, or with no report of losses at all', () => {
+      expect(keys({ linkLost: [] })).toEqual([])
+      expect(keys({ linkLost: undefined })).toEqual([])
+    })
+
+    it('says each in one order, whatever order it was reported in', () => {
+      expect(keys({ linkLost: ['model', 'list', 'ring'] })).toEqual(['link:ring', 'link:list', 'link:model'])
+    })
+
+    // About the link the panel was built from, so ahead of the window's lines
+    // and of the blockers.
+    it('comes before the window lines and the blockers', () => {
+      expect(keys({ linkLost: ['ring'], source: 'archive', blockers: ['destinations'] })).toEqual([
+        'link:ring',
+        'window:archive-model',
+        'blocker:destinations',
+      ])
+    })
+  })
+
   describe('the basemap line', () => {
     // #580: a blank map says why, below Analyze with every other message.
     it('says the map could not load while the basemap style is failing', () => {

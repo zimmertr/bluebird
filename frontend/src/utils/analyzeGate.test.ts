@@ -10,7 +10,7 @@ import {
   retryStands,
   ringAddsNothing,
   ringUsable,
-  shouldAutoAnalyze,
+  autoAnalyzeStep,
   AnalyzeGate,
   AnalyzeGateInputs,
   AutoAnalyzeState,
@@ -379,8 +379,9 @@ describe('a model selection the ranking cannot use', () => {
 })
 
 // A link's run on open (#511): the same gate a click reads, after the live
-// limits, and once.
-describe('shouldAutoAnalyze', () => {
+// limits, and decided once (#803, M3): run if the gate is open then, dropped
+// if it is shut.
+describe('autoAnalyzeStep', () => {
   const READY: AutoAnalyzeState = {
     requested: true,
     capabilitiesSettled: true,
@@ -389,59 +390,72 @@ describe('shouldAutoAnalyze', () => {
   }
 
   it('runs when the link asked, capabilities settled and the gate is open', () => {
-    expect(shouldAutoAnalyze(READY)).toBe(true)
+    expect(autoAnalyzeStep(READY)).toBe('run')
   })
 
-  it('does not run before capabilities settle', () => {
-    expect(shouldAutoAnalyze({ ...READY, capabilitiesSettled: false })).toBe(false)
+  it('waits for capabilities to settle, whatever the gate says', () => {
+    expect(autoAnalyzeStep({ ...READY, capabilitiesSettled: false })).toBe('wait')
+    expect(autoAnalyzeStep({ ...READY, capabilitiesSettled: false, gateOpen: false })).toBe('wait')
   })
 
-  it('does not run while the gate is closed', () => {
-    expect(shouldAutoAnalyze({ ...READY, gateOpen: false })).toBe(false)
+  it('drops the request when the gate is shut once capabilities settle', () => {
+    expect(autoAnalyzeStep({ ...READY, gateOpen: false })).toBe('drop')
     // The gate it reads is the button's, so an incomplete input closes it.
     const gateOpen = canAnalyze({ ...READY_POLYGON, polygonReady: false })
-    expect(shouldAutoAnalyze({ ...READY, gateOpen })).toBe(false)
+    expect(autoAnalyzeStep({ ...READY, gateOpen })).toBe('drop')
   })
 
-  it('does not run for a link that did not ask', () => {
-    expect(shouldAutoAnalyze({ ...READY, requested: false })).toBe(false)
+  it('does nothing for a link that did not ask', () => {
+    expect(autoAnalyzeStep({ ...READY, requested: false })).toBe('wait')
+    expect(autoAnalyzeStep({ ...READY, requested: false, gateOpen: false })).toBe('wait')
   })
 
-  it('does not run a second time', () => {
-    expect(shouldAutoAnalyze({ ...READY, fired: true })).toBe(false)
+  it('does nothing once decided', () => {
+    expect(autoAnalyzeStep({ ...READY, fired: true })).toBe('wait')
+    expect(autoAnalyzeStep({ ...READY, fired: true, gateOpen: false })).toBe('wait')
   })
 
   // The panel's effect, driven through a page load: capabilities land, the gate
   // opens, the run closes it (loading) and the end reopens it. Only the first
-  // opening after settling may fire.
-  it('fires exactly once across a load', () => {
-    const steps: Array<Pick<AutoAnalyzeState, 'capabilitiesSettled' | 'gateOpen'>> = [
-      { capabilitiesSettled: false, gateOpen: false },
-      { capabilitiesSettled: false, gateOpen: true },
-      { capabilitiesSettled: true, gateOpen: true },
-      { capabilitiesSettled: true, gateOpen: false },
-      { capabilitiesSettled: true, gateOpen: true },
-      { capabilitiesSettled: true, gateOpen: true },
-    ]
+  // step after settling decides.
+  const load = (steps: Array<Pick<AutoAnalyzeState, 'capabilitiesSettled' | 'gateOpen'>>) => {
     let fired = false
-    const firedAt: number[] = []
+    const decided: Array<[number, string]> = []
     steps.forEach((step, i) => {
-      if (shouldAutoAnalyze({ requested: true, fired, ...step })) {
+      const next = autoAnalyzeStep({ requested: true, fired, ...step })
+      if (next !== 'wait') {
         fired = true
-        firedAt.push(i)
+        decided.push([i, next])
       }
     })
-    expect(firedAt).toEqual([2])
+    return decided
+  }
+
+  it('runs exactly once across a load', () => {
+    expect(
+      load([
+        { capabilitiesSettled: false, gateOpen: false },
+        { capabilitiesSettled: false, gateOpen: true },
+        { capabilitiesSettled: true, gateOpen: true },
+        { capabilitiesSettled: true, gateOpen: false },
+        { capabilitiesSettled: true, gateOpen: true },
+        { capabilitiesSettled: true, gateOpen: true },
+      ]),
+    ).toEqual([[2, 'run']])
   })
 
-  it('never fires across a load whose gate stays closed', () => {
-    let fired = false
-    for (const capabilitiesSettled of [false, true, true]) {
-      if (shouldAutoAnalyze({ requested: true, fired, capabilitiesSettled, gateOpen: false })) {
-        fired = true
-      }
-    }
-    expect(fired).toBe(false)
+  // The issue's case: a link that opens blocked, and an edit later that opens
+  // the gate (the first day clicked, the third point of a redrawn ring). The
+  // request was dropped when the limits settled, so the edit spends nothing.
+  it('never runs on an edit that opens the gate after a blocked open', () => {
+    expect(
+      load([
+        { capabilitiesSettled: false, gateOpen: false },
+        { capabilitiesSettled: true, gateOpen: false },
+        { capabilitiesSettled: true, gateOpen: false },
+        { capabilitiesSettled: true, gateOpen: true },
+      ]),
+    ).toEqual([[1, 'drop']])
   })
 })
 

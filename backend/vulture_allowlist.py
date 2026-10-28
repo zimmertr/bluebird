@@ -147,6 +147,9 @@ trail_closures  # unused variable (app/routes/capabilities.py:329)
 sort_keys  # unused variable (app/routes/capabilities.py:350)
 forecast_models  # unused variable (app/routes/capabilities.py:353)
 api_key_header  # unused variable (app/routes/capabilities.py:364)
+domain  # unused variable (app/routes/capabilities.py:199)
+open_meteo_hourly_calls  # unused variable (app/routes/capabilities.py:308)
+discovery_source  # unused variable (app/routes/capabilities.py:397)
 limits  # unused variable (app/routes/capabilities.py:372)
 data_sources  # unused variable (app/routes/capabilities.py:374)
 fetched_at  # unused variable (app/routes/closures.py:32)
@@ -178,11 +181,15 @@ _.no_range_inverted  # unused method (app/models/common.py:437)
 # wait_ready() waits for the test database, a refresh's last_success is how a
 # test sees it succeed, and the two covers() run the backend's ray cast, which
 # the browser alone uses in production (mirror row 31): the tests pin each
-# outline to named places through it.
+# outline to named places through it. hrrr_grid_position is the forward half of
+# HRRR's projection: the outline is built from grid nodes through the inverse
+# alone, and the tests read a place's grid position through it to pin the
+# corners, the chord bound and the points Open-Meteo was probed at (#803).
 _.reset  # unused method (app/ratelimit/client.py:333)
 _.settle  # unused method (app/services/snapshot.py:417)
 covers  # unused function (app/services/usfs_coverage.py:261)
 covers  # unused function (app/services/wfigs_coverage.py:173)
+hrrr_grid_position  # unused function (app/model_domains.py:86)
 wait_ready  # unused function (app/db/__init__.py:108)
 last_success  # unused variable (app/db/refresh.py:51)
 reset  # unused function (app/ratelimit/shared.py:58)

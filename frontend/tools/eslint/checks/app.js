@@ -725,14 +725,15 @@ export const APP = [
   },
   {
     // The Layers list is LayersPopover's, and its grid row reads the hook's
-    // answer rather than asking again.
+    // answer rather than asking again: gridOffered, which is gridAvailable
+    // with a ranked metric that has a number to paint (#803).
     name: 'app-grid-gate',
     files: ['src/components/LayersPopover.tsx'],
     require: [
       { selector: 'Property[key.name="key"][value.value="grid"]', message: 'Keep the grid row in the layers list.' },
       {
-        selector: 'Property[key.name="disabled"] > UnaryExpression[operator="!"][argument.name="gridAvailable"]',
-        message: 'Disable the grid row on !gridAvailable.',
+        selector: 'Property[key.name="disabled"] > UnaryExpression[operator="!"][argument.name="gridOffered"]',
+        message: 'Disable the grid row on !gridOffered.',
       },
     ],
   },

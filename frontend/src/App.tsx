@@ -49,6 +49,7 @@ import { useResultsView } from './hooks/useResultsView'
 import { useLayoutMotion } from './hooks/useLayoutMotion'
 import { useClosePopupsOnCommit } from './hooks/useClosePopupsOnCommit'
 import { useRunOnOpen } from './hooks/useRunOnOpen'
+import { useLinkDrops } from './hooks/useLinkDrops'
 import { useUrlSync } from './hooks/useUrlSync'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useClosureProximity } from './hooks/useClosureProximity'
@@ -66,7 +67,7 @@ import {
   SURFACE_PAGE,
 } from './styles'
 import {
-  decodeState,
+  decodeLink,
 } from './utils/urlState'
 import { removalScopeFor } from './utils/analyzeRequest'
 import { controlsSummary } from './utils/controlsSummary'
@@ -105,13 +106,16 @@ export default function App() {
   // fallbacks until /api/capabilities answers: both have to be bounded before
   // they enter state, and each fallback is the backend's own cap, held in
   // lockstep by `mirrored_constants.json`.
+  // `dropped` is what the link carried and could not restore (#803, M6),
+  // which the panel says beside the rest of its messages.
   const restoredRef = useRef(
-    decodeState(window.location.search, {
+    decodeLink(window.location.search, {
       maxDestinations: caps.maxDestinations,
       maxPolygonPoints: caps.maxPolygonPoints,
     }),
   )
-  const restored = restoredRef.current
+  const restored = restoredRef.current.state
+  const linkDropped = restoredRef.current.dropped
   // The camera a link names: stable for the session, like `restored`.
   const restoredView = restored?.view ?? null
 
@@ -132,7 +136,7 @@ export default function App() {
   // carried survive its first Analyze (`useRemovals`). Measured once: the
   // scope is the link's, not whatever the panel holds later.
   const [restoredRemovalScope] = useState(() => removalScopeFor(polygon, destinationScope))
-  const forecastSelection = useForecastSelection(restored, caps)
+  const forecastSelection = useForecastSelection(restored, caps, linkDropped.includes('model'))
   const {
     selection,
     forecastModel,
@@ -318,6 +322,7 @@ export default function App() {
     showGrid,
     analyzed,
     universe,
+    sortBy,
     forecastModel,
     forecastModels: caps.forecastModels,
     forecastTimes,
@@ -520,6 +525,14 @@ export default function App() {
   // The panel's messages and the Analyze gate, derived once for both widths
   // (record 0208): the panel's Analyze and the phone's read one gate from
   // one set of inputs, and the badge on either counts the same list.
+  // --- #803 (M6): what the link lost, until the reader supplies it ---
+  const linkLost = useLinkDrops({
+    dropped: linkDropped,
+    ring: polygon !== null,
+    list: csvRows.length > 0,
+    modelLost: forecastSelection.modelLost,
+  })
+  // --- end #803 ---
   const messages = usePanelMessages({
     selection,
     windowWarning: forecastSelection.windowWarning,
@@ -558,6 +571,7 @@ export default function App() {
     archiveDays: caps.archiveDays,
     aqiForecastDays: caps.aqiForecastDays,
     windowLimits: caps.windowLimits,
+    linkLost,
     dismissEvent,
     // #803, W6 to W8
     constraints,

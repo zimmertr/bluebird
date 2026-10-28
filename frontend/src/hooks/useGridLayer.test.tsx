@@ -32,6 +32,7 @@ function inputs(over: Partial<GridLayerInputs> = {}): GridLayerInputs {
     showGrid: true,
     analyzed: REPORT,
     universe: FIELD,
+    sortBy: 'precip_total_in',
     forecastModel: 'gfs_seamless',
     forecastModels: MODELS,
     forecastTimes: TIMES,
@@ -97,6 +98,41 @@ describe('useGridLayer', () => {
     expect([archive.gridAvailable, archive.gridOn, last().enabled]).toEqual([false, false, false])
     const off = renderHook(() => useGridLayer(inputs({ showGrid: false }))).result.current
     expect([off.gridAvailable, off.gridOn]).toEqual([true, false])
+  })
+
+  // Nothing to grid before a report (#803, M5): the row greys and nothing is
+  // fetched, while the reader's tick stands for the report to come.
+  it('offers the row only over a report it can draw on', () => {
+    const before = renderHook(() => useGridLayer(inputs({ analyzed: null, universe: null }))).result.current
+    expect([before.gridAvailable, before.gridOn, before.gridOffered, before.gridArchived]).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ])
+    expect(last().enabled).toBe(false)
+    const archive = renderHook(() => useGridLayer(inputs({ analyzed: ARCHIVE }))).result.current
+    expect([archive.gridOffered, archive.gridArchived]).toEqual([false, true])
+    const report = renderHook(() => useGridLayer(inputs())).result.current
+    expect([report.gridOffered, report.gridArchived]).toEqual([true, false])
+  })
+
+  // A ranked metric with no number anywhere in the field paints empty cells:
+  // the row greys and the legend says nothing. The fetch is keyed on the
+  // report, never on the ranking (record 0016), so it stays on and its
+  // samples wait for a ranking that has numbers.
+  it('greys the row over a ranked metric with nothing to paint, and keeps the fetch', () => {
+    status = 'loading'
+    const nothing = renderHook(() => useGridLayer(inputs({ sortBy: 'aqi_avg' }))).result.current
+    expect([nothing.gridOffered, nothing.gridOn, nothing.gridCued, nothing.gridPainted]).toEqual([
+      false,
+      true,
+      false,
+      false,
+    ])
+    expect(last().enabled).toBe(true)
+    status = 'failed'
+    expect(renderHook(() => useGridLayer(inputs({ sortBy: 'aqi_avg' }))).result.current.gridFailed).toBe(false)
   })
 
   it('cues the legend while loading and says when it failed, only while on', () => {
