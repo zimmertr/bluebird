@@ -136,6 +136,7 @@ import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { CHIP_MENU_GAP_PX } from './utils/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
+import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { SNOW_RAMP } from './utils/snowDepth'
 import { contrast, mixOver, relativeLuminance, round2 } from './testSupport/contrast'
@@ -3395,6 +3396,33 @@ describe('the attribution beside the scale', () => {
   })
 })
 
+// The two grounds the map's own objects stand on since the satellite imagery
+// (#799), and Liberty's. The forest and the snowfield are the means of a
+// USGS tile over the Enchantments and one on Rainier's summit snowfield
+// (#333e3e and #dfdedf at z14, 2026-10-27), rounded to a ground a little
+// lighter and a little darker, so a pass here holds on the real tiles; the
+// light one is Liberty's own background.
+const MAP_GROUNDS = { forest: '#3a4a33', snow: '#e8ecef', liberty: '#f8f4f0' }
+
+// The marker's edge on either ground (#799): the white stroke and the dark
+// ring outside it (`MARKER_HALO`), one of which clears 3:1 on any ground
+// (WCAG 1.4.11), and the two 3:1 apart. Measured 2026-10-27.
+describe('the markers on the map', () => {
+  it('keep an edge past 3:1 on the forest, the snow and Liberty', () => {
+    const grounds = [MAP_GROUNDS.forest, MAP_GROUNDS.snow, MAP_GROUNDS.liberty]
+    // White alone was already under 3:1 on Liberty, where the fill was the edge.
+    expect(grounds.map((g) => ratio(MARKER_STROKE, g))).toEqual([9.51, 1.19, 1.09])
+    expect(grounds.map((g) => ratio(MARKER_HALO, g))).toEqual([1.87, 15.01, 16.29])
+    for (const g of grounds) expect(Math.max(ratio(MARKER_STROKE, g), ratio(MARKER_HALO, g))).toBeGreaterThanOrEqual(3)
+    expect(ratio(MARKER_STROKE, MARKER_HALO)).toBe(17.83)
+  })
+
+  // Haloed text is read against its halo, so the halo is its ground on any map.
+  it('label their names on their own halo', () => {
+    expect(ratio(MARKER_LABEL_PAINT!['text-color'] as string, MARKER_LABEL_PAINT!['text-halo-color'] as string)).toBe(17.04)
+  })
+})
+
 // The scale bar on the theme's ground (#739; record 0162): the legend ramp's
 // scrim and ink, read by their variables because the library makes the
 // markup, and measured over the lightest and the darkest map it can stand on.
@@ -3407,11 +3435,19 @@ describe('the scale bar', () => {
   it('stands on the legend scrim in the legend ink, and wears no chrome', () => {
     expect(rule).toContain(`background-color: color-mix(in oklab, var(--ui-${scrim}) ${alpha}%, transparent);`)
     expect(rule).toContain(`color: var(--ui-${ink});`)
-    // Its ends are dark in both themes, because the basemap is light in both:
-    // the scrim's own surface, opaque, in the dark theme, the ink in the light.
+    // Its ends are two lines, because the map under it is light (Liberty) or
+    // dark (the satellite imagery, #799): the border dark outside, the
+    // scrim's own surface opaque in the dark theme and the ink in the light,
+    // and the inner line light inside, the other of the two.
     expect(rule).toContain(`border-color: var(--ui-${scrim});`)
     expect(mapCss).toMatch(
       new RegExp(String.raw`:root\[data-theme="light"\] \.maplibregl-ctrl\.maplibregl-ctrl-scale \{\s*border-color: var\(--ui-${ink}\);\s*\}`),
+    )
+    const inner = mapCss.match(/\n\.maplibregl-ctrl\.maplibregl-ctrl-scale::after \{[^}]*\}/)?.[0] ?? ''
+    expect(inner).toContain(`border: 1px solid var(--ui-${ink});`)
+    expect(inner).toContain('border-top: 0;')
+    expect(mapCss).toMatch(
+      new RegExp(String.raw`:root\[data-theme="light"\] \.maplibregl-ctrl\.maplibregl-ctrl-scale::after \{\s*border-color: var\(--ui-${scrim}\);\s*\}`),
     )
     // A ruler, not a control (record 0147): no corner and no shadow. Its
     // label is the attribution's 11px (record 0222), which
@@ -3441,6 +3477,8 @@ describe('the scale bar', () => {
     const corner = mapCss.match(/\n\.map-corner \.maplibregl-ctrl-scale \{[^}]*\}/)?.[0] ?? ''
     expect(corner).toContain('background-color: transparent;')
     expect(corner).toContain(`border-color: var(--ui-${ink});`)
+    // One line there: the credit line is its one ground.
+    expect(mapCss).toMatch(/\n\.map-corner \.maplibregl-ctrl-scale::after \{\s*content: none;\s*\}/)
     // After the scale's own rule, which it ties on specificity.
     expect(mapCss.indexOf(corner)).toBeGreaterThan(mapCss.indexOf(rule))
     const floating = token(SURFACE_FLOATING, 'bg')
@@ -3451,11 +3489,21 @@ describe('the scale bar', () => {
     for (const r of [...measure(dark), ...measure(light)]) expect(r).toBeGreaterThanOrEqual(4.5)
   })
 
-  // The ruler's ends against a white map, past the 3:1 a graphic owes.
-  it('draws its ends past 3:1 on a white map in both themes', () => {
-    const ends = [ratio(dark(scrim), '#ffffff'), ratio(light(ink), '#ffffff')]
-    expect(ends).toEqual([17.83, 17.12])
-    for (const r of ends) expect(r).toBeGreaterThanOrEqual(3)
+  // The ruler's ends past the 3:1 a graphic owes on either map (#799): the
+  // outer line on Liberty's ground and on snow, where the inner is lost, the
+  // inner on a forest, where the outer is lost, and each against the other.
+  // The grounds are `MAP_GROUNDS`. Measured 2026-10-27, dark theme then light.
+  it('draws its ends past 3:1 on a light map and a dark one in both themes', () => {
+    const lines = { dark: { outer: dark(scrim), inner: dark(ink) }, light: { outer: light(ink), inner: light(scrim) } }
+    const measure = ({ outer, inner }: { outer: string; inner: string }) => [
+      ratio(outer, MAP_GROUNDS.liberty),
+      ratio(outer, MAP_GROUNDS.snow),
+      ratio(inner, MAP_GROUNDS.forest),
+      ratio(outer, inner),
+    ]
+    expect(measure(lines.dark)).toEqual([16.29, 15.01, 7.72, 14.46])
+    expect(measure(lines.light)).toEqual([15.64, 14.41, 9.51, 17.12])
+    for (const r of [...measure(lines.dark), ...measure(lines.light)]) expect(r).toBeGreaterThanOrEqual(3)
   })
 })
 

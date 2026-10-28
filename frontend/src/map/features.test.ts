@@ -80,10 +80,12 @@ describe('mountFeatures', () => {
       'draw-line',
       'draw-midpoints',
       'draw-vertices',
+      'results-halo',
       RESULT_MARKER_LAYER,
       'results-wind',
       'results-rank',
       'results-labels',
+      'pending-destinations-halo',
       'pending-destinations-circles',
       'pending-destinations-labels',
     ])

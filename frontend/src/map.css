@@ -446,11 +446,16 @@
  * theme the tokens make it light again. The ink clears 4.5:1 on that ground
  * over a white map and over a black one, in both themes (`styles.test.ts`).
  *
- * Its edge, the ruler's two ends and its foot, is the recessed surface itself
- * in the dark theme and the ink in the light one: dark in both, because the
- * basemap is light in both. A light edge drawn in the dark theme's ink stood
- * on the map's own light grey and the bar lost its ends (screenshot,
- * 2026-10-16); the opaque edge reads darker than the 70% fill beside it.
+ * Its edge, the ruler's two ends and its foot, is two lines, dark outside and
+ * light inside, because the map under it is either: Liberty's light ground, or
+ * the satellite imagery's forest and snow (#799). One line cannot read on
+ * both. A light edge drawn in the dark theme's ink stood on Liberty's light
+ * grey and the bar lost its ends (screenshot, 2026-10-16), and the dark edge
+ * that replaced it vanished on a forest. The outer line is the border: the
+ * recessed surface itself in the dark theme and the ink in the light one,
+ * dark in both. The inner one, `::after`, is the other of the two, light in
+ * both. Each clears 3:1 on the ground the other is lost on, and 3:1 against
+ * the other (`styles.test.ts`).
  *
  * Its label is the attribution's size, the app's 11px floor (record 0222),
  * where it kept the vendor's 10px until the bar had the room. The library
@@ -464,24 +469,43 @@
  * The vendor's top border stays off: the shorthand it sets clears the style,
  * so a colour here draws no top edge. */
 .maplibregl-ctrl.maplibregl-ctrl-scale {
+  position: relative;
   background-color: color-mix(in oklab, var(--ui-recessed) 70%, transparent);
   border-color: var(--ui-recessed);
   color: var(--ui-ink);
   font-size: var(--map-credit-size);
 }
 
+.maplibregl-ctrl.maplibregl-ctrl-scale::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--ui-ink);
+  border-top: 0;
+  pointer-events: none;
+}
+
 :root[data-theme="light"] .maplibregl-ctrl.maplibregl-ctrl-scale {
   border-color: var(--ui-ink);
 }
 
+:root[data-theme="light"] .maplibregl-ctrl.maplibregl-ctrl-scale::after {
+  border-color: var(--ui-recessed);
+}
+
 /* In a desk's credit line (`MAP_CORNER`, record 0174) the scale stands on the
  * line's own surface rather than on the map, so it takes no scrim, and its
- * ends are drawn in its label's ink in both themes: the dark theme's ends,
- * drawn dark to stand on the light basemap, all but vanished on the dark line
- * (2026-10-20). The ink on that surface is measured in `styles.test.ts`. */
+ * ends are one line in its label's ink in both themes: the dark theme's ends,
+ * drawn dark for the map, all but vanished on the dark line (2026-10-20), and
+ * the line is the one ground there, so the inner line has nothing to answer.
+ * The ink on that surface is measured in `styles.test.ts`. */
 .map-corner .maplibregl-ctrl-scale {
   background-color: transparent;
   border-color: var(--ui-ink);
+}
+
+.map-corner .maplibregl-ctrl-scale::after {
+  content: none;
 }
 
 /* The attribution's type, one step down the app's ramp from the vendor's 12px:
