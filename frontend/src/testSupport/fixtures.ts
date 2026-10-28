@@ -19,6 +19,7 @@ import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import { worstSeverity } from '../utils/notices'
 import type { RefusalPanel } from '../utils/analyzeGate'
+import { ALL_ANSWERED } from '../utils/metricReach'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
 // out in full.
@@ -562,6 +563,8 @@ export function panelMessages(over: Partial<PanelMessages> = {}): PanelMessages 
     areaTooLarge: false,
     pointsNeeded: 3,
     modelDisabled: false,
+    // #803, W6: every metric answers.
+    unanswered: ALL_ANSWERED,
     held: false,
     failureSeq: 0,
     ...over,

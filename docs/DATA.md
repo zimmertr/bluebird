@@ -402,8 +402,8 @@ Second, zero is a reading. Open-Meteo clamps the value to 0 when the whole
 column is below freezing, so a zero means the freezing level reached sea level,
 not that no answer came back.
 
-Third, only three of the eight models publish it at all: GFS Seamless, HRRR and
-ICON. The other five answer the request with a column of nulls, which the table
+Third, only three of the eight models publish it at all: NOAA GFS, NOAA HRRR
+and DWD ICON. The other five answer the request with a column of nulls, which the table
 shows as `N/A` in those three columns and nothing else — the aggregation keeps
 the freezing level independent of every other figure, so a model that does not
 carry it leaves precipitation, temperature and wind untouched. Which models
@@ -489,7 +489,13 @@ archive's nature rather than a limitation of the wiring.
   and answers every hour `null` under the unit `undefined` (measured
   2026-09-13), so the three freezing-level columns read `N/A` over an
   archive window, and over a crossing window they aggregate the forecast
-  hours only.
+  hours only. The cloud deck goes the same way, since it walks the pressure
+  levels the archive answers `null` (see [the cloud deck](#cloud-deck)). The
+  panel greys both rows of its Metrics table over an archive window, so
+  neither can be ranked by or bounded, and sets compared models aside: the
+  archive answers one reanalysis whatever model is named, so each would buy
+  the same numbers again under another label. The table's Model column reads a
+  dash there.
 - **A window may cross the boundary, and then it carries both.** A window that
   starts in the archive's range and ends inside the forecast endpoint's is
   fetched from each of them — the archive through the hour before the reader's
@@ -557,7 +563,8 @@ apart on a Lambert projection) through its outermost points. Five Open-Meteo
 probes on 2026-10-27 put the edge exactly there: two points inside answered and
 were moved onto grid nodes the definition predicts to within 60 m, the last row
 included, and three past it were refused. The web app checks a ring or a list
-against that outline before Analyze. The pod does not: on its path Open-Meteo is
+against that outline before Analyze, a ring by its corners, so one that reaches
+past the grid is held even if everything it would find is inside. The pod does not: on its path Open-Meteo is
 still the authority, and its refusal is reported as one, naming the model and
 the fix.
 

@@ -70,7 +70,8 @@ import {
 } from './utils/urlState'
 import { removalScopeFor } from './utils/analyzeRequest'
 import { controlsSummary } from './utils/controlsSummary'
-import { customListSize, pendingDestinations } from './utils/customList'
+import { buildCustomList, customListSize, pendingDestinations } from './utils/customList'
+import { analysisPoints } from './utils/model/modelDomain'
 import { actionWord, retryStands } from './utils/analyzeGate'
 import { usePanelMessages } from './hooks/usePanelMessages'
 import { useDemoMessages } from './tour/demoMessages'
@@ -462,6 +463,13 @@ export default function App() {
   // describes a different question. The list's size rides along for the
   // refusal, which a shorter list lifts (`refusalStands`, #803).
   const customCount = useMemo(() => customListSize(csvRows, places), [csvRows, places])
+  // --- #803, W8: every point the analysis would forecast, which a regional
+  // model's published grid is held against before Analyze.
+  const domainPoints = useMemo(
+    () => analysisPoints(polygon, destinationTypes.length > 0, buildCustomList(csvRows, places)),
+    [polygon, destinationTypes, csvRows, places],
+  )
+  // --- end #803 W8
   const panelForRetry = {
     selectionKind: selection.kind,
     windowMs: panelWindowMs,
@@ -551,6 +559,9 @@ export default function App() {
     aqiForecastDays: caps.aqiForecastDays,
     windowLimits: caps.windowLimits,
     dismissEvent,
+    // #803, W6 to W8
+    constraints,
+    points: domainPoints,
   })
 
   // What the panel and the phone's map show: the reader's messages, or the

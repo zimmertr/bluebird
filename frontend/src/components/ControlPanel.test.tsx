@@ -70,6 +70,8 @@ function state(over: Partial<State> = {}): State {
     aqiForecastDays: 5,
     windowLimits: FALLBACK_WINDOW_LIMITS,
     dismissEvent: () => {},
+    constraints: NO_CONSTRAINTS,
+    points: [],
     ...over,
   }
 }

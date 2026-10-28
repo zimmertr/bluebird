@@ -12,7 +12,8 @@ import type { LatePatch } from './clientAnalyze'
 import { type IdentityMap, NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
 import type { ElevationLookup } from '../hooks/useElevationLookup'
 import { postDestinations } from './apiFetch'
-import { resolveWindow, type WindowLimits } from './forecastWindow'
+import { resolveWindow, windowSource, type WindowLimits } from './forecastWindow'
+import { comparedInPlay } from './model/modelSelection'
 import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
 
 // One browser analysis from request to report. `clientAnalyze.ts` fetches,
@@ -171,10 +172,10 @@ export interface PipelineOptions {
   found?: Discovered | null
   // Open-Meteo's hourly budget, which the run refuses to spend past once its
   // field is known and before any forecast is fetched (#803, D2), and how
-  // many models the chart compares beside the ranking one, whose weather the
-  // same budget pays for. No budget, no check.
+  // models the chart compares beside the ranking one, whose weather the same
+  // budget pays for. No budget, no check.
   hourlyCalls?: number
-  comparedModels?: number
+  compareModels?: readonly string[]
 }
 
 export interface PipelineResult {
@@ -247,7 +248,11 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     windowLimits: options.windowLimits,
     aqiForecastDays: options.aqiForecastDays,
     hourlyCalls: options.hourlyCalls,
-    comparedModels: options.comparedModels,
+    // None is fetched over an archive window (`comparedInPlay`, record 0235).
+    comparedModels: comparedInPlay(
+      options.compareModels ?? [],
+      windowSource(window.startMs, window.endMs, now(), options.windowLimits),
+    ).filter((id) => id !== request.forecast_model).length,
     reuse: reuse && { rows: reuse.rows, times: reuse.times, aqiFailed: reuse.aqiFailed, columns: reuse.columns },
     onPace: options.onPace,
     onPartial: (rows, times) =>

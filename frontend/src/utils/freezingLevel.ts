@@ -8,6 +8,7 @@
 // one. The table is wiring.
 
 import { FAMILY_KEYS, NOUN } from '../metrics'
+import { listPhrase } from './notices'
 
 /**
  * The three columns this module speaks for, read off the family's own key list
@@ -20,6 +21,22 @@ export function isFreezeKey(key: string): boolean {
 }
 
 /**
+ * The forecast models that publish a freezing level, by id, each with the
+ * label the model picker shows for it (`MODEL_INFO` in the backend's
+ * `forecast_models.py`, published by `/api/capabilities`).
+ *
+ * The labels are here because the note below names the models, and it named
+ * them in words the picker never used (`GFS Seamless`, `HRRR`, `ICON`; #803,
+ * W9). `freezingLevel.test.ts` reads the backend's table and fails a label that
+ * no longer matches it, so the note and the picker cannot part again.
+ */
+export const FREEZE_MODELS: Readonly<Record<string, string>> = {
+  gfs_seamless: 'NOAA GFS',
+  gfs_hrrr: 'NOAA HRRR',
+  icon_seamless: 'DWD ICON',
+}
+
+/**
  * What the mark means, for the cell's hover text.
  *
  * The three models are named because that is the one thing a reader can act
@@ -28,10 +45,12 @@ export function isFreezeKey(key: string): boolean {
  * list — a model that starts publishing it works with no code change, and
  * only this sentence would then be behind.
  *
- * Composed from the metric's own noun rather than spelling it, like every
- * other surface (see metrics.ts).
+ * Composed from the metric's own noun and the picker's labels rather than
+ * spelling either, like every other surface (see metrics.ts).
  */
-export const FREEZE_UNAVAILABLE_NOTE = `${NOUN.freeze} is only available from the GFS Seamless, HRRR and ICON models.`
+export const FREEZE_UNAVAILABLE_NOTE = `${NOUN.freeze} is only available from the ${listPhrase(
+  Object.values(FREEZE_MODELS),
+)} models.`
 
 // The mark an empty cell wears, and which columns can wear one, live in
 // `unavailableCell.ts`: this metric is no longer the only one whose number can
@@ -49,15 +68,11 @@ export const FREEZE_UNAVAILABLE_NOTE = `${NOUN.freeze} is only available from th
  * summary, grid, reach, regional, blend), so there is nothing to read instead.
  *
  * Measured at #295 and unchanged since: three of the eight. If a model starts
- * publishing the variable, adding its id here is the whole change — and until
+ * publishing the variable, adding its id and label to `FREEZE_MODELS` is the whole change — and until
  * someone does, the cost is that the panel blocks a comparison that would
  * have worked, which is visible and complained about rather than silent.
  */
-export const FREEZE_MODEL_IDS: ReadonlySet<string> = new Set([
-  'gfs_seamless',
-  'gfs_hrrr',
-  'icon_seamless',
-])
+export const FREEZE_MODEL_IDS: ReadonlySet<string> = new Set(Object.keys(FREEZE_MODELS))
 
 /**
  * Which of the selected models cannot answer a freezing-level ranking.

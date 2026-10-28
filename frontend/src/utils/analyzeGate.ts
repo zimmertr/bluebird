@@ -1,10 +1,15 @@
+import type { MultiPolygon } from 'geojson'
 import { familyOf } from '../metrics'
 import type { AnalyzedView, Refusal, RunError } from '../hooks/analyzeTypes'
 import type { DiscoveryType, SortBy } from '../types'
 import { type ForecastSelection, hasDates } from './calendar/calendarSelection'
 import { discoveryNoun } from './clientAnalyze'
+import { type Constraints, invertedFamilies } from './constraints'
+import type { WindowSource } from './forecastWindow'
 import { modelsWithoutFreeze } from './freezingLevel'
-import { type OrderedModel, selectedIds } from './model/modelSelection'
+import { type UnansweredMetrics, unansweredMetrics } from './metricReach'
+import { type LatLon, modelOutsideDomain } from './model/modelDomain'
+import { type OrderedModel, comparedInPlay, selectedIds } from './model/modelSelection'
 import { type PanelState, discoveryKeys, panelCommitCues } from './present'
 
 // Whether the Analyze button should be enabled.
@@ -62,19 +67,22 @@ export interface AnalyzeGate {
   // count and the noun the line quotes ride with it, since `capDetail` says
   // both and the limit it was measured against.
   overCap: { found: number; noun: string; limit: number } | null
-  // The rest are vetoes whose inputs later work wires in (#803); each is off
-  // until its input is given. A field whose weighted Open-Meteo cost is past
-  // the hourly quota, with both numbers its line quotes.
+  // A field whose weighted Open-Meteo cost is past the hourly quota, with
+  // both numbers its line quotes. Off until its input is given (#803).
   spend: { needed: number; limit: number } | null
-  // A ranking or a bound on a column the archive does not publish.
+  // A ranking on a column the archive does not publish (#803, W1, W2): the
+  // metric's row is greyed (`unansweredMetrics`), so this is the ranking the
+  // reader set before the window moved there, or one a link carried.
   archiveCloud: boolean
   archiveFreeze: boolean
-  // A ranking on air quality over a window the air-quality forecast misses.
+  // A ranking on air quality over a window wholly past its horizon (W5).
   aqiHorizon: boolean
-  // A bound whose minimum is above its maximum.
+  // A bound whose minimum is above its maximum, on a metric the window can
+  // answer (W7): an inert box's pair is no contradiction anyone can fix.
   boundOrder: boolean
-  // A regional model with no coverage for the area, by the label its line
-  // names, or null.
+  // A regional model whose published grid leaves out a point the analysis
+  // would forecast, by the label its line names, or null (W8). Never on an
+  // archive window, which names no model.
   modelDomain: string | null
 }
 
@@ -126,7 +134,7 @@ export interface AnalyzeGateInputs {
   hasCustom: boolean
   hasPins: boolean
   sortBy: SortBy
-  forecastModels: readonly (OrderedModel & { label: string })[]
+  forecastModels: readonly (OrderedModel & { label: string; domain?: MultiPolygon | null })[]
   forecastModel: string
   comparedModels: readonly string[]
   /** The refusal the last run ended in, or null (`useAnalysisRun`). */
@@ -145,14 +153,19 @@ export interface AnalyzeGateInputs {
    * the ring searches; it joins the list's count for the over-cap veto.
    */
   ringCount?: number | null
-  // The vetoes later work wires in (#803), off when not given. The spend is
-  // priced off the panel by `spendVeto` (`analysisSpend.ts`, #803 D2).
+  // A field whose weighted cost is past the hourly quota (#803), off when not given.
   spend?: { needed: number; limit: number } | null
-  archiveCloud?: boolean
-  archiveFreeze?: boolean
-  aqiHorizon?: boolean
-  boundOrder?: boolean
-  modelDomain?: string | null
+  // --- #803, W1 to W8: what the window, the models and the bounds can answer.
+  // Optional, so a caller that gives none builds the gate it always did.
+  /** Which endpoint answers the selected window (`windowSource`), or null with none. */
+  source?: WindowSource | null
+  /** How much of the window the air-quality forecast covers (`classifyAqiCoverage`). */
+  aqiCoverage?: 'full' | 'partial' | 'none'
+  /** The forecast bounds as the panel holds them. */
+  constraints?: Constraints
+  /** Every point the analysis would forecast (`analysisPoints`), which a regional model's grid is held against. */
+  points?: readonly LatLon[]
+  // --- end #803 W1 to W8
 }
 
 // The over-cap veto's numbers (#803, D1 and D4): the list and the ring's
@@ -166,20 +179,36 @@ function overCapOf(i: AnalyzeGateInputs): AnalyzeGate['overCap'] {
   return { found, noun: discoveryNoun(i.destinationTypes, i.customCount > 0), limit: i.maxDestinations }
 }
 
-export function analyzeGateFor(i: AnalyzeGateInputs): { gate: AnalyzeGate; freezeGaps: string[] } {
+export function analyzeGateFor(i: AnalyzeGateInputs): {
+  gate: AnalyzeGate
+  freezeGaps: string[]
+  unanswered: UnansweredMetrics
+} {
   const areaTooLarge = i.polygonAreaKm2 !== null && i.polygonAreaKm2 > i.maxAreaKm2
-  // Every model the analysis would fetch, the ranking one first. The two
-  // checks below are pre-flight: they read the picker rather than a report,
-  // because their whole point is to refuse to buy an analysis that cannot
-  // answer the question the panel is asking.
-  const selected = selectedIds(i.forecastModels, i.forecastModel, i.comparedModels).map((id) => ({
-    id,
-    label: i.forecastModels.find((m) => m.id === id)?.label ?? id,
-  }))
+  const source = i.source ?? null
+  // Every model the analysis would fetch, the ranking one first. The checks
+  // below are pre-flight: they read the picker rather than a report, because
+  // their whole point is to refuse to buy an analysis that cannot answer the
+  // question the panel is asking. An archive window fetches the ranking
+  // model's request alone, compared models being ignored there (#803, W3), so
+  // neither comparison veto can stand on a picker the reader cannot open.
+  const selected = selectedIds(i.forecastModels, i.forecastModel, comparedInPlay(i.comparedModels, source)).map(
+    (id) => {
+      const model = i.forecastModels.find((m) => m.id === id)
+      return { id, label: model?.label ?? id, domain: model?.domain ?? null }
+    },
+  )
   const rankFamily = familyOf(i.sortBy)
+  // The metrics this window and these models cannot answer, which the Metrics
+  // table greys from the same answer (record 0235). A ranking on one blocks,
+  // with the line its reason names.
+  const unanswered = unansweredMetrics({ source, aqiCoverage: i.aqiCoverage ?? 'full', models: selected })
+  const rankGap = unanswered.get(rankFamily)
   // Named rather than counted: the model is a control in the panel, so the
-  // reader can act on a name and cannot act on a fraction.
-  const freezeGaps = rankFamily === 'freeze' ? modelsWithoutFreeze(selected).map((m) => m.label) : []
+  // reader can act on a name and cannot act on a fraction. Never on an
+  // archive window: the archive's own line speaks there, since the model it
+  // would name is in a picker that window disables.
+  const freezeGaps = rankFamily === 'freeze' && rankGap === 'model' ? modelsWithoutFreeze(selected).map((m) => m.label) : []
   return {
     gate: {
       hasWindowWarning: i.hasWindowWarning,
@@ -204,13 +233,14 @@ export function analyzeGateFor(i: AnalyzeGateInputs): { gate: AnalyzeGate; freez
       // it `destination`.
       overCap: overCapOf(i),
       spend: i.spend ?? null,
-      archiveCloud: i.archiveCloud ?? false,
-      archiveFreeze: i.archiveFreeze ?? false,
-      aqiHorizon: i.aqiHorizon ?? false,
-      boundOrder: i.boundOrder ?? false,
-      modelDomain: i.modelDomain ?? null,
+      archiveCloud: rankFamily === 'cloud_deck' && rankGap === 'archive',
+      archiveFreeze: rankFamily === 'freeze' && rankGap === 'archive',
+      aqiHorizon: rankFamily === 'aqi' && rankGap === 'horizon',
+      boundOrder: i.constraints !== undefined && invertedFamilies(i.constraints).some((f) => !unanswered.has(f)),
+      modelDomain: source === 'archive' ? null : modelOutsideDomain(selected, i.points ?? []),
     },
     freezeGaps,
+    unanswered,
   }
 }
 

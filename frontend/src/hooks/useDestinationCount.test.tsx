@@ -156,8 +156,8 @@ describe('useDestinationCount', () => {
   // refills (30 a minute).
   it('sends one count for a burst of edits, and spaces counts by the bucket', async () => {
     vi.stubGlobal('fetch', vi.fn(FIELD))
-    const rings = Array.from({ length: 20 }, (_, i) => ({
-      ...RING,
+    const rings = Array.from({ length: 20 }, (_, i): GeoPolygon => ({
+      type: 'Polygon',
       coordinates: [[[-121.9, 47.4], [-121.7 + i * 0.001, 47.4], [-121.7, 47.55], [-121.9, 47.4]]],
     }))
     const { rerender } = mount(props({ polygon: rings[0] }))

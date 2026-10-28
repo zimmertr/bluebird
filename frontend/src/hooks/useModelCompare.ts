@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { HourlySeries } from '../types'
 import type { ForecastModelOption } from './useCapabilities'
 import { ChartLine } from '../utils/chart/chartData'
-import { normalizeWindow, type WindowLimits } from '../utils/forecastWindow'
+import { normalizeWindow, type WindowLimits, type WindowSource } from '../utils/forecastWindow'
 import {
   CompareDestination,
   CompareModel,
@@ -16,6 +16,7 @@ import {
   pairKey,
   type ModelEndLine,
 } from '../utils/model/modelCompare'
+import { comparedInPlay } from '../utils/model/modelSelection'
 import { shownModels } from '../utils/model/modelVisibility'
 import { fetchWeather } from '../utils/openMeteo'
 import { COVERAGE_PHRASE, OpenMeteoModelCoverage } from '../utils/openMeteoErrors'
@@ -110,8 +111,11 @@ export interface ModelCompareOptions {
   rows: readonly ComparePoint[]
   /** The ranking model's own numbers per destination, by `chartKey`. */
   heldSeries: Readonly<Record<string, HourlySeries | null>>
-  /** The window and model every held number came from. */
-  analyzed: { window: { startMs: number; endMs: number }; forecastModel: string } | null
+  /**
+   * The window and model every held number came from, and which endpoint
+   * answered it: an archive report compares nothing (#803, W3).
+   */
+  analyzed: { window: { startMs: number; endMs: number }; forecastModel: string; windowSource?: WindowSource } | null
   /** Bumped per committed analysis; a new one drops the forecasts in hand. */
   analysisSeq: number
   /**
@@ -227,10 +231,13 @@ export function useModelCompare({
   // The extra models actually on the chart: selected in the panel, bought by
   // the last Analyze, published by this deployment, and never the ranking model
   // (which is on the chart by being the report). Panel order, so the chips and
-  // the link read alike.
+  // the link read alike. None over an archive report (#803, W3): the archive
+  // answers one reanalysis whatever model is named, so every compared model
+  // would buy the same numbers again and draw them under another label.
+  const reportSource = analyzed?.windowSource ?? null
   const drawnIds = useMemo(
-    () => drawnModelIds(picked, fetchable, models, rankingModel),
-    [fetchable, models, picked, rankingModel],
+    () => drawnModelIds(picked, comparedInPlay(fetchable, reportSource), models, rankingModel),
+    [fetchable, models, picked, rankingModel, reportSource],
   )
 
   // Whether the CHART draws a comparison. Off on air quality, and off with

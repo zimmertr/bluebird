@@ -204,7 +204,7 @@ export function useAnalyze(
           identity,
           found,
           hourlyCalls,
-          comparedModels: compareModels.length,
+          compareModels,
           onDiscovered: (field) => {
             run.announce(field.candidates.length)
             report.publishCandidates(field.candidates.map((c) => ({ latitude: c.latitude, longitude: c.longitude })))

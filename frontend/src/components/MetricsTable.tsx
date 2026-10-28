@@ -34,6 +34,8 @@ import {
   windowAggregate,
 } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
+import { FAMILY_BOUNDS, invertedFamilies } from '../utils/constraints'
+import { ALL_ANSWERED, type UnansweredMetrics } from '../utils/metricReach'
 import { DEFAULT_LIMIT, clampLimit } from '../utils/urlState'
 
 // The app's core question: "top N peaks by <metric's aggregate>, lowest or
@@ -74,6 +76,9 @@ const EDGES = [
 // table — nowhere is continuously windy. The mapping is fixed for the life of
 // the app, so it is stated rather than computed.
 //
+// Which `Constraints` field each box edits is `FAMILY_BOUNDS` in
+// `constraints.ts`, the table the gate's order check reads too (#803).
+//
 // `note` is the tooltip on the one row whose value can genuinely be missing —
 // air quality past its ~5-day horizon. The absence is no evidence of bad
 // conditions, so the row is not filtered out. Read the tooltip note in
@@ -85,8 +90,6 @@ const BOUNDS: Record<
     id: string
     step: number
     hint: readonly [string, string]
-    lower: keyof Constraints
-    upper: keyof Constraints
     note?: string
   }
 > = {
@@ -94,29 +97,21 @@ const BOUNDS: Record<
     id: 'precipitation',
     step: 0.01,
     hint: ['The total over the window must be at least this.', 'The total over the window must be at most this.'],
-    lower: 'minPrecipTotalIn',
-    upper: 'maxPrecipTotalIn',
   },
   wind: {
     id: 'wind',
     step: 1,
     hint: ['The calmest hour must be at least this.', 'The windiest hour must be at most this.'],
-    lower: 'minWindMph',
-    upper: 'maxWindMph',
   },
   temp: {
     id: 'temperature',
     step: 1,
     hint: ['The coldest hour must be at least this.', 'The hottest hour must be at most this.'],
-    lower: 'minTempF',
-    upper: 'maxTempF',
   },
   freeze: {
     id: 'freezing-level',
     step: 100,
     hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'],
-    lower: 'minFreezeFt',
-    upper: 'maxFreezeFt',
   },
   // Precipitation's sentences word for word, because it bounds the same
   // thing: the window total at both ends (#678). A tenth of an inch per step
@@ -125,8 +120,6 @@ const BOUNDS: Record<
     id: 'snowfall',
     step: 0.1,
     hint: ['The total over the window must be at least this.', 'The total over the window must be at most this.'],
-    lower: 'minSnowfallTotalIn',
-    upper: 'maxSnowfallTotalIn',
   },
   // The cloud row reuses the freezing level's sentences word for word,
   // because it bounds the same thing: a floor on the window's lowest hour and
@@ -135,16 +128,12 @@ const BOUNDS: Record<
     id: 'cloud-deck',
     step: 100,
     hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'],
-    lower: 'minCloudDeckFt',
-    upper: 'maxCloudDeckFt',
   },
   aqi: {
     id: 'air-quality',
     note: 'Destinations with no air quality forecast are included.',
     hint: ['The worst hour must be at least this.', 'The worst hour must be at most this.'],
     step: 1,
-    lower: 'minAqi',
-    upper: 'maxAqi',
   },
 }
 
@@ -216,6 +205,11 @@ interface Props {
   // A phone (#696), where the aggregate stays the native select and opens the
   // phone's own picker; a desk's opens the one menu (record 0201).
   phone?: boolean
+  // The metrics the selected window and models cannot answer (#803,
+  // `unansweredMetrics`): each one's row greys, the way a Layers row greys
+  // outside its coverage. The grey row is the whole message; the line that
+  // blocks a ranking on one is the Analyze button's.
+  unanswered?: UnansweredMetrics
 }
 
 /**
@@ -236,6 +230,7 @@ export default function MetricsTable({
   setLimit,
   maxLimit,
   phone = false,
+  unanswered = ALL_ANSWERED,
 }: Props) {
   // What Clear filters offers to undo, and therefore whether it is enabled.
   // The button is always drawn: a control that appears and disappears moves
@@ -245,7 +240,16 @@ export default function MetricsTable({
   // reader who typed a number there looks for the same way back as for a
   // bound, and leaving it out meant the one control the button skipped was the
   // one sitting right above it.
+  //
+  // A value an inert box holds counts too (#803). A greyed box cannot be
+  // typed in, so this button is the one way to empty it, and the number stays
+  // on screen; a button that ignored it would leave a value the reader can
+  // see and cannot remove.
   const filtersActive = limit !== DEFAULT_LIMIT || hasConstraints(constraints)
+  // The rows whose floor is above their ceiling (#803, W7), each pair marked
+  // invalid for a screen reader. The panel has no invalid look for a field, so
+  // the Analyze button's line is what says it on screen.
+  const inverted = new Set(invertedFamilies(constraints))
 
   // Metrics — the ranking and the bounds in one table (#341). One row
   // per metric: its radio, its aggregate dropdown, and its floor and
@@ -357,6 +361,12 @@ export default function MetricsTable({
           const rowKey = rowKeys[family]
           const isActive = familyOf(sortBy) === family
           const bounds = BOUNDS[family]
+          const edgeKeys = FAMILY_BOUNDS[family]
+          // The window or the models cannot answer this metric: its radio, its
+          // aggregate and its boxes grey and take no input, the boxes keeping
+          // what they hold. A ranking already on it stays checked, and the
+          // gate blocks it with the line that says why.
+          const inert = unanswered.has(family)
           return (
             <Fragment key={family}>
               {/* The label's own margin sets the row pitch (32px on a fine
@@ -364,12 +374,13 @@ export default function MetricsTable({
                   spacing test without any of them growing (#687). */}
               <label
                 className={`${CHOICE_ROW} ${METRIC_LABEL_PITCH} min-w-0 ${pointSample ? 'col-span-2' : ''}`}
-                title={bounds.note}
+                title={inert ? undefined : bounds.note}
               >
                 <input
                   type="radio"
                   name="sort_metric"
                   checked={isActive}
+                  disabled={inert}
                   onChange={() => setSortBy(rowKey)}
                   className={CHOICE_INPUT}
                 />
@@ -380,7 +391,7 @@ export default function MetricsTable({
                 // wrapper reserves baseline descender space below itself,
                 // which read as the dropdown sitting ~1px lower than the
                 // boxes it must align with.
-                <div className={`relative flex ${isActive ? '' : MUTED}`}>
+                <div className={`relative flex ${isActive || inert ? '' : MUTED}`}>
                   {/* py-0.5 is SEGMENT_ITEM_SHAPE's own vertical padding, so the
                       dropdown, the boxes and the segment above are the
                       same height. */}
@@ -389,8 +400,9 @@ export default function MetricsTable({
                       <select
                         aria-label={`${NOUN[family]} aggregate`}
                         value={rowKey}
+                        disabled={inert}
                         onChange={(e) => setSortBy(e.target.value as SortBy)}
-                        className={`${SELECT} ${SELECT_W_AGGREGATE} px-2 py-0.5`}
+                        className={`${SELECT} ${SELECT_W_AGGREGATE} ${DISABLED} px-2 py-0.5`}
                       >
                         {AGGREGATE_OPTIONS[family].map(({ value, label }) => (
                           <option key={value} value={value}>
@@ -406,7 +418,8 @@ export default function MetricsTable({
                       value={rowKey}
                       options={AGGREGATE_OPTIONS[family]}
                       onChange={setSortBy}
-                      className={`${SELECT_W_AGGREGATE} px-2 py-0.5`}
+                      disabled={inert}
+                      className={`${SELECT_W_AGGREGATE} ${DISABLED} px-2 py-0.5`}
                     />
                   )}
                 </div>
@@ -415,19 +428,21 @@ export default function MetricsTable({
                 <input
                   key={edge}
                   id={`${bounds.id}-${edge}`}
-                  title={bounds.note}
+                  title={inert ? undefined : bounds.note}
                   type="number"
                   step={bounds.step}
                   placeholder={BOX_PLACEHOLDER[family]}
                   aria-label={`${NOUN[family]} ${aggregate}. ${bounds.hint[i]}`}
-                  value={constraints[bounds[edge]] ?? ''}
+                  aria-invalid={!inert && inverted.has(family) ? true : undefined}
+                  disabled={inert}
+                  value={constraints[edgeKeys[i]] ?? ''}
                   onChange={(e) =>
                     setConstraints({
                       ...constraints,
-                      [bounds[edge]]: e.target.value === '' ? null : Number(e.target.value),
+                      [edgeKeys[i]]: e.target.value === '' ? null : Number(e.target.value),
                     })
                   }
-                  className={METRIC_BOX}
+                  className={`${METRIC_BOX} ${DISABLED}`}
                 />
               ))}
             </Fragment>

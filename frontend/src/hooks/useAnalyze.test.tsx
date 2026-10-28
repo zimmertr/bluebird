@@ -610,6 +610,10 @@ describe('the spend and the air quality (#803)', () => {
     const { result } = renderHook(() => useAnalyze(1500, [], undefined, undefined, 5000))
     await act(() => result.current.analyze(REQUEST, 'days', { compareModels: ['ecmwf_ifs025'] }))
     expect(ranked.mock.calls[0][4]).toMatchObject({ hourlyCalls: 5000, comparedModels: 1 })
+    // An archive window fetches no compared model (record 0235).
+    vi.setSystemTime(Date.parse('2026-10-30T00:00:00Z'))
+    await act(() => result.current.analyze(REQUEST, 'days', { compareModels: ['ecmwf_ifs025'] }))
+    expect(ranked.mock.calls[1][4]).toMatchObject({ hourlyCalls: 5000, comparedModels: 0 })
   })
 
   it('says when the committed field has air quality for some rows and not all', async () => {

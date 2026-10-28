@@ -161,7 +161,7 @@ export default function ControlPanel({
   // A line pasted twice is one destination, and the count says so (#579).
   // Parsed once per change for the count; the gate reads App's parse.
   const customCount = useMemo(() => distinctRows(parseCustomCsv(customCsv)).length, [customCsv])
-  const { analyzeEnabled, areaTooLarge, pointsNeeded, modelDisabled } = messages
+  const { analyzeEnabled, areaTooLarge, pointsNeeded, modelDisabled, unanswered } = messages
 
   // A link's run on open fires from here rather than from App because the
   // panel is what the link opens on. The ref keeps it to once per panel even
@@ -291,6 +291,7 @@ export default function ControlPanel({
           limit={limit}
           setLimit={setLimit}
           maxLimit={maxLimit}
+          unanswered={unanswered}
           phone={phone}
         />
 
