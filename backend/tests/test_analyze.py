@@ -1498,9 +1498,9 @@ def test_the_header_reaches_every_fetch_layer_on_the_stream(record_key):
 
 
 def test_no_header_leaves_the_unkeyed_path_alone(record_key):
-    # In-cluster callers (the release probe, PR previews, a port-forward) and
-    # self-hosted instances keep the free tier: the key requirement lives at
-    # the public edge, not here.
+    # In-cluster callers (PR previews, a port-forward) and self-hosted
+    # instances keep the free tier: the key requirement lives at the public
+    # edge, not here.
     resp = client.post("/api/analyze", json=_custom_body())
     assert resp.status_code == 200
     assert record_key["weather"] == [None]

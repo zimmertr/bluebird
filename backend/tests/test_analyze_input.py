@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 
 from app.limits import PAST_LIMIT_SLACK_DAYS
 from app.main import app
-from app.models import AnalyzeRequest, DestinationsRequest
+from app.models import DestinationsRequest
 from app.services import cache, osm, weather
 
 client = TestClient(app)
@@ -250,11 +250,10 @@ def test_a_malformed_ring_is_a_422(route, ring, monkeypatch):
 
 # The canary's api-test body in Kubernetes-Manifests
 # (`public/bluebird/resources/analysisTemplate-apiTest.yml`), copied as it
-# stands: a release whose model refused it would fail its own rollout.
+# stands: a release whose model refused it would fail its own rollout. The
+# gate asks `POST /api/destinations` since #787, so the body is discovery's.
 _CANARY_BODY = {
     "destination_types": ["peak"],
-    "forecast_mode": "current",
-    "limit": 3,
     "polygon": {
         "type": "Polygon",
         "coordinates": [
@@ -265,7 +264,7 @@ _CANARY_BODY = {
 
 
 def test_the_canary_body_still_validates():
-    AnalyzeRequest(**_CANARY_BODY)
+    DestinationsRequest(**_CANARY_BODY)
 
 
 @pytest.mark.parametrize("bbox", [None, [-121.2, 47.0, -121.0, 47.2]])
