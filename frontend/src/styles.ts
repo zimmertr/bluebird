@@ -2075,10 +2075,16 @@ export const BAR_LABEL = 'hidden @min-[584px]:inline'
  * site that spelled `cursor-not-allowed` beside this would be betting on which
  * of two `cursor` utilities Tailwind emitted last, and class order is not what
  * decides that. As a variant it sorts after the base rule and simply wins.
+ *
+ * A row can also be greyed while its box stays live, marked `data-greyed` on
+ * the row: a Layers row whose layer cannot draw here but is still ticked
+ * (#803, M9). It fades the same 40% and keeps the pointer cursor, because a
+ * press still does something: it unticks the box, which then greys disabled
+ * and cannot be ticked again until the layer can draw.
  */
 export const CHOICE_ROW =
   `${TEXT.control} ${TAP.row} gap-2.5 cursor-pointer ` +
-  `has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40 ` +
+  `has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40 data-[greyed]:opacity-40 ` +
   `has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent-ink`
 export const CHOICE_INPUT = `${ACCENT.input} flex-shrink-0 cursor-pointer align-middle`
 

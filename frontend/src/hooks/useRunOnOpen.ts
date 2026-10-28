@@ -14,9 +14,12 @@ export interface RunOnOpenInputs {
  * A link that asks to run its analysis on open (`analyze=1`, #511).
  *
  * The flag is read once at mount like the rest of the link, and cleared the
- * moment it fires, so nothing but this first load can act on it. The URL
- * writer is what takes it out of the address bar, and it can never put it
- * back: `encodeState` cannot write it.
+ * moment the panel decides it, so nothing but this first load can act on it.
+ * The panel decides once the limits settle (`autoAnalyzeStep`, #803): the run
+ * if the gate is open then, and nothing if it is shut, the flag consumed
+ * either way rather than left armed for the edit that would open the gate.
+ * The URL writer is what takes it out of the address bar, and it can never
+ * put it back: `encodeState` cannot write it.
  */
 export function useRunOnOpen({ settled, flushUrl, analyze }: RunOnOpenInputs) {
   const [autoAnalyze, setAutoAnalyze] = useState(() => decodeAutoAnalyze(window.location.search))
@@ -40,9 +43,12 @@ export function useRunOnOpen({ settled, flushUrl, analyze }: RunOnOpenInputs) {
   // through the writer rather than a history call of its own also keeps any
   // edit already queued, which a direct write of the stripped address would
   // overwrite.
-  function runAutoAnalyze() {
+  // A dropped request is stripped the same way, so a reload of a link that
+  // opened blocked does not ask again either.
+  function runAutoAnalyze(step: 'run' | 'drop' = 'run') {
     setAutoAnalyze(false)
     flushUrl()
+    if (step === 'drop') return
     void analyze()
   }
 

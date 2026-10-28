@@ -92,7 +92,7 @@ interface AppDrawerProps {
   onAnalyze: () => void
   autoAnalyze: boolean
   capabilitiesSettled: boolean
-  onAutoAnalyze: () => void
+  onAutoAnalyze: (step: 'run' | 'drop') => void
   /** What the Analyze button reads (#736). */
   actionWord: ActionWord
   /** Open the guided tutorial from the panel footer (#536). */

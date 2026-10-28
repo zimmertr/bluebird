@@ -10,6 +10,7 @@ import type { WindowLimits, WindowSource } from './forecastWindow'
 import { grouped } from './numbers'
 import { capDetail, spendDetail } from './clientAnalyze'
 import { COVERAGE_PHRASE } from './openMeteoErrors'
+import type { LinkDrop } from './urlState'
 
 // Which messages the panel has to say, and in what order. A module of its own
 // because that decision is pure data: the panel's state in, a list of lines
@@ -43,6 +44,20 @@ export const AQI_NOTE_KEY = 'aqi:none'
 // cannot describe one gap two ways.
 const AQI_UNAVAILABLE = `${NOUN.aqi} data is not available for this forecast window.`
 const archiveGap = (subject: string) => `${subject} data is not available for archive windows.`
+
+// --- #803 (M6): what a share link carried and could not restore ---
+// One line each, said once the decoder or the published list has dropped it,
+// keyed on the condition and gone when the reader supplies the thing. Info,
+// because nothing is wrong with the panel: it opened without part of what was
+// shared, and a reader who did not know the link carried a ring would
+// otherwise never learn it did.
+const LINK_LOST: Record<LinkDrop, string> = {
+  ring: "The link's search area could not be restored.",
+  list: "The link's destination list could not be restored.",
+  model: "The link's forecast model is not available here.",
+}
+const LINK_LOST_ORDER: readonly LinkDrop[] = ['ring', 'list', 'model']
+// --- end #803 ---
 
 // What each Analyze blocker reads as. A function rather than a record because
 // several quote a number or a name the panel holds, and the area cap in
@@ -150,6 +165,9 @@ export interface PanelMessageInputs {
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
+  // What the link carried and could not restore (`useLinkDrops`, #803). Absent
+  // reads as nothing lost.
+  linkLost?: readonly LinkDrop[]
   now: Date
 }
 
@@ -285,6 +303,13 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
           severity: 'warn' as const,
         }))
       : []),
+    // What the page opened without, before the window's own lines: it is
+    // about the link the panel was built from (#803).
+    ...LINK_LOST_ORDER.filter((what) => p.linkLost?.includes(what)).map((what) => ({
+      key: `link:${what}`,
+      text: LINK_LOST[what],
+      severity: 'info' as const,
+    })),
     ...windowMessages,
     ...p.blockers.map((blocker) => ({
       key: blockerKey(blocker),

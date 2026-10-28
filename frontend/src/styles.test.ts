@@ -1059,6 +1059,15 @@ describe('shared recipes', () => {
     expect(CHOICE_INPUT).not.toContain('touch:')
   })
 
+  // A greyed row whose box is still live for unticking (#803, M9) fades
+  // exactly as far as a disabled one, and only its cursor differs.
+  it('greys a row marked greyed as far as a disabled one', () => {
+    const fade = (variant: string) => CHOICE_ROW.match(new RegExp(`${variant}:opacity-(\\d+)`))?.[1]
+    expect(fade('data-\\[greyed\\]')).toBe(fade('has-\\[:disabled\\]'))
+    expect(fade('data-\\[greyed\\]')).toBeDefined()
+    expect(CHOICE_ROW).not.toMatch(/data-\[greyed\]:cursor-/)
+  })
+
   // Placeholders are content, held to the same 4.5:1 as the text typed over
   // them. slate-400 is 7.0:1 on the field surface; the slate-600 the call
   // sites had drifted into read at 2.4:1, and the color lives in the recipe

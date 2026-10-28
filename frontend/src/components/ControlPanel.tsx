@@ -11,7 +11,7 @@ import { useScrollShadows } from '../hooks/useScrollShadows'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import { MetricFamily } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
-import { type ActionWord, shouldAutoAnalyze } from '../utils/analyzeGate'
+import { type ActionWord, type AutoAnalyzeStep, autoAnalyzeStep } from '../utils/analyzeGate'
 import { ForecastSelection } from '../utils/calendar/calendar'
 import { type ForecastModelOption } from '../hooks/useCapabilities'
 import { logoUrl } from '../logo'
@@ -82,13 +82,14 @@ interface Props {
   actionWord: ActionWord
   onAnalyze: () => void
   // The link asked for its analysis to run on open (`analyze=1`) and has not
-  // run it yet. Held by App, which owns the URL; fired from here, which owns
-  // the panel. `onAutoAnalyze` is the click plus the URL cleanup.
+  // run it yet. Held by App, which owns the URL; decided here, which owns
+  // the panel. `onAutoAnalyze` is the click plus the URL cleanup on `run`, and
+  // the URL cleanup alone on `drop`.
   autoAnalyze: boolean
   // Whether /api/capabilities has settled AND the limits it clamps have been
   // applied, so the gate below reads the deployment's numbers.
   capabilitiesSettled: boolean
-  onAutoAnalyze: () => void
+  onAutoAnalyze: (step: Exclude<AutoAnalyzeStep, 'wait'>) => void
   onTutorial: () => void
   tutorialWaits?: boolean
   maxLimit: number
@@ -163,20 +164,21 @@ export default function ControlPanel({
   const customCount = useMemo(() => distinctRows(parseCustomCsv(customCsv)).length, [customCsv])
   const { analyzeEnabled, areaTooLarge, pointsNeeded, modelDisabled } = messages
 
-  // A link's run on open fires from here rather than from App because the
+  // A link's run on open is decided from here rather than from App because the
   // panel is what the link opens on. The ref keeps it to once per panel even
-  // if a render lands before App has cleared `autoAnalyze`.
+  // if a render lands before App has cleared `autoAnalyze`. Decided once the
+  // limits settle, run or dropped (#803, M3), never left armed for an edit.
   const autoFiredRef = useRef(false)
   useEffect(() => {
-    const fire = shouldAutoAnalyze({
+    const step = autoAnalyzeStep({
       requested: autoAnalyze,
       capabilitiesSettled,
       gateOpen: analyzeEnabled,
       fired: autoFiredRef.current,
     })
-    if (!fire) return
+    if (step === 'wait') return
     autoFiredRef.current = true
-    onAutoAnalyze()
+    onAutoAnalyze(step)
     // `onAutoAnalyze` is left out on purpose: it is a new function on every
     // App render, and listing it would re-run this on every render for nothing.
     // The flags above are what can change the answer.

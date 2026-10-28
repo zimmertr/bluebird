@@ -14,6 +14,7 @@ import { type SortKey } from './tableColumns'
 import {
   DEFAULT_LIMIT,
   DEFAULT_SORT,
+  type LinkDrop,
   URL_PARAMS,
   decodeSelection,
   escapeQueryText,
@@ -27,6 +28,7 @@ import { clamp } from './numbers'
 // air-quality one is re-exported here because the panel imports it by this
 // module's name.
 export { classifyAqiCoverage } from './calendar/calendar'
+export type { LinkDrop } from './urlParams'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
 // they're re-fetched fresh so a shared link never replays stale forecasts.
@@ -257,17 +259,36 @@ export interface DecodeLimits {
  * is held to; a ring over its cap is dropped like a malformed one.
  */
 export function decodeState(search: string, limits: DecodeLimits): Partial<ShareableState> | null {
+  return decodeLink(search, limits).state
+}
+
+/**
+ * `decodeState`, plus what the link carried and could not restore (#803, M6):
+ * a ring or a pasted list it could not read or that is over the published cap,
+ * and a `model=` it could not read. Each is still dropped whole, as before, so
+ * the rest of the link opens; the panel says which, so a reader whose ring or
+ * list is missing knows the link carried one. A model the deployment does not
+ * publish is the one case decided later, against the list (`useForecastSelection`).
+ */
+export function decodeLink(
+  search: string,
+  limits: DecodeLimits,
+): { state: Partial<ShareableState> | null; dropped: LinkDrop[] } {
   const query = search.startsWith('?') ? search.slice(1) : search
   const params = new URLSearchParams(query)
   const rawValues = rawQueryValues(query)
 
   const out: Partial<ShareableState> = {}
+  const dropped: LinkDrop[] = []
+  const drop = (what: LinkDrop) => {
+    if (!dropped.includes(what)) dropped.push(what)
+  }
   for (const { key, escaped, decode } of URL_PARAMS) {
     const value = escaped ? rawValues.get(key) : params.get(key)
-    if (value != null) decode?.(value, out, limits)
+    if (value != null) decode?.(value, out, limits, drop)
   }
   const selection = decodeSelection(params)
   if (selection) out.selection = selection
 
-  return Object.keys(out).length > 0 ? out : null
+  return { state: Object.keys(out).length > 0 ? out : null, dropped }
 }

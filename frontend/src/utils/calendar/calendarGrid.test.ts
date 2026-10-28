@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { AQI_LIMIT_DAYS, type BandLimits, aqiHorizon, bandEnd } from './calendarBand'
 import { addDays, dayDate } from './calendarDates'
-import { monthGrid, monthHasBandDay, monthLabel, weekdayInitials } from './calendarGrid'
+import { canPageTo, monthGrid, monthHasBandDay, monthLabel, weekdayInitials } from './calendarGrid'
 
 // Local noon on a Wednesday in July, well inside the servable band. Every
 // horizon assertion below is measured from here.
@@ -98,6 +98,25 @@ describe('monthGrid', () => {
     expect(monthHasBandDay('2025-07', NOW, LONG)).toBe(true) // the band starts Jul 15
     expect(monthHasBandDay('2025-06', NOW, LONG)).toBe(false)
     expect(monthHasBandDay('2026-08', NOW, LONG)).toBe(false)
+  })
+
+  // The band runs 2025-07-15 to 2026-07-30 from NOW.
+  it('pages into any month with a servable day, and past the band no further', () => {
+    expect(canPageTo('2026-07', '2026-06', NOW, LONG)).toBe(true)
+    expect(canPageTo('2026-06', '2026-07', NOW, LONG)).toBe(true)
+    expect(canPageTo('2026-07', '2026-08', NOW, LONG)).toBe(false)
+    expect(canPageTo('2025-07', '2025-06', NOW, LONG)).toBe(false)
+  })
+
+  // A link's dates can open the calendar on a month with no servable day and
+  // no servable neighbour (#803, M4). Each arrow pointing back at the band
+  // stays live, from either side, and the one pointing away does not.
+  it('pages back toward the band from a month far outside it', () => {
+    expect(canPageTo('2027-06', '2027-05', NOW, LONG)).toBe(true)
+    expect(canPageTo('2027-06', '2027-07', NOW, LONG)).toBe(false)
+    expect(canPageTo('2026-09', '2026-08', NOW, LONG)).toBe(true)
+    expect(canPageTo('2024-01', '2024-02', NOW, LONG)).toBe(true)
+    expect(canPageTo('2024-01', '2023-12', NOW, LONG)).toBe(false)
   })
 })
 

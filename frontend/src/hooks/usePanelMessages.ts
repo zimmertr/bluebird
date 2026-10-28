@@ -23,7 +23,7 @@ import {
 } from '../utils/notices'
 import { panelMessages } from '../utils/panelMessages'
 import type { CommitReason } from '../utils/present'
-import { classifyAqiCoverage } from '../utils/urlState'
+import { type LinkDrop, classifyAqiCoverage } from '../utils/urlState'
 
 /**
  * Everything the panel's messages are derived from, as App holds it. The
@@ -77,6 +77,8 @@ export interface PanelMessageState {
   archiveDays: number
   aqiForecastDays: number
   windowLimits: WindowLimits
+  /** What the link carried and could not restore (`useLinkDrops`, #803); absent is nothing. */
+  linkLost?: readonly LinkDrop[]
   /** Dismissing the run error clears the event (`useAnalysisRun.dismissEvent`, #736). */
   dismissEvent: (kind: EventNoticeKind) => void
 }
@@ -225,6 +227,7 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     wildfireCheckFailed: s.wildfireCheckFailed,
     closureCheckFailed: s.closureCheckFailed,
     basemapFailed: s.basemapFailed,
+    linkLost: s.linkLost,
     now,
   })
 

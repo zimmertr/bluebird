@@ -317,8 +317,8 @@ export function ringAddsNothing(
 }
 
 /**
- * Whether a link that asked for its analysis to run on open (`analyze=1`, #511)
- * should run it now.
+ * What a link that asked for its analysis to run on open (`analyze=1`, #511)
+ * does now: wait, run, or drop the request unspent.
  *
  * A link the sender made on purpose is a request, which is the one thing that
  * may cross the spend boundary without a click. It still crosses it only the
@@ -328,9 +328,21 @@ export function ringAddsNothing(
  *
  * It waits for the live capabilities, because the restored window, model and
  * results cap are clamped against them and a run against the fallbacks could
- * buy a report the deployment would not have allowed. `fired` makes it once
- * per page load: the gate closes while the analysis runs and opens again when
- * it ends, and without it that reopening would run the link a second time.
+ * buy a report the deployment would not have allowed. Then it is decided once
+ * (#803, M3): the gate open at that moment runs the link, and a gate shut at
+ * that moment drops the request. It used to stay armed for the session and
+ * spend on the first edit that opened the gate, which could be the first day
+ * clicked before a range was picked, or the third point of a redrawn ring: a
+ * request the link made, spent on a panel the link never described.
+ *
+ * Whatever the gate learns after capabilities settle comes too late for this.
+ * The ring's count before Analyze is fetched once they have, so a link whose
+ * ring finds more than the cap can still run once and be refused by the pod,
+ * and that refusal is a blocker of its own (record 0232).
+ *
+ * `fired` makes it once per page load: the gate closes while the analysis runs
+ * and opens again when it ends, and without it that reopening would run the
+ * link a second time. A dropped request is spent the same way.
  */
 export interface AutoAnalyzeState {
   requested: boolean
@@ -339,8 +351,11 @@ export interface AutoAnalyzeState {
   fired: boolean
 }
 
-export function shouldAutoAnalyze(s: AutoAnalyzeState): boolean {
-  return s.requested && s.capabilitiesSettled && s.gateOpen && !s.fired
+export type AutoAnalyzeStep = 'wait' | 'run' | 'drop'
+
+export function autoAnalyzeStep(s: AutoAnalyzeState): AutoAnalyzeStep {
+  if (!s.requested || s.fired || !s.capabilitiesSettled) return 'wait'
+  return s.gateOpen ? 'run' : 'drop'
 }
 
 /**

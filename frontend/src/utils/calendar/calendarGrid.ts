@@ -2,7 +2,7 @@
 // of it the band can serve, plus the month and weekday labels around it.
 
 import { DAY_END, dayDate, dayKey, monthKey } from './calendarDates'
-import { type BandLimits, aqiHorizon, inBand, modelEnd } from './calendarBand'
+import { type BandLimits, aqiHorizon, bandEnd, bandStart, inBand, modelEnd } from './calendarBand'
 
 /**
  * How much of a day the app can tell you about. One field rather than a pair of
@@ -98,6 +98,23 @@ export function monthHasBandDay(month: string, now: Date, band: BandLimits): boo
   return monthGrid(month, now, band)
     .flat()
     .some((c) => c.inMonth && c.availability !== 'unservable')
+}
+
+/**
+ * May the month arrows page from `from` to `to`? Into any month with a
+ * servable day, and from a month with none, one step toward the band (#803,
+ * M4). Bounding on `to` alone left a calendar opened on a month far outside
+ * the band with both arrows disabled, because neither neighbour held a
+ * servable day either: a link's dates, or a band that moved under a model
+ * change, put it there, and only the keyboard got out.
+ */
+export function canPageTo(from: string, to: string, now: Date, band: BandLimits): boolean {
+  if (monthHasBandDay(to, now, band)) return true
+  // Month keys sort as dates, so a string compare places a month against the
+  // band's first and last.
+  const first = monthKey(bandStart(now, band))
+  const last = monthKey(bandEnd(now, band))
+  return (from > last && to < from) || (from < first && to > from)
 }
 
 /**

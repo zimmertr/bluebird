@@ -185,6 +185,23 @@ describe('usePanelMessages', () => {
     expect(result.current.messages.map((m) => m.key)).toEqual(['error:boom'])
   })
 
+  // What a link could not restore (#803, M6) is information, counted on the
+  // badge in blue, and dismissable like every derived line: the ledger keeps
+  // it out while the loss stands, and it goes with its condition.
+  it('counts what a link lost, lets the reader dismiss it, and keeps it gone', () => {
+    const { result, rerender } = hook({ linkLost: ['ring', 'model'] })
+    expect(result.current.messages.map((m) => m.key)).toEqual(['link:ring', 'link:model'])
+    expect(result.current.worst).toBe('info')
+    expect(result.current.analyzeEnabled).toBe(true)
+    act(() => result.current.dismiss('link:ring'))
+    expect(result.current.messages.map((m) => m.key)).toEqual(['link:model'])
+    // The reader picked a model: that line is gone too.
+    rerender(state({ linkLost: ['ring'] }))
+    expect(result.current.messages).toEqual([])
+    rerender(state({ linkLost: [] }))
+    expect(result.current.count).toBe(0)
+  })
+
   // A blocker stands until the reader supplies what it asks.
   it('passes over the dismissal of a blocker', () => {
     const dismissEvent = vi.fn()
