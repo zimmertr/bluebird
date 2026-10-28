@@ -941,62 +941,100 @@ operator sees meanwhile:
 ## Where the time goes
 
 Measured on 2026-09-15 from the GitHub Actions API, the Argo CD `Application`'s
-sync history, and the Argo Rollouts controller's own log (issue #368). Every
+sync history, and the Argo Rollouts controller's own log (issue #368), and the
+pull request path again from 2026-10-15 to 2026-10-28 (issue #794). Every
 number below is an observation, not a budget. Re-measure before citing one: the
 method is written beside each figure so it can be repeated.
 
 ### The pull request path
 
-`pr.yml`, 15 successful runs carrying `Lighthouse Budgets` (that job landed in
-#367; runs before it had a 62 s median, and the older figure is not comparable).
+`pr.yml` before #794: 150 runs from 2026-10-15 to 2026-10-22, read from the
+Actions API, successful jobs only.
 
-| Job | Median | Range |
+| Job | Median | p90 | Max |
+| --- | --- | --- | --- |
+| `Browser Smoke & Axe` | 177 s | 228 s | 389 s |
+| `Lighthouse Budgets` | 84 s | 101 s | 129 s |
+| `Frontend Typecheck & Tests` | 83 s | 94 s | 374 s |
+| `Docker Build` | 66 s | 85 s | 104 s |
+| `Backend Tests` | 59 s | 79 s | 95 s |
+| `Planet Fill` | 51 s | 59 s | 86 s |
+| `Database Tests` | 42 s | 49 s | 66 s |
+| `Python Lint` | 10 s | 14 s | 26 s |
+| **whole run** | **251 s** | **331 s** | **395 s** |
+
+The whole run took 147 s on 2026-09-15 (#368), before `Browser Smoke & Axe`
+existed. That job `needs` `Docker Build`, so the critical path was the two of
+them, and the browser job spent its time in two steps: the suite on one worker,
+and `npx playwright install --with-deps chromium`, which ran apt on every run.
+On 2026-10-22 apt waited 588 s on a slow mirror (job 120075136268).
+
+#794 timed the alternatives on 2026-10-27 and 2026-10-28 with a temporary
+matrix job in PR #805, ten runs per variant: run 40623715965, then 40626408663,
+then 40733848241. Times are medians unless marked.
+
+- **Workers.** With every spec in one invocation, one worker took 192 s and
+  flaked 0 times in ten, two workers 158 s and 2 times, four workers 143 s and
+  7 to 8 times, whichever way Chromium was installed. Every failure was in a
+  file that reads layout while it moves: `centring`, `panelMotion` and
+  `chartTap`, and in the second round `rowTap`. Those four now run alone on one
+  worker after the rest (the `motion` project in `playwright.config.ts`, which
+  has the numbers). With those four apart, the third round ran the rest on two
+  workers in 126 s and on four in 115 s, and the motion specs in 58 s after
+  either; neither flaked in ten. The rest runs on four.
+- **Install.** `--with-deps` took 19 s (38 s p90, 47 s max). Chromium alone
+  took 1 s (1 s p90, 8 s max), from the browser cache the job already keeps.
+  Pulling the pinned Playwright image took 29 s (31 s p90, 34 s max). None
+  flaked on one worker, and `popupFit` and `scaleBar`, which measure text, pass
+  without the fonts apt installed. The job installs Chromium alone.
+- **Hand-off.** `setup-buildx` and a replay of the build from the Actions
+  cache took 7 s and 9 s, 16 s together (22 s p90).
+  Downloading it as an artifact and `docker load` took 2 s and 4 s, 6 s
+  together (9 s p90). `Docker Build` pays 1 s to save it and 3 s to upload it,
+  once. The artifact is 50 MB; this page used to guess 200 MB. Both
+  `Browser Smoke & Axe` and `Lighthouse Budgets` now load it.
+
+The suite's own time moves about 30 s between batches of one configuration (one
+worker, the same install: 192 s in one batch of ten, 222 s in another), so a
+smaller difference is noise.
+
+After #794, from run 40733848241 on 2026-10-28. One run is one sample for each
+job. The `Browser Smoke & Axe` row adds the ten four-worker matrix jobs of that
+run, which ran the same steps.
+
+| Job | Run 40733848241 | Before, median |
 | --- | --- | --- |
-| `Lighthouse Budgets` | 92 s | 81–124 s |
-| `Docker Build` | 57 s | 38–63 s |
-| `Backend Tests` | 29 s | 27–33 s |
-| `Frontend Typecheck & Tests` | 26 s | 24–31 s |
-| `Python Lint` | 9 s | 6–10 s |
-| **whole run** | **147 s** | 140–193 s |
+| `Browser Smoke & Axe` | 178 s (matrix: 200 s median, 207 s p90, 211 s max) | 177 s |
+| `Lighthouse Budgets` | 99 s | 84 s |
+| `Frontend Typecheck & Tests` | 82 s | 83 s |
+| `Backend Tests` | 81 s | 59 s |
+| `Docker Build` | 72 s | 66 s |
+| `Planet Fill` | 50 s | 51 s |
+| `Database Tests` | 49 s | 42 s |
+| `Python Lint` | 11 s | 10 s |
+| **whole run**, to the last required check | **256 s** | **251 s** |
 
-A sixth job stood in this table when it was measured, `Aggregation vectors in
-sync` at a 6 s median, and #380 removed it: the browser's suite now reads the
-backend's committed vectors rather than a copy, so there are no two files to
-diff. The whole-run figure is unchanged, because that job was never on the
-critical path.
+The browser job looks no faster than the 177 s above because the suite grew
+over those 150 runs. The fair comparison is the same suite on the same day: on
+one worker, with apt and the cache replay, the whole job took 260 s (277 s p90)
+in run 40623715965, and the final shape takes 200 s (207 s p90). The whole run
+on the same terms, from the first required job's start to the last one's end
+(the Actions API's `started_at` and `completed_at`), took 321 s in that run and
+230 s in run 40735470275, the first without the matrix job; the 256 s in the
+table above had twenty matrix jobs queued beside it. The critical
+path is still `Docker Build` (72 s) then `Browser Smoke & Axe` (178 s).
+`Lighthouse Budgets` starts beside the browser job and finishes about 80 s
+before it.
 
-The frontend job grew 5 s on 2026-09-15 when ESLint joined it (issue #379):
-2 s to install the linter's own package and 3 s to lint 57 sources. It is not on
-the critical path, so the whole run is unchanged.
-
-The frontend job moved from Node 22 to Node 26 on 2026-09-22, when it began to
-read `.node-version` (issue #401). Over four runs it measured a 31 s median
-(26 to 43 s) against 29 s (25 to 35 s) for the twelve runs before. `setup-node`
-now takes 5 to 6 s where it took under 1 s, because the runner image carries
-Node 22 in its tool cache and downloads 26. Lint and Vitest ran no slower on 26.
-The job is still off the critical path.
-
-**The critical path is two jobs long**, and only two. Four jobs start within
-about 3 s of each other; three of them finish while `Docker Build` is still
-building. `Lighthouse Budgets` `needs` it, so it starts at about 63 s and adds
-its own 92 s. Everything else is free.
-
-Inside `Docker Build`, by median: the image build 21 s, the Trivy scan 11 s,
-building the hadolint **Docker action** 5.5 s, `setup-buildx` 4 s, job setup
-3 s, the smoke test 3 s.
-
-Inside `Lighthouse Budgets`: the audit itself 52 s, then **24 s of getting back
-to an image that already existed** — `setup-buildx` 8 s and a cache-replay
-build 16 s. That hand-off was chosen over passing a 200 MB image between jobs
-and has never been timed against the alternative; 24 s is what it costs, and it
-is now on the path a person waits on.
+Every job stops at `timeout-minutes: 15`, one number for all of them. It is
+over twice the slowest job in the 150 runs above (389 s), and keeps a hung step
+from holding its runner to GitHub's 360-minute default.
 
 Three consequences, and two of them are reasons *not* to optimise:
 
-- **Nothing done to the three short jobs moves the wall clock.** They finish
-  inside `Docker Build`. This is why caching pip in the Python jobs was measured
-  and then removed rather than kept: see the `setup-python` comments in
-  `pr.yml`.
+- **Nothing done to a job off the critical path moves the wall clock.** This is
+  why caching pip in the Python jobs was measured and then removed rather than
+  kept: see the `setup-python` comments in `pr.yml`.
 - **The Trivy database is already cached.** `trivy-action` wraps its own
   `actions/cache` around both the pinned binary (42 MB, 2.1 s to restore) and
   the vulnerability DB (80 MB, 3.7 s), keyed `cache-trivy-<date>` with
@@ -1016,21 +1054,18 @@ cache keys, which fed straight into the budget problem below. The trade is that
 a branch pushed with no pull request open gets no checks until one is opened.
 Every check branch protection requires is a `pull_request` check anyway.
 
-Branch protection requires seven contexts: `Python Lint`, `Docker Build`,
+Branch protection requires nine contexts: `Python Lint`, `Docker Build`,
 `Frontend Typecheck & Tests`, `Backend Tests`, `Browser Smoke & Axe`,
-`PR Title` and `Lighthouse Budgets` (read from the branch protection API on
-2026-10-06; `Lighthouse Budgets` joined the list that day under #375, after
-54 passes and 0 failures over its first 60 PR runs). **A job here cannot be
-renamed or deleted on its own**: branch protection matches the name exactly,
-and a name it requires that no longer reports strands every open pull request.
-`Aggregation vectors in sync` was required too from 2026-09-15 until #380 deleted
-the job, and it had to leave the required list in the same change.
-
-`Database Tests` and `Planet Fill` joined `pr.yml` with #760, after that read,
-so neither is on the list, and neither has been timed in CI yet. Locally the
-fill's two image builds took 19 s cold, in parallel, and its suite 4.6 s. Both
-start with the other jobs, so they stay off the critical path while each
-finishes inside `Docker Build` and `Lighthouse Budgets`.
+`PR Title`, `Lighthouse Budgets`, `Database Tests` and `Planet Fill` (read from
+the branch protection API on 2026-10-27; `Lighthouse Budgets` joined on
+2026-10-06 under #375, after 54 passes and 0 failures over its first 60 PR
+runs). **A job here cannot be renamed or deleted on its own**: branch
+protection matches the name exactly, and a name it requires that no longer
+reports strands every open pull request. That is also why `Browser Smoke & Axe`
+splits its suite into two invocations rather than a matrix, which would report
+as `Browser Smoke & Axe (1)`. `Aggregation vectors in sync` was required too
+from 2026-09-15 until #380 deleted the job, and it had to leave the required
+list in the same change.
 
 ### The repository's Actions cache
 
@@ -1038,7 +1073,7 @@ Measured 2026-09-15, and the single largest source of variance in every build
 number on this page: **10.73 GB across 1,297 entries**, against GitHub's 10 GB
 per repository. Over the limit means evicting least-recently-used entries
 continuously, and what gets evicted is the buildx layer cache that `Docker
-Build`, `Lighthouse Budgets` and `Build & Push` all read. A layer cache that is
+Build` and `Build & Push` read (and `Lighthouse Budgets` did, until #794). A layer cache that is
 sometimes there is what `Docker Build` ranging 38–63 s and `Build & Push`
 ranging 36–142 s look like.
 
@@ -1261,8 +1296,8 @@ flowchart LR
   It keeps no Actions layer cache, for the reason `Build & Push Fill` keeps
   none. `make test-fill` is the same run locally, and `Python Lint` checks
   `fill/` beside `backend/`.
-- `pr.yml`'s **Lighthouse Budgets** job runs after `docker-build`, rebuilds from
-  that job's warm Actions cache, serves the real image, and audits `/` three
+- `pr.yml`'s **Lighthouse Budgets** job runs after `docker-build`, loads the
+  image that job saved as an artifact, serves it, and audits `/` three
   times with **Lighthouse CI**. It fails the PR when the first screen crosses a
   byte or timing budget. The budgets and the reasoning live in
   **`.github/lighthouserc.js`**; two choices there make it a gate rather than a
@@ -1281,13 +1316,16 @@ flowchart LR
   **accessibility category** as an error, because that score is a set of pass
   or fail markup checks rather than a timing curve.
 - `pr.yml`'s **Browser Smoke & Axe** job (issue #412) also runs after
-  `docker-build` and rebuilds the image from the same cache. It serves the
-  image on the runner, installs **Chromium alone** with
-  `npx playwright install --with-deps chromium` (the browser folder is cached
-  under the exact Playwright version, since each release pins its own Chromium
-  build), and runs the suite in **`frontend/e2e/`**: draw a ring and analyze,
-  open a share link, click the map under the legend stack and scroll the
-  stack, and run **axe** on the panel, the results, and the Layers
+  `docker-build` and loads the same artifact. It serves the image on the
+  runner, installs **Chromium alone** with `npx playwright install chromium`
+  and no `--with-deps`, since the runner already carries the libraries it needs
+  (the browser folder is cached under the exact Playwright version, since each
+  release pins its own Chromium build), and runs `npm test` in
+  **`frontend/e2e/`**, two invocations: all but four specs on four workers,
+  then those four, which read layout mid-move, on one. The suite draws a ring
+  and analyzes,
+  opens a share link, clicks the map under the legend stack and scrolls the
+  stack, and runs **axe** on the panel, the results, and the Layers
   popover. Every third-party host is answered from fixtures, and a request that
   no handler claims fails the test, so the job spends no Open-Meteo quota and
   cannot go red on someone else's outage. Axe fails on serious and critical
@@ -1297,7 +1335,8 @@ flowchart LR
   red run the HTML report, with a trace and a screenshot per failure, is
   uploaded as the `playwright-report` artifact. The pinned
   `mcr.microsoft.com/playwright` image is for local runs only
-  (`docs/DEVELOPMENT.md`); on a runner it would be a 956 MB pull every time.
+  (`docs/DEVELOPMENT.md`): on a runner it was measured at a 29 s pull against
+  1 s to install Chromium alone ([The pull request path](#the-pull-request-path)).
 - `pr-title.yml`'s **PR Title** job fails a PR whose title none of
   `GitVersion.yml`'s three patterns reads, since that title becomes the squash
   commit's and decides the release. It runs on `opened`, `edited`, `reopened`
