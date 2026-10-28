@@ -49,7 +49,9 @@ message, and the count includes the closing repeat of the first point, as
 GeoJSON writes a ring. A ring drawn by hand needs dozens, and the cap sits above
 the most a shared link can carry through the edge's URL limit. In the web app
 the draw tool stops placing points at the cap, and a shared link whose ring is
-longer opens without its polygon, the way a malformed one does.
+longer opens without its polygon, the way a malformed one does, with a line in
+the Analyze button's messages saying the link's search area could not be
+restored.
 
 **Destinations per analysis.** Discovery is never sampled. Every named feature
 inside the polygon gets a real forecast, which is what makes the winners the
