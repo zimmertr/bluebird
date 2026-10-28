@@ -2451,7 +2451,13 @@ export const BOTTOM_SHEET = {
     `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-104px)] flex-col ` +
     `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
   grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-edge',
-  head: 'flex flex-shrink-0 items-center gap-2 px-4 pb-1',
+  /**
+   * 8px under the title row, the same 8px the grip keeps between its bar and
+   * the row's top, so Done and the theme switch stand centred between the bar
+   * and the rule under them. At 4px the row sat visibly low on the
+   * maintainer's phone (2026-10-27).
+   */
+  head: 'flex flex-shrink-0 items-center gap-2 px-4 pb-2',
   title: TEXT.subheading,
   done: `${CONTROL_SIZE} font-semibold ml-auto ${TAP.action} px-1 ${LINK_ACTION} ${FOCUS_RING}`,
   /**
