@@ -824,21 +824,31 @@ a gap in a map that otherwise drew, and says nothing.
 ### Elevation and imagery
 
 The Contours, Shaded relief and Satellite rows, and the 3D terrain, read tiles
-the browser fetches itself from three more hosts, each keyless (#799). None of
-them is drawn yet: the switches, the link and the Content-Security-Policy are
-in, and the layers come next.
+the browser fetches itself from three more hosts, each keyless (#799). The
+satellite layer is not drawn yet; the other three are, and ask for nothing until
+one of them is switched on.
 
 **Elevation is Mapterhorn's**, one model behind the contours, the relief and
 the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere, with finer national
 surveys stitched in where a country publishes one, so the detail depends on
 where you look. 30 m is enough for a ridge and a valley, and too coarse for a
 gully or a cliff band. Past the zoom a region's survey reaches, a tile answers
-404, so a layer drawn from it stops at a zoom the data holds everywhere (12 for
-the 30 m fill). The
+404, so the layers ask for nothing past zoom 12, which the 30 m fill holds over
+all land, and stretch those tiles further in. Open ocean has no tile at any
+zoom. The
 data is licensed per source, mostly CC BY 4.0 and US public domain, and
 Mapterhorn asks for one credit, `© Mapterhorn`, linked to its attribution
 page. Its privacy policy says it keeps each request's IP address, referrer and
 user agent for up to 30 days.
+
+**The contours are traced in your browser** from those same tiles, by
+maplibre-contour, converted to feet. A line is where the model says that height
+is, so it can stand a little off a mapped trail or a lake shore, and the heights
+are the model's rather than a surveyed point's. A cell is 30 m across at its
+coarsest and holds one height, so a sharp summit narrower than that can top out
+under the elevation its OpenStreetMap label carries, and the highest line round
+it can read one interval short. Use the label for the summit and the lines for
+the shape of the ground around it.
 
 **Imagery is two sources, one picture.** Over the United States and its
 territories it is USGS's NAIP aerial photography, to zoom 16, in the public

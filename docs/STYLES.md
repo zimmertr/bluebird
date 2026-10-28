@@ -408,9 +408,9 @@ button against the panel's in a browser. Record: [0163](decisions/0163-popups-fo
 | Nothing pressed reads at the micro step | `checks/styles.js` | `style-micro-not-pressed` bans `TEXT.micro` in the class of any `button` or `a` in the app's sources; `styles.test.ts` holds `MICRO_SIZE` at 11px and `GLYPH_SIZE` to the two swatch roles |
 | Every shadow is a step of one scale | `styles.test.ts` | Every surface role's shadow is an `ELEVATION` value, the sheet and the banner wear `none`, and no component spells a `shadow-` utility |
 | Every exported role is rendered by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some non-test file's import list under `src/`, or in a `TEST_ONLY` list that carries its reason and is itself checked for a real importer |
-| No call site names a colour value | `checks/styles.js` | `value-hex` bans a hex triplet, sextet or colour function (`rgb()`, `hsl()`, `oklch()` and the rest) in any string or template under `src/`, tests aside, outside the modules that own a colour (`styles.ts`, `colors.ts`, `chartColors.ts`, `resultFeatures.ts`, `map/mapStyles.ts`, `map/basemap.ts`, the four overlay modules, `radar.ts`, `iconPaths.ts`, `logo.ts`). This is the hue ban's reach into the four channels a Tailwind class never touches: MapLibre paint, canvas drawing, popup HTML and Recharts props (#365) |
+| No call site names a colour value | `checks/styles.js` | `value-hex` bans a hex triplet, sextet or colour function (`rgb()`, `hsl()`, `oklch()` and the rest) in any string or template under `src/`, tests aside, outside the modules that own a colour (`styles.ts`, `colors.ts`, `chartColors.ts`, `resultFeatures.ts`, `map/mapStyles.ts`, `map/basemap.ts`, `map/terrain.ts`, the four overlay modules, `radar.ts`, `iconPaths.ts`, `logo.ts`). This is the hue ban's reach into the four channels a Tailwind class never touches: MapLibre paint, canvas drawing, popup HTML and Recharts props (#365) |
 | No popup spells its own type size, padding, radius or background | `checks/styles.js` | `value-inline-style` bans `font-size:`, `padding:`, `border-radius:` and `background:` in any string or template under `src/`, tests aside, outside `popupChrome.ts`, which owns the popup's three sizes, its button and its rule |
-| The app's own layers read their paint from one module | `checks/styles.js` | `map-paint-named` bans a numeric literal under a `circle-`, `line-`, `fill-`, `text-` or `icon-` key in `map/*.ts` outside `mapStyles.ts` and `basemap.ts`; the result and pending markers and the ring's handles spread one recipe each |
+| The app's own layers read their paint from one module | `checks/styles.js` | `map-paint-named` bans a numeric literal under a `circle-`, `line-`, `fill-`, `text-` or `icon-` key in `map/*.ts` outside `mapStyles.ts`, `basemap.ts` and `terrain.ts`; the result and pending markers and the ring's handles spread one recipe each |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts, and the numbers inside an overlay's own paint (a fire outline's width, a smoke fill's opacity), which each overlay's pure module owns beside its popup and its legend swatch. These are decided per feature.
 
@@ -423,7 +423,7 @@ values (#365):
 
 | Channel | Owner | What it holds |
 |---|---|---|
-| MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
+| MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; `map/terrain.ts` for the shaded relief's shadow and light and the contours' ink and labels (#799), one value for both themes because the map stays light in both; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
 | Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow) | The same |
 | Popup HTML handed to `setHTML` | `utils/popup/popupChrome.ts` | The three type sizes, the face, the names of the card's colours (each a `--popup-*` value, an app token in `map.css`, record 0215), the one button (`BUTTON_ACCENT` as its class list), the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
 | Recharts props | `utils/chart/chartColors.ts` | The axis, grid and playhead colours beside the line palette |
@@ -755,7 +755,14 @@ corner (`MAP_CORNER`). A phone stands the locate button and the compass in
 slots at the rows' right ends (`MAP_SLOT`) and leaves its zoom pair hidden in
 the library's corner. While the map is north-up and flat the compass is
 disabled: greyed by `DISABLED` at a desk, so the column keeps one shape, and
-hidden in a phone's chip row. The credit line's (i) is the same dark
+hidden in a phone's chip row. The 3D button (#799) is the one map button the
+app draws itself, as a library control so it stands with the rest: the same
+round chrome with the word `3D` at the control size in bold
+(`MAP_TERRAIN_BUTTON`), under the compass at a desk and after it at the end of
+a phone's chip row, where the summary chip gives way to it. While it is on,
+`map.css` fills it with the accent and its label with `--ui-on-fill`, keyed on
+`aria-pressed`, which is the accent fill `ACCENT.fill` paints (white 4.56:1 in
+both themes). The credit line's (i) is the same dark
 round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
 is the floating card (`MAP_CREDIT.card`), which a desk's credit line in the
 corner is itself, so the line sheds the card it would otherwise wear; its links dressed in `map.css` as
