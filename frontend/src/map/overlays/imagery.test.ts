@@ -88,6 +88,8 @@ describe('mountImagery', () => {
     const spec = (id: string) => stub.calls.find((c) => c[0] === 'addSource' && c[1] === id)?.[2]
     expect(spec(IMAGERY_EOX)).toMatchObject({ type: 'raster', tiles: [EOX_IMAGERY_TILES], tileSize: 256, maxzoom: 14 })
     expect(spec(IMAGERY_USGS)).toMatchObject({ type: 'raster', tiles: [USGS_IMAGERY_TILES], tileSize: 256, minzoom: 13, maxzoom: 16 })
+    // Nothing is asked of USGS over Europe, where every tile is a 404.
+    expect(spec(IMAGERY_USGS)).toHaveProperty('bounds', [-180, -15, -64, 72])
     // Each carries its provider's credit, for the map corner.
     expect(spec(IMAGERY_EOX)).toHaveProperty('attribution', expect.stringContaining('EOX IT Services GmbH'))
     expect(spec(IMAGERY_USGS)).toHaveProperty('attribution', expect.stringContaining('U.S. Geological Survey'))

@@ -21,8 +21,9 @@
  *
  * A tile host that fails (a dead network, a 5xx) is asked again once per
  * window `online` event through `recovery.ts`, the overlays' own rule. A 404
- * is not a failure: MapLibre drops it without an error event, and USGS answers
- * one outside its coverage, where the EOX layer beneath shows through.
+ * is not a failure: MapLibre leaves the tile empty without an error event, and
+ * USGS answers one outside its coverage, where the EOX layer beneath shows
+ * through (seen over British Columbia, 2026-10-27).
  */
 import type * as maplibregl from 'maplibre-gl'
 import { EOX_IMAGERY_TILES, USGS_IMAGERY_TILES } from '../../utils/terrainSources'
@@ -52,6 +53,19 @@ const EOX_MAX_ZOOM = 14
  */
 const USGS_MIN_ZOOM = 13
 const USGS_MAX_ZOOM = 16
+
+/**
+ * Where USGS is asked at all: American Samoa to the Arctic, and the Aleutians
+ * east of the antimeridian to the Virgin Islands. Its service metadata states
+ * the whole world as its extent, so this is drawn from where its tiles were
+ * found (2026-10-27): every state, Puerto Rico, the Virgin Islands and
+ * American Samoa answer inside it. Outside it each tile is a 404, about 30 of
+ * them a screen over the Alps, each one logged by the browser. Guam, the
+ * Northern Marianas and the western Aleutians have USGS photos too, past the
+ * antimeridian, where one box cannot reach them without the whole Pacific;
+ * they take EOX's.
+ */
+const USGS_BOUNDS: [number, number, number, number] = [-180, -15, -64, 72]
 
 /** Both imagery services tile at 256px. */
 const IMAGERY_TILE_SIZE = 256
@@ -156,6 +170,7 @@ export function mountImagery(map: maplibregl.Map, deps: { online?: EventTarget |
         tileSize: IMAGERY_TILE_SIZE,
         minzoom: USGS_MIN_ZOOM,
         maxzoom: USGS_MAX_ZOOM,
+        bounds: USGS_BOUNDS,
         attribution: USGS_ATTRIBUTION,
       })
     }
