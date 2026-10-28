@@ -46,6 +46,14 @@ export interface StubMapOptions {
   markerAt?: { x: number; y: number }
   zoom?: number
   center?: { lng: number; lat: number }
+  /** The camera's turn and tilt, in degrees. Both 0 by default. */
+  bearing?: number
+  pitch?: number
+  /**
+   * What `getBounds()` answers. A pitched camera's runs to the horizon, which
+   * is why the overlays that fetch for the view read `utils/viewBox.ts`
+   * instead, from the centre, zoom, bearing and canvas.
+   */
   bounds?: { west: number; south: number; east: number; north: number }
   /** Whether a source reports its tiles loaded. Everything is, by default. */
   sourceLoaded?: (id: string) => boolean
@@ -82,6 +90,10 @@ export function stubMap(opts: StubMapOptions = {}) {
   }
   const dragPan = { enabled: true, disable: () => (dragPan.enabled = false), enable: () => (dragPan.enabled = true) }
   const b = opts.bounds ?? { west: -122, south: 47, east: -121, north: 48 }
+  // The camera's tilt and the terrain it stands on, which `easeTo` and
+  // `setTerrain` move, as the 3D switch does (`map/terrain.ts`).
+  const camera = { pitch: opts.pitch ?? 0, bearing: opts.bearing ?? 0 }
+  let terrain: unknown = null
 
   const map = {
     getStyle: () => ({ layers: opts.styleLayers ?? [] }),
@@ -148,6 +160,19 @@ export function stubMap(opts: StubMapOptions = {}) {
     panBy: (offset: [number, number], o?: unknown) => calls.push(['panBy', offset, o]),
     getZoom: () => opts.zoom ?? 8,
     getCenter: () => opts.center ?? { lng: -121.5, lat: 47.5 },
+    getBearing: () => camera.bearing,
+    getPitch: () => camera.pitch,
+    // The move lands at once: what a test reads is where it went.
+    easeTo: (o: { pitch?: number; bearing?: number }) => {
+      if (o.pitch !== undefined) camera.pitch = o.pitch
+      if (o.bearing !== undefined) camera.bearing = o.bearing
+      calls.push(['easeTo', o])
+    },
+    setTerrain: (spec: unknown) => {
+      terrain = spec
+      calls.push(['setTerrain', spec])
+    },
+    getTerrain: () => terrain,
     getBounds: () => ({
       getWest: () => b.west,
       getSouth: () => b.south,
@@ -173,6 +198,7 @@ export function stubMap(opts: StubMapOptions = {}) {
     layout,
     paint,
     canvas,
+    camera,
     /** Run every handler registered for this event, on this layer if named. */
     fire(type: string, layer?: string, event: unknown = {}) {
       for (const h of handlers.filter((h) => h.type === type && h.layer === layer)) h.fn(event)
