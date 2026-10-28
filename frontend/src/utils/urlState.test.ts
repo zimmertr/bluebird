@@ -94,6 +94,7 @@ const base: ShareableState = {
   showRelief: false,
   showSatellite: false,
   showTerrain: false,
+  showFireActivity: false,
   showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
@@ -132,6 +133,7 @@ const pristine: ShareableState = {
   showRelief: false,
   showSatellite: false,
   showTerrain: false,
+  showFireActivity: false,
   showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
@@ -280,6 +282,14 @@ describe('encodeState / decodeState round-trip', () => {
     }
   })
 
+  // The fire detections (#799): one flag, written as `1` while on.
+  it('round-trips the fire activity switch', () => {
+    const out = roundTrip({ ...base, showFireActivity: true })
+    expect(out!.showFireActivity).toBe(true)
+    expect(new URLSearchParams(encodeState(base, DEFAULT_MODEL)).get('fireactivity')).toBeNull()
+    expect(decodeState('?fires=1')).toEqual({ showWildfires: true })
+  })
+
   it('opens a link written before the terrain layers with all four off', () => {
     const out = decodeState('?fires=1&radar=1&snow=1')
     expect(out).toEqual({ showWildfires: true, showRadar: true, showSnow: true })
@@ -376,6 +386,7 @@ describe('encodeState / decodeState round-trip', () => {
     expect(encodeState({ ...pristine, showRelief: true }, DEFAULT_MODEL)).toContain('relief=1')
     expect(encodeState({ ...pristine, showSatellite: true }, DEFAULT_MODEL)).toContain('satellite=1')
     expect(encodeState({ ...pristine, showTerrain: true }, DEFAULT_MODEL)).toContain('terrain=1')
+    expect(encodeState({ ...pristine, showFireActivity: true }, DEFAULT_MODEL)).toContain('fireactivity=1')
     // The grid needs an analysis before it draws anything, so a grid-only link
     // reopens on an empty map with the layer armed — which is still the state
     // that was shared, and dropping it would lose the one thing it said.
@@ -405,6 +416,8 @@ describe('encodeState / decodeState round-trip', () => {
       showTerrain: true,
     })
     expect(decodeState('?contours=true&relief=0&satellite=yes&terrain=on')).toBeNull()
+    expect(decodeState('?fireactivity=1')).toEqual({ showFireActivity: true })
+    expect(decodeState('?fireactivity=true')).toBeNull()
   })
 
   it('restores a CSV-only analysis without a polygon', () => {

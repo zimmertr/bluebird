@@ -28,6 +28,8 @@ const OVERLAYS = {
   setShowRelief: () => {},
   showSatellite: false,
   setShowSatellite: () => {},
+  showFireActivity: false,
+  setShowFireActivity: () => {},
   showTerrain: false,
   setShowTerrain: () => {},
   setShowPlayer: () => {},
