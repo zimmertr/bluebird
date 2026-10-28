@@ -351,6 +351,9 @@ LINK_ONLY_HOSTS = {
     "cloudless.eox.at",
     "creativecommons.org",
     "data-nifc.opendata.arcgis.com",
+    # The credit link for the fire detections (#799); the pod fetches them
+    # from firms.modaps.eosdis.nasa.gov, so the browser never does.
+    "earthdata.nasa.gov",
     "github.com",
     # The credit link for the elevation tiles (#799); the tiles come from
     # tiles.mapterhorn.com.

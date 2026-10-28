@@ -115,6 +115,7 @@ const OVERLAYS = {
   showRelief: false,
   showSatellite: true,
   showTerrain: true,
+  showFireActivity: true,
 } as unknown as MapStageProps['overlays']
 const REPORT: MapStageProps['report'] = { results: [ROW], pending: [] }
 const TABLE_VIEW = { tableColumns: [], analysisModelLabel: 'GFS' } as unknown as MapStageProps['tableView']
@@ -226,6 +227,7 @@ describe('MapStage', () => {
     expect(got.showAreaClosures).toBe(false)
     expect(got.showTrailClosures).toBe(true)
     expect([got.showContours, got.showRelief, got.showSatellite, got.showTerrain]).toEqual([true, false, true, true])
+    expect(got.showFireActivity).toBe(true)
     expect(got.cameraPadBottomPx).toBe(40)
     expect(got.modelId).toBe('gfs_seamless')
     expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)
@@ -344,12 +346,12 @@ describe('MapStage', () => {
   // them as a card at a desk and as a sheet on a phone.
   it('hands the Legend chip the sections, as a card at a desk and a sheet on a phone', () => {
     const { rerender } = render(<MapStage {...props()} />)
-    // The metric key over coloured markers, and the three layers that are on.
+    // The metric key over coloured markers, and the four layers that are on.
     const legend = () => screen.getByTestId('legend').dataset
-    expect(legend().sections).toBe('4')
+    expect(legend().sections).toBe('5')
     expect(legend().sheet).toBe('false')
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(legend().sections).toBe('4')
+    expect(legend().sections).toBe('5')
     expect(legend().sheet).toBe('true')
   })
 

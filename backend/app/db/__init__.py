@@ -2,8 +2,9 @@
 
 It holds what the app would otherwise ask an upstream for again and again: the
 places a search finds (filled from the OpenStreetMap planet and kept current
-from its daily change files), the wildfire, closure and smoke snapshots, and the
-counters that make a rate limit or an upstream budget exact across pods.
+from its daily change files), the wildfire, fire detection, closure and smoke
+snapshots, and the counters that make a rate limit or an upstream budget exact
+across pods.
 
 The database is optional. With no `DATABASE_URL` the app runs as it did before
 #760: discovery asks Overpass, each pod fetches its own snapshots and keeps its

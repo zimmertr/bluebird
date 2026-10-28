@@ -80,6 +80,7 @@
     "showRelief": true,
     "showSatellite": true,
     "showTerrain": true,
+    "showFireActivity": true,
     "showGrid": true,
     "gridStyle": "smooth",
     "gridReachFrac": 0.4,

@@ -125,8 +125,8 @@ together. A forecast window never meets it, and a request carrying your own
 Open-Meteo key never does either, because a keyed request skips the pacer. [API.md](API.md#when-a-search-finds-too-much) has the
 body.
 
-**Request pacing.** Analyze, discovery, search, wildfire perimeters, smoke
-plumes, closure orders, and the map's trailhead and crag markers hold separate per-address budgets, so a burst of map searches cannot
+**Request pacing.** Analyze, discovery, search, wildfire perimeters, fire
+detections, smoke plumes, closure orders, and the map's trailhead and crag markers hold separate per-address budgets, so a burst of map searches cannot
 starve somebody's analysis. Past one you get a `429` with `Retry-After`. They are sized
 so a person iterating on a map never meets them. Each is one budget for the
 whole deployment while its database is up and writable, however many pods your
@@ -148,8 +148,8 @@ to it. The per-address analyze budget above holds, and so does one discovery
 at a time; the cap on in-flight upstream calls holds, and the candidate cap, the destination-hour cap, the
 polygon cap, and the row cap are all unchanged. A key buys a quota, not an exemption.
 
-The wildfire, smoke, closure and landmark budgets are the loosest, because the requests they pace
-are the cheapest the service answers: all four come from a copy the instance
+The wildfire, fire detection, smoke, closure and landmark budgets are the loosest, because the requests they pace
+are the cheapest the service answers: all five come from a copy the instance
 already holds, so a pan costs no upstream call at all. What those budgets
 protect is this instance's own bandwidth, not the providers' quotas, which are
 bounded instead by how often each snapshot refreshes. With the database up, one
@@ -175,7 +175,7 @@ is and whether waiting helps:
 | `422` | A field would not parse or failed a bound: a polygon over the area cap, a ring with too many points, a list longer than its maximum, a `limit` out of range, a window outside the horizon, a malformed `bbox`. Only the caller can change the outcome. |
 | `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis, or the edge rate rule in front of `bluebirdforecast.com` refused the request before the pod saw it (see [TRAFFIC.md](TRAFFIC.md)). `Retry-After` is honest in every case. |
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
-| `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires`, `GET /api/smoke` and `GET /api/closures` it means something narrower: no fetch of that dataset has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve, not even stale. From `GET /api/landmarks` it means the instance has no copy of OpenStreetMap to answer from: it runs without the database, or the first fill has not finished. Transient either way, and carries `Retry-After`. |
+| `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires`, `GET /api/fire-activity`, `GET /api/smoke` and `GET /api/closures` it means something narrower: no fetch of that dataset has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve, not even stale. From `GET /api/landmarks` it means the instance has no copy of OpenStreetMap to answer from: it runs without the database, or the first fill has not finished. Transient either way, and carries `Retry-After`. |
 
 Each of these carries a machine-readable `error.code` beside the sentence, so a
 program can tell a failure it caused from one worth retrying without reading

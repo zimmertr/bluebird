@@ -46,6 +46,9 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
   const [showContours, setShowContours] = useState(() => restored?.showContours ?? false)
   const [showRelief, setShowRelief] = useState(() => restored?.showRelief ?? false)
   const [showSatellite, setShowSatellite] = useState(() => restored?.showSatellite ?? false)
+  // The satellite fire detections (#799), read from the pod's hourly copy of
+  // NASA FIRMS for the view, the way the fire perimeters are.
+  const [showFireActivity, setShowFireActivity] = useState(() => restored?.showFireActivity ?? false)
   // Whether the map stands the ground up in 3D (#799). Kept with the layers
   // because it changes what the map draws and nothing about the report, but it
   // is the map's own button rather than a Layers row: it changes how the whole
@@ -82,6 +85,8 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
     setShowRelief,
     showSatellite,
     setShowSatellite,
+    showFireActivity,
+    setShowFireActivity,
     showTerrain,
     setShowTerrain,
     showPlayer,

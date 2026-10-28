@@ -91,6 +91,8 @@ def test_limits_mirror_the_constants_the_validators_enforce():
             "closures_burst": ratelimit.client.CLOSURES_LIMITER.burst,
             "landmarks_per_minute": ratelimit.client.LANDMARKS_LIMITER.per_minute,
             "landmarks_burst": ratelimit.client.LANDMARKS_LIMITER.burst,
+            "fire_activity_per_minute": ratelimit.client.FIRE_ACTIVITY_LIMITER.per_minute,
+            "fire_activity_burst": ratelimit.client.FIRE_ACTIVITY_LIMITER.burst,
         },
     }
 

@@ -212,18 +212,19 @@ The default is 200, sized to sit above the 100-row lists people usually paste so
 
 ## Map layers
 
-Ten optional overlays, on the map's own **Layers** chip rather than in the
+Eleven optional overlays, on the map's own **Layers** chip rather than in the
 controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Each of the six that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
+again. Each of the seven that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
 | **Area closures** | Ground closed by a Forest Service closure order, in fuchsia | Forest Service orders in Oregon, Washington, Arizona, New Mexico, Utah, most of Nevada, southern Idaho and western Wyoming. No national park, state, BLM or tribal closure is drawn ([DATA.md](DATA.md#closures)) |
 | **Trail closures** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
 | **Wildfires** | Active fire perimeters, in red | United States, which the proximity check shares ([DATA.md](DATA.md#wildfires)) |
+| **Fire activity** | Hot spots satellites saw in the last 48 hours, as dots coloured by age | Worldwide, from zoom 5 in ([DATA.md](DATA.md#fire-activity)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | The contiguous states, Alaska, Hawaii, Puerto Rico and Guam |
 | **Smoke** | Smoke plumes at three densities, in grey | North America, Hawaii and the Caribbean |
 | **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
@@ -249,7 +250,7 @@ The rows read in alphabetical order, and one of them draws nothing: **Forecast p
 timeline bar at the bottom of the map on and off. It is on by default in a
 desktop-sized window and off on a phone, where the bar is a band across a map the
 report already stands on. It changes nothing about the ranking either, and once
-you have set it, it rides in the shared link like the ten above. It goes gray when
+you have set it, it rides in the shared link like the eleven above. It goes gray when
 nothing on the map spans time, which is a report of one hour with the rain radar
 off. Every row stays in the list whether or not it applies, so the list is the same
 length every time you open it.
@@ -257,7 +258,7 @@ length every time you open it.
 The six rows in the table above with a coverage edge go gray the same way, when
 the map you are looking at lies wholly outside it: over Colorado the two closure
 rows gray, because no Forest Service feed here covers it, and over the Alps every
-row but the forecast grid, the player and the three worldwide ones does. A gray row says the layer has
+row but the forecast grid, the player and the four worldwide ones does. A gray row says the layer has
 nothing to draw here, which is the one thing an empty layer cannot say for
 itself: outside a feed's coverage, empty means "not covered", never "open" or
 "clear". Pan back into coverage and the row returns. A layer you switched on
@@ -279,6 +280,17 @@ Inside that ground an empty map is not a promise either: both layers draw
 Forest Service orders and nothing else, so a closure a national park, a state,
 the BLM or a tribe puts in place never appears, and in Oregon and Washington
 the feed holds fire closures only.
+
+Fire activity is the satellites' picture, where the perimeters are the
+surveyors'. Each dot is a pixel NASA's FIRMS flagged as hot, 375 m or 1 km
+across, and its colour is its age: red under 12 hours, orange from 12 to 24
+hours, yellow from 24 to 48. The age runs on your clock, so a dot turns from
+red to orange while the map is open, and nothing older than 48 hours is drawn.
+The newest dot is already about 3 hours old when it arrives, a cloudy pass sees
+nothing, and a gas flare or a hot roof can look like fire, so read a dot as a
+place to look closer rather than as a fire line ([DATA.md](DATA.md#fire-activity)).
+Clicking a dot opens nothing. Zoomed out far enough to see a continent whole,
+the layer draws nothing, and draws again as you zoom in.
 
 Clicking a perimeter, a closure or a plume opens the same card a destination
 gets, and the map moves to show it the same way: its name on a light grey band,

@@ -38,6 +38,7 @@ export interface UrlSyncInputs {
   showContours: boolean
   showRelief: boolean
   showSatellite: boolean
+  showFireActivity: boolean
   /** The map's 3D switch. */
   showTerrain: boolean
   /** The player switch: the reader's answer, or null for the device default. */
@@ -105,6 +106,7 @@ export function useUrlSync({
   showContours,
   showRelief,
   showSatellite,
+  showFireActivity,
   showTerrain,
   showPlayer,
   gridStyle,
@@ -203,6 +205,7 @@ export function useUrlSync({
         showContours,
         showRelief,
         showSatellite,
+        showFireActivity,
         showTerrain,
         showPlayer,
         gridStyle,
@@ -240,6 +243,7 @@ export function useUrlSync({
     showContours,
     showRelief,
     showSatellite,
+    showFireActivity,
     showTerrain,
     showPlayer,
     gridStyle,

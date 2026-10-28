@@ -26,7 +26,7 @@ import { useLayerReach } from '../hooks/useLayerReach'
 import type { LayerCoverage } from '../utils/layerCoverage'
 import type { MapViewHandle } from './MapView'
 
-// One row of the Layers popover: a checkbox and what it switches. The ten
+// One row of the Layers popover: a checkbox and what it switches. The eleven
 // overlays and the forecast player share it, because they are the same kind of
 // choice — about what the map shows, never about what the analysis asks for.
 function layerRow({
@@ -138,6 +138,8 @@ export default function LayersPopover({
     setShowRelief,
     showSatellite,
     setShowSatellite,
+    showFireActivity,
+    setShowFireActivity,
     setShowPlayer,
     playerShown,
   } = overlays
@@ -204,12 +206,12 @@ export default function LayersPopover({
   }, [popoverOpen])
 
   // Alphabetical by label, which is the only order a list of unrelated switches
-  // can be scanned in: these eleven have no ranking between them — no cost, no
+  // can be scanned in: these twelve have no ranking between them — no cost, no
   // severity, no dependency — so any other order is one the reader has to
   // learn. The grid's own segment and slider still render under its row,
   // because they are that row's sub-choices rather than list members.
   //
-  // The player is a list member like the other ten even though it switches
+  // The player is a list member like the other eleven even though it switches
   // something OFF the map rather than a picture onto it: it answers the same
   // question — what is on the map — and nothing about the report follows it,
   // so it is no more a knob than the overlays beside it.
@@ -230,6 +232,9 @@ export default function LayersPopover({
     // world, and so does the imagery, from USGS over the United States and
     // from EOX everywhere else.
     { key: 'contours', label: 'Contours', checked: showContours, onChange: setShowContours },
+    // The fire detections (#799) never grey either: the pod reads FIRMS's
+    // global files, so no view is outside them.
+    { key: 'fireactivity', label: 'Fire activity', checked: showFireActivity, onChange: setShowFireActivity },
     {
       key: 'grid',
       label: 'Forecast grid',
