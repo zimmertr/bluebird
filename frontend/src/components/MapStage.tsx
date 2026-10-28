@@ -361,6 +361,7 @@ export default function MapStage({
           showRelief={overlays.showRelief}
           showSatellite={overlays.showSatellite}
           showTerrain={overlays.showTerrain}
+          showFireActivity={overlays.showFireActivity}
           radarIndex={timeline.radarIndex}
           gridSpec={grid.grid.spec}
           gridCells={grid.grid.cells}

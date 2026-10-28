@@ -169,6 +169,9 @@ interface Props {
   // Whether the map stands the ground up in 3D on the same elevation tiles
   // (#799). Accepted and not yet read, like the three above.
   showTerrain: boolean
+  // The satellite fire detections (#799), read from the pod's hourly copy of
+  // NASA FIRMS for the view like the perimeters, and no more a knob.
+  showFireActivity: boolean
   // Which radar frame is on screen, as an index into `radarOffsets()`. Driven
   // by the timeline; ignored entirely while the layer is off.
   radarIndex: number
@@ -273,6 +276,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showRadar,
       showSmoke,
       showSnow,
+      showFireActivity,
       radarIndex,
       gridSpec,
       gridCells,
@@ -706,6 +710,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         featuresRef.current?.landmarks.dispose()
         featuresRef.current?.areaClosures.dispose()
         featuresRef.current?.trailClosures.dispose()
+        featuresRef.current?.fireActivity.dispose()
         featuresRef.current?.smoke.dispose()
         featuresRef.current?.radar.dispose()
         featuresRef.current = null
@@ -830,6 +835,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.trailClosures.update({ show: showTrailClosures })
     }, [showTrailClosures, mapReady])
+
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.fireActivity.update({ show: showFireActivity })
+    }, [showFireActivity, mapReady])
 
     useEffect(() => {
       if (mapReady) featuresRef.current?.smoke.update({ show: showSmoke })

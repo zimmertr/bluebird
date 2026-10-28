@@ -37,6 +37,7 @@ const COLOR_OWNERS = [
   'src/utils/closures.ts',
   'src/utils/snowDepth.ts',
   'src/utils/radar.ts',
+  'src/utils/fireActivity.ts',
   'src/iconPaths.ts',
   'src/logo.ts',
 ]
