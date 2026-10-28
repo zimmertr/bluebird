@@ -311,6 +311,14 @@ describe('useTableView', () => {
     expect(result.current.partialNote).toBeNull()
   })
 
+  // #803, W3: the archive answers with no model, so the column's dash says so
+  // rather than crediting the picker's model with a reanalysis.
+  it('labels no model over an archive report', () => {
+    const archive = { ...REPORT, windowSource: 'archive' as const }
+    const { result } = renderHook(() => useTableView(inputs({ analyzed: archive })))
+    expect(result.current.analysisModelLabel).toBeNull()
+  })
+
   // A chip promotion moves the panel's ranking model ahead of the report. The
   // rows stay the report's until the next Analyze: the analyzed model's rows
   // lead each group, and the model promoted out of the comparison has none.

@@ -1,3 +1,4 @@
+import type { MultiPolygon } from 'geojson'
 import { describe, it, expect } from 'vitest'
 import {
   ACTION_WORDS,
@@ -531,26 +532,97 @@ describe('analyzeGateFor', () => {
     expect(gateOf({ refusal: null, failedView: failed }).refused).toBe(false)
   })
 
-  it('leaves every veto later work wires in off until it is given', () => {
+  it('leaves every #803 veto off when none of its inputs is given', () => {
     expect(gateOf()).toMatchObject(NO_VETOES)
-    expect(
-      gateOf({
-        spend: { needed: 8357, limit: 5000 },
-        archiveCloud: true,
-        archiveFreeze: true,
-        aqiHorizon: true,
-        boundOrder: true,
-        modelDomain: 'NOAA HRRR',
-      }),
-    ).toMatchObject({
-      spend: { needed: 8357, limit: 5000 },
-      archiveCloud: true,
-      archiveFreeze: true,
-      aqiHorizon: true,
-      boundOrder: true,
-      modelDomain: 'NOAA HRRR',
-    })
+    expect(gateOf({ spend: { needed: 8357, limit: 5000 } }).spend).toEqual({ needed: 8357, limit: 5000 })
   })
+
+  // --- #803, W1 to W8 (record 0235)
+  const DAY = { kind: 'days' as const, startDate: '2026-01-10', endDate: '2026-01-11' }
+
+  // W1, W2: a ranking on a column the archive does not publish.
+  it('blocks a cloud deck or freezing level ranking on an archive window', () => {
+    expect(gateOf({ selection: DAY, source: 'archive', sortBy: 'cloud_deck_min_ft' }).archiveCloud).toBe(true)
+    expect(gateOf({ selection: DAY, source: 'archive', sortBy: 'freeze_min_ft' }).archiveFreeze).toBe(true)
+    expect(canAnalyze(gateOf({ selection: DAY, source: 'archive', sortBy: 'cloud_deck_min_ft' }))).toBe(false)
+    // Air quality and snowfall the archive does answer, and so the rest.
+    for (const sortBy of ['aqi_avg', 'snowfall_total_in', 'temp_avg_f'] as const) {
+      expect(canAnalyze(gateOf({ selection: DAY, source: 'archive', sortBy }))).toBe(true)
+    }
+  })
+
+  // Record 0072: the forecast half answers both.
+  it('lets a window that spans the archive boundary rank on either', () => {
+    expect(canAnalyze(gateOf({ source: 'spanning', sortBy: 'cloud_deck_min_ft' }))).toBe(true)
+    expect(canAnalyze(gateOf({ source: 'spanning', sortBy: 'freeze_min_ft' }))).toBe(true)
+  })
+
+  // The archive's line speaks, not the model's: the picker it would name is
+  // disabled on that window.
+  it('names no model for a freezing level ranking on archive', () => {
+    const archive = analyzeGateFor({ ...PINNED, source: 'archive', sortBy: 'freeze_min_ft', forecastModel: 'ecmwf_ifs025' })
+    expect(archive.freezeGaps).toEqual([])
+    expect(archive.gate.compareFreeze).toBe(false)
+    expect(archive.gate.archiveFreeze).toBe(true)
+    const forecast = analyzeGateFor({ ...PINNED, source: 'forecast', sortBy: 'freeze_min_ft', forecastModel: 'ecmwf_ifs025' })
+    expect(forecast.freezeGaps).toEqual(['ECMWF IFS'])
+    expect(forecast.gate.archiveFreeze).toBe(false)
+  })
+
+  // W3: compared models are ignored on archive, so neither comparison veto
+  // can stand on a picker the reader cannot open.
+  it('counts the ranking model alone on an archive window', () => {
+    const compared = { comparedModels: ['ecmwf_ifs025'] }
+    expect(gateOf({ ...compared, source: 'archive', sortBy: 'aqi_avg' }).compareAqi).toBe(false)
+    expect(gateOf({ ...compared, source: 'forecast', sortBy: 'aqi_avg' }).compareAqi).toBe(true)
+    const freeze = analyzeGateFor({ ...PINNED, ...compared, source: 'archive', sortBy: 'freeze_min_ft' })
+    expect(freeze.gate.compareFreeze).toBe(false)
+  })
+
+  // W5: only a window wholly past the horizon.
+  it('blocks an air quality ranking over a window wholly past its horizon', () => {
+    expect(gateOf({ aqiCoverage: 'none', sortBy: 'aqi_avg' }).aqiHorizon).toBe(true)
+    expect(gateOf({ aqiCoverage: 'partial', sortBy: 'aqi_avg' }).aqiHorizon).toBe(false)
+    expect(gateOf({ aqiCoverage: 'none', sortBy: 'temp_avg_f' }).aqiHorizon).toBe(false)
+  })
+
+  // The table greys from this answer, so it rides out beside the gate.
+  it('hands back the metrics it found unanswerable', () => {
+    const { unanswered } = analyzeGateFor({ ...PINNED, source: 'archive', aqiCoverage: 'none' })
+    expect([...unanswered.keys()].sort()).toEqual(['aqi', 'cloud_deck', 'freeze'])
+  })
+
+  // W7: a floor above its ceiling admits no row.
+  it('blocks a bound whose minimum is above its maximum, but not one an inert box holds', () => {
+    const inverted = { ...NO_CONSTRAINTS, minTempF: 50, maxTempF: 20 }
+    expect(gateOf({ constraints: inverted }).boundOrder).toBe(true)
+    expect(gateOf({ constraints: { ...NO_CONSTRAINTS, minTempF: 20, maxTempF: 20 } }).boundOrder).toBe(false)
+    expect(gateOf({ constraints: NO_CONSTRAINTS }).boundOrder).toBe(false)
+    const cloud = { ...NO_CONSTRAINTS, minCloudDeckFt: 9000, maxCloudDeckFt: 3000 }
+    expect(gateOf({ constraints: cloud, source: 'forecast' }).boundOrder).toBe(true)
+    expect(gateOf({ constraints: cloud, source: 'archive' }).boundOrder).toBe(false)
+  })
+
+  // W8: a regional model's published grid against every point to analyze.
+  it('blocks a regional model whose domain leaves out a point, by its label', () => {
+    const square: MultiPolygon = {
+      type: 'MultiPolygon',
+      coordinates: [[[[-125, 45], [-118, 45], [-118, 50], [-125, 50], [-125, 45]]]],
+    }
+    const models = [...MODELS, forecastModel({ id: 'gfs_hrrr', label: 'NOAA HRRR', regional: true, domain: square })]
+    const inside = [{ latitude: 46.85, longitude: -121.76 }]
+    const outside = [...inside, { latitude: 51.18, longitude: -115.57 }]
+    const hrrr = { forecastModels: models, forecastModel: 'gfs_hrrr' }
+    expect(gateOf({ ...hrrr, points: inside }).modelDomain).toBeNull()
+    expect(gateOf({ ...hrrr, points: outside }).modelDomain).toBe('NOAA HRRR')
+    expect(canAnalyze(gateOf({ ...hrrr, points: outside }))).toBe(false)
+    // A compared regional model is held too, and a global one never.
+    expect(gateOf({ forecastModels: models, comparedModels: ['gfs_hrrr'], points: outside }).modelDomain).toBe('NOAA HRRR')
+    expect(gateOf({ forecastModels: models, points: outside }).modelDomain).toBeNull()
+    // The archive names no model.
+    expect(gateOf({ ...hrrr, points: outside, source: 'archive' }).modelDomain).toBeNull()
+  })
+  // --- end #803 W1 to W8
 })
 
 // The word on the Analyze button (#736). One button is the retry, and it says

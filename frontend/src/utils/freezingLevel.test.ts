@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
+  FREEZE_MODELS,
   FREEZE_MODEL_IDS,
   FREEZE_UNAVAILABLE_NOTE,
   isFreezeKey,
@@ -30,10 +34,11 @@ describe('FREEZE_UNAVAILABLE_NOTE', () => {
 
   // The app's standing copy rules: one line, sentence case, a full stop, and
   // no em dash. The approved text also names the three models that serve the
-  // variable, because the model is a control the reader can act on.
+  // variable, in the picker's own words (#803, W9), because the model is a
+  // control the reader can act on.
   it('is one sentence-case line naming the models that serve it', () => {
     expect(FREEZE_UNAVAILABLE_NOTE).toBe(
-      'Freezing level is only available from the GFS Seamless, HRRR and ICON models.',
+      'Freezing level is only available from the NOAA GFS, NOAA HRRR and DWD ICON models.',
     )
     expect(FREEZE_UNAVAILABLE_NOTE).not.toContain('\n')
     expect(FREEZE_UNAVAILABLE_NOTE).not.toContain('—')
@@ -74,19 +79,23 @@ describe('which models can answer a freezing-level ranking', () => {
     ])
   })
 
-  // The list and the sentence that names the same three models must not
-  // drift: the note is what a reader sees, the set is what the panel acts on.
-  // Every id in the set has the short name the note calls it by, so a model
-  // added to the set fails here until the sentence names it too.
+  // The set the panel acts on and the sentence a reader sees are one table,
+  // so a model added to one is in the other.
   it('agrees with the note that names them', () => {
-    const NOTE_NAME: Record<string, string> = {
-      gfs_seamless: 'GFS Seamless',
-      gfs_hrrr: 'HRRR',
-      icon_seamless: 'ICON',
-    }
-    for (const id of FREEZE_MODEL_IDS) {
-      expect(NOTE_NAME[id], `${id} has no name in the note`).toBeDefined()
-      expect(FREEZE_UNAVAILABLE_NOTE).toContain(NOTE_NAME[id])
+    for (const id of FREEZE_MODEL_IDS) expect(FREEZE_UNAVAILABLE_NOTE).toContain(FREEZE_MODELS[id])
+  })
+
+  // The note names the models in the picker's words, and the picker's words
+  // are the backend's `MODEL_INFO` labels, published by /api/capabilities.
+  // Read from the source, as `legal.test.ts` reads the server's: the Vitest
+  // container mounts the repository root (docs/DEVELOPMENT.md).
+  it('names each model by the label the picker shows', () => {
+    const here = dirname(fileURLToPath(import.meta.url))
+    const source = readFileSync(join(here, '..', '..', '..', 'backend', 'app', 'forecast_models.py'), 'utf-8')
+    for (const [id, label] of Object.entries(FREEZE_MODELS)) {
+      expect(source, `${id} is not labelled ${label}`).toMatch(
+        new RegExp(`ForecastModel\\.${id}: ModelInfo\\(\\s*"${label}"`),
+      )
     }
   })
 })

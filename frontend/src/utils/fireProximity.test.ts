@@ -3,6 +3,7 @@ import type { FeatureCollection, MultiPolygon } from 'geojson'
 import {
   checkNoticeDue,
   checkRunning,
+  pointInOutline,
   uncoveredKeys,
   fireCellText,
   fireLoadingFrame,
@@ -381,5 +382,23 @@ describe('checkRunning', () => {
     expect(checkRunning('loading')).toBe(true)
     expect(checkRunning('ready')).toBe(false)
     expect(checkRunning('unavailable')).toBe(false)
+  })
+})
+
+// One test of a published outline, for the WFIGS coverage and a regional
+// model's grid alike (#803).
+describe('pointInOutline', () => {
+  const TWO: MultiPolygon = {
+    type: 'MultiPolygon',
+    coordinates: [
+      [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]],
+      [[[10, 10], [12, 10], [12, 12], [10, 12], [10, 10]]],
+    ],
+  }
+
+  it('finds a point in any polygon of the outline', () => {
+    expect(pointInOutline(1, 1, TWO)).toBe(true)
+    expect(pointInOutline(11, 11, TWO)).toBe(true)
+    expect(pointInOutline(5, 5, TWO)).toBe(false)
   })
 })

@@ -5,6 +5,7 @@ import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { analyzedSnapshot, forecastModel, refusalPanel } from '../testSupport/fixtures'
 import { discoveryKeys } from '../utils/present'
+import { NO_CONSTRAINTS } from '../utils/constraints'
 
 // The panel's messages and the Analyze gate from one set of inputs (record
 // 0208): what the badge counts, which severity colours it, and how a
@@ -52,6 +53,8 @@ function state(over: Partial<PanelMessageState> = {}): PanelMessageState {
     aqiForecastDays: 5,
     windowLimits: FALLBACK_WINDOW_LIMITS,
     dismissEvent: () => {},
+    constraints: NO_CONSTRAINTS,
+    points: [],
     ...over,
   }
 }
@@ -204,4 +207,41 @@ describe('usePanelMessages', () => {
     expect(result.current.modelDisabled).toBe(true)
     expect(result.current.messages.map((m) => m.key)).toContain('window:archive-model')
   })
+
+  // --- #803, W1 to W8 (record 0235): the window's source and the bounds
+  // reach the gate, and the greyed rows ride out beside it.
+  const archiveDay = () => {
+    const day = new Date()
+    day.setDate(day.getDate() - 100)
+    const date = day.toISOString().slice(0, 10)
+    return { kind: 'days' as const, startDate: date, endDate: date }
+  }
+  const keys = (r: { current: { messages: readonly { key: string }[] } }) => r.current.messages.map((m) => m.key)
+
+  it('greys the metrics an archive window cannot answer and blocks a ranking on one', () => {
+    const { result } = hook({ selection: archiveDay(), sortBy: 'cloud_deck_min_ft' })
+    expect([...result.current.unanswered.keys()].sort()).toEqual(['cloud_deck', 'freeze'])
+    expect(result.current.analyzeEnabled).toBe(false)
+    expect(keys(result)).toContain('blocker:archive-cloud')
+  })
+
+  // The archive's line speaks, not the compare line naming a model in a
+  // picker the window disables, and the compared models are ignored there.
+  it('names the archive, not a model, for a freezing level ranking on archive', () => {
+    const { result } = hook({
+      selection: archiveDay(),
+      sortBy: 'freeze_min_ft',
+      forecastModel: 'ecmwf_ifs025',
+      comparedModels: ['gfs_seamless'],
+    })
+    expect(keys(result)).toContain('blocker:archive-freeze')
+    expect(keys(result)).not.toContain('blocker:compare-freeze')
+  })
+
+  it('holds a bound whose minimum is above its maximum', () => {
+    const { result } = hook({ constraints: { ...NO_CONSTRAINTS, minTempF: 50, maxTempF: 20 } })
+    expect(result.current.analyzeEnabled).toBe(false)
+    expect(keys(result)).toEqual(['blocker:bound-order'])
+  })
+  // --- end #803 W1 to W8
 })

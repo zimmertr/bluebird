@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { AnalyzeRequest, DestinationResult } from '../types'
 import {
   Constraints,
+  FAMILY_BOUNDS,
   NO_CONSTRAINTS,
   constraintFields,
   constraintsFromRequest,
   filterConstraints,
   hasConstraints,
+  invertedFamilies,
 } from './constraints'
+import { RANKED_FAMILIES } from '../metrics'
 import { resultRow } from '../testSupport/fixtures'
 
 // A request with no bounds on it, which the round trips below fill in.
@@ -238,5 +241,30 @@ describe('filterConstraints on the cloud bounds', () => {
 
   it('keeps a deck ceiling to the rows whose highest deck stays under it', () => {
     expect(names(filterConstraints([low, high, none], { ...NO_CONSTRAINTS, maxCloudDeckFt: 10000 }))).toEqual(['Low', 'None'])
+  })
+})
+
+// #803, W7: a floor above its ceiling admits no row, which the gate holds and
+// the Metrics table marks.
+describe('invertedFamilies', () => {
+  it('names each metric whose floor is above its ceiling', () => {
+    expect(invertedFamilies(NO_CONSTRAINTS)).toEqual([])
+    expect(invertedFamilies({ ...NO_CONSTRAINTS, minTempF: 50, maxTempF: 20 })).toEqual(['temp'])
+    expect(
+      invertedFamilies({ ...NO_CONSTRAINTS, minWindMph: 30, maxWindMph: 10, minAqi: 80, maxAqi: 40 }).sort(),
+    ).toEqual(['aqi', 'wind'])
+  })
+
+  it('reads equal ends and a single end as no contradiction', () => {
+    expect(invertedFamilies({ ...NO_CONSTRAINTS, minTempF: 20, maxTempF: 20 })).toEqual([])
+    expect(invertedFamilies({ ...NO_CONSTRAINTS, minTempF: 50 })).toEqual([])
+  })
+
+  // One table for the row and the check, covering every bound exactly once.
+  it('pairs every ranked metric with two bounds, each used once', () => {
+    expect(Object.keys(FAMILY_BOUNDS).sort()).toEqual([...RANKED_FAMILIES].sort())
+    const keys = Object.values(FAMILY_BOUNDS).flat()
+    expect(new Set(keys).size).toBe(keys.length)
+    expect([...keys].sort()).toEqual(Object.keys(NO_CONSTRAINTS).sort())
   })
 })

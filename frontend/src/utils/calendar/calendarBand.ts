@@ -168,6 +168,15 @@ export function aqiHorizon(now: Date, aqiDays: number): string {
  * to send the user to one of them. Under the calendar, equal narrow hours *are*
  * the way to ask for a single hour, so flagging them would refuse the thing the
  * control is for.
+ *
+ * The model's reach is the one edge measured as an instant (#803, W4). The
+ * band's last day is the day the reach lands in, offered whole because its
+ * early hours have data; but hours narrowed past the reach on that day have
+ * none, every row comes back empty, and the run used to report `No
+ * destinations found`. So a window that STARTS after the model's last hour is
+ * `future` too, and the panel's `${model} does not reach that far.` blocks it.
+ * A window that only runs past the reach keeps its early hours and passes,
+ * exactly as the whole partial day does.
  */
 export function classifyWindow(
   startDatetime: string,
@@ -191,7 +200,7 @@ export function classifyWindow(
   // the message is about the hours the user just set, not the servable range.
   if (end < start) return 'order'
   if (start < earliest) return 'past'
-  if (end > latest) return 'future'
+  if (end > latest || start > modelEnd(now, band.forecastHours)) return 'future'
   return 'ok'
 }
 
