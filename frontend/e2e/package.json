@@ -9,7 +9,7 @@
     "test": "playwright test --project=chromium --workers=4 && playwright test --project=motion --workers=1"
   },
   "devDependencies": {
-    "@axe-core/playwright": "4.13.0",
+    "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.64.1"
   }
 }
