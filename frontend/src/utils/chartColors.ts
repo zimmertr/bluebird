@@ -156,20 +156,20 @@ export const BASE_PALETTE_SIZE = BASE_PALETTE.dark.length
 
 /**
  * How many lines a chart may hold before it is crowded, chosen in the lab
- * with the palette (#801): past it every line is a hairline.
+ * with the palette (#801): past it every line is thinner.
  */
 export const CROWDED_PAST = 30
 
 /**
  * How a series line is drawn (#801), chosen in the lab with the palette. Up
- * to `CROWDED_PAST` lines each is 1px; past it each is a 0.5px hairline, so
- * a hundred lines read as a weave rather than a wall. Every line is full
+ * to `CROWDED_PAST` lines each is 1.5px; past it each is 1px, so a hundred
+ * lines read as a weave rather than a wall. Every line is full
  * strength at any count: a fade sinks the palette's darker colours into the
  * slate and leaves its yellow and orange, so a crowd reads as its two
  * loudest hues. The focused line stands at 2.5px either way, and the rest
  * fall to half while it does.
  */
-export const LINE_DRAW = { width: 1, crowdedWidth: 0.5, focusedWidth: 2.5, dimmedOpacity: 0.5 } as const
+export const LINE_DRAW = { width: 1.5, crowdedWidth: 1, focusedWidth: 2.5, dimmedOpacity: 0.5 } as const
 
 /**
  * The hex an allocated index paints in a theme: the palette, round again past

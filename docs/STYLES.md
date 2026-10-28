@@ -316,8 +316,8 @@ eight that fall under 3:1 on the panel, hue and chroma kept, until they clear
 it. Nothing in a line's colour wears an edge: not the lines, the dots, the
 readout's swatches, the legend's dots or a ticked chart box. The twenty repeat
 past the twentieth line, and `LINE_DRAW` holds every line at full strength at
-any count, 1px up to `CROWDED_PAST`'s thirty and a 0.5px hairline past it, so
-a crowd reads as a weave rather than a wall (record
+any count, 1.5px up to `CROWDED_PAST`'s thirty and 1px past it, so a crowd
+reads as a weave rather than a wall (record
 [0228](decisions/0228-chart-lines-set1-twenty.md)). The allocator stores an
 index rather than a colour, so a switch recolours every line, swatch and table
 checkbox without reallocating which destination has which slot. Every colour

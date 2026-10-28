@@ -472,9 +472,9 @@ describe('TimeSeriesChart line marks', () => {
     expect(extreme.zIndex).toBeUndefined()
   })
 
-  // Up to thirty lines every line is 1px; past thirty each is a 0.5px
-  // hairline, and every one stays at full strength (#801).
-  it('thins every line to a hairline once the chart holds more than thirty', () => {
+  // Up to thirty lines every line is 1.5px; past thirty each is 1px, and
+  // every one stays at full strength (#801).
+  it('thins every line once the chart holds more than thirty', () => {
     render(<TimeSeriesChart {...props({ rows: TWO, colorFor: () => COLOR })} />)
     for (const line of chart.series) expect([line.strokeWidth, line.strokeOpacity]).toEqual([LINE_DRAW.width, 1])
     const crowd = Array.from({ length: CROWDED_PAST + 1 }, (_, i) =>

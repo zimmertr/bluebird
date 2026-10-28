@@ -1,7 +1,7 @@
-# 0228. Chart lines are ColorBrewer Set1 in twenty shades, with no rim, and hairlines past thirty
+# 0228. Chart lines are ColorBrewer Set1 in twenty shades, with no rim, and thinner past thirty
 
 - Status: Accepted. Supersedes 0158's chart-line clause (light pastels over a rim). Amends 0211: no mark in a line's colour wears the `line-edge` token, which is gone.
-- Date: 2026-10-27. The palette and the line settings were chosen on 2026-10-22, the colour order and the light fit on 2026-10-27.
+- Date: 2026-10-27. The palette and the line settings were chosen on 2026-10-22, the colour order and the light fit on 2026-10-27, and the widths raised the same day on the build.
 - Decider: the maintainer (TJ), on #801, in the Chart Palette Lab, an interactive page drawing forty-two palettes on a fake hundred-line forecast, every setting live. TJ chose ColorBrewer Set1 at twenty colours with the settings below, and then, from a second page, palette order over the lab's spread, and the light theme darkened to 3:1.
 - Issues and PRs: #801, #802
 - Cited in code as: #801
@@ -20,7 +20,7 @@ The Chart Palette Lab drew forty-two palettes, from the app's own Tailwind hues 
 - The palette is ColorBrewer Set1 in twenty shades, the lab's own output: Brewer's nine strong primaries, then a lighter shade of each, then a darker shade of the first two, every one turned five degrees of hue toward red. The twenty repeat past the twentieth line.
 - Dark is that output untouched. Light makes the darker shades first, as the lab does on a light ground, and the eight of its twenty that fell under 3:1 on the light panel drop in OKLCH lightness alone, hue and chroma kept, until they clear it. Brewer's yellow, 1.04:1 on the light panel, lands at a gold.
 - Colours go out in palette order, so lines 1 to 9 take the nine primaries. The lab's "spread apart" order would have handed lines 1 to 3 red, light red and dark red; it looked the same at a hundred lines because every colour was on screen.
-- Up to thirty lines each is 1px; past thirty each is a 0.5px hairline. Every line is full strength at any count. A focused line stands at 2.5px, and the rest fall to half while it does.
+- Up to thirty lines each is 1.5px; past thirty each is 1px. Every line is full strength at any count. A focused line stands at 2.5px, and the rest fall to half while it does.
 - No rim. The SVG filter, `LINE_EDGE`, the `line-edge` token, the light hover dot's rule and `CHROME.lineEdge` are gone. A point sample's dot, a readout swatch, a legend dot and a ticked chart box each show their colour alone.
 - The lines go back to Recharts' own line layer, and the extreme line draws after them in it, as before PR #733.
 
@@ -39,7 +39,7 @@ The four under 3:1 in dark are the two darkest shades (2.13, 2.21), purple (2.76
 
 `chartColors.test.ts` pins all forty hexes and both spans, and `chartLines.spec.ts` checks in a browser that every drawn line in a short chart resolves to a colour of its own that clears 3:1 in light, with no filter over the lines.
 
-The lab's settings file, exported 2026-10-23: 20 colours, shades past the palette's own, hue −5°, crowded past 30, 1px and 0.5px, 100% opacity on both sides, straight lines, no dots, no edge, rank 1 drawn under, normal blend, hover at 2.5px with the rest at 50%.
+The lab's settings file, exported 2026-10-23: 20 colours, shades past the palette's own, hue −5°, crowded past 30, 1px and 0.5px, 100% opacity on both sides, straight lines, no dots, no edge, rank 1 drawn under, normal blend, hover at 2.5px with the rest at 50%. On the build the maintainer found the lab's 1px and 0.5px too thin and raised them to 1.5px and 1px, 2026-10-27.
 
 ## Alternatives rejected
 
@@ -53,7 +53,7 @@ The lab's settings file, exported 2026-10-23: 20 colours, shades past the palett
 ## Consequences
 
 - Past twenty lines two lines can share a colour, the model comparison's included. The hover box and the focused line's emphasis tell them apart.
-- A crowded chart's hairlines are 0.5px: crisp on a high-density screen, a faint 1px on a low one.
+- A crowded chart's lines are 1px, the width a short chart's had under Tableau 10 on this branch; the lab's 0.5px hairline read too thin on the build.
 - `chartRim.spec.ts` is gone. It existed because the rim's rule named a group Recharts creates, which a Recharts release could rename. The lines now depend on no Recharts class.
 - A new mark in a line's colour needs nothing drawn round it.
 - A chart palette is judged in a lab, in both themes, at a few lines and at a hundred, before it ships.

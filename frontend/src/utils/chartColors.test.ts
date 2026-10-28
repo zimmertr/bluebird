@@ -48,12 +48,11 @@ describe('colorForIndex', () => {
     }
   })
 
-  // The lab's line settings, chosen with the palette: 1px up to thirty lines,
-  // a 0.5px hairline past, full strength at any count, 2.5px under the
-  // pointer with the rest at half.
-  it('draws a hairline past thirty lines and never fades a crowd', () => {
+  // The line settings: 1.5px up to thirty lines, 1px past, full strength at
+  // any count, 2.5px under the pointer with the rest at half.
+  it('thins every line past thirty and never fades a crowd', () => {
     expect(CROWDED_PAST).toBe(30)
-    expect(LINE_DRAW).toEqual({ width: 1, crowdedWidth: 0.5, focusedWidth: 2.5, dimmedOpacity: 0.5 })
+    expect(LINE_DRAW).toEqual({ width: 1.5, crowdedWidth: 1, focusedWidth: 2.5, dimmedOpacity: 0.5 })
   })
 })
 
