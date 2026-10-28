@@ -12,8 +12,8 @@ import { test, expect, resultRows, isoDay } from './fixtures'
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
-// The panel under the plot in each theme, `CHART_CHROME[theme].surface`.
-const PANEL = { light: 'rgb(238, 242, 249)', dark: 'rgb(29, 41, 61)' }
+// The panel under the plot in light, `CHART_CHROME.light.surface`.
+const LIGHT_PANEL = 'rgb(238, 242, 249)'
 
 function luminance(rgb: string): number {
   const [r, g, b] = rgb.match(/\d+/g)!.slice(0, 3).map((v) => {
@@ -46,7 +46,7 @@ test('draws each chart line in a colour of its own, at 3:1 in light, under no fi
 
   await expect.poll(async () => (await strokes()).length).toBeGreaterThan(1)
   const light = await strokes()
-  holds(light, PANEL.light)
+  holds(light, LIGHT_PANEL)
   expect(await filtered()).toBe(0)
 
   await page.getByRole('button', { name: 'Switch to dark theme' }).first().click()
