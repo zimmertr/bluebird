@@ -32,6 +32,9 @@ const COLOR_OWNERS = [
   // there would be a second palette beside the app's.
   'src/map/mapStyles.ts',
   'src/map/basemap.ts',
+  // The relief's shadow and light and the contours' ink, matched to the
+  // basemap's ground the way basemap.ts's colours are (#799).
+  'src/map/terrain.ts',
   'src/utils/wildfires.ts',
   'src/utils/smoke.ts',
   'src/utils/closures.ts',
@@ -980,10 +983,11 @@ export const STYLES = [
     // map/mapStyles.ts, so a radius or a halo cannot be spelled twice the way
     // the result and pending markers' were. The overlays are not under this
     // check: each one's pure module is already the one place its look lives,
-    // and the basemap's numbers match OpenFreeMap rather than the app.
+    // and the basemap's numbers, and the ground's laid over it (terrain.ts,
+    // #799), match OpenFreeMap rather than the app.
     name: 'map-paint-named',
     files: ['src/map/*.ts'],
-    ignores: [...TESTS, 'src/map/mapStyles.ts', 'src/map/basemap.ts'],
+    ignores: [...TESTS, 'src/map/mapStyles.ts', 'src/map/basemap.ts', 'src/map/terrain.ts'],
     probe: 'src/map/resultsLayer.ts',
     ban: [
       {

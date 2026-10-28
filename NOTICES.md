@@ -127,6 +127,7 @@ Frontend (npm), bundled into the served JavaScript:
 |---|---|
 | react, react-dom | MIT |
 | maplibre-gl | BSD-3-Clause |
+| maplibre-contour | BSD-3-Clause |
 | recharts | MIT |
 | lz-string | MIT |
 | @mapbox/vector-tile | BSD-3-Clause |

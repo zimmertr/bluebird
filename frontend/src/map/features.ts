@@ -12,7 +12,9 @@
  * pending dots. The radar loop and the snow field are created when they are
  * switched on, beneath the first smoke fill, so the chain comes out grid, snow,
  * radar, smoke, fire, closures, draw, results. The basemap POI popups add no
- * layers and go last.
+ * layers and go last. The ground (`terrain.ts`, #799) adds nothing on load
+ * either: its relief and contours go in the first time they are switched on,
+ * under the basemap patch and the style's labels.
  *
  * The map's popups mount first of all (`map/mapPopups.ts`): every feature that
  * opens a popup registers itself there as it mounts, and the one click that
@@ -40,6 +42,7 @@ import { mountWildfires, type WildfireOverlay } from './overlays/wildfires'
 import { mountPoiPopups, type PoiPopups } from './poiPopup'
 import type { PopupBoard } from './popups'
 import { mountResultsLayer, type ResultsLayer } from './resultsLayer'
+import { mountTerrain, type TerrainLayers } from './terrain'
 
 export interface MapFeatures {
   grid: ForecastGridOverlay
@@ -53,6 +56,7 @@ export interface MapFeatures {
   drawRing: DrawRing
   results: ResultsLayer
   pois: PoiPopups
+  terrain: TerrainLayers
 }
 
 export function mountFeatures(
@@ -88,6 +92,9 @@ export function mountFeatures(
   enhanceBasemap(map)
   // After the basemap patch, which registers the icons its layers name.
   const landmarks = mountLandmarks(map, {})
+  // Adds nothing until a switch asks: no elevation tile and no contour code
+  // on the cold load.
+  const terrain = mountTerrain(map)
   const grid = mountForecastGrid(map)
   const smoke = mountSmoke(map, { popups: mapPopups })
   const wildfires = mountWildfires(map, { popups: mapPopups })
@@ -108,5 +115,5 @@ export function mountFeatures(
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })
-  return { grid, landmarks, smoke, wildfires, areaClosures, trailClosures, snow, radar, drawRing, results, pois }
+  return { grid, landmarks, smoke, wildfires, areaClosures, trailClosures, snow, radar, drawRing, results, pois, terrain }
 }

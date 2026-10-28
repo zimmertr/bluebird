@@ -104,6 +104,8 @@ const GRID = {
   grid: { spec: null, cells: null },
   gridStyle: 'blocks',
 } as unknown as MapStageProps['grid']
+// The overlays' own setter, which the map's 3D button asks through (#799).
+const SET_TERRAIN = () => {}
 const OVERLAYS = {
   showWildfires: true,
   showAreaClosures: false,
@@ -115,6 +117,7 @@ const OVERLAYS = {
   showRelief: false,
   showSatellite: true,
   showTerrain: true,
+  setShowTerrain: SET_TERRAIN,
 } as unknown as MapStageProps['overlays']
 const REPORT: MapStageProps['report'] = { results: [ROW], pending: [] }
 const TABLE_VIEW = { tableColumns: [], analysisModelLabel: 'GFS' } as unknown as MapStageProps['tableView']
@@ -226,6 +229,7 @@ describe('MapStage', () => {
     expect(got.showAreaClosures).toBe(false)
     expect(got.showTrailClosures).toBe(true)
     expect([got.showContours, got.showRelief, got.showSatellite, got.showTerrain]).toEqual([true, false, true, true])
+    expect(got.onTerrainChange).toBe(SET_TERRAIN)
     expect(got.cameraPadBottomPx).toBe(40)
     expect(got.modelId).toBe('gfs_seamless')
     expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)
@@ -374,7 +378,7 @@ describe('MapStage', () => {
     seen.mapView.length = 0
     const { container, rerender } = render(<MapStage {...props()} />)
     const corner = seen.mapView[seen.mapView.length - 1].cornerSlots as Record<string, HTMLElement>
-    expect(Object.keys(corner)).toEqual(['compass', 'locate', 'zoom', 'credit', 'scale'])
+    expect(Object.keys(corner)).toEqual(['compass', 'terrain', 'locate', 'zoom', 'credit', 'scale'])
     for (const slot of Object.values(corner)) expect(container.contains(slot)).toBe(true)
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(seen.mapView[seen.mapView.length - 1].cornerSlots).toBeNull()

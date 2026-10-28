@@ -1573,6 +1573,18 @@ export const MAP_ROUND_BUTTON =
   `transition-colors ${ACCENT.edgeHover} ${FOCUS_RING}`
 
 /**
+ * The 3D button (#799): a map button whose glyph is the word `3D`, at the
+ * control size in bold so two characters hold the round button the way a
+ * drawn glyph does, in the ink the rest of the chrome reads in. The one map
+ * button the app draws rather than the library, though it stands among the
+ * library's (`TerrainControl` in `map/controls.ts`). While it is on it wears
+ * the accent fill, painted by `map.css` on `aria-pressed`, because a class on
+ * markup outside React is set once and the pressed state is the button's
+ * own attribute; `map-terrain` is the hook that rule is keyed on.
+ */
+export const MAP_TERRAIN_BUTTON = `map-terrain ${MAP_ROUND_BUTTON} ${TEXT.control} font-bold`
+
+/**
  * Where a phone stands one of those buttons at a row's right end (#696): the
  * map moves its own control into the slot (`placeControl`), so the button
  * keeps the library's states and its permission prompt, and `map.css`, keyed
@@ -1580,16 +1592,19 @@ export const MAP_ROUND_BUTTON =
  * slots: its buttons stand in the map's bottom-right corner (`MAP_CORNER`).
  *
  * `locate` is a 40px box beside the search pill. `compass` is the chip row's
- * last member, under the locate button (record 0147), and takes no room of
- * its own: while the map is north-up the compass is hidden and the slot is
- * nothing, so the row's empty end stays the map's, about 20px at 360 wide.
- * While it shows, the slot is the button's 40px and the summary chip, the one
- * member that gives way, gives it up; at 32px the row is shorter than the
- * button, which stands 4px proud of it top and bottom, centred on it.
+ * last member, under the locate button (record 0147), and holds the compass
+ * and, after it, the 3D button (#799), 6px apart as a desk's column stands
+ * them: the 3D button at the row's very end, under the locate button, so it
+ * stays where it was pressed when the tilt it makes wakes the compass beside
+ * it. While the map is north-up and flat the compass is hidden and the slot
+ * is the 3D button's 40px. While the compass shows, the slot is 86px and the
+ * summary chip, the one member that gives way, gives it up; at 32px the row is
+ * shorter than the buttons, which stand 4px proud of it top and bottom,
+ * centred on it.
  */
 export const MAP_SLOT = {
   locate: 'map-slot absolute right-0 top-0 size-10',
-  compass: 'map-slot ml-auto flex-shrink-0',
+  compass: 'map-slot ml-auto flex-shrink-0 flex items-center gap-1.5',
 } as const
 
 /**

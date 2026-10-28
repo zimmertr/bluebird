@@ -96,6 +96,7 @@ import {
   MESSAGE_LIST,
   BLOCKED,
   MAP_ROUND_BUTTON,
+  MAP_TERRAIN_BUTTON,
   MAP_SLOT,
   MAP_CORNER,
   MAP_ZOOM_PAIR,
@@ -2365,12 +2366,33 @@ describe('the map rows', () => {
     for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
     expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
     expect(mapRowsSource).toContain('{!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}')
-    // A phone's compass, the chip row's last member (record 0147): no size of
-    // its own, so a hidden compass leaves the row's end to the map. A desk
-    // has neither slot.
+    // A phone's compass, the chip row's last member (record 0147), with the
+    // 3D button after it (#799), 6px apart as a desk's column stands them: no
+    // size of its own, so a hidden compass leaves the 3D button alone at the
+    // row's end, and its empty group goes with it. A desk has neither slot.
     expect(mapRowsSource).toContain('{!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}')
     expect(Object.keys(MAP_SLOT)).toEqual(['locate', 'compass'])
-    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0'])
+    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0', 'flex', 'items-center', 'gap-1.5'])
+    expect(step(MAP_SLOT.compass, 'gap')).toBe(step(MAP_CORNER.stack, 'gap'))
+    expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group:has(> .compass-idle) {\n  display: none;\n}')
+  })
+
+  // The 3D button (#799) is a map button whose glyph is a word: the round
+  // button's chrome, the control size in bold in the chrome's ink, and the
+  // hook map.css fills it on while it is pressed, with the accent fill's two
+  // tokens, the fill and the label on it, as `ACCENT.fill` paints them.
+  it('draws the 3D button as a map button, filled with the accent while pressed', () => {
+    for (const t of tokens(MAP_ROUND_BUTTON)) expect(tokens(MAP_TERRAIN_BUTTON)).toContain(t)
+    for (const t of tokens(TEXT.control)) expect(tokens(MAP_TERRAIN_BUTTON)).toContain(t)
+    expect(tokens(MAP_TERRAIN_BUTTON)).toEqual(expect.arrayContaining(['map-terrain', 'font-bold']))
+    const at = mapCss.indexOf('.map-terrain[aria-pressed="true"] {')
+    expect(at).toBeGreaterThan(-1)
+    const rule = mapCss.slice(at, mapCss.indexOf('}', at))
+    expect(tokens(ACCENT.fill)).toEqual(['bg-accent', 'text-on-fill'])
+    expect(rule).toContain('background-color: var(--ui-accent);')
+    expect(rule).toContain('border-color: var(--ui-accent);')
+    expect(rule).toContain('color: var(--ui-on-fill);')
+    expect(mapCss).toMatch(/\.map-terrain\[aria-pressed="true"\]:hover \{\s*background-color: var\(--ui-accent-hover\);/)
   })
 
   // One floating chrome for the pill, the locate button and the chips: the

@@ -277,6 +277,32 @@
   display: none;
 }
 
+/* Its group goes with it, since a phone's slot stands the 3D button after the
+   compass (#799) and an empty group would hold the gap between them open. */
+.map-slot .maplibregl-ctrl-group:has(> .compass-idle) {
+  display: none;
+}
+
+/* The 3D button while it is on (#799): the accent fill under the label's
+   white, as a chosen segment wears it (`ACCENT.fill`), its edge the fill so
+   the button reads as one solid disc. Keyed on `aria-pressed` here rather
+   than handed a class, because the button is markup the map makes once and
+   the attribute is its state. Unlayered, so it beats the map button's own
+   floating fill and the sky edge it takes on hover; the hover darkens or
+   lightens as a filled accent button's does in each theme. */
+.map-terrain[aria-pressed="true"] {
+  background-color: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: var(--ui-on-fill);
+}
+
+@media (hover: hover) {
+  .map-terrain[aria-pressed="true"]:hover {
+    background-color: var(--ui-accent-hover);
+    border-color: var(--ui-accent-hover);
+  }
+}
+
 .maplibregl-ctrl-compass:disabled .maplibregl-ctrl-icon,
 .maplibregl-ctrl-zoom-in:disabled .maplibregl-ctrl-icon,
 .maplibregl-ctrl-zoom-out:disabled .maplibregl-ctrl-icon {

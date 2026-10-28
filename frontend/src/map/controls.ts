@@ -11,6 +11,11 @@
  * top-right corner, which `map.css` hides it in. `MapView` moves each control
  * into its slot (`placeControl`).
  *
+ * The fifth button is the app's own, the 3D switch (#799, `TerrainControl`),
+ * a MapLibre control so it stands among the library's and moves with them:
+ * under the compass in a desk's column, and after it at the end of a phone's
+ * chip row.
+ *
  * Every button wears the app's map button (`MAP_ROUND_BUTTON`, record 0147),
  * the zoom pair the same chrome joined (`MAP_ZOOM_PAIR`), and the credit line
  * the app's floating box (`MAP_CREDIT`): the markup is the library's, so the
@@ -23,7 +28,7 @@ import {
   ScaleControl,
 } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
-import { DISABLED, MAP_CREDIT, MAP_ROUND_BUTTON, MAP_ZOOM_PAIR } from '../styles'
+import { DISABLED, MAP_CREDIT, MAP_ROUND_BUTTON, MAP_TERRAIN_BUTTON, MAP_ZOOM_PAIR } from '../styles'
 
 /** The controls `MapView` stands in slots: a phone's rows and a desk's corner. */
 export interface MapControls {
@@ -32,11 +37,15 @@ export interface MapControls {
   /** The zoom pair, which only a desk's corner stands. */
   zoom: NavigationControl
   scale: ScaleControl
+  /** The 3D button, which stands with the compass. */
+  terrain: TerrainControl
 }
 
 /** A desk's corner (`MapCorner`): a slot for each control it stands. */
 export interface CornerSlots {
   compass: HTMLElement
+  /** Under the compass, for the 3D button. */
+  terrain: HTMLElement
   locate: HTMLElement
   zoom: HTMLElement
   /** In the credit line, for the attribution. */
@@ -67,7 +76,56 @@ function dressZoomPair(container: HTMLElement | undefined): void {
   dress(container?.querySelector('.maplibregl-ctrl-zoom-out'), `${MAP_ZOOM_PAIR.out} ${DISABLED}`)
 }
 
-export function addControls(map: maplibregl.Map): MapControls {
+/**
+ * The 3D button (#799): the word `3D` on a map button (`MAP_TERRAIN_BUTTON`),
+ * pressed while the map stands the ground up. The switch is the overlays'
+ * (`useMapOverlays`), so the button, the link and the map read one value: a
+ * press asks for the other state through `onChange`, and the map hands the
+ * answer back through `setPressed`. A control of the library's kind, so it
+ * stands in the slots the library's own buttons stand in. It carries no
+ * `title`: the library gives its own buttons one, and a tooltip does not
+ * exist on touch (record 0064).
+ */
+export class TerrainControl implements maplibregl.IControl {
+  _container?: HTMLElement
+  private button?: HTMLButtonElement
+  private pressed = false
+
+  constructor(private readonly onChange: (on: boolean) => void) {}
+
+  onAdd(map: maplibregl.Map): HTMLElement {
+    const doc = map.getContainer().ownerDocument
+    // The library's group, so the button takes the rules `map.css` gives the
+    // library's: no box of its own, no margin in a slot, the 44px rim.
+    const container = doc.createElement('div')
+    container.className = 'maplibregl-ctrl maplibregl-ctrl-group'
+    const button = doc.createElement('button')
+    button.type = 'button'
+    button.textContent = '3D'
+    button.setAttribute('aria-label', '3D terrain')
+    dress(button, MAP_TERRAIN_BUTTON)
+    button.addEventListener('click', () => this.onChange(!this.pressed))
+    container.appendChild(button)
+    this._container = container
+    this.button = button
+    this.setPressed(this.pressed)
+    return container
+  }
+
+  onRemove(): void {
+    this._container?.remove()
+    this._container = undefined
+    this.button = undefined
+  }
+
+  /** Lit while the 3D terrain is on (`aria-pressed`, which `map.css` fills). */
+  setPressed(on: boolean): void {
+    this.pressed = on
+    this.button?.setAttribute('aria-pressed', String(on))
+  }
+}
+
+export function addControls(map: maplibregl.Map, deps: { onTerrainChange: (on: boolean) => void }): MapControls {
   // Shift is the pinning modifier for popups (`isPinning` in map/popups.ts), and
   // MapLibre spends shift on box zoom by default — it starts a drag-zoom on
   // shift+mousedown and swallows the click that would have opened one. Box
@@ -89,6 +147,9 @@ export function addControls(map: maplibregl.Map): MapControls {
   const locate = new GeolocateControl({ positionOptions: { enableHighAccuracy: true } })
   map.addControl(locate, 'top-right')
   dressButtons(locate._container)
+  // The app's own button, which stands with the compass wherever it stands.
+  const terrain = new TerrainControl(deps.onTerrainChange)
+  map.addControl(terrain, 'top-right')
   const zoom = new NavigationControl({ showCompass: false })
   map.addControl(zoom, 'top-right')
   dressZoomPair(zoom._container)
@@ -98,7 +159,7 @@ export function addControls(map: maplibregl.Map): MapControls {
   // in the bottom-right corner instead (`MapCorner`).
   const scale = new ScaleControl({ maxWidth: SCALE_MAX_WIDTH_PX })
   map.addControl(scale, 'bottom-left')
-  return { compass, locate, zoom, scale }
+  return { compass, locate, zoom, scale, terrain }
 }
 
 /**

@@ -158,17 +158,19 @@ interface Props {
   // three above it, and no more a knob than they are.
   showSnow: boolean
   // The ground layers (#799): contour lines and shaded relief, both drawn from
-  // Mapterhorn's elevation tiles, and the aerial imagery, USGS's over the
-  // United States and EOX's Sentinel-2 mosaic elsewhere (`terrainSources.ts`).
-  // Like every layer above, a picture beside the ranking and never a knob.
-  // Accepted and not yet read: the memo already compares them, and phase 2 of
-  // #799 draws them.
+  // Mapterhorn's elevation tiles (`map/terrain.ts`), and the aerial imagery,
+  // USGS's over the United States and EOX's Sentinel-2 mosaic elsewhere
+  // (`terrainSources.ts`). Like every layer above, a picture beside the
+  // ranking and never a knob.
   showContours: boolean
   showRelief: boolean
   showSatellite: boolean
   // Whether the map stands the ground up in 3D on the same elevation tiles
-  // (#799). Accepted and not yet read, like the three above.
+  // (#799), which the map's own 3D button shows and asks to change through
+  // `onTerrainChange`. A state setter, so stable: the button is made once,
+  // with the map, and reads it through the controller.
   showTerrain: boolean
+  onTerrainChange: (on: boolean) => void
   // Which radar frame is on screen, as an index into `radarOffsets()`. Driven
   // by the timeline; ignored entirely while the layer is off.
   radarIndex: number
@@ -273,6 +275,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showRadar,
       showSmoke,
       showSnow,
+      showContours,
+      showRelief,
+      showTerrain,
+      onTerrainChange,
       radarIndex,
       gridSpec,
       gridCells,
@@ -360,6 +366,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       cameraPadBottomPx,
       onCameraMove,
       maxPolygonPoints,
+      onTerrainChange,
     }
     const [controller] = useState(() => createMapController(inputs))
     // Declared before every other effect so it runs first in a commit, and any
@@ -654,9 +661,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // below does, at the app's own breakpoint rather than the library's
         // 640px one.
         attributionControl: false,
+        // MapLibre's own default, said here because the 3D button tilts the
+        // map to `TERRAIN_PITCH` and past 60 the library calls it
+        // experimental.
+        maxPitch: 60,
       })
       mapRef.current = map
-      controlsRef.current = addControls(map)
+      // The 3D button's press reads the latest handler at the moment it is
+      // pressed, as every handler made once does.
+      controlsRef.current = addControls(map, { onTerrainChange: (on) => controller.inputs.onTerrainChange(on) })
       // Before `load`: a style that fails never gets there.
       const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
 
@@ -729,7 +742,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       const map = mapRef.current
       const controls = controlsRef.current
-      if (map && controls) placeControl(map, controls.compass, corner?.compass ?? compassSlot, { first: true })
+      if (!map || !controls) return
+      placeControl(map, controls.compass, corner?.compass ?? compassSlot, { first: true })
+      // Under the compass in a desk's column, and after it in a phone's slot,
+      // in this order so the compass stands first in the slot they share.
+      placeControl(map, controls.terrain, corner?.terrain ?? compassSlot)
     }, [corner, compassSlot])
     useEffect(() => {
       const map = mapRef.current
@@ -842,6 +859,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.radar.update({ show: showRadar, index: radarIndex })
     }, [showRadar, radarIndex, mapReady])
+
+    // The ground (#799): the relief, the contours and the 3D terrain on one
+    // elevation model, which loads the first time any of them is on.
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.terrain.update({ relief: showRelief, contours: showContours, terrain: showTerrain })
+    }, [showRelief, showContours, showTerrain, mapReady])
+
+    // The 3D button shows the switch, from the moment the map is built.
+    useEffect(() => {
+      controlsRef.current?.terrain.setPressed(showTerrain)
+    }, [showTerrain])
 
     return <div ref={containerRef} className="absolute inset-0" />
   },
