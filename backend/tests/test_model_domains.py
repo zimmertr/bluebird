@@ -86,6 +86,8 @@ def test_no_chord_stands_more_than_a_tenth_of_a_cell_outside_the_grid():
         ("San Juan", 18.47, -66.1, False),
         ("St. John's", 47.56, -52.71, False),
         ("Prince George", 53.92, -122.75, False),
+        # Lower than Banff and outside, which is why no lat/lon box will do.
+        ("Port Hardy", 50.72, -127.5, False),
     ],
 )
 def test_the_outline_holds_the_places_the_grid_does(place, lat, lon, inside):
