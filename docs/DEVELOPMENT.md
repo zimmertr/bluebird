@@ -315,7 +315,9 @@ every runner.
 network, and runs the suite from the pinned Playwright image with the repo
 root mounted (the fixtures read `backend/tests/data/weather_vectors.json`). A
 failed run leaves the served container running, and `docker rm -f e2e-target`
-clears it.
+clears it. It runs the suite as `npm test` in `frontend/e2e`, as CI does, and
+that is two invocations: every spec but three on four workers, then the three
+that read layout mid-move on one, for the reason in `playwright.config.ts`.
 
 The image tag, `PLAYWRIGHT_IMAGE` in the `Makefile`, is read off the
 `@playwright/test` version in `frontend/e2e/package.json`: each Playwright

@@ -117,7 +117,7 @@ browser:
 	docker build -t bluebird:e2e .
 	-docker network create e2e-net
 	docker run -d --rm --name e2e-target --network e2e-net bluebird:e2e
-	docker run --rm --network e2e-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://e2e-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci --ignore-scripts && npx playwright test"
+	docker run --rm --network e2e-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://e2e-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci --ignore-scripts && npm test"
 	docker rm -f e2e-target
 
 # The render probe (issue #409): the same served image, one 946-destination
