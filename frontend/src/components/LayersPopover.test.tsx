@@ -106,7 +106,7 @@ describe('LayersPopover', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     expect(screen.queryByRole('checkbox')).toBeNull()
     open()
-    expect(rows()).toHaveLength(11)
+    expect(rows()).toHaveLength(12)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('checkbox')).toBeNull()
     open()
@@ -139,7 +139,7 @@ describe('LayersPopover', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     open()
     fireEvent.pointerDown(screen.getByRole('checkbox', { name: 'Smoke' }))
-    expect(rows()).toHaveLength(11)
+    expect(rows()).toHaveLength(12)
   })
 
   // A press with Shift held reaches every row from the last pressed to this
@@ -182,7 +182,7 @@ describe('LayersPopover', () => {
   it('keeps every row and greys the ones out of play', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={ARCHIVE} playerOffered={false} />)
     open()
-    expect(rows()).toHaveLength(11)
+    expect(rows()).toHaveLength(12)
     // The reason is what a reader hears with the row, since its title does
     // not exist on touch.
     const grid = screen.getByRole('checkbox', {
@@ -221,6 +221,7 @@ describe('LayersPopover', () => {
     expect(rows()).toEqual([
       'Area closures',
       'Contours',
+      'Fire activity',
       'Forecast grid',
       'Forecast player',
       'Rain radar',
@@ -238,8 +239,8 @@ describe('LayersPopover', () => {
   // A layer with nothing to draw over the view greys, with no note, the way
   // the player does: over Colorado the two Forest Service rows grey and the
   // four national ones stay live; over the Alps every bounded row greys, a
-  // checked one included, and the two Open-Meteo rows and the three ground
-  // layers (#799), which cover the world, stay live.
+  // checked one included, and the two Open-Meteo rows, the three ground
+  // layers and the fire detections (#799), which cover the world, stay live.
   it('greys the rows whose layer cannot draw over the view', () => {
     const coverage = { wildfires: CONUS, areaClosures: OREGON_WASHINGTON, trailClosures: OREGON_WASHINGTON }
     const disabled = () =>
@@ -299,6 +300,26 @@ describe('LayersPopover', () => {
     expect(screen.queryByRole('checkbox', { name: /3D|terrain/i })).toBeNull()
   })
 
+  // The fire detections (#799): FIRMS's global files cover every view, so the
+  // row switches anywhere and never greys.
+  it('switches fire activity from its own row', () => {
+    const setShowFireActivity = vi.fn()
+    render(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...OVERLAYS, setShowFireActivity }}
+        grid={GRID}
+        playerOffered
+      />,
+    )
+    open()
+    const row = screen.getByRole('checkbox', { name: 'Fire activity' }) as HTMLInputElement
+    expect(row.disabled).toBe(false)
+    fireEvent.click(row)
+    expect(setShowFireActivity).toHaveBeenCalledWith(true)
+  })
+
   it('shows the grid style and coverage only while the grid is on', () => {
     const { rerender } = render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     open()
@@ -319,7 +340,7 @@ describe('LayersPopover', () => {
     open()
     expect(chip.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('dialog', { name: 'Layers' })).toBeTruthy()
-    expect(rows()).toHaveLength(11)
+    expect(rows()).toHaveLength(12)
     // A press in the sheet, which is in a portal outside the chip's column,
     // is not a press outside the menu.
     fireEvent.pointerDown(screen.getAllByRole('checkbox')[0])

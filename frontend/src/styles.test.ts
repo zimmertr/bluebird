@@ -2926,7 +2926,7 @@ describe('the map layer rows', () => {
   })()
 
   it('found every row', () => {
-    expect(labels).toHaveLength(11)
+    expect(labels).toHaveLength(12)
   })
 
   // Alphabetical, because nothing else orders these: no cost, no severity and
@@ -2959,6 +2959,7 @@ describe('the map legend sections', () => {
     "label: 'Rain radar'",
     "label: 'Smoke'",
     'label: SNOW_LABEL',
+    "label: 'Fire activity'",
   ]
 
   it('found every section', () => {

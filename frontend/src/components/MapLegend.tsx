@@ -26,6 +26,7 @@ import BottomSheet from './BottomSheet'
 import { MenuButton } from './Menu'
 import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
+import { FIRMS_HREF, fireActivityLegendRows } from '../utils/fireActivity'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF, radarSwatchCss } from '../utils/radar'
@@ -47,7 +48,12 @@ import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
  * scale section is 40px where two of them under their strips were 54 apiece
  * (TJ, 2026-09-17).
  *
- * One function for both, and one for the metric key and the layers alike,
+ * A key on a few CLASSES of one layer, the fire detections' three age bands
+ * (#799), is the layer's name over a row per class, each its label and its
+ * swatch, because the classes are words a reader has to read rather than a
+ * scale whose ends say the rest.
+ *
+ * One function for every shape, and one for the metric key and the layers alike,
  * because the sections are sorted by their labels at the call site: a shape
  * that could only be built inline could not take its place in that order. They
  * had already drifted into two shapes once, six swatch rows against a strip.
@@ -60,6 +66,7 @@ function legendSection({
   credit,
   swatch,
   ramp,
+  rows,
 }: {
   label: string
   credit?: { href: string; name: string }
@@ -67,6 +74,8 @@ function legendSection({
   swatch?: ReactNode
   /** The strip and its numbers, for a section keyed on a scale. */
   ramp?: { css: string; ticks: RampTick[]; bands: number }
+  /** A row per class, under the name, for a section keyed on a few classes. */
+  rows?: { label: string; swatch: ReactNode }[]
 }) {
   const name = (
     <span className={TEXT.control}>
@@ -82,6 +91,19 @@ function legendSection({
       )}
     </span>
   )
+  if (rows) {
+    return (
+      <div className="flex flex-col gap-1">
+        {name}
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between gap-2 whitespace-nowrap">
+            <span className={TEXT.control}>{row.label}</span>
+            {row.swatch}
+          </div>
+        ))}
+      </div>
+    )
+  }
   if (!ramp) {
     return (
       <div className="flex items-center justify-between gap-2 whitespace-nowrap">
@@ -151,7 +173,13 @@ export interface LegendInputs {
   /** Which overlays are on, each keyed by a section. */
   overlays: Pick<
     MapOverlays,
-    'showWildfires' | 'showAreaClosures' | 'showTrailClosures' | 'showRadar' | 'showSmoke' | 'showSnow'
+    | 'showWildfires'
+    | 'showAreaClosures'
+    | 'showTrailClosures'
+    | 'showRadar'
+    | 'showSmoke'
+    | 'showSnow'
+    | 'showFireActivity'
   >
   /** The forecast grid's state and its row (`useGridLayer`). */
   grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend'>
@@ -171,7 +199,8 @@ export function legendSections(
   { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }: LegendInputs,
   smokeId: string,
 ): LegendSectionSpec[] {
-  const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow } = overlays
+  const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow, showFireActivity } =
+    overlays
   const { gridPainted, gridCued, gridFailed, gridLegend } = grid
   // ONE box, gaining and losing sections as the report and the
   // layers change (#454). It was two — the layer rows in one, the
@@ -252,6 +281,28 @@ export function legendSections(
                 style={wildfireSwatch()}
               />
             ),
+          },
+        ]
+      : []),
+    // The satellite fire detections (#799): a disc per age band, newest
+    // first, each the band's fill in the layer's stroke, read from the module
+    // that paints the map so the key and the picture cannot disagree. FIRMS
+    // asks to be acknowledged wherever its data is used; the section's credit
+    // is that, and NOTICES.md carries the full sentence.
+    ...(showFireActivity
+      ? [
+          {
+            label: 'Fire activity',
+            credit: { href: FIRMS_HREF, name: 'FIRMS' },
+            rows: fireActivityLegendRows().map((row) => ({
+              label: row.label,
+              swatch: (
+                <span
+                  className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.pill} border`}
+                  style={row.swatch}
+                />
+              ),
+            })),
           },
         ]
       : []),
