@@ -579,7 +579,7 @@ The moving parts ("KM" = `Kubernetes-Manifests/public/bluebird/`):
 | `Service bluebird` / `bluebird-canary` | chart | stable/canary endpoints; the controller injects `rollouts-pod-template-hash` selectors so each always tracks the right ReplicaSet |
 | `VirtualService bluebird` | chart | the three weighted routes `bluebird-stable`, `bluebird-api-public` and `bluebird-api-keyed`, whose destination weights the controller owns |
 | `AnalysisTemplate version-check` | KM `resources/analysisTemplate-versionCheck.yml` | identity gate — the canary must serve the exact image being rolled out |
-| `AnalysisTemplate api-test` | KM `resources/analysisTemplate-apiTest.yml` | functional gate — a real `/api/analyze` through Overpass and Open-Meteo |
+| `AnalysisTemplate api-test` | KM `resources/analysisTemplate-apiTest.yml` | functional gate: a `POST /api/destinations` for the peaks in a fixed ring, which the places table answers with no third party on the path |
 | `AnalysisTemplate error-rate` | KM `resources/analysisTemplate-errorRate.yml` | soak gate — the canary's 5xx share read from Prometheus, three times a minute apart |
 
 The first two gates are Argo `web` providers and the third is a `prometheus`
@@ -636,7 +636,7 @@ flowchart TD
     subgraph GATE["Steps 0–3 — the whole gate runs at 0% user traffic"]
         scale["setCanaryScale: replicas 1<br/>one new-version pod behind Service bluebird-canary<br/>VirtualService still 100/0"]
         vc["AnalysisRun version-check (web provider)<br/>GET canary /api/version<br/>must match the image tag being rolled out"]
-        at["AnalysisRun api-test (web provider)<br/>POST canary /api/analyze<br/>must return at least one ranked peak"]
+        at["AnalysisRun api-test (web provider)<br/>POST canary /api/destinations<br/>must return at least one peak"]
         er["AnalysisRun error-rate (prometheus provider)<br/>canary 5xx share below 5%<br/>count 3, interval 60s — 120 s of wall clock"]
     end
 
@@ -673,14 +673,22 @@ the comparison so a canary reporting `0.29.6` cannot satisfy an image tagged
 the path, so there is nothing legitimate to flake and nothing to retry.
 
 **Step 2 — `api-test`, the functional gate.** Same provider, a single POST to
-the canary's `/api/analyze` with a fixed body: a known-good polygon (Tiger
-Mountain, Issaquah WA), `destination_types: [peak]`, `forecast_mode: current`,
-`limit: 3`. One condition covers the whole chain — `len(result.results) >= 1` is
-satisfiable only if Overpass discovered candidates, the ranking produced rows,
-and Open-Meteo attached a forecast to them. `count: 1`, `failureLimit: 0`, 120 s
-timeout. The flip side is deliberate: an extended Overpass or Open-Meteo outage
-*blocks* releases rather than skipping validation, on the grounds that a release
-which cannot serve a real analysis is not healthy whatever the reason.
+the canary's `/api/destinations` with a fixed body: a known-good polygon (Tiger
+Mountain, Issaquah WA) and `destination_types: [peak]`. The condition is
+`len(result.destinations) >= 1`, so the step passes when the canary finds a
+peak in the ring. `count: 1`, `failureLimit: 0`, 120 s timeout. Since #760 the
+places table answers, and Overpass answers only when the table cannot: no
+database, a first fill not yet finished, or a dropped connection. The gate
+keeps that fallback because the app keeps it. It asks for no forecast, so
+Open-Meteo is off its path, and while the table answers no third party is on
+it. Forecast correctness stays with CI: pytest, and the browser suite against
+the built image.
+
+Until #787 this step ran a full analysis on the free Open-Meteo quota, which
+the cluster shares with every browser on the home network. On a busy day the
+pod answered `429` and the release aborted. A release still cannot ship while
+discovery cannot answer from the table or from Overpass, but an Open-Meteo
+outage no longer holds one. Record: [0230](decisions/0230-release-gate-calls-no-third-party.md)
 
 Both gates hit the canary Service in-cluster rather than the public hostname,
 which is why the controller needs no route back in through the gateway. The
@@ -713,7 +721,7 @@ The query therefore answers `0` in two cases, and the true ratio otherwise:
   The pod therefore creates, at 0 when it starts, every 5xx series the
   canary's own requests can produce (`CANARY_ROUTES` in
   `backend/app/telemetry.py`): `GET /healthz`, `GET /api/version` and
-  `POST /api/analyze`, each at 500 and at every 5xx its OpenAPI entry
+  `POST /api/destinations`, each at 500 and at every 5xx its OpenAPI entry
   declares, all with `client="api"`. A 5xx on any other series (another
   route, an undeclared status, or `client="web"`) is still not counted until
   the second one on that series. At weight 0 the canary serves nothing else.
@@ -855,7 +863,7 @@ look for in the logs above.
 | Provider | What the pod fetches | Metric and panel | Log text |
 | --- | --- | --- | --- |
 | Overpass | discovery and pasted coordinates (`POST /api/destinations`, and the API's analyze routes) | `bluebird_forecast_overpass_requests_total` by `mirror`, `outcome` and `path` (`discovery` or `enrichment`, the pasted-coordinate lookup), and `bluebird_forecast_overpass_fallback_total` by `mirror` and `path`; the panels sum over `path`: **Overpass attempts by mirror and outcome**, **Overpass failovers per hour** | `Overpass endpoint <url> failed:` |
-| Open-Meteo | the API's analyze routes only: the canary's `api-test` and keyed callers | `bluebird_forecast_openmeteo_requests_total` by `service`, `outcome` and `quota`, and `bluebird_forecast_openmeteo_rate_limited_total` by `scope`: **Open-Meteo attempts by outcome**, **Open-Meteo 429s per hour by scope** | `request failed:`, `rate limited (` |
+| Open-Meteo | the API's analyze routes only, which in production only keyed callers reach | `bluebird_forecast_openmeteo_requests_total` by `service`, `outcome` and `quota`, and `bluebird_forecast_openmeteo_rate_limited_total` by `scope`: **Open-Meteo attempts by outcome**, **Open-Meteo 429s per hour by scope** | `request failed:`, `rate limited (` |
 | NIFC, the Forest Service, NOAA HMS | the three overlay snapshots | `bluebird_forecast_snapshot_refresh_failures_total` by `provider`: **Overlay snapshot refresh failures per hour** | `refresh failed (`, `fetch failed with nothing cached to fall back on` |
 | Nominatim | the search box (`GET /api/geocode`) | none | `Nominatim request failed:` |
 
@@ -874,9 +882,9 @@ Two cases need a second look:
   `429`/`502`/`503` each one answers with.
 
 An outside outage is not a release problem, and nothing needs to ship. A
-release that starts during a lasting Overpass or Open-Meteo outage fails
-`api-test` and aborts on its own, which is the gate working
-([Step 2](#the-four-steps)).
+release that starts during a lasting Overpass outage fails `api-test` only if
+the places table cannot answer either. It then aborts on its own, which is the
+gate working ([Step 2](#the-four-steps)). Open-Meteo is not on the gate's path.
 
 ### Ship the fix
 
@@ -924,7 +932,8 @@ operator sees meanwhile:
   gates that are left (revision 209 went out that way, see
   [Merge to live](#merge-to-live)). Do not `undo` either, for the `selfHeal`
   reason above. When the failed measurement is plainly an outside outage, such
-  as `received non 2xx response code: 502` from `api-test`,
+  as `received non 2xx response code: 502` from `api-test` (every Overpass
+  mirror failed while the places table could not answer),
   `kubectl argo rollouts retry rollout bluebird -n bluebird-system` runs the
   gates again on the same version once the provider is back. It moves no
   version, so it is not a rollback.
@@ -1108,7 +1117,7 @@ sources named in the last column.
 | Argo CD applies the sync | 4 s | 3–8 s | `deployStartedAt` → `deployedAt` (n=9) |
 | canary pod up (`setCanaryScale`) | 21 s | 21 s | Rollout step 0 → 1 (revisions 206, 207) |
 | `version-check` | 1 s | — | Rollout step 1 → 2 (revision 206) |
-| `api-test` | 13 s | 13–55 s | Rollout step 2 → 3 (revisions 206, 207) |
+| `api-test` | 13 s | 13–55 s | Rollout step 2 → 3 (revisions 206, 207), when the gate ran an analysis. The discovery gate (#787) has not been timed in the cluster; one request with its body answered production through the gateway in 0.27 s (2026-10-27) |
 | `error-rate` | **120 s** | fixed | Rollout step 3 → 4 (revisions 206, 207) |
 | promotion + service cutover | 23 s | 21–25 s | step 4 → `RolloutCompleted` |
 | stable scale-up, old ReplicaSet down | 30 s | 30–31 s | `RolloutCompleted` → `RolloutHealthy` |
