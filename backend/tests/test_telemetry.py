@@ -169,10 +169,10 @@ def test_startup_creates_the_canary_5xx_series_at_zero(monkeypatch):
             f'status="{labels["status"]}"}} 0.0'
         )
         assert line in body
-    # The analyze route's declared upstream failures are covered, not only the
-    # crash status every route gets.
-    analyze = {c["status"] for c in children if c["route"] == "/api/analyze"}
-    assert {"500", "502", "503"} <= analyze
+    # The discovery route's declared upstream failures are covered, not only
+    # the crash status every route gets.
+    destinations = {c["status"] for c in children if c["route"] == "/api/destinations"}
+    assert {"500", "502", "503"} <= destinations
 
 
 def test_canary_routes_carry_the_labels_the_middleware_records():
@@ -181,7 +181,7 @@ def test_canary_routes_carry_the_labels_the_middleware_records():
     probes = [
         ("/healthz", "GET", lambda: client.get("/healthz"), "200"),
         ("/api/version", "GET", lambda: client.get("/api/version"), "200"),
-        ("/api/analyze", "POST", lambda: client.post("/api/analyze", json={}), "400"),
+        ("/api/destinations", "POST", lambda: client.post("/api/destinations", json={}), "400"),
     ]
     assert [(r, m) for r, m, _, _ in probes] == list(telemetry.CANARY_ROUTES)
     for route, method, send, status in probes:

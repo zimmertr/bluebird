@@ -190,9 +190,11 @@ pod's shared one, and one analyze request can spend more than a thousand
 weighted calls. The gateway checks only that the header is non-empty; whether
 the key works is Open-Meteo's answer, which the pod returns as a `401`.
 
-In-cluster callers — the Argo Rollouts release probe, development against the
-Service — bypass the gateway, so they still reach the unkeyed path and still
-land in this bucket. So does a self-hosted instance. The allowlist has an off
+In-cluster callers bypass the gateway, so development against the Service
+still reaches the unkeyed path and still lands in this bucket. So does a
+self-hosted instance. The Argo Rollouts release probe bypasses the gateway too,
+but since #787 it asks `POST /api/destinations` for discovery and calls no
+analyze route. The allowlist has an off
 switch, `ingress.publishFullApi`, which publishes the whole `/api` surface; PR
 preview environments set it, so a preview's analyze routes need no key.
 
