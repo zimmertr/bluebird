@@ -22,7 +22,14 @@ import {
 } from '../utils/forecastWindow'
 
 describe('parseCapabilities', () => {
+  // A square, not HRRR's outline: the parser keeps what it is sent, and the
+  // outline itself is pinned by the backend's test_model_domains.py.
+  const hrrrDomain = {
+    type: 'MultiPolygon',
+    coordinates: [[[[-122, 21], [-72, 21], [-61, 48], [-134, 48], [-122, 21]]]],
+  }
   const body = {
+    discovery_source: 'places',
     limits: {
       max_destinations: 900,
       max_limit: 800,
@@ -35,6 +42,7 @@ describe('parseCapabilities', () => {
       past_data_days: 30,
       aqi_forecast_days: 4,
       max_polygon_points: 500,
+      open_meteo_hourly_calls: 4_000,
     },
     // Deliberately NOT in reach order: the server ranks these for mountain
     // terrain, and a client that re-sorted would undo the ranking.
@@ -47,13 +55,14 @@ describe('parseCapabilities', () => {
         forecast_hours: 384,
         regional: false,
         blend: true,
+        domain: null,
         default: true,
       },
       // No `summary` and no `blend`: a deployment on an older build publishes
       // neither, and the row has to render as a plain name rather than as a gap.
       { id: 'gem_seamless', label: 'ECCC GEM', forecast_hours: 216, regional: false },
       { id: 'ecmwf_ifs025', label: 'ECMWF IFS', forecast_hours: 336, regional: false },
-      { id: 'gfs_hrrr', label: 'NOAA HRRR', forecast_hours: 42, regional: true },
+      { id: 'gfs_hrrr', label: 'NOAA HRRR', forecast_hours: 42, regional: true, domain: hrrrDomain },
     ],
   }
 
@@ -75,6 +84,7 @@ describe('parseCapabilities', () => {
           forecastHours: 384,
           regional: false,
           blend: true,
+          domain: null,
         },
         {
           id: 'gem_seamless',
@@ -84,6 +94,7 @@ describe('parseCapabilities', () => {
           forecastHours: 216,
           regional: false,
           blend: false,
+          domain: null,
         },
         {
           id: 'ecmwf_ifs025',
@@ -93,6 +104,7 @@ describe('parseCapabilities', () => {
           forecastHours: 336,
           regional: false,
           blend: false,
+          domain: null,
         },
         {
           id: 'gfs_hrrr',
@@ -102,11 +114,48 @@ describe('parseCapabilities', () => {
           forecastHours: 42,
           regional: true,
           blend: false,
+          domain: hrrrDomain,
         },
       ],
       defaultForecastModel: 'gfs_seamless',
       coverage: {},
+      discoverySource: 'places',
+      openMeteoHourlyCalls: 4_000,
     })
+  })
+
+  // The gate refuses a ring or a list that crosses a regional model's domain
+  // before Analyze (#803). A shape nothing can cast against is no domain, so
+  // it leaves Open-Meteo's own refusal as the check, the way an older build
+  // that publishes none does.
+  it('keeps a model domain only when it is a MultiPolygon', () => {
+    const withDomain = (domain: unknown) =>
+      parseCapabilities({ limits: {}, forecast_models: [{ id: 'gfs_hrrr', forecast_hours: 42, domain }] })
+        .forecastModels[0].domain
+    expect(withDomain(hrrrDomain)).toEqual(hrrrDomain)
+    expect(withDomain({ type: 'Polygon', coordinates: hrrrDomain.coordinates[0] })).toBeNull()
+    expect(withDomain('CONUS')).toBeNull()
+    expect(withDomain(undefined)).toBeNull()
+    expect(FALLBACK_FORECAST_MODEL.domain).toBeNull()
+  })
+
+  // A count ahead of Analyze runs only where it costs no Overpass call, so
+  // anything but the one word that says so reads as Overpass: an older build
+  // that publishes nothing, a misspelling, and the fallback.
+  it('reads the discovery source as Overpass unless it says places', () => {
+    const source = (value: unknown) =>
+      parseCapabilities({ limits: {}, discovery_source: value }).discoverySource
+    expect(source('places')).toBe('places')
+    expect(source('overpass')).toBe('overpass')
+    expect(source('Places')).toBe('overpass')
+    expect(source(undefined)).toBe('overpass')
+    expect(parseCapabilities(null).discoverySource).toBe('overpass')
+  })
+
+  // Open-Meteo's published free tier, held until the deployment answers.
+  it('falls back to the free tier for the hourly ceiling', () => {
+    expect(parseCapabilities(null).openMeteoHourlyCalls).toBe(5_000)
+    expect(parseCapabilities({ limits: { open_meteo_hourly_calls: 'lots' } }).openMeteoHourlyCalls).toBe(5_000)
   })
 
   // The outlines the Layers menu greys its rows on. Each is kept only as a

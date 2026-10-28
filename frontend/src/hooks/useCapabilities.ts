@@ -39,7 +39,22 @@ export interface ForecastModelOption {
    * mark rather than a wrong one.
    */
   blend: boolean
+  /**
+   * Where a regional model has data, as the server publishes it, or null for a
+   * global model. A destination outside it makes Open-Meteo refuse the batch
+   * it rides in, so the gate can refuse the analysis before it spends (#803).
+   * Null too when the server sent none or sent a shape nothing can cast
+   * against, which leaves Open-Meteo's refusal as the only check, as before.
+   */
+  domain: MultiPolygon | null
 }
+
+/**
+ * Where discovery answers from: the deployment's own copy of OpenStreetMap,
+ * or the donated Overpass API. Only `places` makes a count ahead of Analyze
+ * free (#803).
+ */
+export type DiscoverySource = 'places' | 'overpass'
 
 export interface Capabilities {
   maxDestinations: number
@@ -67,12 +82,24 @@ export interface Capabilities {
   /**
    * Where the three snapshot layers' data has meaning, as the server publishes
    * it: the Layers menu greys a row whose view lies wholly outside its outline
-   * (`layerCoverage.ts`). The one published value here that is not a number,
-   * and the one with no compiled fallback: an outline the server never sent
+   * (`layerCoverage.ts`). One of the published values here with no compiled
+   * fallback, like each model's `domain`: an outline the server never sent
    * is absent, and an absent outline greys nothing, which is what the menu
    * did before the server published any.
    */
   coverage: LayerCoverage
+  /**
+   * Where discovery answers from right now. Falls back to `overpass`, the safe
+   * side: a count ahead of Analyze that asks Overpass spends a donated service
+   * and the destinations bucket, where one that is skipped costs nothing.
+   */
+  discoverySource: DiscoverySource
+  /**
+   * Open-Meteo's free-tier budget for one hour, per address, in weighted
+   * calls. The browser spends it from the visitor's own address, so an
+   * analysis that costs more cannot finish inside the hour.
+   */
+  openMeteoHourlyCalls: number
 }
 
 // Fallback for the polygon-area gate. Lives here rather than beside the map
@@ -91,6 +118,13 @@ const FALLBACK_POLYGON_AREA_KM2 = 100_000
 // the reach is a product choice about how far a calendar should page (#123).
 const FALLBACK_ARCHIVE_DAYS = 365
 
+// Fallback for the hourly spend ceiling, the same kind of stand-in as the two
+// above: `limits.open_meteo_hourly_calls`, Open-Meteo's published free-tier
+// figure, which `backend/app/services/openmeteo_weight.py` holds as
+// `FREE_TIER_HOURLY_CALLS` (#803). Not a mirrored constant, because nothing
+// computes with it but the gate, which takes it from here.
+const FALLBACK_OPEN_METEO_HOURLY_CALLS = 5_000
+
 // Fallback for the model picker. One entry, not a compiled copy of the server's
 // list: this stands in only for the moment before /api/capabilities answers,
 // and a stale list of models would be worse than a short one — picking a model
@@ -106,6 +140,7 @@ export const FALLBACK_FORECAST_MODEL: ForecastModelOption = {
   forecastHours: 384,
   regional: false,
   blend: true,
+  domain: null,
 }
 
 // One array, held by identity: the list before `/api/capabilities` answers,
@@ -132,6 +167,8 @@ const FALLBACK: Capabilities = {
   forecastModels: FALLBACK_FORECAST_MODELS,
   defaultForecastModel: FALLBACK_FORECAST_MODEL.id,
   coverage: {},
+  discoverySource: 'overpass',
+  openMeteoHourlyCalls: FALLBACK_OPEN_METEO_HOURLY_CALLS,
 }
 
 /**
@@ -180,6 +217,7 @@ function parseModels(body: unknown): Pick<
       forecastHours: e.forecast_hours,
       regional: e.regional === true,
       blend: e.blend === true,
+      domain: multiPolygon(e.domain) ?? null,
     })
     if (e.default === true) fallbackDefault = e.id
   }
@@ -192,19 +230,21 @@ function parseModels(body: unknown): Pick<
   }
 }
 
+/** A published outline, kept only when it is a MultiPolygon with rings to cast against. */
+function multiPolygon(value: unknown): MultiPolygon | undefined {
+  const g = value as { type?: unknown; coordinates?: unknown } | null | undefined
+  return g?.type === 'MultiPolygon' && Array.isArray(g.coordinates) ? (g as MultiPolygon) : undefined
+}
+
 /**
  * The coverage outlines a body publishes, each kept only when it is a
- * MultiPolygon with rings to cast against. A deployment on an older build
- * publishes none, and a malformed one is dropped rather than greying a row on
- * a shape nothing can test.
+ * MultiPolygon. A deployment on an older build publishes none, and a malformed
+ * one is dropped rather than greying a row on a shape nothing can test.
  */
 function parseCoverage(body: unknown): LayerCoverage {
   const raw = (body as { coverage?: Record<string, unknown> } | null)?.coverage
   if (!raw || typeof raw !== 'object') return {}
-  const outline = (key: string): MultiPolygon | undefined => {
-    const g = raw[key] as { type?: unknown; coordinates?: unknown } | undefined
-    return g?.type === 'MultiPolygon' && Array.isArray(g.coordinates) ? (g as MultiPolygon) : undefined
-  }
+  const outline = (key: string): MultiPolygon | undefined => multiPolygon(raw[key])
   const out: LayerCoverage = {}
   const wildfires = outline('wildfires')
   const areaClosures = outline('area_closures')
@@ -291,6 +331,12 @@ export function parseCapabilities(body: unknown): Capabilities {
     },
     ...parseModels(body),
     coverage: parseCoverage(body),
+    // Top level rather than under `limits`: it describes the deployment's
+    // database right now, not a bound a request is checked against. Anything
+    // but `places`, an older build's silence included, reads as Overpass.
+    discoverySource:
+      (body as { discovery_source?: unknown }).discovery_source === 'places' ? 'places' : 'overpass',
+    openMeteoHourlyCalls: num('open_meteo_hourly_calls', FALLBACK.openMeteoHourlyCalls),
   }
 }
 
