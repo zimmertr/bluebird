@@ -2926,7 +2926,7 @@ describe('the map layer rows', () => {
   })()
 
   it('found every row', () => {
-    expect(labels).toHaveLength(8)
+    expect(labels).toHaveLength(11)
   })
 
   // Alphabetical, because nothing else orders these: no cost, no severity and

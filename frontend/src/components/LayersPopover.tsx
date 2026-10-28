@@ -26,7 +26,7 @@ import { useLayerReach } from '../hooks/useLayerReach'
 import type { LayerCoverage } from '../utils/layerCoverage'
 import type { MapViewHandle } from './MapView'
 
-// One row of the Layers popover: a checkbox and what it switches. The seven
+// One row of the Layers popover: a checkbox and what it switches. The ten
 // overlays and the forecast player share it, because they are the same kind of
 // choice — about what the map shows, never about what the analysis asks for.
 function layerRow({
@@ -132,6 +132,12 @@ export default function LayersPopover({
     setShowSnow,
     showGrid,
     setShowGrid,
+    showContours,
+    setShowContours,
+    showRelief,
+    setShowRelief,
+    showSatellite,
+    setShowSatellite,
     setShowPlayer,
     playerShown,
   } = overlays
@@ -198,12 +204,12 @@ export default function LayersPopover({
   }, [popoverOpen])
 
   // Alphabetical by label, which is the only order a list of unrelated switches
-  // can be scanned in: these eight have no ranking between them — no cost, no
+  // can be scanned in: these eleven have no ranking between them — no cost, no
   // severity, no dependency — so any other order is one the reader has to
   // learn. The grid's own segment and slider still render under its row,
   // because they are that row's sub-choices rather than list members.
   //
-  // The player is a list member like the other seven even though it switches
+  // The player is a list member like the other ten even though it switches
   // something OFF the map rather than a picture onto it: it answers the same
   // question — what is on the map — and nothing about the report follows it,
   // so it is no more a knob than the overlays beside it.
@@ -220,6 +226,10 @@ export default function LayersPopover({
       onChange: setShowAreaClosures,
       disabled: outOfView.has('closedareas'),
     },
+    // The three ground layers (#799) never grey: the elevation tiles cover the
+    // world, and so does the imagery, from USGS over the United States and
+    // from EOX everywhere else.
+    { key: 'contours', label: 'Contours', checked: showContours, onChange: setShowContours },
     {
       key: 'grid',
       label: 'Forecast grid',
@@ -249,6 +259,8 @@ export default function LayersPopover({
       onChange: setShowRadar,
       disabled: outOfView.has('radar'),
     },
+    { key: 'satellite', label: 'Satellite', checked: showSatellite, onChange: setShowSatellite },
+    { key: 'relief', label: 'Shaded relief', checked: showRelief, onChange: setShowRelief },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke, disabled: outOfView.has('smoke') },
     { key: 'snow', label: 'Snow depth', checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
     {
