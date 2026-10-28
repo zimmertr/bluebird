@@ -125,6 +125,12 @@ export function stubMap(opts: StubMapOptions = {}) {
       layout[id] = { ...(layout[id] ?? {}), [key]: value }
       calls.push(['setLayoutProperty', id, key, value])
     },
+    // A paint value set since the stub was made, else the style's own, else
+    // undefined: the property left at its default, as MapLibre answers.
+    getPaintProperty: (id: string, key: string) =>
+      key in (paint[id] ?? {})
+        ? paint[id][key]
+        : (opts.styleLayers?.find((l) => l.id === id)?.paint as Record<string, unknown> | undefined)?.[key],
     setPaintProperty: (id: string, key: string, value: unknown) => {
       paint[id] = { ...(paint[id] ?? {}), [key]: value }
       calls.push(['setPaintProperty', id, key, value])
@@ -156,6 +162,7 @@ export function stubMap(opts: StubMapOptions = {}) {
     }),
     isSourceLoaded: (id: string) => opts.sourceLoaded?.(id) ?? true,
     triggerRepaint: () => calls.push(['triggerRepaint']),
+    refreshTiles: (id: string) => calls.push(['refreshTiles', id]),
     setStyle: (style: unknown, o?: unknown) => calls.push(['setStyle', style, o]),
     dragPan,
     // Screen pixels read back as degrees one to one, so a drag to (x, y)

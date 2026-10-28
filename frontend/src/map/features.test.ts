@@ -89,6 +89,16 @@ describe('mountFeatures', () => {
     ])
   })
 
+  // The imagery adds nothing on load, and switched on it goes directly above
+  // the style's background, under the style's every other layer and so under
+  // every feature the app adds (#799).
+  it('puts the satellite imagery under everything but the background', () => {
+    const { stub, features } = setup()
+    const before = [...stub.stack]
+    features.imagery.update({ show: true })
+    expect(stub.stack).toEqual(['background', 'imagery-eox', 'imagery-usgs', ...before.slice(1)])
+  })
+
   // Every popup opens through map/mapPopups.ts: one click and one pointer
   // listener for the whole map, and none on any layer (TJ, 2026-10-08).
   it('listens for the click and the pointer once, for the whole map, and on no layer', () => {
@@ -110,7 +120,7 @@ describe('mountFeatures', () => {
   it('hands back every feature the component drives', () => {
     const { features } = setup()
     expect(Object.keys(features).sort()).toEqual(
-      ['areaClosures', 'drawRing', 'grid', 'landmarks', 'pois', 'radar', 'results', 'smoke', 'snow', 'trailClosures', 'wildfires'].sort(),
+      ['areaClosures', 'drawRing', 'grid', 'imagery', 'landmarks', 'pois', 'radar', 'results', 'smoke', 'snow', 'trailClosures', 'wildfires'].sort(),
     )
   })
 })

@@ -2,7 +2,9 @@
  * Every feature on the map, mounted in the order its layers stack, lowest
  * first, when the map loads.
  *
- * The basemap patch goes under the style's own labels, and the trailhead and
+ * Lowest of all, the satellite imagery, which adds nothing until it is
+ * switched on and then goes directly above the style's background, under
+ * every other layer of the style (#799). The basemap patch goes under the style's own labels, and the trailhead and
  * crag markers over it, still under those labels. Above the style: the
  * forecast grid, which is the ground everything else is read against, then
  * smoke, then the fire perimeters, then the closures over the fires that
@@ -33,6 +35,7 @@ import { mountLandmarks, type LandmarkLayer } from './landmarks'
 import { mountMapPopups } from './mapPopups'
 import { mountClosures, type ClosureOverlay } from './overlays/closures'
 import { mountForecastGrid, type ForecastGridOverlay } from './overlays/forecastGrid'
+import { mountImagery, type ImageryOverlay } from './overlays/imagery'
 import { mountRadar, type RadarOverlay } from './overlays/radar'
 import { mountSmoke, type SmokeOverlay } from './overlays/smoke'
 import { mountSnow, type SnowOverlay } from './overlays/snow'
@@ -42,6 +45,7 @@ import type { PopupBoard } from './popups'
 import { mountResultsLayer, type ResultsLayer } from './resultsLayer'
 
 export interface MapFeatures {
+  imagery: ImageryOverlay
   grid: ForecastGridOverlay
   landmarks: LandmarkLayer
   smoke: SmokeOverlay
@@ -85,6 +89,7 @@ export function mountFeatures(
   // tiles go through the app's own schemes, which keep a copy to read what
   // they painted (#737).
   serveHeldTiles(addProtocol)
+  const imagery = mountImagery(map)
   enhanceBasemap(map)
   // After the basemap patch, which registers the icons its layers name.
   const landmarks = mountLandmarks(map, {})
@@ -108,5 +113,5 @@ export function mountFeatures(
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })
-  return { grid, landmarks, smoke, wildfires, areaClosures, trailClosures, snow, radar, drawRing, results, pois }
+  return { imagery, grid, landmarks, smoke, wildfires, areaClosures, trailClosures, snow, radar, drawRing, results, pois }
 }

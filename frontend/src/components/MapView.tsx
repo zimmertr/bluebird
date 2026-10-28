@@ -161,8 +161,9 @@ interface Props {
   // Mapterhorn's elevation tiles, and the aerial imagery, USGS's over the
   // United States and EOX's Sentinel-2 mosaic elsewhere (`terrainSources.ts`).
   // Like every layer above, a picture beside the ranking and never a knob.
-  // Accepted and not yet read: the memo already compares them, and phase 2 of
-  // #799 draws them.
+  // The contours and the relief are accepted and not yet read: the memo
+  // already compares them, and phase 2 of #799 draws them. The imagery is
+  // `map/overlays/imagery.ts`'s.
   showContours: boolean
   showRelief: boolean
   showSatellite: boolean
@@ -273,6 +274,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showRadar,
       showSmoke,
       showSnow,
+      showSatellite,
       radarIndex,
       gridSpec,
       gridCells,
@@ -838,6 +840,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.snow.update({ show: showSnow })
     }, [showSnow, mapReady])
+
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.imagery.update({ show: showSatellite })
+    }, [showSatellite, mapReady])
 
     useEffect(() => {
       if (mapReady) featuresRef.current?.radar.update({ show: showRadar, index: radarIndex })
