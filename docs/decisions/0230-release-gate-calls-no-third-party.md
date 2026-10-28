@@ -3,7 +3,7 @@
 - Status: Accepted. Changes no earlier record: the key header of [0025](0025-keyed-analyze-api.md) stays optional in the code.
 - Date: 2026-10-27
 - Decider: the maintainer (TJ), on #787, choosing C from options A, B and C
-- Issues and PRs: #787, #760, #317, #289, bluebird-helm#103, and the companion `Kubernetes-Manifests` PR that changes `analysisTemplate-apiTest.yml`
+- Issues and PRs: #787, #806, #760, #317, #289, bluebird-helm#103, and the companion `Kubernetes-Manifests` PR that changes `analysisTemplate-apiTest.yml`
 - Cited in code as: #787
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, the bullet "The browser path is the only path"; [`docs/CICD.md`](../CICD.md), Step 2
 
