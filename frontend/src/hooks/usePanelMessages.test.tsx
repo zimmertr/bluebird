@@ -132,6 +132,39 @@ describe('usePanelMessages', () => {
     ])
   })
 
+  // #803, D1: the ring's count ahead of Analyze, joined to the list's.
+  it("says the ring's count over the cap before any press, and only while the ring searches", () => {
+    const ring = { hasPins: false, drawPointCount: 3, polygonAreaKm2: 10, ringCount: 2613 }
+    const { result } = hook(ring)
+    expect(result.current.analyzeEnabled).toBe(false)
+    expect(result.current.messages.map((m) => m.text)).toEqual([
+      'This search covers 2,613 peaks. The analysis limit is 1,500 destinations.',
+    ])
+    // A cleared kind leaves a ring that searches nothing, whatever it held.
+    expect(hook({ ...ring, destinationTypes: [], hasPins: true }).result.current.analyzeEnabled).toBe(true)
+  })
+
+  // #803, D2: the known count priced against the hourly budget. The current
+  // hour is one weighted day: 3.6 calls a destination with air quality.
+  it('says the spend past the hourly budget, and prices compared models on the rows shown', () => {
+    const { result } = hook({ hasCustom: true, customCount: 2000, maxDestinations: 2500 })
+    expect(result.current.analyzeEnabled).toBe(false)
+    expect(result.current.messages.map((m) => m.text)).toEqual([
+      'This analysis needs 7,200 Open-Meteo calls. The hourly limit is 5,000.',
+    ])
+    expect(hook({ hasCustom: true, customCount: 1300 }).result.current.analyzeEnabled).toBe(true)
+    const compared = hook({ hasCustom: true, customCount: 1300, comparedModels: ['ecmwf_ifs025'], limit: 300 })
+    expect(compared.result.current.messages.map((m) => m.text)).toEqual([
+      'This analysis needs 5,160 Open-Meteo calls. The hourly limit is 5,000.',
+    ])
+  })
+
+  it('says nothing about the spend of a ring whose count is unknown', () => {
+    const { result } = hook({ hasPins: false, drawPointCount: 3, polygonAreaKm2: 10, customCount: 0 })
+    expect(result.current.analyzeEnabled).toBe(true)
+    expect(result.current.messages).toEqual([])
+  })
+
   it('hands the failure count on, which opens the list', () => {
     expect(hook({ failureSeq: 3 }).result.current.failureSeq).toBe(3)
   })

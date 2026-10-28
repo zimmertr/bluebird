@@ -1,5 +1,6 @@
 import { type ForecastSelection, selectionLocalWindow } from './calendar/calendarSelection'
 import type { WindowLimits } from './forecastWindow'
+import { roundTo } from './numbers'
 import { aqiSpan, callWeight, fetchSpans } from './openMeteo'
 import { CLOUD_VARIABLES, HOURLY_VARIABLES } from './openMeteoAggregate'
 
@@ -96,7 +97,11 @@ export function analysisCalls(i: SpendInputs): number {
  * reader can spend.
  */
 export function spendOver(calls: number, limit: number): { needed: number; limit: number } | null {
-  return calls > limit ? { needed: Math.ceil(calls), limit } : null
+  // Rounded to a millionth of a call first: 1.6 is not exact in binary, so
+  // 3 x 1.6 + 3.2 sums to a hair over 14 and would quote 15, or refuse an
+  // analysis that costs the budget exactly.
+  const priced = roundTo(calls, 6)
+  return priced > limit ? { needed: Math.ceil(priced), limit } : null
 }
 
 /** What the Analyze gate's spend veto reads off the panel. */

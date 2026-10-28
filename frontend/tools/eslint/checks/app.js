@@ -802,7 +802,7 @@ export const APP = [
     // A chunk in hand is a chunk the pacer let through, so the wait clears on
     // every chunk, not in the repaint, which late air quality also reaches. A
     // chunk that paced and then threw will not land either, so the failure
-    // path clears ahead of the gate that decides whether the layer withdraws.
+    // path clears ahead of marking the grid failed (#803: any failed chunk).
     name: 'app-grid-pace',
     files: ['src/hooks/useForecastGrid.ts'],
     ban: [
@@ -825,8 +825,8 @@ export const APP = [
       {
         selector:
           `CatchClause:has(${text('forecast grid fetch failed')}) > BlockStatement > ExpressionStatement[expression.callee.name="clearPace"]` +
-          ' ~ IfStatement[test.operator="==="][test.left.name="painted"][test.right.value=0]',
-        message: 'Clear the grid wait on failure ahead of the painted gate.',
+          ' ~ ExpressionStatement[expression.callee.name="setState"]',
+        message: 'Clear the grid wait on failure ahead of marking the grid failed.',
       },
     ],
   },

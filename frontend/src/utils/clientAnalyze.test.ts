@@ -9,6 +9,7 @@ import {
   assemble,
   canonicalTimes,
   capDetail,
+  spendDetail,
   customRows,
   discoveryBase,
   followTail,
@@ -414,6 +415,27 @@ afterEach(() => {
 })
 
 describe('runClientAnalysis', () => {
+  // #803, D2: the backstop for a field no count priced before Analyze. Three
+  // destinations over one day cost 3 x (1.6 weather + 1 cloud + 1 air
+  // quality) = 10.8 weighted calls, and a compared model adds the shown rows'
+  // weather.
+  it('refuses a field past the hourly budget before it fetches anything', async () => {
+    stubOpenMeteo(THREE_PRECIPS)
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const run = (hourlyCalls: number, comparedModels = 0) =>
+      runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, { nowMs: startMs, hourlyCalls, comparedModels })
+    const refused = run(10)
+    await expect(refused).rejects.toBeInstanceOf(AnalysisRefusalError)
+    await expect(refused).rejects.toThrow(spendDetail(11, 10))
+    expect(fetch).not.toHaveBeenCalled()
+    // REQUEST shows two rows: one compared model adds 2 x 1.6.
+    await expect(run(12, 1)).rejects.toThrow(spendDetail(14, 12))
+    expect(fetch).not.toHaveBeenCalled()
+    const out = await run(11)
+    expect(out.universe).toHaveLength(3)
+  })
+
   it('ranks, trims to limit, and reports total_queried', async () => {
     stubOpenMeteo(THREE_PRECIPS)
     const dests = customRows(THREE)

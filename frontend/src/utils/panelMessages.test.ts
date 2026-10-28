@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AQI_NOTE_KEY, panelMessages, type PanelMessageInputs } from './panelMessages'
+import { AQI_NOTE_KEY, AQI_PARTIAL_KEY, panelMessages, type PanelMessageInputs } from './panelMessages'
 import type { AnalyzeBlocker } from './analyzeGate'
 import type { CommitReason } from './present'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
@@ -332,6 +332,29 @@ describe('panelMessages', () => {
     // already says so.
     it('stays quiet when the window is wholly past the horizon', () => {
       expect(keys({ ...empty, aqiCoverage: 'none' })).toEqual(['window:aqi-horizon'])
+    })
+  })
+
+  // #803, D5: one refused air-quality batch nulls every batch after it, so a
+  // field can rank on air quality with holes in it.
+  describe('air quality that failed for part of the field', () => {
+    const partial = { hasReport: true, aqiPartial: true }
+
+    it('warns in the approved sentence', () => {
+      expect(only(partial)).toEqual({
+        key: AQI_PARTIAL_KEY,
+        text: 'Air quality data is missing for some destinations.',
+        severity: 'warn',
+      })
+    })
+
+    it.each([
+      ['there is no report', { hasReport: false }],
+      ['an analysis runs', { loading: true }],
+      ['the run failed', { error: { message: 'boom' } }],
+      ['every displayed row is without it, which the other line says', { aqiAllNull: true }],
+    ] as [string, Partial<PanelMessageInputs>][])('stays quiet when %s', (_case, over) => {
+      expect(keys({ ...partial, ...over })).not.toContain(AQI_PARTIAL_KEY)
     })
   })
 

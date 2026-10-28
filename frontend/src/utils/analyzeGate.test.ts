@@ -520,6 +520,28 @@ describe('analyzeGateFor', () => {
     expect(canAnalyze(gateOf({ customCount: 1501 }))).toBe(false)
   })
 
+  // #803, D1: the ring's count ahead of Analyze joins the list's, because the
+  // pod refuses the union, and a ring alone names its one kind.
+  it("holds a ring whose count ahead of Analyze is over the cap, alone or with the list", () => {
+    const ring = { hasPins: false, drawPointCount: 3, polygonAreaKm2: 10, destinationTypes: ['peak' as const] }
+    expect(gateOf({ ...ring, ringCount: 1500 }).overCap).toBeNull()
+    expect(gateOf({ ...ring, ringCount: 2613 }).overCap).toEqual({ found: 2613, noun: 'peak', limit: 1500 })
+    expect(gateOf({ ...ring, ringCount: 1400, customCount: 101 }).overCap).toEqual({
+      found: 1501,
+      noun: 'destination',
+      limit: 1500,
+    })
+    expect(canAnalyze(gateOf({ ...ring, ringCount: 2613 }))).toBe(false)
+    expect(canAnalyze(gateOf({ ...ring, ringCount: null }))).toBe(true)
+  })
+
+  it('holds a spend the panel priced past the budget', () => {
+    const spend = { needed: 9407, limit: 5000 }
+    expect(gateOf({ spend }).spend).toEqual(spend)
+    expect(canAnalyze(gateOf({ spend }))).toBe(false)
+    expect(analyzeBlockers({ ...gateOf({ spend }), drawPointCount: 0 })).toEqual(['spend'])
+  })
+
   it('holds a refusal that stands, and lets one go once the panel moves', () => {
     const failed = analyzedSnapshot(discoveryKeys(null, [], false))
     const refusal = { message: 'This search covers 1,501 destinations. The analysis limit is 1,500 destinations.' }
