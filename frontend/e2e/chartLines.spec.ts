@@ -2,11 +2,13 @@ import { test, expect, resultRows, isoDay } from './fixtures'
 
 // Up to twenty lines, every chart line is a ColorBrewer Set1 colour of its
 // own, with nothing drawn round it (#801): in light each clears 3:1 against
-// the panel, and in dark Brewer's first five do. Each stroke is a
-// `light-dark()` pair the browser resolves against the root's colour scheme
-// (#786), which jsdom cannot do, so only a browser can say a line paints its
-// colour in each theme and that no filter stands over the lines. The
-// fixture's five lines are Brewer's first five.
+// the panel. Dark asserts no ratio: four of its twenty stand under 3:1 by
+// decision (record 0228), Brewer's purple among the fixture's five, and
+// `chartColors.test.ts` pins every one. Each stroke is a `light-dark()` pair
+// the browser resolves against the root's colour scheme (#786), which jsdom
+// cannot do, so only a browser can say a line paints its colour in each theme
+// and that no filter stands over the lines. The fixture's five lines are
+// Brewer's first five.
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
@@ -26,7 +28,7 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05)
 }
 
-test('draws each chart line in a colour of its own at 3:1 in each theme, under no filter', async ({ page }) => {
+test('draws each chart line in a colour of its own, at 3:1 in light, under no filter', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('bluebird_forecast_theme', 'light'))
   await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
@@ -37,9 +39,9 @@ test('draws each chart line in a colour of its own at 3:1 in each theme, under n
     page.locator('svg.recharts-surface path.recharts-line-curve').evaluateAll((paths) => paths.map((p) => getComputedStyle(p).stroke))
   const filtered = () =>
     page.locator('svg.recharts-surface g').evaluateAll((groups) => groups.filter((g) => getComputedStyle(g).filter !== 'none').length)
-  const holds = (seen: string[], panel: string) => {
+  const holds = (seen: string[], panel?: string) => {
     expect(new Set(seen).size).toBe(seen.length)
-    for (const stroke of seen) expect(contrast(stroke, panel), stroke).toBeGreaterThanOrEqual(3)
+    if (panel) for (const stroke of seen) expect(contrast(stroke, panel), stroke).toBeGreaterThanOrEqual(3)
   }
 
   await expect.poll(async () => (await strokes()).length).toBeGreaterThan(1)
@@ -51,6 +53,6 @@ test('draws each chart line in a colour of its own at 3:1 in each theme, under n
   await expect.poll(strokes).not.toEqual(light)
   const dark = await strokes()
   expect(dark).toHaveLength(light.length)
-  holds(dark, PANEL.dark)
+  holds(dark)
   expect(await filtered()).toBe(0)
 })
