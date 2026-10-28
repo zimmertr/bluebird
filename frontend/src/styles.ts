@@ -9,7 +9,7 @@
  * They are not two scales. The dialog title is the panel header's title, one
  * size for both since #687 (both are the name of the surface they head), and
  * the dialog subtitle is the caption step one size up, the same recipe the
- * tagline under the app title wears, and both say "The Weather Window Finder"
+ * tagline under the app title wears, and both say "Weather Window Finder"
  * (record 0222).
  * And the reading tier's small step lands exactly on the compact tier's base,
  * so the two share the 12px rung rather than running past each other. Naming
@@ -180,18 +180,6 @@ export const PROSE = {
    */
   strong: 'font-semibold text-ink-strong',
   note: CAPTION,
-} as const
-
-/**
- * The tagline, "The Weather Window Finder", under the app's name in the
- * panel's header and in the welcome dialog: each surface's secondary line, in
- * italics as a slogan is set (the maintainer, #801). A role of its own so the
- * italic reaches the tagline and not the other lines those two roles set,
- * a page's subtitle among them.
- */
-export const TAGLINE = {
-  panel: `${TEXT.caption} italic`,
-  dialog: `${PROSE.subtitle} italic`,
 } as const
 
 /**
@@ -2533,15 +2521,13 @@ export const PANEL_BODY =
  * their roles and sizes, so the block is 54.5px of text and padding and the
  * logo's 56px sets the height. That is 24px back to the scrolling body on
  * every screen, 9% of a 900px window spent on fixed chrome becoming 6%
- * (measured 2026-10-13: 81 to 57px).
- *
- * The title block centres the name over the tagline (the maintainer, #801):
- * the two lines are within about 7px of one width, so the block reads as one
- * lockup beside the logo rather than two lines that start together.
+ * (measured 2026-10-13: 81 to 57px). The name and the tagline start together
+ * at the block's left edge, as they always have: the maintainer tried them
+ * centred and had them put back (#801, record 0229).
  */
 export const PANEL_HEADER = {
   logo: 'm-2 h-10 w-10 flex-shrink-0 object-cover',
-  title: 'flex flex-col justify-center px-3 py-2 text-center',
+  title: 'flex flex-col justify-center px-3 py-2',
   /**
    * Where the header's round buttons stand: the theme switch and the close
    * button, at the top right, 8px apart (#706). 12px down, so a 32px circle's

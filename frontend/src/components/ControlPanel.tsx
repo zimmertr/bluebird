@@ -6,7 +6,7 @@ import MetricsTable from './MetricsTable'
 import PanelFooter from './PanelFooter'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { distinctRows } from '../utils/customList'
-import { CONTROLS_SHEET, PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TAGLINE, TEXT } from '../styles'
+import { CONTROLS_SHEET, PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
 import { useScrollShadows } from '../hooks/useScrollShadows'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import { MetricFamily } from '../metrics'
@@ -219,7 +219,7 @@ export default function ControlPanel({
           />
           <div className={PANEL_HEADER.title}>
             <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
-            <p className={TAGLINE.panel}>The Weather Window Finder</p>
+            <p className={TEXT.caption}>Weather Window Finder</p>
           </div>
         </div>
       )}

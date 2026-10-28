@@ -1,6 +1,6 @@
 # 0226. The panel's name centres over an italic tagline, and its round buttons centre on the logo
 
-- Status: Accepted. Amends [0222](0222-one-card-one-close-one-type-ramp.md): the tagline keeps its words and is set in italics.
+- Status: Superseded by [0229](0229-header-left-upright-no-the.md) in its lockup clauses: the name is left-aligned and the tagline upright, "Weather Window Finder". Its button centring stands. Amends [0222](0222-one-card-one-close-one-type-ramp.md): the tagline keeps its words and is set in italics.
 - Date: 2026-10-22
 - Decider: the maintainer (TJ), on #801, asking whether the header's buttons were centred, whether the name should centre over the tagline, and whether the tagline should be italic like a slogan, then taking all three
 - Issues and PRs: #801

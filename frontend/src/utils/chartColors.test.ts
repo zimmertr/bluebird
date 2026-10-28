@@ -7,75 +7,87 @@ import {
   BASE_PALETTE_SIZE,
   CHART_CHROME,
   CHROME,
+  CROWDED_PAST,
   LINE_DRAW,
 } from './chartColors'
-import { contrast, mixOver, round2 } from '../testSupport/contrast'
+import { contrast, round2 } from '../testSupport/contrast'
 import { themed } from './themeColor'
 
 const THEMES = ['dark', 'light'] as const
 
-// Tableau 10 (#801), in its own order: blue, orange, red, teal, green,
-// yellow, purple, pink, brown, grey. Dark as published; light with the six
-// that fall under 3:1 on the light panel darkened, hue kept, until they clear.
-const TABLEAU_10 = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac']
-const ten = (theme: (typeof THEMES)[number]) => Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => colorForIndex(i, theme))
+// ColorBrewer Set1 (#801): Brewer's nine, then a lighter shade of each and a
+// darker shade of the first two, every one turned five degrees toward red,
+// as the Chart Palette Lab drew them for the maintainer. Light makes its
+// shades darker first, and darkens the eight of its twenty that fell under
+// 3:1 on the light panel.
+const DARK = [
+  '#e41534', '#2c80b6', '#5dad3d', '#9350a9', '#ff7e30', '#fff9a8', '#a85430', '#f382c8', '#999999', '#fe5a4a',
+  '#619cd1', '#76cd77', '#b471bc', '#ffb484', '#f5f859', '#c07850', '#fdb6d7', '#b8b8b8', '#a33417', '#365f8d',
+]
+const LIGHT = [
+  '#e41534', '#2c80b6', '#4d9d2a', '#9350a9', '#e46602', '#958e3f', '#a85430', '#d365ab', '#8a8a8a', '#ac221a',
+  '#256092', '#368e3a', '#76367d', '#cd6b19', '#8f9000', '#803d13', '#ce699d', '#7b7b7b', '#e9603f', '#648ebf',
+]
+const all = (theme: (typeof THEMES)[number]) => Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => colorForIndex(i, theme))
 
 describe('colorForIndex', () => {
-  it('paints Tableau 10, fitted to 3:1 in light', () => {
-    expect(ten('dark')).toEqual(TABLEAU_10)
-    expect(ten('light')).toEqual([
-      '#4e79a7', '#cf7200', '#e15759', '#559591', '#529a48', '#a68700', '#b07aa1', '#cc6f7a', '#9c755f', '#928884',
-    ])
+  it('paints the lab\'s twenty in dark, and the eight under 3:1 darkened in light', () => {
+    expect(BASE_PALETTE_SIZE).toBe(20)
+    expect(all('dark')).toEqual(DARK)
+    expect(all('light')).toEqual(LIGHT)
+    // Brewer's own nine that clear 3:1 in light are the same hex in both.
+    for (const i of [0, 1, 3, 6]) expect(LIGHT[i]).toBe(DARK[i])
   })
 
-  // Past ten the palette comes round again, as Tableau's does.
-  it('repeats the ten past the tenth line', () => {
+  // Past twenty the palette comes round again, as Tableau's does.
+  it('repeats the twenty past the twentieth line', () => {
     for (const theme of THEMES) {
-      for (const index of [BASE_PALETTE_SIZE, 17, 42, 999]) {
+      for (const index of [BASE_PALETTE_SIZE, 37, 42, 999]) {
         expect(colorForIndex(index, theme)).toBe(colorForIndex(index % BASE_PALETTE_SIZE, theme))
       }
     }
   })
+
+  // The lab's line settings, chosen with the palette: 1px up to thirty lines,
+  // a 0.5px hairline past, full strength at any count, 2.5px under the
+  // pointer with the rest at half.
+  it('draws a hairline past thirty lines and never fades a crowd', () => {
+    expect(CROWDED_PAST).toBe(30)
+    expect(LINE_DRAW).toEqual({ width: 1, crowdedWidth: 0.5, focusedWidth: 2.5, dimmedOpacity: 0.5 })
+  })
 })
 
 describe('the palette in each theme (#706)', () => {
-  // Ten colours a theme, at the same index in each, so a switch recolours a
-  // line without moving it along the palette.
-  it('keeps ten colours a theme, all different', () => {
-    for (const theme of THEMES) expect(new Set(ten(theme)).size).toBe(BASE_PALETTE_SIZE)
+  // Twenty colours a theme, at the same index in each, so a switch recolours
+  // a line without moving it along the palette.
+  it('keeps twenty colours a theme, all different', () => {
+    for (const theme of THEMES) expect(new Set(all(theme)).size).toBe(BASE_PALETTE_SIZE)
   })
 
-  // A series line is a graphic the reader tells apart from its ground, so at
-  // full strength it owes the panel 3:1 (WCAG 1.4.11) by itself, in both
-  // themes (#801). Measured 2026-10-22: light 3.04 to 4.05 on the light panel,
-  // dark 3.21 to 9.08 on slate-800.
-  it('stands every colour at 3:1 or better on the panel', () => {
-    const ratios = (theme: (typeof THEMES)[number]) => ten(theme).map((c) => contrast(c, CHART_CHROME[theme].surface))
-    for (const theme of THEMES) for (const ratio of ratios(theme)) expect(ratio, theme).toBeGreaterThanOrEqual(3)
+  // A series line is a graphic the reader tells apart from its ground, so it
+  // owes the panel 3:1 (WCAG 1.4.11). Light clears it everywhere, 3.01 to
+  // 7.21 on the light panel, because its eight were darkened to it. Dark is
+  // the lab's output untouched, 2.13 to 13.48 on slate-800, with four of the
+  // twenty under 3:1 (the two dark shades, purple and brown), which the
+  // maintainer accepted with Tableau's lead (#801). Measured 2026-10-27.
+  it('stands every light colour at 3:1 or better on the panel, and dark all but four', () => {
+    const ratios = (theme: (typeof THEMES)[number]) => all(theme).map((c) => contrast(c, CHART_CHROME[theme].surface))
     const span = (xs: number[]) => [round2(Math.min(...xs)), round2(Math.max(...xs))]
-    expect(span(ratios('light'))).toEqual([3.04, 4.05])
-    expect(span(ratios('dark'))).toEqual([3.21, 9.08])
-  })
-
-  // Past ten lines each is drawn at 55%, which the maintainer accepted under
-  // 3:1 with Tableau's lead (#801). Pinned so a change to the palette or the
-  // fade re-measures the claim in `LINE_DRAW`'s comment.
-  it('measures a crowded line at its fade', () => {
-    const faded = (theme: (typeof THEMES)[number]) =>
-      ten(theme).map((c) => contrast(mixOver(c, CHART_CHROME[theme].surface, LINE_DRAW.crowdedOpacity), CHART_CHROME[theme].surface))
-    const span = (xs: number[]) => [round2(Math.min(...xs)), round2(Math.max(...xs))]
-    expect(span(faded('light'))).toEqual([1.75, 2.01])
-    expect(span(faded('dark'))).toEqual([1.9, 3.75])
+    for (const ratio of ratios('light')) expect(ratio).toBeGreaterThanOrEqual(3)
+    expect(span(ratios('light'))).toEqual([3.01, 7.21])
+    expect(span(ratios('dark'))).toEqual([2.13, 13.48])
+    expect(ratios('dark').filter((r) => r < 3)).toHaveLength(4)
   })
 
   // A line's colour is both themes' shades of its index at once, light
-  // first, which the root's colour scheme picks between (#786). Tableau's
-  // blue is the same in both, so it is written once.
+  // first, which the root's colour scheme picks between (#786). A colour the
+  // same in both is written once.
   it('resolves a whole allocation to both themes\' shades at once', () => {
-    const held = allocateColors({}, ['a', 'b'])
+    const held = allocateColors({}, ['a', 'b', 'c'])
     expect(paletteColors(held)).toEqual({
-      a: '#4e79a7',
-      b: 'light-dark(#cf7200, #f28e2b)',
+      a: '#e41534',
+      b: '#2c80b6',
+      c: 'light-dark(#4d9d2a, #5dad3d)',
     })
   })
 

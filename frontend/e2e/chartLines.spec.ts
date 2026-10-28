@@ -1,11 +1,12 @@
 import { test, expect, resultRows, isoDay } from './fixtures'
 
-// Up to ten lines, every chart line is a Tableau 10 colour of its own that
-// clears 3:1 against the panel by itself, in both themes, with nothing drawn
-// round it (#801). Each stroke is a `light-dark()` pair the browser resolves
-// against the root's colour scheme (#786), which jsdom cannot do, so only a
-// browser can say a line paints its colour in each theme and that no filter
-// stands over the lines. The fixture's five lines are under the ten.
+// Up to twenty lines, every chart line is a ColorBrewer Set1 colour of its
+// own, with nothing drawn round it (#801): in light each clears 3:1 against
+// the panel, and in dark Brewer's first five do. Each stroke is a
+// `light-dark()` pair the browser resolves against the root's colour scheme
+// (#786), which jsdom cannot do, so only a browser can say a line paints its
+// colour in each theme and that no filter stands over the lines. The
+// fixture's five lines are Brewer's first five.
 
 test.use({ viewport: { width: 1280, height: 900 } })
 

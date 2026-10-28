@@ -16,7 +16,6 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `TEXT.cta` | Single call-to-action text, step up from body |
 | `TEXT.control` | Anything you read or type in a control, and every field label beside one: Model, When, Rank by, Hours, at one weight (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
 | `TEXT.caption` | Secondary text: descriptions, notes |
-| `TAGLINE` | The tagline under the app's name, in italics as a slogan is set: `panel` is `TEXT.caption` italic, `dialog` the welcome dialog's `PROSE.subtitle` italic. Its own role, so the italic reaches no other line those roles set (record [0226](decisions/0226-header-lockup-centred-tagline-italic.md)) |
 | `TEXT.helper` | Italic prose explaining a control |
 | `TEXT.overline` | Tiny all-caps labels: the model list's group heads and columns, the player's axis |
 | `TEXT.micro` | Attribution, timestamps, overflow counts. 11px, the floor for text that is read, and never on a button or a link a reader presses (see The type floor below) |
@@ -91,7 +90,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `SLIDER` | The parts of the two range inputs that are not the input itself, one object since #687: `overlay`, `value`, `wordmark` and `idle` are the coverage slider in the Layers popover (the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint), `well` is the recessed well that slider's layers stack in, and `track` is the rail the map timeline's scrubber slides on |
 | `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint (the rule under the header, the one over the footer, and since #697 the panel's right edge against the map and the results), and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `PANEL_BODY` | The panel's scrolling body: `px-4 py-4`, the shared bar with its width kept (`scrollbar-gutter: stable`, so the column never jumps when a section opens), and both scroll shadows reaching across the padding |
-| `PANEL_HEADER` | The panel's header, 56px plus its rule: a 40px logo with 8px around it, and the title block at `py-2`. It was 81px (#687). `actions` is the top-right spot its round buttons share, the theme switch on the close button's left (#706). `actions` stands 12px down so the buttons centre at 28px with the logo, and `title` centres the name over the tagline (record [0226](decisions/0226-header-lockup-centred-tagline-italic.md)) |
+| `PANEL_HEADER` | The panel's header, 56px plus its rule: a 40px logo with 8px around it, and the title block at `py-2`. It was 81px (#687). `actions` is the top-right spot its round buttons share, the theme switch on the close button's left (#706). `actions` stands 12px down so the buttons centre at 28px with the logo (record [0226](decisions/0226-header-lockup-centred-tagline-italic.md)), and `title` starts the name and the tagline together at the left: the maintainer tried them centred, with the tagline in italics, and had both put back (record [0229](decisions/0229-header-left-upright-no-the.md)) |
 | `HEADER_BUTTON` | A round button in a panel's header: the desk panel's close button and the theme switch, and the switch again beside Done in a phone's Controls sheet title row (`BOTTOM_SHEET.actions`). A 32px circle on either pointer, a finger's height and no wider, where `TAP.action`'s 44px width would draw a capsule (record [0223](decisions/0223-finger-controls-draw-32.md)). The close button's recipe, named once it had a twin (#706) |
 | `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the `edge` and `panel` tokens (slate-500 on slate-800 in dark); the root's `color-scheme` turns every bar it does not reach to the theme too (#697, record 0128) |
 | `SCROLL_SHADOW` | A slate-950 shade at 70% (in light, the ink at 12%) over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
@@ -309,14 +308,17 @@ panel over its tint: the verdict ramp 5.42 to 6.27:1, temperature 5.44 to
 7.26:1, the freezing level 5.83 to 8.06:1, and the cloud deck and snowfall as
 the reverses of the two they mirror.
 
-**The chart.** `chartColors.ts` draws the lines in Tableau 10: as published in
-dark, and in light with the six that fall under 3:1 on the panel darkened, hue
-kept, until they clear it. Every colour stands 3:1 off its panel at full
-strength, so nothing in a line's colour wears an edge: not the lines, the dots,
-the readout's swatches, the legend's dots or a ticked chart box. Past ten lines
-the colours repeat, as Tableau's do, and every line drops from 1.5px to 1px at
-55% (`LINE_DRAW`), so a crowd reads as one band (record
-[0228](decisions/0228-chart-lines-tableau-10.md)). The allocator stores an
+**The chart.** `chartColors.ts` draws the lines in ColorBrewer Set1, twenty
+shades a theme: Brewer's nine, a lighter shade of each, and a darker shade of
+the first two, the set the maintainer chose in the Chart Palette Lab. Dark is
+that set as the lab drew it. Light makes the darker shades first and lowers the
+eight that fall under 3:1 on the panel, hue and chroma kept, until they clear
+it. Nothing in a line's colour wears an edge: not the lines, the dots, the
+readout's swatches, the legend's dots or a ticked chart box. The twenty repeat
+past the twentieth line, and `LINE_DRAW` holds every line at full strength at
+any count, 1px up to `CROWDED_PAST`'s thirty and a 0.5px hairline past it, so
+a crowd reads as a weave rather than a wall (record
+[0228](decisions/0228-chart-lines-set1-twenty.md)). The allocator stores an
 index rather than a colour, so a switch recolours every line, swatch and table
 checkbox without reallocating which destination has which slot. Every colour
 reaches the chart as `light-dark()` (`lineColor` and `CHROME`), so a switch
@@ -541,10 +543,11 @@ The rest of the theme, role by role, each pinned as a literal:
   dark white thumb's 2.71 on its own.
 - **The scroll shade** is the ink at 12%, 1.27:1 off the light panel, where
   dark's slate-950 at 70% stands 1.29:1 off its own.
-- **Chart lines** read 3.04 to 4.05:1 on the light panel and 3.21 to 9.08
-  on slate-800. Past ten lines, at 55%, they read 1.75 to 2.01 in light and
-  1.90 to 3.75 in dark, under 3:1, which the maintainer accepted with
-  Tableau's lead (#801). The axis reads 8.34 in light and 5.56 in dark.
+- **Chart lines** read 3.01 to 7.21:1 on the light panel, every one of the
+  twenty at or over 3:1, and 2.13 to 13.48 on slate-800, where four stand
+  under 3:1 (the two darkest shades, purple and brown), which the maintainer
+  accepted with Tableau's lead (#801). The axis reads 8.34 in light and 5.56
+  in dark.
 
 **Re-measure condition:** every one of these numbers is a literal in
 `styles.test.ts`, `colors.test.ts` or `chartColors.test.ts`, so changing a

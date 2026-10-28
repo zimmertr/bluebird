@@ -86,59 +86,90 @@ export const CHROME: Record<keyof ChartChrome, string> = {
  * had a name (#687), and `styles.test.ts` holds it to the ramp.
  */
 export const CHART_TICK_PX = 11
-// Tableau 10 (#801): ten colours of middling lightness and saturation, made
-// to be told apart and to sit on a light page or a dark one alike. A chart
-// past ten lines repeats them, as Tableau does, because no reader matches a
-// fortieth colour to a legend; the hover box names the line, and
-// `TimeSeriesChart` thins and fades a crowded chart's lines so the repeats
-// blend into a band. Each owes the panel 3:1 (WCAG 1.4.11) at full strength.
-// Dark is Tableau 10 as published, 3.21 to 9.08:1 on slate-800. On the light
-// panel six of them fall under 3:1, so each of those is darkened in OKLCH,
-// hue and chroma kept, only until it clears it (3.06 to 3.09:1), and the light ten read 3.04 to 4.05:1. The
-// maintainer picked this from mockups at five lines and at seventy-one in
-// both themes, 2026-10-22. `chartColors.test.ts` measures every one. An index
-// means the same colour family in either theme, which is what lets a switch
+// ColorBrewer Set1 (#801), twenty colours: Brewer's nine strong primaries,
+// then a lighter shade of each, then a darker shade of the first two, every
+// one turned five degrees of hue toward red. The maintainer chose it in the
+// Chart Palette Lab (2026-10-23) from forty-two palettes drawn live on a
+// hundred-line chart in both themes, and these hexes are the lab's own
+// output, so what ships is what was chosen. The chart repeats the twenty past
+// the twentieth line, as Tableau does, because no reader matches a fortieth
+// colour to a legend; the hover box names the line.
+//
+// Dark is that output as drawn: on a dark ground the lab makes the lighter
+// shades first. Light makes the darker shades first, and eight of its twenty
+// fell under the 3:1 a graphic owes its ground (WCAG 1.4.11), Brewer's yellow
+// at 1.04:1, which cannot be seen on the light panel; each of those drops in
+// OKLCH lightness alone, hue and chroma kept, until it clears 3:1, so the
+// yellow lands at a gold. Dark keeps the four of its twenty that read under
+// 3:1 (2.13 to 2.77), which the maintainer accepted with Tableau's lead.
+// `chartColors.test.ts` spells all forty and measures them. An index means
+// the same colour family in either theme, which is what lets a switch
 // recolour a line rather than re-allocate it.
 const BASE_PALETTE: Record<Theme, readonly string[]> = {
-  light: [
-    '#4e79a7', // blue
-    '#cf7200', // orange, darkened from #f28e2b
-    '#e15759', // red
-    '#559591', // teal, darkened from #76b7b2
-    '#529a48', // green, darkened from #59a14f
-    '#a68700', // yellow, darkened from #edc948
-    '#b07aa1', // purple
-    '#cc6f7a', // pink, darkened from #ff9da7
-    '#9c755f', // brown
-    '#928884', // grey, darkened from #bab0ac
-  ],
   dark: [
-    '#4e79a7', // blue
-    '#f28e2b', // orange
-    '#e15759', // red
-    '#76b7b2', // teal
-    '#59a14f', // green
-    '#edc948', // yellow
-    '#b07aa1', // purple
-    '#ff9da7', // pink
-    '#9c755f', // brown
-    '#bab0ac', // grey
+    '#e41534', // red
+    '#2c80b6', // blue
+    '#5dad3d', // green
+    '#9350a9', // purple
+    '#ff7e30', // orange
+    '#fff9a8', // yellow
+    '#a85430', // brown
+    '#f382c8', // pink
+    '#999999', // grey
+    '#fe5a4a', // light red
+    '#619cd1', // light blue
+    '#76cd77', // light green
+    '#b471bc', // light purple
+    '#ffb484', // light orange
+    '#f5f859', // light yellow
+    '#c07850', // light brown
+    '#fdb6d7', // light pink
+    '#b8b8b8', // light grey
+    '#a33417', // dark red
+    '#365f8d', // dark blue
+  ],
+  light: [
+    '#e41534', // red
+    '#2c80b6', // blue
+    '#4d9d2a', // green, darkened from #5dad3d
+    '#9350a9', // purple
+    '#e46602', // orange, darkened from #ff7e30
+    '#958e3f', // yellow, darkened from #fff9a8
+    '#a85430', // brown
+    '#d365ab', // pink, darkened from #f382c8
+    '#8a8a8a', // grey, darkened from #999999
+    '#ac221a', // dark red
+    '#256092', // dark blue
+    '#368e3a', // dark green
+    '#76367d', // dark purple
+    '#cd6b19', // dark orange
+    '#8f9000', // dark yellow, darkened from #dbdd35
+    '#803d13', // dark brown
+    '#ce699d', // dark pink
+    '#7b7b7b', // dark grey
+    '#e9603f', // light red, darkened from #f26847
+    '#648ebf', // light blue, darkened from #709acc
   ],
 }
 
 export const BASE_PALETTE_SIZE = BASE_PALETTE.dark.length
 
 /**
- * How a series line is drawn (#801), following Tableau. Up to the palette's
- * ten, every line has a colour of its own and is drawn at 1.5px, full
- * strength. Past ten the colours come round again, so every line drops to
- * 1px at 55% and a crowd blends into one band rather than a tangle of
- * repeats; at 55% a line reads under 3:1 on its panel (1.75 to 2.01 in light,
- * 1.90 to 3.75 in dark), which the maintainer accepted with Tableau's lead
- * (2026-10-22). The focused line stands at 2.5px and full strength either
- * way, and the rest dim to a quarter while it does.
+ * How many lines a chart may hold before it is crowded, chosen in the lab
+ * with the palette (#801): past it every line is a hairline.
  */
-export const LINE_DRAW = { width: 1.5, crowdedWidth: 1, focusedWidth: 2.5, crowdedOpacity: 0.55, dimmedOpacity: 0.25 } as const
+export const CROWDED_PAST = 30
+
+/**
+ * How a series line is drawn (#801), chosen in the lab with the palette. Up
+ * to `CROWDED_PAST` lines each is 1px; past it each is a 0.5px hairline, so
+ * a hundred lines read as a weave rather than a wall. Every line is full
+ * strength at any count: a fade sinks the palette's darker colours into the
+ * slate and leaves its yellow and orange, so a crowd reads as its two
+ * loudest hues. The focused line stands at 2.5px either way, and the rest
+ * fall to half while it does.
+ */
+export const LINE_DRAW = { width: 1, crowdedWidth: 0.5, focusedWidth: 2.5, dimmedOpacity: 0.5 } as const
 
 /**
  * The hex an allocated index paints in a theme: the palette, round again past
@@ -183,8 +214,8 @@ export function paletteColors(indices: Readonly<Record<string, number>>): Record
  * pair on the comparison chart (by `pairKey`). One counter for both is the
  * whole point — two allocators over one palette would hand the same colour to
  * a destination and to a line standing beside it while the chart still had
- * colours to spare. One counter keeps the first ten lines, of either kind,
- * ten colours; only past ten does the palette come round again (#801).
+ * colours to spare. One counter keeps the first twenty lines, of either kind,
+ * twenty colours; only past twenty does the palette come round again (#801).
  *
  * Monotonic in what is already assigned, so a colour is allocated once and
  * kept: a line never changes hue because another was added or taken away, and

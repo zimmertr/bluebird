@@ -124,7 +124,6 @@ import {
   SWATCH_RAMP_SCRIM,
   SWATCH_RAMP_TICK,
   TAP,
-  TAGLINE,
   TEXT,
   YIELD_EMPTY,
 } from './styles'
@@ -181,6 +180,7 @@ import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
 import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
 import resultsBarSource from './components/ResultsBar.tsx?raw'
+import welcomeSource from './components/WelcomeModal.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
@@ -455,13 +455,13 @@ describe('the reading tier', () => {
     expect(PROSE.subtitle.replace('text-sm', 'text-xs')).toBe(TEXT.caption)
   })
 
-  // The tagline is each surface's secondary line set in italics, and the
-  // italic is the tagline's alone (#801).
-  it('sets the tagline in italics on the roles it would otherwise wear', () => {
-    expect(TAGLINE.panel).toBe(`${TEXT.caption} italic`)
-    expect(TAGLINE.dialog).toBe(`${PROSE.subtitle} italic`)
+  // The tagline is each surface's secondary line, upright: the maintainer
+  // tried it in italics and had it put back (#801, record 0229).
+  it('keeps the tagline upright on the roles it wears', () => {
     expect(TEXT.caption).not.toContain('italic')
     expect(PROSE.subtitle).not.toContain('italic')
+    expect(controlPanelSource).toContain('<p className={TEXT.caption}>Weather Window Finder</p>')
+    expect(welcomeSource).toContain('<p className={PROSE.subtitle}>Weather Window Finder</p>')
   })
 
 })
@@ -3895,9 +3895,10 @@ describe('the panel frame', () => {
     expect(PANEL_HEADER.title).toContain('justify-center')
   })
 
-  // The name centres over the tagline (#801).
-  it('centres the title over the tagline', () => {
-    expect(PANEL_HEADER.title.split(' ')).toContain('text-center')
+  // The name and the tagline start together at the block's left edge: the
+  // maintainer tried them centred and had them put back (#801, record 0229).
+  it('starts the title and the tagline together', () => {
+    expect(PANEL_HEADER.title.split(' ')).not.toContain('text-center')
   })
 
   // One bar style on every dark surface, and the panel body reserves its

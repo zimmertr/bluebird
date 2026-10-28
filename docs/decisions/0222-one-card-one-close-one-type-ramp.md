@@ -1,6 +1,6 @@
 # 0222. Every surface draws one card, one close, one label weight, one metric order and one separator
 
-- Status: Accepted; amended by [0226](0226-header-lockup-centred-tagline-italic.md). Amends 0123 (the popup's heads are 600, not bold), 0136 (a desk's Removed menu has no heading of its own) and 0162 (the scale's label is 11px).
+- Status: Accepted; amended by [0226](0226-header-lockup-centred-tagline-italic.md) and [0229](0229-header-left-upright-no-the.md), which drops the tagline's "The". Amends 0123 (the popup's heads are 600, not bold), 0136 (a desk's Removed menu has no heading of its own) and 0162 (the scale's label is 11px).
 - Date: 2026-10-22
 - Decider: the maintainer (TJ), on PR #796, from a UI audit of every screen at 6f4d277. TJ took items 1 to 14 except 15 and 16, moved the chips to 12px (B), took C and D, and kept E to H as they were, and set the tagline's words, the chart's unit and the scale's width.
 - Issues and PRs: #796
