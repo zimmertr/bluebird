@@ -114,7 +114,7 @@ export const TERRAIN_EXAGGERATION = 1
  * strength that showed the valleys; `standard` at 0.3 with a brown shadow and
  * a half-strength white light is the one that shades like a printed map.
  */
-export const RELIEF_PAINT: maplibregl.HillshadeLayerSpecification['paint'] = {
+const RELIEF_PAINT: maplibregl.HillshadeLayerSpecification['paint'] = {
   'hillshade-method': 'standard',
   'hillshade-exaggeration': 0.3,
   // Liberty's own warm label brown, darkened, so a shadow reads as ground
@@ -135,14 +135,14 @@ export const RELIEF_PAINT: maplibregl.HillshadeLayerSpecification['paint'] = {
  */
 const CONTOUR_INK = '#8a6a4a'
 
-export const CONTOUR_PAINT: maplibregl.LineLayerSpecification['paint'] = {
+const CONTOUR_PAINT: maplibregl.LineLayerSpecification['paint'] = {
   'line-color': CONTOUR_INK,
   'line-opacity': 0.35,
   'line-width': 0.6,
 }
 
 /** An index line: the same ink, heavier, so the count of five reads at a glance. */
-export const CONTOUR_INDEX_PAINT: maplibregl.LineLayerSpecification['paint'] = {
+const CONTOUR_INDEX_PAINT: maplibregl.LineLayerSpecification['paint'] = {
   'line-color': CONTOUR_INK,
   'line-opacity': 0.6,
   'line-width': 1.1,
@@ -155,7 +155,7 @@ export const CONTOUR_INDEX_PAINT: maplibregl.LineLayerSpecification['paint'] = {
  * name, because a number on a line is the map's furniture and a summit's name
  * is a destination.
  */
-export const CONTOUR_LABEL_PAINT: maplibregl.SymbolLayerSpecification['paint'] = {
+const CONTOUR_LABEL_PAINT: maplibregl.SymbolLayerSpecification['paint'] = {
   'text-color': '#7a5a3a',
   'text-halo-color': '#f8f4ef',
   'text-halo-width': 1.2,
