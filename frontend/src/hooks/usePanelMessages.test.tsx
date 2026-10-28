@@ -3,7 +3,8 @@ import { act, renderHook } from '@testing-library/react'
 import { type PanelMessageState, usePanelMessages } from './usePanelMessages'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
-import { forecastModel, refusalPanel } from '../testSupport/fixtures'
+import { analyzedSnapshot, forecastModel, refusalPanel } from '../testSupport/fixtures'
+import { discoveryKeys } from '../utils/present'
 
 // The panel's messages and the Analyze gate from one set of inputs (record
 // 0208): what the badge counts, which severity colours it, and how a
@@ -96,7 +97,40 @@ describe('usePanelMessages', () => {
       { sortBy: DEFAULT_FAMILY_KEY.freeze, comparedModels: ['ecmwf_ifs025'] },
       'blocker:compare-freeze',
     ],
+    // #803: a list over the published cap, known before any request.
+    ['a list over the cap', { hasCustom: true, customCount: 1501 }, 'blocker:over-cap'],
   ]
+
+  // #803: a refused run is a blocker, said once in its own words, until the
+  // panel describes a different request.
+  it('holds Analyze up for a refusal that stands, and lets it go once the panel moves', () => {
+    const message = 'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.'
+    const refused = {
+      refusal: { message },
+      failedView: analyzedSnapshot(discoveryKeys(null, [], false)),
+      failedPanel: refusalPanel(),
+    }
+    const { result, rerender } = hook(refused)
+    expect(result.current.blocked).toBe(true)
+    expect(result.current.messages).toEqual([{ key: 'blocker:refusal', text: message, severity: 'error' }])
+    // No dismissal reaches it.
+    act(() => result.current.dismiss('blocker:refusal'))
+    expect(result.current.count).toBe(1)
+    rerender(state({ ...refused, failedPanel: refusalPanel({ forecastModel: 'ecmwf_ifs025' }) }))
+    expect(result.current.blocked).toBe(false)
+    expect(result.current.messages).toEqual([])
+  })
+
+  it('says the list over the cap in the over-cap sentence', () => {
+    const { result } = hook({ hasCustom: true, customCount: 2613 })
+    expect(result.current.messages.map((m) => m.text)).toEqual([
+      'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.',
+    ])
+  })
+
+  it('hands the failure count on, which opens the list', () => {
+    expect(hook({ failureSeq: 3 }).result.current.failureSeq).toBe(3)
+  })
 
   it.each(BLOCKED)('holds Analyze up for %s and reads red', (_case, over, key) => {
     const { result } = hook(over)

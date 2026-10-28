@@ -215,6 +215,30 @@ describe('PanelFooter', () => {
     }
   })
 
+  // #803: a failure that showed only as a count read as no failure at all,
+  // so a run that fails opens the list itself, and the badge says so.
+  it('opens the list when a run fails, and closes it as a press would', async () => {
+    const failed = panelMessages({ messages: MESSAGES, failureSeq: 1 })
+    const { rerender, user } = render(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES }) })} />)
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
+    rerender(<PanelFooter {...props({ messages: failed })} />)
+    expect(list()).toBeTruthy()
+    expect(badge().getAttribute('aria-expanded')).toBe('true')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
+    // A re-render of the same failure opens nothing; the next failure does.
+    rerender(<PanelFooter {...props({ messages: { ...failed } })} />)
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
+    rerender(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES, failureSeq: 2 }) })} />)
+    expect(list()).toBeTruthy()
+  })
+
+  it('opens nothing on a phone, whose footer has no list', () => {
+    const { rerender } = render(<PanelFooter {...props({ phone: true, messages: panelMessages({ messages: MESSAGES }) })} />)
+    rerender(<PanelFooter {...props({ phone: true, messages: panelMessages({ messages: MESSAGES, failureSeq: 1 }) })} />)
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
+  })
+
   // A phone's one Analyze is the map's floating button (record 0135), which
   // wears the badge and the region: the sheet's footer is the links alone.
   it('draws the links alone on a phone', () => {

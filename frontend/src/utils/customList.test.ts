@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildCustomList, distinctRows, foundAsPending, pendingAsResult, pendingDestinations } from './customList'
+import { buildCustomList, customListSize, distinctRows, foundAsPending, pendingAsResult, pendingDestinations } from './customList'
 import { destinationUrl } from './destinationUrl'
 import { pendingLinkRow } from './resultsCells'
 import { geoKey } from './points'
@@ -85,6 +85,20 @@ function covered(...points: { latitude: number; longitude: number }[]): Readonly
 // #673: what the paste-time lookup learned rides on the pending rows and the
 // request list, so a row shows its elevation before any analysis and the pod
 // skips the map server for it.
+// The size the Analyze gate holds a list over the cap by (#803): the rows a
+// run would send, not the lines pasted.
+describe('customListSize', () => {
+  it('counts what a run sends: a coordinate once, a pin over a pasted row at its point', () => {
+    const again = { name: 'Rainier again', latitude: 46.852901, longitude: -121.760401 }
+    const pin = place({ label: 'Rainier (searched)', lat: 46.8529, lon: -121.7604 })
+    expect(customListSize([], [])).toBe(0)
+    expect(customListSize([...csv, again], [])).toBe(2)
+    expect(customListSize(csv, [pin])).toBe(2)
+    expect(customListSize(csv, [place({ label: 'Glacier Peak', lat: 48.1122, lon: -121.1139 })])).toBe(3)
+    expect(customListSize(csv, [pin])).toBe(buildCustomList(csv, [pin]).length)
+  })
+})
+
 describe('the learned identities', () => {
   const key = geoKey(csv[0].latitude, csv[0].longitude)
   const identity = new Map([[key, { elevation_ft: 5000, osm_id: 'node/9' }]])
