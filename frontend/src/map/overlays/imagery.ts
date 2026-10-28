@@ -17,7 +17,9 @@
  * whatever they were when it goes off. Opacity rather than `visibility: none`,
  * because `lakeAnchor` in `map/basemap.ts` reads the `water` fill through
  * `queryRenderedFeatures`, which skips a hidden layer and keeps a transparent
- * one, so a clicked lake keeps its outline over the imagery.
+ * one, so a clicked lake keeps its outline over the imagery. The trails get a
+ * light casing for the same while (`TRAIL_CASING_LAYER`), because their
+ * sienna is lost on a forest.
  *
  * A tile host that fails (a dead network, a 5xx) is asked again once per
  * window `online` event through `recovery.ts`, the overlays' own rule. A 404
@@ -27,6 +29,7 @@
  */
 import type * as maplibregl from 'maplibre-gl'
 import { EOX_IMAGERY_TILES, USGS_IMAGERY_TILES } from '../../utils/terrainSources'
+import { TRAIL_CASING_LAYER } from '../basemap'
 import { overlayRecovery } from './recovery'
 
 export const IMAGERY_EOX = 'imagery-eox'
@@ -203,10 +206,16 @@ export function mountImagery(map: maplibregl.Map, deps: { online?: EventTarget |
     faded.clear()
   }
 
+  // The trails' light casing, which the imagery alone needs (`basemap.ts`).
+  function caseTrails(visibility: 'visible' | 'none') {
+    if (map.getLayer(TRAIL_CASING_LAYER)) map.setLayoutProperty(TRAIL_CASING_LAYER, 'visibility', visibility)
+  }
+
   return {
     update({ show }) {
       if (show === showing) return
       showing = show
+      caseTrails(show ? 'visible' : 'none')
       if (!show) {
         for (const id of [IMAGERY_EOX, IMAGERY_USGS]) {
           if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none')

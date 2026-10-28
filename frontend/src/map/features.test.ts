@@ -45,13 +45,14 @@ function setup(drawing = false) {
 describe('mountFeatures', () => {
   // The order the layers go on in is the order they draw in, so this is the
   // whole stack in one list: the basemap patch and the trailhead and crag
-  // markers over it under the style's labels, then the grid, smoke, fire, closures, detections, ring, markers and pending dots above the
-  // style.
+  // markers over it under the style's labels, then the grid, smoke, fire,
+  // closures, detections, ring, markers and pending dots above the style.
   it('stacks every feature, lowest first', () => {
     const { stub } = setup()
     expect(stub.stack).toEqual([
       'background',
       'water',
+      'ofm-trails-casing',
       'ofm-trails',
       'ofm-peaks-glow',
       'ofm-peaks',

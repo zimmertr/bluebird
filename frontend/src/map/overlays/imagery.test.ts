@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { IMAGERY_EOX, IMAGERY_USGS, basemapFade, imageryBeneath, mountImagery } from './imagery'
 import { EOX_IMAGERY_TILES, USGS_IMAGERY_TILES } from '../../utils/terrainSources'
 import { stubMap } from '../../testSupport/stubMap'
+import { TRAIL_CASING_LAYER } from '../basemap'
 // Liberty's layer list as OpenFreeMap served it on 2026-10-27
 // (`https://tiles.openfreemap.org/styles/liberty`), cut to each layer's id,
 // type, source and source layer, so the fade is pinned to the real names.
@@ -140,6 +141,19 @@ describe('mountImagery', () => {
     const before = stub.calls.length
     imagery.update({ show: true })
     expect(stub.calls.length).toBe(before)
+  })
+
+  // The basemap patch adds the casing hidden; the row alone shows it, in the
+  // same update that shows the photos, and hides it with them.
+  it('shows the trails\' casing while the row is on, and hides it when off', () => {
+    const stub = stubMap({ styleLayers, layers: [TRAIL_CASING_LAYER] })
+    const imagery = mountImagery(stub.map, { online: null })
+    imagery.update({ show: true })
+    expect(stub.layout[TRAIL_CASING_LAYER].visibility).toBe('visible')
+    imagery.update({ show: false })
+    expect(stub.layout[TRAIL_CASING_LAYER].visibility).toBe('none')
+    imagery.update({ show: true })
+    expect(stub.layout[TRAIL_CASING_LAYER].visibility).toBe('visible')
   })
 
   it('asks a failed host again when the browser is back online, and not before', () => {

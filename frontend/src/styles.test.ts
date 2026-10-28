@@ -138,6 +138,7 @@ import { CHIP_MENU_GAP_PX } from './utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
+import { TRAIL_CASING_COLOR, TRAIL_COLOR, TRAIL_OPACITY } from './map/basemap'
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { SNOW_RAMP } from './utils/snowDepth'
 import { contrast, mixOver, relativeLuminance, round2 } from './testSupport/contrast'
@@ -3443,6 +3444,22 @@ describe('the markers on the map', () => {
   // Haloed text is read against its halo, so the halo is its ground on any map.
   it('label their names on their own halo', () => {
     expect(ratio(MARKER_LABEL_PAINT!['text-color'] as string, MARKER_LABEL_PAINT!['text-halo-color'] as string)).toBe(17.04)
+  })
+})
+
+// The trails over the imagery (#799; record 0233): the sienna is lost on a
+// forest, so a light casing goes under it while the Satellite row is on. The
+// casing clears 3:1 on the forest, and the trail as drawn, at its opacity
+// over the casing, clears 3:1 on it. Measured 2026-10-28.
+describe('the trails on the imagery', () => {
+  it('stand on a casing past 3:1 on the forest, and past 3:1 on it', () => {
+    expect(ratio(TRAIL_COLOR, MAP_GROUNDS.forest)).toBe(1.69)
+    expect(ratio(TRAIL_COLOR, MAP_GROUNDS.liberty)).toBe(5.13)
+    expect(ratio(TRAIL_CASING_COLOR, MAP_GROUNDS.forest)).toBe(8.69)
+    expect(ratio(over(TRAIL_COLOR, TRAIL_OPACITY, TRAIL_CASING_COLOR), TRAIL_CASING_COLOR)).toBe(3.89)
+    // On snow the casing is lost and the trail reads on the snow itself.
+    expect(ratio(TRAIL_CASING_COLOR, MAP_GROUNDS.snow)).toBe(1.09)
+    expect(ratio(TRAIL_COLOR, MAP_GROUNDS.snow)).toBe(4.73)
   })
 })
 

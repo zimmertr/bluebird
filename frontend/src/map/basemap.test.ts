@@ -9,6 +9,9 @@ import {
   POI_GLOW_IMAGE,
   setSource,
   townMarker,
+  TRAIL_CASING_COLOR,
+  TRAIL_CASING_LAYER,
+  TRAIL_LAYER,
   TRAILHEAD_IMAGE,
 } from './basemap'
 import { POI_LAYERS, LAKE_CLASS, PLACE_LAYERS } from '../utils/basemapPoi'
@@ -43,6 +46,7 @@ describe('enhanceBasemap', () => {
     enhanceBasemap(map)
     const added = calls.filter((c) => c[0] === 'addLayer')
     expect(added).toEqual([
+      ['addLayer', 'ofm-trails-casing', 'road_label'],
       ['addLayer', 'ofm-trails', 'road_label'],
       ['addLayer', 'ofm-peaks-glow', 'road_label'],
       ['addLayer', 'ofm-peaks', 'road_label'],
@@ -51,6 +55,30 @@ describe('enhanceBasemap', () => {
       ['addLayer', 'ofm-lakes-line-glow', 'road_label'],
       ['addLayer', 'ofm-lakes-line', 'road_label'],
     ])
+  })
+
+  // The casing lies directly under the trail, on the same features from the
+  // same zoom, wider, solid and light, and hidden until the imagery shows it.
+  it('cases the trails from under them, hidden', () => {
+    const added: Record<string, maplibregl.LineLayerSpecification> = {}
+    const { map, stack } = stubMap({ styleLayers })
+    const addLayer = map.addLayer.bind(map)
+    map.addLayer = ((layer: maplibregl.LineLayerSpecification, before?: string) => {
+      added[layer.id] = layer
+      return addLayer(layer as never, before)
+    }) as typeof map.addLayer
+    enhanceBasemap(map)
+    expect(stack.indexOf(TRAIL_CASING_LAYER)).toBe(stack.indexOf(TRAIL_LAYER) - 1)
+    const casing = added[TRAIL_CASING_LAYER]
+    const trail = added[TRAIL_LAYER]
+    expect(casing).toMatchObject({ type: 'line', source: trail.source, 'source-layer': trail['source-layer'], minzoom: trail.minzoom })
+    expect(casing.filter).toEqual(trail.filter)
+    expect(casing.layout).toEqual({ visibility: 'none' })
+    expect(casing.paint?.['line-color']).toBe(TRAIL_CASING_COLOR)
+    expect(casing.paint).not.toHaveProperty('line-dasharray')
+    // A pixel each side at every stop of the trail's own width.
+    const stops = (w: unknown) => (w as number[]).slice(3)
+    expect(stops(casing.paint?.['line-width'])).toEqual(stops(trail.paint?.['line-width']).map((v, i) => (i % 2 ? v + 2 : v)))
   })
 
   // The place labels are the style's own: the map adds their glow, not them.
@@ -166,7 +194,7 @@ describe('enhanceBasemap', () => {
     const { map, calls } = stubMap({ styleLayers })
     enhanceBasemap(map)
     expect(calls.filter((c) => c[0] === 'addImage')).toEqual([])
-    expect(calls.filter((c) => c[0] === 'addLayer')).toHaveLength(7)
+    expect(calls.filter((c) => c[0] === 'addLayer')).toHaveLength(8)
   })
 })
 
