@@ -212,7 +212,7 @@ The default is 200, sized to sit above the 100-row lists people usually paste so
 
 ## Map layers
 
-Seven optional overlays, on the map's own **Layers** chip rather than in the
+Ten optional overlays, on the map's own **Layers** chip rather than in the
 controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
@@ -228,12 +228,18 @@ again. Each of the six that draw somebody else's data is credited in its own sec
 | **Smoke** | Smoke plumes at three densities, in grey | North America, Hawaii and the Caribbean |
 | **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
+| **Contours** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
+| **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
+| **Satellite** | Aerial imagery of the ground | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
+
+The last three rows are in the list and ride in the shared link, but draw
+nothing yet (#799).
 
 The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the
 timeline bar at the bottom of the map on and off. It is on by default in a
 desktop-sized window and off on a phone, where the bar is a band across a map the
 report already stands on. It changes nothing about the ranking either, and once
-you have set it, it rides in the shared link like the seven above. It goes gray when
+you have set it, it rides in the shared link like the ten above. It goes gray when
 nothing on the map spans time, which is a report of one hour with the rain radar
 off. Every row stays in the list whether or not it applies, so the list is the same
 length every time you open it.
@@ -241,7 +247,7 @@ length every time you open it.
 The six rows in the table above with a coverage edge go gray the same way, when
 the map you are looking at lies wholly outside it: over Colorado the two closure
 rows gray, because no Forest Service feed here covers it, and over the Alps every
-row but the forecast grid and the player does. A gray row says the layer has
+row but the forecast grid, the player and the three worldwide ones does. A gray row says the layer has
 nothing to draw here, which is the one thing an empty layer cannot say for
 itself: outside a feed's coverage, empty means "not covered", never "open" or
 "clear". Pan back into coverage and the row returns. A layer you switched on

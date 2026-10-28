@@ -7,6 +7,9 @@
 | [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | Hourly precipitation, 2 m temperature and 10 m wind for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles, and the glaciers the snow card names | Free | None |
+| [Mapterhorn](https://mapterhorn.com/attribution) | Elevation tiles for the contours, shaded relief and 3D terrain, worldwide | Free | None |
+| [USGS The National Map](https://www.usgs.gov/programs/national-geospatial-program/national-map) | Aerial imagery for the satellite layer, United States and its territories | Free (public domain) | None |
+| [EOX Sentinel-2 cloudless](https://s2maps.eu) | Aerial imagery for the satellite layer everywhere USGS has none | Free (non-commercial) | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
@@ -817,6 +820,36 @@ Analyze says the map could not load. The page asks for the style again each
 time the browser reports it is back online, and the error clears once the
 style arrives. Only the style counts: a tile, glyph or sprite that fails leaves
 a gap in a map that otherwise drew, and says nothing.
+
+### Elevation and imagery
+
+The Contours, Shaded relief and Satellite rows, and the 3D terrain, read tiles
+the browser fetches itself from three more hosts, each keyless (#799). None of
+them is drawn yet: the switches, the link and the Content-Security-Policy are
+in, and the layers come next.
+
+**Elevation is Mapterhorn's**, one model behind the contours, the relief and
+the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere, with finer national
+surveys stitched in where a country publishes one, so the detail depends on
+where you look. 30 m is enough for a ridge and a valley, and too coarse for a
+gully or a cliff band. Past the zoom a region's survey reaches, a tile answers
+404, so a layer drawn from it stops at a zoom the data holds everywhere (12 for
+the 30 m fill). The
+data is licensed per source, mostly CC BY 4.0 and US public domain, and
+Mapterhorn asks for one credit, `© Mapterhorn`, linked to its attribution
+page. Its privacy policy says it keeps each request's IP address, referrer and
+user agent for up to 30 days.
+
+**Imagery is two sources, one picture.** Over the United States and its
+territories it is USGS's NAIP aerial photography, to zoom 16, in the public
+domain. NAIP is flown in summer with the leaves out, in the
+2017 to 2021 seasons, so it shows no snow you could plan on and nothing that
+has changed since. Everywhere else it is EOX's Sentinel-2 cloudless mosaic,
+one cloud-free picture of the year at 10 m per pixel, which goes soft past
+zoom 13. The 2025 mosaic is under CC BY-NC-SA 4.0, as every vintage from 2018
+on is, so it is free for noncommercial use only. Neither is a recent pass:
+both are a still of the ground as it was, not a picture of the conditions on
+it.
 
 ## Wildfires
 

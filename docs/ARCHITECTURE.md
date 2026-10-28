@@ -51,7 +51,7 @@ None of the external APIs need a key. The three on the analysis path:
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request, and the archive that answers a window older than the forecast endpoint's reach.
 - **OpenFreeMap** serves the vector map tiles.
 
-Nominatim (place search), NIFC (wildfire perimeters), the US Forest Service (closure orders from Regions 3, 4 and 6), NOAA HMS (smoke), NOAA NOHRSC (snow depth), the Iowa Environmental Mesonet (radar) and OpenStreetMap's own servers (the planet file and its daily change files, which keep the places table) are keyless too; [DATA.md](DATA.md) covers every provider.
+Nominatim (place search), NIFC (wildfire perimeters), the US Forest Service (closure orders from Regions 3, 4 and 6), NOAA HMS (smoke), NOAA NOHRSC (snow depth), the Iowa Environmental Mesonet (radar), Mapterhorn (elevation), USGS and EOX (imagery) and OpenStreetMap's own servers (the planet file and its daily change files, which keep the places table) are keyless too; [DATA.md](DATA.md) covers every provider.
 
 The snapshot overlays decode on a worker thread rather than on the event loop
 (`asyncio.to_thread` in `app/services/arcgis.py`, which pages both ArcGIS
