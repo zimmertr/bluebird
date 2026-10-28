@@ -289,6 +289,7 @@ export function forecastModel(over: Partial<ForecastModelOption> = {}): Forecast
     forecastHours: 384,
     regional: false,
     blend: false,
+    domain: null,
     ...over,
   }
 }
@@ -311,6 +312,9 @@ export function capabilities(over: Partial<Capabilities> = {}): Capabilities {
     defaultForecastModel: 'gfs_seamless',
     // No outlines, so no Layers row greys: a test that wants one says so.
     coverage: {},
+    // The safe side: no count ahead of Analyze unless a test asks for one.
+    discoverySource: 'overpass',
+    openMeteoHourlyCalls: 5_000,
     ...over,
   }
 }

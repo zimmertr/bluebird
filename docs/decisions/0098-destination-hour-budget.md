@@ -1,6 +1,6 @@
 # 0098. An analysis is bounded by candidates times window hours, keyed or not, and the forecast cache by bytes
 
-- Status: Accepted
+- Status: Accepted. Amended by 0233 (the largest analysis the calendar offers is the candidate cap over the archive's year, which is past the budget, not the cap over 16 days; the browser never asks the pod for it, and since #803 refuses a field past Open-Meteo's hourly budget itself).
 - Date: 2026-10-06
 - Decider: the maintainer (TJ), on issue #624, 2026-10-06: option A plus the cache bound, the budget of 1,500,000 destination-hours proposed from the measurement below, and the API description wording
 - Issues and PRs: #624, #595, #581, #317, #123, #323

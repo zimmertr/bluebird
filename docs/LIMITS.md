@@ -56,12 +56,17 @@ inside the polygon gets a real forecast, which is what makes the winners the
 genuine extremes of the area rather than the extremes of a sample. That
 exactness is also the cost, so the candidate count, not the polygon, is what
 actually bounds upstream spend. Past the cap an analysis refuses with a `400`
-rather than truncating quietly. The sentence states only what is wrong; the
-remedies ride as fields on the body: an elevation floor computed to bring the
-search back under, or an explicit opt-in to analyze the highest candidates and
-say so in the response. In the web app the same cap is enforced in the browser
-before anything is fetched, so the refusal arrives with no request made; the
-`400` is what a direct API caller sees. Coordinates you paste yourself count
+rather than truncating quietly. The sentence states only what is wrong; for an
+API caller the remedies ride as fields on the body: an elevation floor computed
+to bring the search back under, or an explicit opt-in to analyze the highest
+candidates and say so in the response. The web app offers neither, so there the
+way back under is a smaller ring or fewer kinds of destination. Where it learns
+the count depends on where discovery answers, which `discovery_source` says.
+From the deployment's own copy of OpenStreetMap a count is free, so the browser
+counts a ring once the ring and its kinds settle and greys Analyze over the cap
+before you press it. From Overpass it is not, and the browser never spends the
+donated service on a count, so an over-cap ring is refused once discovery
+answers, before any forecast is fetched. Coordinates you paste yourself count
 toward the same cap, because a pasted coordinate costs exactly what a
 discovered one costs.
 
@@ -76,8 +81,9 @@ Open-Meteo key, since a key buys quota, not memory. Past it an analysis is
 refused before any forecast is fetched, with the same `400` the pacer refusal
 below answers: `found`, and `limit`, the most destinations that window can
 take. The web app never meets it, because the browser fetches and holds its
-own forecasts, and an API caller asking what the app's forecast calendar
-offers, the candidate cap over 16 days, sits well inside it.
+own forecasts. An API caller asking for the candidate cap over a 16-day
+forecast window sits well inside it; asking for it over the year the calendar
+reaches back does not.
 `backend/app/limits.py` records the measurement behind the number, with its
 date.
 
@@ -125,6 +131,18 @@ together. A forecast window never meets it, and a request carrying your own
 Open-Meteo key never does either, because a keyed request skips the pacer. [API.md](API.md#when-a-search-finds-too-much) has the
 body.
 
+**What the browser spends in an hour.** The web app fetches every forecast
+from your own address, on your own share of Open-Meteo's free tier, which is
+metered in weighted calls a minute, an hour and a day.
+`limits.open_meteo_hourly_calls` publishes the hourly figure, and the browser
+refuses an analysis whose weighted cost is past it once discovery answers and
+before any forecast is fetched, because no pacing finishes it inside the hour.
+It is the browser's half of the refusal above, and the same two things set the
+cost: the candidate count and the window. A year-long archive window reaches it
+with a small fraction of the destinations a forecast window takes. The
+deployment does not enforce the figure on its own path, whose pacer meters
+minutes.
+
 **Request pacing.** Analyze, discovery, search, wildfire perimeters, smoke
 plumes, closure orders, and the map's trailhead and crag markers hold separate per-address budgets, so a burst of map searches cannot
 starve somebody's analysis. Past one you get a `429` with `Retry-After`. They are sized
@@ -169,7 +187,7 @@ is and whether waiting helps:
 
 | Status | What happened |
 |---|---|
-| `400` | The request is runnable in shape but not as asked. Past the candidate cap or the destination-hour cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is a second case, and there the fix is a different model rather than a smaller area. |
+| `400` | The request is runnable in shape but not as asked. Past the candidate cap or the destination-hour cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is a second case, and there the fix is a different model rather than a smaller area. `GET /api/capabilities` publishes each regional model's grid as its `domain`, which the web app checks before Analyze. |
 | `401` | The weather service refused the API key an analyze request carried. Nothing here can fix it and no retry helps. |
 | `413` | The request body is larger than the published size cap, and was refused before it was read. Only a smaller body helps. |
 | `422` | A field would not parse or failed a bound: a polygon over the area cap, a ring with too many points, a list longer than its maximum, a `limit` out of range, a window outside the horizon, a malformed `bbox`. Only the caller can change the outcome. |
