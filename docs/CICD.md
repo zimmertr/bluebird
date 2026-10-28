@@ -1017,7 +1017,11 @@ run, which ran the same steps.
 The browser job looks no faster than the 177 s above because the suite grew
 over those 150 runs. The fair comparison is the same suite on the same day: on
 one worker, with apt and the cache replay, the whole job took 260 s (277 s p90)
-in run 40623715965, and the final shape takes 200 s (207 s p90). The critical
+in run 40623715965, and the final shape takes 200 s (207 s p90). The whole run
+on the same terms, from the first required job's start to the last one's end
+(the Actions API's `started_at` and `completed_at`), took 321 s in that run and
+230 s in run 40735470275, the first without the matrix job; the 256 s in the
+table above had twenty matrix jobs queued beside it. The critical
 path is still `Docker Build` (72 s) then `Browser Smoke & Axe` (178 s).
 `Lighthouse Budgets` starts beside the browser job and finishes about 80 s
 before it.
