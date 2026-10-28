@@ -22,7 +22,7 @@ const SHIPPED = ['src/**/*.ts', 'src/**/*.tsx']
 const COLOR_OWNERS = [
   'src/styles.ts',
   'src/utils/colors.ts',
-  'src/utils/chartColors.ts',
+  'src/utils/chart/chartColors.ts',
   // Composes a pair the two owners above measured into the one string that
   // carries both themes (#786); it names no colour of its own.
   'src/utils/themeColor.ts',

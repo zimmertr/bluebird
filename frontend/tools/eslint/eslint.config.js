@@ -145,7 +145,7 @@ const METRIC_SURFACES_IN_COMPONENTS = [
   'src/components/TimelineTransport.tsx',
 ]
 const METRIC_SURFACES_ELSEWHERE = [
-  'src/utils/chartData.ts',
+  'src/utils/chart/chartData.ts',
   'src/utils/colors.ts',
   // The one file that writes a whole SENTENCE about a metric (#295).
   'src/utils/freezingLevel.ts',

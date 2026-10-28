@@ -1,7 +1,7 @@
 import type { DestinationResult } from '../types'
 import { cellInks, cellStyle, scaleFor } from './colors'
 import type { ColDef } from './tableColumns'
-import type { ModelRow } from './modelCompare'
+import type { ModelRow } from './model/modelCompare'
 import {
   FIRE_UNAVAILABLE_NOTE,
   FIRE_UNCOVERED_NOTE,

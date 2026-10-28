@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { DestinationResult, HourlySeries } from '../types'
+import { DestinationResult, HourlySeries } from '../../types'
 import {
   CHART_METRICS,
   ChartLine,
@@ -36,8 +36,8 @@ import {
   TOOLTIP_ROW_PX,
   tooltipCapacity,
 } from './chartData'
-import { RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../metrics'
-import { resultRow, series as seriesOf } from '../testSupport/fixtures'
+import { RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../../metrics'
+import { resultRow, series as seriesOf } from '../../testSupport/fixtures'
 
 function row(name: string, lat: number, over: Partial<HourlySeries>): DestinationResult {
   return resultRow({ name, latitude: lat, longitude: 0, series: seriesOf(over) })

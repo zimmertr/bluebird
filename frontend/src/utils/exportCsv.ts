@@ -3,7 +3,7 @@ import { type PendingDestination, pendingAsResult } from './customList'
 import type { FireProximityStatus, FireWarning } from './fireProximity'
 import type { ClosureProximityStatus, ClosureWarning } from './closureProximity'
 import { normalizeWindow } from './forecastWindow'
-import type { ModelEnd } from './modelCompare'
+import type { ModelEnd } from './model/modelCompare'
 import { buildResultsCsv, csvFilename } from './resultsCsv'
 import {
   CLOSURE_KEY,

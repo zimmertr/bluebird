@@ -10,8 +10,8 @@ import {
   CROWDED_PAST,
   LINE_DRAW,
 } from './chartColors'
-import { contrast, round2 } from '../testSupport/contrast'
-import { themed } from './themeColor'
+import { contrast, round2 } from '../../testSupport/contrast'
+import { themed } from '../themeColor'
 
 const THEMES = ['dark', 'light'] as const
 

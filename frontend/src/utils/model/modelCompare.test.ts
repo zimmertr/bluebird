@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import type { DestinationResult } from '../types'
-import type { WeatherResult } from './openMeteo'
-import type { WeatherAggregates } from './openMeteoAggregate'
-import type { ForecastModelOption } from '../hooks/useCapabilities'
-import { allocateColors, paletteColors } from './chartColors'
-import { normalizeWindow } from './forecastWindow'
+import type { DestinationResult } from '../../types'
+import type { WeatherResult } from '../openMeteo'
+import type { WeatherAggregates } from '../openMeteoAggregate'
+import type { ForecastModelOption } from '../../hooks/useCapabilities'
+import { allocateColors, paletteColors } from '../chart/chartColors'
+import { normalizeWindow } from '../forecastWindow'
 import {
   CompareDestination,
   CompareModel,
@@ -26,8 +26,8 @@ import {
   pairColor,
   pairKey,
 } from './modelCompare'
-import { modelNamed } from './chartData'
-import { forecastModel, resultRow, weatherResult } from '../testSupport/fixtures'
+import { modelNamed } from '../chart/chartData'
+import { forecastModel, resultRow, weatherResult } from '../../testSupport/fixtures'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR

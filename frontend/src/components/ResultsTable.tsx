@@ -1,7 +1,7 @@
 import { memo, useId, useMemo, useRef } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { FAMILY_KEYS, familyOf } from '../metrics'
-import { selectionState } from '../utils/chartData'
+import { selectionState } from '../utils/chart/chartData'
 import { MODEL_KEY, SortDir, SortKey, TERRAIN_HEIGHT_NOTE, displayedColumns, readAtTerrainHeight, ColDef } from '../utils/tableColumns'
 import { checkRunning, type FireProximityStatus, type FireWarning } from '../utils/fireProximity'
 import type { ClosureProximityStatus, ClosureWarning } from '../utils/closureProximity'

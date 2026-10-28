@@ -12,8 +12,8 @@ import {
   resultRow,
   weatherResult,
 } from '../testSupport/fixtures'
-import { chartKey } from '../utils/chartData'
-import { type ModelRow, pairKey } from '../utils/modelCompare'
+import { chartKey } from '../utils/chart/chartData'
+import { type ModelRow, pairKey } from '../utils/model/modelCompare'
 import { geoKey } from '../utils/points'
 import { rankText } from '../utils/resultsCells'
 import { CLOSURE_KEY, MODEL_KEY, RANK_KEY, WILDFIRE_KEY } from '../utils/tableColumns'

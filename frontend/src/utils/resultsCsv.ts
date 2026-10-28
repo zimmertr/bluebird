@@ -24,7 +24,7 @@ import {
   WILDFIRE_KEY,
   readAtTerrainHeight,
 } from './tableColumns'
-import { isPartialRow, PARTIAL_COVERAGE_NOTE, type ModelEnd, type ModelRow } from './modelCompare'
+import { isPartialRow, PARTIAL_COVERAGE_NOTE, type ModelEnd, type ModelRow } from './model/modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning } from './fireProximity'
 import type { ClosureWarning } from './closureProximity'

@@ -589,7 +589,7 @@ export const DATA = [
     name: 'time-units-one-home',
     files: APP_CODE,
     ignores: [...TESTS, 'src/utils/forecastWindow.ts'],
-    probe: 'src/utils/modelCompare.ts',
+    probe: 'src/utils/model/modelCompare.ts',
     ban: [
       {
         selector: 'BinaryExpression[operator="%"][right.name="HOUR_MS"]',

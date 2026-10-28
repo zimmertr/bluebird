@@ -1,5 +1,5 @@
 import { RemovedEntry } from '../utils/removals'
-import { collidingType, lineNamed, sharedNames } from '../utils/chartData'
+import { collidingType, lineNamed, sharedNames } from '../utils/chart/chartData'
 import { usePopover } from '../hooks/usePopover'
 import Menu from './Menu'
 import BottomSheet from './BottomSheet'

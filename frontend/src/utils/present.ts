@@ -15,7 +15,7 @@
 import { DestinationResult, SortBy } from '../types'
 import type { AnalyzedView } from '../hooks/analyzeTypes'
 import { Constraints, filterConstraints, rankComparator } from './clientAnalyze'
-import { compareAdded } from './modelCompare'
+import { compareAdded } from './model/modelCompare'
 import { geoKey } from './points'
 import { isPointSample } from './forecastWindow'
 import type { SelectionKind } from './calendarSelection'

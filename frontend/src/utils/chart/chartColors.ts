@@ -14,8 +14,8 @@
 // Tailwind slate steps the surrounding panel wears, as Tailwind v4 computes
 // them from its oklch steps (#687); the light ones are the light theme's
 // tokens in `index.css`, spelled as the hexes they are there.
-import type { Theme } from './viewPrefs'
-import { themed } from './themeColor'
+import type { Theme } from '../viewPrefs'
+import { themed } from '../themeColor'
 
 /** The chart's chrome in one theme. */
 export interface ChartChrome {

@@ -19,7 +19,7 @@ import { FREEZE_UNAVAILABLE_NOTE } from './freezingLevel'
 import { cellStyle, scaleFor } from './colors'
 import { displayedColumns, type ColDef } from './tableColumns'
 import { windyUrl } from './windy'
-import type { ModelRow } from './modelCompare'
+import type { ModelRow } from './model/modelCompare'
 import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 
 const WARNING = fireWarning()

@@ -7,7 +7,7 @@
 // rather than in the component that draws it.
 
 import { pixelToTime, pixelToValue, TOOLTIP_CHROME_PX, TOOLTIP_ROW_PX, tooltipCapacity } from './chartData'
-import { nearestIndex } from './timeline'
+import { nearestIndex } from '../timeline'
 
 /**
  * The chart's margins, x-axis strip and y-axis strip, which the component

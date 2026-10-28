@@ -19,7 +19,7 @@ import {
   windowAggregate,
 } from './metrics'
 import { COLUMNS, LEAD_KEYS } from './utils/tableColumns'
-import { formatMetricValue } from './utils/chartData'
+import { formatMetricValue } from './utils/chart/chartData'
 import { SortBy } from './types'
 // `?raw` gives us each file's text without executing it, so the precision
 // guard below stays a pure node test with no DOM.
@@ -39,7 +39,7 @@ import timelineTransportSource from './components/TimelineTransport.tsx?raw'
 import mapLegendSource from './components/MapLegend.tsx?raw'
 import mapStageSource from './components/MapStage.tsx?raw'
 import resultsBarSource from './components/ResultsBar.tsx?raw'
-import chartDataSource from './utils/chartData.ts?raw'
+import chartDataSource from './utils/chart/chartData.ts?raw'
 import colorsSource from './utils/colors.ts?raw'
 import resultPopupSource from './utils/resultPopup.ts?raw'
 import popupRowsSource from './utils/popup/popupRows.ts?raw'

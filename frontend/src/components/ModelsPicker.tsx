@@ -1,4 +1,4 @@
-import { visibilityRows, type VisibilityModel } from '../utils/modelVisibility'
+import { visibilityRows, type VisibilityModel } from '../utils/model/modelVisibility'
 import { shiftHeld } from '../utils/rangeSelect'
 import { usePopover } from '../hooks/usePopover'
 import { useShiftRange } from '../hooks/useShiftRange'
@@ -41,7 +41,7 @@ interface Props {
  * draws. The hover box is where a line is identified, by its colour dot and
  * its full `1. Mount Rainier (ECMWF IFS)` name together.
  *
- * All the decisions are `utils/modelVisibility.ts`'s, because Vitest has no DOM.
+ * All the decisions are `utils/model/modelVisibility.ts`'s, because Vitest has no DOM.
  */
 export default function ModelsPicker({
   open,

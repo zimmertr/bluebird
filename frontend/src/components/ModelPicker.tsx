@@ -10,7 +10,7 @@ import {
   rankWith,
   selectedIds,
   toggleSelected,
-} from '../utils/modelSelection'
+} from '../utils/model/modelSelection'
 import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
 import {
   BADGE_ACCENT,
@@ -104,7 +104,7 @@ interface Props {
  * reader's hand.
  *
  * Which models are selected lives in `App.tsx` and the link; the rules that
- * move between the two facts live in `utils/modelSelection.ts`, where the node
+ * move between the two facts live in `utils/model/modelSelection.ts`, where the node
  * test project checks every case without a page.
  */
 export default function ModelPicker({

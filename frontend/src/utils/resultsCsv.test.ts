@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename, isoLocalMinute } from './resultsCsv'
-import { PARTIAL_COVERAGE_NOTE } from './modelCompare'
+import { PARTIAL_COVERAGE_NOTE } from './model/modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { CLOSURE_COL, COLUMNS, TERRAIN_HEIGHT_NOTE, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
 import { FireWarning } from './fireProximity'

@@ -5,7 +5,7 @@ import type { ForecastModelOption } from './useCapabilities'
 import type { ClosureProximity } from './useClosureProximity'
 import type { FireProximity } from './useFireProximity'
 import type { ComparedModel } from './useModelCompare'
-import { chartKey } from '../utils/chartData'
+import { chartKey } from '../utils/chart/chartData'
 import { NAME_DEFAULT_PX } from '../utils/columnResize'
 import type { PendingDestination } from '../utils/customList'
 import { downloadCsv, reportCsv } from '../utils/exportCsv'
@@ -16,7 +16,7 @@ import {
   legendEntries,
   modelRowsFor,
   partialModels,
-} from '../utils/modelCompare'
+} from '../utils/model/modelCompare'
 import type { WeatherResult } from '../utils/openMeteo'
 import { geoKey } from '../utils/points'
 import { compareValues, isRankingOrder } from '../utils/sortResults'

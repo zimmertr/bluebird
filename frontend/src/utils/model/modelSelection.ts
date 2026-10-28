@@ -20,7 +20,7 @@
  * dropped, since a link naming an unknown model is still that reader's link.
  */
 
-import { clamp } from './numbers'
+import { clamp } from '../numbers'
 
 /** The one field these rules read off a published model. */
 export interface OrderedModel {

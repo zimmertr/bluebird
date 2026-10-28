@@ -129,9 +129,9 @@ import {
 } from './styles'
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
-import { CHART_TICK_PX } from './utils/chartColors'
+import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
-import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
+import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chart/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { CHIP_MENU_GAP_PX } from './utils/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
@@ -3108,7 +3108,7 @@ describe('the selection chip', () => {
   // the 3:1 WCAG 1.4.11 asks of a boundary carrying meaning alone — so the
   // state is carried by shape as well, the × that a resting chip has and an
   // active one never does (`chipRemovable`, held in
-  // `utils/modelSelection.test.ts`). Measured here so a change to either fill
+  // `utils/model/modelSelection.test.ts`). Measured here so a change to either fill
   // is forced through a re-measurement rather than inheriting this sentence.
   const MEASURED = { activeVsRest: 2.27, restLabel: 8.4, activeLabel: 4.56 }
 

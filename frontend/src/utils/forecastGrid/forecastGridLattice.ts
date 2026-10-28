@@ -7,7 +7,7 @@
 import { DestinationResult, DiscoveredDestination } from '../../types'
 import type { Coordinate, WeatherResult, AqiResult, CloudResult } from '../openMeteo'
 import { assemble } from '../clientAnalyze'
-import { alignRowToGrid } from '../chartData'
+import { alignRowToGrid } from '../chart/chartData'
 import type { WindowSource } from '../forecastWindow'
 import { clamp } from '../numbers'
 

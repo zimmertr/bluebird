@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CLOUD_DECK_CEILING_SHOWN_FT, CLOUD_DECK_FLOOR_FT, cloudDeckMark, isCloudDeckMark } from './cloudDeckMark'
 import { CLOUD_DECK_CEILING_FT } from './openMeteoAggregate'
 import { COLUMNS } from './tableColumns'
-import { formatTooltipValue } from './chartData'
+import { formatTooltipValue } from './chart/chartData'
 import { cellText } from './resultsCells'
 
 // The two edges of the cloud deck's walk print as bounds (TJ, 2026-10-08):

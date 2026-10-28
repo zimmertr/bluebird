@@ -9,12 +9,12 @@
 // testable under the node-env Vitest. The fetching lives in
 // hooks/useModelCompare.ts and the drawing in the chart.
 
-import { DestinationResult, HourlySeries } from '../types'
-import { ChartLine, chartKey, collidingType, comparedLineLabel, gridRemapper, lineSuffix, modelSuffix } from './chartData'
-import { HOUR_MS, floorHour } from './forecastWindow'
-import { listPhrase } from './notices'
-import type { WeatherResult } from './openMeteo'
-import type { WeatherSeries } from './openMeteoAggregate'
+import { DestinationResult, HourlySeries } from '../../types'
+import { ChartLine, chartKey, collidingType, comparedLineLabel, gridRemapper, lineSuffix, modelSuffix } from '../chart/chartData'
+import { HOUR_MS, floorHour } from '../forecastWindow'
+import { listPhrase } from '../notices'
+import type { WeatherResult } from '../openMeteo'
+import type { WeatherSeries } from '../openMeteoAggregate'
 
 /**
  * The last hour a model can answer inside the analyzed window: the window's
