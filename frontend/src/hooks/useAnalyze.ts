@@ -20,7 +20,7 @@ import type { AnalyzeOptions } from './analyzeTypes'
 
 // The types live in analyzeTypes.ts. They are re-exported here because the
 // panel imports them by the hook's name.
-export type { AnalyzeOptions, AnalyzedView, Progress, Refusal, RunError } from './analyzeTypes'
+export type { AnalyzeOptions, AnalyzedView, Progress, Refusal } from './analyzeTypes'
 
 // The field a polygon run found, with the discovery inputs that found it.
 interface FoundField {

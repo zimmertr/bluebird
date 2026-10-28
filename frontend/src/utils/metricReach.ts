@@ -18,7 +18,7 @@ import { modelsWithoutFreeze } from './freezingLevel'
  * the analysis would fetch publishes none, or the window lies wholly past the
  * air-quality forecast's horizon. The gate reads the reason to pick its line.
  */
-export type Unanswered = 'archive' | 'model' | 'horizon'
+type Unanswered = 'archive' | 'model' | 'horizon'
 
 export type UnansweredMetrics = ReadonlyMap<MetricFamily, Unanswered>
 

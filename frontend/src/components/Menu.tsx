@@ -131,7 +131,7 @@ export function MenuButton({ shape, open, chevron = true, chevronClassName, clas
   )
 }
 
-export interface MenuOption<V extends string> {
+interface MenuOption<V extends string> {
   value: V
   label: string
 }
