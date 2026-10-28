@@ -62,7 +62,7 @@ rather than truncating quietly. The sentence states only what is wrong; for an
 API caller the remedies ride as fields on the body: an elevation floor computed
 to bring the search back under, or an explicit opt-in to analyze the highest
 candidates and say so in the response. The web app offers neither, so there the
-way back under is a smaller ring or fewer kinds of destination. Where it learns
+way back under is a smaller ring or fewer kinds of destination. When it learns
 the count depends on where discovery answers, which `discovery_source` says.
 From the deployment's own copy of OpenStreetMap a count is free, so the browser
 counts a ring once the ring and its kinds settle and greys Analyze over the cap
@@ -134,22 +134,22 @@ Open-Meteo key never does either, because a keyed request skips the pacer. [API.
 body.
 
 **What the browser spends in an hour.** The web app fetches every forecast
-from your own address, on your own share of Open-Meteo's free tier, which is
+from your own address, on your share of Open-Meteo's free tier, which is
 metered in weighted calls a minute, an hour and a day.
 `limits.open_meteo_hourly_calls` publishes the hourly figure, and no pacing
-finishes an analysis past it inside the hour. Whenever the browser knows the
-count before you press Analyze (a pasted list, or a ring counted from the
+finishes an analysis past it inside the hour. When the browser knows the count
+before you press Analyze (a pasted list, or a ring counted from the
 deployment's own copy of OpenStreetMap), it greys Analyze over an analysis
-whose weighted cost is past the figure; otherwise it refuses the run once
-discovery answers and before any forecast is fetched. It is the browser's half
+whose weighted cost is past the figure. Otherwise it refuses the run once
+discovery answers, before any forecast is fetched. This is the browser's half
 of the refusal above, and the same two things set the cost: the candidate count
-and the window. Open-Meteo meters each of its hosts apart, so the cost is
-counted per host and an analysis is held when any one host passes the figure:
-the forecast host carries the weather and the cloud column for every
-destination and the weather of every compared model for the rows the table
-shows, the archive host the same for an archive window, and the air-quality
-host air quality over the hours its forecast reaches. The candidate cap over
-sixteen days fits on every host; compare a model on every row of it and the
+and the window. Open-Meteo meters each host apart, so the cost is counted per
+host, and an analysis is held when any one host passes the figure. The
+forecast host carries the weather and the cloud column for every destination,
+plus each compared model's weather for the rows the table shows. The archive
+host carries the same for an archive window, and the air-quality host carries
+air quality over the hours its forecast reaches. The candidate cap over sixteen
+days fits on every host, but compare a model on every row of it and the
 forecast host does not. A year-long archive window reaches the figure with a
 small fraction of the destinations a forecast window takes. Only the minute
 has been measured per host; the hour is assumed to be metered the same way.

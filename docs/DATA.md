@@ -556,17 +556,17 @@ and neighbouring parts of Canada and Mexico, and Open-Meteo refuses any point
 outside that grid — a refusal that takes the whole batch with it, so a single
 destination outside coverage fails the analysis rather than quietly dropping one
 row. The grid is not a lat/lon rectangle: Banff and Monterrey are inside it, and
-Edmonton, 67 cells north of its last row, is not. Since #803 `GET
-/api/capabilities` publishes it as the model's `domain`, an outline computed from
-the grid definition NOAA ships in every HRRR file (1799 by 1059 points 3 km
-apart on a Lambert projection) through its outermost points. Five Open-Meteo
+Edmonton, 67 cells north of its last row, is not. Since #803
+`GET /api/capabilities` publishes it as the model's `domain`, an outline drawn
+through the outermost points of the grid definition NOAA ships in every HRRR
+file (1799 by 1059 points 3 km apart on a Lambert projection). Five Open-Meteo
 probes on 2026-10-27 put the edge exactly there: two points inside answered and
 were moved onto grid nodes the definition predicts to within 60 m, the last row
 included, and three past it were refused. The web app checks a ring or a list
-against that outline before Analyze, a ring by its corners, so one that reaches
-past the grid is held even if everything it would find is inside. The pod does not: on its path Open-Meteo is
-still the authority, and its refusal is reported as one, naming the model and
-the fix.
+against that outline before Analyze. It checks a ring by its corners, so one
+that reaches past the grid is held even if everything it would find is inside.
+The pod does not check: on its path Open-Meteo is still the authority, and its
+refusal is reported as one, naming the model and the fix.
 
 ### Comparing models on the chart
 
