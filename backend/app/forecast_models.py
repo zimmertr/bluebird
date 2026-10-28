@@ -93,12 +93,14 @@ class ModelInfo(NamedTuple):
     # over Nepal, so the number alone would mislead half the world.
     finest_grid_km: float
     # HRRR is the only model here that is not global, and its domain is a
-    # Lambert conformal grid no lat/lon box describes: Banff, Edmonton and
-    # Monterrey answer, while Alaska, Hawaii, Puerto Rico, Newfoundland and
-    # northern BC do not. Bluebird Forecast therefore ships no domain of its own and
-    # lets Open-Meteo be the authority (see `_upstream_failure` in
-    # `routes/analyze/phases.py`, which answers its refusal with a 400); this flag exists so
-    # the picker can say the model is regional before a request is spent.
+    # Lambert conformal grid no lat/lon box describes: Banff and Monterrey
+    # answer, while Edmonton, Alaska, Hawaii, Puerto Rico, Newfoundland and
+    # northern BC do not (Edmonton probed 2026-10-27). Its outline is computed
+    # from NOAA's grid definition in `model_domains.py` and published beside
+    # this flag as `domain` (#803), so the browser can refuse a ring or a list
+    # that crosses it before Analyze. The pod still lets Open-Meteo be the
+    # authority on its own path (see `_upstream_failure` in
+    # `routes/analyze/phases.py`, which answers its refusal with a 400).
     regional: bool = False
     # Serves a fine regional model for the first day or two and a coarse global
     # one after that, so one line on a chart changes model partway along and has
