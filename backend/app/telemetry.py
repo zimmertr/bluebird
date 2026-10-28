@@ -80,12 +80,13 @@ HTTP_DURATION = Histogram(
 # The requests a canary serves while the error-rate gate watches it
 # (Kubernetes-Manifests `public/bluebird/resources/analysisTemplate-*.yml`
 # and the chart's probes): the kubelet's `/healthz`, the version check, and
-# api-test's analyze. None of them sends `Sec-Fetch-Site`, so all three
-# count under `client="api"`.
+# api-test's discovery, which asks for destinations and no forecast so the
+# gate spends no Open-Meteo quota (#787). None of them sends `Sec-Fetch-Site`,
+# so all three count under `client="api"`.
 CANARY_ROUTES: tuple[tuple[str, str], ...] = (
     ("/healthz", "GET"),
     ("/api/version", "GET"),
-    ("/api/analyze", "POST"),
+    ("/api/destinations", "POST"),
 )
 
 

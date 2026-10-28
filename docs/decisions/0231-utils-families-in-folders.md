@@ -1,4 +1,4 @@
-# 0230. Six families of utils modules live in folders of their own, each with its own guide
+# 0231. Six families of utils modules live in folders of their own, each with its own guide
 
 - Status: Accepted. Extends [0047](0047-guide-split-by-directory.md): the rule that a guide sits at the tightest directory containing every path it names now reaches folders under `utils/`.
 - Date: 2026-10-27
