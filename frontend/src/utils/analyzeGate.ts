@@ -68,7 +68,8 @@ export interface AnalyzeGate {
   // both and the limit it was measured against.
   overCap: { found: number; noun: string; limit: number } | null
   // A field whose weighted Open-Meteo cost is past the hourly quota, with
-  // both numbers its line quotes. Off until its input is given (#803).
+  // both numbers its line quotes (#803, D2): `spendVeto` prices the known
+  // count, the window and the models before any request.
   spend: { needed: number; limit: number } | null
   // A ranking on a column the archive does not publish (#803, W1, W2): the
   // metric's row is greyed (`unansweredMetrics`), so this is the ranking the
@@ -153,10 +154,10 @@ export interface AnalyzeGateInputs {
    * the ring searches; it joins the list's count for the over-cap veto.
    */
   ringCount?: number | null
-  // A field whose weighted cost is past the hourly quota (#803), off when not given.
+  /** A field whose weighted cost is past the hourly quota (`spendVeto`, #803 D2), or null. */
   spend?: { needed: number; limit: number } | null
-  // --- #803, W1 to W8: what the window, the models and the bounds can answer.
-  // Optional, so a caller that gives none builds the gate it always did.
+  // What the window, the models and the bounds can answer (#803, W1 to W8).
+  // Optional, so a test that gives none builds the gate without them.
   /** Which endpoint answers the selected window (`windowSource`), or null with none. */
   source?: WindowSource | null
   /** How much of the window the air-quality forecast covers (`classifyAqiCoverage`). */
@@ -165,7 +166,6 @@ export interface AnalyzeGateInputs {
   constraints?: Constraints
   /** Every point the analysis would forecast (`analysisPoints`), which a regional model's grid is held against. */
   points?: readonly LatLon[]
-  // --- end #803 W1 to W8
 }
 
 // The over-cap veto's numbers (#803, D1 and D4): the list and the ring's

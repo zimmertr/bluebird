@@ -68,7 +68,6 @@ export interface PanelMessageState {
   customCount: number
   /** The published analysis cap. */
   maxDestinations: number
-  // ── #803 D1, D2, D5 ──
   /** How many destinations the ring holds, counted ahead of Analyze (`useDestinationCount`), or null. */
   ringCount: number | null
   /** The results cap, which bounds the rows a compared model is fetched for. */
@@ -77,7 +76,6 @@ export interface PanelMessageState {
   hourlyCalls: number
   /** The report's air quality failed for some of its field and not all of it (`useAnalyze.aqiPartial`). */
   aqiPartial: boolean
-  // ── end #803 ──
   /** Moves once per run that ends in an error or a refusal (`useAnalysisRun`, #803). */
   failureSeq: number
   /** Every knob that has stopped applying live, in `commitNeeded`'s order. */
@@ -98,12 +96,10 @@ export interface PanelMessageState {
   linkLost?: readonly LinkDrop[]
   /** Dismissing the run error clears the event (`useAnalysisRun.dismissEvent`, #736). */
   dismissEvent: (kind: EventNoticeKind) => void
-  // --- #803, W6 to W8: what the gate holds the bounds and the models' grids to.
-  /** The forecast bounds as the panel holds them. */
+  /** The forecast bounds as the panel holds them, which the gate holds to their order (#803, W7). */
   constraints: Constraints
-  /** Every point the analysis would forecast (`analysisPoints`). */
+  /** Every point the analysis would forecast (`analysisPoints`), which a regional model's grid is held against (#803, W8). */
   points: readonly LatLon[]
-  // --- end #803 W6 to W8
 }
 
 /**
@@ -204,7 +200,7 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
   // model's, and the seam line says where that half begins.
   const source = windowMs === null ? null : windowSource(windowMs.startMs, windowMs.endMs, now.getTime(), s.windowLimits)
 
-  // ── #803 D1, D2: what the analysis is known to cover, and what it costs ──
+  // What the analysis is known to cover, and what it costs (#803, D1, D2).
   // A ring searches when it would be a polygon input: finished, inside the
   // cap and with a kind ticked. Its count joins the list's; with no ring
   // searching, the list is the whole field.
@@ -226,7 +222,6 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     aqiForecastDays: s.aqiForecastDays,
     now,
   })
-  // ── end #803 D1, D2 ──
   // The gate the two Analyze buttons read (#696): one function from the same
   // inputs, so the two cannot disagree about whether a run may start. It reads
   // the window's source and air-quality coverage too (#803), which is why
@@ -250,12 +245,10 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     panel: s.failedPanel,
     customCount: s.customCount,
     maxDestinations: s.maxDestinations,
-    // #803, W1 to W8
     source,
     aqiCoverage,
     constraints: s.constraints,
     points: s.points,
-    // #803 D1, D2
     ringCount: ringSearches ? s.ringCount : null,
     spend,
   })

@@ -262,11 +262,11 @@ export default function App() {
   // holds rows (#673): usually done before Analyze is pressed, and an answer
   // that lands after a report is placed on it.
   const elevations = useElevationLookup({ csvRows, places, cap: caps.maxDestinations, onPlaced: placeHeld })
-  // ── #803 D1, M7: the ring's count ahead of Analyze ────────────────────────
-  // Where the pod answers from its places table, the ring is counted once it
-  // and its kinds are still, so a ring over the cap greys Analyze before any
-  // press and the run forecasts the counted field without asking again. A
-  // cleared ring or no kind left releases a failed run's found field.
+  // The ring's count ahead of Analyze (#803, D1, M7). Where the pod answers
+  // from its places table, the ring is counted once it and its kinds are
+  // still, so a ring over the cap greys Analyze before any press and the run
+  // forecasts the counted field without asking again. A cleared ring or no
+  // kind left releases a failed run's found field.
   const destinationCount = useDestinationCount({
     polygon,
     drawPointCount,
@@ -278,7 +278,6 @@ export default function App() {
     discoverySource: caps.discoverySource,
     onRingGone: analysis.dropFound,
   })
-  // ── end #803 D1, M7 ───────────────────────────────────────────────────────
   // The committed rows whose height-read cells tick: waiting on an elevation
   // the lookup still means to answer. A row the lookup has given up on stops
   // ticking and reads blank, and a row placed is no longer waiting.
@@ -468,13 +467,12 @@ export default function App() {
   // describes a different question. The list's size rides along for the
   // refusal, which a shorter list lifts (`refusalStands`, #803).
   const customCount = useMemo(() => customListSize(csvRows, places), [csvRows, places])
-  // --- #803, W8: every point the analysis would forecast, which a regional
-  // model's published grid is held against before Analyze.
+  // Every point the analysis would forecast, which a regional model's
+  // published grid is held against before Analyze (#803, W8).
   const domainPoints = useMemo(
     () => analysisPoints(polygon, destinationTypes.length > 0, buildCustomList(csvRows, places)),
     [polygon, destinationTypes, csvRows, places],
   )
-  // --- end #803 W8
   const panelForRetry = {
     selectionKind: selection.kind,
     windowMs: panelWindowMs,
@@ -522,17 +520,16 @@ export default function App() {
     counted: destinationCount.counted,
   })
 
-  // The panel's messages and the Analyze gate, derived once for both widths
-  // (record 0208): the panel's Analyze and the phone's read one gate from
-  // one set of inputs, and the badge on either counts the same list.
-  // --- #803 (M6): what the link lost, until the reader supplies it ---
+  // What the link lost, until the reader supplies it (#803, M6).
   const linkLost = useLinkDrops({
     dropped: linkDropped,
     ring: polygon !== null,
     list: csvRows.length > 0,
     modelLost: forecastSelection.modelLost,
   })
-  // --- end #803 ---
+  // The panel's messages and the Analyze gate, derived once for both widths
+  // (record 0208): the panel's Analyze and the phone's read one gate from
+  // one set of inputs, and the badge on either counts the same list.
   const messages = usePanelMessages({
     selection,
     windowWarning: forecastSelection.windowWarning,
@@ -555,8 +552,8 @@ export default function App() {
     failedPanel: panelForRetry,
     customCount,
     maxDestinations: caps.maxDestinations,
-    // #803 D1, D2, D5: the ring's count, what the spend is priced on, and
-    // whether the report's air quality failed for part of its field.
+    // The ring's count, what the spend is priced on, and whether the
+    // report's air quality failed for part of its field (#803, D1, D2, D5).
     ringCount: destinationCount.ringCount,
     limit,
     hourlyCalls: caps.openMeteoHourlyCalls,
@@ -573,7 +570,7 @@ export default function App() {
     windowLimits: caps.windowLimits,
     linkLost,
     dismissEvent,
-    // #803, W6 to W8
+    // What the gate holds the bounds and the models' grids to (#803, W6 to W8).
     constraints,
     points: domainPoints,
   })
