@@ -8,7 +8,7 @@ import { SMOKE_DENSITIES } from '../utils/smoke'
 import { legendMaxCss } from '../utils/results/resultsSheet'
 import { readViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
 import { IconChevron } from './icons'
-import { MENU_CHEVRON } from '../styles'
+import { MENU_CHEVRON, SR_ONLY } from '../styles'
 
 const NONE = {
   showWildfires: false,
@@ -131,15 +131,28 @@ describe('MapLegend', () => {
     expect(text).toContain('Fire activity (FIRMS)')
     expect(screen.getByRole('link', { name: 'FIRMS' }).getAttribute('href')).toBe('https://earthdata.nasa.gov/firms')
     const stars = [...container.querySelectorAll('polygon')]
-    expect(stars.map((star) => star.parentElement!.parentElement!.textContent)).toEqual(['12h', '24h', '48h'])
+    const chips = stars.map((star) => star.parentElement!.parentElement!)
+    expect(chips.map((chip) => chip.firstChild!.nextSibling!.textContent)).toEqual(['12h', '24h', '48h'])
     expect(stars.map((star) => star.getAttribute('fill'))).toEqual(['#ff5a45', '#fb923c', '#fde047'])
     expect(new Set(stars.map((star) => star.getAttribute('stroke')))).toEqual(new Set(['#1c1917']))
     expect(stars.every((star) => star.getAttribute('points')!.split(' ').length === 24)).toBe(true)
-    // One row: the name and the three chips share it, and the old band
-    // lines are gone.
+    // One row: the name and the three chips share it, each chip its hour
+    // and its band's hidden words.
     const row = screen.getByText('FIRMS').closest('div')!
-    expect(row.textContent).toBe('Fire activity (FIRMS)12h24h48h')
-    for (const old of ['Under 12 hours', '12 to 24 hours', '24 to 48 hours']) expect(text).not.toContain(old)
+    expect(row.textContent).toBe('Fire activity (FIRMS)12hUnder 12 hours24h12 to 24 hours48h24 to 48 hours')
+    // The band words are hidden text and nothing else: no title, and no
+    // line of their own.
+    for (const chip of chips) expect(chip.hasAttribute('title')).toBe(false)
+  })
+
+  // `12h` alone does not say what it bounds, so each chip carries its band's
+  // words for a screen reader, the way the smoke chips carry theirs.
+  it('names each fire age band to a screen reader', () => {
+    const { container } = render(<Legend {...BASE} overlays={{ ...NONE, showFireActivity: true }} />)
+    const chips = [...container.querySelectorAll('polygon')].map((star) => star.parentElement!.parentElement!)
+    const words = chips.map((chip) => document.getElementById(chip.getAttribute('aria-describedby')!)!)
+    expect(words.map((word) => word.textContent)).toEqual(['Under 12 hours', '12 to 24 hours', '24 to 48 hours'])
+    expect(words.every((word) => word.className === SR_ONLY)).toBe(true)
   })
 
   it('sorts the fire activity section among the others by its name', () => {

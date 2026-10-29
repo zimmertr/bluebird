@@ -6,6 +6,7 @@ import { fakeResponse } from '../testSupport/fixtures'
 import {
   AGE_BANDS,
   AGE_BAND_CHIPS,
+  AGE_BAND_WORDS,
   FIRE_ACTIVITY_FILLS,
   FIRE_ACTIVITY_STROKE,
   FIRE_ACTIVITY_ICON_SIZE,
@@ -149,11 +150,12 @@ describe('the band colours', () => {
 describe('fireActivityLegendChips', () => {
   it('keys each band with the hour it ends at, in its fill and the layer edge', () => {
     expect(fireActivityLegendChips()).toEqual([
-      { label: '12h', fill: '#ff5a45', stroke: FIRE_ACTIVITY_STROKE },
-      { label: '24h', fill: '#fb923c', stroke: FIRE_ACTIVITY_STROKE },
-      { label: '48h', fill: '#fde047', stroke: FIRE_ACTIVITY_STROKE },
+      { label: '12h', words: 'Under 12 hours', fill: '#ff5a45', stroke: FIRE_ACTIVITY_STROKE },
+      { label: '24h', words: '12 to 24 hours', fill: '#fb923c', stroke: FIRE_ACTIVITY_STROKE },
+      { label: '48h', words: '24 to 48 hours', fill: '#fde047', stroke: FIRE_ACTIVITY_STROKE },
     ])
     expect(AGE_BAND_CHIPS).toHaveLength(AGE_BANDS.length)
+    expect(AGE_BAND_WORDS).toHaveLength(AGE_BANDS.length)
     expect(AGE_BAND_CHIPS.map((chip) => Number.parseInt(chip, 10))).toEqual([...AGE_BANDS])
   })
 })

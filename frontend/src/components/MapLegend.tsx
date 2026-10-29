@@ -181,7 +181,8 @@ export type LegendSectionSpec = Parameters<typeof legendSection>[0]
  * answer a desk's box on the map and a phone's Legend sheet both draw (#696),
  * so the two cannot disagree about what is keyed. Empty when nothing on the
  * map has anything to key, which is also what greys the phone's Legend chip.
- * `smokeId` is the caller's `useId`, which names the smoke chips' hidden words.
+ * `smokeId` is the caller's `useId`, which names the smoke chips' hidden words
+ * and, with a suffix of their own, the fire chips'.
  */
 export function legendSections(
   { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }: LegendInputs,
@@ -294,9 +295,19 @@ export function legendSections(
             swatch: (
               <span className="flex flex-shrink-0 gap-0.5">
                 {fireActivityLegendChips().map((chip) => (
-                  <span key={chip.label} className={SWATCH_STAR}>
+                  // The hour alone does not say what it bounds, so the band's
+                  // words ride in the chip as hidden text, the smoke chips'
+                  // pattern without their title (#576).
+                  <span
+                    key={chip.label}
+                    className={SWATCH_STAR}
+                    aria-describedby={`${smokeId}-fire-${chip.label}`}
+                  >
                     <IconStarburst fill={chip.fill} stroke={chip.stroke} className="absolute inset-0" />
                     <span className="relative">{chip.label}</span>
+                    <span id={`${smokeId}-fire-${chip.label}`} className={SR_ONLY}>
+                      {chip.words}
+                    </span>
                   </span>
                 ))}
               </span>

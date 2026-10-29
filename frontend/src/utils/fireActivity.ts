@@ -47,6 +47,14 @@ export const AGE_BANDS = [12, 24, 48] as const
 export const AGE_BAND_CHIPS = ['12h', '24h', '48h'] as const
 
 /**
+ * The words each chip stands for, in `AGE_BANDS` order, hidden in the chip
+ * for a screen reader the way the smoke chips hide theirs: `12h` alone does
+ * not say whether it is an age, a bound or a span. Approved 2026-10-27
+ * (record 0237).
+ */
+export const AGE_BAND_WORDS = ['Under 12 hours', '12 to 24 hours', '24 to 48 hours'] as const
+
+/**
  * The band a detection seen at `acquiredMs` falls in at `nowMs`, or null when
  * it is older than 48 hours or its stamp is unreadable.
  *
@@ -292,9 +300,10 @@ export function starburstSdf(): StarburstImage {
   return { width: size, height: size, data }
 }
 
-/** One legend chip: a band's label and the starburst it sits in. */
+/** One legend chip: a band's label, its hidden words and the starburst it sits in. */
 export interface FireActivityLegendChip {
   label: string
+  words: string
   fill: string
   stroke: string
 }
@@ -306,6 +315,7 @@ export interface FireActivityLegendChip {
 export function fireActivityLegendChips(): FireActivityLegendChip[] {
   return AGE_BAND_CHIPS.map((label, band) => ({
     label,
+    words: AGE_BAND_WORDS[band],
     fill: FIRE_ACTIVITY_FILLS[band],
     stroke: FIRE_ACTIVITY_STROKE,
   }))
