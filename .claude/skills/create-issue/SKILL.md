@@ -1,6 +1,6 @@
 ---
 name: create-issue
-description: File a GitHub issue on this repo with a plain two-sentence summary on top, the board's six-section body run through the humanizer skill, and the required labels. Use whenever asked to file, create, or open an issue (a bug, a feature, a decision, or a task), or to convert findings into issues.
+description: File a GitHub issue on this repo with a plain two-sentence summary on top, the board's six-section body written for its two readers and run through the hemingway and humanizer skills, and the required labels. Use whenever asked to file, create, or open an issue (a bug, a feature, a decision, or a task), or to convert findings into issues.
 ---
 
 # Creating an issue
@@ -77,20 +77,45 @@ carries at least:
 Optional extra sections (for example, Out of scope or Measured) go between
 Acceptance Criteria and the Notes.
 
-## Step 5: run the body through the humanizer skill
+## Step 5: write for the reader, then cut, then strip the AI tells
 
-Every issue body takes a pass through the `humanizer` skill before it is
-filed, short issues included. Invoke it in embedded mode on the whole body,
-summary and all six sections, once the summary is written and placed first.
-The point is that a reader on the board follows the issue on one read.
+An issue has two readers: a person on the board who may not read code, and
+the agent that implements it. The body is done when each follows their part
+on one read. Three things get it there, in this order.
 
-- Apply every fix it returns before filing.
-- It changes prose only. File paths, function names, quoted UI strings,
-  commands, code spans, label names and issue numbers stay exactly as Step 2
-  wrote them. Check them against the draft after the pass.
-- Wording the maintainer dictated stays as dictated. The skill's own
-  exceptions for quotations and proper names cover it.
-- An edit to an existing issue takes the same pass before `gh issue edit`.
+**Write every section to the reader checklist.**
+
+- Each section opens with its conclusion. The evidence follows it.
+- One idea per sentence, and no sentence much past 25 words.
+- A term, an acronym or a module name is explained the first time it
+  appears. The second time it stands alone.
+- The Problem says what a reader would see before it says how that was
+  measured.
+- Notes for a human reads on its own, without the Implementation Plan
+  beside it.
+
+**Run two passes over the whole body, summary and all six sections, once
+the summary is placed first.** Both change prose only, and short issues take
+them too.
+
+1. `hemingway` first. It cuts words, and shorter is the biggest lever on
+   comprehension. Take its trimmed version. Put back any cut that dropped a
+   fact, a number or a qualifier that changes the meaning.
+2. `humanizer` second, in embedded mode, on the trimmed text. It strips the
+   AI tells from what survived. Apply every fix it returns.
+
+After both, check the technical names against the draft: file paths,
+function names, quoted UI strings, commands, code spans, label names and
+issue numbers stay exactly as Step 2 wrote them. Wording the maintainer
+dictated stays as dictated; both skills exempt quotations and proper names.
+
+**Read it back as each reader before filing.** Read the Summary and the
+Problem as the hiker, and the Implementation Plan and the agent notes as the
+implementing agent. If either reader would have to look something up, fix
+that before filing.
+
+An edit to an existing issue takes the same three steps before
+`gh issue edit`.
 
 ## Step 6: title
 
