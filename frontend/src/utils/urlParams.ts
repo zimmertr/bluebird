@@ -260,6 +260,7 @@ function flag(
     | 'showSnow'
     | 'showContours'
     | 'showRelief'
+    | 'showSlope'
     | 'showSatellite'
     | 'showTerrain'
     | 'showFireActivity'
@@ -565,6 +566,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   flag('snow', 'showSnow'),
   flag('contours', 'showContours'),
   flag('relief', 'showRelief'),
+  flag('slope', 'showSlope'),
   flag('satellite', 'showSatellite'),
   flag('terrain', 'showTerrain'),
   flag('fireactivity', 'showFireActivity'),
@@ -705,6 +707,7 @@ export const FIELD_PARAMS = {
   showSnow: ['snow'],
   showContours: ['contours'],
   showRelief: ['relief'],
+  showSlope: ['slope'],
   showSatellite: ['satellite'],
   showTerrain: ['terrain'],
   showFireActivity: ['fireactivity'],

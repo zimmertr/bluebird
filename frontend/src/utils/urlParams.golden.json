@@ -78,6 +78,7 @@
     "showSnow": true,
     "showContours": true,
     "showRelief": true,
+    "showSlope": true,
     "showSatellite": true,
     "showTerrain": true,
     "showFireActivity": true,

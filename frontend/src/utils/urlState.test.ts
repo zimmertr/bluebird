@@ -92,6 +92,7 @@ const base: ShareableState = {
   showGrid: false,
   showContours: false,
   showRelief: false,
+  showSlope: false,
   showSatellite: false,
   showTerrain: false,
   showFireActivity: false,
@@ -131,6 +132,7 @@ const pristine: ShareableState = {
   showGrid: false,
   showContours: false,
   showRelief: false,
+  showSlope: false,
   showSatellite: false,
   showTerrain: false,
   showFireActivity: false,
@@ -288,6 +290,18 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out!.showFireActivity).toBe(true)
     expect(new URLSearchParams(encodeState(base, DEFAULT_MODEL)).get('fireactivity')).toBeNull()
     expect(decodeState('?fires=1')).toEqual({ showWildfires: true })
+  })
+
+  // The slope angle shading (#799): one flag, written as `1` while on, beside
+  // the relief's and implying nothing about it.
+  it('round-trips the slope angle switch', () => {
+    const out = roundTrip({ ...base, showSlope: true })
+    expect(out!.showSlope).toBe(true)
+    expect(out!.showRelief).toBeUndefined()
+    expect(encodeState({ ...pristine, showSlope: true }, DEFAULT_MODEL)).toContain('slope=1')
+    expect(new URLSearchParams(encodeState(base, DEFAULT_MODEL)).get('slope')).toBeNull()
+    expect(decodeState('?slope=1')).toEqual({ showSlope: true })
+    expect(decodeState('?slope=true')).toBeNull()
   })
 
   it('opens a link written before the terrain layers with all four off', () => {

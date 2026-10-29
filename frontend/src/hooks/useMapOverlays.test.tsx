@@ -11,6 +11,7 @@ const LINK = {
   showRelief: true,
   showTerrain: true,
   showFireActivity: true,
+  showSlope: true,
 }
 
 describe('useMapOverlays', () => {
@@ -29,7 +30,8 @@ describe('useMapOverlays', () => {
       fresh.showSatellite,
       fresh.showTerrain,
       fresh.showFireActivity,
-    ]).toEqual([false, false, false, false, false, false, false, false, false, false, false, false])
+      fresh.showSlope,
+    ]).toEqual([false, false, false, false, false, false, false, false, false, false, false, false, false])
   })
 
   it('restores what a link carried', () => {
@@ -37,6 +39,7 @@ describe('useMapOverlays', () => {
     expect([linked.showRadar, linked.showGrid, linked.playerShown]).toEqual([true, true, false])
     expect([linked.showAreaClosures, linked.showTrailClosures]).toEqual([false, true])
     expect(linked.showFireActivity).toBe(true)
+    expect(linked.showSlope).toBe(true)
     expect([linked.showContours, linked.showRelief, linked.showSatellite, linked.showTerrain]).toEqual([
       false,
       true,

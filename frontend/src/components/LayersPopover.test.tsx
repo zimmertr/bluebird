@@ -26,6 +26,8 @@ const OVERLAYS = {
   setShowContours: () => {},
   showRelief: false,
   setShowRelief: () => {},
+  showSlope: false,
+  setShowSlope: () => {},
   showSatellite: false,
   setShowSatellite: () => {},
   showFireActivity: false,
@@ -106,7 +108,7 @@ describe('LayersPopover', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     expect(screen.queryByRole('checkbox')).toBeNull()
     open()
-    expect(rows()).toHaveLength(12)
+    expect(rows()).toHaveLength(13)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('checkbox')).toBeNull()
     open()
@@ -139,7 +141,7 @@ describe('LayersPopover', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     open()
     fireEvent.pointerDown(screen.getByRole('checkbox', { name: 'Smoke' }))
-    expect(rows()).toHaveLength(12)
+    expect(rows()).toHaveLength(13)
   })
 
   // A press with Shift held reaches every row from the last pressed to this
@@ -182,7 +184,7 @@ describe('LayersPopover', () => {
   it('keeps every row and greys the ones out of play', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={ARCHIVE} playerOffered={false} />)
     open()
-    expect(rows()).toHaveLength(12)
+    expect(rows()).toHaveLength(13)
     // The reason is what a reader hears with the row, since its title does
     // not exist on touch.
     const grid = screen.getByRole('checkbox', {
@@ -227,6 +229,7 @@ describe('LayersPopover', () => {
       'Rain radar',
       'Satellite',
       'Shaded relief',
+      'Slope angle',
       'Smoke',
       'Snow depth',
       'Trail closures',
@@ -239,7 +242,7 @@ describe('LayersPopover', () => {
   // A layer with nothing to draw over the view greys, with no note, the way
   // the player does: over Colorado the two Forest Service rows grey and the
   // four national ones stay live; over the Alps every bounded row greys, a
-  // checked one included, and the two Open-Meteo rows, the three ground
+  // checked one included, and the two Open-Meteo rows, the four ground
   // layers and the fire detections (#799), which cover the world, stay live.
   it('greys the rows whose layer cannot draw over the view', () => {
     const coverage = { wildfires: CONUS, areaClosures: OREGON_WASHINGTON, trailClosures: OREGON_WASHINGTON }
@@ -320,6 +323,28 @@ describe('LayersPopover', () => {
     expect(setShowFireActivity).toHaveBeenCalledWith(true)
   })
 
+  // The slope angle shading (#799): drawn from the same worldwide elevation as
+  // the relief, so its row switches anywhere and never greys, over the Alps
+  // included, where every bounded row does.
+  it('switches slope angle from its own row', () => {
+    const setShowSlope = vi.fn()
+    const coverage = { wildfires: CONUS, areaClosures: OREGON_WASHINGTON, trailClosures: OREGON_WASHINGTON }
+    render(
+      <LayersPopover
+        mapRef={mapOver(6, 45, 12, 48).ref}
+        coverage={coverage}
+        overlays={{ ...OVERLAYS, showSlope: true, setShowSlope }}
+        grid={GRID}
+        playerOffered
+      />,
+    )
+    open()
+    const row = screen.getByRole('checkbox', { name: 'Slope angle' }) as HTMLInputElement
+    expect([row.checked, row.disabled]).toEqual([true, false])
+    fireEvent.click(row)
+    expect(setShowSlope).toHaveBeenCalledWith(false)
+  })
+
   it('shows the grid style and coverage only while the grid is on', () => {
     const { rerender } = render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     open()
@@ -340,7 +365,7 @@ describe('LayersPopover', () => {
     open()
     expect(chip.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('dialog', { name: 'Layers' })).toBeTruthy()
-    expect(rows()).toHaveLength(12)
+    expect(rows()).toHaveLength(13)
     // A press in the sheet, which is in a portal outside the chip's column,
     // is not a press outside the menu.
     fireEvent.pointerDown(screen.getAllByRole('checkbox')[0])
