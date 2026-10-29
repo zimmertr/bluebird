@@ -753,11 +753,19 @@ describe('TimeSeriesChart with more than one metric', () => {
     const { container } = render(<TimeSeriesChart {...props(FOUR)} />)
     const { colShare, rowShare } = gridAt(container)
     const cross = screen.getByRole('separator', { name: 'Resize the panels' })
+    // Every frame at once; 0 so the next move queues its own.
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0)
+      return 0
+    })
     // One drag: two presses in a row would read as a double press.
     fireEvent.pointerDown(cross, { clientX: 0, clientY: 0 })
+    const drawn = chart.charts.length
     fireEvent.pointerMove(document, { clientX: 200, clientY: 100 })
     expect(colShare()).toBe('0.75')
     expect(rowShare()).toBe('0.75')
+    // The live layout is written to the page; nothing renders until release.
+    expect(chart.charts).toHaveLength(drawn)
     // Into the corner: the first panel takes the area and the rest are not drawn.
     fireEvent.pointerMove(document, { clientX: 2000, clientY: 2000 })
     fireEvent.pointerUp(document, { clientX: 2000, clientY: 2000 })
@@ -768,6 +776,7 @@ describe('TimeSeriesChart with more than one metric', () => {
     press(cross, 5100)
     expect(colShare()).toBe('0.5')
     expect(rowShare()).toBe('0.5')
+    raf.mockRestore()
   })
 
   it('stops the vertical gutter at the top row of three', () => {
