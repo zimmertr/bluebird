@@ -1271,8 +1271,9 @@ describe('shared recipes', () => {
     // A phone's Controls sheet (#586): at 360x780 with touch emulated and a
     // date range picked, the Metrics grid measured 328px wide and its scroller
     // reserved nothing for a bar, because a phone draws overlay scroll bars
-    // (built image in Playwright's Chromium, 2026-10-28). The issue's 295px was
-    // the panel before the sheet took the screen's width less its gutters.
+    // (built image in Playwright's Chromium, 2026-10-28). That is the wider
+    // budget; it is pinned so a future sheet gutter or a longer noun fails here
+    // too.
     const PHONE_CONTENT_PX = 328
     expect(labelAt(PHONE_CONTENT_PX, 0)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
     expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + selectArrowPx())

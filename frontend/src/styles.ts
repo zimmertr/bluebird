@@ -1876,22 +1876,21 @@ export const SEGMENT_FILL = `flex w-full ${RADIUS.control} overflow-hidden ${REC
  * BESIDE the shared control column rather than in it, so it takes its own
  * width and the metric label absorbs what is left.
  *
- * 3.75rem (60px) is a budget, not a taste. The row it sits in is the Metrics
- * grid's (#341): a metric row spends 14px on the radio, 10px on its label gap,
- * 18px on its three gap-1.5 grid gaps, this width on the dropdown and two
- * `METRIC_BOX_W` boxes, leaving the label what is left, and its longest noun,
- * `Freezing level`, is measured at text-xs in `styles.test.ts`, which pins
- * the sum at a desk's content width and a phone's. The width is the
- * dropdown's own floor: the widest aggregate word measures 28px, plus the
- * field's 8px left padding and the 24px the SELECT recipe reserves for its
- * arrow (measured 2026-08-22, re-derived 2026-09-14 when SELECT gave 8px
- * back). It held 12px of slack over that floor until #586 gave it to the
- * label, which is what a phone's narrower row needs: a date-range window puts
- * the dropdown beside the label there, where a single hour spans the label
- * over its column and never had the problem. Re-measure both sums before
- * changing this, the box width, the grid gap, or the nouns.
+ * 4.5rem (72px) is a budget, not a taste. The row it sits in is the Metrics
+ * grid's (#341): panel content is 327px, and a metric row spends 14px on the
+ * radio, 10px on its label gap, 18px on its three gap-1.5 grid gaps, this
+ * width on the dropdown and two `METRIC_BOX_W` boxes, leaving the label what
+ * is left — and its longest noun, `Freezing level`, is measured at text-xs
+ * in `styles.test.ts`, which pins the sum. The dropdown's own floor is its
+ * content: the widest aggregate word measures 28px, plus the field's 8px
+ * left padding and the 24px the SELECT recipe reserves for its arrow — 60px
+ * (measured 2026-08-22, re-derived 2026-09-14 when SELECT gave 8px back).
+ * The 12px of slack that leaves is deliberate: this width also sets a grid
+ * track, so shrinking it to the floor would only widen a label that already
+ * fits. Re-measure both sums before changing this, the box width, the grid
+ * gap, or the nouns.
  */
-export const SELECT_W_AGGREGATE = 'w-[3.75rem]'
+export const SELECT_W_AGGREGATE = 'w-[4.5rem]'
 
 /**
  * A segmented control OUTSIDE the panel's column, sized by its content.
@@ -1926,9 +1925,10 @@ export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
  * boxes' two edges and a grid item can never stretch a track.
  *
  * This is the panel's widest row, and the budget is the label's: `Freezing
- * level` must fit beside a dropdown and two boxes at the desk panel's 327px
- * of content and at a phone's Controls sheet's 328px, which reserves no
- * scroll bar where the desk's reserves 10px (#586). `styles.test.ts` does that arithmetic from the measured noun, so a
+ * level` must fit beside a dropdown and two boxes at both widths. The desk
+ * panel's 327px of content less its 10px bar is 317px and binds; a phone's
+ * Controls sheet gives the grid 328px with no scroll bar reserved, the wider
+ * of the two (#586). `styles.test.ts` does that arithmetic from the measured noun, so a
  * wider box or a longer noun fails there instead of as an ellipsis, which is
  * how the old Ranking row shipped `Freezing le…` (#341).
  */
