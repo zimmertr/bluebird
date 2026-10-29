@@ -90,7 +90,7 @@ const full: ShareableState = {
   ],
   removed: ['46.85289,-121.76041', '48.10000,-121.11391'],
   tableSort: { key: 'elevation_ft', desc: true },
-  chart: { primary: 'temp', second: 'precip' },
+  chart: ['temp', 'precip'],
   view: { lng: -121.612345, lat: 47.1, zoom: 9.456 },
 }
 
@@ -120,7 +120,7 @@ const nowOnly: ShareableState = {
   pins: [],
   removed: [],
   tableSort: null,
-  chart: { primary: 'aqi', second: null },
+  chart: ['aqi'],
   view: null,
 }
 
@@ -130,7 +130,7 @@ const dateless: ShareableState = {
   forecastModel: DEFAULT_MODEL,
   selection: { kind: 'days', startDate: null, endDate: null, hours: { start: '00:00', end: '23:59' } },
   sortBy: 'temp_min_f',
-  chart: { primary: 'temp', second: null },
+  chart: ['temp'],
   showGrid: true,
   gridStyle: 'blocks',
   gridReachFrac: 0.5,
@@ -187,34 +187,36 @@ describe('the codec table against the links it wrote before', () => {
   })
 })
 
-// The chart's metrics (#499): primary first, the second after a comma, and
+// The chart's metrics (#499): every slot, first panel first, comma joined, and
 // written only when the chart is not the one a fresh session draws.
 describe('the chart param', () => {
   const encodeChart = (chart: ShareableState['chart'], sortBy: ShareableState['sortBy'] = 'wind_max_mph') =>
     encodeState({ ...full, sortBy, chart }, DEFAULT_MODEL).match(/(?:^|&)chart=([^&]*)/)?.[1] ?? null
 
-  it('writes the pair, and one name for one panel', () => {
-    expect(encodeChart({ primary: 'precip', second: 'temp' })).toBe('precip,temp')
-    expect(encodeChart({ primary: 'temp', second: null })).toBe('temp')
+  it('writes every slot, and one name for one panel', () => {
+    expect(encodeChart(['precip', 'temp'])).toBe('precip,temp')
+    expect(encodeChart(['precip', 'temp', 'wind', 'aqi'])).toBe('precip,temp,wind,aqi')
+    expect(encodeChart(['temp'])).toBe('temp')
   })
 
   it('leaves the param out while the chart follows the ranking alone', () => {
-    expect(encodeChart({ primary: 'wind', second: null })).toBeNull()
-    expect(encodeChart({ primary: 'wind', second: 'aqi' })).toBe('wind,aqi')
+    expect(encodeChart(['wind'])).toBeNull()
+    expect(encodeChart(['wind', 'aqi'])).toBe('wind,aqi')
   })
 
   it('makes a link by itself', () => {
-    expect(encodeState({ ...nowOnly, forecastModel: DEFAULT_MODEL, constraints: NO_CONSTRAINTS, showPlayer: null, chart: { primary: 'aqi', second: 'temp' } }, DEFAULT_MODEL)).toContain(
+    expect(encodeState({ ...nowOnly, forecastModel: DEFAULT_MODEL, constraints: NO_CONSTRAINTS, showPlayer: null, chart: ['aqi', 'temp'] }, DEFAULT_MODEL)).toContain(
       'chart=aqi,temp',
     )
   })
 
   it('reads a link tolerantly', () => {
-    expect(decodeState('chart=precip,temp')?.chart).toEqual({ primary: 'precip', second: 'temp' })
-    expect(decodeState('chart=temp')?.chart).toEqual({ primary: 'temp', second: null })
-    expect(decodeState('chart=nope,temp')?.chart).toEqual({ primary: 'temp', second: null })
-    expect(decodeState('chart=temp,temp')?.chart).toEqual({ primary: 'temp', second: null })
-    expect(decodeState('chart=temp,wind,aqi')?.chart).toEqual({ primary: 'temp', second: 'wind' })
+    expect(decodeState('chart=precip,temp')?.chart).toEqual(['precip', 'temp'])
+    expect(decodeState('chart=precip,temp,wind,aqi')?.chart).toEqual(['precip', 'temp', 'wind', 'aqi'])
+    expect(decodeState('chart=temp')?.chart).toEqual(['temp'])
+    expect(decodeState('chart=nope,temp')?.chart).toEqual(['temp'])
+    expect(decodeState('chart=temp,temp')?.chart).toEqual(['temp'])
+    expect(decodeState('chart=temp,wind,aqi,precip,freeze')?.chart).toEqual(['temp', 'wind', 'aqi', 'precip'])
     expect(decodeState('chart=,&limit=50')?.chart).toBeUndefined()
   })
 })

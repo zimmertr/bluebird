@@ -1375,21 +1375,15 @@ export const CHART_PLOT_TOUCH = 'touch-pan-y'
  * is `FIELD`'s, moved to the box because the select is invisible.
  */
 export const CHART_TITLE = {
-  box:
-    `absolute left-3 top-3 z-[1] flex h-7 max-w-[calc(100%-1.5rem)] items-center ` +
-    `${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-mark`,
-  text: 'min-w-0 truncate',
   /**
-   * A phone's one panel with the second slot empty (#499; TJ 2026-10-28)
-   * wears two titles in the one 28px line: the primary's and, 8px (`gap-2`)
-   * to its right, the second's reading `None`. The row takes the box's place
-   * and its 12px insets on both sides, so the two fit a 360px sheet beside
-   * the plot; the primary's title is the one that truncates (`min-w-0`), the
-   * empty slot's `None` keeps its words (`flex-shrink-0`). `inRow` is `box`
-   * standing in that row rather than placed on its own.
+   * The title's line (#499): the box at the plot's top left, `top-3 left-3`,
+   * with the panel's × or + standing 8px (`gap-2`) after it in the same 28px
+   * line, inside the plot's 12px insets on both sides so a 360px sheet holds
+   * them. `items-stretch`, so a button beside the box is the box's height.
    */
-  row: 'absolute inset-x-3 top-3 z-[1] flex items-center gap-2',
-  inRow: `relative flex h-7 min-w-0 items-center ${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-mark`,
+  bar: 'absolute inset-x-3 top-3 z-[1] flex items-stretch gap-2',
+  box: `relative flex h-7 min-w-0 items-center ${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-mark`,
+  text: 'min-w-0 truncate',
   select: 'absolute inset-x-0 top-1/2 -translate-y-1/2 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
 } as const
 
@@ -3525,3 +3519,25 @@ export const TOUR = {
   /** The sheet at the top edge, for a target that stands where the bottom sheet would. */
   sheetTop: `${SURFACE_CARD} fixed inset-x-4 top-4 p-4 space-y-3 focus:outline-none`,
 }
+
+/**
+ * The chart's panel controls (#499; TJ 2026-10-29).
+ *
+ * `add` is the + after the last picker, and after a phone's first title: a
+ * square the picker's own height (`self-stretch` in a stretched row,
+ * `aspect-square`), in the field's fill, edge and radius so it reads as one more field in the
+ * row, with the bare icon's ink and its accent on hover, greyed at the
+ * ceiling. `remove` is the × after every picker but the first, the legend
+ * chip's own × (`ICON_ACTION` round `IconClose size="chip"`), grown to the
+ * touch floor on a phone. `knob` is the one control that resizes a grid of
+ * three or four panels, 14px square where the gutters cross, in the grip's
+ * chrome (`ResizeGrip`'s raised fill, frame edge and hover), so it reads as
+ * the same affordance in two dimensions.
+ */
+export const CHART_PANEL_BUTTON = {
+  add: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ${ICON_ACTION} ${FOCUS_RING} ${DISABLED} flex aspect-square self-stretch flex-shrink-0 items-center justify-center`,
+  remove: `${ICON_ACTION} ${FOCUS_RING} ${TAP.action} flex flex-shrink-0 items-center px-1 leading-none`,
+  knob:
+    `absolute z-[2] h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none ${RADIUS.control} ` +
+    'bg-raised border border-frame hover:bg-raised-hover transition-colors',
+} as const

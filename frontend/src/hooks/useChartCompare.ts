@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DestinationResult, HourlySeries } from '../types'
 import type { AnalyzedView } from './analyzeTypes'
 import type { ForecastModelOption } from './useCapabilities'
-import type { ChartPair } from './useChartPair'
+import type { ChartMetricsState } from './useChartMetrics'
 import { useChartSelection } from './useChartSelection'
 import { useModelCompare } from './useModelCompare'
 import { allocateColors, paletteColors } from '../utils/chart/chartColors'
-import { alignRowToGrid, chartKey, collidingType, sharedNames } from '../utils/chart/chartData'
+import { alignRowToGrid, chartKey, collidingType, drawnMetrics, sharedNames } from '../utils/chart/chartData'
 import { type PendingDestination, pendingAsResult } from '../utils/customList'
 import type { WindowLimits } from '../utils/forecastWindow'
 import {
@@ -40,8 +40,10 @@ export interface ChartCompareInputs {
   results: DestinationResult[]
   /** Named destinations no analysis has covered, which the chart tracks too. */
   pending: PendingDestination[]
-  /** The chart's metric slots (`useChartPair`), which the comparison reads and the chart draws. */
-  chartPair: ChartPair
+  /** The chart's metric slots (`useChartMetrics`), which the comparison reads and the chart draws. */
+  chartMetrics: ChartMetricsState
+  /** A phone, which draws the first `PHONE_CHART_PANELS` slots alone. */
+  phone: boolean
   /** The committed report's snapshot: its model and the models it bought. */
   analyzed: AnalyzedView | null
   analysisSeq: number
@@ -73,7 +75,8 @@ export interface ChartCompareInputs {
 export function useChartCompare({
   results,
   pending,
-  chartPair,
+  chartMetrics,
+  phone,
   analyzed,
   analysisSeq,
   arriving,
@@ -220,10 +223,10 @@ export function useChartCompare({
   // Comparing models is a drill-down rather than a knob: it touches nothing
   // the ranking reads. Never on air quality, which comes from CAMS whatever
   // forecast model ranked the field, so a comparison there could only draw
-  // the same line twice. That holds for either panel (#499): a second panel
-  // on air quality would draw each model's line over the destination's.
+  // the same line twice. That holds for every drawn panel (#499): a panel on
+  // air quality would draw each model's line over the destination's.
   const compare = useModelCompare({
-    enabled: chartPair.pair.primary !== 'aqi' && chartPair.pair.second !== 'aqi',
+    enabled: !drawnMetrics(chartMetrics.metrics, phone).includes('aqi'),
     destinations: chartedDestinations,
     rows: comparePoints,
     heldSeries: chartedSeries,
@@ -288,7 +291,7 @@ export function useChartCompare({
 
   return {
     chart,
-    chartPair,
+    chartMetrics,
     compare,
     pendingRows,
     shared,

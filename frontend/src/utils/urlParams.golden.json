@@ -112,10 +112,10 @@
       "lat": 47.1,
       "zoom": 9.46
     },
-    "chart": {
-      "primary": "temp",
-      "second": "precip"
-    }
+    "chart": [
+      "temp",
+      "precip"
+    ]
   },
   "nowOnly": {
     "selection": {

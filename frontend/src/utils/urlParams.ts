@@ -25,7 +25,7 @@ import { isSortKey } from './tableColumns'
 import { parseCustomCsv } from './customDestinations'
 import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
-import { isChartMetric, metricForSort, pairMetrics } from './chart/chartData'
+import { MAX_CHART_PANELS, isChartMetric, metricForSort } from './chart/chartData'
 
 /**
  * One query parameter.
@@ -132,11 +132,12 @@ const PLACE_KIND = /^[\p{L}\p{N} ]*$/u
 const round = (n: number): number => roundTo(n, POLY_PRECISION)
 
 /**
- * Whether the chart shows something other than a fresh session's (#499): a
- * second panel, or a primary the reader moved off the ranking's family.
+ * Whether the chart shows something other than a fresh session's (#499):
+ * more than one panel, or a first panel the reader moved off the ranking's
+ * family.
  */
 export function chartDiffers(state: ShareableState): boolean {
-  return state.chart.second !== null || state.chart.primary !== metricForSort(state.sortBy)
+  return state.chart.length > 1 || state.chart[0] !== metricForSort(state.sortBy)
 }
 
 /** Whether the state holds a ring worth writing: three corners at least. */
@@ -457,18 +458,18 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       if (unique.length > 0) out.compareModels = unique
     },
   },
-  // The chart's metrics (#499): the primary, then the second panel's after a
-  // comma, `chart=precip,temp`, and `chart=temp` for one panel. Written only
-  // when it differs from the chart a fresh session draws. Read tolerantly: an
-  // unknown name is dropped, a repeat of the primary is dropped, and a third
-  // name is ignored, since the chart has two slots.
+  // The chart's metrics (#499): every panel's, first panel first, comma
+  // joined, `chart=precip,temp,wind,aqi`, and `chart=temp` for one panel.
+  // Written only when it differs from the chart a fresh session draws. Read
+  // tolerantly: an unknown name is dropped, a repeat is dropped, and a name
+  // past the fourth is ignored, since the chart has four slots.
   {
     key: 'chart',
-    encode: (state) => (chartDiffers(state) ? pairMetrics(state.chart).join(',') : null),
+    encode: (state) => (chartDiffers(state) ? state.chart.join(',') : null),
     decode: (raw, out) => {
       const names = raw.split(',').filter(isChartMetric)
       const unique = names.filter((m, i) => names.indexOf(m) === i)
-      if (unique.length > 0) out.chart = { primary: unique[0], second: unique[1] ?? null }
+      if (unique.length > 0) out.chart = unique.slice(0, MAX_CHART_PANELS)
     },
   },
   // The window's five keys are read together by `decodeSelection`, because

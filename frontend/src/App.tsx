@@ -49,7 +49,7 @@ import { useLayoutMotion } from './hooks/useLayoutMotion'
 import { useClosePopupsOnCommit } from './hooks/useClosePopupsOnCommit'
 import { useRunOnOpen } from './hooks/useRunOnOpen'
 import { useUrlSync } from './hooks/useUrlSync'
-import { useChartPair } from './hooks/useChartPair'
+import { useChartMetrics } from './hooks/useChartMetrics'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useClosureProximity } from './hooks/useClosureProximity'
 import { useGridLayer } from './hooks/useGridLayer'
@@ -340,7 +340,7 @@ export default function App() {
   const preview = usePreview()
   // The chart's metric slots (#499), here rather than in the results view
   // because the address bar's sync below carries them.
-  const chartPair = useChartPair(restored?.chart, view.sortBy)
+  const chartMetrics = useChartMetrics(restored?.chart, view.sortBy)
 
   const report = usePresentedReport({
     universe: shownUniverse,
@@ -396,7 +396,7 @@ export default function App() {
     defaultForecastModel: caps.defaultForecastModel,
     removedKeys,
     tableSort,
-    chart: chartPair.pair,
+    chart: chartMetrics.metrics,
     restoredView,
     cameraHeld: tour.index !== null,
   })
@@ -596,7 +596,7 @@ export default function App() {
     pointSample,
     analyzed: shownAnalyzed,
     models: caps.forecastModels,
-    chartPair,
+    chartMetrics,
     forecastModel,
     comparedModels,
     times: forecastTimes,

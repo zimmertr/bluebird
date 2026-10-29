@@ -5,14 +5,14 @@ import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { DEFAULT_SELECTION } from '../utils/calendar/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_LIMIT, DEFAULT_SORT } from '../utils/urlState'
-import { pairFor } from '../utils/chart/chartData'
+import { metricsFor } from '../utils/chart/chartData'
 
 const NO_TYPES: UrlSyncInputs['destinationTypes'] = []
 const NO_MODELS: UrlSyncInputs['comparedModels'] = []
 const NO_PLACES: UrlSyncInputs['places'] = []
 const NO_KEYS: UrlSyncInputs['removedKeys'] = new Set()
 const DEBOUNCE_MS = 400
-const DEFAULT_CHART = pairFor(DEFAULT_SORT)
+const DEFAULT_CHART = metricsFor(DEFAULT_SORT)
 
 // Every input at its default, so the link is the bare path.
 function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {

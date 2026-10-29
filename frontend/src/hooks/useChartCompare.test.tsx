@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type ChartCompareInputs, useChartCompare } from './useChartCompare'
-import { analyzedSnapshot, chartPairOf, forecastModel, pendingDestination, resultRow } from '../testSupport/fixtures'
+import { analyzedSnapshot, chartMetricsOf, forecastModel, pendingDestination, resultRow } from '../testSupport/fixtures'
 import { chartKey } from '../utils/chart/chartData'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { type ModelRow, pairKey } from '../utils/model/modelCompare'
@@ -44,7 +44,8 @@ function inputs(over: Partial<ChartCompareInputs> = {}): ChartCompareInputs {
   return {
     results: ROWS,
     pending: NONE,
-    chartPair: chartPairOf(),
+    chartMetrics: chartMetricsOf(),
+    phone: false,
     analyzed: REPORT,
     analysisSeq: 1,
     arriving: false,

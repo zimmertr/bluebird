@@ -184,3 +184,35 @@ export function fingerReading(
   if (index === null || band.height <= 0) return null
   return { index, value: pixelToValue(y, band.top, band.height, yMin, yMax) }
 }
+
+/**
+ * The least width a grid panel may have before it is not drawn (#499): its
+ * margins, the y axis strip and the least band, the same 40px a panel's
+ * height keeps, so a squeezed column still reads as a plot.
+ */
+export function panelWidthFloorPx(margin: PlotMargin): number {
+  return margin.left + Y_AXIS_WIDTH_PX + margin.right + MIN_PANEL_BAND_PX
+}
+
+/** Where a grid's column and row splits stand: each the first track's share, 0 to 1. */
+export interface GridShares {
+  x: number
+  y: number
+}
+
+/** A grid split evenly, which a double press on the knob puts back. */
+export const EVEN_GRID: GridShares = { x: 0.5, y: 0.5 }
+
+/**
+ * Where the grid's two splits land after the knob is dragged (#499): the
+ * drag in pixels, right and down positive, over the tracks' total width and
+ * height less the gutters. Each split is held to [0, 1] and no floor, so the
+ * knob can be dragged into a corner and one panel take the whole area; a
+ * panel under its floor is simply not drawn.
+ */
+export function gridAfterDrag(start: GridShares, dx: number, dy: number, totalW: number, totalH: number): GridShares {
+  return {
+    x: totalW > 0 ? clamp(start.x + dx / totalW, 0, 1) : start.x,
+    y: totalH > 0 ? clamp(start.y + dy / totalH, 0, 1) : start.y,
+  }
+}

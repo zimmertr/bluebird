@@ -25,7 +25,7 @@ import { urlNeedsSync } from './urlSync'
 import { MAX_CUSTOMZ_CHARS, URL_PARAMS, escapeQueryText, unescapeQueryText } from './urlParams'
 import { compressToEncodedURIComponent } from 'lz-string'
 import { place } from '../testSupport/fixtures'
-import { pairFor } from './chart/chartData'
+import { metricsFor } from './chart/chartData'
 import { MAX_POLYGON_POINTS } from './drawGeometry'
 
 // The candidate cap as the app hands it over at mount, which is the hook's
@@ -98,7 +98,7 @@ const base: ShareableState = {
   pins: [],
   removed: [],
   tableSort: null,
-  chart: pairFor(DEFAULT_SORT),
+  chart: metricsFor(DEFAULT_SORT),
   view: null,
 }
 
@@ -133,7 +133,7 @@ const pristine: ShareableState = {
   pins: [],
   removed: [],
   tableSort: null,
-  chart: pairFor(DEFAULT_SORT),
+  chart: metricsFor(DEFAULT_SORT),
   view: null,
 }
 

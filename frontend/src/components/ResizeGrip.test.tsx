@@ -21,7 +21,7 @@ describe('ResizeGrip', () => {
     vi.advanceTimersByTime(100)
     fireEvent.pointerUp(document, { clientY: 470, pointerId: 1 })
     expect(handlers.onDragStart).toHaveBeenCalledTimes(1)
-    expect(handlers.onDrag).toHaveBeenCalledWith(30)
+    expect(handlers.onDrag).toHaveBeenCalledWith(30, expect.any(Number))
     expect(handlers.onDragEnd).toHaveBeenCalledTimes(1)
     expect(handlers.onReset).not.toHaveBeenCalled()
 

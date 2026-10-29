@@ -5,7 +5,7 @@ import { CHROME, allocateColors, lineColor } from '../utils/chart/chartColors'
 
 // Chart selection for the results table and the chart-only legend: which
 // destinations are overlaid and their stable line colors. The metrics drawn
-// are `useChartPair`'s since #499, because they ride the share link.
+// are `useChartMetrics`' since #499, because they ride the share link.
 //
 // `results` is every destination on show, INCLUDING pending ones an analysis
 // has not covered yet — a searched place earns its color the moment it appears

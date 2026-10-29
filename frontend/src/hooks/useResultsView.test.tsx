@@ -6,7 +6,7 @@ import type { MapViewHandle } from '../components/MapView'
 import type { AnalyzeResponse } from '../types'
 import {
   analyzedSnapshot,
-  chartPairOf,
+  chartMetricsOf,
   closureWarning,
   fireWarning,
   forecastModel,
@@ -80,7 +80,7 @@ function inputs(over: Partial<ResultsViewInputs> = {}): ResultsViewInputs {
     pointSample: true,
     analyzed: REPORT,
     models: MODELS,
-    chartPair: chartPairOf(),
+    chartMetrics: chartMetricsOf(),
     forecastModel: 'gfs_seamless',
     comparedModels: NO_MODELS,
     times: TIMES,

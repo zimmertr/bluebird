@@ -3,7 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import ResultsPanels from './ResultsPanels'
 import { render } from '../testSupport/render'
-import { chartPairOf, resultRow } from '../testSupport/fixtures'
+import { chartMetricsOf, resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { LAYOUT_HOLD, MOTION, RESULTS_PANE } from '../styles'
 
@@ -64,9 +64,9 @@ function layout(resultsMode: 'table' | 'chart' | 'both') {
 }
 const BOTH = layout('both')
 const NO_SHARED: ReadonlySet<string> = new Set()
-const CHART_PAIR = chartPairOf()
-const CHARTS_QUIET = { chart: CHART, chartPair: CHART_PAIR, compare: QUIET, rowChartColor: NOOP, shared: NO_SHARED }
-const CHARTS_COMPARING = { chart: CHART, chartPair: CHART_PAIR, compare: COMPARING, rowChartColor: NOOP, shared: NO_SHARED }
+const CHART_PAIR = chartMetricsOf()
+const CHARTS_QUIET = { chart: CHART, chartMetrics: CHART_PAIR, compare: QUIET, rowChartColor: NOOP, shared: NO_SHARED }
+const CHARTS_COMPARING = { chart: CHART, chartMetrics: CHART_PAIR, compare: COMPARING, rowChartColor: NOOP, shared: NO_SHARED }
 
 function props(
   over: {

@@ -1,5 +1,5 @@
 import { useGripDrag } from '../hooks/useGripDrag'
-import { RADIUS, TAP } from '../styles'
+import { CHART_PANEL_BUTTON, RADIUS, TAP } from '../styles'
 
 interface ResizeGripProps {
   /** A double press: put this grip's own panel back to its default height. */
@@ -34,5 +34,43 @@ export default function ResizeGrip({ onReset, onDragStart, onDrag, onDragEnd }: 
         className={`w-10 h-0.5 ${RADIUS.pill} bg-edge group-hover:bg-ink-mid transition-colors`}
       />
     </div>
+  )
+}
+
+interface GridKnobProps {
+  /** Where the knob stands in its grid, as CSS lengths from the grid's top left. */
+  left: string
+  top: string
+  /** Its accessible name. */
+  label: string
+  /** A double press: even the grid back out. */
+  onReset: () => void
+  onDragStart: () => void
+  /** The drag so far, right and down positive. */
+  onDrag: (dx: number, dy: number) => void
+  onDragEnd: () => void
+}
+
+/**
+ * The one control that resizes the chart's grid of three or four panels
+ * (#499): a knob where the gutters cross, which moves both splits at once.
+ * Beside `ResizeGrip` and on the same gesture (`useGripDrag`), so the two
+ * share one press clock and one way a drag is read.
+ */
+export function GridKnob({ left, top, label, onReset, onDragStart, onDrag, onDragEnd }: GridKnobProps) {
+  const handlePointerDown = useGripDrag({
+    onReset,
+    onDragStart,
+    onDrag: (upPx, rightPx) => onDrag(rightPx, -upPx),
+    onDragEnd: () => onDragEnd(),
+  })
+  return (
+    <div
+      role="separator"
+      aria-label={label}
+      onPointerDown={handlePointerDown}
+      className={CHART_PANEL_BUTTON.knob}
+      style={{ left, top }}
+    />
   )
 }

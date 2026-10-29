@@ -48,8 +48,8 @@ export interface ResultsViewInputs {
   analyzed: TableViewInputs['analyzed']
   /** The published forecast models. */
   models: TableViewInputs['models']
-  /** The chart's metric slots (`useChartPair`, #499). */
-  chartPair: ChartCompareInputs['chartPair']
+  /** The chart's metric slots (`useChartMetrics`, #499). */
+  chartMetrics: ChartCompareInputs['chartMetrics']
   /** The panel's model. */
   forecastModel: string
   /** The models ticked for the chart's comparison. */
@@ -96,7 +96,7 @@ export function useResultsView({
   pointSample,
   analyzed,
   models,
-  chartPair,
+  chartMetrics,
   forecastModel,
   comparedModels,
   times,
@@ -130,7 +130,8 @@ export function useResultsView({
   const charts = useChartCompare({
     results,
     pending,
-    chartPair,
+    chartMetrics,
+    phone: !isDesktop,
     analyzed,
     analysisSeq,
     arriving,

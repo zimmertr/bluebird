@@ -42,54 +42,69 @@ export function metricForSort(sortBy: SortBy): ChartMetric {
 }
 
 /**
- * The chart's two metric slots (#499): the primary, which follows the
- * ranking, and an optional second drawn as its own panel under it. Two and no
- * more, because each slot is a panel with its own y axis, and a third would
- * leave each one too short to read at a phone sheet's rest height.
+ * The chart's metric slots (#499), top left first: one to four distinct
+ * families, each drawn as its own panel. The first is the primary, which
+ * follows the ranking.
  */
-export interface ChartMetricPair {
-  readonly primary: ChartMetric
-  readonly second: ChartMetric | null
+export type ChartMetrics = readonly ChartMetric[]
+
+/**
+ * The most panels a desk draws (#499; TJ 2026-10-29): four is a 2x2 grid,
+ * past which each panel at a laptop's chart height is shorter than its own
+ * axis labels can stand in.
+ */
+export const MAX_CHART_PANELS = 4
+
+/**
+ * The most a phone draws (#499): a phone sheet at rest holds two readable
+ * panels stacked and no more. The slots past it stay in state and in the
+ * link, so a link with four opens with four at a desk.
+ */
+export const PHONE_CHART_PANELS = 2
+
+/** The slots a session opens on: the ranking's family alone. */
+export function metricsFor(sortBy: SortBy): ChartMetrics {
+  return [metricForSort(sortBy)]
 }
 
-/** The pair a session opens on: the ranking's family, and no second panel. */
-export function pairFor(sortBy: SortBy): ChartMetricPair {
-  return { primary: metricForSort(sortBy), second: null }
+/** The slots a chart of this kind draws: all of them at a desk, the first two on a phone. */
+export function drawnMetrics(metrics: ChartMetrics, phone: boolean): ChartMetrics {
+  return phone && metrics.length > PHONE_CHART_PANELS ? metrics.slice(0, PHONE_CHART_PANELS) : metrics
 }
 
 /**
- * A metric for the primary slot, from its picker or from a new ranking. One
- * rule for both: a metric the second slot already holds swaps the two rather
- * than drawing one family twice, so precipitation over temperature ranked by
- * temperature becomes temperature over precipitation. Answers the same object
- * when nothing moves, so a memoized chart is handed the value it already has.
+ * Put a metric in slot `index`, from its picker or (slot 0) from a new
+ * ranking. One rule for every slot: a metric another slot already holds swaps
+ * the two rather than drawing one family twice, so precipitation over
+ * temperature ranked by temperature becomes temperature over precipitation.
+ * Answers the same list when nothing moves, so a memoized chart is handed the
+ * value it already has.
  */
-export function pickPrimary(pair: ChartMetricPair, metric: ChartMetric): ChartMetricPair {
-  if (metric === pair.primary) return pair
-  if (metric === pair.second) return { primary: metric, second: pair.primary }
-  return { primary: metric, second: pair.second }
+export function pickMetric(metrics: ChartMetrics, index: number, metric: ChartMetric): ChartMetrics {
+  if (index < 0 || index >= metrics.length || metrics[index] === metric) return metrics
+  const next = [...metrics]
+  const other = metrics.indexOf(metric)
+  if (other >= 0) next[other] = metrics[index]
+  next[index] = metric
+  return next
 }
 
-/**
- * A metric for the second slot, or null to clear it. The primary's metric
- * swaps the two, as `pickPrimary` does; with no second to swap in, there is
- * nothing to put in the primary slot, so the pick changes nothing.
- */
-export function pickSecond(pair: ChartMetricPair, metric: ChartMetric | null): ChartMetricPair {
-  if (metric === pair.second) return pair
-  if (metric === null) return { primary: pair.primary, second: null }
-  if (metric === pair.primary) return pair.second === null ? pair : { primary: pair.second, second: metric }
-  return { primary: pair.primary, second: metric }
+/** Add a slot holding the first family of `CHART_METRICS` not drawn yet, up to `MAX_CHART_PANELS`. */
+export function addMetric(metrics: ChartMetrics): ChartMetrics {
+  if (metrics.length >= MAX_CHART_PANELS) return metrics
+  const unused = CHART_METRICS.find((m) => !metrics.includes(m.key))
+  return unused ? [...metrics, unused.key] : metrics
+}
+
+/** Take slot `index` away. Never the first, which the ranking keeps. */
+export function removeMetric(metrics: ChartMetrics, index: number): ChartMetrics {
+  if (index <= 0 || index >= metrics.length) return metrics
+  return metrics.filter((_, i) => i !== index)
 }
 
 /** Whether a link's word names a chart metric. */
 export function isChartMetric(raw: string): raw is ChartMetric {
   return CHART_METRICS.some((m) => m.key === raw)
-}
-
-/** The metrics drawn, top panel first. */
-export function pairMetrics(pair: ChartMetricPair): ChartMetric[] {
-  return pair.second === null ? [pair.primary] : [pair.primary, pair.second]
 }
 
 // Coordinate-based identity: it survives the table's client-side re-sorting and
@@ -376,25 +391,16 @@ export function formatTooltipValue(v: number, metric: ChartMetric): string {
 }
 
 /**
- * A card row's values (#499): each drawn metric's value at the hour, through
- * its own formatter, top panel first, joined by the app's ` · `. A metric
- * with no value at that hour is left out rather than written as a dash, so a
- * row reads what there is.
- *
- * With two metrics each value carries its hour's unit (`HOURLY_UNIT`), since
- * a bare `0.05 · 38.9` cannot say which is which; AQI has none to carry. One
- * metric prints bare, as it always did, because its picker names the unit.
+ * A card row's cells (#499): each drawn metric's value at the hour, through
+ * its own formatter, top left panel first. Bare numbers, because the card's
+ * header names each column with its unit; a metric with no value at that hour
+ * is an empty cell, so the columns stay in step.
  */
-export function cardValues(line: ChartLine, metrics: readonly ChartMetric[], index: number): string {
-  const parts: string[] = []
-  const withUnits = metrics.length > 1
-  for (const m of metrics) {
+export function cardCells(line: ChartLine, metrics: ChartMetrics, index: number): string[] {
+  return metrics.map((m) => {
     const v = valueAt(line, m, index)
-    if (v === null) continue
-    const text = formatTooltipValue(v, m)
-    parts.push(withUnits && HOURLY_UNIT[m] ? `${text} ${HOURLY_UNIT[m]}` : text)
-  }
-  return parts.join(' · ')
+    return v === null ? '' : formatTooltipValue(v, m)
+  })
 }
 
 export function formatMetricValue(v: number, metric: ChartMetric): string {

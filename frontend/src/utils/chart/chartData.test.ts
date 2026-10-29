@@ -15,13 +15,16 @@ import {
   nowWithinGrid,
   tracksCursor,
   buildChartData,
-  cardValues,
+  MAX_CHART_PANELS,
+  PHONE_CHART_PANELS,
+  addMetric,
+  cardCells,
+  drawnMetrics,
   isChartMetric,
-  pairFor,
-  pairMetrics,
-  pickPrimary,
-  pickSecond,
-  type ChartMetricPair,
+  metricsFor,
+  pickMetric,
+  removeMetric,
+  type ChartMetrics,
   candidateSetKey,
   chartKey,
   computeYDomain,
@@ -697,71 +700,78 @@ describe('a name two places share', () => {
   })
 })
 
-// The chart's two slots (#499): one rule moves them, whether the ranking or a
-// picker asks, and a metric never stands in both.
-describe('the chart metric pair', () => {
-  const PT: ChartMetricPair = { primary: 'precip', second: 'temp' }
+// The chart's slots (#499): one rule moves them, whether the ranking or a
+// picker asks, and a metric never stands in two.
+describe('the chart metric slots', () => {
+  const PT: ChartMetrics = ['precip', 'temp']
 
-  it('opens on the ranking, with no second panel', () => {
-    expect(pairFor('temp_max_f')).toEqual({ primary: 'temp', second: null })
+  it('opens on the ranking, with one panel', () => {
+    expect(metricsFor('temp_max_f')).toEqual(['temp'])
   })
 
-  it('follows a new ranking, swapping when the second slot holds it', () => {
-    expect(pickPrimary(PT, 'temp')).toEqual({ primary: 'temp', second: 'precip' })
-    expect(pickPrimary(PT, 'wind')).toEqual({ primary: 'wind', second: 'temp' })
+  it('follows a new ranking in the first slot, swapping with the slot that held it', () => {
+    expect(pickMetric(PT, 0, 'temp')).toEqual(['temp', 'precip'])
+    expect(pickMetric(['precip', 'temp', 'wind'], 0, 'wind')).toEqual(['wind', 'temp', 'precip'])
+    expect(pickMetric(PT, 0, 'aqi')).toEqual(['aqi', 'temp'])
   })
 
-  it('answers the same pair when nothing moves', () => {
-    expect(pickPrimary(PT, 'precip')).toBe(PT)
-    expect(pickSecond(PT, 'temp')).toBe(PT)
-    const one: ChartMetricPair = { primary: 'aqi', second: null }
-    expect(pickSecond(one, null)).toBe(one)
-    // The primary picked for an empty slot has nothing to swap with.
-    expect(pickSecond(one, 'aqi')).toBe(one)
+  it('swaps when any picker takes a metric another slot holds', () => {
+    expect(pickMetric(['precip', 'temp', 'wind', 'aqi'], 3, 'temp')).toEqual(['precip', 'aqi', 'wind', 'temp'])
+    expect(pickMetric(PT, 1, 'wind')).toEqual(['precip', 'wind'])
   })
 
-  it('swaps when either picker takes the metric the other slot holds', () => {
-    expect(pickSecond(PT, 'precip')).toEqual({ primary: 'temp', second: 'precip' })
-    expect(pickPrimary(PT, 'temp')).toEqual({ primary: 'temp', second: 'precip' })
+  it('answers the same list when nothing moves', () => {
+    expect(pickMetric(PT, 0, 'precip')).toBe(PT)
+    expect(pickMetric(PT, 5, 'wind')).toBe(PT)
+    expect(removeMetric(PT, 0)).toBe(PT)
   })
 
-  it('fills and clears the second slot', () => {
-    expect(pickSecond({ primary: 'aqi', second: null }, 'wind')).toEqual({ primary: 'aqi', second: 'wind' })
-    expect(pickSecond(PT, null)).toEqual({ primary: 'precip', second: null })
+  it('adds the first metric not drawn, up to the ceiling', () => {
+    const first = CHART_METRICS[0].key
+    expect(addMetric([CHART_METRICS[1].key])).toEqual([CHART_METRICS[1].key, first])
+    expect(addMetric([first])).toEqual([first, CHART_METRICS[1].key])
+    const full = CHART_METRICS.slice(0, MAX_CHART_PANELS).map((m) => m.key)
+    expect(addMetric(full)).toBe(full)
   })
 
-  it('lists the drawn metrics top first, and knows its own names', () => {
-    expect(pairMetrics(PT)).toEqual(['precip', 'temp'])
-    expect(pairMetrics({ primary: 'aqi', second: null })).toEqual(['aqi'])
+  it('removes any slot but the first', () => {
+    expect(removeMetric(['precip', 'temp', 'wind'], 1)).toEqual(['precip', 'wind'])
+    expect(removeMetric(['precip', 'temp', 'wind'], 0)).toEqual(['precip', 'temp', 'wind'])
+  })
+
+  it('draws every slot at a desk and the first two on a phone', () => {
+    const four: ChartMetrics = ['precip', 'temp', 'wind', 'aqi']
+    expect(drawnMetrics(four, false)).toBe(four)
+    expect(drawnMetrics(four, true)).toEqual(['precip', 'temp'])
+    expect(PHONE_CHART_PANELS).toBe(2)
+    expect(MAX_CHART_PANELS).toBe(4)
+  })
+
+  it('knows its own names', () => {
     expect(RANKED_FAMILIES.every(isChartMetric)).toBe(true)
     expect(isChartMetric('snow_depth')).toBe(false)
   })
 })
 
-describe('cardValues', () => {
+describe('cardCells', () => {
   const line = {
     key: 'k',
     label: 'Sahale Mountain',
     color: '#000000',
     ranked: true,
-    series: seriesOf({ precip_in: [0.05, null], temp_f: [38.9, 40] }),
+    series: seriesOf({ precip_in: [0.05, null], temp_f: [38.9, 40], aqi: [42, 43] }),
   }
 
-  it("reads each metric's value through its own format, top panel first", () => {
-    expect(cardValues(line, ['precip', 'temp'], 0)).toBe(
-      `${formatTooltipValue(0.05, 'precip')} in/hr · ${formatTooltipValue(38.9, 'temp')} °F`,
-    )
+  it("prints each metric's value bare, through its own format, first panel first", () => {
+    expect(cardCells(line, ['precip', 'temp', 'aqi'], 0)).toEqual([
+      formatTooltipValue(0.05, 'precip'),
+      formatTooltipValue(38.9, 'temp'),
+      '42',
+    ])
   })
 
-  it('names no unit for AQI, and none for a single metric', () => {
-    const aqi = { ...line, series: seriesOf({ aqi: [42], temp_f: [38.9] }) }
-    expect(cardValues(aqi, ['aqi', 'temp'], 0)).toBe(`42 · ${formatTooltipValue(38.9, 'temp')} °F`)
-    expect(cardValues(line, ['temp'], 0)).toBe(formatTooltipValue(38.9, 'temp'))
-  })
-
-  it('leaves a missing half out rather than writing a placeholder', () => {
-    expect(cardValues(line, ['precip', 'temp'], 1)).toBe(`${formatTooltipValue(40, 'temp')} °F`)
-    expect(cardValues(line, ['precip'], 1)).toBe('')
+  it('leaves an empty cell where a metric has no value', () => {
+    expect(cardCells(line, ['precip', 'temp'], 1)).toEqual(['', formatTooltipValue(40, 'temp')])
   })
 })
 

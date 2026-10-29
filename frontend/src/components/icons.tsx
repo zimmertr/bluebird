@@ -359,6 +359,24 @@ export function IconPlay({ playing, className }: IconProps & { playing: boolean 
   )
 }
 
+/** A plus: add one more of what stands beside it (the chart's panels, #499). */
+export function IconPlus({ size = 'control', className }: IconProps & { size?: keyof typeof ICON }): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      className={join(ICON[size], className)}
+      aria-hidden="true"
+    >
+      <line x1="12" y1="6" x2="12" y2="18" />
+      <line x1="6" y1="12" x2="18" y2="12" />
+    </svg>
+  )
+}
+
 /** Two columns of dots: the standing picture for "drag this". */
 export function IconGrip({ className }: IconProps): ReactNode {
   return (

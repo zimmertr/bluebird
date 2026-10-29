@@ -1,4 +1,4 @@
-import { type PointerEvent, ReactNode, type RefObject, memo, useCallback, useId, useMemo, useRef, useState } from 'react'
+import { Fragment, type PointerEvent, ReactNode, type RefObject, memo, useCallback, useId, useMemo, useRef, useState } from 'react'
 import {
   CartesianGrid,
   Label,
@@ -11,17 +11,19 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_METRIC_W, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
-import { IconChevron } from './icons'
+import { CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
+import { IconChevron, IconClose, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
-import ResizeGrip from './ResizeGrip'
+import ResizeGrip, { GridKnob } from './ResizeGrip'
 import {
   CHART_METRICS,
   ChartLine,
   ChartMetric,
-  type ChartMetricPair,
-  cardValues,
-  pairMetrics,
+  type ChartMetrics,
+  MAX_CHART_PANELS,
+  PHONE_CHART_PANELS,
+  cardCells,
+  drawnMetrics,
   alignRowToGrid,
   axisTimeLabel,
   nowWithinGrid,
@@ -55,6 +57,10 @@ import {
   readoutPlace,
   splitAfterDrag,
   xAxisPx,
+  EVEN_GRID,
+  type GridShares,
+  gridAfterDrag,
+  panelWidthFloorPx,
 } from '../utils/chart/chartPointer'
 import { CHART_TICK_PX, CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
 
@@ -120,13 +126,14 @@ function headroomLabel(plotTop: number) {
 const HEADROOM_LABEL = headroomLabel(PLOT_MARGIN.top)
 const TITLED_HEADROOM_LABEL = headroomLabel(TITLED_PLOT_MARGIN.top)
 
-// The pickers' words (#499), each one constant so a change is one edit. The
-// maintainer confirmed all three on 2026-10-28: the first picker keeps the
-// name #348 gave it, the second is named for its slot, and its empty option
-// reads the same word the closed picker shows while the slot is empty.
-const PRIMARY_PICKER_LABEL = 'Chart metric'
-const SECOND_PICKER_LABEL = 'Second metric'
-const SECOND_NONE_LABEL = 'None'
+// The chart's words (#499), each one constant so a change is one edit. The
+// first two picker names were confirmed on 2026-10-28, and the +, the × and
+// the knob's names on 2026-10-29. The third and fourth pickers' names follow
+// the second's pattern.
+const PICKER_LABELS = ['Chart metric', 'Second metric', 'Third metric', 'Fourth metric'] as const
+const ADD_PANEL_LABEL = 'Add a panel'
+const removePanelLabel = (metricLabel: string) => `Remove ${metricLabel}`
+const RESIZE_PANELS_LABEL = 'Resize the panels'
 
 // Which rows are plotted is the table's job: the checkbox column is the one
 // series picker (#242 review dropped the chart's own legend strip), so this
@@ -142,15 +149,18 @@ interface Props {
   times: number[]
   rows: DestinationResult[]
   /**
-   * The metrics drawn (#499): the primary in the top panel, and the second,
-   * when there is one, in a panel of its own under it on the same time axis.
-   * One value held in state by `useChartPair`, so the memo compares one
-   * identity that moves only when a slot does.
+   * The metrics in the chart's slots (#499), first panel first: one to four
+   * at a desk, the first two drawn on a phone. One list held in state by
+   * `useChartMetrics`, so the memo compares one identity that moves only
+   * when a slot does.
    */
-  pair: ChartMetricPair
-  onPrimaryChange: (m: ChartMetric) => void
-  /** A metric for the second panel, or null to take it away. */
-  onSecondChange: (m: ChartMetric | null) => void
+  metrics: ChartMetrics
+  /** Put a metric in slot `index`; one another slot holds swaps the two. */
+  onPick: (index: number, m: ChartMetric) => void
+  /** Add a panel, holding the first metric not drawn yet. */
+  onAdd: () => void
+  /** Take slot `index` away. Never the first. */
+  onRemove: (index: number) => void
   /**
    * The ranking and its direction, which decide which end of the charted
    * family the extreme line marks. Primitives, so the memo compares them by
@@ -208,28 +218,18 @@ interface Props {
 // The metric menu's rows at a desk, once: the chart's own list in its order
 // and words, as the select's options read them (record 0201).
 const METRIC_OPTIONS = CHART_METRICS.map((m) => ({ value: m.key, label: m.label }))
-// The second picker's rows: the empty slot first, so the one press that put a
-// panel there is the one that takes it away (#499). The empty string is the
-// slot's value because a select's value is text.
-type SecondValue = ChartMetric | ''
-const SECOND_OPTIONS: readonly { value: SecondValue; label: string }[] = [
-  { value: '', label: SECOND_NONE_LABEL },
-  ...METRIC_OPTIONS,
-]
-
 const NO_EXTRA_LINES: readonly ChartLine[] = []
 const NO_MODEL_ENDS: readonly ModelEndLine[] = []
 const NO_SHARED_NAMES: ReadonlySet<string> = new Set()
-
-const toSecond = (v: SecondValue): ChartMetric | null => (v === '' ? null : v)
 
 function TimeSeriesChart({
   tooltipIndex = null,
   times,
   rows,
-  pair,
-  onPrimaryChange,
-  onSecondChange,
+  metrics,
+  onPick,
+  onAdd,
+  onRemove,
   sortBy,
   sortDesc,
   colorFor,
@@ -244,29 +244,38 @@ function TimeSeriesChart({
   // A phone's picker is the plot's title rather than a row above it (#696),
   // and the plot is inset under it.
   const MARGIN = titled ? TITLED_PLOT_MARGIN : PLOT_MARGIN
-  const metrics = useMemo(() => pairMetrics(pair), [pair])
-  const stacked = metrics.length > 1
+  // What this chart draws: every slot at a desk, the first two on a phone,
+  // where the rest stay in state and in the link (#499).
+  const drawn = useMemo(() => drawnMetrics(metrics, titled), [metrics, titled])
+  const count = drawn.length
+  // Three or four panels stand in a grid; one or two stack on one time axis.
+  const gridded = count > 2
+  const atCeiling = metrics.length >= (titled ? PHONE_CHART_PANELS : MAX_CHART_PANELS)
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
   // The cursor's value in the hovered panel's own units, which orders the card.
   const [cursorValue, setCursorValue] = useState<number | null>(null)
   // Which panel the pointer is over (#499): the one that shows the card, and
   // whose domain the nearest line is read through. Null before any hover,
-  // which puts a tutorial's or a finger's card on the top panel.
+  // which puts a tutorial's or a finger's card on the first panel.
   const [hoveredPanel, setHoveredPanel] = useState<number | null>(null)
   // The hour a finger reads (#336; record 0144), which the tooltip shows as
   // it shows a hovered one. A touch sends no hover, so Recharts never learns
   // the hour from it; this is the hour handed to it instead. Kept when the
   // finger lifts, so the reading can be read without a finger over it.
   const [fingerIndex, setFingerIndex] = useState<number | null>(null)
-  // The top panel's share of the two panels' height (#499). Session state:
-  // a split is how this reader likes this chart today, which no link or
-  // storage has reason to carry. Even by default and after a double press.
+  // The top panel's share of two stacked panels' height, and a grid's column
+  // and row splits (#499). Session state: a split is how this reader likes
+  // this chart today, which no link or storage has reason to carry. Even by
+  // default and after a double press.
   const [share, setShare] = useState(0.5)
+  const [gridShares, setGridShares] = useState<GridShares>(EVEN_GRID)
   const topBoxRef = useRef<HTMLDivElement>(null)
   const bottomBoxRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
   const dragStartRef = useRef<{ share: number; totalPx: number } | null>(null)
-  // One sync group per chart, so the second panel's cursor stands on the hour
-  // the first is hovered at.
+  const knobStartRef = useRef<{ shares: GridShares; w: number; h: number } | null>(null)
+  // One sync group per chart, so every panel's cursor stands on the hour the
+  // hovered one is at.
   const syncId = useId()
 
   // Align each series onto the active grid by timestamp — a no-op for ranked
@@ -313,13 +322,13 @@ function TimeSeriesChart({
   // the re-render rebuilds every line's path from every point, and the chart ends
   // up lagging seconds behind the pointer. It falls back to a plain shared
   // tooltip, and comes back on as soon as fewer lines are charted. See tracksCursor.
-  // Counted over both panels' paths (#499): the emphasis dims a destination in
-  // each, so a hover re-renders every line twice when two metrics are drawn.
-  const followCursor = tracksCursor(times.length, lines.length * metrics.length)
+  // Counted over every drawn panel's paths (#499): the emphasis dims a
+  // destination in each, so a hover re-renders every line once per panel.
+  const followCursor = tracksCursor(times.length, lines.length * count)
 
   // Render the focused line last (on top) with siblings dimmed. One nearest-line
-  // computation feeds both the line emphasis and the tooltip ordering, in both
-  // panels: a destination is one colour in each, so it is one emphasis too.
+  // computation feeds both the line emphasis and the tooltip ordering, in every
+  // panel: a destination is one colour in each, so it is one emphasis too.
   const ordered = useMemo(
     () =>
       focusedKey
@@ -354,7 +363,7 @@ function TimeSeriesChart({
     setCursorValue(null)
   }, [])
 
-  // The grip between the panels moves height from one to the other (#499).
+  // The grip between two stacked panels moves height from one to the other.
   // Each keeps a floor, from the plot geometry (`panelFloorPx`), so neither
   // can be dragged to nothing; the top one has no axis strip to keep.
   const topFloor = panelFloorPx(MARGIN, false)
@@ -379,185 +388,212 @@ function TimeSeriesChart({
   }, [])
   const onSplitReset = useCallback(() => setShare(0.5), [])
 
+  // The grid's one knob moves both splits on every pointer move, with no
+  // floor: dragged into a corner, one panel takes the area, and a panel
+  // under its floor is not drawn (#499; TJ 2026-10-29).
+  const gridW = Math.max(0, (gridRef.current?.clientWidth ?? 0) - GUTTER_PX)
+  const gridH = Math.max(0, (gridRef.current?.clientHeight ?? 0) - GUTTER_PX)
+  const onKnobStart = useCallback(() => {
+    const w = Math.max(0, (gridRef.current?.clientWidth ?? 0) - GUTTER_PX)
+    const h = Math.max(0, (gridRef.current?.clientHeight ?? 0) - GUTTER_PX)
+    setGridShares((current) => {
+      knobStartRef.current = { shares: current, w, h }
+      return current
+    })
+  }, [])
+  const onKnobDrag = useCallback((dx: number, dy: number) => {
+    const start = knobStartRef.current
+    if (!start) return
+    setGridShares(gridAfterDrag(start.shares, dx, dy, start.w, start.h))
+  }, [])
+  const onKnobEnd = useCallback(() => {
+    knobStartRef.current = null
+  }, [])
+  const onKnobReset = useCallback(() => setGridShares(EVEN_GRID), [])
+
   // The tutorial's hour wins over a finger's; an hour past a grid that has
   // since shrunk is no reading at all.
   const shownIndex = tooltipIndex ?? (fingerIndex !== null && fingerIndex < times.length ? fingerIndex : null)
-  // The panel that shows the card (#499): the hovered one, or the top one
-  // before any hover. One card for both panels, reading both values a row.
-  const cardPanel = hoveredPanel !== null && hoveredPanel < metrics.length ? hoveredPanel : 0
+  // The panel that shows the card (#499): the hovered one, or the first
+  // before any hover. One card for every panel, reading each value a row.
+  const cardPanel = hoveredPanel !== null && hoveredPanel < count ? hoveredPanel : 0
 
-  const metricLabel = (m: ChartMetric) => CHART_METRICS.find((c) => c.key === m)?.label ?? ''
-  const onSecondPick = useCallback((v: SecondValue) => onSecondChange(toSecond(v)), [onSecondChange])
-  const onPrimaryPick = useCallback((v: SecondValue) => v !== '' && onPrimaryChange(v), [onPrimaryChange])
-  // The desk's two pickers, one beside the other at one width (#499). One
-  // menu shape drawn twice from a list, so the two cannot drift apart.
-  const deskPickers = [
-    { label: PRIMARY_PICKER_LABEL, value: pair.primary as SecondValue, options: METRIC_OPTIONS, onChange: onPrimaryPick },
-    { label: SECOND_PICKER_LABEL, value: (pair.second ?? '') as SecondValue, options: SECOND_OPTIONS, onChange: onSecondPick },
-  ]
+  const pickers = metrics.map((metric, i) => ({
+    index: i,
+    label: PICKER_LABELS[i],
+    metric,
+    metricLabel: metricLabelOf(metric),
+  }))
+
+  // A phone's title line over panel `i` (#696, #499): the slot's picker, an
+  // × after every extra panel's, and a + after the first's, greyed at the
+  // phone's two.
+  function heading(i: number): ReactNode {
+    if (!titled) return null
+    const p = pickers[i]
+    return (
+      <div className={CHART_TITLE.bar}>
+        <MetricTitle label={p.label} shown={p.metricLabel} value={p.metric} index={i} onPick={onPick} />
+        {i > 0 && <RemoveButton index={i} metricLabel={p.metricLabel} onRemove={onRemove} />}
+        {i === 0 && <AddButton disabled={atCeiling} onAdd={onAdd} />}
+      </div>
+    )
+  }
+
+  function panel(i: number, flexGrow: number | null, drawsAxis: boolean, boxRef?: RefObject<HTMLDivElement | null>, hidden = false) {
+    return (
+      <ChartPanel
+        key={`panel-${i}`}
+        index={i}
+        boxRef={boxRef}
+        hidden={hidden}
+        flexGrow={flexGrow}
+        metric={drawn[i]}
+        metrics={drawn}
+        lines={lines}
+        ordered={ordered}
+        focusedKey={focusedKey}
+        cursorValue={cursorValue}
+        drawsAxis={drawsAxis}
+        labelsChrome={i === 0}
+        syncId={count > 1 ? syncId : undefined}
+        times={times}
+        spanMs={spanMs}
+        nowMs={nowMs}
+        pointGrid={pointGrid}
+        modelEnds={modelEnds}
+        playheadMs={playheadMs}
+        sortBy={sortBy}
+        sortDesc={sortDesc}
+        titled={titled}
+        margin={MARGIN}
+        followCursor={followCursor}
+        showsCard={i === cardPanel}
+        shownIndex={i === cardPanel ? shownIndex : null}
+        onHover={onHover}
+        onEnter={onEnter}
+        onLeave={onLeave}
+        onFinger={onFinger}
+        onDropFinger={onDropFinger}
+        onPlayheadChange={onPlayheadChange}
+        heading={heading(i)}
+      />
+    )
+  }
+
+  // A grid panel too small for a plot is not drawn (#499); its box stays, so
+  // the gutters and the knob stay where the reader put them.
+  const widthFloor = panelWidthFloorPx(MARGIN)
+  const heightFloor = panelFloorPx(MARGIN, true)
+  const tooSmall = (w: number, h: number) => gridW > 0 && gridH > 0 && (w < widthFloor || h < heightFloor)
+  const { x, y } = gridShares
 
   return (
     // The tour's Chart step lights the chart, its picker and plot (#696).
     <div className="flex h-full flex-col" data-tour="chart">
-      {/* The metric, one series at a time; opens on the ranked metric.
+      {/* The metrics, one per panel; the first opens on the ranked metric.
 
           A select rather than one radio per metric (#348). The labels carry
           their units, and five of them at the panel's 12px type need 584px of
           row, where a phone's results sheet is the phone's width: at 402px the
           radios wrapped and AQI sat alone on a second line. The select is
-          CHART_METRIC_W wide whatever its labels say, so this row cannot wrap
-          and a sixth metric costs it nothing. It is the panel's old 144px
-          rather than the 118px column the sidebar came down to: this control
-          lines up with nothing above it, and `Freezing level (ft)` needs the
-          wider one. The row itself does not wrap either:
-          the comparison note beside the control shrinks (`min-w-0`) rather
-          than dropping under it. At a desk it opens the one menu rather
-          than the platform's list (record 0201). */}
-      {/* At a desk the select stands in a row above the plot; on a phone it
-          is the plot's title (below), and the row stands only to hold a
-          comparison's note. The second metric's picker stands beside the
-          first in the same row and at the same width (#499), its first
-          option the empty slot. */}
+          CHART_METRIC_W wide whatever its labels say, so a sixth metric costs
+          the row nothing. It is the panel's old 144px rather than the 118px
+          column the sidebar came down to: this control lines up with nothing
+          above it, and `Freezing level (ft)` needs the wider one. The
+          comparison note beside the controls shrinks (`min-w-0`). At a desk
+          each opens the one menu rather than the platform's list (record
+          0201). */}
+      {/* At a desk the selects stand in a row above the plots, one per slot
+          in slot order, each but the first with an × after it and the last
+          with a + (#499); the row wraps on a desk too narrow for four. On a
+          phone each is its panel's title (below), and the row stands only to
+          hold a comparison's note. */}
       {(!titled || controls) && (
-        <div className="flex flex-shrink-0 items-center gap-x-4 px-3 py-1">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1">
           {!titled &&
-            deskPickers.map((picker) => (
+            pickers.map((p) => (
               // flex, not block, for the reason the ranking rows' dropdown
               // gives: an inline-level select in a block wrapper reserves
               // descender space below itself and sits a pixel low against what
               // is beside it.
-              <div key={picker.label} className="relative flex flex-shrink-0">
-                <MenuSelect<SecondValue>
-                  label={picker.label}
-                  value={picker.value}
-                  options={picker.options}
-                  onChange={picker.onChange}
+              <div key={p.index} className="relative flex flex-shrink-0 items-stretch gap-1">
+                <MenuSelect
+                  label={p.label}
+                  value={p.metric}
+                  options={METRIC_OPTIONS}
+                  onChange={(m: ChartMetric) => onPick(p.index, m)}
                   className={`${CHART_METRIC_W} px-2 py-0.5`}
                 />
+                {p.index > 0 && <RemoveButton index={p.index} metricLabel={p.metricLabel} onRemove={onRemove} />}
+                {p.index === metrics.length - 1 && <AddButton disabled={atCeiling} onAdd={onAdd} />}
               </div>
             ))}
           {controls}
         </div>
       )}
 
-      {metrics.map((metric, i) => {
-        const panel = (
-          <ChartPanel
-            key={`panel-${i}`}
-            index={i}
-            boxRef={i === 0 ? topBoxRef : bottomBoxRef}
-            grow={stacked ? (i === 0 ? share : 1 - share) : null}
-            metric={metric}
-            metrics={metrics}
-            lines={lines}
-            ordered={ordered}
-            focusedKey={focusedKey}
-            cursorValue={cursorValue}
-            drawsAxis={i === metrics.length - 1}
-            labelsChrome={i === 0}
-            syncId={stacked ? syncId : undefined}
-            times={times}
-            spanMs={spanMs}
-            nowMs={nowMs}
-            pointGrid={pointGrid}
-            modelEnds={modelEnds}
-            playheadMs={playheadMs}
-            sortBy={sortBy}
-            sortDesc={sortDesc}
-            titled={titled}
-            margin={MARGIN}
-            followCursor={followCursor}
-            showsCard={i === cardPanel}
-            shownIndex={i === cardPanel ? shownIndex : null}
-            onHover={onHover}
-            onEnter={onEnter}
-            onLeave={onLeave}
-            onFinger={onFinger}
-            onDropFinger={onDropFinger}
-            onPlayheadChange={onPlayheadChange}
-            heading={
-              titled ? (
-                !stacked ? (
-                  // The empty second slot on a phone (#499; TJ 2026-10-28):
-                  // its own title box 8px right of the primary's, reading
-                  // None, whose pick opens the second panel.
-                  <div className={CHART_TITLE.row}>
-                    <MetricTitle
-                      className={CHART_TITLE.inRow}
-                      label={PRIMARY_PICKER_LABEL}
-                      shown={metricLabel(metric)}
-                      value={metric}
-                      options={METRIC_OPTIONS}
-                      onChange={onPrimaryChange}
-                    />
-                    <MetricTitle<SecondValue>
-                      className={`${CHART_TITLE.inRow} flex-shrink-0`}
-                      label={SECOND_PICKER_LABEL}
-                      shown={SECOND_NONE_LABEL}
-                      value=""
-                      options={SECOND_OPTIONS}
-                      onChange={onSecondPick}
-                    />
-                  </div>
-                ) : i === 0 ? (
-                  <MetricTitle
-                    label={PRIMARY_PICKER_LABEL}
-                    shown={metricLabel(metric)}
-                    value={metric}
-                    options={METRIC_OPTIONS}
-                    onChange={onPrimaryChange}
-                  />
-                ) : (
-                  <MetricTitle
-                    label={SECOND_PICKER_LABEL}
-                    shown={metricLabel(metric)}
-                    value={metric}
-                    options={SECOND_OPTIONS}
-                    onChange={onSecondPick}
-                  />
-                )
-              ) : null
-            }
+      {count === 1 && panel(0, null, true)}
+      {count === 2 && (
+        <>
+          {panel(0, share, false, topBoxRef)}
+          <ResizeGrip onReset={onSplitReset} onDragStart={onSplitStart} onDrag={onSplitDrag} onDragEnd={onSplitEnd} />
+          {panel(1, 1 - share, true, bottomBoxRef)}
+        </>
+      )}
+      {gridded && (
+        // Three panels are a row of two over one full width; four, two rows
+        // of two (#499). Every panel draws its own axes, since a column
+        // cannot share another's, and all share the sync group.
+        <div ref={gridRef} className="relative flex min-h-0 flex-1 flex-col gap-2">
+          <div className="flex min-h-0 gap-2" style={{ flexGrow: y, flexBasis: 0 }}>
+            {panel(0, x, true, undefined, tooSmall(x * gridW, y * gridH))}
+            {panel(1, 1 - x, true, undefined, tooSmall((1 - x) * gridW, y * gridH))}
+          </div>
+          <div className="flex min-h-0 gap-2" style={{ flexGrow: 1 - y, flexBasis: 0 }}>
+            {panel(2, count === 4 ? x : 1, true, undefined, tooSmall(count === 4 ? x * gridW : gridW + GUTTER_PX, (1 - y) * gridH))}
+            {count === 4 && panel(3, 1 - x, true, undefined, tooSmall((1 - x) * gridW, (1 - y) * gridH))}
+          </div>
+          <GridKnob
+            left={`calc(${x} * (100% - ${GUTTER_PX}px) + ${GUTTER_PX / 2}px)`}
+            top={`calc(${y} * (100% - ${GUTTER_PX}px) + ${GUTTER_PX / 2}px)`}
+            label={RESIZE_PANELS_LABEL}
+            onReset={onKnobReset}
+            onDragStart={onKnobStart}
+            onDrag={onKnobDrag}
+            onDragEnd={onKnobEnd}
           />
-        )
-        return i === 0 ? (
-          panel
-        ) : (
-          <SplitGrip
-            key={`grip-${i}`}
-            onReset={onSplitReset}
-            onDragStart={onSplitStart}
-            onDrag={onSplitDrag}
-            onDragEnd={onSplitEnd}
-          >
-            {panel}
-          </SplitGrip>
-        )
-      })}
+        </div>
+      )}
     </div>
   )
 }
 
-// The grip and the panel under it, as one fragment so the panels stay
-// siblings of the picker row in one flex column.
-function SplitGrip({
-  children,
-  onReset,
-  onDragStart,
-  onDrag,
-  onDragEnd,
-}: {
-  children: ReactNode
-  onReset: () => void
-  onDragStart: () => void
-  onDrag: (dragUpPx: number) => void
-  onDragEnd: () => void
-}) {
+// The gutter between a grid's panels, `gap-2`, which the knob centres on.
+const GUTTER_PX = 8
+
+const metricLabelOf = (m: ChartMetric) => CHART_METRICS.find((c) => c.key === m)?.label ?? ''
+
+/** The × that takes a panel away (#499): the legend chip's own ×. */
+function RemoveButton({ index, metricLabel, onRemove }: { index: number; metricLabel: string; onRemove: (i: number) => void }) {
   return (
-    <>
-      <ResizeGrip onReset={onReset} onDragStart={onDragStart} onDrag={onDrag} onDragEnd={onDragEnd} />
-      {children}
-    </>
+    <button
+      type="button"
+      onClick={() => onRemove(index)}
+      aria-label={removePanelLabel(metricLabel)}
+      className={CHART_PANEL_BUTTON.remove}
+    >
+      <IconClose size="chip" />
+    </button>
+  )
+}
+
+/** The + that adds a panel (#499), greyed at the ceiling. */
+function AddButton({ disabled, onAdd }: { disabled: boolean; onAdd: () => void }) {
+  return (
+    <button type="button" onClick={onAdd} disabled={disabled} aria-label={ADD_PANEL_LABEL} className={CHART_PANEL_BUTTON.add}>
+      <IconPlus size="chip" />
+    </button>
   )
 }
 
@@ -565,27 +601,23 @@ function SplitGrip({
  * A phone's picker (#696, record 0149): the app's select at the metric's
  * width as the plot's title, the native select laid over it so a tap opens the
  * phone's own picker. Outside the plot's box, so a press on it is the select's
- * and not a finger reading the plot. Each panel wears one (#499): the top the
- * primary's, the bottom the second's.
+ * and not a finger reading the plot. Each panel wears one (#499).
  */
-function MetricTitle<V extends string>({
-  className = CHART_TITLE.box,
+function MetricTitle({
   label,
   shown,
   value,
-  options,
-  onChange,
+  index,
+  onPick,
 }: {
-  /** `CHART_TITLE.box` alone, or `inRow` beside a second title. */
-  className?: string
   label: string
   shown: string
-  value: V
-  options: readonly { value: V; label: string }[]
-  onChange: (v: V) => void
+  value: ChartMetric
+  index: number
+  onPick: (index: number, m: ChartMetric) => void
 }) {
   return (
-    <div className={className}>
+    <div className={CHART_TITLE.box}>
       <span aria-hidden="true" className={CHART_TITLE.text}>
         {shown}
       </span>
@@ -593,10 +625,10 @@ function MetricTitle<V extends string>({
       <select
         aria-label={label}
         value={value}
-        onChange={(e) => onChange(e.target.value as V)}
+        onChange={(e) => onPick(index, e.target.value as ChartMetric)}
         className={CHART_TITLE.select}
       >
-        {options.map((o) => (
+        {METRIC_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
@@ -608,12 +640,14 @@ function MetricTitle<V extends string>({
 
 interface PanelProps {
   index: number
-  boxRef: RefObject<HTMLDivElement | null>
-  /** The panel's share of the stacked height, or null for the one panel, which fills. */
-  grow: number | null
+  boxRef?: RefObject<HTMLDivElement | null>
+  /** The panel's share of its stack or grid row, or null for the one panel, which fills. */
+  flexGrow: number | null
+  /** Too small for a plot (#499): the box keeps its place and draws nothing. */
+  hidden: boolean
   metric: ChartMetric
-  /** Every metric drawn, top first, which the combined card reads a row in. */
-  metrics: readonly ChartMetric[]
+  /** Every metric drawn, first panel first, which the card reads a row in. */
+  metrics: ChartMetrics
   lines: readonly ChartLine[]
   ordered: readonly ChartLine[]
   focusedKey: string | null
@@ -647,6 +681,12 @@ interface PanelProps {
   heading: ReactNode
 }
 
+const boxStyle = (flexGrow: number | null) => (flexGrow === null ? undefined : { flexGrow, flexBasis: 0 })
+
+// The card stands inside the chart less this much, so it never meets the
+// plot's edge however long a name runs (#499).
+const CARD_INSET_PX = 8
+
 /**
  * One metric's plot (#499): its own y axis, domain, data and extreme line.
  * The chart draws one, or two stacked on one time axis.
@@ -654,7 +694,8 @@ interface PanelProps {
 function ChartPanel({
   index,
   boxRef,
-  grow,
+  flexGrow,
+  hidden,
   metric,
   metrics,
   lines,
@@ -815,13 +856,15 @@ function ChartPanel({
     if (typeof t === 'number') onPlayheadChange(t)
   }
 
+  if (hidden) return <div ref={boxRef} className="min-h-0 min-w-0" style={boxStyle(flexGrow)} />
+
   return (
     <div
       ref={boxRef}
-      className={`relative flex min-h-0 flex-col ${grow === null ? 'flex-1' : ''}`}
-      // A share of the stacked height rather than pixels, so a sheet that
+      className={`relative flex min-h-0 min-w-0 flex-col ${flexGrow === null ? 'flex-1' : ''}`}
+      // A share of the stack or the row rather than pixels, so a sheet that
       // grows keeps the split the reader set (#499).
-      style={grow === null ? undefined : { flexGrow: grow, flexBasis: 0 }}
+      style={boxStyle(flexGrow)}
       onMouseEnter={() => onEnter(index)}
     >
       {heading}
@@ -913,6 +956,7 @@ function ChartPanel({
                     metric={metric}
                     metrics={metrics}
                     focusedKey={focusedKey}
+                    maxWidthPx={(plotRef.current?.clientWidth ?? 0) - CARD_INSET_PX}
                     cursorValue={cursorValue}
                     // Read at render rather than observed: this component
                     // re-renders on every hover move, which is the only time
@@ -993,7 +1037,7 @@ interface TooltipItem {
   key: string
   /** The hovered panel's value, which orders the card. */
   value: number | null
-  text: string
+  cells: string[]
   line: ChartLine
 }
 
@@ -1005,19 +1049,23 @@ interface ChartTooltipProps {
   lines: readonly ChartLine[]
   /** The hovered panel's metric. */
   metric: ChartMetric
-  /** Every metric drawn, top panel first: the order a row reads its values in. */
-  metrics: readonly ChartMetric[]
+  /** Every metric drawn, first panel first: the card's columns. */
+  metrics: ChartMetrics
   focusedKey: string | null
   cursorValue: number | null
   // How many series the card has room to list, from the plot area's current
   // height rather than a constant — see tooltipCapacity.
   maxRows: number
+  /** The widest the card may stand: the chart's width less `CARD_INSET_PX`. */
+  maxWidthPx: number
 }
 
 // Shared X-locked tooltip: all lines at the hovered instant, ordered by nearness
 // to the cursor (focused line bold and first), capped so a big overlay stays
-// readable. With two panels it is one card on the hovered panel, each row
-// reading both metrics (#499).
+// readable. With more than one panel it is one card on the hovered panel, a
+// column per metric under a header naming each with its unit, so the cells
+// print bare numbers (#499; TJ 2026-10-29). One metric's card has no header:
+// its picker already names the unit.
 function ChartTooltip({
   active,
   payload,
@@ -1029,6 +1077,7 @@ function ChartTooltip({
   focusedKey,
   cursorValue,
   maxRows,
+  maxWidthPx,
 }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0 || label == null) return null
   const index = times.indexOf(label)
@@ -1036,9 +1085,9 @@ function ChartTooltip({
 
   const items: TooltipItem[] = []
   for (const line of lines) {
-    const text = cardValues(line, metrics, index)
-    if (text === '') continue
-    items.push({ key: line.key, value: valueAt(line, metric, index), text, line })
+    const cells = cardCells(line, metrics, index)
+    if (cells.every((c) => c === '')) continue
+    items.push({ key: line.key, value: valueAt(line, metric, index), cells, line })
   }
   items.sort((a, b) => {
     if (a.key === focusedKey) return -1
@@ -1051,27 +1100,49 @@ function ChartTooltip({
 
   const shown = items.slice(0, maxRows)
   const rest = items.length - shown.length
+  const headed = metrics.length > 1
 
   return (
-    <div className={`${SURFACE_FLOATING} ${TEXT.control} px-2.5 py-1.5`}>
+    <div
+      className={`${SURFACE_FLOATING} ${TEXT.control} px-2.5 py-1.5`}
+      style={maxWidthPx > 0 ? { maxWidth: maxWidthPx } : undefined}
+    >
       <div className={`${TEXT.micro} mb-1 font-mono`}>{fmtTooltipTime(label)}</div>
-      {shown.map((it) => (
-        <div
-          key={it.key}
-          className={`flex items-center justify-between gap-3 ${
-            it.key === focusedKey ? 'font-semibold text-ink-strong' : ''
-          }`}
-        >
-          <span className="flex items-center gap-1.5">
-            <span
-              className={`h-2 w-2 ${RADIUS.control}`}
-              style={{ backgroundColor: it.line.color }}
-            />
-            {it.line.label}
-          </span>
-          <span className="font-mono">{it.text}</span>
-        </div>
-      ))}
+      {/* One grid, so each column is as wide as its widest cell or header. */}
+      <div
+        className="grid items-center gap-x-3.5"
+        style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${metrics.length}, auto)` }}
+      >
+        {headed && (
+          <>
+            <span />
+            {metrics.map((m) => (
+              <span key={m} className={`${TEXT.micro} text-right`}>
+                {CHART_METRICS.find((c) => c.key === m)?.label}
+              </span>
+            ))}
+          </>
+        )}
+        {shown.map((it) => {
+          const strong = it.key === focusedKey ? 'font-semibold text-ink-strong' : ''
+          return (
+            <Fragment key={it.key}>
+              <span className={`flex min-w-0 items-center gap-1.5 ${strong}`}>
+                <span
+                  className={`h-2 w-2 flex-shrink-0 ${RADIUS.control}`}
+                  style={{ backgroundColor: it.line.color }}
+                />
+                <span className="min-w-0 truncate">{it.line.label}</span>
+              </span>
+              {it.cells.map((c, k) => (
+                <span key={k} className={`text-right font-mono ${strong}`}>
+                  {c}
+                </span>
+              ))}
+            </Fragment>
+          )
+        })}
+      </div>
       {rest > 0 && <div className={`${TEXT.micro} mt-0.5`}>+{rest} more</div>}
     </div>
   )

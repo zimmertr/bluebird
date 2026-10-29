@@ -82,6 +82,7 @@ import {
   SAFE_AREA,
   CHART_PLOT_TOUCH,
   CHART_TITLE,
+  CHART_PANEL_BUTTON,
   MENU,
   MODEL_ROW,
   MENU_CHEVRON,
@@ -2881,7 +2882,9 @@ describe('the chart title on a phone', () => {
   const MEASURED = { fieldRowPx: 52, insetPx: 28, rulePx: 12, labelPx: 12, leftPx: 12, barLeftPx: 12 }
 
   it('is a 28px box with the same room above it, below it and on its left', () => {
-    expect(words(CHART_TITLE.box)).toEqual(expect.arrayContaining(['h-7', 'top-3', 'left-3']))
+    // The line stands at the 12px insets (#499) and the box in it is 28px.
+    expect(words(CHART_TITLE.bar)).toEqual(expect.arrayContaining(['top-3', 'inset-x-3', 'z-[1]']))
+    expect(words(CHART_TITLE.box)).toContain('h-7')
     expect(7 * 4).toBe(CHART_TITLE_PX)
     expect(CHART_TITLE_PX).toBe(MEASURED.insetPx)
     expect(3 * 4).toBe(CHART_TITLE_INSET_PX)
@@ -2900,12 +2903,21 @@ describe('the chart title on a phone', () => {
     expect(timeSeriesChartSource).toContain('<IconChevron up={false} className={ICON_ADORNMENT} />')
     // Sized to its words, not to the desktop picker's fixed width.
     expect(CHART_TITLE.box).not.toContain(CHART_METRIC_W)
-    // Two titles on one line (#499): the row stands where the box does, on
-    // the same insets, and its titles are the box's look at the same height.
-    expect(words(CHART_TITLE.row)).toEqual(expect.arrayContaining(['top-3', 'inset-x-3', 'gap-2', 'z-[1]']))
-    expect(words(CHART_TITLE.inRow)).toEqual(expect.arrayContaining(['h-7', 'pl-2', 'pr-6', 'min-w-0']))
-    expect(token(CHART_TITLE.inRow, 'has-[select:focus]:border')).toBe(token(CHART_TITLE.box, 'has-[select:focus]:border'))
-    expect(CHART_TITLE.inRow).not.toContain(CHART_METRIC_W)
+    // The panel's × or + stands 8px after the box, stretched to its height.
+    expect(words(CHART_TITLE.bar)).toEqual(expect.arrayContaining(['gap-2', 'items-stretch']))
+  })
+
+  // The chart's panel controls (#499): the + a square in the field's look,
+  // the bare icon's ink and greyed at the ceiling; the × the legend chip's own,
+  // at the touch floor; the knob the grip's chrome.
+  it('draws the +, the × and the knob from the roles they belong to', () => {
+    expect(words(CHART_PANEL_BUTTON.add)).toEqual(
+      expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), ...words(ICON_ACTION), ...words(DISABLED), 'aspect-square', 'self-stretch']),
+    )
+    expect(words(CHART_PANEL_BUTTON.remove)).toEqual(expect.arrayContaining([...words(ICON_ACTION), ...words(TAP.action)]))
+    expect(words(CHART_PANEL_BUTTON.knob)).toEqual(
+      expect.arrayContaining(['h-3.5', 'w-3.5', 'cursor-move', 'bg-raised', 'border-frame', 'hover:bg-raised-hover']),
+    )
   })
 
   it('lays the native select over the title, invisible, a 44px target centred on it', () => {

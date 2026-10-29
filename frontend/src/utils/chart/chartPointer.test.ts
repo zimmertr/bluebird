@@ -12,6 +12,9 @@ import {
   plotBand,
   readoutPlace,
   splitAfterDrag,
+  EVEN_GRID,
+  gridAfterDrag,
+  panelWidthFloorPx,
   xAxisPx,
 } from './chartPointer'
 import { TOOLTIP_CHROME_PX, TOOLTIP_MAX_ROWS, TOOLTIP_ROW_PX } from './chartData'
@@ -155,5 +158,26 @@ describe('splitAfterDrag', () => {
   it('splits evenly a box too short for both floors', () => {
     expect(splitAfterDrag(0.3, 10, 100, 50, 72)).toBe(0.5)
     expect(splitAfterDrag(0.3, 10, 0, 50, 72)).toBe(0.5)
+  })
+})
+
+// The grid's one knob (#499): both splits move with it, held to [0, 1] and
+// no floor, so a corner hands one panel the whole area.
+describe('gridAfterDrag', () => {
+  it('moves both splits by the drag, as shares of the tracks', () => {
+    expect(gridAfterDrag(EVEN_GRID, 100, -50, 400, 200)).toEqual({ x: 0.75, y: 0.25 })
+  })
+
+  it('reaches the corners and stops there', () => {
+    expect(gridAfterDrag(EVEN_GRID, 1000, 1000, 400, 200)).toEqual({ x: 1, y: 1 })
+    expect(gridAfterDrag(EVEN_GRID, -1000, -1000, 400, 200)).toEqual({ x: 0, y: 0 })
+  })
+
+  it('keeps a split it has no size to move by', () => {
+    expect(gridAfterDrag({ x: 0.3, y: 0.6 }, 50, 50, 0, 0)).toEqual({ x: 0.3, y: 0.6 })
+  })
+
+  it('floors a panel width at its margins, its y axis and the least band', () => {
+    expect(panelWidthFloorPx(PLOT_MARGIN)).toBe(PLOT_MARGIN.left + Y_AXIS_WIDTH_PX + PLOT_MARGIN.right + MIN_PANEL_BAND_PX)
   })
 })

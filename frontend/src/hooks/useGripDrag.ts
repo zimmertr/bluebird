@@ -13,8 +13,11 @@ export interface GripDragHandlers {
   onReset: () => void
   /** A drag has begun. */
   onDragStart: () => void
-  /** The drag so far, with up positive. */
-  onDrag: (dragUpPx: number) => void
+  /**
+   * The drag so far, with up positive, and how far right it has gone, which
+   * only the chart's grid knob reads (#499).
+   */
+  onDrag: (dragUpPx: number, dragRightPx: number) => void
   /**
    * The pointer is up, cancelled, or gone, with the drag's last distance and
    * how fast it was moving when let go (px per ms, up positive), which is
@@ -52,6 +55,7 @@ export function useGripDrag(handlers: GripDragHandlers) {
 
     e.preventDefault()
     const startY = e.clientY
+    const startX = e.clientX
     const samples: DragSample[] = [{ at, upPx: 0 }]
     let last: DragSample = samples[0]
     latest.current.onDragStart()
@@ -59,7 +63,7 @@ export function useGripDrag(handlers: GripDragHandlers) {
     function onMove(ev: PointerEvent) {
       last = { at: ev.timeStamp, upPx: startY - ev.clientY }
       samples.push(last)
-      latest.current.onDrag(last.upPx)
+      latest.current.onDrag(last.upPx, ev.clientX - startX)
     }
 
     function onUp(ev: PointerEvent) {
