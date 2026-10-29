@@ -164,6 +164,9 @@ interface Props {
   // ranking and never a knob. The imagery is `map/overlays/imagery.ts`'s.
   showContours: boolean
   showRelief: boolean
+  // The slope angle shading (#799), painted in the browser from the same
+  // elevation tiles as the relief (`map/slope.ts`).
+  showSlope: boolean
   showSatellite: boolean
   // Whether the map stands the ground up in 3D on the same elevation tiles
   // (#799), which the map's own 3D button shows and asks to change through
@@ -285,6 +288,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showFireActivity,
       showContours,
       showRelief,
+      showSlope,
       showTerrain,
       onTerrainChange,
       radarIndex,
@@ -887,6 +891,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.terrain.update({ relief: showRelief, contours: showContours, terrain: showTerrain })
     }, [showRelief, showContours, showTerrain, mapReady])
+
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.terrain.updateSlope(showSlope)
+    }, [showSlope, mapReady])
 
     // The 3D button shows the switch, from the moment the map is built.
     useEffect(() => {

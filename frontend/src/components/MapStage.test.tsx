@@ -117,6 +117,7 @@ const OVERLAYS = {
   showSnow: true,
   showContours: true,
   showRelief: false,
+  showSlope: false,
   showSatellite: true,
   showTerrain: true,
   showFireActivity: true,
@@ -234,6 +235,7 @@ describe('MapStage', () => {
     expect([got.showContours, got.showRelief, got.showSatellite, got.showTerrain]).toEqual([true, false, true, true])
     expect(got.showFireActivity).toBe(true)
     expect(got.onTerrainChange).toBe(SET_TERRAIN)
+    expect(got.showSlope).toBe(false)
     expect(got.cameraPadBottomPx).toBe(40)
     expect(got.modelId).toBe('gfs_seamless')
     expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)
