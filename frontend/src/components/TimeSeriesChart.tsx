@@ -1,4 +1,4 @@
-import { Fragment, type PointerEvent, ReactNode, type RefObject, memo, useCallback, useId, useMemo, useRef, useState } from 'react'
+import { Fragment, type PointerEvent, ReactNode, type RefObject, memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   CartesianGrid,
   Label,
@@ -57,6 +57,8 @@ import {
   readoutPlace,
   splitAfterDrag,
   xAxisPx,
+  CARD_CURSOR_OFFSET_PX,
+  cardPlacement,
   EVEN_GRID,
   type GridShares,
   gridAfterDrag,
@@ -272,6 +274,10 @@ function TimeSeriesChart({
   const topBoxRef = useRef<HTMLDivElement>(null)
   const bottomBoxRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  // The panels' area when there is more than one (#499): the hover card's
+  // width and rows are budgeted on it, and it is clamped inside it.
+  const stackRef = useRef<HTMLDivElement>(null)
+  const areaRef = titled || count === 1 ? undefined : gridded ? gridRef : stackRef
   const dragStartRef = useRef<{ share: number; totalPx: number } | null>(null)
   const knobStartRef = useRef<{ shares: GridShares; w: number; h: number } | null>(null)
   // One sync group per chart, so every panel's cursor stands on the hour the
@@ -476,6 +482,7 @@ function TimeSeriesChart({
         onFinger={onFinger}
         onDropFinger={onDropFinger}
         onPlayheadChange={onPlayheadChange}
+        areaRef={areaRef}
         heading={heading(i)}
       />
     )
@@ -535,11 +542,11 @@ function TimeSeriesChart({
 
       {count === 1 && panel(0, null, true)}
       {count === 2 && (
-        <>
+        <div ref={stackRef} className="relative flex min-h-0 flex-1 flex-col">
           {panel(0, share, false, topBoxRef)}
           <ResizeGrip onReset={onSplitReset} onDragStart={onSplitStart} onDrag={onSplitDrag} onDragEnd={onSplitEnd} />
           {panel(1, 1 - share, true, bottomBoxRef)}
-        </>
+        </div>
       )}
       {gridded && (
         // Three panels are a row of two over one full width; four, two rows
@@ -677,9 +684,22 @@ interface PanelProps {
   onFinger: (panel: number, index: number, key: string | null | undefined, value: number | null) => void
   onDropFinger: () => void
   onPlayheadChange?: (ms: number) => void
+  /**
+   * The panels' area at a desk with more than one panel (#499): the card's
+   * width and rows are budgeted on it rather than on this panel, and the card
+   * may leave the panel but stays inside it. Absent for one panel and on a
+   * phone, where the card keeps to the plot (and the readout's room).
+   */
+  areaRef?: RefObject<HTMLDivElement | null>
   /** A phone's title box or boxes over the plot, or null at a desk. */
   heading: ReactNode
 }
+
+// The card over several panels (#499): free to leave the hovered panel, and
+// over its neighbours and the grid's knob. Hoisted, so Recharts is handed one
+// object.
+const ESCAPE_PANEL = { x: true, y: true }
+const CARD_OVER_PANELS = { zIndex: 3 }
 
 const boxStyle = (flexGrow: number | null) => (flexGrow === null ? undefined : { flexGrow, flexBasis: 0 })
 
@@ -724,6 +744,7 @@ function ChartPanel({
   onFinger,
   onDropFinger,
   onPlayheadChange,
+  areaRef,
   heading,
 }: PanelProps) {
   const plotRef = useRef<HTMLDivElement>(null)
@@ -875,7 +896,8 @@ function ChartPanel({
         onPointerCancel={dropFinger}
         // A phone's plot lets its readout out over the picker and the
         // results bar above it (#696); the sheet itself still clips.
-        className={`min-h-0 flex-1 ${titled ? 'overflow-visible' : 'overflow-hidden'} ${CHART_PLOT_TOUCH}`}
+        // A card over several panels leaves this one too (#499).
+        className={`min-h-0 flex-1 ${titled || areaRef ? 'overflow-visible' : 'overflow-hidden'} ${CHART_PLOT_TOUCH}`}
       >
         <ResponsiveContainer width="100%" height="100%" onResize={titled ? onPlotResize : undefined}>
           <LineChart
@@ -944,7 +966,9 @@ function ChartPanel({
               defaultIndex={shownIndex ?? undefined}
               active={shownIndex === null ? undefined : true}
               position={readout?.top != null ? { y: readout.top } : undefined}
-              wrapperStyle={titled ? READOUT_OVER_TITLE : undefined}
+              offset={CARD_CURSOR_OFFSET_PX}
+              allowEscapeViewBox={areaRef ? ESCAPE_PANEL : undefined}
+              wrapperStyle={titled ? READOUT_OVER_TITLE : areaRef ? CARD_OVER_PANELS : undefined}
               content={(props: any) =>
                 // One card for both panels (#499): the other panel's tooltip
                 // draws nothing while the sync cursor still stands in it.
@@ -956,12 +980,13 @@ function ChartPanel({
                     metric={metric}
                     metrics={metrics}
                     focusedKey={focusedKey}
-                    maxWidthPx={(plotRef.current?.clientWidth ?? 0) - CARD_INSET_PX}
+                    maxWidthPx={((areaRef ?? plotRef).current?.clientWidth ?? 0) - CARD_INSET_PX}
+                    areaRef={areaRef}
                     cursorValue={cursorValue}
                     // Read at render rather than observed: this component
                     // re-renders on every hover move, which is the only time
                     // the value is used.
-                    maxRows={readout?.rows ?? tooltipCapacity(plotRef.current?.clientHeight ?? 0)}
+                    maxRows={readout?.rows ?? tooltipCapacity((areaRef ?? plotRef).current?.clientHeight ?? 0)}
                   />
                 ) : null
               }
@@ -1058,6 +1083,30 @@ interface ChartTooltipProps {
   maxRows: number
   /** The widest the card may stand: the chart's width less `CARD_INSET_PX`. */
   maxWidthPx: number
+  /** The area the card is clamped inside, with more than one panel at a desk. */
+  areaRef?: RefObject<HTMLDivElement | null>
+}
+
+/**
+ * Keeps the card inside the panels' area (#499). Recharts puts an escaping
+ * card at the cursor plus the offset; this reads where it landed, works out
+ * the cursor from it, and moves the card by `cardPlacement`'s answer. Written
+ * to the element after layout rather than through state, so a hover renders
+ * nothing more.
+ */
+function useCardInArea(cardRef: RefObject<HTMLDivElement | null>, areaRef: RefObject<HTMLDivElement | null> | undefined) {
+  useLayoutEffect(() => {
+    const el = cardRef.current
+    const area = areaRef?.current
+    if (!el || !area) return
+    el.style.transform = ''
+    const r = el.getBoundingClientRect()
+    const a = area.getBoundingClientRect()
+    const at = { x: r.left - a.left, y: r.top - a.top }
+    const cursor = { x: at.x - CARD_CURSOR_OFFSET_PX, y: at.y - CARD_CURSOR_OFFSET_PX }
+    const p = cardPlacement(cursor, { w: r.width, h: r.height }, { w: a.width, h: a.height })
+    if (p.x !== at.x || p.y !== at.y) el.style.transform = `translate(${p.x - at.x}px, ${p.y - at.y}px)`
+  })
 }
 
 // Shared X-locked tooltip: all lines at the hovered instant, ordered by nearness
@@ -1078,7 +1127,10 @@ function ChartTooltip({
   cursorValue,
   maxRows,
   maxWidthPx,
+  areaRef,
 }: ChartTooltipProps) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  useCardInArea(cardRef, areaRef)
   if (!active || !payload || payload.length === 0 || label == null) return null
   const index = times.indexOf(label)
   if (index < 0) return null
@@ -1104,6 +1156,7 @@ function ChartTooltip({
 
   return (
     <div
+      ref={cardRef}
       className={`${SURFACE_FLOATING} ${TEXT.control} px-2.5 py-1.5`}
       style={maxWidthPx > 0 ? { maxWidth: maxWidthPx } : undefined}
     >

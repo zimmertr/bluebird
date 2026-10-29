@@ -15,6 +15,10 @@ import {
   EVEN_GRID,
   gridAfterDrag,
   panelWidthFloorPx,
+  CARD_CURSOR_OFFSET_PX,
+  MIN_PANEL_BAND_WIDTH_PX,
+  WIDEST_X_TICK_PX,
+  cardPlacement,
   xAxisPx,
 } from './chartPointer'
 import { TOOLTIP_CHROME_PX, TOOLTIP_MAX_ROWS, TOOLTIP_ROW_PX } from './chartData'
@@ -177,7 +181,37 @@ describe('gridAfterDrag', () => {
     expect(gridAfterDrag({ x: 0.3, y: 0.6 }, 50, 50, 0, 0)).toEqual({ x: 0.3, y: 0.6 })
   })
 
-  it('floors a panel width at its margins, its y axis and the least band', () => {
-    expect(panelWidthFloorPx(PLOT_MARGIN)).toBe(PLOT_MARGIN.left + Y_AXIS_WIDTH_PX + PLOT_MARGIN.right + MIN_PANEL_BAND_PX)
+  // Two of the widest ticks on one line each, so a squeezed panel prints its
+  // time axis rather than one tick wrapped in two (TJ, 2026-10-29).
+  it('floors a panel width at its margins, its y axis and two of the widest ticks', () => {
+    expect(WIDEST_X_TICK_PX).toBe(74)
+    expect(MIN_PANEL_BAND_WIDTH_PX).toBe(2 * WIDEST_X_TICK_PX + 8)
+    expect(panelWidthFloorPx(PLOT_MARGIN)).toBe(PLOT_MARGIN.left + Y_AXIS_WIDTH_PX + PLOT_MARGIN.right + MIN_PANEL_BAND_WIDTH_PX)
+    // The height keeps its own 40px.
+    expect(MIN_PANEL_BAND_PX).toBe(40)
+  })
+})
+
+// The hover card over several panels (#499): inside the area, from the
+// cursor and the card's measured size.
+describe('cardPlacement', () => {
+  const area = { w: 800, h: 400 }
+  const card = { w: 200, h: 120 }
+  const o = CARD_CURSOR_OFFSET_PX
+
+  it('stands below and right of the cursor where it fits', () => {
+    expect(cardPlacement({ x: 100, y: 50 }, card, area)).toEqual({ x: 100 + o, y: 50 + o })
+  })
+
+  it("flips to the cursor's left at the right edge", () => {
+    expect(cardPlacement({ x: 700, y: 50 }, card, area)).toEqual({ x: 700 - o - card.w, y: 50 + o })
+  })
+
+  it('pulls up at the bottom edge', () => {
+    expect(cardPlacement({ x: 100, y: 350 }, card, area)).toEqual({ x: 100 + o, y: area.h - card.h })
+  })
+
+  it('never crosses the left or top edge, even for a card wider or taller than the area', () => {
+    expect(cardPlacement({ x: 150, y: 10 }, { w: 300, h: 500 }, { w: 320, h: 400 })).toEqual({ x: 0, y: 0 })
   })
 })

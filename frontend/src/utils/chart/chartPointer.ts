@@ -186,12 +186,56 @@ export function fingerReading(
 }
 
 /**
+ * The widest x axis tick the chart prints, `Sep 18, 11 PM` at the axis's
+ * 11px: 73.4px, measured 2026-10-29 in the Playwright image's Chromium on the
+ * app's default sans stack (`Dec 30, 12 AM` 73.2, `Wed 11 PM` 55.8). Rounded
+ * up to 74.
+ */
+export const WIDEST_X_TICK_PX = 74
+
+/**
+ * The least band WIDTH a grid panel may be drawn at (#499): two of the widest
+ * ticks and 8px between them, so a squeezed panel still prints its time axis
+ * as two ticks on one line each. At 40px, the height's floor, a 110px panel
+ * printed one tick wrapped onto two lines and its extreme label sat on the
+ * lines (TJ's screenshot, 2026-10-29). The height floor stays
+ * `MIN_PANEL_BAND_PX`.
+ */
+export const MIN_PANEL_BAND_WIDTH_PX = 2 * WIDEST_X_TICK_PX + 8
+
+/**
  * The least width a grid panel may have before it is not drawn (#499): its
- * margins, the y axis strip and the least band, the same 40px a panel's
- * height keeps, so a squeezed column still reads as a plot.
+ * margins, the y axis strip and the least band width.
  */
 export function panelWidthFloorPx(margin: PlotMargin): number {
-  return margin.left + Y_AXIS_WIDTH_PX + margin.right + MIN_PANEL_BAND_PX
+  return margin.left + Y_AXIS_WIDTH_PX + margin.right + MIN_PANEL_BAND_WIDTH_PX
+}
+
+/** How far the hover card stands off the cursor, Recharts' own default offset. */
+export const CARD_CURSOR_OFFSET_PX = 10
+
+/**
+ * Where the hover card stands inside the chart area when there is more than
+ * one panel (#499): its top left, in the area's own pixels, from the cursor
+ * point and the card's measured size. Below and right of the cursor as
+ * Recharts puts it, flipped to the cursor's left when it would run past the
+ * area's right edge, pulled up when it would run past the bottom, and never
+ * past the area's left or top edge. One panel keeps Recharts' own placement
+ * inside its plot.
+ */
+export function cardPlacement(
+  cursor: { x: number; y: number },
+  card: { w: number; h: number },
+  area: { w: number; h: number },
+  offset = CARD_CURSOR_OFFSET_PX,
+): { x: number; y: number } {
+  let x = cursor.x + offset
+  if (x + card.w > area.w) x = cursor.x - offset - card.w
+  x = clamp(x, 0, Math.max(0, area.w - card.w))
+  let y = cursor.y + offset
+  if (y + card.h > area.h) y = area.h - card.h
+  y = Math.max(0, y)
+  return { x, y }
 }
 
 /** Where a grid's column and row splits stand: each the first track's share, 0 to 1. */

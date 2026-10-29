@@ -50,6 +50,7 @@ const chart = vi.hoisted(() => ({
   charts: [] as { onClick?: Handler; onMouseMove?: Handler; syncId?: string }[],
   xAxes: [] as { hide?: boolean; height?: number }[],
   tooltips: [] as ((props: unknown) => ReactNode)[],
+  tooltipProps: [] as { allowEscapeViewBox?: unknown; wrapperStyle?: unknown }[],
   grip: undefined as undefined | { onReset: () => void; onDragStart: () => void; onDrag: (px: number) => void; onDragEnd: () => void },
 }))
 // The grip's handlers, kept so a test can drag it without a pointer.
@@ -86,7 +87,8 @@ vi.mock('recharts', () => {
       chart.lines.push(p)
       return <i data-testid={p.y === undefined ? 'x-line' : 'extreme-line'} data-y={p.y} />
     },
-    Tooltip: (p: { defaultIndex?: number; active?: boolean; content?: (props: unknown) => ReactNode }) => {
+    Tooltip: (p: { defaultIndex?: number; active?: boolean; allowEscapeViewBox?: unknown; wrapperStyle?: unknown; content?: (props: unknown) => ReactNode }) => {
+      chart.tooltipProps.push(p)
       chart.tooltipContent = p.content
       if (p.content) chart.tooltips.push(p.content)
       return <i data-testid="tooltip" data-index={String(p.defaultIndex)} data-active={String(p.active)} />
@@ -563,6 +565,7 @@ describe('TimeSeriesChart with more than one metric', () => {
     chart.charts = []
     chart.xAxes = []
     chart.tooltips = []
+    chart.tooltipProps = []
     chart.series = []
     chart.grip = undefined
   })
@@ -640,6 +643,29 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(cells(card.getByText('Mount Beta'))).toEqual(['0.200', ''])
   })
 
+  it('lets the card over a grid leave its panel and keeps it inside the chart area', () => {
+    const { container } = render(<TimeSeriesChart {...props(FOUR)} />)
+    expect(last(chart.tooltipProps, 4).every((p) => (p.allowEscapeViewBox as { x: boolean }).x === true)).toBe(true)
+    const grid = container.firstElementChild!.lastElementChild!
+    // The area is 400x300; Recharts put the card at (350, 20), 120x80, so the
+    // cursor stood at (340, 10) and the card flips to its left: x 210.
+    const box = (left: number, top: number, width: number, height: number) =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect
+    const rects = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      return this === grid ? box(0, 0, 400, 300) : box(350, 20, 120, 80)
+    })
+    const topCard = last(chart.tooltips, 4)[0]
+    const shown = render(<>{topCard({ active: true, payload: [{ dataKey: 'x', value: 1 }], label: TIMES[T] })}</>)
+    rects.mockRestore()
+    const card = shown.container.firstElementChild as HTMLElement
+    expect(card.style.transform).toBe('translate(-140px, 0px)')
+  })
+
+  it('keeps one panel\'s card inside its plot', () => {
+    render(<TimeSeriesChart {...props()} />)
+    expect(chart.tooltipProps[chart.tooltipProps.length - 1].allowEscapeViewBox).toBeUndefined()
+  })
+
   it('keeps the one-metric card as it was: no header, bare numbers', () => {
     height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(209)
     render(<TimeSeriesChart {...props({ ...TWO, metrics: ['temp'] })} />)
@@ -672,7 +698,7 @@ describe('TimeSeriesChart with more than one metric', () => {
   it('moves height between two panels with the grip, and a double press evens it', () => {
     height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(200)
     const { container } = render(<TimeSeriesChart {...props(TWO)} />)
-    const topBox = () => container.firstElementChild!.children[1] as HTMLElement
+    const topBox = () => container.firstElementChild!.children[1].children[0] as HTMLElement
     expect(topBox().style.flexGrow).toBe('0.5')
     act(() => chart.grip!.onDragStart())
     act(() => chart.grip!.onDrag(50))
