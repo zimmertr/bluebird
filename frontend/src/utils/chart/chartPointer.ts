@@ -198,7 +198,7 @@ export const WIDEST_X_TICK_PX = 74
  * ticks and 8px between them, so a squeezed panel still prints its time axis
  * as two ticks on one line each. At 40px, the height's floor, a 110px panel
  * printed one tick wrapped onto two lines and its extreme label sat on the
- * lines (TJ's screenshot, 2026-10-29). The height floor stays
+ * lines (the review screenshots, 2026-10-29). The height floor stays
  * `MIN_PANEL_BAND_PX`.
  */
 export const MIN_PANEL_BAND_WIDTH_PX = 2 * WIDEST_X_TICK_PX + 8
