@@ -320,18 +320,23 @@ export function isSortKey(key: string): key is SortKey {
 }
 
 /**
- * Order the table's columns so the ranked metric's group comes right after the
- * identity columns — an AQI ranking leads with both AQI columns straight after
- * "#, Name, Elevation (ft)" — while the remaining groups keep their canonical
- * relative order. (No metric names in this comment: the metrics.test.ts source
- * lint scans comments too.)
+ * Order the table's columns so the ranked metric's group stands directly after
+ * Name, ahead of the other identity columns, while the remaining groups keep
+ * their canonical relative order (#586). A phone's first view holds the rank,
+ * the name and about one column more, and that column has to be the value the
+ * rows are ranked by; with the identity columns in front of it, a reader had
+ * to scroll sideways to learn why a row ranked where it did. One order serves
+ * every width, because the CSV follows the screen and a desk and a phone
+ * should download the same file. (No metric names in this comment: the
+ * metrics.test.ts source lint scans comments too.)
  */
 export function orderColumns<T extends { key: string }>(columns: T[], sortBy: SortBy): T[] {
   const group = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
-  const lead = columns.filter((c) => LEAD_KEYS.has(c.key))
+  const name = columns.filter((c) => c.key === 'name')
+  const lead = columns.filter((c) => LEAD_KEYS.has(c.key) && c.key !== 'name')
   const ranked = columns.filter((c) => !LEAD_KEYS.has(c.key) && group.has(c.key))
   const rest = columns.filter((c) => !LEAD_KEYS.has(c.key) && !group.has(c.key))
-  return [...lead, ...ranked, ...rest]
+  return [...name, ...ranked, ...lead, ...rest]
 }
 
 // A point-sample analysis covers a single hourly stamp, so its avg/min/max
@@ -361,8 +366,8 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
 
 /**
  * The columns the report actually shows, given how it was analyzed and what it
- * is ranked by: the point-sample collapse, then the ranked group pulled to the
- * front.
+ * is ranked by: the point-sample collapse, then the ranked group moved up to
+ * Name.
  *
  * Both compositions above were spelled out at one call site inside the table
  * until the CSV export needed the same answer. A file whose columns disagreed

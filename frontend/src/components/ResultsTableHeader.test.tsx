@@ -52,8 +52,8 @@ const rankHeader = () => header(/^#/)
 // A header's arrow slot: the one span that holds a sort glyph.
 const arrowSlots = (th: Element) => [...th.querySelectorAll('span')].filter((s) => /^[↑↓]$/.test(s.textContent ?? ''))
 // Every sortable header, and the key each sorts by, in the order they are drawn.
-const SORTABLE = [/^#/, /^Name/, /^Elevation/, /^Precip/]
-const SORTABLE_KEYS = [RANK_KEY, 'name', 'elevation_ft', SORT_BY] as const
+const SORTABLE = [/^#/, /^Name/, /^Precip/, /^Elevation/]
+const SORTABLE_KEYS = [RANK_KEY, 'name', SORT_BY, 'elevation_ft'] as const
 
 describe('alignment', () => {
   // A number column's label ends on the edge its digits do (record 0222), so
@@ -201,7 +201,7 @@ describe('sorting by the # header', () => {
 describe('sorting from the keyboard', () => {
   it('reaches every sortable header with Tab, in the order the table draws them', async () => {
     const { user } = renderHeader(props())
-    for (const label of [/^#/, /^Name/, /^Elevation/, /^Precip/]) {
+    for (const label of [/^#/, /^Name/, /^Precip/, /^Elevation/]) {
       await user.tab()
       expect(document.activeElement).toBe(header(label))
     }
@@ -213,8 +213,10 @@ describe('sorting from the keyboard', () => {
     await user.tab()
     await user.tab()
     await user.tab()
+    await user.tab()
     await user.keyboard('{Enter}')
     expect(onDetailSort).toHaveBeenLastCalledWith('elevation_ft', 'asc')
+    await user.tab({ shift: true })
     await user.tab({ shift: true })
     await user.keyboard(' ')
     expect(onDetailSort).toHaveBeenLastCalledWith('name', 'desc')
@@ -276,7 +278,7 @@ describe('sorting from the keyboard', () => {
         .filter(Boolean)
         .map((id) => document.getElementById(id)?.textContent?.trim())
         .join(' ')
-    for (const label of [/^#/, /^Name/, /^Elevation/, /^Precip/]) {
+    for (const label of [/^#/, /^Name/, /^Precip/, /^Elevation/]) {
       expect(description(header(label))).toBe('Press Enter or Space to sort.')
     }
     // One copy of the sentence, however many headers point at it.
@@ -304,7 +306,7 @@ describe('moving a column', () => {
     fireEvent.pointerUp(document)
     // A browser ends the gesture with a click on the header it began on.
     fireEvent.click(from)
-    expect(onColumnMove).toHaveBeenCalledWith('name', 'precip_total_in')
+    expect(onColumnMove).toHaveBeenCalledWith('name', 'elevation_ft')
     expect(onDetailSort).not.toHaveBeenCalled()
   })
 

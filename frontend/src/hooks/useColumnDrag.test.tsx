@@ -45,7 +45,7 @@ describe('useColumnDrag', () => {
     expect(result.current.carry).toMatchObject({ key: 'name', x: 250 })
     expect(result.current.insert).toEqual({ x: 300, top: 0, height: 24 })
     act(() => void fireEvent.pointerUp(document))
-    expect(onColumnMove).toHaveBeenCalledWith('name', 'precip_total_in')
+    expect(onColumnMove).toHaveBeenCalledWith('name', 'elevation_ft')
     expect(result.current.carry).toBeNull()
     expect(result.current.insert).toBeNull()
   })
@@ -82,7 +82,7 @@ describe('useColumnDrag', () => {
     act(() => void fireEvent.pointerMove(document, { clientX: 250, clientY: 12, pointerType: 'touch' }))
     expect(result.current.carry).toMatchObject({ key: 'name' })
     act(() => void fireEvent.pointerUp(document))
-    expect(onColumnMove).toHaveBeenCalledWith('name', 'precip_total_in')
+    expect(onColumnMove).toHaveBeenCalledWith('name', 'elevation_ft')
   })
 
   it('lets go of the document when the header unmounts mid-drag', () => {

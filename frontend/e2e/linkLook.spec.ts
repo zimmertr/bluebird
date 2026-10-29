@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, resultRows } from './fixtures'
+import { test, expect, expectRanked, resultRows, typeCell } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // A link in the results table or a popup reads in its text's colour (#786;
@@ -46,7 +46,7 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
 
   // The popup the row opens says it the same way, and its link-out glyph
   // rests in a grey and takes the accent under the pointer.
-  await row.locator('td').nth(3).click()
+  await (await typeCell(page, row)).click()
   const popup = page.locator('.maplibregl-popup')
   await expect(popup).toHaveCount(1)
   const link = popup.locator('[data-popup-link]').first()
@@ -75,7 +75,7 @@ test.describe('on a phone', () => {
     const row = resultRows(page).nth(1)
     const name = row.getByRole('button', { name: /^Center map on / })
     expect(await look(name)).toMatchObject({ line: 'underline', decoration: await paint(page, 'var(--ui-ink-soft)') })
-    await row.locator('td').nth(3).tap()
+    await (await typeCell(page, row)).tap()
     const link = page.locator('.maplibregl-popup [data-popup-link]').first()
     await expect(link).toBeAttached()
     expect(await look(link)).toMatchObject({ line: 'underline', decoration: await paint(page, 'var(--popup-label)') })
