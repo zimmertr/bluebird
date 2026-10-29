@@ -241,9 +241,21 @@ export function slopeRaster(
       let band = limits.length - 1
       while (tan2 < limits[band]) band--
       const [r, g, b] = colours[band]
+      if (scale === 1) {
+        // The whole tile, pixel for pixel: the common case, kept free of the
+        // block loop below, which cost a third more over a 512px tile
+        // (medians of 50 in Node, 2026-10-29).
+        const at = (row * w + col) * 4
+        out[at] = r
+        out[at + 1] = g
+        out[at + 2] = b
+        out[at + 3] = 255
+        continue
+      }
       const outCol = (col - left) * scale
       for (let outRow = (row - top) * scale; outRow < (row - top + 1) * scale; outRow++) {
-        for (let at = (outRow * w + outCol) * 4, end = at + scale * 4; at < end; at += 4) {
+        const end = (outRow * w + outCol + scale) * 4
+        for (let at = (outRow * w + outCol) * 4; at < end; at += 4) {
           out[at] = r
           out[at + 1] = g
           out[at + 2] = b

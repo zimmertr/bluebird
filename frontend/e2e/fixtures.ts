@@ -13,8 +13,15 @@ const style = JSON.parse(readFileSync(new URL('fixtures/style.json', here), 'utf
 // a cone 2,500 m high on a 500 m plain, 64px square, so the relief has a slope
 // to shade, the contours heights to trace and the 3D terrain a hill to stand
 // up. MapLibre refuses a DEM tile that is not square, and a 1px one has no
-// slope at all.
+// slope at all. Past zoom 12 the host answers 404, as Mapterhorn does wherever
+// no survey reaches that far, so the slope angle's fallback to the zoom-12
+// tile runs in every test that draws it there.
 const TERRARIUM_PNG = readFileSync(new URL('fixtures/terrarium.png', here))
+const DEM_ALL_LAND_ZOOM = 12
+const demTile = (route: Route) =>
+  Number(new URL(route.request().url()).pathname.split('/')[1]) > DEM_ALL_LAND_ZOOM
+    ? route.fulfill({ status: 404, contentType: 'text/plain', body: 'Tile not found' })
+    : route.fulfill({ status: 200, contentType: 'image/png', body: TERRARIUM_PNG })
 
 // The forecast bodies reuse the inputs of the shared aggregation vectors, so the
 // rows and the chart carry the shapes the aggregation is pinned against rather
@@ -190,10 +197,7 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
   await page.route('https://mesonet.agron.iastate.edu/**', answer(blankTile))
   await page.route('https://mapservices.weather.noaa.gov/**', answer(blankTile))
   // The ground layers' elevation and imagery tiles (#799).
-  await page.route(
-    'https://tiles.mapterhorn.com/**',
-    answer((r) => r.fulfill({ status: 200, contentType: 'image/png', body: TERRARIUM_PNG })),
-  )
+  await page.route('https://tiles.mapterhorn.com/**', answer(demTile))
   await page.route('https://basemap.nationalmap.gov/**', answer(blankTile))
   await page.route('https://tiles.maps.eox.at/**', answer(blankTile))
   const weather = answer((r) =>
