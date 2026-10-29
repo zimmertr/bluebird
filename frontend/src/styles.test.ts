@@ -1059,12 +1059,15 @@ describe('shared recipes', () => {
     expect(CHOICE_INPUT).not.toContain('touch:')
   })
 
-  // A greyed row whose box is still live for unticking (#803, M9) fades
-  // exactly as far as a disabled one, and only its cursor differs.
-  it('greys a row marked greyed as far as a disabled one', () => {
-    const fade = (variant: string) => CHOICE_ROW.match(new RegExp(`${variant}:opacity-(\\d+)`))?.[1]
-    expect(fade('data-\\[greyed\\]')).toBe(fade('has-\\[:disabled\\]'))
-    expect(fade('data-\\[greyed\\]')).toBeDefined()
+  // A greyed row whose box is still live for unticking (#803, M9) fades its
+  // box as far as a disabled row fades, and its label not at all: the label
+  // of a live control owes 4.5:1 as text (the maintainer, 2026-10-28). Only
+  // a natively disabled row fades whole, and only its cursor differs.
+  it('greys the box alone on a row marked greyed, as far as a disabled row', () => {
+    const fade = (variant: string) => CHOICE_ROW.match(new RegExp(`(?:^|\\s)${variant}:opacity-(\\d+)(?=\\s|$)`))?.[1]
+    expect(fade('data-\\[greyed\\]:\\[&>input\\]')).toBe(fade('has-\\[:disabled\\]'))
+    expect(fade('data-\\[greyed\\]:\\[&>input\\]')).toBeDefined()
+    expect(fade('data-\\[greyed\\]')).toBeUndefined()
     expect(CHOICE_ROW).not.toMatch(/data-\[greyed\]:cursor-/)
   })
 

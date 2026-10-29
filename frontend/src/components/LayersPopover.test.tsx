@@ -287,6 +287,9 @@ describe('LayersPopover', () => {
     const fires = () => screen.getByRole('checkbox', { name: 'Wildfires' }) as HTMLInputElement
     expect([fires().checked, fires().disabled]).toEqual([true, false])
     expect(fires().closest('label')!.hasAttribute('data-greyed')).toBe(true)
+    // Live, so nothing tells assistive tech it is unavailable: its box alone
+    // fades (`CHOICE_ROW`), and the label keeps the ink a live control owes.
+    expect(fires().closest('[aria-disabled]')).toBeNull()
     // A press still acts on it, so it lights under the pointer.
     expect(fires().closest('label')!.className.split(' ')).toContain(MENU.hover)
     fireEvent.click(fires())

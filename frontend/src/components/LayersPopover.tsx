@@ -55,8 +55,8 @@ function layerRow({
   // M9): it used to be disabled with the tick in it, so a layer out of view
   // or under an archive report stayed switched on with no way to switch it
   // off. Once unticked it is disabled like any greyed row, so it cannot be
-  // ticked while the layer cannot draw. `data-greyed` fades it the way a
-  // disabled one fades (`CHOICE_ROW`).
+  // ticked while the layer cannot draw. `data-greyed` fades its box alone,
+  // leaving the label at full ink for a live control (`CHOICE_ROW`).
   const locked = disabled === true && !checked
   const inCard = menu ? ` ${MENU.cardRow}${locked ? '' : ` ${MENU.hover}`}` : ''
   return (

@@ -29,7 +29,7 @@ Issue #803's audit of share links and layers found five ways a link or a layer r
   - `The link's forecast model is not available here.`
 
   Each goes when the reader supplies the thing (`useLinkDrops`): a drawn ring takes the ring's line, a pasted list the list's, a model picked the model's. Clearing the ring later does not bring the line back, because that is the reader's own edit. A compared model the list does not offer is still dropped without a word: the chart simply draws the ones there are. Parsing stays tolerant ([0076](0076-api-semver-strict-reader.md)): the rest of the link opens as before.
-- **A greyed row still ticked can be unticked** (`LayersPopover.tsx`). Its box stays live, the row fades by `data-greyed` on `CHOICE_ROW` as far as a disabled one does, and a press unticks it. Unticked, it is disabled like any greyed row, so it cannot be ticked while the layer cannot draw. A Shift run unticks a greyed row with the rest and never ticks one.
+- **A greyed row still ticked can be unticked** (`LayersPopover.tsx`). Its box stays live, `data-greyed` on `CHOICE_ROW` fades the box alone as far as a disabled row fades and leaves the label at full ink, since the label of a live control owes 4.5:1 and the whole row faded failed axe at 3.14:1 (the maintainer, 2026-10-28), and a press unticks it. Unticked, it is disabled like any greyed row, so it cannot be ticked while the layer cannot draw. A Shift run unticks a greyed row with the rest and never ticks one.
 
 ## Evidence
 

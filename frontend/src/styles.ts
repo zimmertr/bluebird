@@ -2078,13 +2078,19 @@ export const BAR_LABEL = 'hidden @min-[584px]:inline'
  *
  * A row can also be greyed while its box stays live, marked `data-greyed` on
  * the row: a Layers row whose layer cannot draw here but is still ticked
- * (#803, M9). It fades the same 40% and keeps the pointer cursor, because a
- * press still does something: it unticks the box, which then greys disabled
- * and cannot be ticked again until the layer can draw.
+ * (#803, M9). There the box alone fades the same 40%, and the label keeps
+ * its full ink, because the label of a live control owes 4.5:1 as text and
+ * the faded box is enough to say the layer draws nothing now (the
+ * maintainer, 2026-10-28: the whole row faded read 3.14:1 dark and 2.46:1
+ * light, and axe failed it). It keeps the pointer cursor, because a press
+ * still does something: it unticks the box, which then greys disabled and
+ * cannot be ticked again until the layer can draw. A natively disabled row
+ * keeps its whole-row fade, since axe and a reader both read it as
+ * unavailable, and nothing on it owes a contrast ratio.
  */
 export const CHOICE_ROW =
   `${TEXT.control} ${TAP.row} gap-2.5 cursor-pointer ` +
-  `has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40 data-[greyed]:opacity-40 ` +
+  `has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40 data-[greyed]:[&>input]:opacity-40 ` +
   `has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent-ink`
 export const CHOICE_INPUT = `${ACCENT.input} flex-shrink-0 cursor-pointer align-middle`
 
