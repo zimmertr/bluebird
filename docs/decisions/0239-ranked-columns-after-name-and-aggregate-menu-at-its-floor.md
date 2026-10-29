@@ -23,7 +23,7 @@ Measured 2026-10-28 on the built image in Playwright's Chromium at 360x780 with 
 
 - The ranked column started at 325px on main, on the screen's right edge. It starts at 173px on this branch.
 - With a date range, the Controls sheet's Metrics grid is 328px wide, and its scroller reserves no bar. The label's grid cell was 126px on main and is 138px now. `Freezing level` measures 74.7px there and 78.03px in Chrome on macOS (2026-09-14).
-- At a desk the panel's 327px less the 10px bar leaves the label 79px at 60px, 67px at 72.
+- At a desk the panel's 327px less the 10px bar leaves the label text 103px at 60px and 91px at 72px. At the phone's 328px it is 114px, where it was 102px.
 
 The issue's 295px of phone content no longer holds: the sheet now takes the screen's width less its gutters. So at 360 the noun already fitted on main, and the narrower menu is margin for narrower phones and wider fonts. `styles.test.ts` pins both budgets.
 
