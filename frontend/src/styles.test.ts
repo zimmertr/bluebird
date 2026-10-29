@@ -3026,7 +3026,7 @@ describe('the map layer rows', () => {
     expect(MENU_GROUP.cardHeading).toBe(`${MENU.heading} pb-0.5`)
     expect(stepPx(MENU_GROUP.cardHeading, 'pb')).toBe(stepPx(MENU.cardRow, 'py'))
     expect(BOTTOM_SHEET.body).toContain(MENU_GROUP.sheet)
-    expect(MENU_GROUP.sheetHeading).toBe(`${MENU.heading} pt-2 pb-1`)
+    expect(MENU_GROUP.sheetHeading).toBe(`${MENU.heading} pt-1.5 pb-0.5`)
     expect(BOTTOM_SHEET.body).toContain(`[&>*]:${MENU_GROUP.sheetRow}`)
     expect(layersPopoverSource).toContain('className={sheet ? MENU_GROUP.sheet : MENU_GROUP.card}')
     expect(layersPopoverSource).toContain('className={sheet ? MENU_GROUP.sheetHeading : MENU_GROUP.cardHeading}')

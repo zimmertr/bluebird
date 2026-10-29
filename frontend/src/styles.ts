@@ -3086,7 +3086,9 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   over a list of thirteen short rows. The size is the rows' own 12px and
  *   the ink a step quieter (`text-ink-soft`: 5.56:1 on the dark card, 8.91:1
  *   on the light), so weight and ink part a heading from the rows under it
- *   and its size does not; at the 11px step it read as a credit.
+ *   and its size does not. 12px is the size the lab drew it at; the 11px
+ *   step would be allowed, since nothing presses a heading, and was not
+ *   needed.
  */
 export const MENU = {
   card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
@@ -3115,8 +3117,11 @@ export const MENU = {
  * - `sheet`: on a phone the group is one child of the sheet's body, whose
  *   rule then falls over the heading, and it draws the same rule between its
  *   own heading and rows.
- * - `sheetHeading`: 8px under the rule and 4px over the next, so the heading
- *   stands on its rule and is plainly shorter than the 32px rows under it.
+ * - `sheetHeading`: 6px under the rule over it and 2px over the next, so the
+ *   heading hangs from the rule over its group and stands 25px tall where a
+ *   row stands 33. Short on purpose: the tutorial's Layers card stands
+ *   between the chip and the sheet it holds open, and with 8px over each
+ *   heading the sheet rose past the card's band at 390x844 (2026-10-29).
  * - `sheetRow`: a row's 32px, which the sheet's body gives its own children
  *   and a group's rows are not.
  */
@@ -3124,7 +3129,7 @@ export const MENU_GROUP = {
   card: 'not-first:mt-1.5',
   cardHeading: `${MENU.heading} pb-0.5`,
   sheet: SHEET_RULES,
-  sheetHeading: `${MENU.heading} pt-2 pb-1`,
+  sheetHeading: `${MENU.heading} pt-1.5 pb-0.5`,
   sheetRow: 'min-h-8',
 } as const
 
