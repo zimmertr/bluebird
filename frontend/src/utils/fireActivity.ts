@@ -16,7 +16,8 @@ import type { ExpressionSpecification } from 'maplibre-gl'
 import type { Feature, FeatureCollection, Point } from 'geojson'
 import type { FireActivityResponse, FireDetectionProps } from '../types'
 import { apiFetch, overlayFeatures } from './apiFetch'
-import { clamp } from './numbers'
+import { clamp, grouped, isFiniteNumber, roundTo } from './numbers'
+import { ageAgo, escapeHtml, monthDayTime, popupCard, row } from './popup/popupChrome'
 import type { BBox } from './wildfires'
 
 const FIRE_ACTIVITY_URL = '/api/fire-activity'
@@ -322,4 +323,116 @@ export function fireActivityLegendChips(): FireActivityLegendChip[] {
     fill: FIRE_ACTIVITY_FILLS[band],
     stroke: FIRE_ACTIVITY_STROKE,
   }))
+}
+
+/**
+ * The card a click on a star opens (#799; the maintainer, 2026-10-29: every
+ * other thing on the map opens one). Its title and its four labels are the
+ * approved copy, word for word; the values are the feed's.
+ */
+export const HOTSPOT_TITLE = 'Hotspot'
+
+/** One line of the card: an approved label and the detection's value for it. */
+export interface HotspotRow {
+  label: 'Detected' | 'Satellite' | 'Confidence' | 'Fire power'
+  value: string
+}
+
+/**
+ * The satellites FIRMS names in its `satellite` column, by the code each file
+ * spells: `N20` and `N21` in the VIIRS files, `T` and `A` in the MODIS one
+ * (read off the files on 2026-10-27, `backend/tests/data/firms_*.csv`), with
+ * the long names FIRMS's own documentation also uses. Suomi NPP's `N` is
+ * absent because its file is not read (record 0237).
+ */
+const SATELLITES: Readonly<Record<string, string>> = {
+  N20: 'NOAA-20',
+  N21: 'NOAA-21',
+  T: 'Terra',
+  Terra: 'Terra',
+  A: 'Aqua',
+  Aqua: 'Aqua',
+}
+
+/** VIIRS's confidence as a letter, which some FIRMS products spell it as. */
+const CONFIDENCE_WORDS: Readonly<Record<string, string>> = { l: 'low', n: 'nominal', h: 'high' }
+
+const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
+
+/**
+ * The satellite and its instrument, `NOAA-20 VIIRS` or `Terra MODIS`. A code
+ * this table does not know names the instrument alone rather than printing a
+ * bare letter, and with neither the row is left out.
+ */
+function satelliteOf(satellite: unknown, instrument: unknown): string | null {
+  const name = SATELLITES[text(satellite)] ?? ''
+  return [name, text(instrument)].filter(Boolean).join(' ') || null
+}
+
+/**
+ * The confidence as the feed gives it: VIIRS's word (`low`, `nominal`,
+ * `high`) in sentence case, MODIS's number from 0 to 100 as a percent.
+ */
+function confidenceOf(raw: unknown): string | null {
+  const c = typeof raw === 'number' ? String(raw) : text(raw)
+  if (c === '') return null
+  if (/^\d+(\.\d+)?$/.test(c)) return `${Math.round(Number(c))}%`
+  const word = CONFIDENCE_WORDS[c.toLowerCase()] ?? c
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+}
+
+/**
+ * The radiative power in megawatts, one decimal under 10 and whole from 10,
+ * where a tenth is noise beside the number. Rounded to a tenth before the
+ * test, so 9.96 reads `10 MW` rather than `10.0 MW`.
+ */
+function firePowerOf(frp: unknown): string | null {
+  if (!isFiniteNumber(frp)) return null
+  const tenths = roundTo(frp, 1)
+  return `${tenths < 10 ? tenths.toFixed(1) : grouped(Math.round(frp))} MW`
+}
+
+/** When the pixel was seen and how long ago, against `nowMs`. */
+function detectedOf(acquired: unknown, nowMs: number): string | null {
+  const ms = Date.parse(text(acquired))
+  if (!Number.isFinite(ms)) return null
+  try {
+    return `${monthDayTime(new Date(ms))} (${ageAgo(nowMs - ms)})`
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A detection's card lines, in order, each the label and its value as text.
+ * A field the feed left out, or one that does not read, leaves its line off
+ * rather than standing a dash in it. Pure, so the node tests hold every form.
+ * Takes a feature as MapLibre hands one to a click, whose properties may have
+ * lost a null.
+ */
+export function hotspotRows(
+  feature: { properties?: Partial<Record<keyof FireDetectionProps, unknown>> | null },
+  nowMs: number,
+): HotspotRow[] {
+  const p = feature.properties ?? {}
+  const rows: [HotspotRow['label'], string | null][] = [
+    ['Detected', detectedOf(p.acquired, nowMs)],
+    ['Satellite', satelliteOf(p.satellite, p.instrument)],
+    ['Confidence', confidenceOf(p.confidence)],
+    ['Fire power', firePowerOf(p.frp)],
+  ]
+  return rows.flatMap(([label, value]) => (value === null ? [] : [{ label, value }]))
+}
+
+/** The card itself, on the card every popup wears (`popupCard`). */
+export function hotspotPopupHtml(
+  feature: { properties?: Partial<Record<keyof FireDetectionProps, unknown>> | null },
+  nowMs: number,
+): string {
+  return popupCard({
+    title: HOTSPOT_TITLE,
+    body: hotspotRows(feature, nowMs)
+      .map(({ label, value }) => row(label, escapeHtml(value)))
+      .join(''),
+  })
 }

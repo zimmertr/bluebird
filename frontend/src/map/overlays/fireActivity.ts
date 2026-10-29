@@ -1,10 +1,11 @@
 /**
  * The satellite fire detections (#799): their source and starburst layer, the
- * viewport fetch that runs while the layer is on, and the minute timer that
- * moves each detection into its next age band.
+ * card a click on a star opens, the viewport fetch that runs while the layer
+ * is on, and the minute timer that moves each detection into its next age
+ * band.
  *
- * One file owns what one switch turns on and off, so the fetch's abort and the
- * timer are torn down in the same place they are made. The layer is added
+ * One file owns what one switch turns on and off, so the fetch's abort, the
+ * timer and the cards are torn down in the same place they are made. The layer is added
  * once, when the map loads, over the fire perimeters and the closures and
  * under the drawn ring and the result markers (`features.ts`): a detection is
  * a point, and a point over an area it falls in reads where an area over the
@@ -16,11 +17,15 @@
  * three bands. Overlap is allowed, so a cluster stays a cluster, and the stars
  * take no room from the map's labels.
  *
- * No popup: a click on a detection opens nothing.
+ * A click on a star opens its card (`hotspotPopupHtml`), the way a click on a
+ * perimeter or a marker opens theirs (the maintainer, 2026-10-29), through
+ * the map's one click (`map/mapPopups.ts`), which also gives the star its
+ * pointer and Shift its pin.
  */
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
+import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
 import { FIRE_REFETCH_DEBOUNCE_MS } from './wildfires'
 import {
@@ -33,6 +38,7 @@ import {
   FIRE_ACTIVITY_STROKE,
   FIRE_STAR_PIXEL_RATIO,
   fetchFireActivity,
+  hotspotPopupHtml,
   starburstSdf,
   withAgeBands,
 } from '../../utils/fireActivity'
@@ -63,11 +69,12 @@ export interface FireActivityOverlay {
 export function mountFireActivity(
   map: maplibregl.Map,
   deps: {
+    popups: MapPopups
     /** Where the browser's `online` is heard; the window when absent. */
     online?: EventTarget | null
     /** The clock the bands are read against; `Date.now` when absent. */
     now?: () => number
-  } = {},
+  },
 ): FireActivityOverlay {
   const now = deps.now ?? Date.now
   map.addSource(FIRE_ACTIVITY_SOURCE, { type: 'geojson', data: emptyFC as FeatureCollection })
@@ -95,6 +102,18 @@ export function mountFireActivity(
       'icon-color': FIRE_ACTIVITY_COLOR,
       'icon-halo-color': FIRE_ACTIVITY_STROKE,
       'icon-halo-width': FIRE_ACTIVITY_HALO_WIDTH,
+    },
+  })
+
+  // The card opens on the star rather than where the click landed, so two
+  // clicks on one star open one card in one place. Its age is read at the
+  // click and stays as it was while the card is open.
+  deps.popups.register({
+    target: 'fire-activity',
+    layers: [FIRE_ACTIVITY_LAYER],
+    open: ({ feature, lngLat }) => {
+      const at = feature.geometry.type === 'Point' ? (feature.geometry.coordinates as [number, number]) : lngLat
+      deps.popups.openCard(at, hotspotPopupHtml(feature, now()), { owner: 'fire-activity' })
     },
   })
 
@@ -170,6 +189,8 @@ export function mountFireActivity(
       held = null
       drawnBands = null
       setSource(map, FIRE_ACTIVITY_SOURCE, emptyFC)
+      // A card about a star the map no longer draws goes with it.
+      deps.popups.closeAll('fire-activity')
     },
     dispose() {
       stop()

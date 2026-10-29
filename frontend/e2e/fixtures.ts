@@ -154,6 +154,36 @@ export async function expectRanked(page: Page, count = DESTINATION_NAMES.length)
 }
 
 const json = (body: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+
+/**
+ * The one satellite fire detection `/api/fire-activity` answers, at Mount
+ * Rainier, seen by NOAA-20 three hours before START, so the layer draws it
+ * red and its card says `3 hours ago` (#799). Drawn only where a page turns
+ * the layer on.
+ */
+export const FIRE_DETECTION = {
+  lng: -121.76,
+  lat: 46.853,
+  properties: {
+    acquired: new Date(START - 3 * 60 * 60 * 1000).toISOString(),
+    instrument: 'VIIRS',
+    satellite: 'N20',
+    confidence: 'nominal',
+    frp: 12.4,
+  },
+}
+const fireActivity = () =>
+  json({
+    type: 'FeatureCollection',
+    fetched_at: START,
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [FIRE_DETECTION.lng, FIRE_DETECTION.lat] },
+        properties: FIRE_DETECTION.properties,
+      },
+    ],
+  })
 const emptyCollection = () => json({ type: 'FeatureCollection', features: [], fetched_at: new Date().toISOString() })
 
 // A 1x1 transparent PNG, for any raster tile an overlay asks for.
@@ -215,7 +245,7 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
   await page.route('**/api/landmarks**', (r) => r.fulfill(emptyCollection()))
   await page.route('**/api/smoke**', (r) => r.fulfill(emptyCollection()))
   await page.route('**/api/closures**', (r) => r.fulfill(emptyCollection()))
-  await page.route('**/api/fire-activity**', (r) => r.fulfill(emptyCollection()))
+  await page.route('**/api/fire-activity**', (r) => r.fulfill(fireActivity()))
   return traffic
 }
 

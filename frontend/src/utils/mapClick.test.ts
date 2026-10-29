@@ -39,6 +39,16 @@ describe('resolveMapClick', () => {
     expect(resolveMapClick(false, ['smoke', 'closure-area', 'fire'])).toEqual({ kind: 'open', target: 'fire' })
   })
 
+  // A star is drawn over the perimeter, the closure and the label it lands on
+  // (#799), so the click is the star's; a marker drawn over the star keeps its own.
+  it('opens a fire detection over every shape and label under it, and under a marker', () => {
+    expect(resolveMapClick(false, ['smoke', 'closure-area', 'fire', 'closure-trail', 'poi', 'fire-activity'])).toEqual({
+      kind: 'open',
+      target: 'fire-activity',
+    })
+    expect(resolveMapClick(false, ['fire-activity', 'result'])).toEqual({ kind: 'open', target: 'result' })
+  })
+
   it('opens a closed trail over the fire and the closed ground it crosses', () => {
     expect(resolveMapClick(false, ['closure-area', 'fire', 'closure-trail'])).toEqual({
       kind: 'open',
@@ -64,7 +74,7 @@ describe('resolveMapClick while drawing', () => {
   // perimeter used to swallow the click.
   it('treats every overlay and basemap label as scenery a corner lands on', () => {
     const scenery = MAP_TARGETS.filter((t) => !DRAW_TARGETS.includes(t))
-    expect(scenery).toEqual(['poi', 'closure-trail', 'fire', 'closure-area', 'smoke', 'radar', 'snow'])
+    expect(scenery).toEqual(['fire-activity', 'poi', 'closure-trail', 'fire', 'closure-area', 'smoke', 'radar', 'snow'])
     expect(resolveMapClick(true, scenery)).toEqual({ kind: 'add-vertex' })
   })
 

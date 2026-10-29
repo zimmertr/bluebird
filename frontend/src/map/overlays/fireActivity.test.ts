@@ -1,5 +1,46 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// MapLibre's Popup needs a DOM. This one records where it is, what it says and
+// whether it is still open, and fires `close` when removed, as MapLibre's
+// does. Hoisted, because `vi.mock` runs before the imports.
+const { FakePopup, popups } = vi.hoisted(() => {
+  const popups: InstanceType<typeof FakePopup>[] = []
+  class FakePopup {
+    html = ''
+    at: unknown = null
+    removed = false
+    closers: (() => void)[] = []
+    constructor() {
+      popups.push(this)
+    }
+    setLngLat(at: unknown) {
+      this.at = at
+      return this
+    }
+    setHTML(html: string) {
+      this.html = html
+      return this
+    }
+    // `openCard` measures the card; a fake one has no size.
+    getElement() {
+      return undefined
+    }
+    addTo() {
+      return this
+    }
+    on(_type: string, fn: () => void) {
+      this.closers.push(fn)
+      return this
+    }
+    remove() {
+      this.removed = true
+      for (const fn of this.closers) fn()
+    }
+  }
+  return { FakePopup, popups }
+})
+vi.mock('maplibre-gl', () => ({ Popup: FakePopup }))
+
 const { fetchFireActivity } = vi.hoisted(() => ({ fetchFireActivity: vi.fn() }))
 vi.mock('../../utils/fireActivity', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/fireActivity')>()),
@@ -17,7 +58,9 @@ import {
   FIRE_ACTIVITY_RECOLOR_MS,
   FIRE_ACTIVITY_SORT_KEY,
   FIRE_ACTIVITY_STROKE,
+  hotspotPopupHtml,
 } from '../../utils/fireActivity'
+import { mountTestPopups } from '../../testSupport/mapPopups'
 import { stubMap } from '../../testSupport/stubMap'
 
 const HOUR = 60 * 60 * 1000
@@ -57,9 +100,18 @@ let clock = START
 
 function setup(zoom = 8) {
   const stub = stubMap({ zoom })
-  const layer = mountFireActivity(stub.map, { online: null, now: () => clock })
-  return { stub, layer }
+  const { popups: mapPopups, click } = mountTestPopups(stub)
+  const layer = mountFireActivity(stub.map, { popups: mapPopups, online: null, now: () => clock })
+  return { stub, layer, click }
 }
+
+// A star under a click, as MapLibre hands one over: its point and the
+// route's properties.
+const star = (i: number) => ({
+  layer: { id: FIRE_ACTIVITY_LAYER },
+  geometry: DETECTIONS.features[i].geometry,
+  properties: DETECTIONS.features[i].properties,
+})
 
 const bands = (stub: ReturnType<typeof stubMap>) =>
   (stub.sources[FIRE_ACTIVITY_SOURCE].data as FeatureCollection).features.map((f) => f.properties?.band)
@@ -67,6 +119,7 @@ const bands = (stub: ReturnType<typeof stubMap>) =>
 beforeEach(() => {
   vi.useFakeTimers()
   clock = START
+  popups.length = 0
   fetchFireActivity.mockReset()
   fetchFireActivity.mockResolvedValue(DETECTIONS)
 })
@@ -188,7 +241,7 @@ describe('mountFireActivity', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const online = new EventTarget()
     const stub = stubMap({ zoom: 8 })
-    const layer = mountFireActivity(stub.map, { online, now: () => clock })
+    const layer = mountFireActivity(stub.map, { popups: mountTestPopups(stub).popups, online, now: () => clock })
     layer.update({ show: true })
     await vi.advanceTimersByTimeAsync(0)
     online.dispatchEvent(new Event('online'))
@@ -196,6 +249,42 @@ describe('mountFireActivity', () => {
     expect(fetchFireActivity).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(1_000)
     expect(fetchFireActivity).toHaveBeenCalledTimes(2)
+  })
+
+  // Every other thing on the map opens a card on a click, and a star does too
+  // (the maintainer, 2026-10-29), on the star rather than where the click
+  // landed, its age read at the click.
+  it('opens the star’s card on a click, at the star', () => {
+    const { click } = setup()
+    click([star(0)], { lngLat: { lng: -121.49, lat: 47.51 } })
+    expect(popups).toHaveLength(1)
+    expect(popups[0].at).toEqual([-121.5, 47.5])
+    expect(popups[0].html).toBe(hotspotPopupHtml({ properties: DETECTIONS.features[0].properties }, START))
+  })
+
+  it('pins a second card on a Shift-click and replaces both on a plain one', () => {
+    const { click } = setup()
+    click([star(0)])
+    click([star(1)], { shiftKey: true })
+    expect(popups.map((p) => p.removed)).toEqual([false, false])
+    click([star(0)])
+    expect(popups.map((p) => p.removed)).toEqual([true, true, false])
+  })
+
+  it('takes the stars’ cards down when switched off', () => {
+    const { layer, click } = setup()
+    layer.update({ show: true })
+    click([star(0)])
+    click([star(1)], { shiftKey: true })
+    layer.update({ show: false })
+    expect(popups.map((p) => p.removed)).toEqual([true, true])
+  })
+
+  it('shows the pointer over a star', () => {
+    const { stub } = setup()
+    stub.setUnder([star(0)])
+    stub.fire('mousemove', undefined, { point: { x: 0, y: 0 }, lngLat: { lng: -121.5, lat: 47.5 } })
+    expect(stub.map.getCanvas().style.cursor).toBe('pointer')
   })
 
   it('aborts the request in flight when switched off', () => {

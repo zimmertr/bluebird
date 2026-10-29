@@ -21,8 +21,11 @@ import {
   fireActivityLegendChips,
   starburst,
   fireActivityQueryUrl,
+  hotspotPopupHtml,
+  hotspotRows,
   withAgeBands,
 } from './fireActivity'
+import { monthDayTime } from './popup/popupChrome'
 
 const HOUR = 60 * 60 * 1000
 const NOW = Date.parse('2026-10-27T20:00:00Z')
@@ -218,5 +221,101 @@ describe('starburstSdf', () => {
     for (let y = 0; y < 44; y++) {
       for (let x = 0; x < 44; x++) expect(Math.abs(alpha(x, y) - alpha(43 - y, x))).toBeLessThanOrEqual(1)
     }
+  })
+})
+
+// The card a click on a star opens (the maintainer, 2026-10-29): `Hotspot`
+// over four lines whose labels are the approved copy and whose values are the
+// feed's, a line left off where the feed has nothing to say.
+describe('hotspotRows', () => {
+  const seen = NOW - 3 * HOUR - 20 * 60 * 1000
+  const viirs = {
+    acquired: new Date(seen).toISOString(),
+    instrument: 'VIIRS',
+    satellite: 'N20',
+    confidence: 'nominal',
+    frp: 4.26,
+  }
+  const rows = (properties: Record<string, unknown>, now = NOW) =>
+    Object.fromEntries(hotspotRows({ properties }, now).map((r) => [r.label, r.value]))
+
+  it('reads a VIIRS detection in the card’s four lines, in order', () => {
+    expect(hotspotRows({ properties: viirs }, NOW)).toEqual([
+      { label: 'Detected', value: `${monthDayTime(new Date(seen))} (3 hours ago)` },
+      { label: 'Satellite', value: 'NOAA-20 VIIRS' },
+      { label: 'Confidence', value: 'Nominal' },
+      { label: 'Fire power', value: '4.3 MW' },
+    ])
+  })
+
+  it('dates the pass in the month, the day and the time, with no year', () => {
+    // America/Los_Angeles, the zone the suite runs in.
+    expect(rows({ acquired: '2026-10-29T17:12:00Z' }, Date.parse('2026-10-29T20:12:00Z')).Detected).toMatch(
+      /^Oct 29, 10:12\s?AM \(3 hours ago\)$/,
+    )
+  })
+
+  it('names every satellite FIRMS’s three files carry', () => {
+    expect(rows({ satellite: 'N20', instrument: 'VIIRS' }).Satellite).toBe('NOAA-20 VIIRS')
+    expect(rows({ satellite: 'N21', instrument: 'VIIRS' }).Satellite).toBe('NOAA-21 VIIRS')
+    expect(rows({ satellite: 'T', instrument: 'MODIS' }).Satellite).toBe('Terra MODIS')
+    expect(rows({ satellite: 'A', instrument: 'MODIS' }).Satellite).toBe('Aqua MODIS')
+    expect(rows({ satellite: 'Terra', instrument: 'MODIS' }).Satellite).toBe('Terra MODIS')
+    expect(rows({ satellite: 'Aqua', instrument: 'MODIS' }).Satellite).toBe('Aqua MODIS')
+    // A code the table does not know names the instrument rather than a letter.
+    expect(rows({ satellite: 'N', instrument: 'VIIRS' }).Satellite).toBe('VIIRS')
+    expect(rows({ satellite: 'N21' }).Satellite).toBe('NOAA-21')
+  })
+
+  it('spells VIIRS’s confidence in sentence case and MODIS’s as a percent', () => {
+    expect(rows({ confidence: 'low' }).Confidence).toBe('Low')
+    expect(rows({ confidence: 'nominal' }).Confidence).toBe('Nominal')
+    expect(rows({ confidence: 'high' }).Confidence).toBe('High')
+    expect(rows({ confidence: 'h' }).Confidence).toBe('High')
+    expect(rows({ confidence: '66' }).Confidence).toBe('66%')
+    expect(rows({ confidence: '0' }).Confidence).toBe('0%')
+    expect(rows({ confidence: '100' }).Confidence).toBe('100%')
+    expect(rows({ confidence: 66 }).Confidence).toBe('66%')
+  })
+
+  it('gives the fire power a decimal under 10 megawatts and none from 10', () => {
+    expect(rows({ frp: 0.71 })['Fire power']).toBe('0.7 MW')
+    expect(rows({ frp: 9.94 })['Fire power']).toBe('9.9 MW')
+    expect(rows({ frp: 9.96 })['Fire power']).toBe('10 MW')
+    expect(rows({ frp: 22.85 })['Fire power']).toBe('23 MW')
+    expect(rows({ frp: 1234.5 })['Fire power']).toBe(`${(1235).toLocaleString()} MW`)
+  })
+
+  it('says how long ago in minutes under an hour and in hours from one', () => {
+    const ago = (ms: number) => rows({ acquired: new Date(NOW - ms).toISOString() }).Detected.replace(/^.*\((.*)\)$/, '$1')
+    expect(ago(20 * 1000)).toBe('now')
+    expect(ago(-5 * 60 * 1000)).toBe('now')
+    expect(ago(42 * 60 * 1000)).toBe('42 min ago')
+    expect(ago(HOUR)).toBe('1 hour ago')
+    expect(ago(HOUR + 59 * 60 * 1000)).toBe('1 hour ago')
+    expect(ago(47 * HOUR)).toBe('47 hours ago')
+  })
+
+  it('leaves off a line the feed has nothing for, rather than a dash', () => {
+    expect(hotspotRows({ properties: {} }, NOW)).toEqual([])
+    expect(hotspotRows({ properties: null }, NOW)).toEqual([])
+    const sparse = { acquired: 'not a time', instrument: '', satellite: '', confidence: ' ', frp: null }
+    expect(hotspotRows({ properties: sparse }, NOW)).toEqual([])
+    expect(rows({ ...viirs, frp: undefined })).not.toHaveProperty('Fire power')
+    expect(rows({ ...viirs, frp: Number.NaN })).not.toHaveProperty('Fire power')
+    expect(Object.keys(rows({ ...viirs, confidence: '' }))).toEqual(['Detected', 'Satellite', 'Fire power'])
+  })
+
+  it('draws the card titled Hotspot with each line’s label and value', () => {
+    const html = hotspotPopupHtml({ properties: viirs }, NOW)
+    const text = (markup: string) => markup.replace(/<[^>]+>/g, '').trim()
+    expect(html).toMatch(/<strong[^>]*>Hotspot<\/strong>/)
+    const body = html.slice(html.indexOf('data-popup-body'))
+    expect(text(body.slice(body.indexOf('>') + 1))).toBe(
+      `Detected: ${monthDayTime(new Date(seen))} (3 hours ago)` +
+        'Satellite: NOAA-20 VIIRS' +
+        'Confidence: Nominal' +
+        'Fire power: 4.3 MW',
+    )
   })
 })

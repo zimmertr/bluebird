@@ -29,6 +29,8 @@ import {
   updatedLine,
   dateOfMs,
   widestName,
+  ageAgo,
+  monthDayTime,
 } from './popupChrome'
 import { AGGREGATE } from '../../metrics'
 import { closurePopupHtml } from '../closures'
@@ -362,6 +364,33 @@ describe('the updated line', () => {
     expect(updatedAt(undefined)).toBeNull()
     expect(updatedAt(Number.NaN)).toBeNull()
     expect(updatedAt(9e15)).toBeNull()
+  })
+})
+
+// A plume's window and a fire detection are hours old at most, so the year
+// is left off (#799). America/Los_Angeles, the zone the suite runs in.
+describe('monthDayTime', () => {
+  it('names the month, the day and the time, and no year', () => {
+    expect(monthDayTime(new Date(Date.UTC(2026, 9, 29, 17, 12)))).toMatch(/^Oct 29, 10:12\s?AM$/)
+  })
+})
+
+// The radar frame's words, and a fire detection's, which runs to hours (#799).
+describe('ageAgo', () => {
+  const MIN = 60 * 1000
+  it.each([
+    [0, 'now'],
+    [59 * 1000, 'now'],
+    [-10 * MIN, 'now'],
+    [MIN, '1 min ago'],
+    [40 * MIN, '40 min ago'],
+    [59 * MIN + 59 * 1000, '59 min ago'],
+    [60 * MIN, '1 hour ago'],
+    [119 * MIN, '1 hour ago'],
+    [120 * MIN, '2 hours ago'],
+    [47 * 60 * MIN + 59 * MIN, '47 hours ago'],
+  ])('reads %d ms as %j', (ms, words) => {
+    expect(ageAgo(ms)).toBe(words)
   })
 })
 

@@ -26,7 +26,7 @@
  */
 import type { HeldTiles, Rgba } from './heldTiles'
 import { inBounds, type PointReading, type PointSection } from './pointReadout'
-import { escapeHtml, row, updatedLine } from './popup/popupChrome'
+import { ageAgo, escapeHtml, row, updatedLine } from './popup/popupChrome'
 import { RADAR_EXTENTS } from './radar'
 import { clamp } from './numbers'
 import { UNAVAILABLE } from './unavailableCell'
@@ -170,7 +170,7 @@ export function formatRainRate(inPerHour: number, atCap = false): string {
  * the picture on screen.
  */
 export function radarUpdated(offsetMin: number): string {
-  return offsetMin === 0 ? 'now' : `${offsetMin} min ago`
+  return ageAgo(offsetMin * 60 * 1000)
 }
 
 /** What the card names the radar as, on its band. */

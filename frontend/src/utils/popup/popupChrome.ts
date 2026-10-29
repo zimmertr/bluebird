@@ -251,6 +251,33 @@ export function updatedAt(ms: number | null | undefined): string | null {
 }
 
 /**
+ * A date and a time with no year, as a card says when something was seen:
+ * `Oct 29, 10:12 AM` in the reader's own zone and locale. A plume's window
+ * and a fire detection both read it (#799), since each is hours old at most
+ * and a year beside it would be noise.
+ */
+export function monthDayTime(d: Date): string {
+  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+const MINUTE_MS = 60 * 1000
+
+/**
+ * How long ago something was seen, in the words the radar card's frame
+ * already wore (`now`, `40 min ago`) and in hours from the first one
+ * (`1 hour ago`, `3 hours ago`), each count rounded down, so a reading is
+ * never called newer than it is. A stamp ahead of the reader's clock, which
+ * a slow clock can give, reads `now`.
+ */
+export function ageAgo(ageMs: number): string {
+  const minutes = Math.floor(ageMs / MINUTE_MS)
+  if (minutes < 1) return 'now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`
+}
+
+/**
  * A popup's one action, the add, the remove or a ring's remove-point: the
  * panel's own `BUTTON_ACCENT`, worn as its class list (#786, record 0215), so
  * its fill, label, corners, size and hover are the app's button's in both

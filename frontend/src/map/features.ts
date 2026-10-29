@@ -109,7 +109,7 @@ export function mountFeatures(
   const wildfires = mountWildfires(map, { popups: mapPopups })
   const areaClosures = mountClosures(map, 'area', { popups: mapPopups })
   const trailClosures = mountClosures(map, 'trail', { popups: mapPopups })
-  const fireActivity = mountFireActivity(map)
+  const fireActivity = mountFireActivity(map, { popups: mapPopups })
   const snow = mountSnow(map, { popups: mapPopups })
   const radar = mountRadar(map, { popups: mapPopups })
   const drawRing = mountDrawRing(map, {

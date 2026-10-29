@@ -20,9 +20,11 @@
  *
  * Small, deliberate targets first, because a reader who aims at one means it,
  * and a large shape under it can be clicked anywhere else. The ring's own
- * handles lead, then a ranked marker, then a clickable basemap label (a
- * destination the reader may add), then a closed trail, road or site, then a
- * fire perimeter, then the closed ground around it, then a smoke plume. A fire
+ * handles lead, then a ranked marker, then a satellite fire detection (#799),
+ * a star drawn over every label and shape beneath it, then a clickable
+ * basemap label (a destination the reader may add), then a closed trail, road
+ * or site, then a fire perimeter, then the closed ground around it, then a
+ * smoke plume. A fire
  * outranks the closure drawn around it because the perimeter is the smaller
  * shape and the hazard itself, and smoke is the last of the shapes because a
  * plume routinely covers states.
@@ -34,7 +36,18 @@
  * click where both painted opens one card with the radar first, since rain is
  * what is happening over the snow.
  */
-export const MAP_TARGETS = ['vertex', 'result', 'poi', 'closure-trail', 'fire', 'closure-area', 'smoke', 'radar', 'snow'] as const
+export const MAP_TARGETS = [
+  'vertex',
+  'result',
+  'fire-activity',
+  'poi',
+  'closure-trail',
+  'fire',
+  'closure-area',
+  'smoke',
+  'radar',
+  'snow',
+] as const
 export type MapTarget = (typeof MAP_TARGETS)[number]
 
 /**
