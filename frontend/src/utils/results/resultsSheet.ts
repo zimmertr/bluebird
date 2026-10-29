@@ -53,7 +53,7 @@ export const FAB_GAP_PX = 8
  * metric key and a section per layer that is on. Measured in Chrome 2026-09-17
  * with every layer on, the forecast grid drawn and a freezing-level ranking
  * held. The same number at both widths, because the card is one fixed width
- * (`MAP_MENU_W`) and a legend row is read rather than operated, so no part of
+ * (`CHIP_CARD_W.key`) and a legend row is read rather than operated, so no part of
  * it takes a coarse pointer's target.
  *
  * It has been 245, then 265, then 313 as bands and layers joined — a six-band

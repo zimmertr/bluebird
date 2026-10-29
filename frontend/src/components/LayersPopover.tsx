@@ -7,6 +7,7 @@ import BottomSheet from './BottomSheet'
 import { MenuButton } from './Menu'
 import {
   ACCENT,
+  CHIP_CARD_W,
   CHOICE_INPUT,
   CHOICE_ROW,
   MAP_CHIP_MENU,
@@ -313,8 +314,8 @@ export default function LayersPopover({
       {/* The grid's sub-choices, revealed by its own checkbox
           and rendered under the row they belong to rather than
           after the list, so the alphabetical order above holds
-          whatever is open. The desk's card is as wide as the legend
-          card beside it (`MAP_MENU_W`), and a phone's sheet as wide
+          whatever is open. The desk's card is as wide as its widest
+          row (`CHIP_CARD_W.menu`), and a phone's sheet as wide
           as the phone, so these take the fluid segment rather than
           the panel's fixed 144px column — the same reason the
           results bar's mode switch does.
@@ -352,7 +353,7 @@ export default function LayersPopover({
               and commits on release, because each committed value
               is a refetch and a drag must not fetch per pixel. */}
           <div
-            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${SLIDER.well}`}
+            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${SLIDER.well} ${SLIDER.fit}`}
           >
             {(() => {
               const shown = gridReachDraft ?? gridReachFrac
@@ -440,7 +441,7 @@ export default function LayersPopover({
         <div
           ref={cardRef}
           data-state={closing ? 'closing' : 'open'}
-          className={`${SURFACE_CHIP_CARD.menu} ${MAP_CHIP_MENU}`}
+          className={`${SURFACE_CHIP_CARD.menu} ${MAP_CHIP_MENU} ${CHIP_CARD_W.menu}`}
           data-tour="layers-menu"
         >
           {rows}

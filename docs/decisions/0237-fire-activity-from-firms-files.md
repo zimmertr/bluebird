@@ -1,6 +1,6 @@
 # 0237. Fire activity is a pod snapshot of FIRMS's keyless files, coloured by age in the browser
 
-- Status: Accepted. Amends 0174 (the chip menus are 224px wide, for the fire activity key's one line).
+- Status: Accepted. Amends 0174 (the chip menus are 224px wide, for the fire activity key's one line; since 2026-10-29 the legend card alone).
 - Date: 2026-10-27
 - Decider: the maintainer (TJ), on issue #799, 2026-10-27: a layer like CalTopo's Fire Activity, labelled `Fire activity`, carrying VIIRS (NOAA-20 and NOAA-21) and MODIS and not GOES, keyed in three age bands, `Under 12 hours`, `12 to 24 hours` and `24 to 48 hours`, with nothing older than 48 hours drawn. On 2026-10-28, reviewing the pull request, the maintainer made the key one line like Smoke's, three starburst chips reading `12h`, `24h` and `48h`, and the detections starbursts on the map like CalTopo's. Reading FIRMS's global files rather than the regional ones, holding them as columns, sending an instant rather than an age, and the band colours are Claude's, building #799, for the maintainer's review on the pull request.
 - Issues and PRs: #799
@@ -26,7 +26,7 @@ The wildfire perimeters say where a fire's surveyed edge was, in the United Stat
 
 **The legend keys the bands on one line**, `Fire activity (FIRMS)` and three chips on its right where Smoke has its `L`, `M` and `H`: a 12-point starburst per band, in the band's fill and the layer's edge, with the hour the band ends at inside it, `12h`, `24h` and `48h` (`SWATCH_STAR`). Each chip carries its band's words as hidden text, `Under 12 hours`, `12 to 24 hours` and `24 to 48 hours`, the way the smoke chips carry `Light`, `Medium` and `Heavy`, because an hour alone does not say what it bounds. The label is the smoke chips' glyph, 10px slate-900, which clears 4.5:1 on all three fills, so one ink serves every chip and the red keeps its colour. The star is 24px, because the label has to sit inside its inner corners to stand on the fill.
 
-**The chip menus widen to 224px for it** (`MAP_MENU_W`, `w-56`, from 184). The line is the name, 109.4px, the row's 8px gap and three 24px stars 2px apart, 193.4px of content where a desk's card held 164. At 184 the stars ran past the card's edge; 224 holds the line with 10.6px to spare. The Layers menu shares the width, as record 0174 has it.
+**The chip menus widen to 224px for it** (`MAP_MENU_W`, `w-56`, from 184; `CHIP_CARD_W.key` since the split below). The line is the name, 109.4px, the row's 8px gap and three 24px stars 2px apart, 193.4px of content where a desk's card held 164. At 184 the stars ran past the card's edge; 224 holds the line with 10.6px to spare. The Layers menu shared the width, as record 0174 had it, until 2026-10-29, when the maintainer ended the coupling: the legend card keeps 224px (`CHIP_CARD_W.key`) and the Layers menu sizes to its content, 128.7px with its widest row, `Forecast player` (`CHIP_CARD_W.menu`). A reader who opens one card over the other no longer sees one edge; that was judged the lesser cost.
 
 ## Evidence
 

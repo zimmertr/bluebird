@@ -103,7 +103,7 @@ import {
   MAP_CREDIT,
   MAP_PILL,
   MAP_PILL_FIELD,
-  MAP_MENU_W,
+  CHIP_CARD_W,
   MAP_ROWS,
   SEARCH_LIST,
   MICRO_SIZE,
@@ -1480,15 +1480,28 @@ describe('shared recipes', () => {
     expect(SURFACE_SHEET.match(/\bshadow-\S+/g)).toEqual([ELEVATION.none])
   })
 
-  // The chips' two menus are one width (#714, record 0174): the widest line
-  // either one carries is the legend's wait line at 176.8px, and the Layers
-  // menu's widest label is 130.0px, so 184px held both with its padding,
-  // until the fire activity key's one line (#799), 193.4px of content, took
-  // it to 224px.
-  it('gives the chip menus one width', () => {
-    expect(MAP_MENU_W).toBe('w-56')
-    expect(MAP_CHIP_MENU).toContain(MAP_MENU_W)
-    for (const source of [layersPopoverSource, mapLegendSource]) expect(source).toContain('${MAP_CHIP_MENU}')
+  // The legend card is one fixed width and the Layers menu its content's
+  // (#714, record 0174, amended 2026-10-29). Measured in the browser suite's
+  // Chromium: the fire activity key's one line is the legend's widest, 193.4px
+  // of content (2026-10-28), ahead of the grid's wait line at 156.8; the
+  // Layers menu came to 128.7px with its widest row, `Forecast player`, and
+  // the coverage slider's line, `100 km` and `Coverage`, is 39.4 + 54.7px with
+  // its own 8px of padding either side (2026-10-29).
+  it('gives the legend card its width and the Layers menu its content\'s', () => {
+    const MEASURED = { fireKey: 193.4, waitLine: 156.8, layersMenu: 128.7, sliderLine: 16 + 39.4 + 54.7 }
+    const pad = 2 * stepPx(MAP_CHIP_MENU, 'px')
+    expect(CHIP_CARD_W.key).toBe('w-56')
+    expect(stepPx(CHIP_CARD_W.key, 'w')).toBeGreaterThanOrEqual(Math.max(MEASURED.fireKey, MEASURED.waitLine) + pad)
+    // As wide as its widest row and never narrower than its chip.
+    expect(CHIP_CARD_W.menu).toBe('w-max min-w-full')
+    expect(MEASURED.layersMenu).toBeLessThan(stepPx(CHIP_CARD_W.key, 'w'))
+    // The slider's line lies over its input and cannot size the menu, so the
+    // well holds it, with room between the value and the wordmark.
+    expect(stepPx(SLIDER.fit, 'min-w') - MEASURED.sliderLine).toBeGreaterThanOrEqual(8)
+    expect(MAP_CHIP_MENU).not.toMatch(/(^|\s)w-/)
+    expect(layersPopoverSource).toContain('${MAP_CHIP_MENU} ${CHIP_CARD_W.menu}')
+    expect(layersPopoverSource).toContain('${SLIDER.well} ${SLIDER.fit}')
+    expect(mapLegendSource).toContain('${MAP_CHIP_MENU} ${CHIP_CARD_W.key}')
   })
 
   // The floating button is the skip link's now, at the control size the map
@@ -1759,9 +1772,6 @@ describe('every role', () => {
     // one recipe that composes the floating button, and the size it was set
     // at is held here.
     BUTTON_FLOATING: "the skip link's button, held at the control size",
-    // The chip menus' width, which `MAP_CHIP_MENU` composes so the two menus
-    // cannot be two widths.
-    MAP_MENU_W: 'the one width both chip menus wear',
     // The rows hand the map their gaps through this, and `MAP_ROWS` is its
     // one wearer since the legend stack became a card (#714).
     YIELD_EMPTY: 'the rows yield their gaps to the map',
@@ -3751,7 +3761,7 @@ describe('the merged roles', () => {
   // parts, became one object each; the keys are the whole vocabulary.
   it('groups the drag and the slider parts', () => {
     expect(Object.keys(DRAG).sort()).toEqual(['carried', 'ghost', 'grip', 'gripActive', 'insert'])
-    expect(Object.keys(SLIDER).sort()).toEqual(['idle', 'overlay', 'track', 'value', 'well', 'wordmark'])
+    expect(Object.keys(SLIDER).sort()).toEqual(['fit', 'idle', 'overlay', 'track', 'value', 'well', 'wordmark'])
   })
 
   // The marks under the scrubber stand over the thumb's centre, which the

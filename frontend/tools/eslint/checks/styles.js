@@ -436,7 +436,7 @@ export const STYLES = [
         // A range rather than a list, so a step nobody thought of still fails,
         // and guarded so a max-w is not read as a width.
         selector: text(String.raw`(?<![-\w])w-(?:4\d|5\d)\b`),
-        message: 'Take the chip menu width from MAP_MENU_W.',
+        message: 'Take the chip card widths from CHIP_CARD_W.',
       },
       {
         selector: within(`${MENU_BUTTON('chip')} > JSXAttribute[name.name="className"]`, String.raw`(^|\s)(h-|min-h-|px-|py-)`),
@@ -464,6 +464,7 @@ export const STYLES = [
     require: [
       { selector: MENU_BUTTON('chip'), count: 1, message: 'The Legend chip is a MenuButton in the chip shape.' },
       { selector: interp('MAP_CHIP_MENU'), count: 1, message: 'The legend card wears MAP_CHIP_MENU.' },
+      { selector: role('CHIP_CARD_W') + '[property.name="key"]', count: 1, message: 'The legend card is CHIP_CARD_W.key wide.' },
       { selector: role('SURFACE_CHIP_CARD') + '[property.name="key"]', count: 1, message: 'The legend card stands on SURFACE_CHIP_CARD.key.' },
     ],
   },
@@ -482,7 +483,8 @@ export const STYLES = [
   },
   {
     // The Layers chip and the menu under it, unjoined like the legend's
-    // (record 0174), on the legend card's surface with the deeper shadow. Its
+    // (record 0174), on the legend card's surface with the deeper shadow, as
+    // wide as its widest row where the legend card is one fixed width. Its
     // wrapper stands over the Legend chip's, so the menu opens over the legend
     // card rather than under it.
     name: 'style-map-layers-chip',
@@ -490,6 +492,7 @@ export const STYLES = [
     require: [
       { selector: MENU_BUTTON('chip'), count: 1, message: 'The Layers chip is a MenuButton in the chip shape.' },
       { selector: interp('MAP_CHIP_MENU'), count: 1, message: 'The Layers menu wears MAP_CHIP_MENU.' },
+      { selector: role('CHIP_CARD_W') + '[property.name="menu"]', count: 1, message: 'The Layers menu is CHIP_CARD_W.menu wide.' },
       { selector: role('SURFACE_CHIP_CARD') + '[property.name="menu"]', count: 1, message: 'The Layers menu stands on SURFACE_CHIP_CARD.menu.' },
       { selector: text(String.raw`(^|\s)z-\[1\](\s|$)`), message: 'Stand the Layers menu over the legend card with z-[1].' },
     ],

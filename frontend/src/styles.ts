@@ -1399,34 +1399,46 @@ export const CHART_TITLE = {
 } as const
 
 /**
- * The width of a chip's menu on a desk (#714): the Layers menu and the legend
- * card, each unfurling out of its chip in the row under the search pill.
+ * The widths of the two chip cards on a desk (#714): the legend card and the
+ * Layers menu, each unfurling out of its chip in the row under the search
+ * pill and standing under it from its left edge (`MAP_CHIP_MENU`). The keys
+ * follow `SURFACE_CHIP_CARD`'s: `key` the legend, `menu` the Layers menu.
  *
- * A chip is its word's width, 65 to 70px, and both menus need more, so each is
- * wider than its chip and stands under it from its left edge (`MAP_CHIP_MENU`).
- * The two share the width so a reader who opens one over the other sees one
- * edge.
+ * ## The legend card, `key`
  *
- * ## The number
- *
- * Measured in Chrome on macOS 2026-09-14 at the app's own type sizes: the grid
- * legend's wait line, "Forecast grid" against "Waiting · 99s", is
+ * One fixed width, because the card gains and loses sections as layers switch
+ * and a card that changed width with them would jump under the reader's eye.
+ * Measured in Chrome on macOS 2026-09-14 at the app's own type sizes: the
+ * grid legend's wait line, "Forecast grid" against "Waiting · 99s", is
  * 74.7 + 8 + 74.1 = 156.8px of content, so 176.8px with the 20px of side
  * padding a card carries. The countdown switches to minutes past 99s, so that
- * row's widest case is bounded. 184 left 7.2px; at 176 (`w-44`) the wait
- * line wraps. The widest Layers row, "Forecast player", needs 130.0px
- * (measured 2026-10-07). Re-measure before lengthening a line in either.
- *
- * 224 since #799, whose fire activity key is one line like Smoke's: the
- * name, "Fire activity (FIRMS)", and three 24px starburst chips, 109.4 + 8 +
- * 76 = 193.4px of content, 213.4px with the padding (measured 2026-10-28 in
- * the browser suite's Chromium, whose sans is wider than macOS's, so the
+ * row's widest case is bounded. 184 left 7.2px; at 176 (`w-44`) the wait line
+ * wraps. 224 since #799, whose fire activity key is one line like Smoke's:
+ * the name, "Fire activity (FIRMS)", and three 24px starburst chips, 109.4 +
+ * 8 + 76 = 193.4px of content, 213.4px with the padding (measured 2026-10-28
+ * in the browser suite's Chromium, whose sans is wider than macOS's, so the
  * number errs wide). 216 (`w-54`) would leave 2.6px; 224 leaves 10.6px.
+ * Re-measure before lengthening a line in it.
+ *
+ * ## The Layers menu, `menu`
+ *
+ * As wide as its widest row and never narrower than its chip, the rule every
+ * other menu in the app follows (`Menu.tsx` takes its trigger's width as the
+ * minimum). The two cards shared one width until 2026-10-29, when the
+ * maintainer made this one size like the rest: a reader who opens one card
+ * over the other no longer sees one edge, which was judged the lesser cost
+ * (records 0174 and 0237). The rows are nowrap, so the widest, "Forecast
+ * player", sets it, 128.7px with the padding (measured 2026-10-29 in the
+ * browser suite's Chromium); while the forecast grid is on, its coverage
+ * slider's floor (`SLIDER.fit`) makes it 140.
  *
  * It was the width of the whole left column until #714, when the search field
  * became the pill and the buttons became chips at both widths.
  */
-export const MAP_MENU_W = 'w-56'
+export const CHIP_CARD_W = {
+  key: 'w-56',
+  menu: 'w-max min-w-full',
+} as const
 
 /**
  * How far anything floating on the map stands off its edge.
@@ -1753,7 +1765,8 @@ const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 /**
  * A chip's menu on a desk (#714; record 0174): the Layers menu and the legend
  * card, each a whole card standing 4px under its chip from the chip's left
- * edge. A phone's open as bottom sheets instead (record 0136).
+ * edge, each at its own width (`CHIP_CARD_W`). A phone's open as bottom
+ * sheets instead (record 0136).
  *
  * The reference every desk menu was made from (record 0201): the pill kept
  * whole and lit, as a phone's chip is, with the card set apart, because
@@ -1766,7 +1779,7 @@ const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
  * step over the legend's. Its 10px side inset is the one every menu's rows
  * stand at (`MENU.list` and `MENU.row`).
  */
-export const MAP_CHIP_MENU = `absolute left-0 top-full mt-1 ${MAP_MENU_W} px-2.5 py-2`
+export const MAP_CHIP_MENU = 'absolute left-0 top-full mt-1 px-2.5 py-2'
 
 /**
  * The summary chip, `☰ Current · NOAA GFS`, which opens the drawer: a chip
@@ -3315,6 +3328,16 @@ export const SLIDER = {
    * wears. The caller sizes and positions it.
    */
   well: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`,
+  /**
+   * The narrowest the well may be: its one line, the value and the wordmark
+   * with `px-2` either side, is laid over the input and so cannot size the
+   * Layers menu, which is as wide as its content (`CHIP_CARD_W.menu`). The
+   * widest line is `100 km` (39.4px) and `Coverage` (54.7px), 110.1px with the
+   * padding (measured 2026-10-29 in the browser suite's Chromium). 120 leaves
+   * 9.9px between the two; at the menu's 104.7px the value wrapped under the
+   * wordmark.
+   */
+  fit: 'min-w-30',
 } as const
 
 /**
