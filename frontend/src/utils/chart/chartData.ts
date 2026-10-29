@@ -380,12 +380,19 @@ export function formatTooltipValue(v: number, metric: ChartMetric): string {
  * its own formatter, top panel first, joined by the app's ` · `. A metric
  * with no value at that hour is left out rather than written as a dash, so a
  * row reads what there is.
+ *
+ * With two metrics each value carries its hour's unit (`HOURLY_UNIT`), since
+ * a bare `0.05 · 38.9` cannot say which is which; AQI has none to carry. One
+ * metric prints bare, as it always did, because its picker names the unit.
  */
 export function cardValues(line: ChartLine, metrics: readonly ChartMetric[], index: number): string {
   const parts: string[] = []
+  const withUnits = metrics.length > 1
   for (const m of metrics) {
     const v = valueAt(line, m, index)
-    if (v !== null) parts.push(formatTooltipValue(v, m))
+    if (v === null) continue
+    const text = formatTooltipValue(v, m)
+    parts.push(withUnits && HOURLY_UNIT[m] ? `${text} ${HOURLY_UNIT[m]}` : text)
   }
   return parts.join(' · ')
 }

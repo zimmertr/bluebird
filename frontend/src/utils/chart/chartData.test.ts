@@ -749,12 +749,18 @@ describe('cardValues', () => {
 
   it("reads each metric's value through its own format, top panel first", () => {
     expect(cardValues(line, ['precip', 'temp'], 0)).toBe(
-      `${formatTooltipValue(0.05, 'precip')} · ${formatTooltipValue(38.9, 'temp')}`,
+      `${formatTooltipValue(0.05, 'precip')} in/hr · ${formatTooltipValue(38.9, 'temp')} °F`,
     )
   })
 
+  it('names no unit for AQI, and none for a single metric', () => {
+    const aqi = { ...line, series: seriesOf({ aqi: [42], temp_f: [38.9] }) }
+    expect(cardValues(aqi, ['aqi', 'temp'], 0)).toBe(`42 · ${formatTooltipValue(38.9, 'temp')} °F`)
+    expect(cardValues(line, ['temp'], 0)).toBe(formatTooltipValue(38.9, 'temp'))
+  })
+
   it('leaves a missing half out rather than writing a placeholder', () => {
-    expect(cardValues(line, ['precip', 'temp'], 1)).toBe(formatTooltipValue(40, 'temp'))
+    expect(cardValues(line, ['precip', 'temp'], 1)).toBe(`${formatTooltipValue(40, 'temp')} °F`)
     expect(cardValues(line, ['precip'], 1)).toBe('')
   })
 })

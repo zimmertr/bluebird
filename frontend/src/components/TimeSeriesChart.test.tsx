@@ -606,7 +606,7 @@ describe('TimeSeriesChart with a second metric', () => {
     expect(bottomCard(hover)).toBeNull()
     render(<>{topCard(hover)}</>)
     const row = screen.getByText('Sahale Mountain').parentElement!
-    expect(row.lastElementChild!.textContent).toMatch(/^0\.05.* · 38\.9/)
+    expect(row.lastElementChild!.textContent).toBe('0.050 in/hr · 38.9 °F')
     // No temperature for Beta: its row reads the precipitation alone.
     expect(screen.getByText('Mount Beta').parentElement!.lastElementChild!.textContent).not.toContain('·')
   })
