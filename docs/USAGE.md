@@ -26,7 +26,7 @@ Every menu on a phone is a sheet that rises from the bottom of the screen: Legen
 
 ## Light theme
 
-The app opens dark, whatever your system is set to. The round sun button at the top right of the panel, beside the close button, switches it to light, and the same button, now a moon, switches it back. On a phone it sits beside **Done** in the Controls sheet's title row. Your browser remembers the choice, so the next visit opens in it; it does not ride a shared link, so whoever opens yours sees their own. The map, its markers and overlays look the same in both: the map's ground does not follow the switch. It is Liberty's light terrain unless the **Satellite** layer puts photos under it, and the markers, their names and the scale bar read on either. The popups follow the switch, dark in dark and white in light. In light the results table's shaded cells print their numbers in a darker shade of the band's own colour, so they stay legible on a light page, and the chart draws eight of its twenty line colors darker for the same reason.
+The app opens dark, whatever your system is set to. The round sun button at the top right of the panel, beside the close button, switches it to light, and the same button, now a moon, switches it back. On a phone it sits beside **Done** in the Controls sheet's title row. Your browser remembers the choice, so the next visit opens in it; it does not ride a shared link, so whoever opens yours sees their own. The map, its markers and overlays look the same in both: the ground is Liberty's light terrain, or the **Satellite** layer's photos, whichever theme you pick, and the markers, their names and the scale bar read on either. The popups follow the switch, dark in dark and white in light. In light the results table's shaded cells print their numbers in a darker shade of the band's own colour, so they stay legible on a light page, and the chart draws eight of its twenty line colors darker for the same reason.
 
 ## Destinations
 
@@ -217,7 +217,7 @@ controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Eight of them are credited in their own section of the map's legend, and the three others that draw the ground, Topographic, Shaded relief and Satellite, in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
+again. Eight are credited in their own section of the map's legend, and the three that draw the ground (Topographic, Shaded relief and Satellite) in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
@@ -235,26 +235,25 @@ again. Eight of them are credited in their own section of the map's legend, and 
 | **Satellite** | Aerial photos of the ground, under the map's roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
 
 **Topographic** draws contour lines and **Shaded relief** shading, both from
-one elevation model, under the trails, the peaks and every name on
-the map. The contours are in feet, like every height in the app. They start at
-about the zoom a whole range fills the map, 1,000 feet apart, and close to 40
-feet as you zoom in; further out there are none. Every fifth line is drawn heavier with
-its height written along it. The relief shades the slopes facing away from a light in
-the northwest, lightly enough that the woods, the ice and the water still read
+one elevation model, under the trails, the peaks and every name on the map.
+The contours are in feet, like every height in the app. They start 1,000 feet
+apart at about the zoom a whole range fills the map, and close to 40 feet as
+you zoom in; further out there are none. Every fifth line is heavier, with its
+height written along it. The relief shades the slopes facing away from a light
+in the northwest, lightly enough that the woods, the ice and the water read
 through it. The model is 30 m everywhere and finer where a country has
-surveyed its own ground, which in the United States it has, so a gully that
-shows over Rainier may not show over the Alps. Its heights are the model's,
-which can differ from the height a summit's label gives
-([DATA.md](DATA.md#elevation-and-imagery)). Neither layer downloads anything
-until you switch it on.
+surveyed its own ground, as the United States has, so a gully that shows over
+Rainier may not show over the Alps. Its heights can differ from the height a
+summit's label gives ([DATA.md](DATA.md#elevation-and-imagery)). Neither layer
+downloads anything until you switch it on.
 
 **Slope angle** paints how steep the ground is, in the bands avalanche
 forecasters and CalTopo use: yellow from 27 to 29 degrees, orange at 30 and
 31, red from 32 to 34, purple from 35 to 45, blue from 46 to 50 and black from
 51 up. Under 27 nothing is painted. Most slab avalanches start on slopes of 30
-to 45 degrees. The bands are worked out in your browser from the same elevation
-model as the relief, 30 m in most of the world, so a short cliff band or a
-narrow gully can be smoothed into the gentler ground around it. Zoomed out, a
+to 45 degrees. Your browser works the bands out from the relief's elevation
+model, 30 m in most of the world, so a short cliff band or a narrow gully can
+blur into the gentler ground around it. Zoomed out, a
 pixel covers more ground and the bands read gentler: Rainier's cleavers are
 black at zoom 12 and purple at zoom 10. Read it zoomed in. It is no substitute
 for measuring a slope in the field. It paints at half strength, over the relief
@@ -266,19 +265,18 @@ away the map's own colours for land, water and buildings. Over the United
 States, zoomed in, they are USGS's NAIP aerial photos at about a metre, flown
 in summer in the 2017 to 2021 seasons. Everywhere else, and over the US when
 zoomed out, they are EOX's Sentinel-2 cloudless mosaic at 10 m, which goes soft
-past a few streets' width. Neither is a recent pass, so neither shows the snow
-on the ground today: for that, use **Snow depth**. **Shaded relief** and
-**Topographic** draw over the photos; tick **Topographic** for a hybrid look. While
-the photos are on, the trails wear a light edge so they read over the woods,
-and the contour lines turn light on a dark edge, as a topo drawn over a photo
-does.
-The two providers are credited in the map's corner, with the map's own.
+past a few streets' width. Neither is a recent pass, so neither shows today's
+snow: for that, use **Snow depth**. **Shaded relief** and **Topographic** draw
+over the photos; tick **Topographic** for a hybrid look. While the photos are
+on, the trails wear a light edge so they read over the woods, and the contour
+lines turn light on a dark edge, as a topo drawn over a photo does. The two
+providers are credited in the map's corner, with the map's own.
 
 The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the
 timeline bar at the bottom of the map on and off. It is on by default in a
 desktop-sized window and off on a phone, where the bar is a band across a map the
 report already stands on. It changes nothing about the ranking either, and once
-you have set it, it rides in the shared link like the eleven above. It goes gray when
+you have set it, it rides in the shared link like the twelve above. It goes gray when
 nothing on the map spans time, which is a report of one hour with the rain radar
 off. Every row stays in the list whether or not it applies, so the list is the same
 length every time you open it.
@@ -286,7 +284,7 @@ length every time you open it.
 The six rows in the table above with a coverage edge go gray the same way, when
 the map you are looking at lies wholly outside it: over Colorado the two closure
 rows gray, because no Forest Service feed here covers it, and over the Alps every
-row but the forecast grid, the player and the four worldwide ones does. A gray row says the layer has
+row but the forecast grid, the player and the five worldwide ones does. A gray row says the layer has
 nothing to draw here, which is the one thing an empty layer cannot say for
 itself: outside a feed's coverage, empty means "not covered", never "open" or
 "clear". Pan back into coverage and the row returns. A layer you switched on
@@ -316,8 +314,8 @@ hours, yellow from 24 to 48. The age runs on your clock, so a star turns from
 red to orange while the map is open, and nothing older than 48 hours is drawn.
 The newest star is already about 3 hours old when it arrives, a cloudy pass sees
 nothing, and a gas flare or a hot roof can look like fire, so read a star as a
-place to look closer rather than as a fire line ([DATA.md](DATA.md#fire-activity)).
-Clicking a star opens nothing. Zoomed out far enough to see a continent whole,
+place to look closer, not a fire line ([DATA.md](DATA.md#fire-activity)).
+Clicking a star opens nothing. Zoomed out far enough to see a whole continent,
 the layer draws nothing, and draws again as you zoom in.
 
 Clicking a perimeter, a closure or a plume opens the same card a destination
@@ -363,10 +361,10 @@ table are what measure air.
 
 The **3D** button stands with the map's own buttons: under the compass at a
 desk, and beside the locate button at the end of the search box on a phone.
-Press it and the map stands the ground up on the same elevation model and tilts to look
-across it; press it again and the map lies flat, facing the way it faced. It is
-off by default, lit while it is on, and rides in the shared link as `terrain`,
-so a link made in 3D opens tilted. Drag with the right mouse button, or with two
+Press it and the map stands the ground up on the same elevation model and
+tilts to look across it; press it again and the map lies flat, facing the way
+it faced. It is off by default, lit while on, and rides in the shared link as
+`terrain`, so a link made in 3D opens tilted. Drag with the right mouse button, or with two
 fingers, to change the tilt and the heading; the compass puts both back.
 3D draws nothing of its own, so it is best with **Shaded relief** on. Like the
 layers above, it changes nothing about the analysis.
@@ -571,12 +569,12 @@ chip opens.
 A section keyed on a single value — smoke, rain radar, active wildfires — is one
 line with its swatch on the right. Fire activity is one line too: three
 starbursts on the right, red, orange and yellow, reading `12h`, `24h` and
-`48h`, the hour each band of age ends at. A section keyed on a **scale** is a strip
+`48h`, the hour each age band ends at. A section keyed on a **scale** is a strip
 across the box with its numbers **inside** it, along the bottom edge: the bottom
 of the scale, its middle and its top, each standing on the band boundary it
 names. That is the shape the marker colors, the snow depth layer and the slope
 angle layer take, and it is one line rather than two. The slope angle strip
-names every band, by the degrees it starts at. The unit rides the section's name —
+names every band by the degrees it starts at. The unit rides the section's name —
 `Temperature (°F)`, `Precipitation (in)`, `Precipitation (in/hr)` while the
 forecast player is scrubbing, and `Snow depth (in)` — so the numbers on the strip
 stay bare. AQI is the one with no unit to state, its index being a plain index.

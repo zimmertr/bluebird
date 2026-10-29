@@ -10,7 +10,7 @@
 
 ## Context
 
-The route answers whatever box it is sent, and the world holds about 200,000 detections in a burning season. A map zoomed out to a continent would ask for most of them on every pan, and draw a smear of discs no one can tell apart.
+The route answers whatever box it is sent, and the world holds about 200,000 detections in a burning season. A map zoomed out to a continent would ask for most of them on every pan, and draw a smear of starbursts no one can tell apart.
 
 ## Decision
 
@@ -22,11 +22,11 @@ Measured 2026-10-27 on the day's global files, for a view 1,389 px wide: at zoom
 
 ## Alternatives rejected
 
-- **No floor.** A world view would fetch and draw 200,000 discs on every settled pan.
+- **No floor.** A world view would fetch and draw 200,000 starbursts on every settled pan.
 - **Greying the row below the floor**, as a row greys outside its coverage (0117). That needs the zoom in the coverage test and changes what a grey row means, from "nothing here" to "nothing at this zoom". The trailhead markers set the precedent of a quiet floor instead.
 - **A floor at 6**, where the brief's radius starts. A view of the whole western United States is zoom 5 on a desk, and its fires are a few thousand.
 - **Thinning on the server for a wide box.** A second picture of the same data with its own rules, for a view no one reads a single fire from.
 
 ## Consequences
 
-A reader who zooms out past a continent sees the dots go, with nothing saying why; zooming in brings them back without a fetch where the view was already held. A wide desk at zoom 5 over a burning season can still ask for a megabyte gzipped, which the pod formats in well under a tenth of a second.
+A reader who zooms out past a continent sees the stars go, with nothing saying why; zooming in brings them back without a fetch where the view was already held. A wide desk at zoom 5 over a burning season can still ask for a megabyte gzipped, which the pod formats in under a tenth of a second.

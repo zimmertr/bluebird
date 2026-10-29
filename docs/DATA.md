@@ -825,14 +825,13 @@ a gap in a map that otherwise drew, and says nothing.
 ### Elevation and imagery
 
 The Topographic, Shaded relief, Slope angle and Satellite rows, and the 3D
-terrain, read tiles the browser fetches itself from three more hosts, each
-keyless (#799). All five draw, and none asks for anything until it is switched
-on.
+terrain, read tiles the browser fetches itself from three more keyless hosts
+(#799). None of the five asks for anything until it is switched on.
 
 **Elevation is Mapterhorn's**, one model behind the contours, the relief, the
-slope angle and the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere, with finer national
-surveys stitched in where a country publishes one, so the detail depends on
-where you look. 30 m is enough for a ridge and a valley, and too coarse for a
+slope angle and the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere,
+with finer national surveys stitched in where a country publishes one. 30 m is
+enough for a ridge and a valley, and too coarse for a
 gully or a cliff band. Past the zoom a region's survey reaches, a tile answers
 404, so the layers ask for nothing past zoom 12, which the 30 m fill holds over
 all land, and stretch those tiles further in. Open ocean has no tile at any
@@ -842,34 +841,33 @@ page. Its privacy policy says it keeps each request's IP address, referrer and
 user agent for up to 30 days.
 
 **The contours are traced in your browser** from those same tiles, by
-maplibre-contour, converted to feet. A line is where the model says that height
-is, so it can stand a little off a mapped trail or a lake shore, and the heights
-are the model's rather than a surveyed point's. A cell is 30 m across at its
-coarsest and holds one height, so a sharp summit narrower than that can top out
+maplibre-contour, and converted to feet. A line is where the model puts that
+height, so it can stand a little off a mapped trail or a lake shore, and its
+height is the model's, not a surveyed point's. A cell is 30 m across at its
+coarsest and holds one height, so a summit narrower than that can top out
 under the elevation its OpenStreetMap label carries, and the highest line round
 it can read one interval short. Use the label for the summit and the lines for
 the shape of the ground around it.
 
-**The slope angle is worked out in your browser** from the same tiles, the
-ones the relief and the contours already fetched. Each pixel's slope is the
-height difference to its neighbours east and west and north and south, over
-the ground between them at that latitude, and the pixels on a tile's edge read
-their neighbours from the next tile, so a band does not break along tile
-boundaries. It is painted in CalTopo's bands, which are the avalanche world's,
-from 27 degrees up (record
-[0239](decisions/0239-slope-angle-from-the-shared-elevation.md)). So it
-inherits the model's limits: a slope is measured over two pixels, about 26 m at
-Rainier's latitude at zoom 12 and twice that at each zoom out, and a cliff band
+**The slope angle is worked out in your browser** from the tiles the relief
+and the contours already fetched. Each pixel's slope is the height difference
+to its neighbours east and west and north and south, over the ground between
+them at that latitude. A pixel on a tile's edge reads its neighbours from the
+next tile, so a band does not break along tile boundaries. It is painted in
+CalTopo's bands, the avalanche world's, from 27 degrees up (record
+[0239](decisions/0239-slope-angle-from-the-shared-elevation.md)). It inherits
+the model's limits: a slope is measured over two pixels, about 26 m at
+Rainier's latitude at zoom 12 and twice that at each zoom out, so a cliff band
 or a gully narrower than that is averaged with the ground beside it and reads
-gentler than it is. Past zoom 12 the shading is stretched rather than worked
-out again. It is a planning picture, not a measurement of the slope you will
+gentler than it is. Past zoom 12 the shading is stretched, not worked out
+again. It is a planning picture, not a measurement of the slope you will
 stand on.
 
 **Imagery is two sources, one picture.** Over the United States and its
 territories it is USGS's NAIP aerial photography, to zoom 16, in the public
-domain. NAIP is flown in summer with the leaves out, in the
-2017 to 2021 seasons, so it shows no snow you could plan on and nothing that
-has changed since. Everywhere else it is EOX's Sentinel-2 cloudless mosaic,
+domain. NAIP is flown in summer with the leaves out, in the 2017 to 2021
+seasons, so it shows no snow you could plan on and nothing that has changed
+since. Everywhere else it is EOX's Sentinel-2 cloudless mosaic,
 one cloud-free picture of the year at 10 m per pixel. Its tiles stop adding
 detail at zoom 14: a zoom 15 tile differs from its zoom 14 parent, stretched,
 by 1.7 to 3.2 points of 255 on average, where a zoom 14 tile differs from its
@@ -877,8 +875,8 @@ own parent by 8.7 to 12.6 (measured 2026-10-27 over a forest, a town and a
 range in Washington, British Columbia and the Alps). So the map asks EOX for
 nothing past 14 and stretches what it has. The 2025 mosaic is under
 CC BY-NC-SA 4.0, as every vintage from 2018 on is, so it is free for
-noncommercial use only. Neither is a recent pass: both are a still of the
-ground as it was, not a picture of the conditions on it.
+noncommercial use only. Neither is a recent pass: each is a still of the
+ground as it was, not of the conditions on it.
 
 While the layer is on, the map's corner credits the two by short name, `USGS`
 and `EOX Sentinel-2 cloudless`, each linked to its provider. The full line each
@@ -886,15 +884,14 @@ asks for is in [NOTICES.md](../NOTICES.md), and the data sources list names
 and links both. EOX's own wording asks for its full line in the map; the
 maintainer chose the short names on 2026-10-28 to keep the corner to one line.
 
-The two are drawn as one layer, EOX everywhere with USGS over it, both under
-Liberty's roads, trails and labels and under the relief and the contours, with
-Liberty's own land, water and building fills faded out while the layer is on.
+The two draw as one layer, EOX everywhere with USGS over it, both under
+Liberty's roads, trails and labels and under the relief and the contours.
+Liberty's own land, water and building fills fade out while the layer is on.
 The trails wear a light casing over it, because their brown reads 1.69:1 on a
 forest (record [0234](decisions/0234-map-reads-on-a-dark-ground.md)), and the
 contour lines turn light on a thin dark edge, because their brown reads 1.25:1
-there. USGS draws from zoom 13 up,
-and only over a box from American Samoa to the Arctic and the Aleutians to the
-Virgin Islands. Both limits are its cache's, measured 2026-10-27:
+there. USGS draws from zoom 13 up, and only over a box from American Samoa to
+the Arctic and the Aleutians to the Virgin Islands. Both limits are its cache's, measured 2026-10-27:
 
 - **Below zoom 13 it fills the land outside its coverage with white.** Zooms 9
   to 12 answer opaque white JPEGs over British Columbia, Ontario and Sonora,
@@ -912,10 +909,10 @@ Virgin Islands. Both limits are its cache's, measured 2026-10-27:
   without the whole Pacific, so they get EOX's.
 
 A tile host that fails, rather than answering 404, is asked again each time
-the browser reports it is back online, the rule the pod's overlays follow. A
-tile failure carries no `Retry-After` to wait out, and says nothing on screen,
-the way a failed basemap tile says nothing: the roads and labels still draw,
-and over the United States the other picture does too.
+the browser reports it is back online, as the pod's overlays are. A tile
+failure carries no `Retry-After` to wait out and, like a failed basemap tile,
+says nothing on screen: the roads and labels still draw, and over the United
+States so does the other picture.
 
 ## Wildfires
 
@@ -996,16 +993,13 @@ The optional fire activity layer draws the satellite fire detections NASA's
 detection is one pixel that was hot when a satellite passed: 375 m across for
 the VIIRS instruments on NOAA-20 and NOAA-21, 1 km for the MODIS instruments on
 Terra and Aqua. It says something was burning there at that moment. It is not
-a fire's outline, which is what the wildfire perimeters above are, and a
-large fire shows as a cluster of pixels along its active edge rather than as
-its burned area.
-
-Read it with four things in mind.
+a fire's outline (the wildfire perimeters above are that): a large fire shows
+as a cluster of pixels along its active edge, not as its burned area.
 
 **It is about 3 hours behind the pass.** FIRMS publishes a detection about 3
 hours after the satellite saw it, and each satellite passes a given place about
-twice a day. So the newest star can be hours old, and a fire that started since
-the last pass is not on the map at all.
+twice a day. So the newest starburst can be hours old, and a fire that started since
+the last pass is not on the map.
 
 **False alarms happen.** Anything hot enough looks like fire from orbit: gas
 flares, industrial roofs, volcanoes, and sun glint off water or metal. FIRMS
@@ -1022,12 +1016,12 @@ nothing below zoom 5, where a view can hold a continent's fires.
 
 FIRMS's files carry no CORS header, so the browser cannot read them. Bluebird
 Forecast's server fetches the three global 48-hour files (NOAA-20, NOAA-21 and
-MODIS, 27.7 MB together on 2026-10-27) every hour, FIRMS's own cadence, one pod
-for every pod while its database is up, and answers the map's view from that
-copy. A copy is served through a failed refresh for up to 24 hours, like the
+MODIS, 27.7 MB together on 2026-10-27) every hour, FIRMS's own cadence (one pod
+for all of them while the database is up), and answers the map's view from
+that copy. A copy is served through a failed refresh for up to 24 hours, like the
 perimeters; past that the layer is empty until FIRMS answers again. Suomi NPP's
-VIIRS feed ends on 2026-11-02, which is why two VIIRS satellites are read and
-not three. The geostationary GOES detections are left out: they are 2 km
+VIIRS feed ends on 2026-11-02, so the layer reads two VIIRS satellites, not
+three. The geostationary GOES detections are left out: they are 2 km
 pixels every few minutes, a different picture. See
 [API.md](API.md#fire-detections) for the route, and
 [record 0237](decisions/0237-fire-activity-from-firms-files.md) for why it is

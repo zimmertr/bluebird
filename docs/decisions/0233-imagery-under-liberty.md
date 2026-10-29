@@ -9,11 +9,11 @@
 
 ## Context
 
-The map had one look, Liberty, and no imagery. Liberty is load-bearing: `enhanceBasemap` patches its layers into the clickable peaks, lakes and places, and `lakeAnchor` finds a clicked lake's outline with `queryRenderedFeatures` on its `water` fill. A raster style in its place would drop every clickable destination without an error. And every imagery source on offer either needs a key, covers one country, or is coarse.
+The map had one look, Liberty, and no imagery. Liberty is load-bearing: `enhanceBasemap` patches its layers into the clickable peaks, lakes and places, and `lakeAnchor` finds a clicked lake's outline with `queryRenderedFeatures` on its `water` fill. A raster style in its place would drop every clickable destination without an error. Every imagery source on offer needs a key, covers one country, or is coarse.
 
 ## Decision
 
-- **Two raster sources, one picture, under Liberty.** EOX's Sentinel-2 cloudless mosaic everywhere, to z14, and USGS's NAIP photography over it from z13 to z16 inside `[-180, -15, -64, 72]`. Both go directly above Liberty's `background` and under every other layer of the style, so the roads, the trails, every label and the app's `ofm-*` layers stay on top. Contour lines inserted under the style's first symbol layer land over the imagery, so the hybrid look is Satellite and Contours together, not a mode of its own.
+- **Two raster sources, one picture, under Liberty.** EOX's Sentinel-2 cloudless mosaic everywhere, to z14, and USGS's NAIP photography over it from z13 to z16 inside `[-180, -15, -64, 72]`. Both go directly above Liberty's `background` and under every other layer of the style, so the roads, the trails, every label and the app's `ofm-*` layers stay on top. Contour lines inserted under the style's first symbol layer land over the imagery, so Satellite and Topographic together are the hybrid look, with no mode of its own.
 - **Added the first time the Satellite row switches on, never on load,** and hidden with `visibility: none` when it switches off. A hidden raster layer fetches nothing and is never queried.
 - **Liberty's ground fades by opacity, never by visibility.** While the row is on, the background, the Natural Earth relief, every vector fill but the road areas, the buildings in 2D and 3D and the river lines go to opacity 0, and come back to the value each had. `water` keeps `visibility: visible`, because `queryRenderedFeatures` skips a hidden layer and keeps a transparent one, so a clicked lake keeps its outline. Roads, paths, rail, boundaries, park outlines and every symbol stay.
 - **The Satellite row never greys.** EOX covers the world, so the layer always has something to draw (record [0117](0117-layers-grey-outside-coverage.md) greys only a row with nothing to draw).
@@ -35,7 +35,7 @@ Measured 2026-10-27, by fetching tiles at named places and comparing them.
 
 - **Esri World Imagery.** The best global imagery, but its terms for keyless use outside Esri's own software are unclear without an ArcGIS account, and a key would break the rule that the app needs none.
 - **MapTiler or Mapbox imagery.** Each needs a key.
-- **EOX alone.** Global and keyless, but 10 m, too coarse to pick out a trail or a gully. USGS's 1 m photos are what make the layer worth switching on in the United States, where most of the app's readers plan.
+- **EOX alone.** Global and keyless, but 10 m, too coarse to pick out a trail or a gully. USGS's 1 m photos make the layer worth switching on in the United States, where most of the app's readers plan.
 - **USGS alone, greyed outside the United States** (the issue's recommendation). With EOX under it the row has something to draw everywhere, and a reader in the Alps gets a picture rather than a grey row.
 - **USGS from z9, with `bounds` from its metadata.** The metadata's extent is the world, and from z9 to z12 the white filler paints over EOX across Canada and Mexico. Below z13 a screen pixel is already coarser than EOX's 10 m, so starting at z13 loses nothing.
 - **`visibility: none` on Liberty's fills.** Simpler to undo, but `lakeAnchor` would lose the lake's outline, the same failure `drawRing.ts` documents.

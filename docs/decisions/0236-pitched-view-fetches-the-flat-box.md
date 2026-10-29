@@ -29,4 +29,4 @@ The 3D button tilts the map to 45 degrees and a reader can tilt it to 60. MapLib
 
 - The Layers menu's coverage test (`useLayerReach`) still reads `getBounds()`: it fetches nothing, and a wider box only greys a row less often, which is the safe way to be wrong.
 - `viewBox.test.ts` holds the box; the landmark, wildfire and closure tests each hold their fetch to it on a pitched stub map whose `getBounds()` answers the horizon.
-- The flat box is narrower than what a tilted map shows near the horizon, so a fire far up the screen may draw only after a pan brings it closer. That is the trade: the far edge of a tilted view is too small to read anyway.
+- The flat box is narrower than what a tilted map shows near the horizon, so a fire far up the screen may draw only after a pan brings it closer. That is the trade: the far edge of a tilted view is too small to read.
