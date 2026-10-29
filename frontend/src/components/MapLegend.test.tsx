@@ -122,23 +122,24 @@ describe('MapLegend', () => {
     )
   })
 
-  // The fire detections (#799): the layer's name over a row per age band,
-  // newest first, each beside its disc, credited to FIRMS.
-  it('keys the fire detections by age, a disc per band, credited to FIRMS', () => {
+  // The fire detections (#799): one line like Smoke's, the layer's name and a
+  // starburst per age band, newest first, each with its hour inside, credited
+  // to FIRMS.
+  it('keys the fire detections by age on one line, a starburst per band, credited to FIRMS', () => {
     const { container } = render(<Legend {...BASE} overlays={{ ...NONE, showFireActivity: true }} />)
     const text = container.textContent ?? ''
     expect(text).toContain('Fire activity (FIRMS)')
-    const at = (s: string) => text.indexOf(s)
-    expect(at('Under 12 hours')).toBeLessThan(at('12 to 24 hours'))
-    expect(at('12 to 24 hours')).toBeLessThan(at('24 to 48 hours'))
     expect(screen.getByRole('link', { name: 'FIRMS' }).getAttribute('href')).toBe('https://earthdata.nasa.gov/firms')
-    const discs = [...container.querySelectorAll<HTMLElement>('span.rounded-full')]
-    expect(discs.map((d) => d.style.backgroundColor)).toEqual([
-      'rgb(255, 90, 69)',
-      'rgb(251, 146, 60)',
-      'rgb(253, 224, 71)',
-    ])
-    expect(new Set(discs.map((d) => d.style.borderColor))).toEqual(new Set(['rgb(28, 25, 23)']))
+    const stars = [...container.querySelectorAll('polygon')]
+    expect(stars.map((star) => star.parentElement!.parentElement!.textContent)).toEqual(['12h', '24h', '48h'])
+    expect(stars.map((star) => star.getAttribute('fill'))).toEqual(['#ff5a45', '#fb923c', '#fde047'])
+    expect(new Set(stars.map((star) => star.getAttribute('stroke')))).toEqual(new Set(['#1c1917']))
+    expect(stars.every((star) => star.getAttribute('points')!.split(' ').length === 24)).toBe(true)
+    // One row: the name and the three chips share it, and the old band
+    // lines are gone.
+    const row = screen.getByText('FIRMS').closest('div')!
+    expect(row.textContent).toBe('Fire activity (FIRMS)12h24h48h')
+    for (const old of ['Under 12 hours', '12 to 24 hours', '24 to 48 hours']) expect(text).not.toContain(old)
   })
 
   it('sorts the fire activity section among the others by its name', () => {

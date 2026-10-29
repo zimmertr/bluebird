@@ -21,9 +21,13 @@ vi.mock('maplibre-contour', () => ({
 }))
 
 import {
+  CONTOUR_CASING_LAYER,
+  CONTOUR_IMAGERY_EDGE,
+  CONTOUR_IMAGERY_INK,
   CONTOUR_INDEX_LAYER,
   CONTOUR_LABEL_LAYER,
   CONTOUR_LAYER,
+  CONTOUR_MINZOOM,
   CONTOUR_SOURCE,
   CONTOUR_THRESHOLDS_FT,
   DEM_MAXZOOM,
@@ -142,7 +146,14 @@ describe('mountTerrain', () => {
         terrain.update(want)
         await vi.waitFor(() => expect(stub.stack).toContain(key === 'relief' ? RELIEF_LAYER : CONTOUR_LAYER))
       }
-      expect(stub.stack.slice(3, 8)).toEqual([RELIEF_LAYER, CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER, 'ofm-trails'])
+      expect(stub.stack.slice(3, 9)).toEqual([
+        RELIEF_LAYER,
+        CONTOUR_CASING_LAYER,
+        CONTOUR_LAYER,
+        CONTOUR_INDEX_LAYER,
+        CONTOUR_LABEL_LAYER,
+        'ofm-trails',
+      ])
     }
   })
 
@@ -161,8 +172,56 @@ describe('mountTerrain', () => {
     for (const id of [CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER]) expect(visibility(stub, id)).toBe('none')
   })
 
+  // Over the satellite imagery the brown vanishes on a forest, so the lines
+  // turn light on a dark edge while the Satellite row is on, whichever comes
+  // first, and back when it goes off.
+  it('draws the contours light on a dark edge over the imagery, and brown again off it', async () => {
+    const ink = (stub: ReturnType<typeof stubMap>) =>
+      [CONTOUR_LAYER, CONTOUR_INDEX_LAYER].map((id) => [stub.paint[id]['line-color'], stub.paint[id]['line-opacity']])
+    const brown = [
+      ['#8a6a4a', 0.35],
+      ['#8a6a4a', 0.6],
+    ]
+    for (const imageryFirst of [false, true]) {
+      const { stub, terrain } = setup()
+      if (imageryFirst) terrain.overImagery(true)
+      terrain.update({ ...OFF, contours: true })
+      await vi.waitFor(() => expect(stub.stack).toContain(CONTOUR_LAYER))
+      if (!imageryFirst) {
+        expect(ink(stub)).toEqual(brown)
+        expect(visibility(stub, CONTOUR_CASING_LAYER)).toBe('none')
+        terrain.overImagery(true)
+      }
+      expect(ink(stub)).toEqual([
+        [CONTOUR_IMAGERY_INK, 0.7],
+        [CONTOUR_IMAGERY_INK, 0.9],
+      ])
+      expect(stub.paint[CONTOUR_CASING_LAYER]['line-color']).toBe(CONTOUR_IMAGERY_EDGE)
+      expect(visibility(stub, CONTOUR_CASING_LAYER)).toBe('visible')
+      // The edge goes with the lines when the row is switched off under it.
+      terrain.update(OFF)
+      expect(visibility(stub, CONTOUR_CASING_LAYER)).toBe('none')
+      terrain.update({ ...OFF, contours: true })
+      expect(visibility(stub, CONTOUR_CASING_LAYER)).toBe('visible')
+      terrain.overImagery(false)
+      expect(ink(stub)).toEqual(brown)
+      expect(visibility(stub, CONTOUR_CASING_LAYER)).toBe('none')
+    }
+  })
+
+  // Before any contour is drawn the switch only remembers, and loads nothing.
+  it('loads nothing for the imagery alone', async () => {
+    const { stub, terrain, load } = setup()
+    terrain.overImagery(true)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(load).not.toHaveBeenCalled()
+    expect(stub.calls).toEqual([])
+  })
+
   it('pins the contour intervals, in feet, every fifth an index line', () => {
     expect(CONTOUR_THRESHOLDS_FT).toEqual({
+      8: [1000, 5000],
+      9: [1000, 5000],
       10: [1000, 5000],
       11: [500, 2500],
       12: [200, 1000],
@@ -170,6 +229,22 @@ describe('mountTerrain', () => {
       14: [40, 200],
     })
     for (const [minor, index] of Object.values(CONTOUR_THRESHOLDS_FT)) expect(index).toBe(minor * 5)
+  })
+
+  // From zoom 8, a region-wide view: the source and its three layers start at
+  // the table's first entry, so nothing asks for a tile the library answers
+  // empty.
+  it('starts the contours at the first zoom the table names', async () => {
+    expect(CONTOUR_MINZOOM).toBe(Math.min(...Object.keys(CONTOUR_THRESHOLDS_FT).map(Number)))
+    expect(CONTOUR_MINZOOM).toBe(8)
+    const { stub, terrain } = setup()
+    terrain.update({ ...OFF, contours: true })
+    await vi.waitFor(() => expect(stub.stack).toContain(CONTOUR_LAYER))
+    const spec = stub.calls.find((c) => c[0] === 'addSource')![2] as { minzoom: number }
+    expect(spec.minzoom).toBe(CONTOUR_MINZOOM)
+    for (const id of [CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER]) {
+      expect(stub.specs[id].minzoom).toBe(CONTOUR_MINZOOM)
+    }
   })
 
   // 3D stands the map on a source of its own, tilts a flat map so the press
@@ -312,9 +387,9 @@ describe('the slope angle shading', () => {
         const id = { relief: RELIEF_LAYER, slope: SLOPE_LAYER, contours: CONTOUR_LAYER }[key]
         await vi.waitFor(() => expect(stub.stack).toContain(id))
       }
-      expect([order, stub.stack.slice(3, 9)]).toEqual([
+      expect([order, stub.stack.slice(3, 10)]).toEqual([
         order,
-        [RELIEF_LAYER, SLOPE_LAYER, CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER, 'ofm-trails'],
+        [RELIEF_LAYER, SLOPE_LAYER, CONTOUR_CASING_LAYER, CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER, 'ofm-trails'],
       ])
       terrain.update(OFF)
       expect(visibility(stub, SLOPE_LAYER)).not.toBe('none')

@@ -824,7 +824,7 @@ a gap in a map that otherwise drew, and says nothing.
 
 ### Elevation and imagery
 
-The Contours, Shaded relief and Satellite rows, and the 3D terrain, read tiles
+The Topographic, Shaded relief and Satellite rows, and the 3D terrain, read tiles
 the browser fetches itself from three more hosts, each keyless (#799). All
 four draw, and none asks for anything until it is switched on.
 
@@ -874,7 +874,9 @@ The two are drawn as one layer, EOX everywhere with USGS over it, both under
 Liberty's roads, trails and labels and under the relief and the contours, with
 Liberty's own land, water and building fills faded out while the layer is on.
 The trails wear a light casing over it, because their brown reads 1.69:1 on a
-forest (record [0234](decisions/0234-map-reads-on-a-dark-ground.md)). USGS draws from zoom 13 up,
+forest (record [0234](decisions/0234-map-reads-on-a-dark-ground.md)), and the
+contour lines turn light on a thin dark edge, because their brown reads 1.25:1
+there. USGS draws from zoom 13 up,
 and only over a box from American Samoa to the Arctic and the Aleutians to the
 Virgin Islands. Both limits are its cache's, measured 2026-10-27:
 
@@ -986,18 +988,18 @@ Read it with four things in mind.
 
 **It is about 3 hours behind the pass.** FIRMS publishes a detection about 3
 hours after the satellite saw it, and each satellite passes a given place about
-twice a day. So the newest dot can be hours old, and a fire that started since
+twice a day. So the newest star can be hours old, and a fire that started since
 the last pass is not on the map at all.
 
 **False alarms happen.** Anything hot enough looks like fire from orbit: gas
 flares, industrial roofs, volcanoes, and sun glint off water or metal. FIRMS
 grades each detection's confidence, and the layer drops nothing for it, so a
-lone dot over a refinery is probably the refinery.
+lone star over a refinery is probably the refinery.
 
 **Cloud and smoke hide fire.** A pass under cloud sees nothing below it, so an
 empty map means no detection, not no fire.
 
-**Colour is age.** A dot is red under 12 hours old, orange from 12 to 24 hours
+**Colour is age.** A star is red under 12 hours old, orange from 12 to 24 hours
 and yellow from 24 to 48, measured against your own clock, so it changes colour
 while the map is open. Nothing older than 48 hours is drawn. The layer draws
 nothing below zoom 5, where a view can hold a continent's fires.

@@ -217,27 +217,27 @@ controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Seven of them are credited in their own section of the map's legend, and the three that draw the ground, Contours, Shaded relief and Satellite, in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
+again. Seven of them are credited in their own section of the map's legend, and the three that draw the ground, Topographic, Shaded relief and Satellite, in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
 | **Area closures** | Ground closed by a Forest Service closure order, in fuchsia | Forest Service orders in Oregon, Washington, Arizona, New Mexico, Utah, most of Nevada, southern Idaho and western Wyoming. No national park, state, BLM or tribal closure is drawn ([DATA.md](DATA.md#closures)) |
 | **Trail closures** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
 | **Wildfires** | Active fire perimeters, in red | United States, which the proximity check shares ([DATA.md](DATA.md#wildfires)) |
-| **Fire activity** | Hot spots satellites saw in the last 48 hours, as dots coloured by age | Worldwide, from zoom 5 in ([DATA.md](DATA.md#fire-activity)) |
+| **Fire activity** | Hot spots satellites saw in the last 48 hours, as starbursts coloured by age | Worldwide, from zoom 5 in ([DATA.md](DATA.md#fire-activity)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | The contiguous states, Alaska, Hawaii, Puerto Rico and Guam |
 | **Smoke** | Smoke plumes at three densities, in grey | North America, Hawaii and the Caribbean |
 | **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
-| **Contours** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
+| **Topographic** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
 | **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
 | **Satellite** | Aerial photos of the ground, under the map's roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
 
-**Contours** and **Shaded relief** draw the shape of the ground from one
-elevation model, under the trails, the peaks and every name on the map. The
-contours are in feet, like every height in the app. They start at about the
-zoom a whole volcano fills the map, 1,000 feet apart, and close to 40 feet as
-you zoom in; further out there are none. Every fifth line is drawn heavier with
+**Topographic** draws contour lines and **Shaded relief** shading, both from
+one elevation model, under the trails, the peaks and every name on
+the map. The contours are in feet, like every height in the app. They start at
+about the zoom a whole range fills the map, 1,000 feet apart, and close to 40
+feet as you zoom in; further out there are none. Every fifth line is drawn heavier with
 its height written along it. The relief shades the slopes facing away from a light in
 the northwest, lightly enough that the woods, the ice and the water still read
 through it. The model is 30 m everywhere and finer where a country has
@@ -254,8 +254,10 @@ in summer in the 2017 to 2021 seasons. Everywhere else, and over the US when
 zoomed out, they are EOX's Sentinel-2 cloudless mosaic at 10 m, which goes soft
 past a few streets' width. Neither is a recent pass, so neither shows the snow
 on the ground today: for that, use **Snow depth**. **Shaded relief** and
-**Contours** draw over the photos; tick **Contours** for a hybrid look. While
-the photos are on, the trails wear a light edge so they read over the woods.
+**Topographic** draw over the photos; tick **Topographic** for a hybrid look. While
+the photos are on, the trails wear a light edge so they read over the woods,
+and the contour lines turn light on a dark edge, as a topo drawn over a photo
+does.
 The two providers are credited in the map's corner, with the map's own.
 
 The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the
@@ -294,14 +296,14 @@ the BLM or a tribe puts in place never appears, and in Oregon and Washington
 the feed holds fire closures only.
 
 Fire activity is the satellites' picture, where the perimeters are the
-surveyors'. Each dot is a pixel NASA's FIRMS flagged as hot, 375 m or 1 km
+surveyors'. Each starburst is a pixel NASA's FIRMS flagged as hot, 375 m or 1 km
 across, and its colour is its age: red under 12 hours, orange from 12 to 24
-hours, yellow from 24 to 48. The age runs on your clock, so a dot turns from
+hours, yellow from 24 to 48. The age runs on your clock, so a star turns from
 red to orange while the map is open, and nothing older than 48 hours is drawn.
-The newest dot is already about 3 hours old when it arrives, a cloudy pass sees
-nothing, and a gas flare or a hot roof can look like fire, so read a dot as a
+The newest star is already about 3 hours old when it arrives, a cloudy pass sees
+nothing, and a gas flare or a hot roof can look like fire, so read a star as a
 place to look closer rather than as a fire line ([DATA.md](DATA.md#fire-activity)).
-Clicking a dot opens nothing. Zoomed out far enough to see a continent whole,
+Clicking a star opens nothing. Zoomed out far enough to see a continent whole,
 the layer draws nothing, and draws again as you zoom in.
 
 Clicking a perimeter, a closure or a plume opens the same card a destination
@@ -553,7 +555,9 @@ map to explain. On a phone the same sections are in the sheet the **Legend**
 chip opens.
 
 A section keyed on a single value — smoke, rain radar, active wildfires — is one
-line with its swatch on the right. A section keyed on a **scale** is a strip
+line with its swatch on the right. Fire activity is one line too: three
+starbursts on the right, red, orange and yellow, reading `12h`, `24h` and
+`48h`, the hour each band of age ends at. A section keyed on a **scale** is a strip
 across the box with its numbers **inside** it, along the bottom edge: the bottom
 of the scale, its middle and its top, each standing on the band boundary it
 names. That is the shape both the marker colors and the snow depth layer take,

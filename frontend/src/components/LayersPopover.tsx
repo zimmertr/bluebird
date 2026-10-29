@@ -230,10 +230,6 @@ export default function LayersPopover({
       onChange: setShowAreaClosures,
       disabled: outOfView.has('closedareas'),
     },
-    // The three ground layers (#799) never grey: the elevation tiles cover the
-    // world, and so does the imagery, from USGS over the United States and
-    // from EOX everywhere else.
-    { key: 'contours', label: 'Contours', checked: showContours, onChange: setShowContours },
     // The fire detections (#799) never grey either: the pod reads FIRMS's
     // global files, so no view is outside them.
     { key: 'fireactivity', label: 'Fire activity', checked: showFireActivity, onChange: setShowFireActivity },
@@ -266,12 +262,18 @@ export default function LayersPopover({
       onChange: setShowRadar,
       disabled: outOfView.has('radar'),
     },
+    // The three ground layers (#799) never grey: the elevation tiles cover the
+    // world, and so does the imagery, from USGS over the United States and
+    // from EOX everywhere else.
     { key: 'satellite', label: 'Satellite', checked: showSatellite, onChange: setShowSatellite },
     { key: 'relief', label: 'Shaded relief', checked: showRelief, onChange: setShowRelief },
     // Never greys, for the relief's reason: the elevation covers the world.
     { key: 'slope', label: 'Slope angle', checked: showSlope, onChange: setShowSlope },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke, disabled: outOfView.has('smoke') },
     { key: 'snow', label: 'Snow depth', checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
+    // The contour lines, under the name a reader looks for them by. The key
+    // is the link's flag, `topo`.
+    { key: 'topo', label: 'Topographic', checked: showContours, onChange: setShowContours },
     {
       key: 'closedtrails',
       label: 'Trail closures',

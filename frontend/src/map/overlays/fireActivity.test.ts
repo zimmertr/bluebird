@@ -7,12 +7,15 @@ vi.mock('../../utils/fireActivity', async (importOriginal) => ({
 }))
 
 import type { FeatureCollection } from 'geojson'
-import { FIRE_ACTIVITY_LAYER, FIRE_ACTIVITY_SOURCE, fireActivityBox, mountFireActivity } from './fireActivity'
+import { FIRE_ACTIVITY_LAYER, FIRE_ACTIVITY_SOURCE, FIRE_STAR_IMAGE, fireActivityBox, mountFireActivity } from './fireActivity'
 import { FIRE_REFETCH_DEBOUNCE_MS } from './wildfires'
 import {
   FIRE_ACTIVITY_COLOR,
+  FIRE_ACTIVITY_HALO_WIDTH,
+  FIRE_ACTIVITY_ICON_SIZE,
   FIRE_ACTIVITY_MINZOOM,
   FIRE_ACTIVITY_RECOLOR_MS,
+  FIRE_ACTIVITY_SORT_KEY,
   FIRE_ACTIVITY_STROKE,
 } from '../../utils/fireActivity'
 import { stubMap } from '../../testSupport/stubMap'
@@ -73,11 +76,28 @@ afterEach(() => {
 })
 
 describe('mountFireActivity', () => {
-  it('adds one circle layer from the module values, and fetches nothing while off', () => {
+  // A starburst per detection (#799), as CalTopo draws them: one SDF image,
+  // tinted per band and edged with a dark halo, every star drawn however they
+  // crowd, and none taking a label's room.
+  it('adds one starburst layer from the module values, and fetches nothing while off', () => {
     const { stub } = setup()
     expect(stub.stack).toEqual([FIRE_ACTIVITY_LAYER])
-    expect(stub.paint[FIRE_ACTIVITY_LAYER]['circle-color']).toBe(FIRE_ACTIVITY_COLOR)
-    expect(stub.paint[FIRE_ACTIVITY_LAYER]['circle-stroke-color']).toBe(FIRE_ACTIVITY_STROKE)
+    const addImage = stub.calls.filter((c) => c[0] === 'addImage')
+    expect(addImage).toEqual([['addImage', FIRE_STAR_IMAGE]])
+    expect(stub.specs[FIRE_ACTIVITY_LAYER].type).toBe('symbol')
+    expect(stub.specs[FIRE_ACTIVITY_LAYER].minzoom).toBe(FIRE_ACTIVITY_MINZOOM)
+    expect(stub.layout[FIRE_ACTIVITY_LAYER]).toEqual({
+      'icon-image': FIRE_STAR_IMAGE,
+      'icon-size': FIRE_ACTIVITY_ICON_SIZE,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'symbol-sort-key': FIRE_ACTIVITY_SORT_KEY,
+    })
+    expect(stub.paint[FIRE_ACTIVITY_LAYER]).toEqual({
+      'icon-color': FIRE_ACTIVITY_COLOR,
+      'icon-halo-color': FIRE_ACTIVITY_STROKE,
+      'icon-halo-width': FIRE_ACTIVITY_HALO_WIDTH,
+    })
     vi.advanceTimersByTime(FIRE_ACTIVITY_RECOLOR_MS * 3)
     stub.fire('moveend')
     vi.advanceTimersByTime(FIRE_REFETCH_DEBOUNCE_MS)

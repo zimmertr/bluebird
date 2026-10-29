@@ -119,6 +119,7 @@ import {
   SURFACE_CHIP_CARD,
   SURFACE_SHEET,
   SWATCH_CHIP,
+  SWATCH_STAR,
   SWATCH_EDGE,
   SWATCH_LINE,
   SWATCH_RAMP,
@@ -139,6 +140,16 @@ import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
 import { TRAIL_CASING_COLOR, TRAIL_COLOR, TRAIL_OPACITY } from './map/basemap'
+import { FIRE_ACTIVITY_FILLS } from './utils/fireActivity'
+import {
+  CONTOUR_EDGE_OPACITY,
+  CONTOUR_IMAGERY_EDGE,
+  CONTOUR_IMAGERY_INK,
+  CONTOUR_IMAGERY_OPACITY,
+  CONTOUR_INK,
+  CONTOUR_INK_ON,
+  CONTOUR_LAYER,
+} from './map/terrain'
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { SNOW_RAMP } from './utils/snowDepth'
 import { contrast, mixOver, relativeLuminance, round2 } from './testSupport/contrast'
@@ -1471,9 +1482,11 @@ describe('shared recipes', () => {
 
   // The chips' two menus are one width (#714, record 0174): the widest line
   // either one carries is the legend's wait line at 176.8px, and the Layers
-  // menu's widest label is 130.0px, so 184px holds both with its padding.
+  // menu's widest label is 130.0px, so 184px held both with its padding,
+  // until the fire activity key's one line (#799), 193.4px of content, took
+  // it to 224px.
   it('gives the chip menus one width', () => {
-    expect(MAP_MENU_W).toBe('w-46')
+    expect(MAP_MENU_W).toBe('w-56')
     expect(MAP_CHIP_MENU).toContain(MAP_MENU_W)
     for (const source of [layersPopoverSource, mapLegendSource]) expect(source).toContain('${MAP_CHIP_MENU}')
   })
@@ -3217,17 +3230,36 @@ describe('the type floor', () => {
     for (const role of [TEXT.micro, TEXT.overline, BADGE_ACCENT]) expect(sizes(role)).toEqual([MICRO_SIZE])
   })
 
-  // Under 11px only the two glyphs in boxes of fixed size, at 10px, named as
-  // the exception: the strip's numerals in their 11px scrim band and the smoke
-  // key's letters in their chips. Nothing is 9px any more.
-  it('keeps 10px for the two glyphs in fixed boxes, and nothing smaller', () => {
+  // Under 11px only the glyphs in boxes of fixed size, at 10px, named as the
+  // exception: the strip's numerals in their 11px scrim band, the smoke key's
+  // letters in their chips and the fire key's hours in their stars (#799).
+  // Nothing is 9px any more.
+  it('keeps 10px for the glyphs in fixed boxes, and nothing smaller', () => {
     const under = recipes.flatMap((r) => sizes(r).filter((c) => px(c) < 11))
     expect(new Set(under)).toEqual(new Set(['text-[10px]']))
     expect(sizes(SWATCH_RAMP_TICK)).toEqual(['text-[10px]'])
     expect(sizes(SWATCH_CHIP)).toEqual(['text-[10px]'])
+    expect(sizes(SWATCH_STAR)).toEqual(['text-[10px]'])
     expect(recipes.filter((r) => sizes(r).includes('text-[10px]')).sort()).toEqual(
-      [SWATCH_CHIP, SWATCH_RAMP_TICK].sort(),
+      [SWATCH_CHIP, SWATCH_RAMP_TICK, SWATCH_STAR].sort(),
     )
+  })
+
+  // The fire key's star holds its label inside its inner corners, so it is
+  // 24px where the smoke chip is 16, and its label is the smoke chip's glyph.
+  it('gives the fire key a 24px star and the smoke chip glyph', () => {
+    expect(stepPx(SWATCH_STAR, 'h')).toBe(24)
+    expect(stepPx(SWATCH_STAR, 'w')).toBe(24)
+    const glyph = (recipe: string) => recipe.split(/\s+/).filter((c) => /^text-|^font-/.test(c)).sort()
+    expect(glyph(SWATCH_STAR)).toEqual(glyph(SWATCH_CHIP))
+  })
+
+  // Its label is read on the band's fill, the three as light as smoke's, so
+  // the smoke chip's dark ink clears 4.5:1 on each, the red the lowest.
+  // Measured 2026-10-28.
+  it('sets the hours in the fire key past 4.5:1 on every band', () => {
+    const ink = paletteHex(SWATCH_STAR.match(/\btext-(slate-\d+)\b/)![1])
+    expect(FIRE_ACTIVITY_FILLS.map((fill) => ratio(ink, fill))).toEqual([5.77, 7.88, 13.53])
   })
 
   // A 10px letter does not fit a 14px box inside its border, so the box grew.
@@ -3462,6 +3494,28 @@ describe('the trails on the imagery', () => {
     // On snow the casing is lost and the trail reads on the snow itself.
     expect(ratio(TRAIL_CASING_COLOR, MAP_GROUNDS.snow)).toBe(1.09)
     expect(ratio(TRAIL_COLOR, MAP_GROUNDS.snow)).toBe(4.73)
+  })
+})
+
+// The contours over the imagery (#799; record 0234): the brown at its map
+// opacity is lost on a forest, so while the Satellite row is on the lines turn
+// light over a dark edge. Each line as drawn, its ink over its edge over the
+// ground, clears 3:1 on the forest, and its edge clears 3:1 on the snow.
+// Measured 2026-10-28.
+describe('the contours on the imagery', () => {
+  const edged = (kind: 'minor' | 'index', ground: string) => {
+    const edge = over(CONTOUR_IMAGERY_EDGE, CONTOUR_EDGE_OPACITY[kind], ground)
+    return { edge, ink: over(CONTOUR_IMAGERY_INK, CONTOUR_IMAGERY_OPACITY[kind], edge) }
+  }
+  it('read past 3:1 on the forest by their ink and on the snow by their edge', () => {
+    expect(ratio(over(CONTOUR_INK, CONTOUR_INK_ON.map[CONTOUR_LAYER][1], MAP_GROUNDS.forest), MAP_GROUNDS.forest)).toBe(1.25)
+    expect(ratio(edged('minor', MAP_GROUNDS.forest).ink, MAP_GROUNDS.forest)).toBe(4.89)
+    expect(ratio(edged('minor', MAP_GROUNDS.snow).edge, MAP_GROUNDS.snow)).toBe(3.2)
+    expect(ratio(edged('index', MAP_GROUNDS.forest).ink, MAP_GROUNDS.forest)).toBe(7.23)
+    expect(ratio(edged('index', MAP_GROUNDS.snow).edge, MAP_GROUNDS.snow)).toBe(4.34)
+    // On a mid grey neither reaches 3:1 alone, and the ink stands off its edge.
+    const grey = edged('minor', '#808080')
+    expect([ratio(grey.ink, '#808080'), ratio(grey.edge, '#808080'), ratio(grey.ink, grey.edge)]).toEqual([2.23, 2.14, 4.76])
   })
 })
 

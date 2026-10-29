@@ -52,6 +52,8 @@ export const SLOPE_LAYER = 'slope'
 export const CONTOUR_LAYER = 'contours'
 export const CONTOUR_INDEX_LAYER = 'contours-index'
 export const CONTOUR_LABEL_LAYER = 'contours-label'
+/** The dark edge under every contour line while the satellite imagery is on. */
+export const CONTOUR_CASING_LAYER = 'contours-casing'
 const CONTOUR_LAYERS = [CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER] as const
 
 /**
@@ -83,19 +85,35 @@ const DEM_PROTOCOL_ID = 'bluebird-dem'
 /**
  * The interval between contour lines at each zoom, in feet, as `[minor,
  * index]`: every fifth line is an index line, drawn heavier and labelled. A
- * zoom with no entry takes the one below it, and below 10 there are none.
+ * zoom with no entry takes the one below it, and below 8 there are none.
  * Tuned by eye over Rainier and the Alpine Lakes at zooms 10 to 15
  * (2026-10-27): 1,000 ft at 10 reads the big volcanoes without filling the
  * valleys, 500 at 11 and 200 at 12 still leave a gap between lines on
- * Rainier's steepest walls, and 40 at 14 is the USGS quad's interval.
+ * Rainier's steepest walls, and 40 at 14 is the USGS quad's interval. Zooms 8
+ * and 9 were tuned over the Cascades, the Alps and the Columbia basin at 1389
+ * by 868 (2026-10-28): 1,000 ft reads the Cascade crest and the volcanoes at 8
+ * where 2,000 left little but Rainier, and the Alps at 8, the densest ground
+ * tried, stay busy but open; 1,500 read no better than either and is no
+ * interval a printed map uses. The basin draws a few lines at every one.
  */
 export const CONTOUR_THRESHOLDS_FT: Readonly<Record<number, [minor: number, index: number]>> = {
+  8: [1000, 5000],
+  9: [1000, 5000],
   10: [1000, 5000],
   11: [500, 2500],
   12: [200, 1000],
   13: [100, 500],
   14: [40, 200],
 }
+
+/**
+ * The shallowest zoom the contours draw at, the table's first entry. The
+ * source and its three layers start there, so MapLibre asks the library for
+ * no tile it would answer empty. Mapterhorn holds zooms 0 to 12 over all land,
+ * and a contour tile is traced from the elevation one zoom out, so zoom 8
+ * reads zoom 7 tiles.
+ */
+export const CONTOUR_MINZOOM = 8
 
 /**
  * The deepest zoom the contour tiles are generated at. Past it MapLibre
@@ -142,7 +160,7 @@ const RELIEF_PAINT: maplibregl.HillshadeLayerSpecification['paint'] = {
  * its contours in, light enough that the trails' sienna and the roads stay
  * the lines that read first.
  */
-const CONTOUR_INK = '#8a6a4a'
+export const CONTOUR_INK = '#8a6a4a'
 
 const CONTOUR_PAINT: maplibregl.LineLayerSpecification['paint'] = {
   'line-color': CONTOUR_INK,
@@ -156,6 +174,64 @@ const CONTOUR_INDEX_PAINT: maplibregl.LineLayerSpecification['paint'] = {
   'line-opacity': 0.6,
   'line-width': 1.1,
 }
+
+/**
+ * The contours over the satellite imagery (#799): a light line on a thin dark
+ * edge, the way CalTopo draws them on its imagery, because the brown at 0.35
+ * reads 1.25:1 on a forest and vanishes. Measured 2026-10-28 on record 0234's
+ * two grounds, a forest (#3a4a33) and a snowfield (#e8ecef), each line taken
+ * as drawn, its ink over its edge over the ground: the minor line's ink reads
+ * 4.89:1 on the forest and its edge 3.20:1 on the snow, the index line's 7.23
+ * and 4.34. The ink is Liberty's background, the trails' casing; the edge is
+ * the stone the fire detections are stroked in.
+ *
+ * The brown at full strength on a light edge, the trails' own treatment,
+ * cleared both grounds as well (the brown 4.17:1 on snow, the edge 8.69:1 on
+ * forest), but drew every contour the way a trail is drawn over the photos,
+ * and a slope of them read as a mesh of paths.
+ */
+export const CONTOUR_IMAGERY_INK = '#f8f4f0'
+export const CONTOUR_IMAGERY_EDGE = '#1c1917'
+
+/** Each line's ink over the imagery, as the opacity that pairs with its edge's. */
+export const CONTOUR_IMAGERY_OPACITY = { minor: 0.7, index: 0.9 } as const
+export const CONTOUR_EDGE_OPACITY = { minor: 0.5, index: 0.6 } as const
+
+/** How far the edge stands out from its line on each side, in pixels. */
+const CONTOUR_EDGE_PX = 0.5
+
+const CONTOUR_MINOR_WIDTH = CONTOUR_PAINT['line-width'] as number
+const CONTOUR_INDEX_WIDTH = CONTOUR_INDEX_PAINT['line-width'] as number
+
+/** Index lines are every level above 0; a minor line is level 0. */
+const IS_INDEX: maplibregl.ExpressionSpecification = ['>', ['get', 'level'], 0]
+
+/**
+ * The edge, one layer under both kinds of line, each as wide as its line and
+ * a half pixel more on either side.
+ */
+const CONTOUR_CASING_PAINT: maplibregl.LineLayerSpecification['paint'] = {
+  'line-color': CONTOUR_IMAGERY_EDGE,
+  'line-opacity': ['case', IS_INDEX, CONTOUR_EDGE_OPACITY.index, CONTOUR_EDGE_OPACITY.minor],
+  'line-width': [
+    'case',
+    IS_INDEX,
+    CONTOUR_INDEX_WIDTH + 2 * CONTOUR_EDGE_PX,
+    CONTOUR_MINOR_WIDTH + 2 * CONTOUR_EDGE_PX,
+  ],
+}
+
+/** The two lines' colour and opacity on each ground, by layer. */
+export const CONTOUR_INK_ON = {
+  map: {
+    [CONTOUR_LAYER]: [CONTOUR_INK, CONTOUR_PAINT['line-opacity']],
+    [CONTOUR_INDEX_LAYER]: [CONTOUR_INK, CONTOUR_INDEX_PAINT['line-opacity']],
+  },
+  imagery: {
+    [CONTOUR_LAYER]: [CONTOUR_IMAGERY_INK, CONTOUR_IMAGERY_OPACITY.minor],
+    [CONTOUR_INDEX_LAYER]: [CONTOUR_IMAGERY_INK, CONTOUR_IMAGERY_OPACITY.index],
+  },
+} as const
 
 /**
  * An index line's height, in feet, set along the line in the contour ink a
@@ -230,12 +306,19 @@ export interface TerrainLayers {
    * in `MapView`, the way every Layers row but these three has one.
    */
   updateSlope(show: boolean): void
+  /**
+   * Whether the satellite imagery is drawn under the contours, which switches
+   * them to their light ink on a dark edge and back. `features.ts` calls it
+   * with the Satellite row's state.
+   */
+  overImagery(on: boolean): void
 }
 
 export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<DemTiles> } = {}): TerrainLayers {
   const load = deps.load ?? loadDemTiles
   let want = { relief: false, contours: false, terrain: false }
   let slopeWanted = false
+  let imagery = false
   let tiles: DemTiles | null = null
   let loading = false
   let standing = false
@@ -269,8 +352,19 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
     demSource(DEM_SOURCE)
     // Under the slope shading and the contours where they are drawn, so a
     // band or a line is never shaded over.
-    const beneath = [SLOPE_LAYER, CONTOUR_LAYER].find((id) => map.getLayer(id)) ?? beneathLabels()
+    const beneath = [SLOPE_LAYER, CONTOUR_CASING_LAYER].find((id) => map.getLayer(id)) ?? beneathLabels()
     map.addLayer({ id: RELIEF_LAYER, type: 'hillshade', source: DEM_SOURCE, paint: RELIEF_PAINT }, beneath)
+  }
+
+  // The lines' ink for the ground under them, and their edge with it.
+  function ink() {
+    if (!map.getLayer(CONTOUR_LAYER)) return
+    const on = CONTOUR_INK_ON[imagery ? 'imagery' : 'map']
+    for (const id of [CONTOUR_LAYER, CONTOUR_INDEX_LAYER] as const) {
+      map.setPaintProperty(id, 'line-color', on[id][0])
+      map.setPaintProperty(id, 'line-opacity', on[id][1])
+    }
+    show([CONTOUR_CASING_LAYER], want.contours && imagery)
   }
 
   function contours() {
@@ -292,19 +386,25 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
             contourLayer: 'contours',
           }),
         ],
+        minzoom: CONTOUR_MINZOOM,
         maxzoom: CONTOUR_MAXZOOM,
         attribution: MAPTERHORN_ATTRIBUTION,
       })
     }
     // Over the relief, which is already beneath this point when it is drawn.
     const beneath = beneathLabels()
-    const lines = { source: CONTOUR_SOURCE, 'source-layer': 'contours' }
+    const lines = { source: CONTOUR_SOURCE, 'source-layer': 'contours', minzoom: CONTOUR_MINZOOM }
+    // Added hidden: `ink` shows it while the imagery is on.
+    map.addLayer(
+      { id: CONTOUR_CASING_LAYER, type: 'line', ...lines, layout: { visibility: 'none' }, paint: CONTOUR_CASING_PAINT },
+      beneath,
+    )
     map.addLayer(
       { id: CONTOUR_LAYER, type: 'line', ...lines, filter: ['==', ['get', 'level'], 0], paint: CONTOUR_PAINT },
       beneath,
     )
     map.addLayer(
-      { id: CONTOUR_INDEX_LAYER, type: 'line', ...lines, filter: ['>', ['get', 'level'], 0], paint: CONTOUR_INDEX_PAINT },
+      { id: CONTOUR_INDEX_LAYER, type: 'line', ...lines, filter: IS_INDEX, paint: CONTOUR_INDEX_PAINT },
       beneath,
     )
     map.addLayer(
@@ -312,7 +412,7 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
         id: CONTOUR_LABEL_LAYER,
         type: 'symbol',
         ...lines,
-        filter: ['>', ['get', 'level'], 0],
+        filter: IS_INDEX,
         layout: CONTOUR_LABEL_LAYOUT,
         paint: CONTOUR_LABEL_PAINT,
       },
@@ -335,7 +435,7 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
         attribution: MAPTERHORN_ATTRIBUTION,
       })
     }
-    const beneath = map.getLayer(CONTOUR_LAYER) ? CONTOUR_LAYER : beneathLabels()
+    const beneath = map.getLayer(CONTOUR_CASING_LAYER) ? CONTOUR_CASING_LAYER : beneathLabels()
     map.addLayer({ id: SLOPE_LAYER, type: 'raster', source: SLOPE_SOURCE, paint: SLOPE_PAINT }, beneath)
   }
 
@@ -362,6 +462,7 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
     else show([SLOPE_LAYER], false)
     if (want.contours) contours()
     else show(CONTOUR_LAYERS, false)
+    ink()
     stand(want.terrain)
   }
 
@@ -391,6 +492,11 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
     updateSlope(on) {
       slopeWanted = on
       request()
+    },
+    overImagery(on) {
+      if (on === imagery) return
+      imagery = on
+      ink()
     },
   }
 }

@@ -103,6 +103,16 @@ describe('mountFeatures', () => {
     expect(stub.stack).toEqual(['background', 'imagery-eox', 'imagery-usgs', ...before.slice(1)])
   })
 
+  // The Satellite row turns the contours to their imagery ink and back
+  // (`terrain.ts`), through the one switch the component drives.
+  it('hands the Satellite row to the contours as well as the photos', () => {
+    const { features } = setup()
+    const overImagery = vi.spyOn(features.terrain, 'overImagery')
+    features.imagery.update({ show: true })
+    features.imagery.update({ show: false })
+    expect(overImagery.mock.calls).toEqual([[true], [false]])
+  })
+
   // Every popup opens through map/mapPopups.ts: one click and one pointer
   // listener for the whole map, and none on any layer (TJ, 2026-10-08).
   it('listens for the click and the pointer once, for the whole map, and on no layer', () => {

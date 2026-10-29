@@ -279,7 +279,7 @@ describe('encodeState / decodeState round-trip', () => {
       for (const other of fields) if (other !== field) expect(out![other]).toBeUndefined()
     }
     const clean = encodeState(base, DEFAULT_MODEL)
-    for (const key of ['contours', 'relief', 'satellite', 'terrain']) {
+    for (const key of ['topo', 'relief', 'satellite', 'terrain']) {
       expect(new URLSearchParams(clean).get(key)).toBeNull()
     }
   })
@@ -396,7 +396,7 @@ describe('encodeState / decodeState round-trip', () => {
     expect(encodeState({ ...pristine, showSnow: true }, DEFAULT_MODEL)).toContain('snow=1')
     expect(encodeState({ ...pristine, showAreaClosures: true }, DEFAULT_MODEL)).toContain('closedareas=1')
     expect(encodeState({ ...pristine, showTrailClosures: true }, DEFAULT_MODEL)).toContain('closedtrails=1')
-    expect(encodeState({ ...pristine, showContours: true }, DEFAULT_MODEL)).toContain('contours=1')
+    expect(encodeState({ ...pristine, showContours: true }, DEFAULT_MODEL)).toContain('topo=1')
     expect(encodeState({ ...pristine, showRelief: true }, DEFAULT_MODEL)).toContain('relief=1')
     expect(encodeState({ ...pristine, showSatellite: true }, DEFAULT_MODEL)).toContain('satellite=1')
     expect(encodeState({ ...pristine, showTerrain: true }, DEFAULT_MODEL)).toContain('terrain=1')
@@ -423,13 +423,13 @@ describe('encodeState / decodeState round-trip', () => {
       showTrailClosures: true,
     })
     expect(decodeState('?closedareas=true&closedtrails=0')).toBeNull()
-    expect(decodeState('?contours=1&relief=1&satellite=1&terrain=1')).toEqual({
+    expect(decodeState('?topo=1&relief=1&satellite=1&terrain=1')).toEqual({
       showContours: true,
       showRelief: true,
       showSatellite: true,
       showTerrain: true,
     })
-    expect(decodeState('?contours=true&relief=0&satellite=yes&terrain=on')).toBeNull()
+    expect(decodeState('?topo=true&relief=0&satellite=yes&terrain=on')).toBeNull()
     expect(decodeState('?fireactivity=1')).toEqual({ showFireActivity: true })
     expect(decodeState('?fireactivity=true')).toBeNull()
   })

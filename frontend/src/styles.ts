@@ -86,8 +86,8 @@ const MICRO = `${MICRO_SIZE} text-ink-mid`
 /**
  * The one size under the floor, for a glyph inside a box whose size is fixed
  * by something else: the legend strip's numerals in their 11px scrim band
- * (`SWATCH_RAMP_TICK`) and the smoke key's letters in their chips
- * (`SWATCH_CHIP`). Named so it reads as the exception it is rather than as a
+ * (`SWATCH_RAMP_TICK`), the smoke key's letters in their chips
+ * (`SWATCH_CHIP`) and the fire key's hours in their stars (`SWATCH_STAR`). Named so it reads as the exception it is rather than as a
  * step of the ramp (#687): nothing here is prose, and each is measured against
  * its box. Spelled for `MICRO_SIZE`'s reason.
  */
@@ -848,9 +848,23 @@ export const BANNER_PREVIEW =
  * does not touch because the map does not change, so the letter on it does
  * not either.
  */
-export const SWATCH_CHIP =
-  `inline-flex h-4 w-4 items-center justify-center ${RADIUS.control} border ` +
-  `${GLYPH_SIZE} font-semibold text-slate-900`
+const SWATCH_GLYPH = `${GLYPH_SIZE} font-semibold text-slate-900`
+export const SWATCH_CHIP = `inline-flex h-4 w-4 items-center justify-center ${RADIUS.control} border ${SWATCH_GLYPH}`
+
+/**
+ * A legend swatch that is a starburst with its label inside: the fire
+ * detections' three age bands (#799), `12h`, `24h` and `48h`, one line like
+ * the smoke key's three chips. The star is an inline SVG at the call site,
+ * filled from `utils/fireActivity.ts`, which owns the bands' colours and the
+ * shape; this is the box it fills and the label over it.
+ *
+ * The label is `SWATCH_CHIP`'s glyph, the same ink at the same size, because
+ * the three fills are as light as smoke's are pale: slate-900 clears 4.5:1 on
+ * the red, the orange and the yellow (`styles.test.ts` holds each). 24px,
+ * because a 10px `48h` is 17px wide and has to sit inside the star's inner
+ * corners rather than across its points, where it would land on the card.
+ */
+export const SWATCH_STAR = `relative inline-flex h-6 w-6 flex-shrink-0 items-center justify-center ${SWATCH_GLYPH}`
 
 /**
  * A legend swatch for a layer that draws LINES: a 14px dashed rule with no
@@ -1397,14 +1411,20 @@ export const CHART_TITLE = {
  * legend's wait line, "Forecast grid" against "Waiting · 99s", is
  * 74.7 + 8 + 74.1 = 156.8px of content, so 176.8px with the 20px of side
  * padding a card carries. The countdown switches to minutes past 99s, so that
- * row's widest case is bounded. 184 leaves 7.2px; at 176 (`w-44`) the wait
+ * row's widest case is bounded. 184 left 7.2px; at 176 (`w-44`) the wait
  * line wraps. The widest Layers row, "Forecast player", needs 130.0px
  * (measured 2026-10-07). Re-measure before lengthening a line in either.
+ *
+ * 224 since #799, whose fire activity key is one line like Smoke's: the
+ * name, "Fire activity (FIRMS)", and three 24px starburst chips, 109.4 + 8 +
+ * 76 = 193.4px of content, 213.4px with the padding (measured 2026-10-28 in
+ * the browser suite's Chromium, whose sans is wider than macOS's, so the
+ * number errs wide). 216 (`w-54`) would leave 2.6px; 224 leaves 10.6px.
  *
  * It was the width of the whole left column until #714, when the search field
  * became the pill and the buttons became chips at both widths.
  */
-export const MAP_MENU_W = 'w-46'
+export const MAP_MENU_W = 'w-56'
 
 /**
  * How far anything floating on the map stands off its edge.

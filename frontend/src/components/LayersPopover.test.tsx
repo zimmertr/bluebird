@@ -222,7 +222,6 @@ describe('LayersPopover', () => {
     open()
     expect(rows()).toEqual([
       'Area closures',
-      'Contours',
       'Fire activity',
       'Forecast grid',
       'Forecast player',
@@ -232,6 +231,7 @@ describe('LayersPopover', () => {
       'Slope angle',
       'Smoke',
       'Snow depth',
+      'Topographic',
       'Trail closures',
       'Wildfires',
     ])
@@ -280,7 +280,7 @@ describe('LayersPopover', () => {
 
   // The three ground layers (#799) each drive their own switch, and the 3D
   // terrain is the map's own button rather than a row.
-  it('switches contours, satellite and shaded relief from their own rows', () => {
+  it('switches the contours, satellite and shaded relief from their own rows', () => {
     const setShowContours = vi.fn()
     const setShowSatellite = vi.fn()
     const setShowRelief = vi.fn()
@@ -294,7 +294,7 @@ describe('LayersPopover', () => {
       />,
     )
     open()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Contours' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Topographic' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Satellite' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Shaded relief' }))
     expect(setShowContours).toHaveBeenCalledWith(true)
