@@ -150,9 +150,9 @@ describe('the band colours', () => {
 describe('fireActivityLegendChips', () => {
   it('keys each band with the hour it ends at, in its fill and the layer edge', () => {
     expect(fireActivityLegendChips()).toEqual([
-      { label: '12h', words: 'Under 12 hours', fill: '#ff5a45', stroke: FIRE_ACTIVITY_STROKE },
-      { label: '24h', words: '12 to 24 hours', fill: '#fb923c', stroke: FIRE_ACTIVITY_STROKE },
-      { label: '48h', words: '24 to 48 hours', fill: '#fde047', stroke: FIRE_ACTIVITY_STROKE },
+      { label: '12', words: 'Under 12 hours', fill: '#ff5a45', stroke: FIRE_ACTIVITY_STROKE },
+      { label: '24', words: '12 to 24 hours', fill: '#fb923c', stroke: FIRE_ACTIVITY_STROKE },
+      { label: '48', words: '24 to 48 hours', fill: '#fde047', stroke: FIRE_ACTIVITY_STROKE },
     ])
     expect(AGE_BAND_CHIPS).toHaveLength(AGE_BANDS.length)
     expect(AGE_BAND_WORDS).toHaveLength(AGE_BANDS.length)
@@ -204,12 +204,13 @@ describe('starburstSdf', () => {
     for (const [x, y] of [[0, 0], [43, 0], [0, 43], [43, 43]]) expect(alpha(x, y)).toBeLessThan(64)
   })
 
-  // The legend's 24px chip holds its label inside its inner corners: their
-  // apothem against half the widest label measured, 17.2px (2026-10-28).
+  // The legend's 16px chip, points at 7.5px, holds its label inside its
+  // inner corners: their apothem against half the widest label measured,
+  // 11.1px (2026-10-29). The map's depth would not hold it.
   it('leaves the chip room for its label inside the inner corners', () => {
-    const apothem = 11.5 * STARBURST_INNER.chip * Math.cos(Math.PI / STARBURST_POINTS)
-    expect(apothem).toBeGreaterThan(17.2 / 2)
-    expect(11.5 * STARBURST_INNER.map * Math.cos(Math.PI / STARBURST_POINTS)).toBeLessThan(17.2 / 2)
+    const apothem = 7.5 * STARBURST_INNER.chip * Math.cos(Math.PI / STARBURST_POINTS)
+    expect(apothem).toBeGreaterThan(11.1 / 2)
+    expect(7.5 * STARBURST_INNER.map * Math.cos(Math.PI / STARBURST_POINTS)).toBeLessThan(11.1 / 2)
   })
 
   // The same star turned a quarter is the same star: twelve points.

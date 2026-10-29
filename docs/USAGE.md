@@ -568,8 +568,8 @@ chip opens.
 
 A section keyed on a single value — smoke, rain radar, active wildfires — is one
 line with its swatch on the right. Fire activity is one line too: three
-starbursts on the right, red, orange and yellow, reading `12h`, `24h` and
-`48h`, the hour each age band ends at. A section keyed on a **scale** is a strip
+starbursts on the right, red, orange and yellow, reading `12`, `24` and
+`48`, the hour each age band ends at. A section keyed on a **scale** is a strip
 across the box with its numbers **inside** it, along the bottom edge: the bottom
 of the scale, its middle and its top, each standing on the band boundary it
 names. That is the shape the marker colors, the snow depth layer and the slope

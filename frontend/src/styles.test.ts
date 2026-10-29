@@ -1482,13 +1482,14 @@ describe('shared recipes', () => {
 
   // The legend card is one fixed width and the Layers menu its content's
   // (#714, record 0174, amended 2026-10-29). Measured in the browser suite's
-  // Chromium: the fire activity key's one line is the legend's widest, 193.4px
-  // of content (2026-10-28), ahead of the grid's wait line at 156.8; the
+  // Chromium: the fire activity key's one line is the legend's widest, 169.4px
+  // of content with 16px stars (2026-10-29), ahead of the grid's wait line at
+  // 156.8; the
   // Layers menu came to 128.7px with its widest row, `Forecast player`, and
   // the coverage slider's line, `100 km` and `Coverage`, is 39.4 + 54.7px with
   // its own 8px of padding either side (2026-10-29).
   it('gives the legend card its width and the Layers menu its content\'s', () => {
-    const MEASURED = { fireKey: 193.4, waitLine: 156.8, layersMenu: 128.7, sliderLine: 16 + 39.4 + 54.7 }
+    const MEASURED = { fireKey: 169.4, waitLine: 156.8, layersMenu: 128.7, sliderLine: 16 + 39.4 + 54.7 }
     const pad = 2 * stepPx(MAP_CHIP_MENU, 'px')
     expect(CHIP_CARD_W.key).toBe('w-56')
     expect(stepPx(CHIP_CARD_W.key, 'w')).toBeGreaterThanOrEqual(Math.max(MEASURED.fireKey, MEASURED.waitLine) + pad)
@@ -3255,20 +3256,19 @@ describe('the type floor', () => {
     )
   })
 
-  // The fire key's star holds its label inside its inner corners, so it is
-  // 24px where the smoke chip is 16, and its label is the smoke chip's glyph.
-  it('gives the fire key a 24px star and the smoke chip glyph', () => {
-    expect(stepPx(SWATCH_STAR, 'h')).toBe(24)
-    expect(stepPx(SWATCH_STAR, 'w')).toBe(24)
-    const glyph = (recipe: string) => recipe.split(/\s+/).filter((c) => /^text-|^font-/.test(c)).sort()
+  // The fire key's star is the smoke chip's box with the smoke chip's glyph
+  // in it (the maintainer, 2026-10-29), so the two keys read as one family.
+  it('gives the fire key the smoke chip\'s box and glyph', () => {
+    expect(stepPx(SWATCH_STAR, 'h')).toBe(stepPx(SWATCH_CHIP, 'h'))
+    expect(stepPx(SWATCH_STAR, 'w')).toBe(stepPx(SWATCH_CHIP, 'w'))
+    const glyph = (recipe: string) => recipe.split(/\s+/).filter((c) => /^text-|^font-|^tracking-/.test(c)).sort()
     expect(glyph(SWATCH_STAR)).toEqual(glyph(SWATCH_CHIP))
-    // Set a little tight, so its ends clear the star's edge.
-    expect(SWATCH_STAR).toMatch(/\btracking-tight\b/)
   })
 
   // Its label is read on the band's fill, the three as light as smoke's, so
   // the smoke chip's dark ink clears 4.5:1 on each, the red the lowest.
-  // Measured 2026-10-28.
+  // Measured 2026-10-28, and re-checked on the 16px star 2026-10-29, whose
+  // label stands inside the fill.
   it('sets the hours in the fire key past 4.5:1 on every band', () => {
     const ink = paletteHex(SWATCH_STAR.match(/\btext-(slate-\d+)\b/)![1])
     expect(FIRE_ACTIVITY_FILLS.map((fill) => ratio(ink, fill))).toEqual([5.77, 7.88, 13.53])

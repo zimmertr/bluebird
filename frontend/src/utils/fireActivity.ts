@@ -41,14 +41,14 @@ export const AGE_BANDS = [12, 24, 48] as const
 
 /**
  * What the legend's chip for each band reads, in `AGE_BANDS` order: the hour
- * the band ends at. Approved 2026-10-28, when the key became one line like
- * Smoke's.
+ * the band ends at, bare, because the chip is the smoke chips' 16px box.
+ * Approved 2026-10-29 (record 0237).
  */
-export const AGE_BAND_CHIPS = ['12h', '24h', '48h'] as const
+export const AGE_BAND_CHIPS = ['12', '24', '48'] as const
 
 /**
  * The words each chip stands for, in `AGE_BANDS` order, hidden in the chip
- * for a screen reader the way the smoke chips hide theirs: `12h` alone does
+ * for a screen reader the way the smoke chips hide theirs: `12` alone does
  * not say whether it is an age, a bound or a span. Approved 2026-10-27
  * (record 0237).
  */
@@ -211,9 +211,12 @@ export async function fetchFireActivity(bbox: BBox, signal: AbortSignal): Promis
  * at 0.8 a 14px mark at zoom 12 read as a fuzzy disc, its points a pixel deep
  * under the halo's blur, and at 0.65 and 0.55 it read as a star (tried
  * 2026-10-28 over Munds Park at zooms 9 and 12). In the legend, 0.8: the chip
- * is 24px and its 10px label, 17.2px wide, has to sit inside the inner corners
- * to stand on the fill, which at 0.65 it would not (they stand 7.2px from the
- * centre there and the label reaches 8.6px).
+ * is 16px, the smoke chips' box, and its 10px label, 11.1px wide, has to sit
+ * inside the inner corners to stand on the fill, which at 0.65 it would not
+ * (their apothem is 4.7px from the centre there and the label reaches 5.55px;
+ * at 0.8 it is 5.8px). Tried at 16px in both themes on 2026-10-29: at 0.65
+ * the star's edge ran through every digit, and on the dark card the digits'
+ * ends stood on the card in their dark ink.
  */
 export const STARBURST_POINTS = 12
 export const STARBURST_INNER = { map: 0.65, chip: 0.8 } as const

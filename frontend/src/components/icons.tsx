@@ -379,9 +379,10 @@ export function IconGrip({ className }: IconProps): ReactNode {
   )
 }
 
-// The fire key's starburst in a 24-unit box about its centre: the points at
-// 11.5, inside the box by half the edge's width.
-const STARBURST_CHIP = starburst(11.5, STARBURST_INNER.chip)
+// The fire key's starburst in a 16-unit box about its centre, a unit to a
+// pixel of the 16px chip, so its one-unit edge is the smoke chips' 1px
+// border: the points at 7.5, inside the box by half the edge's width.
+const STARBURST_CHIP = starburst(7.5, STARBURST_INNER.chip)
   .map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)
   .join(' ')
 
@@ -394,7 +395,7 @@ const STARBURST_CHIP = starburst(11.5, STARBURST_INNER.chip)
  */
 export function IconStarburst({ fill, stroke, className }: IconProps & { fill: string; stroke: string }): ReactNode {
   return (
-    <svg viewBox="-12 -12 24 24" className={join('h-full w-full', className)} aria-hidden="true">
+    <svg viewBox="-8 -8 16 16" className={join('h-full w-full', className)} aria-hidden="true">
       <polygon points={STARBURST_CHIP} fill={fill} stroke={stroke} strokeWidth={1} strokeLinejoin="round" />
     </svg>
   )

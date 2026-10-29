@@ -853,20 +853,20 @@ export const SWATCH_CHIP = `inline-flex h-4 w-4 items-center justify-center ${RA
 
 /**
  * A legend swatch that is a starburst with its label inside: the fire
- * detections' three age bands (#799), `12h`, `24h` and `48h`, one line like
+ * detections' three age bands (#799), `12`, `24` and `48`, one line like
  * the smoke key's three chips. The star is an inline SVG at the call site,
  * filled from `utils/fireActivity.ts`, which owns the bands' colours and the
  * shape; this is the box it fills and the label over it.
  *
  * The label is `SWATCH_CHIP`'s glyph, the same ink at the same size, because
  * the three fills are as light as smoke's are pale: slate-900 clears 4.5:1 on
- * the red, the orange and the yellow (`styles.test.ts` holds each). 24px,
- * because a 10px `48h` is 17px wide and has to sit inside the star's inner
- * corners rather than across its points, where it would land on the card.
- * Set a little tight, which takes it to about 16.5px: at its natural spacing
- * its ends met the star's edge at the inner corners either side.
+ * the red, the orange and the yellow (`styles.test.ts` holds each). 16px,
+ * `SWATCH_CHIP`'s box, so the two keys read as one family (the maintainer,
+ * 2026-10-29). A 10px `48` is 11.1px wide, which sits inside the star's inner
+ * corners at the chip's depth (`STARBURST_INNER`), so it stands on the fill
+ * rather than across the points, where it would land on the card.
  */
-export const SWATCH_STAR = `relative inline-flex h-6 w-6 flex-shrink-0 items-center justify-center ${SWATCH_GLYPH} tracking-tight`
+export const SWATCH_STAR = `relative inline-flex h-4 w-4 flex-shrink-0 items-center justify-center ${SWATCH_GLYPH}`
 
 /**
  * A legend swatch for a layer that draws LINES: a 14px dashed rule with no
@@ -1414,10 +1414,11 @@ export const CHART_TITLE = {
  * padding a card carries. The countdown switches to minutes past 99s, so that
  * row's widest case is bounded. 184 left 7.2px; at 176 (`w-44`) the wait line
  * wraps. 224 since #799, whose fire activity key is one line like Smoke's:
- * the name, "Fire activity (FIRMS)", and three 24px starburst chips, 109.4 +
- * 8 + 76 = 193.4px of content, 213.4px with the padding (measured 2026-10-28
+ * the name, "Fire activity (FIRMS)", and three 16px starburst chips, 109.4 +
+ * 8 + 52 = 169.4px of content, 189.4px with the padding (measured 2026-10-29
  * in the browser suite's Chromium, whose sans is wider than macOS's, so the
- * number errs wide). 216 (`w-54`) would leave 2.6px; 224 leaves 10.6px.
+ * number errs wide). 184 would not hold it; 224 leaves 34.6px, and the card
+ * keeps that width because the maintainer fixed it there on 2026-10-29.
  * Re-measure before lengthening a line in it.
  *
  * ## The Layers menu, `menu`

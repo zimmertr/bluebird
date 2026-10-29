@@ -132,20 +132,20 @@ describe('MapLegend', () => {
     expect(screen.getByRole('link', { name: 'FIRMS' }).getAttribute('href')).toBe('https://earthdata.nasa.gov/firms')
     const stars = [...container.querySelectorAll('polygon')]
     const chips = stars.map((star) => star.parentElement!.parentElement!)
-    expect(chips.map((chip) => chip.firstChild!.nextSibling!.textContent)).toEqual(['12h', '24h', '48h'])
+    expect(chips.map((chip) => chip.firstChild!.nextSibling!.textContent)).toEqual(['12', '24', '48'])
     expect(stars.map((star) => star.getAttribute('fill'))).toEqual(['#ff5a45', '#fb923c', '#fde047'])
     expect(new Set(stars.map((star) => star.getAttribute('stroke')))).toEqual(new Set(['#1c1917']))
     expect(stars.every((star) => star.getAttribute('points')!.split(' ').length === 24)).toBe(true)
     // One row: the name and the three chips share it, each chip its hour
     // and its band's hidden words.
     const row = screen.getByText('FIRMS').closest('div')!
-    expect(row.textContent).toBe('Fire activity (FIRMS)12hUnder 12 hours24h12 to 24 hours48h24 to 48 hours')
+    expect(row.textContent).toBe('Fire activity (FIRMS)12Under 12 hours2412 to 24 hours4824 to 48 hours')
     // The band words are hidden text and nothing else: no title, and no
     // line of their own.
     for (const chip of chips) expect(chip.hasAttribute('title')).toBe(false)
   })
 
-  // `12h` alone does not say what it bounds, so each chip carries its band's
+  // `12` alone does not say what it bounds, so each chip carries its band's
   // words for a screen reader, the way the smoke chips carry theirs.
   it('names each fire age band to a screen reader', () => {
     const { container } = render(<Legend {...BASE} overlays={{ ...NONE, showFireActivity: true }} />)
