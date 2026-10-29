@@ -19,6 +19,7 @@ import {
   classifyWindow,
 } from './calendar/calendar'
 import { GeoPolygon } from '../types'
+import { DEFAULT_BASE_OPACITY } from './baseMapOpacity'
 import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'
 import { MAX_ANALYZE_DESTINATIONS, NO_CONSTRAINTS } from './clientAnalyze'
 import { urlNeedsSync } from './urlSync'
@@ -94,6 +95,7 @@ const base: ShareableState = {
   showRelief: false,
   showSlope: false,
   showSatellite: false,
+  baseOpacity: DEFAULT_BASE_OPACITY,
   showTerrain: false,
   showFireActivity: false,
   showPlayer: null,
@@ -134,6 +136,7 @@ const pristine: ShareableState = {
   showRelief: false,
   showSlope: false,
   showSatellite: false,
+  baseOpacity: DEFAULT_BASE_OPACITY,
   showTerrain: false,
   showFireActivity: false,
   showPlayer: null,
@@ -386,6 +389,40 @@ describe('encodeState / decodeState round-trip', () => {
     expect(decodeState('?grid=blocks&reach=junk')!.gridReachFrac).toBeUndefined()
     // A position with the layer off is a state the popover cannot be in.
     expect(decodeState('?reach=50')).toBeNull()
+  })
+
+  // The four Base map levels (record 0241): one param a layer, named for its
+  // flag and the word, a whole percent, written only while the row is on and
+  // the level is off the default, so every link written before the sliders
+  // still reads as it did.
+  it('carries a base-map level only while its row is on and the level moved', () => {
+    const levels = { satellite: 80, topo: 30, relief: 100, slope: 0 }
+    const on = { ...base, showSatellite: true, showContours: true, showRelief: true, showSlope: true }
+    const query = encodeState({ ...on, baseOpacity: levels }, DEFAULT_MODEL)
+    expect(query).toContain('topo=1&topoopacity=30&relief=1&reliefopacity=100&slope=1&slopeopacity=0')
+    expect(query).toContain('satellite=1&satelliteopacity=80')
+    expect(roundTrip({ ...on, baseOpacity: levels })!.baseOpacity).toEqual(levels)
+    // The default writes nothing, and a row that is off carries no level.
+    expect(encodeState(on, DEFAULT_MODEL)).not.toContain('opacity')
+    expect(encodeState({ ...base, baseOpacity: levels }, DEFAULT_MODEL)).not.toContain('opacity')
+    // One level moved leaves the other three at the default on the way back.
+    expect(roundTrip({ ...on, baseOpacity: { ...DEFAULT_BASE_OPACITY, slope: 70 } })!.baseOpacity).toEqual({
+      ...DEFAULT_BASE_OPACITY,
+      slope: 70,
+    })
+  })
+
+  it('holds a hand-edited level to 0 to 100, and reads none beside a row that is off', () => {
+    expect(decodeState('?satellite=1&satelliteopacity=250')!.baseOpacity!.satellite).toBe(100)
+    expect(decodeState('?satellite=1&satelliteopacity=-5')!.baseOpacity!.satellite).toBe(0)
+    expect(decodeState('?satellite=1&satelliteopacity=62.4')!.baseOpacity!.satellite).toBe(62)
+    expect(decodeState('?satellite=1&satelliteopacity=junk')!.baseOpacity).toBeUndefined()
+    expect(decodeState('?satellite=1&satelliteopacity=')!.baseOpacity).toBeUndefined()
+    // A level for a layer the link leaves off is a state the menu cannot write.
+    expect(decodeState('?slopeopacity=80')).toBeNull()
+    expect(decodeState('?topo=1&slopeopacity=80')!.baseOpacity).toBeUndefined()
+    // An old link with the flags alone opens at the defaults.
+    expect(decodeState('?satellite=1&slope=1')!.baseOpacity).toBeUndefined()
   })
 
   it('gives an overlay-only session a URL of its own', () => {

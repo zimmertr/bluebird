@@ -362,6 +362,7 @@ export default function MapStage({
           showRelief={overlays.showRelief}
           showSlope={overlays.showSlope}
           showSatellite={overlays.showSatellite}
+          baseOpacity={overlays.baseOpacity}
           showTerrain={overlays.showTerrain}
           onTerrainChange={overlays.setShowTerrain}
           showFireActivity={overlays.showFireActivity}

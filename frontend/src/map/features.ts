@@ -3,8 +3,8 @@
  * first, when the map loads.
  *
  * Lowest of all, the satellite imagery, which adds nothing until it is
- * switched on and then goes directly above the style's background, under
- * every other layer of the style (#799). The basemap patch goes under the
+ * switched on and then goes over the style's ground and under its first road,
+ * symbol or layer of anybody else's (#799, record 0241). The basemap patch goes under the
  * style's own labels, and the trailhead and crag markers over it, still under
  * those labels. Above the style: the
  * forecast grid, which is the ground everything else is read against, then
@@ -67,6 +67,9 @@ export interface MapFeatures {
   terrain: TerrainLayers
 }
 
+/** The imagery's level from which the contours wear their ink for the photos: half. */
+const IMAGERY_INK_LEVEL = 0.5
+
 export function mountFeatures(
   map: maplibregl.Map,
   deps: {
@@ -128,11 +131,13 @@ export function mountFeatures(
   return {
     // The Satellite row drives the contours' ink as well as the photos: over
     // the imagery the lines turn light on a dark edge (`terrain.ts`), and
-    // back when it goes off.
+    // back when it goes off. The ink follows the ground that shows most, so
+    // under half the photos give way to Liberty's and the lines go back to
+    // its brown (record 0241).
     imagery: {
       update(next) {
         imagery.update(next)
-        terrain.overImagery(next.show)
+        terrain.overImagery(next.show && next.opacity >= IMAGERY_INK_LEVEL)
       },
     },
     grid,

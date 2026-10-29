@@ -1,15 +1,16 @@
-import { Fragment, useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type RefObject } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import BottomSheet from './BottomSheet'
 import { MenuButton } from './Menu'
+import { IconEye, IconEyeOff } from './icons'
 import {
   ACCENT,
   CHIP_CARD_W,
-  CHOICE_INPUT,
   CHOICE_ROW,
+  LAYER_ROW,
   MAP_CHIP_MENU,
   MENU,
   MENU_GROUP,
@@ -17,6 +18,7 @@ import {
   SEGMENT_FLUID,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  SHEET_ASIDE,
   SLIDER,
   SR_ONLY,
   SURFACE_CHIP_CARD,
@@ -25,20 +27,23 @@ import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid/fo
 import { useExit } from '../hooks/useExit'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useLayerReach } from '../hooks/useLayerReach'
+import type { BaseLayer } from '../utils/baseMapOpacity'
 import type { LayerCoverage } from '../utils/layerCoverage'
 import type { MapViewHandle } from './MapView'
 
-// One row of the Layers popover: a checkbox and what it switches. The twelve
-// overlays and the forecast player share it, because they are the same kind of
-// choice — about what the map shows, never about what the analysis asks for.
-function layerRow({
+// One row's switch in the Layers palette: an eye and the layer's name, the
+// eye a native checkbox drawn as the glyph (record 0241). The twelve overlays
+// and the forecast player share it, because they are the same kind of choice:
+// about what the map shows, never about what the analysis asks for. The label
+// takes the row's free space, so the press that switches a layer lands
+// anywhere left of a base-map row's slider.
+function layerSwitch({
   key,
   label,
   checked,
   onChange,
   disabled,
   note,
-  menu,
 }: {
   key: string
   label: string
@@ -50,21 +55,22 @@ function layerRow({
    *  touch or to a screen reader. */
   disabled?: boolean
   note?: string
-  /** A row of the desk's card rather than of a phone's sheet: it lights under the pointer unless disabled. */
-  menu: boolean
 }) {
-  const inCard = menu ? ` ${MENU.cardRow}${disabled ? '' : ` ${MENU.hover}`}` : ''
+  const Eye = checked ? IconEye : IconEyeOff
   return (
-    <label key={key} className={`${CHOICE_ROW}${inCard}`} title={disabled && note ? note : undefined}>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
-        onChange={(e) => onChange(e.target.checked, e)}
-        className={CHOICE_INPUT}
-      />
-      <span>{label}</span>
+    <label className={`${CHOICE_ROW} min-w-0 flex-1`} title={disabled && note ? note : undefined}>
+      <span className={`${LAYER_ROW.eye} ${checked ? LAYER_ROW.on : LAYER_ROW.off}`}>
+        <Eye />
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
+          onChange={(e) => onChange(e.target.checked, e)}
+          className={LAYER_ROW.eyeInput}
+        />
+      </span>
+      <span className={checked ? undefined : LAYER_ROW.nameOff}>{label}</span>
       {disabled && note && (
         <span id={`layer-${key}-note`} className={SR_ONLY}>
           {note}
@@ -74,7 +80,7 @@ function layerRow({
   )
 }
 
-/** One row of `MAP_LAYERS`, as `layerRow` draws it, before its press is wired. */
+/** One row of `MAP_LAYERS`, as `row` draws it, before its press is wired. */
 interface LayerSpec {
   key: string
   label: string
@@ -82,6 +88,8 @@ interface LayerSpec {
   onChange: (on: boolean) => void
   disabled?: boolean
   note?: string
+  /** A Base map row's opacity slider, by its layer (record 0241). */
+  opacity?: BaseLayer
 }
 
 interface LayersPopoverProps {
@@ -156,6 +164,8 @@ export default function LayersPopover({
     setShowFireActivity,
     setShowPlayer,
     playerShown,
+    baseOpacity,
+    setBaseOpacity,
   } = overlays
   const {
     gridAvailable,
@@ -181,6 +191,11 @@ export default function LayersPopover({
   // portal at the end of the body, would read as outside the column here.
   const popoverOpen = layersOpen && !sheet
   const closeSheet = useCallback(() => setLayersOpen(false), [])
+  // The base-map row whose slider a finger is dragging on a phone, which the
+  // sheet steps aside for (record 0241), or null. Pointer presses only: the
+  // keyboard moves a level a step at a time and keeps the sheet.
+  const [tuning, setTuning] = useState<BaseLayer | null>(null)
+  const endTuning = useCallback(() => setTuning(null), [])
   const press = useShiftRange(open)
   // Names each group's heading, which the group points at for its name.
   const headingId = useId()
@@ -250,12 +265,14 @@ export default function LayersPopover({
       // the world, and so does the imagery, from USGS over the United States
       // and from EOX everywhere else.
       rows: [
-        { key: 'satellite', label: 'Satellite', checked: showSatellite, onChange: setShowSatellite },
+        // Each carries its opacity slider (record 0241); the other nine rows
+        // switch a layer and carry none.
+        { key: 'satellite', label: 'Satellite', checked: showSatellite, onChange: setShowSatellite, opacity: 'satellite' },
         // The contour lines, under the name a reader looks for them by. The
         // key is the link's flag, `topo`.
-        { key: 'topo', label: 'Topographic', checked: showContours, onChange: setShowContours },
-        { key: 'relief', label: 'Shaded relief', checked: showRelief, onChange: setShowRelief },
-        { key: 'slope', label: 'Slope angle', checked: showSlope, onChange: setShowSlope },
+        { key: 'topo', label: 'Topographic', checked: showContours, onChange: setShowContours, opacity: 'topo' },
+        { key: 'relief', label: 'Shaded relief', checked: showRelief, onChange: setShowRelief, opacity: 'relief' },
+        { key: 'slope', label: 'Slope angle', checked: showSlope, onChange: setShowSlope, opacity: 'slope' },
       ],
     },
     {
@@ -327,28 +344,85 @@ export default function LayersPopover({
   ]
   const layers = MAP_LAYERS.flatMap((group) => group.rows)
 
-  // On a phone each layer is one row of the sheet, its grid sub-choices
-  // inside it, so the sheet's rule falls between layers and never between a
-  // row and its own segment; a group's heading stands on the rule over its
-  // first row. At a desk the rows stand on the card itself.
+  // A base-map row's opacity slider (record 0241), the menu's own `SLIDER`
+  // well with the level at the left and `Opacity` at the right, drawn the
+  // coverage slider's way below: the line twice, muted on the well and in
+  // the fill's ink inside it, the top copy clipped to the fill. While the
+  // layer is off the slider keeps its level in a fill without the accent,
+  // and a drag on it switches the layer back on at the level it sets. Live:
+  // a level is a paint property, never a fetch, so nothing waits for release.
+  const opacitySlider = (layer: LayerSpec & { opacity: BaseLayer }) => {
+    const level = baseOpacity[layer.opacity]
+    const line = (
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
+        <span className={SLIDER.value}>{level}%</span>
+        <span className={SLIDER.wordmark}>Opacity</span>
+      </div>
+    )
+    return (
+      <div className={`${sheet ? LAYER_ROW.sliderSheet : LAYER_ROW.slider} ${SLIDER.well}`}>
+        <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
+        <div
+          className={`absolute inset-0 ${layer.checked ? ACCENT.fill : LAYER_ROW.restingFill}`}
+          style={{ clipPath: `inset(0 ${100 - level}% 0 0)` }}
+        >
+          {line}
+        </div>
+        <input
+          type="range"
+          aria-label={`${layer.label} opacity`}
+          min={0}
+          max={100}
+          step={5}
+          value={level}
+          onChange={(e) => {
+            setBaseOpacity(layer.opacity, Number(e.target.value))
+            if (!layer.checked) layer.onChange(true)
+          }}
+          // On a phone the sheet steps aside while a finger drags, so the
+          // map being tuned is in sight. The input holds the pointer, so its
+          // release lands here wherever the finger ends.
+          onPointerDown={(e) => {
+            if (!sheet) return
+            e.currentTarget.setPointerCapture?.(e.pointerId)
+            setTuning(layer.opacity)
+          }}
+          onPointerUp={endTuning}
+          onPointerCancel={endTuning}
+          onLostPointerCapture={endTuning}
+          className={SLIDER.overlay}
+        />
+      </div>
+    )
+  }
+
+  // Each layer is one block, its row and, under the grid's, the grid's
+  // sub-choices: on a phone one row of the sheet, so the sheet's rule falls
+  // between layers and never between a row and its own segment, and at a
+  // desk one row of the group's ruled list (`LAYER_ROW.cardRows`). A group's
+  // heading stands on the rule over its first row on a phone, and on the
+  // card's own space at a desk.
   // A press with Shift held reaches every row from the last pressed one to
   // this one (record 0209), down the whole list and across the groups, each
   // switched where it differs from the box the reader pressed; a greyed row
   // stays as it is.
   const order = layers.map((layer) => layer.key)
   const row = (layer: LayerSpec) => {
+    const inCard = sheet ? '' : ` ${LAYER_ROW.cardRow} ${MENU.cardRow}${layer.disabled ? '' : ` ${MENU.hover}`}`
     const parts = (
       <>
-        {layerRow({
-          ...layer,
-          onChange: (on, e) => {
-            for (const key of press(order, layer.key, shiftHeld(e))) {
-              const each = layers.find((l) => l.key === key)
-              if (each && !each.disabled && each.checked !== on) each.onChange(on)
-            }
-          },
-          menu: !sheet,
-        })}
+        <div className={`${LAYER_ROW.line}${inCard}`}>
+          {layerSwitch({
+            ...layer,
+            onChange: (on, e) => {
+              for (const key of press(order, layer.key, shiftHeld(e))) {
+                const each = layers.find((l) => l.key === key)
+                if (each && !each.disabled && each.checked !== on) each.onChange(on)
+              }
+            },
+          })}
+          {layer.opacity && opacitySlider({ ...layer, opacity: layer.opacity })}
+        </div>
         {/* The grid's sub-choices, revealed by its own checkbox
             and rendered under the row they belong to rather than
             after the list, so the order above holds
@@ -434,12 +508,12 @@ export default function LayersPopover({
         )}
       </>
     )
-    return sheet ? (
-      <div key={layer.key} className={MENU_GROUP.sheetRow}>
+    // The row a finger is tuning stays in sight while the sheet steps aside.
+    const kept = sheet && tuning !== null && layer.opacity === tuning ? ` ${SHEET_ASIDE.keep}` : ''
+    return (
+      <div key={layer.key} className={`${sheet ? MENU_GROUP.sheetRow : ''}${kept}`}>
         {parts}
       </div>
-    ) : (
-      <Fragment key={layer.key}>{parts}</Fragment>
     )
   }
   // Each group is a group to a screen reader too, named by its heading, so a
@@ -454,7 +528,7 @@ export default function LayersPopover({
       <div id={`${headingId}-${g}`} className={sheet ? MENU_GROUP.sheetHeading : MENU_GROUP.cardHeading}>
         {group.heading}
       </div>
-      {group.rows.map(row)}
+      {sheet ? group.rows.map(row) : <div className={LAYER_ROW.cardRows}>{group.rows.map(row)}</div>}
     </div>
   ))
 
@@ -484,7 +558,12 @@ export default function LayersPopover({
       <>
         {button}
         {open && (
-          <BottomSheet heading="Layers" onClose={closeSheet} tourAnchor={forcedOpen ? 'layers-menu' : undefined}>
+          <BottomSheet
+            heading="Layers"
+            onClose={closeSheet}
+            tourAnchor={forcedOpen ? 'layers-menu' : undefined}
+            aside={tuning !== null}
+          >
             {rows}
           </BottomSheet>
         )}

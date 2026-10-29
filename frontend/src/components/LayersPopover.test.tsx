@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { MAP_CHIP_MENU, MENU, MENU_CHEVRON, MENU_GROUP } from '../styles'
+import { ACCENT, LAYER_ROW, MAP_CHIP_MENU, MENU, MENU_CHEVRON, MENU_GROUP, SHEET_ASIDE } from '../styles'
 import { IconChevron } from './icons'
+import { DEFAULT_BASE_OPACITY } from '../utils/baseMapOpacity'
 import type { ViewBounds } from '../utils/layerCoverage'
 
 // Every switch off, the grid allowed and off, and nothing spanning time.
@@ -36,6 +37,8 @@ const OVERLAYS = {
   setShowTerrain: () => {},
   setShowPlayer: () => {},
   playerShown: false,
+  baseOpacity: DEFAULT_BASE_OPACITY,
+  setBaseOpacity: () => {},
 }
 const GRID = {
   gridAvailable: true,
@@ -201,8 +204,9 @@ describe('LayersPopover', () => {
   // A row a press acts on lights under the pointer, as every menu row does
   // (record 0201); a greyed one takes no fill, and a phone's sheet none at all.
   it('lights every live row under the pointer and no greyed one', () => {
+    // The fill is the row's, the eye's label and a base-map row's slider both.
     const fill = (name: RegExp | string) =>
-      screen.getByRole('checkbox', { name }).closest('label')!.className.split(' ').includes(MENU.hover)
+      screen.getByRole('checkbox', { name }).closest('label')!.parentElement!.className.split(' ').includes(MENU.hover)
     const { unmount } = render(
       <LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={ARCHIVE} playerOffered={false} />,
     )
@@ -249,7 +253,7 @@ describe('LayersPopover', () => {
     expect(groups.map((g) => g.firstElementChild!.textContent)).toEqual(['Base map', 'Hazards', 'Forecast'])
     expect(groups[2].firstElementChild!.className).toBe(MENU_GROUP.sheetHeading)
     // The grid's sub-choices stay inside its own row of the sheet.
-    const grid = screen.getByRole('checkbox', { name: 'Forecast grid' }).closest('label')!.parentElement!
+    const grid = screen.getByRole('checkbox', { name: 'Forecast grid' }).closest('label')!.parentElement!.parentElement!
     expect(grid.className).toBe(MENU_GROUP.sheetRow)
     expect(grid.querySelector('input[type="range"]')).not.toBeNull()
     expect(rows()).toHaveLength(13)
@@ -402,5 +406,165 @@ describe('LayersPopover', () => {
     expect(document.activeElement).toBe(before)
     expect(screen.getByRole('button', { name: 'Layers' }).dataset.tour).toBe('layers')
     before.remove()
+  })
+  // The palette (record 0241): every row an eye, open while its layer is on
+  // and struck while it is off, the name in the soft ink while off, and under
+  // every eye the native checkbox it draws, named by the row.
+  it('draws every row\'s switch as an eye over its checkbox', () => {
+    render(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...OVERLAYS, showSatellite: true, showSmoke: true }}
+        grid={GRID}
+        playerOffered
+      />,
+    )
+    open()
+    const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[]
+    expect(boxes).toHaveLength(13)
+    for (const box of boxes) {
+      const eye = box.parentElement!
+      // The struck eye has a stroke through it and no pupil.
+      const open = eye.querySelector('svg circle') !== null
+      expect(open).toBe(box.checked)
+      expect(eye.className.split(' ')).toContain(box.checked ? LAYER_ROW.on : LAYER_ROW.off)
+      expect(box.className).toBe(LAYER_ROW.eyeInput)
+      const name = box.closest('label')!.lastElementChild!
+      expect(name.className.includes(LAYER_ROW.nameOff)).toBe(!box.checked)
+    }
+    expect(boxes.filter((b) => b.checked).map((b) => b.closest('label')!.textContent)).toEqual(['Satellite', 'Smoke'])
+  })
+
+  // An opacity slider on the four Base map rows alone, at its row's right,
+  // reading its level and the word; none on a Hazards or Forecast row.
+  it('carries an opacity slider on each base-map row and on no other', () => {
+    render(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...OVERLAYS, baseOpacity: { ...DEFAULT_BASE_OPACITY, slope: 70 } }}
+        grid={GRID}
+        playerOffered
+      />,
+    )
+    open()
+    const sliders = screen.getAllByRole('slider') as HTMLInputElement[]
+    expect(sliders.map((s) => s.getAttribute('aria-label'))).toEqual([
+      'Satellite opacity',
+      'Topographic opacity',
+      'Shaded relief opacity',
+      'Slope angle opacity',
+    ])
+    expect(sliders.map((s) => s.value)).toEqual(['50', '50', '50', '70'])
+    const slope = sliders[3].parentElement!
+    expect(slope.textContent).toBe('70%Opacity70%Opacity')
+    expect(slope.className).toContain(LAYER_ROW.slider)
+    // In the same row as its eye, after it.
+    const row = screen.getByRole('checkbox', { name: 'Slope angle' }).closest('label')!.parentElement!
+    expect(row.lastElementChild).toBe(slope)
+    expect(screen.getByRole('group', { name: 'Hazards' }).querySelector('input[type="range"]')).toBeNull()
+  })
+
+  // While a layer is off its slider keeps its level in a fill without the
+  // accent; on, the accent fill.
+  it('dims a slider whose layer is off and keeps its level', () => {
+    render(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...OVERLAYS, showRelief: true, baseOpacity: { ...DEFAULT_BASE_OPACITY, topo: 20 } }}
+        grid={GRID}
+        playerOffered
+      />,
+    )
+    open()
+    const fillOf = (name: string) =>
+      (screen.getByRole('slider', { name: `${name} opacity` }).previousElementSibling as HTMLElement).className
+    expect(fillOf('Shaded relief')).toBe(`absolute inset-0 ${ACCENT.fill}`)
+    expect(fillOf('Topographic')).toBe(`absolute inset-0 ${LAYER_ROW.restingFill}`)
+    expect((screen.getByRole('slider', { name: 'Topographic opacity' }) as HTMLInputElement).value).toBe('20')
+  })
+
+  // A level is set through the hook's one setter. A drag on an off layer's
+  // slider switches the layer on at the level it sets.
+  it('sets a level, and switches an off layer on as its slider moves', () => {
+    const setBaseOpacity = vi.fn()
+    const setShowSlope = vi.fn()
+    const setShowSatellite = vi.fn()
+    render(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...OVERLAYS, showSatellite: true, setBaseOpacity, setShowSlope, setShowSatellite }}
+        grid={GRID}
+        playerOffered
+      />,
+    )
+    open()
+    fireEvent.change(screen.getByRole('slider', { name: 'Satellite opacity' }), { target: { value: '80' } })
+    expect(setBaseOpacity).toHaveBeenLastCalledWith('satellite', 80)
+    expect(setShowSatellite).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByRole('slider', { name: 'Slope angle opacity' }), { target: { value: '35' } })
+    expect(setBaseOpacity).toHaveBeenLastCalledWith('slope', 35)
+    expect(setShowSlope).toHaveBeenCalledWith(true)
+  })
+
+  // The Shift range runs from the Base map rows into Hazards like any other,
+  // and the sliders between the eyes are no part of it (record 0227).
+  it('runs a Shift range from the base map into the hazards', () => {
+    const setShowContours = vi.fn()
+    const setShowRelief = vi.fn()
+    const setShowSlope = vi.fn()
+    const setShowWildfires = vi.fn()
+    const setShowSmoke = vi.fn()
+    render(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...OVERLAYS, setShowContours, setShowRelief, setShowSlope, setShowWildfires, setShowSmoke }}
+        grid={GRID}
+        playerOffered
+      />,
+    )
+    open()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Topographic' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Wildfires' }), { shiftKey: true })
+    for (const set of [setShowContours, setShowRelief, setShowSlope, setShowWildfires]) {
+      expect(set).toHaveBeenCalledWith(true)
+    }
+    expect(setShowSmoke).not.toHaveBeenCalled()
+  })
+
+  // On a phone the sheet steps aside while a finger drags a slider: the dim
+  // lifts, the card goes, the dragged row stays; on release all comes back.
+  // At a desk the card stands where it is.
+  it('steps the sheet aside while a slider is dragged on a phone', () => {
+    const { unmount } = render(
+      <LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered sheet />,
+    )
+    open()
+    const sheet = screen.getByRole('dialog', { name: 'Layers' })
+    const slider = screen.getByRole('slider', { name: 'Shaded relief opacity' })
+    const block = (input: HTMLElement) => input.closest(`.${MENU_GROUP.sheetRow}`)!
+    const kept = () =>
+      screen.getAllByRole('checkbox').filter((c) => block(c).className.includes(SHEET_ASIDE.keep))
+    expect(sheet.className).not.toContain(SHEET_ASIDE.card)
+    fireEvent.pointerDown(slider, { pointerId: 1 })
+    expect(sheet.className).toContain(SHEET_ASIDE.card)
+    expect(kept().map((c) => c.closest('label')!.textContent)).toEqual(['Shaded relief'])
+    fireEvent.pointerUp(slider, { pointerId: 1 })
+    expect(sheet.className).not.toContain(SHEET_ASIDE.card)
+    expect(kept()).toEqual([])
+    fireEvent.pointerDown(slider, { pointerId: 1 })
+    fireEvent.pointerCancel(slider, { pointerId: 1 })
+    expect(sheet.className).not.toContain(SHEET_ASIDE.card)
+    unmount()
+
+    render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
+    open()
+    const desk = screen.getByRole('slider', { name: 'Shaded relief opacity' })
+    fireEvent.pointerDown(desk, { pointerId: 1 })
+    expect(desk.closest('[data-tour="layers-menu"]')!.className).not.toContain(SHEET_ASIDE.card)
   })
 })

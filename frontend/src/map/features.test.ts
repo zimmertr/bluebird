@@ -93,24 +93,29 @@ describe('mountFeatures', () => {
     ])
   })
 
-  // The imagery adds nothing on load, and switched on it goes directly above
-  // the style's background, under the style's every other layer and so under
-  // every feature the app adds (#799).
-  it('puts the satellite imagery under everything but the background', () => {
+  // The imagery adds nothing on load, and switched on it goes over the
+  // style's ground and under its first layer that is not ground, and so under
+  // every feature the app adds (#799, record 0241). This style's ground is its
+  // background alone: its `water` names no source of Liberty's.
+  it('puts the satellite imagery over the ground and under every feature', () => {
     const { stub, features } = setup()
     const before = [...stub.stack]
-    features.imagery.update({ show: true })
+    features.imagery.update({ show: true, opacity: 0.5 })
     expect(stub.stack).toEqual(['background', 'imagery-eox', 'imagery-usgs', ...before.slice(1)])
   })
 
   // The Satellite row turns the contours to their imagery ink and back
-  // (`terrain.ts`), through the one switch the component drives.
-  it('hands the Satellite row to the contours as well as the photos', () => {
+  // (`terrain.ts`), through the one switch the component drives, and so does
+  // its level across a half, where the photos stop being the ground that
+  // shows most (record 0241).
+  it('hands the Satellite row and its level to the contours as well as the photos', () => {
     const { features } = setup()
     const overImagery = vi.spyOn(features.terrain, 'overImagery')
-    features.imagery.update({ show: true })
-    features.imagery.update({ show: false })
-    expect(overImagery.mock.calls).toEqual([[true], [false]])
+    features.imagery.update({ show: true, opacity: 0.5 })
+    features.imagery.update({ show: true, opacity: 0.45 })
+    features.imagery.update({ show: true, opacity: 1 })
+    features.imagery.update({ show: false, opacity: 1 })
+    expect(overImagery.mock.calls).toEqual([[true], [false], [true], [false]])
   })
 
   // Every popup opens through map/mapPopups.ts: one click and one pointer

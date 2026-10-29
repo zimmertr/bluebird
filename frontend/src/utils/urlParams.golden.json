@@ -80,6 +80,12 @@
     "showRelief": true,
     "showSlope": true,
     "showSatellite": true,
+    "baseOpacity": {
+      "topo": 30,
+      "relief": 100,
+      "slope": 0,
+      "satellite": 80
+    },
     "showTerrain": true,
     "showFireActivity": true,
     "showGrid": true,

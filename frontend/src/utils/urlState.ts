@@ -6,6 +6,7 @@
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { DEFAULT_FAMILY_KEY, MetricFamily, RANKED_FAMILIES } from '../metrics'
 import { Constraints, hasConstraints } from './constraints'
+import { type BaseOpacity } from './baseMapOpacity'
 import { type GridStyle } from './forecastGrid/forecastGrid'
 import { ForecastSelection } from './calendar/calendar'
 import { Place } from './geocode'
@@ -84,6 +85,11 @@ export interface ShareableState {
   // The slope angle shading (#799), from the same elevation as the relief.
   showSlope: boolean
   showSatellite: boolean
+  // The four Base map rows' opacity levels (record 0241), whole percents.
+  // Each rides its own param named for the layer's flag and the word
+  // (`satelliteopacity=80`), written only while its row is on and off the
+  // default, so a link opened before the sliders existed draws as it did.
+  baseOpacity: BaseOpacity
   // The satellite fire detections (#799).
   showFireActivity: boolean
   // Whether the map stands the ground up in 3D (#799). Not an overlay, since

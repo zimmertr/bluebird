@@ -84,6 +84,8 @@ import {
   CHART_TITLE,
   MENU,
   MENU_GROUP,
+  LAYER_ROW,
+  SHEET_ASIDE,
   MODEL_ROW,
   MENU_CHEVRON,
   MENU_TRIGGER,
@@ -2889,7 +2891,7 @@ describe('the Controls sheet', () => {
       expect(zOf(under)).toBeLessThan(zOf(LAYER.scrim))
     }
     expect(bottomSheetSource).toContain('kept ? CONTROLS_SHEET.scrim : BOTTOM_SHEET.scrim')
-    expect(bottomSheetSource).toContain('<div className={BOTTOM_SHEET.dim} />')
+    expect(bottomSheetSource).toContain('<div className={`${BOTTOM_SHEET.dim}${aside ? ` ${SHEET_ASIDE.dim}` : \'\'}`} />')
   })
 })
 
@@ -3030,6 +3032,96 @@ describe('the map layer rows', () => {
     expect(BOTTOM_SHEET.body).toContain(`[&>*]:${MENU_GROUP.sheetRow}`)
     expect(layersPopoverSource).toContain('className={sheet ? MENU_GROUP.sheet : MENU_GROUP.card}')
     expect(layersPopoverSource).toContain('className={sheet ? MENU_GROUP.sheetHeading : MENU_GROUP.cardHeading}')
+  })
+})
+
+// The Layers palette's rows (record 0241): an eye over every row's checkbox,
+// an opacity slider on the four Base map rows, and the phone's sheet stepping
+// aside while one is dragged.
+describe('the layers palette', () => {
+  const both = (fn: (theme: (name: string) => string) => number) => [fn((n) => dark(n)), fn(light)]
+
+  // The eye is a glyph that carries the row's state, so each ink owes 3:1 on
+  // every ground the row stands on: the desk's card, the raised fill under
+  // the pointer, and the phone's sheet. The struck eye takes the soft ink,
+  // a step up from the lab's faint one, which read 2.2:1 on the raised fill.
+  it('draws the eye in two inks, each past 3:1 on the card, the hover and the sheet', () => {
+    expect(token(LAYER_ROW.on, 'text')).toBe('ink-mid')
+    expect(token(LAYER_ROW.off, 'text')).toBe('ink-soft')
+    for (const ink of [LAYER_ROW.on, LAYER_ROW.off]) {
+      for (const ground of ['floating', 'raised', 'panel']) {
+        for (const theme of [(n: string) => dark(n), light]) {
+          expect(contrast(theme(token(ink, 'text')), theme(ground))).toBeGreaterThanOrEqual(3)
+        }
+      }
+    }
+    expect(both((t) => ratio(t(token(LAYER_ROW.on, 'text')), t('floating')))).toEqual([9.83, 12.3])
+    expect(both((t) => ratio(t(token(LAYER_ROW.off, 'text')), t('raised')))).toEqual([3.94, 7.47])
+    // The faint ink the lab drew the struck eye in, on the raised fill.
+    expect(ratio(dark('ink-faint'), dark('raised'))).toBeLessThan(3)
+    // The eye fills the 16px box its checkbox is laid over.
+    expect(LAYER_ROW.eyeInput).toContain('appearance-none')
+    expect(LAYER_ROW.eyeInput).toContain('absolute inset-0')
+  })
+
+  // An off row's name is text, in the heading's soft ink, past 4.5:1 on the
+  // card and the sheet. Under the pointer, on the raised fill, where the soft
+  // ink reads under AA in dark, it takes the rows' own ink.
+  it('sets an off row\'s name in the soft ink, past AA wherever it stands', () => {
+    const soft = token(LAYER_ROW.nameOff, 'text')
+    expect(soft).toBe(token(MENU.heading, 'text'))
+    for (const ground of ['floating', 'panel']) {
+      for (const t of [(n: string) => dark(n), light]) expect(contrast(t(soft), t(ground))).toBeGreaterThanOrEqual(4.5)
+    }
+    expect(ratio(dark(soft), dark('raised'))).toBeLessThan(4.5)
+    const lit = token(LAYER_ROW.nameOff, 'group-hover/layer:text')
+    expect(lit).toBe(token(TEXT.control, 'text'))
+    for (const t of [(n: string) => dark(n), light]) expect(contrast(t(lit), t('raised'))).toBeGreaterThanOrEqual(4.5)
+    expect(LAYER_ROW.line).toContain('group/layer')
+  })
+
+  // A slider whose layer is off still works, so its line owes 4.5:1. The
+  // lab's 55% fade would have left the value on the accent under it in both
+  // themes; the resting fill is the raised surface in the control ink.
+  it('dims an off layer\'s slider by its fill, its line still past AA', () => {
+    const fill = LAYER_ROW.restingFill
+    expect(fill).not.toMatch(/opacity/)
+    expect(both((t) => ratio(t(token(fill, 'text')), t(token(fill, 'bg'))))).toEqual([8.4, 13.66])
+    for (const t of [(n: string) => dark(n), light]) {
+      expect(contrast(t(token(fill, 'text')), t(token(fill, 'bg')))).toBeGreaterThanOrEqual(4.5)
+    }
+    // What the lab's fade would have given the value on the accent.
+    const faded = (t: (n: string) => string) =>
+      ratio(over(t('on-fill'), 0.55, t('floating')), over(t('accent'), 0.55, t('floating')))
+    expect(faded((n) => dark(n))).toBeLessThan(4.5)
+    expect(faded(light)).toBeLessThan(4.5)
+  })
+
+  // The lab's sizes: 96 by 20 at a desk, 120 by 24 on a phone, where the
+  // sheet's rows are 32px. `100%` and `Opacity` with the well's 8px either
+  // side are 82px (measured in the browser suite's Chromium, 2026-10-29).
+  it('sizes the sliders to their line, the desk\'s row to its slider', () => {
+    const MEASURED = { line: 16 + 26.9 + 41.6 }
+    expect([stepPx(LAYER_ROW.slider, 'w'), stepPx(LAYER_ROW.slider, 'h')]).toEqual([96, 20])
+    expect([stepPx(LAYER_ROW.sliderSheet, 'w'), stepPx(LAYER_ROW.sliderSheet, 'h')]).toEqual([120, 24])
+    expect(stepPx(LAYER_ROW.slider, 'w') - MEASURED.line).toBeGreaterThanOrEqual(8)
+    // The desk's row is the slider and 4px over and under it.
+    expect(stepPx(LAYER_ROW.cardRow, 'min-h')).toBe(stepPx(LAYER_ROW.slider, 'h') + 2 * 4)
+    expect(stepPx(LAYER_ROW.sliderSheet, 'h')).toBeLessThanOrEqual(stepPx(MENU_GROUP.sheetRow, 'min-h'))
+    // The rows a group holds at a desk are ruled the sheet's way.
+    expect(LAYER_ROW.cardRows).toBe('divide-y divide-rule')
+    expect(layersPopoverSource).toContain('${sheet ? LAYER_ROW.sliderSheet : LAYER_ROW.slider} ${SLIDER.well}')
+  })
+
+  // While a finger drags, the dim lifts and the card goes but for the row
+  // dragged, which keeps the sheet's own fill, edge and shadow.
+  it('steps the sheet aside but for the row being dragged', () => {
+    expect(SHEET_ASIDE.dim).toBe('opacity-0')
+    expect(SHEET_ASIDE.card).toBe('invisible')
+    expect(SHEET_ASIDE.keep).toContain('visible')
+    expect(token(SHEET_ASIDE.keep, 'bg')).toBe(token(BOTTOM_SHEET.card, 'bg'))
+    expect(bottomSheetSource).toContain('${BOTTOM_SHEET.card}${aside ? ` ${SHEET_ASIDE.card}` : \'\'}')
+    expect(SHEET_ASIDE.keep).toContain(ELEVATION.overlay)
   })
 })
 

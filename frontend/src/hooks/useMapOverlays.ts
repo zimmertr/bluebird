@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { type BaseLayer, DEFAULT_BASE_OPACITY, clampOpacity } from '../utils/baseMapOpacity'
 import type { ShareableState } from '../utils/urlState'
 
 /**
  * The map's overlay switches (#121, #246, #446, #550, #799), the forecast
- * player's and the 3D terrain's.
+ * player's and the 3D terrain's, and the four base-map layers' opacity levels.
  *
  * None of them is a knob: each changes what is drawn over the map and nothing
  * about what was asked for, so no ranking moves and `commitNeeded` does not
@@ -49,6 +50,20 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
   // bands, painted in the browser from the relief's own elevation.
   const [showSlope, setShowSlope] = useState(() => restored?.showSlope ?? false)
   const [showSatellite, setShowSatellite] = useState(() => restored?.showSatellite ?? false)
+  // The four Base map rows' opacity sliders (record 0241), 0 to 100, each
+  // kept while its row is off so switching it back on brings the level back.
+  // Presentation like the switches: no fetch follows a level, and the
+  // ranking never reads one.
+  const [baseOpacity, setBaseOpacityAll] = useState(() => ({ ...DEFAULT_BASE_OPACITY, ...restored?.baseOpacity }))
+  // One stable setter for the four, so the menu's rows can share it.
+  const setBaseOpacity = useCallback(
+    (layer: BaseLayer, level: number) =>
+      setBaseOpacityAll((all) => {
+        const next = clampOpacity(level)
+        return all[layer] === next ? all : { ...all, [layer]: next }
+      }),
+    [],
+  )
   // The satellite fire detections (#799), read from the pod's hourly copy of
   // NASA FIRMS for the view, the way the fire perimeters are.
   const [showFireActivity, setShowFireActivity] = useState(() => restored?.showFireActivity ?? false)
@@ -90,6 +105,8 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
     setShowSlope,
     showSatellite,
     setShowSatellite,
+    baseOpacity,
+    setBaseOpacity,
     showFireActivity,
     setShowFireActivity,
     showTerrain,

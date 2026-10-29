@@ -39,6 +39,8 @@ export interface UrlSyncInputs {
   showRelief: boolean
   showSlope: boolean
   showSatellite: boolean
+  /** The four Base map rows' opacity levels (record 0241). */
+  baseOpacity: ShareableState['baseOpacity']
   showFireActivity: boolean
   /** The map's 3D switch. */
   showTerrain: boolean
@@ -108,6 +110,7 @@ export function useUrlSync({
   showRelief,
   showSlope,
   showSatellite,
+  baseOpacity,
   showFireActivity,
   showTerrain,
   showPlayer,
@@ -208,6 +211,7 @@ export function useUrlSync({
         showRelief,
         showSlope,
         showSatellite,
+        baseOpacity,
         showFireActivity,
         showTerrain,
         showPlayer,
@@ -247,6 +251,7 @@ export function useUrlSync({
     showRelief,
     showSlope,
     showSatellite,
+    baseOpacity,
     showFireActivity,
     showTerrain,
     showPlayer,

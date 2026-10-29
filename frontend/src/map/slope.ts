@@ -65,9 +65,11 @@ export const SLOPE_TILES = `${SLOPE_SCHEME}://{z}/{x}/{y}`
 export const SLOPE_MAXZOOM = 14
 
 /**
- * The bands at half strength, so Liberty's ground, the relief and the imagery
- * all read through them. The colours are in the tile; `utils/slopeAngle.ts`
- * owns them and the strength both.
+ * The bands at half strength, the default level, so Liberty's ground, the
+ * relief and the imagery all read through them. The colours are in the tile,
+ * whole, so the Slope angle row's opacity slider is the layer's
+ * `raster-opacity` and nothing else (`terrain.ts`, record 0241).
+ * `utils/slopeAngle.ts` owns the colours and the default strength both.
  */
 export const SLOPE_PAINT: maplibregl.RasterLayerSpecification['paint'] = {
   'raster-opacity': SLOPE_ALPHA,

@@ -65,11 +65,14 @@ export const SLOPE_BANDS: readonly SlopeBand[] = [
 ]
 
 /**
- * How strongly the bands paint: half, CalTopo's own strength. Tried over
- * Rainier and the Enchantments on Liberty and on the imagery (2026-10-28):
- * at 0.4 the yellow band went missing on Liberty's pale land, and at 0.6 the
- * purple and the blue hid the imagery's rock and snow, which is what a reader
- * looks at a steep slope to see. The relief under it shows through at half.
+ * How strongly the bands paint at the Slope angle row's default level: half,
+ * CalTopo's own strength. Tried over Rainier and the Enchantments on Liberty
+ * and on the imagery (2026-10-28): at 0.4 the yellow band went missing on
+ * Liberty's pale land, and at 0.6 the purple and the blue hid the imagery's
+ * rock and snow, which is what a reader looks at a steep slope to see. The
+ * relief under it shows through at half. The row's slider moves it from 0 to
+ * 1 since record 0241, and the default stays here: `OPACITY_DEFAULT` in
+ * `baseMapOpacity.ts` is this half as a percent.
  */
 export const SLOPE_ALPHA = 0.5
 
@@ -186,7 +189,8 @@ export function windowEdges(
 /**
  * The slope shading of one elevation tile, as RGBA pixels the size of the tile:
  * each pixel its band's colour, opaque, or transparent where no band holds it.
- * The layer's opacity is {@link SLOPE_ALPHA}, so the colours are not faded here.
+ * The layer's opacity is the row's level, {@link SLOPE_ALPHA} by default, so the
+ * colours are not faded here.
  *
  * `z` and `tileY` are the ELEVATION tile's, so each row's ground spacing is
  * the spacing of the heights it differences. With a `window`

@@ -25,6 +25,7 @@ import { isSortKey } from './tableColumns'
 import { parseCustomCsv } from './customDestinations'
 import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
+import { type BaseLayer, DEFAULT_BASE_OPACITY, OPACITY_DEFAULT, clampOpacity } from './baseMapOpacity'
 
 /**
  * One query parameter.
@@ -271,6 +272,29 @@ function flag(
     encode: (state) => (state[field] ? '1' : null),
     decode: (raw, out) => {
       if (raw === '1') out[field] = true
+    },
+  }
+}
+
+// A base-map row's opacity (record 0241): the layer's link flag and the word,
+// `slopeopacity=70`, a whole percent. Written only while its row is on AND the
+// level is not the default, so a link stays as short as what was changed and
+// cannot carry a level for a layer it leaves off. Read only beside its flag,
+// which is why each row sits under it, and held to 0 to 100 rather than
+// trusted, since the param is hand-editable. An empty value is no level.
+function opacityRow(
+  layer: BaseLayer,
+  field: 'showContours' | 'showRelief' | 'showSlope' | 'showSatellite',
+): ParamCodec {
+  return {
+    key: `${layer}opacity`,
+    encode: (state) =>
+      state[field] && state.baseOpacity[layer] !== OPACITY_DEFAULT ? String(state.baseOpacity[layer]) : null,
+    decode: (raw, out) => {
+      if (out[field] !== true || raw.trim() === '') return
+      const level = Number(raw)
+      if (!Number.isFinite(level)) return
+      out.baseOpacity = { ...DEFAULT_BASE_OPACITY, ...out.baseOpacity, [layer]: clampOpacity(level) }
     },
   }
 }
@@ -565,9 +589,13 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   flag('smoke', 'showSmoke'),
   flag('snow', 'showSnow'),
   flag('topo', 'showContours'),
+  opacityRow('topo', 'showContours'),
   flag('relief', 'showRelief'),
+  opacityRow('relief', 'showRelief'),
   flag('slope', 'showSlope'),
+  opacityRow('slope', 'showSlope'),
   flag('satellite', 'showSatellite'),
+  opacityRow('satellite', 'showSatellite'),
   flag('terrain', 'showTerrain'),
   flag('fireactivity', 'showFireActivity'),
   // The value names the style rather than being a bare `1`, which keeps the
@@ -709,6 +737,7 @@ export const FIELD_PARAMS = {
   showRelief: ['relief'],
   showSlope: ['slope'],
   showSatellite: ['satellite'],
+  baseOpacity: ['topoopacity', 'reliefopacity', 'slopeopacity', 'satelliteopacity'],
   showTerrain: ['terrain'],
   showFireActivity: ['fireactivity'],
   showGrid: ['grid'],

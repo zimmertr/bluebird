@@ -25,6 +25,7 @@
 import { addProtocol } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import { FEET_PER_METER } from '../utils/basemapPoi'
+import { OPACITY_DEFAULT, opacityOf, overDefault } from '../utils/baseMapOpacity'
 import { DEM_MAXZOOM, DEM_TILES, MAPTERHORN_HREF } from '../utils/terrainSources'
 import { CAMERA_MS } from './mapStyles'
 import { SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_TILES, serveSlopeTiles, type DemGrids } from './slope'
@@ -126,18 +127,38 @@ export const TERRAIN_EXAGGERATION = 1
  * strength that showed the valleys; `standard` at 0.3 with a brown shadow and
  * a half-strength white light is the one that shades like a printed map.
  */
-const RELIEF_PAINT: maplibregl.HillshadeLayerSpecification['paint'] = {
-  'hillshade-method': 'standard',
-  'hillshade-exaggeration': 0.3,
-  // Liberty's own warm label brown, darkened, so a shadow reads as ground
-  // rather than as a grey film over the greens.
-  'hillshade-shadow-color': '#5c4a32',
+const RELIEF_LOOK = {
+  exaggeration: 0.3,
+  // Liberty's own warm label brown, darkened (`#5c4a32`), so a shadow reads
+  // as ground rather than as a grey film over the greens. The steepest
+  // slopes' accent is the same colour, so a cliff band darkens without a
+  // second hue.
+  shadow: [92, 74, 50],
   // White at under half strength: at full strength the lit slopes washed
   // Liberty's woods out to the colour of its grass.
-  'hillshade-highlight-color': 'rgba(255, 255, 255, 0.45)',
-  // The steepest slopes' accent, in the shadow's colour, so a cliff band
-  // darkens without a second hue.
-  'hillshade-accent-color': '#5c4a32',
+  highlightAlpha: 0.45,
+} as const
+
+/**
+ * The relief at the Shaded relief row's opacity, 0 to 1 (record 0241), where
+ * the default level, a half, is the look above. A hillshade layer has no
+ * opacity of its own, so the level moves what it has. Under the default the
+ * shadow and the light fade together and the depth holds, so the shading
+ * pales evenly to nothing at 0 rather than flattening first; over it the
+ * shadow is already whole, so the depth and the light grow, to twice the
+ * default at 100: 0.6 of exaggeration and the light at 0.9.
+ */
+export function reliefPaint(opacity: number): maplibregl.HillshadeLayerSpecification['paint'] {
+  const times = overDefault(opacity)
+  const [r, g, b] = RELIEF_LOOK.shadow
+  const shadow = `rgba(${r}, ${g}, ${b}, ${Math.min(1, times)})`
+  return {
+    'hillshade-method': 'standard',
+    'hillshade-exaggeration': RELIEF_LOOK.exaggeration * Math.max(1, times),
+    'hillshade-shadow-color': shadow,
+    'hillshade-highlight-color': `rgba(255, 255, 255, ${RELIEF_LOOK.highlightAlpha * times})`,
+    'hillshade-accent-color': shadow,
+  }
 }
 
 /**
@@ -199,7 +220,7 @@ const IS_INDEX: maplibregl.ExpressionSpecification = ['>', ['get', 'level'], 0]
  */
 const CONTOUR_CASING_PAINT: maplibregl.LineLayerSpecification['paint'] = {
   'line-color': CONTOUR_IMAGERY_EDGE,
-  'line-opacity': ['case', IS_INDEX, CONTOUR_EDGE_OPACITY.index, CONTOUR_EDGE_OPACITY.minor],
+  'line-opacity': edgeOpacity(1),
   'line-width': [
     'case',
     IS_INDEX,
@@ -208,7 +229,20 @@ const CONTOUR_CASING_PAINT: maplibregl.LineLayerSpecification['paint'] = {
   ],
 }
 
-/** The two lines' colour and opacity on each ground, by layer. */
+/**
+ * The edge's opacity at `times` its default look (`contourTimes`), each kind
+ * of line's held to 1.
+ */
+function edgeOpacity(times: number): maplibregl.ExpressionSpecification {
+  return [
+    'case',
+    IS_INDEX,
+    Math.min(1, CONTOUR_EDGE_OPACITY.index * times),
+    Math.min(1, CONTOUR_EDGE_OPACITY.minor * times),
+  ]
+}
+
+/** The two lines' colour and opacity on each ground, by layer, at the default level. */
 export const CONTOUR_INK_ON = {
   map: {
     [CONTOUR_LAYER]: [CONTOUR_INK, CONTOUR_MAP_OPACITY.minor],
@@ -228,6 +262,7 @@ export const CONTOUR_INK_ON = {
  * is a destination.
  */
 const CONTOUR_LABEL_PAINT: maplibregl.SymbolLayerSpecification['paint'] = {
+  'text-opacity': 1,
   'text-color': '#7a5a3a',
   'text-halo-color': '#f8f4ef',
   'text-halo-width': 1.2,
@@ -299,6 +334,12 @@ export interface TerrainLayers {
    * with the Satellite row's state.
    */
   overImagery(on: boolean): void
+  /**
+   * The three rows' opacity sliders, each 0 to 1 (record 0241): the relief's
+   * depth and light, the slope's raster opacity, and the contours' lines and
+   * heights. A layer at 0 is hidden, as switched off, so it asks for nothing.
+   */
+  opacity(next: { relief: number; contours: number; slope: number }): void
 }
 
 export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<DemTiles> } = {}): TerrainLayers {
@@ -306,6 +347,10 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
   let want = { relief: false, contours: false, terrain: false }
   let slopeWanted = false
   let imagery = false
+  // The default level until `MapView` says otherwise, so a layer switched on
+  // before the first report draws its default look.
+  const atDefault = opacityOf(OPACITY_DEFAULT)
+  let level = { relief: atDefault, contours: atDefault, slope: atDefault }
   let tiles: DemTiles | null = null
   let loading = false
   let standing = false
@@ -340,18 +385,29 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
     // Under the slope shading and the contours where they are drawn, so a
     // band or a line is never shaded over.
     const beneath = [SLOPE_LAYER, CONTOUR_CASING_LAYER].find((id) => map.getLayer(id)) ?? beneathLabels()
-    map.addLayer({ id: RELIEF_LAYER, type: 'hillshade', source: DEM_SOURCE, paint: RELIEF_PAINT }, beneath)
+    map.addLayer(
+      { id: RELIEF_LAYER, type: 'hillshade', source: DEM_SOURCE, paint: reliefPaint(level.relief) },
+      beneath,
+    )
   }
 
-  // The lines' ink for the ground under them, and their edge with it.
+  // The lines' ink for the ground under them at the row's level, their edge
+  // with it, and their heights at the same level. Each line's opacity is its
+  // ink's times the level over the default, held to 1, so the default level
+  // is the look the inks were tuned at and 100 doubles it.
   function ink() {
     if (!map.getLayer(CONTOUR_LAYER)) return
+    const times = overDefault(level.contours)
     const on = CONTOUR_INK_ON[imagery ? 'imagery' : 'map']
     for (const id of [CONTOUR_LAYER, CONTOUR_INDEX_LAYER] as const) {
       map.setPaintProperty(id, 'line-color', on[id][0])
-      map.setPaintProperty(id, 'line-opacity', on[id][1])
+      map.setPaintProperty(id, 'line-opacity', Math.min(1, on[id][1] * times))
     }
-    show([CONTOUR_CASING_LAYER], want.contours && imagery)
+    map.setPaintProperty(CONTOUR_CASING_LAYER, 'line-opacity', edgeOpacity(times))
+    // The heights reach full strength at the default, as they drew before
+    // the slider, and fade under it with the lines they name.
+    map.setPaintProperty(CONTOUR_LABEL_LAYER, 'text-opacity', Math.min(1, times))
+    show([CONTOUR_CASING_LAYER], want.contours && level.contours > 0 && imagery)
   }
 
   function contours() {
@@ -424,7 +480,10 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
       })
     }
     const beneath = map.getLayer(CONTOUR_CASING_LAYER) ? CONTOUR_CASING_LAYER : beneathLabels()
-    map.addLayer({ id: SLOPE_LAYER, type: 'raster', source: SLOPE_SOURCE, paint: SLOPE_PAINT }, beneath)
+    map.addLayer(
+      { id: SLOPE_LAYER, type: 'raster', source: SLOPE_SOURCE, paint: { ...SLOPE_PAINT, 'raster-opacity': level.slope } },
+      beneath,
+    )
   }
 
   function stand(on: boolean) {
@@ -443,15 +502,30 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
     map.easeTo({ pitch: 0, duration: CAMERA_MS.reveal })
   }
 
+  // A layer at level 0 draws nothing, so it is hidden as if switched off and
+  // its tiles are not asked for; it comes back where it was.
   function apply() {
-    if (want.relief) relief()
+    if (want.relief && level.relief > 0) relief()
     else show([RELIEF_LAYER], false)
-    if (slopeWanted) slope()
+    if (slopeWanted && level.slope > 0) slope()
     else show([SLOPE_LAYER], false)
-    if (want.contours) contours()
+    if (want.contours && level.contours > 0) contours()
     else show(CONTOUR_LAYERS, false)
     ink()
     stand(want.terrain)
+  }
+
+  // The relief's and the slope's paint at their levels; the contours' is
+  // `ink`'s.
+  function paintLevels() {
+    if (map.getLayer(RELIEF_LAYER)) {
+      // Each value belongs to its own key, which the paint type's union of
+      // values cannot say.
+      for (const [key, value] of Object.entries(reliefPaint(level.relief) ?? {})) {
+        map.setPaintProperty(RELIEF_LAYER, key as never, value as never)
+      }
+    }
+    if (map.getLayer(SLOPE_LAYER)) map.setPaintProperty(SLOPE_LAYER, 'raster-opacity', level.slope)
   }
 
   function request() {
@@ -485,6 +559,14 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
       if (on === imagery) return
       imagery = on
       ink()
+    },
+    opacity(next) {
+      if (next.relief === level.relief && next.contours === level.contours && next.slope === level.slope) return
+      level = { ...next }
+      paintLevels()
+      // A level to or from 0 shows or hides its layer, which waits for the
+      // tiles like a switch does.
+      if (tiles) apply()
     },
   }
 }

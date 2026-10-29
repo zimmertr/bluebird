@@ -85,6 +85,7 @@ const full: ShareableState = {
   showRelief: true,
   showSlope: true,
   showSatellite: true,
+  baseOpacity: { satellite: 80, topo: 30, relief: 100, slope: 0 },
   showTerrain: true,
   showFireActivity: true,
   gridStyle: 'smooth',
@@ -159,7 +160,8 @@ describe('the codec table against the links it wrote before', () => {
         '&poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223' +
         '&customz=HIQwtgpgNAMiAusD2A7AUAQQAQAcIgGsoAWANgDoAOAVigFoBGAJgfIHZS0g' +
         '&fires=1&closedareas=1&closedtrails=1&radar=1&smoke=1&snow=1' +
-        '&topo=1&relief=1&slope=1&satellite=1&terrain=1&fireactivity=1&grid=smooth&reach=40&player=0&unnamed=1' +
+        '&topo=1&topoopacity=30&relief=1&reliefopacity=100&slope=1&slopeopacity=0&satellite=1&satelliteopacity=80' +
+        '&terrain=1&fireactivity=1&grid=smooth&reach=40&player=0&unnamed=1' +
         '&pins=-121.8144,48.7768,peak,14505,node/123,Tricky%2C+name%3B+%26+co+%25' +
         ';-118.2,36.12346,coordinates,,,' +
         '&removed=-121.76041,46.85289;-121.11391,48.1&tsort=elevation_ft&tdesc=1&view=-121.6123,47.1,9.46',
@@ -241,9 +243,13 @@ describe('the codec table', () => {
       'smoke',
       'snow',
       'topo',
+      'topoopacity',
       'relief',
+      'reliefopacity',
       'slope',
+      'slopeopacity',
       'satellite',
+      'satelliteopacity',
       'terrain',
       'fireactivity',
       'grid',

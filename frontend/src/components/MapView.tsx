@@ -35,6 +35,7 @@ import { watchBasemap } from '../map/basemapWatch'
 import { createPopupBoard } from '../map/popups'
 import { createCentring } from '../map/centring'
 import { CAMERA_MS, FIT_PADDING_PX, PLACE_PADDING_PX } from '../map/mapStyles'
+import { type BaseOpacity, opacityOf } from '../utils/baseMapOpacity'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid/forecastGrid'
 
 /** Where the map stands, enough to put it back (#536). */
@@ -168,6 +169,10 @@ interface Props {
   // elevation tiles as the relief (`map/slope.ts`).
   showSlope: boolean
   showSatellite: boolean
+  // The four Base map rows' opacity levels, whole percents (record 0241).
+  // One object that changes only when a level does, so the memo holds
+  // through every other render.
+  baseOpacity: BaseOpacity
   // Whether the map stands the ground up in 3D on the same elevation tiles
   // (#799), which the map's own 3D button shows and asks to change through
   // `onTerrainChange`. A state setter, so stable: the button is made once,
@@ -285,6 +290,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showSmoke,
       showSnow,
       showSatellite,
+      baseOpacity,
       showFireActivity,
       showContours,
       showRelief,
@@ -878,9 +884,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
       if (mapReady) featuresRef.current?.snow.update({ show: showSnow })
     }, [showSnow, mapReady])
 
+    const satelliteOpacity = opacityOf(baseOpacity.satellite)
     useEffect(() => {
-      if (mapReady) featuresRef.current?.imagery.update({ show: showSatellite })
-    }, [showSatellite, mapReady])
+      if (mapReady) featuresRef.current?.imagery.update({ show: showSatellite, opacity: satelliteOpacity })
+    }, [showSatellite, satelliteOpacity, mapReady])
 
     useEffect(() => {
       if (mapReady) featuresRef.current?.radar.update({ show: showRadar, index: radarIndex })
@@ -895,6 +902,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.terrain.updateSlope(showSlope)
     }, [showSlope, mapReady])
+
+    // The three elevation rows' levels, before or after their layers exist:
+    // a layer added later is drawn at the level held.
+    const reliefOpacity = opacityOf(baseOpacity.relief)
+    const contourOpacity = opacityOf(baseOpacity.topo)
+    const slopeOpacity = opacityOf(baseOpacity.slope)
+    useEffect(() => {
+      if (mapReady) {
+        featuresRef.current?.terrain.opacity({ relief: reliefOpacity, contours: contourOpacity, slope: slopeOpacity })
+      }
+    }, [reliefOpacity, contourOpacity, slopeOpacity, mapReady])
 
     // The 3D button shows the switch, from the moment the map is built.
     useEffect(() => {

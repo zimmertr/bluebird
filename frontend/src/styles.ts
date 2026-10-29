@@ -2528,6 +2528,24 @@ export const BOTTOM_SHEET = {
 } as const
 
 /**
+ * A sheet that steps aside while a finger tunes the map under it (record
+ * 0241): the Layers sheet while one of its opacity sliders is dragged. The
+ * dim lifts, the card and every row in it go, and the row being dragged stays
+ * where it stood, on the sheet's own fill with the card's edge and shadow, so
+ * the map it changes is in sight. On release it all comes back. Visibility
+ * rather than unmounting, so the slider under the finger keeps its drag and
+ * the sheet comes back exactly as it was. Apart from `BOTTOM_SHEET` because
+ * only one sheet steps aside, and a role is one string or a flat object.
+ */
+export const SHEET_ASIDE = {
+  dim: 'opacity-0',
+  card: 'invisible',
+  // 8px out either side and padded back, so the row's words stay put and its
+  // card does not end at the eye. The rule under it goes with the rest.
+  keep: `visible -mx-2 px-2 border-transparent bg-panel rounded-lg outline outline-1 outline-frame ${ELEVATION.overlay}`,
+} as const
+
+/**
  * The shade under a fixed edge that shows only while content continues past
  * it (#697): the panel body under its header and above its footer, and the
  * results table under its sticky header and above its bottom edge. Without it
@@ -3131,6 +3149,63 @@ export const MENU_GROUP = {
   sheet: SHEET_RULES,
   sheetHeading: `${MENU.heading} pt-1.5 pb-0.5`,
   sheetRow: 'min-h-8',
+} as const
+
+/**
+ * A row of the Layers palette (record 0241): an eye, the layer's name, and on
+ * the four Base map rows an opacity slider at the right, the way an image
+ * editor's layers panel draws one. At a desk and on a phone's sheet alike.
+ *
+ * - `cardRows`: at a desk a group's rows under its heading, a hairline
+ *   between each, as the lab drew them and as the sheet already rules its
+ *   rows. The heading keeps no rule over its first row (`MENU_GROUP`).
+ * - `cardRow`: a desk row, 28px tall: the 20px slider well and 4px over and
+ *   under it, so the rows with a slider and the rows without stand on one
+ *   pitch. The eye's own 16px row would have been 20 (`MENU.cardRow`), and
+ *   a slider row 24 beside it.
+ * - `line`: the eye and the name with the slider beside them, on a desk row
+ *   and a sheet row alike, and the group an off name reads its hover from.
+ *   The label (`CHOICE_ROW`) takes the free space, so a press anywhere left
+ *   of the slider switches the layer.
+ * - `eye`: the box the eye stands in, the native checkbox laid over its
+ *   glyph and drawn by it (`appearance-none`), so the row is still a
+ *   checkbox to a screen reader, to Testing Library and to a Shift range
+ *   (record 0227). The box is the glyph's 16px (`ICON.control`), and the
+ *   focus ring is the row's (`CHOICE_ROW`).
+ * - `on`/`off`: the eye's ink. Open in the middle ink, struck in the soft
+ *   one, the shape saying which and the ink a step quieter for off. Both
+ *   past the 3:1 a glyph owes on every ground the row stands on: the card,
+ *   the raised fill under the pointer and the sheet (`styles.test.ts`).
+ *   The lab drew the struck eye in the faint ink, which measures 2.2:1 on
+ *   the raised fill in dark; the soft ink is the faint ink's next step up.
+ * - `nameOff`: an off row's name, in the soft ink the heading wears, past
+ *   4.5:1 on the card and the sheet. Under the pointer it takes the row's
+ *   own ink, because the soft ink reads 3.9:1 on the raised fill in dark,
+ *   and a name brightening as the pointer reaches it says the press will
+ *   switch it on.
+ * - `slider`: the opacity slider's well (`SLIDER.well`) at a desk, 96 by
+ *   20px, and on a phone 120 by 24, the lab's sizes: `100%` and `Opacity`
+ *   with 8px of padding either side measure 82px of the desk's 96.
+ * - `sliderSheet`: the phone's.
+ * - `restingFill`: the fill of a slider whose layer is off. The slider keeps
+ *   its level and still works (a drag switches the layer on), so its line
+ *   owes 4.5:1 and a fade cannot dim it: the lab's 55% left the value on the
+ *   accent at 2.9:1 in dark and 2.2:1 in light. It is dimmed by losing the
+ *   accent instead, which says "this acts" (record 0009), for the raised
+ *   fill and the control ink, and the thumb still marks the level.
+ */
+export const LAYER_ROW = {
+  cardRows: SHEET_RULES,
+  cardRow: 'min-h-7',
+  line: 'group/layer flex items-center gap-2',
+  eye: 'relative flex flex-shrink-0',
+  eyeInput: 'absolute inset-0 m-0 cursor-pointer appearance-none',
+  on: 'text-ink-mid',
+  off: 'text-ink-soft',
+  nameOff: 'text-ink-soft group-hover/layer:text-ink',
+  slider: 'relative h-5 w-24 flex-shrink-0 overflow-hidden',
+  sliderSheet: 'relative h-6 w-30 flex-shrink-0 overflow-hidden',
+  restingFill: 'bg-raised text-ink',
 } as const
 
 /**

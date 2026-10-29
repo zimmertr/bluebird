@@ -40,6 +40,7 @@ import {
   SLOPE_SOURCE,
   loadDemTiles,
   mountTerrain,
+  reliefPaint,
   type DemTiles,
 } from './terrain'
 import { SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_SCHEME, SLOPE_TILES } from './slope'
@@ -354,6 +355,8 @@ describe('the slope angle shading', () => {
     expect(SLOPE_MAXZOOM).toBeGreaterThan(DEM_MAXZOOM)
     expect(stub.calls.find((c) => c[0] === 'addLayer')).toEqual(['addLayer', SLOPE_LAYER, 'ofm-trails'])
     expect(SLOPE_PAINT).toEqual({ 'raster-opacity': SLOPE_ALPHA })
+    // At the row's default level, which is the same half.
+    expect(stub.paint[SLOPE_LAYER]['raster-opacity']).toBe(SLOPE_ALPHA)
   })
 
   it('hides when switched off and shows again, adding nothing twice', async () => {
@@ -395,6 +398,92 @@ describe('the slope angle shading', () => {
       ])
       terrain.update(OFF)
       expect(visibility(stub, SLOPE_LAYER)).not.toBe('none')
+    }
+  })
+})
+
+// The three elevation rows' opacity sliders (record 0241), each 0 to 1, the
+// default a half, which is the look each had before it had a slider.
+describe('the opacity levels', () => {
+  // A hillshade has no opacity, so the level moves its light, its shadow and
+  // its depth: at the default exactly the tuned look, under it the light and
+  // shadow fading together at that depth, over it the depth and the light
+  // growing to twice the default.
+  it('shades the relief at the tuned look at the default, paler under it and deeper over it', () => {
+    expect(reliefPaint(0.5)).toEqual({
+      'hillshade-method': 'standard',
+      'hillshade-exaggeration': 0.3,
+      'hillshade-shadow-color': 'rgba(92, 74, 50, 1)',
+      'hillshade-highlight-color': 'rgba(255, 255, 255, 0.45)',
+      'hillshade-accent-color': 'rgba(92, 74, 50, 1)',
+    })
+    expect(reliefPaint(1)).toMatchObject({
+      'hillshade-exaggeration': 0.6,
+      'hillshade-shadow-color': 'rgba(92, 74, 50, 1)',
+      'hillshade-highlight-color': 'rgba(255, 255, 255, 0.9)',
+    })
+    expect(reliefPaint(0.25)).toMatchObject({
+      'hillshade-exaggeration': 0.3,
+      'hillshade-shadow-color': 'rgba(92, 74, 50, 0.5)',
+      'hillshade-highlight-color': 'rgba(255, 255, 255, 0.225)',
+    })
+    expect(reliefPaint(0)).toMatchObject({
+      'hillshade-shadow-color': 'rgba(92, 74, 50, 0)',
+      'hillshade-highlight-color': 'rgba(255, 255, 255, 0)',
+    })
+  })
+
+  // A level set before the library loads is the one each layer is added at.
+  it('adds each layer at the level it was handed before it existed', async () => {
+    const { stub, terrain } = setup()
+    terrain.opacity({ relief: 1, contours: 1, slope: 0.8 })
+    terrain.update({ ...OFF, relief: true, contours: true })
+    terrain.updateSlope(true)
+    await vi.waitFor(() => expect(stub.stack).toContain(CONTOUR_LAYER))
+    expect(stub.paint[RELIEF_LAYER]['hillshade-exaggeration']).toBe(0.6)
+    expect(stub.paint[SLOPE_LAYER]['raster-opacity']).toBe(0.8)
+    expect(stub.paint[CONTOUR_LAYER]['line-opacity']).toBe(0.7)
+  })
+
+  it('moves the relief, the slope and the contours with their levels', async () => {
+    const { stub, terrain } = setup()
+    terrain.update({ ...OFF, relief: true, contours: true })
+    terrain.updateSlope(true)
+    await vi.waitFor(() => expect(stub.stack).toContain(CONTOUR_LAYER))
+    terrain.opacity({ relief: 1, contours: 1, slope: 0.3 })
+    expect(stub.paint[RELIEF_LAYER]['hillshade-exaggeration']).toBe(0.6)
+    expect(stub.paint[RELIEF_LAYER]['hillshade-highlight-color']).toBe('rgba(255, 255, 255, 0.9)')
+    expect(stub.paint[SLOPE_LAYER]['raster-opacity']).toBe(0.3)
+    // Each line at twice its ink's own opacity, held to 1, and the heights
+    // whole from the default up.
+    expect(stub.paint[CONTOUR_LAYER]['line-opacity']).toBe(0.7)
+    expect(stub.paint[CONTOUR_INDEX_LAYER]['line-opacity']).toBe(1)
+    expect(stub.paint[CONTOUR_LABEL_LAYER]['text-opacity']).toBe(1)
+    terrain.opacity({ relief: 1, contours: 0.25, slope: 0.3 })
+    expect(stub.paint[CONTOUR_LAYER]['line-opacity']).toBeCloseTo(0.175)
+    expect(stub.paint[CONTOUR_INDEX_LAYER]['line-opacity']).toBeCloseTo(0.3)
+    expect(stub.paint[CONTOUR_LABEL_LAYER]['text-opacity']).toBe(0.5)
+    // The edge over the imagery scales with its lines.
+    terrain.overImagery(true)
+    expect(stub.paint[CONTOUR_LAYER]['line-opacity']).toBeCloseTo(0.35)
+    expect(stub.paint[CONTOUR_CASING_LAYER]['line-opacity']).toEqual(['case', ['>', ['get', 'level'], 0], 0.3, 0.25])
+  })
+
+  // At 0 a layer draws nothing, so it hides and asks for no tile; it comes
+  // back at the level it is given.
+  it('hides a layer at 0 and shows it again above it', async () => {
+    const { stub, terrain } = setup()
+    terrain.update({ ...OFF, relief: true, contours: true })
+    terrain.updateSlope(true)
+    await vi.waitFor(() => expect(stub.stack).toContain(CONTOUR_LAYER))
+    terrain.overImagery(true)
+    terrain.opacity({ relief: 0, contours: 0, slope: 0 })
+    for (const id of [RELIEF_LAYER, SLOPE_LAYER, CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER, CONTOUR_CASING_LAYER]) {
+      expect([id, visibility(stub, id)]).toEqual([id, 'none'])
+    }
+    terrain.opacity({ relief: 0.5, contours: 0.5, slope: 0.5 })
+    for (const id of [RELIEF_LAYER, SLOPE_LAYER, CONTOUR_LAYER, CONTOUR_CASING_LAYER]) {
+      expect([id, visibility(stub, id)]).toEqual([id, 'visible'])
     }
   })
 })

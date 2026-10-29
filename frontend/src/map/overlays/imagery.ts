@@ -1,7 +1,7 @@
 /**
- * The Satellite row's imagery (#799): two raster sources under the basemap's
- * roads, trails and labels, EOX's Sentinel-2 mosaic everywhere and USGS's
- * NAIP photography over it in the United States.
+ * The Satellite row's imagery (#799): two raster sources over Liberty's
+ * ground and under its roads, trails and labels, EOX's Sentinel-2 mosaic
+ * everywhere and USGS's NAIP photography over it in the United States.
  *
  * Added the first time the row is switched on and never on load, because a
  * raster source starts fetching the moment a rendered layer names it and the
@@ -9,17 +9,20 @@
  * are hidden rather than removed: a hidden raster layer fetches nothing, and
  * the next switch-on draws from the tiles already held.
  *
- * The imagery goes directly above Liberty's `background` and under every other
- * layer of the style, so the roads, the trails, every label and the app's own
- * `ofm-*` layers stay on top. Liberty's ground then has to get out of its way:
- * while the row is on, its land and water fills, its buildings, its rivers and
- * its Natural Earth relief go to opacity 0 (`basemapFade`), and come back to
- * whatever they were when it goes off. Opacity rather than `visibility: none`,
- * because `lakeAnchor` in `map/basemap.ts` reads the `water` fill through
- * `queryRenderedFeatures`, which skips a hidden layer and keeps a transparent
- * one, so a clicked lake keeps its outline over the imagery. The trails get a
- * light casing for the same while (`TRAIL_CASING_LAYER`), because their
- * sienna is lost on a forest.
+ * The imagery draws at the row's opacity, 0 to 1, over the ground and under
+ * everything a photo cannot say (record 0241): directly above the last of
+ * Liberty's ground layers (`basemapGround`) that stands under its first road,
+ * symbol or layer of somebody else's, so the roads, the trails, every label
+ * and the app's own `ofm-*` layers stay on top. The ground under it is left
+ * as it is, because it is what shows through as the level falls: at 1 the
+ * photos hide it, at 0 Liberty shows whole. Liberty draws its buildings over
+ * its roads, where the imagery cannot go under them without going over the
+ * roads too, so a ground layer above the imagery fades to its own opacity
+ * times one less the level instead (`groundAbove`), which reads the same.
+ * `lakeAnchor` in `map/basemap.ts` reads the `water` fill through
+ * `queryRenderedFeatures`, which answers for a fill the imagery covers, since
+ * the fill still renders. The trails get a light casing while the photos
+ * draw (`TRAIL_CASING_LAYER`), because their sienna is lost on a forest.
  *
  * A tile host that fails (a dead network, a 5xx) is asked again once per
  * window `online` event through `recovery.ts`, the overlays' own rule. A 404
@@ -87,10 +90,10 @@ const EOX_ATTRIBUTION =
 const BASEMAP_VECTOR = 'openmaptiles'
 const BASEMAP_RELIEF = 'ne2_shaded'
 
-/** The paint property that fades each kind of basemap layer. */
+/** The paint property that sets each kind of basemap ground layer's opacity. */
 type FadeProperty = 'background-opacity' | 'raster-opacity' | 'fill-opacity' | 'fill-extrusion-opacity' | 'line-opacity'
 
-/** A layer as `map.getStyle()` lists it, as far as `basemapFade` reads it. */
+/** A layer as `map.getStyle()` lists it, as far as `basemapGround` reads it. */
 export interface StyleLayerRef {
   id: string
   type: string
@@ -99,18 +102,17 @@ export interface StyleLayerRef {
 }
 
 /**
- * The opacity property that fades this basemap layer under the imagery, or
- * null where it stays.
+ * The opacity property of this basemap layer if it is ground the imagery
+ * covers, or null where it is not.
  *
- * What fades is the ground the imagery replaces: the background, the Natural
+ * The ground is what a photo shows for itself: the background, the Natural
  * Earth relief, every vector fill but the road areas (land cover, land use,
- * parks, water, aeroways), the buildings in 2D and 3D, and the river lines,
- * which the photo shows for itself. What stays is everything a photo cannot
- * say: roads, paths, rail, boundaries, park outlines and every symbol. A layer
- * on a source that is not Liberty's (the app's overlays, the contours) is
- * never touched.
+ * parks, water, aeroways), the buildings in 2D and 3D, and the river lines.
+ * What is not is everything a photo cannot say: roads, paths, rail,
+ * boundaries, park outlines and every symbol. A layer on a source that is not
+ * Liberty's (the app's overlays, the contours) is never ground.
  */
-export function basemapFade(layer: StyleLayerRef): FadeProperty | null {
+export function basemapGround(layer: StyleLayerRef): FadeProperty | null {
   if (layer.type === 'background') return 'background-opacity'
   if (layer.source === BASEMAP_RELIEF && layer.type === 'raster') return 'raster-opacity'
   if (layer.source !== BASEMAP_VECTOR) return null
@@ -122,24 +124,76 @@ export function basemapFade(layer: StyleLayerRef): FadeProperty | null {
 }
 
 /**
- * The layer the imagery goes beneath: the one directly above the background,
- * so the imagery is the lowest thing drawn but the background. With no
- * background, the style's first layer; with no layers, the top.
+ * The first layer the imagery must stay under: a road (anything on the
+ * `transportation` source layer), a symbol, or a layer on a source that is
+ * not the basemap's, the app's own and the ground's alike.
+ */
+function covers(layer: StyleLayerRef): boolean {
+  if (layer.type === 'background') return false
+  if (layer.type === 'symbol') return true
+  if (layer.source !== BASEMAP_VECTOR && layer.source !== BASEMAP_RELIEF) return true
+  return layer['source-layer'] === 'transportation'
+}
+
+/**
+ * Where the imagery goes in the stack, as the index of the layer it goes
+ * beneath: directly above the last ground layer under the first layer it
+ * must stay under. In Liberty that is over `aeroway_fill` and under
+ * `aeroway_runway`, the park outlines and the river lines among the ground
+ * going under it with the fills they stand between.
+ */
+function imageryIndex(layers: readonly StyleLayerRef[]): number {
+  const end = layers.findIndex(covers)
+  const under = end < 0 ? layers : layers.slice(0, end)
+  let last = -1
+  under.forEach((layer, i) => {
+    if (basemapGround(layer) !== null) last = i
+  })
+  return last + 1
+}
+
+/**
+ * The layer the imagery goes beneath (see `imageryIndex`), or undefined for
+ * the top of a style with nothing over its ground.
  */
 export function imageryBeneath(layers: readonly StyleLayerRef[]): string | undefined {
-  const at = layers.findIndex((l) => l.type === 'background')
-  return layers[at + 1]?.id
+  return layers[imageryIndex(layers)]?.id
+}
+
+/**
+ * The ground layers that stand above the imagery, which it cannot cover and
+ * which fade with its level instead: Liberty's buildings, which it draws
+ * over its roads.
+ */
+export function groundAbove(layers: readonly StyleLayerRef[]): StyleLayerRef[] {
+  return layers.slice(imageryIndex(layers)).filter((layer) => basemapGround(layer) !== null)
+}
+
+/**
+ * A ground layer's opacity under imagery drawn at `level`: its own times one
+ * less the level, so the pair reads as the ground under the photos would.
+ * The style's default where it set none is 1. An expression cannot be scaled
+ * without unpicking it, so a layer that wears one shows whole until the photos
+ * draw at all and goes then; Liberty's buildings wear plain numbers.
+ */
+export function fadedOpacity(value: unknown, level: number): unknown {
+  if (level === 0) return value
+  if (value === undefined) return 1 - level
+  return typeof value === 'number' ? value * (1 - level) : 0
 }
 
 export interface ImageryOverlay {
-  update(next: { show: boolean }): void
+  /** The row's switch, and its opacity slider's level as 0 to 1. */
+  update(next: { show: boolean; opacity: number }): void
 }
 
 export function mountImagery(map: maplibregl.Map, deps: { online?: EventTarget | null } = {}): ImageryOverlay {
   let showing = false
-  // Each faded layer's opacity before the fade, `undefined` where the style
-  // left it at its default, so the switch-off puts back exactly what was there.
-  const faded = new Map<string, { property: FadeProperty; value: unknown }>()
+  let level = -1
+  // Each ground layer above the imagery, with its opacity before any fade,
+  // `undefined` where the style left it at its default, so the switch-off puts
+  // back exactly what was there.
+  let above: { id: string; property: FadeProperty; value: unknown }[] | null = null
 
   const recovery = overlayRecovery(
     () => {
@@ -160,6 +214,10 @@ export function mountImagery(map: maplibregl.Map, deps: { online?: EventTarget |
   function add() {
     const layers = map.getStyle().layers as StyleLayerRef[]
     const beneath = imageryBeneath(layers)
+    above = groundAbove(layers).map((layer) => {
+      const property = basemapGround(layer)!
+      return { id: layer.id, property, value: map.getPaintProperty(layer.id, property) }
+    })
     if (!map.getSource(IMAGERY_EOX)) {
       map.addSource(IMAGERY_EOX, {
         type: 'raster',
@@ -181,32 +239,34 @@ export function mountImagery(map: maplibregl.Map, deps: { online?: EventTarget |
       })
     }
     // EOX first, then USGS before the same layer, so USGS lands over EOX.
+    // Both at the one level: where USGS answers it covers EOX whatever the
+    // level, and where it does not EOX shows through.
     if (!map.getLayer(IMAGERY_EOX)) {
-      map.addLayer({ id: IMAGERY_EOX, type: 'raster', source: IMAGERY_EOX }, beneath)
+      map.addLayer({ id: IMAGERY_EOX, type: 'raster', source: IMAGERY_EOX, paint: { 'raster-opacity': level } }, beneath)
     }
     if (!map.getLayer(IMAGERY_USGS)) {
       // The layer's own floor too, so the map corner credits USGS only where
       // its photos can draw.
-      map.addLayer({ id: IMAGERY_USGS, type: 'raster', source: IMAGERY_USGS, minzoom: USGS_MIN_ZOOM }, beneath)
+      map.addLayer(
+        {
+          id: IMAGERY_USGS,
+          type: 'raster',
+          source: IMAGERY_USGS,
+          minzoom: USGS_MIN_ZOOM,
+          paint: { 'raster-opacity': level },
+        },
+        beneath,
+      )
     }
   }
 
-  function fade() {
-    for (const layer of map.getStyle().layers as StyleLayerRef[]) {
-      const property = basemapFade(layer)
-      if (property === null || faded.has(layer.id)) continue
-      faded.set(layer.id, { property, value: map.getPaintProperty(layer.id, property) })
-      map.setPaintProperty(layer.id, property, 0)
-    }
-  }
-
-  function restore() {
-    for (const [id, { property, value }] of faded) {
+  // The ground above the imagery at `at`, its own opacity at 0.
+  function fade(at: number) {
+    for (const { id, property, value } of above ?? []) {
       // The value came from this property of this layer, which the five
       // properties' union of types cannot say.
-      if (map.getLayer(id)) map.setPaintProperty(id, property, value as never)
+      if (map.getLayer(id)) map.setPaintProperty(id, property, fadedOpacity(value, at) as never)
     }
-    faded.clear()
   }
 
   // The trails' light casing, which the imagery alone needs (`basemap.ts`).
@@ -215,24 +275,34 @@ export function mountImagery(map: maplibregl.Map, deps: { online?: EventTarget |
   }
 
   return {
-    update({ show }) {
-      if (show === showing) return
+    update({ show, opacity }) {
+      // At 0 the photos draw nothing, so they ask for nothing either: the
+      // layers hide as they do switched off, and Liberty shows whole.
+      const drawn = show && opacity > 0
+      if (show === showing && opacity === level) return
+      const was = showing && level > 0
       showing = show
-      caseTrails(show ? 'visible' : 'none')
-      if (!show) {
-        for (const id of [IMAGERY_EOX, IMAGERY_USGS]) {
-          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none')
+      level = opacity
+      if (drawn) {
+        if (map.getLayer(IMAGERY_EOX)) {
+          for (const id of [IMAGERY_EOX, IMAGERY_USGS]) {
+            map.setPaintProperty(id, 'raster-opacity', opacity)
+            if (!was) map.setLayoutProperty(id, 'visibility', 'visible')
+          }
+        } else {
+          add()
         }
-        restore()
-        recovery.stop()
+        fade(opacity)
+        if (!was) caseTrails('visible')
         return
       }
-      if (map.getLayer(IMAGERY_EOX)) {
-        for (const id of [IMAGERY_EOX, IMAGERY_USGS]) map.setLayoutProperty(id, 'visibility', 'visible')
-      } else {
-        add()
+      if (!was) return
+      for (const id of [IMAGERY_EOX, IMAGERY_USGS]) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none')
       }
-      fade()
+      fade(0)
+      caseTrails('none')
+      if (!show) recovery.stop()
     },
   }
 }
