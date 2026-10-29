@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-27
-- Decider: the maintainer (TJ), on #799: Mapterhorn as the elevation, the layers as Layers rows, and 3D as a button of the map's own rather than a row (2026-10-27). The paint, the intervals, the zoom cap and the lazy load were the implementer's, measured as below.
+- Decider: the maintainer (TJ), on #799: Mapterhorn as the elevation, the layers as Layers rows, and 3D as a button of the map's own rather than a row (2026-10-27). The paint, the intervals, the zoom cap and the lazy load were the implementer's, measured as below. On 2026-10-28, reviewing the pull request, the maintainer renamed the row `Topographic` and asked for the contours from zoom 8; the intervals at 8 and 9 were the implementer's.
 - Issues and PRs: #799
 - Cited in code as: #799
 - Guide: [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), the `terrain.ts` and `controls.ts` bullets
@@ -17,7 +17,8 @@
 - Nothing is added on load. The first time the relief, the contours or 3D switches on, `map/terrain.ts` loads `maplibre-contour` with a dynamic import, a chunk of its own, and every elevation tile after that goes through its cache (`sharedDemProtocolUrl`), so a tile two layers need is fetched once. A switch turned off hides its layers; with all three off MapLibre asks for no tile.
 - The relief and 3D read the same tiles from two sources, `dem` and `dem-terrain`, because MapLibre takes over the tile size of the source it stands the map on and a relief on that source blurs one zoom while 3D is on. MapLibre warns about the shared source for the same reason.
 - The sources ask for nothing past zoom 12 and stretch those tiles further in.
-- The contours are in feet: 1,000 at zoom 10, 500 at 11, 200 at 12, 100 at 13 and 40 from 14, every fifth an index line labelled with its height in feet and nothing else.
+- The contours are in feet: 1,000 from zoom 8 to 10, 500 at 11, 200 at 12, 100 at 13 and 40 from 14, every fifth an index line labelled with its height in feet and nothing else. Nothing draws below zoom 8 (`CONTOUR_MINZOOM`).
+- The row that switches them reads `Topographic`, and the link carries it as `topo`. It was `Contours` until the maintainer's review on 2026-10-28, when nothing had shipped, so the rename broke no link.
 - The relief is `standard` at 0.3, a brown shadow (`#5c4a32`) and a white light at 45%, under the app's `ofm-` layers and the style's first label.
 - 3D is the map's own button, `3D`, named `3D terrain`, under the compass at a desk and in a phone's search row, left of the locate button. It turns a flat map to 45 degrees and lays it flat again keeping the heading; `maxPitch` stays MapLibre's 60. Its exaggeration is 1. The link carries it as `terrain`; pitch and bearing stay out of the link.
 
@@ -26,6 +27,7 @@
 - Mapterhorn's `tilejson.json` (fetched 2026-10-27) publishes `encoding: terrarium`, `tileSize: 512` and no maxzoom. Probed the same day: zoom 12 answers over Rainier, the Sahara, Kazakhstan, Antarctica, the Amazon and the Himalaya; zoom 13 answers over Rainier and 404s over all five others; zoom 14 404s over Rainier. Open ocean 404s at every zoom from 8. Tiles carry `cache-control: public, max-age=604800`.
 - maplibre-contour 0.1.1 registers both schemes with maplibre-gl 6.14's `addProtocol`, which hands it an AbortController, the promise form it detects. Drawn over Rainier and the Alpine Lakes at zooms 8 to 15 (2026-10-27), in a headless Chromium on the built image.
 - The relief: MapLibre's defaults (black and white at 0.5) turned the map grey; `igor` and `multidirectional` read as heavy as `standard` at the strength that showed the valleys; a full-strength white light washed Liberty's woods to the colour of its grass. 0.25 and 0.35 bracketed 0.3.
+- The contours at zooms 8 and 9, tried 2026-10-28 over the Cascades (centre -121.4, 47.2), the Alps (8.2, 46.4) and the Columbia basin (-119.3, 46.9) at 1389 by 868: at zoom 8, 2,000 ft drew little but Rainier's rings and left the Cascade crest unread, 1,000 ft read the crest and every volcano with open ground between the lines, 1,500 ft read no better than either. The Alps at 1,000 ft and zoom 8 were the densest view tried, busy but with every valley open. The basin drew a few lines at every interval.
 - 3D at 1 and at 1.2 over Rainier and the Alpine Lakes at zoom 11 and 45 degrees read the same.
 - The cold load of the built image asked `tiles.mapterhorn.com` for nothing and loaded no contour chunk; the relief and contours on asked it 18 times at 1440 by 900 over Rainier at zoom 11. With all three switched off again, two pans asked it nothing. The chunk is 28.9 kB, 9.9 kB gzipped.
 
@@ -37,10 +39,12 @@
 - **Loading the contour library only for the contours**: the relief and 3D would then fetch outside its cache, the case above.
 - **3D as a Layers row**: it changes how the whole map is seen rather than adding a picture to it (the maintainer, 2026-10-27).
 - **Metres for the contours**: every height in the app is in feet.
+- **2,000 ft at zoom 8**, every fifth at 10,000: the Cascades read as a few faint lines and Rainier, which is the relief the zoom is there to show.
+- **Contours from zoom 10 only**, as first built: a region-wide view, where a reader picks the range before the peak, showed no relief at all.
 
 ## Consequences
 
-- `map/terrain.test.ts` holds the first-switch load, the `terrarium` encoding, the stack under the labels, the two sources, the pitch both ways and the interval table; `e2e/terrain.spec.ts` holds the cold load to no elevation request and no contour chunk.
+- `map/terrain.test.ts` holds the first-switch load, the `terrarium` encoding, the stack under the labels, the two sources, the pitch both ways, the interval table and the zoom 8 floor on the source and every layer; `e2e/terrain.spec.ts` holds the cold load to no elevation request and no contour chunk.
 - `map/terrain.ts` owns its colours and paint numbers (`value-hex`, `map-paint-named`).
 - On a phone the 3D button stands in the search row, left of the locate button and 8px from it, and the search pill gives up its 40px and the 8px before it. It stood at the chip row's right end first, where the summary chip gave way to it and read `Current · NO…` at 390px; the maintainer moved it on 2026-10-28, and the chip row keeps its empty end for the map.
 - Mapterhorn keeps each request's address, referrer and user agent for up to 30 days; nobody who leaves the three switches off sends it a request.

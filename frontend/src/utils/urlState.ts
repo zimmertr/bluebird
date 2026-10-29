@@ -77,8 +77,8 @@ export interface ShareableState {
   showSmoke: boolean
   showSnow: boolean
   showGrid: boolean
-  // The terrain and imagery layers (#799): contours, shaded relief and the
-  // aerial imagery.
+  // The terrain and imagery layers (#799): the Topographic row's contours,
+  // shaded relief and the aerial imagery.
   showContours: boolean
   showRelief: boolean
   showSatellite: boolean

@@ -68,6 +68,9 @@ export function stubMap(opts: StubMapOptions = {}) {
   const sources: Record<string, StubSource> = { ...(opts.sources ?? {}) }
   const layout: Record<string, Record<string, unknown>> = {}
   const paint: Record<string, Record<string, unknown>> = {}
+  // Each added layer's spec as it was handed over, for what the stack, the
+  // layout and the paint do not keep (a zoom range, a filter, a source).
+  const specs: Record<string, Record<string, unknown>> = {}
   const handlers: { type: string; layer?: string; fn: Handler }[] = []
   let under: StubFeature[] = []
   const canvas = {
@@ -103,6 +106,7 @@ export function stubMap(opts: StubMapOptions = {}) {
       layer: { id: string; layout?: Record<string, unknown>; paint?: Record<string, unknown> },
       before?: string,
     ) => {
+      specs[layer.id] = layer
       const at = before === undefined ? -1 : stack.indexOf(before)
       if (at < 0) stack.push(layer.id)
       else stack.splice(at, 0, layer.id)
@@ -204,6 +208,8 @@ export function stubMap(opts: StubMapOptions = {}) {
     dragPan,
     layout,
     paint,
+    /** Each added layer's spec, by id. */
+    specs,
     canvas,
     camera,
     /** Run every handler registered for this event, on this layer if named. */

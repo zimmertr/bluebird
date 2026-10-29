@@ -24,6 +24,7 @@ import {
   CONTOUR_INDEX_LAYER,
   CONTOUR_LABEL_LAYER,
   CONTOUR_LAYER,
+  CONTOUR_MINZOOM,
   CONTOUR_SOURCE,
   CONTOUR_THRESHOLDS_FT,
   DEM_MAXZOOM,
@@ -155,6 +156,8 @@ describe('mountTerrain', () => {
 
   it('pins the contour intervals, in feet, every fifth an index line', () => {
     expect(CONTOUR_THRESHOLDS_FT).toEqual({
+      8: [1000, 5000],
+      9: [1000, 5000],
       10: [1000, 5000],
       11: [500, 2500],
       12: [200, 1000],
@@ -162,6 +165,22 @@ describe('mountTerrain', () => {
       14: [40, 200],
     })
     for (const [minor, index] of Object.values(CONTOUR_THRESHOLDS_FT)) expect(index).toBe(minor * 5)
+  })
+
+  // From zoom 8, a region-wide view: the source and its three layers start at
+  // the table's first entry, so nothing asks for a tile the library answers
+  // empty.
+  it('starts the contours at the first zoom the table names', async () => {
+    expect(CONTOUR_MINZOOM).toBe(Math.min(...Object.keys(CONTOUR_THRESHOLDS_FT).map(Number)))
+    expect(CONTOUR_MINZOOM).toBe(8)
+    const { stub, terrain } = setup()
+    terrain.update({ ...OFF, contours: true })
+    await vi.waitFor(() => expect(stub.stack).toContain(CONTOUR_LAYER))
+    const spec = stub.calls.find((c) => c[0] === 'addSource')![2] as { minzoom: number }
+    expect(spec.minzoom).toBe(CONTOUR_MINZOOM)
+    for (const id of [CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER]) {
+      expect(stub.specs[id].minzoom).toBe(CONTOUR_MINZOOM)
+    }
   })
 
   // 3D stands the map on a source of its own, tilts a flat map so the press

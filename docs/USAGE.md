@@ -217,7 +217,7 @@ controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Seven of them are credited in their own section of the map's legend, and the three that draw the ground, Contours, Shaded relief and Satellite, in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
+again. Seven of them are credited in their own section of the map's legend, and the three that draw the ground, Topographic, Shaded relief and Satellite, in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
@@ -229,15 +229,15 @@ again. Seven of them are credited in their own section of the map's legend, and 
 | **Smoke** | Smoke plumes at three densities, in grey | North America, Hawaii and the Caribbean |
 | **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
-| **Contours** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
+| **Topographic** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
 | **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
 | **Satellite** | Aerial photos of the ground, under the map's roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
 
-**Contours** and **Shaded relief** draw the shape of the ground from one
-elevation model, under the trails, the peaks and every name on the map. The
-contours are in feet, like every height in the app. They start at about the
-zoom a whole volcano fills the map, 1,000 feet apart, and close to 40 feet as
-you zoom in; further out there are none. Every fifth line is drawn heavier with
+**Topographic** draws contour lines and **Shaded relief** shading, both from
+one elevation model, under the trails, the peaks and every name on
+the map. The contours are in feet, like every height in the app. They start at
+about the zoom a whole range fills the map, 1,000 feet apart, and close to 40
+feet as you zoom in; further out there are none. Every fifth line is drawn heavier with
 its height written along it. The relief shades the slopes facing away from a light in
 the northwest, lightly enough that the woods, the ice and the water still read
 through it. The model is 30 m everywhere and finer where a country has
@@ -254,7 +254,7 @@ in summer in the 2017 to 2021 seasons. Everywhere else, and over the US when
 zoomed out, they are EOX's Sentinel-2 cloudless mosaic at 10 m, which goes soft
 past a few streets' width. Neither is a recent pass, so neither shows the snow
 on the ground today: for that, use **Snow depth**. **Shaded relief** and
-**Contours** draw over the photos; tick **Contours** for a hybrid look. While
+**Topographic** draw over the photos; tick **Topographic** for a hybrid look. While
 the photos are on, the trails wear a light edge so they read over the woods.
 The two providers are credited in the map's corner, with the map's own.
 

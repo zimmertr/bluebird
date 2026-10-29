@@ -824,7 +824,7 @@ a gap in a map that otherwise drew, and says nothing.
 
 ### Elevation and imagery
 
-The Contours, Shaded relief and Satellite rows, and the 3D terrain, read tiles
+The Topographic, Shaded relief and Satellite rows, and the 3D terrain, read tiles
 the browser fetches itself from three more hosts, each keyless (#799). All
 four draw, and none asks for anything until it is switched on.
 

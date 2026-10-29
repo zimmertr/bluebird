@@ -74,19 +74,35 @@ const DEM_PROTOCOL_ID = 'bluebird-dem'
 /**
  * The interval between contour lines at each zoom, in feet, as `[minor,
  * index]`: every fifth line is an index line, drawn heavier and labelled. A
- * zoom with no entry takes the one below it, and below 10 there are none.
+ * zoom with no entry takes the one below it, and below 8 there are none.
  * Tuned by eye over Rainier and the Alpine Lakes at zooms 10 to 15
  * (2026-10-27): 1,000 ft at 10 reads the big volcanoes without filling the
  * valleys, 500 at 11 and 200 at 12 still leave a gap between lines on
- * Rainier's steepest walls, and 40 at 14 is the USGS quad's interval.
+ * Rainier's steepest walls, and 40 at 14 is the USGS quad's interval. Zooms 8
+ * and 9 were tuned over the Cascades, the Alps and the Columbia basin at 1389
+ * by 868 (2026-10-28): 1,000 ft reads the Cascade crest and the volcanoes at 8
+ * where 2,000 left little but Rainier, and the Alps at 8, the densest ground
+ * tried, stay busy but open; 1,500 read no better than either and is no
+ * interval a printed map uses. The basin draws a few lines at every one.
  */
 export const CONTOUR_THRESHOLDS_FT: Readonly<Record<number, [minor: number, index: number]>> = {
+  8: [1000, 5000],
+  9: [1000, 5000],
   10: [1000, 5000],
   11: [500, 2500],
   12: [200, 1000],
   13: [100, 500],
   14: [40, 200],
 }
+
+/**
+ * The shallowest zoom the contours draw at, the table's first entry. The
+ * source and its three layers start there, so MapLibre asks the library for
+ * no tile it would answer empty. Mapterhorn holds zooms 0 to 12 over all land,
+ * and a contour tile is traced from the elevation one zoom out, so zoom 8
+ * reads zoom 7 tiles.
+ */
+export const CONTOUR_MINZOOM = 8
 
 /**
  * The deepest zoom the contour tiles are generated at. Past it MapLibre
@@ -274,13 +290,14 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
             contourLayer: 'contours',
           }),
         ],
+        minzoom: CONTOUR_MINZOOM,
         maxzoom: CONTOUR_MAXZOOM,
         attribution: MAPTERHORN_ATTRIBUTION,
       })
     }
     // Over the relief, which is already beneath this point when it is drawn.
     const beneath = beneathLabels()
-    const lines = { source: CONTOUR_SOURCE, 'source-layer': 'contours' }
+    const lines = { source: CONTOUR_SOURCE, 'source-layer': 'contours', minzoom: CONTOUR_MINZOOM }
     map.addLayer(
       { id: CONTOUR_LAYER, type: 'line', ...lines, filter: ['==', ['get', 'level'], 0], paint: CONTOUR_PAINT },
       beneath,
