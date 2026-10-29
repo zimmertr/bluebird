@@ -24,10 +24,11 @@ import {
   TEXT,
 } from '../styles'
 import BottomSheet from './BottomSheet'
+import { IconStarburst } from './icons'
 import { MenuButton } from './Menu'
 import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
-import { FIRMS_HREF, STARBURST_INNER, fireActivityLegendChips, starburst } from '../utils/fireActivity'
+import { FIRMS_HREF, fireActivityLegendChips } from '../utils/fireActivity'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF, radarSwatchCss } from '../utils/radar'
@@ -35,12 +36,6 @@ import { legendMaxCss } from '../utils/results/resultsSheet'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from '../utils/smoke'
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../utils/snowDepth'
 import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
-
-// The legend's starburst, in a 24-unit box about its centre: the points at
-// 11.5, inside the box by half the edge's width.
-const FIRE_STAR_CHIP = starburst(11.5, STARBURST_INNER.chip)
-  .map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)
-  .join(' ')
 
 /**
  * One section of the map's legend box: what it keys, who it came from, and the
@@ -285,15 +280,7 @@ export function legendSections(
               <span className="flex flex-shrink-0 gap-0.5">
                 {fireActivityLegendChips().map((chip) => (
                   <span key={chip.label} className={SWATCH_STAR}>
-                    <svg aria-hidden="true" className="absolute inset-0 h-full w-full" viewBox="-12 -12 24 24">
-                      <polygon
-                        points={FIRE_STAR_CHIP}
-                        fill={chip.fill}
-                        stroke={chip.stroke}
-                        strokeWidth={1}
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <IconStarburst fill={chip.fill} stroke={chip.stroke} className="absolute inset-0" />
                     <span className="relative">{chip.label}</span>
                   </span>
                 ))}

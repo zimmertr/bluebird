@@ -153,17 +153,22 @@ const RELIEF_PAINT: maplibregl.HillshadeLayerSpecification['paint'] = {
  */
 export const CONTOUR_INK = '#8a6a4a'
 
+/** Each line's opacity on the map's own ground, the brown thin enough to sit under the trails. */
+const CONTOUR_MAP_OPACITY = { minor: 0.35, index: 0.6 } as const
+/** Each line's width, the same on either ground; an index line is the heavier. */
+const CONTOUR_WIDTH = { minor: 0.6, index: 1.1 } as const
+
 const CONTOUR_PAINT: maplibregl.LineLayerSpecification['paint'] = {
   'line-color': CONTOUR_INK,
-  'line-opacity': 0.35,
-  'line-width': 0.6,
+  'line-opacity': CONTOUR_MAP_OPACITY.minor,
+  'line-width': CONTOUR_WIDTH.minor,
 }
 
 /** An index line: the same ink, heavier, so the count of five reads at a glance. */
 const CONTOUR_INDEX_PAINT: maplibregl.LineLayerSpecification['paint'] = {
   'line-color': CONTOUR_INK,
-  'line-opacity': 0.6,
-  'line-width': 1.1,
+  'line-opacity': CONTOUR_MAP_OPACITY.index,
+  'line-width': CONTOUR_WIDTH.index,
 }
 
 /**
@@ -191,9 +196,6 @@ export const CONTOUR_EDGE_OPACITY = { minor: 0.5, index: 0.6 } as const
 /** How far the edge stands out from its line on each side, in pixels. */
 const CONTOUR_EDGE_PX = 0.5
 
-const CONTOUR_MINOR_WIDTH = CONTOUR_PAINT['line-width'] as number
-const CONTOUR_INDEX_WIDTH = CONTOUR_INDEX_PAINT['line-width'] as number
-
 /** Index lines are every level above 0; a minor line is level 0. */
 const IS_INDEX: maplibregl.ExpressionSpecification = ['>', ['get', 'level'], 0]
 
@@ -207,16 +209,16 @@ const CONTOUR_CASING_PAINT: maplibregl.LineLayerSpecification['paint'] = {
   'line-width': [
     'case',
     IS_INDEX,
-    CONTOUR_INDEX_WIDTH + 2 * CONTOUR_EDGE_PX,
-    CONTOUR_MINOR_WIDTH + 2 * CONTOUR_EDGE_PX,
+    CONTOUR_WIDTH.index + 2 * CONTOUR_EDGE_PX,
+    CONTOUR_WIDTH.minor + 2 * CONTOUR_EDGE_PX,
   ],
 }
 
 /** The two lines' colour and opacity on each ground, by layer. */
 export const CONTOUR_INK_ON = {
   map: {
-    [CONTOUR_LAYER]: [CONTOUR_INK, CONTOUR_PAINT['line-opacity']],
-    [CONTOUR_INDEX_LAYER]: [CONTOUR_INK, CONTOUR_INDEX_PAINT['line-opacity']],
+    [CONTOUR_LAYER]: [CONTOUR_INK, CONTOUR_MAP_OPACITY.minor],
+    [CONTOUR_INDEX_LAYER]: [CONTOUR_INK, CONTOUR_MAP_OPACITY.index],
   },
   imagery: {
     [CONTOUR_LAYER]: [CONTOUR_IMAGERY_INK, CONTOUR_IMAGERY_OPACITY.minor],

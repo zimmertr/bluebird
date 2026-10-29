@@ -16,6 +16,7 @@ import type { ExpressionSpecification } from 'maplibre-gl'
 import type { Feature, FeatureCollection, Point } from 'geojson'
 import type { FireActivityResponse, FireDetectionProps } from '../types'
 import { apiFetch, overlayFeatures } from './apiFetch'
+import { clamp } from './numbers'
 import type { BBox } from './wildfires'
 
 const FIRE_ACTIVITY_URL = '/api/fire-activity'
@@ -279,13 +280,13 @@ export function starburstSdf(): StarburstImage {
         // The ray cast for inside, and the distance to this edge.
         if (ay > py !== by > py && px < ((bx - ax) * (py - ay)) / (by - ay) + ax) inside = !inside
         const [dx, dy] = [bx - ax, by - ay]
-        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+        const t = clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy), 0, 1)
         nearest = Math.min(nearest, Math.hypot(px - ax - t * dx, py - ay - t * dy))
       }
       const signed = inside ? nearest : -nearest
       const at = (y * size + x) * 4
       data[at] = data[at + 1] = data[at + 2] = 255
-      data[at + 3] = Math.max(0, Math.min(255, Math.round(SDF_EDGE + SDF_STEP * signed)))
+      data[at + 3] = clamp(Math.round(SDF_EDGE + SDF_STEP * signed), 0, 255)
     }
   }
   return { width: size, height: size, data }

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { EXTERNAL_LINK } from '../iconPaths'
 import { ICON } from '../styles'
+import { STARBURST_INNER, starburst } from '../utils/fireActivity'
 
 /**
  * Every glyph the app draws (#386).
@@ -374,6 +375,27 @@ export function IconGrip({ className }: IconProps): ReactNode {
       <circle cx="10" cy="8" r="1.3" />
       <circle cx="6" cy="12" r="1.3" />
       <circle cx="10" cy="12" r="1.3" />
+    </svg>
+  )
+}
+
+// The fire key's starburst in a 24-unit box about its centre: the points at
+// 11.5, inside the box by half the edge's width.
+const STARBURST_CHIP = starburst(11.5, STARBURST_INNER.chip)
+  .map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)
+  .join(' ')
+
+/**
+ * The fire activity key's starburst (#799), the shape the map draws each
+ * detection as, behind the band's label in `SWATCH_STAR`. It fills the box
+ * it stands in, since the role sizes the chip and the label sets that size;
+ * its fill and edge are the band's, from `utils/fireActivity.ts`, rather than
+ * `currentColor`, because a band's colour is data the label must read on.
+ */
+export function IconStarburst({ fill, stroke, className }: IconProps & { fill: string; stroke: string }): ReactNode {
+  return (
+    <svg viewBox="-12 -12 24 24" className={join('h-full w-full', className)} aria-hidden="true">
+      <polygon points={STARBURST_CHIP} fill={fill} stroke={stroke} strokeWidth={1} strokeLinejoin="round" />
     </svg>
   )
 }
