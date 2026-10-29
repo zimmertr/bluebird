@@ -745,7 +745,11 @@ plot's top margin grows by the title's 28px (`TITLED_PLOT_MARGIN`), so its
 dashed lines, their labels and the top tick start under it. Measured
 2026-10-14: the field row it replaced was 52px, and the plotting band grew
 24px at 360 and 390.
+With the second metric's slot empty, a `None` box stands 8px right of the
+title in the same line (`CHART_TITLE.row`, its boxes `inRow`), and picking a
+metric there opens the second panel, whose title it then is.
 Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
+Record: [0239](decisions/0239-second-chart-metric-stacked-panels.md)
 
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
 the compass and the locate button, 40px round in the pill's chrome, handed to
