@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services import fire_activity as fa
+from app.services import hms, nifc, usfs_closures
 from app.services.errors import UpstreamError
 
 DATA = Path(__file__).parent / "data"
@@ -235,6 +236,14 @@ def test_a_snapshot_reads_back_from_the_shared_cache_unchanged():
 
 def test_the_row_is_named_for_the_layer():
     assert fa.SHARED.source == "fire_activity"
+
+
+def test_the_detections_alone_fetch_for_themselves_while_their_row_is_absent():
+    # A brand-new source has no production row, so a preview reading
+    # production's database would answer 503 for as long as it ran (#799).
+    # The three overlays production already writes keep the 503.
+    assert fa.SHARED.fetch_when_absent is True
+    assert [m.SHARED.fetch_when_absent for m in (nifc, hms, usfs_closures)] == [False, False, False]
 
 
 # ── Fetching ─────────────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@
 - Issues and PRs: #799
 - Cited in code as: #799
 - Guide: [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `app/services/fire_activity.py` and `app/routes/fire_activity.py` bullets; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `fireActivity.ts` bullet; [`docs/DATA.md`](../DATA.md#fire-activity)
-- Related: 0182 (one pod refreshes each overlay snapshot into the shared cache), 0077 (a snapshot is served for 24 hours through failed refreshes), 0007 (one national wildfire snapshot, filtered per request), 0016 (an overlay is never a knob)
+- Related: 0182 (one pod refreshes each overlay snapshot into the shared cache), 0183 (a PR preview reads production's database and writes nothing), 0077 (a snapshot is served for 24 hours through failed refreshes), 0007 (one national wildfire snapshot, filtered per request), 0016 (an overlay is never a knob)
 
 ## Context
 
@@ -17,6 +17,8 @@ The wildfire perimeters say where a fire's surveyed edge was, in the United Stat
 **The pod reads NASA FIRMS's keyless active fire files and serves a box's slice.** `GET /api/fire-activity?bbox=` answers GeoJSON points, worldwide, from the Global 48-hour CSVs for NOAA-20 and NOAA-21 (VIIRS) and MODIS, fetched together every 60 minutes, FIRMS's own cadence, all three or none. It rides the shared snapshot pattern (0182) and its 24 hours (0077), as row `fire_activity`. Every detection keeps its position, `acquired` (ISO 8601 UTC), instrument, satellite and confidence as FIRMS spells them, and FRP. Nothing is dropped for its confidence.
 
 **The pod holds the detections as columns, sorted into 1° cells**, and writes a box's text per request.
+
+**While no row exists, a pod fetches the detections for itself** (`fetch_when_absent` on its `Shared`), holds them for the hour as a pod with no database does, and reads the row again after it; a row older than a day is still the 503. The other three snapshot sources answer 503 with no row and leave the upstream to the refreshing pod, and keep doing so: production has written their rows since #760. A brand-new source has no production row, and a PR preview reads production's database with a login that writes nothing and runs no refresh (record 0183), so without this the preview answered `503 snapshot_unavailable` for every box until the release that adds the layer ran its first refresh (seen on pr-823, 2026-10-28). A fresh deployment's pods fetch for themselves the same way until the first refresh lands.
 
 **The answer carries an instant, and the browser colours by age.** `utils/fireActivity.ts` puts each detection in a band against the browser's clock, under 12 hours, 12 to 24 or 24 to 48, each band holding its lower edge, and drops it past 48 hours. The map layer reads the bands again every minute and repaints only when one moved. Red, orange and yellow, newest first, each a 12-point starburst with a near-black edge, as CalTopo draws them. They were discs in a stroke until the maintainer's review on 2026-10-28.
 
@@ -49,9 +51,11 @@ Measured 2026-10-27:
 - **The legend chip's 0.8 on the map too**, one depth for both: a fuzzy disc at 14px, the mark the maintainer asked to replace.
 - **The map's 0.65 in the legend too**: at 24px its inner corners stand 7.2px from the centre and the label reaches 8.6px, onto the card.
 - **A light label on the red chip and a dark one on the other two.** The dark ink clears the red at 5.77:1, so one ink does.
+- **The fallback for every snapshot source.** Their rows exist in production, so it would change nothing a preview sees, and on a fresh deployment it would send every pod to NIFC, the closure feeds and NOAA at once, which the shared cache is there to stop.
+- **The preview writing the row itself.** Its login cannot write, by record 0183's design.
 - **An age in the answer.** It would be wrong a minute after it was sent, and a stale snapshot would make it wronger.
 - **Feature text held per detection, as the perimeters are.** About 45 MB for 200,000 points, against about 7 MB of columns, with a box costing milliseconds to format either way.
 
 ## Consequences
 
-The pod downloads about 28 MB an hour from FIRMS, once for the deployment while the database is up. The route needs the chart to list `/api/fire-activity` in `ingress.publicApiPrefixes`; until it does, the public site answers the edge's `404` and the layer stays empty. A detection is about 3 hours behind its pass, and the newest band covers 12 hours of them, so the layer reads as recent heat rather than as a live fire line. If FIRMS stops publishing one of the three files, the refresh fails and the last good snapshot ages out after a day; the loss shows in `bluebird_forecast_snapshot_refresh_failures_total` under the `NASA FIRMS (fire detections)` provider.
+The pod downloads about 28 MB an hour from FIRMS, once for the deployment while the database is up, and once an hour per pod while no row exists: in a PR preview until production writes one, and on a fresh deployment until its first refresh lands, 24 to 36 seconds after a pod starts. The route needs the chart to list `/api/fire-activity` in `ingress.publicApiPrefixes`; until it does, the public site answers the edge's `404` and the layer stays empty. A detection is about 3 hours behind its pass, and the newest band covers 12 hours of them, so the layer reads as recent heat rather than as a live fire line. If FIRMS stops publishing one of the three files, the refresh fails and the last good snapshot ages out after a day; the loss shows in `bluebird_forecast_snapshot_refresh_failures_total` under the `NASA FIRMS (fire detections)` provider.

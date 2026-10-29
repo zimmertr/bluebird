@@ -114,7 +114,10 @@ cache the fill and the refreshes rebuild. Record:
   database answers. A row's age is measured on the database's clock, and
   [record 0077](decisions/0077-snapshot-max-stale-24h.md)'s 24 hours still end
   it. On a first deploy each overlay answers `503` until its first refresh
-  lands. Record: [0182](decisions/0182-shared-snapshots.md)
+  lands, but for the fire detections, whose pods fetch FIRMS for themselves
+  while no row exists, so a PR preview shows them before production has
+  written one. Record: [0182](decisions/0182-shared-snapshots.md),
+  [0237](decisions/0237-fire-activity-from-firms-files.md)
 - **Counters.** The per-address buckets, the Nominatim gate, the Open-Meteo
   weighted budgets and the place-search cache, each exact across pods. They sit
   in unlogged tables, which skip the write-ahead log: cheap to write on every

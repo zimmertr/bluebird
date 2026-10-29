@@ -631,7 +631,12 @@ a refresh, about 28 MB an hour. The cadence no longer follows traffic, so an idl
 refreshes as often as a busy one. Every pod serves the row, and none calls the
 upstream while the database answers. A new deployment answers each overlay's
 `503` until its first refresh lands, which starts at the first refresh tick,
-24 to 36 s after a pod starts. Record: [0182](decisions/0182-shared-snapshots.md)
+24 to 36 s after a pod starts. The fire detections are the exception: while
+no row exists, each pod downloads the three files itself, about 28 MB, and
+holds them for an hour before it reads the row again, so a PR preview, which
+reads production's row and writes none, fetches FIRMS once an hour per pod
+until production has written one. Record: [0182](decisions/0182-shared-snapshots.md),
+[0237](decisions/0237-fire-activity-from-firms-files.md)
 
 The two overlays added in
 [#121](https://github.com/zimmertr/bluebird/issues/121) split on that same

@@ -409,7 +409,14 @@ def _describe(snapshot: Snapshot) -> str:
 # The snapshot as the shared cache's `snapshots` row holds it (#760): the
 # columns as JSON lists, about 7 MB before the row's gzip. Bump `format`
 # whenever `_encode` changes shape.
-SHARED = Shared(source="fire_activity", format=1, encode=_encode, decode=_decode)
+#
+# The one source that fetches for itself while its row is absent: a brand-new
+# source has no production row, so a PR preview, which reads production's
+# database and writes nothing, and a fresh deployment's pods before the first
+# refresh lands, each download the three files themselves and hold them for
+# `TTL_S`, as a pod with no database does, then read the row again. The other
+# three overlays keep the 503, since production has written theirs since #760.
+SHARED = Shared(source="fire_activity", format=1, encode=_encode, decode=_decode, fetch_when_absent=True)
 
 # The shared snapshot cache, wired to this module's fetch and knobs.
 detection_cache = cache_factory(
