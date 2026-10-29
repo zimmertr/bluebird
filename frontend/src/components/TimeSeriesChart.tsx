@@ -126,11 +126,11 @@ function headroomLabel(plotTop: number) {
 const HEADROOM_LABEL = headroomLabel(PLOT_MARGIN.top)
 const TITLED_HEADROOM_LABEL = headroomLabel(TITLED_PLOT_MARGIN.top)
 
-// The chart's words (#499), each one constant so a change is one edit. The
-// first two picker names were confirmed on 2026-10-28, and the +, the × and
-// the knob's names on 2026-10-29. The third and fourth pickers' names follow
-// the second's pattern.
-const PICKER_LABELS = ['Chart metric', 'Second metric', 'Third metric', 'Fourth metric'] as const
+// The chart's words (#499), each one constant so a change is one edit, all
+// confirmed by the maintainer on 2026-10-29: the first picker keeps the name
+// #348 gave it, every other is named for its slot's number, and the +, the ×
+// and the knob are named for what they do.
+const PICKER_LABELS = ['Chart metric', 'Metric 2', 'Metric 3', 'Metric 4'] as const
 const ADD_PANEL_LABEL = 'Add a panel'
 const removePanelLabel = (metricLabel: string) => `Remove ${metricLabel}`
 const RESIZE_PANELS_LABEL = 'Resize the panels'

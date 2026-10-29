@@ -721,7 +721,7 @@ describe('TimeSeriesChart with more than one metric', () => {
     const onAdd = vi.fn()
     const onRemove = vi.fn()
     render(<TimeSeriesChart {...props({ ...TWO, metrics: ['precip', 'temp', 'wind'], onAdd, onRemove })} />)
-    for (const name of ['Chart metric', 'Second metric', 'Third metric']) {
+    for (const name of ['Chart metric', 'Metric 2', 'Metric 3']) {
       expect(screen.getByRole('button', { name: new RegExp(`^${name}`) })).toBeTruthy()
     }
     const temp = CHART_METRICS.find((m) => m.key === 'temp')!.label
@@ -746,10 +746,10 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(last(chart.charts, 2).every((c) => c.syncId !== undefined)).toBe(true)
     expect(screen.queryByRole('separator', { name: 'Resize the panels' })).toBeNull()
     const first = screen.getByRole('combobox', { name: 'Chart metric' }) as HTMLSelectElement
-    const second = screen.getByRole('combobox', { name: 'Second metric' }) as HTMLSelectElement
+    const second = screen.getByRole('combobox', { name: 'Metric 2' }) as HTMLSelectElement
     expect(first.value).toBe('precip')
     expect(second.value).toBe('temp')
-    expect(screen.queryByRole('combobox', { name: 'Third metric' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Metric 3' })).toBeNull()
     expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(second, { target: { value: 'wind' } })
     expect(onPick).toHaveBeenCalledWith(1, 'wind')

@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-29
-- Decider: the maintainer (TJ), who chose two stacked panels, the swap, the link parameter and the picker names on 2026-10-28, and on reviewing PR #828 on 2026-10-29 the card's headers, the + and the ×, four panels in a grid with one knob, and the names `Add a panel`, `Remove {metric label}` and `Resize the panels`
+- Decider: the maintainer (TJ), who chose two stacked panels, the swap, and the link parameter on 2026-10-28, and on reviewing PR #828 on 2026-10-29 the card's headers, the + and the ×, four panels in a grid with one knob, and the names `Chart metric`, `Metric 2` to `Metric 4`, `Add a panel`, `Remove {metric label}` and `Resize the panels`
 - Issues and PRs: #499, #828
 - Cited in code as: #499
 - Guide: `components/` guide: `TimeSeriesChart.tsx`; `hooks/` guide: `useChartMetrics.ts`; `utils/chart/` guide: `chartData.ts`, `chartPointer.ts`; `STYLES.md`; `USAGE.md`
@@ -18,7 +18,7 @@ The results chart drew one metric at a time. A reader weighing rain against temp
 - **Three and four stand in a grid.** Three are a row of two over one full-width panel; four are two rows of two. Every grid panel draws its own x and y axes, since a column cannot share another's.
 - **One knob sizes the grid.** It stands where the gutters cross and moves both splits on every pointer move, each held to [0, 1] with no floor, so dragged into a corner one panel takes the area. A panel narrower or shorter than its floor (`panelWidthFloorPx`, `panelFloorPx`) is not drawn; its gutter and its picker stay. A double press evens the grid. The gutters themselves do not drag. The splits are session state.
 - **A phone draws two.** It stacks the first two slots and greys its +. The slots past them stay in state and in the link, so a link with four opens on a desk with four.
-- **The + and the ×.** At a desk each slot is a `MenuSelect` at `CHART_METRIC_W`, each but the first with an × after it and the last with a +, which adds the first metric of `CHART_METRICS` not drawn and greys at four. On a phone each panel's `CHART_TITLE` box carries the × after it, and the first the +. There is no empty slot.
+- **The + and the ×.** At a desk each slot is a `MenuSelect` at `CHART_METRIC_W`, named `Chart metric` for the first and `Metric 2` to `Metric 4` after it, each but the first with an × after it and the last with a +, which adds the first metric of `CHART_METRICS` not drawn and greys at four. On a phone each panel's `CHART_TITLE` box carries the × after it, and the first the +. There is no empty slot.
 - **One card.** A hover shows one card, on the hovered panel. With more than one panel it has a header naming each column with its unit and bare numbers under it; a missing value is an empty cell. One panel's card has no header, because its picker names the unit. The nearest line is read through the hovered panel's domain and dims in every panel.
 - **Slots swap.** The first slot follows the ranking. A metric another slot holds swaps the two, whether the ranking or a picker asks (`pickMetric`).
 - **The link.** `chart=precip,temp,wind,aqi`, first panel first, written only when there is more than one slot or the first is off the ranking's family. Decoding drops what it does not know, repeats and a fifth name.
@@ -27,13 +27,13 @@ The results chart drew one metric at a time. A reader weighing rain against temp
 
 ## Evidence
 
-Measured in the pinned Playwright image's Chromium against the built image, Open-Meteo answered from the suite's fixtures, 200 charted rows over 15 days (360 hourly stamps). Main on 2026-10-28; this change on 2026-10-29:
+Measured in the pinned Playwright image's Chromium against the built image, Open-Meteo answered from the suite's fixtures, 200 charted rows over 15 days (360 hourly stamps). Main on 2026-10-28; this change on 2026-10-29, the four-panel row with the probe waiting until every panel had drawn its 200 lines (the AQI panel's land about a minute after the rows on a precipitation ranking):
 
 | | main | one panel | two panels | four panels |
 |---|---|---|---|---|
 | Chart chunk, raw / gzip | 362,373 / 104,142 bytes | 367,675 / 106,007 bytes | same chunk | same chunk |
-| One hover move, to the next frame (median of 3 runs of 20 moves) | 17 ms | 17 ms | 28 ms | 33 ms |
-| A Layers overlay toggle, to two task yields (median of 7) | 22 ms | 14 ms | 22 ms | 21 ms |
+| One hover move, to the next frame (median of 3 runs of 20 moves) | 17 ms | 17 ms | 28 ms | 42 ms |
+| A Layers overlay toggle, to two task yields (median of 7) | 22 ms | 14 ms | 22 ms | 20 ms |
 
 The window is 15 days, the most GFS reaches from the suite's clock; 16 days left Analyze greyed. At 200 lines and 360 stamps the hover emphasis is already off in one panel (72,000 points against `tracksCursor`'s 25,000), so the hover rows time Recharts' own tooltip and the sync cursor in the other panels. A hover is timed to the next animation frame, so a number under about 17 ms reads as one frame. The toggle rows move by a few milliseconds between samples, so their differences are noise: the chart is memoized and an overlay toggle does not render it.
 
