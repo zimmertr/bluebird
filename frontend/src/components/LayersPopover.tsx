@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type ChangeEvent, type ElementType, type RefObject } from 'react'
+import { Fragment, useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type RefObject } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { useShiftRange } from '../hooks/useShiftRange'
@@ -12,6 +12,7 @@ import {
   CHOICE_ROW,
   MAP_CHIP_MENU,
   MENU,
+  MENU_GROUP,
   SEGMENT_DIVIDER,
   SEGMENT_FLUID,
   SEGMENT_IDLE,
@@ -71,6 +72,16 @@ function layerRow({
       )}
     </label>
   )
+}
+
+/** One row of `MAP_LAYERS`, as `layerRow` draws it, before its press is wired. */
+interface LayerSpec {
+  key: string
+  label: string
+  checked: boolean
+  onChange: (on: boolean) => void
+  disabled?: boolean
+  note?: string
 }
 
 interface LayersPopoverProps {
@@ -171,6 +182,8 @@ export default function LayersPopover({
   const popoverOpen = layersOpen && !sheet
   const closeSheet = useCallback(() => setLayersOpen(false), [])
   const press = useShiftRange(open)
+  // Names each group's heading, which the group points at for its name.
+  const headingId = useId()
   // The rows whose layer can draw nothing over the view, watched while the
   // menu is open. A label used to carry this ("US only", "OR/WA", "West"),
   // three ways at once and none of them true of the area feeds' eight states;
@@ -208,193 +221,241 @@ export default function LayersPopover({
     }
   }, [popoverOpen])
 
-  // Alphabetical by label, which is the only order a list of unrelated switches
-  // can be scanned in: these thirteen have no ranking between them — no cost, no
-  // severity, no dependency — so any other order is one the reader has to
-  // learn. The grid's own segment and slider still render under its row,
-  // because they are that row's sub-choices rather than list members.
+  // Three groups by what a layer changes (record 0240): the map itself, a
+  // hazard drawn on it, and the weather drawn on it. Alphabetical order held
+  // while the list was a handful of unrelated switches; at thirteen it parted
+  // the rows that belong together, Fire activity from Wildfires and Slope
+  // angle from Shaded relief. Inside a group the rows go by kind rather than
+  // by name: the imagery before the drawn base, a fire before its smoke,
+  // the area closures before the trails they close, and the observed
+  // weather before the forecast. The grid's own segment and slider still
+  // render under its row, because they are that row's sub-choices rather
+  // than list members.
   //
   // The player is a list member like the other twelve even though it switches
   // something OFF the map rather than a picture onto it: it answers the same
   // question — what is on the map — and nothing about the report follows it,
-  // so it is no more a knob than the overlays beside it.
-  const MAP_LAYERS = [
-    // The six layers whose data has an edge grey over a view wholly outside
-    // it, the way the player greys when nothing spans time: outside the
-    // Forest Service feeds an empty layer means "not covered" rather than
-    // "open" (#551), and a grey row says so where a label could not. No
-    // `note`, for the player's reason: the grey row is the whole message.
+  // so it is no more a knob than the overlays beside it. It ends the Forecast
+  // group, since what it plays is the forecast.
+  //
+  // The six layers whose data has an edge grey over a view wholly outside
+  // it, the way the player greys when nothing spans time: outside the Forest
+  // Service feeds an empty layer means "not covered" rather than "open"
+  // (#551), and a grey row says so where a label could not. No `note`, for
+  // the player's reason: the grey row is the whole message.
+  const MAP_LAYERS: { heading: string; rows: LayerSpec[] }[] = [
     {
-      key: 'closedareas',
-      label: 'Area closures',
-      checked: showAreaClosures,
-      onChange: setShowAreaClosures,
-      disabled: outOfView.has('closedareas'),
-    },
-    // The fire detections (#799) never grey either: the pod reads FIRMS's
-    // global files, so no view is outside them.
-    { key: 'fireactivity', label: 'Fire activity', checked: showFireActivity, onChange: setShowFireActivity },
-    {
-      key: 'grid',
-      label: 'Forecast grid',
-      checked: showGrid,
-      onChange: setShowGrid,
-      disabled: !gridAvailable,
-      // Mounted twice, as the row's `title` and as the hidden text its checkbox
-      // points at: a tooltip does not exist on touch or to a screen reader.
-      note: 'The forecast grid is not available for archival data.',
-    },
-    // Always in the list, gray when nothing spans time (#460). It used to join
-    // and leave the list on the radar toggle, which moved every row under it.
-    // `CHOICE_ROW` fades the label with its checkbox, and there is no `note`:
-    // the gray row is the whole message, where a sentence about a control
-    // would be a tooltip by another name (TJ, 2026-09-22).
-    {
-      key: 'player',
-      label: 'Forecast player',
-      checked: playerShown,
-      onChange: setShowPlayer,
-      disabled: !playerOffered,
+      heading: 'Base map',
+      // The four ground layers (#799) never grey: the elevation tiles cover
+      // the world, and so does the imagery, from USGS over the United States
+      // and from EOX everywhere else.
+      rows: [
+        { key: 'satellite', label: 'Satellite', checked: showSatellite, onChange: setShowSatellite },
+        // The contour lines, under the name a reader looks for them by. The
+        // key is the link's flag, `topo`.
+        { key: 'topo', label: 'Topographic', checked: showContours, onChange: setShowContours },
+        { key: 'relief', label: 'Shaded relief', checked: showRelief, onChange: setShowRelief },
+        { key: 'slope', label: 'Slope angle', checked: showSlope, onChange: setShowSlope },
+      ],
     },
     {
-      key: 'radar',
-      label: 'Rain radar',
-      checked: showRadar,
-      onChange: setShowRadar,
-      disabled: outOfView.has('radar'),
+      heading: 'Hazards',
+      rows: [
+        {
+          key: 'fires',
+          label: 'Wildfires',
+          checked: showWildfires,
+          onChange: setShowWildfires,
+          disabled: outOfView.has('fires'),
+        },
+        // The fire detections (#799) never grey: the pod reads FIRMS's
+        // global files, so no view is outside them.
+        { key: 'fireactivity', label: 'Fire activity', checked: showFireActivity, onChange: setShowFireActivity },
+        { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke, disabled: outOfView.has('smoke') },
+        {
+          key: 'closedareas',
+          label: 'Area closures',
+          checked: showAreaClosures,
+          onChange: setShowAreaClosures,
+          disabled: outOfView.has('closedareas'),
+        },
+        {
+          key: 'closedtrails',
+          label: 'Trail closures',
+          checked: showTrailClosures,
+          onChange: setShowTrailClosures,
+          disabled: outOfView.has('closedtrails'),
+        },
+      ],
     },
-    // The three ground layers (#799) never grey: the elevation tiles cover the
-    // world, and so does the imagery, from USGS over the United States and
-    // from EOX everywhere else.
-    { key: 'satellite', label: 'Satellite', checked: showSatellite, onChange: setShowSatellite },
-    { key: 'relief', label: 'Shaded relief', checked: showRelief, onChange: setShowRelief },
-    // Never greys, for the relief's reason: the elevation covers the world.
-    { key: 'slope', label: 'Slope angle', checked: showSlope, onChange: setShowSlope },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke, disabled: outOfView.has('smoke') },
-    { key: 'snow', label: 'Snow depth', checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
-    // The contour lines, under the name a reader looks for them by. The key
-    // is the link's flag, `topo`.
-    { key: 'topo', label: 'Topographic', checked: showContours, onChange: setShowContours },
     {
-      key: 'closedtrails',
-      label: 'Trail closures',
-      checked: showTrailClosures,
-      onChange: setShowTrailClosures,
-      disabled: outOfView.has('closedtrails'),
-    },
-    {
-      key: 'fires',
-      label: 'Wildfires',
-      checked: showWildfires,
-      onChange: setShowWildfires,
-      disabled: outOfView.has('fires'),
+      heading: 'Forecast',
+      rows: [
+        {
+          key: 'radar',
+          label: 'Rain radar',
+          checked: showRadar,
+          onChange: setShowRadar,
+          disabled: outOfView.has('radar'),
+        },
+        { key: 'snow', label: 'Snow depth', checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
+        {
+          key: 'grid',
+          label: 'Forecast grid',
+          checked: showGrid,
+          onChange: setShowGrid,
+          disabled: !gridAvailable,
+          // Mounted twice, as the row's `title` and as the hidden text its
+          // checkbox points at: a tooltip does not exist on touch or to a
+          // screen reader.
+          note: 'The forecast grid is not available for archival data.',
+        },
+        // Always in the list, gray when nothing spans time (#460). It used to
+        // join and leave the list on the radar toggle, which moved every row
+        // under it. `CHOICE_ROW` fades the label with its checkbox, and there
+        // is no `note`: the gray row is the whole message, where a sentence
+        // about a control would be a tooltip by another name (TJ, 2026-09-22).
+        {
+          key: 'player',
+          label: 'Forecast player',
+          checked: playerShown,
+          onChange: setShowPlayer,
+          disabled: !playerOffered,
+        },
+      ],
     },
   ]
+  const layers = MAP_LAYERS.flatMap((group) => group.rows)
 
   // On a phone each layer is one row of the sheet, its grid sub-choices
   // inside it, so the sheet's rule falls between layers and never between a
-  // row and its own segment.
+  // row and its own segment; a group's heading stands on the rule over its
+  // first row. At a desk the rows stand on the card itself.
   // A press with Shift held reaches every row from the last pressed one to
-  // this one (record 0209), each switched where it differs from the box the
-  // reader pressed; a greyed row stays as it is.
-  const order = MAP_LAYERS.map((layer) => layer.key)
-  const Row: ElementType = sheet ? 'div' : Fragment
-  const rows = MAP_LAYERS.map((layer) => (
-    <Row key={layer.key}>
-      {layerRow({
-        ...layer,
-        onChange: (on, e) => {
-          for (const key of press(order, layer.key, shiftHeld(e))) {
-            const each = MAP_LAYERS.find((l) => l.key === key)
-            if (each && !each.disabled && each.checked !== on) each.onChange(on)
-          }
-        },
-        menu: !sheet,
-      })}
-      {/* The grid's sub-choices, revealed by its own checkbox
-          and rendered under the row they belong to rather than
-          after the list, so the alphabetical order above holds
-          whatever is open. The desk's card is as wide as its widest
-          row (`CHIP_CARD_W.menu`), and a phone's sheet as wide
-          as the phone, so these take the fluid segment rather than
-          the panel's fixed 144px column — the same reason the
-          results bar's mode switch does.
+  // this one (record 0209), down the whole list and across the groups, each
+  // switched where it differs from the box the reader pressed; a greyed row
+  // stays as it is.
+  const order = layers.map((layer) => layer.key)
+  const row = (layer: LayerSpec) => {
+    const parts = (
+      <>
+        {layerRow({
+          ...layer,
+          onChange: (on, e) => {
+            for (const key of press(order, layer.key, shiftHeld(e))) {
+              const each = layers.find((l) => l.key === key)
+              if (each && !each.disabled && each.checked !== on) each.onChange(on)
+            }
+          },
+          menu: !sheet,
+        })}
+        {/* The grid's sub-choices, revealed by its own checkbox
+            and rendered under the row they belong to rather than
+            after the list, so the order above holds
+            whatever is open. The desk's card is as wide as its widest
+            row (`CHIP_CARD_W.menu`), and a phone's sheet as wide
+            as the phone, so these take the fluid segment rather than
+            the panel's fixed 144px column — the same reason the
+            results bar's mode switch does.
 
-          They are ONE block, set off from the list by the same
-          gap on both sides: `mt-1.5` under the checkbox row it
-          belongs to, and `mb-1.5` under the last of them. The
-          slider used to end flush against the next layer's row,
-          so the block read as belonging to that row as much as
-          to the grid's — a group is bounded by its gaps, and
-          one gap bounds nothing. */}
-      {layer.key === 'grid' && gridOn && (
-        <>
-          <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
-            {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={gridStyle === value}
-                onClick={() => setGridStyle(value)}
-                className={`${SEGMENT_ITEM} ${
-                  gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-              >
-                {value === 'blocks' ? 'Blocks' : 'Smooth'}
-              </button>
-            ))}
-          </div>
-          {/* The coverage slider: how far from each destination
-              the grid reaches. The value and wordmark render
-              TWICE — muted on the well, white inside the accent
-              fill — with the top copy clipped to the fill, so the
-              line stays readable at any position without a color
-              racing another. Drag previews live (`gridReachDraft`)
-              and commits on release, because each committed value
-              is a refetch and a drag must not fetch per pixel. */}
-          <div
-            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${SLIDER.well} ${SLIDER.fit}`}
-          >
-            {(() => {
-              const shown = gridReachDraft ?? gridReachFrac
-              const pct = shown * 100
-              const line = (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
-                  <span className={SLIDER.value}>
-                    {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
-                  </span>
-                  <span className={SLIDER.wordmark}>Coverage</span>
-                </div>
-              )
-              return (
-                <>
-                  <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
-                  <div
-                    className={`absolute inset-0 ${ACCENT.fill}`}
-                    style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
-                  >
-                    {line}
+            They are ONE block, set off from the list by the same
+            gap on both sides: `mt-1.5` under the checkbox row it
+            belongs to, and `mb-1.5` under the last of them. The
+            slider used to end flush against the next layer's row,
+            so the block read as belonging to that row as much as
+            to the grid's — a group is bounded by its gaps, and
+            one gap bounds nothing. */}
+        {layer.key === 'grid' && gridOn && (
+          <>
+            <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
+              {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={gridStyle === value}
+                  onClick={() => setGridStyle(value)}
+                  className={`${SEGMENT_ITEM} ${
+                    gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                  } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
+                >
+                  {value === 'blocks' ? 'Blocks' : 'Smooth'}
+                </button>
+              ))}
+            </div>
+            {/* The coverage slider: how far from each destination
+                the grid reaches. The value and wordmark render
+                TWICE — muted on the well, white inside the accent
+                fill — with the top copy clipped to the fill, so the
+                line stays readable at any position without a color
+                racing another. Drag previews live (`gridReachDraft`)
+                and commits on release, because each committed value
+                is a refetch and a drag must not fetch per pixel. */}
+            <div
+              className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${SLIDER.well} ${SLIDER.fit}`}
+            >
+              {(() => {
+                const shown = gridReachDraft ?? gridReachFrac
+                const pct = shown * 100
+                const line = (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
+                    <span className={SLIDER.value}>
+                      {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
+                    </span>
+                    <span className={SLIDER.wordmark}>Coverage</span>
                   </div>
-                </>
-              )
-            })()}
-            <input
-              type="range"
-              aria-label="Coverage"
-              min={0}
-              max={100}
-              step={5}
-              value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
-              onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
-              onPointerUp={commitGridReach}
-              onKeyUp={commitGridReach}
-              onBlur={commitGridReach}
-              className={SLIDER.overlay}
-            />
-          </div>
-        </>
-      )}
-    </Row>
+                )
+                return (
+                  <>
+                    <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
+                    <div
+                      className={`absolute inset-0 ${ACCENT.fill}`}
+                      style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
+                    >
+                      {line}
+                    </div>
+                  </>
+                )
+              })()}
+              <input
+                type="range"
+                aria-label="Coverage"
+                min={0}
+                max={100}
+                step={5}
+                value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
+                onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
+                onPointerUp={commitGridReach}
+                onKeyUp={commitGridReach}
+                onBlur={commitGridReach}
+                className={SLIDER.overlay}
+              />
+            </div>
+          </>
+        )}
+      </>
+    )
+    return sheet ? (
+      <div key={layer.key} className={MENU_GROUP.sheetRow}>
+        {parts}
+      </div>
+    ) : (
+      <Fragment key={layer.key}>{parts}</Fragment>
+    )
+  }
+  // Each group is a group to a screen reader too, named by its heading, so a
+  // box is heard with the group it stands in.
+  const rows = MAP_LAYERS.map((group, g) => (
+    <div
+      key={group.heading}
+      role="group"
+      aria-labelledby={`${headingId}-${g}`}
+      className={sheet ? MENU_GROUP.sheet : MENU_GROUP.card}
+    >
+      <div id={`${headingId}-${g}`} className={sheet ? MENU_GROUP.sheetHeading : MENU_GROUP.cardHeading}>
+        {group.heading}
+      </div>
+      {group.rows.map(row)}
+    </div>
   ))
 
   // Layers is a chip in the row under the search pill at both widths. A

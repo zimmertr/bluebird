@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { MAP_CHIP_MENU, MENU, MENU_CHEVRON } from '../styles'
+import { MAP_CHIP_MENU, MENU, MENU_CHEVRON, MENU_GROUP } from '../styles'
 import { IconChevron } from './icons'
 import type { ViewBounds } from '../utils/layerCoverage'
 
@@ -164,7 +164,9 @@ describe('LayersPopover', () => {
     open()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Area closures' }))
     expect(setShowAreaClosures).toHaveBeenCalledWith(true)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Rain radar' }), { shiftKey: true })
+    // Down the list from Hazards into Forecast: the run takes no notice of
+    // the heading between them (record 0240).
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Forecast player' }), { shiftKey: true })
     expect(setShowPlayer).toHaveBeenCalledWith(true)
     expect(setShowRadar).toHaveBeenCalledWith(true)
     // The grid is greyed for an archive window, and the run crosses it.
@@ -214,29 +216,43 @@ describe('LayersPopover', () => {
     expect(fill('Smoke')).toBe(false)
   })
 
-  // Each row drives its own layer, and no label carries a coverage note: the
-  // row greys instead (below).
-  it('lists both closure layers in their alphabetical places', () => {
+  // Three groups by what a layer changes, the ground first, each under its
+  // heading and each a group to a screen reader named by it, the rows by
+  // kind inside (record 0240). Each row drives its own layer, and no label
+  // carries a coverage note: the row greys instead (below).
+  it('lists the layers in three named groups, ordered by kind', () => {
     const setShowTrailClosures = vi.fn()
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={{ ...OVERLAYS, setShowTrailClosures }} grid={GRID} playerOffered />)
     open()
-    expect(rows()).toEqual([
-      'Area closures',
-      'Fire activity',
-      'Forecast grid',
-      'Forecast player',
-      'Rain radar',
-      'Satellite',
-      'Shaded relief',
-      'Slope angle',
-      'Smoke',
-      'Snow depth',
-      'Topographic',
-      'Trail closures',
-      'Wildfires',
+    const groups = screen.getAllByRole('group')
+    const rowsOf = (group: HTMLElement) =>
+      [...group.querySelectorAll('input[type="checkbox"]')].map((c) => c.closest('label')?.textContent)
+    expect(groups).toEqual(['Base map', 'Hazards', 'Forecast'].map((name) => screen.getByRole('group', { name })))
+    expect(groups.map(rowsOf)).toEqual([
+      ['Satellite', 'Topographic', 'Shaded relief', 'Slope angle'],
+      ['Wildfires', 'Fire activity', 'Smoke', 'Area closures', 'Trail closures'],
+      ['Rain radar', 'Snow depth', 'Forecast grid', 'Forecast player'],
     ])
+    // The heading is the first thing in its group, with no box of its own.
+    expect(groups[0].firstElementChild!.className).toBe(MENU_GROUP.cardHeading)
     fireEvent.click(screen.getByRole('checkbox', { name: 'Trail closures' }))
     expect(setShowTrailClosures).toHaveBeenCalledWith(true)
+  })
+
+  // On a phone's sheet the groups and headings are the same, the heading in
+  // its sheet shape and every row one row of the sheet.
+  it('groups the sheet the same way', () => {
+    render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID_ON} playerOffered sheet />)
+    open()
+    const groups = screen.getAllByRole('group')
+    expect(groups.map((g) => g.className)).toEqual([MENU_GROUP.sheet, MENU_GROUP.sheet, MENU_GROUP.sheet])
+    expect(groups.map((g) => g.firstElementChild!.textContent)).toEqual(['Base map', 'Hazards', 'Forecast'])
+    expect(groups[2].firstElementChild!.className).toBe(MENU_GROUP.sheetHeading)
+    // The grid's sub-choices stay inside its own row of the sheet.
+    const grid = screen.getByRole('checkbox', { name: 'Forecast grid' }).closest('label')!.parentElement!
+    expect(grid.className).toBe(MENU_GROUP.sheetRow)
+    expect(grid.querySelector('input[type="range"]')).not.toBeNull()
+    expect(rows()).toHaveLength(13)
   })
 
   // A layer with nothing to draw over the view greys, with no note, the way
@@ -273,7 +289,7 @@ describe('LayersPopover', () => {
       />,
     )
     open()
-    expect(disabled()).toEqual(['Area closures', 'Rain radar', 'Smoke', 'Snow depth', 'Trail closures', 'Wildfires'])
+    expect(disabled()).toEqual(['Wildfires', 'Smoke', 'Area closures', 'Trail closures', 'Rain radar', 'Snow depth'])
     const fires = screen.getByRole('checkbox', { name: 'Wildfires' }) as HTMLInputElement
     expect([fires.checked, fires.getAttribute('aria-describedby')]).toEqual([true, null])
   })
