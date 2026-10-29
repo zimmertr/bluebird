@@ -3019,7 +3019,7 @@ describe('the map legend sections', () => {
   // being the odd one out.
   it('builds every section from the one recipe', () => {
     expect((box.match(/legendSection\(section\)/g) ?? []).length).toBe(1)
-    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(2)
+    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(3)
   })
 })
 

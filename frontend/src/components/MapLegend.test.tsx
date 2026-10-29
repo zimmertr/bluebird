@@ -18,6 +18,7 @@ const NONE = {
   showSmoke: false,
   showSnow: false,
   showFireActivity: false,
+  showSlope: false,
 }
 const SMOKE_AND_RADAR = { ...NONE, showSmoke: true, showRadar: true }
 const NO_GRID = {
@@ -156,6 +157,25 @@ describe('MapLegend', () => {
     expect(text.indexOf('Area closures')).toBeLessThan(text.indexOf('Smoke'))
     expect(text.indexOf('Smoke')).toBeLessThan(text.indexOf('Trail closures'))
     expect(screen.getAllByRole('link', { name: 'USFS' })).toHaveLength(2)
+  })
+
+  // The slope angle shading (#799): one strip of its six bands with the
+  // degrees each starts at inside it, as the metric key draws a scale, and
+  // the elevation's credit beside the name. Sorted by that name.
+  it('keys the slope bands on one strip, credited to Mapterhorn', () => {
+    const { container } = render(<Legend {...BASE} overlays={{ ...NONE, showSlope: true, showSmoke: true }} />)
+    const text = container.textContent ?? ''
+    expect(text).toContain('Slope angle (Mapterhorn)')
+    expect(text.indexOf('Slope angle')).toBeLessThan(text.indexOf('Smoke'))
+    expect(screen.getByRole('link', { name: 'Mapterhorn' }).getAttribute('href')).toBe('https://mapterhorn.com/attribution')
+    const strip = container.querySelector<HTMLElement>('[style*="grid-template-columns"]')!
+    expect(strip.style.gridTemplateColumns).toBe('repeat(6, minmax(0, 1fr))')
+    expect(strip.style.backgroundImage).toContain('linear-gradient')
+    const ticks = [...strip.children].filter((c) => c.textContent) as HTMLElement[]
+    expect(ticks.map((t) => t.textContent)).toEqual(['27', '30', '32', '35', '46', '50'])
+    // Two ticks on neighbouring boundaries share a column, so every tick
+    // stands in the strip's one row rather than dropping to a second.
+    expect(new Set(ticks.map((t) => t.style.gridRow))).toEqual(new Set(['1']))
   })
 })
 

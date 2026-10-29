@@ -33,6 +33,8 @@ import { IEM_HREF, radarSwatchCss } from '../utils/radar'
 import { legendMaxCss } from '../utils/results/resultsSheet'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from '../utils/smoke'
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../utils/snowDepth'
+import { SLOPE_BANDS, slopeRampCss, slopeTicks } from '../utils/slopeAngle'
+import { MAPTERHORN_HREF } from '../utils/terrainSources'
 import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
 
 /**
@@ -149,6 +151,10 @@ function legendSection({
                 tick.align === 'center'
                   ? `${tick.at} / ${tick.at + 2}`
                   : `${tick.at + 1} / span 1`,
+              // One row for every tick: two on neighbouring boundaries, as
+              // the slope key's are (#799), share a column, and placed
+              // automatically the second would drop to a row of its own.
+              gridRow: 1,
               justifySelf: tick.align,
             }}
           >
@@ -180,6 +186,7 @@ export interface LegendInputs {
     | 'showSmoke'
     | 'showSnow'
     | 'showFireActivity'
+    | 'showSlope'
   >
   /** The forecast grid's state and its row (`useGridLayer`). */
   grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend'>
@@ -199,8 +206,16 @@ export function legendSections(
   { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }: LegendInputs,
   smokeId: string,
 ): LegendSectionSpec[] {
-  const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow, showFireActivity } =
-    overlays
+  const {
+    showWildfires,
+    showAreaClosures,
+    showTrailClosures,
+    showRadar,
+    showSmoke,
+    showSnow,
+    showFireActivity,
+    showSlope,
+  } = overlays
   const { gridPainted, gridCued, gridFailed, gridLegend } = grid
   // ONE box, gaining and losing sections as the report and the
   // layers change (#454). It was two — the layer rows in one, the
@@ -442,6 +457,24 @@ export function legendSections(
               css: snowRampCss(),
               ticks: snowTicks(),
               bands: SNOW_RAMP.length,
+            },
+          },
+        ]
+      : []),
+    // The slope angle shading (#799): six avalanche bands, keyed as a scale
+    // because they are one, each number the degrees its band starts at. The
+    // shading is the app's own reading of Mapterhorn's elevation, and the
+    // section names whose elevation it is, as every layer drawn from somebody
+    // else's data does.
+    ...(showSlope
+      ? [
+          {
+            label: 'Slope angle',
+            credit: { href: MAPTERHORN_HREF, name: 'Mapterhorn' },
+            ramp: {
+              css: slopeRampCss(),
+              ticks: slopeTicks(),
+              bands: SLOPE_BANDS.length,
             },
           },
         ]
