@@ -35,7 +35,7 @@
     "@vitest/coverage-v8": "^5.0.5",
     "jsdom": "^30.1.2",
     "postcss": "^8.5.31",
-    "swagger-ui-dist": "^5.33.2",
+    "swagger-ui-dist": "^5.34.0",
     "tailwindcss": "^4.3.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
