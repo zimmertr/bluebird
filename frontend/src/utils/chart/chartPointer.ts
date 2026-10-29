@@ -244,14 +244,14 @@ export interface GridShares {
   y: number
 }
 
-/** A grid split evenly, which a double press on the knob puts back. */
+/** A grid split evenly, which a double press on the crossing puts back. */
 export const EVEN_GRID: GridShares = { x: 0.5, y: 0.5 }
 
 /**
- * Where the grid's two splits land after the knob is dragged (#499): the
+ * Where the grid's two splits land after a gutter is dragged (#499): the
  * drag in pixels, right and down positive, over the tracks' total width and
  * height less the gutters. Each split is held to [0, 1] and no floor, so the
- * knob can be dragged into a corner and one panel take the whole area; a
+ * crossing can be dragged into a corner and one panel take the whole area; a
  * panel under its floor is simply not drawn.
  */
 export function gridAfterDrag(start: GridShares, dx: number, dy: number, totalW: number, totalH: number): GridShares {

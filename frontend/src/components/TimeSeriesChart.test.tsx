@@ -55,7 +55,7 @@ const chart = vi.hoisted(() => ({
 }))
 // The grip's handlers, kept so a test can drag it without a pointer.
 vi.mock('./ResizeGrip', async (importOriginal) => ({
-  GridKnob: (await importOriginal<typeof import('./ResizeGrip')>()).GridKnob,
+  GridGutter: (await importOriginal<typeof import('./ResizeGrip')>()).GridGutter,
   default: (p: NonNullable<typeof chart.grip>) => {
     chart.grip = p
     return <i data-testid="split-grip" />
@@ -710,29 +710,71 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(topBox().style.flexGrow).toBe('0.5')
   })
 
-  it('moves both grid splits with the knob, drops a panel under its floor, and a double press evens them', () => {
+  // The gutters are the handles (#499; TJ 2026-10-29): each moves its own
+  // axis, the crossing both, and a double press evens what it moves.
+  function gridAt(container: HTMLElement) {
+    const rows = () => Array.from(container.firstElementChild!.lastElementChild!.children).slice(0, 2) as HTMLElement[]
+    const colShare = () => (rows()[0].children[0] as HTMLElement).style.flexGrow
+    const rowShare = () => rows()[0].style.flexGrow
+    return { colShare, rowShare }
+  }
+  const drag = (el: HTMLElement, x: number, y: number, at: number) => {
+    fireEvent.pointerDown(el, { clientX: 0, clientY: 0, timeStamp: at })
+    fireEvent.pointerMove(document, { clientX: x, clientY: y })
+    fireEvent.pointerUp(document, { clientX: x, clientY: y })
+  }
+  const press = (el: HTMLElement, at: number) => fireEvent.pointerDown(el, { clientX: 0, clientY: 0, timeStamp: at })
+
+  it('moves the columns with the vertical gutter and the rows with the horizontal one', () => {
     height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(408)
     width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(808)
     const { container } = render(<TimeSeriesChart {...props(FOUR)} />)
-    const knob = screen.getByRole('separator', { name: 'Resize the panels' })
-    const rows = () => Array.from(container.firstElementChild!.lastElementChild!.children).slice(0, 2) as HTMLElement[]
-    const press = (x: number, y: number, at: number) =>
-      fireEvent.pointerDown(knob, { clientX: x, clientY: y, timeStamp: at })
-    press(0, 0, 1000)
+    const { colShare, rowShare } = gridAt(container)
+    const cols = screen.getByRole('separator', { name: 'Resize the columns' })
+    const rowsGutter = screen.getByRole('separator', { name: 'Resize the rows' })
+    expect(cols.getAttribute('aria-orientation')).toBe('vertical')
+    expect(rowsGutter.getAttribute('aria-orientation')).toBe('horizontal')
+    drag(cols, 200, 100, 1000)
+    expect(colShare()).toBe('0.75')
+    expect(rowShare()).toBe('0.5')
+    drag(rowsGutter, 200, 100, 2000)
+    expect(colShare()).toBe('0.75')
+    expect(rowShare()).toBe('0.75')
+    // A double press on a gutter evens its own axis alone.
+    press(cols, 3000)
+    press(cols, 3100)
+    expect(colShare()).toBe('0.5')
+    expect(rowShare()).toBe('0.75')
+  })
+
+  it('moves both with the crossing, drops a panel under its floor, and a double press there evens both', () => {
+    height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(408)
+    width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(808)
+    const { container } = render(<TimeSeriesChart {...props(FOUR)} />)
+    const { colShare, rowShare } = gridAt(container)
+    const cross = screen.getByRole('separator', { name: 'Resize the panels' })
+    // One drag: two presses in a row would read as a double press.
+    fireEvent.pointerDown(cross, { clientX: 0, clientY: 0 })
     fireEvent.pointerMove(document, { clientX: 200, clientY: 100 })
-    expect(rows()[0].style.flexGrow).toBe('0.75')
-    expect((rows()[0].children[0] as HTMLElement).style.flexGrow).toBe('0.75')
+    expect(colShare()).toBe('0.75')
+    expect(rowShare()).toBe('0.75')
     // Into the corner: the first panel takes the area and the rest are not drawn.
     fireEvent.pointerMove(document, { clientX: 2000, clientY: 2000 })
     fireEvent.pointerUp(document, { clientX: 2000, clientY: 2000 })
     expect(last(chart.charts, 1)).toHaveLength(1)
-    expect(rows()[0].style.flexGrow).toBe('1')
+    expect(rowShare()).toBe('1')
     expect(screen.getAllByRole('button', { name: /^Remove / })).toHaveLength(3)
-    // A double press puts both splits back to even.
-    press(0, 0, 5000)
-    press(0, 0, 5100)
-    expect(rows()[0].style.flexGrow).toBe('0.5')
-    expect((rows()[0].children[0] as HTMLElement).style.flexGrow).toBe('0.5')
+    press(cross, 5000)
+    press(cross, 5100)
+    expect(colShare()).toBe('0.5')
+    expect(rowShare()).toBe('0.5')
+  })
+
+  it('stops the vertical gutter at the top row of three', () => {
+    render(<TimeSeriesChart {...props({ ...FOUR, metrics: ['precip', 'temp', 'wind'] })} />)
+    const cols = screen.getByRole('separator', { name: 'Resize the columns' })
+    expect(cols.style.height).toContain('100% - 8px')
+    expect(screen.getByRole('separator', { name: 'Resize the rows' })).toBeTruthy()
   })
 
   it('counts every drawn panel against the hover budget', () => {

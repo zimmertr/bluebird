@@ -165,7 +165,7 @@ describe('splitAfterDrag', () => {
   })
 })
 
-// The grid's one knob (#499): both splits move with it, held to [0, 1] and
+// The grid's gutters (#499): both splits move with it, held to [0, 1] and
 // no floor, so a corner hands one panel the whole area.
 describe('gridAfterDrag', () => {
   it('moves both splits by the drag, as shares of the tracks', () => {

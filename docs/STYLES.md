@@ -748,8 +748,10 @@ dashed lines, their labels and the top tick start under it. Measured
 The title stands in a line (`CHART_TITLE.bar`) that holds the panel's
 controls 8px after it (#499): a + after the first title, an × after every
 other. `CHART_PANEL_BUTTON` draws them: the + is a square in the field's
-fill, edge and radius, the × is the legend chip's own, and the knob that
-resizes a desk's grid of three or four panels is 14px in the grip's chrome.
+fill, edge and radius, the × is a quiet glyph in a hit box of the same size, and both are as tall
+as the picker beside them. `CHART_GUTTER` draws the gaps of a desk's grid of
+three or four panels: a 1px `rule` line that turns accent on hover and while
+dragged, and a 16px crossing with no glyph.
 Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
 Record: [0239](decisions/0239-chart-metrics-as-panels.md)
 

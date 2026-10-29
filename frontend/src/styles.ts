@@ -1379,9 +1379,9 @@ export const CHART_TITLE = {
    * The title's line (#499): the box at the plot's top left, `top-3 left-3`,
    * with the panel's × or + standing 8px (`gap-2`) after it in the same 28px
    * line, inside the plot's 12px insets on both sides so a 360px sheet holds
-   * them. `items-stretch`, so a button beside the box is the box's height.
+   * them. The buttons are the box's 28px square (`CHART_PANEL_BUTTON.titleSquare`).
    */
-  bar: 'absolute inset-x-3 top-3 z-[1] flex items-stretch gap-2',
+  bar: 'absolute inset-x-3 top-3 z-[1] flex items-center gap-2',
   box: `relative flex h-7 min-w-0 items-center ${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-mark`,
   text: 'min-w-0 truncate',
   select: 'absolute inset-x-0 top-1/2 -translate-y-1/2 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
@@ -3523,21 +3523,42 @@ export const TOUR = {
 /**
  * The chart's panel controls (#499; TJ 2026-10-29).
  *
- * `add` is the + after the last picker, and after a phone's first title: a
- * square the picker's own height (`self-stretch` in a stretched row,
- * `aspect-square`), in the field's fill, edge and radius so it reads as one more field in the
- * row, with the bare icon's ink and its accent on hover, greyed at the
- * ceiling. `remove` is the × after every picker but the first, the legend
- * chip's own × (`ICON_ACTION` round `IconClose size="chip"`), grown to the
- * touch floor on a phone. `knob` is the one control that resizes a grid of
- * three or four panels, 14px square where the gutters cross, in the grip's
- * chrome (`ResizeGrip`'s raised fill, frame edge and hover), so it reads as
- * the same affordance in two dimensions.
+ * `add` is the + after the last picker, and after a phone's first title, in
+ * the field's fill, edge and radius so the row reads as one set of controls,
+ * with the bare icon's ink and its accent on hover, greyed at the ceiling.
+ * `remove` is the × after every picker but the first, the legend chip's own
+ * quiet × (`ICON_ACTION` round `IconClose size="chip"`). Both are squares as
+ * tall as what they stand beside (TJ's review, 2026-10-29: the + read as a
+ * sliver): `square` beside a desk's picker, 22px, which is the picker's own
+ * height (`TEXT.control`'s 16px line, `py-0.5`'s 4px and a 1px edge top and
+ * bottom), and 32px under a finger, the picker's `touch:min-h-8`;
+ * `titleSquare` beside a phone's 28px title box (`CHART_TITLE.box`, `h-7`).
  */
 export const CHART_PANEL_BUTTON = {
-  add: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ${ICON_ACTION} ${FOCUS_RING} ${DISABLED} flex aspect-square self-stretch flex-shrink-0 items-center justify-center`,
-  remove: `${ICON_ACTION} ${FOCUS_RING} ${TAP.action} flex flex-shrink-0 items-center px-1 leading-none`,
-  knob:
-    `absolute z-[2] h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none ${RADIUS.control} ` +
-    'bg-raised border border-frame hover:bg-raised-hover transition-colors',
+  add: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ${ICON_ACTION} ${FOCUS_RING} ${DISABLED} flex flex-shrink-0 items-center justify-center`,
+  remove: `${ICON_ACTION} ${FOCUS_RING} flex flex-shrink-0 items-center justify-center leading-none`,
+  square: 'size-5.5 touch:size-8',
+  titleSquare: 'size-7',
+} as const
+
+/**
+ * The gutters of the chart's grid of three or four panels (#499; TJ's review,
+ * 2026-10-29): the gutters themselves are the handles. `col` is the vertical
+ * gutter, which drags the column split (`cursor-col-resize`); `row` the
+ * horizontal one, which drags the row split (`cursor-row-resize`); `cross`
+ * the 16px square where they meet, which drags both (`cursor-move`) and draws
+ * nothing of its own. Each gutter is the grid's 8px gap, holding a 1px line
+ * in the `rule` token at rest and in the accent on hover and while dragged
+ * (`active`), the way `ResizeGrip` lights under the pointer.
+ */
+export const CHART_GUTTER = {
+  col: 'group absolute z-[2] w-2 cursor-col-resize touch-none',
+  row: 'group absolute z-[2] h-2 cursor-row-resize touch-none',
+  cross: 'absolute z-[3] size-4 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none',
+  colLine: 'absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors',
+  rowLine: 'absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors',
+  // The line's colour, one or the other and never both, because two colour
+  // utilities resolve by stylesheet order rather than by the class list.
+  idle: 'bg-rule group-hover:bg-accent',
+  active: 'bg-accent',
 } as const

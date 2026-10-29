@@ -83,6 +83,7 @@ import {
   CHART_PLOT_TOUCH,
   CHART_TITLE,
   CHART_PANEL_BUTTON,
+  CHART_GUTTER,
   MENU,
   MODEL_ROW,
   MENU_CHEVRON,
@@ -2903,21 +2904,40 @@ describe('the chart title on a phone', () => {
     expect(timeSeriesChartSource).toContain('<IconChevron up={false} className={ICON_ADORNMENT} />')
     // Sized to its words, not to the desktop picker's fixed width.
     expect(CHART_TITLE.box).not.toContain(CHART_METRIC_W)
-    // The panel's × or + stands 8px after the box, stretched to its height.
-    expect(words(CHART_TITLE.bar)).toEqual(expect.arrayContaining(['gap-2', 'items-stretch']))
+    // The panel's × or + stands 8px after the box.
+    expect(words(CHART_TITLE.bar)).toEqual(expect.arrayContaining(['gap-2', 'items-center']))
   })
 
-  // The chart's panel controls (#499): the + a square in the field's look,
-  // the bare icon's ink and greyed at the ceiling; the × the legend chip's own,
-  // at the touch floor; the knob the grip's chrome.
-  it('draws the +, the × and the knob from the roles they belong to', () => {
+  // The chart's panel controls (#499): the + in the field's look, the ×
+  // quiet, both squares as tall as what they stand beside (TJ, 2026-10-29).
+  it('draws the + and the × as squares the height of the picker or the title', () => {
     expect(words(CHART_PANEL_BUTTON.add)).toEqual(
-      expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), ...words(ICON_ACTION), ...words(DISABLED), 'aspect-square', 'self-stretch']),
+      expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, ...words(ICON_ACTION), ...words(DISABLED)]),
     )
-    expect(words(CHART_PANEL_BUTTON.remove)).toEqual(expect.arrayContaining([...words(ICON_ACTION), ...words(TAP.action)]))
-    expect(words(CHART_PANEL_BUTTON.knob)).toEqual(
-      expect.arrayContaining(['h-3.5', 'w-3.5', 'cursor-move', 'bg-raised', 'border-frame', 'hover:bg-raised-hover']),
-    )
+    expect(words(CHART_PANEL_BUTTON.remove)).toEqual(expect.arrayContaining(words(ICON_ACTION)))
+    // A desk picker: a 16px line of `TEXT.control`, `py-0.5` (2px) above and
+    // below, and a 1px edge each side, is 22px: `size-5.5`. Under a finger
+    // the picker's `touch:min-h-8` is 32px: `touch:size-8`.
+    expect(words(TEXT.control)).toContain('text-xs')
+    expect(16 + 2 * 2 + 2 * 1).toBe(5.5 * 4)
+    expect(words(CHART_PANEL_BUTTON.square)).toEqual(['size-5.5', 'touch:size-8'])
+    expect(words(FIELD)).toContain('touch:min-h-8')
+    // A phone's title box is `h-7`, 28px, and so is its square.
+    expect(words(CHART_TITLE.box)).toContain('h-7')
+    expect(CHART_PANEL_BUTTON.titleSquare).toBe('size-7')
+  })
+
+  // The grid's gutters are its handles (#499): a cursor per axis, a 1px line
+  // in the rule token that lights in the accent, and a crossing with no glyph.
+  it('draws the grid gutters as lines, each with its own resize cursor', () => {
+    expect(words(CHART_GUTTER.col)).toEqual(expect.arrayContaining(['w-2', 'cursor-col-resize']))
+    expect(words(CHART_GUTTER.row)).toEqual(expect.arrayContaining(['h-2', 'cursor-row-resize']))
+    expect(words(CHART_GUTTER.cross)).toEqual(expect.arrayContaining(['size-4', 'cursor-move']))
+    expect(CHART_GUTTER.cross).not.toMatch(/(^|\s)(bg|border)-/)
+    expect(words(CHART_GUTTER.colLine)).toContain('w-px')
+    expect(words(CHART_GUTTER.rowLine)).toContain('h-px')
+    expect(words(CHART_GUTTER.idle)).toEqual(['bg-rule', 'group-hover:bg-accent'])
+    expect(CHART_GUTTER.active).toBe('bg-accent')
   })
 
   it('lays the native select over the title, invisible, a 44px target centred on it', () => {

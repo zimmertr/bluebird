@@ -14,7 +14,7 @@ import { DestinationResult, SortBy } from '../types'
 import { CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
 import { IconChevron, IconClose, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
-import ResizeGrip, { GridKnob } from './ResizeGrip'
+import ResizeGrip, { GridGutter } from './ResizeGrip'
 import {
   CHART_METRICS,
   ChartLine,
@@ -128,13 +128,16 @@ function headroomLabel(plotTop: number) {
 const HEADROOM_LABEL = headroomLabel(PLOT_MARGIN.top)
 const TITLED_HEADROOM_LABEL = headroomLabel(TITLED_PLOT_MARGIN.top)
 
-// The chart's words (#499), each one constant so a change is one edit, all
-// confirmed by the maintainer on 2026-10-29: the first picker keeps the name
-// #348 gave it, every other is named for its slot's number, and the +, the ×
-// and the knob are named for what they do.
+// The chart's words (#499), each one constant so a change is one edit. The
+// pickers, the + and the × were confirmed by the maintainer on 2026-10-29:
+// the first picker keeps the name #348 gave it, every other is named for its
+// slot's number, and the + and the × are named for what they do. The three
+// gutters are named for the split each one moves (approved 2026-10-29).
 const PICKER_LABELS = ['Chart metric', 'Metric 2', 'Metric 3', 'Metric 4'] as const
 const ADD_PANEL_LABEL = 'Add a panel'
 const removePanelLabel = (metricLabel: string) => `Remove ${metricLabel}`
+const RESIZE_COLUMNS_LABEL = 'Resize the columns'
+const RESIZE_ROWS_LABEL = 'Resize the rows'
 const RESIZE_PANELS_LABEL = 'Resize the panels'
 
 // Which rows are plotted is the table's job: the checkbox column is the one
@@ -279,7 +282,7 @@ function TimeSeriesChart({
   const stackRef = useRef<HTMLDivElement>(null)
   const areaRef = titled || count === 1 ? undefined : gridded ? gridRef : stackRef
   const dragStartRef = useRef<{ share: number; totalPx: number } | null>(null)
-  const knobStartRef = useRef<{ shares: GridShares; w: number; h: number } | null>(null)
+  const gutterStartRef = useRef<{ shares: GridShares; w: number; h: number } | null>(null)
   // One sync group per chart, so every panel's cursor stands on the hour the
   // hovered one is at.
   const syncId = useId()
@@ -394,28 +397,31 @@ function TimeSeriesChart({
   }, [])
   const onSplitReset = useCallback(() => setShare(0.5), [])
 
-  // The grid's one knob moves both splits on every pointer move, with no
+  // The grid's gutters move the splits on every pointer move, with no
   // floor: dragged into a corner, one panel takes the area, and a panel
   // under its floor is not drawn (#499; TJ 2026-10-29).
   const gridW = Math.max(0, (gridRef.current?.clientWidth ?? 0) - GUTTER_PX)
   const gridH = Math.max(0, (gridRef.current?.clientHeight ?? 0) - GUTTER_PX)
-  const onKnobStart = useCallback(() => {
+  const onGutterStart = useCallback(() => {
     const w = Math.max(0, (gridRef.current?.clientWidth ?? 0) - GUTTER_PX)
     const h = Math.max(0, (gridRef.current?.clientHeight ?? 0) - GUTTER_PX)
     setGridShares((current) => {
-      knobStartRef.current = { shares: current, w, h }
+      gutterStartRef.current = { shares: current, w, h }
       return current
     })
   }, [])
-  const onKnobDrag = useCallback((dx: number, dy: number) => {
-    const start = knobStartRef.current
+  const onGutterDrag = useCallback((dx: number, dy: number) => {
+    const start = gutterStartRef.current
     if (!start) return
     setGridShares(gridAfterDrag(start.shares, dx, dy, start.w, start.h))
   }, [])
-  const onKnobEnd = useCallback(() => {
-    knobStartRef.current = null
+  const onGutterEnd = useCallback(() => {
+    gutterStartRef.current = null
   }, [])
-  const onKnobReset = useCallback(() => setGridShares(EVEN_GRID), [])
+  // A double press evens its own axis; at the crossing, both.
+  const onColumnsReset = useCallback(() => setGridShares((g) => ({ x: EVEN_GRID.x, y: g.y })), [])
+  const onRowsReset = useCallback(() => setGridShares((g) => ({ x: g.x, y: EVEN_GRID.y })), [])
+  const onBothReset = useCallback(() => setGridShares(EVEN_GRID), [])
 
   // The tutorial's hour wins over a finger's; an hour past a grid that has
   // since shrunk is no reading at all.
@@ -440,8 +446,8 @@ function TimeSeriesChart({
     return (
       <div className={CHART_TITLE.bar}>
         <MetricTitle label={p.label} shown={p.metricLabel} value={p.metric} index={i} onPick={onPick} />
-        {i > 0 && <RemoveButton index={i} metricLabel={p.metricLabel} onRemove={onRemove} />}
-        {i === 0 && <AddButton disabled={atCeiling} onAdd={onAdd} />}
+        {i > 0 && <RemoveButton index={i} metricLabel={p.metricLabel} onRemove={onRemove} square={CHART_PANEL_BUTTON.titleSquare} />}
+        {i === 0 && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.titleSquare} />}
       </div>
     )
   }
@@ -489,7 +495,7 @@ function TimeSeriesChart({
   }
 
   // A grid panel too small for a plot is not drawn (#499); its box stays, so
-  // the gutters and the knob stay where the reader put them.
+  // the gutters stay where the reader put them.
   const widthFloor = panelWidthFloorPx(MARGIN)
   const heightFloor = panelFloorPx(MARGIN, true)
   const tooSmall = (w: number, h: number) => gridW > 0 && gridH > 0 && (w < widthFloor || h < heightFloor)
@@ -524,7 +530,7 @@ function TimeSeriesChart({
               // gives: an inline-level select in a block wrapper reserves
               // descender space below itself and sits a pixel low against what
               // is beside it.
-              <div key={p.index} className="relative flex flex-shrink-0 items-stretch gap-1">
+              <div key={p.index} className="relative flex flex-shrink-0 items-center gap-1">
                 <MenuSelect
                   label={p.label}
                   value={p.metric}
@@ -532,8 +538,12 @@ function TimeSeriesChart({
                   onChange={(m: ChartMetric) => onPick(p.index, m)}
                   className={`${CHART_METRIC_W} px-2 py-0.5`}
                 />
-                {p.index > 0 && <RemoveButton index={p.index} metricLabel={p.metricLabel} onRemove={onRemove} />}
-                {p.index === metrics.length - 1 && <AddButton disabled={atCeiling} onAdd={onAdd} />}
+                {p.index > 0 && (
+                  <RemoveButton index={p.index} metricLabel={p.metricLabel} onRemove={onRemove} square={CHART_PANEL_BUTTON.square} />
+                )}
+                {p.index === metrics.length - 1 && (
+                  <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />
+                )}
               </div>
             ))}
           {controls}
@@ -561,14 +571,43 @@ function TimeSeriesChart({
             {panel(2, count === 4 ? x : 1, true, undefined, tooSmall(count === 4 ? x * gridW : gridW + GUTTER_PX, (1 - y) * gridH))}
             {count === 4 && panel(3, 1 - x, true, undefined, tooSmall((1 - x) * gridW, (1 - y) * gridH))}
           </div>
-          <GridKnob
-            left={`calc(${x} * (100% - ${GUTTER_PX}px) + ${GUTTER_PX / 2}px)`}
-            top={`calc(${y} * (100% - ${GUTTER_PX}px) + ${GUTTER_PX / 2}px)`}
+          {/* The gutters are the handles (#499; TJ 2026-10-29): the
+              vertical one the columns, the horizontal one the rows, the
+              square where they cross both. With three panels the vertical
+              gutter stops at the top row. */}
+          <GridGutter
+            axis="col"
+            place={{
+              left: `calc(${x} * (100% - ${GUTTER_PX}px))`,
+              top: 0,
+              height: count === 4 ? '100%' : `calc(${y} * (100% - ${GUTTER_PX}px))`,
+            }}
+            label={RESIZE_COLUMNS_LABEL}
+            onReset={onColumnsReset}
+            onDragStart={onGutterStart}
+            onDrag={onGutterDrag}
+            onDragEnd={onGutterEnd}
+          />
+          <GridGutter
+            axis="row"
+            place={{ top: `calc(${y} * (100% - ${GUTTER_PX}px))`, left: 0, width: '100%' }}
+            label={RESIZE_ROWS_LABEL}
+            onReset={onRowsReset}
+            onDragStart={onGutterStart}
+            onDrag={onGutterDrag}
+            onDragEnd={onGutterEnd}
+          />
+          <GridGutter
+            axis="both"
+            place={{
+              left: `calc(${x} * (100% - ${GUTTER_PX}px) + ${GUTTER_PX / 2}px)`,
+              top: `calc(${y} * (100% - ${GUTTER_PX}px) + ${GUTTER_PX / 2}px)`,
+            }}
             label={RESIZE_PANELS_LABEL}
-            onReset={onKnobReset}
-            onDragStart={onKnobStart}
-            onDrag={onKnobDrag}
-            onDragEnd={onKnobEnd}
+            onReset={onBothReset}
+            onDragStart={onGutterStart}
+            onDrag={onGutterDrag}
+            onDragEnd={onGutterEnd}
           />
         </div>
       )}
@@ -576,19 +615,30 @@ function TimeSeriesChart({
   )
 }
 
-// The gutter between a grid's panels, `gap-2`, which the knob centres on.
+// The gutter between a grid's panels, `gap-2`, which the gutters' handles stand in.
 const GUTTER_PX = 8
 
 const metricLabelOf = (m: ChartMetric) => CHART_METRICS.find((c) => c.key === m)?.label ?? ''
 
 /** The × that takes a panel away (#499): the legend chip's own ×. */
-function RemoveButton({ index, metricLabel, onRemove }: { index: number; metricLabel: string; onRemove: (i: number) => void }) {
+function RemoveButton({
+  index,
+  metricLabel,
+  onRemove,
+  square,
+}: {
+  index: number
+  metricLabel: string
+  onRemove: (i: number) => void
+  /** The square it fills: a desk picker's height or a phone title's. */
+  square: string
+}) {
   return (
     <button
       type="button"
       onClick={() => onRemove(index)}
       aria-label={removePanelLabel(metricLabel)}
-      className={CHART_PANEL_BUTTON.remove}
+      className={`${CHART_PANEL_BUTTON.remove} ${square}`}
     >
       <IconClose size="chip" />
     </button>
@@ -596,9 +646,9 @@ function RemoveButton({ index, metricLabel, onRemove }: { index: number; metricL
 }
 
 /** The + that adds a panel (#499), greyed at the ceiling. */
-function AddButton({ disabled, onAdd }: { disabled: boolean; onAdd: () => void }) {
+function AddButton({ disabled, onAdd, square }: { disabled: boolean; onAdd: () => void; square: string }) {
   return (
-    <button type="button" onClick={onAdd} disabled={disabled} aria-label={ADD_PANEL_LABEL} className={CHART_PANEL_BUTTON.add}>
+    <button type="button" onClick={onAdd} disabled={disabled} aria-label={ADD_PANEL_LABEL} className={`${CHART_PANEL_BUTTON.add} ${square}`}>
       <IconPlus size="chip" />
     </button>
   )
@@ -696,7 +746,7 @@ interface PanelProps {
 }
 
 // The card over several panels (#499): free to leave the hovered panel, and
-// over its neighbours and the grid's knob. Hoisted, so Recharts is handed one
+// over its neighbours and the grid's gutters. Hoisted, so Recharts is handed one
 // object.
 const ESCAPE_PANEL = { x: true, y: true }
 const CARD_OVER_PANELS = { zIndex: 3 }

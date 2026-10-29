@@ -1,5 +1,6 @@
 import { useGripDrag } from '../hooks/useGripDrag'
-import { CHART_PANEL_BUTTON, RADIUS, TAP } from '../styles'
+import { type CSSProperties, useState } from 'react'
+import { CHART_GUTTER, RADIUS, TAP } from '../styles'
 
 interface ResizeGripProps {
   /** A double press: put this grip's own panel back to its default height. */
@@ -37,13 +38,14 @@ export default function ResizeGrip({ onReset, onDragStart, onDrag, onDragEnd }: 
   )
 }
 
-interface GridKnobProps {
-  /** Where the knob stands in its grid, as CSS lengths from the grid's top left. */
-  left: string
-  top: string
+interface GridGutterProps {
+  /** Which split it moves: the columns', the rows', or both where the gutters cross. */
+  axis: 'col' | 'row' | 'both'
+  /** Where it stands in its grid, as CSS lengths from the grid's top left. */
+  place: CSSProperties
   /** Its accessible name. */
   label: string
-  /** A double press: even the grid back out. */
+  /** A double press: even its axis back out. */
   onReset: () => void
   onDragStart: () => void
   /** The drag so far, right and down positive. */
@@ -52,25 +54,43 @@ interface GridKnobProps {
 }
 
 /**
- * The one control that resizes the chart's grid of three or four panels
- * (#499): a knob where the gutters cross, which moves both splits at once.
- * Beside `ResizeGrip` and on the same gesture (`useGripDrag`), so the two
- * share one press clock and one way a drag is read.
+ * A gutter of the chart's grid of three or four panels, as its handle (#499;
+ * TJ 2026-10-29): the vertical one drags the columns, the horizontal one the
+ * rows, and the square where they cross drags both. Beside `ResizeGrip` and
+ * on the same gesture (`useGripDrag`), so the grid shares one press clock and
+ * one way a drag is read. The line lights while it is dragged as well as
+ * under the pointer, because the pointer leaves an 8px gutter mid-drag.
  */
-export function GridKnob({ left, top, label, onReset, onDragStart, onDrag, onDragEnd }: GridKnobProps) {
+export function GridGutter({ axis, place, label, onReset, onDragStart, onDrag, onDragEnd }: GridGutterProps) {
+  const [dragging, setDragging] = useState(false)
   const handlePointerDown = useGripDrag({
     onReset,
-    onDragStart,
-    onDrag: (upPx, rightPx) => onDrag(rightPx, -upPx),
-    onDragEnd: () => onDragEnd(),
+    onDragStart: () => {
+      setDragging(true)
+      onDragStart()
+    },
+    onDrag: (upPx, rightPx) => onDrag(axis === 'row' ? 0 : rightPx, axis === 'col' ? 0 : -upPx),
+    onDragEnd: () => {
+      setDragging(false)
+      onDragEnd()
+    },
   })
+  if (axis === 'both') {
+    return (
+      <div role="separator" aria-label={label} onPointerDown={handlePointerDown} className={CHART_GUTTER.cross} style={place} />
+    )
+  }
+  const line = axis === 'col' ? CHART_GUTTER.colLine : CHART_GUTTER.rowLine
   return (
     <div
       role="separator"
       aria-label={label}
+      aria-orientation={axis === 'col' ? 'vertical' : 'horizontal'}
       onPointerDown={handlePointerDown}
-      className={CHART_PANEL_BUTTON.knob}
-      style={{ left, top }}
-    />
+      className={axis === 'col' ? CHART_GUTTER.col : CHART_GUTTER.row}
+      style={place}
+    >
+      <div className={`${line} ${dragging ? CHART_GUTTER.active : CHART_GUTTER.idle}`} />
+    </div>
   )
 }

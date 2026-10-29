@@ -15,7 +15,7 @@ export interface GripDragHandlers {
   onDragStart: () => void
   /**
    * The drag so far, with up positive, and how far right it has gone, which
-   * only the chart's grid knob reads (#499).
+   * only the chart's grid gutters read (#499).
    */
   onDrag: (dragUpPx: number, dragRightPx: number) => void
   /**
