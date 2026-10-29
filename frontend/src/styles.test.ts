@@ -2900,6 +2900,12 @@ describe('the chart title on a phone', () => {
     expect(timeSeriesChartSource).toContain('<IconChevron up={false} className={ICON_ADORNMENT} />')
     // Sized to its words, not to the desktop picker's fixed width.
     expect(CHART_TITLE.box).not.toContain(CHART_METRIC_W)
+    // Two titles on one line (#499): the row stands where the box does, on
+    // the same insets, and its titles are the box's look at the same height.
+    expect(words(CHART_TITLE.row)).toEqual(expect.arrayContaining(['top-3', 'inset-x-3', 'gap-2', 'z-[1]']))
+    expect(words(CHART_TITLE.inRow)).toEqual(expect.arrayContaining(['h-7', 'pl-2', 'pr-6', 'min-w-0']))
+    expect(token(CHART_TITLE.inRow, 'has-[select:focus]:border')).toBe(token(CHART_TITLE.box, 'has-[select:focus]:border'))
+    expect(CHART_TITLE.inRow).not.toContain(CHART_METRIC_W)
   })
 
   it('lays the native select over the title, invisible, a 44px target centred on it', () => {

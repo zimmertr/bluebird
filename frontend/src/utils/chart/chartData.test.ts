@@ -15,6 +15,13 @@ import {
   nowWithinGrid,
   tracksCursor,
   buildChartData,
+  cardValues,
+  isChartMetric,
+  pairFor,
+  pairMetrics,
+  pickPrimary,
+  pickSecond,
+  type ChartMetricPair,
   candidateSetKey,
   chartKey,
   computeYDomain,
@@ -23,6 +30,7 @@ import {
   extremeLabelPosition,
   extremeValue,
   formatMetricValue,
+  formatTooltipValue,
   metricForSort,
   nearestKey,
   pixelToTime,
@@ -686,5 +694,76 @@ describe('a name two places share', () => {
     expect(comparedLineLabel(1, rainier.name, 'NOAA GFS', collidingType(rainier, shared))).toBe(
       '1. Mount Rainier (NOAA GFS)',
     )
+  })
+})
+
+// The chart's two slots (#499): one rule moves them, whether the ranking or a
+// picker asks, and a metric never stands in both.
+describe('the chart metric pair', () => {
+  const PT: ChartMetricPair = { primary: 'precip', second: 'temp' }
+
+  it('opens on the ranking, with no second panel', () => {
+    expect(pairFor('temp_max_f')).toEqual({ primary: 'temp', second: null })
+  })
+
+  it('follows a new ranking, swapping when the second slot holds it', () => {
+    expect(pickPrimary(PT, 'temp')).toEqual({ primary: 'temp', second: 'precip' })
+    expect(pickPrimary(PT, 'wind')).toEqual({ primary: 'wind', second: 'temp' })
+  })
+
+  it('answers the same pair when nothing moves', () => {
+    expect(pickPrimary(PT, 'precip')).toBe(PT)
+    expect(pickSecond(PT, 'temp')).toBe(PT)
+    const one: ChartMetricPair = { primary: 'aqi', second: null }
+    expect(pickSecond(one, null)).toBe(one)
+    // The primary picked for an empty slot has nothing to swap with.
+    expect(pickSecond(one, 'aqi')).toBe(one)
+  })
+
+  it('swaps when either picker takes the metric the other slot holds', () => {
+    expect(pickSecond(PT, 'precip')).toEqual({ primary: 'temp', second: 'precip' })
+    expect(pickPrimary(PT, 'temp')).toEqual({ primary: 'temp', second: 'precip' })
+  })
+
+  it('fills and clears the second slot', () => {
+    expect(pickSecond({ primary: 'aqi', second: null }, 'wind')).toEqual({ primary: 'aqi', second: 'wind' })
+    expect(pickSecond(PT, null)).toEqual({ primary: 'precip', second: null })
+  })
+
+  it('lists the drawn metrics top first, and knows its own names', () => {
+    expect(pairMetrics(PT)).toEqual(['precip', 'temp'])
+    expect(pairMetrics({ primary: 'aqi', second: null })).toEqual(['aqi'])
+    expect(RANKED_FAMILIES.every(isChartMetric)).toBe(true)
+    expect(isChartMetric('snow_depth')).toBe(false)
+  })
+})
+
+describe('cardValues', () => {
+  const line = {
+    key: 'k',
+    label: 'Sahale Mountain',
+    color: '#000000',
+    ranked: true,
+    series: seriesOf({ precip_in: [0.05, null], temp_f: [38.9, 40] }),
+  }
+
+  it("reads each metric's value through its own format, top panel first", () => {
+    expect(cardValues(line, ['precip', 'temp'], 0)).toBe(
+      `${formatTooltipValue(0.05, 'precip')} · ${formatTooltipValue(38.9, 'temp')}`,
+    )
+  })
+
+  it('leaves a missing half out rather than writing a placeholder', () => {
+    expect(cardValues(line, ['precip', 'temp'], 1)).toBe(formatTooltipValue(40, 'temp'))
+    expect(cardValues(line, ['precip'], 1)).toBe('')
+  })
+})
+
+describe('tracksCursor over two panels', () => {
+  // A hover redraws every line in both panels, so two metrics spend the
+  // budget twice (#499): 384 hours x 40 lines fits one panel, not two.
+  it('is spent by every path drawn', () => {
+    expect(tracksCursor(384, 40)).toBe(true)
+    expect(tracksCursor(384, 40 * 2)).toBe(false)
   })
 })

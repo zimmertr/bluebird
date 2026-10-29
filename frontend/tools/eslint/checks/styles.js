@@ -163,9 +163,13 @@ const MENU_BUTTON = (shape) =>
 
 // Where a native select may stand: in a phone's branch, the Metrics table's
 // `phone ? ... :` and the chart's `titled && ...` (record 0149).
+// `MetricTitle` is the results chart's phone title (#499), drawn only under
+// its own `titled` test, and taken out as a component because each panel
+// wears one.
 const PHONE_ONLY =
   'ConditionalExpression[test.name="phone"] > .consequent JSXOpeningElement, ' +
-  'LogicalExpression[left.name="titled"] > .right JSXOpeningElement'
+  'LogicalExpression[left.name="titled"] > .right JSXOpeningElement, ' +
+  'FunctionDeclaration[id.name="MetricTitle"] JSXOpeningElement'
 
 const GRID = elementWith('METRICS_GRID')
 const CLEAR = 'JSXOpeningElement:has(JSXAttribute[name.name="onClick"] > JSXExpressionContainer > Identifier[name="onClearFilters"])'

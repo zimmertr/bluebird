@@ -17,6 +17,8 @@ import type { ClosureProps } from '../utils/closures'
 import type { MapInputs } from '../map/controller'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import type { PanelMessages } from '../hooks/usePanelMessages'
+import type { ChartPair } from '../hooks/useChartPair'
+import type { ChartMetricPair } from '../utils/chart/chartData'
 import { worstSeverity } from '../utils/notices'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
@@ -537,4 +539,12 @@ export function panelMessages(over: Partial<PanelMessages> = {}): PanelMessages 
     held: false,
     ...over,
   }
+}
+
+/**
+ * The chart's metric slots as `useChartPair` hands them (#499), with setters
+ * that do nothing unless a test hands its own.
+ */
+export function chartPairOf(pair: ChartMetricPair = { primary: 'precip', second: null }, over: Partial<ChartPair> = {}): ChartPair {
+  return { pair, setPrimary: () => {}, setSecond: () => {}, ...over }
 }

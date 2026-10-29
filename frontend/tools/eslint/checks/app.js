@@ -135,7 +135,8 @@ export const APP = [
       },
     ],
     require: [
-      { selector: EFFECT, count: 2, message: 'useChartSelection.ts runs its two effects through useEffect.' },
+      // One since #499, when the metric and its ranking effect moved to useChartPair.
+      { selector: EFFECT, count: 1, message: 'useChartSelection.ts runs its one effect through useEffect.' },
       {
         selector:
           'VariableDeclarator[id.name="candidatesKey"] > CallExpression[callee.name="useMemo"]' +
@@ -883,8 +884,8 @@ export const APP = [
     require: [
       { selector: EFFECT, count: 2, message: 'useUrlSync.ts runs its two effects through useEffect.' },
       {
-        selector: `${EFFECT} > ArrayExpression[elements.length=27][elements.26.name="sync"]`,
-        message: 'Key the sync effect on all 27 inputs it reads, sync last.',
+        selector: `${EFFECT} > ArrayExpression[elements.length=28][elements.27.name="sync"]`,
+        message: 'Key the sync effect on all 28 inputs it reads, sync last.',
       },
       { selector: keyedOnlyOn('writeUrl'), message: 'Flush on unmount in an effect keyed on writeUrl alone.' },
       { selector: 'ReturnStatement Property[key.name="writeUrl"]', message: 'Return the writer.' },

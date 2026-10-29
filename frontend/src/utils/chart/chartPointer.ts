@@ -8,6 +8,7 @@
 
 import { pixelToTime, pixelToValue, TOOLTIP_CHROME_PX, TOOLTIP_ROW_PX, tooltipCapacity } from './chartData'
 import { nearestIndex } from '../timeline'
+import { clamp } from '../numbers'
 
 /**
  * The chart's margins, x-axis strip and y-axis strip, which the component
@@ -55,11 +56,35 @@ export const TITLED_PLOT_MARGIN = {
 
 export type PlotMargin = typeof PLOT_MARGIN | typeof TITLED_PLOT_MARGIN
 
+/**
+ * The x axis strip a panel draws under its plot (#499). Two stacked panels
+ * share one time axis, and only the bottom one prints it: the top one's strip
+ * is zero tall, so its band runs down to its box's foot. Both keep the same
+ * left and right edges, which is what lines their hours up.
+ */
+export function xAxisPx(drawsAxis: boolean): number {
+  return drawsAxis ? X_AXIS_HEIGHT_PX : 0
+}
+
+/**
+ * The least plotting band a stacked panel may be dragged down to (#499): two
+ * of the y axis's 11px tick labels with room between them, so a panel the
+ * grip squeezes still reads as a scale rather than a smudge. Below it the
+ * axis prints one tick or overlaps two.
+ */
+export const MIN_PANEL_BAND_PX = 40
+
+/** The least box a stacked panel may have: its margins, its axis strip if any, and the least band. */
+export function panelFloorPx(margin: PlotMargin, drawsAxis: boolean): number {
+  return margin.top + margin.bottom + xAxisPx(drawsAxis) + MIN_PANEL_BAND_PX
+}
+
 /** The plotting band inside a chart box of this size, in the box's own pixels. */
 export function plotBand(
   width: number,
   height: number,
   margin: PlotMargin = PLOT_MARGIN,
+  drawsAxis = true,
 ): { left: number; top: number; width: number; height: number } {
   const left = margin.left + Y_AXIS_WIDTH_PX
   const top = margin.top
@@ -67,8 +92,27 @@ export function plotBand(
     left,
     top,
     width: width - left - margin.right,
-    height: height - top - margin.bottom - X_AXIS_HEIGHT_PX,
+    height: height - top - margin.bottom - xAxisPx(drawsAxis),
   }
+}
+
+/**
+ * Where the split between two stacked panels lands after a drag (#499): the
+ * top panel's share of `totalPx`, held so each panel keeps its floor. The
+ * share rather than pixels, so a sheet that grows keeps the split the reader
+ * set. A box too short for both floors splits evenly.
+ */
+export function splitAfterDrag(
+  startShare: number,
+  dragUpPx: number,
+  totalPx: number,
+  topFloorPx: number,
+  bottomFloorPx: number,
+): number {
+  if (totalPx <= 0 || topFloorPx + bottomFloorPx > totalPx) return 0.5
+  const topPx = startShare * totalPx - dragUpPx
+  const held = clamp(topPx, topFloorPx, totalPx - bottomFloorPx)
+  return held / totalPx
 }
 
 /**
@@ -96,8 +140,9 @@ export function readoutPlace(
   margin: PlotMargin,
   roomAbovePx: number,
   lineCount: number,
+  drawsAxis = true,
 ): { rows: number; top: number | null } {
-  const band = plotBand(0, boxHeight, margin)
+  const band = plotBand(0, boxHeight, margin, drawsAxis)
   const bandBottom = band.top + band.height
   const rows = tooltipCapacity(roomAbovePx + bandBottom)
   const listed = Math.min(rows, lineCount)
@@ -132,9 +177,10 @@ export function fingerReading(
   yMin: number,
   yMax: number,
   margin: PlotMargin = PLOT_MARGIN,
+  drawsAxis = true,
 ): { index: number; value: number } | null {
   const index = hourIndexAt(x, box.width, times)
-  const band = plotBand(box.width, box.height, margin)
+  const band = plotBand(box.width, box.height, margin, drawsAxis)
   if (index === null || band.height <= 0) return null
   return { index, value: pixelToValue(y, band.top, band.height, yMin, yMax) }
 }

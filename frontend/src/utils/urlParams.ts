@@ -25,6 +25,7 @@ import { isSortKey } from './tableColumns'
 import { parseCustomCsv } from './customDestinations'
 import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
+import { isChartMetric, metricForSort, pairMetrics } from './chart/chartData'
 
 /**
  * One query parameter.
@@ -129,6 +130,14 @@ const PLACE_KIND = /^[\p{L}\p{N} ]*$/u
 
 // A link's coordinates, at the precision it writes them.
 const round = (n: number): number => roundTo(n, POLY_PRECISION)
+
+/**
+ * Whether the chart shows something other than a fresh session's (#499): a
+ * second panel, or a primary the reader moved off the ranking's family.
+ */
+export function chartDiffers(state: ShareableState): boolean {
+  return state.chart.second !== null || state.chart.primary !== metricForSort(state.sortBy)
+}
 
 /** Whether the state holds a ring worth writing: three corners at least. */
 export function hasPolygon(state: ShareableState): boolean {
@@ -448,6 +457,20 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       if (unique.length > 0) out.compareModels = unique
     },
   },
+  // The chart's metrics (#499): the primary, then the second panel's after a
+  // comma, `chart=precip,temp`, and `chart=temp` for one panel. Written only
+  // when it differs from the chart a fresh session draws. Read tolerantly: an
+  // unknown name is dropped, a repeat of the primary is dropped, and a third
+  // name is ignored, since the chart has two slots.
+  {
+    key: 'chart',
+    encode: (state) => (chartDiffers(state) ? pairMetrics(state.chart).join(',') : null),
+    decode: (raw, out) => {
+      const names = raw.split(',').filter(isChartMetric)
+      const unique = names.filter((m, i) => names.indexOf(m) === i)
+      if (unique.length > 0) out.chart = { primary: unique[0], second: unique[1] ?? null }
+    },
+  },
   // The window's five keys are read together by `decodeSelection`, because
   // what `h1` means depends on `mode` and `d1`.
   //
@@ -701,6 +724,7 @@ export const FIELD_PARAMS = {
   pins: ['pins'],
   removed: ['removed'],
   tableSort: ['tsort', 'tdesc'],
+  chart: ['chart'],
   view: ['view'],
 } satisfies Record<keyof ShareableState, readonly [string, ...string[]]>
 

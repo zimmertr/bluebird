@@ -41,6 +41,57 @@ export function metricForSort(sortBy: SortBy): ChartMetric {
   return familyOf(sortBy)
 }
 
+/**
+ * The chart's two metric slots (#499): the primary, which follows the
+ * ranking, and an optional second drawn as its own panel under it. Two and no
+ * more, because each slot is a panel with its own y axis, and a third would
+ * leave each one too short to read at a phone sheet's rest height.
+ */
+export interface ChartMetricPair {
+  readonly primary: ChartMetric
+  readonly second: ChartMetric | null
+}
+
+/** The pair a session opens on: the ranking's family, and no second panel. */
+export function pairFor(sortBy: SortBy): ChartMetricPair {
+  return { primary: metricForSort(sortBy), second: null }
+}
+
+/**
+ * A metric for the primary slot, from its picker or from a new ranking. One
+ * rule for both: a metric the second slot already holds swaps the two rather
+ * than drawing one family twice, so precipitation over temperature ranked by
+ * temperature becomes temperature over precipitation. Answers the same object
+ * when nothing moves, so a memoized chart is handed the value it already has.
+ */
+export function pickPrimary(pair: ChartMetricPair, metric: ChartMetric): ChartMetricPair {
+  if (metric === pair.primary) return pair
+  if (metric === pair.second) return { primary: metric, second: pair.primary }
+  return { primary: metric, second: pair.second }
+}
+
+/**
+ * A metric for the second slot, or null to clear it. The primary's metric
+ * swaps the two, as `pickPrimary` does; with no second to swap in, there is
+ * nothing to put in the primary slot, so the pick changes nothing.
+ */
+export function pickSecond(pair: ChartMetricPair, metric: ChartMetric | null): ChartMetricPair {
+  if (metric === pair.second) return pair
+  if (metric === null) return { primary: pair.primary, second: null }
+  if (metric === pair.primary) return pair.second === null ? pair : { primary: pair.second, second: metric }
+  return { primary: pair.primary, second: metric }
+}
+
+/** Whether a link's word names a chart metric. */
+export function isChartMetric(raw: string): raw is ChartMetric {
+  return CHART_METRICS.some((m) => m.key === raw)
+}
+
+/** The metrics drawn, top panel first. */
+export function pairMetrics(pair: ChartMetricPair): ChartMetric[] {
+  return pair.second === null ? [pair.primary] : [pair.primary, pair.second]
+}
+
 // Coordinate-based identity: it survives the table's client-side re-sorting and
 // keys a line to a destination.
 //
@@ -324,6 +375,21 @@ export function formatTooltipValue(v: number, metric: ChartMetric): string {
   return (metric === 'cloud_deck' ? cloudDeckMark(v, false) : null) ?? formatMetricValue(v, metric)
 }
 
+/**
+ * A card row's values (#499): each drawn metric's value at the hour, through
+ * its own formatter, top panel first, joined by the app's ` · `. A metric
+ * with no value at that hour is left out rather than written as a dash, so a
+ * row reads what there is.
+ */
+export function cardValues(line: ChartLine, metrics: readonly ChartMetric[], index: number): string {
+  const parts: string[] = []
+  for (const m of metrics) {
+    const v = valueAt(line, m, index)
+    if (v !== null) parts.push(formatTooltipValue(v, m))
+  }
+  return parts.join(' · ')
+}
+
 export function formatMetricValue(v: number, metric: ChartMetric): string {
   if (metric === 'precip' || metric === 'snowfall') return formatPrecipRate(v)
   // Whole units: an AQI is an integer index, and a freezing level or a cloud
@@ -405,6 +471,10 @@ const CURSOR_POINT_BUDGET = 25_000
  * emphasis back. The tooltip itself is unaffected either way: Recharts tracks
  * the cursor for that on its own.
  */
+// `lineCount` is every path a hover redraws, which with a second panel is
+// each line twice (#499): a hover's emphasis dims a destination in both
+// panels, so both re-render on every move, and the budget was calibrated on
+// the cost of that re-render rather than on how many destinations it shows.
 export function tracksCursor(timestampCount: number, lineCount: number): boolean {
   return timestampCount * lineCount <= CURSOR_POINT_BUDGET
 }

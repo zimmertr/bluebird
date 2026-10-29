@@ -45,13 +45,27 @@ const chart = vi.hoisted(() => ({
   series: [] as Record<string, unknown>[],
   tooltipContent: undefined as undefined | ((props: unknown) => ReactNode),
   margin: undefined as unknown,
+  // Every LineChart, XAxis and Tooltip drawn, in order, so a two-panel test
+  // can read each panel's (#499).
+  charts: [] as { onClick?: Handler; onMouseMove?: Handler; syncId?: string }[],
+  xAxes: [] as { hide?: boolean; height?: number }[],
+  tooltips: [] as ((props: unknown) => ReactNode)[],
+  grip: undefined as undefined | { onReset: () => void; onDragStart: () => void; onDrag: (px: number) => void; onDragEnd: () => void },
+}))
+// The grip's handlers, kept so a test can drag it without a pointer.
+vi.mock('./ResizeGrip', () => ({
+  default: (p: NonNullable<typeof chart.grip>) => {
+    chart.grip = p
+    return <i data-testid="split-grip" />
+  },
 }))
 vi.mock('recharts', () => {
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
   const Nothing = () => null
   return {
     ResponsiveContainer: Pass,
-    LineChart: (props: { onClick?: Handler; onMouseMove?: Handler; margin?: unknown; children?: ReactNode }) => {
+    LineChart: (props: { onClick?: Handler; onMouseMove?: Handler; margin?: unknown; syncId?: string; children?: ReactNode }) => {
+      chart.charts.push(props)
       chart.margin = props.margin
       chart.onClick = props.onClick
       chart.onMouseMove = props.onMouseMove
@@ -73,9 +87,13 @@ vi.mock('recharts', () => {
     },
     Tooltip: (p: { defaultIndex?: number; active?: boolean; content?: (props: unknown) => ReactNode }) => {
       chart.tooltipContent = p.content
+      if (p.content) chart.tooltips.push(p.content)
       return <i data-testid="tooltip" data-index={String(p.defaultIndex)} data-active={String(p.active)} />
     },
-    XAxis: Nothing,
+    XAxis: (p: { hide?: boolean; height?: number }) => {
+      chart.xAxes.push(p)
+      return null
+    },
     YAxis: Nothing,
   }
 })
@@ -111,8 +129,9 @@ function props(over: Partial<Props> = {}): Props {
   return {
     times: TIMES,
     rows: ROWS,
-    metric: 'aqi',
-    onMetricChange: noop,
+    pair: { primary: 'aqi', second: null },
+    onPrimaryChange: noop,
+    onSecondChange: noop,
     sortBy: 'aqi_avg',
     sortDesc: true,
     colorFor,
@@ -266,7 +285,7 @@ describe('TimeSeriesChart extreme line', () => {
       precip_in: TIMES.map(() => 0),
     }),
   })
-  const WIND: Partial<Props> = { rows: [alpha, beta], metric: 'wind', sortBy: 'wind_avg_mph', sortDesc: true }
+  const WIND: Partial<Props> = { rows: [alpha, beta], pair: { primary: 'wind', second: null }, sortBy: 'wind_avg_mph', sortDesc: true }
 
   // The extreme line as drawn: its height and its label's text.
   function extremeLines() {
@@ -321,18 +340,18 @@ describe('TimeSeriesChart extreme line', () => {
   // Off the ranked family no direction was chosen, so the line marks the
   // largest value even under a lowest-first ranking.
   it('marks the largest value of a family the field is not ranked on', () => {
-    renderChart({ ...WIND, metric: 'temp', sortDesc: false })
+    renderChart({ ...WIND, pair: { primary: 'temp', second: null }, sortDesc: false })
     expect(extremeLines()).toEqual([{ y: 44, label: '44.0 °F' }])
   })
 
   it('draws no line when nothing has a value', () => {
-    renderChart({ ...WIND, metric: 'freeze' })
+    renderChart({ ...WIND, pair: { primary: 'freeze', second: null } })
     expect(screen.queryByTestId('extreme-line')).toBeNull()
   })
 
   // A dry window has no wettest hour worth marking.
   it('draws no line at a zero that means none', () => {
-    renderChart({ ...WIND, metric: 'precip', sortBy: 'precip_total_in', sortDesc: false })
+    renderChart({ ...WIND, pair: { primary: 'precip', second: null }, sortBy: 'precip_total_in', sortDesc: false })
     expect(screen.queryByTestId('extreme-line')).toBeNull()
   })
 
@@ -392,10 +411,12 @@ describe('TimeSeriesChart extreme line', () => {
 // inset by the title's line, so a finger reads the same band Recharts draws.
 describe('TimeSeriesChart on a phone', () => {
   it('stands the select in the title, under its name, with no row above the plot', () => {
-    const { container } = render(<TimeSeriesChart {...props({ titled: true, metric: 'temp' })} />)
+    const { container } = render(<TimeSeriesChart {...props({ titled: true, pair: { primary: 'temp', second: null } })} />)
     const select = screen.getByRole('combobox', { name: 'Chart metric' })
     const title = select.parentElement!
-    expect(title.className).toBe(CHART_TITLE.box)
+    // Beside the empty second slot's box in one row (#499).
+    expect(title.className).toBe(CHART_TITLE.inRow)
+    expect(title.parentElement!.className).toBe(CHART_TITLE.row)
     expect(select.className).toBe(CHART_TITLE.select)
     expect(title.textContent).toContain(CHART_METRICS.find((m) => m.key === 'temp')!.label)
     // The root holds the plot's box alone: the row is gone.
@@ -510,5 +531,163 @@ describe('TimeSeriesChart line marks', () => {
       expect(swatch.style.backgroundColor).toBe('rgb(210, 86, 69)')
       expect(swatch.className).not.toMatch(/(^|\s)outline/)
     }
+  })
+})
+
+// Two metrics as two stacked panels on one time axis (#499).
+describe('TimeSeriesChart with a second metric', () => {
+  const T = 3
+  const alpha = resultRow({
+    name: 'Sahale Mountain',
+    latitude: 48,
+    series: series({
+      precip_in: TIMES.map((_, i) => (i === T ? 0.05 : 0)),
+      temp_f: TIMES.map((_, i) => (i === T ? 38.9 : 30)),
+    }),
+  })
+  const beta = resultRow({
+    name: 'Mount Beta',
+    latitude: 47,
+    series: series({ precip_in: TIMES.map(() => 0.2), temp_f: TIMES.map(() => null) }),
+  })
+  const TWO: Partial<Props> = {
+    rows: [alpha, beta],
+    pair: { primary: 'precip', second: 'temp' },
+    sortBy: 'precip_total_in',
+  }
+  let height: { mockRestore: () => void } | undefined
+
+  beforeEach(() => {
+    chart.charts = []
+    chart.xAxes = []
+    chart.tooltips = []
+    chart.series = []
+    chart.grip = undefined
+  })
+  afterEach(() => {
+    height?.mockRestore()
+    height = undefined
+  })
+
+  it('draws one panel while the second slot is empty', () => {
+    render(<TimeSeriesChart {...props()} />)
+    expect(chart.charts).toHaveLength(1)
+    expect(chart.charts[0].syncId).toBeUndefined()
+    expect(screen.queryByTestId('split-grip')).toBeNull()
+  })
+
+  it('stacks two panels on one synced time axis, which only the bottom one prints', () => {
+    render(<TimeSeriesChart {...props(TWO)} />)
+    const [top, bottom] = chart.charts.slice(-2)
+    expect(top.syncId).toBeDefined()
+    expect(top.syncId).toBe(bottom.syncId)
+    const [topAxis, bottomAxis] = chart.xAxes.slice(-2)
+    expect(topAxis).toMatchObject({ hide: true, height: 0 })
+    expect(bottomAxis).toMatchObject({ hide: false, height: 22 })
+    expect(screen.getAllByTestId('split-grip')).toHaveLength(1)
+  })
+
+  it('names the Now seam in the top panel only, and draws its line in both', () => {
+    vi.setSystemTime(TIMES[10])
+    chart.lines = []
+    render(<TimeSeriesChart {...props(TWO)} />)
+    const seams = (chart.lines as LineProps[]).filter((l) => l.x === TIMES[10])
+    expect(seams).toHaveLength(2)
+    expect(seams.map((l) => l.label?.value)).toEqual(['Now', undefined])
+  })
+
+  it('reads both values in one card row, and leaves out a missing half', () => {
+    // Room for both rows: jsdom lays nothing out, and a card lists what fits.
+    height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(209)
+    render(<TimeSeriesChart {...props(TWO)} />)
+    const [topCard, bottomCard] = chart.tooltips.slice(-2)
+    const hover = { active: true, payload: [{ dataKey: 'x', value: 1 }], label: TIMES[T] }
+    // The bottom panel's tooltip draws nothing while the top one shows the card.
+    expect(bottomCard(hover)).toBeNull()
+    render(<>{topCard(hover)}</>)
+    const row = screen.getByText('Sahale Mountain').parentElement!
+    expect(row.lastElementChild!.textContent).toMatch(/^0\.05.* · 38\.9/)
+    // No temperature for Beta: its row reads the precipitation alone.
+    expect(screen.getByText('Mount Beta').parentElement!.lastElementChild!.textContent).not.toContain('·')
+  })
+
+  it('moves the playhead from a click on either panel', () => {
+    const onPlayheadChange = vi.fn()
+    render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange })} />)
+    const [top, bottom] = chart.charts.slice(-2)
+    act(() => top.onClick!({ activeLabel: TIMES[5] }))
+    act(() => bottom.onClick!({ activeLabel: TIMES[9] }))
+    expect(onPlayheadChange.mock.calls).toEqual([[TIMES[5]], [TIMES[9]]])
+  })
+
+  it('reads the nearest line through the hovered panel and dims it in both', () => {
+    height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(209)
+    render(<TimeSeriesChart {...props(TWO)} />)
+    const bottom = chart.charts.slice(-2)[1]
+    chart.series = []
+    // The bottom panel's top edge is temperature's highest: Sahale at 38.9.
+    act(() => bottom.onMouseMove!({ activeTooltipIndex: T, chartY: 8 }))
+    const drawn = chart.series.slice(-4)
+    const dimmed = drawn.filter((l) => l.strokeOpacity === LINE_DRAW.dimmedOpacity).map((l) => l.name)
+    expect(dimmed).toEqual(['Mount Beta', 'Mount Beta'])
+  })
+
+  it('moves height between the panels with the grip, and a double press evens it', () => {
+    height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(200)
+    const { container } = render(<TimeSeriesChart {...props(TWO)} />)
+    const topBox = () => container.firstElementChild!.children[1] as HTMLElement
+    expect(topBox().style.flexGrow).toBe('0.5')
+    act(() => chart.grip!.onDragStart())
+    act(() => chart.grip!.onDrag(50))
+    act(() => chart.grip!.onDragEnd())
+    expect(topBox().style.flexGrow).toBe('0.375')
+    // Never past the bottom panel's floor, however far it is dragged.
+    act(() => chart.grip!.onDragStart())
+    act(() => chart.grip!.onDrag(-1000))
+    expect(Number(topBox().style.flexGrow)).toBeLessThan(1)
+    act(() => chart.grip!.onReset())
+    expect(topBox().style.flexGrow).toBe('0.5')
+  })
+
+  it('counts both panels against the hover budget', () => {
+    // 48 hours x 300 lines is 14,400 paths in one panel and 28,800 in two.
+    const many = Array.from({ length: 300 }, (_, i) => resultRow({ name: `P${i}`, latitude: i / 100 }))
+    render(<TimeSeriesChart {...props({ rows: many, pair: { primary: 'precip', second: null } })} />)
+    expect(chart.charts[chart.charts.length - 1].onMouseMove).toBeDefined()
+    chart.charts = []
+    render(<TimeSeriesChart {...props({ rows: many, pair: { primary: 'precip', second: 'temp' } })} />)
+    expect(chart.charts.slice(-2).every((c) => c.onMouseMove === undefined)).toBe(true)
+  })
+
+  it('offers the second picker at a desk, beside the first', () => {
+    render(<TimeSeriesChart {...props()} />)
+    expect(screen.getByRole('button', { name: /Second metric/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Second metric/ }).textContent).toContain('None')
+    // No phone's empty-slot box at a desk.
+    expect(screen.queryByRole('combobox', { name: 'Second metric' })).toBeNull()
+  })
+
+  it("stands a phone's empty slot as a None box that opens the second panel", () => {
+    const onSecondChange = vi.fn()
+    render(<TimeSeriesChart {...props({ titled: true, onSecondChange })} />)
+    const select = screen.getByRole('combobox', { name: 'Second metric' }) as HTMLSelectElement
+    expect(select.value).toBe('')
+    expect(select.parentElement!.textContent).toContain('None')
+    expect(select.parentElement!.className).toContain(CHART_TITLE.inRow)
+    fireEvent.change(select, { target: { value: 'temp' } })
+    expect(onSecondChange).toHaveBeenCalledWith('temp')
+  })
+
+  it("titles each of a phone's panels with its own picker", () => {
+    const onSecondChange = vi.fn()
+    render(<TimeSeriesChart {...props({ ...TWO, titled: true, onSecondChange })} />)
+    const first = screen.getByRole('combobox', { name: 'Chart metric' }) as HTMLSelectElement
+    const second = screen.getByRole('combobox', { name: 'Second metric' }) as HTMLSelectElement
+    expect(first.value).toBe('precip')
+    expect(second.value).toBe('temp')
+    expect(first.parentElement!.className).toBe(CHART_TITLE.box)
+    expect(second.parentElement!.className).toBe(CHART_TITLE.box)
+    fireEvent.change(second, { target: { value: '' } })
+    expect(onSecondChange).toHaveBeenCalledWith(null)
   })
 })

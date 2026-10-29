@@ -76,7 +76,7 @@ export interface ResultsPanelsProps {
   /** The panels shown, their heights, and their grips (`useResultsLayout`). */
   layout: Pick<ResultsLayout, 'resultsMode' | 'chartGrip' | 'chartPanelPx' | 'tableGrip' | 'tablePanelPx'>
   /** The charted set and the comparison (`useChartCompare`). */
-  charts: Pick<ChartCompare, 'chart' | 'compare' | 'rowChartColor' | 'shared'>
+  charts: Pick<ChartCompare, 'chart' | 'chartPair' | 'compare' | 'rowChartColor' | 'shared'>
   /** An hour the chart's tooltip stands on without a mouse (the tutorial, #536). */
   chartTooltipIndex?: number | null
   /** The table's rows, columns and widths (`useTableView`). */
@@ -202,7 +202,7 @@ export default function ResultsPanels({
   // rather than 131 at a quarter of the CPU (2026-10-22).
   const layer = pushing ? LAYOUT_HOLD.layer : ''
   useScrollShadows(tableScrollRef, tablePane.mounted)
-  const { chart, compare, rowChartColor, shared } = charts
+  const { chart, chartPair, compare, rowChartColor, shared } = charts
   const {
     tableRows,
     tableColumns,
@@ -316,8 +316,9 @@ export default function ResultsPanels({
                         // draw. With nothing compared it is the row list it
                         // has always been.
                         rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
-                        metric={chart.metric}
-                        onMetricChange={chart.setMetric}
+                        pair={chartPair.pair}
+                        onPrimaryChange={chartPair.setPrimary}
+                        onSecondChange={chartPair.setSecond}
                         sortBy={sortBy}
                         sortDesc={sortDesc}
                         colorFor={chart.colorFor}

@@ -7,8 +7,12 @@ import {
   Y_AXIS_WIDTH_PX,
   fingerReading,
   hourIndexAt,
+  MIN_PANEL_BAND_PX,
+  panelFloorPx,
   plotBand,
   readoutPlace,
+  splitAfterDrag,
+  xAxisPx,
 } from './chartPointer'
 import { TOOLTIP_CHROME_PX, TOOLTIP_MAX_ROWS, TOOLTIP_ROW_PX } from './chartData'
 
@@ -107,5 +111,49 @@ describe('readoutPlace', () => {
   })
   it('stays put with no room above, as the band\'s own capacity would', () => {
     expect(readoutPlace(149, TITLED_PLOT_MARGIN, 0, 1).top).toBe(null)
+  })
+})
+
+// Two stacked panels share one time axis (#499): the top one prints none.
+describe('a stacked panel', () => {
+  it('runs its band to the foot of its box when it draws no axis', () => {
+    expect(xAxisPx(false)).toBe(0)
+    expect(xAxisPx(true)).toBe(X_AXIS_HEIGHT_PX)
+    const top = plotBand(400, 200, PLOT_MARGIN, false)
+    const bottom = plotBand(400, 200, PLOT_MARGIN, true)
+    expect(top.height - bottom.height).toBe(X_AXIS_HEIGHT_PX)
+    // Same left and right edges, so the two panels' hours line up.
+    expect(top.left).toBe(bottom.left)
+    expect(top.width).toBe(bottom.width)
+  })
+
+  it('reads a finger through the band it draws', () => {
+    const times = [0, 1, 2]
+    const box = { width: 400, height: PLOT_MARGIN.top + PLOT_MARGIN.bottom + 100 }
+    // The band's foot reads the axis minimum only where there is no strip.
+    const y = PLOT_MARGIN.top + 100
+    expect(fingerReading(200, y, box, times, 0, 10, PLOT_MARGIN, false)?.value).toBeCloseTo(0)
+  })
+
+  it('keeps a floor of margins, strip and the least band', () => {
+    expect(panelFloorPx(PLOT_MARGIN, false)).toBe(PLOT_MARGIN.top + PLOT_MARGIN.bottom + MIN_PANEL_BAND_PX)
+    expect(panelFloorPx(PLOT_MARGIN, true)).toBe(panelFloorPx(PLOT_MARGIN, false) + X_AXIS_HEIGHT_PX)
+  })
+})
+
+describe('splitAfterDrag', () => {
+  it('moves the split by the drag, as a share of the height', () => {
+    expect(splitAfterDrag(0.5, 50, 400, 50, 72)).toBe(0.375)
+    expect(splitAfterDrag(0.5, -50, 400, 50, 72)).toBe(0.625)
+  })
+
+  it('holds each panel at its floor', () => {
+    expect(splitAfterDrag(0.5, 1000, 400, 50, 72)).toBe(50 / 400)
+    expect(splitAfterDrag(0.5, -1000, 400, 50, 72)).toBe(328 / 400)
+  })
+
+  it('splits evenly a box too short for both floors', () => {
+    expect(splitAfterDrag(0.3, 10, 100, 50, 72)).toBe(0.5)
+    expect(splitAfterDrag(0.3, 10, 0, 50, 72)).toBe(0.5)
   })
 })

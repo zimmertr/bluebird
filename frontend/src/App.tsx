@@ -49,6 +49,7 @@ import { useLayoutMotion } from './hooks/useLayoutMotion'
 import { useClosePopupsOnCommit } from './hooks/useClosePopupsOnCommit'
 import { useRunOnOpen } from './hooks/useRunOnOpen'
 import { useUrlSync } from './hooks/useUrlSync'
+import { useChartPair } from './hooks/useChartPair'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useClosureProximity } from './hooks/useClosureProximity'
 import { useGridLayer } from './hooks/useGridLayer'
@@ -337,6 +338,9 @@ export default function App() {
   // What the displayed report is rendered under, and whether it is one hour.
   const { view, pointSample } = reportView(shownAnalyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
   const preview = usePreview()
+  // The chart's metric slots (#499), here rather than in the results view
+  // because the address bar's sync below carries them.
+  const chartPair = useChartPair(restored?.chart, view.sortBy)
 
   const report = usePresentedReport({
     universe: shownUniverse,
@@ -392,6 +396,7 @@ export default function App() {
     defaultForecastModel: caps.defaultForecastModel,
     removedKeys,
     tableSort,
+    chart: chartPair.pair,
     restoredView,
     cameraHeld: tour.index !== null,
   })
@@ -591,6 +596,7 @@ export default function App() {
     pointSample,
     analyzed: shownAnalyzed,
     models: caps.forecastModels,
+    chartPair,
     forecastModel,
     comparedModels,
     times: forecastTimes,

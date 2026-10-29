@@ -73,6 +73,7 @@ interface ResultsSheetView {
   charts: Pick<
     ChartCompare,
     | 'chart'
+    | 'chartPair'
     | 'compare'
     | 'rowChartColor'
     | 'shared'

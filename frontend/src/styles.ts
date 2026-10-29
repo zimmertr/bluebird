@@ -1379,6 +1379,17 @@ export const CHART_TITLE = {
     `absolute left-3 top-3 z-[1] flex h-7 max-w-[calc(100%-1.5rem)] items-center ` +
     `${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-mark`,
   text: 'min-w-0 truncate',
+  /**
+   * A phone's one panel with the second slot empty (#499; TJ 2026-10-28)
+   * wears two titles in the one 28px line: the primary's and, 8px (`gap-2`)
+   * to its right, the second's reading `None`. The row takes the box's place
+   * and its 12px insets on both sides, so the two fit a 360px sheet beside
+   * the plot; the primary's title is the one that truncates (`min-w-0`), the
+   * empty slot's `None` keeps its words (`flex-shrink-0`). `inRow` is `box`
+   * standing in that row rather than placed on its own.
+   */
+  row: 'absolute inset-x-3 top-3 z-[1] flex items-center gap-2',
+  inRow: `relative flex h-7 min-w-0 items-center ${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-mark`,
   select: 'absolute inset-x-0 top-1/2 -translate-y-1/2 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
 } as const
 

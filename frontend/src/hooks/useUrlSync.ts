@@ -48,6 +48,8 @@ export interface UrlSyncInputs {
   removedKeys: ReadonlySet<string>
   /** The table's header sort, or null while it follows the ranking. */
   tableSort: ShareableState['tableSort']
+  /** The chart's metric slots (#499). */
+  chart: ShareableState['chart']
   /** The camera the link opened on, held until the map reports its own. */
   restoredView: CameraView | null
   /**
@@ -104,6 +106,7 @@ export function useUrlSync({
   defaultForecastModel,
   removedKeys,
   tableSort,
+  chart,
   restoredView,
   cameraHeld,
 }: UrlSyncInputs): UrlSync {
@@ -197,6 +200,7 @@ export function useUrlSync({
         pins: places,
         removed: [...removedKeys],
         tableSort,
+        chart,
       },
       defaultModel: defaultForecastModel,
     }
@@ -231,6 +235,7 @@ export function useUrlSync({
     defaultForecastModel,
     removedKeys,
     tableSort,
+    chart,
     sync,
   ])
 
