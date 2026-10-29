@@ -1,6 +1,6 @@
 ---
 name: create-issue
-description: File a GitHub issue on this repo with a plain two-sentence summary on top, the board's six-section body, and the required labels. Use whenever asked to file, create, or open an issue (a bug, a feature, a decision, or a task), or to convert findings into issues.
+description: File a GitHub issue on this repo with a plain two-sentence summary on top, the board's six-section body run through the humanizer skill, and the required labels. Use whenever asked to file, create, or open an issue (a bug, a feature, a decision, or a task), or to convert findings into issues.
 ---
 
 # Creating an issue
@@ -77,13 +77,28 @@ carries at least:
 Optional extra sections (for example, Out of scope or Measured) go between
 Acceptance Criteria and the Notes.
 
-## Step 5: title
+## Step 5: run the body through the humanizer skill
+
+Every issue body takes a pass through the `humanizer` skill before it is
+filed, short issues included. Invoke it in embedded mode on the whole body,
+summary and all six sections, once the summary is written and placed first.
+The point is that a reader on the board follows the issue on one read.
+
+- Apply every fix it returns before filing.
+- It changes prose only. File paths, function names, quoted UI strings,
+  commands, code spans, label names and issue numbers stay exactly as Step 2
+  wrote them. Check them against the draft after the pass.
+- Wording the maintainer dictated stays as dictated. The skill's own
+  exceptions for quotations and proper names cover it.
+- An edit to an existing issue takes the same pass before `gh issue edit`.
+
+## Step 6: title
 
 One short statement of the problem or the task, with no
 conventional-commit prefix. Example: "A caller can defeat the per-client rate
 limit with one header".
 
-## Step 6: labels
+## Step 7: labels
 
 Always add labels when you create the issue:
 
@@ -99,7 +114,7 @@ Always add labels when you create the issue:
   `security`, `compliance`, `ux`, `infra`, `data-sources`, `docker`.
 - One type: `bug`, `enhancement`, `documentation`, or `question`.
 
-## Step 7: verify before you write
+## Step 8: verify before you write
 
 - Verify file references and measured numbers against a fresh clone before you
   state them. Write "near line N" only when just verified; otherwise name the
