@@ -195,6 +195,21 @@ describe('slopeTile past zoom 12', () => {
     expect(asked).toEqual(['13/1325/2886'])
   })
 
+  // A pan abandons a tile whose 404 was already on its way: the answer is
+  // still knowledge, so the pan back asks no missing tile again.
+  it('remembers a 404 that arrived on a tile abandoned while it loaded', async () => {
+    const abort = new AbortController()
+    const missing = new Set<string>()
+    const dem: DemGrids = {
+      getDemTile: vi.fn(async () => {
+        abort.abort()
+        throw new Error('Bad response: 404')
+      }),
+    }
+    await expect(slopeTile(dem, 13, 1325, 2886, abort, { toImage: passThrough, missing })).rejects.toThrow('404')
+    expect(missing).toEqual(new Set(['13/1325/2886']))
+  })
+
   // Every zoom from the tile's own down to 13 missing, and 12 missing too: open
   // ocean, which fails the request as it does at 12.
   it('fails when even the zoom-12 tile does not load', async () => {

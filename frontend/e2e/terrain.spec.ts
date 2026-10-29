@@ -104,14 +104,24 @@ test('the slope angle asks the elevation host once switched on, and the link car
   await expect(page).not.toHaveURL(/[?&]slope=1/)
 })
 
-/** The zoom of every elevation tile the page asks for, by its URL, as the requests go out. */
+/**
+ * The zoom of every elevation tile the page asks for, by its URL, as the
+ * requests go out, and the URLs whose answers arrived. A pan abandons tiles
+ * in flight, and MapLibre asks for an abandoned tile again, so only an
+ * answered ask can teach the page that a tile is missing.
+ */
 function demZooms(page: Page) {
   const urls: string[] = []
+  const answered: string[] = []
   page.on('request', (r) => {
     if (new URL(r.url()).hostname === DEM_HOST) urls.push(r.url())
   })
+  page.on('requestfinished', (r) => {
+    if (new URL(r.url()).hostname === DEM_HOST) answered.push(r.url())
+  })
   return {
     urls,
+    answered,
     zooms: () => urls.map((u) => Number(new URL(u).pathname.split('/')[1])),
   }
 }
@@ -128,7 +138,7 @@ test('the slope angle past zoom 12 falls back to the zoom-12 elevation, asking e
   await expect.poll(painted).toBeGreaterThan(0)
   expect(dem.zooms()).toContain(14)
   expect(dem.zooms()).toContain(12)
-  // A pan over the same ground asks no missing tile again.
+  // A pan over the same ground asks no tile that answered 404 again.
   const canvas = page.locator('.maplibregl-canvas')
   const box = (await canvas.boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -137,7 +147,7 @@ test('the slope angle past zoom 12 falls back to the zoom-12 elevation, asking e
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 })
   await page.mouse.up()
   await page.waitForTimeout(1_000)
-  const finer = dem.urls.filter((u) => Number(new URL(u).pathname.split('/')[1]) > 12)
+  const finer = dem.answered.filter((u) => Number(new URL(u).pathname.split('/')[1]) > 12)
   expect(finer.length).toBeGreaterThan(0)
   expect(new Set(finer).size).toBe(finer.length)
 })

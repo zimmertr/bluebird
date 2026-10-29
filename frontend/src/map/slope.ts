@@ -129,8 +129,11 @@ async function finer(
   try {
     return await dem.getDemTile(z, x, y, abort)
   } catch (err) {
-    if (abort.signal.aborted) throw err
+    // A 404 that arrived is knowledge whether or not the tile was abandoned
+    // while it loaded: a pan abandons tiles, and the next pan back over the
+    // same ground would otherwise ask for the missing tile again.
     if (isNotFound(err)) missing.add(keyOf(z, x, y))
+    if (abort.signal.aborted) throw err
     return null
   }
 }
