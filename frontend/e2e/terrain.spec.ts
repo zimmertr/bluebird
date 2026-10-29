@@ -106,22 +106,27 @@ test('the slope angle asks the elevation host once switched on, and the link car
 
 /**
  * The zoom of every elevation tile the page asks for, by its URL, as the
- * requests go out, and the URLs whose answers arrived. A pan abandons tiles
- * in flight, and MapLibre asks for an abandoned tile again, so only an
- * answered ask can teach the page that a tile is missing.
+ * requests go out, and whether every ask has been answered or has failed.
+ * A view that moves while a tile is in flight abandons it, and the page
+ * learns nothing from an abandoned ask, so a spec moves the view only once
+ * the asks have settled.
  */
 function demZooms(page: Page) {
   const urls: string[] = []
-  const answered: string[] = []
+  let done = 0
+  const isDem = (url: string) => new URL(url).hostname === DEM_HOST
   page.on('request', (r) => {
-    if (new URL(r.url()).hostname === DEM_HOST) urls.push(r.url())
+    if (isDem(r.url())) urls.push(r.url())
   })
   page.on('requestfinished', (r) => {
-    if (new URL(r.url()).hostname === DEM_HOST) answered.push(r.url())
+    if (isDem(r.url())) done++
+  })
+  page.on('requestfailed', (r) => {
+    if (isDem(r.url())) done++
   })
   return {
     urls,
-    answered,
+    settled: () => done === urls.length,
     zooms: () => urls.map((u) => Number(new URL(u).pathname.split('/')[1])),
   }
 }
@@ -138,16 +143,37 @@ test('the slope angle past zoom 12 falls back to the zoom-12 elevation, asking e
   await expect.poll(painted).toBeGreaterThan(0)
   expect(dem.zooms()).toContain(14)
   expect(dem.zooms()).toContain(12)
-  // A pan over the same ground asks no tile that answered 404 again.
+  // A pan away and back over the same ground asks no missing tile again.
+  // Each leg is one jump, made once the slope tiles are quiet, because a view
+  // that moves while a tile is loading abandons it, and an abandoned 404
+  // teaches the page nothing: it would be asked again, as the real map asks
+  // it. Quiet is more than no ask in flight: a tile falling back asks one
+  // zoom at a time, so between its 404 and its next ask nothing is in flight.
   const canvas = page.locator('.maplibregl-canvas')
   const box = (await canvas.boundingBox())!
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(box.x + box.width / 2 - 300, box.y + box.height / 2, { steps: 5 })
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 })
-  await page.mouse.up()
-  await page.waitForTimeout(1_000)
-  const finer = dem.answered.filter((u) => Number(new URL(u).pathname.split('/')[1]) > 12)
+  const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  const quiet = async () => {
+    let last = ''
+    await expect
+      .poll(async () => {
+        const now = `${dem.urls.length}/${await painted()}/${dem.settled()}`
+        const same = now === last && dem.settled()
+        last = now
+        return same
+      }, { intervals: [400] })
+      .toBe(true)
+  }
+  const jump = async (dx: number) => {
+    await quiet()
+    await page.mouse.move(centre.x, centre.y)
+    await page.mouse.down()
+    await page.mouse.move(centre.x + dx, centre.y, { steps: 1 })
+    await page.mouse.up()
+    await quiet()
+  }
+  await jump(-300)
+  await jump(300)
+  const finer = dem.urls.filter((u) => Number(new URL(u).pathname.split('/')[1]) > 12)
   expect(finer.length).toBeGreaterThan(0)
   expect(new Set(finer).size).toBe(finer.length)
 })
