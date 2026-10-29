@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-28
 - Decider: the maintainer (TJ), on #586
-- Issues and PRs: #586, #708, #238
+- Issues and PRs: #586, #824, #708, #238
 - Cited in code as: #586
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/tableColumns.ts` bullet; [`USAGE.md`](../USAGE.md), the results table
 
