@@ -1482,9 +1482,11 @@ describe('shared recipes', () => {
 
   // The chips' two menus are one width (#714, record 0174): the widest line
   // either one carries is the legend's wait line at 176.8px, and the Layers
-  // menu's widest label is 130.0px, so 184px holds both with its padding.
+  // menu's widest label is 130.0px, so 184px held both with its padding,
+  // until the fire activity key's one line (#799), 193.4px of content, took
+  // it to 224px.
   it('gives the chip menus one width', () => {
-    expect(MAP_MENU_W).toBe('w-46')
+    expect(MAP_MENU_W).toBe('w-56')
     expect(MAP_CHIP_MENU).toContain(MAP_MENU_W)
     for (const source of [layersPopoverSource, mapLegendSource]) expect(source).toContain('${MAP_CHIP_MENU}')
   })

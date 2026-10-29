@@ -1,6 +1,6 @@
 # 0237. Fire activity is a pod snapshot of FIRMS's keyless files, coloured by age in the browser
 
-- Status: Accepted
+- Status: Accepted. Amends 0174 (the chip menus are 224px wide, for the fire activity key's one line).
 - Date: 2026-10-27
 - Decider: the maintainer (TJ), on issue #799, 2026-10-27: a layer like CalTopo's Fire Activity, labelled `Fire activity`, carrying VIIRS (NOAA-20 and NOAA-21) and MODIS and not GOES, keyed in three age bands, `Under 12 hours`, `12 to 24 hours` and `24 to 48 hours`, with nothing older than 48 hours drawn. On 2026-10-28, reviewing the pull request, the maintainer made the key one line like Smoke's, three starburst chips reading `12h`, `24h` and `48h`, and the detections starbursts on the map like CalTopo's. Reading FIRMS's global files rather than the regional ones, holding them as columns, sending an instant rather than an age, and the band colours are Claude's, building #799, for the maintainer's review on the pull request.
 - Issues and PRs: #799
@@ -22,6 +22,8 @@ The wildfire perimeters say where a fire's surveyed edge was, in the United Stat
 
 **The legend keys the bands on one line**, `Fire activity (FIRMS)` and three chips on its right where Smoke has its `L`, `M` and `H`: a 12-point starburst per band, in the band's fill and the layer's edge, with the hour the band ends at inside it, `12h`, `24h` and `48h` (`SWATCH_STAR`). The label is the smoke chips' glyph, 10px slate-900, which clears 4.5:1 on all three fills, so one ink serves every chip and the red keeps its colour. The star is 24px, because the label has to sit inside its inner corners to stand on the fill.
 
+**The chip menus widen to 224px for it** (`MAP_MENU_W`, `w-56`, from 184). The line is the name, 109.4px, the row's 8px gap and three 24px stars 2px apart, 193.4px of content where a desk's card held 164. At 184 the stars ran past the card's edge; 224 holds the line with 10.6px to spare. The Layers menu shares the width, as record 0174 has it.
+
 ## Evidence
 
 Measured 2026-10-27:
@@ -40,6 +42,8 @@ Measured 2026-10-27:
 - **GOES.** 2 km pixels every few minutes from geostationary orbit, a different and much noisier picture. The maintainer left it out.
 - **Suomi NPP's VIIRS file.** Its feed ends on 2026-11-02.
 - **The key as a row per band**, the layer's name over `Under 12 hours`, `12 to 24 hours` and `24 to 48 hours` each beside its disc, as first built: four lines where the smoke key, which also keys three classes, takes one (the maintainer, 2026-10-28).
+- **The stars under the name at a desk**, a line of their own where the card is too narrow: two lines where the brief asked for one, and the only section whose shape would change with the width.
+- **Smaller stars**: at 22px the inner corners stand 8.1px from the centre and `48h` reaches 9.3px, so the label's ends would sit on the points' gaps, on the card rather than on the fill.
 - **A light label on the red chip and a dark one on the other two.** The dark ink clears the red at 5.77:1, so one ink does.
 - **An age in the answer.** It would be wrong a minute after it was sent, and a stale snapshot would make it wronger.
 - **Feature text held per detection, as the perimeters are.** About 45 MB for 200,000 points, against about 7 MB of columns, with a box costing milliseconds to format either way.

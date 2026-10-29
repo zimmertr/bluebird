@@ -1411,14 +1411,20 @@ export const CHART_TITLE = {
  * legend's wait line, "Forecast grid" against "Waiting · 99s", is
  * 74.7 + 8 + 74.1 = 156.8px of content, so 176.8px with the 20px of side
  * padding a card carries. The countdown switches to minutes past 99s, so that
- * row's widest case is bounded. 184 leaves 7.2px; at 176 (`w-44`) the wait
+ * row's widest case is bounded. 184 left 7.2px; at 176 (`w-44`) the wait
  * line wraps. The widest Layers row, "Forecast player", needs 130.0px
  * (measured 2026-10-07). Re-measure before lengthening a line in either.
+ *
+ * 224 since #799, whose fire activity key is one line like Smoke's: the
+ * name, "Fire activity (FIRMS)", and three 24px starburst chips, 109.4 + 8 +
+ * 76 = 193.4px of content, 213.4px with the padding (measured 2026-10-28 in
+ * the browser suite's Chromium, whose sans is wider than macOS's, so the
+ * number errs wide). 216 (`w-54`) would leave 2.6px; 224 leaves 10.6px.
  *
  * It was the width of the whole left column until #714, when the search field
  * became the pill and the buttons became chips at both widths.
  */
-export const MAP_MENU_W = 'w-46'
+export const MAP_MENU_W = 'w-56'
 
 /**
  * How far anything floating on the map stands off its edge.
