@@ -2496,6 +2496,10 @@ export const SAFE_AREA = {
   probe: 'pointer-events-none invisible fixed bottom-0 left-0 w-0 h-[env(safe-area-inset-bottom)]',
 } as const
 
+// The hairline between a phone sheet's rows, which a group of rows inside the
+// sheet draws between its own (`MENU_GROUP.sheet`), so the two rules are one.
+const SHEET_RULES = 'divide-y divide-rule'
+
 export const BOTTOM_SHEET = {
   scrim: `fixed inset-0 ${LAYER.popover}`,
   dim: 'absolute inset-0 bg-scrim/40',
@@ -2520,7 +2524,7 @@ export const BOTTOM_SHEET = {
   actions: 'ml-auto flex items-center gap-2',
   body:
     `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 ${SAFE_AREA.pad} ` +
-    'divide-y divide-rule [&>*]:min-h-8',
+    `${SHEET_RULES} [&>*]:min-h-8`,
 } as const
 
 /**
@@ -3075,6 +3079,16 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  * - `current`: the value a list that replaced a select holds, set semibold
  *   the way the model list sets its ranking model. No check mark: the weight
  *   says it, and a mark would take a column from every row.
+ * - `heading`: a word over a group of rows, which a reader reads and never
+ *   presses: the Layers menu's Base map, Hazards and Forecast (record 0240).
+ *   The caption step in semibold, sentence case: the maintainer chose it over
+ *   the panel's small caps (`TEXT.section`, `TEXT.overline`), which shout
+ *   over a list of thirteen short rows. The size is the rows' own 12px and
+ *   the ink a step quieter (`text-ink-soft`: 5.56:1 on the dark card, 8.91:1
+ *   on the light), so weight and ink part a heading from the rows under it
+ *   and its size does not. 12px is the size the lab drew it at; the 11px
+ *   step would be allowed, since nothing presses a heading, and was not
+ *   needed.
  */
 export const MENU = {
   card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
@@ -3085,7 +3099,38 @@ export const MENU = {
   active: 'bg-raised',
   hover: 'hover:bg-raised',
   current: 'font-semibold',
+  heading: `${TEXT.caption} font-semibold`,
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
+} as const
+
+/**
+ * A group of a menu's rows under its `MENU.heading`, at a desk and on a
+ * phone's sheet (record 0240). Only the Layers menu has groups.
+ *
+ * - `card`: at a desk the rows stand on the card's padding, so a group is set
+ *   off from the one over it by 6px of space, which with the last row's own
+ *   2px makes 8px, and the first group takes none.
+ * - `cardHeading`: the heading's 2px under it, the gap a row keeps over its
+ *   words, so the heading stands as close to its first row as the rows stand
+ *   to each other. No rule as well: the heading is the mark, and the lab's
+ *   other two marks, a rule or a gap alone, lost to it.
+ * - `sheet`: on a phone the group is one child of the sheet's body, whose
+ *   rule then falls over the heading, and it draws the same rule between its
+ *   own heading and rows.
+ * - `sheetHeading`: 6px under the rule over it and 2px over the next, so the
+ *   heading hangs from the rule over its group and stands 25px tall where a
+ *   row stands 33. Short on purpose: the tutorial's Layers card stands
+ *   between the chip and the sheet it holds open, and with 8px over each
+ *   heading the sheet rose past the card's band at 390x844 (2026-10-29).
+ * - `sheetRow`: a row's 32px, which the sheet's body gives its own children
+ *   and a group's rows are not.
+ */
+export const MENU_GROUP = {
+  card: 'not-first:mt-1.5',
+  cardHeading: `${MENU.heading} pb-0.5`,
+  sheet: SHEET_RULES,
+  sheetHeading: `${MENU.heading} pt-1.5 pb-0.5`,
+  sheetRow: 'min-h-8',
 } as const
 
 /**

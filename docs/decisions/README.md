@@ -39,7 +39,7 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0016](0016-overlays-not-knobs.md) | A map overlay is never a knob | 2026-08-04 | Accepted | Root: A map overlay is never a knob |
 | [0017](0017-hms-smoke-feed.md) | Smoke comes from NOAA's own daily KML, dated in Eastern time | 2026-08-04 | Accepted | Backend: `hms.py` |
 | [0018](0018-wind-direction-browser-only.md) | Only the browser fetches the wind direction | 2026-08-04 | Accepted | Root: Key constraints |
-| [0019](0019-layers-on-the-map.md) | The overlay switches live in a Layers popover on the map | 2026-08-04 | Accepted; amended by 0135, 0136 and 0174 | Frontend: `forecastGrid.ts`; "The popover hangs off a button" |
+| [0019](0019-layers-on-the-map.md) | The overlay switches live in a Layers popover on the map | 2026-08-04 | Accepted; amended by 0135, 0136, 0174 and 0240 | Frontend: `forecastGrid.ts`; "The popover hangs off a button" |
 | [0020](0020-fire-warn-10-miles.md) | A destination within 10 miles of an active fire is flagged, and an unchecked one is never shown as clear | 2026-08-17 | Accepted | Frontend: `fireProximity.ts` |
 | [0021](0021-browser-path-only.md) | The browser path is the only path for the app | 2026-08-21 | Accepted | Root: The browser path is the only path |
 | [0022](0022-wind-at-elevation.md) | Wind is reported at the destination's elevation | 2026-08-21 | Accepted | Root: Key constraints |
@@ -68,7 +68,7 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0045](0045-temp-at-elevation-no-floor.md) | Temperature is reported at the destination's elevation, with no floor | 2026-09-17 | Accepted | Root: Key constraints |
 | [0046](0046-snow-layer-export-bounds.md) | The snow depth layer is a bounded ArcGIS export | 2026-09-17 | Accepted | Frontend: `snowDepth.ts` |
 | [0047](0047-guide-split-by-directory.md) | The module layouts live in nested guide files beside the code | 2026-09-17 | Accepted | Root: Architecture, module layouts; Documentation |
-| [0048](0048-legend-one-box.md) | The map legend is one box, in alphabetical order, anchored at the top | 2026-09-17 | Accepted; amended by 0136, 0148 and 0174 | Frontend: `forecastGrid.ts` |
+| [0048](0048-legend-one-box.md) | The map legend is one box, in alphabetical order, anchored at the top | 2026-09-17 | Accepted; amended by 0136, 0148, 0174 and 0240 | Frontend: `forecastGrid.ts` |
 | [0049](0049-legend-ticks-no-units.md) | A legend strip prints three ticks and no unit | 2026-09-17 | Accepted | Frontend: `legendRamp.ts` |
 | [0050](0050-one-gradient-everywhere.md) | Every scale on the map is drawn as one gradient | 2026-09-22 | Accepted | Frontend: `forecastGrid.ts`; `legendRamp.ts`; "The popover hangs off a button" |
 | [0051](0051-no-method-in-headers.md) | Metric column headers do not name the elevation method | 2026-09-22 | Accepted | Root: Key constraints |
@@ -254,3 +254,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0237](0237-fire-activity-from-firms-files.md) | Fire activity is a pod snapshot of FIRMS's keyless files, coloured by age in the browser | 2026-10-27 | Accepted | Backend: `app/services/fire_activity.py`, `app/routes/fire_activity.py`; `utils/` guide: `fireActivity.ts`; `DATA.md` |
 | [0238](0238-fire-activity-from-zoom-5.md) | The fire detections neither fetch nor draw below zoom 5, and their row does not grey there | 2026-10-27 | Accepted | `map/` guide: `overlays/fireActivity.ts` |
 | [0239](0239-slope-angle-from-the-shared-elevation.md) | Slope angle is painted in the browser from the shared elevation, in CalTopo's bands, at half strength under the contours | 2026-10-28 | Accepted | `map/` guide: `slope.ts`; `utils/` guide: `slopeAngle.ts`; `USAGE.md`; `DATA.md` |
+| [0240](0240-layers-in-three-groups.md) | The Layers rows stand in three groups, Base map, Hazards and Forecast, under muted headings, by kind inside each, and the legend follows their order | 2026-10-29 | Accepted; amends 0019 and 0048 | `components/` guide: `LayersPopover.tsx`, `MapLegend.tsx`; `forecastGrid/` guide; `STYLES.md`; `USAGE.md` |

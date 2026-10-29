@@ -54,8 +54,8 @@ import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
  * (TJ, 2026-09-17).
  *
  * One function for every shape, and one for the metric key and the layers alike,
- * because the sections are sorted by their labels at the call site: a shape
- * that could only be built inline could not take its place in that order. They
+ * so every section is a member of one list that `legendSections` orders: a
+ * shape that could only be built inline could not take its place in it. They
  * had already drifted into two shapes once, six swatch rows against a strip.
  *
  * `credit` is what the data licences ask for, and it is a section's own rather
@@ -205,21 +205,20 @@ export function legendSections(
   // six-row metric key in another — which cost a border, a gap and
   // a second backdrop on a map that can be 161px tall on a phone.
   //
-  // **Alphabetical by the label each section READS**, the metric
-  // key included (TJ, 2026-09-17). Nothing ranks these against
-  // each other — no cost, no severity, no dependency — so any
-  // other order is one the reader has to learn, and a key that is
-  // a list member cannot be a headline above the list. It costs
-  // the metric key a fixed position: a temperature ranking sorts
-  // last and an AQI one first. That is the order working rather
-  // than the key moving on its own, and it is the same rule that
-  // moved `Active wildfire` off the bottom, where it had been
-  // sorting under the Layers popover's own name for it.
+  // **In the Layers menu's order** (record 0240): the metric key
+  // first, then the base map's one key (the slope bands), the
+  // hazards and the forecast, each in the order its rows stand in
+  // the menu, so a reader who just ticked a row finds its key
+  // where the row stood. No headings: the legend is a key rather
+  // than a list of switches, and a section stands only while its
+  // layer is on, so a heading would often head one line. The
+  // metric key leads because it keys the markers, which stand on
+  // the map whatever layer is on; it was sorted among the others
+  // by its label until the menu took groups, which moved it with
+  // every ranking.
   //
-  // Sorted on the way out rather than written in order, because one of
-  // the labels is the ranked metric's and changes under the reader.
-  // Every label is spelled once, as the sort key AND as what the
-  // section renders, so the two cannot disagree.
+  // Written in order rather than sorted, so the source reads as
+  // the card does.
   const sections: LegendSectionSpec[] = [
     // Keyed to the markers OR to the grid, because either can be
     // the only colored thing on screen: a live filter can empty
@@ -259,6 +258,24 @@ export function legendSections(
               css: scaleRampCss(markerScale),
               ticks: scaleTicks(markerScale),
               bands: markerScale.colors.length,
+            },
+          },
+        ]
+      : []),
+    // The slope angle shading (#799): six avalanche bands, keyed as a scale
+    // because they are one, each number the degrees its band starts at. The
+    // shading is the app's own reading of Mapterhorn's elevation, and the
+    // section names whose elevation it is, as every layer drawn from somebody
+    // else's data does.
+    ...(showSlope
+      ? [
+          {
+            label: 'Slope angle',
+            credit: { href: MAPTERHORN_HREF, name: 'Mapterhorn' },
+            ramp: {
+              css: slopeRampCss(),
+              ticks: slopeTicks(),
+              bands: SLOPE_BANDS.length,
             },
           },
         ]
@@ -316,88 +333,6 @@ export function legendSections(
           },
         ]
       : []),
-    // The closure orders (#550). US government work, so no licence
-    // asks for the credit; it is here because every layer that draws
-    // somebody else's data names them in its own section. The area
-    // keys on the fire's chip in the closure hue, and the trail on a
-    // dashed rule, because a line is what it draws.
-    ...(showAreaClosures
-      ? [
-          {
-            label: 'Area closures',
-            credit: { href: USFS_HREF, name: 'USFS' },
-            swatch: (
-              <span
-                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                style={closureAreaSwatch()}
-              />
-            ),
-          },
-        ]
-      : []),
-    ...(showTrailClosures
-      ? [
-          {
-            label: 'Trail closures',
-            credit: { href: USFS_HREF, name: 'USFS' },
-            swatch: <span className={SWATCH_LINE} style={closureTrailSwatch()} />,
-          },
-        ]
-      : []),
-    // No swatch: the grid's colours are the metric key's, which
-    // the markers share. What this row adds is the one thing that
-    // IS the grid's own — how far apart the samples are, or why
-    // it is not there yet. Every state right-justifies its value
-    // like every other row, statuses included: one row breaking
-    // the column reads as a fault rather than as a distinction.
-    ...(gridPainted || gridCued || gridFailed
-      ? [
-          {
-            label: gridLegend.label,
-            swatch: (
-              // Colored by state (TJ, 2026-08-21): amber while
-              // the grid is waiting or loading so a stall catches
-              // the eye, red when it failed, and the accent once
-              // the pitch is real. The size is the colorless
-              // CONTROL_SIZE because a color beside
-              // TEXT.control's own would resolve by stylesheet
-              // order.
-              <span
-                className={`${CONTROL_SIZE} ${
-                  gridLegend.kind === 'pitch'
-                    ? ACCENT.text
-                    : gridLegend.kind === 'error'
-                      ? STATUS.error
-                      : STATUS.warn
-                } flex-shrink-0`}
-              >
-                {gridLegend.value}
-              </span>
-            ),
-          },
-        ]
-      : []),
-    ...(showRadar
-      ? [
-          {
-            label: 'Rain radar',
-            credit: { href: IEM_HREF, name: 'IEM' },
-            // A gradient rather than banded swatches: NEXRAD's
-            // own reflectivity ramp is continuous, and a legend
-            // that invented boundaries would assert thresholds
-            // Bluebird Forecast does not know.
-            swatch: (
-              <span
-                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                style={{
-                  backgroundImage: radarSwatchCss(),
-                  borderColor: SWATCH_EDGE,
-                }}
-              />
-            ),
-          },
-        ]
-      : []),
     ...(showSmoke
       ? [
           {
@@ -439,6 +374,55 @@ export function legendSections(
           },
         ]
       : []),
+    // The closure orders (#550). US government work, so no licence
+    // asks for the credit; it is here because every layer that draws
+    // somebody else's data names them in its own section. The area
+    // keys on the fire's chip in the closure hue, and the trail on a
+    // dashed rule, because a line is what it draws.
+    ...(showAreaClosures
+      ? [
+          {
+            label: 'Area closures',
+            credit: { href: USFS_HREF, name: 'USFS' },
+            swatch: (
+              <span
+                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                style={closureAreaSwatch()}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(showTrailClosures
+      ? [
+          {
+            label: 'Trail closures',
+            credit: { href: USFS_HREF, name: 'USFS' },
+            swatch: <span className={SWATCH_LINE} style={closureTrailSwatch()} />,
+          },
+        ]
+      : []),
+    ...(showRadar
+      ? [
+          {
+            label: 'Rain radar',
+            credit: { href: IEM_HREF, name: 'IEM' },
+            // A gradient rather than banded swatches: NEXRAD's
+            // own reflectivity ramp is continuous, and a legend
+            // that invented boundaries would assert thresholds
+            // Bluebird Forecast does not know.
+            swatch: (
+              <span
+                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                style={{
+                  backgroundImage: radarSwatchCss(),
+                  borderColor: SWATCH_EDGE,
+                }}
+              />
+            ),
+          },
+        ]
+      : []),
     // Hard-stopped between bands where the metric strip blends,
     // because those boundaries are NOAA's own classification —
     // the picture and its key have to agree, which is why both
@@ -456,26 +440,41 @@ export function legendSections(
           },
         ]
       : []),
-    // The slope angle shading (#799): six avalanche bands, keyed as a scale
-    // because they are one, each number the degrees its band starts at. The
-    // shading is the app's own reading of Mapterhorn's elevation, and the
-    // section names whose elevation it is, as every layer drawn from somebody
-    // else's data does.
-    ...(showSlope
+    // No swatch: the grid's colours are the metric key's, which
+    // the markers share. What this row adds is the one thing that
+    // IS the grid's own — how far apart the samples are, or why
+    // it is not there yet. Every state right-justifies its value
+    // like every other row, statuses included: one row breaking
+    // the column reads as a fault rather than as a distinction.
+    ...(gridPainted || gridCued || gridFailed
       ? [
           {
-            label: 'Slope angle',
-            credit: { href: MAPTERHORN_HREF, name: 'Mapterhorn' },
-            ramp: {
-              css: slopeRampCss(),
-              ticks: slopeTicks(),
-              bands: SLOPE_BANDS.length,
-            },
+            label: gridLegend.label,
+            swatch: (
+              // Colored by state (TJ, 2026-08-21): amber while
+              // the grid is waiting or loading so a stall catches
+              // the eye, red when it failed, and the accent once
+              // the pitch is real. The size is the colorless
+              // CONTROL_SIZE because a color beside
+              // TEXT.control's own would resolve by stylesheet
+              // order.
+              <span
+                className={`${CONTROL_SIZE} ${
+                  gridLegend.kind === 'pitch'
+                    ? ACCENT.text
+                    : gridLegend.kind === 'error'
+                      ? STATUS.error
+                      : STATUS.warn
+                } flex-shrink-0`}
+              >
+                {gridLegend.value}
+              </span>
+            ),
           },
         ]
       : []),
   ]
-  return sections.sort((a, b) => a.label.localeCompare(b.label))
+  return sections
 }
 
 /** The sections themselves, in their order, with no box around them: a phone's Legend sheet holds them (#696). */

@@ -59,14 +59,43 @@ describe('MapLegend', () => {
     expect(container.textContent).toBe('Legend')
   })
 
-  // Alphabetical by what each section reads, the metric key included.
-  it('sorts the sections by their labels, the metric key among them', () => {
+  // In the Layers menu's order (record 0240): the metric key first, then
+  // the base map, the hazards and the forecast, smoke before the radar.
+  it('lists the sections in the Layers menu\'s order, the metric key first', () => {
     const { container } = render(<Legend {...BASE} hasColoredMarkers overlays={SMOKE_AND_RADAR} />)
     const text = container.textContent ?? ''
     const at = (s: string) => text.indexOf(s)
-    expect(at('Rain radar')).toBeGreaterThanOrEqual(0)
-    expect(at('Rain radar')).toBeLessThan(at('Smoke'))
-    expect(at('Smoke')).toBeLessThan(at('Temperature'))
+    expect(at('Temperature')).toBeGreaterThanOrEqual(0)
+    expect(at('Temperature')).toBeLessThan(at('Smoke'))
+    expect(at('Smoke')).toBeLessThan(at('Rain radar'))
+  })
+
+  // Every layer on: each section where its row stands in the menu.
+  it('lists every section with every layer on, in the menu\'s order', () => {
+    const ALL = {
+      showWildfires: true,
+      showAreaClosures: true,
+      showTrailClosures: true,
+      showRadar: true,
+      showSmoke: true,
+      showSnow: true,
+      showFireActivity: true,
+      showSlope: true,
+    }
+    const grid = { ...NO_GRID, gridPainted: true, gridLegend: { label: 'Forecast grid', value: '3 km', kind: 'pitch' as const } }
+    const sections = legendSections({ ...BASE, hasColoredMarkers: true, overlays: ALL, grid }, 'id')
+    expect(sections.map((s) => s.label)).toEqual([
+      'Temperature (°F)',
+      'Slope angle',
+      'Active wildfire',
+      'Fire activity',
+      'Smoke',
+      'Area closures',
+      'Trail closures',
+      'Rain radar',
+      'Snow depth (in)',
+      'Forecast grid',
+    ])
   })
 
   // A chip shows a letter, and the word it stands for was its title alone,
@@ -155,27 +184,28 @@ describe('MapLegend', () => {
     expect(words.every((word) => word.className === SR_ONLY)).toBe(true)
   })
 
-  it('sorts the fire activity section among the others by its name', () => {
+  it('lists the fire activity section after the wildfires and before the smoke', () => {
     const sections = legendSections(
-      { ...BASE, overlays: { ...NONE, showFireActivity: true, showAreaClosures: true, showSmoke: true } },
+      { ...BASE, overlays: { ...NONE, showFireActivity: true, showAreaClosures: true, showSmoke: true, showWildfires: true } },
       'id',
     )
-    expect(sections.map((s) => s.label)).toEqual(['Area closures', 'Fire activity', 'Smoke'])
+    expect(sections.map((s) => s.label)).toEqual(['Active wildfire', 'Fire activity', 'Smoke', 'Area closures'])
   })
 
-  it('sorts the area section first and the trail section after smoke', () => {
+  it('lists the area section after the smoke and the trail section after it', () => {
     const { container } = render(
       <Legend {...BASE} overlays={{ ...NONE, showAreaClosures: true, showTrailClosures: true, showSmoke: true }} />,
     )
     const text = container.textContent ?? ''
-    expect(text.indexOf('Area closures')).toBeLessThan(text.indexOf('Smoke'))
-    expect(text.indexOf('Smoke')).toBeLessThan(text.indexOf('Trail closures'))
+    expect(text.indexOf('Smoke')).toBeLessThan(text.indexOf('Area closures'))
+    expect(text.indexOf('Area closures')).toBeLessThan(text.indexOf('Trail closures'))
     expect(screen.getAllByRole('link', { name: 'USFS' })).toHaveLength(2)
   })
 
   // The slope angle shading (#799): one strip of its six bands with the
   // degrees each starts at inside it, as the metric key draws a scale, and
-  // the elevation's credit beside the name. Sorted by that name.
+  // the elevation's credit beside the name. First of the layers' sections,
+  // as its row is the first with a key in the menu.
   it('keys the slope bands on one strip, credited to Mapterhorn', () => {
     const { container } = render(<Legend {...BASE} overlays={{ ...NONE, showSlope: true, showSmoke: true }} />)
     const text = container.textContent ?? ''
@@ -202,7 +232,7 @@ describe('legendSections', () => {
 
   it('draws the sections bare and in the box\'s order for the sheet', () => {
     const sections = legendSections({ ...BASE, hasColoredMarkers: true, overlays: SMOKE_AND_RADAR }, 'id')
-    expect(sections.map((s) => s.label)).toEqual(['Rain radar', 'Smoke', 'Temperature (°F)'])
+    expect(sections.map((s) => s.label)).toEqual(['Temperature (°F)', 'Smoke', 'Rain radar'])
     const { container } = render(<LegendSections sections={sections} />)
     expect(container.children).toHaveLength(3)
     expect(container.textContent).toContain('Smoke')

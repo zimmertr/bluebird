@@ -83,6 +83,7 @@ import {
   CHART_PLOT_TOUCH,
   CHART_TITLE,
   MENU,
+  MENU_GROUP,
   MODEL_ROW,
   MENU_CHEVRON,
   MENU_TRIGGER,
@@ -2964,32 +2965,76 @@ describe('the chart title on a phone', () => {
   })
 })
 
-// The map's Layers popover: the one list in the app whose members have no
-// ranking between them.
+// The map's Layers popover: thirteen rows in three groups (record 0240).
 describe('the map layer rows', () => {
   // Read out of the source rather than out of a render, for the reason every
   // other check here is: Vitest has no DOM, and the order is a property of the
   // literal the popover maps over.
-  const labels = (() => {
-    const block = layersPopoverSource.match(/const MAP_LAYERS = \[[\s\S]*?\n {2}\]/)?.[0] ?? ''
-    return [...block.matchAll(/label: '([^']+)'/g)].map((m) => m[1])
-  })()
+  const block = layersPopoverSource.match(/const MAP_LAYERS(?:: [^=]+)? = \[[\s\S]*?\n {2}\]/)?.[0] ?? ''
+  const labels = [...block.matchAll(/label: '([^']+)'/g)].map((m) => m[1])
+  const headings = [...block.matchAll(/heading: '([^']+)'/g)].map((m) => m[1])
 
   it('found every row', () => {
     expect(labels).toHaveLength(13)
   })
 
-  // Alphabetical, because nothing else orders these: no cost, no severity and
-  // no dependency separates one switch from another, so any other order is one
-  // the reader has to learn rather than one they can scan.
-  it('lists the layers in alphabetical order', () => {
-    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+  // By what a layer changes: the map itself, a hazard on it, the weather on
+  // it, the ground first; and by kind inside a group (the maintainer,
+  // 2026-10-29, from the lab).
+  it('lists the layers in three groups, ordered by kind', () => {
+    expect(headings).toEqual(['Base map', 'Hazards', 'Forecast'])
+    expect(labels).toEqual([
+      'Satellite',
+      'Topographic',
+      'Shaded relief',
+      'Slope angle',
+      'Wildfires',
+      'Fire activity',
+      'Smoke',
+      'Area closures',
+      'Trail closures',
+      'Rain radar',
+      'Snow depth',
+      'Forecast grid',
+      'Forecast player',
+    ])
   })
 
+  // Shift ranges run down the whole list, across the groups (record 0227).
+  it('takes one Shift order across the groups', () => {
+    expect(layersPopoverSource).toContain('const layers = MAP_LAYERS.flatMap((group) => group.rows)')
+    expect(layersPopoverSource).toContain('const order = layers.map((layer) => layer.key)')
+  })
+
+  // The heading is read and never pressed: the caption step in semibold,
+  // sentence case, the rows' own size in a quieter ink. Measured on the
+  // card it stands on, in both themes.
+  it('heads each group in the caption step, semibold, past AA on the card', () => {
+    expect(MENU.heading).toBe(`${TEXT.caption} font-semibold`)
+    expect(MENU.heading).not.toMatch(/uppercase|tracking-/)
+    expect(sizes(MENU.heading)).toEqual(sizes(TEXT.control))
+    expect(token(MENU.heading, 'text')).toBe('ink-soft')
+    expect(ratio(dark(token(MENU.heading, 'text')), dark('floating'))).toBe(5.56)
+    expect(ratio(light(token(MENU.heading, 'text')), light('floating'))).toBe(8.91)
+  })
+
+  // At a desk 6px over every group but the first, and the heading 2px over
+  // its first row, the gap a row keeps; on a phone the sheet's own rule
+  // between the heading and each row, and each row the sheet's 32px.
+  it('spaces the groups at a desk and rules them on a phone the sheet\'s way', () => {
+    expect(MENU_GROUP.card).toBe('not-first:mt-1.5')
+    expect(MENU_GROUP.cardHeading).toBe(`${MENU.heading} pb-0.5`)
+    expect(stepPx(MENU_GROUP.cardHeading, 'pb')).toBe(stepPx(MENU.cardRow, 'py'))
+    expect(BOTTOM_SHEET.body).toContain(MENU_GROUP.sheet)
+    expect(MENU_GROUP.sheetHeading).toBe(`${MENU.heading} pt-1.5 pb-0.5`)
+    expect(BOTTOM_SHEET.body).toContain(`[&>*]:${MENU_GROUP.sheetRow}`)
+    expect(layersPopoverSource).toContain('className={sheet ? MENU_GROUP.sheet : MENU_GROUP.card}')
+    expect(layersPopoverSource).toContain('className={sheet ? MENU_GROUP.sheetHeading : MENU_GROUP.cardHeading}')
+  })
 })
 
 // The map's one legend box (#454): the metric key and a section per layer that
-// is on, all in one alphabetical list.
+// is on, all in one list in the Layers menu's order.
 describe('the map legend sections', () => {
   // The whole box, metric key included — it is one box now, where the key used
   // to be a second one below the layer rows.
@@ -3011,6 +3056,17 @@ describe('the map legend sections', () => {
     'label: SNOW_LABEL',
     "label: 'Fire activity'",
   ]
+  // The same, in the order the card reads them after the slope bands.
+  const LAYER_LABELS_IN_ORDER = [
+    "label: 'Active wildfire'",
+    "label: 'Fire activity'",
+    "label: 'Smoke'",
+    "label: 'Area closures'",
+    "label: 'Trail closures'",
+    "label: 'Rain radar'",
+    'label: SNOW_LABEL',
+    'label: gridLegend.label',
+  ]
 
   it('found every section', () => {
     expect(box).not.toBe('')
@@ -3023,13 +3079,15 @@ describe('the map legend sections', () => {
     expect(box).toContain('label: metricLabel(')
   })
 
-  // Alphabetical by the label a section reads, the metric key included (TJ,
-  // 2026-09-17). Nothing ranks these against each other, so any other order is
-  // one the reader has to learn. It is SORTED rather than written in order,
-  // because one of the labels is the ranked metric's: `Temperature` sorts last
-  // and `AQI` first, and no source order can be both.
-  it('sorts every section by the label it reads', () => {
-    expect(box).toContain('.sort((a, b) => a.label.localeCompare(b.label))')
+  // In the Layers menu's order (record 0240): the metric key, the base map's
+  // slope bands, the hazards, then the forecast. Written in that order rather
+  // than sorted, so the order is the source's.
+  it('lists the sections in the Layers menu\'s order, the metric key first', () => {
+    const at = (mark: string) => box.indexOf(mark)
+    const order = ['label: metricLabel(', "label: 'Slope angle'", ...LAYER_LABELS_IN_ORDER]
+    expect(order.map(at).every((i) => i >= 0)).toBe(true)
+    expect(order.map(at)).toEqual([...order.map(at)].sort((a, b) => a - b))
+    expect(box).not.toContain('.sort(')
   })
 
   // One box, not two: the second cost a border, a gap and a backdrop on a map
@@ -3039,8 +3097,8 @@ describe('the map legend sections', () => {
   })
 
   // Every section, a chip row or a scale alike, is built by one function —
-  // which is what lets them be sorted at all, and what stopped the snow key
-  // being the odd one out.
+  // which is what lets them stand in one list at all, and what stopped the
+  // snow key being the odd one out.
   it('builds every section from the one recipe', () => {
     expect((box.match(/legendSection\(section\)/g) ?? []).length).toBe(1)
     expect((box.match(/\bramp: \{/g) ?? []).length).toBe(3)

@@ -1,6 +1,6 @@
 # 0048. The map legend is one box, in alphabetical order, anchored at the top
 
-- Status: Accepted. Amended by 0136 (on a phone the keys are the Legend sheet's, not a box on the map) 0148 (at a desk the box is a card under a Legend button) and 0174 (that card hangs from the Legend chip, as tall as its sections).
+- Status: Accepted. Amended by 0136 (on a phone the keys are the Legend sheet's, not a box on the map) 0148 (at a desk the box is a card under a Legend button) and 0174 (that card hangs from the Legend chip, as tall as its sections) and 0240 (the sections read in the Layers menu's order, the metric key first, rather than alphabetically).
 - Date: 2026-09-17 (git: the merge of #459); the guide records the order and the strip as TJ, 2026-09-17
 - Decider: TJ (git: author and merger of #459); the section order and the in-strip numbers are TJ's, 2026-09-17
 - Issues and PRs: #249, #446, #454, #459

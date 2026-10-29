@@ -221,18 +221,21 @@ again. Eight are credited in their own section of the map's legend, and the thre
 
 | Layer | What it draws | Coverage |
 |---|---|---|
-| **Area closures** | Ground closed by a Forest Service closure order, in fuchsia | Forest Service orders in Oregon, Washington, Arizona, New Mexico, Utah, most of Nevada, southern Idaho and western Wyoming. No national park, state, BLM or tribal closure is drawn ([DATA.md](DATA.md#closures)) |
-| **Trail closures** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
-| **Wildfires** | Active fire perimeters, in red | United States, which the proximity check shares ([DATA.md](DATA.md#wildfires)) |
-| **Fire activity** | Hot spots satellites saw in the last 48 hours, as starbursts coloured by age | Worldwide, from zoom 5 in ([DATA.md](DATA.md#fire-activity)) |
-| **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | The contiguous states, Alaska, Hawaii, Puerto Rico and Guam |
-| **Smoke** | Smoke plumes at three densities, in grey | North America, Hawaii and the Caribbean |
-| **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
-| **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
+| *Base map* | | |
+| **Satellite** | Aerial photos of the ground, under the map's roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
 | **Topographic** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
 | **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
 | **Slope angle** | How steep the ground is, in six bands from 27 degrees, from the same model | Worldwide |
-| **Satellite** | Aerial photos of the ground, under the map's roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
+| *Hazards* | | |
+| **Wildfires** | Active fire perimeters, in red | United States, which the proximity check shares ([DATA.md](DATA.md#wildfires)) |
+| **Fire activity** | Hot spots satellites saw in the last 48 hours, as starbursts coloured by age | Worldwide, from zoom 5 in ([DATA.md](DATA.md#fire-activity)) |
+| **Smoke** | Smoke plumes at three densities, in grey | North America, Hawaii and the Caribbean |
+| **Area closures** | Ground closed by a Forest Service closure order, in fuchsia | Forest Service orders in Oregon, Washington, Arizona, New Mexico, Utah, most of Nevada, southern Idaho and western Wyoming. No national park, state, BLM or tribal closure is drawn ([DATA.md](DATA.md#closures)) |
+| **Trail closures** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
+| *Forecast* | | |
+| **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | The contiguous states, Alaska, Hawaii, Puerto Rico and Guam |
+| **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
+| **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
 **Topographic** draws contour lines and **Shaded relief** shading, both from
 one elevation model, under the trails, the peaks and every name on the map.
@@ -272,7 +275,11 @@ on, the trails wear a light edge so they read over the woods, and the contour
 lines turn light on a dark edge, as a topo drawn over a photo does. The two
 providers are credited in the map's corner, with the map's own.
 
-The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the
+The rows stand in three groups, by what a layer changes: **Base map** changes the
+map itself, **Hazards** draws a danger on it, and **Forecast** draws the weather on
+it. Inside a group they go by kind rather than by name, so a fire comes before its
+smoke and an area closure before the trails it closes. The last row of
+**Forecast** draws nothing: **Forecast player** switches the
 timeline bar at the bottom of the map on and off. It is on by default in a
 desktop-sized window and off on a phone, where the bar is a band across a map the
 report already stands on. It changes nothing about the ranking either, and once
@@ -561,9 +568,9 @@ If Open-Meteo cannot be reached from your browser, the analysis stops and says s
 ### The map's legend
 
 A card under the **Legend** chip, which stands beside **Layers**. It holds a
-section for the marker colors and one for each layer that is switched on, and
-they read in alphabetical order by name, so a section is where you last looked
-for it. Press **Legend** to fold the card away and again to bring it back; it
+section for the marker colors and one for each layer that is switched on. The
+marker colors come first, and the layers follow in the order their rows stand
+under **Layers**, so a key is where you would look for its switch. Press **Legend** to fold the card away and again to bring it back; it
 remembers which you left it as. A legend taller than the map has room for
 scrolls inside its card. The chip is greyed until there is something on the
 map to explain. On a phone the same sections are in the sheet the **Legend**
