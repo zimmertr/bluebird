@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { test, expect, type Traffic } from './fixtures'
 
 // The ground (#799): the shaded relief, the contours, the slope angle and the
@@ -31,6 +32,59 @@ test('the cold load asks the elevation host for nothing, and the relief asks it 
   await expect(page).toHaveURL(/[?&]relief=1/)
   // The contour library came in as a chunk of its own, once the relief asked.
   await expect.poll(() => scripts.length).toBe(1)
+})
+
+// A link carrying `topo` opens with the Topographic row ticked, and the
+// contours, the only ground layer it switches on, ask the elevation host for
+// the tiles they trace.
+test('a link carrying topo opens with the Topographic row ticked and asks for the contours\' elevation', async ({
+  page,
+  traffic,
+}) => {
+  await page.goto('/?view=-121.76,46.853,11&topo=1')
+  await expect.poll(() => demRequests(traffic)).toBeGreaterThan(0)
+  await page.getByRole('button', { name: 'Layers' }).click()
+  await expect(page.getByRole('checkbox', { name: 'Topographic' })).toBeChecked()
+  await expect(page.getByRole('checkbox', { name: 'Shaded relief' })).not.toBeChecked()
+  await expect(page.getByRole('checkbox', { name: 'Slope angle' })).not.toBeChecked()
+})
+
+// The slope tiles are painted on the main thread and handed to MapLibre as an
+// ImageBitmap made from an ImageData (`map/slope.ts`); nothing else on the
+// page makes one from an ImageData, since MapLibre decodes its own tiles from
+// their bytes. So a count of those calls is a count of slope tiles painted.
+async function countSlopeBitmaps(page: Page) {
+  await page.addInitScript(() => {
+    const counted = window as unknown as { slopeBitmaps: number }
+    counted.slopeBitmaps = 0
+    const make = window.createImageBitmap.bind(window) as (...args: unknown[]) => Promise<ImageBitmap>
+    window.createImageBitmap = ((...args: unknown[]) => {
+      if (args[0] instanceof ImageData) counted.slopeBitmaps += 1
+      return make(...args)
+    }) as typeof window.createImageBitmap
+  })
+  return () => page.evaluate(() => (window as unknown as { slopeBitmaps: number }).slopeBitmaps)
+}
+
+// A link carrying `slope` opens with the Slope angle row ticked and paints
+// slope tiles from the elevation fixture's cone.
+test('a link carrying slope opens with the Slope angle row ticked and paints its tiles', async ({ page, traffic }) => {
+  const painted = await countSlopeBitmaps(page)
+  await page.goto('/?view=-121.76,46.853,11&slope=1')
+  await expect.poll(() => demRequests(traffic)).toBeGreaterThan(0)
+  await expect.poll(painted).toBeGreaterThan(0)
+  await page.getByRole('button', { name: 'Layers' }).click()
+  await expect(page.getByRole('checkbox', { name: 'Slope angle' })).toBeChecked()
+})
+
+// The relief reads the same tiles and paints nothing on the main thread, so
+// the count above is the slope's alone.
+test('the relief paints no slope tile', async ({ page, traffic }) => {
+  const painted = await countSlopeBitmaps(page)
+  await page.goto('/?view=-121.76,46.853,11&relief=1')
+  await expect.poll(() => demRequests(traffic)).toBeGreaterThan(0)
+  await page.waitForTimeout(2_000)
+  expect(await painted()).toBe(0)
 })
 
 // The slope angle (#799) is painted from the same tiles, so it asks the
