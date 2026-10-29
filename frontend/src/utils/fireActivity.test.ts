@@ -3,6 +3,7 @@ import type { Feature, Point } from 'geojson'
 import type { FireActivityResponse, FireDetectionProps } from '../types'
 import { contrast } from '../testSupport/contrast'
 import { fakeResponse } from '../testSupport/fixtures'
+import { markupText } from '../testSupport/markupText'
 import {
   AGE_BANDS,
   AGE_BAND_CHIPS,
@@ -308,10 +309,9 @@ describe('hotspotRows', () => {
 
   it('draws the card titled Hotspot with each line’s label and value', () => {
     const html = hotspotPopupHtml({ properties: viirs }, NOW)
-    const text = (markup: string) => markup.replace(/<[^>]+>/g, '').trim()
     expect(html).toMatch(/<strong[^>]*>Hotspot<\/strong>/)
     const body = html.slice(html.indexOf('data-popup-body'))
-    expect(text(body.slice(body.indexOf('>') + 1))).toBe(
+    expect(markupText(body.slice(body.indexOf('>') + 1)).trim()).toBe(
       `Detected: ${monthDayTime(new Date(seen))} (3 hours ago)` +
         'Satellite: NOAA-20 VIIRS' +
         'Confidence: Nominal' +
