@@ -863,8 +863,10 @@ export const SWATCH_CHIP = `inline-flex h-4 w-4 items-center justify-center ${RA
  * the red, the orange and the yellow (`styles.test.ts` holds each). 24px,
  * because a 10px `48h` is 17px wide and has to sit inside the star's inner
  * corners rather than across its points, where it would land on the card.
+ * Set a little tight, which takes it to about 16.5px: at its natural spacing
+ * its ends met the star's edge at the inner corners either side.
  */
-export const SWATCH_STAR = `relative inline-flex h-6 w-6 flex-shrink-0 items-center justify-center ${SWATCH_GLYPH}`
+export const SWATCH_STAR = `relative inline-flex h-6 w-6 flex-shrink-0 items-center justify-center ${SWATCH_GLYPH} tracking-tight`
 
 /**
  * A legend swatch for a layer that draws LINES: a 14px dashed rule with no

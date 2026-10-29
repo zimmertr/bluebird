@@ -3252,6 +3252,8 @@ describe('the type floor', () => {
     expect(stepPx(SWATCH_STAR, 'w')).toBe(24)
     const glyph = (recipe: string) => recipe.split(/\s+/).filter((c) => /^text-|^font-/.test(c)).sort()
     expect(glyph(SWATCH_STAR)).toEqual(glyph(SWATCH_CHIP))
+    // Set a little tight, so its ends clear the star's edge.
+    expect(SWATCH_STAR).toMatch(/\btracking-tight\b/)
   })
 
   // Its label is read on the band's fill, the three as light as smoke's, so
