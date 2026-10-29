@@ -824,12 +824,13 @@ a gap in a map that otherwise drew, and says nothing.
 
 ### Elevation and imagery
 
-The Topographic, Shaded relief and Satellite rows, and the 3D terrain, read tiles
-the browser fetches itself from three more hosts, each keyless (#799). All
-four draw, and none asks for anything until it is switched on.
+The Topographic, Shaded relief, Slope angle and Satellite rows, and the 3D
+terrain, read tiles the browser fetches itself from three more hosts, each
+keyless (#799). All five draw, and none asks for anything until it is switched
+on.
 
-**Elevation is Mapterhorn's**, one model behind the contours, the relief and
-the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere, with finer national
+**Elevation is Mapterhorn's**, one model behind the contours, the relief, the
+slope angle and the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere, with finer national
 surveys stitched in where a country publishes one, so the detail depends on
 where you look. 30 m is enough for a ridge and a valley, and too coarse for a
 gully or a cliff band. Past the zoom a region's survey reaches, a tile answers
@@ -848,6 +849,21 @@ coarsest and holds one height, so a sharp summit narrower than that can top out
 under the elevation its OpenStreetMap label carries, and the highest line round
 it can read one interval short. Use the label for the summit and the lines for
 the shape of the ground around it.
+
+**The slope angle is worked out in your browser** from the same tiles, the
+ones the relief and the contours already fetched. Each pixel's slope is the
+height difference to its neighbours east and west and north and south, over
+the ground between them at that latitude, and the pixels on a tile's edge read
+their neighbours from the next tile, so a band does not break along tile
+boundaries. It is painted in CalTopo's bands, which are the avalanche world's,
+from 27 degrees up (record
+[0239](decisions/0239-slope-angle-from-the-shared-elevation.md)). So it
+inherits the model's limits: a slope is measured over two pixels, about 26 m at
+Rainier's latitude at zoom 12 and twice that at each zoom out, and a cliff band
+or a gully narrower than that is averaged with the ground beside it and reads
+gentler than it is. Past zoom 12 the shading is stretched rather than worked
+out again. It is a planning picture, not a measurement of the slope you will
+stand on.
 
 **Imagery is two sources, one picture.** Over the United States and its
 territories it is USGS's NAIP aerial photography, to zoom 16, in the public

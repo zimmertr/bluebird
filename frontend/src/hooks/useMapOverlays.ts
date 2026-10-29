@@ -45,6 +45,9 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
   // ask nothing of the pod: the browser fetches every tile itself.
   const [showContours, setShowContours] = useState(() => restored?.showContours ?? false)
   const [showRelief, setShowRelief] = useState(() => restored?.showRelief ?? false)
+  // The slope angle shading (#799): each slope's steepness in the avalanche
+  // bands, painted in the browser from the relief's own elevation.
+  const [showSlope, setShowSlope] = useState(() => restored?.showSlope ?? false)
   const [showSatellite, setShowSatellite] = useState(() => restored?.showSatellite ?? false)
   // The satellite fire detections (#799), read from the pod's hourly copy of
   // NASA FIRMS for the view, the way the fire perimeters are.
@@ -83,6 +86,8 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
     setShowContours,
     showRelief,
     setShowRelief,
+    showSlope,
+    setShowSlope,
     showSatellite,
     setShowSatellite,
     showFireActivity,

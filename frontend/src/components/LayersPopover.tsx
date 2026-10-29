@@ -26,7 +26,7 @@ import { useLayerReach } from '../hooks/useLayerReach'
 import type { LayerCoverage } from '../utils/layerCoverage'
 import type { MapViewHandle } from './MapView'
 
-// One row of the Layers popover: a checkbox and what it switches. The eleven
+// One row of the Layers popover: a checkbox and what it switches. The twelve
 // overlays and the forecast player share it, because they are the same kind of
 // choice — about what the map shows, never about what the analysis asks for.
 function layerRow({
@@ -136,6 +136,8 @@ export default function LayersPopover({
     setShowContours,
     showRelief,
     setShowRelief,
+    showSlope,
+    setShowSlope,
     showSatellite,
     setShowSatellite,
     showFireActivity,
@@ -206,12 +208,12 @@ export default function LayersPopover({
   }, [popoverOpen])
 
   // Alphabetical by label, which is the only order a list of unrelated switches
-  // can be scanned in: these twelve have no ranking between them — no cost, no
+  // can be scanned in: these thirteen have no ranking between them — no cost, no
   // severity, no dependency — so any other order is one the reader has to
   // learn. The grid's own segment and slider still render under its row,
   // because they are that row's sub-choices rather than list members.
   //
-  // The player is a list member like the other eleven even though it switches
+  // The player is a list member like the other twelve even though it switches
   // something OFF the map rather than a picture onto it: it answers the same
   // question — what is on the map — and nothing about the report follows it,
   // so it is no more a knob than the overlays beside it.
@@ -265,6 +267,8 @@ export default function LayersPopover({
     // from EOX everywhere else.
     { key: 'satellite', label: 'Satellite', checked: showSatellite, onChange: setShowSatellite },
     { key: 'relief', label: 'Shaded relief', checked: showRelief, onChange: setShowRelief },
+    // Never greys, for the relief's reason: the elevation covers the world.
+    { key: 'slope', label: 'Slope angle', checked: showSlope, onChange: setShowSlope },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke, disabled: outOfView.has('smoke') },
     { key: 'snow', label: 'Snow depth', checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
     // The contour lines, under the name a reader looks for them by. The key

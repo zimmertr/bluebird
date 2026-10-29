@@ -37,10 +37,14 @@ import {
   TERRAIN_EXAGGERATION,
   TERRAIN_PITCH,
   TERRAIN_SOURCE,
+  SLOPE_LAYER,
+  SLOPE_SOURCE,
   loadDemTiles,
   mountTerrain,
   type DemTiles,
 } from './terrain'
+import { SLOPE_PAINT, SLOPE_SCHEME, SLOPE_TILES } from './slope'
+import { SLOPE_ALPHA } from '../utils/slopeAngle'
 import { DEM_TILES } from '../utils/terrainSources'
 import { FEET_PER_METER } from '../utils/basemapPoi'
 import { stubMap } from '../testSupport/stubMap'
@@ -61,7 +65,11 @@ const OFF = { relief: false, contours: false, terrain: false }
 function setup({ pitch = 0, bearing = 0 } = {}) {
   const stub = stubMap({ styleLayers: STYLE_LAYERS, pitch, bearing })
   const contourUrl = vi.fn((o: unknown) => `bluebird-dem-contour://{z}/{x}/{y}?${JSON.stringify(o)}`)
-  const tiles: DemTiles = { sharedDemProtocolUrl: 'bluebird-dem-shared://{z}/{x}/{y}', contourProtocolUrl: contourUrl }
+  const tiles: DemTiles = {
+    sharedDemProtocolUrl: 'bluebird-dem-shared://{z}/{x}/{y}',
+    contourProtocolUrl: contourUrl,
+    getDemTile: vi.fn(),
+  }
   const load = vi.fn(async () => tiles)
   const terrain = mountTerrain(stub.map, { load })
   return { stub, terrain, load, contourUrl }
@@ -287,7 +295,7 @@ describe('mountTerrain', () => {
   it('tries the library again on the next switch after it failed to load', async () => {
     const stub = stubMap({ styleLayers: STYLE_LAYERS })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const tiles: DemTiles = { sharedDemProtocolUrl: 'x://{z}/{x}/{y}', contourProtocolUrl: () => '' }
+    const tiles: DemTiles = { sharedDemProtocolUrl: 'x://{z}/{x}/{y}', contourProtocolUrl: () => '', getDemTile: vi.fn() }
     const load = vi.fn().mockRejectedValueOnce(new Error('chunk')).mockResolvedValueOnce(tiles)
     const terrain = mountTerrain(stub.map, { load })
     terrain.update({ ...OFF, relief: true })
@@ -307,5 +315,84 @@ describe('loadDemTiles', () => {
     expect(constructed).toEqual([{ url: DEM_TILES, encoding: 'terrarium', maxzoom: 12, id: 'bluebird-dem', worker: true }])
     expect(setupMaplibre).toHaveBeenCalledWith({ addProtocol })
     expect(tiles.sharedDemProtocolUrl).toBe('bluebird-dem-shared://{z}/{x}/{y}')
+  })
+
+  // The slope shading's scheme goes in with the library's, never before it.
+  it('registers the slope scheme once the library has loaded', async () => {
+    addProtocol.mockClear()
+    await loadDemTiles()
+    expect(addProtocol).toHaveBeenCalledWith(SLOPE_SCHEME, expect.any(Function))
+  })
+})
+
+describe('the slope angle shading', () => {
+  it('adds nothing and loads nothing while it is off', async () => {
+    const { stub, terrain, load } = setup()
+    terrain.updateSlope(false)
+    terrain.update(OFF)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(load).not.toHaveBeenCalled()
+    expect(stub.calls).toEqual([])
+  })
+
+  // A raster of the app's own scheme, credited to Mapterhorn, 512px, capped
+  // at the elevation's zoom, at half strength.
+  it('adds its raster the first time it is on', async () => {
+    const { stub, terrain, load } = setup()
+    terrain.updateSlope(true)
+    await vi.waitFor(() => expect(stub.stack).toContain(SLOPE_LAYER))
+    expect(load).toHaveBeenCalledOnce()
+    expect(sourcesAdded(stub.calls)).toEqual([SLOPE_SOURCE])
+    expect(stub.calls.find((c) => c[0] === 'addSource')![2]).toEqual({
+      type: 'raster',
+      tiles: [SLOPE_TILES],
+      tileSize: 512,
+      maxzoom: DEM_MAXZOOM,
+      attribution: MAPTERHORN_ATTRIBUTION,
+    })
+    expect(stub.calls.find((c) => c[0] === 'addLayer')).toEqual(['addLayer', SLOPE_LAYER, 'ofm-trails'])
+    expect(SLOPE_PAINT).toEqual({ 'raster-opacity': SLOPE_ALPHA })
+  })
+
+  it('hides when switched off and shows again, adding nothing twice', async () => {
+    const { stub, terrain, load } = setup()
+    terrain.updateSlope(true)
+    await vi.waitFor(() => expect(stub.stack).toContain(SLOPE_LAYER))
+    terrain.updateSlope(false)
+    expect(visibility(stub, SLOPE_LAYER)).toBe('none')
+    terrain.updateSlope(true)
+    expect(visibility(stub, SLOPE_LAYER)).toBe('visible')
+    expect(load).toHaveBeenCalledOnce()
+    expect(stub.calls.filter((c) => c[0] === 'addLayer')).toHaveLength(1)
+  })
+
+  // Over the relief and under the contours, whichever of the three is on
+  // first, and the other layers' switches leave it as it is.
+  it('stacks over the relief and under the contours, in any order', async () => {
+    const orders = [
+      ['relief', 'slope', 'contours'],
+      ['slope', 'relief', 'contours'],
+      ['contours', 'slope', 'relief'],
+      ['slope', 'contours', 'relief'],
+    ] as const
+    for (const order of orders) {
+      const { stub, terrain } = setup()
+      let want = OFF
+      for (const key of order) {
+        if (key === 'slope') terrain.updateSlope(true)
+        else {
+          want = { ...want, [key]: true }
+          terrain.update(want)
+        }
+        const id = { relief: RELIEF_LAYER, slope: SLOPE_LAYER, contours: CONTOUR_LAYER }[key]
+        await vi.waitFor(() => expect(stub.stack).toContain(id))
+      }
+      expect([order, stub.stack.slice(3, 10)]).toEqual([
+        order,
+        [RELIEF_LAYER, SLOPE_LAYER, CONTOUR_CASING_LAYER, CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER, 'ofm-trails'],
+      ])
+      terrain.update(OFF)
+      expect(visibility(stub, SLOPE_LAYER)).not.toBe('none')
+    }
   })
 })

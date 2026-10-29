@@ -2965,7 +2965,7 @@ describe('the map layer rows', () => {
   })()
 
   it('found every row', () => {
-    expect(labels).toHaveLength(12)
+    expect(labels).toHaveLength(13)
   })
 
   // Alphabetical, because nothing else orders these: no cost, no severity and
@@ -3032,7 +3032,7 @@ describe('the map legend sections', () => {
   // being the odd one out.
   it('builds every section from the one recipe', () => {
     expect((box.match(/legendSection\(section\)/g) ?? []).length).toBe(1)
-    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(2)
+    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(3)
   })
 })
 

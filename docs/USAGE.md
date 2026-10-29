@@ -212,12 +212,12 @@ The default is 200, sized to sit above the 100-row lists people usually paste so
 
 ## Map layers
 
-Eleven optional overlays, on the map's own **Layers** chip rather than in the
+Twelve optional overlays, on the map's own **Layers** chip rather than in the
 controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Seven of them are credited in their own section of the map's legend, and the three that draw the ground, Topographic, Shaded relief and Satellite, in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
+again. Eight of them are credited in their own section of the map's legend, and the three others that draw the ground, Topographic, Shaded relief and Satellite, in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
@@ -231,6 +231,7 @@ again. Seven of them are credited in their own section of the map's legend, and 
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 | **Topographic** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
 | **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
+| **Slope angle** | How steep the ground is, in six bands from 27 degrees, from the same model | Worldwide |
 | **Satellite** | Aerial photos of the ground, under the map's roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
 
 **Topographic** draws contour lines and **Shaded relief** shading, both from
@@ -246,6 +247,19 @@ shows over Rainier may not show over the Alps. Its heights are the model's,
 which can differ from the height a summit's label gives
 ([DATA.md](DATA.md#elevation-and-imagery)). Neither layer downloads anything
 until you switch it on.
+
+**Slope angle** paints how steep the ground is, in the bands avalanche
+forecasters and CalTopo use: yellow from 27 to 29 degrees, orange at 30 and
+31, red from 32 to 34, purple from 35 to 45, blue from 46 to 50 and black from
+51 up. Under 27 nothing is painted. Most slab avalanches start on slopes of 30
+to 45 degrees. The bands are worked out in your browser from the same elevation
+model as the relief, 30 m in most of the world, so a short cliff band or a
+narrow gully can be smoothed into the gentler ground around it. Zoomed out, a
+pixel covers more ground and the bands read gentler: Rainier's cleavers are
+black at zoom 12 and purple at zoom 10. Read it zoomed in. It is no substitute
+for measuring a slope in the field. It paints at half strength, over the relief
+and the photos and under the contour lines, and downloads nothing until you
+switch it on.
 
 **Satellite** puts photos under the map's roads, trails and labels, and takes
 away the map's own colours for land, water and buildings. Over the United
@@ -560,8 +574,9 @@ starbursts on the right, red, orange and yellow, reading `12h`, `24h` and
 `48h`, the hour each band of age ends at. A section keyed on a **scale** is a strip
 across the box with its numbers **inside** it, along the bottom edge: the bottom
 of the scale, its middle and its top, each standing on the band boundary it
-names. That is the shape both the marker colors and the snow depth layer take,
-and it is one line rather than two. The unit rides the section's name —
+names. That is the shape the marker colors, the snow depth layer and the slope
+angle layer take, and it is one line rather than two. The slope angle strip
+names every band, by the degrees it starts at. The unit rides the section's name —
 `Temperature (°F)`, `Precipitation (in)`, `Precipitation (in/hr)` while the
 forecast player is scrubbing, and `Snow depth (in)` — so the numbers on the strip
 stay bare. AQI is the one with no unit to state, its index being a plain index.

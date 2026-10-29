@@ -27,6 +27,9 @@
 /** Mapterhorn's elevation tiles: Terrarium encoding, 512px WebP. */
 export const DEM_TILES = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'
 
+/** Mapterhorn's attribution page: the map corner's credit and the slope angle key's both open it. */
+export const MAPTERHORN_HREF = 'https://mapterhorn.com/attribution'
+
 /** USGS's NAIP imagery for the United States: 256px JPEG to z16, `{y}` before `{x}`. */
 export const USGS_IMAGERY_TILES =
   'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}'

@@ -37,6 +37,7 @@ export interface UrlSyncInputs {
   showGrid: boolean
   showContours: boolean
   showRelief: boolean
+  showSlope: boolean
   showSatellite: boolean
   showFireActivity: boolean
   /** The map's 3D switch. */
@@ -105,6 +106,7 @@ export function useUrlSync({
   showGrid,
   showContours,
   showRelief,
+  showSlope,
   showSatellite,
   showFireActivity,
   showTerrain,
@@ -204,6 +206,7 @@ export function useUrlSync({
         showGrid,
         showContours,
         showRelief,
+        showSlope,
         showSatellite,
         showFireActivity,
         showTerrain,
@@ -242,6 +245,7 @@ export function useUrlSync({
     showGrid,
     showContours,
     showRelief,
+    showSlope,
     showSatellite,
     showFireActivity,
     showTerrain,

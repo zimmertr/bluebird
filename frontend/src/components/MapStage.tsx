@@ -360,6 +360,7 @@ export default function MapStage({
           showSnow={overlays.showSnow}
           showContours={overlays.showContours}
           showRelief={overlays.showRelief}
+          showSlope={overlays.showSlope}
           showSatellite={overlays.showSatellite}
           showTerrain={overlays.showTerrain}
           onTerrainChange={overlays.setShowTerrain}

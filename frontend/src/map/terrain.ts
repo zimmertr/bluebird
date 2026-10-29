@@ -13,6 +13,11 @@
  * removing them, and MapLibre asks for no tile of a source no visible layer
  * or terrain uses, so with all three off nothing is requested.
  *
+ * The slope angle shading (#799) is a fourth layer on the same tiles: a
+ * raster painted in the browser from the cached elevation (`slope.ts`), over
+ * the relief and under the contours. It loads, hides and asks for nothing
+ * while off the way the other three do.
+ *
  * Every colour and number here is this module's (`value-hex` and
  * `map-paint-named` list it as an owner). The map stays light in both
  * themes, so each colour is one value for both.
@@ -20,8 +25,9 @@
 import { addProtocol } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import { FEET_PER_METER } from '../utils/basemapPoi'
-import { DEM_TILES } from '../utils/terrainSources'
+import { DEM_TILES, MAPTERHORN_HREF } from '../utils/terrainSources'
 import { CAMERA_MS } from './mapStyles'
+import { SLOPE_PAINT, SLOPE_TILES, serveSlopeTiles, type DemGrids } from './slope'
 
 /** The relief's elevation source. */
 export const DEM_SOURCE = 'dem'
@@ -40,6 +46,9 @@ export const TERRAIN_SOURCE = 'dem-terrain'
 export const CONTOUR_SOURCE = 'contour-lines'
 
 export const RELIEF_LAYER = 'relief'
+/** The slope angle shading (#799): a raster painted in the browser from the same elevation (`slope.ts`). */
+export const SLOPE_SOURCE = 'slope'
+export const SLOPE_LAYER = 'slope'
 export const CONTOUR_LAYER = 'contours'
 export const CONTOUR_INDEX_LAYER = 'contours-index'
 export const CONTOUR_LABEL_LAYER = 'contours-label'
@@ -68,7 +77,7 @@ export const DEM_MAXZOOM = 12
  * map's corner names it while any of them is drawn.
  */
 export const MAPTERHORN_ATTRIBUTION =
-  '<a href="https://mapterhorn.com/attribution" target="_blank" rel="noopener noreferrer">© Mapterhorn</a>'
+  `<a href="${MAPTERHORN_HREF}" target="_blank" rel="noopener noreferrer">© Mapterhorn</a>`
 
 /** The prefix of the contour library's two URL schemes, so they are this app's. */
 const DEM_PROTOCOL_ID = 'bluebird-dem'
@@ -251,7 +260,7 @@ const CONTOUR_LABEL_LAYOUT: maplibregl.SymbolLayerSpecification['layout'] = {
  * The part of maplibre-contour's `DemSource` this module uses, spelled here so
  * nothing but the lazy chunk names the library.
  */
-export interface DemTiles {
+export interface DemTiles extends DemGrids {
   /** The scheme MapLibre reads an elevation tile through, from the library's cache. */
   sharedDemProtocolUrl: string
   /** The scheme a contour tile is generated through, with its options in the URL. */
@@ -287,11 +296,18 @@ export async function loadDemTiles(): Promise<DemTiles> {
   // well as 4's promise one; 6 takes the promise form, which the library
   // detects by the AbortController it is handed.
   tiles.setupMaplibre({ addProtocol: addProtocol as never })
+  serveSlopeTiles(tiles)
   return tiles
 }
 
 export interface TerrainLayers {
   update(next: { relief: boolean; contours: boolean; terrain: boolean }): void
+  /**
+   * The slope angle shading (#799), on the same elevation and the same first
+   * load. Its own call because its switch is its own prop with its own effect
+   * in `MapView`, the way every Layers row but these three has one.
+   */
+  updateSlope(show: boolean): void
   /**
    * Whether the satellite imagery is drawn under the contours, which switches
    * them to their light ink on a dark edge and back. `features.ts` calls it
@@ -303,6 +319,7 @@ export interface TerrainLayers {
 export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<DemTiles> } = {}): TerrainLayers {
   const load = deps.load ?? loadDemTiles
   let want = { relief: false, contours: false, terrain: false }
+  let slopeWanted = false
   let imagery = false
   let tiles: DemTiles | null = null
   let loading = false
@@ -335,8 +352,9 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
   function relief() {
     if (map.getLayer(RELIEF_LAYER)) return show([RELIEF_LAYER], true)
     demSource(DEM_SOURCE)
-    // Under the contours where they are drawn, so a line is never shaded over.
-    const beneath = map.getLayer(CONTOUR_CASING_LAYER) ? CONTOUR_CASING_LAYER : beneathLabels()
+    // Under the slope shading and the contours where they are drawn, so a
+    // band or a line is never shaded over.
+    const beneath = [SLOPE_LAYER, CONTOUR_CASING_LAYER].find((id) => map.getLayer(id)) ?? beneathLabels()
     map.addLayer({ id: RELIEF_LAYER, type: 'hillshade', source: DEM_SOURCE, paint: RELIEF_PAINT }, beneath)
   }
 
@@ -404,6 +422,25 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
     )
   }
 
+  // Over the relief and under the contours: the bands read over the shading
+  // and the photos, and the lines and their heights stay on top of them.
+  function slope() {
+    if (map.getLayer(SLOPE_LAYER)) return show([SLOPE_LAYER], true)
+    if (!map.getSource(SLOPE_SOURCE)) {
+      map.addSource(SLOPE_SOURCE, {
+        type: 'raster',
+        tiles: [SLOPE_TILES],
+        tileSize: 512,
+        // The elevation's own cap: past it MapLibre stretches the zoom-12
+        // shading, as it does the relief.
+        maxzoom: DEM_MAXZOOM,
+        attribution: MAPTERHORN_ATTRIBUTION,
+      })
+    }
+    const beneath = map.getLayer(CONTOUR_CASING_LAYER) ? CONTOUR_CASING_LAYER : beneathLabels()
+    map.addLayer({ id: SLOPE_LAYER, type: 'raster', source: SLOPE_SOURCE, paint: SLOPE_PAINT }, beneath)
+  }
+
   function stand(on: boolean) {
     if (on === standing) return
     standing = on
@@ -423,30 +460,40 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
   function apply() {
     if (want.relief) relief()
     else show([RELIEF_LAYER], false)
+    if (slopeWanted) slope()
+    else show([SLOPE_LAYER], false)
     if (want.contours) contours()
     else show(CONTOUR_LAYERS, false)
     ink()
     stand(want.terrain)
   }
 
+  function request() {
+    if (tiles) return apply()
+    if (loading || !(want.relief || want.contours || want.terrain || slopeWanted)) return
+    loading = true
+    load().then(
+      (loaded) => {
+        tiles = loaded
+        apply()
+      },
+      (err: unknown) => {
+        // A failed chunk draws nothing and leaves the next switch to try
+        // again; nothing else on the map depends on it.
+        loading = false
+        console.warn('Elevation layers failed to load', err)
+      },
+    )
+  }
+
   return {
     update(next) {
       want = next
-      if (tiles) return apply()
-      if (loading || !(next.relief || next.contours || next.terrain)) return
-      loading = true
-      load().then(
-        (loaded) => {
-          tiles = loaded
-          apply()
-        },
-        (err: unknown) => {
-          // A failed chunk draws nothing and leaves the next switch to try
-          // again; nothing else on the map depends on it.
-          loading = false
-          console.warn('Elevation layers failed to load', err)
-        },
-      )
+      request()
+    },
+    updateSlope(on) {
+      slopeWanted = on
+      request()
     },
     overImagery(on) {
       if (on === imagery) return

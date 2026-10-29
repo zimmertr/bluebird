@@ -41,6 +41,9 @@ const COLOR_OWNERS = [
   'src/utils/snowDepth.ts',
   'src/utils/radar.ts',
   'src/utils/fireActivity.ts',
+  // The slope angle bands, CalTopo's, which the raster paints and the legend
+  // keys (#799).
+  'src/utils/slopeAngle.ts',
   'src/iconPaths.ts',
   'src/logo.ts',
 ]
