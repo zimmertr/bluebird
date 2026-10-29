@@ -11,9 +11,8 @@
  * Copernicus GLO-30 (30m) as the fill wherever no finer national survey
  * exists; its attribution page is mapterhorn.com/attribution, and the credit it
  * asks for is "© Mapterhorn". Past the zoom a region's survey reaches, a tile
- * answers 404, so a source caps its maxzoom (12 holds everywhere; finer is a
- * per-region decision the drawing phase makes). Mapterhorn keeps each
- * request's IP address, referrer and user agent for up to 30 days.
+ * answers 404 ({@link DEM_MAXZOOM}). Mapterhorn keeps each request's IP
+ * address, referrer and user agent for up to 30 days.
  *
  * The imagery is a composite. USGS's is NAIP aerial photography for the
  * United States and its territories, in the public domain, 256px JPEG to z16,
@@ -26,6 +25,24 @@
 
 /** Mapterhorn's elevation tiles: Terrarium encoding, 512px WebP. */
 export const DEM_TILES = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'
+
+/**
+ * The deepest zoom the elevation holds over all land, and so the deepest the
+ * relief, the contours and the 3D terrain ask for. Mapterhorn serves zooms 0
+ * to 12 everywhere it has land, from the 30 m Copernicus fill, and 13 to 17
+ * only where a national survey reaches; past that a tile answers 404
+ * (measured 2026-10-27: zoom 13 answers over Rainier and 404s over the
+ * Sahara, Kazakhstan, the Amazon and the Himalaya; zoom 14 404s over Rainier;
+ * 2026-10-29: the Matterhorn answers at every zoom to 17). `tilejson.json`
+ * publishes no maxzoom to read this from. At 12 a 404 can only mean open
+ * ocean, which has no tile at any zoom; above it a missing survey would leave
+ * holes in a `raster-dem` source, which MapLibre cannot fill from the zoom
+ * below. MapLibre and the contour library both draw past 12 by stretching the
+ * zoom-12 tiles, which at 512px is 19 m a pixel at the equator, finer than the
+ * 30 m fill already. The slope angle paints its own tiles and can fall back,
+ * so it asks for finer ones (`SLOPE_MAXZOOM` in `map/slope.ts`).
+ */
+export const DEM_MAXZOOM = 12
 
 /** Mapterhorn's attribution page: the map corner's credit and the slope angle key's both open it. */
 export const MAPTERHORN_HREF = 'https://mapterhorn.com/attribution'

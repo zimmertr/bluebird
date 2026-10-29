@@ -25,9 +25,9 @@
 import { addProtocol } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import { FEET_PER_METER } from '../utils/basemapPoi'
-import { DEM_TILES, MAPTERHORN_HREF } from '../utils/terrainSources'
+import { DEM_MAXZOOM, DEM_TILES, MAPTERHORN_HREF } from '../utils/terrainSources'
 import { CAMERA_MS } from './mapStyles'
-import { SLOPE_PAINT, SLOPE_TILES, serveSlopeTiles, type DemGrids } from './slope'
+import { SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_TILES, serveSlopeTiles, type DemGrids } from './slope'
 
 /** The relief's elevation source. */
 export const DEM_SOURCE = 'dem'
@@ -55,21 +55,6 @@ export const CONTOUR_LABEL_LAYER = 'contours-label'
 /** The dark edge under every contour line while the satellite imagery is on. */
 export const CONTOUR_CASING_LAYER = 'contours-casing'
 const CONTOUR_LAYERS = [CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER] as const
-
-/**
- * The deepest zoom the elevation sources ask for. Mapterhorn serves zooms 0 to
- * 12 everywhere it has land, from the 30 m Copernicus fill, and 13 to 17 only
- * where a national survey reaches; past that a tile answers 404 (measured
- * 2026-10-27: zoom 13 answers over Rainier and 404s over the Sahara,
- * Kazakhstan, the Amazon and the Himalaya; zoom 14 404s over Rainier).
- * `tilejson.json` publishes no maxzoom to read this from. At 12 a 404 can
- * only mean open ocean, which has no tile at any zoom; above it a missing
- * survey would leave holes, and nothing showed a 404 falls back cleanly.
- * MapLibre and the contour library both draw past 12 by stretching the
- * zoom-12 tiles, which at 512px is 19 m a pixel at the equator, finer than
- * the 30 m fill already.
- */
-export const DEM_MAXZOOM = 12
 
 /**
  * Mapterhorn's credit, as its `tilejson.json` gives it, opening in a new tab
@@ -431,9 +416,10 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
         type: 'raster',
         tiles: [SLOPE_TILES],
         tileSize: 512,
-        // The elevation's own cap: past it MapLibre stretches the zoom-12
-        // shading, as it does the relief.
-        maxzoom: DEM_MAXZOOM,
+        // Finer than the relief's cap: the scheme falls back to the zoom-12
+        // elevation itself where a finer tile is missing, which a raster-dem
+        // source cannot (`slope.ts`). Past it MapLibre stretches the shading.
+        maxzoom: SLOPE_MAXZOOM,
         attribution: MAPTERHORN_ATTRIBUTION,
       })
     }
