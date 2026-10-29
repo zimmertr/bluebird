@@ -1157,7 +1157,12 @@ function ChartTooltip({
   return (
     <div
       ref={cardRef}
-      className={`${SURFACE_FLOATING} ${TEXT.control} px-2.5 py-1.5`}
+      // Over several panels the card is as wide as its content (`w-max`):
+      // Recharts' wrapper is absolutely positioned inside the hovered panel,
+      // so a shrink-to-fit width stops at that panel's edge and the name
+      // column takes the whole squeeze (`Moun…` in a 2×2 grid, 2026-10-29).
+      // `maxWidth`, the area's width, still caps it.
+      className={`${SURFACE_FLOATING} ${TEXT.control} px-2.5 py-1.5 ${areaRef ? 'w-max' : ''}`}
       style={maxWidthPx > 0 ? { maxWidth: maxWidthPx } : undefined}
     >
       <div className={`${TEXT.micro} mb-1 font-mono`}>{fmtTooltipTime(label)}</div>

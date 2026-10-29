@@ -659,6 +659,8 @@ describe('TimeSeriesChart with more than one metric', () => {
     rects.mockRestore()
     const card = shown.container.firstElementChild as HTMLElement
     expect(card.style.transform).toBe('translate(-140px, 0px)')
+    // As wide as its content, not shrunk to the hovered panel's box.
+    expect(card.classList.contains('w-max')).toBe(true)
   })
 
   it('keeps one panel\'s card inside its plot', () => {
