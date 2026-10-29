@@ -126,7 +126,15 @@ export function mountFeatures(
   // frame left.
   mountCamera(map, { controller })
   return {
-    imagery,
+    // The Satellite row drives the contours' ink as well as the photos: over
+    // the imagery the lines turn light on a dark edge (`terrain.ts`), and
+    // back when it goes off.
+    imagery: {
+      update(next) {
+        imagery.update(next)
+        terrain.overImagery(next.show)
+      },
+    },
     grid,
     landmarks,
     smoke,

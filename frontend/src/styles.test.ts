@@ -139,6 +139,15 @@ import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
 import { TRAIL_CASING_COLOR, TRAIL_COLOR, TRAIL_OPACITY } from './map/basemap'
+import {
+  CONTOUR_EDGE_OPACITY,
+  CONTOUR_IMAGERY_EDGE,
+  CONTOUR_IMAGERY_INK,
+  CONTOUR_IMAGERY_OPACITY,
+  CONTOUR_INK,
+  CONTOUR_INK_ON,
+  CONTOUR_LAYER,
+} from './map/terrain'
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { SNOW_RAMP } from './utils/snowDepth'
 import { contrast, mixOver, relativeLuminance, round2 } from './testSupport/contrast'
@@ -3462,6 +3471,28 @@ describe('the trails on the imagery', () => {
     // On snow the casing is lost and the trail reads on the snow itself.
     expect(ratio(TRAIL_CASING_COLOR, MAP_GROUNDS.snow)).toBe(1.09)
     expect(ratio(TRAIL_COLOR, MAP_GROUNDS.snow)).toBe(4.73)
+  })
+})
+
+// The contours over the imagery (#799; record 0234): the brown at its map
+// opacity is lost on a forest, so while the Satellite row is on the lines turn
+// light over a dark edge. Each line as drawn, its ink over its edge over the
+// ground, clears 3:1 on the forest, and its edge clears 3:1 on the snow.
+// Measured 2026-10-28.
+describe('the contours on the imagery', () => {
+  const edged = (kind: 'minor' | 'index', ground: string) => {
+    const edge = over(CONTOUR_IMAGERY_EDGE, CONTOUR_EDGE_OPACITY[kind], ground)
+    return { edge, ink: over(CONTOUR_IMAGERY_INK, CONTOUR_IMAGERY_OPACITY[kind], edge) }
+  }
+  it('read past 3:1 on the forest by their ink and on the snow by their edge', () => {
+    expect(ratio(over(CONTOUR_INK, CONTOUR_INK_ON.map[CONTOUR_LAYER][1], MAP_GROUNDS.forest), MAP_GROUNDS.forest)).toBe(1.25)
+    expect(ratio(edged('minor', MAP_GROUNDS.forest).ink, MAP_GROUNDS.forest)).toBe(4.89)
+    expect(ratio(edged('minor', MAP_GROUNDS.snow).edge, MAP_GROUNDS.snow)).toBe(3.2)
+    expect(ratio(edged('index', MAP_GROUNDS.forest).ink, MAP_GROUNDS.forest)).toBe(7.23)
+    expect(ratio(edged('index', MAP_GROUNDS.snow).edge, MAP_GROUNDS.snow)).toBe(4.34)
+    // On a mid grey neither reaches 3:1 alone, and the ink stands off its edge.
+    const grey = edged('minor', '#808080')
+    expect([ratio(grey.ink, '#808080'), ratio(grey.edge, '#808080'), ratio(grey.ink, grey.edge)]).toEqual([2.23, 2.14, 4.76])
   })
 })
 

@@ -255,7 +255,9 @@ zoomed out, they are EOX's Sentinel-2 cloudless mosaic at 10 m, which goes soft
 past a few streets' width. Neither is a recent pass, so neither shows the snow
 on the ground today: for that, use **Snow depth**. **Shaded relief** and
 **Topographic** draw over the photos; tick **Topographic** for a hybrid look. While
-the photos are on, the trails wear a light edge so they read over the woods.
+the photos are on, the trails wear a light edge so they read over the woods,
+and the contour lines turn light on a dark edge, as a topo drawn over a photo
+does.
 The two providers are credited in the map's corner, with the map's own.
 
 The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the

@@ -21,6 +21,9 @@ vi.mock('maplibre-contour', () => ({
 }))
 
 import {
+  CONTOUR_CASING_LAYER,
+  CONTOUR_IMAGERY_EDGE,
+  CONTOUR_IMAGERY_INK,
   CONTOUR_INDEX_LAYER,
   CONTOUR_LABEL_LAYER,
   CONTOUR_LAYER,
@@ -135,7 +138,14 @@ describe('mountTerrain', () => {
         terrain.update(want)
         await vi.waitFor(() => expect(stub.stack).toContain(key === 'relief' ? RELIEF_LAYER : CONTOUR_LAYER))
       }
-      expect(stub.stack.slice(3, 8)).toEqual([RELIEF_LAYER, CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER, 'ofm-trails'])
+      expect(stub.stack.slice(3, 9)).toEqual([
+        RELIEF_LAYER,
+        CONTOUR_CASING_LAYER,
+        CONTOUR_LAYER,
+        CONTOUR_INDEX_LAYER,
+        CONTOUR_LABEL_LAYER,
+        'ofm-trails',
+      ])
     }
   })
 
@@ -152,6 +162,52 @@ describe('mountTerrain', () => {
     expect([spec.type, spec.attribution]).toEqual(['vector', MAPTERHORN_ATTRIBUTION])
     terrain.update(OFF)
     for (const id of [CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER]) expect(visibility(stub, id)).toBe('none')
+  })
+
+  // Over the satellite imagery the brown vanishes on a forest, so the lines
+  // turn light on a dark edge while the Satellite row is on, whichever comes
+  // first, and back when it goes off.
+  it('draws the contours light on a dark edge over the imagery, and brown again off it', async () => {
+    const ink = (stub: ReturnType<typeof stubMap>) =>
+      [CONTOUR_LAYER, CONTOUR_INDEX_LAYER].map((id) => [stub.paint[id]['line-color'], stub.paint[id]['line-opacity']])
+    const brown = [
+      ['#8a6a4a', 0.35],
+      ['#8a6a4a', 0.6],
+    ]
+    for (const imageryFirst of [false, true]) {
+      const { stub, terrain } = setup()
+      if (imageryFirst) terrain.overImagery(true)
+      terrain.update({ ...OFF, contours: true })
+      await vi.waitFor(() => expect(stub.stack).toContain(CONTOUR_LAYER))
+      if (!imageryFirst) {
+        expect(ink(stub)).toEqual(brown)
+        expect(visibility(stub, CONTOUR_CASING_LAYER)).toBe('none')
+        terrain.overImagery(true)
+      }
+      expect(ink(stub)).toEqual([
+        [CONTOUR_IMAGERY_INK, 0.7],
+        [CONTOUR_IMAGERY_INK, 0.9],
+      ])
+      expect(stub.paint[CONTOUR_CASING_LAYER]['line-color']).toBe(CONTOUR_IMAGERY_EDGE)
+      expect(visibility(stub, CONTOUR_CASING_LAYER)).toBe('visible')
+      // The edge goes with the lines when the row is switched off under it.
+      terrain.update(OFF)
+      expect(visibility(stub, CONTOUR_CASING_LAYER)).toBe('none')
+      terrain.update({ ...OFF, contours: true })
+      expect(visibility(stub, CONTOUR_CASING_LAYER)).toBe('visible')
+      terrain.overImagery(false)
+      expect(ink(stub)).toEqual(brown)
+      expect(visibility(stub, CONTOUR_CASING_LAYER)).toBe('none')
+    }
+  })
+
+  // Before any contour is drawn the switch only remembers, and loads nothing.
+  it('loads nothing for the imagery alone', async () => {
+    const { stub, terrain, load } = setup()
+    terrain.overImagery(true)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(load).not.toHaveBeenCalled()
+    expect(stub.calls).toEqual([])
   })
 
   it('pins the contour intervals, in feet, every fifth an index line', () => {
