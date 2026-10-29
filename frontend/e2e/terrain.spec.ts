@@ -1,8 +1,8 @@
 import { test, expect, type Traffic } from './fixtures'
 
-// The ground (#799): the shaded relief, the contours and the 3D terrain ask
-// the elevation host for nothing until one of them is on, and the contour
-// code is a chunk the cold load never asks for. The 3D button is the switch
+// The ground (#799): the shaded relief, the contours, the slope angle and the
+// 3D terrain ask the elevation host for nothing until one of them is on, and
+// the contour code is a chunk the cold load never asks for. The 3D button is the switch
 // the link carries as `terrain`, and it tilts the map, which wakes the compass.
 
 const DEM_HOST = 'tiles.mapterhorn.com'
@@ -31,6 +31,23 @@ test('the cold load asks the elevation host for nothing, and the relief asks it 
   await expect(page).toHaveURL(/[?&]relief=1/)
   // The contour library came in as a chunk of its own, once the relief asked.
   await expect.poll(() => scripts.length).toBe(1)
+})
+
+// The slope angle (#799) is painted from the same tiles, so it asks the
+// elevation host too, and only once its row is on.
+test('the slope angle asks the elevation host once switched on, and the link carries it', async ({ page, traffic }) => {
+  const mounted = page.waitForRequest('**/api/landmarks**')
+  await page.goto('/?view=-121.76,46.853,11')
+  await mounted
+  expect(demRequests(traffic)).toBe(0)
+
+  await page.getByRole('button', { name: 'Layers' }).click()
+  const row = page.getByRole('checkbox', { name: 'Slope angle' })
+  await row.click()
+  await expect.poll(() => demRequests(traffic)).toBeGreaterThan(0)
+  await expect(page).toHaveURL(/[?&]slope=1/)
+  await row.click()
+  await expect(page).not.toHaveURL(/[?&]slope=1/)
 })
 
 test('the 3D button stands the map up and lays it flat, and the link carries it', async ({ page, traffic }) => {
