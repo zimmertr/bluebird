@@ -27,7 +27,7 @@ import BottomSheet from './BottomSheet'
 import { MenuButton } from './Menu'
 import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
-import { FIRMS_HREF, fireActivityLegendChips, starburst } from '../utils/fireActivity'
+import { FIRMS_HREF, STARBURST_INNER, fireActivityLegendChips, starburst } from '../utils/fireActivity'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF, radarSwatchCss } from '../utils/radar'
@@ -38,7 +38,7 @@ import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
 
 // The legend's starburst, in a 24-unit box about its centre: the points at
 // 11.5, inside the box by half the edge's width.
-const FIRE_STAR_CHIP = starburst(11.5)
+const FIRE_STAR_CHIP = starburst(11.5, STARBURST_INNER.chip)
   .map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)
   .join(' ')
 

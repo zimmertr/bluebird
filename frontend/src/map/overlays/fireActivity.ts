@@ -1,5 +1,5 @@
 /**
- * The satellite fire detections (#799): their source and circle layer, the
+ * The satellite fire detections (#799): their source and starburst layer, the
  * viewport fetch that runs while the layer is on, and the minute timer that
  * moves each detection into its next age band.
  *
@@ -10,6 +10,12 @@
  * a point, and a point over an area it falls in reads where an area over the
  * point would tint it. `update` only fills and empties it.
  *
+ * Each detection is a 12-point starburst, as CalTopo draws them: one SDF
+ * image (`starburstSdf`) registered under `FIRE_STAR_IMAGE`, painted per band
+ * through `icon-color` and edged with a dark halo, so one image serves all
+ * three bands. Overlap is allowed, so a cluster stays a cluster, and the stars
+ * take no room from the map's labels.
+ *
  * No popup: a click on a detection opens nothing.
  */
 import type * as maplibregl from 'maplibre-gl'
@@ -19,13 +25,15 @@ import { overlayRecovery, retryAfterOf } from './recovery'
 import { FIRE_REFETCH_DEBOUNCE_MS } from './wildfires'
 import {
   FIRE_ACTIVITY_COLOR,
+  FIRE_ACTIVITY_HALO_WIDTH,
+  FIRE_ACTIVITY_ICON_SIZE,
   FIRE_ACTIVITY_MINZOOM,
-  FIRE_ACTIVITY_RADIUS,
   FIRE_ACTIVITY_RECOLOR_MS,
   FIRE_ACTIVITY_SORT_KEY,
   FIRE_ACTIVITY_STROKE,
-  FIRE_ACTIVITY_STROKE_WIDTH,
+  FIRE_STAR_PIXEL_RATIO,
   fetchFireActivity,
+  starburstSdf,
   withAgeBands,
 } from '../../utils/fireActivity'
 import type { FireActivityResponse } from '../../types'
@@ -34,6 +42,8 @@ import { isAbort } from '../../utils/abort'
 
 export const FIRE_ACTIVITY_SOURCE = 'fire-activity'
 export const FIRE_ACTIVITY_LAYER = 'fire-activity-points'
+/** The starburst's image in the map's sprite, an SDF the layer tints per band. */
+export const FIRE_STAR_IMAGE = 'fire-activity-star'
 
 /**
  * The view as the box the route takes, read as the wildfire overlay reads it.
@@ -61,17 +71,30 @@ export function mountFireActivity(
 ): FireActivityOverlay {
   const now = deps.now ?? Date.now
   map.addSource(FIRE_ACTIVITY_SOURCE, { type: 'geojson', data: emptyFC as FeatureCollection })
+  // Registered before the layer names it; MapLibre draws nothing for an
+  // unknown icon and only warns.
+  if (!map.hasImage(FIRE_STAR_IMAGE)) {
+    map.addImage(FIRE_STAR_IMAGE, starburstSdf(), { sdf: true, pixelRatio: FIRE_STAR_PIXEL_RATIO })
+  }
   map.addLayer({
     id: FIRE_ACTIVITY_LAYER,
-    type: 'circle',
+    type: 'symbol',
     source: FIRE_ACTIVITY_SOURCE,
     minzoom: FIRE_ACTIVITY_MINZOOM,
-    layout: { 'circle-sort-key': FIRE_ACTIVITY_SORT_KEY },
+    layout: {
+      'icon-image': FIRE_STAR_IMAGE,
+      'icon-size': FIRE_ACTIVITY_ICON_SIZE,
+      // Every detection draws, so a cluster reads as a cluster, and none
+      // hides a peak's or a town's name beneath it.
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      // Newer over older where stars overlap.
+      'symbol-sort-key': FIRE_ACTIVITY_SORT_KEY,
+    },
     paint: {
-      'circle-color': FIRE_ACTIVITY_COLOR,
-      'circle-radius': FIRE_ACTIVITY_RADIUS,
-      'circle-stroke-color': FIRE_ACTIVITY_STROKE,
-      'circle-stroke-width': FIRE_ACTIVITY_STROKE_WIDTH,
+      'icon-color': FIRE_ACTIVITY_COLOR,
+      'icon-halo-color': FIRE_ACTIVITY_STROKE,
+      'icon-halo-width': FIRE_ACTIVITY_HALO_WIDTH,
     },
   })
 

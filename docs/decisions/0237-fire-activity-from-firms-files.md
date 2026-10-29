@@ -18,7 +18,9 @@ The wildfire perimeters say where a fire's surveyed edge was, in the United Stat
 
 **The pod holds the detections as columns, sorted into 1° cells**, and writes a box's text per request.
 
-**The answer carries an instant, and the browser colours by age.** `utils/fireActivity.ts` puts each detection in a band against the browser's clock, under 12 hours, 12 to 24 or 24 to 48, each band holding its lower edge, and drops it past 48 hours. The map layer reads the bands again every minute and repaints only when one moved. Red, orange and yellow, newest first, each disc in a near-black stroke.
+**The answer carries an instant, and the browser colours by age.** `utils/fireActivity.ts` puts each detection in a band against the browser's clock, under 12 hours, 12 to 24 or 24 to 48, each band holding its lower edge, and drops it past 48 hours. The map layer reads the bands again every minute and repaints only when one moved. Red, orange and yellow, newest first, each a 12-point starburst with a near-black edge, as CalTopo draws them. They were discs in a stroke until the maintainer's review on 2026-10-28.
+
+**The map draws each detection as a starburst** from one SDF image (`starburstSdf`), tinted per band through `icon-color` with a 1px stone-900 `icon-halo`, 6px across at zoom 5 and 14px at zoom 12, every one drawn however they crowd and none taking a label's room. Its inner corners stand at 0.65 of its points, deeper than the legend chip's 0.8: at 0.8 a 14px star read as a fuzzy disc, its points a pixel deep under the halo's blur (tried 2026-10-28 over Munds Park, Arizona, at zooms 9 and 12, at 0.8, 0.65 and 0.55). The image is a distance field computed from the star's corners, so it needs no canvas and the node tests read it.
 
 **The legend keys the bands on one line**, `Fire activity (FIRMS)` and three chips on its right where Smoke has its `L`, `M` and `H`: a 12-point starburst per band, in the band's fill and the layer's edge, with the hour the band ends at inside it, `12h`, `24h` and `48h` (`SWATCH_STAR`). The label is the smoke chips' glyph, 10px slate-900, which clears 4.5:1 on all three fills, so one ink serves every chip and the red keeps its colour. The star is 24px, because the label has to sit inside its inner corners to stand on the fill.
 
@@ -44,6 +46,8 @@ Measured 2026-10-27:
 - **The key as a row per band**, the layer's name over `Under 12 hours`, `12 to 24 hours` and `24 to 48 hours` each beside its disc, as first built: four lines where the smoke key, which also keys three classes, takes one (the maintainer, 2026-10-28).
 - **The stars under the name at a desk**, a line of their own where the card is too narrow: two lines where the brief asked for one, and the only section whose shape would change with the width.
 - **Smaller stars**: at 22px the inner corners stand 8.1px from the centre and `48h` reaches 9.3px, so the label's ends would sit on the points' gaps, on the card rather than on the fill.
+- **The legend chip's 0.8 on the map too**, one depth for both: a fuzzy disc at 14px, the mark the maintainer asked to replace.
+- **The map's 0.65 in the legend too**: at 24px its inner corners stand 7.2px from the centre and the label reaches 8.6px, onto the card.
 - **A light label on the red chip and a dark one on the other two.** The dark ink clears the red at 5.77:1, so one ink does.
 - **An age in the answer.** It would be wrong a minute after it was sent, and a stale snapshot would make it wronger.
 - **Feature text held per detection, as the perimeters are.** About 45 MB for 200,000 points, against about 7 MB of columns, with a box costing milliseconds to format either way.

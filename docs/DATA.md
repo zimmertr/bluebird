@@ -988,18 +988,18 @@ Read it with four things in mind.
 
 **It is about 3 hours behind the pass.** FIRMS publishes a detection about 3
 hours after the satellite saw it, and each satellite passes a given place about
-twice a day. So the newest dot can be hours old, and a fire that started since
+twice a day. So the newest star can be hours old, and a fire that started since
 the last pass is not on the map at all.
 
 **False alarms happen.** Anything hot enough looks like fire from orbit: gas
 flares, industrial roofs, volcanoes, and sun glint off water or metal. FIRMS
 grades each detection's confidence, and the layer drops nothing for it, so a
-lone dot over a refinery is probably the refinery.
+lone star over a refinery is probably the refinery.
 
 **Cloud and smoke hide fire.** A pass under cloud sees nothing below it, so an
 empty map means no detection, not no fire.
 
-**Colour is age.** A dot is red under 12 hours old, orange from 12 to 24 hours
+**Colour is age.** A star is red under 12 hours old, orange from 12 to 24 hours
 and yellow from 24 to 48, measured against your own clock, so it changes colour
 while the map is open. Nothing older than 48 hours is drawn. The layer draws
 nothing below zoom 5, where a view can hold a continent's fires.

@@ -8,8 +8,13 @@ import {
   AGE_BAND_CHIPS,
   FIRE_ACTIVITY_FILLS,
   FIRE_ACTIVITY_STROKE,
+  FIRE_ACTIVITY_ICON_SIZE,
+  FIRE_ACTIVITY_MINZOOM,
+  FIRE_STAR_PIXEL_RATIO,
+  FIRE_STAR_PX,
   STARBURST_INNER,
   STARBURST_POINTS,
+  starburstSdf,
   ageBand,
   fetchFireActivity,
   fireActivityLegendChips,
@@ -156,14 +161,59 @@ describe('fireActivityLegendChips', () => {
 // The one shape the map's icon and the legend's chip both draw.
 describe('starburst', () => {
   it('alternates twelve points and twelve inner corners, from the top, clockwise', () => {
-    const corners = starburst(10, 5, 5)
+    expect(STARBURST_INNER).toEqual({ map: 0.65, chip: 0.8 })
+    const corners = starburst(10, 0.65, 5, 5)
     expect(corners).toHaveLength(STARBURST_POINTS * 2)
     const radius = ([x, y]: [number, number]) => Math.hypot(x - 5, y - 5)
-    corners.forEach((corner, i) => expect(radius(corner)).toBeCloseTo(i % 2 === 0 ? 10 : 10 * STARBURST_INNER, 9))
+    corners.forEach((corner, i) => expect(radius(corner)).toBeCloseTo(i % 2 === 0 ? 10 : 6.5, 9))
     expect(corners[0][0]).toBeCloseTo(5, 9)
     expect(corners[0][1]).toBeCloseTo(-5, 9)
     // A quarter turn on is three points along, on the right.
     expect(corners[6][0]).toBeCloseTo(15, 9)
     expect(corners[6][1]).toBeCloseTo(5, 9)
+  })
+})
+
+// The map's icon (#799): the starburst as MapLibre's SDF reads it, an edge at
+// 192 of 255 and 16 steps a pixel at twice the density, so a 14 px star at
+// zoom 12 and a 6 px one at the floor come from one image.
+describe('starburstSdf', () => {
+  const image = starburstSdf()
+  const alpha = (x: number, y: number) => image.data[(y * image.width + x) * 4 + 3]
+
+  it('draws the star at 14 px across, at twice the density, with room for its halo', () => {
+    expect(FIRE_STAR_PX).toBe(14)
+    expect(FIRE_STAR_PIXEL_RATIO).toBe(2)
+    expect([image.width, image.height]).toEqual([44, 44])
+    expect(image.data).toHaveLength(44 * 44 * 4)
+    expect(FIRE_ACTIVITY_ICON_SIZE).toEqual(['interpolate', ['linear'], ['zoom'], FIRE_ACTIVITY_MINZOOM, 6 / 14, 12, 1])
+  })
+
+  it('reads full inside, at the edge on a point and between two, and empty at the corners', () => {
+    expect(alpha(22, 22)).toBe(255)
+    // The top point's tip, 14 px above the centre, stands on the edge.
+    expect(Math.abs(alpha(21, 8) - 192)).toBeLessThanOrEqual(16)
+    // Between the top point and the next, the inner corner is 9.1 px out, so
+    // a pixel 11 px out there is outside and one 8 px out is inside.
+    const at = (r: number, deg: number) =>
+      alpha(Math.floor(22 + r * Math.sin((deg * Math.PI) / 180)), Math.floor(22 - r * Math.cos((deg * Math.PI) / 180)))
+    expect(at(11, 15)).toBeLessThan(192)
+    expect(at(8, 15)).toBeGreaterThan(192)
+    for (const [x, y] of [[0, 0], [43, 0], [0, 43], [43, 43]]) expect(alpha(x, y)).toBeLessThan(64)
+  })
+
+  // The legend's 24px chip holds its label inside its inner corners: their
+  // apothem against half the widest label measured, 17.2px (2026-10-28).
+  it('leaves the chip room for its label inside the inner corners', () => {
+    const apothem = 11.5 * STARBURST_INNER.chip * Math.cos(Math.PI / STARBURST_POINTS)
+    expect(apothem).toBeGreaterThan(17.2 / 2)
+    expect(11.5 * STARBURST_INNER.map * Math.cos(Math.PI / STARBURST_POINTS)).toBeLessThan(17.2 / 2)
+  })
+
+  // The same star turned a quarter is the same star: twelve points.
+  it('is the same a quarter turn on', () => {
+    for (let y = 0; y < 44; y++) {
+      for (let x = 0; x < 44; x++) expect(Math.abs(alpha(x, y) - alpha(43 - y, x))).toBeLessThanOrEqual(1)
+    }
   })
 })
