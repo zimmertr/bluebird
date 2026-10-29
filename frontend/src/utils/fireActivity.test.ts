@@ -5,12 +5,15 @@ import { contrast } from '../testSupport/contrast'
 import { fakeResponse } from '../testSupport/fixtures'
 import {
   AGE_BANDS,
-  AGE_BAND_LABELS,
+  AGE_BAND_CHIPS,
   FIRE_ACTIVITY_FILLS,
   FIRE_ACTIVITY_STROKE,
+  STARBURST_INNER,
+  STARBURST_POINTS,
   ageBand,
   fetchFireActivity,
-  fireActivityLegendRows,
+  fireActivityLegendChips,
+  starburst,
   fireActivityQueryUrl,
   withAgeBands,
 } from './fireActivity'
@@ -138,13 +141,29 @@ describe('the band colours', () => {
   })
 })
 
-describe('fireActivityLegendRows', () => {
-  it('keys each band with its approved label and its disc', () => {
-    expect(fireActivityLegendRows()).toEqual([
-      { label: 'Under 12 hours', swatch: { backgroundColor: '#ff5a45', borderColor: FIRE_ACTIVITY_STROKE } },
-      { label: '12 to 24 hours', swatch: { backgroundColor: '#fb923c', borderColor: FIRE_ACTIVITY_STROKE } },
-      { label: '24 to 48 hours', swatch: { backgroundColor: '#fde047', borderColor: FIRE_ACTIVITY_STROKE } },
+describe('fireActivityLegendChips', () => {
+  it('keys each band with the hour it ends at, in its fill and the layer edge', () => {
+    expect(fireActivityLegendChips()).toEqual([
+      { label: '12h', fill: '#ff5a45', stroke: FIRE_ACTIVITY_STROKE },
+      { label: '24h', fill: '#fb923c', stroke: FIRE_ACTIVITY_STROKE },
+      { label: '48h', fill: '#fde047', stroke: FIRE_ACTIVITY_STROKE },
     ])
-    expect(AGE_BAND_LABELS).toHaveLength(AGE_BANDS.length)
+    expect(AGE_BAND_CHIPS).toHaveLength(AGE_BANDS.length)
+    expect(AGE_BAND_CHIPS.map((chip) => Number.parseInt(chip, 10))).toEqual([...AGE_BANDS])
+  })
+})
+
+// The one shape the map's icon and the legend's chip both draw.
+describe('starburst', () => {
+  it('alternates twelve points and twelve inner corners, from the top, clockwise', () => {
+    const corners = starburst(10, 5, 5)
+    expect(corners).toHaveLength(STARBURST_POINTS * 2)
+    const radius = ([x, y]: [number, number]) => Math.hypot(x - 5, y - 5)
+    corners.forEach((corner, i) => expect(radius(corner)).toBeCloseTo(i % 2 === 0 ? 10 : 10 * STARBURST_INNER, 9))
+    expect(corners[0][0]).toBeCloseTo(5, 9)
+    expect(corners[0][1]).toBeCloseTo(-5, 9)
+    // A quarter turn on is three points along, on the right.
+    expect(corners[6][0]).toBeCloseTo(15, 9)
+    expect(corners[6][1]).toBeCloseTo(5, 9)
   })
 })

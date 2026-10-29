@@ -15,6 +15,7 @@ import {
   SR_ONLY,
   SURFACE_CHIP_CARD,
   SWATCH_CHIP,
+  SWATCH_STAR,
   SWATCH_EDGE,
   SWATCH_LINE,
   SWATCH_RAMP,
@@ -26,7 +27,7 @@ import BottomSheet from './BottomSheet'
 import { MenuButton } from './Menu'
 import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
-import { FIRMS_HREF, fireActivityLegendRows } from '../utils/fireActivity'
+import { FIRMS_HREF, fireActivityLegendChips, starburst } from '../utils/fireActivity'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF, radarSwatchCss } from '../utils/radar'
@@ -34,6 +35,12 @@ import { legendMaxCss } from '../utils/results/resultsSheet'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from '../utils/smoke'
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../utils/snowDepth'
 import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
+
+// The legend's starburst, in a 24-unit box about its centre: the points at
+// 11.5, inside the box by half the edge's width.
+const FIRE_STAR_CHIP = starburst(11.5)
+  .map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)
+  .join(' ')
 
 /**
  * One section of the map's legend box: what it keys, who it came from, and the
@@ -48,11 +55,6 @@ import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
  * scale section is 40px where two of them under their strips were 54 apiece
  * (TJ, 2026-09-17).
  *
- * A key on a few CLASSES of one layer, the fire detections' three age bands
- * (#799), is the layer's name over a row per class, each its label and its
- * swatch, because the classes are words a reader has to read rather than a
- * scale whose ends say the rest.
- *
  * One function for every shape, and one for the metric key and the layers alike,
  * because the sections are sorted by their labels at the call site: a shape
  * that could only be built inline could not take its place in that order. They
@@ -66,7 +68,6 @@ function legendSection({
   credit,
   swatch,
   ramp,
-  rows,
 }: {
   label: string
   credit?: { href: string; name: string }
@@ -74,8 +75,6 @@ function legendSection({
   swatch?: ReactNode
   /** The strip and its numbers, for a section keyed on a scale. */
   ramp?: { css: string; ticks: RampTick[]; bands: number }
-  /** A row per class, under the name, for a section keyed on a few classes. */
-  rows?: { label: string; swatch: ReactNode }[]
 }) {
   const name = (
     <span className={TEXT.control}>
@@ -91,19 +90,6 @@ function legendSection({
       )}
     </span>
   )
-  if (rows) {
-    return (
-      <div className="flex flex-col gap-1">
-        {name}
-        {rows.map((row) => (
-          <div key={row.label} className="flex items-center justify-between gap-2 whitespace-nowrap">
-            <span className={TEXT.control}>{row.label}</span>
-            {row.swatch}
-          </div>
-        ))}
-      </div>
-    )
-  }
   if (!ramp) {
     return (
       <div className="flex items-center justify-between gap-2 whitespace-nowrap">
@@ -284,25 +270,35 @@ export function legendSections(
           },
         ]
       : []),
-    // The satellite fire detections (#799): a disc per age band, newest
-    // first, each the band's fill in the layer's stroke, read from the module
-    // that paints the map so the key and the picture cannot disagree. FIRMS
-    // asks to be acknowledged wherever its data is used; the section's credit
-    // is that, and NOTICES.md carries the full sentence.
+    // The satellite fire detections (#799): one line like Smoke's, a
+    // starburst per age band, newest first, each the band's fill in the
+    // layer's edge with the hour the band ends at inside it, read from the
+    // module that paints the map so the key and the picture cannot disagree.
+    // FIRMS asks to be acknowledged wherever its data is used; the section's
+    // credit is that, and NOTICES.md carries the full sentence.
     ...(showFireActivity
       ? [
           {
             label: 'Fire activity',
             credit: { href: FIRMS_HREF, name: 'FIRMS' },
-            rows: fireActivityLegendRows().map((row) => ({
-              label: row.label,
-              swatch: (
-                <span
-                  className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.pill} border`}
-                  style={row.swatch}
-                />
-              ),
-            })),
+            swatch: (
+              <span className="flex flex-shrink-0 gap-0.5">
+                {fireActivityLegendChips().map((chip) => (
+                  <span key={chip.label} className={SWATCH_STAR}>
+                    <svg aria-hidden="true" className="absolute inset-0 h-full w-full" viewBox="-12 -12 24 24">
+                      <polygon
+                        points={FIRE_STAR_CHIP}
+                        fill={chip.fill}
+                        stroke={chip.stroke}
+                        strokeWidth={1}
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <span className="relative">{chip.label}</span>
+                  </span>
+                ))}
+              </span>
+            ),
           },
         ]
       : []),

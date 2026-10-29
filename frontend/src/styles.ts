@@ -86,8 +86,8 @@ const MICRO = `${MICRO_SIZE} text-ink-mid`
 /**
  * The one size under the floor, for a glyph inside a box whose size is fixed
  * by something else: the legend strip's numerals in their 11px scrim band
- * (`SWATCH_RAMP_TICK`) and the smoke key's letters in their chips
- * (`SWATCH_CHIP`). Named so it reads as the exception it is rather than as a
+ * (`SWATCH_RAMP_TICK`), the smoke key's letters in their chips
+ * (`SWATCH_CHIP`) and the fire key's hours in their stars (`SWATCH_STAR`). Named so it reads as the exception it is rather than as a
  * step of the ramp (#687): nothing here is prose, and each is measured against
  * its box. Spelled for `MICRO_SIZE`'s reason.
  */
@@ -848,9 +848,23 @@ export const BANNER_PREVIEW =
  * does not touch because the map does not change, so the letter on it does
  * not either.
  */
-export const SWATCH_CHIP =
-  `inline-flex h-4 w-4 items-center justify-center ${RADIUS.control} border ` +
-  `${GLYPH_SIZE} font-semibold text-slate-900`
+const SWATCH_GLYPH = `${GLYPH_SIZE} font-semibold text-slate-900`
+export const SWATCH_CHIP = `inline-flex h-4 w-4 items-center justify-center ${RADIUS.control} border ${SWATCH_GLYPH}`
+
+/**
+ * A legend swatch that is a starburst with its label inside: the fire
+ * detections' three age bands (#799), `12h`, `24h` and `48h`, one line like
+ * the smoke key's three chips. The star is an inline SVG at the call site,
+ * filled from `utils/fireActivity.ts`, which owns the bands' colours and the
+ * shape; this is the box it fills and the label over it.
+ *
+ * The label is `SWATCH_CHIP`'s glyph, the same ink at the same size, because
+ * the three fills are as light as smoke's are pale: slate-900 clears 4.5:1 on
+ * the red, the orange and the yellow (`styles.test.ts` holds each). 24px,
+ * because a 10px `48h` is 17px wide and has to sit inside the star's inner
+ * corners rather than across its points, where it would land on the card.
+ */
+export const SWATCH_STAR = `relative inline-flex h-6 w-6 flex-shrink-0 items-center justify-center ${SWATCH_GLYPH}`
 
 /**
  * A legend swatch for a layer that draws LINES: a 14px dashed rule with no

@@ -38,8 +38,12 @@ const HOUR_MS = 60 * 60 * 1000
  */
 export const AGE_BANDS = [12, 24, 48] as const
 
-/** What the legend calls each band, in `AGE_BANDS` order. Approved 2026-10-27. */
-export const AGE_BAND_LABELS = ['Under 12 hours', '12 to 24 hours', '24 to 48 hours'] as const
+/**
+ * What the legend's chip for each band reads, in `AGE_BANDS` order: the hour
+ * the band ends at. Approved 2026-10-28, when the key became one line like
+ * Smoke's.
+ */
+export const AGE_BAND_CHIPS = ['12h', '24h', '48h'] as const
 
 /**
  * The band a detection seen at `acquiredMs` falls in at `nowMs`, or null when
@@ -175,19 +179,45 @@ export async function fetchFireActivity(bbox: BBox, signal: AbortSignal): Promis
   )
 }
 
-/** One legend row: a band's label and the disc that keys it. */
-export interface FireActivityLegendRow {
+/**
+ * The starburst a detection is drawn as, on the map and in the legend (#799):
+ * twelve points, as CalTopo draws its fire activity, and the inner corners
+ * at `STARBURST_INNER` of the points' radius. Shallow enough that the
+ * legend's chip, 24px across, holds its 10px label inside the inner corners,
+ * and deep enough that a 14px mark at zoom 12 reads as a star, not a disc.
+ */
+export const STARBURST_POINTS = 12
+export const STARBURST_INNER = 0.8
+
+/**
+ * The starburst's corners about `[cx, cy]`, `outer` the radius of its points,
+ * starting from the point straight up and going clockwise on a screen.
+ */
+export function starburst(outer: number, cx = 0, cy = 0): [number, number][] {
+  const corners: [number, number][] = []
+  for (let i = 0; i < STARBURST_POINTS * 2; i++) {
+    const r = i % 2 === 0 ? outer : outer * STARBURST_INNER
+    const angle = (i * Math.PI) / STARBURST_POINTS
+    corners.push([cx + r * Math.sin(angle), cy - r * Math.cos(angle)])
+  }
+  return corners
+}
+
+/** One legend chip: a band's label and the starburst it sits in. */
+export interface FireActivityLegendChip {
   label: string
-  swatch: { backgroundColor: string; borderColor: string }
+  fill: string
+  stroke: string
 }
 
 /**
- * The legend's three rows, newest first, each a disc of the band's fill in
- * the layer's stroke, so the key and the picture cannot disagree.
+ * The legend's three chips, newest first, each a starburst of the band's
+ * fill in the layer's edge, so the key and the picture cannot disagree.
  */
-export function fireActivityLegendRows(): FireActivityLegendRow[] {
-  return AGE_BAND_LABELS.map((label, band) => ({
+export function fireActivityLegendChips(): FireActivityLegendChip[] {
+  return AGE_BAND_CHIPS.map((label, band) => ({
     label,
-    swatch: { backgroundColor: FIRE_ACTIVITY_FILLS[band], borderColor: FIRE_ACTIVITY_STROKE },
+    fill: FIRE_ACTIVITY_FILLS[band],
+    stroke: FIRE_ACTIVITY_STROKE,
   }))
 }

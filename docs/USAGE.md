@@ -296,7 +296,7 @@ the BLM or a tribe puts in place never appears, and in Oregon and Washington
 the feed holds fire closures only.
 
 Fire activity is the satellites' picture, where the perimeters are the
-surveyors'. Each dot is a pixel NASA's FIRMS flagged as hot, 375 m or 1 km
+surveyors'. Each starburst is a pixel NASA's FIRMS flagged as hot, 375 m or 1 km
 across, and its colour is its age: red under 12 hours, orange from 12 to 24
 hours, yellow from 24 to 48. The age runs on your clock, so a dot turns from
 red to orange while the map is open, and nothing older than 48 hours is drawn.
@@ -555,7 +555,9 @@ map to explain. On a phone the same sections are in the sheet the **Legend**
 chip opens.
 
 A section keyed on a single value — smoke, rain radar, active wildfires — is one
-line with its swatch on the right. A section keyed on a **scale** is a strip
+line with its swatch on the right. Fire activity is one line too: three
+starbursts on the right, red, orange and yellow, reading `12h`, `24h` and
+`48h`, the hour each band of age ends at. A section keyed on a **scale** is a strip
 across the box with its numbers **inside** it, along the bottom edge: the bottom
 of the scale, its middle and its top, each standing on the band boundary it
 names. That is the shape both the marker colors and the snow depth layer take,
