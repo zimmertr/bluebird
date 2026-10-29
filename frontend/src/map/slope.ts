@@ -17,10 +17,11 @@
  * anyway, since a neighbour of one tile in view is another tile in view or
  * its margin, and they come out of the same cache.
  *
- * The painting runs on the main thread. The decode, the expensive half, is
- * already in the library's worker; moving the band loop into a worker of its
- * own would hand each tile's five grids to a second thread and back, for a
- * loop measured at about 3 ms a 512px tile (2026-10-28, `docs/decisions/0239`).
+ * The painting runs on the main thread. The fetch and the decode are already
+ * in the library's worker; a worker of the app's own for the band loop would
+ * take each tile's five grids across a second thread and the picture back,
+ * for a loop that costs about 4 ms a 512px tile, with 1 ms more to make the
+ * bitmap (medians of 50 in headless Chromium, 2026-10-28).
  */
 import { addProtocol } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
