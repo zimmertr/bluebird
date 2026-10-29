@@ -1,10 +1,10 @@
 import type { ComponentProps } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
 import PanelFooter from './PanelFooter'
 import type { FooterMessage } from '../utils/notices'
 import { panelMessages } from '../testSupport/fixtures'
-import { render } from '../testSupport/render'
+import { placeAt, render } from '../testSupport/render'
 import { MESSAGE_BADGE } from '../styles'
 
 // The footer draws what `usePanelMessages` decided (record 0208): the Analyze
@@ -36,6 +36,8 @@ const analyze = () => screen.getByRole('button', { name: /^(Analyze|Analyzing…
 const badge = () => screen.getByRole('button', { name: /^\d+ messages?$/ })
 const list = () => screen.getByRole('group', { name: 'Messages' })
 const boxes = () => [...list().children] as HTMLElement[]
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('PanelFooter', () => {
   it('analyzes on a press while enabled', async () => {
@@ -231,6 +233,31 @@ describe('PanelFooter', () => {
     expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
     rerender(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES, failureSeq: 2 }) })} />)
     expect(list()).toBeTruthy()
+  })
+
+  // The card is the button's width (#803): a line longer than the slot wraps
+  // inside it rather than widening the card past the panel over the map.
+  // jsdom lays nothing out, so the card is told its lines want 600px.
+  it("stands the list at the button's width, however long a line is", async () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(() => 600)
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(() => 120)
+    const long: FooterMessage = {
+      key: 'error:cap',
+      text: 'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.',
+      severity: 'error',
+    }
+    const { user } = render(<PanelFooter {...props({ messages: panelMessages({ messages: [long] }) })} />)
+    placeAt(analyze().parentElement!, { left: 16, top: 700, width: 328, height: 44 })
+    await user.click(badge())
+    const card = list().closest<HTMLElement>('[style]')!
+    expect(card.style.width).toBe('328px')
+    expect(card.style.left).toBe('16px')
+    // Nothing between the line and the card keeps it on one line.
+    let el: HTMLElement | null = within(list()).getByText(long.text)
+    while (el && el !== card) {
+      expect(el.className).not.toMatch(/whitespace-nowrap/)
+      el = el.parentElement
+    }
   })
 
   it('opens nothing on a phone, whose footer has no list', () => {

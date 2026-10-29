@@ -2783,6 +2783,17 @@ describe('a blocked Analyze and the message list', () => {
     expect(MESSAGE_LIST.card).toBe(`${MENU.list} space-y-2`)
     expect(MESSAGE_LIST.sheet).toBe('space-y-2 py-2')
   })
+
+  // The desk card takes the width of the slot the button and its badge share
+  // (#803, record 0233), which is the docked panel less the footer's gutters,
+  // so the 82-character over-cap sentence wraps inside it rather than running
+  // the card past the panel's right edge over the map.
+  it("stands the desk card at the Analyze slot's width, 328px at the docked panel", () => {
+    expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: slotRef,/)
+    const panelPx = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) * 4
+    const gutterPx = Number(panelFooterSource.match(/`px-(\d+) py-4 border-t \$\{PANEL_EDGE\}/)![1]) * 4
+    expect(panelPx - 2 * gutterPx).toBe(328)
+  })
 })
 
 // The band a phone keeps for its home indicator (#336, #696; record 0145).
