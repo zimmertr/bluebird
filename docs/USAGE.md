@@ -315,7 +315,9 @@ red to orange while the map is open, and nothing older than 48 hours is drawn.
 The newest star is already about 3 hours old when it arrives, a cloudy pass sees
 nothing, and a gas flare or a hot roof can look like fire, so read a star as a
 place to look closer, not a fire line ([DATA.md](DATA.md#fire-activity)).
-Clicking a star opens nothing. Zoomed out far enough to see a whole continent,
+Click a star for its card, **Hotspot**: when the satellite saw it and how long
+ago, which satellite and instrument, FIRMS's confidence (a word for VIIRS, a
+percent for MODIS), and the fire's radiative power in megawatts. Zoomed out far enough to see a whole continent,
 the layer draws nothing, and draws again as you zoom in.
 
 Clicking a perimeter, a closure or a plume opens the same card a destination
@@ -340,11 +342,12 @@ pointer follows the frames under a mouse that is not moving. Where both are pain
 both, titled **Precipitation and snow**, the radar first. A click where neither
 is painted opens nothing. Nothing on the map opens on a hover. Where things overlap, the
 smaller and more deliberate target takes the click: a marker or a peak inside a
-fire or a closure opens its own popup, a closed trail opens before the fire or
+fire or a closure opens its own popup, a star opens before the label or the
+shape under it, a closed trail opens before the fire or
 the ground around it, a fire before the closure drawn around it, any of them
 before the smoke over it, and the smoke before the radar and the snow under it.
 A closed trail answers a click a few pixels either side of its line. While you
-draw a polygon, fires, closures, smoke, the radar, the snow and map labels are
+draw a polygon, fires, closures, smoke, the stars, the radar, the snow and map labels are
 scenery, and a click on one places a point.
 
 Read them for what they are. Radar is a **measurement of the last hour** and
