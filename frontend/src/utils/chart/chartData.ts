@@ -429,10 +429,20 @@ const AXIS_DATE_SPAN_MS = 48 * HOUR_MS
  * A calendar makes a 16-day range two clicks (#166), where it used to mean typing
  * two datetimes, so the long-span case went from rare to ordinary.
  */
+// One formatter per face, made on first use. `toLocaleString` with options
+// builds a new Intl.DateTimeFormat on every call, and Recharts formats every
+// candidate tick on every redraw to see which fit: at 15 days that was 17 ms
+// of a 141 ms redraw (measured 2026-10-29, #499).
+let dateTick: Intl.DateTimeFormat | undefined
+let dayTick: Intl.DateTimeFormat | undefined
+
 export function axisTimeLabel(t: number, spanMs: number): string {
-  return spanMs > AXIS_DATE_SPAN_MS
-    ? new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric' })
-    : new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric' })
+  if (spanMs > AXIS_DATE_SPAN_MS) {
+    dateTick ??= new Intl.DateTimeFormat([], { month: 'short', day: 'numeric', hour: 'numeric' })
+    return dateTick.format(t)
+  }
+  dayTick ??= new Intl.DateTimeFormat([], { weekday: 'short', hour: 'numeric' })
+  return dayTick.format(t)
 }
 
 /**

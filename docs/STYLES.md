@@ -750,7 +750,7 @@ controls 8px after it (#499): a + after the first title, an × after every
 other. `CHART_PANEL_BUTTON` draws them: the + is a square in the field's
 fill, edge and radius, the × is a quiet glyph in a hit box of the same size, and both are as tall
 as the picker beside them. `CHART_GUTTER` draws the gaps of a desk's grid of
-three or four panels: a 1px `rule` line that turns accent on hover and while
+three or four panels: a 1px `edge` line, 3:1 or better on the panel, that turns accent on hover and while
 dragged, and a 16px crossing with no glyph.
 The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:
 the hour as a 13px title on the popup's `band` token, the rows in a body,

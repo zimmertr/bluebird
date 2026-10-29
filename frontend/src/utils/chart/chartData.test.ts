@@ -488,6 +488,14 @@ describe('axisTimeLabel', () => {
     expect(axisTimeLabel(t, 24 * HOURS)).toMatch(/^Tue\b.*\d/)
   })
 
+  // One formatter is kept per face; it must print what a fresh one would.
+  it('prints what toLocaleString prints, in both faces', () => {
+    expect(axisTimeLabel(t, 24 * HOURS)).toBe(new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric' }))
+    expect(axisTimeLabel(t, 16 * 24 * HOURS)).toBe(
+      new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric' }),
+    )
+  })
+
   it('swaps the weekday for the date once the span passes two days', () => {
     expect(axisTimeLabel(t, 16 * 24 * HOURS)).toContain('Jul')
     expect(axisTimeLabel(t, 72 * HOURS)).toContain('Jul')

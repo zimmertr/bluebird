@@ -2944,7 +2944,9 @@ describe('the chart title on a phone', () => {
     expect(CHART_GUTTER.cross).not.toMatch(/(^|\s)(bg|border)-/)
     expect(words(CHART_GUTTER.colLine)).toContain('w-px')
     expect(words(CHART_GUTTER.rowLine)).toContain('h-px')
-    expect(words(CHART_GUTTER.idle)).toEqual(['bg-rule', 'group-hover:bg-accent'])
+    expect(words(CHART_GUTTER.idle)).toEqual(['bg-edge', 'group-hover:bg-accent'])
+    // The line is the handle, so it owes a boundary's 3:1 on the panel.
+    expect([ratio(dark('edge'), dark('panel')), ratio(light('edge'), light('panel'))]).toEqual([3.07, 3.97])
     expect(CHART_GUTTER.active).toBe('bg-accent')
   })
 

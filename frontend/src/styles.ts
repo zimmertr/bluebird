@@ -3571,8 +3571,11 @@ export const CHART_PANEL_BUTTON = {
  * horizontal one, which drags the row split (`cursor-row-resize`); `cross`
  * the 16px square where they meet, which drags both (`cursor-move`) and draws
  * nothing of its own. Each gutter is the grid's 8px gap, holding a 1px line
- * in the `rule` token at rest and in the accent on hover and while dragged
- * (`active`), the way `ResizeGrip` lights under the pointer.
+ * in the `edge` token at rest and in the accent on hover and while dragged
+ * (`active`), the way `ResizeGrip` lights under the pointer. The line is the
+ * handle's whole visual, so it owes a UI boundary's 3:1 on the panel, which
+ * `rule` missed (about 1.4:1 dark, 1.5:1 light); `edge` clears it, pinned in
+ * `styles.test.ts`.
  */
 export const CHART_GUTTER = {
   col: 'group absolute z-[2] w-2 cursor-col-resize touch-none',
@@ -3582,6 +3585,6 @@ export const CHART_GUTTER = {
   rowLine: 'absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors',
   // The line's colour, one or the other and never both, because two colour
   // utilities resolve by stylesheet order rather than by the class list.
-  idle: 'bg-rule group-hover:bg-accent',
+  idle: 'bg-edge group-hover:bg-accent',
   active: 'bg-accent',
 } as const

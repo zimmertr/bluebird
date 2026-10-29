@@ -387,7 +387,7 @@ function TimeSeriesChart({
   const topFloor = panelFloorPx(MARGIN, false)
   const bottomFloor = panelFloorPx(MARGIN, true)
   // A drag writes its layout straight to the DOM once a frame and stretches
-  // each panel's last drawing to it, redrawing only every REDRAW_MS and
+  // each panel's last drawing to it, redrawing only when the pointer rests and
   // committing to state on release (#499; TJ 2026-10-29): a render per
   // pointer move was a Recharts redraw of every line in every panel.
   const stackStretch = useStretchDrag(stackRef)
