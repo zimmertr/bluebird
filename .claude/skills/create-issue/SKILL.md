@@ -1,6 +1,6 @@
 ---
 name: create-issue
-description: File a GitHub issue on this repo with a plain two-sentence summary on top, the board's six-section body, and the required labels. Use whenever asked to file, create, or open an issue (a bug, a feature, a decision, or a task), or to convert findings into issues.
+description: File a GitHub issue on this repo with a plain two-sentence summary on top, the board's six-section body written for its two readers and run through the hemingway and humanizer skills, and the required labels. Use whenever asked to file, create, or open an issue (a bug, a feature, a decision, or a task), or to convert findings into issues.
 ---
 
 # Creating an issue
@@ -77,13 +77,53 @@ carries at least:
 Optional extra sections (for example, Out of scope or Measured) go between
 Acceptance Criteria and the Notes.
 
-## Step 5: title
+## Step 5: write for the reader, then cut, then strip the AI tells
+
+An issue has two readers: a person on the board who may not read code, and
+the agent that implements it. The body is done when each follows their part
+on one read. Three things get it there, in this order.
+
+**Write every section to the reader checklist.**
+
+- Each section opens with its conclusion. The evidence follows it.
+- One idea per sentence, and no sentence much past 25 words.
+- A term, an acronym or a module name is explained the first time it
+  appears. The second time it stands alone.
+- The Problem says what a reader would see before it says how that was
+  measured.
+- Notes for a human reads on its own, without the Implementation Plan
+  beside it.
+
+**Run two passes over the whole body, summary and all six sections, once
+the summary is placed first.** Both change prose only, and short issues take
+them too.
+
+1. `hemingway` first. It cuts words, and shorter is the biggest lever on
+   comprehension. Take its trimmed version. Put back any cut that dropped a
+   fact, a number or a qualifier that changes the meaning.
+2. `humanizer` second, in embedded mode, on the trimmed text. It strips the
+   AI tells from what survived. Apply every fix it returns.
+
+After both, check the technical names against the draft: file paths,
+function names, quoted UI strings, commands, code spans, label names and
+issue numbers stay exactly as Step 2 wrote them. Wording the maintainer
+dictated stays as dictated; both skills exempt quotations and proper names.
+
+**Read it back as each reader before filing.** Read the Summary and the
+Problem as the hiker, and the Implementation Plan and the agent notes as the
+implementing agent. If either reader would have to look something up, fix
+that before filing.
+
+An edit to an existing issue takes the same three steps before
+`gh issue edit`.
+
+## Step 6: title
 
 One short statement of the problem or the task, with no
 conventional-commit prefix. Example: "A caller can defeat the per-client rate
 limit with one header".
 
-## Step 6: labels
+## Step 7: labels
 
 Always add labels when you create the issue:
 
@@ -99,7 +139,7 @@ Always add labels when you create the issue:
   `security`, `compliance`, `ux`, `infra`, `data-sources`, `docker`.
 - One type: `bug`, `enhancement`, `documentation`, or `question`.
 
-## Step 7: verify before you write
+## Step 8: verify before you write
 
 - Verify file references and measured numbers against a fresh clone before you
   state them. Write "near line N" only when just verified; otherwise name the
