@@ -255,8 +255,9 @@ forecasters and CalTopo use: yellow from 27 to 29 degrees, orange at 30 and
 31, red from 32 to 34, purple from 35 to 45, blue from 46 to 50 and black from
 51 up. Under 27 nothing is painted. Most slab avalanches start on slopes of 30
 to 45 degrees. Your browser works the bands out from the relief's elevation
-model, 30 m in most of the world, so a short cliff band or a narrow gully can
-blur into the gentler ground around it. Zoomed out, a
+model, at the finest it has where you zoom in: 10 m-class over the United
+States, finer in the Alps and 30 m in most of the rest of the world, so a
+short cliff band or a narrow gully can blur into the gentler ground around it. Zoomed out, a
 pixel covers more ground and the bands read gentler: Rainier's cleavers are
 black at zoom 12 and purple at zoom 10. Read it zoomed in. It is no substitute
 for measuring a slope in the field. It paints at half strength, over the relief

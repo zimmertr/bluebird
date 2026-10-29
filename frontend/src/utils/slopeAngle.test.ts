@@ -4,11 +4,14 @@ import {
   SLOPE_ALPHA,
   SLOPE_BANDS,
   bandOf,
+  coveringTile,
+  demWindow,
   groundMetresPerPixel,
   slopeDegrees,
   slopeRampCss,
   slopeRaster,
   slopeTicks,
+  windowEdges,
   type HeightGrid,
 } from './slopeAngle'
 
@@ -120,6 +123,36 @@ describe('groundMetresPerPixel', () => {
   })
 })
 
+describe('a slope tile finer than its elevation', () => {
+  // Rainier's zoom-12 tile is 662/1443; its four zoom-13 children are
+  // 1324-1325 by 2886-2887, and the zoom-14 tile 2649/5773 is the second
+  // column and second row of its sixteen.
+  it('finds the tile it lies inside at each zoom out', () => {
+    expect(coveringTile(13, 1325, 2886, 12)).toEqual({ x: 662, y: 1443 })
+    expect(coveringTile(14, 2649, 5773, 12)).toEqual({ x: 662, y: 1443 })
+    expect(coveringTile(14, 2649, 5773, 13)).toEqual({ x: 1324, y: 2886 })
+    expect(coveringTile(12, 662, 1443, 12)).toEqual({ x: 662, y: 1443 })
+  })
+
+  // One zoom out, a 512px tile's quarter is 256px; two zooms out, a sixteenth
+  // is 128px, counted from the covering tile's top left.
+  it("reads the square of the covering tile's pixels it lies over", () => {
+    expect(demWindow(13, 1325, 2886, 12, 512)).toEqual({ x: 662, y: 1443, left: 256, top: 0, span: 256 })
+    expect(demWindow(13, 1324, 2887, 12, 512)).toEqual({ x: 662, y: 1443, left: 0, top: 256, span: 256 })
+    expect(demWindow(14, 2649, 5773, 12, 512)).toEqual({ x: 662, y: 1443, left: 128, top: 128, span: 128 })
+    expect(demWindow(12, 662, 1443, 12, 512)).toEqual({ x: 662, y: 1443, left: 0, top: 0, span: 512 })
+  })
+
+  // A quarter touches the two edges of its own corner; a sixteenth inside the
+  // tile touches none, and needs no neighbour.
+  it("touches only the covering tile's edges at its own corner", () => {
+    expect(windowEdges(13, 1325, 2886, 12)).toEqual({ north: true, south: false, west: false, east: true })
+    expect(windowEdges(14, 2649, 5773, 12)).toEqual({ north: false, south: false, west: false, east: false })
+    expect(windowEdges(14, 2650, 5775, 12)).toEqual({ north: false, south: true, west: false, east: false })
+    expect(windowEdges(12, 662, 1443, 12)).toEqual({ north: true, south: true, west: true, east: true })
+  })
+})
+
 describe('slopeRaster', () => {
   const SIZE = 8
   // The equator's spacing at zoom 12, nearly constant down a tile there.
@@ -210,6 +243,49 @@ describe('slopeRaster', () => {
     const centre = plane(40)
     const out = slopeRaster(Z, Y, centre, { ...NO_EDGES, east: grid(4, () => 0) })
     expect(pixel(out, SIZE, SIZE - 1, 4)).toEqual(rgba('#a020f0'))
+  })
+})
+
+describe('slopeRaster over a window', () => {
+  const SIZE = 8
+  const Y = 1442
+  // Heights that rise and fall unevenly, so the window's pixels land in
+  // several bands and none at all.
+  const rough = grid(SIZE, (col, row) => ((col * 7 + row * 13) % 11) * 180 + col * 90)
+  const east = grid(SIZE, (col, row) => ((col * 5 + row * 3) % 9) * 200)
+
+  // Each pixel of the window is painted as a block of tile size over the
+  // window's side, in the band the whole tile paints there: the same
+  // elevation, the same spacing, the same neighbour across the edge.
+  it('paints each window pixel as a block in the band the whole tile gives it', () => {
+    const edges = { ...NO_EDGES, east }
+    const whole = slopeRaster(12, Y, rough, edges)
+    for (const [left, top, span] of [
+      [4, 0, 4],
+      [0, 4, 4],
+      [6, 2, 2],
+    ]) {
+      const part = slopeRaster(12, Y, rough, edges, { left, top, span })
+      const scale = SIZE / span
+      for (let row = 0; row < SIZE; row++) {
+        for (let col = 0; col < SIZE; col++) {
+          const from = pixel(whole, SIZE, left + Math.floor(col / scale), top + Math.floor(row / scale))
+          expect([left, top, col, row, pixel(part, SIZE, col, row)]).toEqual([left, top, col, row, from])
+        }
+      }
+    }
+    expect(new Set(Array.from({ length: SIZE * SIZE }, (_, i) => whole[i * 4 + 3])).size).toBe(2)
+  })
+
+  // The spacing is the elevation's, whatever zoom the tile is drawn at: a
+  // 33-degree plane on zoom-12 pixels stays red in a window, where the
+  // zoom-13 spacing, half as far, would read it at 52 and paint it black.
+  it("reads the slope at the elevation's own spacing", () => {
+    const here = groundMetresPerPixel(12, Y, SIZE / 2, SIZE)
+    const tile = grid(SIZE, (col) => col * here * Math.tan((33 * Math.PI) / 180))
+    const part = slopeRaster(12, Y, tile, NO_EDGES, { left: 4, top: 4, span: 4 })
+    expect(pixel(part, SIZE, 1, 1)).toEqual(rgba('#ff0000'))
+    expect((Math.atan(2 * Math.tan((33 * Math.PI) / 180)) * 180) / Math.PI).toBeGreaterThan(51)
   })
 })
 

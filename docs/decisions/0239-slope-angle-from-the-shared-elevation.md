@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-28
-- Decider: the maintainer (TJ), on #799, 2026-10-28: a slope angle layer like CalTopo's, the row named `Slope angle`, and CalTopo's bands, with black from 51 degrees; the legend header `Slope angle (Mapterhorn)`, credit included. The way the tiles are made, the alpha and the stacking were the implementer's, measured as below, for review on the pull request.
+- Decider: the maintainer (TJ), on #799, 2026-10-28: a slope angle layer like CalTopo's, the row named `Slope angle`, and CalTopo's bands, with black from 51 degrees; the legend header `Slope angle (Mapterhorn)`, credit included. The way the tiles are made, the alpha and the stacking were the implementer's, measured as below, for review on the pull request. On 2026-10-29, reviewing it, the maintainer asked whether the shading could be finer and chose finer wherever Mapterhorn has it; the zoom cap of 14 and the fallback were the implementer's.
 - Issues and PRs: #799, #823
 - Cited in code as: #799
 - Guide: [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), the `slope.ts` bullet; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `slopeAngle.ts` bullet
@@ -21,7 +21,8 @@ The maintainer asked for slope angle shading after seeing CalTopo's: each cell's
 - **On the main thread**, handed to MapLibre as an ImageBitmap.
 - **Half strength**, as `raster-opacity`, over opaque band colours.
 - **Over the relief, under the contours**: directly under the contours' casing, the lowest of their layers, so the bands read over the shading and the photos and the lines and their heights stay on top. Under the style's first label and every `ofm-` layer like the rest of the ground.
-- **Added the first time the row is on, hidden when it is off, nothing on load**, the rule 0235 set for the ground. The source stops at zoom 12, the elevation's cap, and MapLibre stretches it further in. There is no zoom floor.
+- **Added the first time the row is on, hidden when it is off, nothing on load**, the rule 0235 set for the ground. There is no zoom floor.
+- **The finest elevation Mapterhorn has, to zoom 14** (`SLOPE_MAXZOOM` in `map/slope.ts`, 2026-10-29). The relief and the 3D terrain stop at 12 (`DEM_MAXZOOM`), because a `raster-dem` tile that fails is a hole MapLibre cannot fill from the zoom below. The slope paints its own tiles, so it can: a tile past 12 asks for the elevation at its own zoom, then each zoom out to 12, which every part of the land has. It paints from the first that answers, from the square of that tile it lies over (`demWindow` in `utils/slopeAngle.ts`), at that tile's own ground spacing, each of its pixels drawn as a block. So a zoom-13 tile with no zoom-13 elevation paints the zoom-12 tile's bands there, pixel for pixel, rather than a slope read across heights stretched to look finer. The edge neighbours come from the same zoom, and only those the square touches. A 404 is remembered for the session, with every tile inside it, so a pan asks once; another failure falls back without being remembered. MapLibre stretches past 14.
 - **Keyed as one strip**, the six colours blended like every scale on the map (0050), with the degrees each band starts at inside it: `27 30 32 35 46 51`. The section reads `Slope angle (Mapterhorn)`, the credit linking Mapterhorn's attribution page, because every layer drawn from somebody else's data names them in its own section. The ticks needed one fix: two on neighbouring boundaries share a grid column, so every tick now stands in the strip's first row.
 
 ## Evidence
@@ -42,6 +43,18 @@ The maintainer asked for slope angle shading after seeing CalTopo's: each cell's
   Lightness cannot carry all six on both grounds; the hue does. Painted, each band stands at least 24 in CIELAB (ΔE76) from the band beside it on either ground, and at least 44 from Liberty's land and 50 from the forest, but for black on the forest at 18. `slopeAngle.test.ts` pins the ratios.
 - **The latitude.** At Rainier's 46.85 degrees a zoom-12 pixel is 13.1 m where the equator's is 19.1. Read with the equator's spacing, a 33-degree slope there reads 24 and paints nothing.
 - **The legend.** In a desk's 224px card the strip is 202px and the closest two numbers, 46 and 51, stand 15px apart (8px in the 184px card it had before the fire key widened it); on a 360px phone's sheet the strip is 328px and they stand 36px apart. The section's name is one line at both, alone and under the snow, smoke and fire keys.
+- **Finer zooms**, 2026-10-29, the built image against the live Mapterhorn at 1,389 by 868 with only the slope on, each screen from a cold browser:
+
+  | View | Before (to 12) | After (to 14) |
+  |---|---|---|
+  | Rainier, zoom 13 | 4 slope tiles; 12 elevation tiles at 12, 1,632 kB | 9; 21 at 13, 2,857 kB |
+  | Rainier, zoom 14 | 2; 8 at 12, 1,107 kB | 9; 8 at 13 and 9 that answer 404 at 14, 1,160 kB |
+  | Matterhorn, zoom 14 | 2; 8 at 12, 1,211 kB | 9; 21 at 14, 3,279 kB |
+  | Matterhorn, zoom 15 | 1; 5 at 12, 741 kB | 4; 12 at 14, 1,882 kB |
+
+  No elevation tile was asked twice. Mapterhorn answers a 404 two ways: outside every survey's area (the Sahara at 13) with `Archive not found` and a week's `cache-control`, and inside one that stops short (Rainier at 14) with `Tile not found` and no cache header, which the browser would ask again; the remembered set is what stops that.
+- **A cap of 15**, tried the same day: the Matterhorn at zoom 15 asked 21 tiles at 15 and 3,521 kB, against 12 and 1,882 kB stretched from 14, and drew the rock's own texture at 1.7 m a pixel rather than the slope of a starting zone; Rainier at 15 asked 6 tiles at 15 and 2 at 14 that answer 404, and 3 at 13.
+- **The paint**, medians of 50 in Node on a 512px tile: the whole tile 2.6 to 2.8 ms (2.1 to 2.9 before the change), a quarter from one zoom out 1.8 to 2.1 ms, a sixteenth from two out 1.2 to 1.4 ms. A block loop for the whole tile cost a third more, so the whole tile keeps a loop of its own.
 - **Low zooms.** Rainier's cleavers read black at zoom 12 and purple at zoom 10, as a pixel spans more ground. At zoom 9 the bands still pick out the steep ground over the Cascades.
 
 ## Alternatives rejected
@@ -56,11 +69,16 @@ The maintainer asked for slope angle shading after seeing CalTopo's: each cell's
 - **A hard-stopped strip in the legend**, one block per band. These bands are a classification, as NOAA's snow bands are, and 0050 already accepted a blend over a classification so that every strip in the box reads as one system.
 - **Six chips in a row**, one per band. Six 14px chips and their numbers do not fit the card.
 - **Over the contours.** The lines and their heights would sit under a colour.
+- **Raising the relief's and 3D's cap with it.** A survey that stops short would leave holes in both.
+- **A cap of 15.** Twice the bytes for a screen over the Alps, more 404s everywhere else, and a picture of the rock's texture (Evidence).
+- **Stretching the coarser heights to the finer tile and differencing them at its spacing.** A slope across interpolated heights claims a resolution the elevation does not have, and it disagrees with the coarser tile's own bands where the two meet.
+- **Asking the coarser zoom first** and the finer only under a coarser tile that answered. Over the Alps it fetches a tile at every zoom on the way in; asking finest first costs a 14-byte 404 where a survey stops, once a session.
 
 ## Consequences
 
-- `utils/slopeAngle.test.ts` holds the bands, their edges, the spacing, the seams and the ratios; `map/slope.test.ts` the neighbours and the scheme; `map/terrain.test.ts` the first-use load and the stack in every order; `MapLegend.test.tsx` the strip and the credit.
+- `utils/slopeAngle.test.ts` holds the bands, their edges, the spacing, the seams, the ratios and the window a finer tile reads; `map/slope.test.ts` the neighbours, the scheme and the fallback, a 404 remembered and the neighbours from the zoom that answered; `e2e/terrain.spec.ts` the fallback against a host that answers 404 past 12, and the relief and 3D asking nothing past 12; `map/terrain.test.ts` the first-use load and the stack in every order; `MapLegend.test.tsx` the strip and the credit.
 - `utils/slopeAngle.ts` is a colour owner (`value-hex`).
 - A cliff band or a gully narrower than two pixels reads gentler than it is, and the whole layer reads gentler zoomed out. `docs/USAGE.md` says so, and that it is no substitute for measuring a slope in the field.
+- Where a survey ends, a tile on one side reads the finer zoom and its neighbour the coarser, and the band can step at the boundary; the finer tile's edge there is one-sided.
 - Black on a dark forest under the imagery is faint. Slopes of 51 degrees and more are mostly bare rock, which the imagery draws pale.
 - The legend's name carries no unit, where every other scale's does (`Snow depth (in)`). The maintainer approved `Slope angle (Mapterhorn)` as it stands on 2026-10-28.

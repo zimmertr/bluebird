@@ -30,7 +30,6 @@ import {
   CONTOUR_MINZOOM,
   CONTOUR_SOURCE,
   CONTOUR_THRESHOLDS_FT,
-  DEM_MAXZOOM,
   DEM_SOURCE,
   MAPTERHORN_ATTRIBUTION,
   RELIEF_LAYER,
@@ -43,9 +42,9 @@ import {
   mountTerrain,
   type DemTiles,
 } from './terrain'
-import { SLOPE_PAINT, SLOPE_SCHEME, SLOPE_TILES } from './slope'
+import { SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_SCHEME, SLOPE_TILES } from './slope'
 import { SLOPE_ALPHA } from '../utils/slopeAngle'
-import { DEM_TILES } from '../utils/terrainSources'
+import { DEM_MAXZOOM, DEM_TILES } from '../utils/terrainSources'
 import { FEET_PER_METER } from '../utils/basemapPoi'
 import { stubMap } from '../testSupport/stubMap'
 
@@ -336,7 +335,7 @@ describe('the slope angle shading', () => {
   })
 
   // A raster of the app's own scheme, credited to Mapterhorn, 512px, capped
-  // at the elevation's zoom, at half strength.
+  // at the slope's own zoom, at half strength.
   it('adds its raster the first time it is on', async () => {
     const { stub, terrain, load } = setup()
     terrain.updateSlope(true)
@@ -347,9 +346,12 @@ describe('the slope angle shading', () => {
       type: 'raster',
       tiles: [SLOPE_TILES],
       tileSize: 512,
-      maxzoom: DEM_MAXZOOM,
+      maxzoom: SLOPE_MAXZOOM,
       attribution: MAPTERHORN_ATTRIBUTION,
     })
+    // Finer than the relief and 3D, whose raster-dem sources cannot fall back
+    // on a missing tile and so stop at the zoom every land tile answers.
+    expect(SLOPE_MAXZOOM).toBeGreaterThan(DEM_MAXZOOM)
     expect(stub.calls.find((c) => c[0] === 'addLayer')).toEqual(['addLayer', SLOPE_LAYER, 'ofm-trails'])
     expect(SLOPE_PAINT).toEqual({ 'raster-opacity': SLOPE_ALPHA })
   })

@@ -833,9 +833,10 @@ slope angle and the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere,
 with finer national surveys stitched in where a country publishes one. 30 m is
 enough for a ridge and a valley, and too coarse for a
 gully or a cliff band. Past the zoom a region's survey reaches, a tile answers
-404, so the layers ask for nothing past zoom 12, which the 30 m fill holds over
-all land, and stretch those tiles further in. Open ocean has no tile at any
-zoom. The data is licensed per source, mostly CC BY 4.0 and US public domain,
+404, so the contours, the relief and the 3D terrain ask for nothing past zoom
+12, which the 30 m fill holds over all land, and stretch those tiles further
+in. The slope angle reads finer tiles where they exist (below). Open ocean has
+no tile at any zoom. The data is licensed per source, mostly CC BY 4.0 and US public domain,
 and Mapterhorn asks for one credit, `© Mapterhorn`, linked to its attribution
 page. Its privacy policy says it keeps each request's IP address, referrer and
 user agent for up to 30 days.
@@ -855,13 +856,17 @@ to its neighbours east and west and north and south, over the ground between
 them at that latitude. A pixel on a tile's edge reads its neighbours from the
 next tile, so a band does not break along tile boundaries. It is painted in
 CalTopo's bands, the avalanche world's, from 27 degrees up (record
-[0239](decisions/0239-slope-angle-from-the-shared-elevation.md)). It inherits
-the model's limits: a slope is measured over two pixels, about 26 m at
-Rainier's latitude at zoom 12 and twice that at each zoom out, so a cliff band
-or a gully narrower than that is averaged with the ground beside it and reads
-gentler than it is. Past zoom 12 the shading is stretched, not worked out
-again. It is a planning picture, not a measurement of the slope you will
-stand on.
+[0239](decisions/0239-slope-angle-from-the-shared-elevation.md)). Zoomed in
+past 12, it reads the finest tile Mapterhorn has, to zoom 14: 10 m-class over
+the United States, finer in the Alps, and the 30 m fill elsewhere. Where a
+finer tile is missing it falls back a zoom at a time to 12 and remembers the
+miss, so it asks once. It inherits the model's limits: a slope is measured
+over two pixels, about 13 m over Rainier from the US survey, 7 m over the
+Alps, and 26 m from the 30 m fill at Rainier's latitude, twice that at each
+zoom out. A cliff band or a gully narrower than that is averaged with the
+ground beside it and reads gentler than it is. Past zoom 14 the shading is
+stretched, not worked out again. It is a planning picture, not a measurement
+of the slope you will stand on.
 
 **Imagery is two sources, one picture.** Over the United States and its
 territories it is USGS's NAIP aerial photography, to zoom 16, in the public

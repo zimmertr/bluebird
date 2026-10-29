@@ -104,6 +104,54 @@ test('the slope angle asks the elevation host once switched on, and the link car
   await expect(page).not.toHaveURL(/[?&]slope=1/)
 })
 
+/** The zoom of every elevation tile the page asks for, by its URL, as the requests go out. */
+function demZooms(page: Page) {
+  const urls: string[] = []
+  page.on('request', (r) => {
+    if (new URL(r.url()).hostname === DEM_HOST) urls.push(r.url())
+  })
+  return {
+    urls,
+    zooms: () => urls.map((u) => Number(new URL(u).pathname.split('/')[1])),
+  }
+}
+
+// Past zoom 12 the slope tile asks for the elevation at its own zoom, which the
+// fixture answers 404 as Mapterhorn does outside a survey, and paints from the
+// zoom-12 tile under it. Each missing tile is asked for once.
+test('the slope angle past zoom 12 falls back to the zoom-12 elevation, asking each missing tile once', async ({
+  page,
+}) => {
+  const painted = await countSlopeBitmaps(page)
+  const dem = demZooms(page)
+  await page.goto('/?view=-121.76,46.853,14&slope=1')
+  await expect.poll(painted).toBeGreaterThan(0)
+  expect(dem.zooms()).toContain(14)
+  expect(dem.zooms()).toContain(12)
+  // A pan over the same ground asks no missing tile again.
+  const canvas = page.locator('.maplibregl-canvas')
+  const box = (await canvas.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 - 300, box.y + box.height / 2, { steps: 5 })
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 })
+  await page.mouse.up()
+  await page.waitForTimeout(1_000)
+  const finer = dem.urls.filter((u) => Number(new URL(u).pathname.split('/')[1]) > 12)
+  expect(finer.length).toBeGreaterThan(0)
+  expect(new Set(finer).size).toBe(finer.length)
+})
+
+// The relief and the 3D terrain read raster-dem sources, which cannot fall
+// back on a missing tile, so they stop at zoom 12 however far in the map is.
+test('the relief and the 3D terrain ask for nothing past zoom 12', async ({ page, traffic }) => {
+  const dem = demZooms(page)
+  await page.goto('/?view=-121.76,46.853,14&relief=1&terrain=1')
+  await expect.poll(() => demRequests(traffic)).toBeGreaterThan(0)
+  await page.waitForTimeout(2_000)
+  expect(Math.max(...dem.zooms())).toBe(12)
+})
+
 test('the 3D button stands the map up and lays it flat, and the link carries it', async ({ page, traffic }) => {
   await page.goto('/?view=-121.76,46.853,11')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
