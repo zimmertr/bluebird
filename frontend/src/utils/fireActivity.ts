@@ -330,7 +330,7 @@ export function fireActivityLegendChips(): FireActivityLegendChip[] {
  * other thing on the map opens one). Its title and its four labels are the
  * approved copy, word for word; the values are the feed's.
  */
-export const HOTSPOT_TITLE = 'Hotspot'
+const HOTSPOT_TITLE = 'Hotspot'
 
 /** One line of the card: an approved label and the detection's value for it. */
 export interface HotspotRow {
