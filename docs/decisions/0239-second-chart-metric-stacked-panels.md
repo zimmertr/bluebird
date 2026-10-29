@@ -25,7 +25,7 @@ The results chart drew one metric at a time. A reader weighing rain against temp
 
 ## Evidence
 
-Measured 2026-10-28, 200 charted rows over 16 days (384 hourly stamps), in the pinned Playwright image's Chromium against the built image, Open-Meteo answered from the suite's fixtures:
+Measured 2026-10-28, 200 charted rows over 15 days (360 hourly stamps), in the pinned Playwright image's Chromium against the built image, Open-Meteo answered from the suite's fixtures:
 
 | | main | this change, one panel | this change, two panels |
 |---|---|---|---|

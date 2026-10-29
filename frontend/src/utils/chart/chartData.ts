@@ -470,11 +470,12 @@ const CURSOR_POINT_BUDGET = 25_000
  * than destinations analyzed, so unchecking rows in the table brings the
  * emphasis back. The tooltip itself is unaffected either way: Recharts tracks
  * the cursor for that on its own.
+ *
+ * `lineCount` is every path a hover redraws, which with a second panel is
+ * each line twice (#499): a hover's emphasis dims a destination in both
+ * panels, so both re-render on every move, and the budget was calibrated on
+ * the cost of that re-render rather than on how many destinations it shows.
  */
-// `lineCount` is every path a hover redraws, which with a second panel is
-// each line twice (#499): a hover's emphasis dims a destination in both
-// panels, so both re-render on every move, and the budget was calibrated on
-// the cost of that re-render rather than on how many destinations it shows.
 export function tracksCursor(timestampCount: number, lineCount: number): boolean {
   return timestampCount * lineCount <= CURSOR_POINT_BUDGET
 }

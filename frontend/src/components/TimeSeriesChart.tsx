@@ -120,9 +120,10 @@ function headroomLabel(plotTop: number) {
 const HEADROOM_LABEL = headroomLabel(PLOT_MARGIN.top)
 const TITLED_HEADROOM_LABEL = headroomLabel(TITLED_PLOT_MARGIN.top)
 
-// The pickers' words (#499). PROVISIONAL: the second picker's name and its
-// empty option await the maintainer's choice, so each is one constant and a
-// change is one edit.
+// The pickers' words (#499), each one constant so a change is one edit. The
+// maintainer confirmed all three on 2026-10-28: the first picker keeps the
+// name #348 gave it, the second is named for its slot, and its empty option
+// reads the same word the closed picker shows while the slot is empty.
 const PRIMARY_PICKER_LABEL = 'Chart metric'
 const SECOND_PICKER_LABEL = 'Second metric'
 const SECOND_NONE_LABEL = 'None'
