@@ -53,11 +53,14 @@ export const SLOPE_TILES = `${SLOPE_SCHEME}://{z}/{x}/{y}`
 
 /**
  * The deepest zoom the slope tiles are painted at; MapLibre stretches past
- * it. 14 is the finest the US surveys reach under any ground tried and one zoom
- * past them, where the Alps' 3 m tiles still sharpen a couloir: Rainier answers
- * at 13 and 404s from 14, the Matterhorn answers to 17 (2026-10-29). At 15 the
- * Alps' slope read no different to the eye and every other region asked for
- * one more zoom that answers 404 (record 0239 has the measurements).
+ * it. Mapterhorn's finest is 13 over the US (Rainier answers at 13 and 404s at
+ * 14) and 17 in the Alps (the Matterhorn answers at every zoom to 17), so 14
+ * paints the US from its own survey and the Alps from 3 m tiles, a couloir and
+ * a rock band apiece. 15 was tried (2026-10-29, 1389 by 868): the Alps'
+ * 1.7 m tiles drew the rock's own texture rather than a slope a skier plans
+ * by, a screen at 15 over the Matterhorn asked for 21 tiles and 3.5 MB where
+ * 14 stretched asks 12 and 1.9 MB, and a screen at 15 over Rainier asked 8
+ * more tiles that answer 404. Record 0239 has the numbers.
  */
 export const SLOPE_MAXZOOM = 14
 
