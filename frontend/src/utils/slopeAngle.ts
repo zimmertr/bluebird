@@ -20,16 +20,16 @@ export interface SlopeBand {
 
 /**
  * CalTopo's bands, which are the avalanche world's: 27 to 29 degrees yellow,
- * 30 and 31 orange, 32 to 34 red, 35 to 45 purple, 46 to 49 blue, and 50 and
+ * 30 and 31 orange, 32 to 34 red, 35 to 45 purple, 46 to 50 blue, and 51 and
  * steeper black. Under 27 nothing is painted. Slab avalanches start on slopes
  * of about 30 to 45 degrees, most often 35 to 45, so the warm colours climb
  * toward the purple band, where they run most, and blue and black are the rock
  * too steep to hold much snow.
  *
- * Each band holds its lower edge, so 30.0 is orange. CalTopo's legend writes
- * the ranges in whole degrees (`46-50`, `50+`), so its own top two overlap at
- * 50; the black band takes it here, because 50 is where the legend's last
- * number stands.
+ * Each band holds its lower edge, so 30.0 is orange and 50.9 is still blue.
+ * CalTopo's legend writes the ranges in whole degrees, `46-50` and then `50+`,
+ * and its black starts past 50, so here it starts at 51 (the maintainer,
+ * 2026-10-28).
  *
  * The colours are the pure hues those names say, CalTopo's look, painted at
  * {@link SLOPE_ALPHA}. Measured 2026-10-28 at that alpha against Liberty's land
@@ -43,7 +43,7 @@ export interface SlopeBand {
  * | 32     | `#ff0000` | 2.29    | 1.23      |
  * | 35     | `#a020f0` | 2.21    | 1.17      |
  * | 46     | `#0000ff` | 3.13    | 1.24      |
- * | 50     | `#000000` | 3.84    | 1.66      |
+ * | 51     | `#000000` | 3.84    | 1.66      |
  *
  * Lightness alone does not carry these, and cannot: a yellow light enough to
  * stand out on a dark forest is the colour of the pale land, and a red dark
@@ -51,7 +51,7 @@ export interface SlopeBand {
  * differs from the band beside it by at least 24 in CIELAB (ΔE76) on either
  * ground, and from the ground itself by at least 44 on the land and 50 on the
  * forest. The one weak pair is the black band on the dark forest, at 18,
- * where the ground is nearly black already; slopes past 50 degrees are mostly
+ * where the ground is nearly black already; slopes of 51 degrees and more are mostly
  * bare rock, which the imagery draws pale. `slopeAngle.test.ts` pins every
  * ratio.
  */
@@ -61,7 +61,7 @@ export const SLOPE_BANDS: readonly SlopeBand[] = [
   { from: 32, color: '#ff0000' },
   { from: 35, color: '#a020f0' },
   { from: 46, color: '#0000ff' },
-  { from: 50, color: '#000000' },
+  { from: 51, color: '#000000' },
 ]
 
 /**

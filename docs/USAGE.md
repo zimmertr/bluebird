@@ -250,8 +250,8 @@ until you switch it on.
 
 **Slope angle** paints how steep the ground is, in the bands avalanche
 forecasters and CalTopo use: yellow from 27 to 29 degrees, orange at 30 and
-31, red from 32 to 34, purple from 35 to 45, blue from 46 to 49 and black from
-50 up. Under 27 nothing is painted. Most slab avalanches start on slopes of 30
+31, red from 32 to 34, purple from 35 to 45, blue from 46 to 50 and black from
+51 up. Under 27 nothing is painted. Most slab avalanches start on slopes of 30
 to 45 degrees. The bands are worked out in your browser from the same elevation
 model as the relief, 30 m in most of the world, so a short cliff band or a
 narrow gully can be smoothed into the gentler ground around it. Zoomed out, a

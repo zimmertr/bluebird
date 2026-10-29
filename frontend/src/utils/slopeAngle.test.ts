@@ -64,7 +64,9 @@ describe('bandOf', () => {
       [45.9, 3],
       [46, 4],
       [49.9, 4],
-      [50, 5],
+      [50, 4],
+      [50.9, 4],
+      [51, 5],
       [89, 5],
     ]
     for (const [degrees, band] of cases) expect([degrees, bandOf(degrees)]).toEqual([degrees, band])
@@ -77,7 +79,7 @@ describe('bandOf', () => {
 
 describe('the bands', () => {
   it("are CalTopo's six, yellow to black", () => {
-    expect(SLOPE_BANDS.map((b) => b.from)).toEqual([27, 30, 32, 35, 46, 50])
+    expect(SLOPE_BANDS.map((b) => b.from)).toEqual([27, 30, 32, 35, 46, 51])
     expect(SLOPE_BANDS.map((b) => b.color)).toEqual(['#ffff00', '#ffa500', '#ff0000', '#a020f0', '#0000ff', '#000000'])
     expect(SLOPE_ALPHA).toBe(0.5)
   })
@@ -228,7 +230,7 @@ describe('the legend', () => {
       { at: 3, label: '32', align: 'center' },
       { at: 4, label: '35', align: 'center' },
       { at: 5, label: '46', align: 'center' },
-      { at: 5, label: '50', align: 'end' },
+      { at: 5, label: '51', align: 'end' },
     ])
   })
 })
