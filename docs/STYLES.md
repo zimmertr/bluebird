@@ -752,6 +752,10 @@ fill, edge and radius, the × is a quiet glyph in a hit box of the same size, an
 as the picker beside them. `CHART_GUTTER` draws the gaps of a desk's grid of
 three or four panels: a 1px `rule` line that turns accent on hover and while
 dragged, and a 16px crossing with no glyph.
+The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:
+the hour as a 13px title on the popup's `band` token, the rows in a body,
+and `+N more` in a footer. The band is an app token now (`--ui-band`), and
+map.css reads it for the popup, so the two cards share one band.
 Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
 Record: [0239](decisions/0239-chart-metrics-as-panels.md)
 

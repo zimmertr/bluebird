@@ -147,7 +147,8 @@ export function readoutPlace(
   const rows = tooltipCapacity(roomAbovePx + bandBottom)
   const listed = Math.min(rows, lineCount)
   const cardPx = TOOLTIP_CHROME_PX + listed * TOOLTIP_ROW_PX
-  return { rows, top: cardPx <= band.height ? null : -roomAbovePx }
+  // With no room above there is nowhere to rise to, however tall the card.
+  return { rows, top: cardPx <= band.height || roomAbovePx <= 0 ? null : -roomAbovePx }
 }
 
 /**

@@ -641,6 +641,24 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(cells(name)).toEqual(['0.050', '38.9'])
     // No temperature for Beta: its cell is empty.
     expect(cells(card.getByText('Mount Beta'))).toEqual(['0.200', ''])
+    // The popup's anatomy: the hour on the band, one rule across every column
+    // under the heads, and no footer when every row is listed.
+    const shell = card.getByText('Sahale Mountain').closest('.overflow-hidden') as HTMLElement
+    expect(shell.firstElementChild!.className).toContain('bg-band')
+    const rule = shell.querySelector('[data-card-rule]') as HTMLElement
+    expect(rule.className).toContain('col-span-full')
+    expect(card.queryByText(/more$/)).toBeNull()
+  })
+
+  it('cuts the rows the plot cannot hold into the card\'s footer', () => {
+    height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(209)
+    const many = Array.from({ length: 30 }, (_, i) => ({ ...alpha, name: `P${i}`, latitude: i / 100 }))
+    render(<TimeSeriesChart {...props({ rows: many, metrics: ['precip'] })} />)
+    const card = chart.tooltips[chart.tooltips.length - 1]
+    const shown = within(render(<>{card({ active: true, payload: [{ dataKey: 'x', value: 1 }], label: TIMES[T] })}</>).container)
+    const foot = shown.getByText(/^\+\d+ more$/)
+    expect(foot.className).toContain('border-t')
+    expect(foot.parentElement!.firstElementChild!.className).toContain('bg-band')
   })
 
   it('lets the card over a grid leave its panel and keeps it inside the chart area', () => {
@@ -675,6 +693,8 @@ describe('TimeSeriesChart with more than one metric', () => {
     const shown = within(render(<>{card({ active: true, payload: [{ dataKey: 'x', value: 1 }], label: TIMES[T] })}</>).container)
     expect(shown.queryByText(CHART_METRICS.find((m) => m.key === 'temp')!.label)).toBeNull()
     expect(shown.getByText('Sahale Mountain').parentElement!.nextElementSibling!.textContent).toBe('38.9')
+    // The same band and body, with no heads and no rule under them.
+    expect(shown.getByText('Sahale Mountain').closest('.overflow-hidden')!.querySelector('[data-card-rule]')).toBeNull()
   })
 
   it('moves the playhead from a click on any panel', () => {

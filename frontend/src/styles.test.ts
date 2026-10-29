@@ -83,6 +83,7 @@ import {
   CHART_PLOT_TOUCH,
   CHART_TITLE,
   CHART_PANEL_BUTTON,
+  CHART_CARD,
   CHART_GUTTER,
   MENU,
   MODEL_ROW,
@@ -232,7 +233,10 @@ const zOf = (layer: string): number => Number(layer.match(/^z-\[?(\d+)\]?$/)![1]
  */
 const light = (name: string): string => {
   const own = LIGHT_TOKENS[name].match(/^var\(--color-([\w-]+)\)$/)
-  return own ? paletteHex(own[1]) : LIGHT_TOKENS[name]
+  if (own) return paletteHex(own[1])
+  // A token mixed of two others (`band`), as the browser paints the mix.
+  const mix = LIGHT_TOKENS[name].match(/^color-mix\(in oklab, var\(--ui-([\w-]+)\) (\d+)%, var\(--ui-([\w-]+)\)\)$/)
+  return mix ? mixOklab(light(mix[1]), Number(mix[2]) / 100, light(mix[3])) : LIGHT_TOKENS[name]
 }
 /** CSS Color 4's oklch to sRGB, gamut-clipped, as the hex a browser paints. */
 function oklchHex(l: number, c: number, h: number): string {
@@ -315,6 +319,8 @@ const over = (top: string, alpha: number, under: string) => mixOver(top, under, 
 function dark(name: string, ground?: string): string {
   const value = DARK_TOKENS[name]
   if (/^#[0-9a-f]{6}$/i.test(value)) return value
+  const pair = value.match(/^color-mix\(in oklab, var\(--ui-([\w-]+)\) (\d+)%, var\(--ui-([\w-]+)\)\)$/)
+  if (pair) return mixOklab(dark(pair[1]), Number(pair[2]) / 100, dark(pair[3]))
   const mix = value.match(/^color-mix\(in oklab, var\(--color-([\w-]+)\) (\d+)%, transparent\)$/)
   if (!mix) return paletteHex(darkStep(name))
   if (ground === undefined) throw new Error(`--ui-${name} is translucent; name the ground it lands on`)
@@ -2394,7 +2400,9 @@ describe('the map rows', () => {
     const recipes = Object.values(STYLES).flatMap((v) =>
       typeof v === 'string' ? [v] : Object.values(v as Record<string, unknown>).filter((x): x is string => typeof x === 'string'),
     )
-    expect(recipes.filter((r) => sizes(r).includes('text-[13px]'))).toEqual([])
+    // The one exception is the chart card's title, which is the marker
+    // popup's title size, so the two cards share one title (#499).
+    expect(recipes.filter((r) => sizes(r).includes('text-[13px]'))).toEqual([CHART_CARD.head])
     expect(step(MAP_CHIP, 'px')).toBe(12)
     expect(tokens(MAP_CHIP)).not.toContain('font-semibold')
   })
@@ -4169,6 +4177,27 @@ describe('the calendar field wraps', () => {
 // #706); the values it left to derive (the middle ink, the faint ink, the
 // outline, the range band's hover, the shade, the thumb and the muted fade)
 // are each held to the floor they owe. Measured 2026-10-15.
+// The chart's hover card wears the marker popup's anatomy (#499; TJ
+// 2026-10-29): its band is the popup's own token, and the hour on it and the
+// heads and the footer in the label ink are measured on it in both themes.
+describe('the chart card', () => {
+  const cls = (r: string) => r.split(/\s+/)
+  it('builds the card from the popup band, the frame rim and the overlay step', () => {
+    expect(cls(CHART_CARD.card)).toEqual(expect.arrayContaining(['bg-panel', 'border-frame', RADIUS.surface, ELEVATION.overlay, 'overflow-hidden']))
+    expect(cls(CHART_CARD.head)).toEqual(expect.arrayContaining(['bg-band', 'border-rule', 'text-ink-strong', 'font-semibold']))
+    expect(cls(CHART_CARD.rule)).toEqual(expect.arrayContaining(['col-span-full', 'bg-frame']))
+    expect(cls(CHART_CARD.foot)).toEqual(expect.arrayContaining(['border-t', 'border-rule', 'text-ink-soft']))
+    expect(mapCss).toContain('--popup-band: var(--ui-band);')
+  })
+  it('reads the title and the label ink on the band above AA in both themes', () => {
+    const on = (ink: string) => [ratio(dark(ink), dark('band')), ratio(light(ink), light('band'))]
+    expect([on('ink-strong'), on('ink-soft')]).toEqual([
+      [12.39, 14.42],
+      [4.71, 7.89],
+    ])
+  })
+})
+
 describe('the light theme', () => {
   // A role's light hex through one of its utilities.
   const hex = (recipe: string, utility: string) => light(token(recipe, utility))

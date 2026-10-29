@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
+import { CHART_CARD, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, TEXT } from '../styles'
 import { IconChevron, IconClose, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
@@ -1261,10 +1261,11 @@ function ChartTooltip({
       // so a shrink-to-fit width stops at that panel's edge and the name
       // column takes the whole squeeze (`Moun…` in a 2×2 grid, 2026-10-29).
       // `maxWidth`, the area's width, still caps it.
-      className={`${SURFACE_FLOATING} ${TEXT.control} px-2.5 py-1.5 ${areaRef ? 'w-max' : ''}`}
+      className={`${CHART_CARD.card} ${TEXT.control} ${areaRef ? 'w-max' : ''}`}
       style={maxWidthPx > 0 ? { maxWidth: maxWidthPx } : undefined}
     >
-      <div className={`${TEXT.micro} mb-1 font-mono`}>{fmtTooltipTime(label)}</div>
+      <div className={CHART_CARD.head}>{fmtTooltipTime(label)}</div>
+      <div className={CHART_CARD.body}>
       {/* One grid, so each column is as wide as its widest cell or header. */}
       <div
         className="grid items-center gap-x-3.5"
@@ -1274,10 +1275,12 @@ function ChartTooltip({
           <>
             <span />
             {metrics.map((m) => (
-              <span key={m} className={`${TEXT.micro} text-right`}>
+              <span key={m} className={CHART_CARD.heads}>
                 {CHART_METRICS.find((c) => c.key === m)?.label}
               </span>
             ))}
+            {/* One rule under the heads, across every column. */}
+            <span className={CHART_CARD.rule} data-card-rule="" />
           </>
         )}
         {shown.map((it) => {
@@ -1300,7 +1303,8 @@ function ChartTooltip({
           )
         })}
       </div>
-      {rest > 0 && <div className={`${TEXT.micro} mt-0.5`}>+{rest} more</div>}
+      </div>
+      {rest > 0 && <div className={CHART_CARD.foot}>+{rest} more</div>}
     </div>
   )
 }

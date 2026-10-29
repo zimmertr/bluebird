@@ -53,7 +53,7 @@
   --popup-scheme: dark;
   --popup-surface: var(--ui-panel);
   --popup-ink: var(--ui-ink);
-  --popup-band: color-mix(in oklab, var(--ui-raised) 50%, var(--ui-panel));
+  --popup-band: var(--ui-band);
   --popup-ranked: var(--ui-raised);
   --popup-line: var(--ui-rule);
   --popup-rule: var(--ui-frame);

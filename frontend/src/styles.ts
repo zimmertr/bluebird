@@ -1374,6 +1374,29 @@ export const CHART_PLOT_TOUCH = 'touch-pan-y'
  * neither the rule nor the plot's label. The focus edge
  * is `FIELD`'s, moved to the box because the select is invisible.
  */
+/**
+ * The chart's hover card, built like the marker popup (record 0215; TJ
+ * 2026-10-29, mockup 1 of four): a header band carrying the hour as its
+ * title, a body of rows, and a footer for the rows cut. The band is the
+ * popup's (`band`, halfway from the panel to the raised step) under the
+ * popup's rule edge and its 0 1px 3px shade, so a chart card and a map card
+ * read as one family. The card stands on the panel, not the floating
+ * surface, with the `frame` rim, 8px corners and the overlay step, and
+ * clips, so the band's corners follow the card's. Over two or more metrics
+ * the body opens on a heads row in the label ink and one `frame` rule
+ * across every column, the colour the popup's grid heads stand on. The
+ * title's and the label ink's contrast on the band are pinned in both
+ * themes in `styles.test.ts`.
+ */
+export const CHART_CARD = {
+  card: `bg-panel border border-frame ${RADIUS.surface} ${ELEVATION.overlay} overflow-hidden`,
+  head: 'bg-band border-b border-rule shadow-[0_1px_3px_var(--scroll-shade)] px-2.5 pt-2 pb-[7px] text-[13px] font-semibold text-ink-strong',
+  body: 'px-2.5 pt-1.5 pb-2',
+  heads: `${MICRO_SIZE} text-ink-soft text-right`,
+  rule: 'col-span-full h-px bg-frame mb-[3px]',
+  foot: 'border-t border-rule px-2.5 py-[5px] text-xs text-ink-soft',
+} as const
+
 export const CHART_TITLE = {
   /**
    * The title's line (#499): the box at the plot's top left, `top-3 left-3`,
