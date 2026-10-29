@@ -242,7 +242,7 @@ describe('hotspotRows', () => {
 
   it('reads a VIIRS detection in the card’s four lines, in order', () => {
     expect(hotspotRows({ properties: viirs }, NOW)).toEqual([
-      { label: 'Detected', value: `${monthDayTime(new Date(seen))} (3 hours ago)` },
+      { label: 'Detected', value: `${monthDayTime(new Date(seen))} (3h ago)` },
       { label: 'Satellite', value: 'NOAA-20 VIIRS' },
       { label: 'Confidence', value: 'Nominal' },
       { label: 'Fire power', value: '4.3 MW' },
@@ -252,7 +252,7 @@ describe('hotspotRows', () => {
   it('dates the pass in the month, the day and the time, with no year', () => {
     // America/Los_Angeles, the zone the suite runs in.
     expect(rows({ acquired: '2026-10-29T17:12:00Z' }, Date.parse('2026-10-29T20:12:00Z')).Detected).toMatch(
-      /^Oct 29, 10:12\s?AM \(3 hours ago\)$/,
+      /^Oct 29, 10:12\s?AM \(3h ago\)$/,
     )
   })
 
@@ -287,14 +287,33 @@ describe('hotspotRows', () => {
     expect(rows({ frp: 1234.5 })['Fire power']).toBe(`${(1235).toLocaleString()} MW`)
   })
 
-  it('says how long ago in minutes under an hour and in hours from one', () => {
+  it('says how long ago in seconds, minutes, hours, then days to a tenth', () => {
     const ago = (ms: number) => rows({ acquired: new Date(NOW - ms).toISOString() }).Detected.replace(/^.*\((.*)\)$/, '$1')
-    expect(ago(20 * 1000)).toBe('now')
-    expect(ago(-5 * 60 * 1000)).toBe('now')
-    expect(ago(42 * 60 * 1000)).toBe('42 min ago')
-    expect(ago(HOUR)).toBe('1 hour ago')
-    expect(ago(HOUR + 59 * 60 * 1000)).toBe('1 hour ago')
-    expect(ago(47 * HOUR)).toBe('47 hours ago')
+    expect(ago(0)).toBe('0s ago')
+    expect(ago(20 * 1000)).toBe('20s ago')
+    expect(ago(59 * 1000)).toBe('59s ago')
+    // A stamp ahead of the reader's clock is not called the future.
+    expect(ago(-5 * 60 * 1000)).toBe('0s ago')
+    expect(ago(60 * 1000)).toBe('1m ago')
+    expect(ago(42 * 60 * 1000)).toBe('42m ago')
+    expect(ago(HOUR - 1000)).toBe('59m ago')
+    expect(ago(HOUR)).toBe('1h ago')
+    expect(ago(HOUR + 59 * 60 * 1000)).toBe('1h ago')
+    expect(ago(23 * HOUR + 59 * 60 * 1000)).toBe('23h ago')
+    expect(ago(24 * HOUR)).toBe('1.0d ago')
+    // Rounded down, so 28.8 hours is 1.2 days, a minute less is 1.1, and
+    // 47.9 hours is 1.9, never 2.0.
+    expect(ago(28 * HOUR + 48 * 60 * 1000)).toBe('1.2d ago')
+    expect(ago(28 * HOUR + 47 * 60 * 1000)).toBe('1.1d ago')
+    expect(ago(47 * HOUR + 54 * 60 * 1000)).toBe('1.9d ago')
+    expect(ago(48 * HOUR)).toBe('2.0d ago')
+  })
+
+  it('reads the line the maintainer wrote', () => {
+    // America/Los_Angeles: 23:18 UTC on Oct 28 is 4:18 PM there.
+    expect(rows({ acquired: '2026-10-28T23:18:00Z' }, Date.parse('2026-10-29T19:18:00Z')).Detected).toMatch(
+      /^Oct 28, 4:18\s?PM \(20h ago\)$/,
+    )
   })
 
   it('leaves off a line the feed has nothing for, rather than a dash', () => {
@@ -312,7 +331,7 @@ describe('hotspotRows', () => {
     expect(html).toMatch(/<strong[^>]*>Hotspot<\/strong>/)
     const body = html.slice(html.indexOf('data-popup-body'))
     expect(markupText(body.slice(body.indexOf('>') + 1)).trim()).toBe(
-      `Detected: ${monthDayTime(new Date(seen))} (3 hours ago)` +
+      `Detected: ${monthDayTime(new Date(seen))} (3h ago)` +
         'Satellite: NOAA-20 VIIRS' +
         'Confidence: Nominal' +
         'Fire power: 4.3 MW',

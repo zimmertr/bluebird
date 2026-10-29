@@ -165,7 +165,7 @@ const json = (body: unknown) => ({ status: 200, contentType: 'application/json',
 /**
  * The one satellite fire detection `/api/fire-activity` answers, at Mount
  * Rainier, seen by NOAA-20 three hours before START, so the layer draws it
- * red and its card says `3 hours ago` (#799). Drawn only where a page turns
+ * red and its card says `3h ago` (#799). Drawn only where a page turns
  * the layer on.
  */
 export const FIRE_DETECTION = {

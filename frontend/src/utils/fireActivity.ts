@@ -17,7 +17,7 @@ import type { Feature, FeatureCollection, Point } from 'geojson'
 import type { FireActivityResponse, FireDetectionProps } from '../types'
 import { apiFetch, overlayFeatures } from './apiFetch'
 import { clamp, grouped, isFiniteNumber, roundTo } from './numbers'
-import { ageAgo, escapeHtml, monthDayTime, popupCard, row } from './popup/popupChrome'
+import { escapeHtml, monthDayTime, popupCard, row } from './popup/popupChrome'
 import type { BBox } from './wildfires'
 
 const FIRE_ACTIVITY_URL = '/api/fire-activity'
@@ -392,12 +392,33 @@ function firePowerOf(frp: unknown): string | null {
   return `${tenths < 10 ? tenths.toFixed(1) : grouped(Math.round(frp))} MW`
 }
 
+const SECOND_MS = 1000
+const MINUTE_MS = 60 * SECOND_MS
+const DAY_MS = 24 * HOUR_MS
+
+/**
+ * How long ago the pixel was seen, in the maintainer's short forms
+ * (2026-10-29), so the `Detected` line holds one line on a phone's card:
+ * `20s ago` under a minute, `20m ago` under an hour, `20h ago` under a day
+ * and `1.2d ago` from one, with one decimal. Each is rounded down, so a
+ * detection is never called newer than it is, and a stamp ahead of the
+ * reader's clock reads `0s ago`. The card's own rather than `ageAgo`, whose
+ * words the radar card's `Updated` line keeps.
+ */
+function detectedAgo(ageMs: number): string {
+  const age = Math.max(0, ageMs)
+  if (age < MINUTE_MS) return `${Math.floor(age / SECOND_MS)}s ago`
+  if (age < HOUR_MS) return `${Math.floor(age / MINUTE_MS)}m ago`
+  if (age < DAY_MS) return `${Math.floor(age / HOUR_MS)}h ago`
+  return `${(Math.floor(age / (DAY_MS / 10)) / 10).toFixed(1)}d ago`
+}
+
 /** When the pixel was seen and how long ago, against `nowMs`. */
 function detectedOf(acquired: unknown, nowMs: number): string | null {
   const ms = Date.parse(text(acquired))
   if (!Number.isFinite(ms)) return null
   try {
-    return `${monthDayTime(new Date(ms))} (${ageAgo(nowMs - ms)})`
+    return `${monthDayTime(new Date(ms))} (${detectedAgo(nowMs - ms)})`
   } catch {
     return null
   }

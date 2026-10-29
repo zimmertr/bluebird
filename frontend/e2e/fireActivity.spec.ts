@@ -61,7 +61,7 @@ for (const [name, width, height] of [
     for (const label of ['Detected', 'Satellite', 'Confidence', 'Fire power']) {
       await expect(body.getByText(label, { exact: true })).toBeVisible()
     }
-    await expect(body).toContainText('(3 hours ago)')
+    await expect(body).toContainText('(3h ago)')
     await expect(body).toContainText('NOAA-20 VIIRS')
     await expect(body).toContainText('Nominal')
     await expect(body).toContainText('12 MW')
