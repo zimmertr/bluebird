@@ -40,17 +40,14 @@ const HOUR_MS = 60 * 60 * 1000
  */
 export const AGE_BANDS = [12, 24, 48] as const
 
-/**
- * What the legend's chip for each band reads, in `AGE_BANDS` order: the hour
- * the band ends at, bare, because the chip is the smoke chips' 16px box.
- * Approved 2026-10-29 (record 0237).
- */
-export const AGE_BAND_CHIPS = ['12', '24', '48'] as const
+/** The hour an age band ends at, which the legend's icon for it draws. */
+export type AgeBandHours = (typeof AGE_BANDS)[number]
 
 /**
  * The words each chip stands for, in `AGE_BANDS` order, hidden in the chip
- * for a screen reader the way the smoke chips hide theirs: `12` alone does
- * not say whether it is an age, a bound or a span. Approved 2026-10-27
+ * for a screen reader the way the smoke chips hide theirs: the icon draws
+ * the hour (`IconFireAge`), and `12` alone does not say whether it is an
+ * age, a bound or a span. Approved 2026-10-27
  * (record 0237).
  */
 export const AGE_BAND_WORDS = ['Under 12 hours', '12 to 24 hours', '24 to 48 hours'] as const
@@ -211,16 +208,15 @@ export async function fetchFireActivity(bbox: BBox, signal: AbortSignal): Promis
  * at a share of the points' radius that differs by size. On the map, 0.65:
  * at 0.8 a 14px mark at zoom 12 read as a fuzzy disc, its points a pixel deep
  * under the halo's blur, and at 0.65 and 0.55 it read as a star (tried
- * 2026-10-28 over Munds Park at zooms 9 and 12). In the legend, 0.8: the chip
- * is 16px, the smoke chips' box, and its 10px label, 11.1px wide, has to sit
- * inside the inner corners to stand on the fill, which at 0.65 it would not
- * (their apothem is 4.7px from the centre there and the label reaches 5.55px;
- * at 0.8 it is 5.8px). Tried at 16px in both themes on 2026-10-29: at 0.65
- * the star's edge ran through every digit, and on the dark card the digits'
- * ends stood on the card in their dark ink.
+ * 2026-10-28 over Munds Park at zooms 9 and 12). In the legend, 0.85: the
+ * chip is a 16px icon whose ink body carries the band's hour drawn 8.5px
+ * tall (`IconFireAge`), and a body that holds digits that tall leaves rays
+ * about 1.1px long. Of the sixteen variants of the icon drawn on 2026-10-29,
+ * taller digits read best on a 1x screen and this depth is the one that
+ * holds 8.5px; the maintainer picked it that day (record 0237).
  */
 export const STARBURST_POINTS = 12
-export const STARBURST_INNER = { map: 0.65, chip: 0.8 } as const
+export const STARBURST_INNER = { map: 0.65, chip: 0.85 } as const
 
 /**
  * The starburst's corners about `[cx, cy]`, `outer` the radius of its points
@@ -304,24 +300,29 @@ export function starburstSdf(): StarburstImage {
   return { width: size, height: size, data }
 }
 
-/** One legend chip: a band's label, its hidden words and the starburst it sits in. */
+/**
+ * One legend chip: the hour its band ends at, which its icon draws, the
+ * words it hides for a screen reader, and the icon's two colours.
+ */
 export interface FireActivityLegendChip {
-  label: string
+  hours: AgeBandHours
   words: string
+  /** The band's fill: the icon's rim and its digits. */
   fill: string
-  stroke: string
+  /** The layer's edge: the icon's body, which the digits stand on. */
+  ink: string
 }
 
 /**
- * The legend's three chips, newest first, each a starburst of the band's
- * fill in the layer's edge, so the key and the picture cannot disagree.
+ * The legend's three chips, newest first, each in the band's fill on the
+ * layer's ink, so the key and the picture cannot disagree.
  */
 export function fireActivityLegendChips(): FireActivityLegendChip[] {
-  return AGE_BAND_CHIPS.map((label, band) => ({
-    label,
+  return AGE_BANDS.map((hours, band) => ({
+    hours,
     words: AGE_BAND_WORDS[band],
     fill: FIRE_ACTIVITY_FILLS[band],
-    stroke: FIRE_ACTIVITY_STROKE,
+    ink: FIRE_ACTIVITY_STROKE,
   }))
 }
 

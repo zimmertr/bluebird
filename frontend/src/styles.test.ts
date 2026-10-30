@@ -141,7 +141,7 @@ import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
 import { TRAIL_CASING_COLOR, TRAIL_COLOR, TRAIL_OPACITY } from './map/basemap'
-import { FIRE_ACTIVITY_FILLS } from './utils/fireActivity'
+import { FIRE_ACTIVITY_FILLS, FIRE_ACTIVITY_STROKE } from './utils/fireActivity'
 import {
   CONTOUR_EDGE_OPACITY,
   CONTOUR_IMAGERY_EDGE,
@@ -3300,36 +3300,38 @@ describe('the type floor', () => {
   })
 
   // Under 11px only the glyphs in boxes of fixed size, at 10px, named as the
-  // exception: the strip's numerals in their 11px scrim band, the smoke key's
-  // letters in their chips and the fire key's hours in their stars (#799).
-  // Nothing is 9px any more.
+  // exception: the strip's numerals in their 11px scrim band and the smoke
+  // key's letters in their chips. The fire key's hours are drawn in its
+  // icons, so its box sets no type (#799). Nothing is 9px any more.
   it('keeps 10px for the glyphs in fixed boxes, and nothing smaller', () => {
     const under = recipes.flatMap((r) => sizes(r).filter((c) => px(c) < 11))
     expect(new Set(under)).toEqual(new Set(['text-[10px]']))
     expect(sizes(SWATCH_RAMP_TICK)).toEqual(['text-[10px]'])
     expect(sizes(SWATCH_CHIP)).toEqual(['text-[10px]'])
-    expect(sizes(SWATCH_STAR)).toEqual(['text-[10px]'])
+    expect(sizes(SWATCH_STAR)).toEqual([])
     expect(recipes.filter((r) => sizes(r).includes('text-[10px]')).sort()).toEqual(
-      [SWATCH_CHIP, SWATCH_RAMP_TICK, SWATCH_STAR].sort(),
+      [SWATCH_CHIP, SWATCH_RAMP_TICK].sort(),
     )
   })
 
-  // The fire key's star is the smoke chip's box with the smoke chip's glyph
-  // in it (the maintainer, 2026-10-29), so the two keys read as one family.
-  it('gives the fire key the smoke chip\'s box and glyph', () => {
+  // The fire key's icon stands in the smoke chip's box (the maintainer,
+  // 2026-10-29), so the two keys read as one family; its hours are drawn,
+  // so the box carries no type of its own.
+  it('gives the fire key the smoke chip\'s box and no type', () => {
     expect(stepPx(SWATCH_STAR, 'h')).toBe(stepPx(SWATCH_CHIP, 'h'))
     expect(stepPx(SWATCH_STAR, 'w')).toBe(stepPx(SWATCH_CHIP, 'w'))
-    const glyph = (recipe: string) => recipe.split(/\s+/).filter((c) => /^text-|^font-|^tracking-/.test(c)).sort()
-    expect(glyph(SWATCH_STAR)).toEqual(glyph(SWATCH_CHIP))
+    expect(SWATCH_STAR.split(/\s+/).filter((c) => /^text-|^font-|^tracking-/.test(c))).toEqual([])
   })
 
-  // Its label is read on the band's fill, the three as light as smoke's, so
-  // the smoke chip's dark ink clears 4.5:1 on each, the red the lowest.
-  // Measured 2026-10-28, and re-checked on the 16px star 2026-10-29, whose
-  // label stands inside the fill.
-  it('sets the hours in the fire key past 4.5:1 on every band', () => {
-    const ink = paletteHex(SWATCH_STAR.match(/\btext-(slate-\d+)\b/)![1])
-    expect(FIRE_ACTIVITY_FILLS.map((fill) => ratio(ink, fill))).toEqual([5.77, 7.88, 13.53])
+  // The icon's hours are the band's fill on the layer's ink, and its edge is
+  // the band's rim on the dark card and the ink body on the light one, the
+  // way the map's star and the smoke chips are measured: whichever of the
+  // two outer colours clears more. Measured 2026-10-29 in the icon lab.
+  it('draws the fire key\'s hours past 4.5:1 on its body and its edge past 3:1 on the card', () => {
+    expect(FIRE_ACTIVITY_FILLS.map((fill) => ratio(fill, FIRE_ACTIVITY_STROKE))).toEqual([5.66, 7.73, 13.27])
+    expect(FIRE_ACTIVITY_FILLS.map((fill) => ratio(fill, dark('floating')))).toEqual([4.73, 6.46, 11.09])
+    expect(ratio(FIRE_ACTIVITY_STROKE, light('floating'))).toBe(16.64)
+    expect(FIRE_ACTIVITY_FILLS.map((fill) => ratio(fill, light('floating'))).every((r) => r < 3)).toBe(true)
   })
 
   // A 10px letter does not fit a 14px box inside its border, so the box grew.

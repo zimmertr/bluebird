@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { EXTERNAL_LINK } from '../iconPaths'
 import { ICON } from '../styles'
-import { STARBURST_INNER, starburst } from '../utils/fireActivity'
+import { type AgeBandHours, STARBURST_INNER, starburst } from '../utils/fireActivity'
 
 /**
  * Every glyph the app draws (#386).
@@ -379,24 +379,44 @@ export function IconGrip({ className }: IconProps): ReactNode {
   )
 }
 
-// The fire key's starburst in a 16-unit box about its centre, a unit to a
-// pixel of the 16px chip, so its one-unit edge is the smoke chips' 1px
-// border: the points at 7.5, inside the box by half the edge's width.
-const STARBURST_CHIP = starburst(7.5, STARBURST_INNER.chip)
+// The fire key's starburst in the 16-unit box, a unit to a pixel of the
+// 16px chip: its points at 7.58, so the 0.8 rim round them reaches the box's
+// edge and no further.
+const FIRE_AGE_STAR = starburst(7.58, STARBURST_INNER.chip, 8, 8)
   .map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)
   .join(' ')
 
+// Each band's hour as centrelines in that box, stroked 1 unit wide: a
+// geometric, condensed face of four digits, 8.5 tall and 3.4 wide with 0.8
+// between them, a narrow 1 with a flag and no foot, a 2 on a round bowl, a
+// closed 4 and an 8 of two stacked ellipses, the smaller on top. Drawn in the
+// icon labs of 2026-10-29 and picked from sixteen variants for reading on a
+// 1x screen (record 0237); paths rather than text, so the digits are part of
+// the drawing and no face the browser picks can change them.
+const FIRE_AGE_NUMERALS: Record<AgeBandHours, string> = {
+  12: 'M5.13 6.2L6.52 4.25V12.25M8.32 5.6A1.2 1.2 0 0 1 10.72 5.45C10.72 7.55 8.92 10.1 8.32 11.75H11.22',
+  24: 'M4.7 5.6A1.2 1.2 0 0 1 7.1 5.45C7.1 7.55 5.3 10.1 4.7 11.75H7.6M10.82 12.25V3.95L8.9 9.5H11.8',
+  48: 'M6.62 12.25V3.95L4.7 9.5H7.6M9.07 6.01A1.03 1.76 0 1 0 11.13 6.01A1.03 1.76 0 1 0 9.07 6.01M8.9 9.76A1.2 1.99 0 1 0 11.3 9.76A1.2 1.99 0 1 0 8.9 9.76',
+}
+
 /**
- * The fire activity key's starburst (#799), the shape the map draws each
- * detection as, behind the band's label in `SWATCH_STAR`. It fills the box
- * it stands in, since the role sizes the chip and the label sets that size;
- * its fill and edge are the band's, from `utils/fireActivity.ts`, rather than
- * `currentColor`, because a band's colour is data the label must read on.
+ * The fire activity key's icon for one age band (#799): the starburst the
+ * map draws each detection as, its body in the layer's ink with a rim in the
+ * band's fill, and the hour the band ends at drawn in the same fill on the
+ * body. It fills the box it stands in, since `SWATCH_STAR` sizes the chip;
+ * its two colours are the band's and the layer's, from
+ * `utils/fireActivity.ts`, rather than `currentColor`, because they are data.
  */
-export function IconStarburst({ fill, stroke, className }: IconProps & { fill: string; stroke: string }): ReactNode {
+export function IconFireAge({
+  hours,
+  fill,
+  ink,
+  className,
+}: IconProps & { hours: AgeBandHours; fill: string; ink: string }): ReactNode {
   return (
-    <svg viewBox="-8 -8 16 16" className={join('h-full w-full', className)} aria-hidden="true">
-      <polygon points={STARBURST_CHIP} fill={fill} stroke={stroke} strokeWidth={1} strokeLinejoin="round" />
+    <svg viewBox="0 0 16 16" className={join('h-full w-full', className)} aria-hidden="true">
+      <polygon points={FIRE_AGE_STAR} fill={ink} stroke={fill} strokeWidth={0.8} strokeLinejoin="round" />
+      <path d={FIRE_AGE_NUMERALS[hours]} fill="none" stroke={fill} strokeWidth={1} />
     </svg>
   )
 }

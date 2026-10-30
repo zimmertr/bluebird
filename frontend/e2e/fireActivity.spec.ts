@@ -2,14 +2,15 @@ import { test, expect, FIRE_DETECTION } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // The fire activity key (#799) is one line like Smoke's: the layer's name and
-// three starburst chips, 12, 24 and 48, side by side. The chip menus are
+// three starburst icons, 12, 24 and 48 drawn on them, side by side. The chip menus are
 // 224px wide so the line holds, and a phone's Legend sheet is wider still.
 // One row means the three chips' boxes share a top.
 async function chipTops(page: Page) {
   // The section's line, found through its credit, the one link to FIRMS.
   const row = page.getByRole('link', { name: 'FIRMS' }).locator('xpath=ancestor::div[1]')
   await expect(row).toContainText('Fire activity')
-  await expect(row.getByText('12', { exact: true })).toBeVisible()
+  await expect(row.locator('svg')).toHaveCount(3)
+  await expect(row.locator('svg').first()).toBeVisible()
   return row.locator('svg').evaluateAll((stars) => stars.map((star) => star.parentElement!.getBoundingClientRect().top))
 }
 
