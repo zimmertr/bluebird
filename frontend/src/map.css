@@ -66,6 +66,9 @@
   --popup-thumb: var(--ui-edge-lifted);
   --popup-close: var(--ui-ink-soft);
   --popup-close-hover: var(--ui-ink-strong);
+  --popup-close-fill: var(--ui-raised);
+  --popup-close-fill-hover: var(--ui-raised-hover);
+  --popup-close-edge: var(--ui-frame);
 }
 :root[data-theme="light"] {
   --popup-scheme: light;
@@ -303,11 +306,11 @@
 /* The popup's close button, for the same reason as the controls above:
    maplibre injects it, so there is no call site to style.
 
-   The bare glyph every × inside a card or a field wears (`ICON_BUTTON` in
-   styles.ts; record 0222): no surface, the soft ink at rest and the strong
-   ink under a pointer, in a box the size of the vendor's that keeps it off
-   the corner. The vendor's own glyph is a bare character pressed into the corner
-   with no hit area, which is why the box is drawn here at all.
+   `SQUARE_BUTTON` in styles.ts: a raised square with a frame, as every icon
+   button inside a surface is (TJ 2026-10-30), the soft ink at rest and the
+   strong ink under a pointer. The vendor's own glyph is a bare character
+   pressed into the corner with no hit area, which is why the box is drawn
+   here at all.
 
    `line-height: 1` matters. Without it the inherited line box pushes the glyph
    off-centre inside the square; the 1px nudge below is the "×" character's
@@ -322,8 +325,9 @@
   width: 1.375rem;
   height: 1.375rem;
   padding: 0 0 1px 0;
-  border: 0;
-  background: none;
+  border: 1px solid var(--popup-close-edge);
+  border-radius: 0.25rem;
+  background: var(--popup-close-fill);
   font-size: 1.125rem;
   line-height: 1;
   color: var(--popup-close);
@@ -333,15 +337,15 @@
 .maplibregl-popup-close-button:hover,
 .maplibregl-popup-close-button:focus-visible {
   color: var(--popup-close-hover);
-  background: none;
+  background: var(--popup-close-fill-hover);
 }
 
-/* Coarse pointers press 44px around the bare ×: it draws no box, so the
-   press costs the card nothing (`TAP` in styles.ts). */
+/* Coarse pointers get the 32px square every phone control has (`TAP` in
+   styles.ts, record 0223). */
 @media (hover: none) {
   .maplibregl-popup-close-button {
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 2rem;
+    height: 2rem;
   }
 }
 

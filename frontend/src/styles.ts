@@ -1383,7 +1383,7 @@ export const CHART_CARD = {
   // its body scrolls through every row, and the ✕ in its band lets it go.
   pinned: 'ring-1 ring-accent-ink',
   scroll: 'min-h-0 overflow-y-auto overscroll-contain',
-  unpin: `${ICON_ACTION} ${FOCUS_RING} ml-auto flex items-center font-normal`,
+  unpin: `${SQUARE_BUTTON} ml-auto size-5.5 flex-shrink-0 font-normal touch:size-8`,
   // A pinned card moves by its band and sizes by its corner (TJ 2026-10-30);
   // its heads sort it, an arrow in the accent on the one that does, as the
   // results table's heads do, the slot kept on every head so none moves.
@@ -2575,17 +2575,25 @@ export const PANEL_HEADER = {
 } as const
 
 /**
- * A round button in a panel's header: the desk panel's close button and the
- * theme switch beside it, and the switch again in a phone's Controls sheet
- * beside Done (#706). A 32px circle on either pointer, a finger's height
- * (`TAP`, record 0223), and no wider: `TAP.action`'s 44px width would draw it
- * as a capsule. The glyph in the control ink, on the raised surface at 80%.
- * The close button's recipe, named once it had a twin, so the two cannot
- * drift apart.
+ * An icon button inside a surface: a raised square with a frame (TJ
+ * 2026-10-30). A button's shape says where it stands: a circle floats on the
+ * map with nothing behind it (`MAP_ROUND_BUTTON`, the Legend and Layers
+ * chips), and every control inside the panel, a sheet, a card or a popup is a
+ * rounded rectangle, an icon-only one a square. The pinned chart card's ✕,
+ * the panel header's buttons and, in `map.css`, the marker popup's ✕ wear it.
  */
-export const HEADER_BUTTON =
-  `flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} ` +
-  'bg-raised/80 transition-colors hover:bg-raised-hover active:bg-raised-hover'
+export const SQUARE_BUTTON =
+  `flex items-center justify-center ${RADIUS.control} border border-frame bg-raised text-ink-soft ` +
+  `transition-colors hover:bg-raised-hover hover:text-ink-strong active:bg-raised-hover ${FOCUS_RING}`
+
+/**
+ * A button in a panel's header: the desk panel's close button and the theme
+ * switch beside it, and the switch again in a phone's Controls sheet beside
+ * Done (#706). A 32px square on either pointer, a finger's height (`TAP`,
+ * record 0223), and no wider: `TAP.action`'s 44px width would draw it as a
+ * bar. A `SQUARE_BUTTON`, being inside the panel.
+ */
+export const HEADER_BUTTON = `h-8 w-8 ${TEXT.control} ${SQUARE_BUTTON}`
 
 /**
  * Movement that answers a reader's action, at two speeds, and stops where
