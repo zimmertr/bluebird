@@ -995,16 +995,17 @@ export const ICON_CLOSE_BUTTON =
 
 /**
  * A glyph drawn inside a field rather than beside it: the chevron a `SELECT`
- * reserves its room for (`MENU_CHEVRON.field` at a desk, and the phone's two
- * native selects).
+ * reserves its room for (the phone's native selects). `ICON_ADORNMENT_PLACE`
+ * is where it stands without an ink of its own: `MENU_CHEVRON.field`, whose
+ * chevron takes its trigger's ink as every trigger's does (record 0251).
  *
  * `pointer-events-none` is the load-bearing part — the arrow overlays the
  * control it decorates, and without it the one place a user aims for is the one
  * place that does not open the dropdown. slate-400 is 7.0:1 on the recessed
  * fill, well past the 3:1 a UI glyph owes.
  */
-export const ICON_ADORNMENT =
-  'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft'
+export const ICON_ADORNMENT_PLACE = 'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2'
+export const ICON_ADORNMENT = `${ICON_ADORNMENT_PLACE} text-ink-soft`
 
 /**
  * How big a drawn glyph is, for every icon in `components/icons.tsx`.
@@ -1620,9 +1621,10 @@ export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
  * A map button: the locate button and the compass, at both widths (TJ,
  * 2026-10-14; record 0147). 40px and round, in the pill's dark chrome, with
  * the app's focus ring. Under the pointer its glyph takes the accent, as every
- * control's label does (record 0251): `map.css` draws each of the library's
- * glyphs as a mask in the button's own ink, so the class's colour is the
- * glyph's, and a disabled button does not light. The
+ * control's label does (record 0251): at rest `map.css` keeps the library's
+ * own drawings, and under the pointer it draws the same paths as a mask in
+ * the button's ink, which this class's hover makes the accent. A disabled
+ * button does not light. The
  * buttons are MapLibre's own, so their states (asking, tracking, failed; a
  * compass that resets north) stay the library's: `map/controls.ts` hands each
  * of them this role when the map is built, the one way a class reaches markup
@@ -1634,7 +1636,7 @@ export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
  */
 export const MAP_ROUND_BUTTON =
   `size-10 bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
-  `text-ink transition-colors enabled:hover:text-accent-ink ${FOCUS_RING}`
+  `transition-colors enabled:hover:text-accent-ink ${FOCUS_RING}`
 
 /**
  * The 3D button (#799): a map button whose glyph is the word `3D`, at the
@@ -1719,7 +1721,7 @@ export const MAP_CORNER = {
  */
 const MAP_ZOOM_HALF =
   `size-10 bg-floating/95 border border-edge ${ELEVATION.raised} backdrop-blur-sm ` +
-  `text-ink transition-colors enabled:hover:text-accent-ink ${FOCUS_RING}`
+  `transition-colors enabled:hover:text-accent-ink ${FOCUS_RING}`
 export const MAP_ZOOM_PAIR = {
   in: `${MAP_ZOOM_HALF} border-b-0 rounded-t-full`,
   out: `${MAP_ZOOM_HALF} rounded-b-full`,
@@ -1759,6 +1761,16 @@ export const MAP_CREDIT = {
 const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:before:-inset-y-[7px] touch:before:content-['']"
 
 /**
+ * Every menu trigger while its menu is out, chip, field and bar alike: lit in
+ * the accent fill under the label-on-fill ink, `ACCENT.fill`'s two classes as
+ * `aria-expanded` variants, which sort after the resting fill and the hover
+ * and so win without a race. One state for all three, because a field that
+ * showed only an accent edge beside a bar button that lit whole was the
+ * inconsistency the maintainer found on 2026-10-30 (record 0251).
+ */
+export const TRIGGER_LIT = 'aria-expanded:bg-accent aria-expanded:text-on-fill'
+
+/**
  * One chip in the phone's second row (#696): the pill's surface at 32px, the
  * control size at the normal weight and 12px of padding a side. A chip
  * takes its content's width and never shrinks, but for the summary
@@ -1788,7 +1800,7 @@ const CHIP_FACE =
   `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `${CONTROL_SIZE} text-ink-strong h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
   `transition-colors ${ACCENT.hoverText} active:bg-raised ` +
-  `aria-expanded:bg-accent aria-expanded:border-accent aria-expanded:text-on-fill ${FOCUS_RING}`
+  `${TRIGGER_LIT} aria-expanded:border-accent ${FOCUS_RING}`
 const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 
 /**
@@ -3060,13 +3072,6 @@ export const SELECT = `${FIELD} appearance-none pr-6`
  * the open state, the card, its gap and width, the rows and their type.
  */
 
-// The field chevron's inks: the adornment's slate at rest, and the accent
-// under the pointer and while its menu is open, where the field's edge turns
-// accent with it. On the chevron rather than inherited from the field,
-// because an open field keeps its label's ink and only its edge and chevron
-// say it is open. `group-enabled` so a faded field does not light.
-const FIELD_CHEVRON_INK = 'group-enabled:group-hover:text-accent-ink group-aria-expanded:text-accent-ink'
-
 /**
  * The three trigger shapes (record 0201), each with the one hover and the
  * one open state:
@@ -3074,17 +3079,21 @@ const FIELD_CHEVRON_INK = 'group-enabled:group-hover:text-accent-ink group-aria-
  * - `chip`: `MAP_CHIP`, which already had both: under the pointer its label
  *   takes the accent (`ACCENT.hoverText`), and while its menu is out it is
  *   lit in the accent fill.
- * - `field`: `SELECT`, with the same accent label under the pointer, and the
- *   accent edge while open. A field is not lit while open, because a
- *   filled field would read as a value chosen rather than a list shown.
- *   Spelled with `enabled:` here rather than composed from `ACCENT`'s hover
- *   roles, so the faded model picker over an archive window does not light.
- *   `relative`, because its chevron stands inside it.
+ * - `field`: `SELECT`, with the same accent label under the pointer, and lit
+ *   like a chip while open. It showed only an accent edge while open until
+ *   2026-10-30, because a filled field was thought to read as a value chosen
+ *   rather than a list shown; the maintainer found it beside the Columns
+ *   button, lit whole, and chose one open state for every trigger (record
+ *   0251). Its hover is spelled `enabled:not-aria-expanded:`, so the faded
+ *   model picker over an archive window does not light and an open field
+ *   keeps the label-on-fill ink under the pointer. `relative`, because its
+ *   chevron stands inside it.
  * - `bar`: `ACTION_ITEM`, whose hover is the accent label alone (it has no
  *   edge of its own inside its group), lit like a chip while open.
  *
- * The lit fill is `ACCENT.fill`'s two classes as `aria-expanded` variants,
- * which sort after the resting fill and the hover and so win without a race.
+ * The lit state is `TRIGGER_LIT`, the one all three wear. Each chevron takes
+ * its trigger's ink rather than an ink of its own, so it follows the label
+ * at rest, under the pointer and lit.
  *
  * The hover is the label alone, the edge never: a chip and a field lit their
  * edge too until 2026-10-30, when the maintainer found a dropdown lighting
@@ -3094,9 +3103,9 @@ const FIELD_CHEVRON_INK = 'group-enabled:group-hover:text-accent-ink group-aria-
 export const MENU_TRIGGER = {
   chip: MAP_CHIP,
   field:
-    `${SELECT} group relative enabled:hover:text-accent-ink ` +
-    'aria-expanded:border-accent-ink',
-  bar: `${ACTION_ITEM} aria-expanded:bg-accent aria-expanded:text-on-fill`,
+    `${SELECT} group relative enabled:not-aria-expanded:hover:text-accent-ink ` +
+    `${TRIGGER_LIT} aria-expanded:border-accent`,
+  bar: `${ACTION_ITEM} ${TRIGGER_LIT}`,
 } as const
 
 /**
@@ -3116,7 +3125,7 @@ export const MENU_TRIGGER = {
 export const MENU_CHEVRON = {
   chip: '-mr-1',
   bar: '-mr-0.5',
-  field: `${ICON_ADORNMENT} ${FIELD_CHEVRON_INK}`,
+  field: ICON_ADORNMENT_PLACE,
 } as const
 
 // A row's shape in any menu: 6px in from the list's 4px, so its words stand
@@ -3303,11 +3312,11 @@ export const MESSAGE_LIST = {
  * (one line is 30px); 8px is the border plus 7px on a touch screen, where a
  * one-line field is `TAP.height`'s 32px. The chevron is `ICON_ADORNMENT`'s
  * placement pinned to that first line rather than to the middle of the box,
- * in the field chevron's inks (`FIELD_CHEVRON_INK`).
+ * in its field's ink, as every trigger's chevron is (record 0251).
  */
 export const CALENDAR_FIELD = {
   box: 'flex w-full items-start px-2 py-1.5 touch:py-[7px] text-left',
-  arrow: `pointer-events-none absolute right-2 top-[7px] touch:top-[8px] text-ink-soft ${FIELD_CHEVRON_INK}`,
+  arrow: 'pointer-events-none absolute right-2 top-[7px] touch:top-[8px]',
 } as const
 
 /**

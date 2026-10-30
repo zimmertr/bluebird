@@ -37,6 +37,7 @@ import {
   FOCUS_RING_INSET,
   ICON,
   ICON_ADORNMENT,
+  ICON_ADORNMENT_PLACE,
   METRICS_GRID,
   METRIC_BOX_W,
   METRIC_HEAD_GAP,
@@ -91,6 +92,7 @@ import {
   MODEL_ROW,
   MENU_CHEVRON,
   MENU_TRIGGER,
+  TRIGGER_LIT,
   MAP_CHIP_MENU,
   MAP_CHIP_SUMMARY,
   MAP_CHIP_SUMMARY_TEXT,
@@ -2612,16 +2614,14 @@ describe('the phone chrome\'s hit areas', () => {
   })
 
   // The (i)'s glyph is centred on its button's whole box (TJ, 2026-10-14):
-  // the library placed it at the padding box's top left, which the role's
-  // 1px border moved 1px off centre and clipped. It is a mask on the
-  // button's `after` now, over the border box, in the button's ink.
+  // the library places it at the padding box's top left, which the role's
+  // 1px border moves 1px off centre and clips.
   it('centres the (i) glyph on its button', () => {
-    const at = mapCss.indexOf('.maplibregl-ctrl-attrib-button::after {')
-    expect(at).toBeGreaterThan(-1)
+    const at = mapCss.indexOf('.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {')
     const rule = mapCss.slice(at, mapCss.indexOf('}', at))
-    for (const decl of ['inset: -1px;', 'mask-position: center;', 'mask-repeat: no-repeat;', 'background-color: currentColor;']) {
-      expect(rule).toContain(decl)
-    }
+    expect(rule).toContain('background-origin: border-box;')
+    expect(rule).toContain('background-position: center;')
+    expect(rule).toContain('background-repeat: no-repeat;')
   })
 
   // The compass needle is redrawn, not inverted (TJ, 2026-10-14): inverting
@@ -2660,7 +2660,7 @@ describe('the phone chrome\'s hit areas', () => {
   // map.css rule may change a colour or a glyph's mask, never an edge or a
   // fill, except the one solid button, 3D while it is on, which deepens its
   // fill as every filled button does.
-  it('lights no edge or fill under the pointer in map.css, and draws every map glyph in its ink', () => {
+  it('lights no edge or fill under the pointer in map.css, and lights every map glyph in the accent', () => {
     const SOLID = ['.map-terrain[aria-pressed="true"]:hover']
     const rules = [...mapCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => [
       selector.slice(selector.lastIndexOf('*/') + 1).replace(/^\/?\s*/, '').trim(),
@@ -2677,24 +2677,41 @@ describe('the phone chrome\'s hit areas', () => {
         expect(selector.includes('.maplibregl-ctrl-icon') ? value : value.trim(), selector).toMatch(/^(none|transparent|currentColor)$/)
       }
     }
-    // Each of the library's glyphs, in every state it has, is a mask: the
-    // zoom pair, the locate button resting, following, panned away and
-    // refused, the compass under the pointer, and the (i).
-    for (const glyph of [
-      'zoom-in .maplibregl-ctrl-icon {',
-      'zoom-out .maplibregl-ctrl-icon {',
-      'maplibregl-ctrl-geolocate .maplibregl-ctrl-icon {',
-      'maplibregl-ctrl-geolocate-background-error .maplibregl-ctrl-icon {',
-      'maplibregl-ctrl-geolocate:disabled .maplibregl-ctrl-icon {',
-      'maplibregl-ctrl-compass:enabled:hover .maplibregl-ctrl-icon {',
-      'maplibregl-ctrl-attrib-button::after {',
-    ]) {
+    // Under the pointer each of the library's glyphs, in every state that
+    // can be pressed, is the same drawing as a mask in its button's ink at the
+    // drawing's own size, and the (i)'s on its after: the zoom pair, the
+    // locate button resting, following and panned away. At rest they keep the
+    // library's drawings (the test above).
+    const hoverRule = (glyph: string) => {
       const at = mapCss.indexOf(glyph)
       expect(at, glyph).toBeGreaterThan(-1)
-      expect(mapCss.slice(at, mapCss.indexOf('}', at)), glyph).toMatch(/mask-image: url\(/)
+      return mapCss.slice(at, mapCss.indexOf('}', at))
     }
-    // The states' colours are theme tokens, never a value of their own.
-    for (const state of ['--ui-accent-ink)', '--ui-danger)', '--ui-accent-ink-hover)']) expect(mapCss).toContain(`color: var(${state};`)
+    const every = hoverRule('.maplibregl-ctrl-group button:enabled:hover .maplibregl-ctrl-icon {')
+    for (const decl of ['background-image: none;', 'background-color: currentColor;', 'mask-size: auto;', 'mask-position: 50%;']) {
+      expect(every).toContain(decl)
+    }
+    for (const glyph of [
+      'zoom-in:enabled:hover .maplibregl-ctrl-icon {',
+      'zoom-out:enabled:hover .maplibregl-ctrl-icon {',
+      'maplibregl-ctrl-geolocate:enabled:hover .maplibregl-ctrl-icon {',
+      'maplibregl-ctrl-geolocate-background-error:enabled:hover .maplibregl-ctrl-icon {',
+      '.maplibregl-ctrl-attrib-button:hover::after {',
+    ]) {
+      expect(hoverRule(glyph), glyph).toMatch(/mask-image: url\(/)
+    }
+    // The compass is two colours, so under the pointer it is its own drawing
+    // at rest with the north triangle alone refilled, in each theme's accent
+    // ink: the paint bucket on the one triangle, and nothing else moved.
+    const svgOf = (rule: string) => decodeURIComponent(rule.slice(rule.indexOf('url("') + 5, rule.indexOf('")')))
+    const rest = svgOf(hoverRule('.maplibregl-ctrl-group .maplibregl-ctrl-compass .maplibregl-ctrl-icon {'))
+    const lit = {
+      dark: svgOf(hoverRule('  .maplibregl-ctrl-group button.maplibregl-ctrl-compass:enabled:hover .maplibregl-ctrl-icon {')),
+      light: svgOf(hoverRule(':root[data-theme="light"] .maplibregl-ctrl-group button.maplibregl-ctrl-compass:enabled:hover .maplibregl-ctrl-icon {')),
+    }
+    expect(rest).toContain('<path fill="#ef4444" d="m10.5 14 4-8 4 8z"/>')
+    expect(lit.dark).toBe(rest.replace('fill="#ef4444"', `fill="${dark('accent-ink')}"`))
+    expect(lit.light).toBe(rest.replace('fill="#ef4444"', `fill="${light('accent-ink')}"`))
     // And the buttons' classes carry the hover the glyphs follow.
     for (const recipe of [MAP_ROUND_BUTTON, MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out]) {
       expect(recipe).toContain('enabled:hover:text-accent-ink')
@@ -2704,7 +2721,7 @@ describe('the phone chrome\'s hit areas', () => {
 
   // The library's white box comes off its buttons (record 0147): a group is
   // no surface of its own, its buttons 4px apart as the app's column is.
-  it('draws the library\'s buttons as the app\'s, 4px apart, glyphs in their ink', () => {
+  it('draws the library\'s buttons as the app\'s, 4px apart, glyphs light', () => {
     const rule = (selector: string) => {
       const at = mapCss.indexOf(`${selector} {`)
       expect(at, selector).toBeGreaterThanOrEqual(0)
@@ -2713,12 +2730,10 @@ describe('the phone chrome\'s hit areas', () => {
     const group = rule('.maplibregl-ctrl-group')
     for (const decl of ['background: transparent;', 'box-shadow: none;', 'gap: 4px;']) expect(group).toContain(decl)
     expect(rule('.maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl')).toContain('margin-top: 4px;')
-    // Every glyph is a mask in its button's ink (record 0251), so one drawing
-    // serves both themes and the hover's colour is the button's class.
-    for (const decl of ['filter: none;', 'background-image: none;', 'background-color: currentColor;']) {
-      expect(rule('.maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain(decl)
-    }
-    expect(mapCss).not.toMatch(/filter:\s*invert/)
+    expect(rule('.maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: invert(1) hue-rotate(180deg);')
+    // The light theme's buttons are light, so its glyphs keep the library's
+    // own dark drawing (#706).
+    expect(rule(':root[data-theme="light"] .maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: none;')
     // The idle compass hides by a class on the button itself (record 0147),
     // since a phone stands it outside the map's container: in the chip row's
     // slot while north-up. A desk's corner keeps it, greyed by `DISABLED`
@@ -4192,22 +4207,24 @@ describe('the one menu', () => {
   it('lights every trigger the same way under the pointer', () => {
     const accent = token(ACCENT.hoverText, 'hover:text')
     expect(token(MAP_CHIP, 'hover:text')).toBe(accent)
-    expect(token(MENU_TRIGGER.field, 'enabled:hover:text')).toBe(accent)
+    expect(token(MENU_TRIGGER.field, 'enabled:not-aria-expanded:hover:text')).toBe(accent)
     expect(token(MENU_TRIGGER.bar, 'hover:text')).toBe(accent)
     for (const recipe of [MAP_CHIP, MENU_TRIGGER.field, MENU_TRIGGER.bar, SEGMENT_IDLE, BUTTON_FLOATING]) {
       expect(recipe).not.toMatch(/hover:border/)
     }
   })
 
-  // Open, a chip and a bar button light in the accent fill; a field keeps
-  // its accent edge, since a filled field would read as a value chosen.
-  it('lights a chip and a bar button while open, and edges a field', () => {
-    const fill = words(ACCENT.fill)
-    for (const shape of [MENU_TRIGGER.chip, MENU_TRIGGER.bar]) {
-      for (const part of fill) expect(words(shape)).toContain(`aria-expanded:${part}`)
+  // Open, every trigger lights the one way, in the accent fill under the
+  // label-on-fill ink: chip, field and bar, and the summary chip that raises
+  // the Controls sheet (record 0251). A field showed only an accent edge
+  // until the maintainer found it beside a lit Columns button.
+  it('lights every trigger the same way while open', () => {
+    expect(words(TRIGGER_LIT)).toEqual(words(ACCENT.fill).map((part) => `aria-expanded:${part}`))
+    for (const shape of [...Object.values(MENU_TRIGGER), MAP_CHIP_SUMMARY]) {
+      for (const part of words(TRIGGER_LIT)) expect(words(shape)).toContain(part)
     }
-    expect(token(MENU_TRIGGER.field, 'aria-expanded:border')).toBe(token(ACCENT.hoverText, 'hover:text'))
-    expect(MENU_TRIGGER.field).not.toMatch(/aria-expanded:bg-/)
+    // An open field keeps the label-on-fill ink under the pointer.
+    expect(MENU_TRIGGER.field).not.toMatch(/(^|\s)(enabled:)?hover:text-/)
   })
 
   // The chevron's stroke runs 6 to 18 of its 24-unit box, so at
@@ -4222,19 +4239,17 @@ describe('the one menu', () => {
     expect(MAP_CHIP).toContain('px-3')
     expect(MENU_CHEVRON.bar).toBe('-mr-0.5')
     expect(stepPx(ACTION_ITEM, 'px') + empty - 2).toBe(8)
-    expect(MENU_CHEVRON.field).toContain(ICON_ADORNMENT)
-    expect(token(MENU_CHEVRON.field, 'group-aria-expanded:text')).toBe(token(ACCENT.hoverText, 'hover:text'))
-    expect(token(MENU_CHEVRON.field, 'group-enabled:group-hover:text')).toBe(token(ACCENT.hoverText, 'hover:text'))
+    expect(MENU_CHEVRON.field).toBe(ICON_ADORNMENT_PLACE)
+    // Every chevron takes its trigger's ink, at rest, under the pointer and lit.
+    for (const chevron of Object.values(MENU_CHEVRON)) expect(chevron).not.toMatch(/(^|[\s:])text-/)
     expect(MENU_TRIGGER.field).toMatch(/(^|\s)group(\s|$)/)
     expect(MENU_TRIGGER.field).toMatch(/(^|\s)relative(\s|$)/)
   })
 
   // The calendar's field is a field trigger whose chevron stands on its first
-  // line, in the same inks.
-  it("gives the calendar's chevron the field chevron's inks", () => {
-    for (const ink of ['group-aria-expanded:text', 'group-enabled:group-hover:text']) {
-      expect(token(CALENDAR_FIELD.arrow, ink)).toBe(token(MENU_CHEVRON.field, ink))
-    }
+  // line, in its field's ink as every trigger's chevron is.
+  it("gives the calendar's chevron its field's ink", () => {
+    expect(CALENDAR_FIELD.arrow).not.toMatch(/(^|[\s:])text-/)
   })
 
   // About 150ms, the same both ways, and off under reduced motion: fades in

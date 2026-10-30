@@ -155,7 +155,8 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `CHART_METRIC_W` | The chart's metric menu, 152px (w-38). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: its labels carry an hour's unit, and `Precipitation (in/hr)` is 109.03px (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
 | `CHIP_CARD_W` | Widths of the two chip cards at a desk, keyed like `SURFACE_CHIP_CARD`. `key`, the legend card: 224px (w-56) since #799. The fire activity key's one line needs 189.4px with the card's padding, the legend's wait line 176.8px. `menu`, the Layers menu: as wide as its widest row and never narrower than its chip (`w-max min-w-full`), as every other menu is; 246.7px since its base-map rows carry a slider (record [0250](decisions/0250-layers-palette-and-base-map-opacity.md)), 128.7px before. The two shared one width until 2026-10-29 (the maintainer, on #799) |
 | `MAP_CHIP_MENU` | Where a chip's menu stands at a desk: a whole card from the chip's left edge, 4px under it, at its own `CHIP_CARD_W` width. That is closer than the 8px between the pill and the chip row, so the card reads as its chip's menu and not as another row. Not joined: the chip keeps its pill and is lit while the card is out. The caller picks the surface: `SURFACE_CHIP_CARD.menu` for the Layers menu, `.key` for the legend card. Every other desk menu copies this card |
-| `MENU_TRIGGER` | The three trigger shapes, on purpose: `chip` for a pill on the map, `field` for a field in the panel or over the chart, `bar` for a button in the results bar's group. Each takes the accent on its label under the pointer, never its edge (record [0251](decisions/0251-controls-light-their-label-on-hover.md)), and while its menu is out the chip and the bar button light in the accent fill and the field keeps its accent edge. `MenuButton` in `components/Menu.tsx` is the only wearer |
+| `TRIGGER_LIT` | Every menu trigger while its menu is out: `ACCENT.fill` as `aria-expanded` variants, the one open state for chip, field and bar (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
+| `MENU_TRIGGER` | The three trigger shapes, on purpose: `chip` for a pill on the map, `field` for a field in the panel or over the chart, `bar` for a button in the results bar's group. Each takes the accent on its label under the pointer, never its edge (record [0251](decisions/0251-controls-light-their-label-on-hover.md)), and while its menu is out every shape lights in the accent fill under the label-on-fill ink (`TRIGGER_LIT`), its chevron taking its trigger's ink. `MenuButton` in `components/Menu.tsx` is the only wearer |
 | `MENU_CHEVRON` | Where each shape's chevron stands: `IconChevron` after the label, down while the menu is shut and up while it is open. The chip's is pulled 4px into its padding and the bar button's 2px, so each sits as far from the right edge as the label does from the left; the field's stands in `ICON_ADORNMENT`'s place and takes the accent with the edge. A phone's chips and bar buttons have none, because their sheets rise from below |
 | `MENU` | The parts of the one menu: `card` (the chip card's `menu` surface on `LAYER.popover`), `foot` (a foot ruled off by `SURFACE_DIVIDER`; a menu has no header, its trigger names it, record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)), `list` (the scrolling rows on `SCROLL_BARS`), `row` and `option` (the Layers menu's 10px inset, `option` adding the control size and the touch row for a list you pick from), `cardRow` (a Layers row's inset, pulled out so its fill starts where a list row's does, 20px apart like every menu's rows), `active` (the raised fill under the pointer or the keyboard), `hover` (the same fill on every enabled checkbox row), `current` (the value a field shows, in semibold, with no check mark) and `heading` (a word over a group of rows, read and never pressed: the caption step in semibold, sentence case, 5.56:1 dark and 8.91:1 light on the card; the Layers menu's Base map, Hazards and Forecast, record [0249](decisions/0249-layers-in-three-groups.md)) |
 | `MENU_GROUP` | A group of the Layers menu's rows under its `MENU.heading` (record [0249](decisions/0249-layers-in-three-groups.md)). At a desk `card` sets each group 6px under the one over it, the first none, and `cardHeading` keeps 2px under the heading, the gap a row keeps, with no rule. On a phone's sheet `sheet` draws the sheet's own rule between the heading and each row, `sheetHeading` stands 6px under the rule over it and 2px over the next, 25px tall to a row's 33, and `sheetRow` is a row's 32px |
@@ -342,11 +343,13 @@ either ground: a marker wears a dark ring outside its white stroke, and the
 scale's ends are a dark line and a light one (#799). Record:
 [0243](decisions/0243-map-reads-on-a-dark-ground.md) The
 map's control buttons and its credit box are the app's chrome and
-follow the theme like any floating box: `map.css` draws every one of
-MapLibre's glyphs as a mask in its button's own ink, so one drawing serves both
-themes and the glyph takes the accent under the pointer as a label does
-(record [0251](decisions/0251-controls-light-their-label-on-hover.md)), and the
-credit line reads in `ink-mid`.
+follow the theme like any floating box, which is why in light their glyphs keep
+MapLibre's own dark drawing where `map.css` inverts them in dark, and the credit
+line reads in `ink-mid`. Under the pointer a glyph takes the accent as a label
+does, the same drawing at the same size in a new colour: `map.css` redraws the
+library's paths as a mask in the button's ink, and the compass's north triangle
+alone turns from red to the accent (record
+[0251](decisions/0251-controls-light-their-label-on-hover.md)).
 
 **The popups follow the theme** (#740), **and are the panel's own surface** (#786). Every colour a card wears is a
 `--popup-*` value that `map.css` declares once, each the app's `--ui-*` token
@@ -389,7 +392,8 @@ button against the panel's in a browser. Record: [0163](decisions/0163-popups-fo
 | Every radio/checkbox uses the shared recipe | `styles.test.ts`, `checks/styles.js` | The test checks `CHOICE_INPUT` composition and counts one per `CHOICE_ROW` in each panel file; `style-call-site-classes` bans a size after `ACCENT.input` |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
-| One hover: a control's label or glyph takes the accent, and no edge lights | `checks/styles.js`, `styles.test.ts` | `style-hover-no-edge` bans a `hover:` border, outline or ring in any class string; the test holds `map.css` to it (only a colour or a glyph's mask changes under the pointer, 3D's solid fill aside) and every map glyph, in every state, to a mask in its button's ink (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
+| One open state: every menu trigger lights in the accent fill | `styles.test.ts`, `Menu.test.tsx` | Every `MENU_TRIGGER` shape and the summary chip wear `TRIGGER_LIT`, and every chevron takes its trigger's ink (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
+| One hover: a control's label or glyph takes the accent, and no edge lights | `checks/styles.js`, `styles.test.ts` | `style-hover-no-edge` bans a `hover:` border, outline or ring in any class string; the test holds `map.css` to it (only a colour or a glyph's mask changes under the pointer, 3D's solid fill aside), every map glyph under the pointer to its own drawing in the accent, and the compass's to its drawing at rest with the north triangle alone refilled in each theme's accent ink (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
 | Metric names are centralized | `eslint.config.js` | Ban the six abbreviations in strings and templates across twelve consumer files |
 | Precipitation precision is centralized | `metrics.test.ts` | Ban a `toFixed` on a precipitation value in the same twelve files, read as text; `formatPrecipTotal` / `formatPrecipRate` decide |
 | Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
@@ -781,10 +785,9 @@ both themes). The credit line's (i) is the same dark
 round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
 is the floating card (`MAP_CREDIT.card`), which a desk's credit line in the
 corner is itself, so the line sheds the card it would otherwise wear; its links dressed in `map.css` as
-`LINK` dresses the app's. The compass needle is redrawn, red-500 north and
-slate-50 south edged in slate-600, and under the pointer it is one shape in
-the accent, as every map glyph lights; the (i)'s glyph is centred on its
-button's whole box. The scale bar is a ruler on the map, not a
+`LINK` dresses the app's. The compass needle is redrawn rather than inverted,
+red-500 north and slate-50 south edged in slate-600, its north in the accent
+under the pointer, and the (i)'s glyph is centred on its button's whole box. The scale bar is a ruler on the map, not a
 control, so it wears none of that chrome.
 Record: [0147](decisions/0147-map-buttons-wear-the-app-chrome.md) It stands on
 the legend ramp's scrim in the ramp's ink instead, so it follows the theme
