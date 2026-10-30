@@ -27,6 +27,7 @@ import type { GeoPolygon } from '../types'
 import { enhanceBasemap } from './basemap'
 import { mountCamera } from './camera'
 import type { MapController } from './controller'
+import { mountCoordinatePopups } from './coordinatePopup'
 import { mountDrawRing, type DrawRing } from './drawRing'
 import { serveHeldTiles } from './heldTileProtocol'
 import { mountLandmarks, type LandmarkLayer } from './landmarks'
@@ -105,6 +106,7 @@ export function mountFeatures(
   })
   const results = mountResultsLayer(map, { controller, popups: mapPopups })
   const pois = mountPoiPopups(map, { controller, popups: mapPopups, landmarks })
+  mountCoordinatePopups(map, { controller, popups: mapPopups })
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })

@@ -54,6 +54,8 @@ Seven things are worth knowing about what you can click:
 
 A polygon finds every trailhead or crag in an area at once: tick **Trailheads** or **Crags** under **Polygon search**.
 
+Right-click anywhere on the map, or press and hold on a phone, for a card about that spot, labelled or not. Its title is the coordinates, and the glyph beside them opens CalTopo there. **Add to analysis** makes the spot a destination, the same as pasting its coordinates into the search box. A right-click over a marker or a label is still about the spot under the pointer; click it for the place's own card. Dragging with the right button still turns the map.
+
 ### c. Polygon search
 
 Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon search** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
