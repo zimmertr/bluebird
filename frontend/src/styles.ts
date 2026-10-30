@@ -3294,7 +3294,13 @@ export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
  * - `styles` / `stylesSheet`: the pair's segment, the panel's recessed edge,
  *   20px tall at a desk and 24 on a phone's sheet like the sliders beside it.
  * - `style`: one icon of the pair, 24px wide. Faded with `DISABLED` while the
- *   row is greyed, since no style can draw then.
+ *   row is greyed, since no style can draw then. On a finger it presses 32px
+ *   square, an invisible box 4px past each side the way the chips take
+ *   theirs (`CHIP_HIT`), so it is as easy to hit as the app's other phone
+ *   controls (record 0223) while the row stays one line: a drawn 32px pair
+ *   would leave the slider too narrow for `100 km` (the maintainer,
+ *   2026-10-30). The pair therefore clips nothing, which would cut the box
+ *   off, and each icon rounds its own outer corners instead.
  * - `reach` / `reachSheet`: the coverage slider's well, whatever the pair
  *   leaves of the column: 120 less the pair's 51 (two 24px icons, the 2px
  *   edge and the 1px divider) and the 4px gap is 65px, where the widest
@@ -3304,9 +3310,11 @@ export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
  */
 export const LAYER_GRID = {
   controls: 'flex w-30 flex-shrink-0 items-center gap-1',
-  styles: `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE} h-5 flex-shrink-0`,
-  stylesSheet: `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE} h-6 flex-shrink-0`,
-  style: `flex w-6 items-center justify-center transition-colors ${FOCUS_RING} ${DISABLED}`,
+  styles: `inline-flex ${RADIUS.control} ${RECESSED_EDGE} h-5 flex-shrink-0`,
+  stylesSheet: `inline-flex ${RADIUS.control} ${RECESSED_EDGE} h-6 flex-shrink-0`,
+  style:
+    `relative flex w-6 items-center justify-center first:rounded-l-xs last:rounded-r-xs transition-colors ` +
+    `touch:before:absolute touch:before:-inset-1 touch:before:content-[''] ${FOCUS_RING} ${DISABLED}`,
   reach: 'relative h-5 min-w-0 flex-1 overflow-hidden has-[:disabled]:opacity-40',
   reachSheet: 'relative h-6 min-w-0 flex-1 overflow-hidden has-[:disabled]:opacity-40',
 } as const

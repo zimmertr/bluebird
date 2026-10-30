@@ -1527,6 +1527,11 @@ describe('shared recipes', () => {
     const pair = 2 * stepPx(LAYER_GRID.style, 'w') + 3
     const reach = stepPx(LAYER_GRID.controls, 'w') - pair - stepPx(LAYER_GRID.controls, 'gap')
     expect([pair, reach]).toEqual([51, 65])
+    // On a finger each icon presses 32px square: its 24 and 4px past each side.
+    expect(LAYER_GRID.style).toContain('touch:before:-inset-1')
+    expect(stepPx(LAYER_GRID.style, 'w') + 2 * stepPx(LAYER_GRID.style.replace('touch:before:-inset', 'inset'), 'inset')).toBe(32)
+    // A pair that clipped its icons would cut the box off.
+    expect(`${LAYER_GRID.styles} ${LAYER_GRID.stylesSheet}`).not.toMatch(/overflow-hidden/)
     expect(stepPx(LAYER_GRID.controls, 'w')).toBe(stepPx(LAYER_ROW.slider, 'w'))
     expect(reach - MEASURED.reachValue).toBeGreaterThanOrEqual(8)
     expect(MAP_CHIP_MENU).not.toMatch(/(^|\s)w-/)
