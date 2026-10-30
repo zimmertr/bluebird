@@ -83,6 +83,7 @@ import {
   CHART_PLOT_TOUCH,
   CHART_TITLE,
   CHART_PANEL_BUTTON,
+  CHART_PICKER,
   CHART_CARD,
   CHART_GUTTER,
   MENU,
@@ -2922,7 +2923,6 @@ describe('the chart title on a phone', () => {
     expect(words(CHART_PANEL_BUTTON.add)).toEqual(
       expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, ...words(ICON_ACTION), ...words(DISABLED)]),
     )
-    expect(words(CHART_PANEL_BUTTON.remove)).toEqual(expect.arrayContaining(words(ICON_ACTION)))
     // A desk picker: a 16px line of `TEXT.control`, `py-0.5` (2px) above and
     // below, and a 1px edge each side, is 22px: `size-5.5`. Under a finger
     // the picker's `touch:min-h-8` is 32px: `touch:size-8`.
@@ -2933,6 +2933,24 @@ describe('the chart title on a phone', () => {
     // A phone's title box is `h-7`, 28px, and so is its square.
     expect(words(CHART_TITLE.box)).toContain('h-7')
     expect(CHART_PANEL_BUTTON.titleSquare).toBe('size-7')
+  })
+
+  // A removable picker is one field in two segments (#499; TJ 2026-10-29,
+  // option A): the group wears the field's look, the picker none of its own,
+  // and the × stands behind an edge divider at the picker's height.
+  it('draws a removable picker and its × as one field in two segments', () => {
+    expect(words(CHART_PICKER.group)).toEqual(expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control]))
+    expect(words(CHART_PICKER.titleGroup)).toEqual(expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, 'h-7']))
+    for (const inner of [MENU_TRIGGER.segment, CHART_PICKER.titleBox]) {
+      expect(inner).not.toMatch(/(^|\s)(bg-|border|rounded)/)
+    }
+    expect(words(CHART_PICKER.group)).toEqual(expect.arrayContaining(['has-[[aria-expanded=true]]:border-accent-ink']))
+    expect(words(CHART_PICKER.remove)).toEqual(expect.arrayContaining([...words(ICON_ACTION), ...words(FOCUS_RING_INSET), 'border-l', 'border-edge']))
+    // 22px beside a desk's picker, the height `square` measures above, and the
+    // title box's 28px on a phone.
+    expect(words(CHART_PICKER.x)).toEqual(['w-5.5', 'touch:w-8'])
+    expect(CHART_PICKER.titleX).toBe('w-7')
+    expect(MENU_CHEVRON.segment).toBe(MENU_CHEVRON.field)
   })
 
   // The grid's gutters are its handles (#499): a cursor per axis, a 1px line
@@ -3823,7 +3841,7 @@ describe('the one menu', () => {
   // recorded"): a pill on the map, a field in the panel, a button in the
   // results bar's group. Everything else is the one menu.
   it('keeps three trigger shapes and no more', () => {
-    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field'])
+    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'segment'])
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.field.startsWith(SELECT)).toBe(true)
     expect(MENU_TRIGGER.bar.startsWith(ACTION_ITEM)).toBe(true)

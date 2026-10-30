@@ -144,6 +144,8 @@ interface MenuSelectProps<V extends string> {
   onChange: (value: V) => void
   /** The field's width and insets, from the role its call site already wore. */
   className: string
+  /** A field of its own, or the left segment of a group that wears the field's look (#499). */
+  shape?: 'field' | 'segment'
 }
 
 /**
@@ -162,7 +164,7 @@ interface MenuSelectProps<V extends string> {
  * way a select does. The field is named by the select's old name and the
  * value it shows, so a screen reader hears both.
  */
-export function MenuSelect<V extends string>({ label, value, options, onChange, className }: MenuSelectProps<V>) {
+export function MenuSelect<V extends string>({ label, value, options, onChange, className, shape = 'field' }: MenuSelectProps<V>) {
   const [open, setOpen] = useState(false)
   const selectedIndex = Math.max(
     options.findIndex((o) => o.value === value),
@@ -202,7 +204,7 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
     <>
       <MenuButton
         ref={triggerRef}
-        shape="field"
+        shape={shape}
         open={open}
         aria-haspopup="listbox"
         aria-labelledby={`${nameId} ${valueId}`}

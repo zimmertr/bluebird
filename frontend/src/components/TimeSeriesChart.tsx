@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_CARD, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, TEXT } from '../styles'
+import { CHART_CARD, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, TEXT } from '../styles'
 import { IconChevron, IconClose, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
@@ -487,8 +487,14 @@ function TimeSeriesChart({
     const p = pickers[i]
     return (
       <div className={CHART_TITLE.bar}>
-        <MetricTitle label={p.label} shown={p.metricLabel} value={p.metric} index={i} onPick={onPick} />
-        {i > 0 && <RemoveButton index={i} metricLabel={p.metricLabel} onRemove={onRemove} square={CHART_PANEL_BUTTON.titleSquare} />}
+        {i > 0 ? (
+          <div className={CHART_PICKER.titleGroup}>
+            <MetricTitle label={p.label} shown={p.metricLabel} value={p.metric} index={i} onPick={onPick} segment />
+            <RemoveButton index={i} metricLabel={p.metricLabel} onRemove={onRemove} width={CHART_PICKER.titleX} />
+          </div>
+        ) : (
+          <MetricTitle label={p.label} shown={p.metricLabel} value={p.metric} index={i} onPick={onPick} />
+        )}
         {i === 0 && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.titleSquare} />}
       </div>
     )
@@ -573,15 +579,17 @@ function TimeSeriesChart({
               // descender space below itself and sits a pixel low against what
               // is beside it.
               <div key={p.index} className="relative flex flex-shrink-0 items-center gap-1">
-                <MenuSelect
-                  label={p.label}
-                  value={p.metric}
-                  options={METRIC_OPTIONS}
-                  onChange={(m: ChartMetric) => onPick(p.index, m)}
-                  className={`${CHART_METRIC_W} px-2 py-0.5`}
-                />
-                {p.index > 0 && (
-                  <RemoveButton index={p.index} metricLabel={p.metricLabel} onRemove={onRemove} square={CHART_PANEL_BUTTON.square} />
+                {segmented(
+                  p.index,
+                  <MenuSelect
+                    label={p.label}
+                    value={p.metric}
+                    options={METRIC_OPTIONS}
+                    onChange={(m: ChartMetric) => onPick(p.index, m)}
+                    className={`${CHART_METRIC_W} px-2 py-0.5`}
+                    shape={p.index === 0 ? 'field' : 'segment'}
+                  />,
+                  <RemoveButton index={p.index} metricLabel={p.metricLabel} onRemove={onRemove} width={CHART_PICKER.x} />,
                 )}
                 {p.index === metrics.length - 1 && (
                   <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />
@@ -666,25 +674,37 @@ const GUTTER_PX = 8
 
 const metricLabelOf = (m: ChartMetric) => CHART_METRICS.find((c) => c.key === m)?.label ?? ''
 
-/** The × that takes a panel away (#499): the legend chip's own ×. */
+// Every picker but the first and its × are one field in two segments
+// (#499; TJ 2026-10-29); the first stands alone.
+const segmented = (index: number, picker: ReactNode, remove: ReactNode) =>
+  index === 0 ? (
+    picker
+  ) : (
+    <div className={CHART_PICKER.group}>
+      {picker}
+      {remove}
+    </div>
+  )
+
+/** The × that takes a panel away (#499): the right segment of its picker's field. */
 function RemoveButton({
   index,
   metricLabel,
   onRemove,
-  square,
+  width,
 }: {
   index: number
   metricLabel: string
   onRemove: (i: number) => void
-  /** The square it fills: a desk picker's height or a phone title's. */
-  square: string
+  /** The segment's width: a desk picker's height or a phone title's. */
+  width: string
 }) {
   return (
     <button
       type="button"
       onClick={() => onRemove(index)}
       aria-label={removePanelLabel(metricLabel)}
-      className={`${CHART_PANEL_BUTTON.remove} ${square}`}
+      className={`${CHART_PICKER.remove} ${width}`}
     >
       <IconClose size="chip" />
     </button>
@@ -712,15 +732,18 @@ function MetricTitle({
   value,
   index,
   onPick,
+  segment = false,
 }: {
   label: string
   shown: string
   value: ChartMetric
   index: number
   onPick: (index: number, m: ChartMetric) => void
+  /** The left segment of a group that wears the box's look (#499). */
+  segment?: boolean
 }) {
   return (
-    <div className={CHART_TITLE.box}>
+    <div className={segment ? CHART_PICKER.titleBox : CHART_TITLE.box}>
       <span aria-hidden="true" className={CHART_TITLE.text}>
         {shown}
       </span>

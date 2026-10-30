@@ -2994,6 +2994,13 @@ export const MENU_TRIGGER = {
   field:
     `${SELECT} group relative enabled:hover:border-accent-ink enabled:hover:text-accent-ink ` +
     'aria-expanded:border-accent-ink',
+  /**
+   * A field's left segment inside `CHART_PICKER`'s group (#499): the field's
+   * type and arrow room with no fill, edge or radius of its own, because the
+   * group wears them and lights its edge for this segment's hover, open and
+   * focus.
+   */
+  segment: `${TEXT.control} appearance-none pr-6 group relative focus:outline-none enabled:hover:text-accent-ink`,
   bar: `${ACTION_ITEM} aria-expanded:bg-accent aria-expanded:text-on-fill`,
 } as const
 
@@ -3015,6 +3022,7 @@ export const MENU_CHEVRON = {
   chip: '-mr-1',
   bar: '-mr-0.5',
   field: `${ICON_ADORNMENT} ${FIELD_CHEVRON_INK}`,
+  segment: `${ICON_ADORNMENT} ${FIELD_CHEVRON_INK}`,
 } as const
 
 // A row's shape in any menu: 6px in from the list's 4px, so its words stand
@@ -3549,17 +3557,39 @@ export const TOUR = {
  * `add` is the + after the last picker, and after a phone's first title, in
  * the field's fill, edge and radius so the row reads as one set of controls,
  * with the bare icon's ink and its accent on hover, greyed at the ceiling.
- * `remove` is the × after every picker but the first, the legend chip's own
- * quiet × (`ICON_ACTION` round `IconClose size="chip"`). Both are squares as
- * tall as what they stand beside (TJ's review, 2026-10-29: the + read as a
+ * The × is a segment of its picker (`CHART_PICKER`). The + is a square as
+ * tall as what it stands beside (TJ's review, 2026-10-29: the + read as a
  * sliver): `square` beside a desk's picker, 22px, which is the picker's own
  * height (`TEXT.control`'s 16px line, `py-0.5`'s 4px and a 1px edge top and
  * bottom), and 32px under a finger, the picker's `touch:min-h-8`;
  * `titleSquare` beside a phone's 28px title box (`CHART_TITLE.box`, `h-7`).
  */
+/**
+ * A removable chart picker (#499; TJ's review 2026-10-29, option A): one
+ * field in two segments, the picker on the left (`MENU_TRIGGER.segment` at a
+ * desk, `titleBox` on a phone) and the × on the right, under one outline.
+ * The group wears the field's fill, edge and radius, and takes the accent
+ * edge while the picker is hovered or open and the focus edge while it has
+ * the keyboard, which the field's own edge did before. The × is a segment
+ * behind a 1px `edge` divider, its glyph the quiet `ICON_ACTION` ink with the
+ * accent on hover and its focus ring drawn inside it (`FOCUS_RING_INSET`).
+ * `x` is 22px, the picker's height, and `titleX` 28px, the title box's, so
+ * the picker keeps `CHART_METRIC_W` and the group is that plus the segment.
+ */
+export const CHART_PICKER = {
+  group:
+    `${FIELD_LOOK} flex flex-shrink-0 items-stretch touch:min-h-8 ` +
+    'has-[[aria-haspopup]:hover]:border-accent-ink has-[[aria-expanded=true]]:border-accent-ink ' +
+    'has-[[aria-haspopup]:focus-visible]:border-mark',
+  titleGroup: `${FIELD_LOOK} flex h-7 min-w-0 items-stretch has-[select:focus]:border-mark`,
+  titleBox: 'relative flex min-w-0 flex-1 items-center pl-2 pr-6',
+  remove: `${ICON_ACTION} ${FOCUS_RING_INSET} flex flex-shrink-0 items-center justify-center border-l border-edge leading-none`,
+  x: 'w-5.5 touch:w-8',
+  titleX: 'w-7',
+} as const
+
 export const CHART_PANEL_BUTTON = {
   add: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ${ICON_ACTION} ${FOCUS_RING} ${DISABLED} flex flex-shrink-0 items-center justify-center`,
-  remove: `${ICON_ACTION} ${FOCUS_RING} flex flex-shrink-0 items-center justify-center leading-none`,
   square: 'size-5.5 touch:size-8',
   titleSquare: 'size-7',
 } as const
