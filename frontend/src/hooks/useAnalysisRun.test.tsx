@@ -55,25 +55,41 @@ describe('useAnalysisRun', () => {
 
   // #736: a dismissed event line clears its state, so the Analyze button that
   // reads `Try again` off the error reads `Analyze` again at once.
-  it('clears one event on its dismissal and leaves the other', async () => {
+  // A refusal is a blocker since #803, which no dismissal reaches.
+  it('clears the error on its dismissal, and never the refusal', async () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     await act(() => result.current.run('s', async () => Promise.reject(new Error('Broken.')), hooks()))
-    act(() => result.current.dismissEvent('refusal'))
-    expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
     act(() => result.current.dismissEvent('error'))
     expect(result.current.error).toBeNull()
     await act(() => result.current.run('s', async () => Promise.reject(new AnalysisRefusalError('Too many.')), hooks()))
-    act(() => result.current.dismissEvent('refusal'))
-    expect(result.current.refusal).toBeNull()
+    act(() => result.current.dismissEvent('error'))
+    expect(result.current.refusal).toEqual({ message: 'Too many.' })
   })
 
-  it('puts a refusal in the warn box, not the error box', async () => {
+  it('holds a refusal apart from the run error', async () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     const h = hooks()
     await act(() => result.current.run('s', async () => Promise.reject(new AnalysisRefusalError('Too many.')), h))
     expect(result.current.refusal).toEqual({ message: 'Too many.' })
     expect(result.current.error).toBeNull()
     expect(h.onFailure).toHaveBeenCalledExactlyOnceWith('refusal')
+  })
+
+  // #803: the message list opens on a failure, keyed on this count. Each
+  // error and each refusal moves it, the same one twice included; a cancel
+  // and a run that finished do not.
+  it('counts each run that ends in an error or a refusal, and nothing else', async () => {
+    const { result } = renderHook(() => useAnalysisRun(MODELS))
+    expect(result.current.failureSeq).toBe(0)
+    await act(() => result.current.run('s', async () => Promise.reject(new Error('Broken.')), hooks()))
+    expect(result.current.failureSeq).toBe(1)
+    await act(() => result.current.run('s', async () => Promise.reject(new Error('Broken.')), hooks()))
+    expect(result.current.failureSeq).toBe(2)
+    await act(() => result.current.run('s', async () => Promise.reject(new AnalysisRefusalError('Too many.')), hooks()))
+    expect(result.current.failureSeq).toBe(3)
+    await act(() => result.current.run('s', async () => Promise.reject(new DOMException('stop', 'AbortError')), hooks()))
+    await act(() => result.current.run('s', async () => {}, hooks()))
+    expect(result.current.failureSeq).toBe(3)
   })
 
   it('aborts the run on cancel and shows nothing for it', async () => {

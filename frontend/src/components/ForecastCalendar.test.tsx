@@ -112,6 +112,20 @@ describe('choosing days', () => {
     expect(lastSelection()).toEqual({ kind: 'days', startDate: '2026-09-10', endDate: '2026-09-12' })
   })
 
+  // A selection far outside the band (a link's, before its dates are held to
+  // the band) opens on its own month, where every day greys. The arrow back
+  // toward the band stays live, and the one away from it does not (#803, M4).
+  it('pages back toward the band from a month far outside it', async () => {
+    const { user } = render(<Calendar initial={{ kind: 'days', startDate: '2027-06-01', endDate: '2027-06-01' }} />)
+    await user.click(field())
+    expect(screen.getByText('June 2027')).toBeTruthy()
+    const prev = screen.getByRole('button', { name: 'Previous month' }) as HTMLButtonElement
+    const next = screen.getByRole('button', { name: 'Next month' }) as HTMLButtonElement
+    expect([prev.disabled, next.disabled]).toEqual([false, true])
+    await user.click(prev)
+    expect(screen.getByText('May 2027')).toBeTruthy()
+  })
+
   it('draws days past the band but will not take them', async () => {
     const { user } = render(<Calendar initial={dateless} />)
     await openCalendar(user)

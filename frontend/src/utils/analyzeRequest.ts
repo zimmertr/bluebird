@@ -20,7 +20,7 @@ import { buildCustomList } from './customList'
 import type { ElevationLookup } from '../hooks/useElevationLookup'
 import type { Place } from './geocode'
 import { geoKey } from './points'
-import { discoveryKeys } from './present'
+import { discoveryKeys, unnamedApplies } from './present'
 
 // What one Analyze click asks for, decided without doing any of it. The hook
 // that runs the plan (useAnalyzeCommand) owns the order of the side effects;
@@ -104,7 +104,6 @@ export function planAnalysis(inputs: AnalyzeInputs): AnalyzePlan {
     window,
     polygon,
     destinationTypes,
-    includeUnnamedPeaks,
     csvRows,
     places,
     forecastModel,
@@ -119,6 +118,9 @@ export function planAnalysis(inputs: AnalyzeInputs): AnalyzePlan {
   // elevation band is the one the app no longer sends at all (#341); the API
   // still accepts it from a direct caller.
   const bounds = constraintFields(inputs.constraints)
+  // The toggle widens a peak search and nothing else (#803, M9), so a hidden
+  // one rides neither the request nor the refresh check.
+  const includeUnnamedPeaks = unnamedApplies(destinationTypes, inputs.includeUnnamedPeaks)
   // The custom side of the analysis is the pasted CSV ∪ the searched places.
   // With a complete ring the backend unions discovery in too.
   const custom = buildCustomList(csvRows, places, inputs.identity.identity)

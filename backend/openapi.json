@@ -542,6 +542,15 @@
             "title": "Destination Types",
             "type": "array"
           },
+          "discovery_source": {
+            "description": "Where discovery answers from right now. `places` while this deployment's own copy of OpenStreetMap has completed a fill and can answer, so a search costs no upstream call; `overpass` while it has none, has not finished its first fill, or cannot be reached, so every search asks the donated Overpass API. Checked at most once a minute and cached for a minute, and one search can still fall back to Overpass if its connection drops, so it is how discovery will most likely answer rather than a promise.",
+            "enum": [
+              "places",
+              "overpass"
+            ],
+            "title": "Discovery Source",
+            "type": "string"
+          },
           "forecast_models": {
             "description": "Accepted values for `forecast_model`, best first. Models disagree with each other, so which one answered is part of what a number means.\n\nThe order is this deployment's editorial ranking for mountain terrain, not a sort on any field below \u2014 grid spacing over complex terrain is weighted above forecast length, so it is roughly the reverse of ordering by `forecast_hours`. Render it as given.",
             "items": {
@@ -567,6 +576,7 @@
           "sort_keys",
           "forecast_models",
           "api_key_header",
+          "discovery_source",
           "limits",
           "coverage",
           "data_sources"
@@ -1441,6 +1451,19 @@
             "title": "Default",
             "type": "boolean"
           },
+          "domain": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where a regional model has data, as a GeoJSON MultiPolygon in longitude and latitude, or null for a model that covers the whole world. Drawn through the grid's outermost points, so a destination inside it is one the model answers for, and one outside it makes the request fail as `regional` describes. Static per release.",
+            "title": "Domain"
+          },
           "finest_grid_km": {
             "description": "The finest grid this model offers anywhere, in kilometres. For the `*_seamless` blends that is their regional component, not their global one, so it describes the model at its best rather than everywhere: where the fine grid lands is in `summary`.",
             "title": "Finest Grid Km",
@@ -1462,7 +1485,7 @@
             "type": "string"
           },
           "regional": {
-            "description": "True for a model run over part of the world rather than all of it. A request naming one is rejected with 400 if any destination falls outside its grid \u2014 including destinations the caller never sees, since discovery happens server-side.",
+            "description": "True for a model run over part of the world rather than all of it. A request naming one is rejected with 400 if any destination falls outside its grid \u2014 including destinations the caller never sees, since discovery happens server-side. `domain` is where that grid is.",
             "title": "Regional",
             "type": "boolean"
           },
@@ -1479,6 +1502,7 @@
           "finest_grid_km",
           "forecast_hours",
           "regional",
+          "domain",
           "blend",
           "default"
         ],
@@ -1781,6 +1805,11 @@
             "title": "Min Limit",
             "type": "integer"
           },
+          "open_meteo_hourly_calls": {
+            "description": "Open-Meteo's free-tier budget for one hour, per IP address, in weighted calls: one location in a request is one call, times a factor for a window longer than 14 days or more than 10 variables. The web app fetches forecasts from the visitor's own address, and an analysis that costs more than this cannot finish inside the hour. This deployment does not enforce it: its own pacer meters minutes, and a request carrying an Open-Meteo key spends that key's quota, which this does not describe.",
+            "title": "Open Meteo Hourly Calls",
+            "type": "integer"
+          },
           "past_data_days": {
             "description": "Where the forecast endpoint's own data ends, and therefore the boundary between the two weather endpoints. A window older than this is answered from the archive instead, which changes what a row can carry: the archive names no model and reports wind at 10 m rather than at the destination's elevation. A window that starts older than this and ends inside it is served by both endpoints, joined at this boundary.",
             "title": "Past Data Days",
@@ -1804,6 +1833,7 @@
           "max_request_bytes",
           "max_polygon_points",
           "max_destination_hours",
+          "open_meteo_hourly_calls",
           "rate"
         ],
         "title": "Limits",

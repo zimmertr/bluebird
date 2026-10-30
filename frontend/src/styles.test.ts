@@ -1076,6 +1076,18 @@ describe('shared recipes', () => {
     expect(CHOICE_INPUT).not.toContain('touch:')
   })
 
+  // A greyed row whose box is still live for unticking (#803, M9) fades its
+  // box as far as a disabled row fades, and its label not at all: the label
+  // of a live control owes 4.5:1 as text (the maintainer, 2026-10-28). Only
+  // a natively disabled row fades whole, and only its cursor differs.
+  it('greys the box alone on a row marked greyed, as far as a disabled row', () => {
+    const fade = (variant: string) => CHOICE_ROW.match(new RegExp(`(?:^|\\s)${variant}:opacity-(\\d+)(?=\\s|$)`))?.[1]
+    expect(fade('data-\\[greyed\\]:\\[&>input\\]')).toBe(fade('has-\\[:disabled\\]'))
+    expect(fade('data-\\[greyed\\]:\\[&>input\\]')).toBeDefined()
+    expect(fade('data-\\[greyed\\]')).toBeUndefined()
+    expect(CHOICE_ROW).not.toMatch(/data-\[greyed\]:cursor-/)
+  })
+
   // Placeholders are content, held to the same 4.5:1 as the text typed over
   // them. slate-400 is 7.0:1 on the field surface; the slate-600 the call
   // sites had drifted into read at 2.4:1, and the color lives in the recipe
@@ -2836,6 +2848,17 @@ describe('a blocked Analyze and the message list', () => {
     expect(MESSAGE_LIST.card).toBe(`${MENU.list} space-y-2`)
     expect(MESSAGE_LIST.sheet).toBe('space-y-2 py-2')
   })
+
+  // The desk card takes the width of the slot the button and its badge share
+  // (#803, record 0233), which is the docked panel less the footer's gutters,
+  // so the 82-character over-cap sentence wraps inside it rather than running
+  // the card past the panel's right edge over the map.
+  it("stands the desk card at the Analyze slot's width, 328px at the docked panel", () => {
+    expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: slotRef,/)
+    const panelPx = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) * 4
+    const gutterPx = Number(panelFooterSource.match(/`px-(\d+) py-4 border-t \$\{PANEL_EDGE\}/)![1]) * 4
+    expect(panelPx - 2 * gutterPx).toBe(328)
+  })
 })
 
 // The band a phone keeps for its home indicator (#336, #696; record 0145).
@@ -4045,8 +4068,10 @@ describe('the one menu', () => {
     expect(MENU.cardRow).toContain('rounded')
     // And 20px apart, the list rows' pitch (record 0222).
     expect(stepPx(MENU.cardRow, 'py')).toBe(stepPx(MENU.row, 'py'))
-    // A disabled row takes none: each wiring names the condition.
-    expect(layersPopoverSource).toContain("disabled ? '' : ` ${MENU.hover}`")
+    // A disabled row takes none: each wiring names the condition. A Layers
+    // row is locked when it greys unticked; greyed and ticked, a press still
+    // unticks it, so it lights (#803).
+    expect(layersPopoverSource).toContain("locked ? '' : ` ${MENU.hover}`")
     expect(columnsPickerSource).toContain('!sheet && !isRanked ? MENU.hover')
     expect(modelsPickerSource).toContain('${MENU.row} ${MENU.hover}')
   })

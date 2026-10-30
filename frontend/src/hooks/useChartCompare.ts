@@ -15,6 +15,7 @@ import {
   pairKeysFor,
   seedPairColors,
 } from '../utils/model/modelCompare'
+import { comparedInPlay } from '../utils/model/modelSelection'
 import { modelRows, pruneHidden, shownModels, toggleHidden } from '../utils/model/modelVisibility'
 import { terrainFallbackFor } from '../utils/openMeteo'
 import { paceWaitLine } from '../utils/pacing'
@@ -169,10 +170,12 @@ export function useChartCompare({
   }, [chart.selectedRows, times])
   // Every model the panel has selected, ranking first: the Models popover's
   // rows. The SELECTION rather than the chart, so a model ticked before the
-  // next Analyze already has a row.
+  // next Analyze already has a row. Over an archive report the ranking model
+  // alone, since nothing is compared there (#803, W3).
+  const reportSource = analyzed?.windowSource ?? null
   const selectedModelRows = useMemo(
-    () => modelRows(models, forecastModel, comparedModels),
-    [models, comparedModels, forecastModel],
+    () => modelRows(models, forecastModel, comparedInPlay(comparedModels, reportSource)),
+    [models, comparedModels, forecastModel, reportSource],
   )
 
   // A colour per LINE, which under a comparison means a colour per
@@ -184,7 +187,7 @@ export function useChartCompare({
     const drawn = shownModels(
       drawnModelIds(
         comparedModels,
-        analyzed?.compareModels ?? [],
+        comparedInPlay(analyzed?.compareModels ?? [], reportSource),
         models,
         analyzed?.forecastModel ?? null,
       ).map((id) => ({ id })),
@@ -194,7 +197,7 @@ export function useChartCompare({
       drawn.map((m) => m.id),
       chartedDestinations.map((d) => d.key),
     )
-  }, [analyzed, models, chartedDestinations, comparedModels, hiddenModels])
+  }, [analyzed, models, chartedDestinations, comparedModels, hiddenModels, reportSource])
   const chartedPairColors = useMemo(
     () =>
       seedPairColors(

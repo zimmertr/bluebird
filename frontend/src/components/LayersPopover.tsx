@@ -57,12 +57,23 @@ function layerSwitch({
   disabled?: boolean
   note?: string
 }) {
+  // A greyed row still ticked keeps its box live, for unticking only (#803,
+  // M9): it used to be disabled with the tick in it, so a layer out of view
+  // or under an archive report stayed switched on with no way to switch it
+  // off. Once unticked it is disabled like any greyed row, so it cannot be
+  // ticked while the layer cannot draw. `data-greyed` fades its box alone,
+  // leaving the label at full ink for a live control (`CHOICE_ROW`).
+  const locked = disabled === true && !checked
   return (
-    <label className={`${CHOICE_ROW} min-w-0 flex-1`} title={disabled && note ? note : undefined}>
+    <label
+      className={`${CHOICE_ROW} min-w-0 flex-1`}
+      title={disabled && note ? note : undefined}
+      data-greyed={disabled && !locked ? '' : undefined}
+    >
       <input
         type="checkbox"
         checked={checked}
-        disabled={disabled}
+        disabled={locked}
         aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
         onChange={(e) => onChange(e.target.checked, e)}
         className={CHOICE_INPUT}
@@ -95,7 +106,8 @@ interface LayersPopoverProps {
   /** The forecast grid's availability and its sub-controls (`useGridLayer`). */
   grid: Pick<
     GridLayer,
-    | 'gridAvailable'
+    | 'gridOffered'
+    | 'gridArchived'
     | 'gridOn'
     | 'gridStyle'
     | 'setGridStyle'
@@ -165,7 +177,8 @@ export default function LayersPopover({
     setBaseOpacity,
   } = overlays
   const {
-    gridAvailable,
+    gridOffered,
+    gridArchived,
     gridOn,
     gridStyle,
     setGridStyle,
@@ -313,16 +326,19 @@ export default function LayersPopover({
           disabled: outOfView.has('radar'),
         },
         { key: 'snow', label: 'Snow depth', checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
+        // Grey, too, with nothing to grid (#803, M5): before any report, and
+        // over one whose ranked metric has no number anywhere. Those two carry
+        // no `note`, for the player's reason; the archive's older sentence stays.
         {
           key: 'grid',
           label: 'Forecast grid',
           checked: showGrid,
           onChange: setShowGrid,
-          disabled: !gridAvailable,
+          disabled: !gridOffered,
           // Mounted twice, as the row's `title` and as the hidden text its
           // checkbox points at: a tooltip does not exist on touch or to a
           // screen reader.
-          note: 'The forecast grid is not available for archival data.',
+          note: gridArchived ? 'The forecast grid is not available for archival data.' : undefined,
         },
         // Always in the list, gray when nothing spans time (#460). It used to
         // join and leave the list on the radar toggle, which moved every row
@@ -402,10 +418,14 @@ export default function LayersPopover({
   // A press with Shift held reaches every row from the last pressed one to
   // this one (record 0209), down the whole list and across the groups, each
   // switched where it differs from the box the reader pressed; a greyed row
-  // stays as it is.
+  // is never ticked, and one still ticked may be unticked, as its own box may
+  // (#803).
   const order = layers.map((layer) => layer.key)
   const row = (layer: LayerSpec) => {
-    const inCard = sheet ? '' : ` ${LAYER_ROW.cardRow} ${MENU.cardRow}${layer.disabled ? '' : ` ${MENU.hover}`}`
+    // A row lights under the pointer while a press acts on it: a greyed row
+    // still ticked does, since it can be unticked (#803).
+    const locked = layer.disabled === true && !layer.checked
+    const inCard = sheet ? '' : ` ${LAYER_ROW.cardRow} ${MENU.cardRow}${locked ? '' : ` ${MENU.hover}`}`
     const parts = (
       <>
         <div className={`${LAYER_ROW.line}${inCard}`}>
@@ -414,7 +434,7 @@ export default function LayersPopover({
             onChange: (on, e) => {
               for (const key of press(order, layer.key, shiftHeld(e))) {
                 const each = layers.find((l) => l.key === key)
-                if (each && !each.disabled && each.checked !== on) each.onChange(on)
+                if (each && !(on && each.disabled) && each.checked !== on) each.onChange(on)
               }
             },
           })}
@@ -436,7 +456,7 @@ export default function LayersPopover({
             so the block read as belonging to that row as much as
             to the grid's — a group is bounded by its gaps, and
             one gap bounds nothing. */}
-        {layer.key === 'grid' && gridOn && (
+        {layer.key === 'grid' && gridOn && gridOffered && (
           <>
             <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
               {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (

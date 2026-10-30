@@ -1,6 +1,6 @@
 # 0204. A polygon run's found destinations show as pending rows, and a forecast failure keeps them
 
-- Status: Accepted. Amends 0093 (a failed polygon run's found field stays on screen as pending rows).
+- Status: Accepted. Amends 0093 (a failed polygon run's found field stays on screen as pending rows). Extended by 0235 (a field counted before Analyze is reused the same way, and a cleared ring or no kind left releases a failed run's field).
 - Date: 2026-10-21
 - Decider: the maintainer (TJ), on issue #782: the issue's option A on 2026-10-20 ("populate the results table with placeholders and then perform the forecast lookup... This is what we do with searched destinations, map-clicked destinations, and CSV input destinations"), and its details on 2026-10-21.
 - Issues and PRs: #782, #560, #736

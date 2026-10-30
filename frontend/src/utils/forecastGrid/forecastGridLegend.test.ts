@@ -71,10 +71,11 @@ describe('gridLegendLine', () => {
   })
 
   it('ranks the four states so the most specific answer wins', () => {
-    // Painted outranks everything: a field that drew and then lost a later
-    // chunk is still a field, and calling it unavailable would contradict what
-    // the reader can see.
-    expect(gridLegendLine(true, 3, 45, true).value).toBe('3 km')
+    // A failure outranks everything (#803, D3): a field that drew and then
+    // lost a later chunk is not the field its pitch describes, and saying
+    // nothing about it left a part-painted grid looking whole.
+    expect(gridLegendLine(true, 3, 45, true).value).toBe('Unavailable')
+    expect(gridLegendLine(true, 3, null, true, false).kind).toBe('error')
     // A failure outranks a wait, because waiting is over once it has failed.
     expect(gridLegendLine(false, 3, 45, true).value).toBe('Unavailable')
     // And a wait outranks a plain load, being the more specific answer to the

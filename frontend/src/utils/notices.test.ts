@@ -21,15 +21,17 @@ describe('noticeKey', () => {
     )
   })
 
-  it('never confuses an error with a refusal carrying the same text', () => {
-    expect(noticeKey('error', 'same text')).not.toBe(noticeKey('refusal', 'same text'))
+  // A refusal is a blocker since #803, so an error's key is the one event
+  // key: it can never be read as a derived line's condition.
+  it('never confuses an error with a blocker carrying the same text', () => {
+    expect(noticeKey('error', 'refusal')).not.toBe(blockerKey('refusal'))
   })
 })
 
 describe('isDismissed', () => {
   it('hides the dismissed notice and only it', () => {
-    const dismissed = [noticeKey('refusal', 'over the limit')]
-    expect(isDismissed(noticeKey('refusal', 'over the limit'), dismissed)).toBe(true)
+    const dismissed = ['cue:window-changed']
+    expect(isDismissed('cue:window-changed', dismissed)).toBe(true)
     expect(isDismissed(noticeKey('error', 'network down'), dismissed)).toBe(false)
   })
 
@@ -53,8 +55,8 @@ describe('pruneDismissals', () => {
 
   it('prunes only the dismissal whose notice went away', () => {
     const errorKey = noticeKey('error', 'a')
-    const refusalKey = noticeKey('refusal', 'b')
-    expect(pruneDismissals([errorKey, refusalKey], [refusalKey, null])).toEqual([refusalKey])
+    const cueKey = 'cue:model-changed'
+    expect(pruneDismissals([errorKey, cueKey], [cueKey, null])).toEqual([cueKey])
   })
 
   it('returns the same reference when nothing was pruned', () => {
@@ -78,15 +80,15 @@ describe('the dismissal lifecycle', () => {
 
   it('dismisses each notice individually when more than one is dismissable', () => {
     const errorKey = noticeKey('error', 'network down')
-    const refusalKey = noticeKey('refusal', 'over the limit')
+    const cueKey = 'cue:window-changed'
     let dismissed: readonly string[] = []
 
-    dismissed = [...dismissed, refusalKey] // dismiss one box
-    expect(isDismissed(refusalKey, dismissed)).toBe(true)
+    dismissed = [...dismissed, cueKey] // dismiss one box
+    expect(isDismissed(cueKey, dismissed)).toBe(true)
     expect(isDismissed(errorKey, dismissed)).toBe(false) // the other stays
 
-    dismissed = pruneDismissals(dismissed, [errorKey, refusalKey]) // both still active
-    expect(isDismissed(refusalKey, dismissed)).toBe(true)
+    dismissed = pruneDismissals(dismissed, [errorKey, cueKey]) // both still active
+    expect(isDismissed(cueKey, dismissed)).toBe(true)
   })
 })
 
@@ -120,6 +122,14 @@ describe('blocker severities', () => {
       destinations: 'error',
       polygon: 'error',
       types: 'error',
+      refusal: 'error',
+      'over-cap': 'error',
+      spend: 'error',
+      'archive-cloud': 'error',
+      'archive-freeze': 'error',
+      'aqi-horizon': 'error',
+      'model-domain': 'error',
+      'bound-order': 'error',
     })
   })
 })
@@ -169,7 +179,10 @@ describe('noticeBoxes', () => {
   // Which dismissals clear an event and which join the ledger (#736).
   it('tells an event notice from a derived line by its key', () => {
     expect(eventKindOf(noticeKey('error', 'Open-Meteo request failed. Try again later.'))).toBe('error')
-    expect(eventKindOf(noticeKey('refusal', 'Too many.'))).toBe('refusal')
+    // A refusal is a blocker since #803: its key names no event, and no
+    // dismissal reaches it.
+    expect(eventKindOf(blockerKey('refusal'))).toBeNull()
+    expect(eventKindOf('refusal:Too many.')).toBeNull()
     expect(eventKindOf('blocker:area')).toBeNull()
     expect(eventKindOf('cue:window-changed')).toBeNull()
     expect(eventKindOf('fire:unavailable')).toBeNull()
@@ -200,6 +213,9 @@ describe('blocker keys', () => {
     expect(blockerKey('area')).toBe('blocker:area')
     expect(blockerOf('blocker:area')).toBe('area')
     expect(blockerOf(blockerKey('compare-aqi'))).toBe('compare-aqi')
+    for (const blocker of Object.keys(BLOCKER_SEVERITY) as (keyof typeof BLOCKER_SEVERITY)[]) {
+      expect(blockerOf(blockerKey(blocker))).toBe(blocker)
+    }
   })
 
   it('reads no blocker off any other key', () => {

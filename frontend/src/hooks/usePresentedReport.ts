@@ -272,10 +272,15 @@ export function usePresentedReport({
     return shown
   }, [response, results.length, presented.eligible, presented.excluded, arriving])
 
-  // Why the table is empty, when it is. Three ways to get here and three
+  // Why the table is empty, when it is. Four ways to get here and four
   // different next moves, and the newest one is the most easily mistaken for a
   // failed analysis: the destinations were found and forecast, the filters
   // simply admit none of them.
+  //
+  // The fourth (#803, W4): destinations were found, so the area is not the
+  // trouble, but every one came back with no forecast hour and was dropped.
+  // Said only once the run has finished, since a field still arriving has
+  // rows yet to land.
   const emptyReason = useMemo(() => {
     if (response === null || results.length > 0) return null
     if (presented.excluded > 0 && presented.eligible === 0) {
@@ -284,8 +289,9 @@ export function usePresentedReport({
     if (removedKeys.size > 0) {
       return 'All rows have been removed from this analysis. Use Removed above to restore them.'
     }
+    if (response.total_queried > 0 && !arriving) return 'No forecast data for this window.'
     return 'No destinations found. Try a larger area.'
-  }, [response, results.length, presented.eligible, presented.excluded, removedKeys])
+  }, [response, results.length, presented.eligible, presented.excluded, removedKeys, arriving])
 
   return {
     results,

@@ -251,10 +251,6 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     const aqi: (AqiResult | undefined)[] = new Array(spec.points.length)
     const clouds: (CloudResult | undefined)[] = new Array(spec.points.length)
     let grid: readonly number[] = times
-    // How much has been painted? A failure withdraws the layer only when
-    // nothing was drawn at all — and a chunk can land with no forecast in it,
-    // which repaints and paints no cell.
-    let painted = 0
 
     function repaint() {
       if (cancelled) return
@@ -271,7 +267,6 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
       }
       if (grid.length === 0) grid = canonicalTimes(wxHave)
       const cells = pairCells(spec as GridSpec, indices, wxHave, aqiHave, grid, cloudHave)
-      painted = cells.length
       setState({
         status: 'ready',
         spec: spec as GridSpec,
@@ -373,13 +368,11 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
         // countdown would otherwise run to its deadline over a field that had
         // stopped growing (#432).
         clearPace()
-        // The LAYER withdraws only when nothing painted, which is a different
-        // question and keeps its gate. A chunk that lands and then a later one
-        // that fails still leaves a field on the map, and calling that
-        // unavailable would contradict what the reader can see.
-        if (painted === 0) {
-          setState((prev) => ({ ...prev, status: 'failed' }))
-        }
+        // Failed whether or not anything painted (#803, D3). A field that
+        // stopped growing at the hourly quota used to keep the legend's pitch
+        // as if it were whole, so a grid missing most of its samples said
+        // nothing; the legend now says it failed over whatever did paint.
+        setState((prev) => ({ ...prev, status: 'failed' }))
       }
     })()
 

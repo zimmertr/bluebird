@@ -44,13 +44,23 @@ import { type BaseLayer, DEFAULT_BASE_OPACITY, OPACITY_DEFAULT, clampOpacity } f
  *
  * `limits` are the deployment's published ones, for the rows whose value is
  * only bounded by a cap the server sets (`customz`, `poly`).
+ *
+ * `drop` is how a row says the link carried its value and it could not be
+ * restored (#803, M6), for the three a reader would otherwise miss without a
+ * word: a ring, a pasted list and the ranking model are each what a link is
+ * shared for, and losing one changes the answer. Every other row drops a bad
+ * value quietly, because what it held (a sort, a limit, a bound) shows in the
+ * panel as the default it fell back to.
  */
 export interface ParamCodec {
   key: string
   escaped?: true
   encode?: (state: ShareableState) => string | null
-  decode?: (raw: string, out: Partial<ShareableState>, limits: DecodeLimits) => void
+  decode?: (raw: string, out: Partial<ShareableState>, limits: DecodeLimits, drop: (what: LinkDrop) => void) => void
 }
+
+/** What a link carried that could not be restored, and the panel says so (#803, M6). */
+export type LinkDrop = 'ring' | 'list' | 'model'
 
 // Control defaults: they must mirror the initial useState values in the hooks
 // that hold the panel's state (`useRankingKnobs`). The two rows below write
@@ -454,8 +464,9 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   {
     key: 'model',
     encode: (state) => state.forecastModel,
-    decode: (raw, out) => {
+    decode: (raw, out, _limits, drop) => {
       if (raw && MODEL_ID.test(raw)) out.forecastModel = raw
+      else if (raw) drop('model')
     },
   },
   // Written only when something is selected, so an ordinary link carries
@@ -544,10 +555,11 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   {
     key: 'poly',
     encode: (state) => (hasPolygon(state) && state.polygon ? encodePolygon(state.polygon) : null),
-    decode: (raw, out, limits) => {
+    decode: (raw, out, limits, drop) => {
       if (!raw) return
       const decoded = decodePolygon(raw, limits.maxPolygonPoints)
       if (decoded) out.polygon = decoded
+      else drop('ring')
     },
   },
   // A 100-row CSV is ~13 KB raw; compressing keeps the shared link ~1-2 KB (and
@@ -573,12 +585,13 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     key: 'customz',
     escaped: true,
     encode: (state) => (hasCustomCsv(state) ? compressToEncodedURIComponent(state.customCsv) : null),
-    decode: (raw, out, { maxDestinations }) => {
+    decode: (raw, out, { maxDestinations }, drop) => {
+      if (!raw) return
       const text = unescapeQueryText(raw)
-      if (!text || text.length > MAX_CUSTOMZ_CHARS) return
+      if (!text || text.length > MAX_CUSTOMZ_CHARS) return drop('list')
       const decoded = decompressFromEncodedURIComponent(text)
-      if (!decoded || decoded.length > maxDestinations * CUSTOM_ROW_CHARS) return
-      if (parseCustomCsv(decoded).length > maxDestinations) return
+      if (!decoded || decoded.length > maxDestinations * CUSTOM_ROW_CHARS) return drop('list')
+      if (parseCustomCsv(decoded).length > maxDestinations) return drop('list')
       out.customCsv = decoded
     },
   },

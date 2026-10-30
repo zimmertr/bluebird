@@ -4,19 +4,20 @@
  * dismisses alone — the boxes group by severity, never by dismissal. The one
  * class that is not is a blocker (#786; record 0208): it stands until the
  * reader supplies what it asks, and a dismissed blocker would leave a greyed
- * button with nothing to say for itself.
+ * button with nothing to say for itself. A refused run is one of them since
+ * #803: it stands until the panel describes a different request.
  *
  * The identity a dismissal is keyed to differs by class, and the choice is
  * what keeps dismissal from being annoying or dangerous:
  *
- * - Event notices (the run error, the refusal) key on their MESSAGE,
- *   because each new message is a new fact the reader has not seen.
+ * - The event notice (the run error) keys on its MESSAGE, because each new
+ *   message is a new fact the reader has not seen.
  * - Derived warnings (commit cues, Analyze blockers, the fire line, the AQI
  *   line) key on their CONDITION (`blocker:polygon`, `cue:window-changed`),
  *   not their text — the polygon blocker counts down as you draw, and keyed
  *   by text it would be a new line on every click.
  *
- * The two classes are dismissed differently too (#736). An event notice is
+ * The two classes are dismissed differently too (#736). The event notice is
  * one run's outcome, held as state, so dismissing it clears that state
  * (`useAnalysisRun.dismissEvent`): the line goes, the Analyze button stops
  * reading `Try again`, and the next run sets the event afresh if it fails
@@ -34,15 +35,17 @@
 
 import type { AnalyzeBlocker } from './analyzeGate'
 
-export type EventNoticeKind = 'error' | 'refusal'
+// The one event notice left: a refusal is a blocker since #803, and a
+// blocker is never dismissed.
+export type EventNoticeKind = 'error'
 
 /**
  * The three severities, one box each in the list, and what each hue answers
  * (TJ, 2026-08-22):
  *
  * - `error`: the app cannot or will not do what was asked — every blocker
- *   that holds the Analyze button (record 0210), a failed run, an over-cap
- *   refusal, a data supplier that is unreachable.
+ *   that holds the Analyze button (record 0210), the refused run among them,
+ *   a failed run, a data supplier that is unreachable.
  * - `warn`: the report on screen no longer answers what the panel asks —
  *   every commit cue (a changed window, model, band, ring, type set, or an
  *   un-analyzed addition; all one severity, TJ 2026-08-22), and a column
@@ -97,6 +100,15 @@ export const BLOCKER_SEVERITY: Record<AnalyzeBlocker, NoticeSeverity> = {
   destinations: 'error',
   polygon: 'error',
   types: 'error',
+  // The vetoes #803 added, every one an error for the reason above.
+  refusal: 'error',
+  'over-cap': 'error',
+  spend: 'error',
+  'archive-cloud': 'error',
+  'archive-freeze': 'error',
+  'aqi-horizon': 'error',
+  'model-domain': 'error',
+  'bound-order': 'error',
 }
 
 
@@ -126,9 +138,7 @@ export function noticeKey(kind: EventNoticeKind, message: string): string {
  * line's joins the ledger.
  */
 export function eventKindOf(key: string): EventNoticeKind | null {
-  if (key.startsWith('error:')) return 'error'
-  if (key.startsWith('refusal:')) return 'refusal'
-  return null
+  return key.startsWith('error:') ? 'error' : null
 }
 
 /** The key every blocker's line carries: its condition, as `panelMessages` spells it. */

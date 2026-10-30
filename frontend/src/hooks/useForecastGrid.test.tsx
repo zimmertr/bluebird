@@ -140,6 +140,23 @@ describe('useForecastGrid', () => {
     expect(calls[1].signal.aborted).toBe(false)
   })
 
+  // #803, D3: a field that stopped part way, at the hourly quota say, is a
+  // failure too. What painted stays on the map.
+  it('reports a failure when a later chunk fails, and keeps what painted', async () => {
+    // Four destinations far apart, each with its own neighbourhood of samples.
+    const spread = [46.5, 46.8, 47.1, 47.4].map((latitude, k) => resultRow({ latitude, longitude: -122 + k * 0.4 }))
+    const { result } = mount(inputs({ field: spread, pitchKm: 1, reachFrac: 1, displayReachFrac: 1 }))
+    // A lattice of more than one chunk.
+    expect(calls[0].points).toBe(150)
+    await act(async () => calls[0].answer(answers(calls[0])))
+    expect(result.current.status).toBe('ready')
+    const painted = result.current.cells.length
+    expect(painted).toBeGreaterThan(0)
+    await act(async () => calls[1].fail(new Error('Open-Meteo quota reached. Try again later.')))
+    expect(result.current.status).toBe('failed')
+    expect(result.current.cells).toHaveLength(painted)
+  })
+
   it('reports a failure when nothing was painted', async () => {
     const { result } = mount()
     await act(async () => calls[0].fail(new Error('Open-Meteo request failed. Try again later.')))

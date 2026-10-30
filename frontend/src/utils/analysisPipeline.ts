@@ -12,7 +12,8 @@ import type { LatePatch } from './clientAnalyze'
 import { type IdentityMap, NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
 import type { ElevationLookup } from '../hooks/useElevationLookup'
 import { postDestinations } from './apiFetch'
-import { resolveWindow, type WindowLimits } from './forecastWindow'
+import { resolveWindow, windowSource, type WindowLimits } from './forecastWindow'
+import { comparedInPlay } from './model/modelSelection'
 import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
 
 // One browser analysis from request to report. `clientAnalyze.ts` fetches,
@@ -121,10 +122,14 @@ export async function discoverCandidates(
 }
 
 // The pod's answer to a destinations call, or the refusal or error it sent.
+// A 422 is a refusal too, though its body carries no count (#803, D4): the
+// pod validated the request and found it wrong, a list too long among the
+// ways, so the same request is refused the same way and the Analyze button
+// must not offer it again as `Try again`.
 async function discoveryAnswer(res: Response): Promise<DestinationsResponse> {
   if (!res.ok) {
     const { message, refusal } = await readErrorBody(res)
-    if (refusal) throw new AnalysisRefusalError(message)
+    if (refusal || res.status === 422) throw new AnalysisRefusalError(message)
     throw new Error(message)
   }
   return (await res.json()) as DestinationsResponse
@@ -165,6 +170,12 @@ export interface PipelineOptions {
   // retrying the forecasts, and the ring, its kinds and its list have not
   // moved since. The caller decides that it still matches.
   found?: Discovered | null
+  // Open-Meteo's hourly budget, which the run refuses to spend past once its
+  // field is known and before any forecast is fetched (#803, D2), and how
+  // models the chart compares beside the ranking one, whose weather the same
+  // budget pays for. No budget, no check.
+  hourlyCalls?: number
+  compareModels?: readonly string[]
 }
 
 export interface PipelineResult {
@@ -236,6 +247,12 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     maxDestinations: options.maxDestinations,
     windowLimits: options.windowLimits,
     aqiForecastDays: options.aqiForecastDays,
+    hourlyCalls: options.hourlyCalls,
+    // None is fetched over an archive window (`comparedInPlay`, record 0236).
+    comparedModels: comparedInPlay(
+      options.compareModels ?? [],
+      windowSource(window.startMs, window.endMs, now(), options.windowLimits),
+    ).filter((id) => id !== request.forecast_model).length,
     reuse: reuse && { rows: reuse.rows, times: reuse.times, aqiFailed: reuse.aqiFailed, columns: reuse.columns },
     onPace: options.onPace,
     onPartial: (rows, times) =>

@@ -6,8 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app import limits, ratelimit
+from app import db, limits, ratelimit
 from app.main import app
+from app.model_domains import HRRR_DOMAIN
 from app.models import (
     ARCHIVE_DATA_DAYS,
     DEFAULT_FORECAST_MODEL,
@@ -28,7 +29,9 @@ from app.models import (
     SortBy,
 )
 from app.routes.analyze import API_KEY_HEADER
+from app.services import places
 from app.services.air_quality import MAX_FORECAST_DAYS
+from app.services.openmeteo_weight import FREE_TIER_HOURLY_CALLS
 from app.services.osm import IMPLEMENTED_TYPES
 from app.services.usfs_coverage import COVERAGE_FOR
 from app.services.wfigs_coverage import COVERAGE
@@ -73,6 +76,7 @@ def test_limits_mirror_the_constants_the_validators_enforce():
         "max_request_bytes": MAX_REQUEST_BYTES,
         "max_polygon_points": MAX_POLYGON_POINTS,
         "max_destination_hours": limits.MAX_ANALYZE_DESTINATION_HOURS,
+        "open_meteo_hourly_calls": FREE_TIER_HOURLY_CALLS,
         # Rate limits come from the live limiter instances (patched off in
         # conftest), not env constants — value plumbing is asserted with real
         # numbers in test_ratelimit.py.
@@ -339,3 +343,61 @@ def test_it_publishes_the_api_key_header_the_route_reads():
     # Read from the analyze route's own constant, so a client told to send this
     # name is told the name the route reads (issue #317).
     assert _capabilities()["api_key_header"] == API_KEY_HEADER
+
+
+def test_the_hourly_ceiling_is_open_meteos_free_tier():
+    # Their published terms, 2026-10-27: 600 a minute, 5,000 an hour and 10,000
+    # a day per address. The browser refuses an analysis that costs more than
+    # this before it fetches (#803), so a wrong number here either blocks an
+    # analysis that would finish or lets one through that trips the hour.
+    assert _capabilities()["limits"]["open_meteo_hourly_calls"] == 5_000
+
+
+def test_each_regional_model_publishes_its_domain_and_each_global_one_none():
+    # The browser greys Analyze over a ring or a list that crosses a regional
+    # model's grid (#803), so a regional model with no domain would let the run
+    # spend and fail, and a global one with a domain would refuse places the
+    # model answers for.
+    for m in _capabilities()["forecast_models"]:
+        if m["regional"]:
+            assert m["domain"] is not None, m["id"]
+        else:
+            assert m["domain"] is None, m["id"]
+    (hrrr,) = [m for m in _capabilities()["forecast_models"] if m["id"] == "gfs_hrrr"]
+    assert hrrr["domain"] == HRRR_DOMAIN
+    assert hrrr["domain"]["type"] == "MultiPolygon"
+
+
+@pytest.fixture
+def _fill_state():
+    places._forget()
+    yield
+    places._forget()
+
+
+def test_discovery_source_is_overpass_without_a_database(_fill_state):
+    # The suite runs with no DATABASE_URL, which is a deployment that asks
+    # Overpass for every search: the safe answer, since the browser counts a
+    # ring ahead of Analyze only when this says `places`.
+    assert not db.available()
+    assert _capabilities()["discovery_source"] == "overpass"
+
+
+def test_discovery_source_is_places_once_the_table_is_filled(_fill_state, monkeypatch):
+    async def filled() -> bool:
+        return True
+
+    monkeypatch.setattr(places, "is_filled", filled)
+    assert _capabilities()["discovery_source"] == "places"
+
+
+def test_a_database_that_cannot_answer_reads_as_overpass_not_an_error(_fill_state, monkeypatch):
+    # Connected once, then gone: the pool raises DatabaseUnavailable, which
+    # every caller of the shared cache answers by taking its per-pod path
+    # (record 0175). Here that path is Overpass, and the route still answers 200.
+    def unavailable():
+        raise db.DatabaseUnavailable("gone")
+
+    monkeypatch.setattr(db, "available", lambda: True)
+    monkeypatch.setattr(db, "connection", unavailable)
+    assert _capabilities()["discovery_source"] == "overpass"

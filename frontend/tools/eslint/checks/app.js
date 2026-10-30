@@ -725,14 +725,15 @@ export const APP = [
   },
   {
     // The Layers list is LayersPopover's, and its grid row reads the hook's
-    // answer rather than asking again.
+    // answer rather than asking again: gridOffered, which is gridAvailable
+    // with a ranked metric that has a number to paint (#803).
     name: 'app-grid-gate',
     files: ['src/components/LayersPopover.tsx'],
     require: [
       { selector: 'Property[key.name="key"][value.value="grid"]', message: 'Keep the grid row in the layers list.' },
       {
-        selector: 'Property[key.name="disabled"] > UnaryExpression[operator="!"][argument.name="gridAvailable"]',
-        message: 'Disable the grid row on !gridAvailable.',
+        selector: 'Property[key.name="disabled"] > UnaryExpression[operator="!"][argument.name="gridOffered"]',
+        message: 'Disable the grid row on !gridOffered.',
       },
     ],
   },
@@ -802,7 +803,7 @@ export const APP = [
     // A chunk in hand is a chunk the pacer let through, so the wait clears on
     // every chunk, not in the repaint, which late air quality also reaches. A
     // chunk that paced and then threw will not land either, so the failure
-    // path clears ahead of the gate that decides whether the layer withdraws.
+    // path clears ahead of marking the grid failed (#803: any failed chunk).
     name: 'app-grid-pace',
     files: ['src/hooks/useForecastGrid.ts'],
     ban: [
@@ -825,8 +826,8 @@ export const APP = [
       {
         selector:
           `CatchClause:has(${text('forecast grid fetch failed')}) > BlockStatement > ExpressionStatement[expression.callee.name="clearPace"]` +
-          ' ~ IfStatement[test.operator="==="][test.left.name="painted"][test.right.value=0]',
-        message: 'Clear the grid wait on failure ahead of the painted gate.',
+          ' ~ ExpressionStatement[expression.callee.name="setState"]',
+        message: 'Clear the grid wait on failure ahead of marking the grid failed.',
       },
     ],
   },

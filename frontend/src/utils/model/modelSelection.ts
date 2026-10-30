@@ -21,6 +21,7 @@
  */
 
 import { clamp } from '../numbers'
+import type { WindowSource } from '../forecastWindow'
 
 /** The one field these rules read off a published model. */
 export interface OrderedModel {
@@ -159,6 +160,24 @@ export function rankWith(
   if (id === ranking) return { ranking, compared: compared.filter((k) => k !== ranking) }
   const extras = compared.filter((k) => k !== ranking && k !== id)
   return { ranking: id, compared: orderCompared(models, id, [...extras, ranking]) }
+}
+
+/** One identity for "no model compared", so a prop built from it holds still. */
+const NOT_COMPARED: readonly string[] = []
+
+/**
+ * The compared models a window actually puts in play (#803, W3): none on an
+ * archive window, the selection as it stands on every other.
+ *
+ * The archive is asked with no `models=` and answers one reanalysis whatever
+ * model is named (record 0027), so every compared model would fetch the same
+ * numbers and draw identical lines under different labels, for N times the
+ * spend. The picker is disabled on such a window, so the selection stays as
+ * the reader left it, in the link too, and comes back into play the moment the
+ * window leaves the archive. Record 0236.
+ */
+export function comparedInPlay(compared: readonly string[], source: WindowSource | null): readonly string[] {
+  return source === 'archive' ? NOT_COMPARED : compared
 }
 
 /**

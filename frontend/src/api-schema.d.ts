@@ -628,6 +628,12 @@ export interface components {
              */
             destination_types: string[];
             /**
+             * Discovery Source
+             * @description Where discovery answers from right now. `places` while this deployment's own copy of OpenStreetMap has completed a fill and can answer, so a search costs no upstream call; `overpass` while it has none, has not finished its first fill, or cannot be reached, so every search asks the donated Overpass API. Checked at most once a minute and cached for a minute, and one search can still fall back to Overpass if its connection drops, so it is how discovery will most likely answer rather than a promise.
+             * @enum {string}
+             */
+            discovery_source: "places" | "overpass";
+            /**
              * Forecast Models
              * @description Accepted values for `forecast_model`, best first. Models disagree with each other, so which one answered is part of what a number means.
              *
@@ -1204,6 +1210,13 @@ export interface components {
              */
             default: boolean;
             /**
+             * Domain
+             * @description Where a regional model has data, as a GeoJSON MultiPolygon in longitude and latitude, or null for a model that covers the whole world. Drawn through the grid's outermost points, so a destination inside it is one the model answers for, and one outside it makes the request fail as `regional` describes. Static per release.
+             */
+            domain: {
+                [key: string]: unknown;
+            } | null;
+            /**
              * Finest Grid Km
              * @description The finest grid this model offers anywhere, in kilometres. For the `*_seamless` blends that is their regional component, not their global one, so it describes the model at its best rather than everywhere: where the fine grid lands is in `summary`.
              */
@@ -1225,7 +1238,7 @@ export interface components {
             label: string;
             /**
              * Regional
-             * @description True for a model run over part of the world rather than all of it. A request naming one is rejected with 400 if any destination falls outside its grid — including destinations the caller never sees, since discovery happens server-side.
+             * @description True for a model run over part of the world rather than all of it. A request naming one is rejected with 400 if any destination falls outside its grid — including destinations the caller never sees, since discovery happens server-side. `domain` is where that grid is.
              */
             regional: boolean;
             /**
@@ -1394,6 +1407,11 @@ export interface components {
              * @description Smallest accepted `limit`.
              */
             min_limit: number;
+            /**
+             * Open Meteo Hourly Calls
+             * @description Open-Meteo's free-tier budget for one hour, per IP address, in weighted calls: one location in a request is one call, times a factor for a window longer than 14 days or more than 10 variables. The web app fetches forecasts from the visitor's own address, and an analysis that costs more than this cannot finish inside the hour. This deployment does not enforce it: its own pacer meters minutes, and a request carrying an Open-Meteo key spends that key's quota, which this does not describe.
+             */
+            open_meteo_hourly_calls: number;
             /**
              * Past Data Days
              * @description Where the forecast endpoint's own data ends, and therefore the boundary between the two weather endpoints. A window older than this is answered from the archive instead, which changes what a row can carry: the archive names no model and reports wind at 10 m rather than at the destination's elevation. A window that starts older than this and ends inside it is served by both endpoints, joined at this boundary.

@@ -195,6 +195,22 @@ describe('usePresentedReport', () => {
     expect(top.result.current.rowCount).toBe('3 of 3, 2,340 found')
   })
 
+  // #803, W4: destinations were found and forecast, and every one came back
+  // with no forecast hour, so the area is not what to change.
+  it('says the window had no forecast when every found row was dropped', () => {
+    const empty = { ...RESPONSE, results: [], total_queried: 3, total_matched: 3 }
+    const { result } = renderHook(() => usePresentedReport(inputs({ universe: [], response: empty })))
+    expect(result.current.emptyReason).toBe('No forecast data for this window.')
+    // Nothing found at all is still the area's to fix, and a field still
+    // arriving has rows yet to land.
+    const none = { ...empty, total_queried: 0, total_matched: 0 }
+    expect(renderHook(() => usePresentedReport(inputs({ universe: [], response: none }))).result.current.emptyReason).toBe(
+      'No destinations found. Try a larger area.',
+    )
+    const arriving = renderHook(() => usePresentedReport(inputs({ universe: [], response: empty, arriving: true })))
+    expect(arriving.result.current.emptyReason).toBe('No destinations found. Try a larger area.')
+  })
+
   it('says the filters admit nothing when a bound empties the table', () => {
     const bound = { ...KNOBS, constraints: { ...NO_CONSTRAINTS, maxPrecipTotalIn: 0.05 } }
     const { result } = renderHook(() => usePresentedReport(inputs({ liveKnobs: bound })))

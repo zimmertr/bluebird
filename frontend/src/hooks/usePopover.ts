@@ -83,8 +83,9 @@ interface Options {
   /**
    * An element whose width the card takes whatever its rows want: the Model
    * row for the model list, whose summaries would otherwise run it across the
-   * map, and the calendar's slot. Without one a card is its rows' width and
-   * never narrower than its trigger (record 0201).
+   * map, the calendar's slot, and the Analyze button's slot for the message
+   * list, whose longest line ran it over the map (#803). Without one a card
+   * is its rows' width and never narrower than its trigger (record 0201).
    */
   widthRef?: React.RefObject<HTMLElement | null>
   /**

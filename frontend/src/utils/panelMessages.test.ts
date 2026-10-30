@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AQI_NOTE_KEY, panelMessages, type PanelMessageInputs } from './panelMessages'
+import { AQI_NOTE_KEY, AQI_PARTIAL_KEY, panelMessages, type PanelMessageInputs } from './panelMessages'
 import type { AnalyzeBlocker } from './analyzeGate'
 import type { CommitReason } from './present'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
@@ -31,6 +31,9 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     source: null,
     aqiCoverage: 'full',
     blockers: [],
+    overCap: null,
+    spend: null,
+    modelDomain: null,
     ringIgnored: false,
     pointsNeeded: 0,
     freezeGaps: [],
@@ -40,6 +43,7 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     windowLimits: FALLBACK_WINDOW_LIMITS,
     hasReport: false,
     aqiAllNull: false,
+    aqiPartial: false,
     wildfireCheckFailed: false,
     closureCheckFailed: false,
     basemapFailed: false,
@@ -72,21 +76,25 @@ describe('panelMessages', () => {
     })
 
     it('gives way to a refusal', () => {
-      expect(keys({ error: { message: 'boom' }, refusal: { message: 'Too many.' } })).toEqual(['refusal:Too many.'])
+      expect(
+        keys({ error: { message: 'boom' }, refusal: { message: 'Too many.' }, blockers: ['refusal'] }),
+      ).toEqual(['blocker:refusal'])
     })
   })
 
+  // A refusal is a blocker (#803): it says its sentence once, as the gate's
+  // line, and never as an event line of its own beside it.
   describe('the refusal', () => {
-    it('is one error line, keyed on its message', () => {
-      expect(only({ refusal: { message: 'Too many.' } })).toEqual({
-        key: 'refusal:Too many.',
+    it('is said once, as its blocker, in its own words', () => {
+      expect(only({ refusal: { message: 'Too many.' }, blockers: ['refusal'] })).toEqual({
+        key: 'blocker:refusal',
         text: 'Too many.',
         severity: 'error',
       })
     })
 
-    it('waits while an analysis runs', () => {
-      expect(keys({ refusal: { message: 'Too many.' }, loading: true })).toEqual([])
+    it('says nothing once the gate no longer names it', () => {
+      expect(keys({ refusal: { message: 'Too many.' } })).toEqual([])
     })
   })
 
@@ -201,6 +209,31 @@ describe('panelMessages', () => {
         'error',
         `${NOUN.freeze} data is not available for ECMWF IFS and DWD ICON.`,
       ],
+      // The approved lines of #803, each spelled out in full here so a
+      // reword anywhere fails this table.
+      [
+        'refusal',
+        { refusal: { message: 'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.' } },
+        'error',
+        'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.',
+      ],
+      [
+        'over-cap',
+        { overCap: { found: 2613, noun: 'destination', limit: 1500 } },
+        'error',
+        'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.',
+      ],
+      [
+        'spend',
+        { spend: { needed: 8357, limit: 5000 } },
+        'error',
+        'This analysis needs 8,357 Open-Meteo calls. The hourly limit is 5,000.',
+      ],
+      ['archive-cloud', {}, 'error', 'Cloud deck data is not available for archive windows.'],
+      ['archive-freeze', {}, 'error', 'Freezing level data is not available for archive windows.'],
+      ['aqi-horizon', {}, 'error', `${NOUN.aqi} data is not available for this forecast window.`],
+      ['model-domain', { modelDomain: 'NOAA HRRR' }, 'error', 'NOAA HRRR has no forecast coverage for this area.'],
+      ['bound-order', {}, 'error', 'A filter minimum is above its maximum.'],
     ]
 
     it.each(BLOCKERS)('says why %s blocks, at its severity', (blocker, over, severity, text) => {
@@ -263,6 +296,37 @@ describe('panelMessages', () => {
     })
   })
 
+  // A share link that opened without part of what it carried (#803, M6):
+  // one info line each, keyed on the condition, in a fixed order.
+  describe('what a link could not restore', () => {
+    it.each([
+      ['ring', "The link's search area could not be restored."],
+      ['list', "The link's destination list could not be restored."],
+      ['model', "The link's forecast model is not available here."],
+    ] as const)('says the %s is gone, as information', (what, text) => {
+      expect(only({ linkLost: [what] })).toEqual({ key: `link:${what}`, text, severity: 'info' })
+    })
+
+    it('says nothing with nothing lost, or with no report of losses at all', () => {
+      expect(keys({ linkLost: [] })).toEqual([])
+      expect(keys({ linkLost: undefined })).toEqual([])
+    })
+
+    it('says each in one order, whatever order it was reported in', () => {
+      expect(keys({ linkLost: ['model', 'list', 'ring'] })).toEqual(['link:ring', 'link:list', 'link:model'])
+    })
+
+    // About the link the panel was built from, so ahead of the window's lines
+    // and of the blockers.
+    it('comes before the window lines and the blockers', () => {
+      expect(keys({ linkLost: ['ring'], source: 'archive', blockers: ['destinations'] })).toEqual([
+        'link:ring',
+        'window:archive-model',
+        'blocker:destinations',
+      ])
+    })
+  })
+
   describe('the basemap line', () => {
     // #580: a blank map says why, below Analyze with every other message.
     it('says the map could not load while the basemap style is failing', () => {
@@ -302,6 +366,29 @@ describe('panelMessages', () => {
     })
   })
 
+  // #803, D5: one refused air-quality batch nulls every batch after it, so a
+  // field can rank on air quality with holes in it.
+  describe('air quality that failed for part of the field', () => {
+    const partial = { hasReport: true, aqiPartial: true }
+
+    it('warns in the approved sentence', () => {
+      expect(only(partial)).toEqual({
+        key: AQI_PARTIAL_KEY,
+        text: 'Air quality data is missing for some destinations.',
+        severity: 'warn',
+      })
+    })
+
+    it.each([
+      ['there is no report', { hasReport: false }],
+      ['an analysis runs', { loading: true }],
+      ['the run failed', { error: { message: 'boom' } }],
+      ['every displayed row is without it, which the other line says', { aqiAllNull: true }],
+    ] as [string, Partial<PanelMessageInputs>][])('stays quiet when %s', (_case, over) => {
+      expect(keys({ ...partial, ...over })).not.toContain(AQI_PARTIAL_KEY)
+    })
+  })
+
   // The fixed order within the list: why the last run failed, why the report
   // is stale, what the window costs, why the button is disabled, then what a
   // delivered report is missing. `noticeBoxes` then splits it by severity and
@@ -335,6 +422,7 @@ describe('panelMessages', () => {
         modelClamped: true,
         aqiCoverage: 'partial',
         refusal: { message: 'Too many.' },
+        blockers: ['refusal', 'dates'],
         hasReport: true,
         wildfireCheckFailed: true,
         closureCheckFailed: true,
@@ -343,9 +431,10 @@ describe('panelMessages', () => {
       'window:archive-model',
       'window:clamped',
       'window:aqi-horizon',
+      'blocker:refusal',
+      'blocker:dates',
       'fire:unavailable',
       'closure:unavailable',
-      'refusal:Too many.',
     ])
     expect(keys({ hasReport: true, aqiAllNull: true, aqiCoverage: 'partial', blockers: ['types'] })).toEqual([
       'window:aqi-horizon',

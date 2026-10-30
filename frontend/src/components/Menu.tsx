@@ -131,7 +131,7 @@ export function MenuButton({ shape, open, chevron = true, chevronClassName, clas
   )
 }
 
-export interface MenuOption<V extends string> {
+interface MenuOption<V extends string> {
   value: V
   label: string
 }
@@ -144,6 +144,8 @@ interface MenuSelectProps<V extends string> {
   onChange: (value: V) => void
   /** The field's width and insets, from the role its call site already wore. */
   className: string
+  /** Out of play, as a Metrics row the window cannot answer is (#803): the field takes no press. */
+  disabled?: boolean
 }
 
 /**
@@ -162,7 +164,14 @@ interface MenuSelectProps<V extends string> {
  * way a select does. The field is named by the select's old name and the
  * value it shows, so a screen reader hears both.
  */
-export function MenuSelect<V extends string>({ label, value, options, onChange, className }: MenuSelectProps<V>) {
+export function MenuSelect<V extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  className,
+  disabled = false,
+}: MenuSelectProps<V>) {
   const [open, setOpen] = useState(false)
   const selectedIndex = Math.max(
     options.findIndex((o) => o.value === value),
@@ -206,6 +215,7 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
         open={open}
         aria-haspopup="listbox"
         aria-labelledby={`${nameId} ${valueId}`}
+        disabled={disabled}
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={(e) => {
           if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {

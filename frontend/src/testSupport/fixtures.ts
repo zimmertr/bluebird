@@ -18,6 +18,8 @@ import type { MapInputs } from '../map/controller'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import { worstSeverity } from '../utils/notices'
+import type { RefusalPanel } from '../utils/analyzeGate'
+import { ALL_ANSWERED } from '../utils/metricReach'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
 // out in full.
@@ -288,6 +290,7 @@ export function forecastModel(over: Partial<ForecastModelOption> = {}): Forecast
     forecastHours: 384,
     regional: false,
     blend: false,
+    domain: null,
     ...over,
   }
 }
@@ -310,6 +313,9 @@ export function capabilities(over: Partial<Capabilities> = {}): Capabilities {
     defaultForecastModel: 'gfs_seamless',
     // No outlines, so no Layers row greys: a test that wants one says so.
     coverage: {},
+    // The safe side: no count ahead of Analyze unless a test asks for one.
+    discoverySource: 'overpass',
+    openMeteoHourlyCalls: 5_000,
     ...over,
   }
 }
@@ -453,6 +459,29 @@ export function analyzedSnapshot(over: Partial<AnalyzedView> = {}): AnalyzedView
 }
 
 /**
+ * The panel as `refusalStands` reads it (#803): the window, model and sort
+ * `analyzedSnapshot` holds, with no ring, no type and no list. A test that
+ * compares the two gives both the same discovery keys.
+ */
+export function refusalPanel(over: Partial<RefusalPanel> = {}): RefusalPanel {
+  const snapshot = analyzedSnapshot()
+  return {
+    selectionKind: snapshot.kind,
+    windowMs: snapshot.window,
+    forecastModel: snapshot.forecastModel,
+    comparedModels: [],
+    polygon: null,
+    destinationTypes: [],
+    includeUnnamedPeaks: false,
+    pendingCount: 0,
+    sortBy: snapshot.sortBy,
+    constraints: NO_CONSTRAINTS,
+    customCount: 0,
+    ...over,
+  }
+}
+
+/**
  * The paste-time elevation lookup as a test hands it to an analysis (#673):
  * what it knows, as of now and of the last render alike, with nothing still
  * being asked about.
@@ -535,7 +564,10 @@ export function panelMessages(over: Partial<PanelMessages> = {}): PanelMessages 
     areaTooLarge: false,
     pointsNeeded: 3,
     modelDisabled: false,
+    // #803, W6: every metric answers.
+    unanswered: ALL_ANSWERED,
     held: false,
+    failureSeq: 0,
     ...over,
   }
 }
