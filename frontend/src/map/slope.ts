@@ -22,9 +22,10 @@
  * out to 12, which holds over all land. A zoom that answers 404 is remembered
  * for the session, so a pan does not ask again, and the tile is painted from
  * the square of the coarser tile it lies over (`demWindow`), at that tile's
- * ground spacing, each coarser pixel drawn as a block. The relief and the 3D
- * terrain cannot do this: MapLibre reads a `raster-dem` tile that fails as a
- * hole, so their sources stop at 12 (`DEM_MAXZOOM`).
+ * ground spacing, each coarser pixel drawn as a block. MapLibre reads a
+ * `raster-dem` tile that fails as a hole, so the relief and the 3D terrain
+ * read their elevation through a second scheme here, `DEM_FILL_SCHEME`, which
+ * answers every address the same way, with heights rather than a picture.
  *
  * The painting runs on the main thread. The fetch and the decode are already
  * in the library's worker; a worker of the app's own for the band loop would
@@ -43,6 +44,7 @@ import {
   type EdgeTiles,
   type HeightGrid,
 } from '../utils/slopeAngle'
+import { stretchWindow, terrariumRgba } from '../utils/demFill'
 import { DEM_MAXZOOM } from '../utils/terrainSources'
 
 /** The scheme the slope tiles are painted through. */
@@ -50,6 +52,15 @@ export const SLOPE_SCHEME = 'bluebird-slope'
 
 /** The raster source's tile template. */
 export const SLOPE_TILES = `${SLOPE_SCHEME}://{z}/{x}/{y}`
+
+/**
+ * The scheme the relief's and the 3D terrain's elevation is served through
+ * past zoom 12 (`utils/demFill.ts`): the finest tile under each address, or a
+ * coarser one's window stretched to fill it, so their `raster-dem` sources
+ * never meet a missing tile and can reach {@link SLOPE_MAXZOOM}.
+ */
+export const DEM_FILL_SCHEME = 'bluebird-dem-fill'
+export const DEM_FILL_TILES = `${DEM_FILL_SCHEME}://{z}/{x}/{y}`
 
 /**
  * The deepest zoom the slope tiles are painted at; MapLibre stretches past
@@ -143,6 +154,52 @@ async function finer(
 }
 
 /**
+ * The finest elevation tile over tile `x`, `y` at zoom `z`: its own zoom
+ * first, then each zoom out that answers, down to 12, where `centre` is null
+ * and the caller reads the zoom-12 tile itself, which every part of the land
+ * has.
+ */
+async function finestUnder(
+  dem: DemGrids,
+  z: number,
+  x: number,
+  y: number,
+  abort: AbortController,
+  missing: MissingTiles,
+): Promise<{ level: number; centre: HeightGrid | null }> {
+  let level = z
+  while (level > DEM_MAXZOOM) {
+    const above = coveringTile(z, x, y, level)
+    const centre = await finer(dem, level, above.x, above.y, abort, missing)
+    if (centre) return { level, centre }
+    level--
+  }
+  return { level, centre: null }
+}
+
+/**
+ * One elevation tile for the relief and the 3D terrain (`DEM_FILL_SCHEME`):
+ * the finest tile under the address, or the window of the coarser one it lies
+ * in stretched to the tile's size, as Terrarium. Never missing where the land
+ * has a zoom-12 tile, so a `raster-dem` source over it draws no hole.
+ */
+export async function demFillTile(
+  dem: DemGrids,
+  z: number,
+  x: number,
+  y: number,
+  abort: AbortController,
+  deps: { toImage?: ToImage; missing?: MissingTiles } = {},
+): Promise<ImageBitmap> {
+  const { toImage = toBitmap, missing = new Set() } = deps
+  const found = await finestUnder(dem, z, x, y, abort, missing)
+  const at = coveringTile(z, x, y, found.level)
+  const grid = found.centre ?? (await dem.getDemTile(found.level, at.x, at.y, abort))
+  const window = demWindow(z, x, y, found.level, grid.width)
+  return toImage(terrariumRgba(stretchWindow(grid, window)), grid.width, grid.height)
+}
+
+/**
  * One slope tile: the finest elevation under it and the four tiles that touch
  * that elevation's edges, painted by band.
  *
@@ -168,15 +225,7 @@ export async function slopeTile(
   deps: { toImage?: ToImage; missing?: MissingTiles } = {},
 ): Promise<ImageBitmap> {
   const { toImage = toBitmap, missing = new Set() } = deps
-  // Past 12, the first zoom from the tile's own outward whose elevation loads.
-  let level = z
-  let centre: HeightGrid | null = null
-  while (level > DEM_MAXZOOM) {
-    const above = coveringTile(z, x, y, level)
-    centre = await finer(dem, level, above.x, above.y, abort, missing)
-    if (centre) break
-    level--
-  }
+  const { level, centre } = await finestUnder(dem, z, x, y, abort, missing)
 
   const at = coveringTile(z, x, y, level)
   const count = 2 ** level
@@ -201,9 +250,10 @@ export async function slopeTile(
 }
 
 /**
- * Registers the scheme with MapLibre. Called once, when the contour library
- * has loaded, so the cold load registers nothing. The tiles known missing are
- * this registration's, which is the page's.
+ * Registers the two schemes with MapLibre, the slope's and the filled
+ * elevation's. Called once, when the contour library has loaded, so the cold
+ * load registers nothing. The tiles known missing are this registration's,
+ * the page's, and shared by both, since both read the same elevation.
  */
 export function serveSlopeTiles(
   dem: DemGrids,
@@ -211,10 +261,13 @@ export function serveSlopeTiles(
 ): void {
   const register = deps.register ?? addProtocol
   const missing: MissingTiles = new Set()
+  const address = (url: string) => (/(\d+)\/(\d+)\/(\d+)/.exec(url) ?? []).slice(1).map(Number)
   register(SLOPE_SCHEME, async (request, abort) => {
-    const [, z, x, y] = /(\d+)\/(\d+)\/(\d+)/.exec(request.url) ?? []
-    return {
-      data: await slopeTile(dem, Number(z), Number(x), Number(y), abort, { toImage: deps.toImage, missing }),
-    }
+    const [z, x, y] = address(request.url)
+    return { data: await slopeTile(dem, z, x, y, abort, { toImage: deps.toImage, missing }) }
+  })
+  register(DEM_FILL_SCHEME, async (request, abort) => {
+    const [z, x, y] = address(request.url)
+    return { data: await demFillTile(dem, z, x, y, abort, { toImage: deps.toImage, missing }) }
   })
 }

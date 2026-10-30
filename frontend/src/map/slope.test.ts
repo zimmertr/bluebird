@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 // through it, so the suite hands in its own.
 vi.mock('maplibre-gl', () => ({ addProtocol: vi.fn() }))
 
-import { SLOPE_SCHEME, SLOPE_TILES, serveSlopeTiles, slopeTile, type DemGrids } from './slope'
+import { DEM_FILL_SCHEME, SLOPE_SCHEME, SLOPE_TILES, demFillTile, serveSlopeTiles, slopeTile, type DemGrids } from './slope'
+import { terrariumHeight } from '../utils/demFill'
 import { slopeRaster, type HeightGrid } from '../utils/slopeAngle'
 
 const SIZE = 4
@@ -243,5 +244,27 @@ describe('serveSlopeTiles', () => {
     await loader({ url: `${SLOPE_SCHEME}://13/1325/2886` }, new AbortController())
     await loader({ url: `${SLOPE_SCHEME}://13/1325/2886` }, new AbortController())
     expect(asked.filter((key) => key === '13/1325/2886')).toHaveLength(1)
+  })
+
+  it('registers the filled elevation beside the slope', () => {
+    const register = vi.fn()
+    serveSlopeTiles(demOf({}).dem, { register, toImage: async () => 'bitmap' as unknown as ImageBitmap })
+    expect(register.mock.calls.map((c) => c[0])).toEqual([SLOPE_SCHEME, DEM_FILL_SCHEME])
+  })
+})
+
+// The relief's and the 3D terrain's elevation past 12: the tile itself where
+// a survey has it, else a coarser tile's window stretched, never a hole.
+describe('demFillTile', () => {
+  const heightAt = (rgba: Uint8ClampedArray, i: number) => terrariumHeight(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2])
+  it('serves a surveyed tile as it is and a missing one from the zoom it falls back to', async () => {
+    const toImage = vi.fn(async (rgba: Uint8ClampedArray) => rgba as unknown as ImageBitmap)
+    const { dem, asked } = demOf({ '13/1325/2886': flat(700), '12/662/1443': flat(500) })
+    const own = (await demFillTile(dem, 13, 1325, 2886, new AbortController(), { toImage })) as unknown as Uint8ClampedArray
+    expect(heightAt(own, 0)).toBe(700)
+    const filled = (await demFillTile(dem, 13, 1324, 2886, new AbortController(), { toImage })) as unknown as Uint8ClampedArray
+    expect(heightAt(filled, 0)).toBe(500)
+    expect(asked).toContain('13/1324/2886')
+    expect(asked).toContain('12/662/1443')
   })
 })

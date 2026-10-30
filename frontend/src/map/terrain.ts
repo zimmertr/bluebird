@@ -8,8 +8,11 @@
  * switches on, the contour library loads as a chunk of its own
  * (`maplibre-contour`, a dynamic import), and its tile cache serves every
  * elevation request after that. The relief, the contours and the 3D terrain
- * all read the tiles through it (`sharedDemProtocolUrl`), so a tile two of
- * them need is fetched once. A switch turned off hides its layers rather than
+ * all read the tiles through it, so a tile two of them need is fetched once:
+ * the contours by the library's own scheme, which stops at zoom 12 because
+ * its worker fetches the tiles itself and cannot fall back past a missing
+ * one, and the relief and the 3D terrain by the filled scheme (`slope.ts`),
+ * which can, to the slope's zoom. A switch turned off hides its layers rather than
  * removing them, and MapLibre asks for no tile of a source no visible layer
  * or terrain uses, so with all three off nothing is requested.
  *
@@ -28,7 +31,7 @@ import { FEET_PER_METER } from '../utils/basemapPoi'
 import { OPACITY_DEFAULT, opacityOf, overDefault } from '../utils/baseMapOpacity'
 import { DEM_MAXZOOM, DEM_TILES, MAPTERHORN_HREF } from '../utils/terrainSources'
 import { CAMERA_MS } from './mapStyles'
-import { SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_TILES, serveSlopeTiles, type DemGrids } from './slope'
+import { DEM_FILL_TILES, SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_TILES, serveSlopeTiles, type DemGrids } from './slope'
 
 /** The relief's elevation source. */
 export const DEM_SOURCE = 'dem'
@@ -361,14 +364,19 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
   const beneathLabels = () =>
     map.getStyle().layers?.find((l) => l.type === 'symbol' || l.id.startsWith('ofm-'))?.id
 
+  // The relief's and the 3D terrain's elevation, to the slope's zoom through
+  // the filled scheme (`utils/demFill.ts`): a raster-dem tile that failed
+  // would be a hole MapLibre cannot fill from the zoom below, and the filled
+  // tiles never fail where the land has a zoom-12 tile. Before 2026-10-30
+  // these read the library's tiles directly and so stopped at 12.
   function demSource(id: string) {
     if (map.getSource(id)) return
     map.addSource(id, {
       type: 'raster-dem',
-      tiles: [tiles!.sharedDemProtocolUrl],
+      tiles: [DEM_FILL_TILES],
       encoding: 'terrarium',
       tileSize: 512,
-      maxzoom: DEM_MAXZOOM,
+      maxzoom: SLOPE_MAXZOOM,
       attribution: MAPTERHORN_ATTRIBUTION,
     })
   }

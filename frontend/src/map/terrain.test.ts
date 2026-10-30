@@ -43,7 +43,7 @@ import {
   reliefPaint,
   type DemTiles,
 } from './terrain'
-import { SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_SCHEME, SLOPE_TILES } from './slope'
+import { DEM_FILL_TILES, SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_SCHEME, SLOPE_TILES } from './slope'
 import { SLOPE_ALPHA } from '../utils/slopeAngle'
 import { DEM_MAXZOOM, DEM_TILES } from '../utils/terrainSources'
 import { FEET_PER_METER } from '../utils/basemapPoi'
@@ -95,6 +95,7 @@ describe('mountTerrain', () => {
 
   // The relief goes in the first time it is asked for, as Terrarium: read as
   // MapLibre's default `mapbox` encoding the heights come out wrong silently.
+  // It reads the filled tiles, which never miss, to the slope's zoom.
   it('adds the elevation as Terrarium at 512px, credited, the first time the relief is on', async () => {
     const { stub, terrain, load } = setup()
     terrain.update({ ...OFF, relief: true })
@@ -103,10 +104,10 @@ describe('mountTerrain', () => {
     expect(sourcesAdded(stub.calls)).toEqual([DEM_SOURCE])
     expect(stub.calls.find((c) => c[0] === 'addSource')![2]).toEqual({
       type: 'raster-dem',
-      tiles: ['bluebird-dem-shared://{z}/{x}/{y}'],
+      tiles: [DEM_FILL_TILES],
       encoding: 'terrarium',
       tileSize: 512,
-      maxzoom: DEM_MAXZOOM,
+      maxzoom: SLOPE_MAXZOOM,
       attribution: MAPTERHORN_ATTRIBUTION,
     })
   })
