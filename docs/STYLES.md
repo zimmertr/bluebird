@@ -115,7 +115,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `ACCENT.input` | Native checkbox/radio tint and sizing |
 | `ACCENT.text` | Resting accent text: table detail-sort arrow |
 | `ACCENT.hoverText` | Text reaching for accent on hover |
-| `ACCENT.edgeHover` | Border reaching for accent on hover |
+| `COLUMN_GRIP` | A results header's resize grip: a 2px line drawn by its `before`, the edge ink at rest and the accent under the pointer (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
 | `ACCENT.edgeFocus` | Border on focus-within |
 | `FOCUS_RING` | Visible keyboard-focus outline |
 | `FOCUS_RING_INSET` | The same outline drawn inside the edge: the results table's sticky headers, where an outer ring is clipped by the scroll box and lands on the first row (sky-400 is 4.75:1 on the slate-700 bar) |
@@ -342,9 +342,11 @@ either ground: a marker wears a dark ring outside its white stroke, and the
 scale's ends are a dark line and a light one (#799). Record:
 [0243](decisions/0243-map-reads-on-a-dark-ground.md) The
 map's control buttons and its credit box are the app's chrome and
-follow the theme like any floating box, which is why in light their glyphs keep
-MapLibre's own dark drawing where `map.css` inverts them in dark, and the credit
-line reads in `ink-mid`.
+follow the theme like any floating box: `map.css` draws every one of
+MapLibre's glyphs as a mask in its button's own ink, so one drawing serves both
+themes and the glyph takes the accent under the pointer as a label does
+(record [0251](decisions/0251-controls-light-their-label-on-hover.md)), and the
+credit line reads in `ink-mid`.
 
 **The popups follow the theme** (#740), **and are the panel's own surface** (#786). Every colour a card wears is a
 `--popup-*` value that `map.css` declares once, each the app's `--ui-*` token
@@ -387,6 +389,7 @@ button against the panel's in a browser. Record: [0163](decisions/0163-popups-fo
 | Every radio/checkbox uses the shared recipe | `styles.test.ts`, `checks/styles.js` | The test checks `CHOICE_INPUT` composition and counts one per `CHOICE_ROW` in each panel file; `style-call-site-classes` bans a size after `ACCENT.input` |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
+| One hover: a control's label or glyph takes the accent, and no edge lights | `checks/styles.js`, `styles.test.ts` | `style-hover-no-edge` bans a `hover:` border, outline or ring in any class string; the test holds `map.css` to it (only a colour or a glyph's mask changes under the pointer, 3D's solid fill aside) and every map glyph, in every state, to a mask in its button's ink (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
 | Metric names are centralized | `eslint.config.js` | Ban the six abbreviations in strings and templates across twelve consumer files |
 | Precipitation precision is centralized | `metrics.test.ts` | Ban a `toFixed` on a precipitation value in the same twelve files, read as text; `formatPrecipTotal` / `formatPrecipRate` decide |
 | Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
@@ -709,9 +712,9 @@ zoom pair, 24px in, 6px apart and 10px above the line. The line sets the
 library's 20px line (`leading-5`), which its controls lose outside the map's
 container, so the scale keeps its 22px box and the line is 27px tall
 (measured 2026-10-21, `e2e/deskCorner.spec.ts`). The zoom pair is one
-capsule (`MAP_ZOOM_PAIR`), whose halves take the raised fill under the pointer
-rather than the sky edge, since the rule between them is the lower half's edge
-alone. The chip row holds Legend and then Layers at both
+capsule (`MAP_ZOOM_PAIR`), whose halves light their glyph in the accent under
+the pointer, as every map button does (record
+[0251](decisions/0251-controls-light-their-label-on-hover.md)). The chip row holds Legend and then Layers at both
 widths, so the legend card, open by default, hangs over the map's left edge,
 with the summary chip at the row's front only while the panel is shut. Their menus open as whole cards 4px under
 the chip (`MAP_CHIP_MENU`), each chip carrying a chevron that points down while
@@ -778,9 +781,10 @@ both themes). The credit line's (i) is the same dark
 round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
 is the floating card (`MAP_CREDIT.card`), which a desk's credit line in the
 corner is itself, so the line sheds the card it would otherwise wear; its links dressed in `map.css` as
-`LINK` dresses the app's. The compass needle is redrawn rather than inverted,
-red-500 north and slate-50 south edged in slate-600, and the (i)'s glyph is
-centred on its button's whole box. The scale bar is a ruler on the map, not a
+`LINK` dresses the app's. The compass needle is redrawn, red-500 north and
+slate-50 south edged in slate-600, and under the pointer it is one shape in
+the accent, as every map glyph lights; the (i)'s glyph is centred on its
+button's whole box. The scale bar is a ruler on the map, not a
 control, so it wears none of that chrome.
 Record: [0147](decisions/0147-map-buttons-wear-the-app-chrome.md) It stands on
 the legend ramp's scrim in the ramp's ink instead, so it follows the theme

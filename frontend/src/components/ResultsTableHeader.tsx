@@ -8,7 +8,7 @@ import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
 import type { InsertLine } from '../utils/columnMeasure'
 import { sized } from './sizedCell'
-import { ACCENT, CHOICE_INPUT, DRAG, FOCUS_RING_INSET, SCROLL_SHADOW, SR_ONLY, TABLE } from '../styles'
+import { ACCENT, CHOICE_INPUT, COLUMN_GRIP, DRAG, FOCUS_RING_INSET, SCROLL_SHADOW, SR_ONLY, TABLE } from '../styles'
 
 // The results table's header row and everything a press on it can do: sort
 // (by pointer or by key), move a column, resize one, and fit one to its content. Apart from the body
@@ -213,13 +213,13 @@ function ResultsTableHeader({
                 number: isNumberColumn(col),
                 // The drag handle owns the header's right edge; its clicks
                 // stop here so a resize or an auto-fit never doubles as a
-                // sort. The border is the visible affordance.
+                // sort. Its line is the visible affordance.
                 grip: onColumnWidthsChange && (
                   <span
                     onPointerDown={(e) => resize.begin(e, col.key as string)}
                     onDoubleClick={(e) => resize.fit(e, col.key as string)}
                     onClick={(e) => e.stopPropagation()}
-                    className={`absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none border-r-2 border-edge/40 ${ACCENT.edgeHover}`}
+                    className={COLUMN_GRIP}
                     aria-hidden="true"
                   />
                 ),

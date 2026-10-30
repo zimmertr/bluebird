@@ -970,6 +970,25 @@ export const STYLES = [
     ],
   },
   {
+    // One hover across the app (record 0251): under the pointer a control's
+    // label or glyph takes the accent, and nothing lights its edge. A dropdown
+    // lighting its edge beside a segment that lit its label only was what the
+    // maintainer found on 2026-10-30. Any variant before `hover:` counts
+    // (`enabled:`, `group-`), and so does `group-hover:`. An open dropdown's
+    // accent edge is `aria-expanded:`, a state rather than a hover, and passes.
+    // styles.test.ts holds map.css to the same rule, since ESLint does not read CSS.
+    name: 'style-hover-no-edge',
+    files: SHIPPED,
+    ignores: TESTS,
+    probe: 'src/styles.ts',
+    ban: [
+      {
+        selector: text(String.raw`(^|[\s:])(group-|peer-)?hover:(?:[\w-]+:)*(border|outline|ring)-`),
+        message: 'Light the label or glyph in the accent under the pointer, never the edge (record 0251).',
+      },
+    ],
+  },
+  {
     // Popup markup is handed to MapLibre's setHTML, so its type ramp cannot be
     // a TEXT role. popupChrome.ts owns the three sizes, the button and the
     // rule; a `font-size:` spelled anywhere else is how the popups came to

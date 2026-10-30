@@ -580,10 +580,20 @@ export const ACCENT = {
   text: 'text-accent-ink',
   /** An icon or control reaching for the accent on hover. */
   hoverText: 'hover:text-accent-ink',
-  /** The accent on a boundary rather than a fill, in the two states that use it. */
-  edgeHover: 'hover:border-accent-ink',
+  /** The accent on a boundary rather than a fill, for a field holding focus. No control lights its edge under the pointer (record 0251). */
   edgeFocus: 'focus-within:border-accent-ink',
 } as const
+
+/**
+ * A results header's resize grip (record 0251): a hit strip at the column's
+ * right edge whose mark is a 2px line drawn by its `before`, in the edge ink
+ * at rest and the accent under the pointer, as every control's mark is. The
+ * line was the strip's own border, the one hover left lighting an edge.
+ */
+export const COLUMN_GRIP =
+  'absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none ' +
+  "before:absolute before:inset-y-0 before:right-0 before:w-0.5 before:bg-edge/40 before:content-[''] " +
+  'hover:before:bg-accent-ink'
 
 /**
  * The visible keyboard-focus indicator for interactive controls.
@@ -1609,7 +1619,10 @@ export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
 /**
  * A map button: the locate button and the compass, at both widths (TJ,
  * 2026-10-14; record 0147). 40px and round, in the pill's dark chrome, with
- * the floating buttons' sky edge on hover and the app's focus ring. The
+ * the app's focus ring. Under the pointer its glyph takes the accent, as every
+ * control's label does (record 0251): `map.css` draws each of the library's
+ * glyphs as a mask in the button's own ink, so the class's colour is the
+ * glyph's, and a disabled button does not light. The
  * buttons are MapLibre's own, so their states (asking, tracking, failed; a
  * compass that resets north) stay the library's: `map/controls.ts` hands each
  * of them this role when the map is built, the one way a class reaches markup
@@ -1621,7 +1634,7 @@ export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
  */
 export const MAP_ROUND_BUTTON =
   `size-10 bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
-  `transition-colors ${ACCENT.edgeHover} ${FOCUS_RING}`
+  `text-ink transition-colors enabled:hover:text-accent-ink ${FOCUS_RING}`
 
 /**
  * The 3D button (#799): a map button whose glyph is the word `3D`, at the
@@ -1706,7 +1719,7 @@ export const MAP_CORNER = {
  */
 const MAP_ZOOM_HALF =
   `size-10 bg-floating/95 border border-edge ${ELEVATION.raised} backdrop-blur-sm ` +
-  `transition-colors enabled:hover:bg-raised ${FOCUS_RING}`
+  `text-ink transition-colors enabled:hover:text-accent-ink ${FOCUS_RING}`
 export const MAP_ZOOM_PAIR = {
   in: `${MAP_ZOOM_HALF} border-b-0 rounded-t-full`,
   out: `${MAP_ZOOM_HALF} rounded-b-full`,
@@ -1726,8 +1739,8 @@ export const MAP_ZOOM_PAIR = {
  */
 export const MAP_CREDIT = {
   button:
-    `size-6 bg-floating/95 border border-edge ${RADIUS.pill} transition-colors ` +
-    `${ACCENT.edgeHover} ${FOCUS_RING}`,
+    `size-6 bg-floating/95 border border-edge ${RADIUS.pill} text-ink-mid transition-colors ` +
+    `${ACCENT.hoverText} ${FOCUS_RING}`,
   card: `${SURFACE_FLOATING} text-ink-mid`,
 } as const
 

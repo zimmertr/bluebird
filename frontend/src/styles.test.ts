@@ -2011,7 +2011,7 @@ describe('the accent', () => {
     expect(darkStep('accent-ink')).toMatch(/^sky-/)
     expect(ICON_ACTION).toContain(ACCENT.hoverText)
     expect(BUTTON_FLOATING).toContain(ACCENT.hoverText)
-    expect(BUTTON_FLOATING).not.toContain(ACCENT.edgeHover)
+    expect(BUTTON_FLOATING).not.toMatch(/hover:border/)
     expect(BUTTON_FLOATING).toContain(SURFACE_FLOATING)
   })
 })
@@ -2537,7 +2537,8 @@ describe('the map rows', () => {
     const fill = tokens(ACCENT.fill).find((t) => t.startsWith('bg-'))!
     expect(tokens(MAP_CHIP)).toContain(`aria-expanded:${fill}`)
     expect(tokens(MAP_CHIP)).toContain(`aria-expanded:${fill.replace(/^bg-/, 'border-')}`)
-    for (const part of [ACCENT.edgeHover, ACCENT.hoverText, FOCUS_RING]) expect(MAP_CHIP).toContain(part)
+    for (const part of [ACCENT.hoverText, FOCUS_RING]) expect(MAP_CHIP).toContain(part)
+    expect(MAP_CHIP).not.toMatch(/hover:border/)
   })
 
   // Everything else on a phone's top stands under the rows: the draw bar 8px
@@ -2611,14 +2612,16 @@ describe('the phone chrome\'s hit areas', () => {
   })
 
   // The (i)'s glyph is centred on its button's whole box (TJ, 2026-10-14):
-  // the library places it at the padding box's top left, which the role's
-  // 1px border moves 1px off centre and clips.
+  // the library placed it at the padding box's top left, which the role's
+  // 1px border moved 1px off centre and clipped. It is a mask on the
+  // button's `after` now, over the border box, in the button's ink.
   it('centres the (i) glyph on its button', () => {
-    const at = mapCss.indexOf('.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {')
+    const at = mapCss.indexOf('.maplibregl-ctrl-attrib-button::after {')
+    expect(at).toBeGreaterThan(-1)
     const rule = mapCss.slice(at, mapCss.indexOf('}', at))
-    expect(rule).toContain('background-origin: border-box;')
-    expect(rule).toContain('background-position: center;')
-    expect(rule).toContain('background-repeat: no-repeat;')
+    for (const decl of ['inset: -1px;', 'mask-position: center;', 'mask-repeat: no-repeat;', 'background-color: currentColor;']) {
+      expect(rule).toContain(decl)
+    }
   })
 
   // The compass needle is redrawn, not inverted (TJ, 2026-10-14): inverting
@@ -2650,9 +2653,58 @@ describe('the phone chrome\'s hit areas', () => {
     for (const [pair, r] of Object.entries(MEASURED)) expect(r, pair).toBeGreaterThanOrEqual(3)
   })
 
+  // One hover across the app (record 0251): a control's label or glyph takes
+  // the accent and nothing lights its edge. The linter's `style-hover-no-edge`
+  // holds every class string to it; this holds the stylesheet the library's
+  // markup is dressed by, which ESLint does not read. Under the pointer a
+  // map.css rule may change a colour or a glyph's mask, never an edge or a
+  // fill, except the one solid button, 3D while it is on, which deepens its
+  // fill as every filled button does.
+  it('lights no edge or fill under the pointer in map.css, and draws every map glyph in its ink', () => {
+    const SOLID = ['.map-terrain[aria-pressed="true"]:hover']
+    const rules = [...mapCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => [
+      selector.slice(selector.lastIndexOf('*/') + 1).replace(/^\/?\s*/, '').trim(),
+      body,
+    ])
+    const hovered = rules.filter(([selector]) => selector.includes(':hover'))
+    expect(hovered.length).toBeGreaterThan(0)
+    for (const [selector, body] of hovered) {
+      if (SOLID.includes(selector)) continue
+      expect(body, selector).not.toMatch(/(^|[\s;])(border(-[a-z]+)*|box-shadow|outline)\s*:/)
+      // A fill only where it is a glyph's colour through its mask, or the
+      // vendor's own hover fill taken off.
+      for (const [, value] of body.matchAll(/(?:^|[\s;])background(?:-color)?\s*:\s*([^;]+);/g)) {
+        expect(selector.includes('.maplibregl-ctrl-icon') ? value : value.trim(), selector).toMatch(/^(none|transparent|currentColor)$/)
+      }
+    }
+    // Each of the library's glyphs, in every state it has, is a mask: the
+    // zoom pair, the locate button resting, following, panned away and
+    // refused, the compass under the pointer, and the (i).
+    for (const glyph of [
+      'zoom-in .maplibregl-ctrl-icon {',
+      'zoom-out .maplibregl-ctrl-icon {',
+      'maplibregl-ctrl-geolocate .maplibregl-ctrl-icon {',
+      'maplibregl-ctrl-geolocate-background-error .maplibregl-ctrl-icon {',
+      'maplibregl-ctrl-geolocate:disabled .maplibregl-ctrl-icon {',
+      'maplibregl-ctrl-compass:enabled:hover .maplibregl-ctrl-icon {',
+      'maplibregl-ctrl-attrib-button::after {',
+    ]) {
+      const at = mapCss.indexOf(glyph)
+      expect(at, glyph).toBeGreaterThan(-1)
+      expect(mapCss.slice(at, mapCss.indexOf('}', at)), glyph).toMatch(/mask-image: url\(/)
+    }
+    // The states' colours are theme tokens, never a value of their own.
+    for (const state of ['--ui-accent-ink)', '--ui-danger)', '--ui-accent-ink-hover)']) expect(mapCss).toContain(`color: var(${state};`)
+    // And the buttons' classes carry the hover the glyphs follow.
+    for (const recipe of [MAP_ROUND_BUTTON, MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out]) {
+      expect(recipe).toContain('enabled:hover:text-accent-ink')
+    }
+    expect(MAP_CREDIT.button).toContain(ACCENT.hoverText)
+  })
+
   // The library's white box comes off its buttons (record 0147): a group is
   // no surface of its own, its buttons 4px apart as the app's column is.
-  it('draws the library\'s buttons as the app\'s, 4px apart, glyphs light', () => {
+  it('draws the library\'s buttons as the app\'s, 4px apart, glyphs in their ink', () => {
     const rule = (selector: string) => {
       const at = mapCss.indexOf(`${selector} {`)
       expect(at, selector).toBeGreaterThanOrEqual(0)
@@ -2661,10 +2713,12 @@ describe('the phone chrome\'s hit areas', () => {
     const group = rule('.maplibregl-ctrl-group')
     for (const decl of ['background: transparent;', 'box-shadow: none;', 'gap: 4px;']) expect(group).toContain(decl)
     expect(rule('.maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl')).toContain('margin-top: 4px;')
-    expect(rule('.maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: invert(1) hue-rotate(180deg);')
-    // The light theme's buttons are light, so its glyphs keep the library's
-    // own dark drawing (#706).
-    expect(rule(':root[data-theme="light"] .maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: none;')
+    // Every glyph is a mask in its button's ink (record 0251), so one drawing
+    // serves both themes and the hover's colour is the button's class.
+    for (const decl of ['filter: none;', 'background-image: none;', 'background-color: currentColor;']) {
+      expect(rule('.maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain(decl)
+    }
+    expect(mapCss).not.toMatch(/filter:\s*invert/)
     // The idle compass hides by a class on the button itself (record 0147),
     // since a phone stands it outside the map's container: in the chip row's
     // slot while north-up. A desk's corner keeps it, greyed by `DISABLED`
@@ -3601,15 +3655,15 @@ describe('a desk\'s map corner', () => {
   })
 
   // The pair is the map button's chrome joined (TJ, 2026-10-20): a capsule
-  // with the lower half's top edge for the rule, a raised fill under the
-  // pointer rather than the sky edge, which only one half's border could take.
+  // with the lower half's top edge for the rule. Under the pointer a half's
+  // glyph takes the accent, as every map button's does (record 0251).
   it('joins the zoom pair into one capsule, each half a map button', () => {
-    const shape = new Set<string>([RADIUS.pill, ACCENT.edgeHover])
+    const shape = new Set<string>([RADIUS.pill])
     for (const half of [MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out]) {
       for (const t of tokens(MAP_ROUND_BUTTON).filter((t) => !shape.has(t))) expect(tokens(half), t).toContain(t)
       expect(tokens(half)).not.toContain(RADIUS.pill)
-      expect(half).not.toContain(ACCENT.edgeHover)
-      expect(tokens(half)).toContain('enabled:hover:bg-raised')
+      expect(tokens(half)).toContain('enabled:hover:text-accent-ink')
+      expect(half).not.toMatch(/hover:(bg|border)-/)
     }
     expect(tokens(MAP_ZOOM_PAIR.in)).toEqual(expect.arrayContaining(['border-b-0', 'rounded-t-full']))
     expect(tokens(MAP_ZOOM_PAIR.out)).toContain('rounded-b-full')
@@ -3974,12 +4028,12 @@ describe('the results bar buttons', () => {
     // past its edges (record 0223).
     expect(BAR_GROUP).toBe(SEGMENT_FLUID.replace(' overflow-hidden', ''))
     expect(ACTION_GROUP).toBe(BAR_GROUP)
-    // The switch's idle fill and ink, with the accent label every menu
-    // trigger takes under the pointer in place of its white (record 0201).
+    // The switch's idle fill and ink, and the one hover both take: the
+    // accent label (records 0201 and 0251).
     expect(token(ACTION_ITEM, 'bg')).toBe(token(SEGMENT_IDLE, 'bg'))
     expect(token(ACTION_ITEM, 'text')).toBe(token(SEGMENT_IDLE, 'text'))
     expect(ACTION_ITEM).toContain(ACCENT.hoverText)
-    expect(words(ACTION_ITEM)).not.toContain(`hover:text-${token(SEGMENT_IDLE, 'hover:text')}`)
+    expect(SEGMENT_IDLE).toContain(ACCENT.hoverText)
     for (const part of [TAP.action, FOCUS_RING, 'py-0.5', 'text-xs', 'gap-1.5']) {
       expect(SEGMENT_ITEM).toContain(part)
       expect(ACTION_ITEM).toContain(part)
