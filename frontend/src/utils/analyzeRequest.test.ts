@@ -71,6 +71,14 @@ describe('planAnalysis', () => {
     })
   })
 
+  it('sends the unnamed-peaks toggle only while peaks are among the kinds (#803, M9)', () => {
+    const lakes = planAnalysis(inputs({ destinationTypes: ['lake'], includeUnnamedPeaks: true }))
+    expect(lakes.run?.request.include_unnamed_peaks).toBe(false)
+    expect(lakes.record?.value?.base).toBe(discoveryBase(RING, [], ['lake'], false))
+    const peaks = planAnalysis(inputs({ destinationTypes: ['peak'], includeUnnamedPeaks: true }))
+    expect(peaks.run?.request.include_unnamed_peaks).toBe(true)
+  })
+
   it('carries the custom list along with a discovery', () => {
     const plan = planAnalysis(inputs({ places: [place()] }))
     expect(plan.run?.request.custom_destinations).toHaveLength(1)

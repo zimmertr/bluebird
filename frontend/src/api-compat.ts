@@ -18,6 +18,7 @@
 // so the schema's type is asserted assignable to the app's. Where only one
 // direction is honest, the comment says why.
 import type { components } from './api-schema'
+import type { DiscoverySource } from './hooks/useCapabilities'
 import type { PreviewInfo } from './hooks/usePreview'
 import type { LandmarkResponse } from './utils/landmarks'
 import type {
@@ -247,8 +248,16 @@ export type ParsedLimitsAreNumbers = Assert<
       max_limit: number
       max_polygon_area_km2: number
       archive_days: number
+      open_meteo_hourly_calls: number
     }
   >
+>
+
+// Where discovery answers from (#803). `parseCapabilities` reads only the word
+// `places` and treats everything else as Overpass, so a renamed member or a
+// changed word would silently stop every count ahead of Analyze.
+export type CapabilitiesCarryDiscoverySource = Assert<
+  Equal<Schema['CapabilitiesResponse']['discovery_source'], DiscoverySource>
 >
 
 export type ParsedModelFieldsAreRead = Assert<
@@ -262,6 +271,9 @@ export type ParsedModelFieldsAreRead = Assert<
       forecast_hours: number
       regional: boolean
       default: boolean
+      // Kept only as a MultiPolygon, so a renamed member would leave every
+      // regional model with no domain and the gate with nothing to refuse.
+      domain: Record<string, unknown> | null
     }
   >
 >

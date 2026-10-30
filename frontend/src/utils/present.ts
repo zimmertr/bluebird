@@ -75,7 +75,8 @@ export interface CommitChanges {
  * the request when an analysis commits, and derived from the panel afterwards —
  * so the two can never disagree on spelling. The unnamed-peaks toggle joins
  * the types key because it widens what discovery finds the same way checking
- * another type does.
+ * another type does, and only while peaks are among the kinds
+ * (`unnamedApplies`).
  */
 export function discoveryKeys(
   polygon: { coordinates: number[][][] } | null | undefined,
@@ -86,8 +87,20 @@ export function discoveryKeys(
     polygonKey: JSON.stringify(polygon?.coordinates ?? null),
     // Sorted so checking peaks then lakes and lakes then peaks are one
     // discovery, matching the order-independent cache key upstream.
-    typesKey: `${[...(types ?? [])].sort().join(',')}${includeUnnamed ? '|unnamed' : ''}`,
+    typesKey: `${[...(types ?? [])].sort().join(',')}${unnamedApplies(types, includeUnnamed) ? '|unnamed' : ''}`,
   }
+}
+
+/**
+ * Whether the unnamed-peaks toggle widens this search (#803, M9): only while
+ * peaks are among the kinds. Unticking Peaks hides the toggle and keeps its
+ * value so ticking Peaks again brings it back (`DestinationsSection`), and a
+ * hidden toggle that still rode the types key and the request was a second
+ * discovery of the same question, and a commit cue for a change the reader
+ * could not see.
+ */
+export function unnamedApplies(types: readonly string[] | undefined, includeUnnamed: boolean | undefined): boolean {
+  return (includeUnnamed ?? false) && (types ?? []).includes('peak')
 }
 
 export interface DiscoveryKeys {

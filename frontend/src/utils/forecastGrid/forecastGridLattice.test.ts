@@ -280,11 +280,11 @@ describe('gridAllowed', () => {
     expect(gridAllowed({ windowSource: 'spanning' })).toBe(false)
   })
 
-  // The layer is a standing preference, so before the first analysis there is
-  // nothing to forbid and the checkbox stays live. The report decides when it
-  // commits.
-  it('forbids nothing before a report exists', () => {
-    expect(gridAllowed(null)).toBe(true)
+  // The lattice covers the analyzed field, so before the first analysis there
+  // is nothing to grid (#803, M5): the row greys like the player's, and the
+  // report that commits puts the layer in play.
+  it('allows nothing before a report exists', () => {
+    expect(gridAllowed(null)).toBe(false)
   })
 })
 

@@ -245,6 +245,13 @@ describe('discoveryKeys', () => {
     )
   })
 
+  it('ignores the unnamed-peaks toggle while peaks are not among the kinds (#803, M9)', () => {
+    // Unticking Peaks hides the toggle and keeps its value, so a lakes search
+    // with it left on is the same search as one with it off.
+    expect(discoveryKeys(ring, ['lake'], true).typesKey).toBe(discoveryKeys(ring, ['lake'], false).typesKey)
+    expect(discoveryKeys(ring, [], true).typesKey).toBe(discoveryKeys(ring, [], false).typesKey)
+  })
+
   it('tells two rings apart, and a ring from none', () => {
     const other = { coordinates: [[[0, 0], [2, 0], [2, 2], [0, 0]]] }
     expect(discoveryKeys(ring, [], false).polygonKey).not.toBe(

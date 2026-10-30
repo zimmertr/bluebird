@@ -155,6 +155,21 @@ describe('PhoneFoot', () => {
     expect(screen.queryByRole('button', { name: /messages?$/ })).toBeNull()
   })
 
+  // #803: a run that fails opens the sheet, as the panel's list opens at a
+  // desk, once per failure; Done closes it as it always does.
+  it('opens the sheet when a run fails, once per failure', () => {
+    const { rerender } = render(foot({ messages: panelMessages({ messages: MESSAGES }) }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    rerender(foot({ messages: panelMessages({ messages: MESSAGES, failureSeq: 1 }) }))
+    const sheet = screen.getByRole('dialog', { name: 'Messages' })
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    rerender(foot({ messages: panelMessages({ messages: [...MESSAGES], failureSeq: 1 }) }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    rerender(foot({ messages: panelMessages({ messages: MESSAGES, failureSeq: 2 }) }))
+    expect(screen.getByRole('dialog', { name: 'Messages' })).toBeTruthy()
+  })
+
   // The tutorial's Messages card holds the sheet open (#786) and frames it
   // whole, and the sheet leaves the keyboard to the card, as the Layers sheet
   // does for its own.

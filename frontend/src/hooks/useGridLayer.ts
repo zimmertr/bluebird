@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react'
-import type { DestinationResult } from '../types'
+import type { DestinationResult, SortBy } from '../types'
 import type { AnalyzedView } from './analyzeTypes'
 import type { ForecastModelOption } from './useCapabilities'
 import { useForecastGrid } from './useForecastGrid'
 import type { WindowLimits } from '../utils/forecastWindow'
+import { fieldHasValue } from '../utils/present'
 import {
   GRID_REACH_DEFAULT_FRAC,
   gridAllowed,
@@ -22,6 +23,8 @@ export interface GridLayerInputs {
   analyzed: AnalyzedView | null
   /** The held field the lattice covers, or null before any report. */
   universe: DestinationResult[] | null
+  /** The ranked metric, which is what the grid paints. */
+  sortBy: SortBy
   /** The panel's model: only what the slider quotes before any report. */
   forecastModel: string
   /** The deployment's models, for each one's finest grid. */
@@ -52,6 +55,7 @@ export function useGridLayer({
   showGrid,
   analyzed,
   universe,
+  sortBy,
   forecastModel,
   forecastModels,
   forecastTimes,
@@ -83,13 +87,27 @@ export function useGridLayer({
 
   // A report carrying archive hours is the one the grid cannot draw over:
   // those hours name no model, so there is no pitch the lattice could honestly
-  // be sampled at (`gridAllowed`, #123). The layer is switched out of play
-  // rather than off, so the reader's preference survives.
+  // be sampled at (`gridAllowed`, #123). Nor can it before any report, with no
+  // field to cover (#803). The layer is switched out of play rather than off,
+  // so the reader's preference survives.
   const gridAvailable = gridAllowed(analyzed)
   // The layer as it actually stands, which every surface reads: the checkbox
   // holds a preference, and this is whether that preference is in effect. One
   // flag, so the fetch, the sub-choices and the legend cannot disagree.
   const gridOn = showGrid && gridAvailable
+  // The ranked metric has a number somewhere in the held field (#803, M5). A
+  // field with none (a freezing level under a model that publishes none, air
+  // quality past its horizon) paints a grid of empty cells, so the row greys
+  // and the legend says nothing of a pitch. The fetch does not follow it:
+  // it is keyed on the report and never on the ranking (record 0016), so the
+  // samples a fetch holds wait for a ranking that has numbers rather than
+  // being bought again each time the ranking passes through one that has none.
+  const gridHasValue = universe !== null && fieldHasValue(universe, sortBy)
+  // Whether the row may be ticked: a report the grid can draw over, ranked on
+  // a metric it has numbers for. `gridArchived` is the one of those reasons
+  // the row names (its `note`), the others being a grey row and nothing more.
+  const gridOffered = gridAvailable && gridHasValue
+  const gridArchived = analyzed !== null && !gridAvailable
 
   const grid = useForecastGrid({
     enabled: gridOn,
@@ -114,14 +132,14 @@ export function useGridLayer({
   const gridReachPitchKm = modelPitchKm(forecastModels, analyzed?.forecastModel ?? forecastModel)
   // Something is painted, which is what a legend can be keyed to. A field
   // still filling in has some, so the legend arrives with the first chunk.
-  const gridPainted = gridOn && grid.cells.length > 0
+  const gridPainted = gridOn && gridHasValue && grid.cells.length > 0
   // The legend also opens while the grid is still fetching, so its one line
   // can say the field is coming: after a big analysis the grid inherits its
   // quota debt, and it is minutes before the first samples land.
-  const gridCued = gridOn && grid.status === 'loading'
+  const gridCued = gridOn && gridHasValue && grid.status === 'loading'
   // On and could not draw. Said out loud, because a switched-on layer with
   // nothing under it and nothing said reads as a broken app.
-  const gridFailed = gridOn && grid.status === 'failed'
+  const gridFailed = gridOn && gridHasValue && grid.status === 'failed'
   const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, grid.paceRemainingS, gridFailed, grid.complete)
 
   return {
@@ -133,6 +151,8 @@ export function useGridLayer({
     commitGridReach,
     gridAvailable,
     gridOn,
+    gridOffered,
+    gridArchived,
     grid,
     gridReachPitchKm,
     gridPainted,

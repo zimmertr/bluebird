@@ -231,6 +231,27 @@ server-side. The message names the model; it cannot name the destination,
 because the upstream refuses the whole batch without saying which location it
 objected to. Switching to a global model is the fix.
 
+To check before you send, read the model's `domain`: the grid as a GeoJSON
+MultiPolygon in longitude and latitude, drawn through its outermost points, or
+`null` for a global model. A destination inside it is one the model answers
+for. The ring is long (HRRR's has more than a hundred vertices, because the
+grid's edges curve on a lat/lon map), so ask for its size rather than printing
+it:
+
+```bash
+curl -s https://bluebirdforecast.com/api/capabilities \
+  | jq '.forecast_models[] | {id, regional, domain: (.domain | if . then {type, vertices: (.coordinates[0][0] | length)} else null end)}'
+```
+
+```jsonc
+{ "id": "gfs_seamless", "regional": false, "domain": null }
+// ...
+{ "id": "gfs_hrrr", "regional": true, "domain": { "type": "MultiPolygon", "vertices": 117 } }
+```
+
+Any even-odd ray cast over `domain.coordinates[0][0]` answers whether a point
+is inside, with no projection to undo.
+
 An unsupported id is a `422`, never a silent fall back to the default: answering
 with a model other than the one asked for is exactly what naming a model is
 meant to prevent.
@@ -1070,6 +1091,29 @@ whether its view is somewhere the layer could draw anything), and the data
 providers behind every answer (under `data_sources`, one `{name, url,
 provides}` entry each). Those values are read from the same constants the
 validators and limiters enforce, so they cannot drift.
+
+Two more describe what a request will cost rather than what it may ask.
+`discovery_source` says where discovery answers from right now: `places` while
+the deployment's own copy of OpenStreetMap can answer, so a search costs no
+upstream call, and `overpass` while it cannot, so every search asks the donated
+Overpass API. It is checked about once a minute and one search can still fall
+back if its connection drops, so read it as the likely answer rather than a
+promise. The web app counts a ring ahead of Analyze only while it says
+`places`. `limits.open_meteo_hourly_calls` is Open-Meteo's free-tier budget for
+one hour from one address, in weighted calls. This deployment does not enforce
+it, and a keyed request spends your key's quota instead, but an unkeyed client
+fetching forecasts itself, as the web app does, cannot finish an analysis that
+costs more inside the hour.
+
+```bash
+curl -s https://bluebirdforecast.com/api/capabilities \
+  | jq '{discovery_source, open_meteo_hourly_calls: .limits.open_meteo_hourly_calls}'
+```
+
+```jsonc
+// The hourly figure is elided here: read it from the endpoint.
+{ "discovery_source": "places", "open_meteo_hourly_calls": … }
+```
 
 Three of the window limits look redundant and are not. `limits.max_past_days` is
 how far back a request is *accepted*. `limits.past_data_days` is where the

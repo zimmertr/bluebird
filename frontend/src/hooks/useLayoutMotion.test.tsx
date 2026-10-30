@@ -85,6 +85,34 @@ describe('useLayoutMotion', () => {
     expect(result.current.motion).toBe('opening')
   })
 
+  // A panel shut and reopened before its slide ends asks for the layout it
+  // last settled at, and slides back from wherever it got to: a failed run
+  // reopens it that way (#803), and its message list waits for it to stand
+  // still before it is placed against Analyze.
+  it('holds a move that turns back until the slide back ends', () => {
+    const { result, rerender } = start({ isDesktop: true, open: true, mode: 'table' })
+    rerender({ isDesktop: true, open: false, mode: 'table' })
+    expect(result.current.motion).toBe('closing')
+    rerender({ isDesktop: true, open: true, mode: 'table' })
+    expect(result.current.motion).toBe('opening')
+    act(() => vi.advanceTimersByTime(PANEL_MS))
+    expect(result.current.motion).toBe('opening')
+    act(() => result.current.onTransitionEnd(ended('margin-left')))
+    expect(result.current.motion).toBeNull()
+    // Settled open, so a later close is a close again.
+    rerender({ isDesktop: true, open: false, mode: 'table' })
+    expect(result.current.motion).toBe('closing')
+  })
+
+  it('lets a move that turned back go after a while when no end comes', () => {
+    const { result, rerender } = start({ isDesktop: true, open: true, mode: 'both' })
+    rerender({ isDesktop: true, open: true, mode: 'table' })
+    rerender({ isDesktop: true, open: true, mode: 'both' })
+    expect(result.current.motion).toBe('panes')
+    act(() => vi.advanceTimersByTime(PANEL_MS * 3))
+    expect(result.current.motion).toBeNull()
+  })
+
   it('holds nothing on a phone or under a reduced-motion setting', () => {
     const phone = start({ isDesktop: false, open: false, mode: 'table' })
     phone.rerender({ isDesktop: false, open: true, mode: 'chart' })

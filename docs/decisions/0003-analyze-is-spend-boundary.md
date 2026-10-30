@@ -1,6 +1,6 @@
 # 0003. Analyze is a spend boundary: data knobs wait for it and presentation knobs apply live
 
-- Status: Accepted
+- Status: Accepted. Extended by 0235 (the ring is counted and the spend priced before the press, and neither is a knob).
 - Date: 2026-07-29 (git: the merge of #189)
 - Decider: TJ (git: author and merger of #189)
 - Issues and PRs: #166, #188, #189, #213, #230, #231, #449

@@ -28,7 +28,7 @@ import type * as maplibregl from 'maplibre-gl'
  * for each one a resize sends after it, which must not open what the reader
  * has closed since.
  */
-export type Aim = (durationMs: number, again: boolean) => void
+type Aim = (durationMs: number, again: boolean) => void
 
 export interface Centring {
   /**

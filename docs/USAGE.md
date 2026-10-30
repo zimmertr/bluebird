@@ -116,7 +116,7 @@ They also reach different distances ahead, which is why the calendar below redra
 
 - **ECCC GEM** is Canada's, and second in the list because over the North Cascades it is arguably the sharpest thing here: 2.5 km for two days and 10 km out to three and a half, finer than the default through exactly the window that decides a trip. It stops at about nine days.
 - **ECMWF IFS** has the best medium-range record of any of these. It is the one to ask which weekend, though at roughly 25 km it cannot see an individual valley.
-- **NOAA HRRR** reaches only about two days, and the default already contains it for that stretch, so pick it when you specifically want a number that is purely HRRR. It is also the only regional model here, covering the continental US and neighbouring parts of Canada and Mexico; asking it about anywhere else stops the analysis and says so rather than returning a partial answer.
+- **NOAA HRRR** reaches only about two days, and the default already contains it for that stretch, so pick it when you specifically want a number that is purely HRRR. It is also the only regional model here, covering the continental US and neighbouring parts of Canada and Mexico. A search area, a pasted point or a searched place outside its grid greys **Analyze** before anything is fetched, with a line naming the model. A search area is checked by its corners, so one that reaches past the grid is held even if everything it would find is inside.
 
 Changing the model needs a new **Analyze**, like changing the polygon or the window: different models mean different forecasts, not a different view of the ones already fetched.
 
@@ -139,26 +139,28 @@ How bright a day is says how much of it Bluebird Forecast can tell you about:
 | Day | Meaning |
 | --- | --- |
 | Normal | Weather and air quality. |
-| Dimmed | Weather only. Past the air-quality horizon, so the AQI columns come back blank. Still analyzes fine. |
+| Dimmed | Weather only. Past the air-quality horizon, so the AQI columns come back blank. Still analyzes fine, unless the whole window is past it: then the AQI row in **Metrics** greys out, and a ranking on it holds **Analyze** until you rank by something else. |
 | Greyed, not clickable | Outside what the weather service serves. The near edge is how far back its archive goes; the far edge is whichever comes first, the API's own limit or the reach of the forecast model you picked under **Forecast**. |
 
 Selecting a day past the air-quality horizon adds a message to the Analyze button. Air quality runs shorter than weather because the underlying CAMS model reaches a fraction as far (`limits.aqi_forecast_days` in `GET /api/capabilities` says how far); that horizon is not the only thing worth knowing about the column, so see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
 
 Days are your local calendar days, converted to UTC for the API, and the far edge accounts for that: west of Greenwich the last local day's final hour falls on the next UTC date, so the calendar offers one day less there than it does in London. Selecting days in the past is fine and normal. Those hours are recorded conditions rather than a forecast, and a chart covering both marks where one becomes the other.
 
-**A window older than about two months is served from a different place**, and the far past is the one stretch of the calendar where the model you picked does not apply: those hours come from Open-Meteo's archive, which is one recorded dataset rather than a forecast any model made, so the model control is faded out while such a window is selected, and a line in the Analyze button's messages says why. Wind is measured 10 m above the ground there rather than adjusted to each summit, for the reason [DATA.md](DATA.md#open-meteo) gives.
+**A window older than about two months is served from a different place**, and the far past is the one stretch of the calendar where the model you picked does not apply: those hours come from Open-Meteo's archive, which is one recorded dataset rather than a forecast any model made, so the model control is faded out while such a window is selected, and a line in the Analyze button's messages says why. Wind is measured 10 m above the ground there rather than adjusted to each summit, for the reason [DATA.md](DATA.md#open-meteo) gives. The archive has no cloud deck and no freezing level either, so both rows in **Metrics** grey out (see [Metrics](#metrics)). Models ticked to compare are set aside too: the archive answers the same numbers whatever model is named, so they would only draw one line several times. They stay ticked and come back when the window leaves the archive.
 
-**A range may cross that join.** It is fetched twice, once from each place, and the hours are joined in order before anything is ranked, so the report is one window rather than two halves. The join falls at midnight in your own time zone, so each day is wholly one place's. A line in the Analyze button's messages names the day the archive's hours end and the day your chosen model's begin, because a report whose first days are recorded conditions and whose last days are a forecast should say so. Nothing about it is blocked, and the model control stays live: the later half is that model's.
+**A range may cross that join.** It is fetched twice, once from each place, and the hours are joined in order before anything is ranked, so the report is one window rather than two halves. The join falls at midnight in your own time zone, so each day is wholly one place's. A line in the Analyze button's messages names the day the archive's hours end and the day your chosen model's begin, because a report whose first days are recorded conditions and whose last days are a forecast should say so. Nothing about it is blocked, and the model control stays live: the later half is that model's. So do the cloud deck and the freezing level, which cover that later half.
 
 **The results header spells the year** whenever the window is not in the current one, on both ends of it. A report of last September otherwise reads as four days of "Sat, Sep 13", which is a date no reader can place.
 
-**The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. The shortening is undoable by construction: switch back to a model that can serve your original window and it returns whole. The remembered window is dropped once you edit the dates yourself or run an analysis. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
+**The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. The shortening is undoable by construction: switch back to a model that can serve your original window and it returns whole. The remembered window is dropped once you edit the dates yourself or run an analysis. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks. Its last day is offered whole, because that day's early hours have data. A model change drops narrowed hours on that day that start after the model stops, and leaves the whole day. Narrowed there by hand, they hold **Analyze** with `NOAA HRRR does not reach that far.` If every destination still comes back with no forecast, the table says `No forecast data for this window.`
 
 The calendar is fully keyboard operable: Enter or Space on the field opens it with the selected day focused, arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range and closes the calendar, putting you back on the field, or on **Current** if no day was picked.
 
 ## Metrics
 
 Once you have set your destinations and forecast window, one table shapes the report. Two controls at the top say how the list is ordered: **Rank by** picks Lowest or Highest, and **Max results** says how far down it to go. Under them, one row per metric: its radio and its dropdown say how the row ranks, and its Min and Max boxes say who qualifies. The rows read in alphabetical order.
+
+**A row greys out when the window or the model has nothing for it**: the cloud deck and the freezing level over an archive window, the freezing level under a model that publishes none (or with one ticked to compare), and air quality over a window that starts past its horizon. A greyed row can't be picked to rank by, and its boxes keep what you typed but filter nothing. If the row was already the ranking when it greyed, **Analyze** is held with a line saying why until you rank by something else or change the window or the model.
 
 ### Ranking
 
@@ -196,7 +198,7 @@ Wind and temperature are both reported at each destination's own elevation, not 
 
 ### Bounds
 
-The Min and Max boxes say which destinations you would consider at all: on AQI, the cloud deck, the freezing level, precipitation, snowfall, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** turns on as soon as any box holds a number, and it empties every one of them, the results cap included.
+The Min and Max boxes say which destinations you would consider at all: on AQI, the cloud deck, the freezing level, precipitation, snowfall, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** turns on as soon as any box holds a number, and it empties every one of them, the results cap and a greyed row's boxes included. A Min above its Max admits nothing at all, so it holds **Analyze** with a line saying so until one of them moves, whether you typed it or a link carried it.
 
 **A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that blows 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For wind, temperature, the freezing level and the cloud deck the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation and snowfall are bounded on their window totals in both columns, because a per-hour minimum would read 0.000 almost everywhere.
 
@@ -217,7 +219,7 @@ controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Each of the six that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
+again. Each of the six that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer is never switched on, though one that is still on gets switched off with the rest.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
@@ -245,7 +247,10 @@ row but the forecast grid and the player does. A gray row says the layer has
 nothing to draw here, which is the one thing an empty layer cannot say for
 itself: outside a feed's coverage, empty means "not covered", never "open" or
 "clear". Pan back into coverage and the row returns. A layer you switched on
-before panning out stays checked while gray, and draws again where it can. No
+before panning out stays checked while gray, and draws again where it can. Its
+box still works while it is gray, so you can switch it off there; once it is off
+it stays gray, and you cannot switch it back on until the layer has something to
+draw. No
 label carries the coverage, because the one row that most needed a word for its
 coverage has none: the area feeds cover eight states, and "West" is not their
 name.
@@ -335,6 +340,14 @@ report is that dataset, and one stated spacing cannot be true of both halves.
 Hovering the row says so, and so does a screen reader; analyze a recent window and
 the layer comes back.
 
+It is faded out before your first analysis too, because there is no field yet to
+grid, and over a report ranked by a metric with no number anywhere in it, such as a
+freezing level under a model that publishes none, because the picture would be
+every square empty. Neither says why: the gray row is the whole message, as it is
+for the player. A box you ticked before analyzing, or one a shared link ticked,
+stays ticked, and the layer draws as soon as a report can carry it. Rank by
+something with numbers and it comes back without fetching anything again.
+
 A segment under the row picks how it is drawn, and both readings are true:
 
 - **Smooth** (the default) draws the space between the points, which is how every
@@ -356,7 +369,9 @@ Two things to know when reading it:
   the distance between the points actually asked about: inside it you are looking
   at one forecast, and between two of them you are looking at a blend. Over a
   large area the points spread further apart to keep the request reasonable, and
-  the legend says the spacing actually used.
+  the legend says the spacing actually used. If part of the field could not be
+  fetched, the legend says `Unavailable` instead, and whatever did arrive stays
+  drawn.
 - **It covers where you looked.** The field extends a set distance around each
   destination the analysis found — the **Coverage** slider under the style
   toggle — and fades out at that edge. The slider's range follows the model:
@@ -463,9 +478,11 @@ A pan or a zoom alone makes a link, so a link copied after you move the map reop
 
 The link stays readable. Commas, semicolons, colons and slashes show as they are, except a comma or a semicolon inside a pinned place's name, which shows as `%2C` or `%3B`, and a space shows as `+`. A pinned place reads as its coordinates, its kind, its elevation, its OpenStreetMap id and its name: `?model=gfs_seamless&mode=now&pins=-121.94734,47.48844,peak,2995,node/349018340,East+Tiger+Mountain`. Only the pasted list is compressed, because 100 rows of plain text would make a link too long to share.
 
-A link is read back only in the shapes the app writes. A polygon with a corner past a pole or the antimeridian is dropped, and so is a pinned place there. A pinned place keeps its spot but loses an OpenStreetMap id that is not `node/`, `way/` or `relation/` and a number, and a kind that is not plain words. A pasted list longer than a link can carry, or holding more rows than the [candidate cap](LIMITS.md), is dropped whole rather than cut short, since a list missing rows would be a different list from the one shared. Nothing says so on screen: the rest of the link restores as usual.
+A link is read back only in the shapes the app writes. A polygon with a corner past a pole or the antimeridian is dropped, and so is a pinned place there. A pinned place keeps its spot but loses an OpenStreetMap id that is not `node/`, `way/` or `relation/` and a number, and a kind that is not plain words. A pasted list longer than a link can carry, or holding more rows than the [candidate cap](LIMITS.md), is dropped whole rather than cut short, since a list missing rows would be a different list from the one shared, and so is a polygon with more corners than the [ring cap](LIMITS.md) allows. The rest of the link restores as usual, and the Analyze button's messages say what did not: `The link's search area could not be restored.` for a polygon, and `The link's destination list could not be restored.` for a list. A link naming a forecast model this deployment does not offer opens on the default model, and says `The link's forecast model is not available here.` Each line stays until you dismiss it or give the panel what it lost: draw a polygon, paste a list, or pick a model.
 
-A link you build by hand can also carry `analyze=1`. The app then runs the analysis once when the page opens, as if you had clicked **Analyze**, after it has read this deployment's limits. It runs only when **Analyze** would be enabled; if an input is missing or out of bounds, nothing runs and the panel shows the usual reasons below the button. The flag leaves the address bar when the analysis starts, so a reload restores the link without running it again. The app never writes `analyze=1` itself, so a link you copy from the address bar after an edit does not run on open. There is no control for it: you add it to the link yourself.
+A link whose days lie outside what the calendar can reach opens on the nearest days it can, once the app has read this deployment's limits: days past the far end come back as its last day, and days older than the archive's reach as its first. The calendar opens on those days. If it ever stands on a month with nothing to pick, the arrow pointing back toward the days it can serve still works.
+
+A link you build by hand can also carry `analyze=1`. The app then runs the analysis once when the page opens, as if you had clicked **Analyze**, after it has read this deployment's limits. It runs only when **Analyze** would be enabled at that moment; if an input is missing or out of bounds, nothing runs and the panel shows the usual reasons below the button. Either way the request is used up: readying the panel afterwards does not run it, so no edit of yours spends on the link's behalf, and you press **Analyze** yourself. The flag leaves the address bar when the analysis starts, or when it is dropped, so a reload restores the link without running it again. The app never writes `analyze=1` itself, so a link you copy from the address bar after an edit does not run on open. There is no control for it: you add it to the link yourself.
 
 ## Analyze
 
@@ -481,7 +498,9 @@ While it runs, a line over the map says what it is waiting on. With a polygon it
 
 A large area arrives in pieces. Forecasts are fetched in batches, and each batch that lands is ranked and shown at once rather than held back until the last one returns, so the first rows are up in well under a second where the whole run can take a minute or more. While that is happening the results bar marks its count **so far** (`946 of 946 so far`), because both numbers are a floor and the order still moves as the rest arrive. The words go when the analysis finishes.
 
-Press **Cancel** under the progress line over the map to stop an analysis. A stopped analysis, and one that fails, changes nothing: the rows that had arrived go, and the report you had before comes back exactly as it was, with the rows you removed still removed and the messages on **Analyze** still naming what you changed since. If there was no report before, the screen goes back to having none. The next **Analyze** then searches what the panel says now, a new search area included. One exception: a polygon search shows the destinations it found as pending rows and neutral dots as soon as the search answers, and a failure leaves them beside the report that came back. A failure also says what went wrong, and if it is the kind a second attempt can fix, such as the weather service not answering, the Analyze button reads **Try again** until you change what the analysis would ask for, dismiss the message, or run it. It is the same button either way. With the search area, types and destinations unchanged, it fetches forecasts for those pending rows without searching again. A model with no coverage over your area does not get a **Try again**: the message names the remedy, a different model.
+Press **Cancel** under the progress line over the map to stop an analysis. A stopped analysis, and one that fails, changes nothing: the rows that had arrived go, and the report you had before comes back exactly as it was, with the rows you removed still removed and the messages on **Analyze** still naming what you changed since. If there was no report before, the screen goes back to having none. The next **Analyze** then searches what the panel says now, a new search area included. One exception: a polygon search shows the destinations it found as pending rows and neutral dots as soon as the search answers, and a failure leaves them beside the report that came back, until you clear the search area or untick every type. A failure also says what went wrong, and opens the messages to say it: over the panel's **Analyze** at a desk, opening the panel again if you closed it while the run was up, and as the **Messages** sheet on a phone. If it is the kind a second attempt can fix, such as the weather service not answering, the Analyze button reads **Try again** until you change what the analysis would ask for, dismiss the message, or run it. It is the same button either way. With the search area, types and destinations unchanged, it fetches forecasts for those pending rows without searching again. A model with no coverage over your area does not get a **Try again**: the message names the remedy, a different model.
+
+Nor does a search the server refuses, such as one over the cap on destinations. The refusal greys **Analyze** like any other blocker, with no × on its line, until you change what the analysis would ask for: the area, the types, the list, the window or the model. A pasted list that is over the cap with your searched places is greyed the same way before you press anything. So is a search area: where the server answers from its own copy of OpenStreetMap, it counts what a finished area holds once you stop changing it, and an area over the cap greys **Analyze** with the same message before any press. The analysis that follows starts at the forecasts, since the search has already answered. An analysis whose forecasts would cost more than the hourly allowance Open-Meteo gives one address on any one of its services is greyed too, with a message naming both numbers; it counts the destinations, the window, air quality and every compared model, each against the service that answers it. Where nothing could be counted ahead, the same message refuses the run as soon as the search answers, before any forecast is fetched. If air quality fails for part of the field, a message says it is missing for some destinations, and those rows rank as if they had none.
 
 If the public map service is down, a polygon search does not notice: destinations come from the server's own copy of OpenStreetMap, which is at most a day or so behind the map. Only a server running without that copy, such as one you run yourself without its database, asks the map service, and there a polygon search fails outright while it is down.
 

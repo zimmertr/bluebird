@@ -86,9 +86,10 @@ const NO_REF: RefObject<HTMLDivElement | null> = { current: null }
  * button's badge opens: the severity boxes in error, warn, info order, each
  * message whole with its × and its remedy being the button the list hangs
  * from. On the one menu (`Menu.tsx`): a card over the panel's button at a
- * desk, at least the button's width, and a bottom sheet on a phone, so a
- * phone reader with four messages sees all four rather than the first and no
- * sign of the rest, which is the failure the band on the map's foot had.
+ * desk, at the button's width with a long line wrapping inside it (#803),
+ * and a bottom sheet on a phone, so a phone reader with four messages sees
+ * all four rather than the first and no sign of the rest, which is the
+ * failure the band on the map's foot had.
  */
 export default function MessageList({ messages, onDismiss, card, sheet, held = false }: Props) {
   return (

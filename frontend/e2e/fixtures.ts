@@ -246,6 +246,18 @@ export const test = base.extend<{ traffic: Traffic }>({
 })
 export { expect }
 
+// `/api/capabilities` as the image answers it, every published field its own,
+// but with discovery answering from the places table (#803). The image under
+// test has no database, so it says `overpass`, and the browser counts a ring
+// ahead of Analyze only on `places`. A test that wants the count says so.
+export async function discoveryFromPlaces(page: Page) {
+  await page.route('**/api/capabilities', async (route) => {
+    const response = await route.fetch()
+    const body = (await response.json()) as Record<string, unknown>
+    await route.fulfill({ response, json: { ...body, discovery_source: 'places' } })
+  })
+}
+
 // One of the panel's messages, read from the live region the Analyze button's
 // badge stands beside (record 0208): the one copy that is in the page whether
 // or not the list is open. A message in the opened list has a second copy, so

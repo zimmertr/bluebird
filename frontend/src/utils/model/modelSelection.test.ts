@@ -3,6 +3,7 @@ import {
   canRemove,
   chipFocusAfterRemoval,
   chipRemovable,
+  comparedInPlay,
   rankWith,
   selectedIds,
   toggleSelected,
@@ -165,5 +166,20 @@ describe('the keyboard after a removal', () => {
 
   it('asks for nothing impossible when the row empties', () => {
     expect(chipFocusAfterRemoval(2, 0)).toBe(0)
+  })
+})
+
+// #803, W3: the archive answers one reanalysis whatever model is named, so
+// nothing is compared there; the selection itself is left as it was.
+describe('comparedInPlay', () => {
+  it('puts no compared model in play on an archive window', () => {
+    expect(comparedInPlay(['ecmwf_ifs025'], 'archive')).toEqual([])
+  })
+
+  it('keeps the selection on every other window', () => {
+    const compared = ['ecmwf_ifs025']
+    expect(comparedInPlay(compared, 'forecast')).toBe(compared)
+    expect(comparedInPlay(compared, 'spanning')).toBe(compared)
+    expect(comparedInPlay(compared, null)).toBe(compared)
   })
 })

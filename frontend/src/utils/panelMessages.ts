@@ -8,6 +8,9 @@ import { BLOCKER_SEVERITY, blockerKey, listPhrase, noticeKey, type FooterMessage
 import { archiveSeamPhrase } from './calendar/calendar'
 import type { WindowLimits, WindowSource } from './forecastWindow'
 import { grouped } from './numbers'
+import { capDetail, spendDetail } from './clientAnalyze'
+import { COVERAGE_PHRASE } from './openMeteoErrors'
+import type { LinkDrop } from './urlState'
 
 // Which messages the panel has to say, and in what order. A module of its own
 // because that decision is pure data: the panel's state in, a list of lines
@@ -35,22 +38,68 @@ const COMMIT_CUE: Record<CommitReason, string> = {
 // The AQI info line's dismissal key (#253): a condition, not a message, like
 // every derived line's.
 export const AQI_NOTE_KEY = 'aqi:none'
+// The partial line's (#803, D5), its own condition beside the one above.
+export const AQI_PARTIAL_KEY = 'aqi:partial'
+
+// One sentence for the AQI warning over a report and for the blocker that
+// stops a ranking on air quality the window has none of (#803), so the two
+// cannot describe one gap two ways.
+const AQI_UNAVAILABLE = `${NOUN.aqi} data is not available for this forecast window.`
+const archiveGap = (subject: string) => `${subject} data is not available for archive windows.`
+
+// --- #803 (M6): what a share link carried and could not restore ---
+// One line each, said once the decoder or the published list has dropped it,
+// keyed on the condition and gone when the reader supplies the thing. Info,
+// because nothing is wrong with the panel: it opened without part of what was
+// shared, and a reader who did not know the link carried a ring would
+// otherwise never learn it did.
+const LINK_LOST: Record<LinkDrop, string> = {
+  ring: "The link's search area could not be restored.",
+  list: "The link's destination list could not be restored.",
+  model: "The link's forecast model is not available here.",
+}
+const LINK_LOST_ORDER: readonly LinkDrop[] = ['ring', 'list', 'model']
+// --- end #803 ---
 
 // What each Analyze blocker reads as. A function rather than a record because
-// two of the four quote a number the panel holds, and the area cap in
+// several quote a number or a name the panel holds, and the area cap in
 // particular is published by /api/capabilities rather than written here.
 //
 // The destinations line names no method. It used to list all three ("Draw a
 // search area, paste custom coordinates, or search for a place"), which is the
 // panel's own table of contents read back to someone who is looking straight at
 // it; what they are missing is a destination, not a menu.
-function blockerText(
-  blocker: AnalyzeBlocker,
-  maxAreaKm2: number,
-  pointsNeeded: number,
-  freezeGaps: readonly string[],
-): string {
+type BlockerFacts = Pick<
+  PanelMessageInputs,
+  'maxAreaKm2' | 'pointsNeeded' | 'freezeGaps' | 'refusal' | 'overCap' | 'spend' | 'modelDomain'
+>
+
+function blockerText(blocker: AnalyzeBlocker, facts: BlockerFacts): string {
+  const { maxAreaKm2, pointsNeeded, freezeGaps } = facts
   switch (blocker) {
+    // The refused run's own sentence, which the pod or the browser wrote.
+    // The gate names this blocker only while a refusal stands, so the
+    // fallback is never read.
+    case 'refusal':
+      return facts.refusal?.message ?? ''
+    // The over-cap refusal's sentence, said before the run rather than after
+    // it (#803). The gate names this blocker only with its count.
+    case 'over-cap':
+      return facts.overCap ? capDetail(facts.overCap.found, facts.overCap.noun, facts.overCap.limit) : ''
+    case 'spend':
+      return facts.spend ? spendDetail(facts.spend.needed, facts.spend.limit) : ''
+    case 'archive-cloud':
+      return archiveGap(NOUN.cloud_deck)
+    case 'archive-freeze':
+      return archiveGap(NOUN.freeze)
+    case 'aqi-horizon':
+      return AQI_UNAVAILABLE
+    // The model-coverage failure's first sentence, said before the run: the
+    // model is a control in the panel, so the line names it.
+    case 'model-domain':
+      return `${facts.modelDomain ?? ''} ${COVERAGE_PHRASE}`
+    case 'bound-order':
+      return 'A filter minimum is above its maximum.'
     case 'area':
       return `The polygon is too large. The maximum supported size is ${grouped(maxAreaKm2)} km².`
     case 'window':
@@ -96,6 +145,11 @@ export interface PanelMessageInputs {
   // How much of the window the air-quality forecast covers.
   aqiCoverage: 'full' | 'partial' | 'none'
   blockers: readonly AnalyzeBlocker[]
+  // What the gate's vetoes quote (`AnalyzeGate`): the count over the cap, the
+  // spend over the quota, and the model with no coverage, each null when off.
+  overCap: { found: number; noun: string; limit: number } | null
+  spend: { needed: number; limit: number } | null
+  modelDomain: string | null
   // A finished ring with no type checked beside another input that keeps
   // Analyze open (`ringAddsNothing`): the `types` line as information.
   ringIgnored: boolean
@@ -109,10 +163,16 @@ export interface PanelMessageInputs {
   // Whether a report is on screen at all.
   hasReport: boolean
   aqiAllNull: boolean
+  // The report's air quality failed for some of its field and not all of it
+  // (#803, D5): one refused batch nulls every batch after it (`fetchAqi`).
+  aqiPartial: boolean
   wildfireCheckFailed: boolean
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
+  // What the link carried and could not restore (`useLinkDrops`, #803). Absent
+  // reads as nothing lost.
+  linkLost?: readonly LinkDrop[]
   now: Date
 }
 
@@ -128,14 +188,14 @@ export interface PanelMessageInputs {
  * delivered report is missing.
  *
  * Each line carries the key its dismissal lives under — the CONDITION for
- * derived lines, the MESSAGE for the two event notices — so the polygon
+ * derived lines, the MESSAGE for the run error — so the polygon
  * blocker counting down as you draw stays one dismissed thing (see
  * `utils/notices.ts`).
  */
 export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
-  // The event keys: the run error and the refusal key on their MESSAGE,
-  // because each new message is a new fact the reader has not seen.
-  const refusalKey = p.refusal ? noticeKey('refusal', p.refusal.message) : null
+  // The event key: the run error keys on its MESSAGE, because each new
+  // message is a new fact the reader has not seen. The refusal is a blocker
+  // (#803), keyed on its condition like every blocker.
   const errorKey = p.error ? noticeKey('error', p.error.message) : null
   // Lines about the report on screen, which a run in flight is replacing
   // and a failed or refused one is not the subject of.
@@ -143,6 +203,10 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
   // The AQI line qualifies the ANALYSIS rather than the view of it: every
   // displayed row has null AQI although the window is inside the horizon.
   const aqiNoteActive = reportSettled && p.aqiAllNull && p.aqiCoverage !== 'none'
+  // Part of the field ranks with no air quality because its fetch failed
+  // (#803, D5). The line above already speaks when every displayed row is
+  // null, so this one stays quiet then rather than saying it twice.
+  const aqiPartialActive = reportSettled && p.aqiPartial && !aqiNoteActive
 
   // Everything the Forecast section has to say, said below the button with
   // every other message (#123 review). These used to render inside that section
@@ -248,10 +312,17 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
           severity: 'warn' as const,
         }))
       : []),
+    // What the page opened without, before the window's own lines: it is
+    // about the link the panel was built from (#803).
+    ...LINK_LOST_ORDER.filter((what) => p.linkLost?.includes(what)).map((what) => ({
+      key: `link:${what}`,
+      text: LINK_LOST[what],
+      severity: 'info' as const,
+    })),
     ...windowMessages,
     ...p.blockers.map((blocker) => ({
       key: blockerKey(blocker),
-      text: blockerText(blocker, p.maxAreaKm2, p.pointsNeeded, p.freezeGaps),
+      text: blockerText(blocker, p),
       severity: BLOCKER_SEVERITY[blocker],
     })),
     // The `types` sentence, unchanged, where it blocks nothing: the ring is
@@ -263,7 +334,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
       ? [
           {
             key: 'ring:types',
-            text: blockerText('types', p.maxAreaKm2, p.pointsNeeded, p.freezeGaps),
+            text: blockerText('types', p),
             severity: 'info' as const,
           },
         ]
@@ -296,19 +367,21 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     ...(p.basemapFailed
       ? [{ key: 'map:style', text: BASEMAP_FAILED_NOTE, severity: 'error' as const }]
       : []),
-    // The refusal is an error like the area cap: a finished request, refused
-    // for its size (TJ, 2026-08-22). It never coexists with the run error
-    // above, and the Analyze button offers no `Try again` over it: a
-    // deterministic refusal run again re-buys the same map query for the
-    // same answer.
-    ...(p.refusal && refusalKey && !p.loading
-      ? [{ key: refusalKey, text: p.refusal.message, severity: 'error' as const }]
-      : []),
     ...(aqiNoteActive
       ? [
           {
             key: AQI_NOTE_KEY,
-            text: `${NOUN.aqi} data is not available for this forecast window.`,
+            text: AQI_UNAVAILABLE,
+            severity: 'warn' as const,
+          },
+        ]
+      : []),
+    // Approved by the maintainer on #803 (2026-10-27).
+    ...(aqiPartialActive
+      ? [
+          {
+            key: AQI_PARTIAL_KEY,
+            text: 'Air quality data is missing for some destinations.',
             severity: 'warn' as const,
           },
         ]

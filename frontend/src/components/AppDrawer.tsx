@@ -5,6 +5,7 @@ import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
 import ThemeButton from './ThemeButton'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { useHeldFailure } from '../hooks/useOpenOnFailure'
 import type { LiveCapabilities } from '../hooks/useCapabilities'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
 import type { DrawMode } from '../hooks/useDrawMode'
@@ -91,7 +92,7 @@ interface AppDrawerProps {
   onAnalyze: () => void
   autoAnalyze: boolean
   capabilitiesSettled: boolean
-  onAutoAnalyze: () => void
+  onAutoAnalyze: (step: 'run' | 'drop') => void
   /** What the Analyze button reads (#736). */
   actionWord: ActionWord
   /** Open the guided tutorial from the panel footer (#536). */
@@ -177,6 +178,10 @@ export default function AppDrawer({
   // phone's sheet takes the keyboard itself, as a menu sheet does.
   const closeRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(closeRef, open)
+  // A failure that lands while a desk's panel is shut reopens it (App's), and
+  // its list opens once the panel stands still, against a button on the
+  // screen (#803). A phone's panel footer has no list, so nothing waits there.
+  const panelMessages = useHeldFailure(messages, isDesktop && (!open || moving))
   const panel = (
     <ControlPanel
       phone={!isDesktop}
@@ -198,7 +203,7 @@ export default function AppDrawer({
       customCsv={customCsv}
       setCustomCsv={setCustomCsv}
       onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
-      messages={messages}
+      messages={panelMessages}
       sortBy={sortBy}
       setSortBy={setSortBy}
       sortDesc={sortDesc}

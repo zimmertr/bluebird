@@ -17,7 +17,7 @@ describe('analysisFailure', () => {
     expect(analysisFailure(new DOMException('stop', 'AbortError'), MODELS)).toEqual({ kind: 'cancel' })
   })
 
-  it('puts a refusal in the warn box with its own message', () => {
+  it('reads a refusal as a refusal, with its own message and no retry', () => {
     expect(analysisFailure(new AnalysisRefusalError('Too many.'), MODELS)).toEqual({
       kind: 'refusal',
       message: 'Too many.',

@@ -1,7 +1,8 @@
-import { type MouseEvent, useEffect, useRef, useState } from 'react'
+import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { TUTORIAL_PATH } from '../utils/tourSteps'
 import { BLOCKED, BUTTON_PRIMARY, DISABLED, LINK, LINK_INERT, MESSAGE_BADGE, PANEL_EDGE, TEXT } from '../styles'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import { usePopover } from '../hooks/usePopover'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { ActionWord } from '../utils/analyzeGate'
@@ -70,12 +71,16 @@ export default function PanelFooter({
   useTakeOrphanedFocus(analyzeRef, analyzeEnabled)
 
   // The list, open or shut. The card stands against the slot the button and
-  // its badge share, so it is at least the button's width, and the badge is
-  // its trigger: Escape and Tab out hand the keyboard back there. A press on
+  // its badge share and takes its width (`widthRef`), so it is the button's
+  // width whatever its lines want and a long one wraps inside it: as wide as
+  // its longest line, the over-cap sentence ran it past the panel's right
+  // edge over the map (#803). The badge is its trigger: Escape and Tab out hand the keyboard back there. A press on
   // the button is the button's own (`ownPressRef`), so a blocked button can
   // toggle the list without the press-outside rule closing it first. The
   // card goes with the last message, since there is nothing left to list.
-  // The tutorial's Messages card holds it open (`messages.held`).
+  // The tutorial's Messages card holds it open (`messages.held`), and a run
+  // that fails opens it (#803): a failure that showed only as a count read as
+  // no failure at all. A phone's footer has no list to open.
   const { count, blocked, held } = messages
   const [pressedOpen, setOpen] = useState(false)
   const open = pressedOpen || held
@@ -86,11 +91,14 @@ export default function PanelFooter({
     onOpenChange: setOpen,
     triggerRef: badgeRef,
     anchorRef: slotRef,
+    widthRef: slotRef,
     ownPressRef: analyzeRef,
   })
   useEffect(() => {
     if (count === 0) setOpen(false)
   }, [count])
+  const openList = useCallback(() => setOpen(true), [])
+  useOpenOnFailure(messages.failureSeq, openList, !phone)
   const toggle = () => setOpen((o) => !o)
 
   return (

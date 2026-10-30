@@ -75,7 +75,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
 | `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.26:1 on the panel, 5.98:1 on an idle metric select and 5.41:1 on an unplotted chart chip, where 50% was 4.14, 4.61 and 4.23. The fade is the `--ui-muted` token, 65% in light, where 60% leaves the dark ink at 4.31, 4.50 and 4.38 and 65% measures 5.07, 5.34 and 5.10 (#706) |
 | `SR_ONLY` | Text for assistive technology only: the twin of an approved tooltip, the one sentence a row's metric links are described by, and a live region that must exist before it speaks |
-| `CHOICE_ROW` | Radio or checkbox and its label as one strip |
+| `CHOICE_ROW` | Radio or checkbox and its label as one strip; a row marked `data-greyed` fades its box alone as far as a disabled row fades, its label at full ink, while its box stays live, for a Layers row still ticked where its layer cannot draw (#803) |
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
 | `SEGMENT_FILL` | Segmented control sized by the box it is placed in, for a row whose column is not the panel's (the Metrics direction row) |
@@ -952,8 +952,8 @@ The ones in the tree today, each approved on its own:
   picker's reason over an archive window was a tooltip here until it moved into
   the panel's message block (2026-09-14), which is why `ModelPicker.tsx`'s
   approved count is pinned at zero.
-- The freezing-level cell's *"Freezing level is only available from the GFS
-  Seamless, HRRR and ICON models."* answers a question only that cell raises:
+- The freezing-level cell's *"Freezing level is only available from the NOAA
+  GFS, NOAA HRRR and DWD ICON models."* answers a question only that cell raises:
   it reads `N/A` rather than a number, and without the note the reader cannot
   tell a model that does not carry the variable from an app that failed to
   fetch it. It is the same `N/A`-plus-`title` idiom the Wildfire (mi) column

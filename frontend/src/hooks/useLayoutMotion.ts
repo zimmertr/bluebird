@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState, type TransitionEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type TransitionEvent } from 'react'
 import { PANEL_MS } from '../styles'
 import { prefersReducedMotion } from '../utils/motion'
 import type { ResultsMode } from '../utils/viewPrefs'
@@ -9,6 +9,16 @@ import type { ResultsMode } from '../utils/viewPrefs'
  * while nothing moves.
  */
 export type LayoutMotion = 'opening' | 'closing' | 'panes' | null
+
+interface Layout {
+  open: boolean
+  mode: ResultsMode
+  collapsed: boolean
+}
+
+function sameLayout(a: Layout, b: Layout): boolean {
+  return a.open === b.open && a.mode === b.mode && a.collapsed === b.collapsed
+}
 
 // The two properties a layout move transitions (`MOTION.push`, `MOTION.pane`).
 const MOVES = new Set(['margin-left', 'grid-template-rows'])
@@ -35,7 +45,8 @@ const FALLBACK_MS = PANEL_MS * 3
  * unheld, resizing the map in every frame.
  *
  * Settled by the move's own `transitionend`, which bubbles to the root the
- * caller hands `onTransitionEnd` to, or after `FALLBACK_MS`. Never moving on a
+ * caller hands `onTransitionEnd` to, or after `FALLBACK_MS`. A move that
+ * turns back before then is still moving: the slide back runs to its own end. Never moving on a
  * phone, where nothing pushes, nor under a reduced-motion setting, where
  * nothing moves; there the settled layout follows the props.
  */
@@ -53,30 +64,60 @@ export function useLayoutMotion({
   /** Whether the results are collapsed to their bar. */
   collapsed?: boolean
 }) {
-  const [settled, setSettled] = useState({ open, mode, collapsed })
+  const [settled, setSettled] = useState<Layout>({ open, mode, collapsed })
+  // Where the move under way is going, or null while nothing moves. A move
+  // that turns back before it ends (a panel shut and reopened mid-slide, the
+  // way a failed run reopens it, #803) asks for the layout it last settled
+  // at, so the props alone read as still while the panel slides back; this is
+  // what remembers it has not stopped. A ref, written only after a commit and
+  // by the end, because as state it bought App a second render at the start
+  // of every move.
+  const headingRef = useRef<Layout | null>(null)
   const animate = isDesktop && !prefersReducedMotion()
-  const moved = settled.open !== open || settled.mode !== mode || settled.collapsed !== collapsed
+  const moved = !sameLayout(settled, { open, mode, collapsed })
+  const from = moved ? settled : headingRef.current
   const motion: LayoutMotion =
-    !animate || !moved ? null : settled.open !== open ? (open ? 'opening' : 'closing') : 'panes'
+    !animate || from === null || sameLayout(from, { open, mode, collapsed })
+      ? null
+      : from.open !== open
+        ? open
+          ? 'opening'
+          : 'closing'
+        : 'panes'
+
+  const settle = useCallback((layout: Layout) => {
+    headingRef.current = null
+    setSettled(layout)
+  }, [])
 
   // Where nothing animates, no end event comes to settle the layout.
   useLayoutEffect(() => {
-    if (!animate && moved) setSettled({ open, mode, collapsed })
-  }, [animate, moved, open, mode, collapsed])
+    if (!animate && (moved || headingRef.current !== null)) settle({ open, mode, collapsed })
+  }, [animate, moved, settle, open, mode, collapsed])
+
+  // Keeps the heading on the move's target. A move that turned back starts
+  // from where the one it cut short was going, so that becomes the layout it
+  // moves from, and every render after this one reads it as moved.
+  useLayoutEffect(() => {
+    if (motion === null) return
+    const heading = headingRef.current
+    if (!moved && heading) setSettled(heading)
+    headingRef.current = { open, mode, collapsed }
+  }, [motion, moved, open, mode, collapsed])
 
   useEffect(() => {
     if (motion === null) return
-    const timer = window.setTimeout(() => setSettled({ open, mode, collapsed }), FALLBACK_MS)
+    const timer = window.setTimeout(() => settle({ open, mode, collapsed }), FALLBACK_MS)
     return () => window.clearTimeout(timer)
-  }, [motion, open, mode, collapsed])
+  }, [motion, settle, open, mode, collapsed])
 
   // Only while something moves: a second end, the other pane's frame in Chart
   // to Table, finds the layout settled already.
   const onTransitionEnd = useCallback(
     (e: TransitionEvent<HTMLElement>) => {
-      if (moved && MOVES.has(e.propertyName)) setSettled({ open, mode, collapsed })
+      if (motion !== null && MOVES.has(e.propertyName)) settle({ open, mode, collapsed })
     },
-    [moved, open, mode, collapsed],
+    [motion, settle, open, mode, collapsed],
   )
 
   return { motion, onTransitionEnd }

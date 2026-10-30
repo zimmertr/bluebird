@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { decodeState as decodeWithLimits, encodeState, type ShareableState } from './urlState'
-import { FIELD_PARAMS, URL_PARAMS } from './urlParams'
+import { compressToEncodedURIComponent } from 'lz-string'
+import { decodeLink, decodeState as decodeWithLimits, encodeState, type ShareableState } from './urlState'
+import { FIELD_PARAMS, MAX_CUSTOMZ_CHARS, URL_PARAMS } from './urlParams'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { NO_CONSTRAINTS } from './constraints'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
@@ -245,5 +246,73 @@ describe('the codec table', () => {
     const rows = URL_PARAMS.map((row) => row.key).sort()
     const claimed = [...new Set(Object.values(FIELD_PARAMS).flat())].sort()
     expect(claimed).toEqual(rows)
+  })
+})
+
+// What a link carried and could not restore (#803, M6). The three a reader
+// would otherwise lose without a word come back beside the state, and the
+// rest of the link still opens.
+describe('decodeLink', () => {
+  const LIMITS = { maxDestinations: 3, maxPolygonPoints: 5 }
+  const ring = (pairs: number) =>
+    Array.from({ length: pairs }, (_, i) => `${-121 - i / 1e4},${46 + (i % 2) / 1e4}`).join(';')
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => `47.${i},-121.${i},Peak ${i}`).join('\n')
+  const customz = (text: string) => `customz=${compressToEncodedURIComponent(text)}`
+
+  it('reports nothing for a link that restores whole', () => {
+    const out = decodeLink(`type=peak&model=gfs_hrrr&poly=${ring(4)}&${customz(rows(3))}`, LIMITS)
+    expect(out.dropped).toEqual([])
+    expect(out.state?.polygon?.coordinates[0]).toHaveLength(5)
+    expect(out.state?.customCsv).toBe(rows(3))
+    expect(out.state?.forecastModel).toBe('gfs_hrrr')
+  })
+
+  it('reports a ring over the published cap, and keeps the rest of the link', () => {
+    const out = decodeLink(`type=peak&poly=${ring(5)}`, LIMITS)
+    expect(out.dropped).toEqual(['ring'])
+    expect(out.state?.polygon).toBeUndefined()
+    expect(out.state?.destinationTypes).toEqual(['peak'])
+  })
+
+  // The sentence says the ring could not be restored, which is as true of a
+  // ring the link garbled as of one over the cap.
+  it('reports a ring it could not read', () => {
+    expect(decodeLink('type=peak&poly=notcoords', LIMITS).dropped).toEqual(['ring'])
+    expect(decodeLink('type=peak&poly=-121.5,46.8;-121.4,46.2', LIMITS).dropped).toEqual(['ring'])
+  })
+
+  it('reports a list over the published cap, and keeps the rest of the link', () => {
+    const out = decodeLink(`type=peak&${customz(rows(4))}`, LIMITS)
+    expect(out.dropped).toEqual(['list'])
+    expect(out.state?.customCsv).toBeUndefined()
+    expect(out.state?.destinationTypes).toEqual(['peak'])
+  })
+
+  it('reports a list longer than a link can carry', () => {
+    expect(decodeLink(`type=peak&customz=${'A'.repeat(MAX_CUSTOMZ_CHARS + 1)}`, LIMITS).dropped).toEqual(['list'])
+  })
+
+  it('reports a model id it could not read', () => {
+    const out = decodeLink('type=peak&model=not a model', LIMITS)
+    expect(out.dropped).toEqual(['model'])
+    expect(out.state?.forecastModel).toBeUndefined()
+  })
+
+  // Membership is the caller's to judge (`useForecastSelection`): a
+  // well-formed id the deployment does not publish is not dropped here.
+  it('leaves a well-formed model id to the caller', () => {
+    expect(decodeLink('model=retired_model', LIMITS).dropped).toEqual([])
+  })
+
+  // An empty value is a link that carried nothing, not one that lost something.
+  it('reports nothing for an empty value', () => {
+    expect(decodeLink('type=peak&poly=&customz=&model=', LIMITS).dropped).toEqual([])
+  })
+
+  it('reports each kind once, in the table order', () => {
+    const out = decodeLink(`${customz(rows(4))}&model=bad id&poly=${ring(9)}`, LIMITS)
+    expect(out.dropped).toEqual(['model', 'ring', 'list'])
+    // Nothing was restored, which `decodeState` has always answered as null.
+    expect(out.state).toBeNull()
   })
 })

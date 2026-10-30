@@ -29,6 +29,7 @@ import { postDestinations } from './apiFetch'
 import { type Place, placeType } from './geocode'
 import { geoKey } from './points'
 import type { WindowLimits } from './forecastWindow'
+import { addCalls, airCalls, modelCalls, spendOver } from './analysisSpend'
 import {
   AqiFetch,
   AqiResult,
@@ -72,12 +73,21 @@ const NOUNS: Record<string, string> = {
 }
 
 export function analysisNoun(request: AnalyzeRequest): string {
+  return discoveryNoun(request.destination_types, (request.custom_destinations?.length ?? 0) > 0)
+}
+
+/**
+ * `analysisNoun`'s rule from the panel's own inputs, before any request is
+ * built: the Analyze gate's over-cap line counts the same field and must name
+ * it the same way (#803).
+ */
+export function discoveryNoun(types: readonly string[], hasCustom: boolean): string {
   // Port of _noun: a specific noun only when the set holds exactly one
   // kind, because "1,842 peaks" beats "1,842 destinations"; anything mixed
   // merges rather than listing types, since a refusal is read for its
   // remedy and an inventory buries that.
-  const kinds = new Set(request.destination_types)
-  if (request.custom_destinations?.length || kinds.size !== 1) return 'destination'
+  const kinds = new Set(types)
+  if (hasCustom || kinds.size !== 1) return 'destination'
   return NOUNS[[...kinds][0]] ?? 'destination'
 }
 
@@ -96,6 +106,18 @@ export function capDetail(
   return (
     `This search covers ${count.toLocaleString('en-US')} ${noun}s. The ` +
     `analysis limit is ${cap.toLocaleString('en-US')} destinations.`
+  )
+}
+
+/**
+ * The spend veto's sentence (#803): an analysis whose weighted Open-Meteo
+ * calls are past the hourly quota. Grouped in `en-US` beside `capDetail`, the
+ * other refusal that quotes a count against a limit, so the two read alike.
+ */
+export function spendDetail(needed: number, limit: number): string {
+  return (
+    `This analysis needs ${needed.toLocaleString('en-US')} Open-Meteo calls. ` +
+    `The hourly limit is ${limit.toLocaleString('en-US')}.`
   )
 }
 
@@ -396,6 +418,12 @@ export interface ClientAnalysisCallbacks {
   // How far ahead air quality reaches, from /api/capabilities. The air-quality
   // fetch clamps to it, and the calendar dims by it, so both read one value.
   aqiForecastDays?: number
+  // Open-Meteo's hourly budget from /api/capabilities, and how many models
+  // the chart compares beside the ranking one (#803, D2). With a budget, a
+  // field whose forecasts would cost more than it is refused before any is
+  // fetched; without one nothing is checked.
+  hourlyCalls?: number
+  comparedModels?: number
   // Forecasts the browser already holds, to be reused for any candidate that
   // appears in both. A re-analysis that readmits destinations this report never
   // fetched does not invalidate the ones already in hand, and re-fetching those
@@ -643,6 +671,8 @@ export async function runClientAnalysis(
     maxDestinations,
     windowLimits,
     aqiForecastDays,
+    hourlyCalls,
+    comparedModels = 0,
     reuse,
     resolving,
   }: ClientAnalysisCallbacks = {},
@@ -757,6 +787,28 @@ export async function runClientAnalysis(
     ...aqiRetry.map((i) => ({ latitude: reused[i].latitude, longitude: reused[i].longitude })),
     ...coords,
   ]
+
+  // The spend backstop (#803, D2): with the field known and nothing fetched
+  // yet, a field that costs more than the visitor's hourly budget is refused
+  // here rather than spending the hour and failing on the hourly 429, on
+  // whichever host would pass it first. It is
+  // what holds a deployment with no count ahead of Analyze, where the gate
+  // never learns the ring's size. Priced on what this run would really ask
+  // for: the rows with no held forecast, the held rows whose air quality is
+  // asked again, and the compared models' weather for the rows the table
+  // shows. A refusal, because the same field over the same window costs the
+  // same every time.
+  if (hourlyCalls !== undefined) {
+    const priced = { startMs, endMs, nowMs: nowMs ?? Date.now(), windowLimits, aqiForecastDays }
+    // Host by host, as Open-Meteo meters it (`HostCalls`).
+    const calls = addCalls(
+      addCalls(modelCalls(coords.length, priced, true), airCalls(aqiCoords.length, priced)),
+      modelCalls(Math.min(request.limit, candidates.length), priced, false),
+      comparedModels,
+    )
+    const over = spendOver(calls, hourlyCalls)
+    if (over) throw new AnalysisRefusalError(spendDetail(over.needed, over.limit))
+  }
 
   // One controller spans every fetch this analysis makes: the first fatal
   // failure aborts the rest, so no in-flight or queued batch keeps spending

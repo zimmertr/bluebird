@@ -188,6 +188,17 @@ export function pointInRing(lng: number, lat: number, ring: Position[]): boolean
   return inside
 }
 
+/**
+ * Whether a point stands inside any polygon of a published outline, by each
+ * polygon's outer ring. Holes are ignored, as every reader of an outline here
+ * ignores them. The WFIGS coverage reads it, and so does a regional model's
+ * domain (`modelDomain.ts`, #803), so the outlines `/api/capabilities`
+ * publishes are tested one way.
+ */
+export function pointInOutline(lng: number, lat: number, outline: MultiPolygon): boolean {
+  return outline.coordinates.some((polygon) => pointInRing(lng, lat, polygon[0]))
+}
+
 // Miles from a point to the nearest edge of a ring. Exported for the state
 // lookup (usStates.ts), which gives a point just off a simplified coast to the
 // state whose coast it is.
@@ -302,7 +313,7 @@ export function uncoveredKeys(
   const out = new Set<string>()
   if (!coverage) return out
   for (const p of points) {
-    if (!coverage.coordinates.some((polygon) => pointInRing(p.longitude, p.latitude, polygon[0]))) {
+    if (!pointInOutline(p.longitude, p.latitude, coverage)) {
       out.add(geoKey(p.latitude, p.longitude))
     }
   }

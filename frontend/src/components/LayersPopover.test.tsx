@@ -26,7 +26,8 @@ const OVERLAYS = {
   playerShown: false,
 }
 const GRID = {
-  gridAvailable: true,
+  gridOffered: true,
+  gridArchived: false,
   gridOn: false,
   gridStyle: 'blocks' as const,
   setGridStyle: () => {},
@@ -37,7 +38,9 @@ const GRID = {
   gridReachPitchKm: 3,
 }
 const GRID_ON = { ...GRID, gridOn: true }
-const ARCHIVE = { ...GRID, gridAvailable: false }
+const ARCHIVE = { ...GRID, gridOffered: false, gridArchived: true }
+// No report yet, or one whose ranked metric has no number anywhere (#803, M5).
+const NOTHING_TO_GRID = { ...GRID, gridOffered: false }
 // No map yet and no outlines published, which is every row live.
 const MAP = { current: null }
 const COVERAGE = {}
@@ -70,6 +73,13 @@ const CONUS = {
 
 const open = () => fireEvent.click(screen.getByRole('button', { name: 'Layers' }))
 const rows = () => screen.getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)
+// The rows that read as out of play: a disabled box, or a greyed one still
+// ticked and live for unticking (#803, M9).
+const greyed = () =>
+  screen
+    .getAllByRole('checkbox')
+    .filter((c) => (c as HTMLInputElement).disabled || c.closest('label')!.hasAttribute('data-greyed'))
+    .map((c) => c.closest('label')?.textContent)
 
 // The points `IconChevron` draws for one direction, read off the icon itself
 // so the chip's tests do not restate its geometry.
@@ -228,11 +238,7 @@ describe('LayersPopover', () => {
   // checked one included, and the two Open-Meteo rows stay live.
   it('greys the rows whose layer cannot draw over the view', () => {
     const coverage = { wildfires: CONUS, areaClosures: OREGON_WASHINGTON, trailClosures: OREGON_WASHINGTON }
-    const disabled = () =>
-      screen
-        .getAllByRole('checkbox')
-        .filter((c) => (c as HTMLInputElement).disabled)
-        .map((c) => c.closest('label')?.textContent)
+    const disabled = greyed
     const colorado = mapOver(-109, 37, -102, 41)
     const { unmount } = render(
       <LayersPopover mapRef={colorado.ref} coverage={coverage} overlays={OVERLAYS} grid={GRID} playerOffered />,
@@ -258,6 +264,99 @@ describe('LayersPopover', () => {
     expect(disabled()).toEqual(['Area closures', 'Rain radar', 'Smoke', 'Snow depth', 'Trail closures', 'Wildfires'])
     const fires = screen.getByRole('checkbox', { name: 'Wildfires' }) as HTMLInputElement
     expect([fires.checked, fires.getAttribute('aria-describedby')]).toEqual([true, null])
+  })
+
+  // A checked layer that greys keeps its box live for unticking (#803, M9):
+  // it used to be disabled with the tick in it, so the layer stayed on with
+  // no way to switch it off. Unticked, it is disabled like any greyed row, and
+  // a Shift run never ticks it either.
+  it('lets a greyed row be unticked, and never ticked', () => {
+    const coverage = { wildfires: CONUS }
+    const setShowWildfires = vi.fn()
+    const alps = mapOver(6, 45, 12, 48)
+    const { rerender } = render(
+      <LayersPopover
+        mapRef={alps.ref}
+        coverage={coverage}
+        overlays={{ ...OVERLAYS, showWildfires: true, setShowWildfires }}
+        grid={GRID}
+        playerOffered
+      />,
+    )
+    open()
+    const fires = () => screen.getByRole('checkbox', { name: 'Wildfires' }) as HTMLInputElement
+    expect([fires().checked, fires().disabled]).toEqual([true, false])
+    expect(fires().closest('label')!.hasAttribute('data-greyed')).toBe(true)
+    // Live, so nothing tells assistive tech it is unavailable: its box alone
+    // fades (`CHOICE_ROW`), and the label keeps the ink a live control owes.
+    expect(fires().closest('[aria-disabled]')).toBeNull()
+    // A press still acts on it, so it lights under the pointer.
+    expect(fires().closest('label')!.className.split(' ')).toContain(MENU.hover)
+    fireEvent.click(fires())
+    expect(setShowWildfires).toHaveBeenCalledExactlyOnceWith(false)
+    rerender(
+      <LayersPopover
+        mapRef={alps.ref}
+        coverage={coverage}
+        overlays={{ ...OVERLAYS, showWildfires: false, setShowWildfires }}
+        grid={GRID}
+        playerOffered
+      />,
+    )
+    expect([fires().checked, fires().disabled]).toEqual([false, true])
+    expect(fires().closest('label')!.hasAttribute('data-greyed')).toBe(false)
+  })
+
+  it('unticks a greyed row in a Shift run, and ticks none', () => {
+    const setShowGrid = vi.fn()
+    const setShowPlayer = vi.fn()
+    const setShowAreaClosures = vi.fn()
+    const overlays = { ...OVERLAYS, showAreaClosures: true, showGrid: true, playerShown: true }
+    render(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...overlays, setShowAreaClosures, setShowGrid, setShowPlayer }}
+        grid={ARCHIVE}
+        playerOffered
+      />,
+    )
+    open()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Area closures' }))
+    expect(setShowAreaClosures).toHaveBeenCalledWith(false)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Forecast player' }), { shiftKey: true })
+    // The grid is greyed under an archive report and still ticked: the run
+    // unticks it with the rest.
+    expect(setShowGrid).toHaveBeenCalledWith(false)
+    expect(setShowPlayer).toHaveBeenCalledWith(false)
+  })
+
+  // With nothing to grid (no report yet, or a ranked metric with no number
+  // anywhere) the row greys like the player's, ticked or not, with no note
+  // (#803, M5): the archive's sentence is for the archive alone.
+  it('greys the grid row with nothing to grid, saying nothing', () => {
+    const { rerender } = render(
+      <LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={NOTHING_TO_GRID} playerOffered />,
+    )
+    open()
+    const grid = () => screen.getByRole('checkbox', { name: 'Forecast grid' }) as HTMLInputElement
+    expect(grid().disabled).toBe(true)
+    expect(grid().getAttribute('aria-describedby')).toBeNull()
+    expect(grid().closest('label')!.getAttribute('title')).toBeNull()
+    // Ticked (`?grid=smooth`, or before Analyze): greyed, live for unticking,
+    // and none of its sub-choices.
+    rerender(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...OVERLAYS, showGrid: true }}
+        grid={{ ...NOTHING_TO_GRID, gridOn: true }}
+        playerOffered
+      />,
+    )
+    expect(greyed()).toEqual(['Forecast grid'])
+    expect(grid().checked).toBe(true)
+    expect(screen.queryByRole('slider', { name: 'Coverage' })).toBeNull()
   })
 
   it('shows the grid style and coverage only while the grid is on', () => {
