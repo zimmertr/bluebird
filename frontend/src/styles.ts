@@ -1374,10 +1374,15 @@ export const CHART_CARD = {
   heads: `${MICRO_SIZE} text-ink-soft text-right`,
   rule: 'col-span-full h-px bg-frame mb-[3px]',
   foot: 'border-t border-rule px-2.5 py-[5px] text-xs text-ink-soft',
-  // A row's name stops at 160px and ends in an ellipsis, as a long name does
-  // in the results table (TJ 2026-10-30), so the card keeps one width while
-  // the hour moves rather than growing to the longest name in view.
-  name: 'min-w-0 max-w-40 truncate',
+  // A row's name is always 160px and ends in an ellipsis past it, as a long
+  // name does in the results table (TJ 2026-10-30): a fixed column rather
+  // than a cap, because the card resized to the longest name in view as the
+  // hour moved, and every value column's width is its head's.
+  name: 'min-w-0 w-40 truncate',
+  // A value is never narrower than six mono digits, the widest a cell prints
+  // (`≥30000` on the cloud deck), so a column with no head over it (one
+  // metric) keeps its width as the hour moves too.
+  value: 'min-w-[6ch] text-right font-mono',
 } as const
 
 /**

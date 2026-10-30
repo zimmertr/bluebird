@@ -1486,7 +1486,7 @@ function ChartTooltip({
                 <span className={CHART_CARD.name}>{it.line.label}</span>
               </span>
               {it.cells.map((c, k) => (
-                <span key={k} className={`text-right font-mono ${strong}`}>
+                <span key={k} className={`${CHART_CARD.value} ${strong}`}>
                   {c}
                 </span>
               ))}
