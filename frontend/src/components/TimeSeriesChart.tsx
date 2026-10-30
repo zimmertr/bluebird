@@ -1289,8 +1289,6 @@ interface PanelProps {
   ordered: readonly ChartLine[]
   focusedKey: string | null
   cursorValue: number | null
-  /** The ranked metric and its hourly scale, whose cells wear its colour. */
-  tone: CardTone | null
   /** The bottom panel draws the time axis; the top one's strip is zero tall. */
   drawsAxis: boolean
   /** The top panel names the Now seam and each model's end; the lines stand in both. */
@@ -1416,6 +1414,10 @@ function ChartPanel({
   // direction while the chart shows the ranked family, and the largest value
   // on any other, where no direction was ever chosen.
   const highest = metric === metricForSort(sortBy) ? sortDesc : true
+  const tone = useMemo(() => {
+    const scale = hourlyScale(sortBy)
+    return scale ? { metric: metricForSort(sortBy), scale } : null
+  }, [sortBy])
   // Memoized beside the y domain for the same reason: it is a walk over every
   // drawn value, and a hover re-renders without changing any of its inputs.
   const extreme = useMemo(() => extremeValue(lines, metric, highest), [lines, metric, highest])
@@ -1721,6 +1723,8 @@ interface ChartTooltipProps {
   metrics: ChartMetrics
   focusedKey: string | null
   cursorValue: number | null
+  /** The ranked metric and its hourly scale, whose cells wear its colour. */
+  tone: CardTone | null
   // How many series the card has room to list, from the plot area's current
   // height rather than a constant — see tooltipCapacity.
   maxRows: number
