@@ -16,14 +16,12 @@ import {
   MAP_CHIP_MENU,
   MENU,
   MENU_GROUP,
-  SEGMENT_DIVIDER,
-  SEGMENT_IDLE,
   SHEET_ASIDE,
   SLIDER,
   SR_ONLY,
   SURFACE_CHIP_CARD,
 } from '../styles'
-import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid/forecastGrid'
+import { pitchLabel, reachKmFor } from '../utils/forecastGrid/forecastGrid'
 import { useExit } from '../hooks/useExit'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useLayerReach } from '../hooks/useLayerReach'
@@ -429,29 +427,18 @@ export default function LayersPopover({
     )
     return (
       <div className={LAYER_GRID.controls}>
-        <div className={sheet ? LAYER_GRID.stylesSheet : LAYER_GRID.styles}>
-          {(['smooth', 'blocks'] as GridStyle[]).map((value, i) => {
-            const Glyph = value === 'smooth' ? IconGridSmooth : IconGridBlocks
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-label={value === 'smooth' ? 'Smooth' : 'Blocks'}
-                aria-pressed={gridStyle === value}
-                disabled={off}
-                onClick={() => {
-                  setGridStyle(value)
-                  switchOn()
-                }}
-                className={`${LAYER_GRID.style} ${gridStyle === value ? ACCENT.fill : SEGMENT_IDLE}${
-                  i > 0 ? ` ${SEGMENT_DIVIDER}` : ''
-                }`}
-              >
-                <Glyph />
-              </button>
-            )
-          })}
-        </div>
+        <button
+          type="button"
+          aria-label={gridStyle === 'smooth' ? 'Grid style: Smooth' : 'Grid style: Blocks'}
+          disabled={off}
+          onClick={() => {
+            setGridStyle(gridStyle === 'smooth' ? 'blocks' : 'smooth')
+            switchOn()
+          }}
+          className={`${sheet ? LAYER_GRID.styleSheet : LAYER_GRID.style} ${ACCENT.fill}`}
+        >
+          {gridStyle === 'smooth' ? <IconGridSmooth /> : <IconGridBlocks />}
+        </button>
         <div className={`${sheet ? LAYER_GRID.reachSheet : LAYER_GRID.reach} ${SLIDER.well}`}>
           <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
           <div className={`absolute inset-0 ${ACCENT.fill}`} style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}>

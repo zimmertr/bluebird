@@ -980,7 +980,7 @@ describe('shared recipes', () => {
   })
 
   // The coverage slider's well is the same recessed surface at the segment's
-  // corner, so the Smooth and Blocks pair beside it and the well read as one
+  // corner, so the grid's style button beside it and the well read as one
   // pair of controls.
   it("builds the coverage slider's well from the same surface at the segment's corner", () => {
     expect(SLIDER.well).toBe(`${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`)
@@ -1522,18 +1522,19 @@ describe('shared recipes', () => {
     expect(CHIP_CARD_W.menu).toBe('w-max min-w-full')
     expect(MEASURED.layersMenu).toBeLessThan(stepPx(CHIP_CARD_W.key, 'w'))
     // The coverage slider's value lies over its input and cannot size the
-    // menu, so the grid's column holds it: 120 less the style pair (two icons,
-    // the 2px edge and the 1px divider) and the 4px gap, with room to spare.
-    const pair = 2 * stepPx(LAYER_GRID.style, 'w') + 3
-    const reach = stepPx(LAYER_GRID.controls, 'w') - pair - stepPx(LAYER_GRID.controls, 'gap')
-    expect([pair, reach]).toEqual([51, 65])
-    // On a finger each icon presses 32px square: its 24 and 4px past each side.
-    expect(LAYER_GRID.style).toContain('touch:before:-inset-1')
-    expect(stepPx(LAYER_GRID.style, 'w') + 2 * stepPx(LAYER_GRID.style.replace('touch:before:-inset', 'inset'), 'inset')).toBe(32)
-    // A pair that clipped its icons would cut the box off.
-    expect(`${LAYER_GRID.styles} ${LAYER_GRID.stylesSheet}`).not.toMatch(/overflow-hidden/)
+    // menu, so the grid's column holds it: 120 less the style button and the
+    // 4px gap, with room to spare. The button is square at the sliders'
+    // height, so on a phone it is 32 like every other phone control.
+    const gap = stepPx(LAYER_GRID.controls, 'gap')
+    const reach = stepPx(LAYER_GRID.controls, 'w') - stepPx(LAYER_GRID.style, 'w') - gap
+    const reachSheet = stepPx(LAYER_GRID.controls, 'w') - stepPx(LAYER_GRID.styleSheet, 'w') - gap
+    expect([reach, reachSheet]).toEqual([96, 84])
+    expect([stepPx(LAYER_GRID.style, 'w'), stepPx(LAYER_GRID.style, 'h')]).toEqual([20, 20])
+    expect([stepPx(LAYER_GRID.styleSheet, 'w'), stepPx(LAYER_GRID.styleSheet, 'h')]).toEqual([32, 32])
+    expect(stepPx(LAYER_GRID.reachSheet, 'h')).toBe(stepPx(LAYER_GRID.styleSheet, 'h'))
+    expect(stepPx(LAYER_GRID.styleSheet, 'h')).toBe(stepPx(LAYER_ROW.sliderSheet, 'h'))
     expect(stepPx(LAYER_GRID.controls, 'w')).toBe(stepPx(LAYER_ROW.slider, 'w'))
-    expect(reach - MEASURED.reachValue).toBeGreaterThanOrEqual(8)
+    expect(reachSheet - MEASURED.reachValue).toBeGreaterThanOrEqual(8)
     expect(MAP_CHIP_MENU).not.toMatch(/(^|\s)w-/)
     expect(layersPopoverSource).toContain('${MAP_CHIP_MENU} ${CHIP_CARD_W.menu}')
     expect(layersPopoverSource).toContain('${sheet ? LAYER_GRID.reachSheet : LAYER_GRID.reach} ${SLIDER.well}')
@@ -3096,7 +3097,7 @@ describe('the layers palette', () => {
     expect(Object.keys(LAYER_ROW)).not.toContain('restingFill')
   })
 
-  // 120 by 20 at a desk, 120 by 24 on a phone, where the sheet's rows are
+  // 120 by 20 at a desk, 120 by 32 on a phone, where the sheet's rows are
   // 32px. `100%` and `Opacity` with the well's 8px either side are 90.7px,
   // and the thumb at the default half must stand clear of the wordmark, which
   // at the lab's 96 it covered (measured in the browser suite's Chromium,
@@ -3105,7 +3106,7 @@ describe('the layers palette', () => {
     const MEASURED = { value: 30.7, wordmark: 44, thumb: 4 }
     const pad = 8
     expect([stepPx(LAYER_ROW.slider, 'w'), stepPx(LAYER_ROW.slider, 'h')]).toEqual([120, 20])
-    expect([stepPx(LAYER_ROW.sliderSheet, 'w'), stepPx(LAYER_ROW.sliderSheet, 'h')]).toEqual([120, 24])
+    expect([stepPx(LAYER_ROW.sliderSheet, 'w'), stepPx(LAYER_ROW.sliderSheet, 'h')]).toEqual([120, 32])
     for (const w of [stepPx(LAYER_ROW.slider, 'w'), stepPx(LAYER_ROW.sliderSheet, 'w')]) {
       expect(w - 2 * pad - MEASURED.value - MEASURED.wordmark).toBeGreaterThanOrEqual(8)
       // The thumb's right edge at 50% against where the wordmark starts.

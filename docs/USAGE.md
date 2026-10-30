@@ -437,7 +437,8 @@ for the player. A box you ticked before analyzing, or one a shared link ticked,
 stays ticked, and the layer draws as soon as a report can carry it. Rank by
 something with numbers and it comes back without fetching anything again.
 
-Two icons beside the row's name pick how it is drawn, and both readings are true:
+The button beside the row's name shows how it is drawn, and a press switches to the
+other. Both readings are true:
 
 - **Smooth** (the default) draws the space between the points, which is how every
   other forecast map reads and is the honest shape of something the model already
@@ -449,7 +450,7 @@ Two icons beside the row's name pick how it is drawn, and both readings are true
   hard edges are the one thing it overstates: the model has no boundary there.
 
 Switching costs nothing. It is the same data drawn two ways, so it applies instantly
-and rides in the shared link. The two icons and the coverage slider stay on the row
+and rides in the shared link. The button and the coverage slider stay on the row
 while the layer is off, and using either one switches it on.
 
 Two things to know when reading it:

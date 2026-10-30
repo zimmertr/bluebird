@@ -462,15 +462,11 @@ describe('LayersPopover', () => {
     expect(greyed()).toEqual(['Forecast grid'])
     expect(grid().checked).toBe(true)
     expect((screen.getByRole('slider', { name: 'Coverage' }) as HTMLInputElement).disabled).toBe(true)
-    expect(screen.getAllByRole('button', { name: /^(Smooth|Blocks)$/ }).map((b) => (b as HTMLButtonElement).disabled)).toEqual([
-      true,
-      true,
-    ])
+    expect((screen.getByRole('button', { name: /^Grid style: / }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   // The grid's style and coverage stand on its own row, at the right where a
-  // Base map row carries its opacity slider, Smooth first since it is the
-  // default. Like those sliders they stand while the grid is off, and using
+  // Base map row carries its opacity slider. Like those sliders they stand while the grid is off, and using
   // one switches the grid on.
   it("puts the grid's style and coverage on its row, live while it is off", () => {
     const setShowGrid = vi.fn()
@@ -487,12 +483,11 @@ describe('LayersPopover', () => {
     )
     open()
     const row = screen.getByRole('checkbox', { name: 'Forecast grid' }).closest('label')!.parentElement!
-    const styles = screen.getAllByRole('button', { name: /^(Smooth|Blocks)$/ })
-    expect(styles.map((b) => b.getAttribute('aria-label'))).toEqual(['Smooth', 'Blocks'])
-    expect(styles.map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'true'])
+    // One button shows the style in force and switches to the other.
+    const style = screen.getByRole('button', { name: 'Grid style: Blocks' })
     const coverage = screen.getByRole('slider', { name: 'Coverage' })
-    expect([styles.every((b) => row.contains(b)), row.contains(coverage)]).toEqual([true, true])
-    fireEvent.click(styles[0])
+    expect([row.contains(style), row.contains(coverage)]).toEqual([true, true])
+    fireEvent.click(style)
     expect(setGridStyle).toHaveBeenCalledWith('smooth')
     expect(setShowGrid).toHaveBeenCalledWith(true)
     setShowGrid.mockClear()

@@ -3194,7 +3194,8 @@ export const MENU_GROUP = {
  *   (30.7px) and `Opacity` with 8px either side leave 29px between them
  *   (measured in the browser suite's Chromium, 2026-10-29). The menu is
  *   24px wider for it.
- * - `sliderSheet`: the phone's, 120 by 24, the lab's size.
+ * - `sliderSheet`: the phone's, 120 by 32, the height of every other phone
+ *   control (record 0223); the lab drew it 24 (the maintainer, 2026-10-30).
  * - An off layer's slider looks the same as an on one's, accent and all: it
  *   is live, and a drag on it checks the layer's box at the level it sets,
  *   the way a muted volume slider unmutes (the maintainer, 2026-10-29,
@@ -3206,7 +3207,7 @@ export const LAYER_ROW = {
   cardRow: 'min-h-7',
   line: 'flex items-center gap-2',
   slider: 'relative h-5 w-30 flex-shrink-0 overflow-hidden',
-  sliderSheet: 'relative h-6 w-30 flex-shrink-0 overflow-hidden',
+  sliderSheet: 'relative h-8 w-30 flex-shrink-0 overflow-hidden',
 } as const
 
 /**
@@ -3284,39 +3285,35 @@ export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
 /**
  * The forecast grid's two controls on its own Layers row, at the right where
  * the Base map rows carry their opacity sliders (the maintainer, 2026-10-29):
- * the grid's style as a pair of icons, Smooth first because it is the
- * default, and its coverage as a slider that takes the rest of the column.
- * They used to stand as two full-width blocks under the row, a segment of
- * words and a slider, which made the grid the one layer two lines tall.
+ * the grid's style as one button, and its coverage as a slider that takes the
+ * rest of the column. They used to stand as two full-width blocks under the
+ * row, a segment of words and a slider, which made the grid the one layer two
+ * lines tall.
  *
- * - `controls`: the pair and the slider, one 120px column, so the slider's
+ * - `controls`: the button and the slider, one 120px column, so the slider's
  *   right edge and the opacity sliders' stand on one line.
- * - `styles` / `stylesSheet`: the pair's segment, the panel's recessed edge,
- *   20px tall at a desk and 24 on a phone's sheet like the sliders beside it.
- * - `style`: one icon of the pair, 24px wide. Faded with `DISABLED` while the
- *   row is greyed, since no style can draw then. On a finger it presses 32px
- *   square, an invisible box 4px past each side the way the chips take
- *   theirs (`CHIP_HIT`), so it is as easy to hit as the app's other phone
- *   controls (record 0223) while the row stays one line: a drawn 32px pair
- *   would leave the slider too narrow for `100 km` (the maintainer,
- *   2026-10-30). The pair therefore clips nothing, which would cut the box
- *   off, and each icon rounds its own outer corners instead.
- * - `reach` / `reachSheet`: the coverage slider's well, whatever the pair
- *   leaves of the column: 120 less the pair's 51 (two 24px icons, the 2px
- *   edge and the 1px divider) and the 4px gap is 65px, where the widest
- *   value, `100 km`, needs about 38 with its 8px insets either side. So the
- *   value stands alone and the slider's name is its accessible name only.
- *   It fades as `DISABLED` fades a control while its input is disabled.
+ * - `style` / `styleSheet`: the style button, square at the height of the
+ *   sliders beside it, 20px at a desk and 32 on a phone's sheet, which is the
+ *   size of every other phone control (record 0223). It shows the style in
+ *   force on the accent and switches to the other on each press. It replaced
+ *   a pair of 24px icons, which on a phone pressed 32 only through an
+ *   invisible box past their edges; a drawn 32px pair would leave the slider
+ *   too narrow for `100 km`, and the maintainer would rather one button than
+ *   an exception to the size (2026-10-30). Faded with `DISABLED` while the row
+ *   is greyed, since no style can draw then.
+ * - `reach` / `reachSheet`: the coverage slider's well, whatever the button
+ *   leaves of the column: 120 less the button and the 4px gap is 96px at a
+ *   desk and 84 on a phone, where the widest value, `100 km`, needs about 55
+ *   with its 8px insets either side. So the value stands alone and the
+ *   slider's name is its accessible name only. It fades as `DISABLED` fades a
+ *   control while its input is disabled.
  */
 export const LAYER_GRID = {
   controls: 'flex w-30 flex-shrink-0 items-center gap-1',
-  styles: `inline-flex ${RADIUS.control} ${RECESSED_EDGE} h-5 flex-shrink-0`,
-  stylesSheet: `inline-flex ${RADIUS.control} ${RECESSED_EDGE} h-6 flex-shrink-0`,
-  style:
-    `relative flex w-6 items-center justify-center first:rounded-l-xs last:rounded-r-xs transition-colors ` +
-    `touch:before:absolute touch:before:-inset-1 touch:before:content-[''] ${FOCUS_RING} ${DISABLED}`,
+  style: `flex h-5 w-5 flex-shrink-0 items-center justify-center ${RADIUS.control} ${RECESSED_EDGE} ${FOCUS_RING} ${DISABLED}`,
+  styleSheet: `flex h-8 w-8 flex-shrink-0 items-center justify-center ${RADIUS.control} ${RECESSED_EDGE} ${FOCUS_RING} ${DISABLED}`,
   reach: 'relative h-5 min-w-0 flex-1 overflow-hidden has-[:disabled]:opacity-40',
-  reachSheet: 'relative h-6 min-w-0 flex-1 overflow-hidden has-[:disabled]:opacity-40',
+  reachSheet: 'relative h-8 min-w-0 flex-1 overflow-hidden has-[:disabled]:opacity-40',
 } as const
 
 /**
