@@ -21,7 +21,7 @@ import { type ColorScale, cellStyle, hourlyScale } from '../utils/colors'
 import { clamp } from '../utils/numbers'
 import ChartLayoutButton from './ChartLayoutButton'
 import { type ChartLayout, type RowCrossing, type RowShares, evenRows, layoutFor, rowCrossings, rowRects, rowsOf, sharesAfterDrag } from '../utils/chart/chartLayout'
-import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
+import { DRAG_THRESHOLD_PX, GHOST_MAX_PX, ghostLeft, travel } from '../utils/columnDrag'
 import { lineStrokes } from '../utils/chart/chartCanvas'
 import { BOX_ATTR, type DragLayout, type Rect, STAGE_ATTR, useStretchDrag } from '../hooks/useStretchDrag'
 import {
@@ -1032,7 +1032,7 @@ function TimeSeriesChart({
         </div>
       )}
       {pins.map((p) => (
-        <PinnedCard key={p.t} pin={p} times={times} lines={lines} metric={drawn[p.panel] ?? drawn[0]} metrics={drawn} tone={tone} onUnpin={unpin} onRaise={raise} />
+        <PinnedCard key={p.t} pin={p} times={times} lines={lines} metric={drawn[p.panel] ?? drawn[0]} metrics={drawn} tone={tone} onUnpin={unpin} onRaise={raise} onMovePanel={phone ? undefined : onMove} />
       ))}
     </div>
   )
@@ -1929,18 +1929,20 @@ const unpinLabel = (hour: string) => `Unpin ${hour}`
 // The smallest a reader may size a pinned card to: a name and a value
 // across, a head and two rows down.
 const PIN_MIN = { w: 180, h: 96 }
+// The narrowest a reader may drag a column: a three-digit value and its head's arrow.
+const CARD_COL_MIN_PX = 40
 
-/** Which column orders a pinned card: -1 the names, else a metric's index. */
+/** Which column orders a pinned card: the names, or a metric. */
 interface PinSort {
-  col: number
+  col: ChartMetric | 'name'
   desc: boolean
 }
 
 /** A pinned card's rows in its sort, a row with no value last either way. */
-function pinnedOrder(items: readonly TooltipItem[], metrics: ChartMetrics, index: number, sort: PinSort): TooltipItem[] {
+function pinnedOrder(items: readonly TooltipItem[], index: number, sort: PinSort): TooltipItem[] {
   const dir = sort.desc ? -1 : 1
-  if (sort.col < 0) return [...items].sort((a, b) => dir * a.line.label.localeCompare(b.line.label))
-  const m = metrics[sort.col]
+  if (sort.col === 'name') return [...items].sort((a, b) => dir * a.line.label.localeCompare(b.line.label))
+  const m = sort.col
   return [...items].sort((a, b) => {
     const va = valueAt(a.line, m, index)
     const vb = valueAt(b.line, m, index)
@@ -1975,6 +1977,7 @@ function PinnedCard({
   tone,
   onUnpin,
   onRaise,
+  onMovePanel,
 }: {
   pin: Pin
   times: readonly number[]
@@ -1984,6 +1987,8 @@ function PinnedCard({
   tone: CardTone | null
   onUnpin: (t: number) => void
   onRaise: (t: number) => void
+  /** Moves a panel, as its picker's grip does; a head carries it here. */
+  onMovePanel?: (from: number, to: number) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const a = pin.area
@@ -1991,7 +1996,14 @@ function PinnedCard({
   // on whichever side has the room, measured once it has a width.
   const [at, setAt] = useState<{ x: number; y: number } | null>(null)
   const [size, setSize] = useState<{ w: number; h: number } | null>(null)
-  const [sort, setSort] = useState<PinSort>(() => ({ col: Math.max(0, metrics.indexOf(metric)), desc: true }))
+  const [sort, setSort] = useState<PinSort>(() => ({ col: metric, desc: true }))
+  // Each column's width once the reader drags its edge, as a results column's
+  // is (TJ 2026-10-30); the content's until then.
+  const [widths, setWidths] = useState<Readonly<Record<string, number>>>({})
+  // A metric head carried under the pointer: its column moves its panel, the
+  // card's columns being the panels in their order (TJ 2026-10-30).
+  const [carry, setCarry] = useState<{ m: ChartMetric; x: number; y: number; to: number } | null>(null)
+  const dragged = useRef(false)
   useLayoutEffect(() => {
     const el = ref.current
     if (!el || at) return
@@ -2004,9 +2016,57 @@ function PinnedCard({
   const index = times.indexOf(pin.t)
   if (index < 0) return null
   const hour = fmtTooltipTime(pin.t)
-  const items = pinnedOrder(cardItems(lines, metric, metrics, index, null, null), metrics, index, sort)
+  const items = pinnedOrder(cardItems(lines, metric, metrics, index, null, null), index, sort)
   // A metric opens high to low, as the card first lists it; names A to Z.
-  const press = (col: number) => setSort((s) => (s.col === col ? { col, desc: !s.desc } : { col, desc: col >= 0 }))
+  const press = (col: PinSort['col']) => setSort((s) => (s.col === col ? { col, desc: !s.desc } : { col, desc: col !== 'name' }))
+  // The column a pointer stands over, by its head's span; the first metric
+  // stays first, because it follows the ranking, as its panel does.
+  const slotAt = (x: number): number | null => {
+    const heads = ref.current?.querySelectorAll<HTMLElement>('[data-card-col]')
+    if (!heads) return null
+    let best: number | null = null
+    heads.forEach((h) => {
+      const r = h.getBoundingClientRect()
+      const k = Number(h.dataset.cardCol)
+      if (k >= 1 && x >= r.left && x <= r.right) best = k
+    })
+    return best
+  }
+  const onHeadDown = (e: PointerEvent<HTMLButtonElement>, k: number) => {
+    dragged.current = false
+    if (e.button !== 0 || k < 1 || !onMovePanel) return
+    const m = metrics[k]
+    const x0 = e.clientX
+    const y0 = e.clientY
+    let to = k
+    const move = (ev: globalThis.PointerEvent) => {
+      if (!dragged.current && travel(ev.clientX - x0, ev.clientY - y0) < DRAG_THRESHOLD_PX) return
+      dragged.current = true
+      to = slotAt(ev.clientX) ?? to
+      setCarry({ m, x: ev.clientX, y: ev.clientY, to })
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
+      setCarry(null)
+      if (dragged.current && to !== k) onMovePanel(k, to)
+    }
+    const cancel = () => {
+      to = k
+      up()
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', cancel)
+  }
+  const onEdgeDown = (e: PointerEvent<HTMLSpanElement>, col: string) => {
+    const head = e.currentTarget.parentElement
+    if (!head) return
+    onRaise(pin.t)
+    const w0 = head.getBoundingClientRect().width
+    follow(e, (dx) => setWidths((w) => ({ ...w, [col]: clamp(w0 + dx, CARD_COL_MIN_PX, a.w) })))
+  }
 
   const onMove = (e: PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('button') || !at || !ref.current) return
@@ -2033,23 +2093,28 @@ function PinnedCard({
       }),
     )
   }
-  const arrow = (col: number) => (
+  const arrow = (col: PinSort['col']) => (
     <span className={`${ACCENT.text} ${sort.col === col ? '' : 'invisible'}`} aria-hidden="true">
       {sort.col === col && !sort.desc ? '↑' : '↓'}
     </span>
   )
-  const head = (col: number, label: ReactNode) => (
-    <button
-      type="button"
-      aria-pressed={sort.col === col}
-      onClick={() => press(col)}
-      className={`${CHART_CARD.sortHead} ${col < 0 ? 'justify-start' : 'justify-end'}`}
-    >
-      {col >= 0 && arrow(col)}
-      {label}
-      {col < 0 && arrow(col)}
-    </button>
+  const head = (col: PinSort['col'], k: number, label: ReactNode) => (
+    <span className={`${CHART_CARD.headCell} ${carry && carry.to === k && carry.m !== col ? CHART_CARD.dropAt : ''}`} data-card-col={k}>
+      <button
+        type="button"
+        aria-pressed={sort.col === col}
+        onPointerDown={(e) => onHeadDown(e, k)}
+        onClick={() => (dragged.current ? (dragged.current = false) : press(col))}
+        className={`${CHART_CARD.sortHead} ${col === 'name' ? 'justify-start' : 'justify-end'} ${k >= 1 && onMovePanel ? CHART_CARD.grab : ''}`}
+      >
+        {col !== 'name' && arrow(col)}
+        {label}
+        {col === 'name' && arrow(col)}
+      </button>
+      <span onPointerDown={(e) => onEdgeDown(e, col)} className={CHART_CARD.colEdge} aria-hidden="true" />
+    </span>
   )
+  const track = (col: string, fallback: string) => (widths[col] ? `${widths[col]}px` : fallback)
   const height = size?.h ?? Math.min(pin.height ?? a.h, a.h - 16)
   return (
     <div
@@ -2072,10 +2137,13 @@ function PinnedCard({
         </button>
       </div>
       <div className={`${CHART_CARD.body} ${CHART_CARD.scroll} flex-1`}>
-        <div className="grid items-center gap-x-3.5" style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${metrics.length}, auto)` }}>
-          {head(-1, 'Name')}
+        <div
+          className="grid items-center gap-x-3.5"
+          style={{ gridTemplateColumns: [track('name', 'minmax(0, 1fr)'), ...metrics.map((m) => track(m, 'auto'))].join(' ') }}
+        >
+          {head('name', -1, 'Name')}
           {metrics.map((m, k) => (
-            <Fragment key={m}>{head(k, CHART_METRICS.find((c) => c.key === m)?.label)}</Fragment>
+            <Fragment key={m}>{head(m, k, CHART_METRICS.find((c) => c.key === m)?.label)}</Fragment>
           ))}
           <span className={CHART_CARD.rule} />
           {items.map((it) => (
@@ -2093,6 +2161,13 @@ function PinnedCard({
           ))}
         </div>
       </div>
+      {carry &&
+        createPortal(
+          <div className={DRAG.ghost} style={{ left: ghostLeft(carry.x, window.innerWidth), top: carry.y - 10, maxWidth: GHOST_MAX_PX }}>
+            {CHART_METRICS.find((c) => c.key === carry.m)?.label}
+          </div>,
+          document.body,
+        )}
       <span onPointerDown={onSize} className={CHART_CARD.corner} aria-hidden="true">
         <svg viewBox="0 0 10 10" className="h-full w-full">
           <path d="M9 3 3 9M9 6 6 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />

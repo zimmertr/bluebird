@@ -1394,6 +1394,11 @@ export const CHART_CARD = {
   // A pinned card's row lights under the pointer as a results row does
   // (`TABLE.row`'s tint), one grid row across every column.
   row: 'col-span-full grid grid-cols-subgrid items-center border-t border-rule/50 hover:bg-raised/30',
+  // A head's cell, which its right edge resizes and a carried head lands
+  // on (TJ 2026-10-30), as a results column's head does.
+  headCell: 'relative flex min-w-0 items-center',
+  colEdge: 'absolute -right-2 top-0 bottom-0 w-2 cursor-col-resize touch-none',
+  dropAt: 'shadow-[inset_2px_0_0_var(--ui-accent-ink)]',
   corner: 'absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize text-ink-soft touch-none',
   // A value is never narrower than six mono digits, the widest a cell prints
   // (`≥30000` on the cloud deck), so a column with no head over it (one
