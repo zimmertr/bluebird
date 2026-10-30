@@ -101,6 +101,19 @@ for (const [width, height, panel] of [
   })
 }
 
+// A touch screen as wide as a desk keeps the corner and drops the zoom pair
+// (record 0254): a pinch zooms, and the capsule's halves could not both take
+// a 44px press.
+test.describe('a touch screen at desk width', () => {
+  test.use({ hasTouch: true, viewport: { width: 1180, height: 820 } })
+  test('stands the corner without the zoom pair', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.locator('.map-corner .maplibregl-ctrl-geolocate')).toBeVisible()
+    await expect(page.locator('.maplibregl-ctrl-zoom-in')).toBeHidden()
+    await expect(page.locator('.maplibregl-ctrl-zoom-out')).toBeHidden()
+  })
+})
+
 // A phone has no corner and no zoom pair (#696): a pinch zooms there.
 test('a phone stands no zoom pair and no corner', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 })

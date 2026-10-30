@@ -2791,6 +2791,9 @@ describe('the phone chrome\'s hit areas', () => {
     // alone rather than by the library's own fade of its glyph as well, as a
     // disabled zoom half is (record 0174).
     expect(rule('.map-slot .maplibregl-ctrl-compass.compass-idle')).toContain('display: none;')
+    // No touch screen stands the zoom pair, at any width (record 0254): a
+    // pinch zooms, and the capsule's joined halves cannot both press as 44.
+    expect(mapCss).toMatch(/@media \(hover: none\) \{\s*\.map-corner \.maplibregl-ctrl-group:has\(> \.maplibregl-ctrl-zoom-in\) \{\s*display: none;/)
     expect(
       rule(
         '.maplibregl-ctrl-compass:disabled .maplibregl-ctrl-icon,\n' +

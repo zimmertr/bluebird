@@ -211,6 +211,16 @@
   display: none;
 }
 
+/* Nor does any touch screen, a tablet wide enough for the desk's corner
+ * included (record 0254): a pinch zooms there too, and the capsule's halves
+ * meet with no gap, so the lower half's 44px press took the upper half's
+ * bottom 6px and left zoom in 32px tall to a finger. */
+@media (hover: none) {
+  .map-corner .maplibregl-ctrl-group:has(> .maplibregl-ctrl-zoom-in) {
+    display: none;
+  }
+}
+
 /* The library draws each glyph at 29px for its 29px button. The buttons are
  * 32px, the chips' height (record 0254), so the glyphs scale to 23px, the
  * share of the button they held at 40px (29/40 of 32), and every layer

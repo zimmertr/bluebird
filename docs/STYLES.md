@@ -730,7 +730,9 @@ the chips' colour made opaque, with the structural edge (`SURFACE_CHIP_CARD`), s
 menu reads as the legend card's twin and its outline and deeper shadow part it
 from the legend where it opens across it. The legend card scrolls inside the map's height under
 the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
-the panel. A phone draws no zoom pair, since a pinch zooms there.
+the panel. A phone draws no zoom pair, since a pinch zooms there, and nor
+does any touch screen at desk width, whose capsule halves could not both take
+a 44px press (record [0254](decisions/0254-map-buttons-are-the-chips-height.md)).
 Record: [0174](decisions/0174-desk-map-rows.md)
 
 Seen and pressed are two sizes. On a coarse pointer a chip is 32px seen and
