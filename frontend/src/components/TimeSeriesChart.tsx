@@ -11,11 +11,13 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_CARD, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLOT_TOUCH, RADIUS, TEXT } from '../styles'
+import { createPortal } from 'react-dom'
+import { CHART_CARD, DRAG, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLOT_TOUCH, RADIUS, TEXT } from '../styles'
 import { IconClose, IconGrip, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
 import ChartLines from './ChartLines'
+import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
 import { lineStrokes } from '../utils/chart/chartCanvas'
 import { BOX_ATTR, type DragLayout, type Rect, STAGE_ATTR, useStretchDrag } from '../hooks/useStretchDrag'
 import {
@@ -851,7 +853,12 @@ function MoveGrip({
   onDragTo: (drag: PickerDrag | null) => void
 }) {
   const toRef = useRef(index)
+  // The picker carried under the pointer (TJ 2026-10-30), the ghost a column
+  // wears when the table or the Columns menu moves it, portalled to the body
+  // because a panel's box may wear a transform that would trap a fixed child.
+  const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null)
   return (
+    <>
     <button
       type="button"
       aria-label={movePanelLabel(metricLabel)}
@@ -873,7 +880,9 @@ function MoveGrip({
         const row = grip.closest('[data-picker-root]')
         toRef.current = index
         onDragTo({ from: index, to: index })
+        setGhost({ x: e.clientX, y: e.clientY })
         const move = (ev: globalThis.PointerEvent) => {
+          setGhost({ x: ev.clientX, y: ev.clientY })
           const to = slotAt(row, ev.clientX, ev.clientY)
           if (to === null || to === toRef.current) return
           toRef.current = to
@@ -883,6 +892,7 @@ function MoveGrip({
           grip.removeEventListener('pointermove', move)
           grip.removeEventListener('pointerup', up)
           grip.removeEventListener('pointercancel', cancel)
+          setGhost(null)
           onDragTo(null)
           if (toRef.current !== index) onMove(index, toRef.current)
         }
@@ -897,6 +907,17 @@ function MoveGrip({
     >
       <IconGrip />
     </button>
+    {ghost &&
+      createPortal(
+        <div
+          className={DRAG.ghost}
+          style={{ left: ghostLeft(ghost.x, window.innerWidth), top: ghost.y - 10, maxWidth: GHOST_MAX_PX }}
+        >
+          {metricLabel}
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 

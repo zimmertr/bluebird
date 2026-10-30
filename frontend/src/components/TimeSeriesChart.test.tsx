@@ -5,7 +5,7 @@ import TimeSeriesChart from './TimeSeriesChart'
 import { CHART_METRICS, extremeValue } from '../utils/chart/chartData'
 import { CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
 import { PHONE_PLOT_MARGIN, PLOT_MARGIN } from '../utils/chart/chartPointer'
-import { CHART_CARD, CHART_PICKER } from '../styles'
+import { CHART_CARD, CHART_PICKER, DRAG } from '../styles'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
 
@@ -897,7 +897,12 @@ describe('TimeSeriesChart with more than one metric', () => {
     fireEvent.pointerDown(third, { button: 0, pointerId: 1, clientX: 610, clientY: 11 })
     fireEvent.pointerMove(third, { pointerId: 1, clientX: 290, clientY: 11 })
     expect(container.querySelector('[data-picker-slot="1"] > span[aria-hidden="true"]')).not.toBeNull()
+    // The picker is carried under the pointer as the table's columns are.
+    const ghost = document.body.querySelector<HTMLElement>(`.${CSS.escape('-rotate-1')}`)!
+    expect(ghost.className).toBe(DRAG.ghost)
+    expect(ghost.textContent).toBe(label('aqi'))
     fireEvent.pointerUp(third, { pointerId: 1, clientX: 290, clientY: 11 })
+    expect(document.body.querySelector(`.${CSS.escape('-rotate-1')}`)).toBeNull()
     rects.mockRestore()
     expect(onMove).toHaveBeenLastCalledWith(3, 1)
   })
