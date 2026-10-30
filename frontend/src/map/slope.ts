@@ -53,16 +53,18 @@ export const SLOPE_TILES = `${SLOPE_SCHEME}://{z}/{x}/{y}`
 
 /**
  * The deepest zoom the slope tiles are painted at; MapLibre stretches past
- * it. Mapterhorn's finest is 13 over the US (Rainier answers at 13 and 404s at
- * 14) and 17 in the Alps (the Matterhorn answers at every zoom to 17), so 14
- * paints the US from its own survey and the Alps from 3 m tiles, a couloir and
- * a rock band apiece. 15 was tried (2026-10-29, 1389 by 868): the Alps'
- * 1.7 m tiles drew the rock's own texture rather than a slope a skier plans
- * by, a screen at 15 over the Matterhorn asked for 21 tiles and 3.5 MB where
- * 14 stretched asks 12 and 1.9 MB, and a screen at 15 over Rainier asked 8
- * more tiles that answer 404. Record 0248 has the numbers.
+ * it. Mapterhorn's finest varies with the survey under it: 13 over Rainier
+ * (14 answers 404), 16 over Squak Mountain by Issaquah (17 answers 404) and
+ * 17 over the Matterhorn. 16 is the finest the US has where it has lidar, and
+ * there it draws the grain CalTopo's shading shows: each zoom carries detail a
+ * smoothed copy of the zoom above lacks, halving from 1.0 m at 13 to 0.12 m at
+ * 16 on Tiger Mountain's face (measured 2026-10-29). The maintainer chose 16
+ * that day beside a CalTopo screenshot, over 14, which drew the same slopes
+ * smooth past zoom 14. It costs only past the zoom a survey stops at: a
+ * missing tile is one 404 per area for the session (`missing`). Record 0248
+ * has the numbers.
  */
-export const SLOPE_MAXZOOM = 14
+export const SLOPE_MAXZOOM = 16
 
 /**
  * The bands at half strength, the default level, so Liberty's ground, the

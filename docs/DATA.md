@@ -872,14 +872,15 @@ them at that latitude. A pixel on a tile's edge reads its neighbours from the
 next tile, so a band does not break along tile boundaries. It is painted in
 CalTopo's bands, the avalanche world's, from 27 degrees up (record
 [0248](decisions/0248-slope-angle-from-the-shared-elevation.md)). Zoomed in
-past 12, it reads the finest tile Mapterhorn has, to zoom 14: 10 m-class over
-the United States, finer in the Alps, and the 30 m fill elsewhere. Where a
+past 12, it reads the finest tile Mapterhorn has, to zoom 16: lidar where a
+US survey has it, as around Issaquah, 10 m-class elsewhere in the United
+States, finer in the Alps, and the 30 m fill everywhere else. Where a
 finer tile is missing it falls back a zoom at a time to 12 and remembers the
 miss, so it asks once. It inherits the model's limits: a slope is measured
 over two pixels, about 13 m over Rainier from the US survey, 7 m over the
 Alps, and 26 m from the 30 m fill at Rainier's latitude, twice that at each
 zoom out. A cliff band or a gully narrower than that is averaged with the
-ground beside it and reads gentler than it is. Past zoom 14 the shading is
+ground beside it and reads gentler than it is. Past zoom 16 the shading is
 stretched, not worked out again. It is a planning picture, not a measurement
 of the slope you will stand on.
 
