@@ -49,6 +49,7 @@ const TABLE_VIEW = {
   partialNote: null,
   legend: [],
   handleColumnMove: NOOP,
+  handleAggregateMove: NOOP,
 }
 const REPORT = { detailSort: { key: 'name', dir: 'asc' }, sortDetail: NOOP, emptyReason: null }
 const FIRE = { status: 'ready', warnings: new Map(), uncovered: new Set() }

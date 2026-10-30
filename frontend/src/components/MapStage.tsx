@@ -367,6 +367,7 @@ export default function MapStage({
           onAddPoi={handleAddPoi}
           onRemovePoi={handleRemovePoi}
           onRemoveResult={removeResult}
+          onMoveAggregate={tableView.handleAggregateMove}
           cameraPadBottomPx={layout.cameraPadBottomPx}
           restoredView={restoredView}
           onCameraMove={urlSync.reportView}

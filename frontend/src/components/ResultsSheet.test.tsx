@@ -92,6 +92,7 @@ const TABLE_VIEW = {
   resetColumns: NOOP,
   handleVisibilityChange: NOOP,
   handleColumnMove: NOOP,
+  handleAggregateMove: NOOP,
 }
 const REPORT = { results: [], windowTitle: null, pending: [], rowCount: 0 }
 const REMOVALS = { removed: new Map(), removeResult: NOOP, restoreRemoved: NOOP, restoreAllRemoved: NOOP }

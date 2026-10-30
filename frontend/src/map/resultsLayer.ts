@@ -17,6 +17,16 @@ import type { PendingDestination } from '../utils/customList'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
 import type { ModelRow } from '../utils/model/modelCompare'
 import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
+import { GRID_AGG_ATTR, GRID_EDGE_ATTR } from '../utils/popup/popupChrome'
+import { DRAG_THRESHOLD_PX, ghostLeft, travel } from '../utils/columnDrag'
+import { clamp } from '../utils/numbers'
+import { AGGREGATE } from '../metrics'
+import { DRAG } from '../styles'
+
+// The narrowest and widest a reader may drag a card's grid column: a
+// three-digit value, and about half a phone's card.
+const GRID_COL_MIN_PX = 36
+const GRID_COL_MAX_PX = 160
 import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeatures'
 import { usStatesNow } from '../utils/usStatesLoad'
 import { emptyFC, setSource } from './basemap'
@@ -266,11 +276,75 @@ export function mountResultsLayer(
       rankedBy: live.sortBy,
       pointSample: live.pointSample,
       compact: compactGrid(map.getCanvas().clientWidth),
+      widths: gridWidths,
       mapZoom: map.getZoom(),
       removable: true,
       // The table's crag rows asked for them, so by the time a crag's card
       // opens they are held, and a redraw picks them up if not.
       usStates: usStatesNow(),
+    })
+  }
+
+  // The grid's column widths a reader dragged, shared by every result card
+  // and kept for the session (TJ 2026-10-30).
+  let gridWidths: Readonly<Record<string, number>> = {}
+
+  // A grid head carried onto another moves the table's columns, which the
+  // card's columns follow; its edge sizes the column on every card. Re-armed
+  // after every write of the markup, as the remove is.
+  const armGrid = (card: { popup: Popup }) => {
+    const el = card.popup.getElement()
+    el?.querySelectorAll<HTMLElement>(`th[${GRID_AGG_ATTR}]`).forEach((th) => {
+      const agg = th.getAttribute(GRID_AGG_ATTR)!
+      th.querySelector<HTMLElement>(`[${GRID_EDGE_ATTR}]`)?.addEventListener('pointerdown', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const w0 = th.getBoundingClientRect().width
+        const x0 = e.clientX
+        const move = (ev: PointerEvent) => {
+          const w = Math.round(clamp(w0 + ev.clientX - x0, GRID_COL_MIN_PX, GRID_COL_MAX_PX))
+          gridWidths = { ...gridWidths, [agg]: w }
+          th.style.width = `${w}px`
+          th.style.minWidth = `${w}px`
+        }
+        const up = () => {
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+          refreshCards()
+        }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+      })
+      if (agg === AGGREGATE.total) return
+      th.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return
+        const x0 = e.clientX
+        const y0 = e.clientY
+        let ghost: HTMLElement | null = null
+        const over = (ev: PointerEvent) =>
+          document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>(`th[${GRID_AGG_ATTR}]`)?.getAttribute(GRID_AGG_ATTR)
+        const move = (ev: PointerEvent) => {
+          if (!ghost && travel(ev.clientX - x0, ev.clientY - y0) < DRAG_THRESHOLD_PX) return
+          if (!ghost) {
+            ghost = document.createElement('div')
+            ghost.className = DRAG.ghost
+            ghost.textContent = agg
+            document.body.appendChild(ghost)
+          }
+          ghost.style.left = `${ghostLeft(ev.clientX, window.innerWidth)}px`
+          ghost.style.top = `${ev.clientY - 10}px`
+        }
+        const up = (ev: PointerEvent) => {
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+          if (!ghost) return
+          ghost.remove()
+          const to = over(ev)
+          if (to && to !== agg && to !== AGGREGATE.total) controller.inputs.onMoveAggregate(agg, to)
+        }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+      })
     })
   }
 
@@ -310,11 +384,45 @@ export function mountResultsLayer(
     popup.getElement()?.setAttribute('data-tour', 'marker')
     const card: OpenCard = { popup, row: subject, html, capped }
     armRemove(card)
+    armGrid(card)
     cards.push(card)
     popup.on('close', () => {
       cards = cards.filter((c) => c !== card)
     })
     return { dx, dy }
+  }
+
+  // Redraw every open card from the inputs as they stand: `refreshPopups`,
+  // and a column a reader sized on one card, which every card then wears.
+  function refreshCards() {
+    for (const card of cards) {
+      const shown = controller.inputs.results
+      const model = (card.row as ModelRow).modelId
+      const row = shown.includes(card.row)
+        ? card.row
+        : (shown.find(
+            (r) =>
+              r.latitude === card.row.latitude &&
+              r.longitude === card.row.longitude &&
+              (r as ModelRow).modelId === model,
+          ) ?? null)
+      const html = cardHtml(row ?? card.row, row ? shown.indexOf(row) + 1 : '')
+      if (html === card.html) continue
+      const old = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
+      const scrolled = old?.scrollTop ?? 0
+      // MapLibre moves focus into a popup whenever its content is set. A
+      // redraw answers a change made in the panel, so focus stays there.
+      const focus = card.popup.options.focusAfterOpen
+      card.popup.options.focusAfterOpen = false
+      card.popup.setHTML(html)
+      card.popup.options.focusAfterOpen = focus
+      card.html = html
+      if (row) card.row = row
+      armRemove(card)
+      const body = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
+      if (body && card.capped !== null) capPopupBody(body, card.capped)
+      if (body) body.scrollTop = scrolled
+    }
   }
 
   popups.register({ target: 'result', layers: [RESULT_MARKER_LAYER], open: openResultPopup })
@@ -359,35 +467,6 @@ export function mountResultsLayer(
     hasOpenCard({ latitude, longitude }) {
       return cards.some((card) => card.row.latitude === latitude && card.row.longitude === longitude)
     },
-    refreshPopups() {
-      for (const card of cards) {
-        const shown = controller.inputs.results
-        const model = (card.row as ModelRow).modelId
-        const row = shown.includes(card.row)
-          ? card.row
-          : (shown.find(
-              (r) =>
-                r.latitude === card.row.latitude &&
-                r.longitude === card.row.longitude &&
-                (r as ModelRow).modelId === model,
-            ) ?? null)
-        const html = cardHtml(row ?? card.row, row ? shown.indexOf(row) + 1 : '')
-        if (html === card.html) continue
-        const old = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
-        const scrolled = old?.scrollTop ?? 0
-        // MapLibre moves focus into a popup whenever its content is set. A
-        // redraw answers a change made in the panel, so focus stays there.
-        const focus = card.popup.options.focusAfterOpen
-        card.popup.options.focusAfterOpen = false
-        card.popup.setHTML(html)
-        card.popup.options.focusAfterOpen = focus
-        card.html = html
-        if (row) card.row = row
-        armRemove(card)
-        const body = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
-        if (body && card.capped !== null) capPopupBody(body, card.capped)
-        if (body) body.scrollTop = scrolled
-      }
-    },
+    refreshPopups: () => refreshCards(),
   }
 }

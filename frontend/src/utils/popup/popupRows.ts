@@ -321,7 +321,13 @@ export function popupGrid(groups: readonly PopupGroup[]): PopupGrid {
   const shown = new Set(
     groups.filter((g) => !g.single).flatMap((g) => g.values.map((v) => v.aggregate ?? '')),
   )
-  const columns = GRID_AGGREGATES.filter((a) => shown.has(a))
+  // In the order the table's columns give them (TJ 2026-10-30), the card
+  // being the table's row on its side, so a head carried in either moves both;
+  // the window total stays last, filled for two families alone.
+  const seen = groups.filter((g) => !g.single).flatMap((g) => g.values.map((v) => v.aggregate ?? ''))
+  const columns = [...new Set(seen)]
+    .filter((a) => GRID_AGGREGATES.includes(a) && a !== AGGREGATE.total)
+    .concat(shown.has(AGGREGATE.total) ? [AGGREGATE.total] : [])
   const cellOf = (v: PopupValue): PopupGridCell => ({
     text: v.unit ? `${v.text} ${v.unit}` : v.text,
     href: v.href,

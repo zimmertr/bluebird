@@ -231,6 +231,10 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `TABLE.rankFace` | One face of that stack, pinned to the shared cell |
 | `TABLE.rankIdleFace` / `TABLE.removeFace` | Which face shows: the number gives way on row hover and while the × has keyboard focus. The × idles at no opacity rather than `invisible`, because a hidden element cannot take focus (#576) |
 
+### Shapes and tables
+
+A button's shape says where it stands. A circle floats on the map with nothing behind it; every control inside the panel, a sheet, a card or a popup is a rounded rectangle, and an icon-only one is `SQUARE_BUTTON`, a raised square with a frame. The results table, the marker popup and the chart's card share one table look: the table's heads, a hairline between rows with the table's tint under the pointer, digits grouped in thousands, and the ranked family in `cellStyle`'s colours. Record: [0251](decisions/0251-one-table-look-and-button-shape-by-place.md)
+
 ## Two themes
 
 Dark is the default and stays the default whatever the operating system says;

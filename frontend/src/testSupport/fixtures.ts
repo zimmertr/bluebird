@@ -540,6 +540,7 @@ export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
     onAddPoi: () => {},
     onRemovePoi: () => {},
     onRemoveResult: () => {},
+    onMoveAggregate: () => {},
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,

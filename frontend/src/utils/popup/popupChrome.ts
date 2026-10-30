@@ -444,7 +444,10 @@ export function bodySection(inner: string): string {
  * label's gap to fit a map too narrow for the widest grid at full inset
  * (`compactGrid`).
  */
-export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boolean } = {}): string {
+export function metricGrid(
+  grid: PopupGrid,
+  { compact = false, widths = {} }: { compact?: boolean; widths?: Readonly<Record<string, number>> } = {},
+): string {
   const band = gridBand(compact ? GRID_COMPACT_INSET_PX : GRID_INSET_PX)
   const labelLoose = gridLabel(compact ? GRID_COMPACT_LABEL_GAP_PX : GRID_LABEL_GAP_PX)
   const label = `${labelLoose};white-space:nowrap`
@@ -469,7 +472,7 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
   const hasTotal = grid.columns[grid.columns.length - 1] === AGGREGATE.total
   const lead = Math.max(1, grid.columns.length - (hasTotal ? 1 : 0))
   const head = grid.columns.length
-    ? `<tr><td style="${GRID_HEAD_RULE}"></td>${grid.columns.map((c) => `<th scope="col" style="${headStyle}">${c}</th>`).join('')}</tr>`
+    ? `<tr><td style="${GRID_HEAD_RULE}"></td>${grid.columns.map((c) => gridHead(c, headStyle, widths[c])).join('')}</tr>`
     : ''
   // A hairline under every line but the last, which the card's edge closes.
   const rows = grid.rows.map((r, i) => {
@@ -578,6 +581,21 @@ const gridLabel = (gapPx: number) =>
 // and its heads the table's, right over the digits they name.
 const gridBand = (insetPx: number) => `padding:1px ${insetPx}px`
 const GRID_HEAD_RULE = `border-bottom:1px solid ${RULE_COLOR}`
+
+/**
+ * The attributes a grid head carries for `map/resultsLayer.ts`: its aggregate,
+ * which a carried head moves the table's columns by, and its right edge, which
+ * sizes the column (TJ 2026-10-30), as a results column's head does. The
+ * window total is not carried: it is the last column, filled for two families.
+ */
+export const GRID_AGG_ATTR = 'data-agg'
+export const GRID_EDGE_ATTR = 'data-agg-edge'
+const gridHead = (c: string, style: string, width: number | undefined) => {
+  const carried = c !== AGGREGATE.total ? ';cursor:grab' : ''
+  const sized = width ? `;width:${width}px;min-width:${width}px` : ''
+  const edge = `<span ${GRID_EDGE_ATTR} aria-hidden="true" style="position:absolute;top:0;bottom:0;right:-4px;width:8px;cursor:col-resize;touch-action:none"></span>`
+  return `<th scope="col" ${GRID_AGG_ATTR}="${c}" style="${style};position:relative;user-select:none${carried}${sized}">${c}${edge}</th>`
+}
 const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`
 
 /**
