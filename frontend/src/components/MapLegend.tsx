@@ -9,7 +9,6 @@ import {
   CHIP_CARD_W,
   CONTROL_SIZE,
   DISABLED,
-  LEGEND_GRID,
   LINK,
   MAP_CHIP_MENU,
   RADIUS,
@@ -172,7 +171,7 @@ export interface LegendInputs {
     | 'showSlope'
   >
   /** The forecast grid's state and its row (`useGridLayer`). */
-  grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend' | 'gridStyle' | 'setGridStyle'>
+  grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend'>
 }
 
 /** One section, as `legendSection` draws it. */
@@ -200,7 +199,7 @@ export function legendSections(
     showFireActivity,
     showSlope,
   } = overlays
-  const { gridPainted, gridCued, gridFailed, gridLegend, gridStyle, setGridStyle } = grid
+  const { gridPainted, gridCued, gridFailed, gridLegend } = grid
   // ONE box, gaining and losing sections as the report and the
   // layers change (#454). It was two — the layer rows in one, the
   // six-row metric key in another — which cost a border, a gap and
@@ -458,30 +457,16 @@ export function legendSections(
               // CONTROL_SIZE because a color beside
               // TEXT.control's own would resolve by stylesheet
               // order.
-              // The grid's style beside it, as the button that switches it
-              // (the maintainer, 2026-10-30): the word says what is drawn
-              // and the picture changes under the press.
-              <span className={LEGEND_GRID.line}>
-                <span
-                  className={`${CONTROL_SIZE} ${
-                    gridLegend.kind === 'pitch'
-                      ? ACCENT.text
-                      : gridLegend.kind === 'error'
-                        ? STATUS.error
-                        : STATUS.warn
-                  } flex-shrink-0`}
-                >
-                  {gridLegend.value}
-                </span>
-                <button
-                  type="button"
-                  aria-label={gridStyle === 'smooth' ? 'Grid style: Smooth' : 'Grid style: Blocks'}
-                  onClick={() => setGridStyle(gridStyle === 'smooth' ? 'blocks' : 'smooth')}
-                  className={LEGEND_GRID.style}
-                >
-                  {gridStyle === 'smooth' ? 'Smooth' : 'Blocks'}
-                  <span aria-hidden="true">⇄</span>
-                </button>
+              <span
+                className={`${CONTROL_SIZE} ${
+                  gridLegend.kind === 'pitch'
+                    ? ACCENT.text
+                    : gridLegend.kind === 'error'
+                      ? STATUS.error
+                      : STATUS.warn
+                } flex-shrink-0`}
+              >
+                {gridLegend.value}
               </span>
             ),
           },

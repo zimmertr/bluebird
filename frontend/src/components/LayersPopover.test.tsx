@@ -463,6 +463,7 @@ describe('LayersPopover', () => {
     expect(greyed()).toEqual(['Forecast grid'])
     expect(grid().checked).toBe(true)
     expect((screen.getByRole('slider', { name: 'Coverage' }) as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: /^Grid style: / }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   // The grid's style and coverage stand on its own row, at the right where a
@@ -488,24 +489,29 @@ describe('LayersPopover', () => {
     expect(resetGridReach).toHaveBeenCalledOnce()
   })
 
-  it("puts the grid's coverage on its row, live while it is off", () => {
+  it("puts the grid's style and coverage on its row, live while it is off", () => {
     const setShowGrid = vi.fn()
+    const setGridStyle = vi.fn()
     const setGridReachDraft = vi.fn()
     render(
       <LayersPopover
         mapRef={MAP}
         coverage={COVERAGE}
         overlays={{ ...OVERLAYS, setShowGrid }}
-        grid={{ ...GRID, setGridReachDraft }}
+        grid={{ ...GRID, setGridStyle, setGridReachDraft }}
         playerOffered
       />,
     )
     open()
     const row = screen.getByRole('checkbox', { name: 'Forecast grid' }).closest('label')!.parentElement!
+    // One button shows the style in force and switches to the other.
+    const style = screen.getByRole('button', { name: 'Grid style: Blocks' })
     const coverage = screen.getByRole('slider', { name: 'Coverage' })
-    expect(row.contains(coverage)).toBe(true)
-    // The style switches in the legend, not here.
-    expect(screen.queryByRole('button', { name: /^Grid style: / })).toBeNull()
+    expect([row.contains(style), row.contains(coverage)]).toEqual([true, true])
+    fireEvent.click(style)
+    expect(setGridStyle).toHaveBeenCalledWith('smooth')
+    expect(setShowGrid).toHaveBeenCalledWith(true)
+    setShowGrid.mockClear()
     fireEvent.change(coverage, { target: { value: '80' } })
     expect(setGridReachDraft).toHaveBeenCalledWith(0.8)
     expect(setShowGrid).toHaveBeenCalledWith(true)

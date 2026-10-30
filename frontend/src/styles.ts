@@ -3283,38 +3283,37 @@ export const CALENDAR_FIELD = {
 export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
 
 /**
- * The forecast grid's style in its legend line (the maintainer, 2026-10-30):
- * the pitch, then the style's name as the button that switches it, so the
- * word says what is drawn and the picture changes under the press. It stood
- * on the Layers row as an icon, which said nothing to a reader who had not
- * read the docs, and before that as a pair of icons.
+ * The forecast grid's two controls on its own Layers row, at the right where
+ * the Base map rows carry their opacity sliders (the maintainer, 2026-10-29):
+ * the grid's style as one button, and its coverage as a slider that takes the
+ * rest of the column. They used to stand as two full-width blocks under the
+ * row, a segment of words and a slider, which made the grid the one layer two
+ * lines tall.
  *
- * - `line`: the pitch and the button side by side, right-justified as every
- *   legend value is.
- * - `style`: the button, the name and a swap mark, the panel's recessed field
- *   at 24px and 32 on a finger, the phone's control height (record 0223).
- */
-export const LEGEND_GRID = {
-  line: 'flex flex-shrink-0 items-center gap-1.5',
-  style:
-    `inline-flex h-6 touch:h-8 flex-shrink-0 items-center gap-1 px-2 ${RADIUS.control} ${RECESSED_EDGE} ` +
-    `${SEGMENT_IDLE} ${TEXT.control} font-semibold ${FOCUS_RING}`,
-} as const
-
-/**
- * The forecast grid's coverage slider on its own Layers row, at the right
- * where the Base map rows carry their opacity sliders, the same well with the
- * value at the left and `Coverage` at the right (the maintainer, 2026-10-29).
- * The grid's style moved to its legend line (`LEGEND_GRID`).
- *
- * - `reach` / `reachSheet`: the well, `LAYER_ROW`'s slider sizes, 120 by 20
- *   at a desk and by 32 on a phone. It fades as `DISABLED` fades a control
- *   while its input is disabled, since the row greys when there is nothing
- *   to grid.
+ * - `controls`: the button and the slider, one 120px column, so the slider's
+ *   right edge and the opacity sliders' stand on one line.
+ * - `style` / `styleSheet`: the style button, square at the height of the
+ *   sliders beside it, 20px at a desk and 32 on a phone's sheet, which is the
+ *   size of every other phone control (record 0223). It shows the style in
+ *   force on the accent and switches to the other on each press. It replaced
+ *   a pair of 24px icons, which on a phone pressed 32 only through an
+ *   invisible box past their edges; a drawn 32px pair would leave the slider
+ *   too narrow for `100 km`, and the maintainer would rather one button than
+ *   an exception to the size (2026-10-30). Faded with `DISABLED` while the row
+ *   is greyed, since no style can draw then.
+ * - `reach` / `reachSheet`: the coverage slider's well, whatever the button
+ *   leaves of the column: 120 less the button and the 4px gap is 96px at a
+ *   desk and 84 on a phone, where the widest value, `100 km`, needs about 55
+ *   with its 8px insets either side. So the value stands alone and the
+ *   slider's name is its accessible name only. It fades as `DISABLED` fades a
+ *   control while its input is disabled.
  */
 export const LAYER_GRID = {
-  reach: 'relative h-5 w-30 flex-shrink-0 overflow-hidden has-[:disabled]:opacity-40',
-  reachSheet: 'relative h-8 w-30 flex-shrink-0 overflow-hidden has-[:disabled]:opacity-40',
+  controls: 'flex w-30 flex-shrink-0 items-center gap-1',
+  style: `flex h-5 w-5 flex-shrink-0 items-center justify-center ${RADIUS.control} ${RECESSED_EDGE} ${FOCUS_RING} ${DISABLED}`,
+  styleSheet: `flex h-8 w-8 flex-shrink-0 items-center justify-center ${RADIUS.control} ${RECESSED_EDGE} ${FOCUS_RING} ${DISABLED}`,
+  reach: 'relative h-5 min-w-0 flex-1 overflow-hidden has-[:disabled]:opacity-40',
+  reachSheet: 'relative h-8 min-w-0 flex-1 overflow-hidden has-[:disabled]:opacity-40',
 } as const
 
 /**
