@@ -362,10 +362,10 @@ describe('decodeLink', () => {
 describe('the chart layout param', () => {
   it('writes a layout the count does not open in, and nothing for its own', () => {
     const four = { ...nowOnly, chart: ['aqi', 'temp', 'wind', 'precip'] as ShareableState['chart'] }
-    expect(encodeState({ ...four, chartLayout: '1-3' }, DEFAULT_MODEL)).toContain('layout=1-3')
-    expect(encodeState({ ...four, chartLayout: '2x2' }, DEFAULT_MODEL)).not.toContain('layout=')
+    expect(encodeState({ ...four, chartLayout: '2x2' }, DEFAULT_MODEL)).toContain('layout=2x2')
+    expect(encodeState({ ...four, chartLayout: '1-3' }, DEFAULT_MODEL)).not.toContain('layout=')
     // A layout the count does not offer draws the count's own, so says nothing.
-    expect(encodeState({ ...nowOnly, chartLayout: '1-3' }, DEFAULT_MODEL)).not.toContain('layout=')
+    expect(encodeState({ ...nowOnly, chartLayout: '2x2' }, DEFAULT_MODEL)).not.toContain('layout=')
   })
   it('reads a known layout and drops an unknown one', () => {
     expect(decodeState('?chart=temp&layout=1-2-1')?.chartLayout).toBe('1-2-1')
