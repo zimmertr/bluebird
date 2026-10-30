@@ -1393,9 +1393,8 @@ export const CHART_CARD = {
   // than a cap, because the card resized to the longest name in view as the
   // hour moved, and every value column's width is its head's.
   name: 'min-w-0 w-40 truncate',
-  // A pinned card (TJ 2026-10-30, P2): the accent ring says it holds still,
+  // A pinned card (TJ 2026-10-30, P2): no ring, its ✕ and grips saying it holds still;
   // its body scrolls through every row, and the ✕ in its band lets it go.
-  pinned: 'ring-1 ring-accent-ink',
   scroll: 'min-h-0 overflow-y-auto overscroll-contain',
   unpin: `${SQUARE_BUTTON} ml-auto size-5.5 flex-shrink-0 font-normal touch:size-8`,
   // A pinned card moves by its band and sizes by its corner (TJ 2026-10-30);

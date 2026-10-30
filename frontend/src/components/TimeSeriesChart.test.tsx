@@ -937,9 +937,9 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(onLayout).toHaveBeenCalledWith('row')
   })
 
-  // A click pins the card at that hour, Shift and a click a second beside
+  // Each click pins a card at that hour beside any already pinned
   // it, and the ✕ lets each go (TJ 2026-10-30, P2).
-  it('pins a card per click, two with Shift, each with its own unpin', () => {
+  it('pins a card per click, each beside the last with its own unpin', () => {
     const { container } = render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange: () => {} })} />)
     placePlot(container, 360)
     act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))

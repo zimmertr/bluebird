@@ -291,14 +291,13 @@ function TimeSeriesChart({
   // that shows or hides them all. Recharts' own hover state was per panel
   // and outlived a lift, so one panel's dots came back at the old hour.
   const [mouseIndex, setMouseIndex] = useState<number | null>(null)
-  // The cards a desk pinned (TJ 2026-10-30, P2 of four mockups): a click on
-  // a plot pins the card at that hour, where it stops following the pointer
-  // and lists every row; Shift and a click pins a second hour beside it, so
-  // hours can be read side by side, as many as the reader pins (TJ
-  // 2026-10-30); each has its ✕. The last in the list is the active one, the card
+  // The cards a desk pinned (TJ 2026-10-30, P2 of four mockups): each click
+  // on a plot pins the card at that hour where the hover card stood, beside
+  // any already pinned, so hours can be read side by side; no modifier, and
+  // no cap. Each has its ✕. The last in the list is the active one, the card
   // pinned or touched most recently, and Escape lets it alone go, so a second
-  // press closes the other (TJ 2026-10-30). Where each stands is set at the
-  // click, in the chart's own pixels, and its header moves it from there.
+  // press closes the next. Where each stands is set at the click, in the
+  // chart's own pixels, and its header moves it from there.
   const [pins, setPins] = useState<readonly Pin[]>([])
   // Where the pointer stood when it pinned, the hover card hidden until it
   // moves from there, so the card that pinned does not stand twice.
@@ -308,7 +307,7 @@ function TimeSeriesChart({
     return scale ? { metric: metricForSort(sortBy), scale } : null
   }, [sortBy])
   const rootRef = useRef<HTMLDivElement>(null)
-  const onPin = useCallback((panel: number, t: number, add: boolean, clientX: number) => {
+  const onPin = useCallback((panel: number, t: number, clientX: number) => {
     const root = rootRef.current
     const area = (gridRef.current ?? rowsRef.current ?? stackRef.current)?.getBoundingClientRect()
     if (!root || !area) return
@@ -328,7 +327,7 @@ function TimeSeriesChart({
       area: { x: area.left - r.left, y: area.top - r.top, w: area.width, h: area.height },
       height: hover,
     }
-    setPins((list) => (list.some((p) => p.t === t) ? list : add ? [...list, pin] : [pin]))
+    setPins((list) => (list.some((p) => p.t === t) ? list : [...list, pin]))
   }, [])
   const unpin = useCallback((t: number) => setPins((list) => list.filter((p) => p.t !== t)), [])
   const raise = useCallback(
@@ -1318,8 +1317,8 @@ interface PanelProps {
   onLift: () => void
   onMouse: () => void
   lifted: boolean
-  /** A desk's click pins the card at that hour; Shift adds a second (TJ 2026-10-30). */
-  onPin?: (panel: number, t: number, add: boolean, clientX: number) => void
+  /** A desk's click pins another card at that hour (TJ 2026-10-30). */
+  onPin?: (panel: number, t: number, clientX: number) => void
   /** The pinned hours, each drawn as a line in every panel. */
   pinTimes: readonly number[]
   onPlayheadChange?: (ms: number) => void
@@ -1526,7 +1525,7 @@ function ChartPanel({
     if (t === null && typeof state?.activeLabel === 'number') t = state.activeLabel
     if (t === null) return
     onPlayheadChange?.(t)
-    if (onPin && typeof event?.clientX === 'number') onPin(index, t, event.shiftKey === true, event.clientX)
+    if (onPin && typeof event?.clientX === 'number') onPin(index, t, event.clientX)
   }
 
   if (hidden) return <div ref={boxRef} {...BOX_MARK} className="min-h-0 min-w-0" style={boxStyle(flexGrow)} />
@@ -2124,7 +2123,7 @@ function PinnedCard({
     <div
       ref={ref}
       onPointerDown={() => onRaise(pin.t)}
-      className={`${CHART_CARD.card} ${CHART_CARD.pinned} ${TEXT.control} absolute z-[3] flex flex-col ${size ? '' : 'w-max'}`}
+      className={`${CHART_CARD.card} ${TEXT.control} absolute z-[3] flex flex-col ${size ? '' : 'w-max'}`}
       style={{
         left: at?.x ?? a.x,
         top: at?.y ?? a.y + 8,
