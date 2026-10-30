@@ -3642,7 +3642,9 @@ export const CHART_PANEL_BUTTON = {
 export const CHART_GUTTER = {
   col: 'group absolute z-[2] w-2 cursor-col-resize touch-none',
   row: 'group absolute z-[2] h-2 cursor-row-resize touch-none',
-  cross: 'group absolute z-[3] flex size-4 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none items-center justify-center',
+  // z 2 like the bars, and after them in the DOM, so a crossing stands over
+  // its bars and under the hover card (z 3), which it used to tie and win.
+  cross: 'group absolute z-[2] flex size-4 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none items-center justify-center',
   colLine: 'absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors',
   rowLine: 'absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors',
   // The line's colour, one or the other and never both, because two colour
