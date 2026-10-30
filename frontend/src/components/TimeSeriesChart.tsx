@@ -401,6 +401,19 @@ function TimeSeriesChart({
     if (typeof t === 'number') onPlayheadChange(t)
   }
 
+  // One field for both widths, placed in the row above the plot at a desk and
+  // as the plot's title on a phone, where it opens the sheet (record 0252).
+  const picker = (
+    <MenuSelect
+      label="Chart metric"
+      value={metric}
+      options={METRIC_OPTIONS}
+      onChange={onMetricChange}
+      sheet={titled}
+      className={titled ? CHART_TITLE.field : `${CHART_METRIC_W} px-2 py-0.5`}
+    />
+  )
+
   return (
     // The tour's Chart step lights the chart, its picker and plot (#696).
     <div className="flex h-full flex-col" data-tour="chart">
@@ -429,13 +442,7 @@ function TimeSeriesChart({
             // descender space below itself and sits a pixel low against what
             // is beside it.
             <div className="relative flex flex-shrink-0">
-              <MenuSelect
-                label="Chart metric"
-                value={metric}
-                options={METRIC_OPTIONS}
-                onChange={onMetricChange}
-                className={`${CHART_METRIC_W} px-2 py-0.5`}
-              />
+              {picker}
             </div>
           )}
           {controls}
@@ -449,14 +456,7 @@ function TimeSeriesChart({
             press on it is the field's and not a finger reading the plot. */}
         {titled && (
           <div className={CHART_TITLE.box}>
-            <MenuSelect
-              label="Chart metric"
-              value={metric}
-              options={METRIC_OPTIONS}
-              onChange={onMetricChange}
-              sheet
-              className={CHART_TITLE.field}
-            />
+            {picker}
           </div>
         )}
         <div

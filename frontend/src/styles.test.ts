@@ -3098,7 +3098,7 @@ describe('the chart title on a phone', () => {
   })
 
   it('is the one field trigger, sized to its words, with no look of its own', () => {
-    expect(timeSeriesChartSource).toMatch(/<MenuSelect[\s\S]*?sheet[\s\S]*?className=\{CHART_TITLE\.field\}/)
+    expect(timeSeriesChartSource).toMatch(/<MenuSelect[\s\S]*?sheet=\{titled\}[\s\S]*?CHART_TITLE\.field/)
     expect(timeSeriesChartSource).not.toContain('<select')
     expect(CHART_TITLE.field).not.toContain(CHART_METRIC_W)
     for (const part of Object.values(CHART_TITLE)) expect(part).not.toMatch(/(^|[\s:])(bg|border|text)-(?!left)/)

@@ -251,7 +251,9 @@ test('every trigger lights the one way while open and rests as it was after', as
   const look = (l: Locator) =>
     l.evaluate((el) => {
       const s = getComputedStyle(el)
-      return { ink: s.color, fill: s.backgroundColor, edge: s.borderTopColor }
+      // A shape with no edge (a bar button) reports its ink as its border colour.
+      const edge = parseFloat(s.borderTopWidth) > 0 ? s.borderTopColor : 'none'
+      return { ink: s.color, fill: s.backgroundColor, edge }
     })
   // Each settles after its colour transition.
   const settled = async (l: Locator) => {
