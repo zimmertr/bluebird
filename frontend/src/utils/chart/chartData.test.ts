@@ -24,6 +24,7 @@ import {
   metricsFor,
   pickMetric,
   removeMetric,
+  moveMetric,
   type ChartMetrics,
   candidateSetKey,
   chartKey,
@@ -740,6 +741,17 @@ describe('the chart metric slots', () => {
     expect(addMetric([first])).toEqual([first, CHART_METRICS[1].key])
     const full = CHART_METRICS.slice(0, MAX_CHART_PANELS).map((m) => m.key)
     expect(addMetric(full)).toBe(full)
+  })
+
+  it('moves a panel among the slots after the first, the rest closing up', () => {
+    const four = ['precip', 'temp', 'cloud', 'freeze'] as const
+    expect(moveMetric(four, 2, 1)).toEqual(['precip', 'cloud', 'temp', 'freeze'])
+    expect(moveMetric(four, 1, 3)).toEqual(['precip', 'cloud', 'freeze', 'temp'])
+    // The first slot is the ranking's: nothing moves into it or out of it.
+    expect(moveMetric(four, 1, 0)).toBe(four)
+    expect(moveMetric(four, 0, 2)).toBe(four)
+    expect(moveMetric(four, 2, 2)).toBe(four)
+    expect(moveMetric(four, 2, 4)).toBe(four)
   })
 
   it('removes any slot but the first', () => {

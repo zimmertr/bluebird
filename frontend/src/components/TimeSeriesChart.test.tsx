@@ -142,6 +142,7 @@ function props(over: Partial<Props> = {}): Props {
     onPick: noop,
     onAdd: noop,
     onRemove: noop,
+    onMove: noop,
     sortBy: 'aqi_avg',
     sortDesc: true,
     colorFor,
@@ -847,6 +848,38 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(add.disabled).toBe(false)
     fireEvent.click(add)
     expect(onAdd).toHaveBeenCalled()
+  })
+
+  // The panels follow the row (#499; TJ 2026-10-30): every picker but the
+  // first has a grip; the arrow keys move it one place and a drag over the
+  // row lands it on the nearest slot. Nothing moves into the first slot.
+  it('moves a panel with its grip, by the arrow keys and by a drag', () => {
+    const onMove = vi.fn()
+    const { container } = render(<TimeSeriesChart {...props({ ...FOUR, onMove })} />)
+    const label = (k: string) => CHART_METRICS.find((m) => m.key === k)!.label
+    const grips = screen.getAllByRole('button', { name: /^Move / })
+    expect(grips).toHaveLength(3)
+    const second = screen.getByRole('button', { name: `Move ${label('temp')}` })
+    fireEvent.keyDown(second, { key: 'ArrowRight' })
+    expect(onMove).toHaveBeenLastCalledWith(1, 2)
+    fireEvent.keyDown(second, { key: 'ArrowLeft' })
+    expect(onMove).toHaveBeenCalledTimes(1)
+
+    // The slots stand 200px apart on one line; a drag from slot 3 to over
+    // slot 1 shows the drop bar there and lands it on release.
+    const slots = Array.from(container.querySelectorAll<HTMLElement>('[data-picker-slot]'))
+    const rects = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const i = slots.indexOf(this as HTMLElement)
+      const x = i * 200
+      return { x, y: 0, left: x, top: 0, width: 180, height: 22, right: x + 180, bottom: 22, toJSON: () => ({}) } as DOMRect
+    })
+    const third = screen.getByRole('button', { name: `Move ${label('aqi')}` })
+    fireEvent.pointerDown(third, { button: 0, pointerId: 1, clientX: 610, clientY: 11 })
+    fireEvent.pointerMove(third, { pointerId: 1, clientX: 290, clientY: 11 })
+    expect(container.querySelector('[data-picker-slot="1"] > span[aria-hidden="true"]')).not.toBeNull()
+    fireEvent.pointerUp(third, { pointerId: 1, clientX: 290, clientY: 11 })
+    rects.mockRestore()
+    expect(onMove).toHaveBeenLastCalledWith(3, 1)
   })
 
   it('greys the + at four on a desk', () => {

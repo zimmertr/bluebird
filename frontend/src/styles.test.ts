@@ -2962,6 +2962,18 @@ describe('the chart title on a phone', () => {
     expect(MENU_CHEVRON.segment).toBe(MENU_CHEVRON.field)
   })
 
+  // The grip that moves a panel is the ×'s twin on the field's left end
+  // (#499; TJ 2026-10-30): the same quiet ink and inset focus ring, an edge
+  // divider on its right, a grab cursor, and no touch scrolling; the drop bar
+  // is the accent, centred in the row's 8px gap.
+  it('draws the move grip as the left segment and the drop bar in the gap', () => {
+    expect(words(CHART_PICKER.grip)).toEqual(
+      expect.arrayContaining([...words(ICON_ACTION), ...words(FOCUS_RING_INSET), 'border-r', 'border-edge', 'cursor-grab', 'touch-none']),
+    )
+    expect(words(CHART_PICKER.drop)).toEqual(expect.arrayContaining(['absolute', 'w-0.5', 'bg-accent', 'pointer-events-none']))
+    expect([CHART_PICKER.before, CHART_PICKER.after]).toEqual(['-left-1.25', '-right-1.25'])
+  })
+
   // The grid's gutters are its handles (#499): a cursor per axis, a 1px line
   // in the rule token that lights in the accent, and a crossing with no glyph.
   it('draws the grid gutters as lines, each with its own resize cursor', () => {

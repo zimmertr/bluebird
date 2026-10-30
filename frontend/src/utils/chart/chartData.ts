@@ -102,6 +102,20 @@ export function removeMetric(metrics: ChartMetrics, index: number): ChartMetrics
   return metrics.filter((_, i) => i !== index)
 }
 
+/**
+ * Move the panel in slot `from` to slot `to` (#499; TJ 2026-10-30), the
+ * others closing up behind it, so the panels follow the row's new order.
+ * The first slot never moves and nothing moves into it: it is the
+ * ranking's. A move that changes nothing hands the same list back.
+ */
+export function moveMetric(metrics: ChartMetrics, from: number, to: number): ChartMetrics {
+  if (from <= 0 || from >= metrics.length || to <= 0 || to >= metrics.length || from === to) return metrics
+  const next = metrics.slice()
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved)
+  return next
+}
+
 /** Whether a link's word names a chart metric. */
 export function isChartMetric(raw: string): raw is ChartMetric {
   return CHART_METRICS.some((m) => m.key === raw)

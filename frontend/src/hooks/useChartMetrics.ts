@@ -7,7 +7,7 @@ import {
   metricForSort,
   metricsFor,
   pickMetric,
-  removeMetric,
+  moveMetric, removeMetric,
 } from '../utils/chart/chartData'
 
 /**
@@ -40,8 +40,9 @@ export function useChartMetrics(restored: ChartMetrics | undefined, sortBy: Sort
   const pick = useCallback((index: number, m: ChartMetric) => setMetrics((list) => pickMetric(list, index, m)), [])
   const add = useCallback(() => setMetrics(addMetric), [])
   const remove = useCallback((index: number) => setMetrics((list) => removeMetric(list, index)), [])
+  const move = useCallback((from: number, to: number) => setMetrics((list) => moveMetric(list, from, to)), [])
 
-  return { metrics, pick, add, remove }
+  return { metrics, pick, add, remove, move }
 }
 
 /** What `useChartMetrics` hands its callers. */

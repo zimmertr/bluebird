@@ -36,17 +36,22 @@ describe('useChartMetrics', () => {
 
   it('picks, adds and removes, and keeps its setters', () => {
     const { result } = setup(undefined, 'precip_total_in')
-    const { pick, add, remove } = result.current
+    const { pick, add, remove, move } = result.current
     act(() => result.current.add())
     expect(result.current.metrics).toHaveLength(2)
     act(() => result.current.pick(1, 'temp'))
     expect(result.current.metrics).toEqual(['precip', 'temp'])
     act(() => result.current.pick(0, 'temp'))
     expect(result.current.metrics).toEqual(['temp', 'precip'])
+    act(() => result.current.add())
+    act(() => result.current.move(2, 1))
+    expect(result.current.metrics).toEqual(['temp', result.current.metrics[1], 'precip'])
+    act(() => result.current.remove(2))
     act(() => result.current.remove(1))
     expect(result.current.metrics).toEqual(['temp'])
     expect(result.current.pick).toBe(pick)
     expect(result.current.add).toBe(add)
     expect(result.current.remove).toBe(remove)
+    expect(result.current.move).toBe(move)
   })
 })

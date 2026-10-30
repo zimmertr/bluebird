@@ -12,7 +12,7 @@ import {
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
 import { CHART_CARD, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, TEXT } from '../styles'
-import { IconChevron, IconClose, IconPlus } from './icons'
+import { IconChevron, IconClose, IconGrip, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
 import ChartLines from './ChartLines'
@@ -139,6 +139,7 @@ const TITLED_HEADROOM_LABEL = headroomLabel(TITLED_PLOT_MARGIN.top)
 const PICKER_LABELS = ['Chart metric', 'Metric 2', 'Metric 3', 'Metric 4'] as const
 const ADD_PANEL_LABEL = 'Add a panel'
 const removePanelLabel = (metricLabel: string) => `Remove ${metricLabel}`
+const movePanelLabel = (metricLabel: string) => `Move ${metricLabel}`
 const RESIZE_COLUMNS_LABEL = 'Resize the columns'
 const RESIZE_ROWS_LABEL = 'Resize the rows'
 const RESIZE_PANELS_LABEL = 'Resize the panels'
@@ -169,6 +170,8 @@ interface Props {
   onAdd: () => void
   /** Take slot `index` away. Never the first. */
   onRemove: (index: number) => void
+  /** Move the panel in slot `from` to slot `to`. Never into or out of the first. */
+  onMove: (from: number, to: number) => void
   /**
    * The ranking and its direction, which decide which end of the charted
    * family the extreme line marks. Primitives, so the memo compares them by
@@ -238,6 +241,7 @@ function TimeSeriesChart({
   onPick,
   onAdd,
   onRemove,
+  onMove,
   sortBy,
   sortDesc,
   colorFor,
@@ -276,6 +280,7 @@ function TimeSeriesChart({
   // this chart today, which no link or storage has reason to carry. Even by
   // default and after a double press.
   const [share, setShare] = useState(0.5)
+  const [drag, setDrag] = useState<PickerDrag | null>(null)
   const [gridShares, setGridShares] = useState<GridShares>(EVEN_GRID)
   const box0 = useRef<HTMLDivElement>(null)
   const box1 = useRef<HTMLDivElement>(null)
@@ -636,7 +641,16 @@ function TimeSeriesChart({
               // gives: an inline-level select in a block wrapper reserves
               // descender space below itself and sits a pixel low against what
               // is beside it.
-              <div key={p.index} className="relative flex flex-shrink-0 items-center">
+              // Keyed by metric, so a moved picker keeps its element and its
+              // grip keeps the keyboard focus across the move.
+              <div
+                key={p.metric}
+                data-picker-slot={p.index}
+                className={`relative flex flex-shrink-0 items-center ${drag?.from === p.index ? CHART_PICKER.dragged : ''}`}
+              >
+                {drag && drag.to === p.index && drag.to !== drag.from && (
+                  <span aria-hidden="true" className={`${CHART_PICKER.drop} ${drag.to < drag.from ? CHART_PICKER.before : CHART_PICKER.after}`} />
+                )}
                 {segmented(
                   p.index,
                   <MenuSelect
@@ -648,6 +662,13 @@ function TimeSeriesChart({
                     shape={p.index === 0 ? 'field' : 'segment'}
                   />,
                   <RemoveButton index={p.index} metricLabel={p.metricLabel} onRemove={onRemove} width={CHART_PICKER.x} />,
+                  <MoveGrip
+                    index={p.index}
+                    count={metrics.length}
+                    metricLabel={p.metricLabel}
+                    onMove={onMove}
+                    onDragTo={setDrag}
+                  />,
                 )}
               </div>
             ))}
@@ -732,15 +753,111 @@ const metricLabelOf = (m: ChartMetric) => CHART_METRICS.find((c) => c.key === m)
 
 // Every picker but the first and its × are one field in two segments
 // (#499; TJ 2026-10-29); the first stands alone.
-const segmented = (index: number, picker: ReactNode, remove: ReactNode) =>
+const segmented = (index: number, picker: ReactNode, remove: ReactNode, grip?: ReactNode) =>
   index === 0 ? (
     picker
   ) : (
     <div className={CHART_PICKER.group}>
+      {grip}
       {picker}
       {remove}
     </div>
   )
+
+/** A picker drag in flight: the slot it left and the slot it would land in. */
+interface PickerDrag {
+  from: number
+  to: number
+}
+
+/**
+ * The slot a picker dragged to this point would land in (#499): the movable
+ * slot whose centre is nearest, read from the row's own boxes, so a row
+ * that wrapped onto two lines answers as well as one that did not.
+ */
+function slotAt(row: Element | null, x: number, y: number): number | null {
+  if (!row) return null
+  let best: number | null = null
+  let bestD = Infinity
+  for (const el of Array.from(row.querySelectorAll<HTMLElement>('[data-picker-slot]'))) {
+    const slot = Number(el.dataset.pickerSlot)
+    if (!(slot > 0)) continue
+    const r = el.getBoundingClientRect()
+    const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2))
+    if (d < bestD) {
+      bestD = d
+      best = slot
+    }
+  }
+  return best
+}
+
+/**
+ * The grip that moves a panel (#499; TJ 2026-10-30): the left segment of
+ * every picker but the first. A pointer drags it over the row, an accent bar
+ * showing where it lands, and the release moves it there; Left and Right
+ * move it one place. The first slot is the ranking's, so nothing moves into
+ * or out of it.
+ */
+function MoveGrip({
+  index,
+  count,
+  metricLabel,
+  onMove,
+  onDragTo,
+}: {
+  index: number
+  count: number
+  metricLabel: string
+  onMove: (from: number, to: number) => void
+  onDragTo: (drag: PickerDrag | null) => void
+}) {
+  const toRef = useRef(index)
+  return (
+    <button
+      type="button"
+      aria-label={movePanelLabel(metricLabel)}
+      className={`${CHART_PICKER.grip} ${CHART_PICKER.x}`}
+      onKeyDown={(e) => {
+        const to = e.key === 'ArrowLeft' ? index - 1 : e.key === 'ArrowRight' ? index + 1 : null
+        if (to === null) return
+        e.preventDefault()
+        if (to >= 1 && to < count) onMove(index, to)
+      }}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return
+        e.preventDefault()
+        const grip = e.currentTarget
+        grip.setPointerCapture?.(e.pointerId)
+        const row = grip.closest('[data-picker-slot]')?.parentElement ?? null
+        toRef.current = index
+        onDragTo({ from: index, to: index })
+        const move = (ev: globalThis.PointerEvent) => {
+          const to = slotAt(row, ev.clientX, ev.clientY)
+          if (to === null || to === toRef.current) return
+          toRef.current = to
+          onDragTo({ from: index, to })
+        }
+        const up = () => {
+          grip.removeEventListener('pointermove', move)
+          grip.removeEventListener('pointerup', up)
+          grip.removeEventListener('pointercancel', cancel)
+          onDragTo(null)
+          if (toRef.current !== index) onMove(index, toRef.current)
+        }
+        const cancel = () => {
+          toRef.current = index
+          up()
+        }
+        grip.addEventListener('pointermove', move)
+        grip.addEventListener('pointerup', up)
+        grip.addEventListener('pointercancel', cancel)
+      }}
+    >
+      <IconGrip />
+    </button>
+  )
+}
 
 /** The × that takes a panel away (#499): the right segment of its picker's field. */
 function RemoveButton({

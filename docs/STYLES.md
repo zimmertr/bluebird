@@ -750,7 +750,7 @@ controls 8px after it (#499): a + after the first title, an × after every
 other. `CHART_PANEL_BUTTON` draws them: the + is a square in the field's
 fill, edge and radius, as tall as the picker beside it. The × is the right
 segment of its picker's field (`CHART_PICKER`): one outline, an `edge`
-divider, and a quiet glyph with its focus ring inside. `CHART_GUTTER` draws the gaps of a desk's grid of
+divider, and a quiet glyph with its focus ring inside. Its twin on the left end is the grip that moves the panel, behind an `edge` divider too, and a drag shows where it lands with a 2px accent bar in the row's 8px gap. `CHART_GUTTER` draws the gaps of a desk's grid of
 three or four panels: a 1px `edge` line, 3:1 or better on the panel, that turns accent on hover and while
 dragged, and a 16px crossing with no glyph.
 The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:

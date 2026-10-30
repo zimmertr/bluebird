@@ -3587,6 +3587,18 @@ export const CHART_PICKER = {
   titleBox: 'relative flex min-w-0 flex-1 items-center pl-2 pr-6',
   remove: `${ICON_ACTION} ${FOCUS_RING_INSET} flex flex-shrink-0 items-center justify-center border-l border-edge leading-none`,
   x: 'w-5.5 touch:w-8',
+  // The grip that moves a panel (#499; TJ 2026-10-30): the left segment of
+  // every picker but the first, the ×'s twin across the field, so the field
+  // reads grip, metric, ×. It takes a pointer drag (`cursor-grab`, and
+  // `touch-none` so a finger drags rather than scrolls) and the arrow keys.
+  // While a picker is dragged its field dims (`dragged`) and an accent bar
+  // stands in the 8px gap where it will land (`drop`, centred in the gap by
+  // `before` or `after`).
+  grip: `${ICON_ACTION} ${FOCUS_RING_INSET} flex flex-shrink-0 items-center justify-center border-r border-edge cursor-grab touch-none active:cursor-grabbing`,
+  dragged: 'opacity-50',
+  drop: 'pointer-events-none absolute inset-y-0 w-0.5 bg-accent',
+  before: '-left-1.25',
+  after: '-right-1.25',
   titleX: 'w-7',
 } as const
 
