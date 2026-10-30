@@ -4,20 +4,20 @@ import type { MapOverlays } from '../hooks/useMapOverlays'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import BottomSheet from './BottomSheet'
+import { IconGridBlocks, IconGridSmooth } from './icons'
 import { MenuButton } from './Menu'
 import {
   ACCENT,
   CHIP_CARD_W,
   CHOICE_INPUT,
   CHOICE_ROW,
+  LAYER_GRID,
   LAYER_ROW,
   MAP_CHIP_MENU,
   MENU,
   MENU_GROUP,
   SEGMENT_DIVIDER,
-  SEGMENT_FLUID,
   SEGMENT_IDLE,
-  SEGMENT_ITEM,
   SHEET_ASIDE,
   SLIDER,
   SR_ONLY,
@@ -103,7 +103,7 @@ interface LayerSpec {
 interface LayersPopoverProps {
   /** The overlay switches and the player's (`useMapOverlays`). */
   overlays: Omit<MapOverlays, 'showPlayer'>
-  /** The forecast grid's availability and its sub-controls (`useGridLayer`). */
+  /** The forecast grid's availability and its style and coverage (`useGridLayer`). */
   grid: Pick<
     GridLayer,
     | 'gridOffered'
@@ -179,7 +179,6 @@ export default function LayersPopover({
   const {
     gridOffered,
     gridArchived,
-    gridOn,
     gridStyle,
     setGridStyle,
     gridReachFrac,
@@ -253,9 +252,8 @@ export default function LayersPopover({
   // angle from Shaded relief. Inside a group the rows go by kind rather than
   // by name: the imagery before the drawn base, a fire before its smoke,
   // the area closures before the trails they close, and the observed
-  // weather before the forecast. The grid's own segment and slider still
-  // render under its row, because they are that row's sub-choices rather
-  // than list members.
+  // weather before the forecast. The grid's own style and coverage stand on
+  // its row, because they are that row's controls rather than list members.
   //
   // The player is a list member like the other twelve even though it switches
   // something OFF the map rather than a picture onto it: it answers the same
@@ -409,10 +407,81 @@ export default function LayersPopover({
     )
   }
 
-  // Each layer is one block, its row and, under the grid's, the grid's
-  // sub-choices: on a phone one row of the sheet, so the sheet's rule falls
-  // between layers and never between a row and its own segment, and at a
-  // desk one row of the group's ruled list (`LAYER_ROW.cardRows`). A group's
+  // The forecast grid's style and coverage, on its own row at the right where
+  // a Base map row carries its opacity slider (LAYER_GRID). Like those
+  // sliders they stand while the grid is off, and using one switches it on;
+  // they grey with the row while there is nothing the grid could draw. The
+  // coverage drag previews live (`gridReachDraft`) and commits on release,
+  // because each committed value is a refetch and a drag must not fetch per
+  // pixel. Its value renders twice, muted on the well and in the fill's ink
+  // inside it, the top copy clipped to the fill, as every slider here does.
+  const gridControls = (layer: LayerSpec) => {
+    const off = layer.disabled === true
+    const switchOn = () => {
+      if (!layer.checked) layer.onChange(true)
+    }
+    const shown = gridReachDraft ?? gridReachFrac
+    const pct = shown * 100
+    const line = (
+      <div className="pointer-events-none absolute inset-0 flex items-center px-2">
+        <span className={SLIDER.value}>{pitchLabel(reachKmFor(gridReachPitchKm, shown))}</span>
+      </div>
+    )
+    return (
+      <div className={LAYER_GRID.controls}>
+        <div className={sheet ? LAYER_GRID.stylesSheet : LAYER_GRID.styles}>
+          {(['smooth', 'blocks'] as GridStyle[]).map((value, i) => {
+            const Glyph = value === 'smooth' ? IconGridSmooth : IconGridBlocks
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-label={value === 'smooth' ? 'Smooth' : 'Blocks'}
+                aria-pressed={gridStyle === value}
+                disabled={off}
+                onClick={() => {
+                  setGridStyle(value)
+                  switchOn()
+                }}
+                className={`${LAYER_GRID.style} ${gridStyle === value ? ACCENT.fill : SEGMENT_IDLE}${
+                  i > 0 ? ` ${SEGMENT_DIVIDER}` : ''
+                }`}
+              >
+                <Glyph />
+              </button>
+            )
+          })}
+        </div>
+        <div className={`${sheet ? LAYER_GRID.reachSheet : LAYER_GRID.reach} ${SLIDER.well}`}>
+          <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
+          <div className={`absolute inset-0 ${ACCENT.fill}`} style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}>
+            {line}
+          </div>
+          <input
+            type="range"
+            aria-label="Coverage"
+            min={0}
+            max={100}
+            step={5}
+            disabled={off}
+            value={Math.round(shown * 100)}
+            onChange={(e) => {
+              setGridReachDraft(Number(e.target.value) / 100)
+              switchOn()
+            }}
+            onPointerUp={commitGridReach}
+            onKeyUp={commitGridReach}
+            onBlur={commitGridReach}
+            className={SLIDER.overlay}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Each layer is one row: on a phone one row of the sheet, under the
+  // sheet's rule, and at a desk one row of the group's ruled list
+  // (`LAYER_ROW.cardRows`). A group's
   // heading stands on the rule over its first row on a phone, and on the
   // card's own space at a desk.
   // A press with Shift held reaches every row from the last pressed one to
@@ -439,90 +508,8 @@ export default function LayersPopover({
             },
           })}
           {layer.opacity && opacitySlider({ ...layer, opacity: layer.opacity })}
+          {layer.key === 'grid' && gridControls(layer)}
         </div>
-        {/* The grid's sub-choices, revealed by its own checkbox
-            and rendered under the row they belong to rather than
-            after the list, so the order above holds
-            whatever is open. The desk's card is as wide as its widest
-            row (`CHIP_CARD_W.menu`), and a phone's sheet as wide
-            as the phone, so these take the fluid segment rather than
-            the panel's fixed 144px column — the same reason the
-            results bar's mode switch does.
-
-            They are ONE block, set off from the list by the same
-            gap on both sides: `mt-1.5` under the checkbox row it
-            belongs to, and `mb-1.5` under the last of them. The
-            slider used to end flush against the next layer's row,
-            so the block read as belonging to that row as much as
-            to the grid's — a group is bounded by its gaps, and
-            one gap bounds nothing. */}
-        {layer.key === 'grid' && gridOn && gridOffered && (
-          <>
-            <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
-              {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={gridStyle === value}
-                  onClick={() => setGridStyle(value)}
-                  className={`${SEGMENT_ITEM} ${
-                    gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                  } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                >
-                  {value === 'blocks' ? 'Blocks' : 'Smooth'}
-                </button>
-              ))}
-            </div>
-            {/* The coverage slider: how far from each destination
-                the grid reaches. The value and wordmark render
-                TWICE — muted on the well, white inside the accent
-                fill — with the top copy clipped to the fill, so the
-                line stays readable at any position without a color
-                racing another. Drag previews live (`gridReachDraft`)
-                and commits on release, because each committed value
-                is a refetch and a drag must not fetch per pixel. */}
-            <div
-              className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${SLIDER.well} ${SLIDER.fit}`}
-            >
-              {(() => {
-                const shown = gridReachDraft ?? gridReachFrac
-                const pct = shown * 100
-                const line = (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
-                    <span className={SLIDER.value}>
-                      {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
-                    </span>
-                    <span className={SLIDER.wordmark}>Coverage</span>
-                  </div>
-                )
-                return (
-                  <>
-                    <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
-                    <div
-                      className={`absolute inset-0 ${ACCENT.fill}`}
-                      style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
-                    >
-                      {line}
-                    </div>
-                  </>
-                )
-              })()}
-              <input
-                type="range"
-                aria-label="Coverage"
-                min={0}
-                max={100}
-                step={5}
-                value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
-                onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
-                onPointerUp={commitGridReach}
-                onKeyUp={commitGridReach}
-                onBlur={commitGridReach}
-                className={SLIDER.overlay}
-              />
-            </div>
-          </>
-        )}
       </>
     )
     // The row a finger is tuning stays in sight while the sheet steps aside.

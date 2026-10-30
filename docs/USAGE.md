@@ -437,7 +437,7 @@ for the player. A box you ticked before analyzing, or one a shared link ticked,
 stays ticked, and the layer draws as soon as a report can carry it. Rank by
 something with numbers and it comes back without fetching anything again.
 
-A segment under the row picks how it is drawn, and both readings are true:
+Two icons beside the row's name pick how it is drawn, and both readings are true:
 
 - **Smooth** (the default) draws the space between the points, which is how every
   other forecast map reads and is the honest shape of something the model already
@@ -449,8 +449,8 @@ A segment under the row picks how it is drawn, and both readings are true:
   hard edges are the one thing it overstates: the model has no boundary there.
 
 Switching costs nothing. It is the same data drawn two ways, so it applies instantly
-and rides in the shared link. The segment and the coverage slider show only while the
-layer is on.
+and rides in the shared link. The two icons and the coverage slider stay on the row
+while the layer is off, and using either one switches it on.
 
 Two things to know when reading it:
 
@@ -462,8 +462,8 @@ Two things to know when reading it:
   fetched, the legend says `Unavailable` instead, and whatever did arrive stays
   drawn.
 - **It covers where you looked.** The field extends a set distance around each
-  destination the analysis found — the **Coverage** slider under the style
-  toggle — and fades out at that edge. The slider's range follows the model:
+  destination the analysis found — the slider beside the two style icons —
+  and fades out at that edge. The slider's range follows the model:
   from one to four of its own grid cells around each destination, with the
   default in the middle. On NOAA GFS's 3 km grid that is 3 to 12 km; on
   ECMWF's 25 km grid, 25 to 100 km. Destinations far apart each get their own

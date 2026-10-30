@@ -262,7 +262,7 @@ describe('LayersPopover', () => {
     expect(groups.map((g) => g.className)).toEqual([MENU_GROUP.sheet, MENU_GROUP.sheet, MENU_GROUP.sheet])
     expect(groups.map((g) => g.firstElementChild!.textContent)).toEqual(['Base map', 'Hazards', 'Forecast'])
     expect(groups[2].firstElementChild!.className).toBe(MENU_GROUP.sheetHeading)
-    // The grid's sub-choices stay inside its own row of the sheet.
+    // The grid's style and coverage stand inside its own row of the sheet.
     const grid = screen.getByRole('checkbox', { name: 'Forecast grid' }).closest('label')!.parentElement!.parentElement!
     expect(grid.className).toBe(MENU_GROUP.sheetRow)
     expect(grid.querySelector('input[type="range"]')).not.toBeNull()
@@ -449,7 +449,7 @@ describe('LayersPopover', () => {
     expect(grid().getAttribute('aria-describedby')).toBeNull()
     expect(grid().closest('label')!.getAttribute('title')).toBeNull()
     // Ticked (`?grid=smooth`, or before Analyze): greyed, live for unticking,
-    // and none of its sub-choices.
+    // its style and coverage greyed with it.
     rerender(
       <LayersPopover
         mapRef={MAP}
@@ -461,16 +461,44 @@ describe('LayersPopover', () => {
     )
     expect(greyed()).toEqual(['Forecast grid'])
     expect(grid().checked).toBe(true)
-    expect(screen.queryByRole('slider', { name: 'Coverage' })).toBeNull()
+    expect((screen.getByRole('slider', { name: 'Coverage' }) as HTMLInputElement).disabled).toBe(true)
+    expect(screen.getAllByRole('button', { name: /^(Smooth|Blocks)$/ }).map((b) => (b as HTMLButtonElement).disabled)).toEqual([
+      true,
+      true,
+    ])
   })
 
-  it('shows the grid style and coverage only while the grid is on', () => {
-    const { rerender } = render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
+  // The grid's style and coverage stand on its own row, at the right where a
+  // Base map row carries its opacity slider, Smooth first since it is the
+  // default. Like those sliders they stand while the grid is off, and using
+  // one switches the grid on.
+  it("puts the grid's style and coverage on its row, live while it is off", () => {
+    const setShowGrid = vi.fn()
+    const setGridStyle = vi.fn()
+    const setGridReachDraft = vi.fn()
+    render(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...OVERLAYS, setShowGrid }}
+        grid={{ ...GRID, setGridStyle, setGridReachDraft }}
+        playerOffered
+      />,
+    )
     open()
-    expect(screen.queryByRole('slider', { name: 'Coverage' })).toBeNull()
-    rerender(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID_ON} playerOffered />)
-    expect(screen.getByRole('slider', { name: 'Coverage' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Blocks' }).getAttribute('aria-pressed')).toBe('true')
+    const row = screen.getByRole('checkbox', { name: 'Forecast grid' }).closest('label')!.parentElement!
+    const styles = screen.getAllByRole('button', { name: /^(Smooth|Blocks)$/ })
+    expect(styles.map((b) => b.getAttribute('aria-label'))).toEqual(['Smooth', 'Blocks'])
+    expect(styles.map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'true'])
+    const coverage = screen.getByRole('slider', { name: 'Coverage' })
+    expect([styles.every((b) => row.contains(b)), row.contains(coverage)]).toEqual([true, true])
+    fireEvent.click(styles[0])
+    expect(setGridStyle).toHaveBeenCalledWith('smooth')
+    expect(setShowGrid).toHaveBeenCalledWith(true)
+    setShowGrid.mockClear()
+    fireEvent.change(coverage, { target: { value: '80' } })
+    expect(setGridReachDraft).toHaveBeenCalledWith(0.8)
+    expect(setShowGrid).toHaveBeenCalledWith(true)
   })
 
   // A phone's Layers is a chip, and its menu a bottom sheet (#696; record

@@ -1433,8 +1433,8 @@ export const CHART_TITLE = {
  * over the other no longer sees one edge, which was judged the lesser cost
  * (records 0174 and 0246). The rows are nowrap, so the widest, "Forecast
  * player", sets it, 128.7px with the padding (measured 2026-10-29 in the
- * browser suite's Chromium); while the forecast grid is on, its coverage
- * slider's floor (`SLIDER.fit`) makes it 140.
+ * browser suite's Chromium), until a row with a 120px column at its right
+ * (`LAYER_ROW.slider`, `LAYER_GRID.controls`) widens it.
  *
  * It was the width of the whole left column until #714, when the search field
  * became the pill and the buttons became chips at both widths.
@@ -3282,6 +3282,36 @@ export const CALENDAR_FIELD = {
 export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
 
 /**
+ * The forecast grid's two controls on its own Layers row, at the right where
+ * the Base map rows carry their opacity sliders (the maintainer, 2026-10-29):
+ * the grid's style as a pair of icons, Smooth first because it is the
+ * default, and its coverage as a slider that takes the rest of the column.
+ * They used to stand as two full-width blocks under the row, a segment of
+ * words and a slider, which made the grid the one layer two lines tall.
+ *
+ * - `controls`: the pair and the slider, one 120px column, so the slider's
+ *   right edge and the opacity sliders' stand on one line.
+ * - `styles` / `stylesSheet`: the pair's segment, the panel's recessed edge,
+ *   20px tall at a desk and 24 on a phone's sheet like the sliders beside it.
+ * - `style`: one icon of the pair, 24px wide. Faded with `DISABLED` while the
+ *   row is greyed, since no style can draw then.
+ * - `reach` / `reachSheet`: the coverage slider's well, whatever the pair
+ *   leaves of the column: 120 less the pair's 51 (two 24px icons, the 2px
+ *   edge and the 1px divider) and the 4px gap is 65px, where the widest
+ *   value, `100 km`, needs about 38 with its 8px insets either side. So the
+ *   value stands alone and the slider's name is its accessible name only.
+ *   It fades as `DISABLED` fades a control while its input is disabled.
+ */
+export const LAYER_GRID = {
+  controls: 'flex w-30 flex-shrink-0 items-center gap-1',
+  styles: `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE} h-5 flex-shrink-0`,
+  stylesSheet: `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE} h-6 flex-shrink-0`,
+  style: `flex w-6 items-center justify-center transition-colors ${FOCUS_RING} ${DISABLED}`,
+  reach: 'relative h-5 min-w-0 flex-1 overflow-hidden has-[:disabled]:opacity-40',
+  reachSheet: 'relative h-6 min-w-0 flex-1 overflow-hidden has-[:disabled]:opacity-40',
+} as const
+
+/**
  * What a control looks like when it is not the one in force, but still works.
  *
  * The opposite claim to `DISABLED` above, and the reason the two cannot share a
@@ -3413,8 +3443,7 @@ export const SLIDER = {
    *
    * The same size as the value beside it (`CONTROL_SIZE`) and in sentence case,
    * so the slider reads as one line of one control rather than two labels of
-   * different ranks — and so it matches the Blocks/Smooth segment directly above
-   * it, which is the app's rule everywhere (TJ, 2026-09-14). It used to wear
+   * different ranks, which is the app's rule everywhere (TJ, 2026-09-14). It used to wear
    * `TEXT.overline`'s shape, a 10px uppercase with letter-spacing, which is the
    * shape of a heading OVER a group rather than of a label inside a control.
    *
@@ -3450,16 +3479,6 @@ export const SLIDER = {
    * wears. The caller sizes and positions it.
    */
   well: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`,
-  /**
-   * The narrowest the well may be: its one line, the value and the wordmark
-   * with `px-2` either side, is laid over the input and so cannot size the
-   * Layers menu, which is as wide as its content (`CHIP_CARD_W.menu`). The
-   * widest line is `100 km` (39.4px) and `Coverage` (54.7px), 110.1px with the
-   * padding (measured 2026-10-29 in the browser suite's Chromium). 120 leaves
-   * 9.9px between the two; at the menu's 104.7px the value wrapped under the
-   * wordmark.
-   */
-  fit: 'min-w-30',
 } as const
 
 /**

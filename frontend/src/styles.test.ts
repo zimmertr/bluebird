@@ -84,6 +84,7 @@ import {
   CHART_TITLE,
   MENU,
   MENU_GROUP,
+  LAYER_GRID,
   LAYER_ROW,
   SHEET_ASIDE,
   MODEL_ROW,
@@ -979,7 +980,7 @@ describe('shared recipes', () => {
   })
 
   // The coverage slider's well is the same recessed surface at the segment's
-  // corner, so the Blocks/Smooth segment above it and the well read as one
+  // corner, so the Smooth and Blocks pair beside it and the well read as one
   // pair of controls.
   it("builds the coverage slider's well from the same surface at the segment's corner", () => {
     expect(SLIDER.well).toBe(`${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`)
@@ -1510,22 +1511,27 @@ describe('shared recipes', () => {
   // of content with 16px stars (2026-10-29), ahead of the grid's wait line at
   // 156.8; the
   // Layers menu came to 128.7px with its widest row, `Forecast player`, and
-  // the coverage slider's line, `100 km` and `Coverage`, is 39.4 + 54.7px with
-  // its own 8px of padding either side (2026-10-29).
+  // the coverage slider's widest value, `100 km`, is 39.4px with its own 8px
+  // of padding either side (2026-10-29).
   it('gives the legend card its width and the Layers menu its content\'s', () => {
-    const MEASURED = { fireKey: 169.4, waitLine: 156.8, layersMenu: 128.7, sliderLine: 16 + 39.4 + 54.7 }
+    const MEASURED = { fireKey: 169.4, waitLine: 156.8, layersMenu: 128.7, reachValue: 16 + 39.4 }
     const pad = 2 * stepPx(MAP_CHIP_MENU, 'px')
     expect(CHIP_CARD_W.key).toBe('w-56')
     expect(stepPx(CHIP_CARD_W.key, 'w')).toBeGreaterThanOrEqual(Math.max(MEASURED.fireKey, MEASURED.waitLine) + pad)
     // As wide as its widest row and never narrower than its chip.
     expect(CHIP_CARD_W.menu).toBe('w-max min-w-full')
     expect(MEASURED.layersMenu).toBeLessThan(stepPx(CHIP_CARD_W.key, 'w'))
-    // The slider's line lies over its input and cannot size the menu, so the
-    // well holds it, with room between the value and the wordmark.
-    expect(stepPx(SLIDER.fit, 'min-w') - MEASURED.sliderLine).toBeGreaterThanOrEqual(8)
+    // The coverage slider's value lies over its input and cannot size the
+    // menu, so the grid's column holds it: 120 less the style pair (two icons,
+    // the 2px edge and the 1px divider) and the 4px gap, with room to spare.
+    const pair = 2 * stepPx(LAYER_GRID.style, 'w') + 3
+    const reach = stepPx(LAYER_GRID.controls, 'w') - pair - stepPx(LAYER_GRID.controls, 'gap')
+    expect([pair, reach]).toEqual([51, 65])
+    expect(stepPx(LAYER_GRID.controls, 'w')).toBe(stepPx(LAYER_ROW.slider, 'w'))
+    expect(reach - MEASURED.reachValue).toBeGreaterThanOrEqual(8)
     expect(MAP_CHIP_MENU).not.toMatch(/(^|\s)w-/)
     expect(layersPopoverSource).toContain('${MAP_CHIP_MENU} ${CHIP_CARD_W.menu}')
-    expect(layersPopoverSource).toContain('${SLIDER.well} ${SLIDER.fit}')
+    expect(layersPopoverSource).toContain('${sheet ? LAYER_GRID.reachSheet : LAYER_GRID.reach} ${SLIDER.well}')
     expect(mapLegendSource).toContain('${MAP_CHIP_MENU} ${CHIP_CARD_W.key}')
   })
 

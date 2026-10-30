@@ -26,6 +26,7 @@ The four ground layers drew at one strength each: the imagery whole, with Libert
 - **The slope bands** paint whole in the tile already (record 0248), so the level is the raster's opacity: 50 is the half strength they drew at, pixel for pixel.
 - **The legend draws the slope bands at full strength**, not at the level. The card is not the ground the bands land on, so a ramp at half over the card matches the map no better than a whole one, and at low levels it would key nothing. It keys which colour means which band.
 - **At 0 every base-map layer hides** as if switched off, so it asks for no tile, and comes back at the level it is given.
+- **The forecast grid's controls join its row the same way** (the maintainer, 2026-10-29): its style and coverage, which stood as two full-width blocks under the row, are one 120px column at the row's right, where a Base map row carries its slider (`LAYER_GRID`). Smooth and Blocks became a pair of icons, Smooth first because it is the default, and the coverage slider takes the 65px left, its value alone with `Coverage` as its accessible name. Like the opacity sliders they stand while the layer is off, and a press on either switches the grid on; they grey with the row when there is nothing to grid. Chosen over a coverage slider with the style folded into its end, and over keeping the two blocks with their order swapped.
 
 ## Evidence
 
