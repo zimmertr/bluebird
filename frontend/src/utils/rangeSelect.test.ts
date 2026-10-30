@@ -31,7 +31,6 @@ describe('rangeKeys', () => {
 const views = import.meta.glob('../**/*.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const NO_GROUP: Record<string, string> = {
   '../components/ResultsTableHeader.tsx': 'the one select-all box over the chart column',
-  '../components/MetricsTable.tsx': 'radio buttons: one ranking metric at a time',
 }
 
 describe('every checkbox group', () => {

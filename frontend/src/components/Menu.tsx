@@ -134,18 +134,23 @@ export function MenuButton({ shape, open, chevron = true, chevronClassName, clas
 interface MenuOption<V extends string> {
   value: V
   label: string
+  /** Out of play, as a metric the window cannot answer is (#803): drawn, and not picked. */
+  disabled?: boolean
 }
 
 interface MenuSelectProps<V extends string> {
   /** What the choice is called, which a native select carried as its accessible name. */
   label: string
-  value: V
+  /** Null holds no value, and the field shows `placeholder`: an adder, which picks and goes back to empty. */
+  value: V | null
   options: readonly MenuOption<V>[]
   onChange: (value: V) => void
   /** The field's width and insets, from the role its call site already wore. */
   className: string
   /** Out of play, as a Metrics row the window cannot answer is (#803): the field takes no press. */
   disabled?: boolean
+  /** What the field reads while it holds no value (#498, the Metrics section's `Add a bound`). */
+  placeholder?: string
 }
 
 /**
@@ -171,12 +176,11 @@ export function MenuSelect<V extends string>({
   onChange,
   className,
   disabled = false,
+  placeholder,
 }: MenuSelectProps<V>) {
   const [open, setOpen] = useState(false)
-  const selectedIndex = Math.max(
-    options.findIndex((o) => o.value === value),
-    0,
-  )
+  const heldIndex = options.findIndex((o) => o.value === value)
+  const selectedIndex = Math.max(heldIndex, 0)
   const [active, setActive] = useState(selectedIndex)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -192,6 +196,8 @@ export function MenuSelect<V extends string>({
 
   function pick(at: number) {
     const option = options[at]
+    // A disabled row is read and passed over, the way a native select's is.
+    if (option?.disabled) return
     setOpen(false)
     if (option && option.value !== value) onChange(option.value)
   }
@@ -228,9 +234,15 @@ export function MenuSelect<V extends string>({
         <span id={nameId} className={SR_ONLY}>
           {label}
         </span>
-        <span id={valueId} className="block min-w-0 truncate">
-          {options[selectedIndex]?.label ?? value}
-        </span>
+        {heldIndex < 0 && placeholder !== undefined ? (
+          <span id={valueId} className={`block min-w-0 truncate ${MENU.placeholder}`}>
+            {placeholder}
+          </span>
+        ) : (
+          <span id={valueId} className="block min-w-0 truncate">
+            {options[selectedIndex]?.label ?? value}
+          </span>
+        )}
       </MenuButton>
       {box && (
         <Menu box={box} popoverRef={popoverRef} closing={closing}>
@@ -249,11 +261,12 @@ export function MenuSelect<V extends string>({
                 id={optionDomId(listId, option.value)}
                 role="option"
                 aria-selected={option.value === value}
+                aria-disabled={option.disabled || undefined}
                 onPointerEnter={() => setActive(i)}
                 onClick={() => pick(i)}
                 className={`${MENU.option} ${i === active ? MENU.active : ''} ${
                   option.value === value ? MENU.current : ''
-                }`}
+                } ${option.disabled ? MENU.unavailable : ''}`}
               >
                 {option.label}
               </div>

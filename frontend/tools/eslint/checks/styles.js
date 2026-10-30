@@ -88,14 +88,10 @@ const ride = (ref, pattern, { literals = true } = {}) =>
     )
     .join(', ')
 
-// The chunk right after `${ROLE}`, or right before it.
+// The chunk right after `${ROLE}`.
 const follows = (ref, pattern) =>
   upTo(0, SLOTS)
     .map((k) => `TemplateLiteral${exprIs(k, ref)} > TemplateElement:nth-child(${k + 2})[value.raw=/${pattern}/]`)
-    .join(', ')
-const precedes = (ref, pattern) =>
-  upTo(0, SLOTS)
-    .map((k) => `TemplateLiteral${exprIs(k, ref)} > TemplateElement:nth-child(${k + 1})[value.raw=/${pattern}/]`)
     .join(', ')
 
 // `${A}<sep>${B}`: two interpolations side by side, one match per pair.
@@ -168,7 +164,7 @@ const PHONE_ONLY =
   'LogicalExpression[left.name="titled"] > .right JSXOpeningElement'
 
 const GRID = elementWith('METRICS_GRID')
-const CLEAR = 'JSXOpeningElement:has(JSXAttribute[name.name="onClick"] > JSXExpressionContainer > Identifier[name="onClearFilters"])'
+const CLEAR = 'JSXOpeningElement:has(JSXAttribute[name.name="onClick"] > JSXExpressionContainer > Identifier[name="clearFilters"])'
 const MESSAGE_BOX = 'JSXOpeningElement[name.name="MessageBox"]'
 const LIVE_REGION = 'JSXAttribute[name.name="role"][value.value="status"]'
 const METRIC_BOX_USE = ':matches(TemplateLiteral, JSXExpressionContainer) > Identifier[name=/^METRIC_BOX(_WIDE)?$/]'
@@ -658,17 +654,13 @@ export const STYLES = [
   {
     // The Metrics section: every control stands on the box columns' edges,
     // every numeric box comes off one shape, nothing is drawn inside the
-    // table, and Clear filters is always drawn and disables instead.
+    // table, and Clear filters is drawn only when there is something to
+    // clear (#498; record 0251).
     name: 'style-metrics-table',
     files: [PANEL.metrics],
     ban: [
       { selector: within(GRID, 'border-t|border-b'), message: 'Draw no rule inside the Metrics table.' },
       { selector: `${CLEAR} Identifier[name="CONTROL_W"]`, message: 'Size Clear filters by the box columns, not CONTROL_W.' },
-      {
-        // A button that appears and disappears moves everything under it.
-        selector: 'JSXExpressionContainer > LogicalExpression[operator="&&"][left.name="filtersActive"]',
-        message: 'Draw Clear filters always and disable it instead.',
-      },
     ],
     balance: [
       {
@@ -690,9 +682,11 @@ export const STYLES = [
       },
       // Spanning the two box columns rather than spelling their sum.
       { selector: follows('METRIC_BOX_WIDE', '^ col-span-2'), message: 'Span the wide box over the two box columns.' },
-      { selector: follows('SEGMENT_FILL', '^ col-span-2'), message: 'Span the fill segment over the two box columns.' },
+      // The Order segment is the one control that sizes the box tracks: they
+      // are `auto`, and with no bound row drawn nothing else gives them a width.
+      { selector: follows('SEGMENT', '^ col-span-2'), message: 'Span SEGMENT over the two box columns; it holds their width.' },
       // Vacuous if the grid stops being where the section is.
-      { selector: within(GRID, 'Rank by'), message: 'The Metrics grid holds Rank by.' },
+      { selector: within(GRID, 'Order'), message: 'The Metrics grid holds Order.' },
       { selector: within(GRID, 'results'), message: 'The Metrics grid holds the results cap.' },
       {
         // One per heading cell: the spacer, and the two headings EDGES maps.
@@ -701,19 +695,14 @@ export const STYLES = [
         message: 'Two heading cells in the grid wear METRIC_HEAD_GAP.',
       },
       {
-        selector: precedes('METRIC_HEAD_GAP', 'col-span-2 $')
-          .split(', ')
-          .map((s) => `${GRID} ${s}`)
-          .join(', '),
-        message: 'The heading spacer spans two columns before METRIC_HEAD_GAP.',
-      },
-      {
-        selector: `${CLEAR}:has(${text('col-span-2')}):has(${text('col-start-3')})`,
+        selector: `${CLEAR}:has(${text('col-span-2')}):has(${text('col-start-2')})`,
         message: 'Stand Clear filters under the bound boxes.',
       },
       {
-        selector: `${CLEAR}:has(JSXAttribute[name.name="disabled"] > JSXExpressionContainer > UnaryExpression[operator="!"] > Identifier[name="filtersActive"]):has(TemplateLiteral > Identifier[name="DISABLED"])`,
-        message: 'Disable Clear filters on !filtersActive and wear DISABLED.',
+        // Drawn only when something is set, so a button nothing could press
+        // never stands under rows that already come and go.
+        selector: 'JSXExpressionContainer > LogicalExpression[operator="&&"][left.name="filtersActive"] JSXOpeningElement:has(JSXAttribute[name.name="onClick"])',
+        message: 'Draw Clear filters only while filtersActive.',
       },
     ],
   },

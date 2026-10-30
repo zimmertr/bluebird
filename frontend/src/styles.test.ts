@@ -53,8 +53,6 @@ import {
   SEGMENT_ITEM,
   DISABLED,
   SELECT,
-  SEGMENT_FILL,
-  SELECT_W_AGGREGATE,
   SPINNER,
   STATUS,
   TRANSPORT_AXIS_ITEM,
@@ -63,7 +61,6 @@ import {
   CALENDAR_FIELD,
   CALENDAR_GROUND,
   DRAW_ROW,
-  METRIC_LABEL_PITCH,
   MOTION,
   PANEL_MS,
   DESK_PANEL,
@@ -617,10 +614,11 @@ describe('every component', () => {
     // and a zero here is pinned like every count: a tooltip arriving in the
     // frame is a decision.
     './components/ControlPanel.tsx': 0,
-    // Max results (label + field), and the unknown-value note on the AQI row
-    // (label + both boxes). Four `title=` in the source for those two
-    // tooltips, because the AQI row is one of five the table maps and its
-    // note is spelled once for the label and once for the mapped box.
+    // Max results (label + field), and the unknown-value note on the AQI
+    // bound row (label + both boxes). Four `title=` in the source for those
+    // two tooltips, because the AQI row is one of the bound rows the table
+    // maps and its note is spelled once for the label and once for the
+    // mapped box. The Bound adder carries none (#498).
     './components/MetricsTable.tsx': 4,
     // What Hourly actually does to a multi-day window (label + segment).
     './components/ForecastCalendar.tsx': 2,
@@ -748,7 +746,6 @@ describe('grouping and segmenting', () => {
     expect(CALENDAR_GROUND).toContain(RECESSED_FILL)
     expect(SEGMENT_IDLE).toContain(RECESSED_FILL)
     expect(SEGMENT).toContain(RECESSED_EDGE)
-    expect(SEGMENT_FILL).toContain(RECESSED_EDGE)
     expect(SLIDER.track).toContain(RECESSED_EDGE)
     expect(SLIDER.well).toContain(RECESSED_EDGE)
   })
@@ -1242,63 +1239,48 @@ describe('shared recipes', () => {
     expect(chartPx - 8 - selectArrowPx() - 2 - WIDEST_OPTION_PX).toBeGreaterThanOrEqual(8)
   })
 
-  // The Metrics grid (#341) sizes no control itself: its three control columns
-  // are `auto`, so the dropdown and the boxes are as wide as the roles they
-  // wear and nothing else. A rem in the template would be a second copy of
-  // METRIC_BOX_W or SELECT_W_AGGREGATE, and two spellings of one width drift
-  // apart the moment either moves.
+  // The Metrics grid (#341) sizes no control itself: its two box columns are
+  // `auto`, so the boxes are as wide as METRIC_BOX_W and nothing else, and
+  // every other control spans them. A rem in the template would be a second
+  // copy of that width, and two spellings of one width drift apart the moment
+  // either moves. Three columns since #498 (record 0251): the per-row
+  // aggregate column went with the per-row menus.
   it('sizes the Metrics grid columns by their controls, not by the grid', () => {
     const template = METRICS_GRID.match(/grid-cols-\[([^\]]+)\]/)![1]
-    expect(template.split('_')).toEqual(['minmax(0,1fr)', 'auto', 'auto', 'auto'])
+    expect(template.split('_')).toEqual(['minmax(0,1fr)', 'auto', 'auto'])
     expect(METRICS_GRID).not.toMatch(/\drem/)
   })
 
-  // The metric row is the panel's widest, and the label pays for everything
-  // else in it: radio (14px) + label gap (10px) + the grid's three gap-1.5
-  // gaps (18px) + the dropdown + two boxes must leave `Freezing level` its
-  // measured width at text-xs, inside the panel's measured 327px of content.
-  // The old Ranking row budgeted for "Precipitation" (72px) and shipped
-  // `Freezing le…` when the longer noun arrived, so the noun is named here.
-  // The dropdown's other bound is its content: the widest aggregate word
-  // (28px) plus the field's 8px left padding plus whatever the SELECT recipe
-  // reserves for its arrow. Measured in the running app (2026-08-22 and
-  // 2026-09-14); re-measure before moving either width, the gap, or the nouns.
-  it('leaves the metric label room for its longest noun', () => {
+  // Since #498 the binding label in the Metrics section is inside a menu: the
+  // Metric field spans the two box columns, which is CONTROL_W, and must
+  // hold its longest noun, `Freezing level`, beside SELECT's chevron
+  // reserve. The Bound field holds `Add a bound` in the same room. The bound
+  // rows' own labels stand beside two boxes alone and have room to spare,
+  // which the second sum pins at both widths so a wider box fails here
+  // rather than as an ellipsis (#341 shipped `Freezing le…` once).
+  it('leaves the Metric menu and the bound labels room for their longest words', () => {
     // `Freezing level` at text-xs: 78.03px in Chrome on macOS, 2026-09-14.
     const FREEZING_LEVEL_PX = 79
-    const rem = Number(SELECT_W_AGGREGATE.match(/\[(\d+(?:\.\d+)?)rem\]/)![1])
-    const dropdownPx = rem * 16
-    const boxPx = (Number(METRIC_BOX_W.match(/-(\d+)$/)![1]) / 4) * 16
+    // `Add a bound` at text-xs: NOT measured. Estimated at 62px from the
+    // text-xs advance widths of its letters (2026-10-28, #498); re-measure in
+    // the running app and replace this with the figure.
+    const ADD_A_BOUND_PX = 62
+    const fieldPx = controlWPx() - 8 - selectArrowPx() - 2
+    expect(metricPairPx()).toBe(controlWPx())
+    expect(fieldPx).toBe(84)
+    expect(fieldPx).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
+    expect(fieldPx).toBeGreaterThanOrEqual(ADD_A_BOUND_PX)
+
     const gapPx = (Number(METRICS_GRID.match(/gap-x-([\d.]+)/)![1]) / 4) * 16
     // The body reserves the shared bar's width whether or not it shows
-    // (`PANEL_BODY`), so the budget is done at the narrower width: 327px of
-    // content less the 10px Chromium draws for `scrollbar-width: thin`
-    // (measured 2026-10-13; the browser's own bar was 15px).
+    // (`PANEL_BODY`): 327px of content less the 10px Chromium draws for
+    // `scrollbar-width: thin` (measured 2026-10-13). A phone's Controls sheet
+    // gave the grid 328px with no bar reserved (2026-10-28).
     const SHARED_BAR_PX = 10
     expect(PANEL_BODY).toContain('[scrollbar-gutter:stable]')
-    const labelAt = (contentPx: number, barPx: number) =>
-      contentPx - barPx - 14 - 10 - 3 * gapPx - dropdownPx - 2 * boxPx
-
+    const labelAt = (contentPx: number, barPx: number) => contentPx - barPx - 2 * gapPx - metricPairPx()
     expect(labelAt(327, SHARED_BAR_PX)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
-    // A phone's Controls sheet (#586): at 360x780 with touch emulated and a
-    // date range picked, the Metrics grid measured 328px wide and its scroller
-    // reserved nothing for a bar, because a phone draws overlay scroll bars
-    // (built image in Playwright's Chromium, 2026-10-28). That is the wider
-    // budget; it is pinned so a future sheet gutter or a longer noun fails here
-    // too.
-    const PHONE_CONTENT_PX = 328
-    expect(labelAt(PHONE_CONTENT_PX, 0)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
-    expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + selectArrowPx())
-  })
-
-  // The Metrics direction segment is the section's one control that is not a
-  // box, and it still shares the boxes' two edges: it spans the two box
-  // columns, so it wears the fill variant rather than SEGMENT's CONTROL_W.
-  // A CONTROL_W segment there hung 26px past the boxes on the left, which is
-  // what the maintainer sent the first build back for (2026-09-14).
-  it('sizes the fill segment by its container, never by the panel column', () => {
-    expect(SEGMENT_FILL).toContain('w-full')
-    expect(SEGMENT_FILL).not.toContain(CONTROL_W)
+    expect(labelAt(328, 0)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
   })
 
   // What the column costs a segment half. Every segment in the panel is the
@@ -3782,6 +3764,10 @@ describe('the one menu', () => {
   it('fills the row under the pointer and sets the current value semibold', () => {
     expect(MENU.active).toBe(`bg-${token(MAP_CHIP, 'active:bg')}`)
     expect(MENU.current).toBe('font-semibold')
+    // A row drawn and not picked looks like a disabled control, and an empty
+    // field reads in a box's placeholder ink (#498).
+    expect(MENU.unavailable).toBe(DISABLED.replace(/disabled:/g, ''))
+    expect(FIELD).toContain(`placeholder-${MENU.placeholder.replace(/^text-/, '')}`)
   })
 
   // Every row a press acts on lights under the pointer, a checkbox row as a
@@ -4071,21 +4057,18 @@ describe('the panel frame', () => {
     expect(tallestPx).toBeLessThanOrEqual(PANEL_FLOOR_PX)
   })
 
-  // The Metrics rows pass WCAG 2.2 SC 2.5.8 by spacing (#687, record 0130):
-  // a 16px label with 5px above and below, beside the 22px boxes, with the
-  // grid's row gap, is a 32px pitch on a fine pointer. Touch keeps TAP.row's
-  // 44px label and spends nothing more.
-  it('sets the metric rows 32px apart on a fine pointer', () => {
-    const LABEL_PX = 16 // text-xs line box; the 14px radio sits inside it
+  // The Metrics rows pass WCAG 2.2 SC 2.5.8 by spacing (#687, record 0130,
+  // re-derived for #498). The radio label that needed 5px of margin above and
+  // below went with the radios, so the rows are their 22px controls and the
+  // grid's row gap: a 28px pitch, at which a 24px circle centred on each
+  // control clears the next row's by 2px on each side. Touch grows every
+  // control to a finger's height and spends nothing more.
+  it('sets the Metrics rows far enough apart for a 24px target', () => {
     const BOX_PX = 22 // FIELD_NUMERIC at py-0.5, measured 2026-10-13
-    const margin = Number(METRIC_LABEL_PITCH.match(/(?:^|\s)my-\[(\d+)px\]/)![1])
     const gapY = stepPx(METRICS_GRID, 'gap-y')
-    const row = Math.max(LABEL_PX + 2 * margin, BOX_PX)
-    expect(row + gapY).toBe(32)
-    expect(METRIC_LABEL_PITCH).toContain('touch:my-0')
-    // A 24px circle centred on a 16px label reaches 4px past it: inside its
-    // own 5px margin, so it meets no other row's target.
-    expect((24 - LABEL_PX) / 2).toBeLessThanOrEqual(margin)
+    const pitch = BOX_PX + gapY
+    expect(pitch).toBe(28)
+    expect((pitch - 24) / 2).toBe(2)
   })
 })
 
