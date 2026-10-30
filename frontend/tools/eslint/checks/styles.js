@@ -385,7 +385,7 @@ export const STYLES = [
     require: [
       {
         selector:
-          'JSXOpeningElement[name.name="button"]:has(> JSXAttribute[name.name="aria-expanded"]):has(> JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="MAP_CHIP_SUMMARY"])',
+          'JSXOpeningElement[name.name="button"]:has(> JSXAttribute[name.name="aria-expanded"]) > JSXAttribute[name.name="className"][value.expression.name="MAP_CHIP_SUMMARY"]',
         count: 1,
         message: 'Light the summary chip with MAP_CHIP_SUMMARY, the open state every trigger shares.',
       },
