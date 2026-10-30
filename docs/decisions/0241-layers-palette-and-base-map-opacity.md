@@ -31,7 +31,7 @@ The four ground layers drew at one strength each: the imagery whole, with Libert
 
 Measured 2026-10-29 in the Playwright 1.64.1 image's Chromium on the built page.
 
-- **The menu at a desk (1389x868)** is 246.7px wide, every row 28px, a heading 18px; the lab's estimate was about 270. **The sheet on a phone (390x844)** keeps its 33px rows with the rule, so the tutorial's Layers card keeps its margin over the sheet.
+- **The menu at a desk (1389x868)** is 246.7px wide, every row 28px, a heading 18px; the lab's estimate was about 270. **The sheet on a phone (390x844)** keeps its 33px rows with the rule and stands 564px tall from 280px down, so the tutorial's Layers card, whose foot is at 262px, clears it by 18px.
 - **The slider's line**: `100%` is 30.7px and `Opacity` 44px semibold. At the lab's 96px the thumb at 50% covered the wordmark's first letter; at 120 it stands clear by 6px, and `100%` and `Opacity` leave 29px between them.
 - **The eye's inks** (`styles.test.ts`): open, the middle ink, 9.83:1 dark and 12.3:1 light on the card; struck, the soft ink, 3.94:1 dark and 7.47:1 light on the raised hover fill, the lowest ground it stands on. The lab's faint ink read under 3:1 there in dark.
 - **The resting fill**: the control ink on the raised fill, 8.4:1 dark and 13.66:1 light. The lab's 55% fade would have left the white value on the accent under 4.5:1 in both themes.
