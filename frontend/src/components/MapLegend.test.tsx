@@ -222,7 +222,7 @@ describe('MapLegend', () => {
     expect(strip.style.gridTemplateColumns).toBe('repeat(7, minmax(0, 1fr))')
     expect(strip.style.backgroundImage).toContain('linear-gradient')
     const ticks = [...strip.children].filter((c) => c.textContent) as HTMLElement[]
-    expect(ticks.map((t) => t.textContent)).toEqual(['27', '30', '32', '35', '46', '51'])
+    expect(ticks.map((t) => t.textContent)).toEqual(['27', '30', '32', '35', '46', '51', '60'])
     // Two ticks on neighbouring boundaries share a column, so every tick
     // stands in the strip's one row rather than dropping to a second.
     expect(new Set(ticks.map((t) => t.style.gridRow))).toEqual(new Set(['1']))
