@@ -1088,10 +1088,10 @@ export const ICON = {
    * measured off this step).
    *
    * The magnifier was 15 and is the reason this step is worth a number. Its
-   * row is the search pill's 40px (`MAP_PILL`), which is even: a 16px box
-   * centres on 12px of clear space, a 15px box on 12.5. The row also holds two
+   * row is the search pill's 32px (`MAP_PILL`), which is even: a 16px box
+   * centres on 8px of clear space, a 15px box on 8.5. The row also holds two
    * 16px boxes already — the clear cross, and the spinner that stands in its
-   * place — which sit at that same 12px. So the odd step bought nothing and
+   * place — which sit at that same 8px. So the odd step bought nothing and
    * cost a half-pixel, on the one glyph in the row that was off the pixel grid
    * and the one that was off the scale.
    */
@@ -1555,14 +1555,14 @@ export const MAP_EDGE = {
   /**
    * On a phone, where the app's two rows span the map's top (#696), the
    * vendor's stack, which is the compass alone there, starts one inset below
-   * them rather than beside the pill: 92 + 12. While a ring is drawn the draw
-   * bar stands under the rows (`MAP_ROWS.drawBar`, 46px tall at 100), so the
-   * stack starts one inset under it instead: 100 + 46 + 12. `map.css` reads
+   * them rather than beside the pill: 84 + 12. While a ring is drawn the draw
+   * bar stands under the rows (`MAP_ROWS.drawBar`, 46px tall at 92), so the
+   * stack starts one inset under it instead: 92 + 46 + 12. `map.css` reads
    * `--map-vendor-top` as the stack's top margin, and `styles.test.ts` holds
    * both numbers to the rows' geometry.
    */
-  belowRows: '[--map-vendor-top:104px]',
-  belowDrawBar: '[--map-vendor-top:158px]',
+  belowRows: '[--map-vendor-top:96px]',
+  belowDrawBar: '[--map-vendor-top:150px]',
 } as const
 
 /**
@@ -1602,8 +1602,8 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  * column of boxed buttons so a reader meets one map at both widths.
  *
  * The geometry is four numbers, and every other anchor on the map's top is
- * built from them: the map's 12px inset (`MAP_EDGE`), the 40px first row, 8px
- * between the rows and the 32px chip row. So the rows end 92px down the map at
+ * built from them: the map's 12px inset (`MAP_EDGE`), the 32px first row, 8px
+ * between the rows and the 32px chip row. So the rows end 84px down the map at
  * both widths, and `styles.test.ts` holds each anchor below to that sum.
  *
  * A phone's rows span the map. A desk's are as wide as the wider of the pill
@@ -1623,29 +1623,29 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  */
 export const MAP_ROWS = {
   stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-max lg:min-w-80 flex flex-col gap-2 pointer-events-none`,
-  row: `relative h-10 ${YIELD_EMPTY}`,
+  row: `relative h-8 ${YIELD_EMPTY}`,
   /**
    * Where the pill stands: on a phone across the row less the 3D and locate
-   * buttons and the 8px before each (`right-24`, 2 × (40 + 8)) at rest, and
+   * buttons and the 8px before each (`right-20`, 2 × (32 + 8)) at rest, and
    * across the whole row while the field has the keyboard or its list is
    * open, over the buttons. At a desk 320px either way (`lg:w-80`), with no
    * button beside it. Raised so its results list paints over the chip row and
    * the map.
    */
-  pill: 'absolute inset-y-0 left-0 right-24 lg:right-auto lg:w-80 z-10',
+  pill: 'absolute inset-y-0 left-0 right-20 lg:right-auto lg:w-80 z-10',
   pillWide: 'absolute inset-y-0 left-0 right-0 lg:right-auto lg:w-80 z-10',
   /** The second row: one line of chips, 6px apart, never wrapping. */
   chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
   /**
-   * The draw bar on a phone (#687): under the chip row, 8px below it (92 +
+   * The draw bar on a phone (#687): under the chip row, 8px below it (84 +
    * 8), so every chip stays in reach while a ring is drawn and the foot of
    * the map stays the notices' and the player's.
    */
-  drawBar: 'top-[100px]',
+  drawBar: 'top-[92px]',
 } as const
 
 /**
- * The search field as a pill (#696): the floating surface at the row's 40px,
+ * The search field as a pill (#696): the floating surface at the row's 32px,
  * fully rounded, its icon and its clear button inside the same 14px of
  * padding the mockup drew. The ring the panel's hover lights rides a wrapper
  * of the same radius (`ACCENT_RING`). `styles.test.ts` holds the fill, edge
@@ -1653,21 +1653,22 @@ export const MAP_ROWS = {
  */
 export const MAP_PILL =
   `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
-  `h-10 flex items-center gap-2 px-3.5 transition-colors ${ACCENT.edgeFocus}`
+  `h-8 flex items-center gap-2 px-3.5 transition-colors ${ACCENT.edgeFocus}`
 
 /**
- * The pill's field on a coarse pointer: 40px seen, 44 pressed. The input is
+ * The pill's field on a coarse pointer: 32px seen, 44 pressed. The input is
  * transparent, so it stretches to the height inside the pill's 1px border
- * (38) and reaches 3px past that at each edge, 2px past the pill, which is a
+ * (30) and reaches 7px past that at each edge, 6px past the pill, which is a
  * target the reader cannot see. The clear button is
  * `ICON_BUTTON` with `TAP.action`: 44 wide and a finger's 32 tall, a glyph
- * with no box of its own inside the pill's 38.
+ * with no box of its own, as tall as the pill.
  */
-export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
+export const MAP_PILL_FIELD = 'self-stretch touch:-my-[7px]'
 
 /**
  * A map button: the locate button and the compass, at both widths (TJ,
- * 2026-10-14; record 0147). 40px and round, in the pill's dark chrome, with
+ * 2026-10-14; record 0147). 32px and round, as the chips are tall (record
+ * 0254), in the pill's dark chrome, with
  * the app's focus ring. Under the pointer its glyph takes the accent, as every
  * control's label does (record 0251): at rest `map.css` keeps the library's
  * own drawings, and under the pointer it draws the same paths as a mask in
@@ -1683,7 +1684,7 @@ export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
  * into one capsule instead (`MAP_ZOOM_PAIR`).
  */
 export const MAP_ROUND_BUTTON =
-  `size-10 bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `size-8 bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
 
 /**
@@ -1705,19 +1706,18 @@ export const MAP_TERRAIN_BUTTON = `map-terrain ${MAP_ROUND_BUTTON} ${TEXT.contro
  * on `map-slot`, takes the library's margin off it. A desk's rows have no
  * slots: its buttons stand in the map's bottom-right corner (`MAP_CORNER`).
  *
- * `locate` is a 40px box at the search pill's right, and `terrain` the same
+ * `locate` is a 32px box at the search pill's right, and `terrain` the same
  * box 8px left of it, for the 3D button (#799), so the pill's row ends in
  * two round buttons the way a desk's column stacks them. `compass` is the
  * chip row's last member, under the locate button (record 0147), and takes no
  * room of its own: while the map is north-up the compass is hidden and the
  * slot is nothing, so the row's empty end stays the map's, about 20px at 360
- * wide. While it shows, the slot is the button's 40px and the summary chip,
- * the one member that gives way, gives it up; at 32px the row is shorter than
- * the button, which stands 4px proud of it top and bottom, centred on it.
+ * wide. While it shows, the slot is the button's 32px and the summary chip,
+ * the one member that gives way, gives it up; the button is the row's height.
  */
 export const MAP_SLOT = {
-  locate: 'map-slot absolute right-0 top-0 size-10',
-  terrain: 'map-slot absolute right-12 top-0 size-10',
+  locate: 'map-slot absolute right-0 top-0 size-8',
+  terrain: 'map-slot absolute right-10 top-0 size-8',
   compass: 'map-slot ml-auto flex-shrink-0',
 } as const
 
@@ -1759,7 +1759,7 @@ export const MAP_CORNER = {
 /**
  * A desk's zoom buttons, joined into one capsule with a rule between them, as
  * Google Maps draws its own (TJ, 2026-10-20; record 0174): each half is a
- * 40px map button with the capsule's end for its outer edge and no edge where
+ * 32px map button with the capsule's end for its outer edge and no edge where
  * the halves meet but the lower half's top, which is the rule. Under the
  * pointer each half's glyph takes the accent, as every map button's does,
  * while it is enabled: the library disables a half at either end of the
@@ -1767,7 +1767,7 @@ export const MAP_CORNER = {
  * compass (`DISABLED`).
  */
 const MAP_ZOOM_HALF =
-  `size-10 bg-floating/95 border border-edge ${ELEVATION.raised} backdrop-blur-sm ` +
+  `size-8 bg-floating/95 border border-edge ${ELEVATION.raised} backdrop-blur-sm ` +
   `transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
 export const MAP_ZOOM_PAIR = {
   in: `${MAP_ZOOM_HALF} border-b-0 rounded-t-full`,
@@ -2592,7 +2592,7 @@ export const BOTTOM_SHEET = {
   scrim: `fixed inset-0 ${LAYER.popover}`,
   dim: 'absolute inset-0 bg-scrim/40',
   card:
-    `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-104px)] flex-col ` +
+    `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-96px)] flex-col ` +
     `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
   grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-edge',
   /**

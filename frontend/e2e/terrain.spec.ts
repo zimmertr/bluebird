@@ -240,7 +240,7 @@ for (const width of [360, 390]) {
       }
     })
     test.info().annotations.push({ type: `search row ${width} px`, description: JSON.stringify(at) })
-    expect(at.terrain.width).toBe(40)
+    expect(at.terrain.width).toBe(32)
     expect(at.terrain.height).toBe(at.locate.height)
     expect(at.terrain.top).toBe(at.locate.top)
     expect(Math.round(at.locate.left - at.terrain.right)).toBe(8)

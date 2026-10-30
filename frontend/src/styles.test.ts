@@ -2427,9 +2427,9 @@ describe('the map rows', () => {
   const CHIPS = step(MAP_ROWS.chips, 'h')
   const BOTTOM = INSET + ROW + GAP + CHIPS
 
-  it('measures 40 and 32 with 8 between, so the rows end 92px down', () => {
-    expect([ROW, GAP, CHIPS]).toEqual([40, 8, 32])
-    expect(BOTTOM).toBe(92)
+  it('measures 32 and 32 with 8 between, so the rows end 84px down', () => {
+    expect([ROW, GAP, CHIPS]).toEqual([32, 8, 32])
+    expect(BOTTOM).toBe(84)
     expect(MAP_EDGE.publish).toContain(`[--map-edge-inset:${INSET / 16}rem]`)
     for (const part of [MAP_EDGE.top, MAP_EDGE.left, MAP_EDGE.right, 'pointer-events-none']) expect(MAP_ROWS.stack).toContain(part)
     // The rows yield their gaps; the stack must not hand them back.
@@ -2448,7 +2448,7 @@ describe('the map rows', () => {
   // A phone's pill leaves the 3D and locate buttons and the 8px before each
   // at rest (#799), and takes the whole row while it is searching. A desk's is 320px
   // either way, with no button beside it (record 0174).
-  it('stands a phone\'s pill beside a 40px round locate button, and a desk\'s alone', () => {
+  it('stands a phone\'s pill beside a 32px round locate button, and a desk\'s alone', () => {
     expect(step(MAP_SLOT.locate, 'size')).toBe(ROW)
     expect(tokens(MAP_SLOT.locate)).toEqual(expect.arrayContaining(['absolute', 'right-0', 'top-0']))
     // The 3D button's slot, one button and one gap left of the locate button.
@@ -2586,7 +2586,7 @@ describe('the phone chrome\'s hit areas', () => {
     }
   })
 
-  it('presses the 40px pill\'s field as 44, 2px past each edge', () => {
+  it('presses the 32px pill\'s field as 44, 6px past each edge', () => {
     const seen = steps(MAP_PILL, /(?:^|\s)h-(\d+)(?:\s|$)/)
     const rim = Number(MAP_PILL_FIELD.match(/(?:^|\s)touch:-my-\[(\d+)px\](?:\s|$)/)![1])
     expect(tokens(MAP_PILL)).toContain('border')
@@ -2596,10 +2596,10 @@ describe('the phone chrome\'s hit areas', () => {
   })
 
   // The vendor's buttons, so map.css spells it, on the query `touch` is: every
-  // map button 40px seen and 44 pressed (record 0147), and the credit's 24px
+  // map button 32px seen and 44 pressed (records 0147 and 0254), and the credit's 24px
   // (i) the same 44. An absolute ::before insets from the padding box, so each
   // button's size counts less its two borders before the rim is added.
-  it('presses the 40px map buttons and the 24px (i) as 44, by a rim on a coarse pointer', () => {
+  it('presses the 32px map buttons and the 24px (i) as 44, by a rim on a coarse pointer', () => {
     const size = (recipe: string) => steps(recipe, /(?:^|\s)size-(\d+)(?:\s|$)/)
     // Tailwind's bare `border` is 1px.
     const border = (recipe: string) => (tokens(recipe).includes('border') ? 1 : 0)
@@ -2607,7 +2607,7 @@ describe('the phone chrome\'s hit areas', () => {
       Number(css.match(new RegExp(String.raw`${selector}::before \{\s*content: '';\s*position: absolute;\s*inset: -(\d+)px;`))![1])
     const block = mapCss.slice(mapCss.indexOf('@media (hover: none) {\n  .maplibregl-ctrl-group,'))
     const buttons = [
-      { recipe: MAP_ROUND_BUTTON, seen: 40, inset: rim(block.slice(0, block.indexOf('\n}\n')), String.raw`\.maplibregl-ctrl-group button`) },
+      { recipe: MAP_ROUND_BUTTON, seen: 32, inset: rim(block.slice(0, block.indexOf('\n}\n')), String.raw`\.maplibregl-ctrl-group button`) },
       { recipe: MAP_CREDIT.button, seen: 24, inset: rim(mapCss, String.raw`\.maplibregl-ctrl-attrib-button`) },
     ]
     for (const { recipe, seen, inset } of buttons) {
@@ -2698,7 +2698,7 @@ describe('the phone chrome\'s hit areas', () => {
     // After a closing brace: the first `::after {` closes the selector the two
     // pseudo-elements share.
     const glyph = ruleAt('}\n  .maplibregl-ctrl-group button .maplibregl-ctrl-icon::after {')
-    for (const decl of ['background-color: var(--ui-accent-ink);', 'mask-size: auto;', 'mask-position: 50%;', 'opacity: 0;', FADE]) {
+    for (const decl of ['background-color: var(--ui-accent-ink);', 'mask-size: 23px;', 'mask-position: 50%;', 'opacity: 0;', FADE]) {
       expect(glyph).toContain(decl)
     }
     expect(ruleAt('  .maplibregl-ctrl-group button .maplibregl-ctrl-icon::before {')).toContain('background-image: inherit;')
@@ -2733,13 +2733,14 @@ describe('the phone chrome\'s hit areas', () => {
     // the light theme's invert off.
     const triangle = ruleAt('}\n  .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::before {')
     expect(svgOf(triangle)).toBe('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 29 29"><path d="m10.5 14 4-8 4 8z"/></svg>')
-    for (const decl of ['background-image: none;', 'mask-size: auto;', 'mask-position: 50%;']) expect(triangle).toContain(decl)
+    for (const decl of ['background-image: none;', 'mask-size: 23px;', 'mask-position: 50%;']) expect(triangle).toContain(decl)
+    expect(ruleAt('  .maplibregl-ctrl-group button .maplibregl-ctrl-icon::before {')).toContain('background-size: 23px;')
     expect(triangle).toContain('background-color: oklch(var(--compass-north-l) var(--compass-north-c) calc(var(--compass-north-h) * 1deg));')
     const EASE = '150ms cubic-bezier(0.4, 0, 0.2, 1)'
     expect(triangle).toContain(`transition: --compass-north-l ${EASE}, --compass-north-c ${EASE}, --compass-north-h ${EASE};`)
     const edges = ruleAt('  .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::after {')
     expect(svgOf(edges)).toBe(rest.replace('fill="#ef4444"', 'fill="none"'))
-    for (const decl of ['opacity: 1;', 'transition: none;']) expect(edges).toContain(decl)
+    for (const decl of ['opacity: 1;', 'transition: none;', 'background-size: 23px;']) expect(edges).toContain(decl)
     const north = (rule: string) =>
       (['l', 'c', 'h'] as const).map((k) => Number(rule.match(new RegExp(String.raw`--compass-north-${k}: (-?[\d.]+);`))![1]))
     const atRest = (['l', 'c', 'h'] as const).map((k) =>
@@ -2774,6 +2775,10 @@ describe('the phone chrome\'s hit areas', () => {
     for (const decl of ['background: transparent;', 'box-shadow: none;', 'gap: 4px;']) expect(group).toContain(decl)
     expect(rule('.maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl')).toContain('margin-top: 4px;')
     expect(rule('.maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: invert(1) hue-rotate(180deg);')
+    // The library's 29px glyphs held 29/40 of a 40px button; at 32 they keep
+    // that share (record 0254).
+    expect(MAP_ROUND_BUTTON).toMatch(/(^|\s)size-8(\s|$)/)
+    expect(rule('.maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain(`background-size: ${Math.round((29 / 40) * 32)}px;`)
     // The light theme's buttons are light, so its glyphs keep the library's
     // own dark drawing (#706).
     expect(rule(':root[data-theme="light"] .maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: none;')

@@ -172,7 +172,7 @@
 }
 
 /* The map's buttons in the app's chrome (record 0147): the compass, the
- * locate button and a desk's zoom pair, each a 40px button
+ * locate button and a desk's zoom pair, each a 32px button
  * (`MAP_ROUND_BUTTON` in styles.ts, and `MAP_ZOOM_PAIR` for the pair, which
  * `map/controls.ts` hands to the library's buttons). The library's group
  * gives up its white box, its shadow and its rules, and stands its buttons
@@ -211,8 +211,13 @@
   display: none;
 }
 
+/* The library draws each glyph at 29px for its 29px button. The buttons are
+ * 32px, the chips' height (record 0254), so the glyphs scale to 23px, the
+ * share of the button they held at 40px (29/40 of 32), and every layer
+ * below that draws one draws it at this size. */
 .maplibregl-ctrl-group .maplibregl-ctrl-icon {
   filter: invert(1) hue-rotate(180deg);
+  background-size: 23px;
 }
 
 :root[data-theme="light"] .maplibregl-ctrl-group .maplibregl-ctrl-icon {
@@ -241,7 +246,7 @@
  * The library's drawing stays what a resting button shows, moved to the
  * icon's `before` with the invert the dark theme gives it, so at rest every
  * glyph is the drawing it always was. Over it, on the `after`, stands the
- * same paths as a mask in the accent ink at the drawing's own 29px, centred
+ * same paths as a mask in the accent ink at the drawing's own size, centred
  * as the library places its image, at no opacity. Under the pointer the mask
  * fades in, and the drawing under it goes once the mask covers it, so the
  * glyph ends as the accent drawing alone; leaving, the drawing is back at
@@ -297,6 +302,7 @@
     background-image: inherit;
     background-position: 50%;
     background-repeat: no-repeat;
+    background-size: 23px;
     filter: invert(1) hue-rotate(180deg);
   }
   :root[data-theme="light"] .maplibregl-ctrl-group button .maplibregl-ctrl-icon::before,
@@ -307,7 +313,7 @@
     background-color: var(--ui-accent-ink);
     mask-position: 50%;
     mask-repeat: no-repeat;
-    mask-size: auto;
+    mask-size: 23px;
     opacity: 0;
     transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -330,11 +336,12 @@
     mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2229%22%20height%3D%2229%22%20viewBox%3D%220%200%2029%2029%22%3E%3Cpath%20d%3D%22m10.5%2014%204-8%204%208z%22%2F%3E%3C%2Fsvg%3E");
     mask-position: 50%;
     mask-repeat: no-repeat;
-    mask-size: auto;
+    mask-size: 23px;
     transition: --compass-north-l 150ms cubic-bezier(0.4, 0, 0.2, 1), --compass-north-c 150ms cubic-bezier(0.4, 0, 0.2, 1), --compass-north-h 150ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::after {
     background-color: transparent;
+    background-size: 23px;
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2229%22%20height%3D%2229%22%20viewBox%3D%220%200%2029%2029%22%20stroke%3D%22%23475569%22%20stroke-width%3D%220.75%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20fill%3D%22none%22%20d%3D%22m10.5%2014%204-8%204%208z%22%2F%3E%3Cpath%20fill%3D%22%23f8fafc%22%20d%3D%22m10.5%2016%204%208%204-8z%22%2F%3E%3C%2Fsvg%3E");
     background-position: 50%;
     background-repeat: no-repeat;
@@ -367,10 +374,10 @@
   margin: 0;
 }
 
-/* The buttons' hit area on a coarse pointer (#696): 40px seen and 44
+/* The buttons' hit area on a coarse pointer (#696): 32px seen and 44
    pressed, an invisible rim on the vendor's own button, so a press on it is
-   the button's. 3px, because the rim stands inside the button's 1px border
-   (38px), and 38 plus 6 is 44. The press every piece of map chrome takes
+   the button's. 7px, because the rim stands inside the button's 1px border
+   (30px), and 30 plus 14 is 44. The press every piece of map chrome takes
    (`CHIP_HIT` in styles.ts), spelled here because the markup is the
    library's. They were 44px seen until the buttons took the app's chrome. */
 @media (hover: none) {
@@ -384,7 +391,7 @@
   .maplibregl-ctrl-group button::before {
     content: '';
     position: absolute;
-    inset: -3px;
+    inset: -7px;
   }
 }
 
