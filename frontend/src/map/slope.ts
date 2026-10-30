@@ -38,9 +38,10 @@ import {
   SLOPE_ALPHA,
   coveringTile,
   demWindow,
-  slopeRaster,
+  groundRaster,
   windowEdges,
   type EdgeTiles,
+  type GroundPaint,
   type HeightGrid,
 } from '../utils/slopeAngle'
 import { DEM_MAXZOOM } from '../utils/terrainSources'
@@ -50,6 +51,23 @@ export const SLOPE_SCHEME = 'bluebird-slope'
 
 /** The raster source's tile template. */
 export const SLOPE_TILES = `${SLOPE_SCHEME}://{z}/{x}/{y}`
+
+/**
+ * The slope tiles with the relief's light in their colours, which the slope
+ * source reads while the Shaded relief row is on (`groundRaster`'s `shaded`).
+ */
+export const SLOPE_SHADED_SCHEME = 'bluebird-slope-shaded'
+export const SLOPE_SHADED_TILES = `${SLOPE_SHADED_SCHEME}://{z}/{x}/{y}`
+
+/**
+ * The shaded relief's tiles, painted from the same finest elevation as the
+ * slope (`groundRaster`'s `relief`). MapLibre's own hillshade reads a
+ * `raster-dem` source, which cannot fall back past a missing tile, so it
+ * could draw no finer than zoom 12 under bands drawn from 16 (the
+ * maintainer, 2026-10-29).
+ */
+export const RELIEF_SCHEME = 'bluebird-relief'
+export const RELIEF_TILES = `${RELIEF_SCHEME}://{z}/{x}/{y}`
 
 /**
  * The deepest zoom the slope tiles are painted at; MapLibre stretches past
@@ -165,9 +183,9 @@ export async function slopeTile(
   x: number,
   y: number,
   abort: AbortController,
-  deps: { toImage?: ToImage; missing?: MissingTiles } = {},
+  deps: { toImage?: ToImage; missing?: MissingTiles; paint?: GroundPaint } = {},
 ): Promise<ImageBitmap> {
-  const { toImage = toBitmap, missing = new Set() } = deps
+  const { toImage = toBitmap, missing = new Set(), paint = 'bands' } = deps
   // Past 12, the first zoom from the tile's own outward whose elevation loads.
   let level = z
   let centre: HeightGrid | null = null
@@ -197,13 +215,16 @@ export async function slopeTile(
     edge('east', at.x + 1, at.y),
   ])
   const window = demWindow(z, x, y, level, grid.width)
-  return toImage(slopeRaster(level, at.y, grid, { north, south, west, east }, window), grid.width, grid.height)
+  const rgba = groundRaster(paint, level, at.y, grid, { north, south, west, east }, window)
+  return toImage(rgba, grid.width, grid.height)
 }
 
 /**
- * Registers the scheme with MapLibre. Called once, when the contour library
+ * Registers the three schemes with MapLibre: the slope, the slope with the
+ * relief's light in it, and the relief. Called once, when the contour library
  * has loaded, so the cold load registers nothing. The tiles known missing are
- * this registration's, which is the page's.
+ * this registration's, the page's, and shared by all three, since each reads
+ * the same elevation.
  */
 export function serveSlopeTiles(
   dem: DemGrids,
@@ -211,10 +232,17 @@ export function serveSlopeTiles(
 ): void {
   const register = deps.register ?? addProtocol
   const missing: MissingTiles = new Set()
-  register(SLOPE_SCHEME, async (request, abort) => {
-    const [, z, x, y] = /(\d+)\/(\d+)\/(\d+)/.exec(request.url) ?? []
-    return {
-      data: await slopeTile(dem, Number(z), Number(x), Number(y), abort, { toImage: deps.toImage, missing }),
-    }
-  })
+  const schemes: [string, GroundPaint][] = [
+    [SLOPE_SCHEME, 'bands'],
+    [SLOPE_SHADED_SCHEME, 'shaded'],
+    [RELIEF_SCHEME, 'relief'],
+  ]
+  for (const [scheme, paint] of schemes) {
+    register(scheme, async (request, abort) => {
+      const [, z, x, y] = /(\d+)\/(\d+)\/(\d+)/.exec(request.url) ?? []
+      return {
+        data: await slopeTile(dem, Number(z), Number(x), Number(y), abort, { toImage: deps.toImage, missing, paint }),
+      }
+    })
+  }
 }

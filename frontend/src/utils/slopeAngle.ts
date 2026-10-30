@@ -1,5 +1,8 @@
 // The slope angle shading's every decision (#799): the bands, their colours,
-// how steep a pixel of the elevation is, and the key the legend draws.
+// how steep a pixel of the elevation is, and the key the legend draws; and
+// since the slope learned to read the finest elevation, the shaded relief
+// too, which is painted from the same heights by the same loop
+// (`groundRaster`).
 //
 // The shading is computed in the browser from the same elevation tiles the
 // relief and the contours read (`map/terrain.ts`), one pixel of a tile at a
@@ -227,6 +230,103 @@ export function slopeRaster(
   edges: EdgeTiles,
   window: Pick<DemWindow, 'left' | 'top' | 'span'> = { left: 0, top: 0, span: centre.width },
 ): Uint8ClampedArray<ArrayBuffer> {
+  return groundRaster('bands', z, tileY, centre, edges, window)
+}
+
+/**
+ * What a ground tile paints from its heights (#799):
+ *
+ * - `bands`: the slope bands, flat, as {@link slopeRaster} has always drawn.
+ * - `shaded`: the same bands with each colour darkened or lit by the sun on
+ *   that pixel ({@link bandLight}), the way CalTopo's shading carries the
+ *   relief inside its colours. The slope tiles are painted so while the
+ *   Shaded relief row is on, so the relief under them is never washed out by
+ *   a flat band over it (the maintainer, 2026-10-29).
+ * - `relief`: the shaded relief itself ({@link reliefPixel}), from the same
+ *   finest elevation as the slope, where MapLibre's own hillshade could read
+ *   no finer than zoom 12.
+ */
+export type GroundPaint = 'bands' | 'shaded' | 'relief'
+
+/**
+ * The sun the relief is lit by: from the northwest, 45 degrees up, the
+ * cartographer's convention and MapLibre's own default, as the direction to
+ * the light in east, north and up components.
+ */
+const SUN = { east: -0.5, north: 0.5, up: Math.SQRT1_2 } as const
+
+/**
+ * How much of the sun a pixel takes, 0 to 1, from its rise per metre east
+ * and north: the cosine between the ground's normal and the direction to the
+ * sun. Flat ground takes {@link SUN}'s `up`, about 0.71. NaN for a pixel
+ * with a missing height.
+ */
+export function sunOn(dzDx: number, dzDy: number): number {
+  const lit = (-dzDx * SUN.east - dzDy * SUN.north + SUN.up) / Math.sqrt(1 + dzDx * dzDx + dzDy * dzDy)
+  // A slope turned past the sun takes none; a missing height stays NaN, so
+  // its pixel is left clear rather than drawn as the deepest shadow.
+  return lit < 0 ? 0 : lit
+}
+
+/**
+ * How much steeper the relief draws than the ground is, by the zoom of the
+ * heights it reads. At 12 and finer a pixel is 13 m or less and the ground's
+ * own slope reads; each zoom out averages the slopes over twice the ground,
+ * so they flatten, and the relief steepens them back by the square root of
+ * two a zoom, which keeps a range's ridges shaded when it is seen whole.
+ */
+export function reliefExaggeration(z: number): number {
+  return z >= 12 ? 1 : Math.SQRT2 ** (12 - z)
+}
+
+/**
+ * The relief's colours: the shadow is Liberty's warm label brown, darkened
+ * (`#5c4a32`), so a shadow reads as ground rather than as a grey film over
+ * the greens, and the light is white. Kept from the MapLibre hillshade this
+ * replaces (tuned 2026-10-27 over Rainier and the Alpine Lakes).
+ */
+export const RELIEF_SHADOW = '#5c4a32'
+
+/**
+ * One relief pixel at full strength, as the alpha of the shadow brown (a
+ * negative number) or of white (a positive one). A slope turned from the sun
+ * shades in proportion to how much less light it takes than flat ground, at
+ * one and a half times that, held to whole; one turned to it lights to at
+ * most 0.9. The row's level is the layer's opacity, so at the default half the
+ * deepest shadow is half brown and the brightest light 0.45 white, the
+ * hillshade's own strengths.
+ */
+export function reliefPixel(sun: number): number {
+  const flat = SUN.up
+  if (sun < flat) return -Math.min(1, ((flat - sun) / flat) * 1.5)
+  return Math.min(0.9, ((sun - flat) / (1 - flat)) * 0.9)
+}
+
+/**
+ * How a shaded band's colour scales with the sun on its pixel: the colour
+ * times a half plus a half of the light over flat ground's, held between 0.4
+ * and 1.2. A 35-degree slope facing the sun takes about 1.2, one facing away
+ * about 0.6, so a gully's two sides read apart the way a multiply blend over
+ * a hillshade draws them.
+ */
+export function bandLight(sun: number): number {
+  const times = 0.5 + 0.5 * (sun / SUN.up)
+  return times < 0.4 ? 0.4 : times > 1.2 ? 1.2 : times
+}
+
+/**
+ * One ground tile's RGBA from its heights, painted as `paint` says
+ * ({@link GroundPaint}). Everything {@link slopeRaster} says about the
+ * spacing, the window, the edges and missing heights holds for each.
+ */
+export function groundRaster(
+  paint: GroundPaint,
+  z: number,
+  tileY: number,
+  centre: HeightGrid,
+  edges: EdgeTiles,
+  window: Pick<DemWindow, 'left' | 'top' | 'span'> = { left: 0, top: 0, span: centre.width },
+): Uint8ClampedArray<ArrayBuffer> {
   const { width: w, height: h } = centre
   const { left, top, span } = window
   const scale = w / span
@@ -235,6 +335,8 @@ export function slopeRaster(
   const out = new Uint8ClampedArray(w * h * 4)
   const limits = SLOPE_BANDS.map((band) => Math.tan((band.from * Math.PI) / 180) ** 2)
   const colours = SLOPE_BANDS.map((band) => hexToRgb(band.color))
+  const shadow = hexToRgb(RELIEF_SHADOW)
+  const lift = reliefExaggeration(z)
   for (let row = top; row < top + span; row++) {
     const twoPixels = 2 * groundMetresPerPixel(z, tileY, row, h)
     const above = row * stride + 1
@@ -243,12 +345,31 @@ export function slopeRaster(
     for (let col = left; col < left + span; col++) {
       const dzDx = (pad[here + col + 1] - pad[here + col - 1]) / twoPixels
       const dzDy = (pad[above + col] - pad[below + col]) / twoPixels
-      const tan2 = dzDx * dzDx + dzDy * dzDy
-      // NaN fails every comparison, so a pixel with a missing height stays clear.
-      if (!(tan2 >= limits[0])) continue
-      let band = limits.length - 1
-      while (tan2 < limits[band]) band--
-      const [r, g, b] = colours[band]
+      let r: number
+      let g: number
+      let b: number
+      let a = 255
+      if (paint === 'relief') {
+        const sun = sunOn(dzDx * lift, dzDy * lift)
+        // NaN fails every comparison, so a pixel with a missing height stays clear.
+        if (!(sun >= 0)) continue
+        const shade = reliefPixel(sun)
+        if (shade === 0) continue
+        ;[r, g, b] = shade < 0 ? shadow : [255, 255, 255]
+        a = Math.round(Math.abs(shade) * 255)
+      } else {
+        const tan2 = dzDx * dzDx + dzDy * dzDy
+        if (!(tan2 >= limits[0])) continue
+        let band = limits.length - 1
+        while (tan2 < limits[band]) band--
+        ;[r, g, b] = colours[band]
+        if (paint === 'shaded') {
+          const times = bandLight(sunOn(dzDx, dzDy))
+          r *= times
+          g *= times
+          b *= times
+        }
+      }
       if (scale === 1) {
         // The whole tile, pixel for pixel: the common case, kept free of the
         // block loop below, which cost a third more over a 512px tile
@@ -257,7 +378,7 @@ export function slopeRaster(
         out[at] = r
         out[at + 1] = g
         out[at + 2] = b
-        out[at + 3] = 255
+        out[at + 3] = a
         continue
       }
       const outCol = (col - left) * scale
@@ -267,7 +388,7 @@ export function slopeRaster(
           out[at] = r
           out[at + 1] = g
           out[at + 2] = b
-          out[at + 3] = 255
+          out[at + 3] = a
         }
       }
     }

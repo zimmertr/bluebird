@@ -15,6 +15,8 @@ type StubCall = [string, ...unknown[]]
 interface StubSource {
   setData: (data: unknown) => void
   updateImage?: (options: unknown) => void
+  /** A raster source's tile template swapped in place, as `RasterTileSource.setTiles` does. */
+  setTiles?: (tiles: string[]) => void
   data?: unknown
 }
 
@@ -126,6 +128,7 @@ export function stubMap(opts: StubMapOptions = {}) {
           calls.push(['setData', id])
         },
         updateImage: (o) => calls.push(['updateImage', id, o]),
+        setTiles: (tiles) => calls.push(['setTiles', id, tiles]),
       }
       sources[id] = source
       calls.push(['addSource', id, spec])

@@ -848,9 +848,9 @@ slope angle and the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere,
 with finer national surveys stitched in where a country publishes one. 30 m is
 enough for a ridge and a valley, and too coarse for a
 gully or a cliff band. Past the zoom a region's survey reaches, a tile answers
-404, so the contours, the relief and the 3D terrain ask for nothing past zoom
-12, which the 30 m fill holds over all land, and stretch those tiles further
-in. The slope angle reads finer tiles where they exist (below). Open ocean has
+404, so the contours and the 3D terrain ask for nothing past zoom 12, which
+the 30 m fill holds over all land, and stretch those tiles further in. The
+slope angle and the relief read finer tiles where they exist (below). Open ocean has
 no tile at any zoom. The data is licensed per source, mostly CC BY 4.0 and US public domain,
 and Mapterhorn asks for one credit, `© Mapterhorn`, linked to its attribution
 page. Its privacy policy says it keeps each request's IP address, referrer and
@@ -883,6 +883,13 @@ zoom out. A cliff band or a gully narrower than that is averaged with the
 ground beside it and reads gentler than it is. Past zoom 16 the shading is
 stretched, not worked out again. It is a planning picture, not a measurement
 of the slope you will stand on.
+
+**The shaded relief is worked out the same way**, from the same tiles to the
+same zoom, lit from the northwest at 45 degrees. While it is on, the slope
+angle's colours take its light too: a band facing the sun lightens and one
+facing away darkens, as CalTopo's do, so the bands no longer wash the shading
+out. Zoomed out past 12 the relief steepens the slopes it draws, because a
+pixel there averages the ground over more than 13 m and flattens it.
 
 **Imagery is two sources, one picture.** Over the United States and its
 territories it is USGS's NAIP aerial photography, to zoom 16, in the public

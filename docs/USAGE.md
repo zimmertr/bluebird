@@ -253,15 +253,16 @@ summit's label gives ([DATA.md](DATA.md#elevation-and-imagery)). Neither layer
 downloads anything until you switch it on.
 
 **Slope angle** paints how steep the ground is, in the bands avalanche
-forecasters and CalTopo use: yellow from 27 to 29 degrees, orange at 30 and
-31, red from 32 to 34, purple from 35 to 45, blue from 46 to 50 and black from
-51 up. Under 27 nothing is painted. Most slab avalanches start on slopes of 30
+forecasters and CalTopo use: yellow from 27 to 29 degrees, gold at 30 and 31,
+orange from 32 to 34, red from 35 to 45, purple from 46 to 50, blue from 51 to
+59 and black from 60 up. Under 27 nothing is painted. Most slab avalanches start on slopes of 30
 to 45 degrees. Your browser works the bands out from the relief's elevation
-model, at the finest it has where you zoom in: 10 m-class over the United
-States, finer in the Alps and 30 m in most of the rest of the world, so a
+model, at the finest it has where you zoom in: lidar where a US survey has
+it, 10 m-class elsewhere in the United States, finer in the Alps and 30 m in
+most of the rest of the world, so a
 short cliff band or a narrow gully can blur into the gentler ground around it. Zoomed out, a
-pixel covers more ground and the bands read gentler: Rainier's cleavers are
-black at zoom 12 and purple at zoom 10. Read it zoomed in. It is no substitute
+pixel covers more ground and the bands read gentler, so a cliff that is black
+zoomed in can read blue or purple from further out. Read it zoomed in. It is no substitute
 for measuring a slope in the field. It paints at half strength unless you move
 its slider, over the relief and the photos and under the contour lines, and
 downloads nothing until you switch it on.
@@ -283,7 +284,9 @@ Each **Base map** row carries an **Opacity** slider at its right, 50% to start,
 which is how strong each layer drew before it had one. Drag it toward 0% and the
 map under the layer shows through; toward 100% and the layer takes over. For
 **Shaded relief** and **Topographic**, 100% is twice the look at 50%: the
-shading deeper, the lines darker. A slider stays where you left it while its
+shading deeper, the lines darker. With **Shaded relief** on, the **Slope
+angle** colours take the same light, lighter on slopes facing the northwest
+and darker on those facing away. A slider stays where you left it while its
 layer is off, and dragging it switches the layer back on. Moving one never asks
 for a new analysis, and a level other than 50% rides in the shared link while
 its layer is on. On a phone the Layers sheet steps aside while you drag a

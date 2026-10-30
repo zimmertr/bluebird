@@ -1,16 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { contrast, mixOver, round2 } from '../testSupport/contrast'
 import {
+  RELIEF_SHADOW,
   SLOPE_ALPHA,
   SLOPE_BANDS,
+  bandLight,
   bandOf,
   coveringTile,
   demWindow,
   groundMetresPerPixel,
+  groundRaster,
+  reliefExaggeration,
+  reliefPixel,
   slopeDegrees,
   slopeRampCss,
   slopeRaster,
   slopeTicks,
+  sunOn,
   windowEdges,
   type HeightGrid,
 } from './slopeAngle'
@@ -254,6 +260,32 @@ describe('slopeRaster', () => {
     const out = slopeRaster(Z, Y, centre, { ...NO_EDGES, east: grid(4, () => 0) })
     expect(pixel(out, SIZE, SIZE - 1, 4)).toEqual(rgba('#ff0000'))
   })
+
+  // The relief from the same heights: a plane rising east faces west, toward
+  // the northwest sun, and lights; the same plane rising west shades; flat
+  // ground is left clear for Liberty's own ground to show.
+  it('paints the relief as light toward the sun and shadow away from it', () => {
+    const toward = pixel(groundRaster('relief', Z, Y, plane(30), NO_EDGES), SIZE, 4, 4)
+    const away = pixel(groundRaster('relief', Z, Y, grid(SIZE, (col) => (SIZE - col) * m * Math.tan(Math.PI / 6)), NO_EDGES), SIZE, 4, 4)
+    expect(toward.slice(0, 3)).toEqual([255, 255, 255])
+    expect(away.slice(0, 3)).toEqual(rgba(RELIEF_SHADOW).slice(0, 3))
+    expect([toward[3] > 0, away[3] > 0]).toEqual([true, true])
+    expect(pixel(groundRaster('relief', Z, Y, grid(SIZE, () => 1200), NO_EDGES), SIZE, 4, 4)).toEqual(CLEAR)
+  })
+
+  // The lit bands keep their band and scale its colour by the sun on the
+  // pixel, so the two sides of a gully read apart.
+  it('lights a shaded band toward the sun and darkens it away', () => {
+    const away = grid(SIZE, (col) => (SIZE - col) * m * Math.tan((40 * Math.PI) / 180))
+    const lit = pixel(groundRaster('shaded', Z, Y, plane(40), NO_EDGES), SIZE, 4, 4)
+    const dark = pixel(groundRaster('shaded', Z, Y, away, NO_EDGES), SIZE, 4, 4)
+    // Red's own channel is already whole, so the light shows in the others
+    // only where a band has them; the shade shows in red itself.
+    expect(lit).toEqual(rgba('#ff0000'))
+    expect(dark[0]).toBe(Math.round(255 * bandLight(sunOn(-Math.tan((40 * Math.PI) / 180), 0))))
+    expect(dark[0]).toBeLessThan(200)
+    expect(groundRaster('bands', Z, Y, away, NO_EDGES)).toEqual(slopeRaster(Z, Y, away, NO_EDGES))
+  })
 })
 
 describe('slopeRaster over a window', () => {
@@ -320,5 +352,40 @@ describe('the legend', () => {
       { at: 6, label: '51', align: 'center' },
       { at: 6, label: '60', align: 'end' },
     ])
+  })
+})
+
+// The sun the relief and the lit bands share: northwest, 45 degrees up.
+describe('the light', () => {
+  it('lights flat ground at the sun\'s height and a slope by which way it faces', () => {
+    expect(sunOn(0, 0)).toBeCloseTo(Math.SQRT1_2, 10)
+    // Facing northwest at 45 degrees, straight at the sun.
+    expect(sunOn(Math.SQRT1_2, -Math.SQRT1_2)).toBeCloseTo(1, 10)
+    // Facing southeast at 45 degrees, square to it.
+    expect(sunOn(-Math.SQRT1_2, Math.SQRT1_2)).toBeCloseTo(0, 10)
+    expect(sunOn(-10, 10)).toBe(0)
+    expect(sunOn(Number.NaN, 0)).toBeNaN()
+  })
+
+  it('shades and lights the relief from flat ground, whole at the deepest shadow', () => {
+    expect(reliefPixel(Math.SQRT1_2)).toBeCloseTo(0, 10)
+    expect(reliefPixel(0)).toBe(-1)
+    expect(reliefPixel(1)).toBeCloseTo(0.9, 10)
+    expect(reliefPixel(0.5)).toBeLessThan(0)
+  })
+
+  it('scales a band between 0.4 and 1.2 of its colour, whole on flat light', () => {
+    expect(bandLight(Math.SQRT1_2)).toBeCloseTo(1, 10)
+    expect(bandLight(0)).toBe(0.5)
+    expect(bandLight(1)).toBeCloseTo(0.5 + 0.5 / Math.SQRT1_2, 10)
+    expect(bandLight(2)).toBe(1.2)
+  })
+
+  // Zoomed out a pixel averages the slopes over more ground, so the relief
+  // steepens them back a root of two a zoom.
+  it('steepens the relief under zoom 12 only', () => {
+    expect([reliefExaggeration(16), reliefExaggeration(12)]).toEqual([1, 1])
+    expect(reliefExaggeration(10)).toBeCloseTo(2, 10)
+    expect(reliefExaggeration(8)).toBeCloseTo(4, 10)
   })
 })

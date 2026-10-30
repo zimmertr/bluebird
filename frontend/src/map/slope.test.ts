@@ -4,7 +4,15 @@ import { describe, expect, it, vi } from 'vitest'
 // through it, so the suite hands in its own.
 vi.mock('maplibre-gl', () => ({ addProtocol: vi.fn() }))
 
-import { SLOPE_SCHEME, SLOPE_TILES, serveSlopeTiles, slopeTile, type DemGrids } from './slope'
+import {
+  RELIEF_SCHEME,
+  SLOPE_SCHEME,
+  SLOPE_SHADED_SCHEME,
+  SLOPE_TILES,
+  serveSlopeTiles,
+  slopeTile,
+  type DemGrids,
+} from './slope'
 import { slopeRaster, type HeightGrid } from '../utils/slopeAngle'
 
 const SIZE = 4
@@ -242,6 +250,19 @@ describe('serveSlopeTiles', () => {
     const loader = register.mock.calls[0][1]
     await loader({ url: `${SLOPE_SCHEME}://13/1325/2886` }, new AbortController())
     await loader({ url: `${SLOPE_SCHEME}://13/1325/2886` }, new AbortController())
+    expect(asked.filter((key) => key === '13/1325/2886')).toHaveLength(1)
+  })
+
+  // The relief and the lit slope read the same elevation, so a 404 any of the
+  // three meets is known to the other two.
+  it('registers the lit slope and the relief beside it, sharing what is missing', async () => {
+    const register = vi.fn()
+    const { dem, asked } = demOf({ '12/662/1443': flat(500) })
+    serveSlopeTiles(dem, { register, toImage: async () => 'bitmap' as unknown as ImageBitmap })
+    expect(register.mock.calls.map((c) => c[0])).toEqual([SLOPE_SCHEME, SLOPE_SHADED_SCHEME, RELIEF_SCHEME])
+    const loaderOf = (scheme: string) => register.mock.calls.find((c) => c[0] === scheme)![1]
+    await loaderOf(RELIEF_SCHEME)({ url: `${RELIEF_SCHEME}://13/1325/2886` }, new AbortController())
+    await loaderOf(SLOPE_SHADED_SCHEME)({ url: `${SLOPE_SHADED_SCHEME}://13/1325/2886` }, new AbortController())
     expect(asked.filter((key) => key === '13/1325/2886')).toHaveLength(1)
   })
 })
