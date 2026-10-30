@@ -463,7 +463,7 @@ Two things to know when reading it:
   fetched, the legend says `Unavailable` instead, and whatever did arrive stays
   drawn.
 - **It covers where you looked.** The field extends a set distance around each
-  destination the analysis found — the slider beside the two style icons —
+  destination the analysis found — the slider beside the style button —
   and fades out at that edge. The slider's range follows the model:
   from one to four of its own grid cells around each destination, with the
   default in the middle. On NOAA GFS's 3 km grid that is 3 to 12 km; on
