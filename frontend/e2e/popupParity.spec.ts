@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, resultRows, typeCell } from './fixtures'
+import { test, expect, expectRanked, resultRows } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // A popup is the panel's own surface and its button the panel's own button,
@@ -68,7 +68,7 @@ for (const theme of ['dark', 'light'] as const) {
     else await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light')
     await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
     await expectRanked(page)
-    await (await typeCell(page, resultRows(page).nth(1))).click()
+    await resultRows(page).nth(1).locator('td').nth(3).click()
     const popup = page.locator('.maplibregl-popup')
     await expect(popup).toHaveCount(1)
 

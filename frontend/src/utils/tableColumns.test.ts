@@ -128,19 +128,8 @@ describe('the snowfall headers', () => {
 })
 
 describe('orderColumns', () => {
-  it('keeps the canonical metric order when ranking by AQI (already first)', () => {
-    expect(keys('aqi_avg')).toEqual([
-      'name',
-      ...AQI_KEYS,
-      'type',
-      'elevation_ft',
-      ...CLOUD_KEYS,
-      ...FREEZE_KEYS,
-      ...PRECIP_KEYS,
-      ...SNOWFALL_KEYS,
-      ...TEMP_KEYS,
-      ...WIND_KEYS,
-    ])
+  it('keeps the canonical order when ranking by AQI (already first)', () => {
+    expect(keys('aqi_avg')).toEqual(KEYS)
     expect(KEYS).toEqual([
       'name',
       'type',
@@ -155,14 +144,12 @@ describe('orderColumns', () => {
     ])
   })
 
-  // #586: the ranked group stands directly after Name, so a phone's first view
-  // shows the value the rows are ranked by.
-  it('moves the precipitation group directly after Name when ranking by it', () => {
+  it('moves the precipitation group right after the identity columns when ranking by it', () => {
     expect(keys('precip_total_in')).toEqual([
       'name',
-      ...PRECIP_KEYS,
       'type',
       'elevation_ft',
+      ...PRECIP_KEYS,
       ...AQI_KEYS,
       ...CLOUD_KEYS,
       ...FREEZE_KEYS,
@@ -175,9 +162,9 @@ describe('orderColumns', () => {
   it('moves the temperature trio up, other groups keeping their relative order', () => {
     expect(keys('temp_avg_f')).toEqual([
       'name',
-      ...TEMP_KEYS,
       'type',
       'elevation_ft',
+      ...TEMP_KEYS,
       ...AQI_KEYS,
       ...CLOUD_KEYS,
       ...FREEZE_KEYS,
@@ -192,29 +179,80 @@ describe('orderColumns', () => {
   it('moves the freezing-level trio up when ranking by it', () => {
     expect(keys('freeze_min_ft').slice(0, 6)).toEqual([
       'name',
+      'type',
+      'elevation_ft',
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
-      'type',
-      'elevation_ft',
     ])
     expect(keys('freeze_min_ft')).toHaveLength(KEYS.length)
   })
 
-  it('always leads with Name, then the ranked group, then Type and Elevation, for every metric', () => {
+  it('always leads with the identity columns, for every metric', () => {
     for (const m of METRICS) {
-      const group = FAMILY_KEYS[familyOf(m)] as readonly string[]
-      const ranked = KEYS.filter((k) => group.includes(k))
-      expect(keys(m).slice(0, 1 + ranked.length + 2)).toEqual(['name', ...ranked, 'type', 'elevation_ft'])
+      expect(keys(m).slice(0, 3)).toEqual(['name', 'type', 'elevation_ft'])
       expect(keys(m)).toHaveLength(KEYS.length)
     }
   })
+})
 
-  // The Model column joins after ordering, so a comparison reads
-  // Name, Model, the ranked group, then Type and Elevation (#586).
-  it('puts Model between Name and the ranked group while comparing', () => {
-    const cols = withModelColumn(orderColumns(COLUMNS, 'wind_avg_mph'), true).map((c) => c.key)
-    expect(cols.slice(0, 7)).toEqual(['name', MODEL_KEY, ...WIND_KEYS, 'type', 'elevation_ft'])
+// #586, record 0239: a phone's screen order. The desk's is the one above,
+// unchanged, and the CSV always reads it.
+describe('orderColumns, ranked first', () => {
+  const phone = (sortBy: SortBy) => orderColumns(COLUMNS, sortBy, true).map((c) => c.key)
+
+  it('stands the ranked group directly after Name, ahead of Type and Elevation', () => {
+    expect(phone('precip_total_in')).toEqual([
+      'name',
+      ...PRECIP_KEYS,
+      'type',
+      'elevation_ft',
+      ...AQI_KEYS,
+      ...CLOUD_KEYS,
+      ...FREEZE_KEYS,
+      ...SNOWFALL_KEYS,
+      ...TEMP_KEYS,
+      ...WIND_KEYS,
+    ])
+  })
+
+  it('puts Model after the ranked group and ahead of Type while comparing', () => {
+    const cols = withModelColumn(orderColumns(COLUMNS, 'wind_avg_mph', true), true, 'wind_avg_mph').map((c) => c.key)
+    expect(cols.slice(0, 7)).toEqual(['name', ...WIND_KEYS, MODEL_KEY, 'type', 'elevation_ft'])
+  })
+
+  it('collapses the same way in a point sample', () => {
+    expect(orderColumns(pointModeColumns(COLUMNS), 'wind_avg_mph', true).map((c) => c.key)).toEqual([
+      'name',
+      'wind_avg_mph',
+      'type',
+      'elevation_ft',
+      'aqi_avg',
+      'cloud_deck_avg_ft',
+      'freeze_avg_ft',
+      'precip_avg_in_hr',
+      'snowfall_avg_in_hr',
+      'temp_avg_f',
+    ])
+  })
+
+  it('reaches displayedColumns and visibleColumns, which default to the desk order', () => {
+    expect(displayedColumns(false, 'temp_avg_f', true).map((c) => c.key)).toEqual(phone('temp_avg_f'))
+    expect(displayedColumns(false, 'temp_avg_f').map((c) => c.key)).toEqual(keys('temp_avg_f'))
+    expect(visibleColumns(false, 'temp_avg_f', new Set(['name', 'type']), true).map((c) => c.key)).toEqual([
+      'name',
+      ...TEMP_KEYS,
+      'type',
+    ])
+  })
+
+  // A stored order is a list of keys, so one dragged on either screen lays
+  // over the other's base: named keys lead in the list's order.
+  it('lays a phone-made order over the desk base and the reverse', () => {
+    const phoneOrder = phone('precip_total_in')
+    expect(applyColumnOrder(orderColumns(COLUMNS, 'precip_total_in'), phoneOrder).map((c) => c.key)).toEqual(phoneOrder)
+    const deskOrder = keys('precip_total_in')
+    expect(applyColumnOrder(orderColumns(COLUMNS, 'precip_total_in', true), deskOrder).map((c) => c.key)).toEqual(deskOrder)
   })
 })
 
@@ -253,9 +291,9 @@ describe('pointModeColumns', () => {
   it('composes with orderColumns — the ranked metric still leads', () => {
     expect(orderColumns(pointModeColumns(COLUMNS), 'wind_avg_mph').map((c) => c.key)).toEqual([
       'name',
-      'wind_avg_mph',
       'type',
       'elevation_ft',
+      'wind_avg_mph',
       'aqi_avg',
       'cloud_deck_avg_ft',
       'freeze_avg_ft',
@@ -290,7 +328,7 @@ describe('displayedColumns', () => {
     expect(keysOf).toHaveLength(KEYS.length)
     for (const key of CLOUD_KEYS) expect(keysOf).toContain(key)
     const ranked = displayedColumns(false, 'cloud_deck_min_ft').map((c) => c.key)
-    expect(ranked.slice(1, 4)).toEqual(['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft'])
+    expect(ranked.slice(3, 6)).toEqual(['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft'])
   })
 })
 
@@ -307,11 +345,11 @@ describe('visibleColumns', () => {
     // Ranked group includes all precip columns, so they all appear
     expect(visible.map((c) => c.key)).toEqual([
       'name',
+      'elevation_ft',
       'precip_total_in',
       'precip_avg_in_hr',
       'precip_min_in_hr',
       'precip_max_in_hr',
-      'elevation_ft',
     ])
   })
 
@@ -423,7 +461,7 @@ describe('the Model column', () => {
   it('sits directly after Name', () => {
     const keys = withModelColumn(cols, true).map((c) => c.key)
     expect(keys.indexOf(MODEL_KEY)).toBe(keys.indexOf('name') + 1)
-    expect(keys[keys.indexOf(MODEL_KEY) + 1]).toBe('precip_total_in')
+    expect(keys[keys.indexOf(MODEL_KEY) + 1]).toBe('type')
   })
 
   it('adds the column once and drops nothing', () => {

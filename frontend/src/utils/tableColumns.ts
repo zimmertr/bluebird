@@ -153,11 +153,20 @@ export function heightDependentKey(key: string): boolean {
  * while a comparison is up, and it is not in the Columns picker for the same
  * reason — a column that cannot be turned off is one less thing to explain
  * than a column that appears in the picker only sometimes.
+ *
+ * `rankedBy`, given on a phone's screen, puts Model after that ranking's
+ * columns instead, so the ranked value keeps the place beside Name that
+ * `orderColumns`' `rankedFirst` gave it (#586). Model still stands ahead of
+ * Type and Elevation there, because it still says which answer a row is.
  */
-export function withModelColumn(cols: readonly ColDef[], comparing: boolean): ColDef[] {
+export function withModelColumn(cols: readonly ColDef[], comparing: boolean, rankedBy: SortBy | null = null): ColDef[] {
   if (!comparing) return [...cols]
   const at = cols.findIndex((c) => c.key === 'name')
-  const cut = at === -1 ? 0 : at + 1
+  let cut = at === -1 ? 0 : at + 1
+  if (rankedBy !== null) {
+    const group = new Set<string>(FAMILY_KEYS[familyOf(rankedBy)])
+    while (cut < cols.length && group.has(cols[cut].key as string)) cut++
+  }
   return [...cols.slice(0, cut), MODEL_COL, ...cols.slice(cut)]
 }
 
@@ -320,22 +329,27 @@ export function isSortKey(key: string): key is SortKey {
 }
 
 /**
- * Order the table's columns so the ranked metric's group stands directly after
- * Name, ahead of the other identity columns, while the remaining groups keep
- * their canonical relative order (#586). A phone's first view holds the rank,
- * the name and about one column more, and that column has to be the value the
- * rows are ranked by; with the identity columns in front of it, a reader had
- * to scroll sideways to learn why a row ranked where it did. One order serves
- * every width, because the CSV follows the screen and a desk and a phone
- * should download the same file. (No metric names in this comment: the
+ * Order the table's columns so the ranked metric's group comes right after the
+ * identity columns, an AQI ranking leading with its columns straight after
+ * "#, Name, Type, Elevation (ft)", while the remaining groups keep their
+ * canonical relative order. (No metric names in this comment: the
  * metrics.test.ts source lint scans comments too.)
+ *
+ * `rankedFirst` stands the ranked group directly after Name instead, ahead of
+ * Type and Elevation (#586). A phone's first view holds the rank, the name and
+ * about one column more, and that column has to be the value the rows are
+ * ranked by. The flag names the order rather than the device, so this stays a
+ * pure function and the caller, which knows the width, decides; the maintainer
+ * kept the desk on the first order (2026-10-29), and the CSV never takes this
+ * one, so a file reads the same from either device.
  */
-export function orderColumns<T extends { key: string }>(columns: T[], sortBy: SortBy): T[] {
+export function orderColumns<T extends { key: string }>(columns: T[], sortBy: SortBy, rankedFirst = false): T[] {
   const group = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
-  const name = columns.filter((c) => c.key === 'name')
-  const lead = columns.filter((c) => LEAD_KEYS.has(c.key) && c.key !== 'name')
   const ranked = columns.filter((c) => !LEAD_KEYS.has(c.key) && group.has(c.key))
   const rest = columns.filter((c) => !LEAD_KEYS.has(c.key) && !group.has(c.key))
+  if (!rankedFirst) return [...columns.filter((c) => LEAD_KEYS.has(c.key)), ...ranked, ...rest]
+  const name = columns.filter((c) => c.key === 'name')
+  const lead = columns.filter((c) => LEAD_KEYS.has(c.key) && c.key !== 'name')
   return [...name, ...ranked, ...lead, ...rest]
 }
 
@@ -366,8 +380,8 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
 
 /**
  * The columns the report actually shows, given how it was analyzed and what it
- * is ranked by: the point-sample collapse, then the ranked group moved up to
- * Name.
+ * is ranked by: the point-sample collapse, then the ranked group pulled to the
+ * front (directly after Name with `rankedFirst`, the phone's screen order).
  *
  * Both compositions above were spelled out at one call site inside the table
  * until the CSV export needed the same answer. A file whose columns disagreed
@@ -386,8 +400,8 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
  * column, the cloud deck included since #683, so there is no report a column
  * would say nothing about.
  */
-export function displayedColumns(pointSample: boolean, sortBy: SortBy): ColDef[] {
-  return orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
+export function displayedColumns(pointSample: boolean, sortBy: SortBy, rankedFirst = false): ColDef[] {
+  return orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy, rankedFirst)
 }
 
 /**
@@ -398,8 +412,9 @@ export function visibleColumns(
   pointSample: boolean,
   sortBy: SortBy,
   visibleKeys?: Set<string> | null,
+  rankedFirst = false,
 ): ColDef[] {
-  const allCols = displayedColumns(pointSample, sortBy)
+  const allCols = displayedColumns(pointSample, sortBy, rankedFirst)
   if (!visibleKeys) return allCols
   const group = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
   return allCols.filter((c) => visibleKeys.has(c.key) || group.has(c.key))

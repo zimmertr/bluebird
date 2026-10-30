@@ -46,7 +46,7 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
 
   // The popup the row opens says it the same way, and its link-out glyph
   // rests in a grey and takes the accent under the pointer.
-  await (await typeCell(page, row)).click()
+  await row.locator('td').nth(3).click()
   const popup = page.locator('.maplibregl-popup')
   await expect(popup).toHaveCount(1)
   const link = popup.locator('[data-popup-link]').first()

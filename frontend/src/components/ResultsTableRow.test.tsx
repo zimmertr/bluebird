@@ -261,9 +261,9 @@ describe('a row still waiting on its elevation', () => {
       </FireClock>,
     )
     const cells = within(screen.getByRole('row')).getAllByRole('cell')
-    // rank, name, precip, elevation, wildfire, wind
-    expect(cells[2].textContent).not.toBe(fireLoadingFrame(0))
-    expect(cells[3].textContent).toBe(fireLoadingFrame(0))
+    // rank, name, elevation, precip, wildfire, wind
+    expect(cells[2].textContent).toBe(fireLoadingFrame(0))
+    expect(cells[3].textContent).not.toBe(fireLoadingFrame(0))
     expect(cells[4].textContent).toBe('—')
     expect(cells[5].textContent).toBe(fireLoadingFrame(0))
   })
