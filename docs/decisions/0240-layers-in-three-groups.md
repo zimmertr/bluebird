@@ -1,6 +1,6 @@
 # 0240. The Layers rows stand in three groups, Base map, Hazards and Forecast, under muted headings, by kind inside each, and the legend follows their order
 
-- Status: Accepted. Amends 0019 (the rows are grouped under headings, not alphabetical) and 0048 (the legend's sections read in the menu's order, not alphabetically).
+- Status: Accepted. Amends 0019 (the rows are grouped under headings, not alphabetical) and 0048 (the legend's sections read in the menu's order, not alphabetically). Amended by [0241](0241-layers-palette-and-base-map-opacity.md): the groups stand, each row's checkbox is drawn as an eye, and the Base map rows carry opacity sliders.
 - Date: 2026-10-29
 - Decider: the maintainer (TJ), on #799, 2026-10-29, from a lab of the Layers menu that grouped its rows four ways and marked the groups three ways: three groups, marked by headings, the headings in sentence case and muted rather than the panel's small caps, named `Base map`, `Hazards` and `Forecast`, the ground first, and the rows ordered by kind. The legend following the menu's order was in the brief that came with it. The heading's spacing and the metric key's place in the legend were the implementer's, for review on the pull request.
 - Issues and PRs: #799, #823

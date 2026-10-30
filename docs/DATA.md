@@ -889,13 +889,15 @@ asks for is in [NOTICES.md](../NOTICES.md), and the data sources list names
 and links both. EOX's own wording asks for its full line in the map; the
 maintainer chose the short names on 2026-10-28 to keep the corner to one line.
 
-The two draw as one layer, EOX everywhere with USGS over it, both under
-Liberty's roads, trails and labels and under the relief and the contours.
-Liberty's own land, water and building fills fade out while the layer is on.
-The trails wear a light casing over it, because their brown reads 1.69:1 on a
-forest (record [0234](decisions/0234-map-reads-on-a-dark-ground.md)), and the
-contour lines turn light on a thin dark edge, because their brown reads 1.25:1
-there. USGS draws from zoom 13 up, and only over a box from American Samoa to
+The two draw as one layer at the row's opacity, EOX everywhere with USGS over
+it, both over Liberty's land and water fills and under its roads, trails and
+labels and under the relief and the contours (record
+[0241](decisions/0241-layers-palette-and-base-map-opacity.md)). Liberty's
+buildings, which it draws over its roads, fade by the same level instead. The
+trails wear a light casing over it, because their brown reads 1.69:1 on a
+forest (record [0234](decisions/0234-map-reads-on-a-dark-ground.md)), and from
+50% up the contour lines turn light on a thin dark edge, because their brown
+reads 1.25:1 there. USGS draws from zoom 13 up, and only over a box from American Samoa to
 the Arctic and the Aleutians to the Virgin Islands. Both limits are its cache's, measured 2026-10-27:
 
 - **Below zoom 13 it fills the land outside its coverage with white.** Zooms 9

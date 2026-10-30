@@ -217,12 +217,12 @@ controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Eight are credited in their own section of the map's legend, and the three that draw the ground (Topographic, Shaded relief and Satellite) in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
+again. Eight are credited in their own section of the map's legend, and the three that draw the ground (Topographic, Shaded relief and Satellite) in the map's corner. Each rides in the shared link. Each row starts with an eye: open while its layer is on, struck through while it is off. Hold Shift and click an eye to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
 | *Base map* | | |
-| **Satellite** | Aerial photos of the ground, under the map's roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
+| **Satellite** | Aerial photos of the ground, over the map's land and water and under its roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
 | **Topographic** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
 | **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
 | **Slope angle** | How steep the ground is, in six bands from 27 degrees, from the same model | Worldwide |
@@ -260,21 +260,33 @@ States, finer in the Alps and 30 m in most of the rest of the world, so a
 short cliff band or a narrow gully can blur into the gentler ground around it. Zoomed out, a
 pixel covers more ground and the bands read gentler: Rainier's cleavers are
 black at zoom 12 and purple at zoom 10. Read it zoomed in. It is no substitute
-for measuring a slope in the field. It paints at half strength, over the relief
-and the photos and under the contour lines, and downloads nothing until you
-switch it on.
+for measuring a slope in the field. It paints at half strength unless you move
+its slider, over the relief and the photos and under the contour lines, and
+downloads nothing until you switch it on.
 
-**Satellite** puts photos under the map's roads, trails and labels, and takes
-away the map's own colours for land, water and buildings. Over the United
+**Satellite** lays photos over the map's own colours for land and water and
+under its roads, trails and labels. At 100% the photos hide the map's ground;
+at 0% the map shows through whole. Over the United
 States, zoomed in, they are USGS's NAIP aerial photos at about a metre, flown
 in summer in the 2017 to 2021 seasons. Everywhere else, and over the US when
 zoomed out, they are EOX's Sentinel-2 cloudless mosaic at 10 m, which goes soft
 past a few streets' width. Neither is a recent pass, so neither shows today's
 snow: for that, use **Snow depth**. **Shaded relief** and **Topographic** draw
 over the photos; tick **Topographic** for a hybrid look. While the photos are
-on, the trails wear a light edge so they read over the woods, and the contour
-lines turn light on a dark edge, as a topo drawn over a photo does. The two
-providers are credited in the map's corner, with the map's own.
+on, the trails wear a light edge so they read over the woods, and from 50% up
+the contour lines turn light on a dark edge, as a topo drawn over a photo does.
+The two providers are credited in the map's corner, with the map's own.
+
+Each **Base map** row carries an **Opacity** slider at its right, 50% to start,
+which is how strong each layer drew before it had one. Drag it toward 0% and the
+map under the layer shows through; toward 100% and the layer takes over. For
+**Shaded relief** and **Topographic**, 100% is twice the look at 50%: the
+shading deeper, the lines darker. A slider stays where you left it while its
+layer is off, and dragging it switches the layer back on. Moving one never asks
+for a new analysis, and a level other than 50% rides in the shared link while
+its layer is on. On a phone the Layers sheet steps aside while you drag a
+slider, leaving that row alone over the map so you can see what you are
+tuning; let go and the sheet comes back.
 
 The rows stand in three groups, by what a layer changes: **Base map** changes the
 map itself, **Hazards** draws a danger on it, and **Forecast** draws the weather on
