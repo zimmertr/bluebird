@@ -3642,11 +3642,27 @@ export const CHART_PANEL_BUTTON = {
 export const CHART_GUTTER = {
   col: 'group absolute z-[2] w-2 cursor-col-resize touch-none',
   row: 'group absolute z-[2] h-2 cursor-row-resize touch-none',
-  cross: 'absolute z-[3] size-4 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none',
+  cross: 'group absolute z-[3] flex size-4 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none items-center justify-center',
   colLine: 'absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors',
   rowLine: 'absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors',
   // The line's colour, one or the other and never both, because two colour
   // utilities resolve by stylesheet order rather than by the class list.
   idle: 'bg-edge group-hover:bg-accent',
   active: 'bg-accent',
+  /**
+   * The grip at a bar's middle and the dot at a crossing (TJ 2026-10-30,
+   * option B of three mockups): visible at rest, so a new reader sees a bar
+   * can move, and flat on the panel's own fill with an `edge` rim, where the
+   * sheet's grip above is a raised band, so these read one level down. The
+   * grip is three dots run along its bar; the dots and the rim take the
+   * accent with the line. `knobRow` and `knobCol` size it either way.
+   */
+  knob: `absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-0.5 border bg-panel ${RADIUS.control}`,
+  knobRow: 'h-2 w-5.5',
+  knobCol: 'h-5.5 w-2 flex-col',
+  knobDot: `size-0.5 ${RADIUS.pill}`,
+  crossDot: `size-2.5 border bg-panel ${RADIUS.pill}`,
+  // The rim's colour, one or the other for the same reason as the line's.
+  rimIdle: 'border-edge group-hover:border-accent',
+  rimActive: 'border-accent',
 } as const

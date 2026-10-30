@@ -2964,7 +2964,13 @@ describe('the chart picker row', () => {
     expect(words(CHART_GUTTER.col)).toEqual(expect.arrayContaining(['w-2', 'cursor-col-resize']))
     expect(words(CHART_GUTTER.row)).toEqual(expect.arrayContaining(['h-2', 'cursor-row-resize']))
     expect(words(CHART_GUTTER.cross)).toEqual(expect.arrayContaining(['size-4', 'cursor-move']))
+    // The crossing's own box is bare; its dot carries the look.
     expect(CHART_GUTTER.cross).not.toMatch(/(^|\s)(bg|border)-/)
+    // Option B (TJ 2026-10-30): a flat grip on the panel's fill at each
+    // bar's middle and a dot at each crossing, rimmed in `edge`.
+    expect(words(CHART_GUTTER.knob)).toEqual(expect.arrayContaining(['bg-panel', 'border', RADIUS.control]))
+    expect(words(CHART_GUTTER.crossDot)).toEqual(expect.arrayContaining(['bg-panel', 'border', RADIUS.pill]))
+    expect(CHART_GUTTER.rimIdle).toBe('border-edge group-hover:border-accent')
     expect(words(CHART_GUTTER.colLine)).toContain('w-px')
     expect(words(CHART_GUTTER.rowLine)).toContain('h-px')
     expect(words(CHART_GUTTER.idle)).toEqual(['bg-edge', 'group-hover:bg-accent'])

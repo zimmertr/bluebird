@@ -742,7 +742,7 @@ fill, edge and radius, as tall as the picker beside it. The × is the right
 segment of its picker's field (`CHART_PICKER`): one outline, an `edge`
 divider, and a quiet glyph with its focus ring inside. Its twin on the left end is the grip that moves the panel, behind an `edge` divider too, and a drag shows where it lands with a 2px accent bar in the row's 8px gap. `CHART_LAYOUT` draws the Panel layout button's miniature of the arrangement inside the + square's chrome, and its menu of 34 by 26 squares, the current one in the accent ink and edge. `CHART_GUTTER` draws the gaps of a desk's grid of
 three or four panels: a 1px `edge` line, 3:1 or better on the panel, that turns accent on hover and while
-dragged, and a 16px crossing with no glyph.
+dragged, with a small three-dot grip at its middle on the panel's fill, and a 16px crossing that shows a dot, both rimmed in `edge` and one level quieter than the sheet's raised grip.
 The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:
 the hour as a 13px title on the popup's `band` token, the rows in a body,
 and `+N more` in a footer. The band is an app token now (`--ui-band`), and

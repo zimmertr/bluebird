@@ -55,6 +55,7 @@ export default function ResizeGrip({ onReset, onDragStart, onDrag, onDragEnd, li
     return (
       <div {...HANDLE_MARK} onPointerDown={handlePointerDown} className={CHART_GUTTER.row} style={IN_FLOW}>
         <div className={`${CHART_GUTTER.rowLine} ${dragging ? CHART_GUTTER.active : CHART_GUTTER.idle}`} />
+        <Knob axis="row" dragging={dragging} />
       </div>
     )
   }
@@ -111,7 +112,9 @@ export function GridGutter({ axis, place, label, onReset, onDragStart, onDrag, o
   })
   if (axis === 'both') {
     return (
-      <div {...HANDLE_MARK} role="separator" aria-label={label} onPointerDown={handlePointerDown} className={CHART_GUTTER.cross} style={place} />
+      <div {...HANDLE_MARK} role="separator" aria-label={label} onPointerDown={handlePointerDown} className={CHART_GUTTER.cross} style={place}>
+        <span className={`${CHART_GUTTER.crossDot} ${dragging ? CHART_GUTTER.rimActive : CHART_GUTTER.rimIdle}`} />
+      </div>
     )
   }
   const line = axis === 'col' ? CHART_GUTTER.colLine : CHART_GUTTER.rowLine
@@ -126,6 +129,22 @@ export function GridGutter({ axis, place, label, onReset, onDragStart, onDrag, o
       style={place}
     >
       <div className={`${line} ${dragging ? CHART_GUTTER.active : CHART_GUTTER.idle}`} />
+      <Knob axis={axis} dragging={dragging} />
     </div>
+  )
+}
+
+/** The three-dot grip at a bar's middle (option B, TJ 2026-10-30). */
+function Knob({ axis, dragging }: { axis: 'col' | 'row'; dragging: boolean }) {
+  const dot = `${CHART_GUTTER.knobDot} ${dragging ? CHART_GUTTER.active : CHART_GUTTER.idle}`
+  return (
+    <span
+      aria-hidden="true"
+      className={`${CHART_GUTTER.knob} ${axis === 'col' ? CHART_GUTTER.knobCol : CHART_GUTTER.knobRow} ${dragging ? CHART_GUTTER.rimActive : CHART_GUTTER.rimIdle}`}
+    >
+      <span className={dot} />
+      <span className={dot} />
+      <span className={dot} />
+    </span>
   )
 }
