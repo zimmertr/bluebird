@@ -29,6 +29,17 @@ from __future__ import annotations
 
 from datetime import date
 
+# Open-Meteo's free-tier ceiling for one hour, per IP address, in weighted calls:
+# 600 a minute, 5,000 an hour and 10,000 a day are their published terms
+# (open-meteo.com/en/terms), and only the minute bucket has been measured here
+# (2026-10-21, record 0203). Published on `/api/capabilities` as
+# `limits.open_meteo_hourly_calls` because the browser spends it: the web app
+# fetches forecasts from the visitor's own address, so one analysis that costs
+# more than this cannot finish inside the hour however it is paced (#803). The
+# pod does not hold itself to it. Its pacer meters minutes, and an unkeyed
+# analysis on the server path is the exception (`ratelimit/upstream.py`).
+FREE_TIER_HOURLY_CALLS = 5_000
+
 
 def call_weight(
     n_locations: int,

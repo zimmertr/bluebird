@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import { BLOCKED, DISABLED, MAP_FAB, MAP_FAB_SLOT, MAP_FAB_WORDS } from '../styles'
 import { ACTION_WORDS, type ActionWord } from '../utils/analyzeGate'
@@ -60,13 +61,16 @@ export default function PhoneFoot({ fabBottomPx, onFabPx, analyzeEnabled, word, 
   // The sheet, open or shut: the badge opens it, and so does a press anywhere
   // on the button while a blocker greys it (the maintainer, 2026-10-21). It
   // goes with the last message, since there is nothing left to list. The
-  // tutorial's Messages card holds it open (`messages.held`).
+  // tutorial's Messages card holds it open (`messages.held`), and a run that
+  // fails opens it, as the panel's list opens at a desk (#803).
   const { count, blocked, held } = messages
   const [pressedOpen, setOpen] = useState(false)
   const open = pressedOpen || held
   useEffect(() => {
     if (count === 0) setOpen(false)
   }, [count])
+  const openSheet = useCallback(() => setOpen(true), [])
+  useOpenOnFailure(messages.failureSeq, openSheet)
   const toggle = () => setOpen((o) => !o)
 
   return (

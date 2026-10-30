@@ -3,7 +3,9 @@ import { act, renderHook } from '@testing-library/react'
 import { type PanelMessageState, usePanelMessages } from './usePanelMessages'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
-import { forecastModel } from '../testSupport/fixtures'
+import { analyzedSnapshot, forecastModel, refusalPanel } from '../testSupport/fixtures'
+import { discoveryKeys } from '../utils/present'
+import { NO_CONSTRAINTS } from '../utils/constraints'
 
 // The panel's messages and the Analyze gate from one set of inputs (record
 // 0208): what the badge counts, which severity colours it, and how a
@@ -36,6 +38,15 @@ function state(over: Partial<PanelMessageState> = {}): PanelMessageState {
     loading: false,
     error: null,
     refusal: null,
+    failedView: null,
+    failedPanel: refusalPanel(),
+    customCount: 0,
+    maxDestinations: 1500,
+    ringCount: null,
+    limit: 200,
+    hourlyCalls: 5_000,
+    aqiPartial: false,
+    failureSeq: 0,
     commitReasons: [],
     hasReport: false,
     aqiAllNull: false,
@@ -46,6 +57,8 @@ function state(over: Partial<PanelMessageState> = {}): PanelMessageState {
     aqiForecastDays: 5,
     windowLimits: FALLBACK_WINDOW_LIMITS,
     dismissEvent: () => {},
+    constraints: NO_CONSTRAINTS,
+    points: [],
     ...over,
   }
 }
@@ -91,7 +104,74 @@ describe('usePanelMessages', () => {
       { sortBy: DEFAULT_FAMILY_KEY.freeze, comparedModels: ['ecmwf_ifs025'] },
       'blocker:compare-freeze',
     ],
+    // #803: a list over the published cap, known before any request.
+    ['a list over the cap', { hasCustom: true, customCount: 1501 }, 'blocker:over-cap'],
   ]
+
+  // #803: a refused run is a blocker, said once in its own words, until the
+  // panel describes a different request.
+  it('holds Analyze up for a refusal that stands, and lets it go once the panel moves', () => {
+    const message = 'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.'
+    const refused = {
+      refusal: { message },
+      failedView: analyzedSnapshot(discoveryKeys(null, [], false)),
+      failedPanel: refusalPanel(),
+    }
+    const { result, rerender } = hook(refused)
+    expect(result.current.blocked).toBe(true)
+    expect(result.current.messages).toEqual([{ key: 'blocker:refusal', text: message, severity: 'error' }])
+    // No dismissal reaches it.
+    act(() => result.current.dismiss('blocker:refusal'))
+    expect(result.current.count).toBe(1)
+    rerender(state({ ...refused, failedPanel: refusalPanel({ forecastModel: 'ecmwf_ifs025' }) }))
+    expect(result.current.blocked).toBe(false)
+    expect(result.current.messages).toEqual([])
+  })
+
+  it('says the list over the cap in the over-cap sentence', () => {
+    const { result } = hook({ hasCustom: true, customCount: 2613 })
+    expect(result.current.messages.map((m) => m.text)).toEqual([
+      'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.',
+    ])
+  })
+
+  // #803, D1: the ring's count ahead of Analyze, joined to the list's.
+  it("says the ring's count over the cap before any press, and only while the ring searches", () => {
+    const ring = { hasPins: false, drawPointCount: 3, polygonAreaKm2: 10, ringCount: 2613 }
+    const { result } = hook(ring)
+    expect(result.current.analyzeEnabled).toBe(false)
+    expect(result.current.messages.map((m) => m.text)).toEqual([
+      'This search covers 2,613 peaks. The analysis limit is 1,500 destinations.',
+    ])
+    // A cleared kind leaves a ring that searches nothing, whatever it held.
+    expect(hook({ ...ring, destinationTypes: [], hasPins: true }).result.current.analyzeEnabled).toBe(true)
+  })
+
+  // #803, D2: the known count priced against the hourly budget, host by host.
+  // The current hour is one weighted day: 2.6 calls a destination on the
+  // forecast host, and 1 on the air-quality host.
+  it('says the spend past the hourly budget, and prices compared models on the rows shown', () => {
+    const { result } = hook({ hasCustom: true, customCount: 2000, maxDestinations: 2500 })
+    expect(result.current.analyzeEnabled).toBe(false)
+    expect(result.current.messages.map((m) => m.text)).toEqual([
+      'This analysis needs 5,200 Open-Meteo calls. The hourly limit is 5,000.',
+    ])
+    expect(hook({ hasCustom: true, customCount: 1500 }).result.current.analyzeEnabled).toBe(true)
+    const compared = hook({ hasCustom: true, customCount: 1500, comparedModels: ['ecmwf_ifs025'], limit: 1500 })
+    expect(compared.result.current.messages.map((m) => m.text)).toEqual([
+      'This analysis needs 6,300 Open-Meteo calls. The hourly limit is 5,000.',
+    ])
+  })
+
+  it('says nothing about the spend of a ring whose count is unknown', () => {
+    const { result } = hook({ hasPins: false, drawPointCount: 3, polygonAreaKm2: 10, customCount: 0 })
+    expect(result.current.analyzeEnabled).toBe(true)
+    expect(result.current.messages).toEqual([])
+  })
+
+  it('hands the failure count on, which opens the list', () => {
+    expect(hook({ failureSeq: 3 }).result.current.failureSeq).toBe(3)
+  })
 
   it.each(BLOCKED)('holds Analyze up for %s and reads red', (_case, over, key) => {
     const { result } = hook(over)
@@ -146,6 +226,23 @@ describe('usePanelMessages', () => {
     expect(result.current.messages.map((m) => m.key)).toEqual(['error:boom'])
   })
 
+  // What a link could not restore (#803, M6) is information, counted on the
+  // badge in blue, and dismissable like every derived line: the ledger keeps
+  // it out while the loss stands, and it goes with its condition.
+  it('counts what a link lost, lets the reader dismiss it, and keeps it gone', () => {
+    const { result, rerender } = hook({ linkLost: ['ring', 'model'] })
+    expect(result.current.messages.map((m) => m.key)).toEqual(['link:ring', 'link:model'])
+    expect(result.current.worst).toBe('info')
+    expect(result.current.analyzeEnabled).toBe(true)
+    act(() => result.current.dismiss('link:ring'))
+    expect(result.current.messages.map((m) => m.key)).toEqual(['link:model'])
+    // The reader picked a model: that line is gone too.
+    rerender(state({ linkLost: ['ring'] }))
+    expect(result.current.messages).toEqual([])
+    rerender(state({ linkLost: [] }))
+    expect(result.current.count).toBe(0)
+  })
+
   // A blocker stands until the reader supplies what it asks.
   it('passes over the dismissal of a blocker', () => {
     const dismissEvent = vi.fn()
@@ -165,4 +262,41 @@ describe('usePanelMessages', () => {
     expect(result.current.modelDisabled).toBe(true)
     expect(result.current.messages.map((m) => m.key)).toContain('window:archive-model')
   })
+
+  // --- #803, W1 to W8 (record 0236): the window's source and the bounds
+  // reach the gate, and the greyed rows ride out beside it.
+  const archiveDay = () => {
+    const day = new Date()
+    day.setDate(day.getDate() - 100)
+    const date = day.toISOString().slice(0, 10)
+    return { kind: 'days' as const, startDate: date, endDate: date }
+  }
+  const keys = (r: { current: { messages: readonly { key: string }[] } }) => r.current.messages.map((m) => m.key)
+
+  it('greys the metrics an archive window cannot answer and blocks a ranking on one', () => {
+    const { result } = hook({ selection: archiveDay(), sortBy: 'cloud_deck_min_ft' })
+    expect([...result.current.unanswered.keys()].sort()).toEqual(['cloud_deck', 'freeze'])
+    expect(result.current.analyzeEnabled).toBe(false)
+    expect(keys(result)).toContain('blocker:archive-cloud')
+  })
+
+  // The archive's line speaks, not the compare line naming a model in a
+  // picker the window disables, and the compared models are ignored there.
+  it('names the archive, not a model, for a freezing level ranking on archive', () => {
+    const { result } = hook({
+      selection: archiveDay(),
+      sortBy: 'freeze_min_ft',
+      forecastModel: 'ecmwf_ifs025',
+      comparedModels: ['gfs_seamless'],
+    })
+    expect(keys(result)).toContain('blocker:archive-freeze')
+    expect(keys(result)).not.toContain('blocker:compare-freeze')
+  })
+
+  it('holds a bound whose minimum is above its maximum', () => {
+    const { result } = hook({ constraints: { ...NO_CONSTRAINTS, minTempF: 50, maxTempF: 20 } })
+    expect(result.current.analyzeEnabled).toBe(false)
+    expect(keys(result)).toEqual(['blocker:bound-order'])
+  })
+  // --- end #803 W1 to W8
 })

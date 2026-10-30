@@ -97,6 +97,7 @@ export default function ForecastSection({
                       forecastHours: 0,
                       regional: false,
                       blend: false,
+                      domain: null,
                     },
                     ...forecastModels,
                   ]

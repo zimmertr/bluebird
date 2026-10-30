@@ -1,6 +1,6 @@
 # 0016. A map overlay is never a knob
 
-- Status: Accepted
+- Status: Accepted, amended by 0237 (the grid row greys before any report and over a ranking with nothing to paint).
 - Date: 2026-08-04 (git: the merge of #245)
 - Decider: TJ (git: author and merger of #245)
 - Issues and PRs: #121, #123, #245, #246, #248, #249, #295, #334

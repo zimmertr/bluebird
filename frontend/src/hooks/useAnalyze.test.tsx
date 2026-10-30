@@ -7,6 +7,7 @@ import { discoveryKeys } from '../utils/present'
 import { discovered, fakeResponse, resultRow } from '../testSupport/fixtures'
 import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { geoKey } from '../utils/points'
+import { fieldKey } from '../utils/destinationCount'
 
 // The ranking is clientAnalyze.ts's and has its own suite. A spy here shows
 // what the hook hands it: above all, whether a held field rides along.
@@ -550,6 +551,50 @@ describe('a ring\'s found field', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
+  // #803, D1: the ring's count ahead of Analyze is a field the run forecasts
+  // in place of its own discovery, when the run asks the same question.
+  it('forecasts the counted field without asking the pod, when the run asks the same question', async () => {
+    const fetch = stubDiscovery()
+    const { result } = renderHook(() => useAnalyze())
+    const alone = { ...RING_REQUEST, custom_destinations: undefined }
+    const counted = {
+      found: { candidates: FOUND, totalFound: null, truncated: false },
+      key: fieldKey(RING, ['lake', 'peak'], false),
+    }
+    await act(() => result.current.analyze(alone, 'days', { counted }))
+    expect(fetch).not.toHaveBeenCalled()
+    expect(ranked.mock.calls[0][1]).toEqual(FOUND)
+    expect(result.current.analysisSeq).toBe(1)
+  })
+
+  it('discovers for itself when the count answers a different question', async () => {
+    const counted = { found: { candidates: FOUND, totalFound: null, truncated: false }, key: fieldKey(RING, ['peak', 'lake'], false) }
+    // A list rides along, which the count never asked about.
+    const withList = stubDiscovery()
+    const { result } = renderHook(() => useAnalyze())
+    await act(() => result.current.analyze(RING_REQUEST, 'days', { counted }))
+    expect(withList).toHaveBeenCalledOnce()
+    // Another ring.
+    await act(() => result.current.analyze({ ...RING_REQUEST, polygon: OTHER_RING, custom_destinations: undefined }, 'days', { counted }))
+    expect(withList).toHaveBeenCalledTimes(2)
+  })
+
+  // #803, M7: a cleared ring, or no kind left, releases the failed run's field.
+  it('drops a failed run\'s field on request, keeping the report it put back', async () => {
+    const fetch = stubDiscovery()
+    const { result } = renderHook(() => useAnalyze())
+    await analyzeAt(result, T0)
+    const { response } = result.current
+    failForecasts()
+    await act(() => result.current.analyze(RING_REQUEST))
+    expect(result.current.pendingField).toEqual(FOUND)
+    act(() => result.current.dropFound())
+    expect(result.current.pendingField).toBeNull()
+    expect(result.current.response).toBe(response)
+    await act(() => result.current.analyze(RING_REQUEST))
+    expect(fetch).toHaveBeenCalledTimes(3)
+  })
+
   // A run with no ring finds nothing: its rows are the reader's list, which
   // is pending as an input already.
   it('holds no field for a run with no polygon', async () => {
@@ -557,5 +602,37 @@ describe('a ring\'s found field', () => {
     failForecasts()
     await analyzeAt(result, T0)
     expect(result.current.pendingField).toBeNull()
+  })
+})
+
+describe('the spend and the air quality (#803)', () => {
+  it("hands the run the hourly budget and how many models the chart compares", async () => {
+    const { result } = renderHook(() => useAnalyze(1500, [], undefined, undefined, 5000))
+    await act(() => result.current.analyze(REQUEST, 'days', { compareModels: ['ecmwf_ifs025'] }))
+    expect(ranked.mock.calls[0][4]).toMatchObject({ hourlyCalls: 5000, comparedModels: 1 })
+    // An archive window fetches no compared model (record 0236).
+    vi.setSystemTime(Date.parse('2026-10-30T00:00:00Z'))
+    await act(() => result.current.analyze(REQUEST, 'days', { compareModels: ['ecmwf_ifs025'] }))
+    expect(ranked.mock.calls[1][4]).toMatchObject({ hourlyCalls: 5000, comparedModels: 0 })
+  })
+
+  it('says when the committed field has air quality for some rows and not all', async () => {
+    const two = [resultRow({ ...PROBE }), resultRow({ name: 'Other', latitude: 47.3, longitude: -121.4 })]
+    const failedOne = new Set([geoKey(47.3, -121.4)])
+    const failedBoth = new Set([geoKey(47.3, -121.4), geoKey(PROBE.latitude, PROBE.longitude)])
+    const answer = (aqiFailed: Set<string>) =>
+      ranked.mockResolvedValueOnce({ response: { ...DATA, results: two }, universe: two, aqiFailed, columns: new Map(), late: null })
+    const { result } = renderHook(() => useAnalyze())
+    expect(result.current.aqiPartial).toBe(false)
+    answer(failedOne)
+    await analyzeAt(result, T0)
+    expect(result.current.aqiPartial).toBe(true)
+    answer(failedBoth)
+    await analyzeAt(result, T0 + MIN)
+    expect(result.current.aqiPartial).toBe(false)
+    answer(failedOne)
+    await analyzeAt(result, T0 + 2 * MIN)
+    act(() => result.current.reset())
+    expect(result.current.aqiPartial).toBe(false)
   })
 })

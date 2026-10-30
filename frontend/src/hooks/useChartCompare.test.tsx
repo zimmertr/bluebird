@@ -107,6 +107,16 @@ describe('useChartCompare', () => {
     expect(last().rows.map((p) => p.terrainFallback)).toEqual([true, true, false, false])
   })
 
+  // #803, W3: nothing is compared over an archive report, so the Models menu
+  // lists the ranking model alone; the panel's selection is left as it was.
+  it('lists the ranking model alone over an archive report', () => {
+    const archive = { ...REPORT, windowSource: 'archive' as const }
+    const { result } = renderHook(() => useChartCompare(inputs({ analyzed: archive })))
+    expect(result.current.selectedModelRows.map((m) => m.id)).toEqual(['gfs_seamless'])
+    const forecast = renderHook(() => useChartCompare(inputs()))
+    expect(forecast.result.current.selectedModelRows.map((m) => m.id)).toEqual(['gfs_seamless', 'icon_seamless'])
+  })
+
   // The Models menu's Reset all (record 0209): every line drawn again.
   it('shows every model again on Reset all', () => {
     const { result } = renderHook(() => useChartCompare(inputs({ comparedModels: ICON })))

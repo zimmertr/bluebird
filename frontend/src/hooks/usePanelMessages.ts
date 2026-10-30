@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Refusal, RunError } from './analyzeTypes'
+import type { AnalyzedView, Refusal, RunError } from './analyzeTypes'
 import type { ForecastModelOption } from './useCapabilities'
 import type { DiscoveryType, SortBy } from '../types'
-import { analyzeBlockers, analyzeGateFor, canAnalyze, ringAddsNothing } from '../utils/analyzeGate'
+import {
+  type RefusalPanel,
+  analyzeBlockers,
+  analyzeGateFor,
+  canAnalyze,
+  ringAddsNothing,
+  ringUsable,
+} from '../utils/analyzeGate'
 import { type ForecastSelection, selectionLocalWindow } from '../utils/calendar/calendar'
 import { type WindowLimits, windowSource } from '../utils/forecastWindow'
 import {
@@ -16,8 +23,14 @@ import {
   worstSeverity,
 } from '../utils/notices'
 import { panelMessages } from '../utils/panelMessages'
+import { spendVeto } from '../utils/analysisSpend'
+import { knownCount } from '../utils/destinationCount'
+import { comparedInPlay, selectedIds } from '../utils/model/modelSelection'
 import type { CommitReason } from '../utils/present'
-import { classifyAqiCoverage } from '../utils/urlState'
+import type { Constraints } from '../utils/constraints'
+import type { UnansweredMetrics } from '../utils/metricReach'
+import type { LatLon } from '../utils/model/modelDomain'
+import { type LinkDrop, classifyAqiCoverage } from '../utils/urlState'
 
 /**
  * Everything the panel's messages are derived from, as App holds it. The
@@ -47,6 +60,24 @@ export interface PanelMessageState {
   loading: boolean
   error: RunError | null
   refusal: Refusal | null
+  /** The snapshot of the run that last failed (`useAnalyze.failedView`), which a refusal stands against. */
+  failedView: AnalyzedView | null
+  /** The panel as `refusalStands` compares it with that run. */
+  failedPanel: RefusalPanel
+  /** How many destinations the pasted list and the pins come to (`customListSize`). */
+  customCount: number
+  /** The published analysis cap. */
+  maxDestinations: number
+  /** How many destinations the ring holds, counted ahead of Analyze (`useDestinationCount`), or null. */
+  ringCount: number | null
+  /** The results cap, which bounds the rows a compared model is fetched for. */
+  limit: number
+  /** Open-Meteo's hourly budget (`limits.open_meteo_hourly_calls`). */
+  hourlyCalls: number
+  /** The report's air quality failed for some of its field and not all of it (`useAnalyze.aqiPartial`). */
+  aqiPartial: boolean
+  /** Moves once per run that ends in an error or a refusal (`useAnalysisRun`, #803). */
+  failureSeq: number
   /** Every knob that has stopped applying live, in `commitNeeded`'s order. */
   commitReasons: readonly CommitReason[]
   /** Whether a report is on screen at all. */
@@ -61,8 +92,14 @@ export interface PanelMessageState {
   archiveDays: number
   aqiForecastDays: number
   windowLimits: WindowLimits
-  /** Dismissing the run error or the refusal clears the event (`useAnalysisRun.dismissEvent`, #736). */
+  /** What the link carried and could not restore (`useLinkDrops`, #803); absent is nothing. */
+  linkLost?: readonly LinkDrop[]
+  /** Dismissing the run error clears the event (`useAnalysisRun.dismissEvent`, #736). */
   dismissEvent: (kind: EventNoticeKind) => void
+  /** The forecast bounds as the panel holds them, which the gate holds to their order (#803, W7). */
+  constraints: Constraints
+  /** Every point the analysis would forecast (`analysisPoints`), which a regional model's grid is held against (#803, W8). */
+  points: readonly LatLon[]
 }
 
 /**
@@ -94,11 +131,23 @@ export interface PanelMessages {
   /** The selected window is one the archive answers, where no model applies. */
   modelDisabled: boolean
   /**
+   * The metrics the selected window and models cannot answer, which the
+   * Metrics table greys (`unansweredMetrics`, #803): the gate's own answer, so
+   * a greyed row and a refused ranking are one set.
+   */
+  unanswered: UnansweredMetrics
+  /**
    * The list stands open whatever the badge says: the tutorial's Messages
    * card holds it over its demonstration (`tour/demoMessages.ts`, #786).
    * Never true from this hook.
    */
   held: boolean
+  /**
+   * Moves once per run that ends in an error or a refusal, which opens the
+   * list (`useOpenOnFailure`, #803): a failure that showed only as a count
+   * on the badge read as no failure at all.
+   */
+  failureSeq: number
 }
 
 /**
@@ -118,19 +167,66 @@ export interface PanelMessages {
  * of the analysis, and `pruneDismissals` retires a dismissal the moment its
  * key stops being active, which is what makes a cleared-then-retriggered
  * warning return while panning, sorting and knob twiddling, which change no
- * key, resurface nothing. The two event notices are not in it: dismissing the
- * run error or the refusal clears the event itself (`dismissEvent`, #736), so
- * the Analyze button that read `Try again` off the error reads `Analyze`
- * again in the same render.
+ * key, resurface nothing. The run error is not in it: dismissing it clears
+ * the event itself (`dismissEvent`, #736), so the Analyze button that read
+ * `Try again` off the error reads `Analyze` again in the same render. A
+ * refusal is a blocker (#803), which no dismissal reaches.
  */
 export function usePanelMessages(s: PanelMessageState): PanelMessages {
   // Falls back to the id so a link naming a model this deployment stopped
   // publishing still reads as something rather than as an empty gap in a
   // sentence.
   const modelLabel = s.forecastModels.find((m) => m.id === s.forecastModel)?.label ?? s.forecastModel
+  // The selection as the datetime pair the warnings read. The calendar marks
+  // days past the air-quality horizon in the grid; the AQI line is the
+  // sentence that explains the mark once a selection actually crosses it.
+  const now = new Date()
+  const window = selectionLocalWindow(s.selection, now)
+  const windowMs =
+    window === null ? null : { startMs: new Date(window.start).getTime(), endMs: new Date(window.end).getTime() }
+  // Information for every ranking but one: AQI simply degrades to a dash. A
+  // ranking on air quality over a window wholly past the horizon would rank on
+  // nothing, so the gate blocks that one (#803, W5) and the Metrics table
+  // greys the row. The current hour is always inside the ~5-day horizon, and
+  // a dateless Dates arm has no window to warn about.
+  const aqiCoverage =
+    s.selection.kind === 'now' || window === null
+      ? 'full'
+      : classifyAqiCoverage(window.start, window.end, now, s.aqiForecastDays)
+  // Which endpoint answers the SELECTED window (#123). A window the archive
+  // answers names no model, so the picker does not apply and is faded rather
+  // than left looking like an input to a fetch that ignores it. A window
+  // crossing the boundary keeps the picker: the forecast half is the chosen
+  // model's, and the seam line says where that half begins.
+  const source = windowMs === null ? null : windowSource(windowMs.startMs, windowMs.endMs, now.getTime(), s.windowLimits)
+
+  // What the analysis is known to cover, and what it costs (#803, D1, D2).
+  // A ring searches when it would be a polygon input: finished, inside the
+  // cap and with a kind ticked. Its count joins the list's; with no ring
+  // searching, the list is the whole field.
+  const ringSearches =
+    ringUsable(s.drawPointCount, s.polygonAreaKm2 !== null && s.polygonAreaKm2 > s.maxAreaKm2) &&
+    s.destinationTypes.length > 0
+  const known = knownCount(ringSearches, s.ringCount, s.customCount)
+  const spend = spendVeto({
+    selection: s.selection,
+    known,
+    maxDestinations: s.maxDestinations,
+    // The ranking model is priced on its own: every other model picked is a
+    // comparison, fetched for the rows the table shows, and none is fetched
+    // on an archive window (W3).
+    comparedModels: selectedIds(s.forecastModels, s.forecastModel, comparedInPlay(s.comparedModels, source)).length - 1,
+    limit: s.limit,
+    hourlyCalls: s.hourlyCalls,
+    windowLimits: s.windowLimits,
+    aqiForecastDays: s.aqiForecastDays,
+    now,
+  })
   // The gate the two Analyze buttons read (#696): one function from the same
-  // inputs, so the two cannot disagree about whether a run may start.
-  const { gate, freezeGaps } = analyzeGateFor({
+  // inputs, so the two cannot disagree about whether a run may start. It reads
+  // the window's source and air-quality coverage too (#803), which is why
+  // those are derived above it.
+  const { gate, freezeGaps, unanswered } = analyzeGateFor({
     selection: s.selection,
     hasWindowWarning: s.windowWarning !== null,
     loading: s.loading,
@@ -144,31 +240,22 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     forecastModels: s.forecastModels,
     forecastModel: s.forecastModel,
     comparedModels: s.comparedModels,
+    refusal: s.refusal,
+    failedView: s.failedView,
+    panel: s.failedPanel,
+    customCount: s.customCount,
+    maxDestinations: s.maxDestinations,
+    source,
+    aqiCoverage,
+    constraints: s.constraints,
+    points: s.points,
+    ringCount: ringSearches ? s.ringCount : null,
+    spend,
   })
   const analyzeEnabled = canAnalyze(gate)
   const blockers = analyzeBlockers({ ...gate, drawPointCount: s.drawPointCount })
   const ringIgnored = ringAddsNothing({ ...gate, drawPointCount: s.drawPointCount, drawing: s.drawing })
 
-  // The selection as the datetime pair the warnings read. The calendar marks
-  // days past the air-quality horizon in the grid; the AQI line is the
-  // sentence that explains the mark once a selection actually crosses it.
-  const now = new Date()
-  const window = selectionLocalWindow(s.selection, now)
-  const windowMs =
-    window === null ? null : { startMs: new Date(window.start).getTime(), endMs: new Date(window.end).getTime() }
-  // Informational only, never a blocker: AQI simply degrades to a dash. The
-  // current hour is always inside the ~5-day horizon, and a dateless Dates
-  // arm has no window to warn about.
-  const aqiCoverage =
-    s.selection.kind === 'now' || window === null
-      ? 'full'
-      : classifyAqiCoverage(window.start, window.end, now, s.aqiForecastDays)
-  // Which endpoint answers the SELECTED window (#123). A window the archive
-  // answers names no model, so the picker does not apply and is faded rather
-  // than left looking like an input to a fetch that ignores it. A window
-  // crossing the boundary keeps the picker: the forecast half is the chosen
-  // model's, and the seam line says where that half begins.
-  const source = windowMs === null ? null : windowSource(windowMs.startMs, windowMs.endMs, now.getTime(), s.windowLimits)
   const pointsNeeded = Math.max(0, 3 - s.drawPointCount)
 
   const all = panelMessages({
@@ -183,6 +270,9 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     source,
     aqiCoverage,
     blockers,
+    overCap: gate.overCap,
+    spend: gate.spend,
+    modelDomain: gate.modelDomain,
     ringIgnored,
     pointsNeeded,
     freezeGaps,
@@ -192,9 +282,11 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     windowLimits: s.windowLimits,
     hasReport: s.hasReport,
     aqiAllNull: s.aqiAllNull,
+    aqiPartial: s.aqiPartial,
     wildfireCheckFailed: s.wildfireCheckFailed,
     closureCheckFailed: s.closureCheckFailed,
     basemapFailed: s.basemapFailed,
+    linkLost: s.linkLost,
     now,
   })
 
@@ -229,6 +321,8 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     areaTooLarge: gate.areaTooLarge,
     pointsNeeded,
     modelDisabled: source === 'archive',
+    unanswered,
     held: false,
+    failureSeq: s.failureSeq,
   }
 }

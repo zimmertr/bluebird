@@ -26,6 +26,10 @@
   "ignoreIssues": {
     // Each type here is a compile-time assertion against the generated
     // schema. Exporting it is what keeps tsc from calling it unused.
-    "src/api-compat.ts": ["types"]
+    "src/api-compat.ts": ["types"],
+    // `ACTION_GROUP` is `BAR_GROUP` by name on purpose: the results bar's
+    // buttons and its mode switch are one well, and styles.test.ts pins the
+    // two equal, so the second name says which group a call site means.
+    "src/styles.ts": ["duplicates"]
   }
 }

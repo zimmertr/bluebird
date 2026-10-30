@@ -22,12 +22,18 @@ MAX_POLYGON_AREA_KM2 = 100_000
 
 # Every candidate inside the polygon gets a forecast (no silent sampling), so
 # this ceiling is what actually bounds upstream cost per analysis, in
-# Open-Meteo's own unit (see services/openmeteo_weight.py): 1,500 destinations
-# is ~1,500 weighted weather calls (times 16/14 for the longest window) plus
-# AQI for the displayed rows, against their 600/minute/IP budget — about three
-# paced minutes worst case. Beyond it the analysis refuses loudly with
-# remedies (narrow the elevation band, elect the top-N, shrink the polygon);
-# truncation only ever happens when the request explicitly opts in.
+# Open-Meteo's own unit (see services/openmeteo_weight.py): over a 16-day
+# window 1,500 destinations cost about 4,290 weighted calls on the pod (1.5 a
+# location for the weather and 1 for the cloud column, #678 and #683, both
+# times 16/14) plus AQI for the displayed rows, against a 550-a-minute pacer. Beyond it the
+# analysis refuses loudly; truncation only ever happens when the request
+# explicitly opts in. The refusal carries two remedies an API caller can act
+# on, an elevation floor and the `top_by_elevation` opt-in, and the web app
+# offers neither: the elevation band left the panel in #341 (record 0039), and
+# the maintainer declined a "highest only" action on 2026-10-27 (#803), because
+# it drops every row without an elevation first. There the remedy is a smaller
+# ring or fewer kinds, and the browser refuses an over-cap ring before Analyze
+# wherever the pod's places table can count it.
 MAX_ANALYZE_PEAKS = 1_500
 
 # Candidates times window hours, the most one server-side analysis may hold

@@ -1,6 +1,6 @@
 # 0117. A Layers row carries no coverage in its label; it greys over a view its layer cannot draw on
 
-- Status: Accepted
+- Status: Accepted, amended by 0237 (a greyed row still ticked can be unticked).
 - Date: 2026-10-07
 - Decider: the maintainer (TJ), on PR #676, choosing the greyed row over a consistent parenthetical and over dropping the coverage outright, from a mockup of the three
 - Issues and PRs: #676, #551 (the area closures label this reverses), #460 (the player row's greying, the precedent), #256 (the published wildfire outline)

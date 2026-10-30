@@ -2,6 +2,7 @@ import { type RefObject, useRef } from 'react'
 import type { MapViewHandle } from '../components/MapView'
 import type { AnalyzeRequest, GeoPolygon } from '../types'
 import type { AnalyzeOptions } from './analyzeTypes'
+import type { CountedField } from './useDestinationCount'
 import { type AnalyzeInputs, planAnalysis } from '../utils/analyzeRequest'
 import { type ForecastSelection, type SelectionKind, selectionLocalWindow } from '../utils/calendar/calendarSelection'
 import type { DiscoveryRecord } from '../utils/clientAnalyze'
@@ -20,6 +21,8 @@ export type AnalyzeCommandInputs = Omit<AnalyzeInputs, 'kind' | 'window' | 'poly
   forgetPreClamp: () => void
   clearRemovalsForScope: (scope: string) => void
   setShowResults: (show: boolean) => void
+  /** The ring's field as the count ahead of Analyze found it, read at the press (#803). */
+  counted?: () => CountedField | null
 }
 
 /**
@@ -126,7 +129,11 @@ export function useAnalyzeCommand(inputs: AnalyzeCommandInputs) {
       // the report put back, unless a later click has written its own since.
       const previous = discoveryRef.current
       if (record?.when === 'before') discoveryRef.current = record.value
-      const committed = await analyze(run.request, run.kind, { ...run.options, onCommit: commitEffects })
+      const committed = await analyze(run.request, run.kind, {
+        ...run.options,
+        onCommit: commitEffects,
+        counted: inputs.counted?.() ?? null,
+      })
       if (!committed && record?.when === 'before' && discoveryRef.current === record.value) {
         discoveryRef.current = previous
       }

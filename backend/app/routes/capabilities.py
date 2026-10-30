@@ -1,10 +1,11 @@
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
 from app import ratelimit
 from app.limits import MAX_ANALYZE_DESTINATION_HOURS
+from app.model_domains import DOMAINS
 from app.models import (
     ARCHIVE_DATA_DAYS,
     DEFAULT_FORECAST_MODEL,
@@ -21,7 +22,9 @@ from app.models import (
     SortBy,
 )
 from app.routes.analyze import API_KEY_HEADER
+from app.services import places
 from app.services.air_quality import MAX_FORECAST_DAYS as AQI_FORECAST_DAYS
+from app.services.openmeteo_weight import FREE_TIER_HOURLY_CALLS
 from app.services.osm import IMPLEMENTED_TYPES
 from app.services.usfs_coverage import COVERAGE_FOR as CLOSURE_COVERAGE
 from app.services.wfigs_coverage import COVERAGE as WILDFIRE_COVERAGE
@@ -189,7 +192,17 @@ class ForecastModelInfo(BaseModel):
             "True for a model run over part of the world rather than all of "
             "it. A request naming one is rejected with 400 if any destination "
             "falls outside its grid — including destinations the caller never "
-            "sees, since discovery happens server-side."
+            "sees, since discovery happens server-side. `domain` is where that "
+            "grid is."
+        )
+    )
+    domain: dict[str, Any] | None = Field(
+        description=(
+            "Where a regional model has data, as a GeoJSON MultiPolygon in "
+            "longitude and latitude, or null for a model that covers the whole "
+            "world. Drawn through the grid's outermost points, so a destination "
+            "inside it is one the model answers for, and one outside it makes "
+            "the request fail as `regional` describes. Static per release."
         )
     )
     blend: bool = Field(
@@ -292,6 +305,18 @@ class Limits(BaseModel):
             "`limit` is the most destinations its window can take."
         )
     )
+    open_meteo_hourly_calls: int = Field(
+        description=(
+            "Open-Meteo's free-tier budget for one hour, per IP address, in "
+            "weighted calls: one location in a request is one call, times a "
+            "factor for a window longer than 14 days or more than 10 "
+            "variables. The web app fetches forecasts from the visitor's own "
+            "address, and an analysis that costs more than this cannot finish "
+            "inside the hour. This deployment does not enforce it: its own "
+            "pacer meters minutes, and a request carrying an Open-Meteo key "
+            "spends that key's quota, which this does not describe."
+        )
+    )
     rate: RateLimits = Field(
         description=(
             "Per-client request pacing. Unlike the bounds above, exceeding "
@@ -369,6 +394,18 @@ class CapabilitiesResponse(BaseModel):
             "caller's quota."
         )
     )
+    discovery_source: Literal["places", "overpass"] = Field(
+        description=(
+            "Where discovery answers from right now. `places` while this "
+            "deployment's own copy of OpenStreetMap has completed a fill and "
+            "can answer, so a search costs no upstream call; `overpass` while "
+            "it has none, has not finished its first fill, or cannot be "
+            "reached, so every search asks the donated Overpass API. Checked "
+            "at most once a minute and cached for a minute, and one search can "
+            "still fall back to Overpass if its connection drops, so it is how "
+            "discovery will most likely answer rather than a promise."
+        )
+    )
     limits: Limits
     coverage: Coverage
     data_sources: list[DataSource]
@@ -424,6 +461,7 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
                 forecast_hours=info.forecast_hours,
                 regional=info.regional,
                 blend=info.blend,
+                domain=DOMAINS.get(model),
                 default=model is DEFAULT_FORECAST_MODEL,
             )
             for model, info in MODEL_INFO.items()
@@ -431,6 +469,11 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
         # Read from the analyze route's own constant, so the name a client is
         # told to send is the name the route reads.
         api_key_header=API_KEY_HEADER,
+        # The rule `places.discover` reads before it answers a ring, so the
+        # browser counts a ring ahead of Analyze only where the count costs no
+        # Overpass call (#803). It answers False on every way the database can
+        # be missing, never an error.
+        discovery_source="places" if await places.is_filled() else "overpass",
         limits=Limits(
             max_polygon_area_km2=MAX_POLYGON_AREA_KM2,
             max_destinations=MAX_ANALYZE_PEAKS,
@@ -444,6 +487,7 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
             max_request_bytes=MAX_REQUEST_BYTES,
             max_polygon_points=MAX_POLYGON_POINTS,
             max_destination_hours=MAX_ANALYZE_DESTINATION_HOURS,
+            open_meteo_hourly_calls=FREE_TIER_HOURLY_CALLS,
             # Read from the live limiter instances, not the env constants, so
             # what this publishes is what enforcement actually counts.
             rate=RateLimits(

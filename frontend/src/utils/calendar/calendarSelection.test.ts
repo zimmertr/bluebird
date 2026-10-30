@@ -92,6 +92,25 @@ describe('clampSelection', () => {
     expect(clamped?.kind === 'days' && clamped.hours).toEqual({ start: '06:00', end: '18:00' })
   })
 
+  // #803, W4: hours on the band's last day wholly past the model's reach are
+  // a window of empty hours. They go, and the whole day is what is left: its
+  // early hours are the model's. HRRR's reach from NOW ends 2026-07-17T06:00.
+  it('drops narrowed hours the model does not reach on its last day', () => {
+    const late: ForecastSelection = {
+      kind: 'days',
+      startDate: '2026-07-20',
+      endDate: '2026-07-21',
+      hours: { start: '08:00', end: '12:00' },
+    }
+    expect(clampSelection(late, NOW, HRRR)).toEqual({ kind: 'days', startDate: '2026-07-17', endDate: '2026-07-17' })
+    // Already on the last day, so only the hours move.
+    const onLast = { ...late, startDate: '2026-07-17', endDate: '2026-07-17' }
+    expect(clampSelection(onLast, NOW, HRRR)).toEqual({ kind: 'days', startDate: '2026-07-17', endDate: '2026-07-17' })
+    // Hours the reach covers stay, and so does a span that starts before it.
+    expect(clampSelection({ ...onLast, hours: { start: '04:00', end: '12:00' } }, NOW, HRRR)).toBeNull()
+    expect(clampSelection({ ...onLast, startDate: '2026-07-16' }, NOW, HRRR)).toBeNull()
+  })
+
   // The current hour is the one selection every model reaches.
   it('never clamps the current-hour selection', () => {
     expect(clampSelection(DEFAULT_SELECTION, NOW, HRRR)).toBeNull()

@@ -34,6 +34,7 @@ import { TUTORIAL_PATH } from './utils/tourSteps'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useElevationLookup } from './hooks/useElevationLookup'
+import { useDestinationCount } from './hooks/useDestinationCount'
 import { useCapabilities } from './hooks/useCapabilities'
 import { useForecastSelection } from './hooks/useForecastSelection'
 import { useRankingKnobs } from './hooks/useRankingKnobs'
@@ -48,6 +49,7 @@ import { useResultsView } from './hooks/useResultsView'
 import { useLayoutMotion } from './hooks/useLayoutMotion'
 import { useClosePopupsOnCommit } from './hooks/useClosePopupsOnCommit'
 import { useRunOnOpen } from './hooks/useRunOnOpen'
+import { useLinkDrops } from './hooks/useLinkDrops'
 import { useUrlSync } from './hooks/useUrlSync'
 import { useChartMetrics } from './hooks/useChartMetrics'
 import { useFireProximity } from './hooks/useFireProximity'
@@ -57,6 +59,7 @@ import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { useTheme } from './hooks/useTheme'
 import { useDrawer } from './hooks/useDrawer'
+import { useOpenOnFailure } from './hooks/useOpenOnFailure'
 import { useSafeAreaBottom } from './hooks/useSafeAreaBottom'
 import { controlsFullPx, controlsSheetPx } from './utils/results/resultsSheet'
 import { useHeldSheetPx } from './hooks/useHeldSheetPx'
@@ -65,11 +68,12 @@ import {
   SURFACE_PAGE,
 } from './styles'
 import {
-  decodeState,
+  decodeLink,
 } from './utils/urlState'
 import { removalScopeFor } from './utils/analyzeRequest'
 import { controlsSummary } from './utils/controlsSummary'
-import { pendingDestinations } from './utils/customList'
+import { buildCustomList, customListSize, pendingDestinations } from './utils/customList'
+import { analysisPoints } from './utils/model/modelDomain'
 import { actionWord, retryStands } from './utils/analyzeGate'
 import { usePanelMessages } from './hooks/usePanelMessages'
 import { useDemoMessages } from './tour/demoMessages'
@@ -103,13 +107,16 @@ export default function App() {
   // fallbacks until /api/capabilities answers: both have to be bounded before
   // they enter state, and each fallback is the backend's own cap, held in
   // lockstep by `mirrored_constants.json`.
+  // `dropped` is what the link carried and could not restore (#803, M6),
+  // which the panel says beside the rest of its messages.
   const restoredRef = useRef(
-    decodeState(window.location.search, {
+    decodeLink(window.location.search, {
       maxDestinations: caps.maxDestinations,
       maxPolygonPoints: caps.maxPolygonPoints,
     }),
   )
-  const restored = restoredRef.current
+  const restored = restoredRef.current.state
+  const linkDropped = restoredRef.current.dropped
   // The camera a link names: stable for the session, like `restored`.
   const restoredView = restored?.view ?? null
 
@@ -130,7 +137,7 @@ export default function App() {
   // carried survive its first Analyze (`useRemovals`). Measured once: the
   // scope is the link's, not whatever the panel holds later.
   const [restoredRemovalScope] = useState(() => removalScopeFor(polygon, destinationScope))
-  const forecastSelection = useForecastSelection(restored, caps)
+  const forecastSelection = useForecastSelection(restored, caps, linkDropped.includes('model'))
   const {
     selection,
     forecastModel,
@@ -229,6 +236,7 @@ export default function App() {
     caps.forecastModels,
     caps.windowLimits,
     caps.aqiForecastDays,
+    caps.openMeteoHourlyCalls,
   )
   const {
     analyze,
@@ -247,6 +255,7 @@ export default function App() {
     arriving,
     error,
     refusal,
+    failureSeq,
     response,
     universe,
   } = analysis
@@ -254,6 +263,22 @@ export default function App() {
   // holds rows (#673): usually done before Analyze is pressed, and an answer
   // that lands after a report is placed on it.
   const elevations = useElevationLookup({ csvRows, places, cap: caps.maxDestinations, onPlaced: placeHeld })
+  // The ring's count ahead of Analyze (#803, D1, M7). Where the pod answers
+  // from its places table, the ring is counted once it and its kinds are
+  // still, so a ring over the cap greys Analyze before any press and the run
+  // forecasts the counted field without asking again. A cleared ring or no
+  // kind left releases a failed run's found field.
+  const destinationCount = useDestinationCount({
+    polygon,
+    drawPointCount,
+    drawing,
+    polygonAreaKm2: destinationInputs.polygonAreaKm2,
+    maxAreaKm2: caps.maxPolygonAreaKm2,
+    destinationTypes,
+    includeUnnamedPeaks,
+    discoverySource: caps.discoverySource,
+    onRingGone: analysis.dropFound,
+  })
   // The committed rows whose height-read cells tick: waiting on an elevation
   // the lookup still means to answer. A row the lookup has given up on stops
   // ticking and reads blank, and a row placed is no longer waiting.
@@ -297,6 +322,7 @@ export default function App() {
     showGrid,
     analyzed,
     universe,
+    sortBy,
     forecastModel,
     forecastModels: caps.forecastModels,
     forecastTimes,
@@ -443,7 +469,15 @@ export default function App() {
   // describes the request that failed, read against that run's snapshot the
   // way the cues above read against the report's. Destinations are counted
   // against the failed run's own list, since the committed report's `pending`
-  // describes a different question.
+  // describes a different question. The list's size rides along for the
+  // refusal, which a shorter list lifts (`refusalStands`, #803).
+  const customCount = useMemo(() => customListSize(csvRows, places), [csvRows, places])
+  // Every point the analysis would forecast, which a regional model's
+  // published grid is held against before Analyze (#803, W8).
+  const domainPoints = useMemo(
+    () => analysisPoints(polygon, destinationTypes.length > 0, buildCustomList(csvRows, places)),
+    [polygon, destinationTypes, csvRows, places],
+  )
   const panelForRetry = {
     selectionKind: selection.kind,
     windowMs: panelWindowMs,
@@ -457,6 +491,7 @@ export default function App() {
       : 0,
     sortBy,
     constraints,
+    customCount,
   }
   const word = actionWord(loading, retryStands(error, failedView, panelForRetry))
 
@@ -487,8 +522,16 @@ export default function App() {
     forgetPreClamp,
     clearRemovalsForScope,
     setShowResults,
+    counted: destinationCount.counted,
   })
 
+  // What the link lost, until the reader supplies it (#803, M6).
+  const linkLost = useLinkDrops({
+    dropped: linkDropped,
+    ring: polygon !== null,
+    list: csvRows.length > 0,
+    modelLost: forecastSelection.modelLost,
+  })
   // The panel's messages and the Analyze gate, derived once for both widths
   // (record 0208): the panel's Analyze and the phone's read one gate from
   // one set of inputs, and the badge on either counts the same list.
@@ -510,6 +553,17 @@ export default function App() {
     loading,
     error,
     refusal,
+    failedView,
+    failedPanel: panelForRetry,
+    customCount,
+    maxDestinations: caps.maxDestinations,
+    // The ring's count, what the spend is priced on, and whether the
+    // report's air quality failed for part of its field (#803, D1, D2, D5).
+    ringCount: destinationCount.ringCount,
+    limit,
+    hourlyCalls: caps.openMeteoHourlyCalls,
+    aqiPartial: analysis.aqiPartial,
+    failureSeq,
     commitReasons,
     hasReport: response !== null,
     aqiAllNull: response !== null && results.length > 0 && results.every((r) => r.aqi_avg == null),
@@ -519,7 +573,11 @@ export default function App() {
     archiveDays: caps.archiveDays,
     aqiForecastDays: caps.aqiForecastDays,
     windowLimits: caps.windowLimits,
+    linkLost,
     dismissEvent,
+    // What the gate holds the bounds and the models' grids to (#803, W6 to W8).
+    constraints,
+    points: domainPoints,
   })
 
   // What the panel and the phone's map show: the reader's messages, or the
@@ -538,16 +596,22 @@ export default function App() {
     analyze: handleAnalyze,
   })
 
+  // A failure at a desk reopens a panel the reader closed while the run was
+  // up (#803): the list that says what went wrong is the panel's, and a shut
+  // panel is inert, its badge and its live region with it.
+  useOpenOnFailure(failureSeq, openDrawer, isDesktop)
+
   // On mobile the controls are an off-canvas drawer, and it closes when an
   // analysis SUCCEEDS rather than when the button is pressed. Closing on press
   // meant a failure was invisible: the drawer slid away, the overlay finished,
   // and the reader was left looking at an empty map while the error sat in a
   // panel they had to think to reopen. Keyed on `analysisSeq`, which only moves
-  // when a report commits, so a refusal or an upstream error simply leaves the
-  // drawer where it is with the message already in it — including the refusal
-  // remedies, which are buttons and could not live anywhere else.
+  // when a report commits, so a refusal or an upstream error leaves the drawer
+  // where it is, and the message list opens over the map's Analyze, where the
+  // phone's badge is (`useOpenOnFailure` in `PhoneFoot`, #803).
   //
-  // Desktop is unaffected: the panel is docked there and never closes.
+  // Desktop is unaffected: the panel is docked there and closes only when the
+  // reader closes it.
   useEffect(() => {
     if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
     // Kept: listing `isDesktop` would close the drawer when a window crossed

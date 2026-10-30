@@ -16,13 +16,13 @@ import {
   applyDayClick,
   applyDayDrag,
   applyModeSwitch,
+  canPageTo,
   dayInMonth,
   dayKey,
   dragAnchor,
   hasDates,
   isTimeOfDay,
   monthGrid,
-  monthHasBandDay,
   monthKey,
   monthLabel,
   orderDays,
@@ -570,19 +570,20 @@ export default function ForecastCalendar({ selection, onChange, band, sheet = fa
           )}
 
       {/* Month navigation, bounded by the servable band rather than open-ended:
-          paging into a month with nothing pickable in it is a dead end. */}
+          paging into a month with nothing pickable in it is a dead end, unless
+          it is a step back toward the band from a month outside it. */}
       <div className={`mb-1 mt-2 flex items-center justify-between border-t ${SURFACE_DIVIDER} pt-2`}>
         <MonthButton
           label="Previous month"
           glyph="‹"
-          disabled={!monthHasBandDay(prevMonth, now, band)}
+          disabled={!canPageTo(month, prevMonth, now, band)}
           onClick={() => setMonth(prevMonth)}
         />
         <span className={TEXT.subheading}>{monthLabel(month)}</span>
         <MonthButton
           label="Next month"
           glyph="›"
-          disabled={!monthHasBandDay(nextMonth, now, band)}
+          disabled={!canPageTo(month, nextMonth, now, band)}
           onClick={() => setMonth(nextMonth)}
         />
       </div>

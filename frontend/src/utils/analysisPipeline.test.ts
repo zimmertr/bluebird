@@ -250,6 +250,17 @@ describe('discoverCandidates', () => {
     await expect(plain).rejects.not.toBeInstanceOf(AnalysisRefusalError)
   })
 
+  // #803, D4: the pod's 422 carries no count, but it is a request validated
+  // and found wrong, so the same request fails the same way: a refusal, which
+  // the Analyze button never offers as `Try again`.
+  it('throws a refusal for a 422 with no count, in the pod\'s own words', async () => {
+    const detail = 'Too many custom destinations (1,501). Maximum is 1,500.'
+    stubDestinations({ detail }, 422)
+    const refused = discoverCandidates(REQUEST, signal)
+    await expect(refused).rejects.toBeInstanceOf(AnalysisRefusalError)
+    await expect(refused).rejects.toThrow(detail)
+  })
+
 })
 
 describe('runAnalysisPipeline', () => {

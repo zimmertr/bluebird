@@ -147,4 +147,90 @@ describe('MetricsTable', () => {
       expect(onClearFilters).toHaveBeenCalledOnce()
     })
   })
+
+  // --- #803, W6 and W7 (record 0236): a metric the window or the models
+  // cannot answer greys its row, the way a Layers row greys outside its
+  // coverage, and a floor above its ceiling is marked invalid.
+  describe('a metric the window cannot answer', () => {
+    const ARCHIVE = new Map([
+      ['cloud_deck', 'archive'],
+      ['freeze', 'archive'],
+    ] as const)
+    const box = (family: 'cloud_deck' | 'temp', aggregate: string) =>
+      screen.getByRole('spinbutton', { name: new RegExp(`^${NOUN[family]} ${aggregate}\\.`) }) as HTMLInputElement
+
+    it('greys its radio, its aggregate and both boxes, and leaves the rest live', () => {
+      render(<MetricsTable {...props({ unanswered: ARCHIVE })} />)
+      for (const family of ['cloud_deck', 'freeze'] as const) {
+        expect((screen.getByRole('radio', { name: NOUN[family] }) as HTMLInputElement).disabled).toBe(true)
+        expect(
+          (screen.getByRole('button', { name: new RegExp(`^${NOUN[family]} aggregate `) }) as HTMLButtonElement).disabled,
+        ).toBe(true)
+      }
+      expect(box('cloud_deck', AGGREGATE.minimum).disabled).toBe(true)
+      expect(box('cloud_deck', AGGREGATE.maximum).disabled).toBe(true)
+      expect((screen.getByRole('radio', { name: NOUN.temp }) as HTMLInputElement).disabled).toBe(false)
+      expect(box('temp', AGGREGATE.minimum).disabled).toBe(false)
+    })
+
+    it('cannot be picked, from its radio or its aggregate', async () => {
+      const setSortBy = vi.fn()
+      const { user } = render(<MetricsTable {...props({ setSortBy, unanswered: ARCHIVE })} />)
+      await user.click(screen.getByRole('radio', { name: NOUN.cloud_deck }))
+      await user.click(screen.getByRole('button', { name: new RegExp(`^${NOUN.cloud_deck} aggregate `) }))
+      expect(setSortBy).not.toHaveBeenCalled()
+      expect(screen.queryByRole('listbox')).toBeNull()
+    })
+
+    it('greys the native aggregate on a phone too', () => {
+      render(<MetricsTable {...props({ unanswered: ARCHIVE, phone: true })} />)
+      expect(
+        (screen.getByRole('combobox', { name: `${NOUN.cloud_deck} aggregate` }) as HTMLSelectElement).disabled,
+      ).toBe(true)
+    })
+
+    // The ranking the reader set before the window moved stays checked; the
+    // Analyze button's line says why it is held.
+    it('keeps a ranking already on it checked', () => {
+      render(<MetricsTable {...props({ sortBy: DEFAULT_FAMILY_KEY.cloud_deck, unanswered: ARCHIVE })} />)
+      const radio = screen.getByRole('radio', { name: NOUN.cloud_deck }) as HTMLInputElement
+      expect(radio.checked).toBe(true)
+      expect(radio.disabled).toBe(true)
+    })
+
+    // A greyed box keeps its value, and Clear filters is the way to empty it.
+    it('keeps the value an inert box holds, which Clear filters still clears', () => {
+      const constraints = { ...NO_CONSTRAINTS, minCloudDeckFt: 3000 }
+      render(<MetricsTable {...props({ constraints, unanswered: ARCHIVE })} />)
+      expect(box('cloud_deck', AGGREGATE.minimum).value).toBe('3000')
+      expect(clear().disabled).toBe(false)
+    })
+
+    // The grey row is the whole message: the air-quality row's note goes too.
+    it('carries no note on a greyed row', () => {
+      const { container } = render(<MetricsTable {...props({ unanswered: new Map([['aqi', 'horizon']]) })} />)
+      expect(container.querySelector('#air-quality-lower')?.getAttribute('title')).toBeNull()
+      const live = render(<MetricsTable {...props()} />)
+      expect(live.container.querySelector('#air-quality-lower')?.getAttribute('title')).toBeTruthy()
+    })
+  })
+
+  describe('a floor above its ceiling', () => {
+    it('marks both of its boxes invalid, and no other', () => {
+      const constraints = { ...NO_CONSTRAINTS, minTempF: 50, maxTempF: 20 }
+      render(<MetricsTable {...props({ constraints })} />)
+      const temp = (aggregate: string) =>
+        screen.getByRole('spinbutton', { name: new RegExp(`^${NOUN.temp} ${aggregate}\\.`) })
+      expect(temp(AGGREGATE.minimum).getAttribute('aria-invalid')).toBe('true')
+      expect(temp(AGGREGATE.maximum).getAttribute('aria-invalid')).toBe('true')
+      expect(document.querySelectorAll('[aria-invalid]')).toHaveLength(2)
+    })
+
+    it('marks nothing on an inert row', () => {
+      const constraints = { ...NO_CONSTRAINTS, minCloudDeckFt: 9000, maxCloudDeckFt: 3000 }
+      render(<MetricsTable {...props({ constraints, unanswered: new Map([['cloud_deck', 'archive']]) })} />)
+      expect(document.querySelectorAll('[aria-invalid]')).toHaveLength(0)
+    })
+  })
+  // --- end #803 W6 and W7
 })
