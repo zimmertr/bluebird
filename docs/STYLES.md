@@ -424,7 +424,7 @@ values (#365):
 | Channel | Owner | What it holds |
 |---|---|---|
 | MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
-| Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow); `utils/chart/chartColors.ts` for the chart's series lines, which `utils/chart/chartCanvas.ts` draws in the theme's half of each line's pair (record 0241) | The same |
+| Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow); `utils/chart/chartColors.ts` for the chart's series lines, which `utils/chart/chartCanvas.ts` draws in the theme's half of each line's pair (record 0244) | The same |
 | Popup HTML handed to `setHTML` | `utils/popup/popupChrome.ts` | The three type sizes, the face, the names of the card's colours (each a `--popup-*` value, an app token in `map.css`, record 0215), the one button (`BUTTON_ACCENT` as its class list), the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
 | Recharts props | `utils/chart/chartColors.ts` | The axis, grid and playhead colours beside the line palette |
 
@@ -758,7 +758,7 @@ the hour as a 13px title on the popup's `band` token, the rows in a body,
 and `+N more` in a footer. The band is an app token now (`--ui-band`), and
 map.css reads it for the popup, so the two cards share one band.
 Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
-Record: [0239](decisions/0239-chart-metrics-as-panels.md)
+Record: [0243](decisions/0243-chart-metrics-as-panels.md)
 
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
 the compass and the locate button, 40px round in the pill's chrome, handed to
@@ -900,7 +900,7 @@ Every stacked panel control composes `CONTROL_W = 'w-[118px]'` = 118px.
 
 118px is not a taste. It is 2 x `METRIC_BOX_W` + the Metrics grid's `gap-x-1.5`, so the Forecast section's model picker and its two segments stand on exactly the edges the bound boxes below them do. The panel is one column at 225 and 343, measured. It was 144px, set by the widest segment label, until the Metrics row's label budget forced the narrower boxes and left the two sections 26px apart. `styles.test.ts` derives the sum from the roles.
 
-The Metrics table still sizes nothing by that token. Its row is the panel's widest — radio, label, aggregate menu (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content, which is 317px beside the 10px scroll bar the body keeps room for since #697. The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, because a fixed width in a grid cell states a number the tracks already decide.
+The Metrics table still sizes nothing by that token. Its row is the panel's widest — radio, label, aggregate menu (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content, which is 317px beside the 10px scroll bar the body keeps room for since #697, and inside a phone's Controls sheet, 328px with no bar kept (#586). The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, because a fixed width in a grid cell states a number the tracks already decide.
 
 Four controls in that section share one pair of edges: the direction segment, the results cap box, the Clear filters button, and every bound pair. The three wide ones span the two box columns rather than spelling their sum, so the width lives in `METRIC_BOX_W` alone. Clear filters is always drawn and disables when there is nothing to clear, so the section's last row never moves.
 

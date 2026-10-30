@@ -130,7 +130,7 @@ async function expectPopupClear(page: Page) {
 // The Chart card shows the readout a finger resting mid-window shows: the
 // cursor's line on the middle of the demonstration's thirteen hours, with a
 // dot on every destination's line (#696; record 0153), drawn on the hover
-// canvas since the lines moved there (record 0241).
+// canvas since the lines moved there (record 0244).
 async function expectReadoutMidWindow(page: Page) {
   const chart = '[data-tour="chart"]'
   await expect(page.locator(`${chart} .recharts-tooltip-cursor`)).toBeAttached()
@@ -312,7 +312,7 @@ test.describe('on a phone with a report', () => {
     // The sheet is left open in the chart with the reader's own lines and
     // no readout over them, and Wildfires off again.
     await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
-    // The lines and the hover dots are the panel's two canvases (record 0241):
+    // The lines and the hover dots are the panel's two canvases (record 0244):
     // the lines drawn, the dots canvas blank.
     await expect(page.locator('[data-tour="chart"] canvas')).toHaveCount(2)
     await expect(page.locator('[data-tour="chart"] .recharts-tooltip-cursor')).toHaveCount(0)

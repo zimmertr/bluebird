@@ -1174,7 +1174,7 @@ function ChartPanel({
               }
             />
             {/* Every series on one canvas between the grid and the reference
-                lines (#499; record 0241): 200 SVG lines cost Recharts a
+                lines (#499; record 0244): 200 SVG lines cost Recharts a
                 redraw of every point on every size change. */}
             <ChartLines data={data} strokes={strokes} yDomain={yDomain} />
             {/* One unpainted Recharts line, the anchor a tooltip opened by
@@ -1298,7 +1298,7 @@ function ChartTooltip({
 }: ChartTooltipProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   useCardInArea(cardRef, areaRef)
-  // The lines are a canvas (record 0241), so Recharts hands no payload; the
+  // The lines are a canvas (record 0244), so Recharts hands no payload; the
   // hour is the label and every value is read from the lines.
   if (!active || label == null) return null
   const index = times.indexOf(label)

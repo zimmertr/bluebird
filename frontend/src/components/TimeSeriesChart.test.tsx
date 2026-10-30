@@ -61,7 +61,7 @@ vi.mock('./ResizeGrip', async (importOriginal) => ({
     return <i data-testid="split-grip" />
   },
 }))
-// The canvas lines (record 0241): every stroke the panel hands it, kept in the
+// The canvas lines (record 0244): every stroke the panel hands it, kept in the
 // order drawn, as the mock above kept every Recharts Line.
 vi.mock('./ChartLines', () => ({
   default: (p: { strokes: Record<string, unknown>[] }) => {
@@ -790,7 +790,7 @@ describe('TimeSeriesChart with more than one metric', () => {
     fireEvent.pointerMove(document, { clientX: 200, clientY: 100 })
     // Mid-drag nothing is laid out again and nothing renders: the boxes and
     // the gutters move by transform, the split from the 800 by 400 measured
-    // at the press (record 0239).
+    // at the press (record 0243).
     expect(colShare()).toBe('0.5')
     expect(rowShare()).toBe('0.5')
     const rows = Array.from(container.firstElementChild!.lastElementChild!.children).slice(0, 2) as HTMLElement[]
