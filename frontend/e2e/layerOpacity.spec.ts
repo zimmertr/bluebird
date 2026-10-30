@@ -146,19 +146,23 @@ test.describe('on a phone', () => {
     await captureMap(page)
     await page.goto('/?view=-121.76,46.853,11&relief=1')
     await page.getByRole('button', { name: 'Layers', exact: true }).first().tap()
-    const sheet = page.getByRole('dialog', { name: 'Layers', exact: true })
-    const slider = sheet.getByRole('slider', { name: 'Shaded relief opacity' })
+    await expect(page.getByRole('dialog', { name: 'Layers', exact: true })).toBeVisible()
+    // Hidden included: a role query skips what is hidden, and hiding is what
+    // is being read.
+    const sheet = page.getByRole('dialog', { name: 'Layers', exact: true, includeHidden: true })
+    const row = (name: string) => sheet.getByRole('checkbox', { name, includeHidden: true })
+    const slider = sheet.getByRole('slider', { name: 'Shaded relief opacity', includeHidden: true })
     await expect.poll(() => paint(page, 'relief', 'hillshade-exaggeration')).toBe(0.3)
     const visible = (locator: Locator) => locator.evaluate((el) => getComputedStyle(el).visibility)
     await drag(page, slider, 50, 100, async () => {
       // Mid-drag: the card and every other row are gone, the dragged row stays.
       expect(await visible(sheet)).toBe('hidden')
-      expect(await visible(sheet.getByRole('checkbox', { name: 'Satellite' }))).toBe('hidden')
+      expect(await visible(row('Satellite'))).toBe('hidden')
       expect(await visible(slider)).toBe('visible')
-      expect(await visible(sheet.getByRole('checkbox', { name: 'Shaded relief' }))).toBe('visible')
+      expect(await visible(row('Shaded relief'))).toBe('visible')
     })
     expect(await visible(sheet)).toBe('visible')
-    expect(await visible(sheet.getByRole('checkbox', { name: 'Satellite' }))).toBe('visible')
+    expect(await visible(row('Satellite'))).toBe('visible')
     const level = Number(await slider.inputValue())
     expect(level).toBeGreaterThan(90)
     // Over the default the relief deepens: 0.3 of exaggeration at 50, 0.6 at 100.
