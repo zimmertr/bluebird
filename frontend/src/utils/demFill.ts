@@ -12,8 +12,8 @@
 // Mapterhorn's own; where it has not, it is the coarser tile's heights,
 // smoothed rather than blocky, so the relief reads exactly as it did at 12
 // stretched (the maintainer, 2026-10-30).
-import type { DemWindow, HeightGrid } from './slopeAngle'
 import { clamp } from './numbers'
+import type { DemWindow, HeightGrid } from './slopeAngle'
 
 /**
  * The window of `grid` that `window` names, stretched to the grid's full
