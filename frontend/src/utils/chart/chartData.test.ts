@@ -225,7 +225,7 @@ describe('extremeLabel', () => {
   // The hover box prints a cloud deck at the top of its walk as a bound, and
   // the line's label says what the hover box says.
   it('prints a cloud deck at its ceiling as the bound the hover box shows', () => {
-    expect(extremeLabel(30_066, 'cloud_deck')).toBe('≥30000 ft')
+    expect(extremeLabel(30_066, 'cloud_deck')).toBe('≥30,000 ft')
   })
 })
 

@@ -406,7 +406,7 @@ describe('resultPopupHtml type', () => {
     const rowHeads = html.match(/<th scope="row" style="[^"]*"/g) ?? []
     expect(rowHeads.length).toBeGreaterThan(0)
     for (const th of rowHeads) expect(th).toContain('font-weight:normal')
-    const colHeads = html.match(/<th scope="col" style="[^"]*"/g) ?? []
+    const colHeads = html.match(/<th scope="col" [^>]*?style="[^"]*"/g) ?? []
     expect(colHeads).toHaveLength(4)
     for (const th of colHeads) expect(th).toContain('font-weight:600')
   })

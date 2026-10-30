@@ -295,12 +295,11 @@ type PopupGridRow =
 export type PopupGrid = { columns: string[]; rows: PopupGridRow[] }
 
 /**
- * The aggregates that become columns, in one order for every family. A grid
- * cannot keep each family's own column order the way the stacked lines did,
- * so it takes the order most families already have, and an AQI ranking's Avg
- * moves from first to last (TJ chose the grid, 2026-10-08). The window total
- * is the last column, filled for precipitation and snowfall alone (TJ,
- * 2026-10-08, rather than a line of its own above their rates).
+ * The aggregates that can become columns. Their order is the table's, read
+ * off the first family that shows them (record 0251), one order for every
+ * family. The window total is the last column, filled for precipitation and
+ * snowfall alone (TJ, 2026-10-08, rather than a line of its own above their
+ * rates).
  */
 const GRID_AGGREGATES: readonly string[] = [
   AGGREGATE.minimum,

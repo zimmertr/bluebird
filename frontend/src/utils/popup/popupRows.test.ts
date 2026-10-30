@@ -310,15 +310,16 @@ describe('a new metric family reaches the popup on its own', () => {
 describe('popupGrid', () => {
   const cols = displayedColumns(false, 'precip_total_in')
 
-  it('heads the columns Min, Max, Avg and Total, in that order for every family', () => {
+  // In the table's order, Avg first by default, the total last (record 0251).
+  it('heads the columns in the table\'s order, the total last', () => {
     const grid = popupGrid(popupGroups(row, cols))
-    expect(grid.columns).toEqual([AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.average, AGGREGATE.total])
+    expect(grid.columns).toEqual([AGGREGATE.average, AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.total])
     // AQI's own columns lead with Avg; its cells follow the grid's order.
     const aqi = grid.rows.find((r) => r.label === NOUN.aqi)!
     expect(aqi.kind).toBe('aggregates')
     if (aqi.kind !== 'aggregates') return
     // A family with no total leaves the Total column empty.
-    expect(aqi.cells.map((c) => c?.text ?? null)).toEqual(['18', '91', '42', null])
+    expect(aqi.cells.map((c) => c?.text ?? null)).toEqual(['42', '18', '91', null])
   })
 
   // One line for a family with a window total, the total last (TJ,
@@ -329,7 +330,7 @@ describe('popupGrid', () => {
     expect(precip).toHaveLength(1)
     expect(precip[0]).toMatchObject({ kind: 'aggregates', label: `${NOUN.precip} (in/hr)` })
     if (precip[0].kind !== 'aggregates') return
-    expect(precip[0].cells.map((c) => c?.text)).toEqual(['0.000', '0.009', '0.004', '0.123'])
+    expect(precip[0].cells.map((c) => c?.text)).toEqual(['0.004', '0.000', '0.009', '0.123'])
   })
 
   it('has no elevation line', () => {
@@ -353,7 +354,7 @@ describe('popupGrid', () => {
     const noTempMax = cols.filter((c) => c.key !== 'temp_max_f')
     const temp = popupGrid(popupGroups(row, noTempMax)).rows.find((r) => r.label.startsWith(NOUN.temp))!
     if (temp.kind !== 'aggregates') throw new Error('temperature is a grid row')
-    expect(temp.cells.map((c) => c?.text ?? null)).toEqual(['21.4', null, '30.1', null])
+    expect(temp.cells.map((c) => c?.text ?? null)).toEqual(['30.1', '21.4', null, null])
   })
 
   // The two edges of the cloud deck's walk print as bounds through the
@@ -363,7 +364,7 @@ describe('popupGrid', () => {
     const edges = { ...row, cloud_deck_min_ft: 364, cloud_deck_max_ft: 30066, cloud_deck_avg_ft: 11850 }
     const deck = popupGrid(popupGroups(edges, cols)).rows.find((r) => r.label.startsWith(NOUN.cloud_deck))!
     if (deck.kind !== 'aggregates') throw new Error('the cloud deck is a grid row')
-    expect(deck.cells.map((c) => c?.text ?? null)).toEqual(['≤364', '≥30,000', '11,850', null])
+    expect(deck.cells.map((c) => c?.text ?? null)).toEqual(['11,850', '≤364', '≥30,000', null])
   })
 
   // Three bounds side by side are wider than the card, so a deck that held at
