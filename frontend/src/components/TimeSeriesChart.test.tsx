@@ -226,8 +226,9 @@ describe('TimeSeriesChart click', () => {
     expect(onPlayheadChange).not.toHaveBeenCalled()
   })
 
-  it('takes no click at all with no playhead to move', () => {
-    render(<TimeSeriesChart {...props()} />)
+  // A desk's click still pins a card; a phone pins nothing.
+  it('takes no click on a phone with no playhead to move', () => {
+    render(<TimeSeriesChart {...props({ phone: true })} />)
     expect(chart.onClick).toBeUndefined()
   })
 })

@@ -282,24 +282,25 @@ describe('resultPopupHtml mirrors the table', () => {
   // keeps the card short enough to stand beside a phone's controls.
   it('lays the families out as a grid, one row each', () => {
     const html = resultPopupHtml({ ...base })
-    const heads = [...html.matchAll(/<th scope="col"[^>]*>([^<]*)<\/th>/g)].map((m) => m[1])
-    expect(heads).toEqual(['Min', 'Max', 'Avg', 'Total'])
+    // In the table's order, Avg first by default (record 0251).
+    const heads = [...html.matchAll(/<th scope="col"[^>]*>([^<]*)/g)].map((m) => m[1])
+    expect(heads).toEqual(['Avg', 'Min', 'Max', 'Total'])
     // The heads lead the grid, above the first family.
     expect(html.indexOf('scope="col"')).toBeLessThan(html.indexOf('scope="row"'))
     // The temperature's three numbers stand under those three heads, in order.
     const temp = html.match(new RegExp(`<tr><th scope="row"[^>]*>${NOUN.temp} \\(°F\\)</th>(.*?)</tr>`))![1]
-    expect([...temp.matchAll(/>([\d.,]+)</g)].map((m) => m[1])).toEqual(['21.4', '38.9', '30.1'])
+    expect([...temp.matchAll(/>([\d.,]+)</g)].map((m) => m[1])).toEqual(['30.1', '21.4', '38.9'])
     // One line for each of the seven families, precipitation and snowfall
     // included.
     expect(html.match(/<th scope="row"/g) ?? []).toHaveLength(7)
   })
 
-  // An AQI ranking's table leads its family with Avg; the grid keeps one order
-  // for every family, so its Avg moves under the Avg head with the others.
+  // The grid keeps one order for every family, the first family's, so every
+  // family's Avg stands under the one Avg head.
   it('keeps one aggregate order for every family', () => {
     const html = resultPopupHtml({ ...base, columns: displayedColumns(false, 'aqi_avg') })
     const aqi = html.match(new RegExp(`<tr><th scope="row"[^>]*>${NOUN.aqi}</th>(.*?)</tr>`))![1]
-    expect([...aqi.matchAll(/>(\d+)</g)].map((m) => m[1])).toEqual(['11', '31', '24'])
+    expect([...aqi.matchAll(/>(\d+)</g)].map((m) => m[1])).toEqual(['24', '11', '31'])
   })
 
   // Precipitation and snowfall (#678) are the families whose columns do not
@@ -310,7 +311,7 @@ describe('resultPopupHtml mirrors the table', () => {
     const html = resultPopupHtml({ ...base })
     expect(html).toContain(`>${NOUN.snowfall} (in/hr)</th>`)
     const precip = html.match(new RegExp(`<tr><th scope="row"[^>]*>${NOUN.precip} \\(in/hr\\)</th>(.*?)</tr>`))![1]
-    expect([...precip.matchAll(/>([\d.]+)</g)].map((m) => m[1])).toEqual(['0.000', '0.009', '0.004', '0.123'])
+    expect([...precip.matchAll(/>([\d.]+)</g)].map((m) => m[1])).toEqual(['0.004', '0.000', '0.009', '0.123'])
     expect(html).not.toContain('Total</span>:')
     expect(html).not.toContain(' in<')
   })
