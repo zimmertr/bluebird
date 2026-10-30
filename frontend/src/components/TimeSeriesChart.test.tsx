@@ -952,6 +952,32 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(screen.queryByRole('button', { name: /^Unpin / })).toBeNull()
   })
 
+  // Escape lets the active card go, the one touched last, and a second press
+  // the other (TJ 2026-10-30).
+  it('lets the active pinned card go on Escape, then the other', () => {
+    const { container } = render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange: () => {} })} />)
+    placePlot(container, 360)
+    act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))
+    act(() => chart.onClick!({ activeLabel: TIMES[5] }, { clientX: 200, shiftKey: true }))
+    const [first, second] = screen.getAllByRole('button', { name: /^Unpin / }).map((b) => b.getAttribute('aria-label'))
+    fireEvent.pointerDown(screen.getByRole('button', { name: first! }).closest('[class*="absolute"]')!)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getAllByRole('button', { name: /^Unpin / }).map((b) => b.getAttribute('aria-label'))).toEqual([second])
+  })
+
+  it('sorts a pinned card by the head pressed, again to turn it round', () => {
+    const { container } = render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange: () => {} })} />)
+    placePlot(container, 360)
+    act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))
+    const name = screen.getByRole('button', { name: /^Name/ })
+    expect(name.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(name)
+    expect(name.getAttribute('aria-pressed')).toBe('true')
+    expect(name.textContent).toContain('↑')
+    fireEvent.click(name)
+    expect(name.textContent).toContain('↓')
+  })
+
   it('greys the + at four on a desk', () => {
     render(<TimeSeriesChart {...props(FOUR)} />)
     expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(true)

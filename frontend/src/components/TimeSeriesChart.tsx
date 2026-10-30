@@ -12,11 +12,12 @@ import {
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
 import { createPortal } from 'react-dom'
-import { CHART_CARD, DRAG, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLOT_TOUCH, RADIUS, TEXT } from '../styles'
+import { ACCENT, CHART_CARD, DRAG, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLOT_TOUCH, RADIUS, TEXT } from '../styles'
 import { IconClose, IconGrip, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
 import ChartLines from './ChartLines'
+import { clamp } from '../utils/numbers'
 import ChartLayoutButton from './ChartLayoutButton'
 import { type ChartLayout, type RowCrossing, type RowShares, evenRows, layoutFor, rowCrossings, rowRects, rowsOf, sharesAfterDrag } from '../utils/chart/chartLayout'
 import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
@@ -293,8 +294,10 @@ function TimeSeriesChart({
   // a plot pins the card at that hour, where it stops following the pointer
   // and lists every row; Shift and a click pins a second hour beside it, so
   // two hours can be read side by side. Two at most, a third replacing the
-  // older; each has its ✕, and Escape lets both go. Where each stands is set
-  // at the click, in the chart's own pixels.
+  // older; each has its ✕. The last in the list is the active one, the card
+  // pinned or touched most recently, and Escape lets it alone go, so a second
+  // press closes the other (TJ 2026-10-30). Where each stands is set at the
+  // click, in the chart's own pixels, and its header moves it from there.
   const [pins, setPins] = useState<readonly Pin[]>([])
   const rootRef = useRef<HTMLDivElement>(null)
   const onPin = useCallback((panel: number, t: number, add: boolean, clientX: number) => {
@@ -302,14 +305,27 @@ function TimeSeriesChart({
     const area = (gridRef.current ?? rowsRef.current ?? stackRef.current)?.getBoundingClientRect()
     if (!root || !area) return
     const r = root.getBoundingClientRect()
-    const pin: Pin = { t, panel, x: clientX - r.left, top: area.top - r.top + 8, width: r.width, height: area.height - 16 }
+    // A pinned card keeps the hover card's height, read off the card on
+    // screen at the click; its corner grip is how it grows.
+    const hover = root.querySelector('[data-chart-card]')?.getBoundingClientRect().height ?? null
+    const pin: Pin = {
+      t,
+      panel,
+      x: clientX - r.left,
+      area: { x: area.left - r.left, y: area.top - r.top, w: area.width, h: area.height },
+      height: hover,
+    }
     setPins((list) => (list.some((p) => p.t === t) ? list : add ? [...list.slice(-1), pin] : [pin]))
   }, [])
   const unpin = useCallback((t: number) => setPins((list) => list.filter((p) => p.t !== t)), [])
+  const raise = useCallback(
+    (t: number) => setPins((list) => (list[list.length - 1]?.t === t ? list : [...list.filter((p) => p.t !== t), ...list.filter((p) => p.t === t)])),
+    [],
+  )
   useEffect(() => {
     if (pins.length === 0) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPins([])
+      if (e.key === 'Escape') setPins((list) => list.slice(0, -1))
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -997,7 +1013,7 @@ function TimeSeriesChart({
         </div>
       )}
       {pins.map((p) => (
-        <PinnedCard key={p.t} pin={p} times={times} lines={lines} metric={drawn[p.panel] ?? drawn[0]} metrics={drawn} onUnpin={unpin} />
+        <PinnedCard key={p.t} pin={p} times={times} lines={lines} metric={drawn[p.panel] ?? drawn[0]} metrics={drawn} onUnpin={unpin} onRaise={raise} />
       ))}
     </div>
   )
@@ -1748,6 +1764,7 @@ function ChartTooltip({
   return (
     <div
       ref={cardRef}
+      data-chart-card=""
       // Over several panels the card is as wide as its content (`w-max`):
       // Recharts' wrapper is absolutely positioned inside the hovered panel,
       // so a shrink-to-fit width stops at that panel's edge and the name
@@ -1838,17 +1855,57 @@ function CardGrid({ items, metrics, focusedKey }: { items: readonly TooltipItem[
 /** A pinned card (TJ 2026-10-30, P2): one hour, every row, until its ✕ or Escape. */
 interface Pin {
   t: number
-  /** The panel clicked, whose metric orders the rows. */
+  /** The panel clicked, whose metric orders the rows until a head is pressed. */
   panel: number
-  /** Where the click stood, and the area it stands over, in the chart's pixels. */
+  /** Where the click stood, in the chart's pixels. */
   x: number
-  top: number
-  width: number
-  height: number
+  /** The plotting area the card stays inside, in the chart's pixels. */
+  area: { x: number; y: number; w: number; h: number }
+  /** The hover card's height at the click, which the pinned card keeps. */
+  height: number | null
 }
 
 // The approved name of a pinned card's ✕ (TJ 2026-10-30).
 const unpinLabel = (hour: string) => `Unpin ${hour}`
+// The smallest a reader may size a pinned card to: a name and a value
+// across, a head and two rows down.
+const PIN_MIN = { w: 180, h: 96 }
+
+/** Which column orders a pinned card: -1 the names, else a metric's index. */
+interface PinSort {
+  col: number
+  desc: boolean
+}
+
+/** A pinned card's rows in its sort, a row with no value last either way. */
+function pinnedOrder(items: readonly TooltipItem[], metrics: ChartMetrics, index: number, sort: PinSort): TooltipItem[] {
+  const dir = sort.desc ? -1 : 1
+  if (sort.col < 0) return [...items].sort((a, b) => dir * a.line.label.localeCompare(b.line.label))
+  const m = metrics[sort.col]
+  return [...items].sort((a, b) => {
+    const va = valueAt(a.line, m, index)
+    const vb = valueAt(b.line, m, index)
+    if (va === null || vb === null) return va === null ? (vb === null ? 0 : 1) : -1
+    return dir * (va - vb)
+  })
+}
+
+/** Follows one pointer from a press until it lifts, handing each move's offset. */
+function follow(e: PointerEvent<HTMLElement>, onMove: (dx: number, dy: number) => void) {
+  e.preventDefault()
+  e.stopPropagation()
+  const x0 = e.clientX
+  const y0 = e.clientY
+  const move = (ev: globalThis.PointerEvent) => onMove(ev.clientX - x0, ev.clientY - y0)
+  const up = () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', up)
+    window.removeEventListener('pointercancel', up)
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up)
+  window.addEventListener('pointercancel', up)
+}
 
 function PinnedCard({
   pin,
@@ -1857,6 +1914,7 @@ function PinnedCard({
   metric,
   metrics,
   onUnpin,
+  onRaise,
 }: {
   pin: Pin
   times: readonly number[]
@@ -1864,27 +1922,116 @@ function PinnedCard({
   metric: ChartMetric
   metrics: ChartMetrics
   onUnpin: (t: number) => void
+  onRaise: (t: number) => void
 }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const a = pin.area
+  // Where the card stands and its size. It first stands beside the click,
+  // on whichever side has the room, measured once it has a width.
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null)
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+  const [sort, setSort] = useState<PinSort>(() => ({ col: Math.max(0, metrics.indexOf(metric)), desc: true }))
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || at) return
+    const w = el.offsetWidth
+    const right = pin.x - a.x > a.w / 2
+    const x = right ? pin.x - CARD_CURSOR_OFFSET_PX - w : pin.x + CARD_CURSOR_OFFSET_PX
+    setAt({ x: clamp(x, a.x, Math.max(a.x, a.x + a.w - w)), y: a.y + 8 })
+  }, [at, pin.x, a.x, a.y, a.w])
   const index = times.indexOf(pin.t)
   if (index < 0) return null
-  const items = cardItems(lines, metric, metrics, index, null, null)
   const hour = fmtTooltipTime(pin.t)
-  // Beside the click, on whichever side has the room, like the hover card.
-  const side = pin.x > pin.width / 2 ? { right: pin.width - pin.x + CARD_CURSOR_OFFSET_PX } : { left: pin.x + CARD_CURSOR_OFFSET_PX }
+  const items = pinnedOrder(cardItems(lines, metric, metrics, index, null, null), metrics, index, sort)
+  // A metric opens high to low, as the card first lists it; names A to Z.
+  const press = (col: number) => setSort((s) => (s.col === col ? { col, desc: !s.desc } : { col, desc: col >= 0 }))
+
+  const onMove = (e: PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button') || !at || !ref.current) return
+    const start = at
+    const w = ref.current.offsetWidth
+    const h = ref.current.offsetHeight
+    follow(e, (dx, dy) =>
+      setAt({ x: clamp(start.x + dx, a.x, Math.max(a.x, a.x + a.w - w)), y: clamp(start.y + dy, a.y, Math.max(a.y, a.y + a.h - h)) }),
+    )
+  }
+  const onSize = (e: PointerEvent<HTMLSpanElement>) => {
+    if (!at || !ref.current) return
+    const w0 = ref.current.offsetWidth
+    const h0 = ref.current.offsetHeight
+    const from = at
+    follow(e, (dx, dy) =>
+      setSize({
+        w: clamp(w0 + dx, PIN_MIN.w, Math.max(PIN_MIN.w, a.x + a.w - from.x)),
+        h: clamp(h0 + dy, PIN_MIN.h, Math.max(PIN_MIN.h, a.y + a.h - from.y)),
+      }),
+    )
+  }
+  const arrow = (col: number) => (
+    <span className={`${ACCENT.text} ${sort.col === col ? '' : 'invisible'}`} aria-hidden="true">
+      {sort.col === col && !sort.desc ? '↑' : '↓'}
+    </span>
+  )
+  const head = (col: number, label: ReactNode) => (
+    <button
+      type="button"
+      aria-pressed={sort.col === col}
+      onClick={() => press(col)}
+      className={`${CHART_CARD.sortHead} ${col < 0 ? 'justify-start' : 'justify-end'}`}
+    >
+      {col >= 0 && arrow(col)}
+      {label}
+      {col < 0 && arrow(col)}
+    </button>
+  )
+  const height = size?.h ?? Math.min(pin.height ?? a.h, a.h - 16)
   return (
     <div
-      className={`${CHART_CARD.card} ${CHART_CARD.pinned} ${TEXT.control} absolute z-[3] flex w-max flex-col`}
-      style={{ ...side, top: pin.top, maxHeight: pin.height }}
+      ref={ref}
+      onPointerDown={() => onRaise(pin.t)}
+      className={`${CHART_CARD.card} ${CHART_CARD.pinned} ${TEXT.control} absolute z-[3] flex flex-col ${size ? '' : 'w-max'}`}
+      style={{
+        left: at?.x ?? a.x,
+        top: at?.y ?? a.y + 8,
+        visibility: at ? undefined : 'hidden',
+        width: size?.w,
+        maxWidth: a.w,
+        height,
+      }}
     >
-      <div className={`${CHART_CARD.head} flex items-center gap-2`}>
+      <div onPointerDown={onMove} className={`${CHART_CARD.head} ${CHART_CARD.grab} flex items-center gap-2`}>
         {hour}
         <button type="button" aria-label={unpinLabel(hour)} onClick={() => onUnpin(pin.t)} className={CHART_CARD.unpin}>
           <IconClose size="chip" />
         </button>
       </div>
-      <div className={`${CHART_CARD.body} ${CHART_CARD.scroll}`}>
-        <CardGrid items={items} metrics={metrics} focusedKey={null} />
+      <div className={`${CHART_CARD.body} ${CHART_CARD.scroll} flex-1`}>
+        <div className="grid items-center gap-x-3.5" style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${metrics.length}, auto)` }}>
+          {head(-1, 'Name')}
+          {metrics.map((m, k) => (
+            <Fragment key={m}>{head(k, CHART_METRICS.find((c) => c.key === m)?.label)}</Fragment>
+          ))}
+          <span className={CHART_CARD.rule} />
+          {items.map((it) => (
+            <Fragment key={it.key}>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className={`h-2 w-2 flex-shrink-0 ${RADIUS.control}`} style={{ backgroundColor: it.line.color }} />
+                <span className={CHART_CARD.name}>{it.line.label}</span>
+              </span>
+              {it.cells.map((c, k) => (
+                <span key={k} className={CHART_CARD.value}>
+                  {c}
+                </span>
+              ))}
+            </Fragment>
+          ))}
+        </div>
       </div>
+      <span onPointerDown={onSize} className={CHART_CARD.corner} aria-hidden="true">
+        <svg viewBox="0 0 10 10" className="h-full w-full">
+          <path d="M9 3 3 9M9 6 6 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      </span>
     </div>
   )
 }

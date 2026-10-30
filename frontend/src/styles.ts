@@ -1384,6 +1384,12 @@ export const CHART_CARD = {
   pinned: 'ring-1 ring-accent-ink',
   scroll: 'min-h-0 overflow-y-auto overscroll-contain',
   unpin: `${ICON_ACTION} ${FOCUS_RING} ml-auto flex items-center font-normal`,
+  // A pinned card moves by its band and sizes by its corner (TJ 2026-10-30);
+  // its heads sort it, an arrow in the accent on the one that does, as the
+  // results table's heads do, the slot kept on every head so none moves.
+  grab: 'cursor-grab select-none active:cursor-grabbing',
+  sortHead: `${MICRO_SIZE} ${FOCUS_RING} flex items-center gap-0.5 whitespace-nowrap text-ink-soft hover:text-ink-strong select-none`,
+  corner: 'absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize text-ink-soft touch-none',
   // A value is never narrower than six mono digits, the widest a cell prints
   // (`≥30000` on the cloud deck), so a column with no head over it (one
   // metric) keeps its width as the hour moves too.
