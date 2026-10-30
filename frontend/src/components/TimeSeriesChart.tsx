@@ -950,6 +950,48 @@ const boxStyle = (flexGrow: number | null) => (flexGrow === null ? undefined : {
 // The card stands inside the chart less this much, so it never meets the
 // plot's edge however long a name runs (#499).
 const CARD_INSET_PX = 8
+
+/**
+ * One metric's plot (#499): its own y axis, domain, data and extreme line.
+ * The chart draws one, a stack of them on one time axis, or a grid.
+ */
+function ChartPanel({
+  index,
+  boxRef,
+  flexGrow,
+  hidden,
+  metric,
+  metrics,
+  lines,
+  ordered,
+  focusedKey,
+  cursorValue,
+  drawsAxis,
+  labelsChrome,
+  syncId,
+  times,
+  spanMs,
+  nowMs,
+  pointGrid,
+  modelEnds,
+  playheadMs,
+  sortBy,
+  sortDesc,
+  margin,
+  followCursor,
+  showsCard,
+  shownIndex,
+  onHover,
+  onEnter,
+  onLeave,
+  onFinger,
+  onDropFinger,
+  onPlayheadChange,
+  areaRef,
+}: PanelProps) {
+  const plotRef = useRef<HTMLDivElement>(null)
+  // Where the last finger went down on the plot, for the click its tap makes.
+  const tapXRef = useRef<number | null>(null)
   const axisPx = xAxisPx(drawsAxis)
 
   // Memoized because hovering re-renders: handleMove below stores the cursor's

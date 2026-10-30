@@ -875,18 +875,3 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })
-    expect(onPick).toHaveBeenCalledWith(1, 'wind')
-    fireEvent.click(screen.getByRole('button', { name: /^Remove / }))
-    expect(onRemove).toHaveBeenCalledWith(1)
-  })
-
-  it("offers a phone's one panel a + beside its title", () => {
-    const onAdd = vi.fn()
-    render(<TimeSeriesChart {...props({ titled: true, onAdd })} />)
-    const add = screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement
-    expect(add.disabled).toBe(false)
-    fireEvent.click(add)
-    expect(onAdd).toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull()
-  })
-})
