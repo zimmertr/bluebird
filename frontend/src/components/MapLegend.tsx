@@ -9,9 +9,8 @@ import {
   CHIP_CARD_W,
   CONTROL_SIZE,
   DISABLED,
-  FOCUS_RING,
+  LEGEND_GRID_STYLE,
   LINK,
-  LINK_QUIET,
   MAP_CHIP_MENU,
   RADIUS,
   STATUS,
@@ -472,16 +471,16 @@ export function legendSections(
                 {gridLegend.styleName !== undefined && (
                   <>
                     {` ${SEP} `}
-                    {/* The style's name is a quiet button that switches it,
-                        the one control in the legend, drawn as text rather
-                        than as the app's buttons (the maintainer, 2026-10-30). */}
+                    {/* The style's name is the button that switches it, the
+                        one control in the legend (the maintainer, 2026-10-30). */}
                     <button
                       type="button"
                       aria-label={`Grid style: ${gridLegend.styleName}`}
                       onClick={() => setGridStyle(gridStyle === 'smooth' ? 'blocks' : 'smooth')}
-                      className={`${LINK_QUIET} ${FOCUS_RING}`}
+                      className={LEGEND_GRID_STYLE}
                     >
                       {gridLegend.styleName}
+                      <span aria-hidden="true">⇄</span>
                     </button>
                   </>
                 )}

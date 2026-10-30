@@ -147,7 +147,7 @@ describe('MapLegend', () => {
       gridLegend: { label: 'Forecast grid', value: '3 km', kind: 'pitch' as const, styleName: 'Smooth' },
     }
     const { container } = render(<Legend {...BASE} grid={PAINTED} />)
-    expect(container.textContent).toContain('3 km · Smooth')
+    expect(container.textContent).toContain('3 km · Smooth⇄')
     fireEvent.click(screen.getByRole('button', { name: 'Grid style: Smooth' }))
     expect(setGridStyle).toHaveBeenCalledWith('blocks')
   })

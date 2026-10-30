@@ -85,6 +85,7 @@ import {
   MENU,
   MENU_GROUP,
   LAYER_GRID,
+  LEGEND_GRID_STYLE,
   LAYER_ROW,
   SHEET_ASIDE,
   MODEL_ROW,
@@ -1539,6 +1540,15 @@ describe('shared recipes', () => {
     expect(layersPopoverSource).toContain('${MAP_CHIP_MENU} ${CHIP_CARD_W.menu}')
     expect(layersPopoverSource).toContain('${sheet ? LAYER_GRID.reachSheet : LAYER_GRID.reach} ${SLIDER.well}')
     expect(mapLegendSource).toContain('${MAP_CHIP_MENU} ${CHIP_CARD_W.key}')
+  })
+
+  // The grid's style button in its legend line adds no height to the line:
+  // no edge, a pixel over and under.
+  it("keeps the legend's grid style button inside its line", () => {
+    expect(LEGEND_GRID_STYLE).toContain('py-px')
+    expect(LEGEND_GRID_STYLE).not.toMatch(/(^|\s)(border|h-|py-[1-9])/)
+    expect(LEGEND_GRID_STYLE).toContain(ACCENT.text)
+    expect(mapLegendSource).toContain('className={LEGEND_GRID_STYLE}')
   })
 
   // The floating button is the skip link's now, at the control size the map

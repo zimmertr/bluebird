@@ -3283,6 +3283,18 @@ export const CALENDAR_FIELD = {
 export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
 
 /**
+ * The grid's style named in its legend line, as the button that switches it
+ * (the maintainer, 2026-10-30): the word and a swap mark in the accent's ink
+ * on a faint wash of the accent, matching the pitch beside it, which wears
+ * the accent's ink too. The one control in the legend, and the one place the
+ * app draws a button this way: it must add no height to the line, so it has
+ * no edge and only a pixel of padding over and under the 12px word.
+ */
+export const LEGEND_GRID_STYLE =
+  `inline-flex items-center gap-0.5 px-1.5 py-px ${RADIUS.control} bg-accent/15 hover:bg-accent/25 ` +
+  `${ACCENT.text} font-semibold cursor-pointer ${FOCUS_RING}`
+
+/**
  * The forecast grid's two controls on its own Layers row, at the right where
  * the Base map rows carry their opacity sliders (the maintainer, 2026-10-29):
  * the grid's style as one button, and its coverage as a slider that takes the
