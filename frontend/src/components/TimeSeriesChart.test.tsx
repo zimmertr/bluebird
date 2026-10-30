@@ -937,6 +937,21 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(onLayout).toHaveBeenCalledWith('row')
   })
 
+  // A click pins the card at that hour, Shift and a click a second beside
+  // it, and the ✕ lets each go (TJ 2026-10-30, P2).
+  it('pins a card per click, two with Shift, each with its own unpin', () => {
+    const { container } = render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange: () => {} })} />)
+    placePlot(container, 360)
+    act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))
+    act(() => chart.onClick!({ activeLabel: TIMES[5] }, { clientX: 200, shiftKey: true }))
+    const unpins = screen.getAllByRole('button', { name: /^Unpin / })
+    expect(unpins).toHaveLength(2)
+    fireEvent.click(unpins[0])
+    expect(screen.getAllByRole('button', { name: /^Unpin / })).toHaveLength(1)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('button', { name: /^Unpin / })).toBeNull()
+  })
+
   it('greys the + at four on a desk', () => {
     render(<TimeSeriesChart {...props(FOUR)} />)
     expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(true)

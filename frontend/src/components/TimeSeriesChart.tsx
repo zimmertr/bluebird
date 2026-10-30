@@ -1,4 +1,4 @@
-import { type CSSProperties, Fragment, type PointerEvent, ReactNode, type RefObject, memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, Fragment, type PointerEvent, ReactNode, type RefObject, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   CartesianGrid,
   Label,
@@ -289,6 +289,34 @@ function TimeSeriesChart({
   // that shows or hides them all. Recharts' own hover state was per panel
   // and outlived a lift, so one panel's dots came back at the old hour.
   const [mouseIndex, setMouseIndex] = useState<number | null>(null)
+  // The cards a desk pinned (TJ 2026-10-30, P2 of four mockups): a click on
+  // a plot pins the card at that hour, where it stops following the pointer
+  // and lists every row; Shift and a click pins a second hour beside it, so
+  // two hours can be read side by side. Two at most, a third replacing the
+  // older; each has its ✕, and Escape lets both go. Where each stands is set
+  // at the click, in the chart's own pixels.
+  const [pins, setPins] = useState<readonly Pin[]>([])
+  const rootRef = useRef<HTMLDivElement>(null)
+  const onPin = useCallback((panel: number, t: number, add: boolean, clientX: number) => {
+    const root = rootRef.current
+    const area = (gridRef.current ?? rowsRef.current ?? stackRef.current)?.getBoundingClientRect()
+    if (!root || !area) return
+    const r = root.getBoundingClientRect()
+    const pin: Pin = { t, panel, x: clientX - r.left, top: area.top - r.top + 8, width: r.width, height: area.height - 16 }
+    setPins((list) => (list.some((p) => p.t === t) ? list : add ? [...list.slice(-1), pin] : [pin]))
+  }, [])
+  const unpin = useCallback((t: number) => setPins((list) => list.filter((p) => p.t !== t)), [])
+  useEffect(() => {
+    if (pins.length === 0) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPins([])
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [pins.length])
+  // A new grid of hours is a new report: its pins named the old one's hours.
+  useEffect(() => setPins([]), [times])
+  const pinTimes = useMemo(() => pins.map((p) => p.t), [pins])
   // The top panel's share of two stacked panels' height, and a grid's column
   // and row splits (#499). Session state: a split is how this reader likes
   // this chart today, which no link or storage has reason to carry. Even by
@@ -761,6 +789,8 @@ function TimeSeriesChart({
         lifted={lifted}
         dotAt={dotAt}
         onPlayheadChange={onPlayheadChange}
+        onPin={phone ? undefined : onPin}
+        pinTimes={pinTimes}
         areaRef={areaRef}
         heading={
           phone ? (
@@ -786,7 +816,7 @@ function TimeSeriesChart({
 
   return (
     // The tour's Chart step lights the chart, its picker and plot (#696).
-    <div className="flex h-full flex-col" data-tour="chart" data-picker-root="">
+    <div ref={rootRef} className="relative flex h-full flex-col" data-tour="chart" data-picker-root="">
       {/* The metrics, one per panel; the first opens on the ranked metric.
 
           A select rather than one radio per metric (#348). The labels carry
@@ -966,6 +996,9 @@ function TimeSeriesChart({
             })}
         </div>
       )}
+      {pins.map((p) => (
+        <PinnedCard key={p.t} pin={p} times={times} lines={lines} metric={drawn[p.panel] ?? drawn[0]} metrics={drawn} onUnpin={unpin} />
+      ))}
     </div>
   )
 }
@@ -1250,6 +1283,10 @@ interface PanelProps {
   onLift: () => void
   onMouse: () => void
   lifted: boolean
+  /** A desk's click pins the card at that hour; Shift adds a second (TJ 2026-10-30). */
+  onPin?: (panel: number, t: number, add: boolean, clientX: number) => void
+  /** The pinned hours, each drawn as a line in every panel. */
+  pinTimes: readonly number[]
   onPlayheadChange?: (ms: number) => void
   /**
    * The panels' area at a desk with more than one panel (#499): the card's
@@ -1315,6 +1352,8 @@ function ChartPanel({
   onMouse,
   lifted,
   dotAt,
+  onPin,
+  pinTimes,
   onPlayheadChange,
   areaRef,
   heading,
@@ -1435,21 +1474,20 @@ function ChartPanel({
   // where the finger went down (`tapXRef`), the one its reading shows.
   //
   // Either panel moves it (#499): both span the same pixels left to right.
-  function handleClick(state: any, event?: { clientX?: unknown }) {
-    if (!onPlayheadChange) return
+  function handleClick(state: any, event?: { clientX?: unknown; shiftKey?: boolean }) {
     const x = tapXRef.current ?? event?.clientX
     tapXRef.current = null
     const el = plotRef.current
+    let t: number | null = null
     if (typeof x === 'number' && el) {
       const box = el.getBoundingClientRect()
       const i = hourIndexAt(x - box.left, box.width, times)
-      if (i !== null) {
-        onPlayheadChange(times[i])
-        return
-      }
+      if (i !== null) t = times[i]
     }
-    const t = state?.activeLabel
-    if (typeof t === 'number') onPlayheadChange(t)
+    if (t === null && typeof state?.activeLabel === 'number') t = state.activeLabel
+    if (t === null) return
+    onPlayheadChange?.(t)
+    if (onPin && typeof event?.clientX === 'number') onPin(index, t, event.shiftKey === true, event.clientX)
   }
 
   if (hidden) return <div ref={boxRef} {...BOX_MARK} className="min-h-0 min-w-0" style={boxStyle(flexGrow)} />
@@ -1483,8 +1521,8 @@ function ChartPanel({
             syncId={syncId}
             onMouseMove={followCursor ? handleMove : undefined}
             onMouseLeave={followCursor ? onLeave : undefined}
-            onClick={onPlayheadChange ? handleClick : undefined}
-            className={onPlayheadChange ? 'cursor-pointer' : undefined}
+            onClick={onPlayheadChange || onPin ? handleClick : undefined}
+            className={onPlayheadChange || onPin ? 'cursor-pointer' : undefined}
           >
             <CartesianGrid stroke={CHROME.grid} strokeDasharray="3 3" />
             {/* The top of two panels keeps its axis for the scale, hidden
@@ -1538,6 +1576,11 @@ function ChartPanel({
                 and a second copy of it would move with the line across a chart
                 that is mostly line already. */}
             {playheadMs !== null && <ReferenceLine x={playheadMs} stroke={CHROME.playhead} strokeWidth={1.5} />}
+            {/* Each pinned hour, dashed in the playhead's colour, so a pinned
+                card names the line it reads (TJ 2026-10-30). */}
+            {pinTimes.map((t) => (
+              <ReferenceLine key={`pin-${t}`} x={t} stroke={CHROME.playhead} strokeWidth={1.5} strokeDasharray="4 3" />
+            ))}
             <Tooltip
               isAnimationActive={false}
               defaultIndex={shownIndex ?? undefined}
@@ -1698,24 +1741,9 @@ function ChartTooltip({
   const index = times.indexOf(label)
   if (index < 0) return null
 
-  const items: TooltipItem[] = []
-  for (const line of lines) {
-    const cells = cardCells(line, metrics, index)
-    if (cells.every((c) => c === '')) continue
-    items.push({ key: line.key, value: valueAt(line, metric, index), cells, line })
-  }
-  items.sort((a, b) => {
-    if (a.key === focusedKey) return -1
-    if (b.key === focusedKey) return 1
-    // A row with no value on the hovered axis reads after every row with one.
-    if (a.value === null || b.value === null) return a.value === null ? (b.value === null ? 0 : 1) : -1
-    if (cursorValue == null) return b.value - a.value
-    return Math.abs(a.value - cursorValue) - Math.abs(b.value - cursorValue)
-  })
-
+  const items = cardItems(lines, metric, metrics, index, focusedKey, cursorValue)
   const shown = items.slice(0, maxRows)
   const rest = items.length - shown.length
-  const headed = metrics.length > 1
 
   return (
     <div
@@ -1730,45 +1758,133 @@ function ChartTooltip({
     >
       <div className={CHART_CARD.head}>{fmtTooltipTime(label)}</div>
       <div className={CHART_CARD.body}>
-      {/* One grid, so each column is as wide as its widest cell or header. */}
-      <div
-        className="grid items-center gap-x-3.5"
-        style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${metrics.length}, auto)` }}
-      >
-        {headed && (
-          <>
-            <span />
-            {metrics.map((m) => (
-              <span key={m} className={CHART_CARD.heads}>
-                {CHART_METRICS.find((c) => c.key === m)?.label}
-              </span>
-            ))}
-            {/* One rule under the heads, across every column. */}
-            <span className={CHART_CARD.rule} data-card-rule="" />
-          </>
-        )}
-        {shown.map((it) => {
-          const strong = it.key === focusedKey ? 'font-semibold text-ink-strong' : ''
-          return (
-            <Fragment key={it.key}>
-              <span className={`flex min-w-0 items-center gap-1.5 ${strong}`}>
-                <span
-                  className={`h-2 w-2 flex-shrink-0 ${RADIUS.control}`}
-                  style={{ backgroundColor: it.line.color }}
-                />
-                <span className={CHART_CARD.name}>{it.line.label}</span>
-              </span>
-              {it.cells.map((c, k) => (
-                <span key={k} className={`${CHART_CARD.value} ${strong}`}>
-                  {c}
-                </span>
-              ))}
-            </Fragment>
-          )
-        })}
-      </div>
+      <CardGrid items={shown} metrics={metrics} focusedKey={focusedKey} />
       </div>
       {rest > 0 && <div className={CHART_CARD.foot}>+{rest} more</div>}
+    </div>
+  )
+}
+
+/** Every line's row at an hour, ordered as the card lists them. */
+function cardItems(
+  lines: readonly ChartLine[],
+  metric: ChartMetric,
+  metrics: ChartMetrics,
+  index: number,
+  focusedKey: string | null,
+  cursorValue: number | null,
+): TooltipItem[] {
+  const items: TooltipItem[] = []
+  for (const line of lines) {
+    const cells = cardCells(line, metrics, index)
+    if (cells.every((c) => c === '')) continue
+    items.push({ key: line.key, value: valueAt(line, metric, index), cells, line })
+  }
+  items.sort((a, b) => {
+    if (a.key === focusedKey) return -1
+    if (b.key === focusedKey) return 1
+    // A row with no value on the hovered axis reads after every row with one.
+    if (a.value === null || b.value === null) return a.value === null ? (b.value === null ? 0 : 1) : -1
+    if (cursorValue == null) return b.value - a.value
+    return Math.abs(a.value - cursorValue) - Math.abs(b.value - cursorValue)
+  })
+  return items
+}
+
+/** The card's rows: one grid, so each column is as wide as its widest cell or head. */
+function CardGrid({ items, metrics, focusedKey }: { items: readonly TooltipItem[]; metrics: ChartMetrics; focusedKey: string | null }) {
+  const headed = metrics.length > 1
+  const shown = items
+  return (
+    <div
+      className="grid items-center gap-x-3.5"
+      style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${metrics.length}, auto)` }}
+    >
+      {headed && (
+        <>
+          <span />
+          {metrics.map((m) => (
+            <span key={m} className={CHART_CARD.heads}>
+              {CHART_METRICS.find((c) => c.key === m)?.label}
+            </span>
+          ))}
+          {/* One rule under the heads, across every column. */}
+          <span className={CHART_CARD.rule} data-card-rule="" />
+        </>
+      )}
+      {shown.map((it) => {
+        const strong = it.key === focusedKey ? 'font-semibold text-ink-strong' : ''
+        return (
+          <Fragment key={it.key}>
+            <span className={`flex min-w-0 items-center gap-1.5 ${strong}`}>
+              <span
+                className={`h-2 w-2 flex-shrink-0 ${RADIUS.control}`}
+                style={{ backgroundColor: it.line.color }}
+              />
+              <span className={CHART_CARD.name}>{it.line.label}</span>
+            </span>
+            {it.cells.map((c, k) => (
+              <span key={k} className={`${CHART_CARD.value} ${strong}`}>
+                {c}
+              </span>
+            ))}
+          </Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
+/** A pinned card (TJ 2026-10-30, P2): one hour, every row, until its ✕ or Escape. */
+interface Pin {
+  t: number
+  /** The panel clicked, whose metric orders the rows. */
+  panel: number
+  /** Where the click stood, and the area it stands over, in the chart's pixels. */
+  x: number
+  top: number
+  width: number
+  height: number
+}
+
+// The approved name of a pinned card's ✕ (TJ 2026-10-30).
+const unpinLabel = (hour: string) => `Unpin ${hour}`
+
+function PinnedCard({
+  pin,
+  times,
+  lines,
+  metric,
+  metrics,
+  onUnpin,
+}: {
+  pin: Pin
+  times: readonly number[]
+  lines: readonly ChartLine[]
+  metric: ChartMetric
+  metrics: ChartMetrics
+  onUnpin: (t: number) => void
+}) {
+  const index = times.indexOf(pin.t)
+  if (index < 0) return null
+  const items = cardItems(lines, metric, metrics, index, null, null)
+  const hour = fmtTooltipTime(pin.t)
+  // Beside the click, on whichever side has the room, like the hover card.
+  const side = pin.x > pin.width / 2 ? { right: pin.width - pin.x + CARD_CURSOR_OFFSET_PX } : { left: pin.x + CARD_CURSOR_OFFSET_PX }
+  return (
+    <div
+      className={`${CHART_CARD.card} ${CHART_CARD.pinned} ${TEXT.control} absolute z-[3] flex w-max flex-col`}
+      style={{ ...side, top: pin.top, maxHeight: pin.height }}
+    >
+      <div className={`${CHART_CARD.head} flex items-center gap-2`}>
+        {hour}
+        <button type="button" aria-label={unpinLabel(hour)} onClick={() => onUnpin(pin.t)} className={CHART_CARD.unpin}>
+          <IconClose size="chip" />
+        </button>
+      </div>
+      <div className={`${CHART_CARD.body} ${CHART_CARD.scroll}`}>
+        <CardGrid items={items} metrics={metrics} focusedKey={null} />
+      </div>
     </div>
   )
 }

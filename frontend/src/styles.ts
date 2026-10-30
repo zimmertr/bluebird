@@ -1379,6 +1379,11 @@ export const CHART_CARD = {
   // than a cap, because the card resized to the longest name in view as the
   // hour moved, and every value column's width is its head's.
   name: 'min-w-0 w-40 truncate',
+  // A pinned card (TJ 2026-10-30, P2): the accent ring says it holds still,
+  // its body scrolls through every row, and the ✕ in its band lets it go.
+  pinned: 'ring-1 ring-accent-ink',
+  scroll: 'min-h-0 overflow-y-auto overscroll-contain',
+  unpin: `${ICON_ACTION} ${FOCUS_RING} ml-auto flex items-center font-normal`,
   // A value is never narrower than six mono digits, the widest a cell prints
   // (`≥30000` on the cloud deck), so a column with no head over it (one
   // metric) keeps its width as the hour moves too.
