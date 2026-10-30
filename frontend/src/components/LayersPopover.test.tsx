@@ -569,7 +569,7 @@ describe('LayersPopover', () => {
       />,
     )
     open()
-    const sliders = screen.getAllByRole('slider') as HTMLInputElement[]
+    const sliders = screen.getAllByRole('slider', { name: /opacity$/ }) as HTMLInputElement[]
     expect(sliders.map((s) => s.getAttribute('aria-label'))).toEqual([
       'Satellite opacity',
       'Topographic opacity',

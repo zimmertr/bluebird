@@ -219,7 +219,7 @@ describe('MapLegend', () => {
     expect(text.indexOf('Slope angle')).toBeLessThan(text.indexOf('Smoke'))
     expect(screen.getByRole('link', { name: 'Mapterhorn' }).getAttribute('href')).toBe('https://mapterhorn.com/attribution')
     const strip = container.querySelector<HTMLElement>('[style*="grid-template-columns"]')!
-    expect(strip.style.gridTemplateColumns).toBe('repeat(6, minmax(0, 1fr))')
+    expect(strip.style.gridTemplateColumns).toBe('repeat(7, minmax(0, 1fr))')
     expect(strip.style.backgroundImage).toContain('linear-gradient')
     const ticks = [...strip.children].filter((c) => c.textContent) as HTMLElement[]
     expect(ticks.map((t) => t.textContent)).toEqual(['27', '30', '32', '35', '46', '51'])

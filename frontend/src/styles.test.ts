@@ -3914,7 +3914,7 @@ describe('the merged roles', () => {
   // parts, became one object each; the keys are the whole vocabulary.
   it('groups the drag and the slider parts', () => {
     expect(Object.keys(DRAG).sort()).toEqual(['carried', 'ghost', 'grip', 'gripActive', 'insert'])
-    expect(Object.keys(SLIDER).sort()).toEqual(['fit', 'idle', 'overlay', 'track', 'value', 'well', 'wordmark'])
+    expect(Object.keys(SLIDER).sort()).toEqual(['idle', 'overlay', 'track', 'value', 'well', 'wordmark'])
   })
 
   // The marks under the scrubber stand over the thumb's centre, which the
