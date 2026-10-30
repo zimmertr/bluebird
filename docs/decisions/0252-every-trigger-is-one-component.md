@@ -21,6 +21,8 @@ A phone's chart metric and aggregates were native selects (0149), each a second 
 - **One hover.** `ACCENT.hoverText` is `not-disabled:not-aria-expanded:hover:text-accent-ink` and is the only way any control spells a hover on its label. The bare ×s, the column drag grips, a message's dismiss, the table's sort headers and the popup's × brightened to the strong ink instead, and the bar between the results panels filled grey with a pill that brightened; they light in the accent now.
 - **One dropdown on a phone.** The chart's metric and the Metrics rows' aggregates are `MenuSelect` at both widths, a card at a desk and a sheet on a phone, headed by the field's name. There is no native select in the app. The phone chart's title keeps its place and is the field trigger at a phone field's 32px, where the box over a native select was 28.
 
+- **One fade on the map.** Every map button's glyph fades to the accent over 150ms, in and out, as the 3D button's word does: the library's drawing stays on the icon's `before`, so a resting glyph is the drawing it always was, and the same paths as a mask in the accent ink fade in over it on the `after`, the drawing going once the mask covers it. The compass's `after` is its own drawing with the north triangle in the accent, so the triangle alone fades; the (i) fades the same way. The swap this replaced, the drawing out and the mask in on the first frame, could not fade: it jumped in and snapped out, and the maintainer saw the zoom and locate buttons flicker beside 3D (2026-10-30, "All fade, compass too").
+
 ## Enforcement
 
 - `styles.test.ts`: every shape's state variants are exactly `TRIGGER_STATE`'s, read off its classes, so a shape that gains or loses one fails by name; no shape has a `focus:` state; `ACCENT.hoverText` is pinned.
@@ -28,6 +30,7 @@ A phone's chart metric and aggregates were native selects (0149), each a second 
 - `style-trigger-no-look`: a colour utility, a state variant, or `DISABLED`, `FOCUS_RING`, `ACCENT`, `MUTED` or `STATUS` handed to a `MenuButton` or `MenuSelect`, or set inside one, fails.
 - `style-hover-accent-only`: a `hover:text-` in any colour but the accent ink fails anywhere the app ships.
 - `style-one-menu`: a native `<select>` fails anywhere.
+- `styles.test.ts` holds each map glyph's `after` to the accent mask at no opacity with the 150ms fade, the drawing to the `before`, and the compass's `after` to its drawing at rest with the north triangle alone refilled.
 
 ## Evidence
 

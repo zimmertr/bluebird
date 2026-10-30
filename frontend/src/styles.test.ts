@@ -2682,41 +2682,57 @@ describe('the phone chrome\'s hit areas', () => {
       }
     }
     // Under the pointer each of the library's glyphs, in every state that
-    // can be pressed, is the same drawing as a mask in its button's ink at the
-    // drawing's own size, and the (i)'s on its after: the zoom pair, the
-    // locate button resting, following and panned away. At rest they keep the
-    // library's drawings (the test above).
-    const hoverRule = (glyph: string) => {
-      const at = mapCss.indexOf(glyph)
-      expect(at, glyph).toBeGreaterThan(-1)
-      return mapCss.slice(at, mapCss.indexOf('}', at))
+    // can be pressed, fades to the same drawing as a mask in the accent ink
+    // at the drawing's own size (record 0252): the zoom pair, the locate
+    // button resting, following and panned away, and the (i). At rest the
+    // library's drawing stands on the `before`, the mask on the `after` at
+    // no opacity; the pointer fades the mask in over 150ms, as 3D's word
+    // fades, and takes the drawing away once the mask covers it.
+    const ruleAt = (selector: string) => {
+      const at = mapCss.indexOf(selector)
+      expect(at, selector).toBeGreaterThan(-1)
+      return mapCss.slice(at, mapCss.indexOf('}', mapCss.indexOf('{', at)))
     }
-    const every = hoverRule('.maplibregl-ctrl-group button:enabled:hover .maplibregl-ctrl-icon {')
-    for (const decl of ['background-image: none;', 'background-color: currentColor;', 'mask-size: auto;', 'mask-position: 50%;']) {
-      expect(every).toContain(decl)
+    const hoverRule = ruleAt
+    const FADE = 'transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);'
+    // After a closing brace: the first `::after {` closes the selector the two
+    // pseudo-elements share.
+    const glyph = ruleAt('}\n  .maplibregl-ctrl-group button .maplibregl-ctrl-icon::after {')
+    for (const decl of ['background-color: var(--ui-accent-ink);', 'mask-size: auto;', 'mask-position: 50%;', 'opacity: 0;', FADE]) {
+      expect(glyph).toContain(decl)
     }
-    for (const glyph of [
-      'zoom-in:enabled:hover .maplibregl-ctrl-icon {',
-      'zoom-out:enabled:hover .maplibregl-ctrl-icon {',
-      'maplibregl-ctrl-geolocate:enabled:hover .maplibregl-ctrl-icon {',
-      'maplibregl-ctrl-geolocate-background-error:enabled:hover .maplibregl-ctrl-icon {',
-      '.maplibregl-ctrl-attrib-button:hover::after {',
+    expect(ruleAt('  .maplibregl-ctrl-group button .maplibregl-ctrl-icon::before {')).toContain('background-image: inherit;')
+    expect(ruleAt('  .maplibregl-ctrl-group button:enabled:hover .maplibregl-ctrl-icon::after {')).toContain('opacity: 1;')
+    expect(ruleAt('  .maplibregl-ctrl-group button:enabled:hover .maplibregl-ctrl-icon::before {')).toContain('transition: opacity 0s 150ms;')
+    const credit = ruleAt('}\n  .maplibregl-ctrl-attrib-button::after {')
+    for (const decl of ['background-color: var(--ui-accent-ink);', 'opacity: 0;', FADE]) expect(credit).toContain(decl)
+    expect(ruleAt('  .maplibregl-ctrl-attrib-button:hover::after {')).toContain('opacity: 1;')
+    expect(ruleAt('  .maplibregl-ctrl-attrib-button:hover::before {')).toContain('transition: opacity 0s 150ms;')
+    // The fade is the length of every control's colour change (Tailwind's
+    // `transition-colors`, 150ms), so the map's buttons and 3D's word move alike.
+    expect(MAP_TERRAIN_BUTTON).toContain('transition-colors')
+    for (const sel of [
+      'zoom-in .maplibregl-ctrl-icon::after {',
+      'zoom-out .maplibregl-ctrl-icon::after {',
+      'maplibregl-ctrl-geolocate .maplibregl-ctrl-icon::after {',
+      'maplibregl-ctrl-geolocate-background-error .maplibregl-ctrl-icon::after {',
+      '}\n  .maplibregl-ctrl-attrib-button::after {',
     ]) {
-      expect(hoverRule(glyph), glyph).toMatch(/mask-image: url\(/)
+      expect(ruleAt(sel), sel).toMatch(/mask-image: url\(/)
     }
-    // The compass is two colours, so under the pointer it is its own drawing
-    // at rest with the north triangle alone refilled, in each theme's accent
-    // ink: the paint bucket on the one triangle, and nothing else moved.
+    // The compass is two colours, so its `after` is its own drawing at rest
+    // with the north triangle alone refilled, in each theme's accent ink: the
+    // paint bucket on the one triangle, which alone fades.
     const svgOf = (rule: string) => decodeURIComponent(rule.slice(rule.indexOf('url("') + 5, rule.indexOf('")')))
     const rest = svgOf(hoverRule('.maplibregl-ctrl-group .maplibregl-ctrl-compass .maplibregl-ctrl-icon {'))
     const lit = {
-      dark: svgOf(hoverRule('  .maplibregl-ctrl-group button.maplibregl-ctrl-compass:enabled:hover .maplibregl-ctrl-icon {')),
-      light: svgOf(hoverRule(':root[data-theme="light"] .maplibregl-ctrl-group button.maplibregl-ctrl-compass:enabled:hover .maplibregl-ctrl-icon {')),
+      dark: svgOf(ruleAt('  .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::after {')),
+      light: svgOf(ruleAt(':root[data-theme="light"] .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::after {')),
     }
     expect(rest).toContain('<path fill="#ef4444" d="m10.5 14 4-8 4 8z"/>')
     expect(lit.dark).toBe(rest.replace('fill="#ef4444"', `fill="${dark('accent-ink')}"`))
     expect(lit.light).toBe(rest.replace('fill="#ef4444"', `fill="${light('accent-ink')}"`))
-    // And the buttons' classes carry the hover the glyphs follow.
+    // And the buttons' classes carry the hover 3D's word and the (i)'s ink follow.
     for (const recipe of [MAP_ROUND_BUTTON, MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out]) {
       expect(recipe).toContain(ACCENT.hoverText)
     }
