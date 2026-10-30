@@ -1098,7 +1098,14 @@ function ChartPanel({
       if (lifted) onMouse()
       return
     }
-    if (e.type === 'pointerdown') tapXRef.current = e.clientX
+    if (e.type === 'pointerdown') {
+      tapXRef.current = e.clientX
+      // No compatibility mouse events after a finger (TJ 2026-10-30): Recharts
+      // read them as a hover that never ended, which re-rendered every synced
+      // panel after the lift and held its dots up. The tap's click still
+      // fires, and `touch-pan-y` still hands the browser the vertical pan.
+      e.preventDefault()
+    }
     const el = plotRef.current
     if (!el) return
     const box = el.getBoundingClientRect()
@@ -1277,7 +1284,7 @@ function ChartPanel({
             {/* Every series on one canvas between the grid and the reference
                 lines (#499; record 0244): 200 SVG lines cost Recharts a
                 redraw of every point on every size change. */}
-            <ChartLines data={data} strokes={strokes} yDomain={yDomain} />
+            <ChartLines data={data} strokes={strokes} yDomain={yDomain} quiet={lifted} />
             {/* One unpainted Recharts line, the anchor a tooltip opened by
                 `defaultIndex` (a finger, the tour) needs to stand: with no
                 graphical item Recharts places it nowhere and keeps it hidden

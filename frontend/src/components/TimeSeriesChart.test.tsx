@@ -45,6 +45,7 @@ const chart = vi.hoisted(() => ({
   series: [] as Record<string, unknown>[],
   tooltipContent: undefined as undefined | ((props: unknown) => ReactNode),
   margin: undefined as unknown,
+  quiet: undefined as boolean | undefined,
   // Every LineChart, XAxis and Tooltip drawn, in order, so a two-panel test
   // can read each panel's (#499).
   charts: [] as { onClick?: Handler; onMouseMove?: Handler; syncId?: string }[],
@@ -64,8 +65,9 @@ vi.mock('./ResizeGrip', async (importOriginal) => ({
 // The canvas lines (record 0244): every stroke the panel hands it, kept in the
 // order drawn, as the mock above kept every Recharts Line.
 vi.mock('./ChartLines', () => ({
-  default: (p: { strokes: Record<string, unknown>[] }) => {
+  default: (p: { strokes: Record<string, unknown>[]; quiet?: boolean }) => {
     chart.series.push(...p.strokes)
+    chart.quiet = p.quiet
     return null
   },
 }))
@@ -258,8 +260,10 @@ describe('TimeSeriesChart under a finger', () => {
     fireEvent.pointerDown(plotOf(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
     expect(tip().active).toBe('true')
     fireEvent.pointerUp(plotOf(container), { pointerType: 'touch' })
-    // Held shut, so the tap's compatibility mouse events cannot reopen it.
+    // Held shut, so the tap's compatibility mouse events cannot reopen it,
+    // and the hover dots go with it.
     expect(tip().active).toBe('false')
+    expect(chart.quiet).toBe(true)
     // A real mouse hands the card back to Recharts.
     fireEvent.pointerMove(plotOf(container), { pointerType: 'mouse', clientX: 252, clientY: 560 })
     expect(tip().active).toBe('undefined')

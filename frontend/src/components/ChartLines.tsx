@@ -21,11 +21,17 @@ export default function ChartLines({
   data,
   strokes,
   yDomain,
+  quiet = false,
 }: {
   data: readonly ChartPoint[]
   strokes: readonly LineStroke[]
   /** The y axis's domain, which the panel hands its YAxis too. */
   yDomain: readonly [number, number]
+  /**
+   * The card is held shut after a finger lifts (TJ 2026-10-30): no dots
+   * either, though Recharts' synced state may still call the hover active.
+   */
+  quiet?: boolean
 }) {
   const area = usePlotArea()
   const activeLabel = useActiveTooltipLabel()
@@ -78,11 +84,11 @@ export default function ChartLines({
 
   useLayoutEffect(() => {
     const ctx = prepare(dotsRef.current)
-    if (!ctx || !tooltipActive || typeof activeLabel !== 'number' || strokes.some((s) => s.dot)) return
+    if (!ctx || quiet || !tooltipActive || typeof activeLabel !== 'number' || strokes.some((s) => s.dot)) return
     const row = data.find((r) => r.t === activeLabel)
     if (row) drawActiveDots(ctx, row, strokes, x, y, theme)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLabel, tooltipActive, data, strokes, x, y, w, h, left, top, dpr, theme])
+  }, [activeLabel, tooltipActive, quiet, data, strokes, x, y, w, h, left, top, dpr, theme])
 
   if (!area || w <= 0 || h <= 0) return null
   return (
