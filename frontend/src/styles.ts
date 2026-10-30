@@ -124,7 +124,7 @@ export const TEXT = {
   subheading: 'text-xs font-semibold text-ink',
   /**
    * Anything you read or type in a control (radio labels, inputs, pickers)
-   * and the label beside a field: Model, When, Rank by, Hours. One weight for
+   * and the label beside a field: Model, When, Metric, Hours. One weight for
    * every field label, so none reads as a heading over the others (record
    * 0222).
    */
@@ -1872,27 +1872,6 @@ export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RE
 export const SEGMENT_FILL = `flex w-full ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**
- * The metric rows' aggregate dropdown (#291): the one control that sits
- * BESIDE the shared control column rather than in it, so it takes its own
- * width and the metric label absorbs what is left.
- *
- * 4.5rem (72px) is a budget, not a taste. The row it sits in is the Metrics
- * grid's (#341): panel content is 327px, and a metric row spends 14px on the
- * radio, 10px on its label gap, 18px on its three gap-1.5 grid gaps, this
- * width on the dropdown and two `METRIC_BOX_W` boxes, leaving the label what
- * is left — and its longest noun, `Freezing level`, is measured at text-xs
- * in `styles.test.ts`, which pins the sum. The dropdown's own floor is its
- * content: the widest aggregate word measures 28px, plus the field's 8px
- * left padding and the 24px the SELECT recipe reserves for its arrow — 60px
- * (measured 2026-08-22, re-derived 2026-09-14 when SELECT gave 8px back).
- * The 12px of slack that leaves is deliberate: this width also sets a grid
- * track, so shrinking it to the floor would only widen a label that already
- * fits. Re-measure both sums before changing this, the box width, the grid
- * gap, or the nouns.
- */
-export const SELECT_W_AGGREGATE = 'w-[4.5rem]'
-
-/**
  * A segmented control OUTSIDE the panel's column, sized by its content.
  *
  * `SEGMENT` bakes in `CONTROL_W` because the panel's rows must line up on both
@@ -1908,39 +1887,35 @@ const SEGMENT_FLUID_SHAPE = `inline-flex ${RADIUS.control} overflow-hidden`
 export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
 
 /**
- * The Metrics grid (#341): the ranking and the bounds in one table, one row
- * per metric, so the two cannot disagree about which metrics exist or in what
- * order, and the panel stops spending 484px on two sections that list the same
- * six things.
+ * The Metrics grid (#341, reshaped by #498; record 0242): the ranking, the
+ * results cap and the bounds in one table, so the three controls that order
+ * the list and the rows that bound it share two edges.
  *
- * Four columns: the label (with its radio, where the row can rank), the
- * aggregate dropdown, the floor box and the ceiling box. The last three are
- * `auto`, sized by the roles their controls wear — `SELECT_W_AGGREGATE` and
- * `METRIC_BOX_W` — so the header row and every box line up without the grid
- * restating a width. Under a single-hour window the dropdown column holds
- * nothing and every label spans it, which keeps one gap between the label and
- * the boxes rather than two. Nothing in the section is wider than the tracks it
- * spans: the direction segment wears `SEGMENT_FILL` over the two box columns
- * rather than `SEGMENT`'s `CONTROL_W`, so every control in the table shares the
- * boxes' two edges and a grid item can never stretch a track.
+ * Three columns: the label, the floor box and the ceiling box. The two box
+ * columns are `auto`, sized by `METRIC_BOX_W`, so the headings and every box
+ * line up without the grid restating a width. Every other control in the
+ * section (the Metric, Aggregate and Bound menus, the Order segment and the
+ * results cap) spans the two box columns, which is `CONTROL_W` by
+ * construction: the Forecast section's controls stand on the same two edges
+ * and nothing here picks a width of its own. Nothing in the section is wider
+ * than the tracks it spans, so a grid item can never stretch a track.
  *
- * This is the panel's widest row, and the budget is the label's: `Freezing
- * level` must fit beside a dropdown and two boxes at both widths. The desk
- * panel's 327px of content less its 10px bar is 317px and binds; a phone's
- * Controls sheet gives the grid 328px with no scroll bar reserved, the wider
- * of the two (#586). `styles.test.ts` does that arithmetic from the measured
- * noun, so a wider box or a longer noun fails there instead of as an ellipsis,
- * which is how the old Ranking row shipped `Freezing le…` (#341).
+ * The label column takes what is left, which no noun comes near now that a
+ * metric's name stands in a box's row with no radio and no menu beside it.
+ * The binding label is inside a menu: `Freezing level` in the Metric field,
+ * whose sum `styles.test.ts` does from the measured noun (#341 shipped
+ * `Freezing le…` once).
  */
 export const METRICS_GRID =
-  'grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-1.5 gap-y-1.5'
+  'grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-1.5 gap-y-1.5'
 /**
  * The one deliberate break inside the Metrics grid: the space above the two box
- * headings, separating the controls that order the list from the table of
- * bounds below them.
+ * headings, separating the controls that order the list from the bound rows
+ * below them. It is drawn only above the first bound row, so a section with
+ * no bound shown has no break to draw (#498).
  *
  * Padding on every cell of the heading row rather than a margin on one of them,
- * because the four columns are grid tracks and a margin on a single item would
+ * because the three columns are grid tracks and a margin on a single item would
  * shift that item alone. It is deliberately not a rule: a rule of any weight in
  * this section read as a break the size of the one between whole sections,
  * which is the only thing that weight may say (TJ, 2026-09-14). It is also the
@@ -2743,24 +2718,6 @@ export const CONTROLS_SHEET = {
 } as const
 
 /**
- * The space above and below each metric's radio label in the Metrics grid,
- * which sets the row pitch at 32px on a fine pointer (#687, record 0130).
- *
- * The rows stood 28px apart: a 16px radio label and a 22px bound box with the
- * grid's 6px gap between rows, which failed the spacing test of WCAG 2.2
- * SC 2.5.8 (a 24px circle on each undersized target may meet no other
- * target). 5px above and below the label makes each row 26px tall and the
- * pitch 32px, and nothing anyone presses changes size: the targets pass by
- * spacing rather than by growing. 24px targets at a 30px pitch were mocked
- * beside it and declined. The Metrics section grows from 359 to 387px.
- *
- * Fine pointer only: on a touch screen `TAP.row` already makes the label a
- * finger's 32px, the pitch the margin buys here, and the margin there would
- * only spend height.
- */
-export const METRIC_LABEL_PITCH = 'my-[5px] touch:my-0'
-
-/**
  * Step number badge in the welcome modal.
  *
  * The badge wears the accent fill with white text; the size and weight are
@@ -3037,6 +2994,14 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  * - `current`: the value a list that replaced a select holds, set semibold
  *   the way the model list sets its ranking model. No check mark: the weight
  *   says it, and a mark would take a column from every row.
+ * - `unavailable`: a row drawn and not picked, a metric the window cannot
+ *   answer (#803, #498): `DISABLED`'s look without its `disabled:` variant,
+ *   which a listbox row, being no form control, never matches. Spelled out
+ *   rather than derived, because Tailwind emits only the classes it reads
+ *   in the source; `styles.test.ts` holds the two to one look.
+ * - `placeholder`: what a field reads while it holds no value (the Metrics
+ *   section's adder, #498), in the ink `FIELD` gives a box's placeholder, so
+ *   an empty menu field and an empty box read alike.
  */
 export const MENU = {
   card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
@@ -3047,6 +3012,8 @@ export const MENU = {
   active: 'bg-raised',
   hover: 'hover:bg-raised',
   current: 'font-semibold',
+  unavailable: 'opacity-40 cursor-not-allowed',
+  placeholder: 'text-ink-soft',
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
 } as const
 

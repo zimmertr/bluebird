@@ -138,7 +138,7 @@ export function useTableView({
   // predates keeps its place instead of vanishing; `applyColumnOrder` owns that
   // rule.
   //
-  // It is discarded whenever the ranking changes (TJ, 2026-09-14): `Rank by`
+  // It is discarded whenever the ranking changes (TJ, 2026-09-14): `Metric`
   // pulls the ranked metric group to the front, and the maintainer chose to let
   // it win rather than have a stored order suppress the one thing the ranking
   // does to the columns.

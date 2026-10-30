@@ -156,12 +156,12 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
 
   // The keyboard: the arrows open and walk the list, Enter picks, and the
   // keyboard is back on the field.
-  const aggregate = page.getByRole('button', { name: /^Temperature aggregate / })
+  const aggregate = page.getByRole('button', { name: /^Aggregate / })
   const shown = aggregate.locator('span').nth(1)
   const before = (await shown.textContent())!
   await aggregate.focus()
   await page.keyboard.press('ArrowDown')
-  const rows = page.getByRole('listbox', { name: 'Temperature aggregate' })
+  const rows = page.getByRole('listbox', { name: 'Aggregate' })
   await expect(rows).toBeVisible()
   await standsOff(await rect(aggregate), await rect(card(page)), await card(page).getAttribute('data-side'))
   const words = await rows.getByRole('option').allTextContents()

@@ -1,24 +1,19 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { SortBy } from '../types'
 import {
   ACCENT,
   BUTTON_SECONDARY,
-  CHOICE_INPUT,
-  CHOICE_ROW,
   DISABLED,
   FIELD_NUMERIC,
   ICON_ADORNMENT,
   METRICS_GRID,
   METRIC_HEAD_GAP,
   METRIC_BOX_W,
-  METRIC_LABEL_PITCH,
-  MUTED,
   SEGMENT_FILL,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SELECT,
-  SELECT_W_AGGREGATE,
   TEXT,
 } from '../styles'
 import { IconChevron } from './icons'
@@ -38,10 +33,11 @@ import { FAMILY_BOUNDS, invertedFamilies } from '../utils/constraints'
 import { ALL_ANSWERED, type UnansweredMetrics } from '../utils/metricReach'
 import { DEFAULT_LIMIT, clampLimit } from '../utils/urlState'
 
-// The app's core question: "top N peaks by <metric's aggregate>, lowest or
-// highest". Each row is a metric; which of its aggregate columns it ranks by
-// is the row's dropdown (#291), so the label is the bare noun and the
-// reduction lives in the control beside it.
+// The app's core question: "top N destinations by <metric's aggregate>, lowest
+// or highest". Five rows ask it (#498; record 0242): which metric, which of its
+// aggregates, which way round, how many, and which bounds to add. A bound row
+// stands only while its bound is set or the reader has just added it, so a
+// new metric adds an option to two menus rather than a row to the panel.
 
 // The two cells of a filter row, and what an empty one says it is for.
 //
@@ -167,8 +163,9 @@ const BOX_PLACEHOLDER: Record<MetricFamily, string> = {
   aqi: 'aqi',
 }
 
-// Each row's aggregate menu at a desk (record 0201): the keys its family
-// ranks by, in the words the native select's options carried.
+
+// The Aggregate menu's choices per family: the keys it ranks by, in the words
+// the per-row menus carried before #498.
 const AGGREGATE_OPTIONS = Object.fromEntries(
   RANKED_FAMILIES.map((family) => [
     family,
@@ -176,21 +173,100 @@ const AGGREGATE_OPTIONS = Object.fromEntries(
   ]),
 ) as Record<MetricFamily, { value: SortBy; label: string }[]>
 
+/** Whether a metric holds a floor or a ceiling, which is what keeps its row drawn. */
+const isBounded = (constraints: Constraints, family: MetricFamily): boolean =>
+  FAMILY_BOUNDS[family].some((field) => constraints[field] != null)
+
+interface ChoiceOption<V extends string> {
+  value: V
+  label: string
+  disabled?: boolean
+}
+
+/**
+ * One of the section's three menus, over the two box columns. A desk opens
+ * the one menu (record 0201); a phone keeps the native select, whose picker
+ * rises from the bottom like every phone menu (record 0149). Drawn in one
+ * place so the three cannot differ in shape, and so the section opens its
+ * menus from one field.
+ */
+function Choice<V extends string>({
+  phone,
+  label,
+  value,
+  options,
+  onChange,
+  placeholder,
+  disabled = false,
+}: {
+  phone: boolean
+  label: string
+  value: V | null
+  options: readonly ChoiceOption<V>[]
+  onChange: (value: V) => void
+  placeholder?: string
+  disabled?: boolean
+}) {
+  // py-0.5 is SEGMENT_ITEM_SHAPE's own vertical padding, so the menus, the
+  // boxes and the segment are one height. `w-full` over two tracks rather
+  // than CONTROL_W, which the two tracks already are.
+  const shape = `w-full ${DISABLED} px-2 py-0.5`
+  return (
+    // flex, not block: an inline-level select in a block wrapper reserves
+    // baseline descender space below itself, which read as the field
+    // sitting ~1px lower than the boxes it must align with.
+    <div className="relative col-span-2 flex">
+      {phone ? (
+        <>
+          <select
+            aria-label={label}
+            value={value ?? ''}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value as V)}
+            className={`${SELECT} ${shape}`}
+          >
+            {placeholder !== undefined && (
+              <option value="" disabled>
+                {placeholder}
+              </option>
+            )}
+            {options.map((option) => (
+              <option key={option.value} value={option.value} disabled={option.disabled}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <IconChevron up={false} className={ICON_ADORNMENT} />
+        </>
+      ) : (
+        <MenuSelect
+          label={label}
+          value={value}
+          options={options}
+          onChange={onChange}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={shape}
+        />
+      )}
+    </div>
+  )
+}
+
 interface Props {
   sortBy: SortBy
   setSortBy: (s: SortBy) => void
   sortDesc: boolean
   setSortDesc: (d: boolean) => void
-  // Each metric row's aggregate choice (#291), active row included. App owns
-  // the invariant that the active family's entry equals sortBy; changing any
-  // row's dropdown goes through setSortBy, which is what makes a dropdown
-  // change activate its row the way the direction toggle always has.
+  // Each metric's aggregate choice (#291), active metric included. App owns
+  // the invariant that the active family's entry equals sortBy, so the
+  // Metric menu ranks by the aggregate a metric last held.
   rowKeys: Record<MetricFamily, SortBy>
-  // Whether the panel's When selection is a single hourly stamp. The aggregate
-  // dropdowns hide then, because min, average and maximum of one hour are the
-  // same number, the same way the calendar's Hours row hides under a selection
-  // that takes no hours. It reads the panel rather than the analyzed report, so
-  // the dropdowns follow a When switch before it is analyzed.
+  // Whether the panel's When selection is a single hourly stamp. The
+  // Aggregate menu hides then, because min, average and maximum of one hour
+  // are the same number, the same way the calendar's Hours row hides under a
+  // selection that takes no hours. It reads the panel rather than the
+  // analyzed report, so the menu follows a When switch before it is analyzed.
   pointSample: boolean
   constraints: Constraints
   setConstraints: (c: Constraints) => void
@@ -202,13 +278,14 @@ interface Props {
   // Live ceiling for the results knob, from /api/capabilities (falls back to
   // the compiled analysis cap).
   maxLimit: number
-  // A phone (#696), where the aggregate stays the native select and opens the
-  // phone's own picker; a desk's opens the one menu (record 0201).
+  // A phone (#696), where the menus stay native selects and open the phone's
+  // own picker; a desk's open the one menu (record 0201).
   phone?: boolean
   // The metrics the selected window and models cannot answer (#803,
-  // `unansweredMetrics`): each one's row greys, the way a Layers row greys
-  // outside its coverage. The grey row is the whole message; the line that
-  // blocks a ranking on one is the Analyze button's.
+  // `unansweredMetrics`): each one is a disabled option in the Metric and
+  // Bound menus and its bound row greys, the way a Layers row greys outside
+  // its coverage. The grey is the whole message; the line that blocks a
+  // ranking on one is the Analyze button's.
   unanswered?: UnansweredMetrics
 }
 
@@ -232,14 +309,36 @@ export default function MetricsTable({
   phone = false,
   unanswered = ALL_ANSWERED,
 }: Props) {
-  // What Clear filters offers to undo, and therefore whether it is enabled.
-  // The button is always drawn: a control that appears and disappears moves
-  // everything under it and has to be found again, where a disabled one stays
-  // where the reader last saw it (TJ, 2026-09-14). The results cap counts even
-  // though it bounds nothing: it is one of the seven knobs in the table, a
-  // reader who typed a number there looks for the same way back as for a
-  // bound, and leaving it out meant the one control the button skipped was the
-  // one sitting right above it.
+  // The metric the Bound menu last added, drawn while its row is still empty.
+  // It is the one row nothing in `constraints` keeps on screen, so it is held
+  // here rather than in the URL: a share link shows the bounds it carries
+  // and no pending row. It leaves when the keyboard leaves its row, when
+  // another metric is added, or on Clear filters, never under a reader
+  // mid-edit.
+  const [pending, setPending] = useState<MetricFamily | null>(null)
+  // The floor box an add hands the keyboard to. A ref read after the commit
+  // rather than state, because the menu that added it hands the keyboard back
+  // to its own field in a layout effect of that same commit, and this has to
+  // land after it.
+  const floorBoxes = useRef<Partial<Record<MetricFamily, HTMLInputElement | null>>>({})
+  const focusNext = useRef<MetricFamily | null>(null)
+  useEffect(() => {
+    const family = focusNext.current
+    if (family === null) return
+    focusNext.current = null
+    floorBoxes.current[family]?.focus()
+  })
+
+  const active = familyOf(sortBy)
+  const shown = RANKED_FAMILIES.filter((family) => family === pending || isBounded(constraints, family))
+  const addable = RANKED_FAMILIES.filter((family) => !shown.includes(family))
+
+  // What Clear filters offers to undo, and therefore whether it is drawn
+  // (#498, reversing #341's always-drawn button): the rows above it already
+  // come and go with the bounds, so a button that stood disabled under none
+  // of them was one more row to read past. The results cap counts even
+  // though it bounds nothing: a reader who typed a number there looks for
+  // the same way back as for a bound.
   //
   // A value an inert box holds counts too (#803). A greyed box cannot be
   // typed in, so this button is the one way to empty it, and the number stays
@@ -251,42 +350,67 @@ export default function MetricsTable({
   // the Analyze button's line is what says it on screen.
   const inverted = new Set(invertedFamilies(constraints))
 
-  // Metrics — the ranking and the bounds in one table (#341). One row
-  // per metric: its radio, its aggregate dropdown, and its floor and
-  // ceiling boxes, so the two questions the panel used to ask in two
-  // sections 50px apart in height — "order by what?" and "who
-  // qualifies?" — are answered on the same line. The Lowest/Highest
-  // choice is ONE segment above the rows rather than one per row: it is
-  // a property of the ranking, not of each metric, and four of the five
-  // per-row segments were disabled at any moment. The dropdowns hide
-  // for a single-hour window, where every aggregate is the same number,
-  // and each label spans the empty column so the row keeps one gap.
-  //
-  // The section reads in two blocks, and nothing is drawn between
-  // them. A rule there read as a break the size of the one between whole
-  // sections, which is the only thing that weight is allowed to say (TJ,
-  // 2026-09-14). Shape and space tell them apart instead: two wide
-  // controls saying how the list is ordered and how far down it goes,
-  // then METRIC_HEAD_GAP above the two box headings, then the table
-  // of the five bounds the ranking can use.
+  function addBound(family: MetricFamily) {
+    setPending(family)
+    focusNext.current = family
+  }
+
+  function clearFilters() {
+    setPending(null)
+    onClearFilters()
+  }
+
+  // Two blocks with nothing drawn between them. A rule there read as a break
+  // the size of the one between whole sections, which is the only thing that
+  // weight is allowed to say (TJ, 2026-09-14). Five rows of wide controls
+  // first, each a label beside a control over the two box columns; then,
+  // once a bound row stands, METRIC_HEAD_GAP above the two box headings and
+  // the rows themselves.
   return (
     <section data-tour="metrics">
       <h2 className={`${TEXT.section} mb-2.5`}>
         Metrics
       </h2>
       <div className={METRICS_GRID}>
-        {/* The one direction. Pressing a half never changes WHICH metric
-            ranks; the radios own that. Two grid cells rather than a row of
-            its own: the label spans the label and dropdown columns like
-            each metric row's label below, and the segment spans the two box columns, so
-            it is the boxes' width in both states and every control in the
-            section shares their two edges. That is why it wears
-            SEGMENT_FILL rather than SEGMENT, whose CONTROL_W would hang
-            past the boxes on the left. */}
-        <span id="rank-by" className={`${TEXT.control} col-span-2 truncate`}>
-          Rank by
+        <span className={`${TEXT.control} truncate`} aria-hidden="true">
+          Metric
         </span>
-        <div className={`${SEGMENT_FILL} col-span-2`} role="group" aria-labelledby="rank-by">
+        <Choice
+          phone={phone}
+          label="Metric"
+          value={active}
+          options={RANKED_FAMILIES.map((family) => ({
+            value: family,
+            label: NOUN[family],
+            disabled: unanswered.has(family),
+          }))}
+          onChange={(family) => setSortBy(rowKeys[family])}
+        />
+        {/* Gone for a single-hour window, where every aggregate is the same
+            number, and for a metric with one aggregate to offer. */}
+        {!pointSample && FAMILY_KEYS[active].length > 1 && (
+          <>
+            <span className={`${TEXT.control} truncate`} aria-hidden="true">
+              Aggregate
+            </span>
+            <Choice
+              phone={phone}
+              label="Aggregate"
+              value={sortBy}
+              options={AGGREGATE_OPTIONS[active]}
+              onChange={setSortBy}
+              disabled={unanswered.has(active)}
+            />
+          </>
+        )}
+        {/* The one direction. Pressing a half never changes WHICH metric
+            ranks; the Metric menu owns that. It spans the two box columns,
+            so it wears SEGMENT_FILL rather than SEGMENT, whose CONTROL_W is
+            the same width spelled a second time. */}
+        <span id="rank-order" className={`${TEXT.control} truncate`}>
+          Order
+        </span>
+        <div className={`${SEGMENT_FILL} col-span-2`} role="group" aria-labelledby="rank-order">
           {[
             { desc: false, label: 'Lowest' },
             { desc: true, label: 'Highest' },
@@ -303,24 +427,13 @@ export default function MetricsTable({
             </button>
           ))}
         </div>
-        {/* How many of that order to show, directly under the direction
-            that orders it: the two finish one sentence — "the 200 lowest by
-            total precipitation" — and neither is a bound, so they sit above
-            the table of bounds rather than in it (TJ, 2026-09-14). Being
-            the pair of wide controls over a table of narrow ones is what
-            separates them; nothing is drawn.
-
-            The ceiling is the live analysis cap from /api/capabilities. The
-            default rides as a placeholder, like the boxes below, so
-            changing it is one keystroke rather than a select-and-erase.
-            Empty means the DEFAULT here, not "no cap" as it does for a
-            bound: this knob always has a value, and the row count in the
-            table's header says what it is doing. */}
-        <label
-          htmlFor="max-results"
-          className={`${TEXT.control} col-span-2 truncate`}
-          title={LIMIT_NOTE}
-        >
+        {/* How many of that order to show: the rows above finish one
+            sentence, "the 200 lowest by total precipitation". The ceiling
+            is the live analysis cap from /api/capabilities. The default
+            rides as a placeholder, like the boxes below, so changing it is
+            one keystroke rather than a select-and-erase. Empty means the
+            DEFAULT here, not "no cap" as it does for a bound. */}
+        <label htmlFor="max-results" className={`${TEXT.control} truncate`} title={LIMIT_NOTE}>
           {AGGREGATE.maximum} results
         </label>
         <input
@@ -336,127 +449,104 @@ export default function MetricsTable({
           title={LIMIT_NOTE}
           className={`${METRIC_BOX_WIDE} col-span-2`}
         />
+        {/* The adder: picking a metric draws its row and puts the keyboard
+            in its floor box. A metric already drawn is not offered again. */}
+        <span className={`${TEXT.control} truncate`} aria-hidden="true">
+          Bound
+        </span>
+        <Choice
+          phone={phone}
+          label="Bound"
+          value={null}
+          placeholder="Add a bound"
+          options={addable.map((family) => ({
+            value: family,
+            label: NOUN[family],
+            disabled: unanswered.has(family),
+          }))}
+          onChange={addBound}
+          disabled={addable.length === 0}
+        />
         {/* The box columns' headings, the two aggregate names: for most
-            rows that is literally what a box bounds (see BOUNDS). The
-            unit moved from the label into each box's placeholder, because
-            `Freezing level (ft)` does not fit beside a dropdown and two
-            boxes; the heading is what says which box is which.
-
-            The row carries the section's one deliberate gap. Padding above
-            every cell of it, rather than a margin on one, keeps the four
-            columns of the grid in step; it is what tells the two wide
-            controls above from the table below now that no rule may (TJ,
-            2026-09-14). */}
-        <div className={`col-span-2 ${METRIC_HEAD_GAP}`} aria-hidden="true" />
-        {EDGES.map(([edge, aggregate]) => (
-          <span
-            key={edge}
-            className={`${TEXT.caption} ${METRIC_HEAD_GAP} text-center`}
-            aria-hidden="true"
-          >
-            {aggregate}
-          </span>
-        ))}
-        {RANKED_FAMILIES.map((family) => {
-          const rowKey = rowKeys[family]
-          const isActive = familyOf(sortBy) === family
+            rows that is literally what a box bounds (see BOUNDS). Drawn
+            only over a bound row, and carrying the section's one
+            deliberate gap as padding on every cell, so the columns stay
+            in step. */}
+        {shown.length > 0 && (
+          <>
+            <div className={METRIC_HEAD_GAP} aria-hidden="true" />
+            {EDGES.map(([edge, aggregate]) => (
+              <span
+                key={edge}
+                className={`${TEXT.caption} ${METRIC_HEAD_GAP} text-center`}
+                aria-hidden="true"
+              >
+                {aggregate}
+              </span>
+            ))}
+          </>
+        )}
+        {shown.map((family) => {
           const bounds = BOUNDS[family]
           const edgeKeys = FAMILY_BOUNDS[family]
-          // The window or the models cannot answer this metric: its radio, its
-          // aggregate and its boxes grey and take no input, the boxes keeping
-          // what they hold. A ranking already on it stays checked, and the
-          // gate blocks it with the line that says why.
+          // The window or the models cannot answer this metric: its boxes
+          // grey and take no input, keeping what they hold, and Clear filters
+          // stays the way to empty them.
           const inert = unanswered.has(family)
           return (
             <Fragment key={family}>
-              {/* The label's own margin sets the row pitch (32px on a fine
-                  pointer), so the radio and the bound boxes pass the 24px
-                  spacing test without any of them growing (#687). */}
-              <label
-                className={`${CHOICE_ROW} ${METRIC_LABEL_PITCH} min-w-0 ${pointSample ? 'col-span-2' : ''}`}
-                title={inert ? undefined : bounds.note}
-              >
-                <input
-                  type="radio"
-                  name="sort_metric"
-                  checked={isActive}
-                  disabled={inert}
-                  onChange={() => setSortBy(rowKey)}
-                  className={CHOICE_INPUT}
-                />
-                <span className="truncate">{NOUN[family]}</span>
-              </label>
-              {!pointSample && (
-                // flex, not block: an inline-level select in a block
-                // wrapper reserves baseline descender space below itself,
-                // which read as the dropdown sitting ~1px lower than the
-                // boxes it must align with.
-                <div className={`relative flex ${isActive || inert ? '' : MUTED}`}>
-                  {/* py-0.5 is SEGMENT_ITEM_SHAPE's own vertical padding, so the
-                      dropdown, the boxes and the segment above are the
-                      same height. */}
-                  {phone ? (
-                    <>
-                      <select
-                        aria-label={`${NOUN[family]} aggregate`}
-                        value={rowKey}
-                        disabled={inert}
-                        onChange={(e) => setSortBy(e.target.value as SortBy)}
-                        className={`${SELECT} ${SELECT_W_AGGREGATE} ${DISABLED} px-2 py-0.5`}
-                      >
-                        {AGGREGATE_OPTIONS[family].map(({ value, label }) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <IconChevron up={false} className={ICON_ADORNMENT} />
-                    </>
-                  ) : (
-                    <MenuSelect
-                      label={`${NOUN[family]} aggregate`}
-                      value={rowKey}
-                      options={AGGREGATE_OPTIONS[family]}
-                      onChange={setSortBy}
-                      disabled={inert}
-                      className={`${SELECT_W_AGGREGATE} ${DISABLED} px-2 py-0.5`}
-                    />
-                  )}
-                </div>
-              )}
-              {EDGES.map(([edge, aggregate], i) => (
-                <input
-                  key={edge}
-                  id={`${bounds.id}-${edge}`}
-                  title={inert ? undefined : bounds.note}
-                  type="number"
-                  step={bounds.step}
-                  placeholder={BOX_PLACEHOLDER[family]}
-                  aria-label={`${NOUN[family]} ${aggregate}. ${bounds.hint[i]}`}
-                  aria-invalid={!inert && inverted.has(family) ? true : undefined}
-                  disabled={inert}
-                  value={constraints[edgeKeys[i]] ?? ''}
-                  onChange={(e) =>
-                    setConstraints({
-                      ...constraints,
-                      [edgeKeys[i]]: e.target.value === '' ? null : Number(e.target.value),
-                    })
+              {/* `contents` so the row's cells stay grid items while the
+                  row still hears the keyboard leave it. */}
+              <div
+                className="contents"
+                onBlur={(e) => {
+                  if (family === pending && !e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                    setPending(null)
                   }
-                  className={`${METRIC_BOX} ${DISABLED}`}
-                />
-              ))}
+                }}
+              >
+                {/* Full ink on an inert row too, as a greyed Layers row's
+                    label keeps it (#803, M9): the faded boxes say it, and
+                    faded text owes a ratio it cannot meet. */}
+                <span className={`${TEXT.control} truncate`} title={inert ? undefined : bounds.note}>
+                  {NOUN[family]}
+                </span>
+                {EDGES.map(([edge, aggregate], i) => (
+                  <input
+                    key={edge}
+                    ref={i === 0 ? (el) => void (floorBoxes.current[family] = el) : undefined}
+                    id={`${bounds.id}-${edge}`}
+                    title={inert ? undefined : bounds.note}
+                    type="number"
+                    step={bounds.step}
+                    placeholder={BOX_PLACEHOLDER[family]}
+                    aria-label={`${NOUN[family]} ${aggregate}. ${bounds.hint[i]}`}
+                    aria-invalid={!inert && inverted.has(family) ? true : undefined}
+                    disabled={inert}
+                    value={constraints[edgeKeys[i]] ?? ''}
+                    onChange={(e) =>
+                      setConstraints({
+                        ...constraints,
+                        [edgeKeys[i]]: e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    className={`${METRIC_BOX} ${DISABLED}`}
+                  />
+                ))}
+              </div>
             </Fragment>
           )
         })}
-        {/* Under the two box columns, on their outer edges, so the one
-            control with no label sits where every bound it clears does. */}
-        <button
-          onClick={onClearFilters}
-          disabled={!filtersActive}
-          className={`${BUTTON_SECONDARY} ${DISABLED} col-span-2 col-start-3 mt-0.5`}
-        >
-          Clear filters
-        </button>
+        {/* Under the two box columns, so the one control with no label sits
+            where every bound it clears does. */}
+        {filtersActive && (
+          <button
+            onClick={clearFilters}
+            className={`${BUTTON_SECONDARY} col-span-2 col-start-2 mt-0.5`}
+          >
+            Clear filters
+          </button>
+        )}
       </div>
     </section>
   )

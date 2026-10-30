@@ -78,11 +78,13 @@ test('an open popup marks whichever number the panel ranks by', async ({ page })
     })
   await expect.poll(marked).toEqual(['AQI Avg'])
 
-  await page.getByRole('radio', { name: 'Temperature' }).check()
+  // The Metric menu picks the family (#498), the Aggregate menu its column.
+  await page.getByRole('button', { name: /^Metric / }).click()
+  await page.getByRole('option', { name: 'Temperature', exact: true }).click()
   await expect.poll(marked).toEqual([expect.stringMatching(/^Temperature \(°F\) (Min|Max|Avg)$/)])
 
   // A desk picks the aggregate from the one menu (record 0201).
-  const aggregate = page.getByRole('button', { name: /^Temperature aggregate / })
+  const aggregate = page.getByRole('button', { name: /^Aggregate / })
   await aggregate.click()
   await page.getByRole('option', { name: 'Min', exact: true }).click()
   await expect.poll(marked).toEqual(['Temperature (°F) Min'])

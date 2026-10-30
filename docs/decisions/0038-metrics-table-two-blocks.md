@@ -1,6 +1,6 @@
 # 0038. One Metrics table replaces Ranking and Filters, in two blocks with nothing between them
 
-- Status: Accepted
+- Status: Accepted. Amended by 0242 (the ranking is a menu, a bound row stands only while set or just added, and Clear filters is drawn only when something is set).
 - Date: 2026-09-14 (git: the merge of #358)
 - Decider: TJ (git: author and merger of #358)
 - Issues and PRs: #341, #358, #449

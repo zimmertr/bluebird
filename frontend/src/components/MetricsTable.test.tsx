@@ -1,16 +1,17 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { act, fireEvent, screen } from '@testing-library/react'
 import MetricsTable from './MetricsTable'
 import { AGGREGATE, DEFAULT_FAMILY_KEY, FAMILY_KEYS, NOUN, RANKED_FAMILIES, windowAggregate } from '../metrics'
 import { NO_CONSTRAINTS } from '../utils/clientAnalyze'
 import { DEFAULT_LIMIT } from '../utils/urlState'
 import { render } from '../testSupport/render'
 
-// The ranking and the bounds in one table: the direction, the results cap,
-// one row per metric with its radio, its aggregate dropdown and its two
-// boxes, and Clear filters under them. Every control here reports to App and
-// nothing needs an Analyze.
+// The ranking and the bounds in one table (#498; record 0242): Metric,
+// Aggregate, Order, Max results and the Bound adder, then a row for each
+// metric with a bound set or just added, and Clear filters only when there is
+// something to clear. Every control here reports to App and nothing needs an
+// Analyze.
 
 type Props = ComponentProps<typeof MetricsTable>
 
@@ -34,89 +35,160 @@ function props(over: Partial<Props> = {}): Props {
 }
 
 const results = () => screen.getByRole('spinbutton', { name: /results$/ })
-const clear = () => screen.getByRole('button', { name: 'Clear filters' }) as HTMLButtonElement
+const clear = () => screen.queryByRole('button', { name: 'Clear filters' })
+// A desk's menu field is named by its label and the value it shows.
+const field = (label: string) => screen.getByRole('button', { name: new RegExp(`^${label} `) }) as HTMLButtonElement
+const box = (family: keyof typeof NOUN, aggregate: string) =>
+  screen.queryByRole('spinbutton', { name: new RegExp(`^${NOUN[family]} ${aggregate}\\.`) }) as HTMLInputElement | null
+const boundRows = () =>
+  RANKED_FAMILIES.filter((family) => box(family, AGGREGATE.minimum) !== null)
 
 describe('MetricsTable', () => {
   it('sets the direction from the pressed half', async () => {
     const setSortDesc = vi.fn()
     const { user } = render(<MetricsTable {...props({ setSortDesc })} />)
+    expect(screen.getByRole('group', { name: 'Order' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Lowest' }).getAttribute('aria-pressed')).toBe('true')
     await user.click(screen.getByRole('button', { name: 'Highest' }))
     expect(setSortDesc).toHaveBeenCalledWith(true)
   })
 
-  it('ranks by a row through its own aggregate choice', async () => {
-    const setSortBy = vi.fn()
-    const { user } = render(<MetricsTable {...props({ setSortBy })} />)
-    await user.click(screen.getByRole('radio', { name: NOUN.wind }))
-    expect(setSortBy).toHaveBeenCalledWith(DEFAULT_FAMILY_KEY.wind)
-  })
-
-  it('draws one row per ranked metric, in order', () => {
-    render(<MetricsTable {...props()} />)
-    // By identity per index: toEqual compares DOM nodes structurally, and the
-    // radios are alike, so it would pass a reversed list.
-    const radios = screen.getAllByRole('radio')
-    expect(radios).toHaveLength(RANKED_FAMILIES.length)
-    RANKED_FAMILIES.forEach((f, i) => expect(radios[i]).toBe(screen.getByRole('radio', { name: NOUN[f] })))
-  })
-
-  // A desk picks the aggregate from the one menu (record 0201), and a phone
-  // from its own native picker (record 0149). Both name the choice alike.
-  it('ranks by a new aggregate from the menu', async () => {
-    const setSortBy = vi.fn()
-    const { user } = render(<MetricsTable {...props({ setSortBy })} />)
-    const other = FAMILY_KEYS.temp.find((k) => k !== DEFAULT_FAMILY_KEY.temp)!
-    expect(screen.queryAllByRole('combobox')).toEqual([])
-    const field = screen.getByRole('button', { name: new RegExp(`^${NOUN.temp} aggregate `) })
-    await user.click(field)
-    await user.click(screen.getByRole('option', { name: windowAggregate(other) }))
-    expect(setSortBy).toHaveBeenCalledWith(other)
-    expect(document.activeElement).toBe(field)
-  })
-
-  it('ranks by a new aggregate from the native select on a phone', () => {
-    const setSortBy = vi.fn()
-    render(<MetricsTable {...props({ setSortBy, phone: true })} />)
-    const other = FAMILY_KEYS.temp.find((k) => k !== DEFAULT_FAMILY_KEY.temp)!
-    fireEvent.change(screen.getByRole('combobox', { name: `${NOUN.temp} aggregate` }), {
-      target: { value: other },
+  describe('the Metric menu', () => {
+    it('offers every ranked metric, in order, and shows the one ranking', async () => {
+      const { user } = render(<MetricsTable {...props({ sortBy: DEFAULT_FAMILY_KEY.wind })} />)
+      expect(field('Metric').textContent).toContain(NOUN.wind)
+      await user.click(field('Metric'))
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(RANKED_FAMILIES.map((f) => NOUN[f]))
     })
-    expect(setSortBy).toHaveBeenCalledWith(other)
+
+    // The aggregate a metric last held, so the useRankingKnobs invariant holds.
+    it('ranks by the picked metric at its own aggregate', async () => {
+      const setSortBy = vi.fn()
+      const rowKeys = { ...DEFAULT_FAMILY_KEY, wind: 'wind_max_mph' as const }
+      const { user } = render(<MetricsTable {...props({ setSortBy, rowKeys })} />)
+      await user.click(field('Metric'))
+      await user.click(screen.getByRole('option', { name: NOUN.wind }))
+      expect(setSortBy).toHaveBeenCalledWith('wind_max_mph')
+    })
+
+    it('is the native select on a phone', () => {
+      const setSortBy = vi.fn()
+      render(<MetricsTable {...props({ setSortBy, phone: true })} />)
+      fireEvent.change(screen.getByRole('combobox', { name: 'Metric' }), { target: { value: 'temp' } })
+      expect(setSortBy).toHaveBeenCalledWith(DEFAULT_FAMILY_KEY.temp)
+    })
   })
 
-  it('hides every aggregate choice for a single-hour window', () => {
-    render(<MetricsTable {...props({ pointSample: true })} />)
-    expect(screen.queryAllByRole('button', { name: / aggregate / })).toEqual([])
-    render(<MetricsTable {...props({ pointSample: true, phone: true })} />)
-    expect(screen.queryAllByRole('combobox')).toEqual([])
+  describe('the Aggregate menu', () => {
+    it('ranks by a new aggregate of the ranking metric', async () => {
+      const setSortBy = vi.fn()
+      const { user } = render(<MetricsTable {...props({ setSortBy, sortBy: DEFAULT_FAMILY_KEY.temp })} />)
+      const other = FAMILY_KEYS.temp.find((k) => k !== DEFAULT_FAMILY_KEY.temp)!
+      expect(screen.queryAllByRole('combobox')).toEqual([])
+      const aggregate = field('Aggregate')
+      await user.click(aggregate)
+      await user.click(screen.getByRole('option', { name: windowAggregate(other) }))
+      expect(setSortBy).toHaveBeenCalledWith(other)
+      expect(document.activeElement).toBe(aggregate)
+    })
+
+    it('is the native select on a phone', () => {
+      const setSortBy = vi.fn()
+      render(<MetricsTable {...props({ setSortBy, sortBy: DEFAULT_FAMILY_KEY.temp, phone: true })} />)
+      const other = FAMILY_KEYS.temp.find((k) => k !== DEFAULT_FAMILY_KEY.temp)!
+      fireEvent.change(screen.getByRole('combobox', { name: 'Aggregate' }), { target: { value: other } })
+      expect(setSortBy).toHaveBeenCalledWith(other)
+    })
+
+    it('hides for a single-hour window', () => {
+      render(<MetricsTable {...props({ pointSample: true })} />)
+      expect(screen.queryByRole('button', { name: /^Aggregate / })).toBeNull()
+      expect(screen.queryByText('Aggregate')).toBeNull()
+      render(<MetricsTable {...props({ pointSample: true, phone: true })} />)
+      expect(screen.queryByRole('combobox', { name: 'Aggregate' })).toBeNull()
+    })
   })
 
-  it('sets a bound from its box and clears it from an empty one', () => {
-    const setConstraints = vi.fn()
-    const { rerender } = render(<MetricsTable {...props({ setConstraints })} />)
-    const ceiling = screen.getByRole('spinbutton', { name: new RegExp(`^${NOUN.wind} ${AGGREGATE.maximum}\\.`) })
-    fireEvent.change(ceiling, { target: { value: '20' } })
-    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxWindMph: 20 })
-    rerender(<MetricsTable {...props({ setConstraints, constraints: { ...NO_CONSTRAINTS, maxWindMph: 20 } })} />)
-    fireEvent.change(ceiling, { target: { value: '' } })
-    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxWindMph: null })
-  })
+  describe('the bound rows', () => {
+    it('draws none at rest, and no headings over them', () => {
+      render(<MetricsTable {...props()} />)
+      expect(boundRows()).toEqual([])
+      expect(screen.queryByText(AGGREGATE.minimum)).toBeNull()
+      expect(field('Bound').textContent).toContain('Add a bound')
+    })
 
-  // The wind's ceiling reads the windiest sustained hour (#584): the app holds
-  // no gust (record 0124), so the hint names what the box compares.
-  it('names the windiest hour in the wind ceiling and the calmest in its floor', () => {
-    render(<MetricsTable {...props()} />)
-    expect(
-      screen.getByRole('spinbutton', {
-        name: `${NOUN.wind} ${AGGREGATE.maximum}. The windiest hour must be at most this.`,
-      }),
-    ).toBeTruthy()
-    expect(
-      screen.getByRole('spinbutton', {
-        name: `${NOUN.wind} ${AGGREGATE.minimum}. The calmest hour must be at least this.`,
-      }),
-    ).toBeTruthy()
+    // A share link carrying a bound opens with its row, and no pending one.
+    it('draws a row for every bound set, in the ranked order', () => {
+      const constraints = { ...NO_CONSTRAINTS, maxWindMph: 20, minAqi: 10 }
+      render(<MetricsTable {...props({ constraints })} />)
+      expect(boundRows()).toEqual(['aqi', 'wind'])
+      expect(box('wind', AGGREGATE.maximum)!.value).toBe('20')
+      expect(screen.getAllByText(AGGREGATE.minimum)).toHaveLength(1)
+    })
+
+    it('adds a row from the Bound menu and puts the keyboard in its floor box', async () => {
+      const { user } = render(<MetricsTable {...props()} />)
+      await user.click(field('Bound'))
+      await user.click(screen.getByRole('option', { name: NOUN.wind }))
+      expect(boundRows()).toEqual(['wind'])
+      expect(document.activeElement).toBe(box('wind', AGGREGATE.minimum))
+      // And the adder goes back to empty.
+      expect(field('Bound').textContent).toContain('Add a bound')
+    })
+
+    it('offers only the metrics not already drawn', async () => {
+      const { user } = render(<MetricsTable {...props({ constraints: { ...NO_CONSTRAINTS, maxWindMph: 20 } })} />)
+      await user.click(field('Bound'))
+      const offered = screen.getAllByRole('option').map((o) => o.textContent)
+      expect(offered).toEqual(RANKED_FAMILIES.filter((f) => f !== 'wind').map((f) => NOUN[f]))
+    })
+
+    it('keeps an empty added row while the keyboard is in it, and drops it when it leaves', async () => {
+      const { user } = render(<MetricsTable {...props()} />)
+      await user.click(field('Bound'))
+      await user.click(screen.getByRole('option', { name: NOUN.temp }))
+      act(() => box('temp', AGGREGATE.maximum)!.focus())
+      expect(boundRows()).toEqual(['temp'])
+      act(() => box('temp', AGGREGATE.maximum)!.blur())
+      expect(boundRows()).toEqual([])
+    })
+
+    it('swaps an empty added row for the next one added', () => {
+      render(<MetricsTable {...props({ phone: true })} />)
+      const adder = screen.getByRole('combobox', { name: 'Bound' })
+      fireEvent.change(adder, { target: { value: 'temp' } })
+      expect(boundRows()).toEqual(['temp'])
+      expect(document.activeElement).toBe(box('temp', AGGREGATE.minimum))
+      fireEvent.change(adder, { target: { value: 'wind' } })
+      expect(boundRows()).toEqual(['wind'])
+    })
+
+    it('sets a bound from its box and clears it from an empty one', () => {
+      const setConstraints = vi.fn()
+      const constraints = { ...NO_CONSTRAINTS, minWindMph: 5 }
+      const { rerender } = render(<MetricsTable {...props({ setConstraints, constraints })} />)
+      fireEvent.change(box('wind', AGGREGATE.maximum)!, { target: { value: '20' } })
+      expect(setConstraints).toHaveBeenLastCalledWith({ ...constraints, maxWindMph: 20 })
+      rerender(<MetricsTable {...props({ setConstraints, constraints: { ...constraints, maxWindMph: 20 } })} />)
+      fireEvent.change(box('wind', AGGREGATE.maximum)!, { target: { value: '' } })
+      expect(setConstraints).toHaveBeenLastCalledWith({ ...constraints, maxWindMph: null })
+    })
+
+    // The wind's ceiling reads the windiest sustained hour (#584): the app
+    // holds no gust (record 0124), so the hint names what the box compares.
+    it('names the windiest hour in the wind ceiling and the calmest in its floor', () => {
+      render(<MetricsTable {...props({ constraints: { ...NO_CONSTRAINTS, maxWindMph: 20 } })} />)
+      expect(
+        screen.getByRole('spinbutton', {
+          name: `${NOUN.wind} ${AGGREGATE.maximum}. The windiest hour must be at most this.`,
+        }),
+      ).toBeTruthy()
+      expect(
+        screen.getByRole('spinbutton', {
+          name: `${NOUN.wind} ${AGGREGATE.minimum}. The calmest hour must be at least this.`,
+        }),
+      ).toBeTruthy()
+    })
   })
 
   it('clamps the results cap to the published ceiling, and reads empty as the default', () => {
@@ -131,9 +203,12 @@ describe('MetricsTable', () => {
   })
 
   describe('Clear filters', () => {
-    it('is drawn and disabled with nothing to clear', () => {
-      render(<MetricsTable {...props()} />)
-      expect(clear().disabled).toBe(true)
+    it('is not drawn with nothing to clear, an empty added row included', async () => {
+      const { user } = render(<MetricsTable {...props()} />)
+      expect(clear()).toBeNull()
+      await user.click(field('Bound'))
+      await user.click(screen.getByRole('option', { name: NOUN.wind }))
+      expect(clear()).toBeNull()
     })
 
     it.each([
@@ -142,87 +217,91 @@ describe('MetricsTable', () => {
     ] as [string, Partial<Props>][])('clears %s', async (_case, over) => {
       const onClearFilters = vi.fn()
       const { user } = render(<MetricsTable {...props({ ...over, onClearFilters })} />)
-      expect(clear().disabled).toBe(false)
-      await user.click(clear())
+      await user.click(clear()!)
       expect(onClearFilters).toHaveBeenCalledOnce()
+    })
+
+    it('drops the added row too', async () => {
+      const { user } = render(<MetricsTable {...props({ limit: DEFAULT_LIMIT + 1 })} />)
+      await user.click(field('Bound'))
+      await user.click(screen.getByRole('option', { name: NOUN.wind }))
+      expect(boundRows()).toEqual(['wind'])
+      await user.click(clear()!)
+      expect(boundRows()).toEqual([])
     })
   })
 
-  // --- #803, W6 and W7 (record 0236): a metric the window or the models
-  // cannot answer greys its row, the way a Layers row greys outside its
-  // coverage, and a floor above its ceiling is marked invalid.
+  // --- #803, W6 and W7 (record 0236), carried into #498's shape: a metric
+  // the window or the models cannot answer is a disabled option and greys its
+  // bound row, and a floor above its ceiling is marked invalid.
   describe('a metric the window cannot answer', () => {
     const ARCHIVE = new Map([
       ['cloud_deck', 'archive'],
       ['freeze', 'archive'],
     ] as const)
-    const box = (family: 'cloud_deck' | 'temp', aggregate: string) =>
-      screen.getByRole('spinbutton', { name: new RegExp(`^${NOUN[family]} ${aggregate}\\.`) }) as HTMLInputElement
 
-    it('greys its radio, its aggregate and both boxes, and leaves the rest live', () => {
-      render(<MetricsTable {...props({ unanswered: ARCHIVE })} />)
-      for (const family of ['cloud_deck', 'freeze'] as const) {
-        expect((screen.getByRole('radio', { name: NOUN[family] }) as HTMLInputElement).disabled).toBe(true)
-        expect(
-          (screen.getByRole('button', { name: new RegExp(`^${NOUN[family]} aggregate `) }) as HTMLButtonElement).disabled,
-        ).toBe(true)
-      }
-      expect(box('cloud_deck', AGGREGATE.minimum).disabled).toBe(true)
-      expect(box('cloud_deck', AGGREGATE.maximum).disabled).toBe(true)
-      expect((screen.getByRole('radio', { name: NOUN.temp }) as HTMLInputElement).disabled).toBe(false)
-      expect(box('temp', AGGREGATE.minimum).disabled).toBe(false)
-    })
-
-    it('cannot be picked, from its radio or its aggregate', async () => {
+    it('is a disabled option in the Metric and Bound menus', async () => {
       const setSortBy = vi.fn()
       const { user } = render(<MetricsTable {...props({ setSortBy, unanswered: ARCHIVE })} />)
-      await user.click(screen.getByRole('radio', { name: NOUN.cloud_deck }))
-      await user.click(screen.getByRole('button', { name: new RegExp(`^${NOUN.cloud_deck} aggregate `) }))
+      for (const label of ['Metric', 'Bound']) {
+        await user.click(field(label))
+        const option = screen.getByRole('option', { name: NOUN.cloud_deck })
+        expect(option.getAttribute('aria-disabled')).toBe('true')
+        expect(screen.getByRole('option', { name: NOUN.temp }).getAttribute('aria-disabled')).toBeNull()
+        await user.click(option)
+        expect(screen.getByRole('listbox')).toBeTruthy()
+        await user.keyboard('{Escape}')
+      }
       expect(setSortBy).not.toHaveBeenCalled()
-      expect(screen.queryByRole('listbox')).toBeNull()
+      expect(boundRows()).toEqual([])
     })
 
-    it('greys the native aggregate on a phone too', () => {
+    it('is a disabled option in the native selects on a phone', () => {
       render(<MetricsTable {...props({ unanswered: ARCHIVE, phone: true })} />)
-      expect(
-        (screen.getByRole('combobox', { name: `${NOUN.cloud_deck} aggregate` }) as HTMLSelectElement).disabled,
-      ).toBe(true)
+      for (const label of ['Metric', 'Bound']) {
+        const select = screen.getByRole('combobox', { name: label })
+        const option = [...select.querySelectorAll('option')].find((o) => o.value === 'cloud_deck')!
+        expect(option.disabled).toBe(true)
+      }
     })
 
-    // The ranking the reader set before the window moved stays checked; the
+    // The ranking the reader set before the window moved stays shown; the
     // Analyze button's line says why it is held.
-    it('keeps a ranking already on it checked', () => {
+    it('keeps a ranking already on it, with its aggregate greyed', () => {
       render(<MetricsTable {...props({ sortBy: DEFAULT_FAMILY_KEY.cloud_deck, unanswered: ARCHIVE })} />)
-      const radio = screen.getByRole('radio', { name: NOUN.cloud_deck }) as HTMLInputElement
-      expect(radio.checked).toBe(true)
-      expect(radio.disabled).toBe(true)
+      expect(field('Metric').textContent).toContain(NOUN.cloud_deck)
+      expect(field('Aggregate').disabled).toBe(true)
     })
 
     // A greyed box keeps its value, and Clear filters is the way to empty it.
-    it('keeps the value an inert box holds, which Clear filters still clears', () => {
-      const constraints = { ...NO_CONSTRAINTS, minCloudDeckFt: 3000 }
+    it('greys its bound row and keeps the value, which Clear filters still clears', () => {
+      const constraints = { ...NO_CONSTRAINTS, minCloudDeckFt: 3000, minTempF: 10 }
       render(<MetricsTable {...props({ constraints, unanswered: ARCHIVE })} />)
-      expect(box('cloud_deck', AGGREGATE.minimum).value).toBe('3000')
-      expect(clear().disabled).toBe(false)
+      expect(box('cloud_deck', AGGREGATE.minimum)!.value).toBe('3000')
+      expect(box('cloud_deck', AGGREGATE.minimum)!.disabled).toBe(true)
+      expect(box('cloud_deck', AGGREGATE.maximum)!.disabled).toBe(true)
+      expect(box('temp', AGGREGATE.minimum)!.disabled).toBe(false)
+      expect(clear()).toBeTruthy()
     })
 
     // The grey row is the whole message: the air-quality row's note goes too.
     it('carries no note on a greyed row', () => {
-      const { container } = render(<MetricsTable {...props({ unanswered: new Map([['aqi', 'horizon']]) })} />)
+      const constraints = { ...NO_CONSTRAINTS, minAqi: 10 }
+      const { container } = render(
+        <MetricsTable {...props({ constraints, unanswered: new Map([['aqi', 'horizon']]) })} />,
+      )
       expect(container.querySelector('#air-quality-lower')?.getAttribute('title')).toBeNull()
-      const live = render(<MetricsTable {...props()} />)
+      const live = render(<MetricsTable {...props({ constraints })} />)
       expect(live.container.querySelector('#air-quality-lower')?.getAttribute('title')).toBeTruthy()
     })
   })
 
   describe('a floor above its ceiling', () => {
     it('marks both of its boxes invalid, and no other', () => {
-      const constraints = { ...NO_CONSTRAINTS, minTempF: 50, maxTempF: 20 }
+      const constraints = { ...NO_CONSTRAINTS, minTempF: 50, maxTempF: 20, minWindMph: 5 }
       render(<MetricsTable {...props({ constraints })} />)
-      const temp = (aggregate: string) =>
-        screen.getByRole('spinbutton', { name: new RegExp(`^${NOUN.temp} ${aggregate}\\.`) })
-      expect(temp(AGGREGATE.minimum).getAttribute('aria-invalid')).toBe('true')
-      expect(temp(AGGREGATE.maximum).getAttribute('aria-invalid')).toBe('true')
+      expect(box('temp', AGGREGATE.minimum)!.getAttribute('aria-invalid')).toBe('true')
+      expect(box('temp', AGGREGATE.maximum)!.getAttribute('aria-invalid')).toBe('true')
       expect(document.querySelectorAll('[aria-invalid]')).toHaveLength(2)
     })
 
