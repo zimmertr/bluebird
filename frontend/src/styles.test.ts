@@ -3637,14 +3637,15 @@ describe('the popup card', () => {
     expect(mapCss).not.toMatch(/data-popup-button|--popup-(?:primary|secondary|danger)/)
   })
 
-  // The × is the bare glyph every card's close is (record 0222), standing on
-  // the header band, at rest and under the pointer, dark theme then light.
-  it('draws its × bare on the header band, past 3:1 in both themes', () => {
-    expect({
-      rest: both('var(--popup-close)', HEADER_BAND_COLOR),
-      hover: both('var(--popup-close-hover)', HEADER_BAND_COLOR),
-    }).toEqual({ rest: [4.71, 7.89], hover: [12.39, 14.42] })
-    expect(mapCss).not.toMatch(/--popup-close-(?:fill|edge|hover-fill|hover-edge)/)
+  // The × is a raised square, `SQUARE_BUTTON`'s look (record 0251): its glyph
+  // owes 3:1 on its own fill at rest and under the pointer, dark then light.
+  it('draws its × as a raised square, its glyph past 3:1 in both themes', () => {
+    for (const [ink, fill] of [
+      ['var(--popup-close)', 'var(--popup-close-fill)'],
+      ['var(--popup-close-hover)', 'var(--popup-close-fill-hover)'],
+    ])
+      for (const ratio of both(ink, fill)) expect(ratio).toBeGreaterThanOrEqual(3)
+    expect(mapCss).toMatch(/--popup-close-fill: var\(--ui-raised\);/)
   })
 
   // The ranked family's colours (#740) are the table's, and the card stands

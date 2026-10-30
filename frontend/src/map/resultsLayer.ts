@@ -294,7 +294,8 @@ export function mountResultsLayer(
   // after every write of the markup, as the remove is.
   const armGrid = (card: { popup: Popup }) => {
     const el = card.popup.getElement()
-    el?.querySelectorAll<HTMLElement>(`th[${GRID_AGG_ATTR}]`).forEach((th) => {
+    // Optional, as the remove's lookup is: a test's stub popup has no DOM.
+    el?.querySelectorAll?.<HTMLElement>(`th[${GRID_AGG_ATTR}]`).forEach((th) => {
       const agg = th.getAttribute(GRID_AGG_ATTR)!
       th.querySelector<HTMLElement>(`[${GRID_EDGE_ATTR}]`)?.addEventListener('pointerdown', (e) => {
         e.preventDefault()
