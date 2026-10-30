@@ -37,7 +37,6 @@ import {
   FOCUS_RING_INSET,
   ICON,
   ICON_ADORNMENT,
-  ICON_ADORNMENT_PLACE,
   METRICS_GRID,
   METRIC_BOX_W,
   METRIC_HEAD_GAP,
@@ -92,7 +91,6 @@ import {
   MODEL_ROW,
   MENU_CHEVRON,
   MENU_TRIGGER,
-  TRIGGER_LIT,
   MAP_CHIP_MENU,
   MAP_CHIP_SUMMARY,
   MAP_CHIP_SUMMARY_TEXT,
@@ -4219,9 +4217,9 @@ describe('the one menu', () => {
   // the Controls sheet (record 0251). A field showed only an accent edge
   // until the maintainer found it beside a lit Columns button.
   it('lights every trigger the same way while open', () => {
-    expect(words(TRIGGER_LIT)).toEqual(words(ACCENT.fill).map((part) => `aria-expanded:${part}`))
+    const lit = words(ACCENT.fill).map((part) => `aria-expanded:${part}`)
     for (const shape of [...Object.values(MENU_TRIGGER), MAP_CHIP_SUMMARY]) {
-      for (const part of words(TRIGGER_LIT)) expect(words(shape)).toContain(part)
+      for (const part of lit) expect(words(shape)).toContain(part)
     }
     // An open field keeps the label-on-fill ink under the pointer.
     expect(MENU_TRIGGER.field).not.toMatch(/(^|\s)(enabled:)?hover:text-/)
@@ -4239,7 +4237,7 @@ describe('the one menu', () => {
     expect(MAP_CHIP).toContain('px-3')
     expect(MENU_CHEVRON.bar).toBe('-mr-0.5')
     expect(stepPx(ACTION_ITEM, 'px') + empty - 2).toBe(8)
-    expect(MENU_CHEVRON.field).toBe(ICON_ADORNMENT_PLACE)
+    expect(ICON_ADORNMENT).toBe(`${MENU_CHEVRON.field} text-ink-soft`)
     // Every chevron takes its trigger's ink, at rest, under the pointer and lit.
     for (const chevron of Object.values(MENU_CHEVRON)) expect(chevron).not.toMatch(/(^|[\s:])text-/)
     expect(MENU_TRIGGER.field).toMatch(/(^|\s)group(\s|$)/)

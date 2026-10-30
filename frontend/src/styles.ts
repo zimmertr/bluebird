@@ -1004,7 +1004,7 @@ export const ICON_CLOSE_BUTTON =
  * place that does not open the dropdown. slate-400 is 7.0:1 on the recessed
  * fill, well past the 3:1 a UI glyph owes.
  */
-export const ICON_ADORNMENT_PLACE = 'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2'
+const ICON_ADORNMENT_PLACE = 'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2'
 export const ICON_ADORNMENT = `${ICON_ADORNMENT_PLACE} text-ink-soft`
 
 /**
@@ -1768,7 +1768,7 @@ const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:be
  * showed only an accent edge beside a bar button that lit whole was the
  * inconsistency the maintainer found on 2026-10-30 (record 0251).
  */
-export const TRIGGER_LIT = 'aria-expanded:bg-accent aria-expanded:text-on-fill'
+const TRIGGER_LIT = 'aria-expanded:bg-accent aria-expanded:text-on-fill'
 
 /**
  * One chip in the phone's second row (#696): the pill's surface at 32px, the
