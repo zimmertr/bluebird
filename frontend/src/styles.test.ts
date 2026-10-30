@@ -824,15 +824,14 @@ describe('grouping and segmenting', () => {
   it('pairs the idle segment with the accent fill', () => {
     expect(darkStep(token(SEGMENT_IDLE, 'text'))).toBe('slate-400')
     expect(SEGMENT_IDLE).not.toBe(ACCENT.fill)
-    // Under the pointer the half steps to the raised fill, which light needs:
-    // its label's own step is two near-blacks. Measured 2026-10-30.
-    expect(SEGMENT_IDLE).toContain('not-disabled:hover:bg-raised')
-    const MEASURED = {
-      dark: { fillStep: 1.73, inkOnRaised: 8.4 },
-      light: { fillStep: 1.25, inkOnRaised: 13.66, labelStep: 1.83 },
-    }
-    for (const t of [MEASURED.dark, MEASURED.light]) expect(t.inkOnRaised).toBeGreaterThanOrEqual(4.5)
-    expect([darkStep('raised'), light('raised'), light('recessed')]).toEqual(['slate-700', '#e1e6ee', '#ffffff'])
+    // Under the pointer the label takes the accent ink, as every dropdown,
+    // menu trigger and choice row does (record 0251). Measured 2026-10-30.
+    expect(SEGMENT_IDLE).toContain('not-disabled:hover:text-accent-ink')
+    expect(SEGMENT_IDLE).not.toMatch(/hover:bg-/)
+    expect(MENU_TRIGGER.field).toContain('hover:text-accent-ink')
+    expect(CHOICE_ROW).toContain('hover:text-accent-ink')
+    const MEASURED = { lightOnFill: 6.45, darkOnFill: 8.17 }
+    for (const ratio of Object.values(MEASURED)) expect(ratio).toBeGreaterThanOrEqual(4.5)
   })
 
   // Pointing at a control from across the screen is a ring, not a border or a

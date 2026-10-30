@@ -1305,16 +1305,18 @@ export const SEARCH_KIND = `${CAPTION_LIFTED} font-semibold`
  * second segmented control in the panel the *same* control rather than a
  * lookalike that drifted — the hazard #159-#165 spent five PRs on.
  *
- * Under the pointer the half steps up to the raised fill as its label goes to
- * the full ink (the maintainer, 2026-10-30). The label alone was the hover
- * until then, and in light it was invisible: `#42474e` to `#181c21` is two
- * near-blacks on white (1.83:1 between them), where dark's slate-400 to
- * slate-200 reads plainly. The fill steps 1.73:1 off the recessed one in
- * dark and 1.25 in light, and the ink reads 8.40:1 and 13.66 on it (measured
- * 2026-10-30 from the tokens). `not-disabled:` so a disabled half (Both,
- * too short for it) does not light. Record: 0251
+ * Under the pointer the label takes the accent ink, the hover every
+ * dropdown, menu trigger and choice row wears (record 0201), so a segment
+ * beside Columns in the results bar or beside the model picker in the panel
+ * answers the pointer as they do (the maintainer, 2026-10-30). The label used
+ * to go from `ink-soft` to `ink`, which in light is two near-blacks on white
+ * and could not be seen; a fill step tried the same day put two hovers side
+ * by side. The accent reads 6.45:1 on the light fill and 8.17 on the dark
+ * one (measured 2026-10-30 from the tokens); in light it parts from the
+ * resting label by hue, at 1.45:1 of luminance. `not-disabled:` so a
+ * disabled half (Both, too short for it) does not light. Record: 0251
  */
-export const SEGMENT_IDLE = `${RECESSED_FILL} text-ink-soft hover:text-ink not-disabled:hover:bg-raised`
+export const SEGMENT_IDLE = `${RECESSED_FILL} text-ink-soft not-disabled:hover:text-accent-ink`
 
 /**
  * The geometry the two halves sit in, which had been spelled out twice.

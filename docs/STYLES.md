@@ -75,12 +75,12 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
 | `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.26:1 on the panel, 5.98:1 on an idle metric select and 5.41:1 on an unplotted chart chip, where 50% was 4.14, 4.61 and 4.23. The fade is the `--ui-muted` token, 65% in light, where 60% leaves the dark ink at 4.31, 4.50 and 4.38 and 65% measures 5.07, 5.34 and 5.10 (#706) |
 | `SR_ONLY` | Text for assistive technology only: the twin of an approved tooltip, the one sentence a row's metric links are described by, and a live region that must exist before it speaks |
-| `CHOICE_ROW` | Radio or checkbox and its label as one strip; a row marked `data-greyed` fades its box alone as far as a disabled row fades, its label at full ink, while its box stays live, for a Layers row still ticked where its layer cannot draw (#803); under the pointer an enabled row's label takes the accent ink (record [0251](decisions/0251-idle-segment-hover-steps-its-fill.md)) |
+| `CHOICE_ROW` | Radio or checkbox and its label as one strip; a row marked `data-greyed` fades its box alone as far as a disabled row fades, its label at full ink, while its box stays live, for a Layers row still ticked where its layer cannot draw (#803); under the pointer an enabled row's label takes the accent ink (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
 | `SEGMENT_FILL` | Segmented control sized by the box it is placed in, for a row whose column is not the panel's (the Metrics direction row) |
 | `SEGMENT_FLUID` | Segmented control outside the panel column, sized by content |
-| `SEGMENT_IDLE` | Unchosen half of segmented control; under the pointer it steps to the raised fill as its label goes to full ink, because in light the label's step alone could not be seen (record [0251](decisions/0251-idle-segment-hover-steps-its-fill.md)) |
+| `SEGMENT_IDLE` | Unchosen half of segmented control; under the pointer its label takes the accent ink, as every trigger's does (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
 | `SEGMENT_DIVIDER` | The rule between two segment halves |
 | `CONTROL_SIZE` | The one type size every control reads at (`text-xs`); `SLIDER.value` and `SLIDER.wordmark` compose it |
