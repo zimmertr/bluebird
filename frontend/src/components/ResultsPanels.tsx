@@ -321,6 +321,8 @@ export default function ResultsPanels({
                         onAdd={chartMetrics.add}
                         onRemove={chartMetrics.remove}
                         onMove={chartMetrics.move}
+                        layout={chartMetrics.layout}
+                        onLayout={chartMetrics.setLayout}
                         sortBy={sortBy}
                         sortDesc={sortDesc}
                         colorFor={chart.colorFor}

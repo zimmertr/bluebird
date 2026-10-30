@@ -578,5 +578,5 @@ export function panelMessages(over: Partial<PanelMessages> = {}): PanelMessages 
  * setters that do nothing unless a test hands its own.
  */
 export function chartMetricsOf(metrics: ChartMetrics = ['precip'], over: Partial<ChartMetricsState> = {}): ChartMetricsState {
-  return { metrics, pick: () => {}, add: () => {}, remove: () => {}, move: () => {}, ...over }
+  return { metrics, pick: () => {}, add: () => {}, remove: () => {}, move: () => {}, layout: null, setLayout: () => {}, ...over }
 }

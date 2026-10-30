@@ -17,6 +17,8 @@ import { IconClose, IconGrip, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
 import ChartLines from './ChartLines'
+import ChartLayoutButton from './ChartLayoutButton'
+import { type ChartLayout, type RowShares, evenRows, layoutFor, rowRects, rowsOf, sharesAfterDrag } from '../utils/chart/chartLayout'
 import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
 import { lineStrokes } from '../utils/chart/chartCanvas'
 import { BOX_ATTR, type DragLayout, type Rect, STAGE_ATTR, useStretchDrag } from '../hooks/useStretchDrag'
@@ -165,6 +167,9 @@ interface Props {
   onRemove: (index: number) => void
   /** Move the panel in slot `from` to slot `to`. Never into or out of the first. */
   onMove: (from: number, to: number) => void
+  /** The arrangement the reader picked at a desk, or null for the count's own (#499). */
+  layout?: ChartLayout | null
+  onLayout?: (layout: ChartLayout) => void
   /**
    * The ranking and its direction, which decide which end of the charted
    * family the extreme line marks. Primitives, so the memo compares them by
@@ -236,6 +241,8 @@ function TimeSeriesChart({
   onAdd,
   onRemove,
   onMove,
+  layout = null,
+  onLayout,
   sortBy,
   sortDesc,
   colorFor,
@@ -252,7 +259,13 @@ function TimeSeriesChart({
   const count = drawn.length
   // Three or four panels stand in a grid at a desk; otherwise the panels
   // stack on one time axis, the bottom one printing it.
-  const gridded = !phone && count > 2
+  // A phone always stacks; a desk draws the layout the reader picked, or the
+  // count's own: the grid for `2x2` and `2-1`, the stack for `column`, and
+  // rows of their own splits for the rest.
+  const shape = phone ? 'column' : layoutFor(layout, count)
+  const gridded = shape === '2x2' || shape === '2-1'
+  const rowed = !gridded && shape !== 'column'
+  const rowCounts = useMemo(() => rowsOf(shape, count), [shape, count])
   const atCeiling = metrics.length >= MAX_CHART_PANELS
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
   // The cursor's value in the hovered panel's own units, which orders the card.
@@ -304,7 +317,9 @@ function TimeSeriesChart({
   // width and rows are budgeted on it, and it is clamped inside it.
   const stackRef = useRef<HTMLDivElement>(null)
   const dragStartRef = useRef<{ shares: readonly number[]; grip: number; totalPx: number } | null>(null)
-  const areaRef = gridded ? gridRef : stackRef
+  // The rows' area (#499), for every layout that is neither the grid nor the stack.
+  const rowsRef = useRef<HTMLDivElement>(null)
+  const areaRef = gridded ? gridRef : rowed ? rowsRef : stackRef
   const gutterStartRef = useRef<{ shares: GridShares; w: number; h: number } | null>(null)
   // One sync group per chart, so every panel's cursor stands on the hour the
   // hovered one is at.
@@ -558,6 +573,80 @@ function TimeSeriesChart({
   const onRowsReset = useCallback(() => setGridShares((g) => ({ x: g.x, y: EVEN_GRID.y })), [])
   const onBothReset = useCallback(() => setGridShares(EVEN_GRID), [])
 
+  // The rows' splits (#499; TJ 2026-10-30): one bar between each pair of
+  // rows and one between each pair of panels in a row, each row its own.
+  // Session state like the stack's and the grid's, even by default, and
+  // dropped when the shape changes, since a split belongs to its shape.
+  const [rowSharesState, setRowShares] = useState<{ key: string; shares: RowShares } | null>(null)
+  const rowsKey = rowCounts.join('-')
+  const rowShares = rowSharesState?.key === rowsKey ? rowSharesState.shares : evenRows(rowCounts)
+  const liveRowsRef = useRef(rowShares)
+  const committedRowsRef = useRef(rowShares)
+  const rowsGeomRef = useRef({ w: 0, h: 0 })
+  const rowsStartRef = useRef<{ shares: RowShares; row: number | null; at: number } | null>(null)
+  const commitRows = useCallback((shares: RowShares) => setRowShares({ key: rowsKey, shares }), [rowsKey])
+  const rowsSettlingRef = useRef(false)
+  const rowsStretch = useStretchDrag(rowsRef, () => commitRows(liveRowsRef.current))
+  useLayoutEffect(() => {
+    committedRowsRef.current = rowShares
+    if (rowsStartRef.current) rowsStretch.rebase()
+    if (rowsSettlingRef.current) {
+      rowsSettlingRef.current = false
+      rowsStretch.settle()
+    }
+  }, [rowShares, rowsStretch])
+  const rowsLayout = useCallback((): DragLayout => {
+    const { w, h } = rowsGeomRef.current
+    const live = rowRects(liveRowsRef.current, w, h, GUTTER_PX)
+    const done = rowRects(committedRowsRef.current, w, h, GUTTER_PX)
+    return { boxes: live, handles: rowHandles(committedRowsRef.current, live, done) }
+  }, [])
+  const onRowsStart = useCallback(
+    (row: number | null, at: number) => {
+      rowsGeomRef.current = { w: rowsRef.current?.clientWidth ?? 0, h: rowsRef.current?.clientHeight ?? 0 }
+      liveRowsRef.current = rowShares
+      rowsStartRef.current = { shares: rowShares, row, at }
+      rowsStretch.begin()
+    },
+    [rowShares, rowsStretch],
+  )
+  const onRowsDrag = useCallback(
+    (dx: number, dy: number) => {
+      const start = rowsStartRef.current
+      if (!start) return
+      const { w, h } = rowsGeomRef.current
+      const { shares, row, at } = start
+      if (row === null) {
+        const freeH = h - GUTTER_PX * (shares.rows.length - 1)
+        liveRowsRef.current = { ...shares, rows: sharesAfterDrag(shares.rows, at, dy, freeH) }
+      } else {
+        const cols = shares.cols[row] ?? []
+        const freeW = w - GUTTER_PX * (cols.length - 1)
+        liveRowsRef.current = { ...shares, cols: shares.cols.map((c, r) => (r === row ? sharesAfterDrag(c, at, dx, freeW) : c)) }
+      }
+      rowsStretch.frame(rowsLayout)
+    },
+    [rowsStretch, rowsLayout],
+  )
+  const onRowsEnd = useCallback(() => {
+    if (!rowsStartRef.current) return
+    rowsStartRef.current = null
+    rowsStretch.end()
+    if (liveRowsRef.current === committedRowsRef.current) rowsStretch.settle()
+    else {
+      rowsSettlingRef.current = true
+      commitRows(liveRowsRef.current)
+    }
+  }, [rowsStretch, commitRows])
+  // A double press evens its own split: a row bar the rows, a panel bar its row.
+  const onRowsReset = useCallback(
+    (row: number | null) => {
+      const even = evenRows(rowCounts)
+      commitRows(row === null ? { ...rowShares, rows: even.rows } : { ...rowShares, cols: rowShares.cols.map((c, r) => (r === row ? even.cols[r] : c)) })
+    },
+    [rowCounts, rowShares, commitRows],
+  )
+
   // The tutorial's hour wins over a finger's; an hour past a grid that has
   // since shrunk is no reading at all.
   const shownIndex = tooltipIndex ?? (fingerIndex !== null && fingerIndex < times.length ? fingerIndex : null)
@@ -669,6 +758,9 @@ function TimeSeriesChart({
   const widthFloor = panelWidthFloorPx(MARGIN)
   const heightFloor = panelFloorPx(MARGIN, true)
   const tooSmall = (w: number, h: number) => gridW > 0 && gridH > 0 && (w < widthFloor || h < heightFloor)
+  // The same for a rows layout, against where each panel stands now.
+  const rowsArea = rowed ? rowRects(rowShares, rowsRef.current?.clientWidth ?? 0, rowsRef.current?.clientHeight ?? 0, GUTTER_PX) : []
+  const tooSmallRect = (w: number, h: number) => w > 0 && h > 0 && (w < widthFloor || h < heightFloor)
   const { x, y } = gridShares
 
   return (
@@ -701,11 +793,12 @@ function TimeSeriesChart({
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 px-3 py-1">
           {!phone && pickers.map(picker)}
           {!phone && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />}
+          {!phone && count > 1 && onLayout && <ChartLayoutButton layout={shape} count={count} onLayout={onLayout} />}
           {controls}
         </div>
       )}
 
-      {!gridded && (
+      {!gridded && !rowed && (
         // One panel, two at any width, and three or four on a phone stand in
         // one column on one time axis, with a grip between each pair (#499).
         // One panel stands in it too, so every card keeps to the same area.
@@ -782,8 +875,83 @@ function TimeSeriesChart({
           />
         </div>
       )}
+      {rowed && (
+        // Rows of panels (#499; TJ 2026-10-30), each with its own axes: a bar
+        // between rows trades their heights, and a bar between two panels of
+        // a row trades their widths in that row alone.
+        <div ref={rowsRef} className="relative flex min-h-0 flex-1 flex-col">
+          {rowCounts.map((n, r) => {
+            const first = rowCounts.slice(0, r).reduce((a, b) => a + b, 0)
+            return (
+              <Fragment key={`row-${r}`}>
+                {r > 0 && (
+                  <GridGutter
+                    axis="row"
+                    place={INLINE_ROW_GUTTER}
+                    label={RESIZE_ROWS_LABEL}
+                    onReset={() => onRowsReset(null)}
+                    onDragStart={() => onRowsStart(null, r - 1)}
+                    onDrag={onRowsDrag}
+                    onDragEnd={onRowsEnd}
+                  />
+                )}
+                <div className="flex min-h-0" style={{ flexGrow: rowShares.rows[r], flexBasis: 0 }}>
+                  {Array.from({ length: n }, (_, c) => {
+                    const i = first + c
+                    const rect = rowsArea[i]
+                    return (
+                      <Fragment key={`panel-${i}`}>
+                        {c > 0 && (
+                          <GridGutter
+                            axis="col"
+                            place={INLINE_COL_GUTTER}
+                            label={RESIZE_COLUMNS_LABEL}
+                            onReset={() => onRowsReset(r)}
+                            onDragStart={() => onRowsStart(r, c - 1)}
+                            onDrag={onRowsDrag}
+                            onDragEnd={onRowsEnd}
+                          />
+                        )}
+                        {panel(i, rowShares.cols[r]?.[c] ?? 1, true, boxes[i], rect ? tooSmallRect(rect.w, rect.h) : false)}
+                      </Fragment>
+                    )
+                  })}
+                </div>
+              </Fragment>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
+}
+
+// A rows layout's bars stand in the flow, 8px each, rather than over a gap.
+const INLINE_ROW_GUTTER: CSSProperties = { position: 'relative', width: '100%', flexShrink: 0 }
+const INLINE_COL_GUTTER: CSSProperties = { position: 'relative', alignSelf: 'stretch', flexShrink: 0 }
+
+/**
+ * Every bar of a rows layout as a drag moves it, in the order they stand in
+ * the DOM: each row's panel bars, the row bar before the next row (#499). A
+ * row bar moves with the foot of the row above it; a panel bar with its gap,
+ * and stretches with its row.
+ */
+function rowHandles(shares: RowShares, live: readonly Rect[], done: readonly Rect[]) {
+  const handles: { dx: number; dy: number; sy?: number }[] = []
+  let i = 0
+  shares.rows.forEach((_, r) => {
+    const n = shares.cols[r]?.length ?? 0
+    if (r > 0) handles.push({ dx: 0, dy: (live[i]?.y ?? 0) - (done[i]?.y ?? 0) })
+    for (let c = 0; c < n; c++) {
+      if (c > 0) {
+        const a = live[i + c]
+        const b = done[i + c]
+        if (a && b) handles.push({ dx: a.x - b.x, dy: a.y + a.h / 2 - (b.y + b.h / 2), sy: b.h > 0 ? a.h / b.h : 1 })
+      }
+    }
+    i += n
+  })
+  return handles
 }
 
 // The gutter between a grid's panels, `gap-2`, which the gutters' handles stand in.

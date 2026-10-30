@@ -26,6 +26,7 @@ import { parseCustomCsv } from './customDestinations'
 import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
 import { MAX_CHART_PANELS, isChartMetric, metricForSort } from './chart/chartData'
+import { defaultLayout, isChartLayout, layoutFor } from './chart/chartLayout'
 
 /**
  * One query parameter.
@@ -483,6 +484,19 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       if (unique.length > 0) out.chart = unique.slice(0, MAX_CHART_PANELS)
     },
   },
+  // How a desk arranges the chart's panels (#499): `layout=row`, `column`,
+  // `2x2`, `2-1`, `1-2`, `1-3` or `1-2-1`. Written only when it is not the
+  // panel count's own; an unknown value parses to nothing.
+  {
+    key: 'layout',
+    encode: (state) =>
+      state.chartLayout !== null && layoutFor(state.chartLayout, state.chart.length) !== defaultLayout(state.chart.length)
+        ? state.chartLayout
+        : null,
+    decode: (raw, out) => {
+      if (isChartLayout(raw)) out.chartLayout = raw
+    },
+  },
   // The window's five keys are read together by `decodeSelection`, because
   // what `h1` means depends on `mode` and `d1`.
   //
@@ -739,6 +753,7 @@ export const FIELD_PARAMS = {
   removed: ['removed'],
   tableSort: ['tsort', 'tdesc'],
   chart: ['chart'],
+  chartLayout: ['layout'],
   view: ['view'],
 } satisfies Record<keyof ShareableState, readonly [string, ...string[]]>
 

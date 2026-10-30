@@ -9,6 +9,7 @@ import {
   pickMetric,
   moveMetric, removeMetric,
 } from '../utils/chart/chartData'
+import type { ChartLayout } from '../utils/chart/chartLayout'
 
 /**
  * The chart's metric slots (#499): one to four families, each its own panel,
@@ -23,8 +24,12 @@ import {
  * follows each NEW ranking after that; the ranking the session opened on is
  * not new, so a link's first slot is not clobbered by the mount.
  */
-export function useChartMetrics(restored: ChartMetrics | undefined, sortBy: SortBy) {
+export function useChartMetrics(restored: ChartMetrics | undefined, sortBy: SortBy, restoredLayout?: ChartLayout) {
   const [metrics, setMetrics] = useState<ChartMetrics>(() => restored ?? metricsFor(sortBy))
+  // The arrangement the reader picked from the Panel layout menu, or null for
+  // the panel count's own (#499). Kept while panels come and go, and drawn
+  // whenever the count offers it (`layoutFor`).
+  const [layout, setLayout] = useState<ChartLayout | null>(restoredLayout ?? null)
 
   // The first slot follows each new ranking; a same-ranking refresh leaves a
   // manually chosen metric alone (the dep is the value, not the report). Held
@@ -42,7 +47,7 @@ export function useChartMetrics(restored: ChartMetrics | undefined, sortBy: Sort
   const remove = useCallback((index: number) => setMetrics((list) => removeMetric(list, index)), [])
   const move = useCallback((from: number, to: number) => setMetrics((list) => moveMetric(list, from, to)), [])
 
-  return { metrics, pick, add, remove, move }
+  return { metrics, pick, add, remove, move, layout, setLayout }
 }
 
 /** What `useChartMetrics` hands its callers. */

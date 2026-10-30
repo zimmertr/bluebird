@@ -3592,6 +3592,25 @@ export const CHART_PICKER = {
   target: 'ring-2 ring-accent',
 } as const
 
+/**
+ * The Panel layout button's shape and its menu (#499; TJ 2026-10-30): the
+ * button is `CHART_PANEL_BUTTON`'s square wearing a 16 by 12 miniature of the
+ * current layout (`thumb`, twelve tracks so every row's blocks share its
+ * width), and the menu is one row of 34 by 26 squares, each a layout, the
+ * current one in the accent edge (`current`). The blocks are the icon ink at
+ * 60 percent, so the shape reads as a glyph rather than as panels.
+ */
+export const CHART_LAYOUT = {
+  thumb: 'grid h-3 w-4 grid-cols-12 gap-px',
+  cell: 'rounded-[1px] bg-current opacity-60',
+  menu: 'flex gap-1.5 p-2',
+  // The edge and ink are one or the other, never both, because two colour
+  // utilities resolve by stylesheet order rather than by the class list.
+  option: `${RECESSED_FILL} ${RADIUS.control} ${FOCUS_RING} flex h-6.5 w-8.5 items-center justify-center`,
+  idle: `${RECESSED_EDGE} ${ICON_ACTION}`,
+  current: 'border border-accent-ink text-accent-ink',
+} as const
+
 export const CHART_PANEL_BUTTON = {
   add: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ${ICON_ACTION} ${FOCUS_RING} ${DISABLED} flex flex-shrink-0 items-center justify-center`,
   square: 'size-5.5 touch:size-8',

@@ -12,6 +12,7 @@ import { Place } from './geocode'
 import { type CameraView } from './mapView'
 import { type SortKey } from './tableColumns'
 import type { ChartMetrics } from './chart/chartData'
+import type { ChartLayout } from './chart/chartLayout'
 import {
   DEFAULT_LIMIT,
   DEFAULT_SORT,
@@ -115,6 +116,9 @@ export interface ShareableState {
   // Written only when there is more than one or the first is not the
   // ranking's family, because a chart that follows the ranking is a fresh one.
   chart: ChartMetrics
+  // How a desk arranges the chart's panels (#499), or null for the panel
+  // count's own. Written only when it is not that count's default.
+  chartLayout: ChartLayout | null
   // The map camera, or null before the map has reported one. It is written
   // only in a link that exists: an app move never makes a link by itself, and
   // a reader's own move does through `EncodeOptions.cameraMoved`.

@@ -366,7 +366,7 @@ export default function App() {
   const preview = usePreview()
   // The chart's metric slots (#499), here rather than in the results view
   // because the address bar's sync below carries them.
-  const chartMetrics = useChartMetrics(restored?.chart, view.sortBy)
+  const chartMetrics = useChartMetrics(restored?.chart, view.sortBy, restored?.chartLayout ?? undefined)
 
   const report = usePresentedReport({
     universe: shownUniverse,
@@ -423,6 +423,7 @@ export default function App() {
     removedKeys,
     tableSort,
     chart: chartMetrics.metrics,
+    chartLayout: chartMetrics.layout,
     restoredView,
     cameraHeld: tour.index !== null,
   })

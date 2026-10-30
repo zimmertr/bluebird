@@ -92,6 +92,7 @@ const full: ShareableState = {
   removed: ['46.85289,-121.76041', '48.10000,-121.11391'],
   tableSort: { key: 'elevation_ft', desc: true },
   chart: ['temp', 'precip'],
+  chartLayout: 'row',
   view: { lng: -121.612345, lat: 47.1, zoom: 9.456 },
 }
 
@@ -122,6 +123,7 @@ const nowOnly: ShareableState = {
   removed: [],
   tableSort: null,
   chart: ['aqi'],
+  chartLayout: null,
   view: null,
 }
 
@@ -352,5 +354,21 @@ describe('decodeLink', () => {
     expect(out.dropped).toEqual(['model', 'ring', 'list'])
     // Nothing was restored, which `decodeState` has always answered as null.
     expect(out.state).toBeNull()
+  })
+})
+
+// The panels' arrangement (#499): written only off the count's own, read
+// tolerantly.
+describe('the chart layout param', () => {
+  it('writes a layout the count does not open in, and nothing for its own', () => {
+    const four = { ...nowOnly, chart: ['aqi', 'temp', 'wind', 'precip'] as ShareableState['chart'] }
+    expect(encodeState({ ...four, chartLayout: '1-3' }, DEFAULT_MODEL)).toContain('layout=1-3')
+    expect(encodeState({ ...four, chartLayout: '2x2' }, DEFAULT_MODEL)).not.toContain('layout=')
+    // A layout the count does not offer draws the count's own, so says nothing.
+    expect(encodeState({ ...nowOnly, chartLayout: '1-3' }, DEFAULT_MODEL)).not.toContain('layout=')
+  })
+  it('reads a known layout and drops an unknown one', () => {
+    expect(decodeState('?chart=temp&layout=1-2-1')?.chartLayout).toBe('1-2-1')
+    expect(decodeState('?chart=temp&layout=3x3')?.chartLayout).toBeUndefined()
   })
 })

@@ -907,6 +907,25 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(onMove).toHaveBeenLastCalledWith(3, 1)
   })
 
+  // The reader's arrangement (#499; TJ 2026-10-30): one over three stands
+  // as rows with a bar between them and a bar between each pair in a row.
+  it('stands one over three in rows, each with its own bars', () => {
+    const { container } = render(<TimeSeriesChart {...props({ ...FOUR, layout: '1-3', onLayout: () => {} })} />)
+    const rows = Array.from(container.firstElementChild!.lastElementChild!.children).filter((el) => !el.getAttribute('role'))
+    expect(rows.map((r) => r.querySelectorAll('[data-chart-box]').length)).toEqual([1, 3])
+    expect(screen.getAllByRole('separator', { name: 'Resize the rows' })).toHaveLength(1)
+    expect(screen.getAllByRole('separator', { name: 'Resize the columns' })).toHaveLength(2)
+    expect(last(chart.xAxes, 4).every((a) => a.hide === false)).toBe(true)
+  })
+
+  it('opens the Panel layout menu and picks a layout from it', async () => {
+    const onLayout = vi.fn()
+    render(<TimeSeriesChart {...props({ ...FOUR, onLayout })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Panel layout' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'One row' }))
+    expect(onLayout).toHaveBeenCalledWith('row')
+  })
+
   it('greys the + at four on a desk', () => {
     render(<TimeSeriesChart {...props(FOUR)} />)
     expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(true)

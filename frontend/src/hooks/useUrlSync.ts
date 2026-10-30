@@ -50,6 +50,8 @@ export interface UrlSyncInputs {
   tableSort: ShareableState['tableSort']
   /** The chart's metric slots (#499). */
   chart: ShareableState['chart']
+  /** How a desk arranges the chart's panels (#499). */
+  chartLayout: ShareableState['chartLayout']
   /** The camera the link opened on, held until the map reports its own. */
   restoredView: CameraView | null
   /**
@@ -107,6 +109,7 @@ export function useUrlSync({
   removedKeys,
   tableSort,
   chart,
+  chartLayout,
   restoredView,
   cameraHeld,
 }: UrlSyncInputs): UrlSync {
@@ -201,6 +204,7 @@ export function useUrlSync({
         removed: [...removedKeys],
         tableSort,
         chart,
+        chartLayout,
       },
       defaultModel: defaultForecastModel,
     }
@@ -236,6 +240,7 @@ export function useUrlSync({
     removedKeys,
     tableSort,
     chart,
+    chartLayout,
     sync,
   ])
 

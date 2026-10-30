@@ -44,6 +44,7 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     removedKeys: NO_KEYS,
     tableSort: null,
     chart: DEFAULT_CHART,
+    chartLayout: null,
     restoredView: null,
     cameraHeld: false,
     ...over,
