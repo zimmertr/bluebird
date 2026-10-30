@@ -13,7 +13,7 @@ A reader can reorder the results columns. A ranking lifts its own metric group t
 
 ## Decision
 
-A change to Rank by discards the reader's column order. The order is stored under `bluebird_forecast_view.columnOrder` and is not in the URL. The CSV follows the screen.
+A change to Rank by discards the reader's column order. The order is stored under `bluebird_forecast_view.columnOrder` and is not in the URL. The CSV followed the screen until record 0241.
 
 ## Evidence
 

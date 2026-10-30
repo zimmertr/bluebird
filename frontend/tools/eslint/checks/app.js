@@ -1024,35 +1024,4 @@ export const APP = [
       { selector: 'CallExpression[callee.name="reportCsv"]', count: 1, message: 'Build the file through reportCsv.' },
     ],
   },
-  {
-    // A file is read once, away from the app, so a wildfire column there
-    // claims the check ran. It goes over only when the check answered and the
-    // column is on screen.
-    name: 'export-csv-fire-gate',
-    files: ['src/utils/exportCsv.ts'],
-    require: [
-      {
-        selector:
-          'ConditionalExpression[test.operator="&&"][test.left.left.name="fireStatus"][test.left.right.value="ready"]' +
-          '[test.right.callee.object.name="visibleKeys"][test.right.arguments.0.name="WILDFIRE_KEY"]' +
-          '[consequent.name="fireWarnings"][alternate.raw="null"]',
-        message: 'Send the wildfire column only when the check is ready and the column is shown.',
-      },
-    ],
-  },
-  {
-    // The Closure column on the same terms (#550): a column of blanks in a
-    // file would claim every row was checked and found open.
-    name: 'export-csv-closure-gate',
-    files: ['src/utils/exportCsv.ts'],
-    require: [
-      {
-        selector:
-          'ConditionalExpression[test.operator="&&"][test.left.left.name="closureStatus"][test.left.right.value="ready"]' +
-          '[test.right.callee.object.name="visibleKeys"][test.right.arguments.0.name="CLOSURE_KEY"]' +
-          '[consequent.name="closureWarnings"][alternate.raw="null"]',
-        message: 'Send the Closure column only when the check is ready and the column is shown.',
-      },
-    ],
-  },
 ]
