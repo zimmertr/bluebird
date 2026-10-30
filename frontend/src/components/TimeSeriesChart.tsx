@@ -46,6 +46,7 @@ import {
 } from '../utils/chart/chartData'
 import type { ModelEndLine } from '../utils/model/modelCompare'
 import {
+  PHONE_PLOT_MARGIN,
   PLOT_MARGIN,
   type PlotMargin,
   Y_AXIS_WIDTH_PX,
@@ -119,6 +120,7 @@ function headroomLabel(plotTop: number) {
 // Hoisted, so the label's component is the same between renders and
 // Recharts never remounts it.
 const HEADROOM_LABEL = headroomLabel(PLOT_MARGIN.top)
+const PHONE_HEADROOM_LABEL = headroomLabel(PHONE_PLOT_MARGIN.top)
 
 // The chart's words (#499), each one constant so a change is one edit. The
 // pickers, the + and the × were confirmed by the maintainer on 2026-10-29:
@@ -243,7 +245,7 @@ function TimeSeriesChart({
   controls,
   phone = false,
 }: Props) {
-  const MARGIN = PLOT_MARGIN
+  const MARGIN = phone ? PHONE_PLOT_MARGIN : PLOT_MARGIN
   const drawn = metrics
   const count = drawn.length
   // Three or four panels stand in a grid at a desk; otherwise the panels
@@ -548,6 +550,44 @@ function TimeSeriesChart({
     metricLabel: metricLabelOf(metric),
   }))
 
+  // One slot's picker: its field, with a grip and an × after the first.
+  const picker = (p: (typeof pickers)[number]) => (
+    // flex, not block, for the reason the ranking rows' dropdown
+    // gives: an inline-level select in a block wrapper reserves
+    // descender space below itself and sits a pixel low against what
+    // is beside it.
+    // Keyed by metric, so a moved picker keeps its element and its
+    // grip keeps the keyboard focus across the move.
+    <div
+      key={p.metric}
+      data-picker-slot={p.index}
+      className={`relative flex flex-shrink-0 items-center ${RADIUS.control} ${drag?.from === p.index ? CHART_PICKER.dragged : ''} ${phone && drag && drag.to === p.index && drag.to !== drag.from ? CHART_PICKER.target : ''}`}
+    >
+      {!phone && drag && drag.to === p.index && drag.to !== drag.from && (
+        <span aria-hidden="true" className={`${CHART_PICKER.drop} ${drag.to < drag.from ? CHART_PICKER.before : CHART_PICKER.after}`} />
+      )}
+      {segmented(
+        p.index,
+        <MenuSelect
+          label={p.label}
+          value={p.metric}
+          options={METRIC_OPTIONS}
+          onChange={(m: ChartMetric) => onPick(p.index, m)}
+          className={`${CHART_METRIC_W} px-2 py-0.5`}
+          shape={p.index === 0 ? 'field' : 'segment'}
+        />,
+        <RemoveButton index={p.index} metricLabel={p.metricLabel} onRemove={onRemove} width={CHART_PICKER.x} />,
+        <MoveGrip
+          index={p.index}
+          count={metrics.length}
+          metricLabel={p.metricLabel}
+          onMove={onMove}
+          onDragTo={setDrag}
+        />,
+      )}
+    </div>
+  )
+
   function panel(i: number, flexGrow: number | null, drawsAxis: boolean, boxRef?: RefObject<HTMLDivElement | null>, hidden = false) {
     return (
       <ChartPanel
@@ -584,6 +624,14 @@ function TimeSeriesChart({
         onDropFinger={onDropFinger}
         onPlayheadChange={onPlayheadChange}
         areaRef={areaRef}
+        heading={
+          phone ? (
+            <div className={CHART_PICKER.bar}>
+              {picker(pickers[i])}
+              {i === 0 && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />}
+            </div>
+          ) : null
+        }
       />
     )
   }
@@ -597,7 +645,7 @@ function TimeSeriesChart({
 
   return (
     // The tour's Chart step lights the chart, its picker and plot (#696).
-    <div className="flex h-full flex-col" data-tour="chart">
+    <div className="flex h-full flex-col" data-tour="chart" data-picker-root="">
       {/* The metrics, one per panel; the first opens on the ranked metric.
 
           A select rather than one radio per metric (#348). The labels carry
@@ -611,56 +659,23 @@ function TimeSeriesChart({
           comparison note beside the controls shrinks (`min-w-0`). At a desk
           each opens the one menu rather than the platform's list (record
           0201). */}
-      {/* The selects stand in a row above the plots, one per slot in slot
-          order, each but the first with a grip before it and an × after it,
-          and the last with a + (#499); the row wraps where four do not fit,
-          on a phone as at a desk (TJ 2026-10-30). */}
-      {
+      {/* At a desk the selects stand in a row above the plots, one per slot
+          in slot order, each but the first with a grip before it and an ×
+          after it, and the last with a + (#499). On a phone each stands at
+          its own panel's top left, because four in a row wrapped onto a
+          second line at a phone's width (TJ 2026-10-30), and the row stands
+          only to hold a comparison's note. */}
+      {(!phone || controls) && (
         // One gap through the row, the + included (TJ's review, 2026-10-30):
         // the + used to ride inside the last picker's wrapper at 4px while
         // the pickers stood 16px apart, two spacings for one row of peers.
         // 8px is the grid's gutter.
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 px-3 py-1">
-          {pickers.map((p) => (
-              // flex, not block, for the reason the ranking rows' dropdown
-              // gives: an inline-level select in a block wrapper reserves
-              // descender space below itself and sits a pixel low against what
-              // is beside it.
-              // Keyed by metric, so a moved picker keeps its element and its
-              // grip keeps the keyboard focus across the move.
-              <div
-                key={p.metric}
-                data-picker-slot={p.index}
-                className={`relative flex flex-shrink-0 items-center ${drag?.from === p.index ? CHART_PICKER.dragged : ''}`}
-              >
-                {drag && drag.to === p.index && drag.to !== drag.from && (
-                  <span aria-hidden="true" className={`${CHART_PICKER.drop} ${drag.to < drag.from ? CHART_PICKER.before : CHART_PICKER.after}`} />
-                )}
-                {segmented(
-                  p.index,
-                  <MenuSelect
-                    label={p.label}
-                    value={p.metric}
-                    options={METRIC_OPTIONS}
-                    onChange={(m: ChartMetric) => onPick(p.index, m)}
-                    className={`${CHART_METRIC_W} px-2 py-0.5`}
-                    shape={p.index === 0 ? 'field' : 'segment'}
-                  />,
-                  <RemoveButton index={p.index} metricLabel={p.metricLabel} onRemove={onRemove} width={CHART_PICKER.x} />,
-                  <MoveGrip
-                    index={p.index}
-                    count={metrics.length}
-                    metricLabel={p.metricLabel}
-                    onMove={onMove}
-                    onDragTo={setDrag}
-                  />,
-                )}
-              </div>
-            ))}
-          <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />
+          {!phone && pickers.map(picker)}
+          {!phone && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />}
           {controls}
         </div>
-      }
+      )}
 
       {!gridded && (
         // One panel, two at any width, and three or four on a phone stand in
@@ -816,7 +831,10 @@ function MoveGrip({
       aria-label={movePanelLabel(metricLabel)}
       className={`${CHART_PICKER.grip} ${CHART_PICKER.x}`}
       onKeyDown={(e) => {
-        const to = e.key === 'ArrowLeft' ? index - 1 : e.key === 'ArrowRight' ? index + 1 : null
+        // Up and Down too, for a phone's pickers, which stand one panel over another.
+        const back = e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+        const on = e.key === 'ArrowRight' || e.key === 'ArrowDown'
+        const to = back ? index - 1 : on ? index + 1 : null
         if (to === null) return
         e.preventDefault()
         if (to >= 1 && to < count) onMove(index, to)
@@ -826,7 +844,7 @@ function MoveGrip({
         e.preventDefault()
         const grip = e.currentTarget
         grip.setPointerCapture?.(e.pointerId)
-        const row = grip.closest('[data-picker-slot]')?.parentElement ?? null
+        const row = grip.closest('[data-picker-root]')
         toRef.current = index
         onDragTo({ from: index, to: index })
         const move = (ev: globalThis.PointerEvent) => {
@@ -935,6 +953,8 @@ interface PanelProps {
    * one panel included (TJ 2026-10-30).
    */
   areaRef: RefObject<HTMLDivElement | null>
+  /** A phone panel's own picker, over its top left, or null at a desk. */
+  heading: ReactNode
 }
 
 // The card over several panels (#499): free to leave the hovered panel, and
@@ -988,6 +1008,7 @@ function ChartPanel({
   onDropFinger,
   onPlayheadChange,
   areaRef,
+  heading,
 }: PanelProps) {
   const plotRef = useRef<HTMLDivElement>(null)
   // Where the last finger went down on the plot, for the click its tap makes.
@@ -1115,6 +1136,7 @@ function ChartPanel({
       style={boxStyle(flexGrow)}
       onMouseEnter={() => onEnter(index)}
     >
+      {heading}
       <div
         ref={plotRef}
         onPointerDown={readFinger}
@@ -1247,7 +1269,7 @@ function ChartPanel({
                 {...CHROME_LINE}
                 label={{
                   ...chromeLabel(extremeLabel(extreme, metric), 'insideBottomRight'),
-                  content: HEADROOM_LABEL,
+                  content: margin.top === PLOT_MARGIN.top ? HEADROOM_LABEL : PHONE_HEADROOM_LABEL,
                 }}
               />
             )}

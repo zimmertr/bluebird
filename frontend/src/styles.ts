@@ -3573,6 +3573,14 @@ export const CHART_PICKER = {
   drop: 'pointer-events-none absolute inset-y-0 w-0.5 bg-accent',
   before: '-left-1.25',
   after: '-right-1.25',
+  // On a phone each panel wears its own picker (TJ 2026-10-30): `bar` stands
+  // it at the panel's top left, 8px under the top (`PHONE_PICKER_INSET_PX`)
+  // and 12px in, the results bar's own inset, over the plot and under the
+  // card, with the + 8px after the first. A drag between panels marks the
+  // picker it will land on with the accent ring (`target`), there being no
+  // gap between pickers to stand a bar in.
+  bar: 'absolute left-3 right-3 top-2 z-[2] flex items-center gap-2',
+  target: 'ring-2 ring-accent',
 } as const
 
 export const CHART_PANEL_BUTTON = {

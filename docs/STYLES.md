@@ -735,8 +735,9 @@ label's white at 12% and the shadow a step lower while held, on either
 pointer, and never a grey after a run.
 Record: [0135](decisions/0135-phone-opens-on-the-map.md)
 
-The chart's pickers stand in one row above the panels, at a desk and on a
-phone alike (#499), 8px apart. `CHART_PANEL_BUTTON` draws the + after the last: the + is a square in the field's
+The chart's pickers stand in one row above the panels at a desk, 8px apart;
+on a phone each stands over its own panel's top left (`CHART_PICKER.bar`)
+and the plot is inset under it (#499). `CHART_PANEL_BUTTON` draws the + after the last: the + is a square in the field's
 fill, edge and radius, as tall as the picker beside it. The × is the right
 segment of its picker's field (`CHART_PICKER`): one outline, an `edge`
 divider, and a quiet glyph with its focus ring inside. Its twin on the left end is the grip that moves the panel, behind an `edge` divider too, and a drag shows where it lands with a 2px accent bar in the row's 8px gap. `CHART_GUTTER` draws the gaps of a desk's grid of

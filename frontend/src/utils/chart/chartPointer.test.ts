@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   evenStack,
+  PHONE_PLOT_MARGIN,
   stackAfterDrag,
   PLOT_MARGIN,
   X_AXIS_HEIGHT_PX,
@@ -68,6 +69,18 @@ describe('fingerReading', () => {
 
   it('reads nothing from a box too short for a band', () => {
     expect(fingerReading(100, 10, { width: 360, height: 30 }, TIMES, 0, 50)).toBeNull()
+  })
+})
+
+// A phone panel's picker stands over its top left (#499), and the plot
+// starts under it: a finger reads the same band the plot is drawn in.
+describe('a phone panel', () => {
+  it('starts the band under the picker and its room, the rest of the margins unchanged', () => {
+    expect(PHONE_PLOT_MARGIN).toEqual({ ...PLOT_MARGIN, top: 53 })
+    const plain = plotBand(360, 200)
+    const phone = plotBand(360, 200, PHONE_PLOT_MARGIN)
+    expect(phone.top - plain.top).toBe(53 - PLOT_MARGIN.top)
+    expect(phone.width).toBe(plain.width)
   })
 })
 

@@ -19,7 +19,31 @@ export const PLOT_MARGIN = { top: 8, right: 16, bottom: 2, left: 8 } as const
 export const X_AXIS_HEIGHT_PX = 22
 export const Y_AXIS_WIDTH_PX = 44
 
-export type PlotMargin = typeof PLOT_MARGIN
+/**
+ * A phone panel's picker (#499; TJ 2026-10-30): on a phone each panel wears
+ * its own picker at its top left (`CHART_PICKER.bar`), because four in one
+ * row do not fit a phone's width with their grips and ×s at touch size and
+ * wrapped onto a second line. The field is 32px under a finger
+ * (`touch:min-h-8`), and it stands `PHONE_PICKER_INSET_PX` under the panel's
+ * top with the same room under it.
+ */
+export const PHONE_PICKER_PX = 32
+export const PHONE_PICKER_INSET_PX = 8
+
+/**
+ * How far the y axis's top label rises above the band it labels: about half
+ * its line at the chart's 11px, 5.1px measured 2026-10-14. `PLOT_MARGIN.top`
+ * is this plus 3px of air; a phone panel spends the air on the inset instead.
+ */
+export const TOP_LABEL_RISE_PX = 5
+
+/** A phone panel's margins: `PLOT_MARGIN` with its picker and the room around it on top. */
+export const PHONE_PLOT_MARGIN = {
+  ...PLOT_MARGIN,
+  top: PHONE_PICKER_INSET_PX + PHONE_PICKER_PX + PHONE_PICKER_INSET_PX + TOP_LABEL_RISE_PX,
+} as const
+
+export type PlotMargin = typeof PLOT_MARGIN | typeof PHONE_PLOT_MARGIN
 
 /**
  * The x axis strip a panel draws under its plot (#499). Two stacked panels

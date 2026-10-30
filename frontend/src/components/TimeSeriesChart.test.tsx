@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import { CHART_METRICS, extremeValue } from '../utils/chart/chartData'
 import { CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
-import { PLOT_MARGIN } from '../utils/chart/chartPointer'
+import { PHONE_PLOT_MARGIN, PLOT_MARGIN } from '../utils/chart/chartPointer'
+import { CHART_PICKER } from '../styles'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
 
@@ -416,12 +417,28 @@ describe('TimeSeriesChart extreme line', () => {
   })
 })
 
-// A phone wears the desk's picker row (#499; TJ 2026-10-30), its plots at
-// the plain margins, so a finger reads the band Recharts draws.
+// A phone panel wears its own picker at its top left (#499; TJ 2026-10-30),
+// and its plot starts under it, so a finger reads the band Recharts draws.
 describe('TimeSeriesChart on a phone', () => {
-  it('stands the picker in the row above the plot, the plot at the plain margins', () => {
-    render(<TimeSeriesChart {...props({ phone: true, metrics: ['temp'] })} />)
-    expect(screen.getByRole('button', { name: /^Chart metric/ })).toBeTruthy()
+  it('stands the picker over its panel, the + after it, with no row above the plot', () => {
+    const { container } = render(<TimeSeriesChart {...props({ phone: true, metrics: ['temp'] })} />)
+    const bar = screen.getByRole('button', { name: /^Chart metric/ }).closest(`.${CSS.escape('top-2')}`)!
+    expect(bar.className).toBe(CHART_PICKER.bar)
+    expect(bar.querySelector('[aria-label="Add a panel"]')).not.toBeNull()
+    // The root holds the stack alone: the row is gone.
+    expect(container.firstElementChild!.children).toHaveLength(1)
+    expect(chart.margin).toEqual(PHONE_PLOT_MARGIN)
+  })
+
+  it('keeps the row for a comparison note, with no picker in it', () => {
+    const { container } = render(<TimeSeriesChart {...props({ phone: true, controls: <p>note</p> })} />)
+    expect(container.firstElementChild!.children).toHaveLength(2)
+    expect(container.firstElementChild!.firstElementChild!.querySelector('[data-picker-slot]')).toBeNull()
+  })
+
+  it('stands the pickers in a row at a desk, the plot at the plain margins', () => {
+    render(<TimeSeriesChart {...props()} />)
+    expect(document.querySelector(`.${CSS.escape('top-2')}`)).toBeNull()
     expect(chart.margin).toEqual(PLOT_MARGIN)
   })
 })
@@ -864,8 +881,9 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(last(chart.xAxes, 4).map((a) => a.hide)).toEqual([true, true, true, false])
     expect(screen.getAllByTestId('split-grip')).toHaveLength(3)
     expect(screen.queryByRole('separator', { name: 'Resize the panels' })).toBeNull()
+    // Each panel wears its own picker.
     for (const name of ['Chart metric', 'Metric 2', 'Metric 3', 'Metric 4']) {
-      expect(screen.getByRole('button', { name: new RegExp(`^${name}`) })).toBeTruthy()
+      expect(screen.getByRole('button', { name: new RegExp(`^${name}`) }).closest('[data-picker-slot]')!.parentElement!.className).toBe(CHART_PICKER.bar)
     }
     expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(true)
   })

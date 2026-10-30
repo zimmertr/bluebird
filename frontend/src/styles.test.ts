@@ -180,6 +180,7 @@ import appDrawerSource from './components/AppDrawer.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
+import { PHONE_PICKER_INSET_PX } from './utils/chart/chartPointer'
 import resultsBarSource from './components/ResultsBar.tsx?raw'
 import welcomeSource from './components/WelcomeModal.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
@@ -2950,6 +2951,11 @@ describe('the chart picker row', () => {
     )
     expect(words(CHART_PICKER.drop)).toEqual(expect.arrayContaining(['absolute', 'w-0.5', 'bg-accent', 'pointer-events-none']))
     expect([CHART_PICKER.before, CHART_PICKER.after]).toEqual(['-left-1.25', '-right-1.25'])
+    // A phone's pickers stand over their panels, 8px under the top and 12px
+    // in, the results bar's inset; a drag rings the one it lands on.
+    expect(words(CHART_PICKER.bar)).toEqual(expect.arrayContaining(['absolute', 'top-2', 'left-3', 'gap-2']))
+    expect(2 * 4).toBe(PHONE_PICKER_INSET_PX)
+    expect(words(CHART_PICKER.target)).toEqual(['ring-2', 'ring-accent'])
   })
 
   // The grid's gutters are its handles (#499): a cursor per axis, a 1px line
