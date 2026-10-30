@@ -639,7 +639,7 @@ function TimeSeriesChart({
     }
   }, [rowsStretch, commitRows])
   // A double press evens its own split: a row bar the rows, a panel bar its row.
-  const onRowsReset = useCallback(
+  const onRowBarReset = useCallback(
     (row: number | null) => {
       const even = evenRows(rowCounts)
       commitRows(row === null ? { ...rowShares, rows: even.rows } : { ...rowShares, cols: rowShares.cols.map((c, r) => (r === row ? even.cols[r] : c)) })
@@ -889,7 +889,7 @@ function TimeSeriesChart({
                     axis="row"
                     place={INLINE_ROW_GUTTER}
                     label={RESIZE_ROWS_LABEL}
-                    onReset={() => onRowsReset(null)}
+                    onReset={() => onRowBarReset(null)}
                     onDragStart={() => onRowsStart(null, r - 1)}
                     onDrag={onRowsDrag}
                     onDragEnd={onRowsEnd}
@@ -906,7 +906,7 @@ function TimeSeriesChart({
                             axis="col"
                             place={INLINE_COL_GUTTER}
                             label={RESIZE_COLUMNS_LABEL}
-                            onReset={() => onRowsReset(r)}
+                            onReset={() => onRowBarReset(r)}
                             onDragStart={() => onRowsStart(r, c - 1)}
                             onDrag={onRowsDrag}
                             onDragEnd={onRowsEnd}
