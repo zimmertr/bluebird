@@ -18,7 +18,7 @@ import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
 import ChartLines from './ChartLines'
 import ChartLayoutButton from './ChartLayoutButton'
-import { type ChartLayout, type RowShares, evenRows, layoutFor, rowRects, rowsOf, sharesAfterDrag } from '../utils/chart/chartLayout'
+import { type ChartLayout, type RowCrossing, type RowShares, evenRows, layoutFor, rowCrossings, rowRects, rowsOf, sharesAfterDrag } from '../utils/chart/chartLayout'
 import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
 import { lineStrokes } from '../utils/chart/chartCanvas'
 import { BOX_ATTR, type DragLayout, type Rect, STAGE_ATTR, useStretchDrag } from '../hooks/useStretchDrag'
@@ -583,9 +583,23 @@ function TimeSeriesChart({
   const liveRowsRef = useRef(rowShares)
   const committedRowsRef = useRef(rowShares)
   const rowsGeomRef = useRef({ w: 0, h: 0 })
-  const rowsStartRef = useRef<{ shares: RowShares; row: number | null; at: number } | null>(null)
+  const rowsStartRef = useRef<{ shares: RowShares; bar: RowBar } | null>(null)
   const commitRows = useCallback((shares: RowShares) => setRowShares({ key: rowsKey, shares }), [rowsKey])
   const rowsSettlingRef = useRef(false)
+  // The rows' area as measured, which places the crossings and decides which
+  // panels are too small to draw; a render reading the element would see
+  // nothing on the first one.
+  const [rowsSize, setRowsSize] = useState({ w: 0, h: 0 })
+  useLayoutEffect(() => {
+    const el = rowsRef.current
+    if (!rowed || !el) return
+    const read = () => setRowsSize((s) => (s.w === el.clientWidth && s.h === el.clientHeight ? s : { w: el.clientWidth, h: el.clientHeight }))
+    read()
+    if (typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(read)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [rowed])
   const rowsStretch = useStretchDrag(rowsRef, () => commitRows(liveRowsRef.current))
   useLayoutEffect(() => {
     committedRowsRef.current = rowShares
@@ -599,13 +613,13 @@ function TimeSeriesChart({
     const { w, h } = rowsGeomRef.current
     const live = rowRects(liveRowsRef.current, w, h, GUTTER_PX)
     const done = rowRects(committedRowsRef.current, w, h, GUTTER_PX)
-    return { boxes: live, handles: rowHandles(committedRowsRef.current, live, done) }
+    return { boxes: live, handles: rowHandles(committedRowsRef.current, live, done, GUTTER_PX) }
   }, [])
   const onRowsStart = useCallback(
-    (row: number | null, at: number) => {
+    (bar: RowBar) => {
       rowsGeomRef.current = { w: rowsRef.current?.clientWidth ?? 0, h: rowsRef.current?.clientHeight ?? 0 }
       liveRowsRef.current = rowShares
-      rowsStartRef.current = { shares: rowShares, row, at }
+      rowsStartRef.current = { shares: rowShares, bar }
       rowsStretch.begin()
     },
     [rowShares, rowsStretch],
@@ -615,15 +629,18 @@ function TimeSeriesChart({
       const start = rowsStartRef.current
       if (!start) return
       const { w, h } = rowsGeomRef.current
-      const { shares, row, at } = start
-      if (row === null) {
+      const { shares, bar } = start
+      let next = shares
+      if (bar.rowAt !== null) {
         const freeH = h - GUTTER_PX * (shares.rows.length - 1)
-        liveRowsRef.current = { ...shares, rows: sharesAfterDrag(shares.rows, at, dy, freeH) }
-      } else {
-        const cols = shares.cols[row] ?? []
-        const freeW = w - GUTTER_PX * (cols.length - 1)
-        liveRowsRef.current = { ...shares, cols: shares.cols.map((c, r) => (r === row ? sharesAfterDrag(c, at, dx, freeW) : c)) }
+        next = { ...next, rows: sharesAfterDrag(shares.rows, bar.rowAt, dy, freeH) }
       }
+      if (bar.row !== null && bar.colAt !== null) {
+        const { row, colAt } = bar
+        const freeW = w - GUTTER_PX * ((shares.cols[row]?.length ?? 1) - 1)
+        next = { ...next, cols: shares.cols.map((c, r) => (r === row ? sharesAfterDrag(c, colAt, dx, freeW) : c)) }
+      }
+      liveRowsRef.current = next
       rowsStretch.frame(rowsLayout)
     },
     [rowsStretch, rowsLayout],
@@ -638,11 +655,15 @@ function TimeSeriesChart({
       commitRows(liveRowsRef.current)
     }
   }, [rowsStretch, commitRows])
-  // A double press evens its own split: a row bar the rows, a panel bar its row.
+  // A double press evens its own split: a row bar the rows, a panel bar its
+  // row, and a crossing both.
   const onRowBarReset = useCallback(
-    (row: number | null) => {
+    (bar: RowBar) => {
       const even = evenRows(rowCounts)
-      commitRows(row === null ? { ...rowShares, rows: even.rows } : { ...rowShares, cols: rowShares.cols.map((c, r) => (r === row ? even.cols[r] : c)) })
+      commitRows({
+        rows: bar.rowAt !== null ? even.rows : rowShares.rows,
+        cols: rowShares.cols.map((c, r) => (r === bar.row ? even.cols[r] : c)),
+      })
     },
     [rowCounts, rowShares, commitRows],
   )
@@ -759,7 +780,7 @@ function TimeSeriesChart({
   const heightFloor = panelFloorPx(MARGIN, true)
   const tooSmall = (w: number, h: number) => gridW > 0 && gridH > 0 && (w < widthFloor || h < heightFloor)
   // The same for a rows layout, against where each panel stands now.
-  const rowsArea = rowed ? rowRects(rowShares, rowsRef.current?.clientWidth ?? 0, rowsRef.current?.clientHeight ?? 0, GUTTER_PX) : []
+  const rowsArea = rowed ? rowRects(rowShares, rowsSize.w, rowsSize.h, GUTTER_PX) : []
   const tooSmallRect = (w: number, h: number) => w > 0 && h > 0 && (w < widthFloor || h < heightFloor)
   const { x, y } = gridShares
 
@@ -889,8 +910,8 @@ function TimeSeriesChart({
                     axis="row"
                     place={INLINE_ROW_GUTTER}
                     label={RESIZE_ROWS_LABEL}
-                    onReset={() => onRowBarReset(null)}
-                    onDragStart={() => onRowsStart(null, r - 1)}
+                    onReset={() => onRowBarReset({ rowAt: r - 1, row: null, colAt: null })}
+                    onDragStart={() => onRowsStart({ rowAt: r - 1, row: null, colAt: null })}
                     onDrag={onRowsDrag}
                     onDragEnd={onRowsEnd}
                   />
@@ -906,8 +927,8 @@ function TimeSeriesChart({
                             axis="col"
                             place={INLINE_COL_GUTTER}
                             label={RESIZE_COLUMNS_LABEL}
-                            onReset={() => onRowBarReset(r)}
-                            onDragStart={() => onRowsStart(r, c - 1)}
+                            onReset={() => onRowBarReset({ rowAt: null, row: r, colAt: c - 1 })}
+                            onDragStart={() => onRowsStart({ rowAt: null, row: r, colAt: c - 1 })}
                             onDrag={onRowsDrag}
                             onDragEnd={onRowsEnd}
                           />
@@ -920,10 +941,42 @@ function TimeSeriesChart({
               </Fragment>
             )
           })}
+          {/* Where a row bar meets a panel bar, a square that moves both
+              (TJ 2026-10-30), as the 2 by 2 grid's crossing does. */}
+          {/* Placed from the measured area, which a layout effect reads before
+              the first paint. */}
+          {rowCrossings(rowCounts).map((x) => {
+              const at = crossingAt(x, rowsArea, rowCounts, GUTTER_PX)
+              return (
+                <GridGutter
+                  key={`cross-${x.rowAt}-${x.panel}`}
+                  axis="both"
+                  place={{ left: at.x, top: at.y }}
+                  label={RESIZE_PANELS_LABEL}
+                  onReset={() => onRowBarReset(x)}
+                  onDragStart={() => onRowsStart(x)}
+                  onDrag={onRowsDrag}
+                  onDragEnd={onRowsEnd}
+                />
+              )
+            })}
         </div>
       )}
     </div>
   )
+}
+
+/** Which split a rows layout's handle moves: the rows', a row's panels', or both at a crossing. */
+interface RowBar {
+  rowAt: number | null
+  row: number | null
+  colAt: number | null
+}
+
+/** A crossing's centre: the panel bar's gap across, the row bar's gap down. */
+function crossingAt(x: RowCrossing, rects: readonly Rect[], rows: readonly number[], gap: number) {
+  const below = rows.slice(0, x.rowAt + 1).reduce((a, b) => a + b, 0)
+  return { x: (rects[x.panel]?.x ?? 0) - gap / 2, y: (rects[below]?.y ?? 0) - gap / 2 }
 }
 
 // A rows layout's bars stand in the flow, 8px each, rather than over a gap.
@@ -936,7 +989,7 @@ const INLINE_COL_GUTTER: CSSProperties = { position: 'relative', alignSelf: 'str
  * row bar moves with the foot of the row above it; a panel bar with its gap,
  * and stretches with its row.
  */
-function rowHandles(shares: RowShares, live: readonly Rect[], done: readonly Rect[]) {
+function rowHandles(shares: RowShares, live: readonly Rect[], done: readonly Rect[], gap: number) {
   const handles: { dx: number; dy: number; sy?: number }[] = []
   let i = 0
   shares.rows.forEach((_, r) => {
@@ -951,6 +1004,12 @@ function rowHandles(shares: RowShares, live: readonly Rect[], done: readonly Rec
     }
     i += n
   })
+  for (const x of rowCrossings(shares.rows.map((_, r) => shares.cols[r]?.length ?? 0))) {
+    const rows = shares.rows.map((_, r) => shares.cols[r]?.length ?? 0)
+    const a = crossingAt(x, live, rows, gap)
+    const b = crossingAt(x, done, rows, gap)
+    handles.push({ dx: a.x - b.x, dy: a.y - b.y })
+  }
   return handles
 }
 

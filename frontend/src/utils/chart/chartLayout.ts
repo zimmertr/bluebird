@@ -18,12 +18,17 @@ export type ChartLayout = '2x2' | '2-1' | '1-2' | '1-3' | '1-2-1' | 'row' | 'col
 const LAYOUTS: Record<number, readonly ChartLayout[]> = {
   1: [],
   2: ['column', 'row'],
-  3: ['2-1', '1-2', 'row', 'column'],
-  4: ['2x2', 'row', 'column', '1-3', '1-2-1'],
+  3: ['1-2', '2-1', 'column', 'row'],
+  4: ['1-3', '2x2', 'column', '1-2-1', 'row'],
 }
 
-/** The arrangement a count opens in: the one that shipped before the menu. */
-const DEFAULT: Record<number, ChartLayout> = { 1: 'column', 2: 'column', 3: '2-1', 4: '2x2' }
+/**
+ * The arrangement a count opens in (TJ 2026-10-30): the first slot is the
+ * ranking's, so three and four open with it full width over the rest, and
+ * two stack. The menu lists the default first and the rest in one order for
+ * both counts.
+ */
+const DEFAULT: Record<number, ChartLayout> = { 1: 'column', 2: 'column', 3: '1-2', 4: '1-3' }
 
 /** Each layout's thumbnail name in the menu, approved 2026-10-30. */
 export const LAYOUT_NAMES: Record<ChartLayout, string> = {
@@ -127,4 +132,32 @@ export function sharesAfterDrag(start: readonly number[], at: number, delta: num
   next[at] = a + moved
   next[at + 1] = b - moved
   return next
+}
+
+/** Where a row bar meets a panel bar: a handle that moves both (#499; TJ 2026-10-30). */
+export interface RowCrossing {
+  /** The row bar's place: between rows `rowAt` and `rowAt + 1`. */
+  rowAt: number
+  /** The row whose panel bar it meets, and that bar's place in the row. */
+  row: number
+  colAt: number
+  /** The panel the bar stands before, which places the crossing's x. */
+  panel: number
+}
+
+/**
+ * Every crossing of a rows layout, in the order they stand in the DOM: each
+ * row bar's meetings with the panel bars of the row above it, then of the
+ * row below. Every layout that makes a grid has them, so a corner is one
+ * drag as it is in the 2 by 2 grid.
+ */
+export function rowCrossings(rows: readonly number[]): RowCrossing[] {
+  const out: RowCrossing[] = []
+  const firsts = rows.map((_, r) => rows.slice(0, r).reduce((a, b) => a + b, 0))
+  for (let rowAt = 0; rowAt < rows.length - 1; rowAt++) {
+    for (const row of [rowAt, rowAt + 1]) {
+      for (let c = 1; c < rows[row]; c++) out.push({ rowAt, row, colAt: c - 1, panel: firsts[row] + c })
+    }
+  }
+  return out
 }

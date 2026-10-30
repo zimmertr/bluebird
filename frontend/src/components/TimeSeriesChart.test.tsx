@@ -571,7 +571,8 @@ describe('TimeSeriesChart with more than one metric', () => {
     series: series({ precip_in: TIMES.map(() => 0.2), temp_f: TIMES.map(() => null) }),
   })
   const TWO: Partial<Props> = { rows: [alpha, beta], metrics: ['precip', 'temp'], sortBy: 'precip_total_in' }
-  const FOUR: Partial<Props> = { ...TWO, metrics: ['precip', 'temp', 'wind', 'aqi'] }
+  // The grid's own tests name it: four open as one over three (TJ 2026-10-30).
+  const FOUR: Partial<Props> = { ...TWO, metrics: ['precip', 'temp', 'wind', 'aqi'], layout: '2x2' }
   let height: { mockRestore: () => void } | undefined
   let width: { mockRestore: () => void } | undefined
 
@@ -623,7 +624,7 @@ describe('TimeSeriesChart with more than one metric', () => {
   })
 
   it('stands three as a row of two over one, each with its own axes', () => {
-    const { container } = render(<TimeSeriesChart {...props({ ...FOUR, metrics: ['precip', 'temp', 'wind'] })} />)
+    const { container } = render(<TimeSeriesChart {...props({ ...FOUR, metrics: ['precip', 'temp', 'wind'], layout: '2-1' })} />)
     expect(last(chart.charts, 3).every((c) => c.syncId === chart.charts[chart.charts.length - 1].syncId)).toBe(true)
     expect(last(chart.xAxes, 3).every((a) => a.hide === false)).toBe(true)
     const grid = container.firstElementChild!.lastElementChild!
@@ -837,7 +838,7 @@ describe('TimeSeriesChart with more than one metric', () => {
   })
 
   it('stops the vertical gutter at the top row of three', () => {
-    render(<TimeSeriesChart {...props({ ...FOUR, metrics: ['precip', 'temp', 'wind'] })} />)
+    render(<TimeSeriesChart {...props({ ...FOUR, metrics: ['precip', 'temp', 'wind'], layout: '2-1' })} />)
     const cols = screen.getByRole('separator', { name: 'Resize the columns' })
     expect(cols.style.height).toContain('100% - 8px')
     expect(screen.getByRole('separator', { name: 'Resize the rows' })).toBeTruthy()
@@ -915,7 +916,15 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(rows.map((r) => r.querySelectorAll('[data-chart-box]').length)).toEqual([1, 3])
     expect(screen.getAllByRole('separator', { name: 'Resize the rows' })).toHaveLength(1)
     expect(screen.getAllByRole('separator', { name: 'Resize the columns' })).toHaveLength(2)
+    // A crossing wherever the row bar meets a panel bar, as the grid has.
+    expect(screen.getAllByRole('separator', { name: 'Resize the panels' })).toHaveLength(2)
     expect(last(chart.xAxes, 4).every((a) => a.hide === false)).toBe(true)
+  })
+
+  it('opens four as one over three, with the ranking full width', () => {
+    const { container } = render(<TimeSeriesChart {...props({ ...FOUR, layout: null })} />)
+    const rows = Array.from(container.firstElementChild!.lastElementChild!.children).filter((el) => !el.getAttribute('role'))
+    expect(rows.map((r) => r.querySelectorAll('[data-chart-box]').length)).toEqual([1, 3])
   })
 
   it('opens the Panel layout menu and picks a layout from it', async () => {

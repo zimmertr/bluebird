@@ -13,12 +13,12 @@ import type { ChartLayout } from '../utils/chart/chartLayout'
 
 /**
  * The chart's metric slots (#499): one to four families, each its own panel,
- * the first following the ranking.
+ * the first following the ranking, and the arrangement a desk picked.
  *
  * Its own hook, called in `App.tsx` above the address bar's sync, because the
  * slots ride the share link (`chart=`) and `useUrlSync` runs before the
  * results view that draws the chart. The rules that move the list are pure,
- * in `utils/chart/chartData.ts` (`pickMetric`, `addMetric`, `removeMetric`).
+ * in `utils/chart/chartData.ts` (`pickMetric`, `addMetric`, `removeMetric`, `moveMetric`).
  *
  * `restored` is a link's list, which the session opens on. The first slot
  * follows each NEW ranking after that; the ranking the session opened on is
