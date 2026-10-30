@@ -17,6 +17,7 @@ import { IconClose, IconGrip, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
 import ChartLines from './ChartLines'
+import { type ColorScale, cellStyle, hourlyScale } from '../utils/colors'
 import { clamp } from '../utils/numbers'
 import ChartLayoutButton from './ChartLayoutButton'
 import { type ChartLayout, type RowCrossing, type RowShares, evenRows, layoutFor, rowCrossings, rowRects, rowsOf, sharesAfterDrag } from '../utils/chart/chartLayout'
@@ -299,6 +300,13 @@ function TimeSeriesChart({
   // press closes the other (TJ 2026-10-30). Where each stands is set at the
   // click, in the chart's own pixels, and its header moves it from there.
   const [pins, setPins] = useState<readonly Pin[]>([])
+  // Where the pointer stood when it pinned, the hover card hidden until it
+  // moves from there, so the card that pinned does not stand twice.
+  const [hush, setHush] = useState<number | null>(null)
+  const tone = useMemo(() => {
+    const scale = hourlyScale(sortBy)
+    return scale ? { metric: metricForSort(sortBy), scale } : null
+  }, [sortBy])
   const rootRef = useRef<HTMLDivElement>(null)
   const onPin = useCallback((panel: number, t: number, add: boolean, clientX: number) => {
     const root = rootRef.current
@@ -307,11 +315,16 @@ function TimeSeriesChart({
     const r = root.getBoundingClientRect()
     // A pinned card keeps the hover card's height, read off the card on
     // screen at the click; its corner grip is how it grows.
-    const hover = root.querySelector('[data-chart-card]')?.getBoundingClientRect().height ?? null
+    // It pins where the hover card stood (TJ 2026-10-30), and a hover card
+    // shows again once the pointer moves on.
+    const card = root.querySelector('[data-chart-card]')?.getBoundingClientRect()
+    const hover = card?.height ?? null
+    setHush(clientX)
     const pin: Pin = {
       t,
       panel,
       x: clientX - r.left,
+      at: card ? { x: card.left - r.left, y: card.top - r.top } : null,
       area: { x: area.left - r.left, y: area.top - r.top, w: area.width, h: area.height },
       height: hover,
     }
@@ -832,7 +845,13 @@ function TimeSeriesChart({
 
   return (
     // The tour's Chart step lights the chart, its picker and plot (#696).
-    <div ref={rootRef} className="relative flex h-full flex-col" data-tour="chart" data-picker-root="">
+    <div
+      ref={rootRef}
+      className={`relative flex h-full flex-col ${hush !== null ? '[&_[data-chart-card]]:invisible' : ''}`}
+      onPointerMove={hush !== null ? (e) => Math.abs(e.clientX - hush) > 3 && setHush(null) : undefined}
+      data-tour="chart"
+      data-picker-root=""
+    >
       {/* The metrics, one per panel; the first opens on the ranked metric.
 
           A select rather than one radio per metric (#348). The labels carry
@@ -1013,7 +1032,7 @@ function TimeSeriesChart({
         </div>
       )}
       {pins.map((p) => (
-        <PinnedCard key={p.t} pin={p} times={times} lines={lines} metric={drawn[p.panel] ?? drawn[0]} metrics={drawn} onUnpin={unpin} onRaise={raise} />
+        <PinnedCard key={p.t} pin={p} times={times} lines={lines} metric={drawn[p.panel] ?? drawn[0]} metrics={drawn} tone={tone} onUnpin={unpin} onRaise={raise} />
       ))}
     </div>
   )
@@ -1270,6 +1289,8 @@ interface PanelProps {
   ordered: readonly ChartLine[]
   focusedKey: string | null
   cursorValue: number | null
+  /** The ranked metric and its hourly scale, whose cells wear its colour. */
+  tone: CardTone | null
   /** The bottom panel draws the time axis; the top one's strip is zero tall. */
   drawsAxis: boolean
   /** The top panel names the Now seam and each model's end; the lines stand in both. */
@@ -1618,6 +1639,7 @@ function ChartPanel({
                     maxWidthPx={((areaRef ?? plotRef).current?.clientWidth ?? 0) - CARD_INSET_PX}
                     areaRef={areaRef}
                     cursorValue={cursorValue}
+                    tone={tone}
                     // Read at render rather than observed: this component
                     // re-renders on every hover move, which is the only time
                     // the value is used.
@@ -1748,6 +1770,7 @@ function ChartTooltip({
   maxRows,
   maxWidthPx,
   areaRef,
+  tone,
 }: ChartTooltipProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   useCardInArea(cardRef, areaRef)
@@ -1775,11 +1798,29 @@ function ChartTooltip({
     >
       <div className={CHART_CARD.head}>{fmtTooltipTime(label)}</div>
       <div className={CHART_CARD.body}>
-      <CardGrid items={shown} metrics={metrics} focusedKey={focusedKey} />
+      <CardGrid items={shown} metrics={metrics} focusedKey={focusedKey} index={index} tone={tone} />
       </div>
       {rest > 0 && <div className={CHART_CARD.foot}>+{rest} more</div>}
     </div>
   )
+}
+
+/** The ranked metric and the hourly scale its cells are coloured on. */
+interface CardTone {
+  metric: ChartMetric
+  scale: ColorScale
+}
+
+/**
+ * A card cell's colour: the ranked metric's hour on its hourly scale, the
+ * tint and ink the table and the marker popup give a ranked cell, so the
+ * three read one number in one colour (TJ 2026-10-30). Every other cell is
+ * plain.
+ */
+function toneOf(tone: CardTone | null, m: ChartMetric, line: ChartLine, index: number): CSSProperties | undefined {
+  if (!tone || tone.metric !== m) return undefined
+  const v = valueAt(line, m, index)
+  return v === null ? undefined : cellStyle(v, tone.scale)
 }
 
 /** Every line's row at an hour, ordered as the card lists them. */
@@ -1809,7 +1850,19 @@ function cardItems(
 }
 
 /** The card's rows: one grid, so each column is as wide as its widest cell or head. */
-function CardGrid({ items, metrics, focusedKey }: { items: readonly TooltipItem[]; metrics: ChartMetrics; focusedKey: string | null }) {
+function CardGrid({
+  items,
+  metrics,
+  focusedKey,
+  index,
+  tone,
+}: {
+  items: readonly TooltipItem[]
+  metrics: ChartMetrics
+  focusedKey: string | null
+  index: number
+  tone: CardTone | null
+}) {
   const headed = metrics.length > 1
   const shown = items
   return (
@@ -1841,7 +1894,7 @@ function CardGrid({ items, metrics, focusedKey }: { items: readonly TooltipItem[
               <span className={CHART_CARD.name}>{it.line.label}</span>
             </span>
             {it.cells.map((c, k) => (
-              <span key={k} className={`${CHART_CARD.value} ${strong}`}>
+              <span key={k} className={`${CHART_CARD.value} ${strong}`} style={toneOf(tone, metrics[k], it.line, index)}>
                 {c}
               </span>
             ))}
@@ -1859,6 +1912,8 @@ interface Pin {
   panel: number
   /** Where the click stood, in the chart's pixels. */
   x: number
+  /** Where the hover card stood at the click, which the pinned card takes. */
+  at: { x: number; y: number } | null
   /** The plotting area the card stays inside, in the chart's pixels. */
   area: { x: number; y: number; w: number; h: number }
   /** The hover card's height at the click, which the pinned card keeps. */
@@ -1913,6 +1968,7 @@ function PinnedCard({
   lines,
   metric,
   metrics,
+  tone,
   onUnpin,
   onRaise,
 }: {
@@ -1921,6 +1977,7 @@ function PinnedCard({
   lines: readonly ChartLine[]
   metric: ChartMetric
   metrics: ChartMetrics
+  tone: CardTone | null
   onUnpin: (t: number) => void
   onRaise: (t: number) => void
 }) {
@@ -1935,10 +1992,11 @@ function PinnedCard({
     const el = ref.current
     if (!el || at) return
     const w = el.offsetWidth
+    const h = el.offsetHeight
     const right = pin.x - a.x > a.w / 2
-    const x = right ? pin.x - CARD_CURSOR_OFFSET_PX - w : pin.x + CARD_CURSOR_OFFSET_PX
-    setAt({ x: clamp(x, a.x, Math.max(a.x, a.x + a.w - w)), y: a.y + 8 })
-  }, [at, pin.x, a.x, a.y, a.w])
+    const from = pin.at ?? { x: right ? pin.x - CARD_CURSOR_OFFSET_PX - w : pin.x + CARD_CURSOR_OFFSET_PX, y: a.y + 8 }
+    setAt({ x: clamp(from.x, a.x, Math.max(a.x, a.x + a.w - w)), y: clamp(from.y, a.y, Math.max(a.y, a.y + a.h - h)) })
+  }, [at, pin.x, pin.at, a.x, a.y, a.w, a.h])
   const index = times.indexOf(pin.t)
   if (index < 0) return null
   const hour = fmtTooltipTime(pin.t)
@@ -1948,6 +2006,9 @@ function PinnedCard({
 
   const onMove = (e: PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('button') || !at || !ref.current) return
+    // A press on a card's band brings it up as well as moving it: `follow`
+    // stops the press before the card's own handler would hear it.
+    onRaise(pin.t)
     const start = at
     const w = ref.current.offsetWidth
     const h = ref.current.offsetHeight
@@ -1957,6 +2018,7 @@ function PinnedCard({
   }
   const onSize = (e: PointerEvent<HTMLSpanElement>) => {
     if (!at || !ref.current) return
+    onRaise(pin.t)
     const w0 = ref.current.offsetWidth
     const h0 = ref.current.offsetHeight
     const from = at
@@ -2013,17 +2075,17 @@ function PinnedCard({
           ))}
           <span className={CHART_CARD.rule} />
           {items.map((it) => (
-            <Fragment key={it.key}>
+            <div key={it.key} className={CHART_CARD.row}>
               <span className="flex min-w-0 items-center gap-1.5">
                 <span className={`h-2 w-2 flex-shrink-0 ${RADIUS.control}`} style={{ backgroundColor: it.line.color }} />
                 <span className={CHART_CARD.name}>{it.line.label}</span>
               </span>
               {it.cells.map((c, k) => (
-                <span key={k} className={CHART_CARD.value}>
+                <span key={k} className={CHART_CARD.value} style={toneOf(tone, metrics[k], it.line, index)}>
                   {c}
                 </span>
               ))}
-            </Fragment>
+            </div>
           ))}
         </div>
       </div>

@@ -1389,6 +1389,9 @@ export const CHART_CARD = {
   // results table's heads do, the slot kept on every head so none moves.
   grab: 'cursor-grab select-none active:cursor-grabbing',
   sortHead: `${MICRO_SIZE} ${FOCUS_RING} flex items-center gap-0.5 whitespace-nowrap text-ink-soft hover:text-ink-strong select-none`,
+  // A pinned card's row lights under the pointer as a results row does
+  // (`TABLE.row`'s tint), one grid row across every column.
+  row: 'col-span-full grid grid-cols-subgrid items-center hover:bg-raised/30',
   corner: 'absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize text-ink-soft touch-none',
   // A value is never narrower than six mono digits, the widest a cell prints
   // (`≥30000` on the cloud deck), so a column with no head over it (one
