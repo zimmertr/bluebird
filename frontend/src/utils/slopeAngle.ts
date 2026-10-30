@@ -3,7 +3,7 @@
 //
 // The shading is computed in the browser from the same elevation tiles the
 // relief and the contours read (`map/terrain.ts`), one pixel of a tile at a
-// time, and painted by band: nothing under 27 degrees, then six colours to
+// time, and painted by band: nothing under 27 degrees, then seven colours to
 // the steepest rock. `map/slope.ts` hands MapLibre the picture; everything
 // that decides what the picture says is here, and none of it needs a map.
 import { hexToRgb } from './colors'
@@ -19,19 +19,19 @@ export interface SlopeBand {
 }
 
 /**
- * CalTopo's bands, which are the avalanche world's: 27 to 29 degrees yellow,
- * 30 and 31 orange, 32 to 34 red, 35 to 45 purple, 46 to 50 blue, and 51 and
- * steeper black. Under 27 nothing is painted. Slab avalanches start on slopes
- * of about 30 to 45 degrees, most often 35 to 45, so the warm colours climb
- * toward the purple band, where they run most, and blue and black are the rock
- * too steep to hold much snow.
+ * CalTopo's bands, which are the avalanche world's, as its own legend writes
+ * them: 27 to 29 degrees yellow, 30 and 31 gold, 32 to 34 orange, 35 to 45
+ * red, 46 to 50 purple, 51 to 59 blue, and 60 and steeper black. Under 27
+ * nothing is painted. Slab avalanches start on slopes of about 30 to 45
+ * degrees, most often 35 to 45, so the colours warm toward the red band, where
+ * they run most, and purple, blue and black are the rock too steep to hold
+ * much snow. An earlier six-band copy put purple at 35, which painted the
+ * commonest steep ground a colour CalTopo keeps for cliffs (the maintainer,
+ * 2026-10-29, beside a CalTopo screenshot of Squak Mountain).
  *
- * Each band holds its lower edge, so 30.0 is orange and 50.9 is still blue.
- * CalTopo's legend writes the ranges in whole degrees, `46-50` and then `50+`,
- * and its black starts past 50, so here it starts at 51 (the maintainer,
- * 2026-10-28).
+ * Each band holds its lower edge, so 30.0 is gold and 59.9 is still blue.
  *
- * The colours are the pure hues those names say, CalTopo's look, painted at
+ * The colours are pure hues, CalTopo's look, painted at
  * {@link SLOPE_ALPHA}. Measured 2026-10-28 at that alpha against Liberty's land
  * (`#efece6`) and a dark forest under the imagery (`#3a4a33`), as WCAG contrast
  * of the painted pixel with the ground it covers:
@@ -39,36 +39,40 @@ export interface SlopeBand {
  * | Band   | Colour    | On land | On forest |
  * |--------|-----------|---------|-----------|
  * | 27     | `#ffff00` | 1.03    | 3.55      |
- * | 30     | `#ffa500` | 1.31    | 2.33      |
- * | 32     | `#ff0000` | 2.29    | 1.23      |
- * | 35     | `#a020f0` | 2.21    | 1.17      |
- * | 46     | `#0000ff` | 3.13    | 1.24      |
- * | 51     | `#000000` | 3.84    | 1.66      |
+ * | 30     | `#ffaa00` | 1.30    | 2.37      |
+ * | 32     | `#ff5500` | 1.73    | 1.63      |
+ * | 35     | `#ff0000` | 2.29    | 1.23      |
+ * | 46     | `#a020f0` | 2.21    | 1.17      |
+ * | 51     | `#0000ff` | 3.13    | 1.24      |
+ * | 60     | `#000000` | 3.84    | 1.66      |
  *
  * Lightness alone does not carry these, and cannot: a yellow light enough to
  * stand out on a dark forest is the colour of the pale land, and a red dark
  * enough for the land is the forest's. The hue does it. Painted, each band
- * differs from the band beside it by at least 24 in CIELAB (ΔE76) on either
- * ground, and from the ground itself by at least 44 on the land and 50 on the
- * forest. The one weak pair is the black band on the dark forest, at 18,
- * where the ground is nearly black already; slopes of 51 degrees and more are mostly
+ * differs from the band beside it by at least 22 in CIELAB (ΔE76) on either
+ * ground, and from the ground itself by at least 43 on the land and 50 on the
+ * forest. The gold and the orange are the two that keep the warm end apart:
+ * CalTopo's own gold sits within 18 of the yellow. The one weak pair is the
+ * black band on the dark forest, at 18, where the ground is nearly black
+ * already; slopes of 60 degrees and more are mostly
  * bare rock, which the imagery draws pale. `slopeAngle.test.ts` pins every
  * ratio.
  */
 export const SLOPE_BANDS: readonly SlopeBand[] = [
   { from: 27, color: '#ffff00' },
-  { from: 30, color: '#ffa500' },
-  { from: 32, color: '#ff0000' },
-  { from: 35, color: '#a020f0' },
-  { from: 46, color: '#0000ff' },
-  { from: 51, color: '#000000' },
+  { from: 30, color: '#ffaa00' },
+  { from: 32, color: '#ff5500' },
+  { from: 35, color: '#ff0000' },
+  { from: 46, color: '#a020f0' },
+  { from: 51, color: '#0000ff' },
+  { from: 60, color: '#000000' },
 ]
 
 /**
  * How strongly the bands paint at the Slope angle row's default level: half,
  * CalTopo's own strength. Tried over Rainier and the Enchantments on Liberty
  * and on the imagery (2026-10-28): at 0.4 the yellow band went missing on
- * Liberty's pale land, and at 0.6 the purple and the blue hid the imagery's
+ * Liberty's pale land, and at 0.6 the cliff bands hid the imagery's
  * rock and snow, which is what a reader looks at a steep slope to see. The
  * relief under it shows through at half. The row's slider moves it from 0 to
  * 1 since record 0250, and the default stays here: `OPACITY_DEFAULT` in
@@ -298,7 +302,7 @@ function paddedHeights(centre: HeightGrid, { north, south, west, east }: EdgeTil
   return pad
 }
 
-/** The legend's strip: the six colours, blended like every scale on the map (`rampCss`). */
+/** The legend's strip: the seven colours, blended like every scale on the map (`rampCss`). */
 export function slopeRampCss(): string {
   return rampCss(SLOPE_BANDS.map((band) => band.color))
 }

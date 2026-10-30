@@ -70,7 +70,9 @@ describe('bandOf', () => {
       [50, 4],
       [50.9, 4],
       [51, 5],
-      [89, 5],
+      [59.9, 5],
+      [60, 6],
+      [89, 6],
     ]
     for (const [degrees, band] of cases) expect([degrees, bandOf(degrees)]).toEqual([degrees, band])
   })
@@ -81,9 +83,17 @@ describe('bandOf', () => {
 })
 
 describe('the bands', () => {
-  it("are CalTopo's six, yellow to black", () => {
-    expect(SLOPE_BANDS.map((b) => b.from)).toEqual([27, 30, 32, 35, 46, 51])
-    expect(SLOPE_BANDS.map((b) => b.color)).toEqual(['#ffff00', '#ffa500', '#ff0000', '#a020f0', '#0000ff', '#000000'])
+  it("are CalTopo's seven, yellow to black", () => {
+    expect(SLOPE_BANDS.map((b) => b.from)).toEqual([27, 30, 32, 35, 46, 51, 60])
+    expect(SLOPE_BANDS.map((b) => b.color)).toEqual([
+      '#ffff00',
+      '#ffaa00',
+      '#ff5500',
+      '#ff0000',
+      '#a020f0',
+      '#0000ff',
+      '#000000',
+    ])
     expect(SLOPE_ALPHA).toBe(0.5)
   })
 
@@ -93,8 +103,8 @@ describe('the bands', () => {
     const LAND = '#efece6'
     const FOREST = '#3a4a33'
     const on = (ground: string) => SLOPE_BANDS.map((b) => round2(contrast(mixOver(b.color, ground, SLOPE_ALPHA), ground)))
-    expect(on(LAND)).toEqual([1.03, 1.31, 2.29, 2.21, 3.13, 3.84])
-    expect(on(FOREST)).toEqual([3.55, 2.33, 1.23, 1.17, 1.24, 1.66])
+    expect(on(LAND)).toEqual([1.03, 1.3, 1.73, 2.29, 2.21, 3.13, 3.84])
+    expect(on(FOREST)).toEqual([3.55, 2.37, 1.63, 1.23, 1.17, 1.24, 1.66])
   })
 })
 
@@ -163,7 +173,7 @@ describe('slopeRaster', () => {
   const plane = (degrees: number) => grid(SIZE, (col) => col * m * Math.tan((degrees * Math.PI) / 180))
 
   it('paints a slope in its band, opaque, and flat ground clear', () => {
-    expect(pixel(slopeRaster(Z, Y, plane(40), NO_EDGES), SIZE, 4, 4)).toEqual(rgba('#a020f0'))
+    expect(pixel(slopeRaster(Z, Y, plane(40), NO_EDGES), SIZE, 4, 4)).toEqual(rgba('#ff0000'))
     expect(pixel(slopeRaster(Z, Y, plane(28), NO_EDGES), SIZE, 4, 4)).toEqual(rgba('#ffff00'))
     expect(pixel(slopeRaster(Z, Y, plane(20), NO_EDGES), SIZE, 4, 4)).toEqual(CLEAR)
     expect(pixel(slopeRaster(Z, Y, grid(SIZE, () => 1200), NO_EDGES), SIZE, 4, 4)).toEqual(CLEAR)
@@ -187,7 +197,7 @@ describe('slopeRaster', () => {
     const y = 1442
     const here = groundMetresPerPixel(Z, y, SIZE / 2, SIZE)
     const tile = grid(SIZE, (col) => col * here * Math.tan((33 * Math.PI) / 180))
-    expect(pixel(slopeRaster(Z, y, tile, NO_EDGES), SIZE, 4, 4)).toEqual(rgba('#ff0000'))
+    expect(pixel(slopeRaster(Z, y, tile, NO_EDGES), SIZE, 4, 4)).toEqual(rgba('#ff5500'))
     const atEquator = (Math.atan((here * Math.tan((33 * Math.PI) / 180)) / m) * 180) / Math.PI
     expect(atEquator).toBeLessThan(27)
   })
@@ -201,8 +211,8 @@ describe('slopeRaster', () => {
     const east = grid(SIZE, (col) => (SIZE - 2 - col) * rise)
     const withEast = slopeRaster(Z, Y, centre, { ...NO_EDGES, east })
     expect(pixel(withEast, SIZE, SIZE - 1, 4)).toEqual(CLEAR)
-    expect(pixel(withEast, SIZE, SIZE - 2, 4)).toEqual(rgba('#a020f0'))
-    expect(pixel(slopeRaster(Z, Y, centre, NO_EDGES), SIZE, SIZE - 1, 4)).toEqual(rgba('#a020f0'))
+    expect(pixel(withEast, SIZE, SIZE - 2, 4)).toEqual(rgba('#ff0000'))
+    expect(pixel(slopeRaster(Z, Y, centre, NO_EDGES), SIZE, SIZE - 1, 4)).toEqual(rgba('#ff0000'))
   })
 
   // A plane across two tiles paints both edges the same, which is what keeps a
@@ -214,8 +224,8 @@ describe('slopeRaster', () => {
     const westOut = slopeRaster(Z, Y, west, { ...NO_EDGES, east: centre })
     const centreOut = slopeRaster(Z, Y, centre, { ...NO_EDGES, west })
     for (let row = 0; row < SIZE; row++) {
-      expect(pixel(westOut, SIZE, SIZE - 1, row)).toEqual(rgba('#ff0000'))
-      expect(pixel(centreOut, SIZE, 0, row)).toEqual(rgba('#ff0000'))
+      expect(pixel(westOut, SIZE, SIZE - 1, row)).toEqual(rgba('#ff5500'))
+      expect(pixel(centreOut, SIZE, 0, row)).toEqual(rgba('#ff5500'))
     }
   })
 
@@ -225,7 +235,7 @@ describe('slopeRaster', () => {
     const north = grid(SIZE, (_, row) => (2 * SIZE - row) * rise)
     const south = grid(SIZE, () => -2 * rise)
     const out = slopeRaster(Z, Y, centre, { ...NO_EDGES, north, south })
-    expect(pixel(out, SIZE, 3, 0)).toEqual(rgba('#0000ff'))
+    expect(pixel(out, SIZE, 3, 0)).toEqual(rgba('#a020f0'))
     // The south tile is flat, a step below the plane: steeper at the edge, so
     // black.
     expect(pixel(out, SIZE, 3, SIZE - 1)).toEqual(rgba('#000000'))
@@ -236,13 +246,13 @@ describe('slopeRaster', () => {
     tile.data[4 * SIZE + 5] = Number.NaN
     const out = slopeRaster(Z, Y, tile, NO_EDGES)
     expect(pixel(out, SIZE, 4, 4)).toEqual(CLEAR)
-    expect(pixel(out, SIZE, 2, 4)).toEqual(rgba('#a020f0'))
+    expect(pixel(out, SIZE, 2, 4)).toEqual(rgba('#ff0000'))
   })
 
   it('ignores a neighbour of another size', () => {
     const centre = plane(40)
     const out = slopeRaster(Z, Y, centre, { ...NO_EDGES, east: grid(4, () => 0) })
-    expect(pixel(out, SIZE, SIZE - 1, 4)).toEqual(rgba('#a020f0'))
+    expect(pixel(out, SIZE, SIZE - 1, 4)).toEqual(rgba('#ff0000'))
   })
 })
 
@@ -278,22 +288,23 @@ describe('slopeRaster over a window', () => {
   })
 
   // The spacing is the elevation's, whatever zoom the tile is drawn at: a
-  // 33-degree plane on zoom-12 pixels stays red in a window, where the
-  // zoom-13 spacing, half as far, would read it at 52 and paint it black.
+  // 33-degree plane on zoom-12 pixels stays orange in a window, where the
+  // zoom-13 spacing, half as far, would read it at 52 and paint it blue.
   it("reads the slope at the elevation's own spacing", () => {
     const here = groundMetresPerPixel(12, Y, SIZE / 2, SIZE)
     const tile = grid(SIZE, (col) => col * here * Math.tan((33 * Math.PI) / 180))
     const part = slopeRaster(12, Y, tile, NO_EDGES, { left: 4, top: 4, span: 4 })
-    expect(pixel(part, SIZE, 1, 1)).toEqual(rgba('#ff0000'))
+    expect(pixel(part, SIZE, 1, 1)).toEqual(rgba('#ff5500'))
     expect((Math.atan(2 * Math.tan((33 * Math.PI) / 180)) * 180) / Math.PI).toBeGreaterThan(51)
   })
 })
 
 describe('the legend', () => {
-  it('blends the six colours like every strip on the map', () => {
+  it('blends the seven colours like every strip on the map', () => {
     expect(slopeRampCss()).toBe(
-      'linear-gradient(90deg,#ffff00 0%,#ffff00 16.666666666666664%,#ffa500 33.33333333333333%,#ff0000 50%,' +
-        '#a020f0 66.66666666666666%,#0000ff 83.33333333333334%,#000000 100%)',
+      'linear-gradient(90deg,#ffff00 0%,#ffff00 14.285714285714285%,#ffaa00 28.57142857142857%,' +
+        '#ff5500 42.857142857142854%,#ff0000 57.14285714285714%,#a020f0 71.42857142857143%,' +
+        '#0000ff 85.71428571428571%,#000000 100%)',
     )
   })
 
@@ -306,7 +317,8 @@ describe('the legend', () => {
       { at: 3, label: '32', align: 'center' },
       { at: 4, label: '35', align: 'center' },
       { at: 5, label: '46', align: 'center' },
-      { at: 5, label: '51', align: 'end' },
+      { at: 6, label: '51', align: 'center' },
+      { at: 6, label: '60', align: 'end' },
     ])
   })
 })

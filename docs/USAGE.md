@@ -227,7 +227,7 @@ again. Eight are credited in their own section of the map's legend, and the thre
 | **Satellite** | Aerial photos of the ground, over the map's land and water and under its roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
 | **Topographic** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
 | **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
-| **Slope angle** | How steep the ground is, in six bands from 27 degrees, from the same model | Worldwide |
+| **Slope angle** | How steep the ground is, in seven bands from 27 degrees, from the same model | Worldwide |
 | *Hazards* | | |
 | **Active wildfires** | Active fire perimeters, in red | United States, which the proximity check shares ([DATA.md](DATA.md#wildfires)) |
 | **Fire activity** | Hot spots satellites saw in the last 48 hours, as starbursts coloured by age | Worldwide, from zoom 5 in ([DATA.md](DATA.md#fire-activity)) |
