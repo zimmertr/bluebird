@@ -788,15 +788,25 @@ describe('TimeSeriesChart with more than one metric', () => {
     fireEvent.pointerDown(cross, { clientX: 0, clientY: 0 })
     const drawn = chart.charts.length
     fireEvent.pointerMove(document, { clientX: 200, clientY: 100 })
-    expect(colShare()).toBe('0.75')
-    expect(rowShare()).toBe('0.75')
-    // The live layout is written to the page; nothing renders until release.
+    // Mid-drag nothing is laid out again and nothing renders: the boxes and
+    // the gutters move by transform, the split from the 800 by 400 measured
+    // at the press (record 0239).
+    expect(colShare()).toBe('0.5')
+    expect(rowShare()).toBe('0.5')
+    const rows = Array.from(container.firstElementChild!.lastElementChild!.children).slice(0, 2) as HTMLElement[]
+    expect((rows[0].children[1] as HTMLElement).style.transform).toBe('translate(608px, 0px)')
+    expect((rows[1].children[0] as HTMLElement).style.transform).toBe('translate(0px, 308px)')
+    expect(cross.style.transform).toBe('translate(200px, 100px)')
+    expect(cross.style.willChange).toBe('transform')
     expect(chart.charts).toHaveLength(drawn)
     // Into the corner: the first panel takes the area and the rest are not drawn.
     fireEvent.pointerMove(document, { clientX: 2000, clientY: 2000 })
     fireEvent.pointerUp(document, { clientX: 2000, clientY: 2000 })
+    // Released: the split is committed and every transform is gone.
     expect(last(chart.charts, 1)).toHaveLength(1)
     expect(rowShare()).toBe('1')
+    expect(cross.style.transform).toBe('')
+    expect(cross.style.willChange).toBe('')
     expect(screen.getAllByRole('button', { name: /^Remove / })).toHaveLength(3)
     press(cross, 5000)
     press(cross, 5100)

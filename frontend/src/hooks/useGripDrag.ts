@@ -8,6 +8,11 @@ import { type DragSample, releaseVelocity } from '../utils/sheetDrag'
 // system threshold, which is the right way to miss.
 export const DOUBLE_PRESS_MS = 350
 
+// The pointer's raw updates where the browser sends them (#499): Chromium
+// fires `pointerrawupdate` as each movement arrives rather than once a frame,
+// so a drag's frame reads the latest position. Elsewhere, `pointermove`.
+const MOVE = typeof window !== 'undefined' && 'onpointerrawupdate' in window ? 'pointerrawupdate' : 'pointermove'
+
 export interface GripDragHandlers {
   /** A double press: put what this grip moves back to its own height. */
   onReset: () => void
@@ -69,12 +74,12 @@ export function useGripDrag(handlers: GripDragHandlers) {
     function onUp(ev: PointerEvent) {
       const end = ev.type === 'pointercancel' ? last : { at: ev.timeStamp, upPx: startY - ev.clientY }
       latest.current.onDragEnd(end.upPx, ev.type === 'pointercancel' ? 0 : releaseVelocity(samples, end))
-      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener(MOVE, onMove as EventListener)
       document.removeEventListener('pointerup', onUp)
       document.removeEventListener('pointercancel', onUp)
     }
 
-    document.addEventListener('pointermove', onMove)
+    document.addEventListener(MOVE, onMove as EventListener)
     document.addEventListener('pointerup', onUp)
     document.addEventListener('pointercancel', onUp)
   }

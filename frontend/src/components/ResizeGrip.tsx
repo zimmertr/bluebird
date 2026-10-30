@@ -1,6 +1,10 @@
 import { useGripDrag } from '../hooks/useGripDrag'
 import { type CSSProperties, useState } from 'react'
 import { CHART_GUTTER, RADIUS, TAP } from '../styles'
+import { HANDLE_ATTR } from '../hooks/useStretchDrag'
+
+// Marks a handle a chart split drag moves by transform (#499).
+const HANDLE_MARK = { [HANDLE_ATTR]: '' }
 
 interface ResizeGripProps {
   /** A double press: put this grip's own panel back to its default height. */
@@ -28,6 +32,7 @@ export default function ResizeGrip({ onReset, onDragStart, onDrag, onDragEnd }: 
 
   return (
     <div
+      {...HANDLE_MARK}
       onPointerDown={handlePointerDown}
       className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-raised border-t border-b border-frame hover:bg-raised-hover transition-colors group`}
     >
@@ -77,12 +82,13 @@ export function GridGutter({ axis, place, label, onReset, onDragStart, onDrag, o
   })
   if (axis === 'both') {
     return (
-      <div role="separator" aria-label={label} onPointerDown={handlePointerDown} className={CHART_GUTTER.cross} style={place} />
+      <div {...HANDLE_MARK} role="separator" aria-label={label} onPointerDown={handlePointerDown} className={CHART_GUTTER.cross} style={place} />
     )
   }
   const line = axis === 'col' ? CHART_GUTTER.colLine : CHART_GUTTER.rowLine
   return (
     <div
+      {...HANDLE_MARK}
       role="separator"
       aria-label={label}
       aria-orientation={axis === 'col' ? 'vertical' : 'horizontal'}

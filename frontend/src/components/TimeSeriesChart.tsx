@@ -17,7 +17,7 @@ import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
 import ChartLines from './ChartLines'
 import { lineStrokes } from '../utils/chart/chartCanvas'
-import { STAGE_ATTR, useStretchDrag } from '../hooks/useStretchDrag'
+import { BOX_ATTR, type DragLayout, STAGE_ATTR, useStretchDrag } from '../hooks/useStretchDrag'
 import {
   CHART_METRICS,
   ChartLine,
@@ -388,21 +388,52 @@ function TimeSeriesChart({
   // can be dragged to nothing; the top one has no axis strip to keep.
   const topFloor = panelFloorPx(MARGIN, false)
   const bottomFloor = panelFloorPx(MARGIN, true)
-  // A drag writes its layout straight to the DOM once a frame and stretches
-  // each panel's last drawing to it, redrawing only when the pointer rests and
-  // committing to state on release (#499; TJ 2026-10-29): a render per
-  // pointer move was a Recharts redraw of every line in every panel.
-  const stackStretch = useStretchDrag(stackRef)
-  const gridStretch = useStretchDrag(gridRef)
-  const writeStack = useCallback(() => {
+  // A split drag runs on the compositor (#499; TJ 2026-10-30): each frame
+  // moves the boxes and handles with transforms and stretches each panel's
+  // last drawing, from arithmetic over the area measured when the drag
+  // began, and writes no layout. A rest commits the split and redraws; a
+  // release commits it and hands the panels back one a frame
+  // (`useStretchDrag`).
+  const committedShareRef = useRef(share)
+  const committedGridRef = useRef(gridShares)
+  const stackGeomRef = useRef({ w: 0, total: 0, grip: 0 })
+  const gridGeomRef = useRef({ w: 0, h: 0 })
+  const settlingRef = useRef(false)
+  const stackStretch = useStretchDrag(stackRef, () => setShare(liveShareRef.current))
+  const gridStretch = useStretchDrag(gridRef, () => setGridShares(liveGridRef.current))
+  // After a commit: mid-drag the layout is measured afresh; after a release
+  // the panels are handed back.
+  useLayoutEffect(() => {
+    committedShareRef.current = share
+    committedGridRef.current = gridShares
+    if (dragStartRef.current) stackStretch.rebase()
+    if (gutterStartRef.current) gridStretch.rebase()
+    if (settlingRef.current) {
+      settlingRef.current = false
+      stackStretch.settle()
+      gridStretch.settle()
+    }
+  }, [share, gridShares, stackStretch, gridStretch])
+
+  const stackLayout = useCallback((): DragLayout => {
+    const { w, total, grip } = stackGeomRef.current
     const s = liveShareRef.current
-    if (box0.current) box0.current.style.flexGrow = String(s)
-    if (box1.current) box1.current.style.flexGrow = String(1 - s)
+    const top = s * total
+    return {
+      boxes: [
+        { x: 0, y: 0, w, h: top },
+        { x: 0, y: top + grip, w, h: total - top },
+      ],
+      handles: [{ dx: 0, dy: (s - committedShareRef.current) * total }],
+    }
   }, [])
   const onSplitStart = useCallback(() => {
-    const totalPx = (box0.current?.clientHeight ?? 0) + (box1.current?.clientHeight ?? 0)
+    const top = box0.current?.clientHeight ?? 0
+    const bottom = box1.current?.clientHeight ?? 0
+    const area = stackRef.current
+    stackGeomRef.current = { w: area?.clientWidth ?? 0, total: top + bottom, grip: (area?.clientHeight ?? 0) - top - bottom }
     liveShareRef.current = share
-    dragStartRef.current = { share, totalPx }
+    dragStartRef.current = { share, totalPx: top + bottom }
     stackStretch.begin()
   }, [share, stackStretch])
   const onSplitDrag = useCallback(
@@ -410,15 +441,19 @@ function TimeSeriesChart({
       const start = dragStartRef.current
       if (!start) return
       liveShareRef.current = splitAfterDrag(start.share, dragUpPx, start.totalPx, topFloor, bottomFloor)
-      stackStretch.frame(writeStack)
+      stackStretch.frame(stackLayout)
     },
-    [topFloor, bottomFloor, stackStretch, writeStack],
+    [topFloor, bottomFloor, stackStretch, stackLayout],
   )
   const onSplitEnd = useCallback(() => {
     if (!dragStartRef.current) return
     dragStartRef.current = null
     stackStretch.end()
-    setShare(liveShareRef.current)
+    if (liveShareRef.current === committedShareRef.current) stackStretch.settle()
+    else {
+      settlingRef.current = true
+      setShare(liveShareRef.current)
+    }
   }, [stackStretch])
   const onSplitReset = useCallback(() => setShare(0.5), [])
 
@@ -427,22 +462,33 @@ function TimeSeriesChart({
   // drawn (#499; TJ 2026-10-29).
   const gridW = Math.max(0, (gridRef.current?.clientWidth ?? 0) - GUTTER_PX)
   const gridH = Math.max(0, (gridRef.current?.clientHeight ?? 0) - GUTTER_PX)
-  const writeGrid = useCallback(() => {
+  const gridLayout = useCallback((): DragLayout => {
+    const { w, h } = gridGeomRef.current
     const { x: gx, y: gy } = liveGridRef.current
-    gridRef.current?.style.setProperty('--gx', String(gx))
-    gridRef.current?.style.setProperty('--gy', String(gy))
-    if (row0.current) row0.current.style.flexGrow = String(gy)
-    if (row1.current) row1.current.style.flexGrow = String(1 - gy)
-    if (box0.current) box0.current.style.flexGrow = String(gx)
-    if (box1.current) box1.current.style.flexGrow = String(1 - gx)
-    if (box2.current && box3.current) {
-      box2.current.style.flexGrow = String(gx)
-      box3.current.style.flexGrow = String(1 - gx)
+    const { x: cx, y: cy } = committedGridRef.current
+    const left = gx * w
+    const top = gy * h
+    const right = { x: left + GUTTER_PX, w: w - left }
+    const four = count === 4
+    return {
+      boxes: [
+        { x: 0, y: 0, w: left, h: top },
+        { ...right, y: 0, h: top },
+        four ? { x: 0, y: top + GUTTER_PX, w: left, h: h - top } : { x: 0, y: top + GUTTER_PX, w: w + GUTTER_PX, h: h - top },
+        { ...right, y: top + GUTTER_PX, h: h - top },
+      ],
+      handles: [
+        // The vertical gutter, which with three panels stops at the top row.
+        { dx: (gx - cx) * w, dy: 0, sy: four || cy <= 0 ? undefined : gy / cy },
+        { dx: 0, dy: (gy - cy) * h },
+        { dx: (gx - cx) * w, dy: (gy - cy) * h },
+      ],
     }
-  }, [])
+  }, [count])
   const onGutterStart = useCallback(() => {
     const w = Math.max(0, (gridRef.current?.clientWidth ?? 0) - GUTTER_PX)
     const h = Math.max(0, (gridRef.current?.clientHeight ?? 0) - GUTTER_PX)
+    gridGeomRef.current = { w, h }
     liveGridRef.current = gridShares
     gutterStartRef.current = { shares: gridShares, w, h }
     gridStretch.begin()
@@ -452,15 +498,21 @@ function TimeSeriesChart({
       const start = gutterStartRef.current
       if (!start) return
       liveGridRef.current = gridAfterDrag(start.shares, dx, dy, start.w, start.h)
-      gridStretch.frame(writeGrid)
+      gridStretch.frame(gridLayout)
     },
-    [gridStretch, writeGrid],
+    [gridStretch, gridLayout],
   )
   const onGutterEnd = useCallback(() => {
     if (!gutterStartRef.current) return
     gutterStartRef.current = null
     gridStretch.end()
-    setGridShares(liveGridRef.current)
+    const live = liveGridRef.current
+    const done = committedGridRef.current
+    if (live.x === done.x && live.y === done.y) gridStretch.settle()
+    else {
+      settlingRef.current = true
+      setGridShares(live)
+    }
   }, [gridStretch])
   // A double press evens its own axis; at the crossing, both.
   const onColumnsReset = useCallback(() => setGridShares((g) => ({ x: EVEN_GRID.x, y: g.y })), [])
@@ -822,6 +874,8 @@ interface PanelProps {
 const ESCAPE_PANEL = { x: true, y: true }
 const CARD_OVER_PANELS = { zIndex: 3 }
 
+// Marks a panel box for a split drag, which moves it by transform (#499).
+const BOX_MARK = { [BOX_ATTR]: '' }
 const boxStyle = (flexGrow: number | null) => (flexGrow === null ? undefined : { flexGrow, flexBasis: 0 })
 
 // The card stands inside the chart less this much, so it never meets the
@@ -1002,11 +1056,12 @@ function ChartPanel({
     if (typeof t === 'number') onPlayheadChange(t)
   }
 
-  if (hidden) return <div ref={boxRef} className="min-h-0 min-w-0" style={boxStyle(flexGrow)} />
+  if (hidden) return <div ref={boxRef} {...BOX_MARK} className="min-h-0 min-w-0" style={boxStyle(flexGrow)} />
 
   return (
     <div
       ref={boxRef}
+      {...BOX_MARK}
       className={`relative flex min-h-0 min-w-0 flex-col ${flexGrow === null ? 'flex-1' : ''}`}
       // A share of the stack or the row rather than pixels, so a sheet that
       // grows keeps the split the reader set (#499).

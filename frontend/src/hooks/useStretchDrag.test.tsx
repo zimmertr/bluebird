@@ -1,20 +1,58 @@
 import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PAUSE_MS, STAGE_ATTR, useStretchDrag } from './useStretchDrag'
+import { BOX_ATTR, HANDLE_ATTR, PAUSE_MS, STAGE_ATTR, useStretchDrag } from './useStretchDrag'
 
-// One panel: a box whose size the test sets, holding the stage.
+// Two stacked boxes, each a 20px heading over a plot holding its stage, and
+// a grip between them. jsdom lays nothing out, so the sizes are set by hand.
 function area() {
   const root = document.createElement('div')
-  const box = document.createElement('div')
-  const stage = document.createElement('div')
-  stage.setAttribute(STAGE_ATTR, '')
-  box.appendChild(stage)
-  root.appendChild(box)
-  const size = { w: 400, h: 200 }
-  Object.defineProperty(box, 'clientWidth', { get: () => size.w })
-  Object.defineProperty(box, 'clientHeight', { get: () => size.h })
-  return { ref: { current: root }, stage, size }
+  const sizes = new Map<Element, { w: number; h: number }>()
+  const box = (h: number) => {
+    const el = document.createElement('div')
+    el.setAttribute(BOX_ATTR, '')
+    const plot = document.createElement('div')
+    const stage = document.createElement('div')
+    stage.setAttribute(STAGE_ATTR, '')
+    plot.appendChild(stage)
+    el.appendChild(plot)
+    sizes.set(plot, { w: 400, h: h - 20 })
+    return { el, plot, stage }
+  }
+  const top = box(100)
+  const grip = document.createElement('div')
+  grip.setAttribute(HANDLE_ATTR, '')
+  const bottom = box(100)
+  root.append(top.el, grip, bottom.el)
+  const reads = { n: 0 }
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    reads.n++
+    return sizes.get(this)?.w ?? 0
+  })
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
+    reads.n++
+    return sizes.get(this)?.h ?? 0
+  })
+  const rects = new Map<Element, [number, number, number, number]>([
+    [root, [0, 0, 400, 208]],
+    [top.el, [0, 0, 400, 100]],
+    [bottom.el, [0, 108, 400, 100]],
+  ])
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    reads.n++
+    const [x, y, w, h] = rects.get(this) ?? [0, 0, 0, 0]
+    return { x, y, left: x, top: y, width: w, height: h, right: x + w, bottom: y + h, toJSON: () => ({}) } as DOMRect
+  })
+  return { ref: { current: root }, top, bottom, grip, reads }
 }
+
+// The top box grown by 20px: the bottom one moves down and shrinks by it.
+const LAYOUT = () => ({
+  boxes: [
+    { x: 0, y: 0, w: 400, h: 120 },
+    { x: 0, y: 128, w: 400, h: 80 },
+  ],
+  handles: [{ dx: 0, dy: 20 }],
+})
 
 describe('useStretchDrag', () => {
   afterEach(() => {
@@ -24,49 +62,65 @@ describe('useStretchDrag', () => {
 
   function frames() {
     vi.useFakeTimers()
-    // Every frame at once; 0 so the next move queues its own.
+    // Every frame at once; 0 so the next one queues its own.
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
       cb(0)
       return 0
     })
   }
 
-  it('stretches the drawing while the pointer moves and redraws only when it rests', () => {
+  it('moves the boxes and the grip by transform alone, and stretches each drawing', () => {
     frames()
-    const { ref, stage, size } = area()
-    const { result } = renderHook(() => useStretchDrag(ref))
-    const write = vi.fn()
+    const { ref, top, bottom, grip, reads } = area()
+    const { result } = renderHook(() => useStretchDrag(ref, () => {}))
     result.current.begin()
-    expect(stage.style.width).toBe('400px')
-    expect(stage.style.willChange).toBe('transform')
+    expect(top.stage.style.width).toBe('400px')
+    expect(top.stage.style.height).toBe('80px')
+    expect([top.el, top.stage, grip].map((e) => e.style.willChange)).toEqual(['transform', 'transform', 'transform'])
 
-    size.w = 200
-    result.current.frame(write)
-    vi.advanceTimersByTime(PAUSE_MS - 1)
-    size.h = 100
-    result.current.frame(write)
-    vi.advanceTimersByTime(PAUSE_MS - 1)
-    // Still drawn at 400 by 200, shown at half of each.
-    expect(write).toHaveBeenCalledTimes(2)
-    expect(stage.style.width).toBe('400px')
-    expect(stage.style.transform).toBe('scale(0.5, 0.5)')
-
-    vi.advanceTimersByTime(1)
-    // At rest the stage takes the box's size, so the chart redraws there.
-    expect(stage.style.width).toBe('200px')
-    expect(stage.style.height).toBe('100px')
-    expect(stage.style.transform).toBe('')
+    // Every read happens at begin: a frame reads no size.
+    reads.n = 0
+    result.current.frame(LAYOUT)
+    expect(reads.n).toBe(0)
+    expect(top.stage.style.transform).toBe('scale(1, 1.25)')
+    expect(bottom.el.style.transform).toBe('translate(0px, 20px)')
+    expect(bottom.stage.style.transform).toBe('scale(1, 0.75)')
+    expect(grip.style.transform).toBe('translate(0px, 20px)')
   })
 
-  it('hands the stage back to the layout on release', () => {
+  it('commits when the pointer rests, and not while it moves', () => {
     frames()
-    const { ref, stage } = area()
-    const { result } = renderHook(() => useStretchDrag(ref))
-    const write = vi.fn()
+    const { ref } = area()
+    const onRest = vi.fn()
+    const { result } = renderHook(() => useStretchDrag(ref, onRest))
     result.current.begin()
-    result.current.frame(write)
+    result.current.frame(LAYOUT)
+    vi.advanceTimersByTime(PAUSE_MS - 1)
+    result.current.frame(LAYOUT)
+    vi.advanceTimersByTime(PAUSE_MS - 1)
+    expect(onRest).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(onRest).toHaveBeenCalledTimes(1)
+  })
+
+  it('hands the panels back one a frame on release, and clears every layer', () => {
+    vi.useFakeTimers()
+    const queued: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      queued.push(cb)
+      return queued.length
+    })
+    const { ref, top, bottom, grip } = area()
+    const { result } = renderHook(() => useStretchDrag(ref, () => {}))
+    result.current.begin()
     result.current.end()
-    expect(write).toHaveBeenCalledTimes(2)
-    expect([stage.style.width, stage.style.height, stage.style.transform, stage.style.willChange]).toEqual(['', '', '', ''])
+    result.current.settle()
+    expect([top.el.style.transform, grip.style.transform, grip.style.willChange]).toEqual(['', '', ''])
+    // The first stage is back at once, the second a frame later.
+    expect(top.stage.style.width).toBe('')
+    expect(bottom.stage.style.width).toBe('400px')
+    queued.shift()!(0)
+    expect(bottom.stage.style.width).toBe('')
+    expect(bottom.stage.style.willChange).toBe('')
   })
 })
