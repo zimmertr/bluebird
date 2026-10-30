@@ -85,7 +85,7 @@ export interface ShareableState {
   // The slope angle shading (#799), from the same elevation as the relief.
   showSlope: boolean
   showSatellite: boolean
-  // The four Base map rows' opacity levels (record 0242), whole percents.
+  // The four Base map rows' opacity levels (record 0243), whole percents.
   // Each rides its own param named for the layer's flag and the word
   // (`satelliteopacity=80`), written only while its row is on and off the
   // default, so a link opened before the sliders existed draws as it did.

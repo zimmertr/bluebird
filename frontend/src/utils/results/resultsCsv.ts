@@ -169,8 +169,8 @@ function cell(row: DestinationResult, col: ColDef, modelFallback?: string | null
  * No threshold test: useFireProximity only admits warnings within
  * FIRE_WARN_MILES, so presence in the map is the condition. An empty cell
  * means the check ran and cleared the row (the table renders the same state
- * as its dash), which is only true because the caller withholds the map
- * entirely when the check did not run. `N/A` is the row that was never
+ * as its dash), which is only true because a check that did not run
+ * passes null, and every cell then reads N/A. `N/A` is the row that was never
  * checked (#256): outside the fire dataset's US-only coverage, where a blank
  * would assert a clear check the data cannot make. The one divergence from
  * fireCellText is the bare number: text beside it would turn every warned
@@ -339,11 +339,7 @@ export interface CsvOptions {
   pendingRows?: readonly DestinationResult[]
   /** Rows the fire check could not reach, by geoKey (#256). */
   fireUncovered?: ReadonlySet<string>
-  /**
-   * The closure check's warnings, or null to leave the Closure column out,
-   * on `fireWarnings`' terms (see buildResultsCsv): only a check that answered
-   * may put a column in the file (#550).
-   */
+  /** The closure check's warnings, or null when it has not answered (see `fireWarnings`). */
   closureWarnings?: ReadonlyMap<string, ClosureWarning> | null
   /** Rows outside the area closure feeds' eight-state coverage, by geoKey. */
   closureUncovered?: ReadonlySet<string>
@@ -371,14 +367,9 @@ export interface CsvOptions {
  * the table is drawing, both of which the caller has on hand.
  *
  * `fireWarnings` is `null` when the wildfire lookup has no trustworthy answer:
- * still in flight, or failed. The column is then **left out of the file
- * entirely** rather than written empty. The distinction is the whole point. On
- * screen an empty flag column is self-correcting, because the ⚠️ appears a
- * second later and the reader watches it happen; a file is read once, detached
- * from the app, with nothing around it to say the check never ran. A column of
- * blanks in that setting is not missing data, it is an assertion that every
- * destination was checked and none is near a fire. An absent column asserts
- * nothing, which is the honest thing to say when nothing is known.
+ * still in flight, or failed. The column still goes over, so every file has
+ * one header, and each ranked row reads N/A: a blank would assert the row was
+ * checked and is clear, which a file read away from the app cannot correct.
  *
  * Below the data the file speaks about itself: the forecast window behind one
  * blank row, the partial-coverage footnote behind another when a row carries
@@ -404,8 +395,7 @@ export function buildResultsCsv(
     timeZone,
   } = options
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
-  if (fireWarnings) header.push(FIRE_HEADER)
-  if (closureWarnings) header.push(CLOSURE_HEADER)
+  header.push(FIRE_HEADER, CLOSURE_HEADER)
   // The window as two label/value rows behind their own blank row, or nothing
   // at all. Nothing is what a file with no committed analysis writes: every
   // row in it is pending, no forecast covers any of them, and a label over an
@@ -435,8 +425,7 @@ export function buildResultsCsv(
   // cells: a spreadsheet reads blank as "no value" and text as data.
   const pendingBody = pendingRows.map((row) => {
     const cells = ['', ...columns.map((c) => cell(row, c))]
-    if (fireWarnings) cells.push('')
-    if (closureWarnings) cells.push('')
+    cells.push('', '')
     return cells
   })
   const body = rows.map((row, i) => {
@@ -446,8 +435,10 @@ export function buildResultsCsv(
     // place in either case.
     const rank = (row as ModelRow).rank ?? i + 1
     const cells = [String(rank), ...columns.map((c) => cell(row, c, modelLabel, terrainMarks))]
-    if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))
-    if (closureWarnings) cells.push(closureCell(row, closureWarnings, closureUncovered))
+    cells.push(
+      fireWarnings ? fireCell(row, fireWarnings, fireUncovered) : UNAVAILABLE,
+      closureWarnings ? closureCell(row, closureWarnings, closureUncovered) : UNAVAILABLE,
+    )
     return cells
   })
   const doc = [

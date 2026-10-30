@@ -1,10 +1,10 @@
-# 0242. The Layers menu carries an opacity slider on the four Base map rows, and the imagery draws over the ground
+# 0243. The Layers menu carries an opacity slider on the four Base map rows, and the imagery draws over the ground
 
-- Status: Accepted. Amends 0233 (the imagery draws over Liberty's ground at a level, rather than under it with the ground faded out) and 0241 (the groups stand; the four Base map rows carry a slider).
+- Status: Accepted. Amends 0233 (the imagery draws over Liberty's ground at a level, rather than under it with the ground faded out) and 0242 (the groups stand; the four Base map rows carry a slider).
 - Date: 2026-10-29
 - Decider: the maintainer (TJ), on #799, 2026-10-29: an opacity control on Satellite, Topographic, Shaded relief and Slope angle, 0 to 100, default 50, with Satellite drawn over the map so the map shows through as the level falls, and option 6 of the opacity lab, the layers palette, with no slider on the Hazards and Forecast rows and the phone sheet stepping aside while a slider is dragged. That labels, trails, roads and the markers stay over every base-map layer, and only the ground goes under the blend, he confirmed. The link's grammar, how the relief and the contours read a level, the buildings, the slider's width, its look while off and the eye's off ink were the implementer's, for review on the pull request.
 - Issues and PRs: #799, #823
-- Cited in code as: record 0242
+- Cited in code as: record 0243
 - Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `MapLegend.tsx`/`LayersPopover.tsx` bullet and `BottomSheet.tsx`; [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), `overlays/imagery.ts`, `terrain.ts`, `features.ts`; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), `baseMapOpacity.ts`, `urlParams.ts`; [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), `useMapOverlays.ts`; [`docs/STYLES.md`](../STYLES.md), `LAYER_ROW` and `SHEET_ASIDE`; [`docs/USAGE.md`](../USAGE.md), Map layers; [`docs/DATA.md`](../DATA.md), Elevation and imagery
 - Related: 0016 (overlays are not knobs), 0209 and 0227 (Shift ranges), 0234 (the map's marks on a dark ground), 0240 (slope angle at half strength)
 

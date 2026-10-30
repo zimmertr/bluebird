@@ -2534,7 +2534,7 @@ export const BOTTOM_SHEET = {
 
 /**
  * A sheet that steps aside while a finger tunes the map under it (record
- * 0242): the Layers sheet while one of its opacity sliders is dragged. The
+ * 0243): the Layers sheet while one of its opacity sliders is dragged. The
  * dim lifts, the card and every row in it go, and the row being dragged stays
  * where it stood, on the sheet's own fill with the card's edge and shadow, so
  * the map it changes is in sight. On release it all comes back. Visibility
@@ -3103,7 +3103,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   the way the model list sets its ranking model. No check mark: the weight
  *   says it, and a mark would take a column from every row.
  * - `heading`: a word over a group of rows, which a reader reads and never
- *   presses: the Layers menu's Base map, Hazards and Forecast (record 0241).
+ *   presses: the Layers menu's Base map, Hazards and Forecast (record 0242).
  *   The caption step in semibold, sentence case: the maintainer chose it over
  *   the panel's small caps (`TEXT.section`, `TEXT.overline`), which shout
  *   over a list of thirteen short rows. The size is the rows' own 12px and
@@ -3128,7 +3128,7 @@ export const MENU = {
 
 /**
  * A group of a menu's rows under its `MENU.heading`, at a desk and on a
- * phone's sheet (record 0241). Only the Layers menu has groups.
+ * phone's sheet (record 0242). Only the Layers menu has groups.
  *
  * - `card`: at a desk the rows stand on the card's padding, so a group is set
  *   off from the one over it by 6px of space, which with the last row's own
@@ -3157,7 +3157,7 @@ export const MENU_GROUP = {
 } as const
 
 /**
- * A row of the Layers menu (record 0242): the menu's checkbox, the layer's
+ * A row of the Layers menu (record 0243): the menu's checkbox, the layer's
  * name, and on the four Base map rows an opacity slider at the right. At a
  * desk and on a phone's sheet alike. The record built the row with an eye in
  * place of the box, drawn over a hidden checkbox; the maintainer chose the
@@ -3186,7 +3186,7 @@ export const MENU_GROUP = {
  * - An off layer's slider looks the same as an on one's, accent and all: it
  *   is live, and a drag on it checks the layer's box at the level it sets,
  *   the way a muted volume slider unmutes (the maintainer, 2026-10-29,
- *   record 0242). A dimmed slider that still acted would look disabled and
+ *   record 0243). A dimmed slider that still acted would look disabled and
  *   behave enabled.
  */
 export const LAYER_ROW = {

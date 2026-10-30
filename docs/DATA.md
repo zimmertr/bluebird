@@ -892,7 +892,7 @@ maintainer chose the short names on 2026-10-28 to keep the corner to one line.
 The two draw as one layer at the row's opacity, EOX everywhere with USGS over
 it, both over Liberty's land and water fills and under its roads, trails and
 labels and under the relief and the contours (record
-[0242](decisions/0242-layers-palette-and-base-map-opacity.md)). Liberty's
+[0243](decisions/0243-layers-palette-and-base-map-opacity.md)). Liberty's
 buildings, which it draws over its roads, fade by the same level instead. The
 trails wear a light casing over it, because their brown reads 1.69:1 on a
 forest (record [0234](decisions/0234-map-reads-on-a-dark-ground.md)), and from

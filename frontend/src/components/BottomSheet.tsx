@@ -54,7 +54,7 @@ interface Props {
   /** The Controls sheet, which never unmounts (`KeptSheet`); a menu sheet leaves it out. */
   kept?: KeptSheet
   /**
-   * The sheet steps aside for the map under it (record 0242): the dim lifts
+   * The sheet steps aside for the map under it (record 0243): the dim lifts
    * and the card goes, all but the rows that wear `SHEET_ASIDE.keep`.
    * The Layers sheet, while a finger drags one of its opacity sliders.
    */

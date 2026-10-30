@@ -95,7 +95,7 @@ describe('mountFeatures', () => {
 
   // The imagery adds nothing on load, and switched on it goes over the
   // style's ground and under its first layer that is not ground, and so under
-  // every feature the app adds (#799, record 0242). This style's ground is its
+  // every feature the app adds (#799, record 0243). This style's ground is its
   // background alone: its `water` names no source of Liberty's.
   it('puts the satellite imagery over the ground and under every feature', () => {
     const { stub, features } = setup()
@@ -107,7 +107,7 @@ describe('mountFeatures', () => {
   // The Satellite row turns the contours to their imagery ink and back
   // (`terrain.ts`), through the one switch the component drives, and so does
   // its level across a half, where the photos stop being the ground that
-  // shows most (record 0242).
+  // shows most (record 0243).
   it('hands the Satellite row and its level to the contours as well as the photos', () => {
     const { features } = setup()
     const overImagery = vi.spyOn(features.terrain, 'overImagery')

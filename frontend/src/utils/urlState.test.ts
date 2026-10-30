@@ -391,7 +391,7 @@ describe('encodeState / decodeState round-trip', () => {
     expect(decodeState('?reach=50')).toBeNull()
   })
 
-  // The four Base map levels (record 0242): one param a layer, named for its
+  // The four Base map levels (record 0243): one param a layer, named for its
   // flag and the word, a whole percent, written only while the row is on and
   // the level is off the default, so every link written before the sliders
   // still reads as it did.

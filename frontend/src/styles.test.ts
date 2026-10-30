@@ -2976,7 +2976,7 @@ describe('the chart title on a phone', () => {
   })
 })
 
-// The map's Layers popover: thirteen rows in three groups (record 0241).
+// The map's Layers popover: thirteen rows in three groups (record 0242).
 describe('the map layer rows', () => {
   // Read out of the source rather than out of a render, for the reason every
   // other check here is: Vitest has no DOM, and the order is a property of the
@@ -3044,19 +3044,19 @@ describe('the map layer rows', () => {
   })
 })
 
-// The Layers menu's rows (record 0242): the menu's checkbox on every row,
+// The Layers menu's rows (record 0243): the menu's checkbox on every row,
 // an opacity slider on the four Base map rows, and the phone's sheet stepping
 // aside while one is dragged.
 describe('the layers palette', () => {
   // Every row's switch is the menu's own checkbox, as in every checkbox list
-  // in the app (the eye record 0242 first drew was taken back the same day).
+  // in the app (the eye record 0243 first drew was taken back the same day).
   it('draws every row\'s switch as the menu\'s checkbox', () => {
     expect(layersPopoverSource).toContain('className={CHOICE_INPUT}')
     expect(layersPopoverSource).not.toMatch(/IconEye/)
   })
 
   // An off layer's slider is live and looks it: the same accent fill as an
-  // on one's, since a drag on it checks the layer's box (record 0242).
+  // on one's, since a drag on it checks the layer's box (record 0243).
   it('draws an off layer\'s slider exactly as an on one\'s', () => {
     expect(layersPopoverSource).toContain('className={`absolute inset-0 ${ACCENT.fill}`}')
     expect(Object.keys(LAYER_ROW)).not.toContain('restingFill')
@@ -3143,7 +3143,7 @@ describe('the map legend sections', () => {
     expect(box).toContain('label: metricLabel(')
   })
 
-  // In the Layers menu's order (record 0241): the metric key, the base map's
+  // In the Layers menu's order (record 0242): the metric key, the base map's
   // slope bands, the hazards, then the forecast. Written in that order rather
   // than sorted, so the order is the source's.
   it('lists the sections in the Layers menu\'s order, the metric key first', () => {

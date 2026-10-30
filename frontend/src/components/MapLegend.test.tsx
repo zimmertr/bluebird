@@ -59,7 +59,7 @@ describe('MapLegend', () => {
     expect(container.textContent).toBe('Legend')
   })
 
-  // In the Layers menu's order (record 0241): the metric key first, then
+  // In the Layers menu's order (record 0242): the metric key first, then
   // the base map, the hazards and the forecast, smoke before the radar.
   it('lists the sections in the Layers menu\'s order, the metric key first', () => {
     const { container } = render(<Legend {...BASE} hasColoredMarkers overlays={SMOKE_AND_RADAR} />)

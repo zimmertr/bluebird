@@ -402,7 +402,7 @@ describe('the slope angle shading', () => {
   })
 })
 
-// The three elevation rows' opacity sliders (record 0242), each 0 to 1, the
+// The three elevation rows' opacity sliders (record 0243), each 0 to 1, the
 // default a half, which is the look each had before it had a slider.
 describe('the opacity levels', () => {
   // A hillshade has no opacity, so the level moves its light, its shadow and
