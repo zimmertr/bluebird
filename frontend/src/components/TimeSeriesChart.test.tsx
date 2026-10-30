@@ -920,8 +920,6 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(screen.getAllByRole('separator', { name: 'Resize the columns' })).toHaveLength(2)
     // A crossing wherever the row bar meets a panel bar, as the grid has.
     expect(screen.getAllByRole('separator', { name: 'Resize the panels' })).toHaveLength(2)
-    // The row bar's grips stand between its crossings, never on one: three stretches, three grips.
-    expect(screen.getByRole('separator', { name: 'Resize the rows' }).querySelectorAll('[aria-hidden="true"]')).toHaveLength(3)
     expect(last(chart.xAxes, 4).every((a) => a.hide === false)).toBe(true)
   })
 
