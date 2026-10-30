@@ -332,9 +332,8 @@ export function useTableView({
   // reversing the #256-era always-on rule; the Closure column followed it,
   // TJ 2026-09-30). While shown, their cells, not the columns, say where each
   // check stands (ticking while it runs, answered when it has; ResultsTable
-  // owns that). The CSV keeps the stricter rule and carries each column only
-  // once its check answered AND the column is shown, because a file's columns
-  // must not disagree with the screen's.
+  // owns that). The CSV carries both whether shown or not, writing N/A until
+  // each check answers.
   //
   // A phone's screen stands the ranked group directly after Name and Model
   // after it (#586), where the CSV and a desk keep the standard order: the
@@ -401,12 +400,13 @@ export function useTableView({
   const fireUncovered = fire.uncovered
   const closureStatus = closure.status
   const closureUncovered = closure.uncovered
+  // A point sample's file keeps every aggregate too, the same hour's number
+  // repeated, so a file's header never depends on the window.
+  const fileColumns = useMemo(() => displayedColumns(false, sortBy), [sortBy])
   const handleDownloadCsv = useCallback(() => {
     const csv = reportCsv({
       rows: tableRows,
-      columns: csvColumns,
-      modelColumnOn,
-      visibleKeys: effectiveVisibleKeys,
+      columns: fileColumns,
       fireStatus,
       fireWarnings,
       fireUncovered,
@@ -421,9 +421,7 @@ export function useTableView({
     downloadCsv(csv, new Date())
   }, [
     tableRows,
-    csvColumns,
-    modelColumnOn,
-    effectiveVisibleKeys,
+    fileColumns,
     fireStatus,
     fireWarnings,
     fireUncovered,

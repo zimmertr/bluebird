@@ -3,12 +3,11 @@ import { type ReportCsvInputs, reportCsv } from './exportCsv'
 import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 import { normalizeWindow } from './forecastWindow'
 import { geoKey } from './points'
+import { UNAVAILABLE } from './unavailableCell'
 import {
   CLOSURE_COL,
-  CLOSURE_KEY,
   MODEL_COL,
   WILDFIRE_COL,
-  WILDFIRE_KEY,
   displayedColumns,
 } from './tableColumns'
 
@@ -20,14 +19,11 @@ const ROWS = [ROW]
 const NO_UNCOVERED: ReadonlySet<string> = new Set()
 const NO_PENDING: ReportCsvInputs['pending'] = []
 const NO_ENDS: ReportCsvInputs['modelEnds'] = []
-const ALL_VISIBLE = new Set([...COLUMNS.map((c) => c.key as string), WILDFIRE_KEY, CLOSURE_KEY])
 
 function inputs(over: Partial<ReportCsvInputs> = {}): ReportCsvInputs {
   return {
     rows: ROWS,
     columns: COLUMNS,
-    modelColumnOn: false,
-    visibleKeys: ALL_VISIBLE,
     fireStatus: 'ready',
     fireWarnings: WARNINGS,
     fireUncovered: NO_UNCOVERED,
@@ -46,31 +42,18 @@ function inputs(over: Partial<ReportCsvInputs> = {}): ReportCsvInputs {
 const header = (csv: string) => csv.split('\r\n')[0].slice(1).split(',')
 
 describe('reportCsv', () => {
-  // A file is read away from the app, so a wildfire column there says the
-  // check ran. It goes over only when the check answered and the column shows.
-  it('carries the wildfire column only when the check is ready and the column is shown', () => {
-    expect(header(reportCsv(inputs()))).toContain(WILDFIRE_COL.label)
-    expect(header(reportCsv(inputs({ fireStatus: 'loading' })))).not.toContain(WILDFIRE_COL.label)
-    const hidden = new Set(ALL_VISIBLE)
-    hidden.delete(WILDFIRE_KEY)
-    expect(header(reportCsv(inputs({ visibleKeys: hidden })))).not.toContain(WILDFIRE_COL.label)
+  // Every file has one header: every metric, Model, and both flag columns,
+  // whatever the table shows or the checks have answered.
+  it('writes every column whatever the checks and the table say', () => {
+    const full = header(reportCsv(inputs()))
+    expect(full).toEqual(expect.arrayContaining([WILDFIRE_COL.label, CLOSURE_COL.label, MODEL_COL.label]))
+    expect(header(reportCsv(inputs({ fireStatus: 'loading', closureStatus: 'unavailable' })))).toEqual(full)
   })
 
-  // The Closure column on the same terms (#550).
-  it('carries the Closure column only when its check is ready and the column is shown', () => {
-    expect(header(reportCsv(inputs()))).toContain(CLOSURE_COL.label)
-    expect(reportCsv(inputs())).toContain('Probe Fire Closure')
-    expect(header(reportCsv(inputs({ closureStatus: 'unavailable' })))).not.toContain(CLOSURE_COL.label)
-    const hidden = new Set(ALL_VISIBLE)
-    hidden.delete(CLOSURE_KEY)
-    const csv = reportCsv(inputs({ visibleKeys: hidden }))
-    expect(header(csv)).not.toContain(CLOSURE_COL.label)
-    expect(header(csv)).toContain(WILDFIRE_COL.label)
-  })
-
-  it('adds the Model column only when it is drawn', () => {
-    expect(header(reportCsv(inputs()))).not.toContain(MODEL_COL.label)
-    expect(header(reportCsv(inputs({ modelColumnOn: true })))).toContain(MODEL_COL.label)
+  // A check that has not answered writes N/A, never a blank that reads as clear.
+  it('writes N/A in a flag column whose check has not answered', () => {
+    const rows = reportCsv(inputs({ fireStatus: 'loading', closureStatus: 'unavailable' })).split('\r\n').slice(1, 1 + ROWS.length)
+    for (const row of rows) expect(row.endsWith(`,${UNAVAILABLE},${UNAVAILABLE}`)).toBe(true)
   })
 
   // Before the first analysis the file is the pending rows alone.

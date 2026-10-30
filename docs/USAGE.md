@@ -419,9 +419,9 @@ On a phone the report is a sheet standing on the map rather than a panel beside 
 
 Every column is resizable: drag the divider at a header's right edge, or double-click it to fit the column to its longest value. On a phone, drag the same divider with a finger. At a desk, Name opens wide enough for a 25-character name. Widen it whenever a longer name is cut off. Widths hold for the session.
 
-**Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. Hold Shift and click a box to tick or untick every box between it and the last one you clicked, the way a file manager selects a run of files; the ranked metric's columns stay on whatever the run crosses. **Reset all** under the list puts every box back to its default, and is greyed while they already are. The downloaded CSV always carries every column regardless of what the table displays.
+**Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. Hold Shift and click a box to tick or untick every box between it and the last one you clicked, the way a file manager selects a run of files; the ranked metric's columns stay on whatever the run crosses. **Reset all** under the list puts every box back to its default, and is greyed while they already are. The downloaded CSV always carries every column regardless of what the table displays or how you arranged it.
 
-**Columns can be moved.** Drag a table header sideways and the column goes where you drop it; on a touch screen, hold it for a moment first, so a tap still sorts. The column you picked up rides under the pointer and a blue line shows the gap it will drop into, so nothing moves until you let go. The same order can be set in the **Columns** picker, by dragging a row's grip at its right edge, and the two are one order: move a column in either place and the other follows at once. The grip is also the keyboard route, since a drag needs a pointer — focus it and the up and down arrows move that column one place at a time. A column you have hidden keeps its place and comes back where you left it. The downloaded CSV ignores your order and always comes out in the standard one, so a script reading it finds every column in the same place.
+**Columns can be moved.** Drag a table header sideways and the column goes where you drop it; on a touch screen, hold it for a moment first, so a tap still sorts. The column you picked up rides under the pointer and a blue line shows the gap it will drop into, so nothing moves until you let go. The same order can be set in the **Columns** picker, by dragging a row's grip at its right edge, and the two are one order: move a column in either place and the other follows at once. The grip is also the keyboard route, since a drag needs a pointer — focus it and the up and down arrows move that column one place at a time. A column you have hidden keeps its place and comes back where you left it. The downloaded CSV ignores your order and always comes out in the standard one.
 
 Your order lasts until you change **Rank by**. Ranking pulls the metric you rank on to the front of the table, and it wins: a new ranking puts the columns back to the standard order with that metric leading. Short of that the order is yours and survives a reload. It rides in no link, so a report you share opens in the standard order for whoever opens it.
 
@@ -443,7 +443,7 @@ Nine lines is a lot to read at once, so **Models** in the results bar puts some 
 
 A comparison is a real fetch, so it is bought by **Analyze** like the ranking model itself: select a model and the panel says the report no longer answers what the panel asks. Unselecting one is free and takes effect at once, because its line is drawn from numbers already in hand. It costs about one weighted call per model per destination, against the hundred or more an analysis of a polygon spends. It changes nothing about the ranking or the markers, which come from the ranking model alone.
 
-The results table carries the comparison too. With models compared it grows a **Model** column, sitting directly after **Name**, and every destination gets one row per model: two destinations under three models is six rows. The rows of one destination sit together, the ranking model's row first, and the rank is the destination's, so they all read the same number. A click on any column header, **Model** included, sorts the rows across destinations; sorting back to the ranking's own order groups them again. The downloaded CSV is the same table, so it carries the column and the rows as well. With one model selected the column is absent and every destination is one row, as it always was.
+The results table carries the comparison too. With models compared it grows a **Model** column, sitting directly after **Name**, and every destination gets one row per model: two destinations under three models is six rows. The rows of one destination sit together, the ranking model's row first, and the rank is the destination's, so they all read the same number. A click on any column header, **Model** included, sorts the rows across destinations; sorting back to the ranking's own order groups them again. The downloaded CSV carries the same rows. It always has a **Model** column, so with one model selected every row names that model.
 
 **Model** is in the **Columns** picker like every other column, so you can show it on a report with no comparison, where every row names the model the analysis ran, or hide it on one with a comparison. It is the only column whose default depends on the report: off with one model, on with several. Tick or untick it once and your answer stands from then on, whatever the model count does.
 
@@ -643,10 +643,14 @@ What lands in the file:
 
 - The rows in the order you are reading them, ranking or detail-column sort
   alike, numbered by a leading **Rank** column.
-- Every column, under the same headers, whatever the table is showing, which
-  means a single-hour analysis exports the collapsed set.
-- The **Wildfire (mi)** column, once the fire check answers and while the
-  column is shown. On screen the column is on by default and can be hidden like
+- Every column there is, under the same headers and in the same order, whatever
+  the table is showing or how you arranged it: every aggregate of every metric
+  (a single-hour analysis repeats its one value under each), **Model**, and both
+  safety columns. Every file has the same header, so a script can read any of
+  them.
+- The **Wildfire (mi)** column. Until the fire check answers, every ranked row
+  reads `N/A` there, never a blank, which would say the row was checked and
+  clear. On screen the column is on by default and can be hidden like
   any other: its cells tick while the check runs, then show
   ⚠️ and the distance where a fire is within 10 miles, a dash where the
   check ran and cleared the row, and `N/A` where the row has no answer.
@@ -655,8 +659,8 @@ What lands in the file:
   causes applies: the destination sits outside the fire data's US coverage,
   or NIFC is unreachable and the whole check failed. The file writes the same answers with the distance
   bare and the cleared cell empty; a coverage `N/A` carries over as written.
-- The **Closure** column on the same terms: once the closure check answers and
-  while the column is shown. A warned cell writes the order's name without the
+- The **Closure** column on the same terms, `N/A` in every ranked row until
+  the closure check answers. A warned cell writes the order's name without the
   ⚠️, a cleared cell is empty, and a coverage `N/A` carries over as written.
   An empty cell means no Forest Service order holds the row, on the screen's
   terms: it says nothing about a park, state, BLM or tribal closure.

@@ -5,22 +5,13 @@ import type { ClosureProximityStatus, ClosureWarning } from './closureProximity'
 import { normalizeWindow } from './forecastWindow'
 import type { ModelEnd } from './model/modelCompare'
 import { buildResultsCsv, csvFilename } from './results/resultsCsv'
-import {
-  CLOSURE_KEY,
-  type ColDef,
-  WILDFIRE_KEY,
-  withModelColumn,
-} from './tableColumns'
+import { type ColDef, withModelColumn } from './tableColumns'
 
 export interface ReportCsvInputs {
   /** The table's rows, in the order on screen. */
   rows: readonly DestinationResult[]
-  /** Every column the report carries, before visibility and the Model column. */
+  /** Every column a window can carry, before the Model column. */
   columns: readonly ColDef[]
-  /** Whether the Model column is drawn. */
-  modelColumnOn: boolean
-  /** The columns the table shows, which decides whether each flag column goes over. */
-  visibleKeys: ReadonlySet<string>
   /** The wildfire check: where it stands, what it found, and what it could not cover. */
   fireStatus: FireProximityStatus
   fireWarnings: ReadonlyMap<string, FireWarning>
@@ -47,8 +38,6 @@ export interface ReportCsvInputs {
 export function reportCsv({
   rows,
   columns,
-  modelColumnOn,
-  visibleKeys,
   fireStatus,
   fireWarnings,
   fireUncovered,
@@ -62,18 +51,14 @@ export function reportCsv({
 }: ReportCsvInputs): string {
   return buildResultsCsv(
     rows,
-    // The same insertion the table makes. The file is given the same rows,
-    // so without it a comparison writes each destination once per model with
-    // nothing saying which model each line is.
-    // The standard order, never the reader's dragged one: a file is read by
-    // scripts, so it comes out the same way every time.
-    withModelColumn(columns, modelColumnOn),
-    // The warnings go over only when the lookup actually produced them.
-    // Anything else is `null`, which drops the wildfire column from the file
-    // rather than filling it with blanks that would read as "checked, nothing
-    // near". Null also when the column is hidden: a file must not carry a
-    // column the screen does not show.
-    fireStatus === 'ready' && visibleKeys.has(WILDFIRE_KEY) ? fireWarnings : null,
+    // Every column, in the standard order, whatever the table shows or the
+    // reader dragged: a file is read by scripts, so its header is the same
+    // every time. Model too, reading the analysis's own model when nothing is
+    // compared.
+    withModelColumn(columns, true),
+    // A check that has not answered writes N/A in every row rather than a
+    // blank, which would read as checked and clear.
+    fireStatus === 'ready' ? fireWarnings : null,
     {
       // The window the numbers in the file describe (#444), taken from the
       // analysis snapshot rather than from the panel: the calendar can have
@@ -88,11 +73,7 @@ export function reportCsv({
       // metric blank. Before the first analysis this is the whole file.
       pendingRows: pending.map(pendingAsResult),
       fireUncovered,
-      // The Closure column on the wildfire column's terms: over only when its
-      // check answered and the column is on screen, since a column of blanks
-      // in a file would claim every row was checked and found open.
-      closureWarnings:
-        closureStatus === 'ready' && visibleKeys.has(CLOSURE_KEY) ? closureWarnings : null,
+      closureWarnings: closureStatus === 'ready' ? closureWarnings : null,
       closureUncovered,
       modelLabel,
       // The file states where each short model ends, where the screen marks
