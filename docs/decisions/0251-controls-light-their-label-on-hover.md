@@ -1,8 +1,8 @@
-# 0251. A segment and a choice row light their label in the accent under the pointer, as every trigger does
+# 0251. Every control on a recessed ground lights its label in the accent under the pointer, and never its edge
 
-- Status: Accepted. Extends 0201's hover to segments and choice rows.
+- Status: Accepted. Amends 0201 (the triggers' hover loses its edge) and extends it to segments and choice rows.
 - Date: 2026-10-30
-- Decider: the maintainer (TJ), on #799, 2026-10-30: the hover must show in light, and one hover must hold for every control on a recessed ground. Option 1 of the hover lab for checkbox and radio rows, and the accent label for segments over a fill step, after a fill step on segments stood beside Columns' accent label in the results bar ("the type of inconsistency I hate").
+- Decider: the maintainer (TJ), on #799, 2026-10-30: the hover must show in light, and one hover must hold for every control on a recessed ground. Option 1 of the hover lab for checkbox and radio rows, and the accent label for segments over a fill step, after a fill step on segments stood beside Columns' accent label in the results bar ("the type of inconsistency I hate"). Then, the same day, the label alone everywhere: a dropdown lit its edge with its label beside a segment that lit its label only, and the maintainer chose the segment's way for the dropdowns and the map's Legend and Layers chips too ("These ALL NEED TO BE CONSISTENT").
 - Issues and PRs: #799, #823
 - Cited in code as: record 0251
 - Guide: [`docs/STYLES.md`](../STYLES.md), `SEGMENT_IDLE`, `CHOICE_ROW`
@@ -16,11 +16,13 @@ A fill step on the idle segment was tried first, the same day. It showed in ligh
 
 ## Decision
 
-One hover for every control on a recessed ground: its label takes the accent ink, and its edge too where it has one of its own. That is what dropdowns, menu triggers, chips and links already did; the idle segment (`not-disabled:hover:text-accent-ink`) and the checkbox or radio row (`has-[:enabled]:hover:text-accent-ink` on `CHOICE_ROW`) now do it too, not when disabled. A solid button still deepens its own fill, and a row in a list (a menu option, a table row, a calendar day) still takes a tint. Text fields keep no hover: their focus edge is their cue.
+One hover for every control on a recessed ground: its label takes the accent ink, and its edge stays as it is. Dropdowns, menu triggers, chips and links already lit the label; the dropdowns, the chips and the skip link lit their edge too, and no longer do (`ACCENT.edgeHover` is off `MENU_TRIGGER.field`, `MAP_CHIP` and `BUTTON_FLOATING`). A dropdown still lights its edge while its menu is open, which is its open state rather than a hover. The idle segment (`not-disabled:hover:text-accent-ink`) and the checkbox or radio row (`has-[:enabled]:hover:text-accent-ink` on `CHOICE_ROW`) now do it too, not when disabled. A solid button still deepens its own fill, and a row in a list (a menu option, a table row, a calendar day) still takes a tint. Text fields keep no hover: their focus edge is their cue.
 
 ## Evidence
 
 Measured 2026-10-30 from the theme tokens. The accent ink on a segment's recessed fill: 6.45:1 light, 8.17 dark. In light it parts from the resting label by hue; its luminance step is 1.45:1, under the 1.83 that could not be seen, and the accent label on Columns beside it showed plainly in the maintainer's screenshot. On a choice row: 5.74:1 on the light panel, 6.13 on the light menu card, 5.14 on a light menu row's hover fill; 6.71 on the dark panel and card, 4.74 on a dark menu row's hover fill.
+
+Not yet decided: the map's round buttons (locate, the compass, the zoom pair, the credit's (i) and 3D) light their edge or step their fill, because the library paints their glyphs as images that cannot take the accent as text does.
 
 ## Alternatives rejected
 
@@ -28,3 +30,4 @@ Measured 2026-10-30 from the theme tokens. The accent ink on a segment's recesse
 - A fill step on every control, triggers and chips included: reverses 0201's hover across the app for no gain in light.
 - Lightening the light theme's `ink-soft` so the label's own step shows: the token sets every caption and placeholder in the app.
 - For a choice row, a soft accent halo round the box (Material's way), a row tint, and the label with the halo together (the hover lab): the halo is fussier, and the row tint barely parts from the light panel and needs padding on every row.
+- The accent edge with the label on every control, as 0201 had the triggers: the segments' halves share an edge between them, which one half cannot light alone.

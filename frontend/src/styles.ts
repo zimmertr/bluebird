@@ -799,13 +799,14 @@ export const CHIP = {
  *
  * Its label is `CONTROL_SIZE`, colorless, so the ink below does not race it by
  * stylesheet order. It takes `SURFACE_FLOATING` whole and adds what
- * pressability needs: the accent on hover, and a pressed state. Layout stays
+ * pressability needs: the accent label on hover (record 0251), and a pressed
+ * state. Layout stays
  * at the call site, the way `FIELD` leaves padding to the control that wears
  * it.
  */
 export const BUTTON_FLOATING =
   `${SURFACE_FLOATING} ${CONTROL_SIZE} font-semibold text-ink-strong transition-colors ` +
-  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-raised ${FOCUS_RING}`
+  `${ACCENT.hoverText} active:bg-raised ${FOCUS_RING}`
 
 /**
  * The preview-deployment banner, the one surface that is deliberately loud.
@@ -1755,7 +1756,7 @@ const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:be
  * pressed half of a segment wears. Spelled as variants of `ACCENT.fill`'s two
  * classes, because Tailwind compiles only a class it finds whole and a
  * variant is what lets the lit fill beat the resting one without a race of
- * stylesheet order. Hover is `BUTTON_FLOATING`'s: the accent label and edge.
+ * stylesheet order. Hover is the accent label, as every trigger's is (record 0251).
  * The call site adds `DISABLED`, which greys the Legend chip until it has a
  * key to show.
  *
@@ -1773,7 +1774,7 @@ const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:be
 const CHIP_FACE =
   `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `${CONTROL_SIZE} text-ink-strong h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
-  `transition-colors ${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-raised ` +
+  `transition-colors ${ACCENT.hoverText} active:bg-raised ` +
   `aria-expanded:bg-accent aria-expanded:border-accent aria-expanded:text-on-fill ${FOCUS_RING}`
 const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 
@@ -3057,11 +3058,11 @@ const FIELD_CHEVRON_INK = 'group-enabled:group-hover:text-accent-ink group-aria-
  * The three trigger shapes (record 0201), each with the one hover and the
  * one open state:
  *
- * - `chip`: `MAP_CHIP`, which already had both: under the pointer its edge
- *   and label take the accent (`ACCENT.edgeHover`, `ACCENT.hoverText`), and
- *   while its menu is out it is lit in the accent fill.
- * - `field`: `SELECT`, with the same accent edge and label under the pointer,
- *   and the accent edge while open. A field is not lit while open, because a
+ * - `chip`: `MAP_CHIP`, which already had both: under the pointer its label
+ *   takes the accent (`ACCENT.hoverText`), and while its menu is out it is
+ *   lit in the accent fill.
+ * - `field`: `SELECT`, with the same accent label under the pointer, and the
+ *   accent edge while open. A field is not lit while open, because a
  *   filled field would read as a value chosen rather than a list shown.
  *   Spelled with `enabled:` here rather than composed from `ACCENT`'s hover
  *   roles, so the faded model picker over an archive window does not light.
@@ -3071,11 +3072,16 @@ const FIELD_CHEVRON_INK = 'group-enabled:group-hover:text-accent-ink group-aria-
  *
  * The lit fill is `ACCENT.fill`'s two classes as `aria-expanded` variants,
  * which sort after the resting fill and the hover and so win without a race.
+ *
+ * The hover is the label alone, the edge never: a chip and a field lit their
+ * edge too until 2026-10-30, when the maintainer found a dropdown lighting
+ * its edge beside a segment that lit its label only, and chose the label
+ * (record 0251).
  */
 export const MENU_TRIGGER = {
   chip: MAP_CHIP,
   field:
-    `${SELECT} group relative enabled:hover:border-accent-ink enabled:hover:text-accent-ink ` +
+    `${SELECT} group relative enabled:hover:text-accent-ink ` +
     'aria-expanded:border-accent-ink',
   bar: `${ACTION_ITEM} aria-expanded:bg-accent aria-expanded:text-on-fill`,
 } as const

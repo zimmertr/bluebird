@@ -2010,7 +2010,8 @@ describe('the accent', () => {
     }
     expect(darkStep('accent-ink')).toMatch(/^sky-/)
     expect(ICON_ACTION).toContain(ACCENT.hoverText)
-    expect(BUTTON_FLOATING).toContain(ACCENT.edgeHover)
+    expect(BUTTON_FLOATING).toContain(ACCENT.hoverText)
+    expect(BUTTON_FLOATING).not.toContain(ACCENT.edgeHover)
     expect(BUTTON_FLOATING).toContain(SURFACE_FLOATING)
   })
 })
@@ -4132,16 +4133,16 @@ describe('the one menu', () => {
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())
   })
 
-  // The one hover: the accent on the edge and the label, and on the label
-  // alone where a bar button has no edge of its own inside its group.
+  // The one hover: the accent on the label, never the edge, on every
+  // trigger and on the segments beside them (record 0251).
   it('lights every trigger the same way under the pointer', () => {
     const accent = token(ACCENT.hoverText, 'hover:text')
     expect(token(MAP_CHIP, 'hover:text')).toBe(accent)
-    expect(token(MAP_CHIP, 'hover:border')).toBe(accent)
     expect(token(MENU_TRIGGER.field, 'enabled:hover:text')).toBe(accent)
-    expect(token(MENU_TRIGGER.field, 'enabled:hover:border')).toBe(accent)
     expect(token(MENU_TRIGGER.bar, 'hover:text')).toBe(accent)
-    expect(MENU_TRIGGER.bar).not.toMatch(/hover:border/)
+    for (const recipe of [MAP_CHIP, MENU_TRIGGER.field, MENU_TRIGGER.bar, SEGMENT_IDLE, BUTTON_FLOATING]) {
+      expect(recipe).not.toMatch(/hover:border/)
+    }
   })
 
   // Open, a chip and a bar button light in the accent fill; a field keeps
