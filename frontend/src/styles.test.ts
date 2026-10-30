@@ -2732,7 +2732,7 @@ describe('the phone chrome\'s hit areas', () => {
     // After a closing brace: the first match closes the selector that takes
     // the light theme's invert off.
     const triangle = ruleAt('}\n  .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::before {')
-    expect(svgOf(triangle)).toBe('<svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 29 29"><path d="m10.5 14 4-8 4 8z"/></svg>')
+    expect(svgOf(triangle)).toBe('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 29 29"><path d="m10.5 14 4-8 4 8z"/></svg>')
     for (const decl of ['background-image: none;', 'mask-size: auto;', 'mask-position: 50%;']) expect(triangle).toContain(decl)
     expect(triangle).toContain('background-color: oklch(var(--compass-north-l) var(--compass-north-c) calc(var(--compass-north-h) * 1deg));')
     const EASE = '150ms cubic-bezier(0.4, 0, 0.2, 1)'
