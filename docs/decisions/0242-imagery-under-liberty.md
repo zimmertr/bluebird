@@ -1,4 +1,4 @@
-# 0233. Satellite imagery is two rasters under Liberty, and Liberty's ground fades by opacity
+# 0242. Satellite imagery is two rasters under Liberty, and Liberty's ground fades by opacity
 
 - Status: Accepted. Amended by [0250](0250-layers-palette-and-base-map-opacity.md): the imagery now draws over Liberty's ground and under its roads at the Satellite row's opacity, and the land and water fills are no longer faded.
 - Date: 2026-10-27

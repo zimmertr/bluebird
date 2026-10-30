@@ -1,4 +1,4 @@
-# 0243. The Layers menu carries an opacity slider on the four Base map rows, and the imagery draws over the ground
+# 0250. The Layers menu carries an opacity slider on the four Base map rows, and the imagery draws over the ground
 
 - Status: Accepted. Amends 0242 (the imagery draws over Liberty's ground at a level, rather than under it with the ground faded out) and 0249 (the groups stand; the four Base map rows carry a slider).
 - Date: 2026-10-29

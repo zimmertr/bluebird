@@ -1,4 +1,4 @@
-# 0240. Slope angle is painted in the browser from the shared elevation, in CalTopo's bands, at half strength under the contours
+# 0248. Slope angle is painted in the browser from the shared elevation, in CalTopo's bands, at half strength under the contours
 
 - Status: Accepted
 - Date: 2026-10-28

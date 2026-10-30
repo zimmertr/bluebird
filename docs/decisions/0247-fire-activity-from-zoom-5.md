@@ -1,4 +1,4 @@
-# 0238. The fire detections neither fetch nor draw below zoom 5, and their row does not grey there
+# 0247. The fire detections neither fetch nor draw below zoom 5, and their row does not grey there
 
 - Status: Accepted
 - Date: 2026-10-27

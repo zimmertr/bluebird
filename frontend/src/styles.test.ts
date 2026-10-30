@@ -3134,7 +3134,7 @@ describe('the map legend sections', () => {
   // metric's noun, which changes under the reader, so it is the one that cannot
   // be listed here.
   const LAYER_LABELS = [
-    "label: 'Active wildfire'",
+    "label: 'Active wildfires'",
     "label: 'Area closures'",
     "label: 'Trail closures'",
     'label: gridLegend.label',
@@ -3145,7 +3145,7 @@ describe('the map legend sections', () => {
   ]
   // The same, in the order the card reads them after the slope bands.
   const LAYER_LABELS_IN_ORDER = [
-    "label: 'Active wildfire'",
+    "label: 'Active wildfires'",
     "label: 'Fire activity'",
     "label: 'Smoke'",
     "label: 'Area closures'",

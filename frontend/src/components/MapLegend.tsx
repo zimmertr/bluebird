@@ -288,7 +288,7 @@ export function legendSections(
     ...(showWildfires
       ? [
           {
-            label: 'Active wildfire',
+            label: 'Active wildfires',
             credit: { href: NIFC_HREF, name: 'NIFC' },
             swatch: (
               <span

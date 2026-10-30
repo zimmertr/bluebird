@@ -1,4 +1,4 @@
-# 0234. The map's own marks read on a dark ground as well as a light one
+# 0243. The map's own marks read on a dark ground as well as a light one
 
 - Status: Accepted. Amends 0162 (the scale bar's ends are a dark line and a light one, no longer dark alone).
 - Date: 2026-10-27

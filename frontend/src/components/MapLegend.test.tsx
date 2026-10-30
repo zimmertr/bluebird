@@ -87,7 +87,7 @@ describe('MapLegend', () => {
     expect(sections.map((s) => s.label)).toEqual([
       'Temperature (°F)',
       'Slope angle',
-      'Active wildfire',
+      'Active wildfires',
       'Fire activity',
       'Smoke',
       'Area closures',
@@ -195,7 +195,7 @@ describe('MapLegend', () => {
       { ...BASE, overlays: { ...NONE, showFireActivity: true, showAreaClosures: true, showSmoke: true, showWildfires: true } },
       'id',
     )
-    expect(sections.map((s) => s.label)).toEqual(['Active wildfire', 'Fire activity', 'Smoke', 'Area closures'])
+    expect(sections.map((s) => s.label)).toEqual(['Active wildfires', 'Fire activity', 'Smoke', 'Area closures'])
   })
 
   it('lists the area section after the smoke and the trail section after it', () => {

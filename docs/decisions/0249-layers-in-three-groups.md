@@ -1,4 +1,4 @@
-# 0242. The Layers rows stand in three groups, Base map, Hazards and Forecast, under muted headings, by kind inside each, and the legend follows their order
+# 0249. The Layers rows stand in three groups, Base map, Hazards and Forecast, under muted headings, by kind inside each, and the legend follows their order
 
 - Status: Accepted. Amends 0019 (the rows are grouped under headings, not alphabetical) and 0048 (the legend's sections read in the menu's order, not alphabetically). Amended by [0250](0250-layers-palette-and-base-map-opacity.md): the groups stand, each row's checkbox is drawn as an eye, and the Base map rows carry opacity sliders.
 - Date: 2026-10-29
@@ -15,7 +15,7 @@ The Layers rows were alphabetical by label since record 0019, which held while t
 ## Decision
 
 - **Three groups, by what a layer changes.** `Base map` changes the map itself: Satellite, Topographic, Shaded relief and Slope angle. `Hazards` draws a danger on it: Active wildfires, Fire activity, Smoke, Area closures and Trail closures. `Forecast` draws the weather on it: Rain radar, Snow depth, Forecast grid and Forecast player. The ground comes first.
-- **The perimeter row reads `Active wildfires`**, renamed from `Wildfires` by the maintainer on 2026-10-29 so it stands apart from `Fire activity` beside it, and so the row says what the legend line it opens already says (`Active wildfire`).
+- **The perimeter row reads `Active wildfires`**, renamed from `Wildfires` by the maintainer on 2026-10-29 so it stands apart from `Fire activity` beside it, and the legend section it opens reads the same, plural like the row, so every row and its section share one number (the maintainer, the same day).
 - **By kind inside a group, not by name.** The imagery before the drawn base and the relief before the slope read off it; a fire before its detections and its smoke; an area closure before the trails it closes; the observed weather before the forecast, and the player last, since what it plays is the forecast.
 - **A heading over each group**, `MENU.heading`: the caption step in semibold, sentence case, `text-ink-soft`, which is the rows' own 12px in a quieter ink and a heavier weight. It is read and never pressed. The headings are not indented and neither are the rows, so the list keeps one left edge.
 - **At a desk** the heading stands on the card with 6px over every group but the first (`MENU_GROUP.card`) and 2px under it (`cardHeading`), and no rule. **On a phone's sheet** each group is one child of the sheet's body, so the sheet's rule falls over the heading, and the group draws the same rule between its heading and each row (`MENU_GROUP.sheet`, the sheet's own `divide-y divide-rule` held in one constant); the heading stands 6px under its rule and 2px over the next, 25px tall to a row's 33 (`sheetHeading`, `sheetRow`).
@@ -32,7 +32,7 @@ Measured 2026-10-29 in the Playwright 1.64.1 image's Chromium on the built page,
 - **The heading** is 12px semibold on a 16px line, in `text-ink-soft`: 5.56:1 on the dark card and 8.91:1 on the light (`styles.test.ts`). The words are 56.7, 46.7 and 50.0px wide (`Base map`, `Hazards`, `Forecast`), narrower than every row, so the menu's width is still its widest row's.
 - **At a desk (1440x900)** each heading is 18px tall and its first row's box starts 0px under it; the second and third groups start 6px under the last row over them. The menu is 142px wide and 408px tall with the grid's segment and slider open, of which the three headings and two gaps are 66px.
 - **On a phone (390x844)** each heading is 25px tall with its rule, where a row is 33. The three headings add 75px to the sheet. With 8px over each heading and 4px under (29px), the sheet stood at 268 and the tutorial's Layers card, which stands between the chip's light (bottom at 100) and the sheet, needs 273 (12px gap, a 149px card, 12px gap); `tutorial.spec.ts` failed there. At 25px it passes, with 7px to spare at that size.
-- The legend card with every layer on is 224 by 286px at a desk and reads AQI, Slope angle, Active wildfire, Fire activity, Smoke, Area closures, Trail closures, Rain radar, Snow depth and the forecast grid's row.
+- The legend card with every layer on is 224 by 286px at a desk and reads AQI, Slope angle, Active wildfires, Fire activity, Smoke, Area closures, Trail closures, Rain radar, Snow depth and the forecast grid's row.
 
 ## Alternatives rejected
 

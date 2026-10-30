@@ -1,4 +1,4 @@
-# 0237. Fire activity is a pod snapshot of FIRMS's keyless files, coloured by age in the browser
+# 0246. Fire activity is a pod snapshot of FIRMS's keyless files, coloured by age in the browser
 
 - Status: Accepted. Amends 0174 (the chip menus are 224px wide, for the fire activity key's one line; since 2026-10-29 the legend card alone).
 - Date: 2026-10-27

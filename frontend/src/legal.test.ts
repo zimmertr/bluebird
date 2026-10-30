@@ -175,7 +175,7 @@ describe('the provider credits', () => {
   // capitalised spelling this used to look for survived only in a comment
   // beside the row, so the credit itself could have gone without failing.
   it('keep NIFC on the map beside the fire overlay', () => {
-    expect(mapLegend).toMatch(/Active wildfire/)
+    expect(mapLegend).toMatch(/Active wildfires/)
     // The href is `NIFC_HREF` in `wildfires.ts` since #454, beside the other
     // three overlays' credits in the module that owns each one's data — so
     // what is checked here is that the map's own section still carries it and
