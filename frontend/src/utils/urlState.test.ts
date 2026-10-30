@@ -19,6 +19,7 @@ import {
   classifyWindow,
 } from './calendar/calendar'
 import { GeoPolygon } from '../types'
+import { DEFAULT_BASE_OPACITY } from './baseMapOpacity'
 import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'
 import { MAX_ANALYZE_DESTINATIONS, NO_CONSTRAINTS } from './clientAnalyze'
 import { urlNeedsSync } from './urlSync'
@@ -90,6 +91,13 @@ const base: ShareableState = {
   showSmoke: false,
   showSnow: false,
   showGrid: false,
+  showContours: false,
+  showRelief: false,
+  showSlope: false,
+  showSatellite: false,
+  baseOpacity: DEFAULT_BASE_OPACITY,
+  showTerrain: false,
+  showFireActivity: false,
   showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
@@ -124,6 +132,13 @@ const pristine: ShareableState = {
   showSmoke: false,
   showSnow: false,
   showGrid: false,
+  showContours: false,
+  showRelief: false,
+  showSlope: false,
+  showSatellite: false,
+  baseOpacity: DEFAULT_BASE_OPACITY,
+  showTerrain: false,
+  showFireActivity: false,
   showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
@@ -256,6 +271,47 @@ describe('encodeState / decodeState round-trip', () => {
     expect(clean).not.toContain('grid')
   })
 
+  // The terrain and imagery layers and the 3D switch (#799): four flags, each
+  // written as `1` while on, none implying another, and off for all four
+  // leaves the link as it was before they existed.
+  it('round-trips the terrain, imagery and 3D switches independently', () => {
+    const fields = ['showContours', 'showRelief', 'showSatellite', 'showTerrain'] as const
+    for (const field of fields) {
+      const out = roundTrip({ ...base, [field]: true })
+      expect(out![field]).toBe(true)
+      for (const other of fields) if (other !== field) expect(out![other]).toBeUndefined()
+    }
+    const clean = encodeState(base, DEFAULT_MODEL)
+    for (const key of ['topo', 'relief', 'satellite', 'terrain']) {
+      expect(new URLSearchParams(clean).get(key)).toBeNull()
+    }
+  })
+
+  // The fire detections (#799): one flag, written as `1` while on.
+  it('round-trips the fire activity switch', () => {
+    const out = roundTrip({ ...base, showFireActivity: true })
+    expect(out!.showFireActivity).toBe(true)
+    expect(new URLSearchParams(encodeState(base, DEFAULT_MODEL)).get('fireactivity')).toBeNull()
+    expect(decodeState('?fires=1')).toEqual({ showWildfires: true })
+  })
+
+  // The slope angle shading (#799): one flag, written as `1` while on, beside
+  // the relief's and implying nothing about it.
+  it('round-trips the slope angle switch', () => {
+    const out = roundTrip({ ...base, showSlope: true })
+    expect(out!.showSlope).toBe(true)
+    expect(out!.showRelief).toBeUndefined()
+    expect(encodeState({ ...pristine, showSlope: true }, DEFAULT_MODEL)).toContain('slope=1')
+    expect(new URLSearchParams(encodeState(base, DEFAULT_MODEL)).get('slope')).toBeNull()
+    expect(decodeState('?slope=1')).toEqual({ showSlope: true })
+    expect(decodeState('?slope=true')).toBeNull()
+  })
+
+  it('opens a link written before the terrain layers with all four off', () => {
+    const out = decodeState('?fires=1&radar=1&snow=1')
+    expect(out).toEqual({ showWildfires: true, showRadar: true, showSnow: true })
+  })
+
   it('writes the forecast player only once the reader has decided', () => {
     // The default is the DEVICE's — on at a desktop width, off on a phone — so
     // `null` is "not decided" and writes nothing at all. A link that spelled
@@ -335,6 +391,40 @@ describe('encodeState / decodeState round-trip', () => {
     expect(decodeState('?reach=50')).toBeNull()
   })
 
+  // The four Base map levels (record 0250): one param a layer, named for its
+  // flag and the word, a whole percent, written only while the row is on and
+  // the level is off the default, so every link written before the sliders
+  // still reads as it did.
+  it('carries a base-map level only while its row is on and the level moved', () => {
+    const levels = { satellite: 80, topo: 30, relief: 100, slope: 0 }
+    const on = { ...base, showSatellite: true, showContours: true, showRelief: true, showSlope: true }
+    const query = encodeState({ ...on, baseOpacity: levels }, DEFAULT_MODEL)
+    expect(query).toContain('topo=1&topoopacity=30&relief=1&reliefopacity=100&slope=1&slopeopacity=0')
+    expect(query).toContain('satellite=1&satelliteopacity=80')
+    expect(roundTrip({ ...on, baseOpacity: levels })!.baseOpacity).toEqual(levels)
+    // The default writes nothing, and a row that is off carries no level.
+    expect(encodeState(on, DEFAULT_MODEL)).not.toContain('opacity')
+    expect(encodeState({ ...base, baseOpacity: levels }, DEFAULT_MODEL)).not.toContain('opacity')
+    // One level moved leaves the other three at the default on the way back.
+    expect(roundTrip({ ...on, baseOpacity: { ...DEFAULT_BASE_OPACITY, slope: 70 } })!.baseOpacity).toEqual({
+      ...DEFAULT_BASE_OPACITY,
+      slope: 70,
+    })
+  })
+
+  it('holds a hand-edited level to 0 to 100, and reads none beside a row that is off', () => {
+    expect(decodeState('?satellite=1&satelliteopacity=250')!.baseOpacity!.satellite).toBe(100)
+    expect(decodeState('?satellite=1&satelliteopacity=-5')!.baseOpacity!.satellite).toBe(0)
+    expect(decodeState('?satellite=1&satelliteopacity=62.4')!.baseOpacity!.satellite).toBe(62)
+    expect(decodeState('?satellite=1&satelliteopacity=junk')!.baseOpacity).toBeUndefined()
+    expect(decodeState('?satellite=1&satelliteopacity=')!.baseOpacity).toBeUndefined()
+    // A level for a layer the link leaves off is a state the menu cannot write.
+    expect(decodeState('?slopeopacity=80')).toBeNull()
+    expect(decodeState('?topo=1&slopeopacity=80')!.baseOpacity).toBeUndefined()
+    // An old link with the flags alone opens at the defaults.
+    expect(decodeState('?satellite=1&slope=1')!.baseOpacity).toBeUndefined()
+  })
+
   it('gives an overlay-only session a URL of its own', () => {
     // The overlays are the one kind of state with no analysis behind it, so a
     // pristine session that has only switched a layer on still deserves a link.
@@ -343,6 +433,11 @@ describe('encodeState / decodeState round-trip', () => {
     expect(encodeState({ ...pristine, showSnow: true }, DEFAULT_MODEL)).toContain('snow=1')
     expect(encodeState({ ...pristine, showAreaClosures: true }, DEFAULT_MODEL)).toContain('closedareas=1')
     expect(encodeState({ ...pristine, showTrailClosures: true }, DEFAULT_MODEL)).toContain('closedtrails=1')
+    expect(encodeState({ ...pristine, showContours: true }, DEFAULT_MODEL)).toContain('topo=1')
+    expect(encodeState({ ...pristine, showRelief: true }, DEFAULT_MODEL)).toContain('relief=1')
+    expect(encodeState({ ...pristine, showSatellite: true }, DEFAULT_MODEL)).toContain('satellite=1')
+    expect(encodeState({ ...pristine, showTerrain: true }, DEFAULT_MODEL)).toContain('terrain=1')
+    expect(encodeState({ ...pristine, showFireActivity: true }, DEFAULT_MODEL)).toContain('fireactivity=1')
     // The grid needs an analysis before it draws anything, so a grid-only link
     // reopens on an empty map with the layer armed — which is still the state
     // that was shared, and dropping it would lose the one thing it said.
@@ -365,6 +460,15 @@ describe('encodeState / decodeState round-trip', () => {
       showTrailClosures: true,
     })
     expect(decodeState('?closedareas=true&closedtrails=0')).toBeNull()
+    expect(decodeState('?topo=1&relief=1&satellite=1&terrain=1')).toEqual({
+      showContours: true,
+      showRelief: true,
+      showSatellite: true,
+      showTerrain: true,
+    })
+    expect(decodeState('?topo=true&relief=0&satellite=yes&terrain=on')).toBeNull()
+    expect(decodeState('?fireactivity=1')).toEqual({ showFireActivity: true })
+    expect(decodeState('?fireactivity=true')).toBeNull()
   })
 
   it('restores a CSV-only analysis without a polygon', () => {

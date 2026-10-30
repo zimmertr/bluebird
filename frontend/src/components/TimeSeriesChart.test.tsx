@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from 'react'
-import { act, fireEvent, screen } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import { CHART_METRICS, extremeValue } from '../utils/chart/chartData'
@@ -388,26 +388,42 @@ describe('TimeSeriesChart extreme line', () => {
 })
 
 // A phone's picker is the plot's title (#696; record 0149): no row above the
-// plot, the native select laid over the metric's name, and the plot's margin
-// inset by the title's line, so a finger reads the same band Recharts draws.
+// plot, the desk's field trigger shrunk to the metric's name, opening the one
+// menu as a sheet (record 0252), and the plot's margin inset by the title's
+// line, so a finger reads the same band Recharts draws.
 describe('TimeSeriesChart on a phone', () => {
-  it('stands the select in the title, under its name, with no row above the plot', () => {
+  const temp = CHART_METRICS.find((m) => m.key === 'temp')!
+  const other = CHART_METRICS.find((m) => m.key !== 'temp')!
+
+  it('stands the field in the title, under its name, with no row above the plot', () => {
     const { container } = render(<TimeSeriesChart {...props({ titled: true, metric: 'temp' })} />)
-    const select = screen.getByRole('combobox', { name: 'Chart metric' })
-    const title = select.parentElement!
-    expect(title.className).toBe(CHART_TITLE.box)
-    expect(select.className).toBe(CHART_TITLE.select)
-    expect(title.textContent).toContain(CHART_METRICS.find((m) => m.key === 'temp')!.label)
+    const field = screen.getByRole('button', { name: `Chart metric ${temp.label}` })
+    expect(field.parentElement!.className).toBe(CHART_TITLE.box)
+    expect(field.className).toContain(CHART_TITLE.field)
+    expect(container.querySelector('select')).toBeNull()
     // The root holds the plot's box alone: the row is gone.
     expect(container.firstElementChild!.children).toHaveLength(1)
     expect(chart.margin).toEqual(TITLED_PLOT_MARGIN)
   })
 
-  it('keeps the row for a comparison note, without the select in it', () => {
+  it('opens a sheet headed by its name and picks from it, as the model picker does', () => {
+    const onMetricChange = vi.fn()
+    render(<TimeSeriesChart {...props({ titled: true, metric: 'temp', onMetricChange })} />)
+    const field = screen.getByRole('button', { name: `Chart metric ${temp.label}` })
+    expect(field.getAttribute('aria-haspopup')).toBe('dialog')
+    fireEvent.click(field)
+    expect(field.getAttribute('aria-expanded')).toBe('true')
+    const sheet = screen.getByRole('dialog', { name: 'Chart metric' })
+    fireEvent.click(within(sheet).getByRole('option', { name: other.label }))
+    expect(onMetricChange).toHaveBeenCalledWith(other.key)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('keeps the row for a comparison note, without the field in it', () => {
     const { container } = render(<TimeSeriesChart {...props({ titled: true, controls: <p>note</p> })} />)
     expect(container.firstElementChild!.children).toHaveLength(2)
-    expect(container.firstElementChild!.firstElementChild!.querySelector('select')).toBeNull()
-    expect(screen.getAllByRole('combobox', { name: 'Chart metric' })).toHaveLength(1)
+    expect(container.firstElementChild!.firstElementChild!.querySelector('button[aria-haspopup]')).toBeNull()
+    expect(screen.getAllByRole('button', { name: /^Chart metric / })).toHaveLength(1)
   })
 
   it('stands the select in its row at a desk, the plot at the plain margins', () => {

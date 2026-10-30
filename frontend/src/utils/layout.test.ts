@@ -84,10 +84,10 @@ describe('bothOpensWithRoom', () => {
   const desk = (availPx: number) => bothOpensWithRoom(availPx, 220, dockedMapFloorPx(2))
 
   it('opens on Both only where the table would rest above its floor', () => {
-    expect(dockedMapFloorPx(2)).toBe(438)
-    // 438 + 220 + 120: the chart takes its 220 and leaves the table its floor.
-    expect(desk(778)).toBe(false)
-    expect(desk(779)).toBe(true)
+    expect(dockedMapFloorPx(2)).toBe(434)
+    // 434 + 220 + 120: the chart takes its 220 and leaves the table its floor.
+    expect(desk(774)).toBe(false)
+    expect(desk(775)).toBe(true)
   })
 
   it('takes 1024x768 to Table and leaves 1280x800 and 1440x900 on Both', () => {
@@ -130,17 +130,18 @@ describe('bothFits', () => {
     expect(bothFits(521)).toBe(true)
   })
 
-  // `draggedMapFloorPx(2)` is 299: the phone's two rows and the Analyze
-  // button's strip (180), the sheet's 71px header (its 32px controls, record
-  // 0223) and its two 24px grips. So Both needs more than 539px of viewport: a
-  // 520px phone is under it and a 640 one over. It was 552 while the bar's
+  // `draggedMapFloorPx(2)` is 295: the phone's two rows and the Analyze
+  // button's strip (176), the sheet's 71px header (its 32px controls, record
+  // 0223) and its two 24px grips. So Both needs more than 535px of viewport: a
+  // 520px phone is under it and a 640 one over. It was 539 while the map's
+  // first row was 40px with 8px under it (record 0254), 552 while the bar's
   // controls were 44px, 652 while the floor kept the old button column and the
   // player's band (412), and 672 before the results bar's actions became one
   // line of glyphs on a phone (#687).
-  it('puts the phone threshold at 539px', () => {
-    expect(draggedMapFloorPx(2)).toBe(299)
-    expect(bothFits(539, phone)).toBe(false)
-    expect(bothFits(540, phone)).toBe(true)
+  it('puts the phone threshold at 535px', () => {
+    expect(draggedMapFloorPx(2)).toBe(295)
+    expect(bothFits(535, phone)).toBe(false)
+    expect(bothFits(536, phone)).toBe(true)
     expect(bothFits(520, phone)).toBe(false)
     expect(bothFits(640, phone)).toBe(true)
   })

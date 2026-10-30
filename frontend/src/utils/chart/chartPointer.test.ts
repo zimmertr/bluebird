@@ -92,7 +92,7 @@ describe('a titled plot', () => {
 describe('readoutPlace', () => {
   const bandOf = (box: number) => plotBand(0, box, TITLED_PLOT_MARGIN)
   it('rises over the room above a band too short for the card', () => {
-    expect(bandOf(149).height).toBe(68)
+    expect(bandOf(149).height).toBe(64)
     expect(readoutPlace(149, TITLED_PLOT_MARGIN, 100, 5)).toEqual({ rows: 8, top: -100 })
   })
   it('stays in a band that holds it', () => {

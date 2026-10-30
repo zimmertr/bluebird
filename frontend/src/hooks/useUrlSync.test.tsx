@@ -5,6 +5,7 @@ import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { DEFAULT_SELECTION } from '../utils/calendar/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_LIMIT, DEFAULT_SORT } from '../utils/urlState'
+import { DEFAULT_BASE_OPACITY } from '../utils/baseMapOpacity'
 
 const NO_TYPES: UrlSyncInputs['destinationTypes'] = []
 const NO_MODELS: UrlSyncInputs['comparedModels'] = []
@@ -34,6 +35,13 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     showSmoke: false,
     showSnow: false,
     showGrid: false,
+    showContours: false,
+    showRelief: false,
+    showSlope: false,
+    showSatellite: false,
+    baseOpacity: DEFAULT_BASE_OPACITY,
+    showFireActivity: false,
+    showTerrain: false,
     showPlayer: null,
     gridStyle: 'smooth',
     gridReachFrac: 0.5,

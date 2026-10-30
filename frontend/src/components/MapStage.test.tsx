@@ -56,6 +56,7 @@ vi.mock('./MapRows', () => ({
     onSearchSelect: (place: Place) => void
     onLocateSlot: (slot: HTMLDivElement | null) => void
     onCompassSlot: (slot: HTMLDivElement | null) => void
+    onTerrainSlot: (slot: HTMLDivElement | null) => void
     controlsSummary: string
     layers: ReactNode
     legend: ReactNode
@@ -63,6 +64,7 @@ vi.mock('./MapRows', () => ({
     <div data-testid="rows" data-desk={String(props.desk)} data-summary={props.controlsSummary}>
       <button onClick={props.onOpenControls}>Controls</button>
       <button onClick={() => props.onSearchSelect(PLACE)}>Pick</button>
+      <div data-testid="terrain" ref={props.onTerrainSlot} />
       <div data-testid="locate" ref={props.onLocateSlot} />
       {props.layers}
       {props.legend}
@@ -104,6 +106,8 @@ const GRID = {
   grid: { spec: null, cells: null },
   gridStyle: 'blocks',
 } as unknown as MapStageProps['grid']
+// The overlays' own setter, which the map's 3D button asks through (#799).
+const SET_TERRAIN = () => {}
 const OVERLAYS = {
   showWildfires: true,
   showAreaClosures: false,
@@ -111,6 +115,13 @@ const OVERLAYS = {
   showRadar: false,
   showSmoke: false,
   showSnow: true,
+  showContours: true,
+  showRelief: false,
+  showSlope: false,
+  showSatellite: true,
+  showTerrain: true,
+  showFireActivity: true,
+  setShowTerrain: SET_TERRAIN,
 } as unknown as MapStageProps['overlays']
 const REPORT: MapStageProps['report'] = { results: [ROW], pending: [] }
 const TABLE_VIEW = { tableColumns: [], analysisModelLabel: 'GFS' } as unknown as MapStageProps['tableView']
@@ -221,6 +232,10 @@ describe('MapStage', () => {
     expect(got.showSnow).toBe(true)
     expect(got.showAreaClosures).toBe(false)
     expect(got.showTrailClosures).toBe(true)
+    expect([got.showContours, got.showRelief, got.showSatellite, got.showTerrain]).toEqual([true, false, true, true])
+    expect(got.showFireActivity).toBe(true)
+    expect(got.onTerrainChange).toBe(SET_TERRAIN)
+    expect(got.showSlope).toBe(false)
     expect(got.cameraPadBottomPx).toBe(40)
     expect(got.modelId).toBe('gfs_seamless')
     expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)
@@ -339,12 +354,12 @@ describe('MapStage', () => {
   // them as a card at a desk and as a sheet on a phone.
   it('hands the Legend chip the sections, as a card at a desk and a sheet on a phone', () => {
     const { rerender } = render(<MapStage {...props()} />)
-    // The metric key over coloured markers, and the three layers that are on.
+    // The metric key over coloured markers, and the four layers that are on.
     const legend = () => screen.getByTestId('legend').dataset
-    expect(legend().sections).toBe('4')
+    expect(legend().sections).toBe('5')
     expect(legend().sheet).toBe('false')
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(legend().sections).toBe('4')
+    expect(legend().sections).toBe('5')
     expect(legend().sheet).toBe('true')
   })
 
@@ -358,6 +373,7 @@ describe('MapStage', () => {
       const last = seen.mapView[seen.mapView.length - 1]
       expect(last.locateSlot).toBe(screen.getByTestId('locate'))
       expect(last.compassSlot).toBe(screen.getByTestId('compass'))
+      expect(last.terrainSlot).toBe(screen.getByTestId('terrain'))
       unmount()
     }
   })
@@ -369,7 +385,7 @@ describe('MapStage', () => {
     seen.mapView.length = 0
     const { container, rerender } = render(<MapStage {...props()} />)
     const corner = seen.mapView[seen.mapView.length - 1].cornerSlots as Record<string, HTMLElement>
-    expect(Object.keys(corner)).toEqual(['compass', 'locate', 'zoom', 'credit', 'scale'])
+    expect(Object.keys(corner)).toEqual(['compass', 'terrain', 'locate', 'zoom', 'credit', 'scale'])
     for (const slot of Object.values(corner)) expect(container.contains(slot)).toBe(true)
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(seen.mapView[seen.mapView.length - 1].cornerSlots).toBeNull()

@@ -1,5 +1,5 @@
 import { useGripDrag } from '../hooks/useGripDrag'
-import { RADIUS, TAP } from '../styles'
+import { RESIZE_GRIP } from '../styles'
 
 interface ResizeGripProps {
   /** A double press: put this grip's own panel back to its default height. */
@@ -26,13 +26,8 @@ export default function ResizeGrip({ onReset, onDragStart, onDrag, onDragEnd }: 
   const handlePointerDown = useGripDrag({ onReset, onDragStart, onDrag, onDragEnd: () => onDragEnd() })
 
   return (
-    <div
-      onPointerDown={handlePointerDown}
-      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-raised border-t border-b border-frame hover:bg-raised-hover transition-colors group`}
-    >
-      <div
-        className={`w-10 h-0.5 ${RADIUS.pill} bg-edge group-hover:bg-ink-mid transition-colors`}
-      />
+    <div onPointerDown={handlePointerDown} className={RESIZE_GRIP.bar}>
+      <div className={RESIZE_GRIP.pill} />
     </div>
   )
 }

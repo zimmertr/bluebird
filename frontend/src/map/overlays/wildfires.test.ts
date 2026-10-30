@@ -57,6 +57,7 @@ import {
 import { COARSE_TOLERANCE_DEG, nifcFireUrl, wildfirePopupHtml } from '../../utils/wildfires'
 import { mountTestPopups } from '../../testSupport/mapPopups'
 import { stubMap } from '../../testSupport/stubMap'
+import { visibleBox } from '../../utils/viewBox'
 
 const FIRES = { type: 'FeatureCollection', features: [] as unknown[], fetched_at: '' }
 const fire = (name: string) => ({ layer: { id: WILDFIRE_FILL_LAYER }, properties: { poly_IncidentName: name } })
@@ -113,12 +114,25 @@ describe('mountWildfires', () => {
     const { stub, fires } = setup()
     fires.update({ show: true })
     expect(fetchWildfires).toHaveBeenCalledTimes(1)
-    expect(fetchWildfires.mock.calls[0][0]).toEqual([-122, 47, -121, 48])
+    expect(fetchWildfires.mock.calls[0][0]).toEqual(visibleBox(stub.map.getCenter(), 8, 1000, 0, 0))
     await vi.waitFor(() => expect(stub.sources.wildfires.data).toBe(FIRES))
     stub.fire('moveend')
     stub.fire('moveend')
     vi.advanceTimersByTime(FIRE_REFETCH_DEBOUNCE_MS)
     expect(fetchWildfires).toHaveBeenCalledTimes(2)
+  })
+
+  // A pitched camera's bounds run to the horizon (#799): the fetch asks for
+  // the box the view would cover lying flat, and the width term that picks
+  // the copy reads that box too.
+  it('asks for the view as it would lie flat, not to the horizon', () => {
+    const horizon = { west: -140, south: 40, east: -100, north: 70 }
+    const stub = stubMap({ canvasWidth: 1000, canvasHeight: 700, zoom: 12, pitch: 45, bearing: 20, bounds: horizon })
+    mountWildfires(stub.map, { popups: mountTestPopups(stub).popups, online: null }).update({ show: true })
+    const [bbox, detail] = fetchWildfires.mock.calls[0]
+    expect(bbox).toEqual(visibleBox(stub.map.getCenter(), 12, 1000, 700, 20))
+    expect(detail).toBe(fireDetailFor(bbox[0], bbox[2], 1000))
+    expect(detail).not.toBe(fireDetailFor(horizon.west, horizon.east, 1000))
   })
 
   // #580: a failed fetch waited for a pan, even after the network came back.

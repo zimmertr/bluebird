@@ -18,6 +18,8 @@ from datetime import date
 
 import httpx
 import pytest
+from test_fire_activity import FETCHED_AT_MS
+from test_fire_activity import _snapshot as _detections
 from test_hms import _kml, _placemark
 from test_nifc import _polygon, _snapshot, counting_calls
 from test_usfs_closures import _mixed
@@ -26,7 +28,7 @@ from app import db
 from app.db import refresh
 from app.error_codes import ApiError
 from app.main import app
-from app.services import hms, nifc, usfs_closures
+from app.services import fire_activity, hms, nifc, usfs_closures
 from app.services.errors import UpstreamRateLimited
 from app.services.snapshot import SHARED_POLL_S, Shared, snapshot_or_503
 
@@ -88,8 +90,9 @@ def _smoke() -> hms.Snapshot:
         (nifc, nifc.perimeter_cache, _fire),
         (usfs_closures, usfs_closures.closure_cache, _mixed),
         (hms, hms.smoke_cache, _smoke),
+        (fire_activity, fire_activity.detection_cache, _detections),
     ],
-    ids=["wildfires", "closures", "smoke"],
+    ids=["wildfires", "closures", "smoke", "fire_activity"],
 )
 async def test_a_refresh_writes_the_row_every_pod_reads(database, module, factory, build):
     snapshot = build()
@@ -133,6 +136,17 @@ async def test_the_route_serves_the_shared_snapshot(database):
     body = response.json()
     assert body["fetched_at"] == 1_790_000_000_000
     assert [f["properties"]["attr_IncidentName"] for f in body["features"]] == ["Goat Rocks Fire"]
+
+
+async def test_the_fire_activity_route_serves_the_shared_snapshot(database):
+    # The detections ride the row as columns, so this is the one overlay whose
+    # served text is written after the read rather than stored.
+    await fire_activity.detection_cache(fetch=_Upstream(_detections())).publish()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/fire-activity", params={"bbox": "-117,45.5,-116,46.5"})
+    assert response.status_code == 200
+    body = response.json()
+    assert [f["geometry"]["coordinates"] for f in body["features"]] == [[-116.47974, 46.09978]]
 
 
 # ── The reader ────────────────────────────────────────────────────────────────
@@ -227,6 +241,64 @@ async def test_the_route_answers_503_with_retry_after_when_no_row_exists(databas
     assert response.status_code == 503
     assert response.headers["Retry-After"] == "60"
     assert response.json()["error"] == {"code": "snapshot_unavailable", "retryable": True}
+
+
+# ── A source with no row yet (#799) ───────────────────────────────────────────
+
+
+async def test_with_no_row_yet_the_fire_detections_are_fetched_and_held_by_the_pod(database):
+    # What a PR preview meets until production writes the row, and a fresh
+    # deployment's pods until the first refresh lands: the pod's own fetch,
+    # held for the TTL as a pod with no database holds it.
+    clock = _Clock()
+    upstream = _Upstream(_detections())
+    reader = fire_activity.detection_cache(clock=clock, fetch=upstream)
+    assert await reader.get() == _detections()
+    assert await reader.get() == _detections()
+    assert upstream.calls == 1
+
+
+async def test_a_preview_fetches_the_fire_detections_for_itself_while_production_has_no_row(database, monkeypatch):
+    monkeypatch.setattr(db, "READ_ONLY", True)
+    upstream = _Upstream(_detections())
+    assert await fire_activity.detection_cache(fetch=upstream).get() == _detections()
+    assert upstream.calls == 1
+
+
+async def test_once_the_row_lands_the_pod_reads_it_and_stops_fetching(database):
+    clock = _Clock()
+    upstream = _Upstream(_detections())
+    reader = fire_activity.detection_cache(clock=clock, fetch=upstream)
+    await reader.get()
+    written = _detections(fetched_at_ms=FETCHED_AT_MS + 60_000)
+    await fire_activity.detection_cache(fetch=_Upstream(written)).publish()
+    # Past its TTL the pod's own copy is served while the row is read behind it.
+    clock.t += fire_activity.TTL_S + 1
+    await reader.get()
+    await reader.settle()
+    assert (await reader.get()).fetched_at_ms == written.fetched_at_ms
+    assert upstream.calls == 1
+
+
+async def test_a_fire_row_older_than_a_day_is_still_the_503(database):
+    # Record 0077 holds for the fetch-for-itself source too: a row a day old is
+    # the refreshing pod's to replace, and no reader fetches round it.
+    await fire_activity.detection_cache(fetch=_Upstream(_detections())).publish()
+    await _execute("UPDATE snapshots SET fetched_at = now() - interval '25 hours'")
+    upstream = _Upstream(_detections())
+    reader = fire_activity.detection_cache(fetch=upstream)
+    with pytest.raises(ApiError) as answered:
+        await snapshot_or_503(reader, event="test")
+    assert answered.value.status_code == 503
+    assert upstream.calls == 0
+
+
+async def test_the_fire_activity_route_answers_from_the_pods_fetch_with_no_row(database, monkeypatch):
+    monkeypatch.setattr(fire_activity, "DETECTIONS", fire_activity.detection_cache(fetch=_Upstream(_detections())))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/fire-activity", params={"bbox": "-117,45.5,-116,46.5"})
+    assert response.status_code == 200
+    assert [f["geometry"]["coordinates"] for f in response.json()["features"]] == [[-116.47974, 46.09978]]
 
 
 # ── A database that cannot answer ─────────────────────────────────────────────

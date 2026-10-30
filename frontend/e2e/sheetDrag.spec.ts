@@ -30,10 +30,12 @@ test.describe('on a phone', () => {
     const before = (await sheet.boundingBox())!
     const grip = (await sheet.locator(':scope > div').first().boundingBox())!
 
-    // Up 150px, between its own height and the top: it stays there.
-    await drag(page, { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 }, -150)
+    // Up a third of the room over it, between its own height and the top:
+    // it stays there. A fixed distance would reach the top as the menu grows.
+    const rise = Math.round(before.y / 3)
+    await drag(page, { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 }, -rise)
     const held = (await sheet.boundingBox())!
-    expect(Math.round(held.height - before.height)).toBe(150)
+    expect(Math.round(held.height - before.height)).toBe(rise)
     expect(Math.round(held.y + held.height)).toBe(Math.round(before.y + before.height))
 
     // Down from the title, past its own height to the foot: it shuts.

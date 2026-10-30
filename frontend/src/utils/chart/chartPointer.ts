@@ -20,14 +20,16 @@ export const Y_AXIS_WIDTH_PX = 44
 
 /**
  * The height of a phone chart's title (#696; `CHART_TITLE` in styles.ts):
- * the metric's picker, the app's select at 28px, a 16px line of the control
- * type inside a 1px edge and 5px either side. A phone's plot is inset from the top by
+ * the metric's picker, a field trigger at a phone's 32px control height. It
+ * was 28px while it was a native select under an invisible 44px one; since
+ * it opens the one menu's sheet (2026-10-30) it is every phone field's
+ * height (`TAP.height`). A phone's plot is inset from the top by
  * it and the room around it (`TITLED_PLOT_MARGIN`), so the plotted area,
  * the dashed Now and model-end lines, their labels and the y axis's top tick
  * all begin under the title rather than under its letters: the maintainer's
  * one requirement for moving the picker into the plot (2026-10-14).
  */
-export const CHART_TITLE_PX = 28
+export const CHART_TITLE_PX = 32
 
 /**
  * The room around a phone chart's title (#696; the maintainer on the Pixel,

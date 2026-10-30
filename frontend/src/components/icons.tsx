@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useId } from 'react'
 import { EXTERNAL_LINK } from '../iconPaths'
 import { ICON } from '../styles'
+import { type AgeBandHours, STARBURST_INNER, starburst } from '../utils/fireActivity'
 
 /**
  * Every glyph the app draws (#386).
@@ -175,6 +176,41 @@ export function IconTable({ className }: IconProps): ReactNode {
       <rect x="2" y="2" width="12" height="12" />
       <line x1="2" y1="6" x2="14" y2="6" />
       <line x1="2" y1="10" x2="14" y2="10" />
+    </svg>
+  )
+}
+
+/**
+ * The forecast grid's Smooth style: one field fading across the square, the
+ * way the smooth grid paints between its samples. The fade is the glyph's own
+ * colour at two strengths, so it follows the control's ink in both themes.
+ */
+export function IconGridSmooth({ className }: IconProps): ReactNode {
+  const id = useId()
+  return (
+    <svg viewBox="0 0 16 16" fill="none" className={join(ICON.chip, className)} aria-hidden="true">
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="currentColor" stopOpacity="1" />
+          <stop offset="1" stopColor="currentColor" stopOpacity="0.2" />
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="14" height="14" rx="2" fill={`url(#${id})`} />
+    </svg>
+  )
+}
+
+/**
+ * The forecast grid's Blocks style: four cells at three strengths, the way
+ * the block grid paints one value per sample.
+ */
+export function IconGridBlocks({ className }: IconProps): ReactNode {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" className={join(ICON.chip, className)} aria-hidden="true">
+      <rect x="1" y="1" width="6.5" height="6.5" rx="1" />
+      <rect x="8.5" y="1" width="6.5" height="6.5" rx="1" opacity="0.55" />
+      <rect x="1" y="8.5" width="6.5" height="6.5" rx="1" opacity="0.55" />
+      <rect x="8.5" y="8.5" width="6.5" height="6.5" rx="1" opacity="0.2" />
     </svg>
   )
 }
@@ -374,6 +410,48 @@ export function IconGrip({ className }: IconProps): ReactNode {
       <circle cx="10" cy="8" r="1.3" />
       <circle cx="6" cy="12" r="1.3" />
       <circle cx="10" cy="12" r="1.3" />
+    </svg>
+  )
+}
+
+// The fire key's starburst in the 16-unit box, a unit to a pixel of the
+// 16px chip: its points at 7.58, so the 0.8 rim round them reaches the box's
+// edge and no further.
+const FIRE_AGE_STAR = starburst(7.58, STARBURST_INNER.chip, 8, 8)
+  .map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)
+  .join(' ')
+
+// Each band's hour as centrelines in that box, stroked 1 unit wide: a
+// geometric, condensed face of four digits, 8.5 tall and 3.4 wide with 0.8
+// between them, a narrow 1 with a flag and no foot, a 2 on a round bowl, a
+// closed 4 and an 8 of two stacked ellipses, the smaller on top. Drawn in the
+// icon labs of 2026-10-29 and picked from sixteen variants for reading on a
+// 1x screen (record 0246); paths rather than text, so the digits are part of
+// the drawing and no face the browser picks can change them.
+const FIRE_AGE_NUMERALS: Record<AgeBandHours, string> = {
+  12: 'M5.13 6.2L6.52 4.25V12.25M8.32 5.6A1.2 1.2 0 0 1 10.72 5.45C10.72 7.55 8.92 10.1 8.32 11.75H11.22',
+  24: 'M4.7 5.6A1.2 1.2 0 0 1 7.1 5.45C7.1 7.55 5.3 10.1 4.7 11.75H7.6M10.82 12.25V3.95L8.9 9.5H11.8',
+  48: 'M6.62 12.25V3.95L4.7 9.5H7.6M9.07 6.01A1.03 1.76 0 1 0 11.13 6.01A1.03 1.76 0 1 0 9.07 6.01M8.9 9.76A1.2 1.99 0 1 0 11.3 9.76A1.2 1.99 0 1 0 8.9 9.76',
+}
+
+/**
+ * The fire activity key's icon for one age band (#799): the starburst the
+ * map draws each detection as, its body in the layer's ink with a rim in the
+ * band's fill, and the hour the band ends at drawn in the same fill on the
+ * body. It fills the box it stands in, since `SWATCH_STAR` sizes the chip;
+ * its two colours are the band's and the layer's, from
+ * `utils/fireActivity.ts`, rather than `currentColor`, because they are data.
+ */
+export function IconFireAge({
+  hours,
+  fill,
+  ink,
+  className,
+}: IconProps & { hours: AgeBandHours; fill: string; ink: string }): ReactNode {
+  return (
+    <svg viewBox="0 0 16 16" className={join('h-full w-full', className)} aria-hidden="true">
+      <polygon points={FIRE_AGE_STAR} fill={ink} stroke={fill} strokeWidth={0.8} strokeLinejoin="round" />
+      <path d={FIRE_AGE_NUMERALS[hours]} fill="none" stroke={fill} strokeWidth={1} />
     </svg>
   )
 }

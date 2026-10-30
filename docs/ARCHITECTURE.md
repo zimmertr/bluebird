@@ -51,7 +51,7 @@ None of the external APIs need a key. The three on the analysis path:
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request, and the archive that answers a window older than the forecast endpoint's reach.
 - **OpenFreeMap** serves the vector map tiles.
 
-Nominatim (place search), NIFC (wildfire perimeters), the US Forest Service (closure orders from Regions 3, 4 and 6), NOAA HMS (smoke), NOAA NOHRSC (snow depth), the Iowa Environmental Mesonet (radar) and OpenStreetMap's own servers (the planet file and its daily change files, which keep the places table) are keyless too; [DATA.md](DATA.md) covers every provider.
+Nominatim (place search), NIFC (wildfire perimeters), NASA FIRMS (fire detections), the US Forest Service (closure orders from Regions 3, 4 and 6), NOAA HMS (smoke), NOAA NOHRSC (snow depth), the Iowa Environmental Mesonet (radar), Mapterhorn (elevation), USGS and EOX (imagery) and OpenStreetMap's own servers (the planet file and its daily change files, which keep the places table) are keyless too; [DATA.md](DATA.md) covers every provider.
 
 The snapshot overlays decode on a worker thread rather than on the event loop
 (`asyncio.to_thread` in `app/services/arcgis.py`, which pages both ArcGIS
@@ -108,13 +108,16 @@ cache the fill and the refreshes rebuild. Record:
   daily update can replace any row by its id. Record:
   [0176](decisions/0176-places-from-the-planet-and-daily-changes.md),
   [0177](decisions/0177-one-place-per-kind-and-name-within-300-m.md)
-- **Snapshots.** The wildfire, closure and smoke overlays, one row each. One
+- **Snapshots.** The wildfire, fire detection, closure and smoke overlays, one row each. One
   pod at a time fetches each upstream on that overlay's interval and writes the
   row, and every pod serves from it, so no reader calls an upstream while the
   database answers. A row's age is measured on the database's clock, and
   [record 0077](decisions/0077-snapshot-max-stale-24h.md)'s 24 hours still end
   it. On a first deploy each overlay answers `503` until its first refresh
-  lands. Record: [0182](decisions/0182-shared-snapshots.md)
+  lands, but for the fire detections, whose pods fetch FIRMS for themselves
+  while no row exists, so a PR preview shows them before production has
+  written one. Record: [0182](decisions/0182-shared-snapshots.md),
+  [0246](decisions/0246-fire-activity-from-firms-files.md)
 - **Counters.** The per-address buckets, the Nominatim gate, the Open-Meteo
   weighted budgets and the place-search cache, each exact across pods. They sit
   in unlogged tables, which skip the write-ahead log: cheap to write on every

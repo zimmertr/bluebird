@@ -3,6 +3,7 @@
 
 import { SEP } from '../../metrics'
 import { roundTo } from '../numbers'
+import type { GridStyle } from './forecastGridRaster'
 
 /**
  * The pitch as a distance, formatted the way the model picker formats the same
@@ -69,7 +70,8 @@ export function gridLegendLine(
   paceRemainingS: number | null,
   failed = false,
   complete = true,
-): { label: string; value: string; kind: 'pitch' | 'status' | 'error' } {
+  style?: GridStyle,
+): { label: string; value: string; kind: 'pitch' | 'status' | 'error'; styleName?: string } {
   const label = 'Forecast grid'
   const pacing = paceRemainingS !== null && paceRemainingS > 0
   // Minutes past 99 seconds: three-digit seconds are both harder to read and
@@ -83,7 +85,14 @@ export function gridLegendLine(
   // field its pitch describes, and the cells that did land stay on the map.
   if (failed) return { label, value: 'Unavailable', kind: 'error' }
   if (painted && !complete && pacing) return waiting
-  if (painted) return { label, value: pitchLabel(pitchKm), kind: 'pitch' }
+  // The style the grid is drawn in, named beside its pitch, so the icon on
+  // its Layers row has a word somewhere (the maintainer, 2026-10-30). Apart
+  // from the value, because the legend draws the name as the button that
+  // switches it.
+  if (painted) {
+    const pitch = { label, value: pitchLabel(pitchKm), kind: 'pitch' as const }
+    return style === undefined ? pitch : { ...pitch, styleName: style === 'smooth' ? 'Smooth' : 'Blocks' }
+  }
   if (pacing) return waiting
   return { label, value: 'Loading', kind: 'status' }
 }

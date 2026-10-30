@@ -35,6 +35,15 @@ export interface UrlSyncInputs {
   showSmoke: boolean
   showSnow: boolean
   showGrid: boolean
+  showContours: boolean
+  showRelief: boolean
+  showSlope: boolean
+  showSatellite: boolean
+  /** The four Base map rows' opacity levels (record 0250). */
+  baseOpacity: ShareableState['baseOpacity']
+  showFireActivity: boolean
+  /** The map's 3D switch. */
+  showTerrain: boolean
   /** The player switch: the reader's answer, or null for the device default. */
   showPlayer: ShareableState['showPlayer']
   /** The forecast grid's style and coverage. */
@@ -97,6 +106,13 @@ export function useUrlSync({
   showSmoke,
   showSnow,
   showGrid,
+  showContours,
+  showRelief,
+  showSlope,
+  showSatellite,
+  baseOpacity,
+  showFireActivity,
+  showTerrain,
   showPlayer,
   gridStyle,
   gridReachFrac,
@@ -191,6 +207,13 @@ export function useUrlSync({
         showSmoke,
         showSnow,
         showGrid,
+        showContours,
+        showRelief,
+        showSlope,
+        showSatellite,
+        baseOpacity,
+        showFireActivity,
+        showTerrain,
         showPlayer,
         gridStyle,
         gridReachFrac,
@@ -224,6 +247,13 @@ export function useUrlSync({
     showSmoke,
     showSnow,
     showGrid,
+    showContours,
+    showRelief,
+    showSlope,
+    showSatellite,
+    baseOpacity,
+    showFireActivity,
+    showTerrain,
     showPlayer,
     gridStyle,
     gridReachFrac,

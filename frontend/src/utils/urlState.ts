@@ -6,6 +6,7 @@
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { DEFAULT_FAMILY_KEY, MetricFamily, RANKED_FAMILIES } from '../metrics'
 import { Constraints, hasConstraints } from './constraints'
+import { type BaseOpacity } from './baseMapOpacity'
 import { type GridStyle } from './forecastGrid/forecastGrid'
 import { ForecastSelection } from './calendar/calendar'
 import { Place } from './geocode'
@@ -67,7 +68,7 @@ export interface ShareableState {
   constraints: Constraints
   limit: number
   customCsv: string
-  // The seven live map overlays. Persisted so a shared link reproduces the
+  // The twelve live map overlays. Persisted so a shared link reproduces the
   // picture, and deliberately not part of the analysis request: an overlay is
   // drawn beside the ranking, never fed into it. That holds for the forecast
   // grid too, even though it is the one whose toggle costs upstream calls —
@@ -79,6 +80,24 @@ export interface ShareableState {
   showSmoke: boolean
   showSnow: boolean
   showGrid: boolean
+  // The terrain and imagery layers (#799): the Topographic row's contours,
+  // shaded relief and the aerial imagery.
+  showContours: boolean
+  showRelief: boolean
+  // The slope angle shading (#799), from the same elevation as the relief.
+  showSlope: boolean
+  showSatellite: boolean
+  // The four Base map rows' opacity levels (record 0250), whole percents.
+  // Each rides its own param named for the layer's flag and the word
+  // (`satelliteopacity=80`), written only while its row is on and off the
+  // default, so a link opened before the sliders existed draws as it did.
+  baseOpacity: BaseOpacity
+  // The satellite fire detections (#799).
+  showFireActivity: boolean
+  // Whether the map stands the ground up in 3D (#799). Not an overlay, since
+  // it changes how the whole map is seen, but it rides the link for their
+  // reason: a shared picture of a ridge in 3D should open in 3D.
+  showTerrain: boolean
   // Which of the grid's two drawings. Rides the SAME param as the toggle
   // (`grid=blocks`, `grid=smooth`) rather than taking a second one: it is one
   // control's state, and two params for it would let a link say the layer is
@@ -181,6 +200,12 @@ export function encodeState(
     state.showSmoke ||
     state.showSnow ||
     state.showGrid ||
+    state.showContours ||
+    state.showRelief ||
+    state.showSlope ||
+    state.showSatellite ||
+    state.showFireActivity ||
+    state.showTerrain ||
     state.showPlayer !== null ||
     state.selection.kind !== 'now' ||
     state.forecastModel !== defaultForecastModel ||
