@@ -3838,7 +3838,7 @@ describe('the one menu', () => {
   // recorded"): a pill on the map, a field in the panel, a button in the
   // results bar's group. Everything else is the one menu.
   it('keeps three trigger shapes and no more', () => {
-    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'segment'])
+    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'segment', 'square'])
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.field.startsWith(SELECT)).toBe(true)
     expect(MENU_TRIGGER.bar.startsWith(ACTION_ITEM)).toBe(true)

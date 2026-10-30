@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { usePopover } from '../hooks/usePopover'
-import Menu from './Menu'
-import { CHART_LAYOUT, CHART_PANEL_BUTTON } from '../styles'
+import Menu, { MenuButton } from './Menu'
+import { CHART_LAYOUT } from '../styles'
 import { type ChartLayout, LAYOUT_LABEL, LAYOUT_NAMES, layoutsFor, rowsOf } from '../utils/chart/chartLayout'
 
 /**
@@ -46,17 +46,17 @@ export default function ChartLayoutButton({
   const { popoverRef, box, closing } = usePopover({ open, onOpenChange: setOpen, triggerRef })
   return (
     <>
-      <button
+      <MenuButton
         ref={triggerRef}
-        type="button"
+        shape="square"
+        open={open}
+        chevron={false}
         aria-label={LAYOUT_LABEL}
         aria-haspopup="true"
-        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className={`${CHART_PANEL_BUTTON.add} ${CHART_PANEL_BUTTON.square}`}
       >
         <Thumb layout={layout} count={count} />
-      </button>
+      </MenuButton>
       {box && (
         <Menu box={box} popoverRef={popoverRef} closing={closing}>
           <div role="group" aria-label={LAYOUT_LABEL} className={CHART_LAYOUT.menu}>

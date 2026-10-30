@@ -1,4 +1,5 @@
 import type { Rect } from '../../hooks/useStretchDrag'
+import { clamp } from '../numbers'
 
 /**
  * How a desk arranges the chart's panels (#499; TJ 2026-10-30, option A of
@@ -121,7 +122,7 @@ export function sharesAfterDrag(start: readonly number[], at: number, delta: num
   const a = start[at]
   const b = start[at + 1]
   if (a === undefined || b === undefined || total <= 0) return start
-  const moved = Math.max(-a, Math.min(b, delta / total))
+  const moved = clamp(delta / total, -a, b)
   const next = start.slice()
   next[at] = a + moved
   next[at + 1] = b - moved

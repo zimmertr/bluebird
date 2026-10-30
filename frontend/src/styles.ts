@@ -2991,6 +2991,15 @@ export const MENU_TRIGGER = {
    */
   segment: `${TEXT.control} appearance-none pr-6 group relative focus:outline-none enabled:hover:text-accent-ink`,
   bar: `${ACTION_ITEM} aria-expanded:bg-accent aria-expanded:text-on-fill`,
+  /**
+   * The chart's Panel layout button (#499): the + square's look, the field's
+   * fill, edge and radius around the quiet icon ink, 22px at a desk, with the
+   * accent edge and ink while its menu is out. It wears no chevron; the
+   * miniature of the layout inside it is the glyph.
+   */
+  square:
+    `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ${ICON_ACTION} ${FOCUS_RING} ` +
+    'flex size-5.5 flex-shrink-0 items-center justify-center touch:size-8 aria-expanded:border-accent-ink aria-expanded:text-accent-ink',
 } as const
 
 /**
@@ -3012,6 +3021,7 @@ export const MENU_CHEVRON = {
   bar: '-mr-0.5',
   field: `${ICON_ADORNMENT} ${FIELD_CHEVRON_INK}`,
   segment: `${ICON_ADORNMENT} ${FIELD_CHEVRON_INK}`,
+  square: '',
 } as const
 
 // A row's shape in any menu: 6px in from the list's 4px, so its words stand
