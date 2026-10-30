@@ -123,4 +123,54 @@ describe('useStretchDrag', () => {
     expect(bottom.stage.style.width).toBe('')
     expect(bottom.stage.style.willChange).toBe('')
   })
+
+  // The release's hand-back once left its last frame id where a drag looks
+  // for its own queued frame, so a second drag painted nothing until it
+  // rested. The frame ids here are real, as a browser's are.
+  it('moves on every frame of a second drag, after a release has handed back', () => {
+    vi.useFakeTimers()
+    const queued: FrameRequestCallback[] = []
+    let id = 0
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      queued.push(cb)
+      return ++id
+    })
+    const run = () => {
+      while (queued.length) queued.shift()!(0)
+    }
+    const { ref, bottom } = area()
+    const { result } = renderHook(() => useStretchDrag(ref, () => {}))
+    result.current.begin()
+    result.current.frame(LAYOUT)
+    run()
+    result.current.end()
+    result.current.settle()
+    run()
+
+    result.current.begin()
+    expect(bottom.el.style.transform).toBe('')
+    result.current.frame(LAYOUT)
+    run()
+    expect(bottom.el.style.transform).toBe('translate(0px, 20px)')
+  })
+
+  it('finishes a hand-back still running when the next drag begins', () => {
+    vi.useFakeTimers()
+    const queued: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      queued.push(cb)
+      return queued.length
+    })
+    const { ref, bottom } = area()
+    const { result } = renderHook(() => useStretchDrag(ref, () => {}))
+    result.current.begin()
+    result.current.end()
+    result.current.settle()
+    // The second stage is still waiting for its frame when a drag begins.
+    expect(bottom.stage.style.transform).not.toBe('')
+    result.current.begin()
+    expect(bottom.stage.style.transform).toBe('')
+    expect(bottom.stage.style.width).toBe('400px')
+  })
 })
+

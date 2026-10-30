@@ -58,6 +58,11 @@ export function useStretchDrag(areaRef: RefObject<HTMLElement | null>, onRest: (
   const handlesRef = useRef<HTMLElement[]>([])
   const layoutRef = useRef<(() => DragLayout) | null>(null)
   const frameRef = useRef(0)
+  // The release's hand-back runs its own frames. It had shared `frameRef`,
+  // and the id its last frame left there told the next drag a frame was
+  // already queued, so a second drag painted nothing until it rested.
+  const settleRef = useRef(0)
+  const handBackRef = useRef<(() => void) | null>(null)
   const pauseRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
   const restRef = useRef(onRest)
@@ -119,6 +124,12 @@ export function useStretchDrag(areaRef: RefObject<HTMLElement | null>, onRest: (
   }, [])
 
   const begin = useCallback(() => {
+    // A drag that starts while the last release is still handing panels
+    // back finishes that first, so it measures the real layout.
+    cancelAnimationFrame(settleRef.current)
+    settleRef.current = 0
+    handBackRef.current?.()
+    handBackRef.current = null
     measure()
     document.addEventListener('pointermove', trackPointer)
   }, [measure, trackPointer])
@@ -177,14 +188,22 @@ export function useStretchDrag(areaRef: RefObject<HTMLElement | null>, onRest: (
       })
       if (under > 0) stages.unshift(...stages.splice(under, 1))
     }
-    const next = () => {
-      const stage = stages.shift()
-      if (!stage) return
+    const handBack = (stage: HTMLElement) => {
       stage.style.width = ''
       stage.style.height = ''
       stage.style.transform = ''
       stage.style.willChange = ''
-      if (stages.length) frameRef.current = requestAnimationFrame(next)
+    }
+    const next = () => {
+      settleRef.current = 0
+      const stage = stages.shift()
+      if (!stage) return
+      handBack(stage)
+      if (stages.length) settleRef.current = requestAnimationFrame(next)
+      else handBackRef.current = null
+    }
+    handBackRef.current = () => {
+      for (const stage of stages.splice(0)) handBack(stage)
     }
     next()
   }, [])
@@ -192,6 +211,7 @@ export function useStretchDrag(areaRef: RefObject<HTMLElement | null>, onRest: (
   useEffect(
     () => () => {
       cancelAnimationFrame(frameRef.current)
+      cancelAnimationFrame(settleRef.current)
       clearTimeout(pauseRef.current)
       document.removeEventListener('pointermove', trackPointer)
     },

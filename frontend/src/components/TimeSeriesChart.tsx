@@ -625,14 +625,18 @@ function TimeSeriesChart({
           phone each is its panel's title (below), and the row stands only to
           hold a comparison's note. */}
       {(!titled || controls) && (
-        <div className="flex flex-shrink-0 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1">
+        // One gap through the row, the + included (TJ's review, 2026-10-30):
+        // the + used to ride inside the last picker's wrapper at 4px while
+        // the pickers stood 16px apart, two spacings for one row of peers.
+        // 8px is the phone's title bar gap and the grid's gutter.
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 px-3 py-1">
           {!titled &&
             pickers.map((p) => (
               // flex, not block, for the reason the ranking rows' dropdown
               // gives: an inline-level select in a block wrapper reserves
               // descender space below itself and sits a pixel low against what
               // is beside it.
-              <div key={p.index} className="relative flex flex-shrink-0 items-center gap-1">
+              <div key={p.index} className="relative flex flex-shrink-0 items-center">
                 {segmented(
                   p.index,
                   <MenuSelect
@@ -645,11 +649,9 @@ function TimeSeriesChart({
                   />,
                   <RemoveButton index={p.index} metricLabel={p.metricLabel} onRemove={onRemove} width={CHART_PICKER.x} />,
                 )}
-                {p.index === metrics.length - 1 && (
-                  <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />
-                )}
               </div>
             ))}
+          {!titled && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />}
           {controls}
         </div>
       )}
