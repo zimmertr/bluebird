@@ -50,6 +50,7 @@ const GRID = {
   gridReachDraft: null,
   setGridReachDraft: () => {},
   commitGridReach: () => {},
+  resetGridReach: () => {},
   gridReachPitchKm: 3,
 }
 const GRID_ON = { ...GRID, gridOn: true }
@@ -468,6 +469,26 @@ describe('LayersPopover', () => {
   // The grid's style and coverage stand on its own row, at the right where a
   // Base map row carries its opacity slider. Like those sliders they stand while the grid is off, and using
   // one switches the grid on.
+  // A double-click on any slider puts it back where it starts, 50%.
+  it('puts every slider back at its start on a double-click', () => {
+    const setBaseOpacity = vi.fn()
+    const resetGridReach = vi.fn()
+    render(
+      <LayersPopover
+        mapRef={MAP}
+        coverage={COVERAGE}
+        overlays={{ ...OVERLAYS, setBaseOpacity }}
+        grid={{ ...GRID, resetGridReach }}
+        playerOffered
+      />,
+    )
+    open()
+    fireEvent.doubleClick(screen.getByRole('slider', { name: 'Satellite opacity' }))
+    expect(setBaseOpacity).toHaveBeenLastCalledWith('satellite', 50)
+    fireEvent.doubleClick(screen.getByRole('slider', { name: 'Coverage' }))
+    expect(resetGridReach).toHaveBeenCalledOnce()
+  })
+
   it("puts the grid's style and coverage on its row, live while it is off", () => {
     const setShowGrid = vi.fn()
     const setGridStyle = vi.fn()

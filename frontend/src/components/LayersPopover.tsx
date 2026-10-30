@@ -25,7 +25,7 @@ import { pitchLabel, reachKmFor } from '../utils/forecastGrid/forecastGrid'
 import { useExit } from '../hooks/useExit'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useLayerReach } from '../hooks/useLayerReach'
-import type { BaseLayer } from '../utils/baseMapOpacity'
+import { type BaseLayer, OPACITY_DEFAULT } from '../utils/baseMapOpacity'
 import type { LayerCoverage } from '../utils/layerCoverage'
 import type { MapViewHandle } from './MapView'
 
@@ -113,6 +113,7 @@ interface LayersPopoverProps {
     | 'gridReachDraft'
     | 'setGridReachDraft'
     | 'commitGridReach'
+    | 'resetGridReach'
     | 'gridReachPitchKm'
   >
   /** Whether anything spans time, so the player row can be ticked. */
@@ -183,6 +184,7 @@ export default function LayersPopover({
     gridReachDraft,
     setGridReachDraft,
     commitGridReach,
+    resetGridReach,
     gridReachPitchKm,
   } = grid
 
@@ -388,6 +390,8 @@ export default function LayersPopover({
             setBaseOpacity(layer.opacity, Number(e.target.value))
             if (!layer.checked) layer.onChange(true)
           }}
+          // A double-click puts the level back where it starts.
+          onDoubleClick={() => setBaseOpacity(layer.opacity, OPACITY_DEFAULT)}
           // On a phone the sheet steps aside while a finger drags, so the
           // map being tuned is in sight. The input holds the pointer, so its
           // release lands here wherever the finger ends.
@@ -459,6 +463,7 @@ export default function LayersPopover({
             onPointerUp={commitGridReach}
             onKeyUp={commitGridReach}
             onBlur={commitGridReach}
+            onDoubleClick={resetGridReach}
             className={SLIDER.overlay}
           />
         </div>

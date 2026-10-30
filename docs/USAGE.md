@@ -284,7 +284,8 @@ which is how strong each layer drew before it had one. Drag it toward 0% and the
 map under the layer shows through; toward 100% and the layer takes over. For
 **Shaded relief** and **Topographic**, 100% is twice the look at 50%: the
 shading deeper, the lines darker. A slider stays where you left it while its
-layer is off, and dragging it switches the layer back on. Moving one never asks
+layer is off, and dragging it switches the layer back on. Double-click one to
+put it back at 50%; the forecast grid's coverage slider does the same. Moving one never asks
 for a new analysis, and a level other than 50% rides in the shared link while
 its layer is on. On a phone the Layers sheet steps aside while you drag a
 slider, leaving that row alone over the map so you can see what you are
