@@ -3097,14 +3097,21 @@ describe('the layers palette', () => {
     expect(faded(light)).toBeLessThan(4.5)
   })
 
-  // The lab's sizes: 96 by 20 at a desk, 120 by 24 on a phone, where the
-  // sheet's rows are 32px. `100%` and `Opacity` with the well's 8px either
-  // side are 82px (measured in the browser suite's Chromium, 2026-10-29).
+  // 120 by 20 at a desk, 120 by 24 on a phone, where the sheet's rows are
+  // 32px. `100%` and `Opacity` with the well's 8px either side are 90.7px,
+  // and the thumb at the default half must stand clear of the wordmark, which
+  // at the lab's 96 it covered (measured in the browser suite's Chromium,
+  // 2026-10-29).
   it('sizes the sliders to their line, the desk\'s row to its slider', () => {
-    const MEASURED = { line: 16 + 26.9 + 41.6 }
-    expect([stepPx(LAYER_ROW.slider, 'w'), stepPx(LAYER_ROW.slider, 'h')]).toEqual([96, 20])
+    const MEASURED = { value: 30.7, wordmark: 44, thumb: 4 }
+    const pad = 8
+    expect([stepPx(LAYER_ROW.slider, 'w'), stepPx(LAYER_ROW.slider, 'h')]).toEqual([120, 20])
     expect([stepPx(LAYER_ROW.sliderSheet, 'w'), stepPx(LAYER_ROW.sliderSheet, 'h')]).toEqual([120, 24])
-    expect(stepPx(LAYER_ROW.slider, 'w') - MEASURED.line).toBeGreaterThanOrEqual(8)
+    for (const w of [stepPx(LAYER_ROW.slider, 'w'), stepPx(LAYER_ROW.sliderSheet, 'w')]) {
+      expect(w - 2 * pad - MEASURED.value - MEASURED.wordmark).toBeGreaterThanOrEqual(8)
+      // The thumb's right edge at 50% against where the wordmark starts.
+      expect(w - pad - MEASURED.wordmark - (w / 2 + MEASURED.thumb / 2)).toBeGreaterThanOrEqual(4)
+    }
     // The desk's row is the slider and 4px over and under it.
     expect(stepPx(LAYER_ROW.cardRow, 'min-h')).toBe(stepPx(LAYER_ROW.slider, 'h') + 2 * 4)
     expect(stepPx(LAYER_ROW.sliderSheet, 'h')).toBeLessThanOrEqual(stepPx(MENU_GROUP.sheetRow, 'min-h'))

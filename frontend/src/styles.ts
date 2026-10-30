@@ -3183,10 +3183,15 @@ export const MENU_GROUP = {
  *   own ink, because the soft ink reads 3.9:1 on the raised fill in dark,
  *   and a name brightening as the pointer reaches it says the press will
  *   switch it on.
- * - `slider`: the opacity slider's well (`SLIDER.well`) at a desk, 96 by
- *   20px, and on a phone 120 by 24, the lab's sizes: `100%` and `Opacity`
- *   with 8px of padding either side measure 82px of the desk's 96.
- * - `sliderSheet`: the phone's.
+ * - `slider`: the opacity slider's well (`SLIDER.well`) at a desk, 120 by
+ *   20px, the phone's width. The lab drew it 96 wide, where the thumb at the
+ *   default 50% stood on the wordmark's first letter: `Opacity` is 44px
+ *   semibold and starts 52px from the well's right edge, and the thumb's
+ *   4px bar at the half ends 6px clear of it only from 120. There `100%`
+ *   (30.7px) and `Opacity` with 8px either side leave 29px between them
+ *   (measured in the browser suite's Chromium, 2026-10-29). The menu is
+ *   24px wider for it.
+ * - `sliderSheet`: the phone's, 120 by 24, the lab's size.
  * - `restingFill`: the fill of a slider whose layer is off. The slider keeps
  *   its level and still works (a drag switches the layer on), so its line
  *   owes 4.5:1 and a fade cannot dim it: the lab's 55% left the value on the
@@ -3203,7 +3208,7 @@ export const LAYER_ROW = {
   on: 'text-ink-mid',
   off: 'text-ink-soft',
   nameOff: 'text-ink-soft group-hover/layer:text-ink',
-  slider: 'relative h-5 w-24 flex-shrink-0 overflow-hidden',
+  slider: 'relative h-5 w-30 flex-shrink-0 overflow-hidden',
   sliderSheet: 'relative h-6 w-30 flex-shrink-0 overflow-hidden',
   restingFill: 'bg-raised text-ink',
 } as const
