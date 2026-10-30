@@ -13,6 +13,7 @@
 // smoothed rather than blocky, so the relief reads exactly as it did at 12
 // stretched (the maintainer, 2026-10-30).
 import type { DemWindow, HeightGrid } from './slopeAngle'
+import { clamp } from './numbers'
 
 /**
  * The window of `grid` that `window` names, stretched to the grid's full
@@ -28,12 +29,12 @@ export function stretchWindow(grid: HeightGrid, window: Pick<DemWindow, 'left' |
   const out = new Float32Array(w * h)
   const step = span / w
   for (let row = 0; row < h; row++) {
-    const sy = Math.min(Math.max(top + (row + 0.5) * step - 0.5, 0), h - 1)
+    const sy = clamp(top + (row + 0.5) * step - 0.5, 0, h - 1)
     const y0 = Math.floor(sy)
     const y1 = Math.min(y0 + 1, h - 1)
     const fy = sy - y0
     for (let col = 0; col < w; col++) {
-      const sx = Math.min(Math.max(left + (col + 0.5) * step - 0.5, 0), w - 1)
+      const sx = clamp(left + (col + 0.5) * step - 0.5, 0, w - 1)
       const x0 = Math.floor(sx)
       const x1 = Math.min(x0 + 1, w - 1)
       const fx = sx - x0

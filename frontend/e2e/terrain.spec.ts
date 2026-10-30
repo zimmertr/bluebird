@@ -77,16 +77,6 @@ test('a link carrying slope opens with the Slope angle row ticked and paints its
   await expect(page.getByRole('checkbox', { name: 'Slope angle' })).toBeChecked()
 })
 
-// The relief reads the same tiles and paints nothing on the main thread, so
-// the count above is the slope's alone.
-test('the relief paints no slope tile', async ({ page, traffic }) => {
-  const painted = await countSlopeBitmaps(page)
-  await page.goto('/?view=-121.76,46.853,11&relief=1')
-  await expect.poll(() => demRequests(traffic)).toBeGreaterThan(0)
-  await page.waitForTimeout(2_000)
-  expect(await painted()).toBe(0)
-})
-
 // The slope angle (#799) is painted from the same tiles, so it asks the
 // elevation host too, and only once its row is on.
 test('the slope angle asks the elevation host once switched on, and the link carries it', async ({ page, traffic }) => {
@@ -179,14 +169,16 @@ test('the slope angle past zoom 12 falls back to the zoom-12 elevation, and asks
   expect(dem.urls.slice(asked).filter((u) => known.has(u))).toEqual([])
 })
 
-// The relief and the 3D terrain read raster-dem sources, which cannot fall
-// back on a missing tile, so they stop at zoom 12 however far in the map is.
-test('the relief and the 3D terrain ask for nothing past zoom 12', async ({ page, traffic }) => {
+// The relief and the 3D terrain read the same filled elevation as the slope
+// (record 0244): past zoom 12 each asks its own zoom, which the fixture
+// answers 404, and falls back to the zoom-12 tile under it.
+test('the relief and the 3D terrain fall back to the zoom-12 elevation past zoom 12', async ({ page, traffic }) => {
   const dem = demZooms(page)
   await page.goto('/?view=-121.76,46.853,14&relief=1&terrain=1')
   await expect.poll(() => demRequests(traffic)).toBeGreaterThan(0)
-  await page.waitForTimeout(2_000)
-  expect(Math.max(...dem.zooms())).toBe(12)
+  await expect.poll(() => dem.zooms()).toContain(12)
+  expect(dem.zooms()).toContain(14)
+  expect(Math.max(...dem.zooms())).toBeLessThanOrEqual(16)
 })
 
 test('the 3D button stands the map up and lays it flat, and the link carries it', async ({ page, traffic }) => {
