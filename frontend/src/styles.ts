@@ -3157,37 +3157,23 @@ export const MENU_GROUP = {
 } as const
 
 /**
- * A row of the Layers palette (record 0242): an eye, the layer's name, and on
- * the four Base map rows an opacity slider at the right, the way an image
- * editor's layers panel draws one. At a desk and on a phone's sheet alike.
+ * A row of the Layers menu (record 0242): the menu's checkbox, the layer's
+ * name, and on the four Base map rows an opacity slider at the right. At a
+ * desk and on a phone's sheet alike. The record built the row with an eye in
+ * place of the box, drawn over a hidden checkbox; the maintainer chose the
+ * box back the same day, so the row is `CHOICE_ROW` with `CHOICE_INPUT`, as
+ * every other checkbox list in the app is.
  *
  * - `cardRows`: at a desk a group's rows under its heading, a hairline
- *   between each, as the lab drew them and as the sheet already rules its
- *   rows. The heading keeps no rule over its first row (`MENU_GROUP`).
+ *   between each, as the sheet already rules its rows. The heading keeps no
+ *   rule over its first row (`MENU_GROUP`).
  * - `cardRow`: a desk row, 28px tall: the 20px slider well and 4px over and
  *   under it, so the rows with a slider and the rows without stand on one
- *   pitch. The eye's own 16px row would have been 20 (`MENU.cardRow`), and
- *   a slider row 24 beside it.
- * - `line`: the eye and the name with the slider beside them, on a desk row
- *   and a sheet row alike, and the group an off name reads its hover from.
- *   The label (`CHOICE_ROW`) takes the free space, so a press anywhere left
- *   of the slider switches the layer.
- * - `eye`: the box the eye stands in, the native checkbox laid over its
- *   glyph and drawn by it (`appearance-none`), so the row is still a
- *   checkbox to a screen reader, to Testing Library and to a Shift range
- *   (record 0227). The box is the glyph's 16px (`ICON.control`), and the
- *   focus ring is the row's (`CHOICE_ROW`).
- * - `on`/`off`: the eye's ink. Open in the middle ink, struck in the soft
- *   one, the shape saying which and the ink a step quieter for off. Both
- *   past the 3:1 a glyph owes on every ground the row stands on: the card,
- *   the raised fill under the pointer and the sheet (`styles.test.ts`).
- *   The lab drew the struck eye in the faint ink, which measures 2.2:1 on
- *   the raised fill in dark; the soft ink is the faint ink's next step up.
- * - `nameOff`: an off row's name, in the soft ink the heading wears, past
- *   4.5:1 on the card and the sheet. Under the pointer it takes the row's
- *   own ink, because the soft ink reads 3.9:1 on the raised fill in dark,
- *   and a name brightening as the pointer reaches it says the press will
- *   switch it on.
+ *   pitch. The checkbox's own row would have been 20 (`MENU.cardRow`), and a
+ *   slider row 24 beside it.
+ * - `line`: the checkbox and the name with the slider beside them, on a desk
+ *   row and a sheet row alike. The label (`CHOICE_ROW`) takes the free
+ *   space, so a press anywhere left of the slider switches the layer.
  * - `slider`: the opacity slider's well (`SLIDER.well`) at a desk, 120 by
  *   20px, the phone's width. The lab drew it 96 wide, where the thumb at the
  *   default 50% stood on the wordmark's first letter: `Opacity` is 44px
@@ -3207,12 +3193,7 @@ export const MENU_GROUP = {
 export const LAYER_ROW = {
   cardRows: SHEET_RULES,
   cardRow: 'min-h-7',
-  line: 'group/layer flex items-center gap-2',
-  eye: 'relative flex flex-shrink-0',
-  eyeInput: 'absolute inset-0 m-0 cursor-pointer appearance-none',
-  on: 'text-ink-mid',
-  off: 'text-ink-soft',
-  nameOff: 'text-ink-soft group-hover/layer:text-ink',
+  line: 'flex items-center gap-2',
   slider: 'relative h-5 w-30 flex-shrink-0 overflow-hidden',
   sliderSheet: 'relative h-6 w-30 flex-shrink-0 overflow-hidden',
   restingFill: 'bg-raised text-ink',

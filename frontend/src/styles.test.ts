@@ -2999,7 +2999,7 @@ describe('the map layer rows', () => {
       'Topographic',
       'Shaded relief',
       'Slope angle',
-      'Wildfires',
+      'Active wildfires',
       'Fire activity',
       'Smoke',
       'Area closures',
@@ -3044,49 +3044,17 @@ describe('the map layer rows', () => {
   })
 })
 
-// The Layers palette's rows (record 0242): an eye over every row's checkbox,
+// The Layers menu's rows (record 0242): the menu's checkbox on every row,
 // an opacity slider on the four Base map rows, and the phone's sheet stepping
 // aside while one is dragged.
 describe('the layers palette', () => {
   const both = (fn: (theme: (name: string) => string) => number) => [fn((n) => dark(n)), fn(light)]
 
-  // The eye is a glyph that carries the row's state, so each ink owes 3:1 on
-  // every ground the row stands on: the desk's card, the raised fill under
-  // the pointer, and the phone's sheet. The struck eye takes the soft ink,
-  // a step up from the lab's faint one, which read 2.2:1 on the raised fill.
-  it('draws the eye in two inks, each past 3:1 on the card, the hover and the sheet', () => {
-    expect(token(LAYER_ROW.on, 'text')).toBe('ink-mid')
-    expect(token(LAYER_ROW.off, 'text')).toBe('ink-soft')
-    for (const ink of [LAYER_ROW.on, LAYER_ROW.off]) {
-      for (const ground of ['floating', 'raised', 'panel']) {
-        for (const theme of [(n: string) => dark(n), light]) {
-          expect(contrast(theme(token(ink, 'text')), theme(ground))).toBeGreaterThanOrEqual(3)
-        }
-      }
-    }
-    expect(both((t) => ratio(t(token(LAYER_ROW.on, 'text')), t('floating')))).toEqual([9.83, 12.3])
-    expect(both((t) => ratio(t(token(LAYER_ROW.off, 'text')), t('raised')))).toEqual([3.94, 7.47])
-    // The faint ink the lab drew the struck eye in, on the raised fill.
-    expect(ratio(dark('ink-faint'), dark('raised'))).toBeLessThan(3)
-    // The eye fills the 16px box its checkbox is laid over.
-    expect(LAYER_ROW.eyeInput).toContain('appearance-none')
-    expect(LAYER_ROW.eyeInput).toContain('absolute inset-0')
-  })
-
-  // An off row's name is text, in the heading's soft ink, past 4.5:1 on the
-  // card and the sheet. Under the pointer, on the raised fill, where the soft
-  // ink reads under AA in dark, it takes the rows' own ink.
-  it('sets an off row\'s name in the soft ink, past AA wherever it stands', () => {
-    const soft = token(LAYER_ROW.nameOff, 'text')
-    expect(soft).toBe(token(MENU.heading, 'text'))
-    for (const ground of ['floating', 'panel']) {
-      for (const t of [(n: string) => dark(n), light]) expect(contrast(t(soft), t(ground))).toBeGreaterThanOrEqual(4.5)
-    }
-    expect(ratio(dark(soft), dark('raised'))).toBeLessThan(4.5)
-    const lit = token(LAYER_ROW.nameOff, 'group-hover/layer:text')
-    expect(lit).toBe(token(TEXT.control, 'text'))
-    for (const t of [(n: string) => dark(n), light]) expect(contrast(t(lit), t('raised'))).toBeGreaterThanOrEqual(4.5)
-    expect(LAYER_ROW.line).toContain('group/layer')
+  // Every row's switch is the menu's own checkbox, as in every checkbox list
+  // in the app (the eye record 0242 first drew was taken back the same day).
+  it('draws every row\'s switch as the menu\'s checkbox', () => {
+    expect(layersPopoverSource).toContain('className={CHOICE_INPUT}')
+    expect(layersPopoverSource).not.toMatch(/IconEye/)
   })
 
   // A slider whose layer is off still works, so its line owes 4.5:1. The

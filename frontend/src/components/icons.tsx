@@ -140,44 +140,6 @@ export function IconSun({ className }: IconProps): ReactNode {
   )
 }
 
-/**
- * A Layers row's switch while its layer is on (record 0242): an open eye, the
- * layers panel's own mark for a layer that shows. On the 16-unit grid the lab
- * drew it on, at the 1.4 stroke that reads at 16px without filling the eye.
- */
-export function IconEye({ className }: IconProps): ReactNode {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      className={join(ICON.control, className)}
-      aria-hidden="true"
-    >
-      <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" />
-      <circle cx="8" cy="8" r="2.2" />
-    </svg>
-  )
-}
-
-/** The same switch while its layer is off: the eye struck through, its lids broken where the stroke crosses. */
-export function IconEyeOff({ className }: IconProps): ReactNode {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      className={join(ICON.control, className)}
-      aria-hidden="true"
-    >
-      <path d="M2.5 5.5C1.9 6.4 1.5 8 1.5 8S4 12.5 8 12.5c1 0 1.9-.3 2.7-.7M6 3.8c.6-.2 1.3-.3 2-.3 4 0 6.5 4.5 6.5 4.5s-.5.9-1.4 1.9" />
-      <path d="m2 2 12 12" />
-    </svg>
-  )
-}
-
 /** The theme switch while the app is light: a crescent, the face it goes to. */
 export function IconMoon({ className }: IconProps): ReactNode {
   return (

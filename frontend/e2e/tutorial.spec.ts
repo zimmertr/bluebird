@@ -265,11 +265,11 @@ test.describe('on a phone with a report', () => {
     await page.keyboard.press('ArrowRight')
     await expect(heading(page)).toHaveText('Layers')
     await expect(messages).toHaveCount(0)
-    // A phone's Layers card opens the sheet and switches Wildfires on
+    // A phone's Layers card opens the sheet and switches Active wildfires on
     // (record 0153), and the next card puts both back.
     const layers = page.locator('[data-tour="layers-menu"]')
     await expect(layers).toBeVisible()
-    await expect(layers.getByRole('checkbox', { name: 'Wildfires' })).toBeChecked()
+    await expect(layers.getByRole('checkbox', { name: 'Active wildfires' })).toBeChecked()
     // Its card stands in the map between the chip and the sheet, over
     // neither, and the light holds both (#696).
     await expectSpotlightOn(page, 'layers')
@@ -303,7 +303,7 @@ test.describe('on a phone with a report', () => {
     await page.keyboard.press('Escape')
     await expect(card(page)).toHaveCount(0)
     // The sheet is left open in the chart with the reader's own lines and
-    // no readout over them, and Wildfires off again.
+    // no readout over them, and Active wildfires off again.
     await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
     await expect(page.locator('[data-tour="chart"] .recharts-line')).toHaveCount(5)
     await expect(page.locator('[data-tour="chart"] .recharts-tooltip-cursor')).toHaveCount(0)
@@ -314,6 +314,6 @@ test.describe('on a phone with a report', () => {
     await expect(controls).not.toHaveAttribute('inert')
     await controls.getByRole('button', { name: 'Done' }).tap()
     await page.getByRole('button', { name: 'Layers', exact: true }).first().tap()
-    await expect(page.getByRole('dialog', { name: 'Layers', exact: true }).getByRole('checkbox', { name: 'Wildfires' })).not.toBeChecked()
+    await expect(page.getByRole('dialog', { name: 'Layers', exact: true }).getByRole('checkbox', { name: 'Active wildfires' })).not.toBeChecked()
   })
 })

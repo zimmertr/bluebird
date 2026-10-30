@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { ACCENT, LAYER_ROW, MAP_CHIP_MENU, MENU, MENU_CHEVRON, MENU_GROUP, SHEET_ASIDE } from '../styles'
+import { ACCENT, CHOICE_INPUT, LAYER_ROW, MAP_CHIP_MENU, MENU, MENU_CHEVRON, MENU_GROUP, SHEET_ASIDE } from '../styles'
 import { IconChevron } from './icons'
 import { DEFAULT_BASE_OPACITY } from '../utils/baseMapOpacity'
 import type { ViewBounds } from '../utils/layerCoverage'
@@ -204,7 +204,7 @@ describe('LayersPopover', () => {
   // A row a press acts on lights under the pointer, as every menu row does
   // (record 0201); a greyed one takes no fill, and a phone's sheet none at all.
   it('lights every live row under the pointer and no greyed one', () => {
-    // The fill is the row's, the eye's label and a base-map row's slider both.
+    // The fill is the row's, the checkbox's label and a base-map row's slider both.
     const fill = (name: RegExp | string) =>
       screen.getByRole('checkbox', { name }).closest('label')!.parentElement!.className.split(' ').includes(MENU.hover)
     const { unmount } = render(
@@ -234,7 +234,7 @@ describe('LayersPopover', () => {
     expect(groups).toEqual(['Base map', 'Hazards', 'Forecast'].map((name) => screen.getByRole('group', { name })))
     expect(groups.map(rowsOf)).toEqual([
       ['Satellite', 'Topographic', 'Shaded relief', 'Slope angle'],
-      ['Wildfires', 'Fire activity', 'Smoke', 'Area closures', 'Trail closures'],
+      ['Active wildfires', 'Fire activity', 'Smoke', 'Area closures', 'Trail closures'],
       ['Rain radar', 'Snow depth', 'Forecast grid', 'Forecast player'],
     ])
     // The heading is the first thing in its group, with no box of its own.
@@ -293,8 +293,8 @@ describe('LayersPopover', () => {
       />,
     )
     open()
-    expect(disabled()).toEqual(['Wildfires', 'Smoke', 'Area closures', 'Trail closures', 'Rain radar', 'Snow depth'])
-    const fires = screen.getByRole('checkbox', { name: 'Wildfires' }) as HTMLInputElement
+    expect(disabled()).toEqual(['Active wildfires', 'Smoke', 'Area closures', 'Trail closures', 'Rain radar', 'Snow depth'])
+    const fires = screen.getByRole('checkbox', { name: 'Active wildfires' }) as HTMLInputElement
     expect([fires.checked, fires.getAttribute('aria-describedby')]).toEqual([true, null])
   })
 
@@ -407,10 +407,9 @@ describe('LayersPopover', () => {
     expect(screen.getByRole('button', { name: 'Layers' }).dataset.tour).toBe('layers')
     before.remove()
   })
-  // The palette (record 0242): every row an eye, open while its layer is on
-  // and struck while it is off, the name in the soft ink while off, and under
-  // every eye the native checkbox it draws, named by the row.
-  it('draws every row\'s switch as an eye over its checkbox', () => {
+  // Every row's switch is the menu's own checkbox, named by its row, checked
+  // while its layer is on (record 0242 tried an eye here and took it back).
+  it('draws every row\'s switch as the menu\'s checkbox', () => {
     render(
       <LayersPopover
         mapRef={MAP}
@@ -424,14 +423,8 @@ describe('LayersPopover', () => {
     const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[]
     expect(boxes).toHaveLength(13)
     for (const box of boxes) {
-      const eye = box.parentElement!
-      // The struck eye has a stroke through it and no pupil.
-      const open = eye.querySelector('svg circle') !== null
-      expect(open).toBe(box.checked)
-      expect(eye.className.split(' ')).toContain(box.checked ? LAYER_ROW.on : LAYER_ROW.off)
-      expect(box.className).toBe(LAYER_ROW.eyeInput)
-      const name = box.closest('label')!.lastElementChild!
-      expect(name.className.includes(LAYER_ROW.nameOff)).toBe(!box.checked)
+      expect(box.className).toBe(CHOICE_INPUT)
+      expect(box.closest('label')!.querySelector('svg')).toBeNull()
     }
     expect(boxes.filter((b) => b.checked).map((b) => b.closest('label')!.textContent)).toEqual(['Satellite', 'Smoke'])
   })
@@ -460,7 +453,7 @@ describe('LayersPopover', () => {
     const slope = sliders[3].parentElement!
     expect(slope.textContent).toBe('70%Opacity70%Opacity')
     expect(slope.className).toContain(LAYER_ROW.slider)
-    // In the same row as its eye, after it.
+    // In the same row as its checkbox, after it.
     const row = screen.getByRole('checkbox', { name: 'Slope angle' }).closest('label')!.parentElement!
     expect(row.lastElementChild).toBe(slope)
     expect(screen.getByRole('group', { name: 'Hazards' }).querySelector('input[type="range"]')).toBeNull()
@@ -511,7 +504,7 @@ describe('LayersPopover', () => {
   })
 
   // The Shift range runs from the Base map rows into Hazards like any other,
-  // and the sliders between the eyes are no part of it (record 0227).
+  // and the sliders between the boxes are no part of it (record 0227).
   it('runs a Shift range from the base map into the hazards', () => {
     const setShowContours = vi.fn()
     const setShowRelief = vi.fn()
@@ -529,7 +522,7 @@ describe('LayersPopover', () => {
     )
     open()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Topographic' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Wildfires' }), { shiftKey: true })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Active wildfires' }), { shiftKey: true })
     for (const set of [setShowContours, setShowRelief, setShowSlope, setShowWildfires]) {
       expect(set).toHaveBeenCalledWith(true)
     }

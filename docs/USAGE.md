@@ -217,7 +217,7 @@ controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Eight are credited in their own section of the map's legend, and the three that draw the ground (Topographic, Shaded relief and Satellite) in the map's corner. Each rides in the shared link. Each row starts with an eye: open while its layer is on, struck through while it is off. Hold Shift and click an eye to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
+again. Eight are credited in their own section of the map's legend, and the three that draw the ground (Topographic, Shaded relief and Satellite) in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer stays as it is.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
@@ -227,7 +227,7 @@ again. Eight are credited in their own section of the map's legend, and the thre
 | **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
 | **Slope angle** | How steep the ground is, in six bands from 27 degrees, from the same model | Worldwide |
 | *Hazards* | | |
-| **Wildfires** | Active fire perimeters, in red | United States, which the proximity check shares ([DATA.md](DATA.md#wildfires)) |
+| **Active wildfires** | Active fire perimeters, in red | United States, which the proximity check shares ([DATA.md](DATA.md#wildfires)) |
 | **Fire activity** | Hot spots satellites saw in the last 48 hours, as starbursts coloured by age | Worldwide, from zoom 5 in ([DATA.md](DATA.md#fire-activity)) |
 | **Smoke** | Smoke plumes at three densities, in grey | North America, Hawaii and the Caribbean |
 | **Area closures** | Ground closed by a Forest Service closure order, in fuchsia | Forest Service orders in Oregon, Washington, Arizona, New Mexico, Utah, most of Nevada, southern Idaho and western Wyoming. No national park, state, BLM or tribal closure is drawn ([DATA.md](DATA.md#closures)) |

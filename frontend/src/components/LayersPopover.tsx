@@ -5,10 +5,10 @@ import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import BottomSheet from './BottomSheet'
 import { MenuButton } from './Menu'
-import { IconEye, IconEyeOff } from './icons'
 import {
   ACCENT,
   CHIP_CARD_W,
+  CHOICE_INPUT,
   CHOICE_ROW,
   LAYER_ROW,
   MAP_CHIP_MENU,
@@ -31,8 +31,9 @@ import type { BaseLayer } from '../utils/baseMapOpacity'
 import type { LayerCoverage } from '../utils/layerCoverage'
 import type { MapViewHandle } from './MapView'
 
-// One row's switch in the Layers palette: an eye and the layer's name, the
-// eye a native checkbox drawn as the glyph (record 0242). The twelve overlays
+// One row's switch in the Layers menu: the menu's own checkbox and the
+// layer's name (record 0242 tried an eye here; the maintainer chose the box
+// back the same day). The twelve overlays
 // and the forecast player share it, because they are the same kind of choice:
 // about what the map shows, never about what the analysis asks for. The label
 // takes the row's free space, so the press that switches a layer lands
@@ -56,21 +57,17 @@ function layerSwitch({
   disabled?: boolean
   note?: string
 }) {
-  const Eye = checked ? IconEye : IconEyeOff
   return (
     <label className={`${CHOICE_ROW} min-w-0 flex-1`} title={disabled && note ? note : undefined}>
-      <span className={`${LAYER_ROW.eye} ${checked ? LAYER_ROW.on : LAYER_ROW.off}`}>
-        <Eye />
-        <input
-          type="checkbox"
-          checked={checked}
-          disabled={disabled}
-          aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
-          onChange={(e) => onChange(e.target.checked, e)}
-          className={LAYER_ROW.eyeInput}
-        />
-      </span>
-      <span className={checked ? undefined : LAYER_ROW.nameOff}>{label}</span>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
+        onChange={(e) => onChange(e.target.checked, e)}
+        className={CHOICE_INPUT}
+      />
+      <span>{label}</span>
       {disabled && note && (
         <span id={`layer-${key}-note`} className={SR_ONLY}>
           {note}
@@ -239,7 +236,7 @@ export default function LayersPopover({
   // Three groups by what a layer changes (record 0241): the map itself, a
   // hazard drawn on it, and the weather drawn on it. Alphabetical order held
   // while the list was a handful of unrelated switches; at thirteen it parted
-  // the rows that belong together, Fire activity from Wildfires and Slope
+  // the rows that belong together, Fire activity from Active wildfires and Slope
   // angle from Shaded relief. Inside a group the rows go by kind rather than
   // by name: the imagery before the drawn base, a fire before its smoke,
   // the area closures before the trails they close, and the observed
@@ -280,7 +277,7 @@ export default function LayersPopover({
       rows: [
         {
           key: 'fires',
-          label: 'Wildfires',
+          label: 'Active wildfires',
           checked: showWildfires,
           onChange: setShowWildfires,
           disabled: outOfView.has('fires'),
