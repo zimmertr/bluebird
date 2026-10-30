@@ -1374,6 +1374,10 @@ export const CHART_CARD = {
   heads: `${MICRO_SIZE} text-ink-soft text-right`,
   rule: 'col-span-full h-px bg-frame mb-[3px]',
   foot: 'border-t border-rule px-2.5 py-[5px] text-xs text-ink-soft',
+  // A row's name stops at 160px and ends in an ellipsis, as a long name does
+  // in the results table (TJ 2026-10-30), so the card keeps one width while
+  // the hour moves rather than growing to the longest name in view.
+  name: 'min-w-0 max-w-40 truncate',
 } as const
 
 /**

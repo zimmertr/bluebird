@@ -264,6 +264,11 @@ function TimeSeriesChart({
   // the hour from it; this is the hour handed to it instead. Kept when the
   // finger lifts, so the reading can be read without a finger over it.
   const [fingerIndex, setFingerIndex] = useState<number | null>(null)
+  // A finger lifted, until a real mouse moves (TJ 2026-10-30). A tap also
+  // sends the browser's compatibility mouse events, which Recharts reads as a
+  // hover and keeps showing after the lift, so the card is held shut until a
+  // pointer event says a mouse is back.
+  const [lifted, setLifted] = useState(false)
   // The top panel's share of two stacked panels' height, and a grid's column
   // and row splits (#499). Session state: a split is how this reader likes
   // this chart today, which no link or storage has reason to carry. Even by
@@ -370,12 +375,20 @@ function TimeSeriesChart({
     setCursorValue(null)
   }, [])
   const onFinger = useCallback((panel: number, index: number, key: string | null | undefined, value: number | null) => {
+    setLifted(false)
     setHoveredPanel(panel)
     setFingerIndex(index)
     if (key !== undefined) {
       setFocusedKey(key)
       setCursorValue(value)
     }
+  }, [])
+  const onMouse = useCallback(() => setLifted(false), [])
+  const onLift = useCallback(() => {
+    setLifted(true)
+    setFingerIndex(null)
+    setFocusedKey(null)
+    setCursorValue(null)
   }, [])
   const onDropFinger = useCallback(() => {
     setFingerIndex(null)
@@ -622,6 +635,9 @@ function TimeSeriesChart({
         onLeave={onLeave}
         onFinger={onFinger}
         onDropFinger={onDropFinger}
+        onLift={onLift}
+        onMouse={onMouse}
+        lifted={lifted}
         onPlayheadChange={onPlayheadChange}
         areaRef={areaRef}
         heading={
@@ -945,6 +961,10 @@ interface PanelProps {
   onLeave: () => void
   onFinger: (panel: number, index: number, key: string | null | undefined, value: number | null) => void
   onDropFinger: () => void
+  /** A finger left the plot: the card stays shut until a mouse moves. */
+  onLift: () => void
+  onMouse: () => void
+  lifted: boolean
   onPlayheadChange?: (ms: number) => void
   /**
    * The panels' area at a desk with more than one panel (#499): the card's
@@ -1006,6 +1026,9 @@ function ChartPanel({
   onLeave,
   onFinger,
   onDropFinger,
+  onLift,
+  onMouse,
+  lifted,
   onPlayheadChange,
   areaRef,
   heading,
@@ -1071,7 +1094,10 @@ function ChartPanel({
   // the hour instead, and a reading held only under the finger leaves nothing
   // to close. The tap's own click still seeks the map's playhead.
   function readFinger(e: PointerEvent<HTMLDivElement>) {
-    if (e.pointerType === 'mouse') return
+    if (e.pointerType === 'mouse') {
+      if (lifted) onMouse()
+      return
+    }
     if (e.type === 'pointerdown') tapXRef.current = e.clientX
     const el = plotRef.current
     if (!el) return
@@ -1092,7 +1118,7 @@ function ChartPanel({
 
   // Keeps `tapXRef`, which the click that follows a lift reads.
   function liftFinger(e: PointerEvent<HTMLDivElement>) {
-    if (e.pointerType !== 'mouse') onDropFinger()
+    if (e.pointerType !== 'mouse') onLift()
   }
 
 
@@ -1222,7 +1248,7 @@ function ChartPanel({
             <Tooltip
               isAnimationActive={false}
               defaultIndex={shownIndex ?? undefined}
-              active={shownIndex === null ? undefined : true}
+              active={shownIndex !== null ? true : lifted ? false : undefined}
               offset={CARD_CURSOR_OFFSET_PX}
               allowEscapeViewBox={areaRef ? ESCAPE_PANEL : undefined}
               wrapperStyle={areaRef ? CARD_OVER_PANELS : undefined}
@@ -1437,7 +1463,7 @@ function ChartTooltip({
                   className={`h-2 w-2 flex-shrink-0 ${RADIUS.control}`}
                   style={{ backgroundColor: it.line.color }}
                 />
-                <span className="min-w-0 truncate">{it.line.label}</span>
+                <span className={CHART_CARD.name}>{it.line.label}</span>
               </span>
               {it.cells.map((c, k) => (
                 <span key={k} className={`text-right font-mono ${strong}`}>

@@ -5,7 +5,7 @@ import TimeSeriesChart from './TimeSeriesChart'
 import { CHART_METRICS, extremeValue } from '../utils/chart/chartData'
 import { CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
 import { PHONE_PLOT_MARGIN, PLOT_MARGIN } from '../utils/chart/chartPointer'
-import { CHART_PICKER } from '../styles'
+import { CHART_CARD, CHART_PICKER } from '../styles'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
 
@@ -258,6 +258,10 @@ describe('TimeSeriesChart under a finger', () => {
     fireEvent.pointerDown(plotOf(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
     expect(tip().active).toBe('true')
     fireEvent.pointerUp(plotOf(container), { pointerType: 'touch' })
+    // Held shut, so the tap's compatibility mouse events cannot reopen it.
+    expect(tip().active).toBe('false')
+    // A real mouse hands the card back to Recharts.
+    fireEvent.pointerMove(plotOf(container), { pointerType: 'mouse', clientX: 252, clientY: 560 })
     expect(tip().active).toBe('undefined')
   })
 
@@ -538,6 +542,7 @@ describe('TimeSeriesChart line marks', () => {
     expect(swatches).toHaveLength(2)
     for (const swatch of swatches) {
       expect(swatch.style.backgroundColor).toBe('rgb(210, 86, 69)')
+      expect(swatch.nextElementSibling!.className).toBe(CHART_CARD.name)
       expect(swatch.className).not.toMatch(/(^|\s)outline/)
     }
   })

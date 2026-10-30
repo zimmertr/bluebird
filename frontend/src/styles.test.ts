@@ -4201,6 +4201,8 @@ describe('the chart card', () => {
   const cls = (r: string) => r.split(/\s+/)
   it('builds the card from the popup band, the frame rim and the overlay step', () => {
     expect(cls(CHART_CARD.card)).toEqual(expect.arrayContaining(['bg-panel', 'border-frame', RADIUS.surface, ELEVATION.overlay, 'overflow-hidden']))
+    // A long name stops at 160px with an ellipsis, so the card keeps its width.
+    expect(cls(CHART_CARD.name)).toEqual(['min-w-0', 'max-w-40', 'truncate'])
     expect(cls(CHART_CARD.head)).toEqual(expect.arrayContaining(['bg-band', 'border-rule', 'text-ink-strong', 'font-semibold']))
     expect(cls(CHART_CARD.rule)).toEqual(expect.arrayContaining(['col-span-full', 'bg-frame']))
     expect(cls(CHART_CARD.foot)).toEqual(expect.arrayContaining(['border-t', 'border-rule', 'text-ink-soft']))
