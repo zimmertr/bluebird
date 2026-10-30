@@ -1099,6 +1099,19 @@ describe('shared recipes', () => {
     expect(CHOICE_ROW).not.toMatch(/data-\[greyed\]:cursor-/)
   })
 
+  // Under the pointer an enabled row's label takes the accent ink, on every
+  // ground a row stands on (measured 2026-10-30; record 0251).
+  it("lights a choice row's label in the accent under the pointer", () => {
+    expect(CHOICE_ROW).toContain('has-[:enabled]:hover:text-accent-ink')
+    const MEASURED = {
+      light: { panel: 5.74, card: 6.13, rowHover: 5.14 },
+      dark: { panel: 6.71, card: 6.71, rowHover: 4.74 },
+    }
+    for (const ratio of [...Object.values(MEASURED.light), ...Object.values(MEASURED.dark)]) {
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
   // Placeholders are content, held to the same 4.5:1 as the text typed over
   // them. slate-400 is 7.0:1 on the field surface; the slate-600 the call
   // sites had drifted into read at 2.4:1, and the color lives in the recipe

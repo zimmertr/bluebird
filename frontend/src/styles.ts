@@ -2153,9 +2153,18 @@ export const BAR_LABEL = 'hidden @min-[584px]:inline'
  * cannot be ticked again until the layer can draw. A natively disabled row
  * keeps its whole-row fade, since axe and a reader both read it as
  * unavailable, and nothing on it owes a contrast ratio.
+ *
+ * Under the pointer the label takes the accent ink, the hover every dropdown
+ * and menu trigger wears (record 0201), because the browser's own hover on
+ * the box, a slightly darker edge, could not be seen in light (the
+ * maintainer, 2026-10-30, option 1 of the hover lab; record 0251). Not on a
+ * disabled row. The accent ink reads 5.74:1 on the light panel, 6.13 on the
+ * light menu card and 5.14 on a light menu row's hover fill, 6.71 on the
+ * dark panel and card and 4.74 on a dark menu row's hover fill (measured
+ * 2026-10-30 from the tokens).
  */
 export const CHOICE_ROW =
-  `${TEXT.control} ${TAP.row} gap-2.5 cursor-pointer ` +
+  `${TEXT.control} ${TAP.row} gap-2.5 cursor-pointer has-[:enabled]:hover:text-accent-ink ` +
   `has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40 data-[greyed]:[&>input]:opacity-40 ` +
   `has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent-ink`
 export const CHOICE_INPUT = `${ACCENT.input} flex-shrink-0 cursor-pointer align-middle`
