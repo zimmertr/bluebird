@@ -15,6 +15,8 @@ import { CHART_CARD, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLO
 import { IconChevron, IconClose, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
+import ChartLines from './ChartLines'
+import { lineStrokes } from '../utils/chart/chartCanvas'
 import { STAGE_ATTR, useStretchDrag } from '../hooks/useStretchDrag'
 import {
   CHART_METRICS,
@@ -65,7 +67,7 @@ import {
   gridAfterDrag,
   panelWidthFloorPx,
 } from '../utils/chart/chartPointer'
-import { CHART_TICK_PX, CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
+import { CHART_TICK_PX, CHROME } from '../utils/chart/chartColors'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
@@ -887,7 +889,8 @@ function ChartPanel({
   // queued faster than it could be serviced until the renderer stopped
   // answering. Both keys are already stable — `aligned` is itself memoized.
   const data = useMemo(() => buildChartData(times, lines, metric), [times, lines, metric])
-  const [yMin, yMax] = useMemo(() => computeYDomain(lines, metric), [lines, metric])
+  const yDomain = useMemo(() => computeYDomain(lines, metric), [lines, metric])
+  const [yMin, yMax] = yDomain
   // Which end of the family the extreme line marks: the ranking's own
   // direction while the chart shows the ranked family, and the largest value
   // on any other, where no direction was ever chosen.
@@ -895,6 +898,9 @@ function ChartPanel({
   // Memoized beside the y domain for the same reason: it is a walk over every
   // drawn value, and a hover re-renders without changing any of its inputs.
   const extreme = useMemo(() => extremeValue(lines, metric, highest), [lines, metric, highest])
+  // How each line is drawn, kept until the focus or the lines change, so a
+  // hover that moves only the cursor leaves the canvas alone.
+  const strokes = useMemo(() => lineStrokes(ordered, focusedKey, pointGrid), [ordered, focusedKey, pointGrid])
 
   // The nearest line is read through THIS panel's domain (#499): the cursor's
   // height means a value only on the axis it stands against.
@@ -1112,39 +1118,24 @@ function ChartPanel({
                 ) : null
               }
             />
-            {ordered.map((line) => {
-              const key = line.key
-              const focused = focusedKey === key
-              const dimmed = focusedKey != null && !focused
-              const crowded = ordered.length > CROWDED_PAST
-              const width = focused ? LINE_DRAW.focusedWidth : crowded ? LINE_DRAW.crowdedWidth : LINE_DRAW.width
-              const opacity = dimmed ? LINE_DRAW.dimmedOpacity : 1
-              return (
-                <Line
-                  key={key}
-                  type="linear"
-                  dataKey={key}
-                  name={line.label}
-                  stroke={line.color}
-                  dot={
-                    pointGrid
-                      ? {
-                          r: focusedKey === key ? 4.5 : 3.5,
-                          // The fill alone: a dot in the line's colour
-                          // stands 3:1 off the panel by itself (#801).
-                          stroke: 'none',
-                          fill: line.color,
-                          fillOpacity: opacity,
-                        }
-                      : false
-                  }
-                  connectNulls={false}
-                  isAnimationActive={false}
-                  strokeWidth={width}
-                  strokeOpacity={opacity}
-                />
-              )
-            })}
+            {/* Every series on one canvas between the grid and the reference
+                lines (#499; record 0241): 200 SVG lines cost Recharts a
+                redraw of every point on every size change. */}
+            <ChartLines data={data} strokes={strokes} yDomain={yDomain} />
+            {/* One unpainted Recharts line, the anchor a tooltip opened by
+                `defaultIndex` (a finger, the tour) needs to stand: with no
+                graphical item Recharts places it nowhere and keeps it hidden
+                (2026-10-30). One line of points rather than two hundred. */}
+            {ordered.length > 0 && (
+              <Line
+                dataKey={ordered[0].key}
+                stroke="none"
+                dot={false}
+                activeDot={false}
+                isAnimationActive={false}
+                legendType="none"
+              />
+            )}
             {/* The most extreme value among the ranked lines drawn (#699),
                 as one dashed line across the plot in the Now seam's style,
                 labelled with the value. A line rather than a mark on a point,
@@ -1239,7 +1230,6 @@ function useCardInArea(cardRef: RefObject<HTMLDivElement | null>, areaRef: RefOb
 // its picker already names the unit.
 function ChartTooltip({
   active,
-  payload,
   label,
   times,
   lines,
@@ -1253,7 +1243,9 @@ function ChartTooltip({
 }: ChartTooltipProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   useCardInArea(cardRef, areaRef)
-  if (!active || !payload || payload.length === 0 || label == null) return null
+  // The lines are a canvas (record 0241), so Recharts hands no payload; the
+  // hour is the label and every value is read from the lines.
+  if (!active || label == null) return null
   const index = times.indexOf(label)
   if (index < 0) return null
 

@@ -129,7 +129,8 @@ async function expectPopupClear(page: Page) {
 
 // The Chart card shows the readout a finger resting mid-window shows: the
 // cursor's line on the middle of the demonstration's thirteen hours, with a
-// dot on every destination's line (#696; record 0153).
+// dot on every destination's line (#696; record 0153), drawn on the hover
+// canvas since the lines moved there (record 0241).
 async function expectReadoutMidWindow(page: Page) {
   const chart = '[data-tour="chart"]'
   await expect(page.locator(`${chart} .recharts-tooltip-cursor`)).toBeAttached()
@@ -137,7 +138,13 @@ async function expectReadoutMidWindow(page: Page) {
     const grid = (await box(page, `${chart} .recharts-cartesian-grid`))!
     const cursor = (await box(page, `${chart} .recharts-tooltip-cursor`))!
     expect(Math.abs((cursor.left + cursor.right) / 2 - (grid.left + grid.right) / 2)).toBeLessThan(2)
-    await expect(page.locator(`${chart} .recharts-active-dot`)).toHaveCount(5)
+    const dotted = await page.locator(`${chart} canvas`).nth(1).evaluate((c: HTMLCanvasElement) => {
+      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data
+      let n = 0
+      for (let k = 3; k < d.length; k += 4) if (d[k] > 0) n++
+      return n
+    })
+    expect(dotted).toBeGreaterThan(0)
   }).toPass({ timeout: 5_000 })
 }
 
@@ -305,9 +312,19 @@ test.describe('on a phone with a report', () => {
     // The sheet is left open in the chart with the reader's own lines and
     // no readout over them, and Wildfires off again.
     await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
-    await expect(page.locator('[data-tour="chart"] .recharts-line')).toHaveCount(5)
+    // The lines and the hover dots are the panel's two canvases (record 0241):
+    // the lines drawn, the dots canvas blank.
+    await expect(page.locator('[data-tour="chart"] canvas')).toHaveCount(2)
     await expect(page.locator('[data-tour="chart"] .recharts-tooltip-cursor')).toHaveCount(0)
-    await expect(page.locator('[data-tour="chart"] .recharts-active-dot')).toHaveCount(0)
+    const inked = (i: number) =>
+      page.locator('[data-tour="chart"] canvas').nth(i).evaluate((c: HTMLCanvasElement) => {
+        const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data
+        let n = 0
+        for (let k = 3; k < d.length; k += 4) if (d[k] > 0) n++
+        return n
+      })
+    expect(await inked(0)).toBeGreaterThan(0)
+    expect(await inked(1)).toBe(0)
     // The tour started from the Controls sheet and gives it back open, modal
     // over the map (record 0207), so Done comes before the Layers chip.
     const controls = page.getByRole('dialog', { name: 'Controls' })

@@ -61,6 +61,14 @@ vi.mock('./ResizeGrip', async (importOriginal) => ({
     return <i data-testid="split-grip" />
   },
 }))
+// The canvas lines (record 0241): every stroke the panel hands it, kept in the
+// order drawn, as the mock above kept every Recharts Line.
+vi.mock('./ChartLines', () => ({
+  default: (p: { strokes: Record<string, unknown>[] }) => {
+    chart.series.push(...p.strokes)
+    return null
+  },
+}))
 vi.mock('recharts', () => {
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
   const Nothing = () => null
@@ -74,10 +82,8 @@ vi.mock('recharts', () => {
       return <>{props.children}</>
     },
     CartesianGrid: Nothing,
-    Line: (p: Record<string, unknown>) => {
-      chart.series.push(p)
-      return null
-    },
+    // The one unpainted anchor line; the series are the canvas's strokes.
+    Line: () => null,
     Label: (p: { position: string; value: string; paintOrder?: string; stroke?: string }) => (
       <i data-testid="label" data-position={p.position} data-paint-order={p.paintOrder} data-stroke={p.stroke}>
         {p.value}

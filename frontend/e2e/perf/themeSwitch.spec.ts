@@ -122,12 +122,12 @@ test('theme switch cost with no report, 946 rows and 200 rows, table and both', 
   results.push(await sample(page, '946 rows, table'))
 
   await page.getByRole('button', { name: 'Show both chart and table' }).click()
-  await expect(page.locator('.recharts-line')).toHaveCount(DESTINATIONS)
+  await expect(page.locator('[data-tour="chart"] canvas').first()).toBeVisible() // the lines' canvas (record 0241)
   results.push(await sample(page, '946 rows, both'))
 
   await page.locator('#max-results').fill('200')
   await expect(resultRows(page)).toHaveCount(200)
-  await expect(page.locator('.recharts-line')).toHaveCount(200)
+  await expect(page.locator('[data-tour="chart"] canvas').first()).toBeVisible() // the lines' canvas (record 0241)
   results.push(await sample(page, '200 rows, both'))
 
   await page.getByRole('button', { name: 'Show table only' }).click()

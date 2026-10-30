@@ -4,11 +4,12 @@ import { test, expect, resultRows, isoDay } from './fixtures'
 // own, with nothing drawn round it (#801): in light each clears 3:1 against
 // the panel. Dark asserts no ratio: four of its twenty stand under 3:1 by
 // decision (record 0228), Brewer's purple among the fixture's five, and
-// `chartColors.test.ts` pins every one. Each stroke is a `light-dark()` pair
-// the browser resolves against the root's colour scheme (#786), which jsdom
-// cannot do, so only a browser can say a line paints its colour in each theme
-// and that no filter stands over the lines. The fixture's five lines are
-// Brewer's first five.
+// `chartColors.test.ts` pins every one. The lines are a canvas (record 0241),
+// so a line's colour is read off its pixels: the five most common opaque
+// colours are the five lines, since anti-aliasing blends only their edges.
+// Only a browser can say a line paints its colour in each theme and that no
+// filter stands over the lines. The fixture's five lines are Brewer's first
+// five.
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
@@ -36,15 +37,26 @@ test('draws each chart line in a colour of its own, at 3:1 in light, under no fi
   await expect(resultRows(page).first()).toBeAttached()
 
   const strokes = () =>
-    page.locator('svg.recharts-surface path.recharts-line-curve').evaluateAll((paths) => paths.map((p) => getComputedStyle(p).stroke))
+    page.locator('[data-tour="chart"] canvas').first().evaluate((c: HTMLCanvasElement) => {
+      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data
+      const count = new Map<string, number>()
+      for (let k = 0; k < d.length; k += 4) {
+        if (d[k + 3] !== 255) continue
+        const rgb = `rgb(${d[k]}, ${d[k + 1]}, ${d[k + 2]})`
+        count.set(rgb, (count.get(rgb) ?? 0) + 1)
+      }
+      return [...count].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([rgb]) => rgb).sort()
+    })
   const filtered = () =>
-    page.locator('svg.recharts-surface g').evaluateAll((groups) => groups.filter((g) => getComputedStyle(g).filter !== 'none').length)
+    page
+      .locator('svg.recharts-surface g, [data-tour="chart"] canvas')
+      .evaluateAll((els) => els.filter((g) => getComputedStyle(g).filter !== 'none').length)
   const holds = (seen: string[], panel?: string) => {
     expect(new Set(seen).size).toBe(seen.length)
     if (panel) for (const stroke of seen) expect(contrast(stroke, panel), stroke).toBeGreaterThanOrEqual(3)
   }
 
-  await expect.poll(async () => (await strokes()).length).toBeGreaterThan(1)
+  await expect.poll(async () => (await strokes()).length).toBe(5)
   const light = await strokes()
   holds(light, LIGHT_PANEL)
   expect(await filtered()).toBe(0)
