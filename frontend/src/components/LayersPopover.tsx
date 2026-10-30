@@ -32,7 +32,7 @@ import type { LayerCoverage } from '../utils/layerCoverage'
 import type { MapViewHandle } from './MapView'
 
 // One row's switch in the Layers palette: an eye and the layer's name, the
-// eye a native checkbox drawn as the glyph (record 0241). The twelve overlays
+// eye a native checkbox drawn as the glyph (record 0242). The twelve overlays
 // and the forecast player share it, because they are the same kind of choice:
 // about what the map shows, never about what the analysis asks for. The label
 // takes the row's free space, so the press that switches a layer lands
@@ -88,7 +88,7 @@ interface LayerSpec {
   onChange: (on: boolean) => void
   disabled?: boolean
   note?: string
-  /** A Base map row's opacity slider, by its layer (record 0241). */
+  /** A Base map row's opacity slider, by its layer (record 0242). */
   opacity?: BaseLayer
 }
 
@@ -192,7 +192,7 @@ export default function LayersPopover({
   const popoverOpen = layersOpen && !sheet
   const closeSheet = useCallback(() => setLayersOpen(false), [])
   // The base-map row whose slider a finger is dragging on a phone, which the
-  // sheet steps aside for (record 0241), or null. Pointer presses only: the
+  // sheet steps aside for (record 0242), or null. Pointer presses only: the
   // keyboard moves a level a step at a time and keeps the sheet.
   const [tuning, setTuning] = useState<BaseLayer | null>(null)
   const endTuning = useCallback(() => setTuning(null), [])
@@ -236,7 +236,7 @@ export default function LayersPopover({
     }
   }, [popoverOpen])
 
-  // Three groups by what a layer changes (record 0240): the map itself, a
+  // Three groups by what a layer changes (record 0241): the map itself, a
   // hazard drawn on it, and the weather drawn on it. Alphabetical order held
   // while the list was a handful of unrelated switches; at thirteen it parted
   // the rows that belong together, Fire activity from Wildfires and Slope
@@ -265,7 +265,7 @@ export default function LayersPopover({
       // the world, and so does the imagery, from USGS over the United States
       // and from EOX everywhere else.
       rows: [
-        // Each carries its opacity slider (record 0241); the other nine rows
+        // Each carries its opacity slider (record 0242); the other nine rows
         // switch a layer and carry none.
         { key: 'satellite', label: 'Satellite', checked: showSatellite, onChange: setShowSatellite, opacity: 'satellite' },
         // The contour lines, under the name a reader looks for them by. The
@@ -344,7 +344,7 @@ export default function LayersPopover({
   ]
   const layers = MAP_LAYERS.flatMap((group) => group.rows)
 
-  // A base-map row's opacity slider (record 0241), the menu's own `SLIDER`
+  // A base-map row's opacity slider (record 0242), the menu's own `SLIDER`
   // well with the level at the left and `Opacity` at the right, drawn the
   // coverage slider's way below: the line twice, muted on the well and in
   // the fill's ink inside it, the top copy clipped to the fill. While the

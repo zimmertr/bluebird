@@ -161,6 +161,30 @@ describe('useTableView', () => {
     expect(phone.result.current.tableColWidths).toEqual({ name: 140 })
   })
 
+  // #586, record 0239: a phone's screen stands the ranked group right after
+  // Name, Model behind it, while a desk and the file keep the standard order.
+  it('orders a phone screen ranked-first and leaves the desk and the file alone', () => {
+    const PRECIP = ['precip_total_in', 'precip_avg_in_hr', 'precip_min_in_hr', 'precip_max_in_hr']
+    const desk = renderHook(() => useTableView(inputs({ comparingRows: true })))
+    expect(keys(desk.result.current.tableColumns).slice(0, 4)).toEqual(['name', MODEL_KEY, 'type', 'elevation_ft'])
+    const phone = renderHook(() => useTableView(inputs({ isDesktop: false, comparingRows: true })))
+    expect(keys(phone.result.current.tableColumns).slice(0, 8)).toEqual(['name', ...PRECIP, MODEL_KEY, 'type', 'elevation_ft'])
+    act(() => phone.result.current.handleDownloadCsv())
+    const header = downloads[0].split('\r\n')[0]
+    expect(header.indexOf('Type')).toBeLessThan(header.indexOf('Precipitation'))
+  })
+
+  // A first drag on a phone moves within the phone's order, so the rest of the
+  // screen stays where it was rather than snapping back to the desk's.
+  it('keeps a phone screen ranked-first after a first drag', () => {
+    const { result } = renderHook(() => useTableView(inputs({ isDesktop: false })))
+    const before = keys(result.current.tableColumns)
+    act(() => result.current.handleColumnMove('type', 'elevation_ft'))
+    const after = keys(result.current.tableColumns)
+    expect(after.slice(0, 5)).toEqual(before.slice(0, 5))
+    expect(after.indexOf('type')).toBeGreaterThan(after.indexOf('elevation_ft'))
+  })
+
   // A point-sample flip relabels the metric columns under the same keys, so
   // their widths reopen; the identity columns keep theirs.
   it('keeps only the identity widths across a point-sample flip', () => {

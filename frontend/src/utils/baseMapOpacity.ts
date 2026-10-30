@@ -1,4 +1,4 @@
-// The four base-map layers' opacity levels (#799, record 0241): what a level
+// The four base-map layers' opacity levels (#799, record 0242): what a level
 // is, its default, and the one rule every surface reads it by. Apart from the
 // hook that holds them and the link that carries them, because both of those
 // and the map's own modules need the same four names and the same default,

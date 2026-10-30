@@ -1281,9 +1281,18 @@ describe('shared recipes', () => {
     // (measured 2026-10-13; the browser's own bar was 15px).
     const SHARED_BAR_PX = 10
     expect(PANEL_BODY).toContain('[scrollbar-gutter:stable]')
-    const labelPx = 327 - SHARED_BAR_PX - 14 - 10 - 3 * gapPx - dropdownPx - 2 * boxPx
+    const labelAt = (contentPx: number, barPx: number) =>
+      contentPx - barPx - 14 - 10 - 3 * gapPx - dropdownPx - 2 * boxPx
 
-    expect(labelPx).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
+    expect(labelAt(327, SHARED_BAR_PX)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
+    // A phone's Controls sheet (#586): at 360x780 with touch emulated and a
+    // date range picked, the Metrics grid measured 328px wide and its scroller
+    // reserved nothing for a bar, because a phone draws overlay scroll bars
+    // (built image in Playwright's Chromium, 2026-10-28). That is the wider
+    // budget; it is pinned so a future sheet gutter or a longer noun fails here
+    // too.
+    const PHONE_CONTENT_PX = 328
+    expect(labelAt(PHONE_CONTENT_PX, 0)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
     expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + selectArrowPx())
   })
 
@@ -2967,7 +2976,7 @@ describe('the chart title on a phone', () => {
   })
 })
 
-// The map's Layers popover: thirteen rows in three groups (record 0240).
+// The map's Layers popover: thirteen rows in three groups (record 0241).
 describe('the map layer rows', () => {
   // Read out of the source rather than out of a render, for the reason every
   // other check here is: Vitest has no DOM, and the order is a property of the
@@ -3035,7 +3044,7 @@ describe('the map layer rows', () => {
   })
 })
 
-// The Layers palette's rows (record 0241): an eye over every row's checkbox,
+// The Layers palette's rows (record 0242): an eye over every row's checkbox,
 // an opacity slider on the four Base map rows, and the phone's sheet stepping
 // aside while one is dragged.
 describe('the layers palette', () => {
@@ -3178,7 +3187,7 @@ describe('the map legend sections', () => {
     expect(box).toContain('label: metricLabel(')
   })
 
-  // In the Layers menu's order (record 0240): the metric key, the base map's
+  // In the Layers menu's order (record 0241): the metric key, the base map's
   // slope bands, the hazards, then the forecast. Written in that order rather
   // than sorted, so the order is the source's.
   it('lists the sections in the Layers menu\'s order, the metric key first', () => {

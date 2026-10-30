@@ -276,7 +276,7 @@ function flag(
   }
 }
 
-// A base-map row's opacity (record 0241): the layer's link flag and the word,
+// A base-map row's opacity (record 0242): the layer's link flag and the word,
 // `slopeopacity=70`, a whole percent. Written only while its row is on AND the
 // level is not the default, so a link stays as short as what was changed and
 // cannot carry a level for a layer it leaves off. Read only beside its flag,

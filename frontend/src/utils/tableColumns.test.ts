@@ -196,6 +196,66 @@ describe('orderColumns', () => {
   })
 })
 
+// #586, record 0239: a phone's screen order. The desk's is the one above,
+// unchanged, and the CSV always reads it.
+describe('orderColumns, ranked first', () => {
+  const phone = (sortBy: SortBy) => orderColumns(COLUMNS, sortBy, true).map((c) => c.key)
+
+  it('stands the ranked group directly after Name, ahead of Type and Elevation', () => {
+    expect(phone('precip_total_in')).toEqual([
+      'name',
+      ...PRECIP_KEYS,
+      'type',
+      'elevation_ft',
+      ...AQI_KEYS,
+      ...CLOUD_KEYS,
+      ...FREEZE_KEYS,
+      ...SNOWFALL_KEYS,
+      ...TEMP_KEYS,
+      ...WIND_KEYS,
+    ])
+  })
+
+  it('puts Model after the ranked group and ahead of Type while comparing', () => {
+    const cols = withModelColumn(orderColumns(COLUMNS, 'wind_avg_mph', true), true, 'wind_avg_mph').map((c) => c.key)
+    expect(cols.slice(0, 7)).toEqual(['name', ...WIND_KEYS, MODEL_KEY, 'type', 'elevation_ft'])
+  })
+
+  it('collapses the same way in a point sample', () => {
+    expect(orderColumns(pointModeColumns(COLUMNS), 'wind_avg_mph', true).map((c) => c.key)).toEqual([
+      'name',
+      'wind_avg_mph',
+      'type',
+      'elevation_ft',
+      'aqi_avg',
+      'cloud_deck_avg_ft',
+      'freeze_avg_ft',
+      'precip_avg_in_hr',
+      'snowfall_avg_in_hr',
+      'temp_avg_f',
+    ])
+  })
+
+  it('reaches displayedColumns and visibleColumns, which default to the desk order', () => {
+    expect(displayedColumns(false, 'temp_avg_f', true).map((c) => c.key)).toEqual(phone('temp_avg_f'))
+    expect(displayedColumns(false, 'temp_avg_f').map((c) => c.key)).toEqual(keys('temp_avg_f'))
+    expect(visibleColumns(false, 'temp_avg_f', new Set(['name', 'type']), true).map((c) => c.key)).toEqual([
+      'name',
+      ...TEMP_KEYS,
+      'type',
+    ])
+  })
+
+  // A stored order is a list of keys, so one dragged on either screen lays
+  // over the other's base: named keys lead in the list's order.
+  it('lays a phone-made order over the desk base and the reverse', () => {
+    const phoneOrder = phone('precip_total_in')
+    expect(applyColumnOrder(orderColumns(COLUMNS, 'precip_total_in'), phoneOrder).map((c) => c.key)).toEqual(phoneOrder)
+    const deskOrder = keys('precip_total_in')
+    expect(applyColumnOrder(orderColumns(COLUMNS, 'precip_total_in', true), deskOrder).map((c) => c.key)).toEqual(deskOrder)
+  })
+})
+
 describe('pointModeColumns', () => {
   it('collapses each metric group to its single representative column', () => {
     expect(pointModeColumns(COLUMNS).map((c) => c.key)).toEqual([

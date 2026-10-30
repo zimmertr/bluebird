@@ -335,11 +335,20 @@ export function useTableView({
   // owns that). The CSV keeps the stricter rule and carries each column only
   // once its check answered AND the column is shown, because a file's columns
   // must not disagree with the screen's.
+  //
+  // A phone's screen stands the ranked group directly after Name and Model
+  // after it (#586), where the CSV and a desk keep the standard order: the
+  // phone's first view has room for one value, and a file should read the same
+  // from either device. Record: 0239.
+  const rankedFirst = !isDesktop
   const tableColumns = useMemo(() => {
-    const cols = visibleColumns(pointSample, sortBy, effectiveVisibleKeys)
+    const cols = visibleColumns(pointSample, sortBy, effectiveVisibleKeys, rankedFirst)
     const flags = FLAG_COLS.filter((c) => effectiveVisibleKeys.has(c.key as string))
-    return applyColumnOrder(withModelColumn([...cols, ...flags], modelColumnOn), columnOrder)
-  }, [pointSample, sortBy, effectiveVisibleKeys, modelColumnOn, columnOrder])
+    return applyColumnOrder(
+      withModelColumn([...cols, ...flags], modelColumnOn, rankedFirst ? sortBy : null),
+      columnOrder,
+    )
+  }, [pointSample, sortBy, effectiveVisibleKeys, modelColumnOn, columnOrder, rankedFirst])
 
   // Every column there is, in the reader's order: what the Columns picker
   // lists, and the list a move is made within.
@@ -347,9 +356,19 @@ export function useTableView({
   // The baseline is this rather than the columns on screen, so a hidden column
   // keeps its place. Ordering only the visible ones would send every hidden
   // column to the end the moment it came back.
+  //
+  // It follows the screen's order on a phone too, or a first move there would
+  // store the desk's order and snap the phone's columns back to it.
   const allColumns = useMemo(
-    () => applyColumnOrder([...withModelColumn(csvColumns, true), ...FLAG_COLS], columnOrder),
-    [csvColumns, columnOrder],
+    () =>
+      applyColumnOrder(
+        [
+          ...withModelColumn(rankedFirst ? displayedColumns(pointSample, sortBy, true) : csvColumns, true, rankedFirst ? sortBy : null),
+          ...FLAG_COLS,
+        ],
+        columnOrder,
+      ),
+    [csvColumns, columnOrder, rankedFirst, pointSample, sortBy],
   )
 
   // Both surfaces move a column by naming the column and the one it lands on.

@@ -10,7 +10,7 @@
  * the next switch-on draws from the tiles already held.
  *
  * The imagery draws at the row's opacity, 0 to 1, over the ground and under
- * everything a photo cannot say (record 0241): directly above the last of
+ * everything a photo cannot say (record 0242): directly above the last of
  * Liberty's ground layers (`basemapGround`) that stands under its first road,
  * symbol or layer of somebody else's, so the roads, the trails, every label
  * and the app's own `ofm-*` layers stay on top. The ground under it is left

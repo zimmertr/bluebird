@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, expectRanked, resultRows, typeCell, DESTINATION_NAMES } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A press on a results row opens that destination's marker popup (#696;
@@ -22,9 +22,9 @@ test('a click on a row opens its popup, and its chart box does not, at 1280 px',
   await row.getByRole('checkbox').click()
   await expect(popups).toHaveCount(0)
   const name = (await row.getByRole('button', { name: /^Center map on / }).textContent())!.trim()
-  // The row's ground: the cell after the name, the Type, which holds no
+  // The row's ground: the Type cell, which holds no
   // link or button.
-  await row.locator('td').nth(3).click()
+  await (await typeCell(page, row)).click()
   await expect(popups).toHaveCount(1)
   await expect(popups).toContainText(name)
 })
@@ -36,7 +36,7 @@ test.describe('on a phone', () => {
     await analyze(page, true)
     const row = resultRows(page).nth(1)
     const name = (await row.getByRole('button', { name: /^Center map on / }).textContent())!.trim()
-    await row.locator('td').nth(3).tap()
+    await (await typeCell(page, row)).tap()
     await expect(page.getByRole('button', { name: 'Expand results' }).first()).toBeVisible()
     await expect(page.locator('.maplibregl-popup')).toContainText(name)
   })
@@ -49,7 +49,7 @@ test.describe('on a phone', () => {
     const row = resultRows(page).nth(1)
     const name = (await row.getByRole('button', { name: /^Center map on / }).textContent())!.trim()
     await expect(row.getByRole('button', { name: `Remove ${name}` })).toBeHidden()
-    await row.locator('td').nth(3).tap()
+    await (await typeCell(page, row)).tap()
     const popup = page.locator('.maplibregl-popup')
     // The card is the row's, or the remove below takes another one out.
     await expect(popup).toHaveCount(1)

@@ -1980,10 +1980,12 @@ export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
  * boxes' two edges and a grid item can never stretch a track.
  *
  * This is the panel's widest row, and the budget is the label's: `Freezing
- * level` must fit beside a dropdown and two boxes at the panel's 327px of
- * content. `styles.test.ts` does that arithmetic from the measured noun, so a
- * wider box or a longer noun fails there instead of as an ellipsis, which is
- * how the old Ranking row shipped `Freezing le…` (#341).
+ * level` must fit beside a dropdown and two boxes at both widths. The desk
+ * panel's 327px of content less its 10px bar is 317px and binds; a phone's
+ * Controls sheet gives the grid 328px with no scroll bar reserved, the wider
+ * of the two (#586). `styles.test.ts` does that arithmetic from the measured
+ * noun, so a wider box or a longer noun fails there instead of as an ellipsis,
+ * which is how the old Ranking row shipped `Freezing le…` (#341).
  */
 export const METRICS_GRID =
   'grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-1.5 gap-y-1.5'
@@ -2532,7 +2534,7 @@ export const BOTTOM_SHEET = {
 
 /**
  * A sheet that steps aside while a finger tunes the map under it (record
- * 0241): the Layers sheet while one of its opacity sliders is dragged. The
+ * 0242): the Layers sheet while one of its opacity sliders is dragged. The
  * dim lifts, the card and every row in it go, and the row being dragged stays
  * where it stood, on the sheet's own fill with the card's edge and shadow, so
  * the map it changes is in sight. On release it all comes back. Visibility
@@ -3101,7 +3103,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   the way the model list sets its ranking model. No check mark: the weight
  *   says it, and a mark would take a column from every row.
  * - `heading`: a word over a group of rows, which a reader reads and never
- *   presses: the Layers menu's Base map, Hazards and Forecast (record 0240).
+ *   presses: the Layers menu's Base map, Hazards and Forecast (record 0241).
  *   The caption step in semibold, sentence case: the maintainer chose it over
  *   the panel's small caps (`TEXT.section`, `TEXT.overline`), which shout
  *   over a list of thirteen short rows. The size is the rows' own 12px and
@@ -3126,7 +3128,7 @@ export const MENU = {
 
 /**
  * A group of a menu's rows under its `MENU.heading`, at a desk and on a
- * phone's sheet (record 0240). Only the Layers menu has groups.
+ * phone's sheet (record 0241). Only the Layers menu has groups.
  *
  * - `card`: at a desk the rows stand on the card's padding, so a group is set
  *   off from the one over it by 6px of space, which with the last row's own
@@ -3155,7 +3157,7 @@ export const MENU_GROUP = {
 } as const
 
 /**
- * A row of the Layers palette (record 0241): an eye, the layer's name, and on
+ * A row of the Layers palette (record 0242): an eye, the layer's name, and on
  * the four Base map rows an opacity slider at the right, the way an image
  * editor's layers panel draws one. At a desk and on a phone's sheet alike.
  *

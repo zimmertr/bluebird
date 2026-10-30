@@ -168,7 +168,7 @@ describe('LayersPopover', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Area closures' }))
     expect(setShowAreaClosures).toHaveBeenCalledWith(true)
     // Down the list from Hazards into Forecast: the run takes no notice of
-    // the heading between them (record 0240).
+    // the heading between them (record 0241).
     fireEvent.click(screen.getByRole('checkbox', { name: 'Forecast player' }), { shiftKey: true })
     expect(setShowPlayer).toHaveBeenCalledWith(true)
     expect(setShowRadar).toHaveBeenCalledWith(true)
@@ -222,7 +222,7 @@ describe('LayersPopover', () => {
 
   // Three groups by what a layer changes, the ground first, each under its
   // heading and each a group to a screen reader named by it, the rows by
-  // kind inside (record 0240). Each row drives its own layer, and no label
+  // kind inside (record 0241). Each row drives its own layer, and no label
   // carries a coverage note: the row greys instead (below).
   it('lists the layers in three named groups, ordered by kind', () => {
     const setShowTrailClosures = vi.fn()
@@ -407,7 +407,7 @@ describe('LayersPopover', () => {
     expect(screen.getByRole('button', { name: 'Layers' }).dataset.tour).toBe('layers')
     before.remove()
   })
-  // The palette (record 0241): every row an eye, open while its layer is on
+  // The palette (record 0242): every row an eye, open while its layer is on
   // and struck while it is off, the name in the soft ink while off, and under
   // every eye the native checkbox it draws, named by the row.
   it('draws every row\'s switch as an eye over its checkbox', () => {

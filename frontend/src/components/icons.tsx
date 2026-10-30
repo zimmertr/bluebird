@@ -141,7 +141,7 @@ export function IconSun({ className }: IconProps): ReactNode {
 }
 
 /**
- * A Layers row's switch while its layer is on (record 0241): an open eye, the
+ * A Layers row's switch while its layer is on (record 0242): an open eye, the
  * layers panel's own mark for a layer that shows. On the 16-unit grid the lab
  * drew it on, at the 1.4 stroke that reads at 16px without filling the eye.
  */

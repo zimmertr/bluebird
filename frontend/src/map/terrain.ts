@@ -140,7 +140,7 @@ const RELIEF_LOOK = {
 } as const
 
 /**
- * The relief at the Shaded relief row's opacity, 0 to 1 (record 0241), where
+ * The relief at the Shaded relief row's opacity, 0 to 1 (record 0242), where
  * the default level, a half, is the look above. A hillshade layer has no
  * opacity of its own, so the level moves what it has. Under the default the
  * shadow and the light fade together and the depth holds, so the shading
@@ -335,7 +335,7 @@ export interface TerrainLayers {
    */
   overImagery(on: boolean): void
   /**
-   * The three rows' opacity sliders, each 0 to 1 (record 0241): the relief's
+   * The three rows' opacity sliders, each 0 to 1 (record 0242): the relief's
    * depth and light, the slope's raster opacity, and the contours' lines and
    * heights. A layer at 0 is hidden, as switched off, so it asks for nothing.
    */

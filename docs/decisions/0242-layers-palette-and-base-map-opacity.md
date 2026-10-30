@@ -1,12 +1,12 @@
-# 0241. The Layers menu is a layers palette: an eye on every row, and an opacity slider on the four Base map rows, the imagery over the ground
+# 0242. The Layers menu is a layers palette: an eye on every row, and an opacity slider on the four Base map rows, the imagery over the ground
 
-- Status: Accepted. Amends 0233 (the imagery draws over Liberty's ground at a level, rather than under it with the ground faded out) and 0240 (the groups stand; each row's checkbox is drawn as an eye).
+- Status: Accepted. Amends 0233 (the imagery draws over Liberty's ground at a level, rather than under it with the ground faded out) and 0241 (the groups stand; each row's checkbox is drawn as an eye).
 - Date: 2026-10-29
 - Decider: the maintainer (TJ), on #799, 2026-10-29: an opacity control on Satellite, Topographic, Shaded relief and Slope angle, 0 to 100, default 50, with Satellite drawn over the map so the map shows through as the level falls, and option 6 of the opacity lab, the layers palette, with no slider on the Hazards and Forecast rows and the phone sheet stepping aside while a slider is dragged. That labels, trails, roads and the markers stay over every base-map layer, and only the ground goes under the blend, he confirmed. The link's grammar, how the relief and the contours read a level, the buildings, the slider's width, its look while off and the eye's off ink were the implementer's, for review on the pull request.
 - Issues and PRs: #799, #823
-- Cited in code as: record 0241
+- Cited in code as: record 0242
 - Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `MapLegend.tsx`/`LayersPopover.tsx` bullet and `BottomSheet.tsx`; [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), `overlays/imagery.ts`, `terrain.ts`, `features.ts`; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), `baseMapOpacity.ts`, `urlParams.ts`; [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), `useMapOverlays.ts`; [`docs/STYLES.md`](../STYLES.md), `LAYER_ROW` and `SHEET_ASIDE`; [`docs/USAGE.md`](../USAGE.md), Map layers; [`docs/DATA.md`](../DATA.md), Elevation and imagery
-- Related: 0016 (overlays are not knobs), 0209 and 0227 (Shift ranges), 0234 (the map's marks on a dark ground), 0239 (slope angle at half strength)
+- Related: 0016 (overlays are not knobs), 0209 and 0227 (Shift ranges), 0234 (the map's marks on a dark ground), 0240 (slope angle at half strength)
 
 ## Context
 
@@ -23,7 +23,7 @@ The four ground layers drew at one strength each: the imagery whole, with Libert
 - **Satellite draws over the ground.** The two rasters go directly above the last of Liberty's ground layers under its first road, symbol or layer of anybody else's (in Liberty, over `aeroway_fill` and under `aeroway_runway`), with `raster-opacity` at the level and both at the same level, so where USGS answers it still covers EOX. The land and water fills are no longer faded: they are what shows through. At 100% the photos hide the ground; at 0% the layers hide and Liberty shows whole, and nothing is fetched. Liberty draws its buildings over its roads, where the imagery cannot go under them without going over the roads, so a ground layer above the imagery fades to its own opacity times one less the level, which reads the same. The park outline and the river lines, which stand among the fills, go under the photos with them.
 - **The contours** scale their lines' and their heights' opacity with the level: each line at its ink's own opacity times the level over 50, held to 1, the edge the same, and the heights whole from 50 up and fading under it. `overImagery` still chooses the ink, now from 50% of the imagery up, where the photos are the ground that shows most.
 - **The relief** has no opacity of its own in MapLibre, so the level moves what it has. At 50 it is the look tuned on 2026-10-27 (`standard`, 0.3 of exaggeration, the brown shadow whole, the light at 0.45). Under 50 the shadow's and the light's alpha fall together and the depth holds, so the shading pales evenly to nothing at 0, rather than flattening while it fades, which scaling both would do. Over 50 the shadow is whole already, so the depth and the light grow, to 0.6 and 0.9 at 100, twice the default.
-- **The slope bands** paint whole in the tile already (record 0239), so the level is the raster's opacity: 50 is the half strength they drew at, pixel for pixel.
+- **The slope bands** paint whole in the tile already (record 0240), so the level is the raster's opacity: 50 is the half strength they drew at, pixel for pixel.
 - **The legend draws the slope bands at full strength**, not at the level. The card is not the ground the bands land on, so a ramp at half over the card matches the map no better than a whole one, and at low levels it would key nothing. It keys which colour means which band.
 - **At 0 every base-map layer hides** as if switched off, so it asks for no tile, and comes back at the level it is given.
 

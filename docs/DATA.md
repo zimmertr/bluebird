@@ -856,7 +856,7 @@ to its neighbours east and west and north and south, over the ground between
 them at that latitude. A pixel on a tile's edge reads its neighbours from the
 next tile, so a band does not break along tile boundaries. It is painted in
 CalTopo's bands, the avalanche world's, from 27 degrees up (record
-[0239](decisions/0239-slope-angle-from-the-shared-elevation.md)). Zoomed in
+[0240](decisions/0240-slope-angle-from-the-shared-elevation.md)). Zoomed in
 past 12, it reads the finest tile Mapterhorn has, to zoom 14: 10 m-class over
 the United States, finer in the Alps, and the 30 m fill elsewhere. Where a
 finer tile is missing it falls back a zoom at a time to 12 and remembers the
@@ -892,7 +892,7 @@ maintainer chose the short names on 2026-10-28 to keep the corner to one line.
 The two draw as one layer at the row's opacity, EOX everywhere with USGS over
 it, both over Liberty's land and water fills and under its roads, trails and
 labels and under the relief and the contours (record
-[0241](decisions/0241-layers-palette-and-base-map-opacity.md)). Liberty's
+[0242](decisions/0242-layers-palette-and-base-map-opacity.md)). Liberty's
 buildings, which it draws over its roads, fade by the same level instead. The
 trails wear a light casing over it, because their brown reads 1.69:1 on a
 forest (record [0234](decisions/0234-map-reads-on-a-dark-ground.md)), and from

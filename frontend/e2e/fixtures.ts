@@ -5,7 +5,7 @@
 // A request to a host no handler claims is aborted and counted as a leak,
 // and the fixture fails the test on any leak.
 import { readFileSync } from 'node:fs'
-import { test as base, expect, type Page, type Route } from '@playwright/test'
+import { test as base, expect, type Locator, type Page, type Route } from '@playwright/test'
 
 const here = new URL('.', import.meta.url)
 const style = JSON.parse(readFileSync(new URL('fixtures/style.json', here), 'utf8'))
@@ -141,6 +141,18 @@ export const DESTINATION_NAMES = ['Mount Alpha', 'Beta Peak', 'Gamma Butte', 'De
 // page's only table, because an open marker popup is a table too since its
 // grid (#683), and its rows would count as results.
 export const resultRows = (page: Page) => page.locator('[data-results-table] tbody tr')
+
+// A row's Type cell, the one cell a click lands on that holds no link or
+// button. Found by its header rather than by a count, because the ranked
+// group stands between it and Name and is as wide as the ranking (#586).
+export async function typeCell(page: Page, row: Locator): Promise<Locator> {
+  const at = await page
+    .locator('[data-results-table] thead tr')
+    .first()
+    .locator('th')
+    .evaluateAll((ths) => ths.findIndex((th) => th.getAttribute('data-col') === 'type'))
+  return row.locator('td').nth(at)
+}
 
 // The rank column, top to bottom: a ranked row's number, or the dash of a row
 // still waiting on its forecast. The rank is the first cell that holds no
