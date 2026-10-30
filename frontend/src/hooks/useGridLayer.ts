@@ -146,7 +146,7 @@ export function useGridLayer({
   // On and could not draw. Said out loud, because a switched-on layer with
   // nothing under it and nothing said reads as a broken app.
   const gridFailed = gridOn && gridHasValue && grid.status === 'failed'
-  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, grid.paceRemainingS, gridFailed, grid.complete)
+  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, grid.paceRemainingS, gridFailed, grid.complete, gridStyle)
 
   return {
     gridStyle,
