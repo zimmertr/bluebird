@@ -86,7 +86,15 @@ interface GridGutterProps {
   /** The drag so far, right and down positive. */
   onDrag: (dx: number, dy: number) => void
   onDragEnd: () => void
+  /**
+   * Where along the bar its grips stand, as CSS lengths from its start: one
+   * at the middle of each stretch between crossings, so no grip lands on a
+   * crossing's dot (TJ 2026-10-30). The middle when left out.
+   */
+  knobs?: readonly string[]
 }
+
+const MIDDLE = ['50%'] as const
 
 /**
  * A gutter of the chart's grid of three or four panels, as its handle (#499;
@@ -96,7 +104,7 @@ interface GridGutterProps {
  * one way a drag is read. The line lights while it is dragged as well as
  * under the pointer, because the pointer leaves an 8px gutter mid-drag.
  */
-export function GridGutter({ axis, place, label, onReset, onDragStart, onDrag, onDragEnd }: GridGutterProps) {
+export function GridGutter({ axis, place, label, onReset, onDragStart, onDrag, onDragEnd, knobs = MIDDLE }: GridGutterProps) {
   const [dragging, setDragging] = useState(false)
   const handlePointerDown = useGripDrag({
     onReset,
@@ -129,17 +137,20 @@ export function GridGutter({ axis, place, label, onReset, onDragStart, onDrag, o
       style={place}
     >
       <div className={`${line} ${dragging ? CHART_GUTTER.active : CHART_GUTTER.idle}`} />
-      <Knob axis={axis} dragging={dragging} />
+      {knobs.map((at) => (
+        <Knob key={at} axis={axis} dragging={dragging} at={at} />
+      ))}
     </div>
   )
 }
 
 /** The three-dot grip at a bar's middle (option B, TJ 2026-10-30). */
-function Knob({ axis, dragging }: { axis: 'col' | 'row'; dragging: boolean }) {
+function Knob({ axis, dragging, at = '50%' }: { axis: 'col' | 'row'; dragging: boolean; at?: string }) {
   const dot = `${CHART_GUTTER.knobDot} ${dragging ? CHART_GUTTER.active : CHART_GUTTER.idle}`
   return (
     <span
       aria-hidden="true"
+      style={axis === 'col' ? { top: at } : { left: at }}
       className={`${CHART_GUTTER.knob} ${axis === 'col' ? CHART_GUTTER.knobCol : CHART_GUTTER.knobRow} ${dragging ? CHART_GUTTER.rimActive : CHART_GUTTER.rimIdle}`}
     >
       <span className={dot} />

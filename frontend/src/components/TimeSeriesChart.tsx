@@ -869,6 +869,7 @@ function TimeSeriesChart({
               height: count === 4 ? '100%' : `calc(var(--gy) * (100% - ${GUTTER_PX}px))`,
             }}
             label={RESIZE_COLUMNS_LABEL}
+            knobs={count === 4 ? GRID_SPLIT_KNOBS.col : undefined}
             onReset={onColumnsReset}
             onDragStart={onGutterStart}
             onDrag={onGutterDrag}
@@ -878,6 +879,7 @@ function TimeSeriesChart({
             axis="row"
             place={{ top: `calc(var(--gy) * (100% - ${GUTTER_PX}px))`, left: 0, width: '100%' }}
             label={RESIZE_ROWS_LABEL}
+            knobs={GRID_SPLIT_KNOBS.row}
             onReset={onRowsReset}
             onDragStart={onGutterStart}
             onDrag={onGutterDrag}
@@ -911,6 +913,7 @@ function TimeSeriesChart({
                     axis="row"
                     place={INLINE_ROW_GUTTER}
                     label={RESIZE_ROWS_LABEL}
+                    knobs={rowBarKnobs(r - 1, rowCounts, rowsArea, rowsSize.w)}
                     onReset={() => onRowBarReset({ rowAt: r - 1, row: null, colAt: null })}
                     onDragStart={() => onRowsStart({ rowAt: r - 1, row: null, colAt: null })}
                     onDrag={onRowsDrag}
@@ -965,6 +968,27 @@ function TimeSeriesChart({
       )}
     </div>
   )
+}
+
+// A 2 by 2 grid's bars each cross the other at the split, so each carries a
+// grip at the middle of either stretch, read off the split itself.
+const GRID_SPLIT_KNOBS = {
+  col: ['calc(var(--gy) * 50%)', 'calc(50% + var(--gy) * 50%)'],
+  row: ['calc(var(--gx) * 50%)', 'calc(50% + var(--gx) * 50%)'],
+} as const
+
+/**
+ * A rows layout's row bar's grips: one at the middle of each stretch
+ * between the crossings on it, in pixels from its left end.
+ */
+function rowBarKnobs(rowAt: number, rows: readonly number[], rects: readonly Rect[], w: number): string[] {
+  if (w <= 0) return ['50%']
+  const xs = rowCrossings(rows)
+    .filter((x) => x.rowAt === rowAt)
+    .map((x) => crossingAt(x, rects, rows, GUTTER_PX).x)
+    .sort((a, b) => a - b)
+  const stops = [0, ...xs, w]
+  return stops.slice(1).map((end, i) => `${(stops[i] + end) / 2}px`)
 }
 
 /** Which split a rows layout's handle moves: the rows', a row's panels', or both at a crossing. */
