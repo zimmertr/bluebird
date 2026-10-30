@@ -30,9 +30,9 @@ import {
   CONTOUR_MINZOOM,
   CONTOUR_SOURCE,
   CONTOUR_THRESHOLDS_FT,
+  DEM_SOURCE,
   MAPTERHORN_ATTRIBUTION,
   RELIEF_LAYER,
-  RELIEF_SOURCE,
   TERRAIN_EXAGGERATION,
   TERRAIN_PITCH,
   TERRAIN_SOURCE,
@@ -43,7 +43,7 @@ import {
   reliefPaint,
   type DemTiles,
 } from './terrain'
-import { RELIEF_TILES, SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_SCHEME, SLOPE_SHADED_TILES, SLOPE_TILES } from './slope'
+import { SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_SCHEME, SLOPE_TILES } from './slope'
 import { SLOPE_ALPHA } from '../utils/slopeAngle'
 import { DEM_MAXZOOM, DEM_TILES } from '../utils/terrainSources'
 import { FEET_PER_METER } from '../utils/basemapPoi'
@@ -93,24 +93,22 @@ describe('mountTerrain', () => {
     expect(stub.stack).toEqual(STYLE_LAYERS.map((l) => l.id))
   })
 
-  // The relief goes in the first time it is asked for, as a raster of the
-  // app's own scheme painted from the finest elevation, to the slope's zoom:
-  // MapLibre's hillshade read a raster-dem source, which could not fall back
-  // past a missing tile and so stopped at zoom 12.
-  it('adds the relief as a raster of its own scheme, credited, the first time it is on', async () => {
+  // The relief goes in the first time it is asked for, as Terrarium: read as
+  // MapLibre's default `mapbox` encoding the heights come out wrong silently.
+  it('adds the elevation as Terrarium at 512px, credited, the first time the relief is on', async () => {
     const { stub, terrain, load } = setup()
     terrain.update({ ...OFF, relief: true })
-    await vi.waitFor(() => expect(stub.sources[RELIEF_SOURCE]).toBeDefined())
+    await vi.waitFor(() => expect(stub.sources[DEM_SOURCE]).toBeDefined())
     expect(load).toHaveBeenCalledOnce()
-    expect(sourcesAdded(stub.calls)).toEqual([RELIEF_SOURCE])
+    expect(sourcesAdded(stub.calls)).toEqual([DEM_SOURCE])
     expect(stub.calls.find((c) => c[0] === 'addSource')![2]).toEqual({
-      type: 'raster',
-      tiles: [RELIEF_TILES],
+      type: 'raster-dem',
+      tiles: ['bluebird-dem-shared://{z}/{x}/{y}'],
+      encoding: 'terrarium',
       tileSize: 512,
-      maxzoom: SLOPE_MAXZOOM,
+      maxzoom: DEM_MAXZOOM,
       attribution: MAPTERHORN_ATTRIBUTION,
     })
-    expect(stub.paint[RELIEF_LAYER]['raster-opacity']).toBe(0.5)
   })
 
   // Under the trails, the peaks and every label: the first `ofm-` layer or
@@ -272,13 +270,13 @@ describe('mountTerrain', () => {
     expect(stub.calls.some((c) => c[0] === 'easeTo')).toBe(false)
   })
 
-  // The relief is a picture of its own, draped over the 3D terrain like any
-  // raster, so 3D adds the terrain's elevation source and nothing else.
+  // The relief and the 3D terrain read the same tiles on two sources, so the
+  // relief keeps its own zoom while 3D is on.
   it('keeps the relief on a source apart from the terrain', async () => {
     const { stub, terrain } = setup()
     terrain.update({ relief: true, contours: false, terrain: true })
     await vi.waitFor(() => expect(stub.map.getTerrain()).not.toBeNull())
-    expect(sourcesAdded(stub.calls)).toEqual([RELIEF_SOURCE, TERRAIN_SOURCE])
+    expect(sourcesAdded(stub.calls)).toEqual([DEM_SOURCE, TERRAIN_SOURCE])
     expect(stub.calls.filter((c) => c[0] === 'setTerrain')).toEqual([['setTerrain', { source: TERRAIN_SOURCE, exaggeration: 1 }]])
   })
 
@@ -373,30 +371,6 @@ describe('the slope angle shading', () => {
     expect(stub.calls.filter((c) => c[0] === 'addLayer')).toHaveLength(1)
   })
 
-  // While the relief is drawn the slope's tiles carry its light, so a flat
-  // band never washes the shading out; without it they are flat, so the
-  // Shaded relief row stays the one switch for shading. A level of 0 hides
-  // the relief, so it counts as off.
-  it("lights the slope's tiles while the relief is drawn and only then", async () => {
-    const { stub, terrain } = setup()
-    terrain.update({ ...OFF, relief: true })
-    terrain.updateSlope(true)
-    await vi.waitFor(() => expect(stub.stack).toContain(SLOPE_LAYER))
-    const slopeSpec = stub.calls.find((c) => c[0] === 'addSource' && c[1] === SLOPE_SOURCE)![2] as { tiles: string[] }
-    expect(slopeSpec.tiles).toEqual([SLOPE_SHADED_TILES])
-    terrain.update(OFF)
-    expect(stub.calls.filter((c) => c[0] === 'setTiles')).toEqual([['setTiles', SLOPE_SOURCE, [SLOPE_TILES]]])
-    terrain.update({ ...OFF, relief: true })
-    terrain.opacity({ relief: 0, contours: 0.5, slope: 0.5 })
-    terrain.opacity({ relief: 0.5, contours: 0.5, slope: 0.5 })
-    expect(stub.calls.filter((c) => c[0] === 'setTiles').map((c) => (c[2] as string[])[0])).toEqual([
-      SLOPE_TILES,
-      SLOPE_SHADED_TILES,
-      SLOPE_TILES,
-      SLOPE_SHADED_TILES,
-    ])
-  })
-
   // Over the relief and under the contours, whichever of the three is on
   // first, and the other layers' switches leave it as it is.
   it('stacks over the relief and under the contours, in any order', async () => {
@@ -431,10 +405,32 @@ describe('the slope angle shading', () => {
 // The three elevation rows' opacity sliders (record 0250), each 0 to 1, the
 // default a half, which is the look each had before it had a slider.
 describe('the opacity levels', () => {
-  // The relief's tiles paint the shadow and the light whole, so its level is
-  // the layer's opacity, as the slope's is.
-  it("sets the relief's opacity to its level", () => {
-    for (const level of [0, 0.25, 0.5, 1]) expect(reliefPaint(level)).toEqual({ 'raster-opacity': level })
+  // A hillshade has no opacity, so the level moves its light, its shadow and
+  // its depth: at the default exactly the tuned look, under it the light and
+  // shadow fading together at that depth, over it the depth and the light
+  // growing to twice the default.
+  it('shades the relief at the tuned look at the default, paler under it and deeper over it', () => {
+    expect(reliefPaint(0.5)).toEqual({
+      'hillshade-method': 'standard',
+      'hillshade-exaggeration': 0.3,
+      'hillshade-shadow-color': 'rgba(92, 74, 50, 1)',
+      'hillshade-highlight-color': 'rgba(255, 255, 255, 0.45)',
+      'hillshade-accent-color': 'rgba(92, 74, 50, 1)',
+    })
+    expect(reliefPaint(1)).toMatchObject({
+      'hillshade-exaggeration': 0.6,
+      'hillshade-shadow-color': 'rgba(92, 74, 50, 1)',
+      'hillshade-highlight-color': 'rgba(255, 255, 255, 0.9)',
+    })
+    expect(reliefPaint(0.25)).toMatchObject({
+      'hillshade-exaggeration': 0.3,
+      'hillshade-shadow-color': 'rgba(92, 74, 50, 0.5)',
+      'hillshade-highlight-color': 'rgba(255, 255, 255, 0.225)',
+    })
+    expect(reliefPaint(0)).toMatchObject({
+      'hillshade-shadow-color': 'rgba(92, 74, 50, 0)',
+      'hillshade-highlight-color': 'rgba(255, 255, 255, 0)',
+    })
   })
 
   // A level set before the library loads is the one each layer is added at.
@@ -444,7 +440,7 @@ describe('the opacity levels', () => {
     terrain.update({ ...OFF, relief: true, contours: true })
     terrain.updateSlope(true)
     await vi.waitFor(() => expect(stub.stack).toContain(CONTOUR_LAYER))
-    expect(stub.paint[RELIEF_LAYER]['raster-opacity']).toBe(1)
+    expect(stub.paint[RELIEF_LAYER]['hillshade-exaggeration']).toBe(0.6)
     expect(stub.paint[SLOPE_LAYER]['raster-opacity']).toBe(0.8)
     expect(stub.paint[CONTOUR_LAYER]['line-opacity']).toBe(0.7)
   })
@@ -455,7 +451,8 @@ describe('the opacity levels', () => {
     terrain.updateSlope(true)
     await vi.waitFor(() => expect(stub.stack).toContain(CONTOUR_LAYER))
     terrain.opacity({ relief: 1, contours: 1, slope: 0.3 })
-    expect(stub.paint[RELIEF_LAYER]['raster-opacity']).toBe(1)
+    expect(stub.paint[RELIEF_LAYER]['hillshade-exaggeration']).toBe(0.6)
+    expect(stub.paint[RELIEF_LAYER]['hillshade-highlight-color']).toBe('rgba(255, 255, 255, 0.9)')
     expect(stub.paint[SLOPE_LAYER]['raster-opacity']).toBe(0.3)
     // Each line at twice its ink's own opacity, held to 1, and the heights
     // whole from the default up.

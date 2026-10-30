@@ -208,7 +208,7 @@ describe('MapLegend', () => {
     expect(screen.getAllByRole('link', { name: 'USFS' })).toHaveLength(2)
   })
 
-  // The slope angle shading (#799): one strip of its seven bands with the
+  // The slope angle shading (#799): one strip of its six bands with the
   // degrees each starts at inside it, as the metric key draws a scale, and
   // the elevation's credit beside the name. First of the layers' sections,
   // as its row is the first with a key in the menu.

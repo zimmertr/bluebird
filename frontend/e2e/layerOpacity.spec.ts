@@ -152,7 +152,7 @@ test.describe('on a phone', () => {
     const sheet = page.getByRole('dialog', { name: 'Layers', exact: true, includeHidden: true })
     const row = (name: string) => sheet.getByRole('checkbox', { name, includeHidden: true })
     const slider = sheet.getByRole('slider', { name: 'Shaded relief opacity', includeHidden: true })
-    await expect.poll(() => paint(page, 'relief', 'raster-opacity')).toBe(0.5)
+    await expect.poll(() => paint(page, 'relief', 'hillshade-exaggeration')).toBe(0.3)
     const visible = (locator: Locator) => locator.evaluate((el) => getComputedStyle(el).visibility)
     await drag(page, slider, 50, 100, async () => {
       // Mid-drag: the card and every other row are gone, the dragged row stays.
@@ -165,7 +165,7 @@ test.describe('on a phone', () => {
     expect(await visible(row('Satellite'))).toBe('visible')
     const level = Number(await slider.inputValue())
     expect(level).toBeGreaterThan(90)
-    // The relief's tiles paint the shading whole, so the level is its opacity.
-    await expect.poll(() => paint(page, 'relief', 'raster-opacity')).toBeCloseTo(level / 100, 5)
+    // Over the default the relief deepens: 0.3 of exaggeration at 50, 0.6 at 100.
+    await expect.poll(() => paint(page, 'relief', 'hillshade-exaggeration')).toBeCloseTo(0.3 * (level / 50), 5)
   })
 })
