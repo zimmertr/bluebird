@@ -3934,15 +3934,17 @@ export const CHART_GUTTER = {
    * option B of three mockups): visible at rest, so a new reader sees a bar
    * can move, and flat on the panel's own fill with an `edge` rim, where the
    * sheet's grip above is a raised band, so these read one level down. The
-   * grip is three dots run along its bar; the dots and the rim take the
-   * accent with the line. `knobRow` and `knobCol` size it either way.
+   * grip is three dots run along its bar; the dots and the crossing's fill
+   * take the accent with the line, and the rim stays `edge`, because no edge
+   * lights under the pointer (record 0251; TJ 2026-10-30, when #823 and #828
+   * were released together). `knobRow` and `knobCol` size it either way.
    */
-  knob: `absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-0.5 border bg-panel ${RADIUS.control}`,
+  knob: `absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-0.5 border border-edge bg-panel ${RADIUS.control}`,
   knobRow: 'h-2 w-5.5',
   knobCol: 'h-5.5 w-2 flex-col',
   knobDot: `size-0.5 ${RADIUS.pill}`,
-  crossDot: `size-2.5 border bg-panel ${RADIUS.pill}`,
-  // The rim's colour, one or the other for the same reason as the line's.
-  rimIdle: 'border-edge group-hover:border-accent',
-  rimActive: 'border-accent',
+  crossDot: `size-2.5 border border-edge ${RADIUS.pill}`,
+  // The crossing's fill, one or the other for the same reason as the line's.
+  crossIdle: 'bg-panel group-hover:bg-accent',
+  crossActive: 'bg-accent',
 } as const

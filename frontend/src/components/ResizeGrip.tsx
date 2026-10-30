@@ -115,7 +115,7 @@ export function GridGutter({ axis, place, label, onReset, onDragStart, onDrag, o
   if (axis === 'both') {
     return (
       <div {...HANDLE_MARK} role="separator" aria-label={label} onPointerDown={handlePointerDown} className={CHART_GUTTER.cross} style={place}>
-        <span className={`${CHART_GUTTER.crossDot} ${dragging ? CHART_GUTTER.rimActive : CHART_GUTTER.rimIdle}`} />
+        <span className={`${CHART_GUTTER.crossDot} ${dragging ? CHART_GUTTER.crossActive : CHART_GUTTER.crossIdle}`} />
       </div>
     )
   }
@@ -145,7 +145,7 @@ function Knob({ axis, dragging, at = '50%' }: { axis: 'col' | 'row'; dragging: b
     <span
       aria-hidden="true"
       style={axis === 'col' ? { top: at } : { left: at }}
-      className={`${CHART_GUTTER.knob} ${axis === 'col' ? CHART_GUTTER.knobCol : CHART_GUTTER.knobRow} ${dragging ? CHART_GUTTER.rimActive : CHART_GUTTER.rimIdle}`}
+      className={`${CHART_GUTTER.knob} ${axis === 'col' ? CHART_GUTTER.knobCol : CHART_GUTTER.knobRow}`}
     >
       <span className={dot} />
       <span className={dot} />
