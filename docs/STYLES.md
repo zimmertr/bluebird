@@ -347,8 +347,9 @@ MapLibre's own dark drawing where `map.css` inverts them in dark, and the credit
 line reads in `ink-mid`. Under the pointer a glyph fades to the accent over
 150ms, as 3D's word and every label do, the same drawing at the same size in a
 new colour: `map.css` lays the library's paths over the drawing as a mask in the
-accent ink and fades it in, and the compass's north triangle alone fades from
-red to the accent (records
+accent ink and fades it in, and the compass's north triangle alone turns from
+red through violet to the accent, by its colour rather than a fade, because the
+compass turns with the map and a turned layer shimmers as it fades (records
 [0251](decisions/0251-controls-light-their-label-on-hover.md) and
 [0252](decisions/0252-every-trigger-is-one-component.md)).
 

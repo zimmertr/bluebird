@@ -2702,8 +2702,8 @@ describe('the phone chrome\'s hit areas', () => {
       expect(glyph).toContain(decl)
     }
     expect(ruleAt('  .maplibregl-ctrl-group button .maplibregl-ctrl-icon::before {')).toContain('background-image: inherit;')
-    expect(ruleAt('  .maplibregl-ctrl-group button:enabled:hover .maplibregl-ctrl-icon::after {')).toContain('opacity: 1;')
-    expect(ruleAt('  .maplibregl-ctrl-group button:enabled:hover .maplibregl-ctrl-icon::before {')).toContain('transition: opacity 0s 150ms;')
+    expect(ruleAt('  .maplibregl-ctrl-group button:enabled:not(.maplibregl-ctrl-compass):hover .maplibregl-ctrl-icon::after {')).toContain('opacity: 1;')
+    expect(ruleAt('  .maplibregl-ctrl-group button:enabled:not(.maplibregl-ctrl-compass):hover .maplibregl-ctrl-icon::before {')).toContain('transition: opacity 0s 150ms;')
     const credit = ruleAt('}\n  .maplibregl-ctrl-attrib-button::after {')
     for (const decl of ['background-color: var(--ui-accent-ink);', 'opacity: 0;', FADE]) expect(credit).toContain(decl)
     expect(ruleAt('  .maplibregl-ctrl-attrib-button:hover::after {')).toContain('opacity: 1;')
@@ -2720,18 +2720,41 @@ describe('the phone chrome\'s hit areas', () => {
     ]) {
       expect(ruleAt(sel), sel).toMatch(/mask-image: url\(/)
     }
-    // The compass is two colours, so its `after` is its own drawing at rest
-    // with the north triangle alone refilled, in each theme's accent ink: the
-    // paint bucket on the one triangle, which alone fades.
+    // The compass turns with the map, so it fades no layer, which shimmered:
+    // its `before` is the north triangle alone as a mask, its `after` the rest
+    // of the drawing, edges and south half, at full opacity and never moving.
+    // The triangle's colour moves by three registered oklch numbers, from the
+    // needle's red at rest to each theme's accent ink, its hue running down
+    // through 0 so the red turns pink and violet rather than grey.
     const svgOf = (rule: string) => decodeURIComponent(rule.slice(rule.indexOf('url("') + 5, rule.indexOf('")')))
     const rest = svgOf(hoverRule('.maplibregl-ctrl-group .maplibregl-ctrl-compass .maplibregl-ctrl-icon {'))
-    const lit = {
-      dark: svgOf(ruleAt('  .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::after {')),
-      light: svgOf(ruleAt(':root[data-theme="light"] .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::after {')),
-    }
     expect(rest).toContain('<path fill="#ef4444" d="m10.5 14 4-8 4 8z"/>')
-    expect(lit.dark).toBe(rest.replace('fill="#ef4444"', `fill="${dark('accent-ink')}"`))
-    expect(lit.light).toBe(rest.replace('fill="#ef4444"', `fill="${light('accent-ink')}"`))
+    // After a closing brace: the first match closes the selector that takes
+    // the light theme's invert off.
+    const triangle = ruleAt('}\n  .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::before {')
+    expect(svgOf(triangle)).toBe('<svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 29 29"><path d="m10.5 14 4-8 4 8z"/></svg>')
+    for (const decl of ['background-image: none;', 'mask-size: auto;', 'mask-position: 50%;']) expect(triangle).toContain(decl)
+    expect(triangle).toContain('background-color: oklch(var(--compass-north-l) var(--compass-north-c) calc(var(--compass-north-h) * 1deg));')
+    const EASE = '150ms cubic-bezier(0.4, 0, 0.2, 1)'
+    expect(triangle).toContain(`transition: --compass-north-l ${EASE}, --compass-north-c ${EASE}, --compass-north-h ${EASE};`)
+    const edges = ruleAt('  .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::after {')
+    expect(svgOf(edges)).toBe(rest.replace('fill="#ef4444"', 'fill="none"'))
+    for (const decl of ['opacity: 1;', 'transition: none;']) expect(edges).toContain(decl)
+    const north = (rule: string) =>
+      (['l', 'c', 'h'] as const).map((k) => Number(rule.match(new RegExp(String.raw`--compass-north-${k}: (-?[\d.]+);`))![1]))
+    const atRest = (['l', 'c', 'h'] as const).map((k) =>
+      Number(ruleAt(`@property --compass-north-${k} {`).match(/initial-value: (-?[\d.]+);/)![1]))
+    const lit = {
+      dark: north(ruleAt('  .maplibregl-ctrl-group button.maplibregl-ctrl-compass:enabled:hover .maplibregl-ctrl-icon::before {')),
+      light: north(ruleAt(':root[data-theme="light"] .maplibregl-ctrl-group button.maplibregl-ctrl-compass:enabled:hover .maplibregl-ctrl-icon::before {')),
+    }
+    expect(oklchHex(atRest[0], atRest[1], atRest[2])).toBe('#ef4444')
+    expect(oklchHex(lit.dark[0], lit.dark[1], lit.dark[2])).toBe(dark('accent-ink'))
+    expect(oklchHex(lit.light[0], lit.light[1], lit.light[2])).toBe(light('accent-ink'))
+    for (const [theme, [, , hue]] of Object.entries(lit)) {
+      expect(hue, theme).toBeLessThan(0)
+      expect(atRest[2] - hue, theme).toBeLessThan(180)
+    }
     // And the buttons' classes carry the hover 3D's word and the (i)'s ink follow.
     for (const recipe of [MAP_ROUND_BUTTON, MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out]) {
       expect(recipe).toContain(ACCENT.hoverText)

@@ -251,12 +251,35 @@
  * disabled button does not light: the idle compass, a zoom half at either
  * end, and the locate button the browser refuses.
  *
- * The compass is two colours, so its `after` is an image rather than a mask:
- * the same drawing with its red north filled in the accent instead, in each
- * theme's accent ink (`#00bcff`, sky-400, in dark; `#00639b` in light), the
- * paint bucket on the one triangle, so the triangle alone fades. A phone,
- * with no pointer to hover, keeps the drawing on the icon itself, above.
- * `styles.test.ts` holds the drawings to the tokens. */
+ * The compass is two colours and turns with the map, so it fades no layer:
+ * a turned layer fading in is resampled on every frame, and the whole needle
+ * shimmered while its triangle changed. Its `before` is the north triangle
+ * alone, a mask filled in a colour that moves, and its `after` is the rest of
+ * the drawing, which never changes: the edges over the triangle and the south
+ * half, painted in the drawing's own order, so at rest the two are the
+ * drawing. The colour moves by its oklch lightness, chroma and hue, each a
+ * number the browser can tween, from the needle's red-500 to the theme's
+ * accent ink (`#00bcff`, sky-400, in dark; `#00639b` in light). The hue runs
+ * down through 0, so the red turns pink and violet on its way to blue, where
+ * one colour tweened to the other passes through a grey that read as a blink
+ * (the maintainer, 2026-10-30). A phone, with no pointer to hover, keeps the
+ * drawing on the icon itself, above. `styles.test.ts` holds the numbers to
+ * the tokens. */
+@property --compass-north-l {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0.63683;
+}
+@property --compass-north-c {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0.20785;
+}
+@property --compass-north-h {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 25.33133;
+}
 @media (hover: hover) {
   .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
     position: relative;
@@ -301,20 +324,37 @@
   .maplibregl-ctrl-group button.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-background-error .maplibregl-ctrl-icon::after {
     mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2729%27%20height%3D%2729%27%20viewBox%3D%270%200%2020%2020%27%3E%3Cpath%20d%3D%27M10%204C9%204%209%205%209%205v.1A5%205%200%200%200%205.1%209H5s-1%200-1%201%201%201%201%201h.1A5%205%200%200%200%209%2014.9v.1s0%201%201%201%201-1%201-1v-.1a5%205%200%200%200%203.9-3.9h.1s1%200%201-1-1-1-1-1h-.1A5%205%200%200%200%2011%205.1V5s0-1-1-1m0%202.5a3.5%203.5%200%201%201%200%207%203.5%203.5%200%201%201%200-7%27%2F%3E%3C%2Fsvg%3E");
   }
+  .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::before {
+    background-image: none;
+    background-color: oklch(var(--compass-north-l) var(--compass-north-c) calc(var(--compass-north-h) * 1deg));
+    mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2229%22%20height%3D%2229%22%20viewBox%3D%220%200%2029%2029%22%3E%3Cpath%20d%3D%22m10.5%2014%204-8%204%208z%22%2F%3E%3C%2Fsvg%3E");
+    mask-position: 50%;
+    mask-repeat: no-repeat;
+    mask-size: auto;
+    transition: --compass-north-l 150ms cubic-bezier(0.4, 0, 0.2, 1), --compass-north-c 150ms cubic-bezier(0.4, 0, 0.2, 1), --compass-north-h 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
   .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::after {
     background-color: transparent;
-    mask-image: none;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2229%22%20height%3D%2229%22%20viewBox%3D%220%200%2029%2029%22%20stroke%3D%22%23475569%22%20stroke-width%3D%220.75%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20fill%3D%22%2300bcff%22%20d%3D%22m10.5%2014%204-8%204%208z%22%2F%3E%3Cpath%20fill%3D%22%23f8fafc%22%20d%3D%22m10.5%2016%204%208%204-8z%22%2F%3E%3C%2Fsvg%3E");
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2229%22%20height%3D%2229%22%20viewBox%3D%220%200%2029%2029%22%20stroke%3D%22%23475569%22%20stroke-width%3D%220.75%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20fill%3D%22none%22%20d%3D%22m10.5%2014%204-8%204%208z%22%2F%3E%3Cpath%20fill%3D%22%23f8fafc%22%20d%3D%22m10.5%2016%204%208%204-8z%22%2F%3E%3C%2Fsvg%3E");
     background-position: 50%;
     background-repeat: no-repeat;
+    opacity: 1;
+    transition: none;
   }
-  :root[data-theme="light"] .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon::after {
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2229%22%20height%3D%2229%22%20viewBox%3D%220%200%2029%2029%22%20stroke%3D%22%23475569%22%20stroke-width%3D%220.75%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20fill%3D%22%2300639b%22%20d%3D%22m10.5%2014%204-8%204%208z%22%2F%3E%3Cpath%20fill%3D%22%23f8fafc%22%20d%3D%22m10.5%2016%204%208%204-8z%22%2F%3E%3C%2Fsvg%3E");
+  .maplibregl-ctrl-group button.maplibregl-ctrl-compass:enabled:hover .maplibregl-ctrl-icon::before {
+    --compass-north-l: 0.746;
+    --compass-north-c: 0.16;
+    --compass-north-h: -127.339;
   }
-  .maplibregl-ctrl-group button:enabled:hover .maplibregl-ctrl-icon::after {
+  :root[data-theme="light"] .maplibregl-ctrl-group button.maplibregl-ctrl-compass:enabled:hover .maplibregl-ctrl-icon::before {
+    --compass-north-l: 0.48114;
+    --compass-north-c: 0.11824;
+    --compass-north-h: -116.17362;
+  }
+  .maplibregl-ctrl-group button:enabled:not(.maplibregl-ctrl-compass):hover .maplibregl-ctrl-icon::after {
     opacity: 1;
   }
-  .maplibregl-ctrl-group button:enabled:hover .maplibregl-ctrl-icon::before {
+  .maplibregl-ctrl-group button:enabled:not(.maplibregl-ctrl-compass):hover .maplibregl-ctrl-icon::before {
     opacity: 0;
     transition: opacity 0s 150ms;
   }
