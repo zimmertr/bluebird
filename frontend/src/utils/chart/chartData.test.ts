@@ -742,7 +742,7 @@ describe('the chart metric slots', () => {
   })
 
   it('moves a panel among the slots after the first, the rest closing up', () => {
-    const four = ['precip', 'temp', 'cloud', 'freeze'] as const
+    const four: ChartMetrics = ['precip', 'temp', 'cloud', 'freeze']
     expect(moveMetric(four, 2, 1)).toEqual(['precip', 'cloud', 'temp', 'freeze'])
     expect(moveMetric(four, 1, 3)).toEqual(['precip', 'cloud', 'freeze', 'temp'])
     // The first slot is the ranking's: nothing moves into it or out of it.

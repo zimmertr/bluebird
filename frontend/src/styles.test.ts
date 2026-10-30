@@ -180,7 +180,6 @@ import appDrawerSource from './components/AppDrawer.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
-import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
 import resultsBarSource from './components/ResultsBar.tsx?raw'
 import welcomeSource from './components/WelcomeModal.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
