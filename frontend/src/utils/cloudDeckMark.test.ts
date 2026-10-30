@@ -34,7 +34,7 @@ describe('cloudDeckMark', () => {
   })
 
   it('groups no thousands where its neighbours do not', () => {
-    expect(cloudDeckMark(30066, false)).toBe('≥30000')
+    expect(cloudDeckMark(30066, false)).toBe('≥30,000')
     expect(cloudDeckMark(364, false)).toBe('≤364')
   })
 
@@ -48,7 +48,7 @@ describe('cloudDeckMark', () => {
       expect(col.format!(4210)).toBe('4,210')
       expect(cellText(col, null)).toBe('—')
       expect(col.csv!(30066)).toBe('≥30000')
-      expect(col.csv!(4210)).toBe('4210')
+      expect(col.csv!(4210)).toBe('4,210')
     }
   })
 

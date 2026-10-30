@@ -3,7 +3,7 @@ import { cloudDeckMark } from '../cloudDeckMark'
 import { HOURLY_UNIT, MetricFamily, RANKED_FAMILIES, familyOf, formatPrecipRate, metricLabel } from '../../metrics'
 import { setKey } from '../points'
 import { TYPE_COL } from '../tableColumns'
-import { clamp } from '../numbers'
+import { clamp, grouped as groupDigits } from '../numbers'
 import { HOUR_MS } from '../forecastWindow'
 
 /**
@@ -389,7 +389,7 @@ export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): numb
  * plain format, because a tick is a round number on a scale, not a reading.
  */
 export function formatTooltipValue(v: number, metric: ChartMetric): string {
-  return (metric === 'cloud_deck' ? cloudDeckMark(v, false) : null) ?? formatMetricValue(v, metric)
+  return (metric === 'cloud_deck' ? cloudDeckMark(v) : null) ?? formatMetricValue(v, metric)
 }
 
 /**
@@ -409,7 +409,9 @@ export function formatMetricValue(v: number, metric: ChartMetric): string {
   if (metric === 'precip' || metric === 'snowfall') return formatPrecipRate(v)
   // Whole units: an AQI is an integer index, and a freezing level or a cloud
   // deck in feet carries no decimal the model could support.
-  if (metric === 'aqi' || metric === 'freeze' || metric === 'cloud_deck') return v.toFixed(0)
+  // Grouped in thousands, as the table and the marker popup print a height
+  // (TJ 2026-10-30), so one number reads alike on all three.
+  if (metric === 'aqi' || metric === 'freeze' || metric === 'cloud_deck') return groupDigits(Math.round(v))
   return v.toFixed(1)
 }
 

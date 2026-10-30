@@ -303,6 +303,13 @@
   backdrop-filter: none;
 }
 
+/* A grid row lights under the pointer as a results row does (`TABLE.row`'s
+   raised step at 30%), behind every cell but a ranked one, whose tint is its
+   colour (TJ 2026-10-30). */
+.maplibregl-popup tr:hover > :not([data-tint]) {
+  background: color-mix(in srgb, var(--ui-raised) 30%, transparent);
+}
+
 /* The popup's close button, for the same reason as the controls above:
    maplibre injects it, so there is no call site to style.
 

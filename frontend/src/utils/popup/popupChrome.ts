@@ -448,7 +448,7 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
   const band = gridBand(compact ? GRID_COMPACT_INSET_PX : GRID_INSET_PX)
   const labelLoose = gridLabel(compact ? GRID_COMPACT_LABEL_GAP_PX : GRID_LABEL_GAP_PX)
   const label = `${labelLoose};white-space:nowrap`
-  const headStyle = `text-align:center;${BOLD};vertical-align:bottom;white-space:nowrap;${band};${GRID_HEAD_RULE};${LABEL_COLOR}`
+  const headStyle = `text-align:right;${BOLD};vertical-align:bottom;white-space:nowrap;${band};${GRID_HEAD_RULE};color:var(--popup-ink)`
   const valueStyle = `text-align:right;white-space:nowrap;vertical-align:bottom;${band}`
   const value = (c: PopupGridCell, line: string, span = '') =>
     `<td${span}${c.tint ? ` ${POPUP_TINT_ATTR}` : ''} style="${valueStyle}${shade(c)}${line}">${cell(c)}</td>`
@@ -486,6 +486,9 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
 }
 
 /**
+ * No column is painted with it since the card took the results table's rows
+ * (TJ 2026-10-30); it stays the ground the measurements below are taken on.
+ *
  * The shade behind each column, halfway from the panel to its raised step:
  * the label and the ink its numbers take both stay well above AA's 4.5 on it.
  * It stands 1.18:1 off the dark card and 1.06:1 off the light one, which is
@@ -570,8 +573,10 @@ export function compactGrid(canvasWidthPx: number): boolean {
 // against the band (TJ, 2026-10-08).
 const gridLabel = (gapPx: number) =>
   `text-align:left;font-weight:normal;padding:1px ${gapPx}px 1px 0;vertical-align:bottom;${LABEL_COLOR}`
-const gridBand = (insetPx: number) =>
-  `background:${GRID_BAND_COLOR};border-left:2px solid ${GRID_GUTTER_COLOR};padding:1px ${insetPx}px`
+// No band behind a column (TJ 2026-10-30): the card's rows are the results
+// table's, a hairline between each and a tint under the pointer (`map.css`),
+// and its heads the table's, right over the digits they name.
+const gridBand = (insetPx: number) => `padding:1px ${insetPx}px`
 const GRID_HEAD_RULE = `border-bottom:1px solid ${RULE_COLOR}`
 const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`
 
