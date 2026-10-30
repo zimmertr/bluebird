@@ -131,7 +131,6 @@ export function useResultsView({
     results,
     pending,
     chartMetrics,
-    phone: !isDesktop,
     analyzed,
     analysisSeq,
     arriving,

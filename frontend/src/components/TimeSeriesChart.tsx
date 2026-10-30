@@ -11,22 +11,20 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_CARD, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, TEXT } from '../styles'
-import { IconChevron, IconClose, IconGrip, IconPlus } from './icons'
+import { CHART_CARD, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLOT_TOUCH, RADIUS, TEXT } from '../styles'
+import { IconClose, IconGrip, IconPlus } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
 import ChartLines from './ChartLines'
 import { lineStrokes } from '../utils/chart/chartCanvas'
-import { BOX_ATTR, type DragLayout, STAGE_ATTR, useStretchDrag } from '../hooks/useStretchDrag'
+import { BOX_ATTR, type DragLayout, type Rect, STAGE_ATTR, useStretchDrag } from '../hooks/useStretchDrag'
 import {
   CHART_METRICS,
   ChartLine,
   ChartMetric,
   type ChartMetrics,
   MAX_CHART_PANELS,
-  PHONE_CHART_PANELS,
   cardCells,
-  drawnMetrics,
   alignRowToGrid,
   axisTimeLabel,
   nowWithinGrid,
@@ -50,15 +48,13 @@ import type { ModelEndLine } from '../utils/model/modelCompare'
 import {
   PLOT_MARGIN,
   type PlotMargin,
-  READOUT_ROOM_GAP_PX,
-  TITLED_PLOT_MARGIN,
   Y_AXIS_WIDTH_PX,
   fingerReading,
   hourIndexAt,
   panelFloorPx,
   plotBand,
-  readoutPlace,
-  splitAfterDrag,
+  evenStack,
+  stackAfterDrag,
   xAxisPx,
   CARD_CURSOR_OFFSET_PX,
   cardPlacement,
@@ -72,14 +68,8 @@ import { CHART_TICK_PX, CHROME } from '../utils/chart/chartColors'
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
 // The numbers are `utils/chart/chartPointer.ts`', which a finger's reading and a
-// click's hour invert through too. A phone's plot takes the titled margins,
-// its picker standing as a title over the plot (#696). With two panels only
-// the bottom one draws the x axis (#499), so each panel asks `xAxisPx` for
-// its own strip.
-// The readout over the picker, whose box stands at z 1 (`CHART_TITLE`), when a
-// phone's card rises above the plot into the sheet (#696). Hoisted so Recharts
-// is handed one object.
-const READOUT_OVER_TITLE = { zIndex: 2 }
+// click's hour invert through too. In a stack only the bottom panel draws
+// the x axis (#499), so each panel asks `xAxisPx` for its own strip.
 // Hoisted so both axes hand Recharts one object rather than a new one a render.
 const AXIS_TICK = { fontSize: CHART_TICK_PX }
 // Named rather than spelled on the YAxis alone, because a click is inverted to an
@@ -126,10 +116,9 @@ function headroomLabel(plotTop: number) {
     return <Label {...rest} viewBox={viewBox} position={extremeLabelPosition(viewBox.y, plotTop)} />
   }
 }
-// One per margin, hoisted, so the label's component is the same between
-// renders and Recharts never remounts it.
+// Hoisted, so the label's component is the same between renders and
+// Recharts never remounts it.
 const HEADROOM_LABEL = headroomLabel(PLOT_MARGIN.top)
-const TITLED_HEADROOM_LABEL = headroomLabel(TITLED_PLOT_MARGIN.top)
 
 // The chart's words (#499), each one constant so a change is one edit. The
 // pickers, the + and the × were confirmed by the maintainer on 2026-10-29:
@@ -158,8 +147,8 @@ interface Props {
   times: number[]
   rows: DestinationResult[]
   /**
-   * The metrics in the chart's slots (#499), first panel first: one to four
-   * at a desk, the first two drawn on a phone. One list held in state by
+   * The metrics in the chart's slots (#499), first panel first: one to four,
+   * at a desk and on a phone alike. One list held in state by
    * `useChartMetrics`, so the memo compares one identity that moves only
    * when a slot does.
    */
@@ -218,10 +207,11 @@ interface Props {
   /** The comparison control, rendered beside the metric select. */
   controls?: ReactNode
   /**
-   * A phone (#696; record 0149): the metric select is the plot's title rather
-   * than a row above it, and the plot is inset under the title's line.
+   * A phone (#499; TJ 2026-10-30): the same picker row and panels as a
+   * desk, but three or four panels stack in one column, because a column
+   * of a 2×2 grid is narrower than a panel's width floor at a phone's width.
    */
-  titled?: boolean
+  phone?: boolean
 }
 
 // A stable empty default: a fresh `[]` per render would rebuild every line, and
@@ -251,18 +241,15 @@ function TimeSeriesChart({
   extraLines = NO_EXTRA_LINES,
   modelEnds = NO_MODEL_ENDS,
   controls,
-  titled = false,
+  phone = false,
 }: Props) {
-  // A phone's picker is the plot's title rather than a row above it (#696),
-  // and the plot is inset under it.
-  const MARGIN = titled ? TITLED_PLOT_MARGIN : PLOT_MARGIN
-  // What this chart draws: every slot at a desk, the first two on a phone,
-  // where the rest stay in state and in the link (#499).
-  const drawn = useMemo(() => drawnMetrics(metrics, titled), [metrics, titled])
+  const MARGIN = PLOT_MARGIN
+  const drawn = metrics
   const count = drawn.length
-  // Three or four panels stand in a grid; one or two stack on one time axis.
-  const gridded = count > 2
-  const atCeiling = metrics.length >= (titled ? PHONE_CHART_PANELS : MAX_CHART_PANELS)
+  // Three or four panels stand in a grid at a desk; otherwise the panels
+  // stack on one time axis, the bottom one printing it.
+  const gridded = !phone && count > 2
+  const atCeiling = metrics.length >= MAX_CHART_PANELS
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
   // The cursor's value in the hovered panel's own units, which orders the card.
   const [cursorValue, setCursorValue] = useState<number | null>(null)
@@ -279,7 +266,13 @@ function TimeSeriesChart({
   // and row splits (#499). Session state: a split is how this reader likes
   // this chart today, which no link or storage has reason to carry. Even by
   // default and after a double press.
-  const [share, setShare] = useState(0.5)
+  // Each stacked panel's share of the stack's height, top first (#499).
+  // Null is an even stack, which a double press puts back.
+  const [stackShares, setStackShares] = useState<readonly number[] | null>(null)
+  const shares = useMemo(
+    () => (stackShares && stackShares.length === count ? stackShares : evenStack(count)),
+    [stackShares, count],
+  )
   const [drag, setDrag] = useState<PickerDrag | null>(null)
   const [gridShares, setGridShares] = useState<GridShares>(EVEN_GRID)
   const box0 = useRef<HTMLDivElement>(null)
@@ -290,14 +283,14 @@ function TimeSeriesChart({
   const row1 = useRef<HTMLDivElement>(null)
   // The split as dragged, ahead of the state, which a drag commits once on
   // release (#499): the live layout is written to the DOM, not rendered.
-  const liveShareRef = useRef(share)
+  const liveSharesRef = useRef(shares)
   const liveGridRef = useRef(gridShares)
   const gridRef = useRef<HTMLDivElement>(null)
   // The panels' area when there is more than one (#499): the hover card's
   // width and rows are budgeted on it, and it is clamped inside it.
   const stackRef = useRef<HTMLDivElement>(null)
-  const dragStartRef = useRef<{ share: number; totalPx: number } | null>(null)
-  const areaRef = titled || count === 1 ? undefined : gridded ? gridRef : stackRef
+  const dragStartRef = useRef<{ shares: readonly number[]; grip: number; totalPx: number } | null>(null)
+  const areaRef = gridded ? gridRef : stackRef
   const gutterStartRef = useRef<{ shares: GridShares; w: number; h: number } | null>(null)
   // One sync group per chart, so every panel's cursor stands on the hour the
   // hovered one is at.
@@ -390,26 +383,29 @@ function TimeSeriesChart({
 
   // The grip between two stacked panels moves height from one to the other.
   // Each keeps a floor, from the plot geometry (`panelFloorPx`), so neither
-  // can be dragged to nothing; the top one has no axis strip to keep.
-  const topFloor = panelFloorPx(MARGIN, false)
-  const bottomFloor = panelFloorPx(MARGIN, true)
+  // can be dragged to nothing; only the bottom one has an axis strip to keep.
+  const stackFloors = useMemo(
+    () => Array.from({ length: count }, (_, i) => panelFloorPx(MARGIN, i === count - 1)),
+    [count, MARGIN],
+  )
   // A split drag runs on the compositor (#499; TJ 2026-10-30): each frame
   // moves the boxes and handles with transforms and stretches each panel's
   // last drawing, from arithmetic over the area measured when the drag
   // began, and writes no layout. A rest commits the split and redraws; a
   // release commits it and hands the panels back one a frame
   // (`useStretchDrag`).
-  const committedShareRef = useRef(share)
+  const committedSharesRef = useRef(shares)
   const committedGridRef = useRef(gridShares)
   const stackGeomRef = useRef({ w: 0, total: 0, grip: 0 })
+  const boxes = useMemo(() => [box0, box1, box2, box3], [])
   const gridGeomRef = useRef({ w: 0, h: 0 })
   const settlingRef = useRef(false)
-  const stackStretch = useStretchDrag(stackRef, () => setShare(liveShareRef.current))
+  const stackStretch = useStretchDrag(stackRef, () => setStackShares(liveSharesRef.current))
   const gridStretch = useStretchDrag(gridRef, () => setGridShares(liveGridRef.current))
   // After a commit: mid-drag the layout is measured afresh; after a release
   // the panels are handed back.
   useLayoutEffect(() => {
-    committedShareRef.current = share
+    committedSharesRef.current = shares
     committedGridRef.current = gridShares
     if (dragStartRef.current) stackStretch.rebase()
     if (gutterStartRef.current) gridStretch.rebase()
@@ -418,49 +414,63 @@ function TimeSeriesChart({
       stackStretch.settle()
       gridStretch.settle()
     }
-  }, [share, gridShares, stackStretch, gridStretch])
+  }, [shares, gridShares, stackStretch, gridStretch])
 
   const stackLayout = useCallback((): DragLayout => {
     const { w, total, grip } = stackGeomRef.current
-    const s = liveShareRef.current
-    const top = s * total
-    return {
-      boxes: [
-        { x: 0, y: 0, w, h: top },
-        { x: 0, y: top + grip, w, h: total - top },
-      ],
-      handles: [{ dx: 0, dy: (s - committedShareRef.current) * total }],
-    }
+    const live = liveSharesRef.current
+    const done = committedSharesRef.current
+    const placed: Rect[] = []
+    const handles: { dx: number; dy: number }[] = []
+    let y = 0
+    let doneY = 0
+    live.forEach((share, i) => {
+      if (i > 0) {
+        // Each grip stands under the panel above it, so it moves as far as
+        // that panel's foot has.
+        handles.push({ dx: 0, dy: y - doneY })
+        y += grip
+        doneY += grip
+      }
+      placed.push({ x: 0, y, w, h: share * total })
+      y += share * total
+      doneY += (done[i] ?? share) * total
+    })
+    return { boxes: placed, handles }
   }, [])
-  const onSplitStart = useCallback(() => {
-    const top = box0.current?.clientHeight ?? 0
-    const bottom = box1.current?.clientHeight ?? 0
-    const area = stackRef.current
-    stackGeomRef.current = { w: area?.clientWidth ?? 0, total: top + bottom, grip: (area?.clientHeight ?? 0) - top - bottom }
-    liveShareRef.current = share
-    dragStartRef.current = { share, totalPx: top + bottom }
-    stackStretch.begin()
-  }, [share, stackStretch])
+  const onSplitStart = useCallback(
+    (grip: number) => {
+      const heights = boxes.slice(0, count).map((b) => b.current?.clientHeight ?? 0)
+      const total = heights.reduce((a, b) => a + b, 0)
+      const area = stackRef.current
+      const gaps = Math.max(1, count - 1)
+      stackGeomRef.current = { w: area?.clientWidth ?? 0, total, grip: ((area?.clientHeight ?? 0) - total) / gaps }
+      liveSharesRef.current = shares
+      dragStartRef.current = { shares, grip, totalPx: total }
+      stackStretch.begin()
+    },
+    [boxes, shares, count, stackStretch],
+  )
   const onSplitDrag = useCallback(
     (dragUpPx: number) => {
       const start = dragStartRef.current
       if (!start) return
-      liveShareRef.current = splitAfterDrag(start.share, dragUpPx, start.totalPx, topFloor, bottomFloor)
+      liveSharesRef.current = stackAfterDrag(start.shares, start.grip, dragUpPx, start.totalPx, stackFloors)
       stackStretch.frame(stackLayout)
     },
-    [topFloor, bottomFloor, stackStretch, stackLayout],
+    [stackFloors, stackStretch, stackLayout],
   )
   const onSplitEnd = useCallback(() => {
     if (!dragStartRef.current) return
     dragStartRef.current = null
     stackStretch.end()
-    if (liveShareRef.current === committedShareRef.current) stackStretch.settle()
+    if (liveSharesRef.current === committedSharesRef.current) stackStretch.settle()
     else {
       settlingRef.current = true
-      setShare(liveShareRef.current)
+      setStackShares(liveSharesRef.current)
     }
   }, [stackStretch])
-  const onSplitReset = useCallback(() => setShare(0.5), [])
+  const onSplitReset = useCallback(() => setStackShares(null), [])
 
   // The grid's gutters move the splits with no floor: dragged into a
   // corner, one panel takes the area, and a panel under its floor is not
@@ -538,27 +548,6 @@ function TimeSeriesChart({
     metricLabel: metricLabelOf(metric),
   }))
 
-  // A phone's title line over panel `i` (#696, #499): the slot's picker, an
-  // × after every extra panel's, and a + after the first's, greyed at the
-  // phone's two.
-  function heading(i: number): ReactNode {
-    if (!titled) return null
-    const p = pickers[i]
-    return (
-      <div className={CHART_TITLE.bar}>
-        {i > 0 ? (
-          <div className={CHART_PICKER.titleGroup}>
-            <MetricTitle label={p.label} shown={p.metricLabel} value={p.metric} index={i} onPick={onPick} segment />
-            <RemoveButton index={i} metricLabel={p.metricLabel} onRemove={onRemove} width={CHART_PICKER.titleX} />
-          </div>
-        ) : (
-          <MetricTitle label={p.label} shown={p.metricLabel} value={p.metric} index={i} onPick={onPick} />
-        )}
-        {i === 0 && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.titleSquare} />}
-      </div>
-    )
-  }
-
   function panel(i: number, flexGrow: number | null, drawsAxis: boolean, boxRef?: RefObject<HTMLDivElement | null>, hidden = false) {
     return (
       <ChartPanel
@@ -584,7 +573,6 @@ function TimeSeriesChart({
         playheadMs={playheadMs}
         sortBy={sortBy}
         sortDesc={sortDesc}
-        titled={titled}
         margin={MARGIN}
         followCursor={followCursor}
         showsCard={i === cardPanel}
@@ -596,7 +584,6 @@ function TimeSeriesChart({
         onDropFinger={onDropFinger}
         onPlayheadChange={onPlayheadChange}
         areaRef={areaRef}
-        heading={heading(i)}
       />
     )
   }
@@ -624,19 +611,17 @@ function TimeSeriesChart({
           comparison note beside the controls shrinks (`min-w-0`). At a desk
           each opens the one menu rather than the platform's list (record
           0201). */}
-      {/* At a desk the selects stand in a row above the plots, one per slot
-          in slot order, each but the first with an × after it and the last
-          with a + (#499); the row wraps on a desk too narrow for four. On a
-          phone each is its panel's title (below), and the row stands only to
-          hold a comparison's note. */}
-      {(!titled || controls) && (
+      {/* The selects stand in a row above the plots, one per slot in slot
+          order, each but the first with a grip before it and an × after it,
+          and the last with a + (#499); the row wraps where four do not fit,
+          on a phone as at a desk (TJ 2026-10-30). */}
+      {
         // One gap through the row, the + included (TJ's review, 2026-10-30):
         // the + used to ride inside the last picker's wrapper at 4px while
         // the pickers stood 16px apart, two spacings for one row of peers.
-        // 8px is the phone's title bar gap and the grid's gutter.
+        // 8px is the grid's gutter.
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 px-3 py-1">
-          {!titled &&
-            pickers.map((p) => (
+          {pickers.map((p) => (
               // flex, not block, for the reason the ranking rows' dropdown
               // gives: an inline-level select in a block wrapper reserves
               // descender space below itself and sits a pixel low against what
@@ -672,17 +657,29 @@ function TimeSeriesChart({
                 )}
               </div>
             ))}
-          {!titled && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />}
+          <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />
           {controls}
         </div>
-      )}
+      }
 
-      {count === 1 && panel(0, null, true)}
-      {count === 2 && (
+      {!gridded && (
+        // One panel, two at any width, and three or four on a phone stand in
+        // one column on one time axis, with a grip between each pair (#499).
+        // One panel stands in it too, so every card keeps to the same area.
         <div ref={stackRef} className="relative flex min-h-0 flex-1 flex-col">
-          {panel(0, share, false, box0)}
-          <ResizeGrip onReset={onSplitReset} onDragStart={onSplitStart} onDrag={onSplitDrag} onDragEnd={onSplitEnd} />
-          {panel(1, 1 - share, true, box1)}
+          {drawn.map((_, i) => (
+            <Fragment key={`stack-${i}`}>
+              {i > 0 && (
+                <ResizeGrip
+                  onReset={onSplitReset}
+                  onDragStart={() => onSplitStart(i - 1)}
+                  onDrag={onSplitDrag}
+                  onDragEnd={onSplitEnd}
+                />
+              )}
+              {panel(i, shares[i], i === count - 1, boxes[i])}
+            </Fragment>
+          ))}
         </div>
       )}
       {gridded && (
@@ -869,7 +866,7 @@ function RemoveButton({
   index: number
   metricLabel: string
   onRemove: (i: number) => void
-  /** The segment's width: a desk picker's height or a phone title's. */
+  /** The segment's width: the picker's height. */
   width: string
 }) {
   return (
@@ -890,50 +887,6 @@ function AddButton({ disabled, onAdd, square }: { disabled: boolean; onAdd: () =
     <button type="button" onClick={onAdd} disabled={disabled} aria-label={ADD_PANEL_LABEL} className={`${CHART_PANEL_BUTTON.add} ${square}`}>
       <IconPlus size="chip" />
     </button>
-  )
-}
-
-/**
- * A phone's picker (#696, record 0149): the app's select at the metric's
- * width as the plot's title, the native select laid over it so a tap opens the
- * phone's own picker. Outside the plot's box, so a press on it is the select's
- * and not a finger reading the plot. Each panel wears one (#499).
- */
-function MetricTitle({
-  label,
-  shown,
-  value,
-  index,
-  onPick,
-  segment = false,
-}: {
-  label: string
-  shown: string
-  value: ChartMetric
-  index: number
-  onPick: (index: number, m: ChartMetric) => void
-  /** The left segment of a group that wears the box's look (#499). */
-  segment?: boolean
-}) {
-  return (
-    <div className={segment ? CHART_PICKER.titleBox : CHART_TITLE.box}>
-      <span aria-hidden="true" className={CHART_TITLE.text}>
-        {shown}
-      </span>
-      <IconChevron up={false} className={ICON_ADORNMENT} />
-      <select
-        aria-label={label}
-        value={value}
-        onChange={(e) => onPick(index, e.target.value as ChartMetric)}
-        className={CHART_TITLE.select}
-      >
-        {METRIC_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </div>
   )
 }
 
@@ -964,7 +917,6 @@ interface PanelProps {
   playheadMs: number | null
   sortBy: SortBy
   sortDesc: boolean
-  titled: boolean
   margin: PlotMargin
   followCursor: boolean
   /** Whether this panel's tooltip draws the card; the other panel's draws nothing. */
@@ -979,12 +931,10 @@ interface PanelProps {
   /**
    * The panels' area at a desk with more than one panel (#499): the card's
    * width and rows are budgeted on it rather than on this panel, and the card
-   * may leave the panel but stays inside it. Absent for one panel and on a
-   * phone, where the card keeps to the plot (and the readout's room).
+   * may leave the panel but stays inside it, at a desk and on a phone alike,
+   * one panel included (TJ 2026-10-30).
    */
-  areaRef?: RefObject<HTMLDivElement | null>
-  /** A phone's title box or boxes over the plot, or null at a desk. */
-  heading: ReactNode
+  areaRef: RefObject<HTMLDivElement | null>
 }
 
 // The card over several panels (#499): free to leave the hovered panel, and
@@ -1000,56 +950,6 @@ const boxStyle = (flexGrow: number | null) => (flexGrow === null ? undefined : {
 // The card stands inside the chart less this much, so it never meets the
 // plot's edge however long a name runs (#499).
 const CARD_INSET_PX = 8
-
-/**
- * One metric's plot (#499): its own y axis, domain, data and extreme line.
- * The chart draws one, or two stacked on one time axis.
- */
-function ChartPanel({
-  index,
-  boxRef,
-  flexGrow,
-  hidden,
-  metric,
-  metrics,
-  lines,
-  ordered,
-  focusedKey,
-  cursorValue,
-  drawsAxis,
-  labelsChrome,
-  syncId,
-  times,
-  spanMs,
-  nowMs,
-  pointGrid,
-  modelEnds,
-  playheadMs,
-  sortBy,
-  sortDesc,
-  titled,
-  margin,
-  followCursor,
-  showsCard,
-  shownIndex,
-  onHover,
-  onEnter,
-  onLeave,
-  onFinger,
-  onDropFinger,
-  onPlayheadChange,
-  areaRef,
-  heading,
-}: PanelProps) {
-  const plotRef = useRef<HTMLDivElement>(null)
-  // Where the last finger went down on the plot, for the click its tap makes.
-  const tapXRef = useRef<number | null>(null)
-  // A phone plot's height, reported by the container as it changes (#696), so
-  // the readout's place follows a sheet that grows under a reading already
-  // standing: the tutorial's Chart step raises the sheet in the commit that
-  // stands its hour, and a height read at that render was the resting one.
-  const [plotPx, setPlotPx] = useState(0)
-  const onPlotResize = useCallback((_width: number, height: number) => setPlotPx(height), [])
   const axisPx = xAxisPx(drawsAxis)
 
   // Memoized because hovering re-renders: handleMove below stores the cursor's
@@ -1123,20 +1023,6 @@ function ChartPanel({
     onDropFinger()
   }
 
-  // Where a phone's readout stands and how many lines it lists (#696): a card
-  // the plotting band cannot hold rises into the sheet above the chart, as
-  // far as the sheet's top (`data-readout-room` on `ResultsSheet`), rather
-  // than being cut off at the band's foot. Read at render, as the desk's
-  // capacity is: the reading that shows the card is a render.
-  const plotEl = plotRef.current
-  const roomEl = titled ? plotEl?.closest('[data-readout-room]') : null
-  const roomAbovePx =
-    plotEl && roomEl
-      ? Math.max(0, plotEl.getBoundingClientRect().top - roomEl.getBoundingClientRect().top - READOUT_ROOM_GAP_PX)
-      : 0
-  const readout = titled
-    ? readoutPlace(plotPx || (plotEl?.clientHeight ?? 0), margin, roomAbovePx, lines.length, drawsAxis)
-    : null
 
   // A click puts the map's playhead on the hour under the pointer. The chart
   // and the map are two views of one hourly grid, so a reader who has found the
@@ -1187,20 +1073,17 @@ function ChartPanel({
       style={boxStyle(flexGrow)}
       onMouseEnter={() => onEnter(index)}
     >
-      {heading}
       <div
         ref={plotRef}
         onPointerDown={readFinger}
         onPointerMove={readFinger}
         onPointerCancel={dropFinger}
-        // A phone's plot lets its readout out over the picker and the
-        // results bar above it (#696); the sheet itself still clips.
-        // A card over several panels leaves this one too (#499).
-        className={`relative min-h-0 flex-1 ${titled || areaRef ? 'overflow-visible' : 'overflow-hidden'} ${CHART_PLOT_TOUCH}`}
+        // A card over several panels leaves this one (#499).
+        className={`relative min-h-0 flex-1 ${areaRef ? 'overflow-visible' : 'overflow-hidden'} ${CHART_PLOT_TOUCH}`}
       >
         {/* The stage a drag freezes and stretches (`useStretchDrag`, #499). */}
         <div {...{ [STAGE_ATTR]: '' }} className="absolute inset-0 origin-top-left">
-        <ResponsiveContainer width="100%" height="100%" onResize={titled ? onPlotResize : undefined}>
+        <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
             margin={margin}
@@ -1266,10 +1149,9 @@ function ChartPanel({
               isAnimationActive={false}
               defaultIndex={shownIndex ?? undefined}
               active={shownIndex === null ? undefined : true}
-              position={readout?.top != null ? { y: readout.top } : undefined}
               offset={CARD_CURSOR_OFFSET_PX}
               allowEscapeViewBox={areaRef ? ESCAPE_PANEL : undefined}
-              wrapperStyle={titled ? READOUT_OVER_TITLE : areaRef ? CARD_OVER_PANELS : undefined}
+              wrapperStyle={areaRef ? CARD_OVER_PANELS : undefined}
               content={(props: any) =>
                 // One card for both panels (#499): the other panel's tooltip
                 // draws nothing while the sync cursor still stands in it.
@@ -1287,7 +1169,7 @@ function ChartPanel({
                     // Read at render rather than observed: this component
                     // re-renders on every hover move, which is the only time
                     // the value is used.
-                    maxRows={readout?.rows ?? tooltipCapacity((areaRef ?? plotRef).current?.clientHeight ?? 0)}
+                    maxRows={tooltipCapacity((areaRef ?? plotRef).current?.clientHeight ?? 0)}
                   />
                 ) : null
               }
@@ -1323,7 +1205,7 @@ function ChartPanel({
                 {...CHROME_LINE}
                 label={{
                   ...chromeLabel(extremeLabel(extreme, metric), 'insideBottomRight'),
-                  content: titled ? TITLED_HEADROOM_LABEL : HEADROOM_LABEL,
+                  content: HEADROOM_LABEL,
                 }}
               />
             )}

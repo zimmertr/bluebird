@@ -6,7 +6,7 @@ import type { ChartMetricsState } from './useChartMetrics'
 import { useChartSelection } from './useChartSelection'
 import { useModelCompare } from './useModelCompare'
 import { allocateColors, paletteColors } from '../utils/chart/chartColors'
-import { alignRowToGrid, chartKey, collidingType, drawnMetrics, sharedNames } from '../utils/chart/chartData'
+import { alignRowToGrid, chartKey, collidingType, sharedNames } from '../utils/chart/chartData'
 import { type PendingDestination, pendingAsResult } from '../utils/customList'
 import type { WindowLimits } from '../utils/forecastWindow'
 import {
@@ -43,8 +43,6 @@ export interface ChartCompareInputs {
   pending: PendingDestination[]
   /** The chart's metric slots (`useChartMetrics`), which the comparison reads and the chart draws. */
   chartMetrics: ChartMetricsState
-  /** A phone, which draws the first `PHONE_CHART_PANELS` slots alone. */
-  phone: boolean
   /** The committed report's snapshot: its model and the models it bought. */
   analyzed: AnalyzedView | null
   analysisSeq: number
@@ -77,7 +75,6 @@ export function useChartCompare({
   results,
   pending,
   chartMetrics,
-  phone,
   analyzed,
   analysisSeq,
   arriving,
@@ -229,7 +226,7 @@ export function useChartCompare({
   // the same line twice. That holds for every drawn panel (#499): a panel on
   // air quality would draw each model's line over the destination's.
   const compare = useModelCompare({
-    enabled: !drawnMetrics(chartMetrics.metrics, phone).includes('aqi'),
+    enabled: !chartMetrics.metrics.includes('aqi'),
     destinations: chartedDestinations,
     rows: comparePoints,
     heldSeries: chartedSeries,

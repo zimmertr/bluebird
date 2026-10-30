@@ -4,8 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import { CHART_METRICS, extremeValue } from '../utils/chart/chartData'
 import { CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
-import { PLOT_MARGIN, TITLED_PLOT_MARGIN } from '../utils/chart/chartPointer'
-import { CHART_TITLE } from '../styles'
+import { PLOT_MARGIN } from '../utils/chart/chartPointer'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
 
@@ -417,43 +416,13 @@ describe('TimeSeriesChart extreme line', () => {
   })
 })
 
-// A phone's picker is the plot's title (#696; record 0149): no row above the
-// plot, the native select laid over the metric's name, and the plot's margin
-// inset by the title's line, so a finger reads the same band Recharts draws.
+// A phone wears the desk's picker row (#499; TJ 2026-10-30), its plots at
+// the plain margins, so a finger reads the band Recharts draws.
 describe('TimeSeriesChart on a phone', () => {
-  it('stands the select in the title, under its name, with no row above the plot', () => {
-    const { container } = render(<TimeSeriesChart {...props({ titled: true, metrics: ['temp'] })} />)
-    const select = screen.getByRole('combobox', { name: 'Chart metric' })
-    const title = select.parentElement!
-    // In the title's line, with the + after it (#499).
-    expect(title.className).toBe(CHART_TITLE.box)
-    expect(title.parentElement!.className).toBe(CHART_TITLE.bar)
-    expect(select.className).toBe(CHART_TITLE.select)
-    expect(title.textContent).toContain(CHART_METRICS.find((m) => m.key === 'temp')!.label)
-    // The root holds the plot's box alone: the row is gone.
-    expect(container.firstElementChild!.children).toHaveLength(1)
-    expect(chart.margin).toEqual(TITLED_PLOT_MARGIN)
-  })
-
-  it('keeps the row for a comparison note, without the select in it', () => {
-    const { container } = render(<TimeSeriesChart {...props({ titled: true, controls: <p>note</p> })} />)
-    expect(container.firstElementChild!.children).toHaveLength(2)
-    expect(container.firstElementChild!.firstElementChild!.querySelector('select')).toBeNull()
-    expect(screen.getAllByRole('combobox', { name: 'Chart metric' })).toHaveLength(1)
-  })
-
-  it('stands the select in its row at a desk, the plot at the plain margins', () => {
-    const { container } = render(<TimeSeriesChart {...props()} />)
-    expect(container.firstElementChild!.children).toHaveLength(2)
-    expect(container.querySelector(`.${CSS.escape('has-[select:focus-visible]:outline-2')}`)).toBeNull()
+  it('stands the picker in the row above the plot, the plot at the plain margins', () => {
+    render(<TimeSeriesChart {...props({ phone: true, metrics: ['temp'] })} />)
+    expect(screen.getByRole('button', { name: /^Chart metric/ })).toBeTruthy()
     expect(chart.margin).toEqual(PLOT_MARGIN)
-  })
-
-  it('reads a finger against the titled band', () => {
-    const { container } = render(<TimeSeriesChart {...props({ titled: true })} />)
-    placePlot(container, 360)
-    fireEvent.pointerDown(plotIn(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
-    expect(screen.getByTestId('tooltip').dataset.index).toBe('32')
   })
 })
 
@@ -887,19 +856,25 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('draws the first two of four on a phone, each titled, and greys its +', () => {
+  it('stacks four in one column on a phone, a grip between each pair, and greys its +', () => {
     const onPick = vi.fn()
-    const onRemove = vi.fn()
-    render(<TimeSeriesChart {...props({ ...FOUR, titled: true, onPick, onRemove })} />)
-    expect(last(chart.charts, 2).every((c) => c.syncId !== undefined)).toBe(true)
+    render(<TimeSeriesChart {...props({ ...FOUR, phone: true, onPick })} />)
+    expect(last(chart.charts, 4).every((c) => c.syncId === chart.charts[chart.charts.length - 1].syncId)).toBe(true)
+    // One time axis, printed by the bottom panel alone.
+    expect(last(chart.xAxes, 4).map((a) => a.hide)).toEqual([true, true, true, false])
+    expect(screen.getAllByTestId('split-grip')).toHaveLength(3)
     expect(screen.queryByRole('separator', { name: 'Resize the panels' })).toBeNull()
-    const first = screen.getByRole('combobox', { name: 'Chart metric' }) as HTMLSelectElement
-    const second = screen.getByRole('combobox', { name: 'Metric 2' }) as HTMLSelectElement
-    expect(first.value).toBe('precip')
-    expect(second.value).toBe('temp')
-    expect(screen.queryByRole('combobox', { name: 'Metric 3' })).toBeNull()
+    for (const name of ['Chart metric', 'Metric 2', 'Metric 3', 'Metric 4']) {
+      expect(screen.getByRole('button', { name: new RegExp(`^${name}`) })).toBeTruthy()
+    }
     expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.change(second, { target: { value: 'wind' } })
+  })
+
+  it("offers a phone's two panels a +", () => {
+    render(<TimeSeriesChart {...props({ ...TWO, phone: true })} />)
+    expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
     expect(onPick).toHaveBeenCalledWith(1, 'wind')
     fireEvent.click(screen.getByRole('button', { name: /^Remove / }))
     expect(onRemove).toHaveBeenCalledWith(1)

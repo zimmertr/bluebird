@@ -45,7 +45,6 @@ function inputs(over: Partial<ChartCompareInputs> = {}): ChartCompareInputs {
     results: ROWS,
     pending: NONE,
     chartMetrics: chartMetricsOf(),
-    phone: false,
     analyzed: REPORT,
     analysisSeq: 1,
     arriving: false,

@@ -55,21 +55,9 @@ export type ChartMetrics = readonly ChartMetric[]
  */
 export const MAX_CHART_PANELS = 4
 
-/**
- * The most a phone draws (#499): a phone sheet at rest holds two readable
- * panels stacked and no more. The slots past it stay in state and in the
- * link, so a link with four opens with four at a desk.
- */
-export const PHONE_CHART_PANELS = 2
-
 /** The slots a session opens on: the ranking's family alone. */
 export function metricsFor(sortBy: SortBy): ChartMetrics {
   return [metricForSort(sortBy)]
-}
-
-/** The slots a chart of this kind draws: all of them at a desk, the first two on a phone. */
-export function drawnMetrics(metrics: ChartMetrics, phone: boolean): ChartMetrics {
-  return phone && metrics.length > PHONE_CHART_PANELS ? metrics.slice(0, PHONE_CHART_PANELS) : metrics
 }
 
 /**

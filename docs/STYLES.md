@@ -735,19 +735,8 @@ label's white at 12% and the shadow a step lower while held, on either
 pointer, and never a grey after a run.
 Record: [0135](decisions/0135-phone-opens-on-the-map.md)
 
-A phone chart's metric picker is the plot's title (`CHART_TITLE`): the
-metric's label with its unit in the app's own select, sized to its words and
-28px tall. It wears `FIELD_LOOK`, the fill, edge, radius and type `FIELD` is
-built from, with `SELECT`'s `pr-6` and the chevron in `ICON_ADORNMENT`'s
-place, so it is the desktop picker shrunk rather than a look of its own. The
-native select is laid over it, transparent, 44px tall under a finger. The
-plot's top margin grows by the title's 28px (`TITLED_PLOT_MARGIN`), so its
-dashed lines, their labels and the top tick start under it. Measured
-2026-10-14: the field row it replaced was 52px, and the plotting band grew
-24px at 360 and 390.
-The title stands in a line (`CHART_TITLE.bar`) that holds the panel's
-controls 8px after it (#499): a + after the first title, an × after every
-other. `CHART_PANEL_BUTTON` draws them: the + is a square in the field's
+The chart's pickers stand in one row above the panels, at a desk and on a
+phone alike (#499), 8px apart. `CHART_PANEL_BUTTON` draws the + after the last: the + is a square in the field's
 fill, edge and radius, as tall as the picker beside it. The × is the right
 segment of its picker's field (`CHART_PICKER`): one outline, an `edge`
 divider, and a quiet glyph with its focus ring inside. Its twin on the left end is the grip that moves the panel, behind an `edge` divider too, and a drag shows where it lands with a 2px accent bar in the row's 8px gap. `CHART_GUTTER` draws the gaps of a desk's grid of
@@ -757,7 +746,7 @@ The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:
 the hour as a 13px title on the popup's `band` token, the rows in a body,
 and `+N more` in a footer. The band is an app token now (`--ui-band`), and
 map.css reads it for the popup, so the two cards share one band.
-Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
+Record: [0243](decisions/0243-chart-metrics-as-panels.md)
 Record: [0243](decisions/0243-chart-metrics-as-panels.md)
 
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:

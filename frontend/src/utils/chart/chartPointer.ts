@@ -6,7 +6,7 @@
 // band through the same numbers, which is why the band's geometry lives here
 // rather than in the component that draws it.
 
-import { pixelToTime, pixelToValue, TOOLTIP_CHROME_PX, TOOLTIP_ROW_PX, tooltipCapacity } from './chartData'
+import { pixelToTime, pixelToValue } from './chartData'
 import { nearestIndex } from '../timeline'
 import { clamp } from '../numbers'
 
@@ -19,42 +19,7 @@ export const PLOT_MARGIN = { top: 8, right: 16, bottom: 2, left: 8 } as const
 export const X_AXIS_HEIGHT_PX = 22
 export const Y_AXIS_WIDTH_PX = 44
 
-/**
- * The height of a phone chart's title (#696; `CHART_TITLE` in styles.ts):
- * the metric's picker, the app's select at 28px, a 16px line of the control
- * type inside a 1px edge and 5px either side. A phone's plot is inset from the top by
- * it and the room around it (`TITLED_PLOT_MARGIN`), so the plotted area,
- * the dashed Now and model-end lines, their labels and the y axis's top tick
- * all begin under the title rather than under its letters: the maintainer's
- * one requirement for moving the picker into the plot (2026-10-14).
- */
-export const CHART_TITLE_PX = 28
-
-/**
- * The room around a phone chart's title (#696; the maintainer on the Pixel,
- * 2026-10-14): the same 12px above it, under the grip's rule, and below it,
- * over the y axis's top label, and on its left, where the results bar's own
- * inset (`px-3`) puts "Lowest" and the view buttons, so the three stand on
- * one edge. The box sat on the rule and 8px from the sheet's edge before.
- */
-export const CHART_TITLE_INSET_PX = 12
-
-/**
- * How far the y axis's top label rises above the plotting band it labels:
- * about half its line at the chart's 11px (`CHART_TICK_PX`): 5.1px, measured
- * in the Playwright image's Chromium 2026-10-14. `PLOT_MARGIN.top`'s 8px is
- * this plus 3px of air for a plot with nothing over it; a titled plot spends
- * the air on the inset instead, so the gap under the title is the inset.
- */
-export const TOP_LABEL_RISE_PX = 5
-
-/** A phone chart's margins: `PLOT_MARGIN` with the title's box and its room over it. */
-export const TITLED_PLOT_MARGIN = {
-  ...PLOT_MARGIN,
-  top: CHART_TITLE_INSET_PX + CHART_TITLE_PX + CHART_TITLE_INSET_PX + TOP_LABEL_RISE_PX,
-} as const
-
-export type PlotMargin = typeof PLOT_MARGIN | typeof TITLED_PLOT_MARGIN
+export type PlotMargin = typeof PLOT_MARGIN
 
 /**
  * The x axis strip a panel draws under its plot (#499). Two stacked panels
@@ -96,59 +61,37 @@ export function plotBand(
   }
 }
 
-/**
- * Where the split between two stacked panels lands after a drag (#499): the
- * top panel's share of `totalPx`, held so each panel keeps its floor. The
- * share rather than pixels, so a sheet that grows keeps the split the reader
- * set. A box too short for both floors splits evenly.
- */
-export function splitAfterDrag(
-  startShare: number,
-  dragUpPx: number,
-  totalPx: number,
-  topFloorPx: number,
-  bottomFloorPx: number,
-): number {
-  if (totalPx <= 0 || topFloorPx + bottomFloorPx > totalPx) return 0.5
-  const topPx = startShare * totalPx - dragUpPx
-  const held = clamp(topPx, topFloorPx, totalPx - bottomFloorPx)
-  return held / totalPx
+/** `n` stacked panels at an even share each, the stack a double press puts back. */
+export function evenStack(n: number): readonly number[] {
+  return Array.from({ length: n }, () => 1 / n)
 }
 
 /**
- * How far below the top of the sheet a phone's readout may start (#696): the
- * sheet's own edge and the rule along it stay clear, so the card reads as
- * standing in the sheet rather than cut by it.
+ * Where a stack's shares land after its grip `grip` is dragged (#499): the
+ * grip stands between panel `grip` and the one under it, and moves height
+ * from one to the other alone, each held to its floor. Shares rather than
+ * pixels, so a sheet that grows keeps the stack the reader set. A pair too
+ * short for both floors keeps the shares it had.
  */
-export const READOUT_ROOM_GAP_PX = 8
-
-/**
- * Where a phone chart's readout stands, and how many lines it lists (#696).
- * The card is drawn inside the plotting band, which at a phone sheet's rest
- * height is about 68px against a card of 129px for five lines (measured at
- * 390x844, 2026-10-14), so the band clipped it to its top four rows. A card
- * the band holds stays where Recharts puts it, by the reading; one it cannot
- * hold stands at the top of the room above the band instead, the sheet's own
- * height above the chart (`roomAbovePx`, from the chart box's top up to the
- * sheet's less `READOUT_ROOM_GAP_PX`), over the results bar and the picker,
- * and runs down from there. How many lines it lists is that whole room's
- * capacity, so the card it decides on always fits the room. `top` is in the
- * chart box's own pixels, negative above it, or null for Recharts' own place.
- */
-export function readoutPlace(
-  boxHeight: number,
-  margin: PlotMargin,
-  roomAbovePx: number,
-  lineCount: number,
-  drawsAxis = true,
-): { rows: number; top: number | null } {
-  const band = plotBand(0, boxHeight, margin, drawsAxis)
-  const bandBottom = band.top + band.height
-  const rows = tooltipCapacity(roomAbovePx + bandBottom)
-  const listed = Math.min(rows, lineCount)
-  const cardPx = TOOLTIP_CHROME_PX + listed * TOOLTIP_ROW_PX
-  // With no room above there is nowhere to rise to, however tall the card.
-  return { rows, top: cardPx <= band.height || roomAbovePx <= 0 ? null : -roomAbovePx }
+export function stackAfterDrag(
+  start: readonly number[],
+  grip: number,
+  dragUpPx: number,
+  totalPx: number,
+  floorsPx: readonly number[],
+): readonly number[] {
+  const above = start[grip]
+  const below = start[grip + 1]
+  if (totalPx <= 0 || above === undefined || below === undefined) return start
+  const pairPx = (above + below) * totalPx
+  const topFloor = floorsPx[grip] ?? 0
+  const bottomFloor = floorsPx[grip + 1] ?? 0
+  if (topFloor + bottomFloor > pairPx) return start
+  const topPx = clamp(above * totalPx - dragUpPx, topFloor, pairPx - bottomFloor)
+  const next = start.slice()
+  next[grip] = topPx / totalPx
+  next[grip + 1] = (pairPx - topPx) / totalPx
+  return next
 }
 
 /**

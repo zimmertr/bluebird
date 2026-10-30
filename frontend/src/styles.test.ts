@@ -81,7 +81,6 @@ import {
   CONTROLS_SHEET,
   SAFE_AREA,
   CHART_PLOT_TOUCH,
-  CHART_TITLE,
   CHART_PANEL_BUTTON,
   CHART_PICKER,
   CHART_CARD,
@@ -135,7 +134,6 @@ import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
-import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chart/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { CHIP_MENU_GAP_PX } from './utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
@@ -2913,45 +2911,11 @@ describe('the chart under a finger', () => {
   })
 })
 
-// A phone's chart picker is the plot's title (#696; record 0149), and the plot
-// is inset by the title's box so its dashed lines, their labels and the y
-// axis's top tick start under it. Measured 2026-10-14 in the Playwright
-// image's Chromium: the field row it replaced was 52px at 360 and 390 (the
-// 44px select a finger presses and the row's 4px either side). The box stands
-// 12px from the grip's rule, 12px over the y axis's top label and 12px from
-// the sheet's edge, the results bar's own inset (the maintainer, 2026-10-14).
-describe('the chart title on a phone', () => {
-  const MEASURED = { fieldRowPx: 52, insetPx: 28, rulePx: 12, labelPx: 12, leftPx: 12, barLeftPx: 12 }
-
-  it('is a 28px box with the same room above it, below it and on its left', () => {
-    // The line stands at the 12px insets (#499) and the box in it is 28px.
-    expect(words(CHART_TITLE.bar)).toEqual(expect.arrayContaining(['top-3', 'inset-x-3', 'z-[1]']))
-    expect(words(CHART_TITLE.box)).toContain('h-7')
-    expect(7 * 4).toBe(CHART_TITLE_PX)
-    expect(CHART_TITLE_PX).toBe(MEASURED.insetPx)
-    expect(3 * 4).toBe(CHART_TITLE_INSET_PX)
-    for (const gap of [MEASURED.rulePx, MEASURED.labelPx, MEASURED.leftPx]) expect(gap).toBe(CHART_TITLE_INSET_PX)
-    // Its left edge is the results bar's, where "Lowest" and the view buttons stand.
-    expect(MEASURED.leftPx).toBe(MEASURED.barLeftPx)
-    expect(TITLED_PLOT_MARGIN.top).toBe(2 * CHART_TITLE_INSET_PX + CHART_TITLE_PX + TOP_LABEL_RISE_PX)
-  })
-
-  it("wears the select's look, its fill, edge, radius, type and arrow room, at the plot's left margin", () => {
-    expect(words(CHART_TITLE.box)).toEqual(
-      expect.arrayContaining([...words(TEXT.control), RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, 'pr-6']),
-    )
-    expect(words(SELECT)).toContain('pr-6')
-    // The chevron every menu trigger wears, where every select's stands.
-    expect(timeSeriesChartSource).toContain('<IconChevron up={false} className={ICON_ADORNMENT} />')
-    // Sized to its words, not to the desktop picker's fixed width.
-    expect(CHART_TITLE.box).not.toContain(CHART_METRIC_W)
-    // The panel's × or + stands 8px after the box.
-    expect(words(CHART_TITLE.bar)).toEqual(expect.arrayContaining(['gap-2', 'items-center']))
-  })
-
+// The chart's picker row (#499): the same at a desk and on a phone.
+describe('the chart picker row', () => {
   // The chart's panel controls (#499): the + in the field's look, the ×
   // quiet, both squares as tall as what they stand beside (TJ, 2026-10-29).
-  it('draws the + and the × as squares the height of the picker or the title', () => {
+  it('draws the + and the × as squares the height of the picker', () => {
     expect(words(CHART_PANEL_BUTTON.add)).toEqual(
       expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, ...words(ICON_ACTION), ...words(DISABLED)]),
     )
@@ -2962,9 +2926,6 @@ describe('the chart title on a phone', () => {
     expect(16 + 2 * 2 + 2 * 1).toBe(5.5 * 4)
     expect(words(CHART_PANEL_BUTTON.square)).toEqual(['size-5.5', 'touch:size-8'])
     expect(words(FIELD)).toContain('touch:min-h-8')
-    // A phone's title box is `h-7`, 28px, and so is its square.
-    expect(words(CHART_TITLE.box)).toContain('h-7')
-    expect(CHART_PANEL_BUTTON.titleSquare).toBe('size-7')
   })
 
   // A removable picker is one field in two segments (#499; TJ 2026-10-29,
@@ -2972,16 +2933,11 @@ describe('the chart title on a phone', () => {
   // and the × stands behind an edge divider at the picker's height.
   it('draws a removable picker and its × as one field in two segments', () => {
     expect(words(CHART_PICKER.group)).toEqual(expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control]))
-    expect(words(CHART_PICKER.titleGroup)).toEqual(expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, 'h-7']))
-    for (const inner of [MENU_TRIGGER.segment, CHART_PICKER.titleBox]) {
-      expect(inner).not.toMatch(/(^|\s)(bg-|border|rounded)/)
-    }
+    expect(MENU_TRIGGER.segment).not.toMatch(/(^|\s)(bg-|border|rounded)/)
     expect(words(CHART_PICKER.group)).toEqual(expect.arrayContaining(['has-[[aria-expanded=true]]:border-accent-ink']))
     expect(words(CHART_PICKER.remove)).toEqual(expect.arrayContaining([...words(ICON_ACTION), ...words(FOCUS_RING_INSET), 'border-l', 'border-edge']))
-    // 22px beside a desk's picker, the height `square` measures above, and the
-    // title box's 28px on a phone.
+    // 22px beside a desk's picker, the height `square` measures above.
     expect(words(CHART_PICKER.x)).toEqual(['w-5.5', 'touch:w-8'])
-    expect(CHART_PICKER.titleX).toBe('w-7')
     expect(MENU_CHEVRON.segment).toBe(MENU_CHEVRON.field)
   })
 
@@ -3012,16 +2968,6 @@ describe('the chart title on a phone', () => {
     expect(CHART_GUTTER.active).toBe('bg-accent')
   })
 
-  it('lays the native select over the title, invisible, a 44px target centred on it', () => {
-    expect(words(CHART_TITLE.select)).toEqual(
-      expect.arrayContaining(['absolute', 'opacity-0', 'touch:h-11', 'w-full', 'top-1/2', '-translate-y-1/2']),
-    )
-    // 44 over a 28px box is 8px either side, inside the 12px of room.
-    expect((44 - CHART_TITLE_PX) / 2).toBeLessThan(CHART_TITLE_INSET_PX)
-    // FIELD's focus edge, on the box because the select is invisible.
-    expect(darkStep(token(FIELD, 'focus:border'))).toBe('sky-500')
-    expect(token(CHART_TITLE.box, 'has-[select:focus]:border')).toBe(token(FIELD, 'focus:border'))
-  })
 })
 
 // The map's Layers popover: the one list in the app whose members have no

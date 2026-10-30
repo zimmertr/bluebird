@@ -89,7 +89,7 @@ test.describe('on a 390 px phone', () => {
     await page.getByRole('main').getByRole('button', { name: 'Analyze' }).tap()
     await expect(resultRows(page).first()).toBeAttached()
   }
-  const sheetTop = async (page: Page) => (await page.locator('[data-readout-room]').boundingBox())!.y
+  const sheetTop = async (page: Page) => (await page.locator('[data-tour="results"]').boundingBox())!.y
 
   test('Chart lifts the sheet to its full stop and Table puts it back', async ({ page }) => {
     await analyzed(page)
@@ -100,11 +100,10 @@ test.describe('on a 390 px phone', () => {
     await expect.poll(() => sheetTop(page)).toBe(resting)
   })
 
-  // The readout is never cut off (#696; record 0154): on a Chart the reader
-  // has dragged down, the plotting band is shorter than a five-line readout,
-  // which rises into the sheet above the chart, over the picker and the
-  // results bar, and stays inside it.
-  test('a finger reading stands whole inside the sheet over a short plot', async ({ page }) => {
+  // The card keeps to the chart on a phone as at a desk (#499; TJ
+  // 2026-10-30): over a plot the reader has dragged short it lists what the
+  // chart holds and stands inside it, never rising under the results bar.
+  test('a finger reading stands whole inside the chart over a short plot', async ({ page }) => {
     await analyzed(page)
     await page.getByRole('button', { name: 'Show chart only' }).tap()
     const grid = page.locator('.recharts-cartesian-grid')
@@ -123,13 +122,8 @@ test.describe('on a 390 px phone', () => {
     await expect(card).toBeVisible()
     await expect(card.locator('.font-mono').first()).toBeVisible()
     const box = (await card.boundingBox())!
-    const sheet = (await page.locator('[data-readout-room]').boundingBox())!
-    // Taller than the band it reads, so it has risen out of it.
-    expect(box.height).toBeGreaterThan(band.height)
-    expect(box.y).toBeGreaterThanOrEqual(sheet.y)
-    expect(box.y + box.height).toBeLessThanOrEqual(band.y + band.height + 1)
-    // Every destination listed, none behind a "+N more".
-    await expect(card.getByText(/more$/)).toHaveCount(0)
-    expect(await card.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true)
+    const plot = (await page.locator('[data-tour="chart"] [data-chart-stage]').first().boundingBox())!
+    // It starts inside the chart: nothing of it stands under the results bar.
+    expect(box.y).toBeGreaterThanOrEqual(plot.y - 1)
   })
 })

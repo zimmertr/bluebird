@@ -101,8 +101,8 @@ export interface ResultsPanelsProps {
   sortBy: SortBy
   /** The ranking's direction, which the chart's extreme line follows. */
   sortDesc: boolean
-  /** A phone, where the chart's metric picker is its title (#696; record 0149). */
-  chartTitled: boolean
+  /** A phone, where three or four chart panels stack in one column (#499). */
+  chartPhone: boolean
   /**
    * A desk, where a press on Table, Chart or Both and the collapse chevron
    * open and close the panes at the panel's speed (record 0202). A phone's
@@ -160,7 +160,7 @@ export default function ResultsPanels({
   removeResult,
   sortBy,
   sortDesc,
-  chartTitled,
+  chartPhone,
   panesMove = false,
   collapsed = false,
   layoutMotion = null,
@@ -332,7 +332,7 @@ export default function ResultsPanels({
                         extraLines={compare.lines}
                         modelEnds={compare.endLines}
                         controls={compareControls}
-                        titled={chartTitled}
+                        phone={chartPhone}
                       />
                     </Suspense>
                   </div>

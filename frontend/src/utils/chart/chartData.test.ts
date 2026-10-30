@@ -16,10 +16,8 @@ import {
   tracksCursor,
   buildChartData,
   MAX_CHART_PANELS,
-  PHONE_CHART_PANELS,
   addMetric,
   cardCells,
-  drawnMetrics,
   isChartMetric,
   metricsFor,
   pickMetric,
@@ -759,11 +757,7 @@ describe('the chart metric slots', () => {
     expect(removeMetric(['precip', 'temp', 'wind'], 0)).toEqual(['precip', 'temp', 'wind'])
   })
 
-  it('draws every slot at a desk and the first two on a phone', () => {
-    const four: ChartMetrics = ['precip', 'temp', 'wind', 'aqi']
-    expect(drawnMetrics(four, false)).toBe(four)
-    expect(drawnMetrics(four, true)).toEqual(['precip', 'temp'])
-    expect(PHONE_CHART_PANELS).toBe(2)
+  it('holds four panels at most', () => {
     expect(MAX_CHART_PANELS).toBe(4)
   })
 

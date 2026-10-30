@@ -1250,8 +1250,7 @@ const RECESSED_EDGE = 'border border-edge'
 
 // What a field looks like, without how big it is (#696): the control type in
 // the recessed fill and edge at the control radius. `FIELD` adds the tap
-// height and the focus edge; `CHART_TITLE` wears it at 28px with an invisible
-// 44px select over it, which is why the look and the size are two things.
+// height and the focus edge, which is why the look and the size are two things.
 const FIELD_LOOK = `${TEXT.control} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`
 
 /**
@@ -1355,26 +1354,6 @@ export const CHART_METRIC_W = 'w-38'
 export const CHART_PLOT_TOUCH = 'touch-pan-y'
 
 /**
- * A phone chart's metric picker, as the plot's title (#696, record 0149): the
- * metric's full label with its unit in the app's own select, at the plot's
- * top left, `CHART_TITLE_INSET_PX` (12px, `top-3 left-3`) from the grip's
- * rule above it and the sheet's edge, the results bar's own inset, and the
- * same 12px over the plot's top label (`TITLED_PLOT_MARGIN`). The field row above the plot was
- * 44px a phone's chart could not spare, and a plain title did not read as a
- * control, so it is look 4 of the second picker mockups (TJ 2026-10-14): the
- * desktop picker's look shrunk to its label. `box` wears `FIELD_LOOK`, the
- * recessed fill, edge and radius every select here wears, with `SELECT`'s
- * `pr-6` holding the chevron in `ICON_ADORNMENT`'s place, and it sizes to
- * its words rather than to `CHART_METRIC_W`. It is 28px tall (`h-7`), which
- * is `CHART_TITLE_PX` and what `TITLED_PLOT_MARGIN` reserves over the plot,
- * so nothing the plot draws, its dashed lines and their labels included,
- * meets the box. `select` is the native select laid over it, transparent, so
- * a tap opens the phone's own picker; 44px tall on a coarse pointer, centred
- * on the box, so it reaches 8px into the room on either side and meets
- * neither the rule nor the plot's label. The focus edge
- * is `FIELD`'s, moved to the box because the select is invisible.
- */
-/**
  * The chart's hover card, built like the marker popup (record 0215; TJ
  * 2026-10-29, mockup 1 of four): a header band carrying the hour as its
  * title, a body of rows, and a footer for the rows cut. The band is the
@@ -1395,19 +1374,6 @@ export const CHART_CARD = {
   heads: `${MICRO_SIZE} text-ink-soft text-right`,
   rule: 'col-span-full h-px bg-frame mb-[3px]',
   foot: 'border-t border-rule px-2.5 py-[5px] text-xs text-ink-soft',
-} as const
-
-export const CHART_TITLE = {
-  /**
-   * The title's line (#499): the box at the plot's top left, `top-3 left-3`,
-   * with the panel's × or + standing 8px (`gap-2`) after it in the same 28px
-   * line, inside the plot's 12px insets on both sides so a 360px sheet holds
-   * them. The buttons are the box's 28px square (`CHART_PANEL_BUTTON.titleSquare`).
-   */
-  bar: 'absolute inset-x-3 top-3 z-[1] flex items-center gap-2',
-  box: `relative flex h-7 min-w-0 items-center ${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-mark`,
-  text: 'min-w-0 truncate',
-  select: 'absolute inset-x-0 top-1/2 -translate-y-1/2 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
 } as const
 
 /**
@@ -3568,26 +3534,24 @@ export const TOUR = {
 /**
  * The chart's panel controls (#499; TJ 2026-10-29).
  *
- * `add` is the + after the last picker, and after a phone's first title, in
+ * `add` is the + after the last picker, in
  * the field's fill, edge and radius so the row reads as one set of controls,
  * with the bare icon's ink and its accent on hover, greyed at the ceiling.
  * The × is a segment of its picker (`CHART_PICKER`). The + is a square as
  * tall as what it stands beside (TJ's review, 2026-10-29: the + read as a
  * sliver): `square` beside a desk's picker, 22px, which is the picker's own
  * height (`TEXT.control`'s 16px line, `py-0.5`'s 4px and a 1px edge top and
- * bottom), and 32px under a finger, the picker's `touch:min-h-8`;
- * `titleSquare` beside a phone's 28px title box (`CHART_TITLE.box`, `h-7`).
+ * bottom), and 32px under a finger, the picker's `touch:min-h-8`.
  */
 /**
  * A removable chart picker (#499; TJ's review 2026-10-29, option A): one
- * field in two segments, the picker on the left (`MENU_TRIGGER.segment` at a
- * desk, `titleBox` on a phone) and the × on the right, under one outline.
+ * field in two segments, the picker on the left (`MENU_TRIGGER.segment`) and the × on the right, under one outline.
  * The group wears the field's fill, edge and radius, and takes the accent
  * edge while the picker is hovered or open and the focus edge while it has
  * the keyboard, which the field's own edge did before. The × is a segment
  * behind a 1px `edge` divider, its glyph the quiet `ICON_ACTION` ink with the
  * accent on hover and its focus ring drawn inside it (`FOCUS_RING_INSET`).
- * `x` is 22px, the picker's height, and `titleX` 28px, the title box's, so
+ * `x` is 22px, the picker's height (32px under a finger), so
  * the picker keeps `CHART_METRIC_W` and the group is that plus the segment.
  */
 export const CHART_PICKER = {
@@ -3595,8 +3559,6 @@ export const CHART_PICKER = {
     `${FIELD_LOOK} flex flex-shrink-0 items-stretch touch:min-h-8 ` +
     'has-[[aria-haspopup]:hover]:border-accent-ink has-[[aria-expanded=true]]:border-accent-ink ' +
     'has-[[aria-haspopup]:focus-visible]:border-mark',
-  titleGroup: `${FIELD_LOOK} flex h-7 min-w-0 items-stretch has-[select:focus]:border-mark`,
-  titleBox: 'relative flex min-w-0 flex-1 items-center pl-2 pr-6',
   remove: `${ICON_ACTION} ${FOCUS_RING_INSET} flex flex-shrink-0 items-center justify-center border-l border-edge leading-none`,
   x: 'w-5.5 touch:w-8',
   // The grip that moves a panel (#499; TJ 2026-10-30): the left segment of
@@ -3611,13 +3573,11 @@ export const CHART_PICKER = {
   drop: 'pointer-events-none absolute inset-y-0 w-0.5 bg-accent',
   before: '-left-1.25',
   after: '-right-1.25',
-  titleX: 'w-7',
 } as const
 
 export const CHART_PANEL_BUTTON = {
   add: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ${ICON_ACTION} ${FOCUS_RING} ${DISABLED} flex flex-shrink-0 items-center justify-center`,
   square: 'size-5.5 touch:size-8',
-  titleSquare: 'size-7',
 } as const
 
 /**

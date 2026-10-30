@@ -91,7 +91,7 @@ function props(
     removeResult,
     sortBy: DEFAULT_FAMILY_KEY.temp,
     sortDesc: over.sortDesc ?? false,
-    chartTitled: false,
+    chartPhone: false,
     pointSample: false,
     forecastTimes: TIMES,
     playbackIndex: null,
