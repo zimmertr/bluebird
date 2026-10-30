@@ -438,9 +438,8 @@ for the player. A box you ticked before analyzing, or one a shared link ticked,
 stays ticked, and the layer draws as soon as a report can carry it. Rank by
 something with numbers and it comes back without fetching anything again.
 
-The button beside the row's name shows how it is drawn, and a press switches to the
-other. The grid's line in the legend names the one in use, beside the spacing
-(`13 km · Smooth ⇄`), and pressing that name switches it too. Both readings are true:
+The grid's line in the legend names how it is drawn, beside the spacing
+(`13 km · Smooth ⇄`), and pressing that name switches to the other. Both readings are true:
 
 - **Smooth** (the default) draws the space between the points, which is how every
   other forecast map reads and is the honest shape of something the model already
@@ -452,7 +451,7 @@ other. The grid's line in the legend names the one in use, beside the spacing
   hard edges are the one thing it overstates: the model has no boundary there.
 
 Switching costs nothing. It is the same data drawn two ways, so it applies instantly
-and rides in the shared link. The button and the coverage slider stay on the row
+and rides in the shared link. The coverage slider stays on the row
 while the layer is off, and using either one switches it on.
 
 Two things to know when reading it:
@@ -465,7 +464,7 @@ Two things to know when reading it:
   fetched, the legend says `Unavailable` instead, and whatever did arrive stays
   drawn.
 - **It covers where you looked.** The field extends a set distance around each
-  destination the analysis found — the slider beside the style button —
+  destination the analysis found — the coverage slider on the row —
   and fades out at that edge. The slider's range follows the model:
   from one to four of its own grid cells around each destination, with the
   default in the middle. On NOAA GFS's 3 km grid that is 3 to 12 km; on

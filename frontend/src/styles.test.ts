@@ -1522,20 +1522,11 @@ describe('shared recipes', () => {
     // As wide as its widest row and never narrower than its chip.
     expect(CHIP_CARD_W.menu).toBe('w-max min-w-full')
     expect(MEASURED.layersMenu).toBeLessThan(stepPx(CHIP_CARD_W.key, 'w'))
-    // The coverage slider's value lies over its input and cannot size the
-    // menu, so the grid's column holds it: 120 less the style button and the
-    // 4px gap, with room to spare. The button is square at the sliders'
-    // height, so on a phone it is 32 like every other phone control.
-    const gap = stepPx(LAYER_GRID.controls, 'gap')
-    const reach = stepPx(LAYER_GRID.controls, 'w') - stepPx(LAYER_GRID.style, 'w') - gap
-    const reachSheet = stepPx(LAYER_GRID.controls, 'w') - stepPx(LAYER_GRID.styleSheet, 'w') - gap
-    expect([reach, reachSheet]).toEqual([96, 84])
-    expect([stepPx(LAYER_GRID.style, 'w'), stepPx(LAYER_GRID.style, 'h')]).toEqual([20, 20])
-    expect([stepPx(LAYER_GRID.styleSheet, 'w'), stepPx(LAYER_GRID.styleSheet, 'h')]).toEqual([32, 32])
-    expect(stepPx(LAYER_GRID.reachSheet, 'h')).toBe(stepPx(LAYER_GRID.styleSheet, 'h'))
-    expect(stepPx(LAYER_GRID.styleSheet, 'h')).toBe(stepPx(LAYER_ROW.sliderSheet, 'h'))
-    expect(stepPx(LAYER_GRID.controls, 'w')).toBe(stepPx(LAYER_ROW.slider, 'w'))
-    expect(reachSheet - MEASURED.reachValue).toBeGreaterThanOrEqual(8)
+    // The coverage slider stands on the opacity sliders' column, at their
+    // sizes, its value alone with room to spare.
+    expect(LAYER_GRID.reach.replace(' has-[:disabled]:opacity-40', '')).toBe(LAYER_ROW.slider)
+    expect(LAYER_GRID.reachSheet.replace(' has-[:disabled]:opacity-40', '')).toBe(LAYER_ROW.sliderSheet)
+    expect(stepPx(LAYER_GRID.reach, 'w') - MEASURED.reachValue).toBeGreaterThanOrEqual(8)
     expect(MAP_CHIP_MENU).not.toMatch(/(^|\s)w-/)
     expect(layersPopoverSource).toContain('${MAP_CHIP_MENU} ${CHIP_CARD_W.menu}')
     expect(layersPopoverSource).toContain('${sheet ? LAYER_GRID.reachSheet : LAYER_GRID.reach} ${SLIDER.well}')
@@ -3107,8 +3098,8 @@ describe('the layers palette', () => {
     expect(Object.keys(LAYER_ROW)).not.toContain('restingFill')
   })
 
-  // 120 by 20 at a desk, 120 by 32 on a phone, where the sheet's rows are
-  // 32px. `100%` and `Opacity` with the well's 8px either side are 90.7px,
+  // 120 by 20 at a desk, half the row by 32 on a phone, where the sheet's
+  // rows are 32px. `100%` and `Opacity` with the well's 8px either side are 90.7px,
   // and the thumb at the default half must stand clear of the wordmark, which
   // at the lab's 96 it covered (measured in the browser suite's Chromium,
   // 2026-10-29).
@@ -3116,8 +3107,11 @@ describe('the layers palette', () => {
     const MEASURED = { value: 30.7, wordmark: 44, thumb: 4 }
     const pad = 8
     expect([stepPx(LAYER_ROW.slider, 'w'), stepPx(LAYER_ROW.slider, 'h')]).toEqual([120, 20])
-    expect([stepPx(LAYER_ROW.sliderSheet, 'w'), stepPx(LAYER_ROW.sliderSheet, 'h')]).toEqual([120, 32])
-    for (const w of [stepPx(LAYER_ROW.slider, 'w'), stepPx(LAYER_ROW.sliderSheet, 'w')]) {
+    // On a phone half the row, 32 tall: at the narrowest phone, 360px less
+    // the sheet's 16px gutters, that is 164.
+    expect(LAYER_ROW.sliderSheet).toContain('w-1/2')
+    expect(stepPx(LAYER_ROW.sliderSheet, 'h')).toBe(32)
+    for (const w of [stepPx(LAYER_ROW.slider, 'w'), (360 - 32) / 2]) {
       expect(w - 2 * pad - MEASURED.value - MEASURED.wordmark).toBeGreaterThanOrEqual(8)
       // The thumb's right edge at 50% against where the wordmark starts.
       expect(w - pad - MEASURED.wordmark - (w / 2 + MEASURED.thumb / 2)).toBeGreaterThanOrEqual(4)
