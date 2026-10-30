@@ -3290,9 +3290,15 @@ export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
  * the accent's ink too. The one control in the legend, and the one place the
  * app draws a button this way: it must add no height to the line, so it has
  * no edge and only a pixel of padding over and under the 12px word.
+ *
+ * The ink on the wash, on the legend card (`bg-floating`), measured
+ * 2026-10-30 from the tokens: 5.79:1 dark and 5.09 light at rest, 5.48 and
+ * 4.77 under the pointer. The hover stops at 20%: at 25% the light ink fell
+ * to 4.47. The wash stands only 1.16 to 1.29 off the card, which 1.4.11
+ * does not ask of it: the word names the control, as a text link's does.
  */
 export const LEGEND_GRID_STYLE =
-  `inline-flex items-center gap-0.5 px-1.5 py-px ${RADIUS.control} bg-accent/15 hover:bg-accent/25 ` +
+  `inline-flex items-center gap-0.5 px-1.5 py-px ${RADIUS.control} bg-accent/15 hover:bg-accent/20 ` +
   `${ACCENT.text} font-semibold cursor-pointer ${FOCUS_RING}`
 
 /**

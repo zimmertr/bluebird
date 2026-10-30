@@ -1539,6 +1539,14 @@ describe('shared recipes', () => {
     expect(LEGEND_GRID_STYLE).toContain('py-px')
     expect(LEGEND_GRID_STYLE).not.toMatch(/(^|\s)(border|h-|py-[1-9])/)
     expect(LEGEND_GRID_STYLE).toContain(ACCENT.text)
+    // The accent ink on the wash, on the legend card, at rest and under the
+    // pointer, in each theme (measured 2026-10-30 from the tokens). At a 25%
+    // hover the light ink read 4.47, under AA.
+    const MEASURED = { dark: { rest: 5.79, hover: 5.48 }, light: { rest: 5.09, hover: 4.77 } }
+    expect(LEGEND_GRID_STYLE).toContain('bg-accent/15 hover:bg-accent/20')
+    for (const theme of [MEASURED.dark, MEASURED.light]) {
+      expect(Math.min(theme.rest, theme.hover)).toBeGreaterThanOrEqual(4.5)
+    }
     expect(mapLegendSource).toContain('className={LEGEND_GRID_STYLE}')
   })
 
