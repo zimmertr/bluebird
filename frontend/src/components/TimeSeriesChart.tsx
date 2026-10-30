@@ -828,6 +828,7 @@ function TimeSeriesChart({
             <Fragment key={`stack-${i}`}>
               {i > 0 && (
                 <ResizeGrip
+                  line={!phone}
                   onReset={onSplitReset}
                   onDragStart={() => onSplitStart(i - 1)}
                   onDrag={onSplitDrag}

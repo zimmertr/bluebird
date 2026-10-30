@@ -52,7 +52,7 @@ const chart = vi.hoisted(() => ({
   xAxes: [] as { hide?: boolean; height?: number }[],
   tooltips: [] as ((props: unknown) => ReactNode)[],
   tooltipProps: [] as { allowEscapeViewBox?: unknown; wrapperStyle?: unknown }[],
-  grip: undefined as undefined | { onReset: () => void; onDragStart: () => void; onDrag: (px: number) => void; onDragEnd: () => void },
+  grip: undefined as undefined | { onReset: () => void; onDragStart: () => void; onDrag: (px: number) => void; onDragEnd: () => void; line?: boolean },
 }))
 // The grip's handlers, kept so a test can drag it without a pointer.
 vi.mock('./ResizeGrip', async (importOriginal) => ({
@@ -621,6 +621,8 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(topAxis).toMatchObject({ hide: true, height: 0 })
     expect(bottomAxis).toMatchObject({ hide: false, height: 22 })
     expect(screen.getAllByTestId('split-grip')).toHaveLength(1)
+    // At a desk the bar is the grid's quiet line, as every layout's is (TJ 2026-10-30).
+    expect(chart.grip!.line).toBe(true)
   })
 
   it('stands three as a row of two over one, each with its own axes', () => {

@@ -15,7 +15,17 @@ interface ResizeGripProps {
   onDrag: (dragUpPx: number) => void
   /** The pointer is up, cancelled, or gone. */
   onDragEnd: () => void
+  /**
+   * Drawn as the chart grid's gutter rather than the raised bar (TJ
+   * 2026-10-30): a desk's stacked chart panels, so every desk layout's bars
+   * are one quiet line. The results area's grips and a phone's keep the bar,
+   * which a finger needs to find.
+   */
+  line?: boolean
 }
+
+// The line stands in the stack's flow, 8px tall, where a gutter stands over a gap.
+const IN_FLOW = { position: 'relative', width: '100%', flexShrink: 0 } as const
 
 /**
  * The bar between two panels, and the two gestures it answers: drag to resize,
@@ -27,8 +37,27 @@ interface ResizeGripProps {
  * chart in Both mode and against the map alone. The gesture is
  * `useGripDrag`'s, which a phone sheet's grip takes too (#696).
  */
-export default function ResizeGrip({ onReset, onDragStart, onDrag, onDragEnd }: ResizeGripProps) {
-  const handlePointerDown = useGripDrag({ onReset, onDragStart, onDrag, onDragEnd: () => onDragEnd() })
+export default function ResizeGrip({ onReset, onDragStart, onDrag, onDragEnd, line = false }: ResizeGripProps) {
+  const [dragging, setDragging] = useState(false)
+  const handlePointerDown = useGripDrag({
+    onReset,
+    onDragStart: () => {
+      setDragging(true)
+      onDragStart()
+    },
+    onDrag,
+    onDragEnd: () => {
+      setDragging(false)
+      onDragEnd()
+    },
+  })
+  if (line) {
+    return (
+      <div {...HANDLE_MARK} onPointerDown={handlePointerDown} className={CHART_GUTTER.row} style={IN_FLOW}>
+        <div className={`${CHART_GUTTER.rowLine} ${dragging ? CHART_GUTTER.active : CHART_GUTTER.idle}`} />
+      </div>
+    )
+  }
 
   return (
     <div
