@@ -2604,9 +2604,14 @@ export const PANEL_HEADER = {
  * switch beside it, and the switch again in a phone's Controls sheet beside
  * Done (#706). A 32px square on either pointer, a finger's height (`TAP`,
  * record 0223), and no wider: `TAP.action`'s 44px width would draw it as a
- * bar. A `SQUARE_BUTTON`, being inside the panel.
+ * bar. `SQUARE_BUTTON`'s shape without its frame.
  */
-export const HEADER_BUTTON = `h-8 w-8 ${TEXT.control} ${SQUARE_BUTTON}`
+// No frame (TJ 2026-10-30): the header's two stand in chrome rather than among
+// the panel's fields, and the frame drew them as form controls; the square
+// keeps the shape rule, the raised fill at 80% the quiet they had as circles.
+export const HEADER_BUTTON =
+  `flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.control} ` +
+  `bg-raised/80 transition-colors hover:bg-raised-hover active:bg-raised-hover ${FOCUS_RING}`
 
 /**
  * Movement that answers a reader's action, at two speeds, and stops where
