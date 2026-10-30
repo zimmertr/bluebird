@@ -133,14 +133,16 @@ describe('ResultsBar', () => {
     const menus = ['Choose which columns to display', 'Models', 'Removed (2)'].map((name) => screen.getByRole('button', { name }))
     const download = screen.getByRole('button', { name: 'Download CSV' })
     for (const button of menus) {
-      // Removed alone wears the greying role, for its zero (record 0209).
-      expect(button.className).toBe(button === menus[2] ? `${MENU_TRIGGER.bar} ${DISABLED}` : MENU_TRIGGER.bar)
+      // Every one wears the bar shape alone; its states, the grey for
+      // Removed's zero among them (record 0209), are the shape's (record 0252).
+      expect(button.className).toBe(MENU_TRIGGER.bar)
       expect(button.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(2)
       expect(button.lastElementChild?.getAttribute('class')).toContain(MENU_CHEVRON.bar)
       expect(button.querySelector('span')?.className).toBe(BAR_LABEL)
     }
-    expect(MENU_TRIGGER.bar.startsWith(ACTION_ITEM)).toBe(true)
-    expect(download.className).toBe(`${ACTION_ITEM} ${DISABLED}`)
+    expect(MENU_TRIGGER.bar).toBe(ACTION_ITEM)
+    expect(download.className).toBe(ACTION_ITEM)
+    expect(ACTION_ITEM).toContain(DISABLED)
     expect(download.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
     expect(download.querySelector('span')?.className).toBe(BAR_LABEL)
     const buttons = [...menus, download]
