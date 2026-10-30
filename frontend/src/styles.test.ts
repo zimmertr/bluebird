@@ -824,6 +824,15 @@ describe('grouping and segmenting', () => {
   it('pairs the idle segment with the accent fill', () => {
     expect(darkStep(token(SEGMENT_IDLE, 'text'))).toBe('slate-400')
     expect(SEGMENT_IDLE).not.toBe(ACCENT.fill)
+    // Under the pointer the half steps to the raised fill, which light needs:
+    // its label's own step is two near-blacks. Measured 2026-10-30.
+    expect(SEGMENT_IDLE).toContain('not-disabled:hover:bg-raised')
+    const MEASURED = {
+      dark: { fillStep: 1.73, inkOnRaised: 8.4 },
+      light: { fillStep: 1.25, inkOnRaised: 13.66, labelStep: 1.83 },
+    }
+    for (const t of [MEASURED.dark, MEASURED.light]) expect(t.inkOnRaised).toBeGreaterThanOrEqual(4.5)
+    expect([darkStep('raised'), light('raised'), light('recessed')]).toEqual(['slate-700', '#e1e6ee', '#ffffff'])
   })
 
   // Pointing at a control from across the screen is a ring, not a border or a

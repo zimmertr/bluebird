@@ -80,7 +80,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
 | `SEGMENT_FILL` | Segmented control sized by the box it is placed in, for a row whose column is not the panel's (the Metrics direction row) |
 | `SEGMENT_FLUID` | Segmented control outside the panel column, sized by content |
-| `SEGMENT_IDLE` | Unchosen half of segmented control |
+| `SEGMENT_IDLE` | Unchosen half of segmented control; under the pointer it steps to the raised fill as its label goes to full ink, because in light the label's step alone could not be seen (record [0251](decisions/0251-idle-segment-hover-steps-its-fill.md)) |
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
 | `SEGMENT_DIVIDER` | The rule between two segment halves |
 | `CONTROL_SIZE` | The one type size every control reads at (`text-xs`); `SLIDER.value` and `SLIDER.wordmark` compose it |
