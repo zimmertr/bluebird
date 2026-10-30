@@ -950,7 +950,7 @@ export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
  * rounded rectangle, an icon-only one a square. The pinned chart card's ✕,
  * the panel header's buttons and, in `map.css`, the marker popup's ✕ wear it.
  */
-export const SQUARE_BUTTON =
+const SQUARE_BUTTON =
   `flex items-center justify-center ${RADIUS.control} border border-frame bg-raised text-ink-soft ` +
   `transition-colors hover:bg-raised-hover hover:text-ink-strong active:bg-raised-hover ${FOCUS_RING}`
 

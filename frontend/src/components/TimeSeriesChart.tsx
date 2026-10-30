@@ -343,7 +343,7 @@ function TimeSeriesChart({
     return () => document.removeEventListener('keydown', onKey)
   }, [pins.length])
   // A new grid of hours is a new report: its pins named the old one's hours.
-  useEffect(() => setPins([]), [times])
+  useEffect(() => setPins((list) => (list.length > 0 ? [] : list)), [times])
   const pinTimes = useMemo(() => pins.map((p) => p.t), [pins])
   // The top panel's share of two stacked panels' height, and a grid's column
   // and row splits (#499). Session state: a split is how this reader likes
