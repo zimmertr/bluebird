@@ -1,5 +1,6 @@
 import { caltopoUrl } from './caltopoUrl'
 import type { Place } from './geocode'
+import { roundTo } from './numbers'
 import { coordinateLabel } from './points'
 import { escapeHtml, popupButton, popupCard } from './popup/popupChrome'
 import { POI_ACTION_ATTR } from './poiPopup'
@@ -18,7 +19,7 @@ import { POI_ACTION_ATTR } from './poiPopup'
 // Five decimals, about a metre, the precision the title shows. The point is
 // rounded before it becomes a destination so the row, its share link and the
 // card all carry the coordinate the reader saw.
-const round5 = (v: number) => Math.round(v * 1e5) / 1e5
+const round5 = (v: number) => roundTo(v, 5)
 
 /** The point a press landed on, as the destination `Add to analysis` registers. */
 export function coordinatePlace(lat: number, lon: number): Place {
