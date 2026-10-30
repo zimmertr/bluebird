@@ -136,7 +136,7 @@ for (const theme of ['dark', 'light'] as const) {
     await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
     await expect(resultRows(page)).toHaveCount(DESTINATIONS, { timeout: 300_000 })
     await page.locator('button[aria-label="Show both chart and table"]').click()
-    await expect(page.locator('.recharts-line')).toHaveCount(DESTINATIONS)
+    await expect(page.locator('[data-tour="chart"] canvas').first()).toBeVisible() // the lines' canvas (record 0256)
     await page.waitForTimeout(1500)
     const cdp = await page.context().newCDPSession(page)
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_SLOWDOWN })

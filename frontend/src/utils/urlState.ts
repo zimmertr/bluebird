@@ -12,11 +12,14 @@ import { ForecastSelection } from './calendar/calendar'
 import { Place } from './geocode'
 import { type CameraView } from './mapView'
 import { type SortKey } from './tableColumns'
+import type { ChartMetrics } from './chart/chartData'
+import type { ChartLayout } from './chart/chartLayout'
 import {
   DEFAULT_LIMIT,
   DEFAULT_SORT,
   type LinkDrop,
   URL_PARAMS,
+  chartDiffers,
   decodeSelection,
   escapeQueryText,
   hasCustomCsv,
@@ -128,6 +131,13 @@ export interface ShareableState {
   // The link carries it because the order on screen is part of what a shared
   // report says; `usePresentedReport` owns when it is set.
   tableSort: { key: SortKey; desc: boolean } | null
+  // The chart's metric slots (#499), one to four, first panel first.
+  // Written only when there is more than one or the first is not the
+  // ranking's family, because a chart that follows the ranking is a fresh one.
+  chart: ChartMetrics
+  // How a desk arranges the chart's panels (#499), or null for the panel
+  // count's own. Written only when it is not that count's default.
+  chartLayout: ChartLayout | null
   // The map camera, or null before the map has reported one. It is written
   // only in a link that exists: an app move never makes a link by itself, and
   // a reader's own move does through `EncodeOptions.cameraMoved`.
@@ -215,6 +225,9 @@ export function encodeState(
     state.compareModels.length > 0 ||
     state.removed.length > 0 ||
     state.tableSort !== null ||
+    // A second panel, or a primary moved off the ranking, is the reader's own
+    // choice of what the chart shows (#499).
+    chartDiffers(state) ||
     // TJ's rule (2026-09-24): a pan or a zoom alone makes a link. Only the
     // reader's own move counts, or the opening camera of a fresh session would
     // write one before anyone touched the map.

@@ -1,6 +1,6 @@
 # 0252. Every control that opens a menu is one component with one set of states, and a phone's dropdowns open its sheet
 
-- Status: Accepted. Supersedes 0149's native select (the title stays). Amends 0201 (the field shape is no longer a styled native select) and 0251 (the states are one string).
+- Status: Accepted. Supersedes 0149's native select (the title stays). Amends 0201 (the field shape is no longer a styled native select) and 0251 (the states are one string). Amended by 0255 (a phone chart has no title: each panel stands its own picker bar, which opens the same sheet).
 - Date: 2026-10-30
 - Decider: the maintainer (TJ), on #799, 2026-10-30, after finding the chart's metric field and the model picker lit with an accent edge after their menus closed, where Columns was not: "rewrite how these interfaces are constructed so they share a common object in source code. So they literally CANNOT be different." Then "Our sheet everywhere" for a phone's chart metric and aggregates, with each sheet headed by the field's existing name (`Chart metric`, `<metric> aggregate`)
 - Issues and PRs: #799, #823

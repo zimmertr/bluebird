@@ -684,13 +684,13 @@ export const STYLES = [
   },
   {
     // The chart's metric menu cannot follow the panel column down: its
-    // labels carry units. And a row whose width its labels cannot move never
-    // wraps, so a sixth metric cannot bring the second line back.
+    // labels carry units. The row it stands in wraps since #499 (TJ
+    // 2026-10-29), because four pickers, their × and the + outgrow a narrow
+    // desk; each picker still holds CHART_METRIC_W whatever its labels say.
     name: 'style-chart-metric',
     files: ['src/components/TimeSeriesChart.tsx'],
     ban: [
       { selector: named('CONTROL_W'), message: 'Size the chart metric menu by CHART_METRIC_W, not CONTROL_W.' },
-      { selector: text('flex-wrap'), message: 'Let the chart metric row wrap nowhere.' },
     ],
     require: [
       { selector: named('CHART_METRIC_W'), message: 'TimeSeriesChart reads CHART_METRIC_W.' },

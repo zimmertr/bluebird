@@ -237,6 +237,10 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `TABLE.rankFace` | One face of that stack, pinned to the shared cell |
 | `TABLE.rankIdleFace` / `TABLE.removeFace` | Which face shows: the number gives way on row hover and while the × has keyboard focus. The × idles at no opacity rather than `invisible`, because a hidden element cannot take focus (#576) |
 
+### Shapes and tables
+
+A button's shape says where it stands. A circle floats on the map with nothing behind it; every control inside the panel, a sheet, a card or a popup is a rounded rectangle, and an icon-only one is `SQUARE_BUTTON`, a raised square with a frame. The results table, the marker popup and the chart's card share one table look: the table's heads, a hairline between rows with the table's tint under the pointer, digits grouped in thousands, and the ranked family in `cellStyle`'s colours. Record: [0257](decisions/0257-one-table-look-and-button-shape-by-place.md)
+
 ## Two themes
 
 Dark is the default and stays the default whatever the operating system says;
@@ -444,7 +448,7 @@ values (#365):
 | Channel | Owner | What it holds |
 |---|---|---|
 | MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; `map/terrain.ts` for the shaded relief's shadow and light and the contours' ink and labels (#799), one value for both themes because the map stays light in both; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch; `utils/slopeAngle.ts` for the slope angle's six bands and the half strength they paint at by default, read by the raster and the legend alike (#799); the row's opacity level moves the raster's opacity from there (record 0250) | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
-| Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow) | The same |
+| Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow); `utils/chart/chartColors.ts` for the chart's series lines, which `utils/chart/chartCanvas.ts` draws in the theme's half of each line's pair (record 0256) | The same |
 | Popup HTML handed to `setHTML` | `utils/popup/popupChrome.ts` | The three type sizes, the face, the names of the card's colours (each a `--popup-*` value, an app token in `map.css`, record 0215), the one button (`BUTTON_ACCENT` as its class list), the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
 | Recharts props | `utils/chart/chartColors.ts` | The axis, grid and playhead colours beside the line palette |
 
@@ -757,16 +761,20 @@ label's white at 12% and the shadow a step lower while held, on either
 pointer, and never a grey after a run.
 Record: [0135](decisions/0135-phone-opens-on-the-map.md)
 
-A phone chart's metric picker is the plot's title (`CHART_TITLE`): the
-metric's label with its unit, sized to its words and 32px tall. It is the
-desk's `MenuSelect`, the field trigger every dropdown is, opening the one
-menu's sheet (record [0252](decisions/0252-every-trigger-is-one-component.md)),
-so it is the desktop picker shrunk rather than a look of its own. The
-plot's top margin grows by the title's 32px (`TITLED_PLOT_MARGIN`), so its
-dashed lines, their labels and the top tick start under it. Measured
-2026-10-14, when the title was a 28px box over a native select: the field
-row it replaced was 52px, and the plotting band grew 24px at 360 and 390.
-Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
+The chart's pickers stand in one row above the panels at a desk, 8px apart;
+on a phone each stands over its own panel's top left (`CHART_PICKER.bar`)
+and the plot is inset under it (#499). `CHART_PANEL_BUTTON` draws the + after the last: the + is a square in the field's
+fill, edge and radius, as tall as the picker beside it. The × is the right
+segment of its picker's field (`CHART_PICKER`): one outline, an `edge`
+divider, and a quiet glyph with its focus ring inside. Its twin on the left end is the grip that moves the panel, behind an `edge` divider too, and a drag shows where it lands with a 2px accent bar in the row's 8px gap. `CHART_LAYOUT` draws the Panel layout button's miniature of the arrangement inside the + square's chrome, and its menu of 34 by 26 squares, the current one in the accent ink and edge. `CHART_GUTTER` draws the gaps of a desk's grid of
+three or four panels: a 1px `edge` line, 3:1 or better on the panel, that turns accent on hover and while
+dragged, with a small three-dot grip at its middle on the panel's fill, and a 16px crossing that shows a dot, both rimmed in `edge` and one level quieter than the sheet's raised grip.
+The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:
+the hour as a 13px title on the popup's `band` token, the rows in a body,
+and `+N more` in a footer. The band is an app token now (`--ui-band`), and
+map.css reads it for the popup, so the two cards share one band.
+Every picker is the desk's `MenuSelect`, opening the one menu's sheet on a phone (record [0252](decisions/0252-every-trigger-is-one-component.md)).
+Record: [0255](decisions/0255-chart-metrics-as-panels.md)
 
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
 the compass and the locate button, 32px round in the pill's chrome, as tall as

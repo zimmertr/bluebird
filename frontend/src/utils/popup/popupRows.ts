@@ -295,12 +295,11 @@ type PopupGridRow =
 export type PopupGrid = { columns: string[]; rows: PopupGridRow[] }
 
 /**
- * The aggregates that become columns, in one order for every family. A grid
- * cannot keep each family's own column order the way the stacked lines did,
- * so it takes the order most families already have, and an AQI ranking's Avg
- * moves from first to last (TJ chose the grid, 2026-10-08). The window total
- * is the last column, filled for precipitation and snowfall alone (TJ,
- * 2026-10-08, rather than a line of its own above their rates).
+ * The aggregates that can become columns. Their order is the table's, read
+ * off the first family that shows them (record 0257), one order for every
+ * family. The window total is the last column, filled for precipitation and
+ * snowfall alone (TJ, 2026-10-08, rather than a line of its own above their
+ * rates).
  */
 const GRID_AGGREGATES: readonly string[] = [
   AGGREGATE.minimum,
@@ -321,7 +320,13 @@ export function popupGrid(groups: readonly PopupGroup[]): PopupGrid {
   const shown = new Set(
     groups.filter((g) => !g.single).flatMap((g) => g.values.map((v) => v.aggregate ?? '')),
   )
-  const columns = GRID_AGGREGATES.filter((a) => shown.has(a))
+  // In the order the table's columns give them (TJ 2026-10-30), the card
+  // being the table's row on its side, so a head carried in either moves both;
+  // the window total stays last, filled for two families alone.
+  const seen = groups.filter((g) => !g.single).flatMap((g) => g.values.map((v) => v.aggregate ?? ''))
+  const columns = [...new Set(seen)]
+    .filter((a) => GRID_AGGREGATES.includes(a) && a !== AGGREGATE.total)
+    .concat(shown.has(AGGREGATE.total) ? [AGGREGATE.total] : [])
   const cellOf = (v: PopupValue): PopupGridCell => ({
     text: v.unit ? `${v.text} ${v.unit}` : v.text,
     href: v.href,

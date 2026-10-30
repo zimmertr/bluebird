@@ -215,6 +215,9 @@ interface Props {
   // A ranked marker's card carries the row's remove (#696), so a finger that
   // opened it from a row can take the row out from there.
   onRemoveResult: (row: DestinationResult) => void
+  // A result card's aggregate head carried to another: the table's columns
+  // move with it, every family's alike (TJ 2026-10-30).
+  onMoveAggregate: (from: string, to: string) => void
   // How much of the container's bottom edge the results sheet stands on, which
   // every framing move below has to leave empty (#249). On a phone the map
   // keeps the whole column and the sheet is over it, so a fit measured into the
@@ -307,6 +310,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onAddPoi,
       onRemovePoi,
       onRemoveResult,
+      onMoveAggregate,
       cameraPadBottomPx,
       restoredView,
       onCameraMove,
@@ -382,6 +386,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onAddPoi,
       onRemovePoi,
       onRemoveResult,
+      onMoveAggregate,
       cameraPadBottomPx,
       onCameraMove,
       maxPolygonPoints,

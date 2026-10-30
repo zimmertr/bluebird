@@ -123,7 +123,12 @@
       "lng": -121.6123,
       "lat": 47.1,
       "zoom": 9.46
-    }
+    },
+    "chart": [
+      "temp",
+      "precip"
+    ],
+    "chartLayout": "row"
   },
   "nowOnly": {
     "selection": {

@@ -53,7 +53,7 @@
   --popup-scheme: dark;
   --popup-surface: var(--ui-panel);
   --popup-ink: var(--ui-ink);
-  --popup-band: color-mix(in oklab, var(--ui-raised) 50%, var(--ui-panel));
+  --popup-band: var(--ui-band);
   --popup-ranked: var(--ui-raised);
   --popup-line: var(--ui-rule);
   --popup-rule: var(--ui-frame);
@@ -66,6 +66,9 @@
   --popup-thumb: var(--ui-edge-lifted);
   --popup-close: var(--ui-ink-soft);
   --popup-close-hover: var(--ui-accent-ink);
+  --popup-close-fill: var(--ui-raised);
+  --popup-close-edge: var(--ui-frame);
+  --popup-edge: var(--ui-edge);
 }
 :root[data-theme="light"] {
   --popup-scheme: light;
@@ -462,14 +465,35 @@
   backdrop-filter: none;
 }
 
+/* A grid row lights under the pointer as a results row does (`TABLE.row`'s
+   raised step at 30%), behind every cell but a ranked one, whose tint is its
+   colour (TJ 2026-10-30). */
+.maplibregl-popup tr:hover > :not([data-tint]) {
+  background: color-mix(in srgb, var(--ui-raised) 30%, transparent);
+}
+
+/* A grid head's divider, which sizes the column on its left: its line paints
+   `currentColor` (`gridHead` in popupChrome.ts), so under the pointer only its
+   colour changes, to the accent, as the chart's gutters light; none after the
+   last column, whose edge is the card's. */
+.maplibregl-popup [data-agg-edge] {
+  color: var(--popup-edge);
+}
+.maplibregl-popup [data-agg-edge]:hover {
+  color: var(--ui-accent-ink);
+}
+.maplibregl-popup th:last-child [data-agg-edge] > span {
+  display: none;
+}
+
 /* The popup's close button, for the same reason as the controls above:
    maplibre injects it, so there is no call site to style.
 
-   The bare glyph every × inside a card or a field wears (`ICON_BUTTON` in
-   styles.ts; record 0222): no surface, the soft ink at rest and the strong
-   ink under a pointer, in a box the size of the vendor's that keeps it off
-   the corner. The vendor's own glyph is a bare character pressed into the corner
-   with no hit area, which is why the box is drawn here at all.
+   `SQUARE_BUTTON` in styles.ts: a raised square with a frame, as every icon
+   button inside a surface is (TJ 2026-10-30), the soft ink at rest and the
+   accent under a pointer (record 0251). The vendor's own glyph is a bare character
+   pressed into the corner with no hit area, which is why the box is drawn
+   here at all.
 
    `line-height: 1` matters. Without it the inherited line box pushes the glyph
    off-centre inside the square; the 1px nudge below is the "×" character's
@@ -484,8 +508,9 @@
   width: 1.375rem;
   height: 1.375rem;
   padding: 0 0 1px 0;
-  border: 0;
-  background: none;
+  border: 1px solid var(--popup-close-edge);
+  border-radius: 0.25rem;
+  background: var(--popup-close-fill);
   font-size: 1.125rem;
   line-height: 1;
   color: var(--popup-close);
@@ -495,15 +520,22 @@
 .maplibregl-popup-close-button:hover,
 .maplibregl-popup-close-button:focus-visible {
   color: var(--popup-close-hover);
-  background: none;
 }
 
-/* Coarse pointers press 44px around the bare ×: it draws no box, so the
-   press costs the card nothing (`TAP` in styles.ts). */
+/* Coarse pointers get the 32px square every phone control draws, and the
+   44px press every phone control has (`TAP` in styles.ts, records 0223 and
+   0254): a rim inside its 1px edge, 30 + 14 across. The rim stops 6px out at
+   the top and the right, the button's own inset, so the press stays on the
+   card and does not reach the map past its corner. */
 @media (hover: none) {
   .maplibregl-popup-close-button {
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 2rem;
+    height: 2rem;
+  }
+  .maplibregl-popup-close-button::before {
+    content: '';
+    position: absolute;
+    inset: -6px -6px -8px -8px;
   }
 }
 

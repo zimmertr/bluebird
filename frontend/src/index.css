@@ -101,6 +101,7 @@ body,
   --color-panel: var(--ui-panel);
   --color-raised: var(--ui-raised);
   --color-raised-hover: var(--ui-raised-hover);
+  --color-band: var(--ui-band);
   /* A list's highlighted row on a raised surface (the search results). */
   --color-highlight: var(--ui-highlight);
   --color-floating: var(--ui-floating);
@@ -159,6 +160,7 @@ body,
   --ui-panel: var(--color-slate-800);
   --ui-raised: var(--color-slate-700);
   --ui-raised-hover: var(--color-slate-600);
+  --ui-band: color-mix(in oklab, var(--ui-raised) 50%, var(--ui-panel));
   --ui-highlight: color-mix(in oklab, var(--color-slate-600) 50%, transparent);
   --ui-floating: var(--color-slate-800);
   --ui-recessed: var(--color-slate-900);
@@ -225,6 +227,7 @@ body,
   --ui-panel: #eef2f9;
   --ui-raised: #e1e6ee;
   --ui-raised-hover: #d4dae3;
+  --ui-band: color-mix(in oklab, var(--ui-raised) 50%, var(--ui-panel));
   --ui-highlight: #d4dae3;
   --ui-floating: #f8f9ff;
   --ui-recessed: #ffffff;

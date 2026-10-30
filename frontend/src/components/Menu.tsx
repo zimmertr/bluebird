@@ -147,6 +147,8 @@ interface MenuSelectProps<V extends string> {
   onChange: (value: V) => void
   /** The field's width and insets, from the role its call site already wore. */
   className: string
+  /** A field of its own, or the left segment of a group that wears the field's look (#499). */
+  shape?: 'field' | 'segment'
   /** Out of play, as a Metrics row the window cannot answer is (#803): the field takes no press. */
   disabled?: boolean
   /** A phone: the list opens in a bottom sheet headed by `label`, as the model list does (record 0252). */
@@ -178,6 +180,7 @@ export function MenuSelect<V extends string>({
   onChange,
   className,
   disabled = false,
+  shape = 'field',
   sheet = false,
 }: MenuSelectProps<V>) {
   const [open, setOpen] = useState(false)
@@ -225,7 +228,7 @@ export function MenuSelect<V extends string>({
     <>
       <MenuButton
         ref={triggerRef}
-        shape="field"
+        shape={shape}
         open={open}
         aria-haspopup={sheet ? 'dialog' : 'listbox'}
         aria-labelledby={`${nameId} ${valueId}`}

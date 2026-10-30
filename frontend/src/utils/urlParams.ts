@@ -25,6 +25,8 @@ import { isSortKey } from './tableColumns'
 import { parseCustomCsv } from './customDestinations'
 import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
+import { MAX_CHART_PANELS, isChartMetric, metricForSort } from './chart/chartData'
+import { defaultLayout, isChartLayout, layoutFor } from './chart/chartLayout'
 import { type BaseLayer, DEFAULT_BASE_OPACITY, OPACITY_DEFAULT, clampOpacity } from './baseMapOpacity'
 
 /**
@@ -140,6 +142,15 @@ const PLACE_KIND = /^[\p{L}\p{N} ]*$/u
 
 // A link's coordinates, at the precision it writes them.
 const round = (n: number): number => roundTo(n, POLY_PRECISION)
+
+/**
+ * Whether the chart shows something other than a fresh session's (#499):
+ * more than one panel, or a first panel the reader moved off the ranking's
+ * family.
+ */
+export function chartDiffers(state: ShareableState): boolean {
+  return state.chart.length > 1 || state.chart[0] !== metricForSort(state.sortBy)
+}
 
 /** Whether the state holds a ring worth writing: three corners at least. */
 export function hasPolygon(state: ShareableState): boolean {
@@ -489,6 +500,33 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       if (unique.length > 0) out.compareModels = unique
     },
   },
+  // The chart's metrics (#499): every panel's, first panel first, comma
+  // joined, `chart=precip,temp,wind,aqi`, and `chart=temp` for one panel.
+  // Written only when it differs from the chart a fresh session draws. Read
+  // tolerantly: an unknown name is dropped, a repeat is dropped, and a name
+  // past the fourth is ignored, since the chart has four slots.
+  {
+    key: 'chart',
+    encode: (state) => (chartDiffers(state) ? state.chart.join(',') : null),
+    decode: (raw, out) => {
+      const names = raw.split(',').filter(isChartMetric)
+      const unique = names.filter((m, i) => names.indexOf(m) === i)
+      if (unique.length > 0) out.chart = unique.slice(0, MAX_CHART_PANELS)
+    },
+  },
+  // How a desk arranges the chart's panels (#499): `layout=row`, `column`,
+  // `2x2`, `2-1`, `1-2`, `1-3` or `1-2-1`. Written only when it is not the
+  // panel count's own; an unknown value parses to nothing.
+  {
+    key: 'layout',
+    encode: (state) =>
+      state.chartLayout !== null && layoutFor(state.chartLayout, state.chart.length) !== defaultLayout(state.chart.length)
+        ? state.chartLayout
+        : null,
+    decode: (raw, out) => {
+      if (isChartLayout(raw)) out.chartLayout = raw
+    },
+  },
   // The window's five keys are read together by `decodeSelection`, because
   // what `h1` means depends on `mode` and `d1`.
   //
@@ -761,6 +799,8 @@ export const FIELD_PARAMS = {
   pins: ['pins'],
   removed: ['removed'],
   tableSort: ['tsort', 'tdesc'],
+  chart: ['chart'],
+  chartLayout: ['layout'],
   view: ['view'],
 } satisfies Record<keyof ShareableState, readonly [string, ...string[]]>
 

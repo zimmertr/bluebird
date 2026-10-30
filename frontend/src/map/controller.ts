@@ -39,6 +39,8 @@ export interface MapInputs {
   onRemovePoi: (latitude: number, longitude: number) => void
   // A result card's `Remove from analysis`: the row's × (#696).
   onRemoveResult: (row: DestinationResult) => void
+  // A result card's aggregate head carried to another (TJ 2026-10-30).
+  onMoveAggregate: (from: string, to: string) => void
   cameraPadBottomPx: number
   // Where the settled camera goes, and whether the reader moved it
   // (`map/camera.ts`). The share link's writer, which never renders.

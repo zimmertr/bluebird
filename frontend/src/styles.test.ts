@@ -79,7 +79,10 @@ import {
   CONTROLS_SHEET,
   SAFE_AREA,
   CHART_PLOT_TOUCH,
-  CHART_TITLE,
+  CHART_PANEL_BUTTON,
+  CHART_PICKER,
+  CHART_CARD,
+  CHART_GUTTER,
   MENU,
   MENU_GROUP,
   LAYER_GRID,
@@ -135,7 +138,6 @@ import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
-import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chart/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { CHIP_MENU_GAP_PX } from './utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
@@ -198,7 +200,7 @@ import appDrawerSource from './components/AppDrawer.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
-import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
+import { PHONE_PICKER_INSET_PX } from './utils/chart/chartPointer'
 import resultsBarSource from './components/ResultsBar.tsx?raw'
 import welcomeSource from './components/WelcomeModal.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
@@ -250,7 +252,10 @@ const zOf = (layer: string): number => Number(layer.match(/^z-\[?(\d+)\]?$/)![1]
  */
 const light = (name: string): string => {
   const own = LIGHT_TOKENS[name].match(/^var\(--color-([\w-]+)\)$/)
-  return own ? paletteHex(own[1]) : LIGHT_TOKENS[name]
+  if (own) return paletteHex(own[1])
+  // A token mixed of two others (`band`), as the browser paints the mix.
+  const mix = LIGHT_TOKENS[name].match(/^color-mix\(in oklab, var\(--ui-([\w-]+)\) (\d+)%, var\(--ui-([\w-]+)\)\)$/)
+  return mix ? mixOklab(light(mix[1]), Number(mix[2]) / 100, light(mix[3])) : LIGHT_TOKENS[name]
 }
 /** CSS Color 4's oklch to sRGB, gamut-clipped, as the hex a browser paints. */
 function oklchHex(l: number, c: number, h: number): string {
@@ -333,6 +338,8 @@ const over = (top: string, alpha: number, under: string) => mixOver(top, under, 
 function dark(name: string, ground?: string): string {
   const value = DARK_TOKENS[name]
   if (/^#[0-9a-f]{6}$/i.test(value)) return value
+  const pair = value.match(/^color-mix\(in oklab, var\(--ui-([\w-]+)\) (\d+)%, var\(--ui-([\w-]+)\)\)$/)
+  if (pair) return mixOklab(dark(pair[1]), Number(pair[2]) / 100, dark(pair[3]))
   const mix = value.match(/^color-mix\(in oklab, var\(--color-([\w-]+)\) (\d+)%, transparent\)$/)
   if (!mix) return paletteHex(darkStep(name))
   if (ground === undefined) throw new Error(`--ui-${name} is translucent; name the ground it lands on`)
@@ -2516,7 +2523,9 @@ describe('the map rows', () => {
     const recipes = Object.values(STYLES).flatMap((v) =>
       typeof v === 'string' ? [v] : Object.values(v as Record<string, unknown>).filter((x): x is string => typeof x === 'string'),
     )
-    expect(recipes.filter((r) => sizes(r).includes('text-[13px]'))).toEqual([])
+    // The one exception is the chart card's title, which is the marker
+    // popup's title size, so the two cards share one title (#499).
+    expect(recipes.filter((r) => sizes(r).includes('text-[13px]'))).toEqual([CHART_CARD.head])
     expect(step(MAP_CHIP, 'px')).toBe(12)
     expect(tokens(MAP_CHIP)).not.toContain('font-semibold')
   })
@@ -2666,9 +2675,11 @@ describe('the phone chrome\'s hit areas', () => {
   // markup is dressed by, which ESLint does not read. Under the pointer a
   // map.css rule may change a colour or a glyph's mask, never an edge or a
   // fill, except the one solid button, 3D while it is on, which deepens its
-  // fill as every filled button does.
+  // fill as every filled button does, and a marker popup's grid row, which is
+  // no control: it takes the results table's row tint under the pointer so a
+  // row reads straight across (TJ 2026-10-30, record 0257).
   it('lights no edge or fill under the pointer in map.css, and lights every map glyph in the accent', () => {
-    const SOLID = ['.map-terrain[aria-pressed="true"]:hover']
+    const SOLID = ['.map-terrain[aria-pressed="true"]:hover', '.maplibregl-popup tr:hover > :not([data-tint])']
     const rules = [...mapCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => [
       selector.slice(selector.lastIndexOf('*/') + 1).replace(/^\/?\s*/, '').trim(),
       body,
@@ -3121,38 +3132,75 @@ describe('the chart under a finger', () => {
   })
 })
 
-// A phone's chart picker is the plot's title (#696; record 0149), and the plot
-// is inset by the title's box so its dashed lines, their labels and the y
-// axis's top tick start under it. Measured 2026-10-14 in the Playwright
-// image's Chromium: the field row it replaced was 52px at 360 and 390 (the
-// 44px select a finger presses and the row's 4px either side). The box stands
-// 12px from the grip's rule, 12px over the y axis's top label and 12px from
-// the sheet's edge, the results bar's own inset (the maintainer, 2026-10-14).
-// Since record 0252 it is the desk's field trigger, opening a sheet, at a
-// phone field's 32px rather than the 28px look it had over a native select.
-describe('the chart title on a phone', () => {
-  const MEASURED = { fieldRowPx: 52, rulePx: 12, labelPx: 12, leftPx: 12, barLeftPx: 12 }
-
-  it('is a 32px field with the same room above it, below it and on its left', () => {
-    expect(words(CHART_TITLE.box)).toEqual(expect.arrayContaining(['top-3', 'left-3']))
-    expect(words(CHART_TITLE.field)).toContain('h-8')
-    expect(8 * 4).toBe(CHART_TITLE_PX)
-    expect(words(TAP.height)).toContain('touch:min-h-8')
-    expect(3 * 4).toBe(CHART_TITLE_INSET_PX)
-    for (const gap of [MEASURED.rulePx, MEASURED.labelPx, MEASURED.leftPx]) expect(gap).toBe(CHART_TITLE_INSET_PX)
-    // Its left edge is the results bar's, where "Lowest" and the view buttons stand.
-    expect(MEASURED.leftPx).toBe(MEASURED.barLeftPx)
-    expect(TITLED_PLOT_MARGIN.top).toBe(2 * CHART_TITLE_INSET_PX + CHART_TITLE_PX + TOP_LABEL_RISE_PX)
-    // Still shorter than the row it replaced.
-    expect(TITLED_PLOT_MARGIN.top - TOP_LABEL_RISE_PX).toBeLessThan(MEASURED.fieldRowPx + CHART_TITLE_INSET_PX)
+// The chart's picker row (#499): the same at a desk and on a phone.
+describe('the chart picker row', () => {
+  // The chart's panel controls (#499): the + in the field's look, the ×
+  // quiet, both squares as tall as what they stand beside (TJ, 2026-10-29).
+  it('draws the + and the × as squares the height of the picker', () => {
+    expect(words(CHART_PANEL_BUTTON.add)).toEqual(
+      expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, ...words(ICON_ACTION), ...words(DISABLED)]),
+    )
+    // A desk picker: a 16px line of `TEXT.control`, `py-0.5` (2px) above and
+    // below, and a 1px edge each side, is 22px: `size-5.5`. Under a finger
+    // the picker's `touch:min-h-8` is 32px: `touch:size-8`.
+    expect(words(TEXT.control)).toContain('text-xs')
+    expect(16 + 2 * 2 + 2 * 1).toBe(5.5 * 4)
+    expect(words(CHART_PANEL_BUTTON.square)).toEqual(['size-5.5', 'touch:size-8'])
+    expect(words(FIELD)).toContain('touch:min-h-8')
   })
 
-  it('is the one field trigger, sized to its words, with no look of its own', () => {
-    expect(timeSeriesChartSource).toMatch(/<MenuSelect[\s\S]*?sheet=\{titled\}[\s\S]*?CHART_TITLE\.field/)
-    expect(timeSeriesChartSource).not.toContain('<select')
-    expect(CHART_TITLE.field).not.toContain(CHART_METRIC_W)
-    for (const part of Object.values(CHART_TITLE)) expect(part).not.toMatch(/(^|[\s:])(bg|border|text)-(?!left)/)
+  // A removable picker is one field in two segments (#499; TJ 2026-10-29,
+  // option A): the group wears the field's look, the picker none of its own,
+  // and the × stands behind an edge divider at the picker's height.
+  it('draws a removable picker and its × as one field in two segments', () => {
+    expect(words(CHART_PICKER.group)).toEqual(expect.arrayContaining([RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control]))
+    expect(MENU_TRIGGER.segment).not.toMatch(/(^|\s)(bg-|border|rounded)/)
+    expect(words(CHART_PICKER.remove)).toEqual(expect.arrayContaining([...words(ICON_ACTION), ...words(FOCUS_RING_INSET), 'border-l', 'border-edge']))
+    // 22px beside a desk's picker, the height `square` measures above.
+    expect(words(CHART_PICKER.x)).toEqual(['w-5.5', 'touch:w-8'])
+    expect(MENU_CHEVRON.segment).toBe(MENU_CHEVRON.field)
   })
+
+  // The grip that moves a panel is the ×'s twin on the field's left end
+  // (#499; TJ 2026-10-30): the same quiet ink and inset focus ring, an edge
+  // divider on its right, a grab cursor, and no touch scrolling; the drop bar
+  // is the accent, centred in the row's 8px gap.
+  it('draws the move grip as the left segment and the drop bar in the gap', () => {
+    expect(words(CHART_PICKER.grip)).toEqual(
+      expect.arrayContaining([...words(ICON_ACTION), ...words(FOCUS_RING_INSET), 'border-r', 'border-edge', 'cursor-grab', 'touch-none']),
+    )
+    expect(words(CHART_PICKER.drop)).toEqual(expect.arrayContaining(['absolute', 'w-0.5', 'bg-accent', 'pointer-events-none']))
+    expect([CHART_PICKER.before, CHART_PICKER.after]).toEqual(['-left-1.25', '-right-1.25'])
+    // A phone's pickers stand over their panels, 8px under the top and 12px
+    // in, the results bar's inset; a drag rings the one it lands on.
+    expect(words(CHART_PICKER.bar)).toEqual(expect.arrayContaining(['absolute', 'top-2', 'left-3', 'gap-2']))
+    expect(2 * 4).toBe(PHONE_PICKER_INSET_PX)
+    expect(words(CHART_PICKER.target)).toEqual(['ring-2', 'ring-accent'])
+  })
+
+  // The grid's gutters are its handles (#499): a cursor per axis, a 1px line
+  // in the rule token that lights in the accent, and a crossing with no glyph.
+  it('draws the grid gutters as lines, each with its own resize cursor', () => {
+    expect(words(CHART_GUTTER.col)).toEqual(expect.arrayContaining(['w-2', 'cursor-col-resize']))
+    expect(words(CHART_GUTTER.row)).toEqual(expect.arrayContaining(['h-2', 'cursor-row-resize']))
+    expect(words(CHART_GUTTER.cross)).toEqual(expect.arrayContaining(['size-4', 'cursor-move']))
+    // The crossing's own box is bare; its dot carries the look.
+    expect(CHART_GUTTER.cross).not.toMatch(/(^|\s)(bg|border)-/)
+    // Option B (TJ 2026-10-30): a flat grip on the panel's fill at each
+    // bar's middle and a dot at each crossing, rimmed in `edge`.
+    // The rim never lights (record 0251); the dots and the crossing's fill do.
+    expect(words(CHART_GUTTER.knob)).toEqual(expect.arrayContaining(['bg-panel', 'border', 'border-edge', RADIUS.control]))
+    expect(words(CHART_GUTTER.crossDot)).toEqual(expect.arrayContaining(['border', 'border-edge', RADIUS.pill]))
+    expect(CHART_GUTTER.crossIdle).toBe('bg-panel group-hover:bg-accent')
+    expect(Object.values(CHART_GUTTER).join(' ')).not.toMatch(/hover:border/)
+    expect(words(CHART_GUTTER.colLine)).toContain('w-px')
+    expect(words(CHART_GUTTER.rowLine)).toContain('h-px')
+    expect(words(CHART_GUTTER.idle)).toEqual(['bg-edge', 'group-hover:bg-accent'])
+    // The line is the handle, so it owes a boundary's 3:1 on the panel.
+    expect([ratio(dark('edge'), dark('panel')), ratio(light('edge'), light('panel'))]).toEqual([3.07, 3.97])
+    expect(CHART_GUTTER.active).toBe('bg-accent')
+  })
+
 })
 
 // The map's Layers popover: thirteen rows in three groups (record 0249).
@@ -4034,17 +4082,18 @@ describe('the popup card', () => {
     expect(mapCss).not.toMatch(/data-popup-button|--popup-(?:primary|secondary|danger)/)
   })
 
-  // The × is the bare glyph every card's close is (record 0222), standing on
-  // the header band, at rest and under the pointer, dark theme then light.
-  it('draws its × bare on the header band, past 3:1 in both themes', () => {
-    expect({
-      rest: both('var(--popup-close)', HEADER_BAND_COLOR),
-      hover: both('var(--popup-close-hover)', HEADER_BAND_COLOR),
-    }).toEqual({ rest: [4.71, 7.89], hover: [5.69, 5.43] })
-    // Under the pointer the × takes the accent ink, the one hover (record
-    // 0251); it brightened to the strong ink until 2026-10-30.
+  // The × is a raised square (record 0257): its glyph owes 3:1 on its fill
+  // at rest and in the accent under the pointer, dark then light, and the
+  // fill does not change under the pointer.
+  it('draws its × as a raised square, its glyph past 3:1 in both themes', () => {
+    for (const ink of ['var(--popup-close)', 'var(--popup-close-hover)'])
+      for (const ratio of both(ink, 'var(--popup-close-fill)')) expect(ratio).toBeGreaterThanOrEqual(3)
     expect(mapCss).toContain('--popup-close-hover: var(--ui-accent-ink);')
-    expect(mapCss).not.toMatch(/--popup-close-(?:fill|edge|hover-fill|hover-edge)/)
+    expect(mapCss).toMatch(/--popup-close-fill: var\(--ui-raised\);/)
+    expect(mapCss).not.toMatch(/--popup-close-fill-hover/)
+    // Under a finger it draws 32px and presses 44, as every phone control
+    // does (record 0254), its rim kept on the card at the top and the right.
+    expect(mapCss).toMatch(/\.maplibregl-popup-close-button::before \{[^}]*inset: -6px -6px -8px -8px;/)
   })
 
   // The ranked family's colours (#740) are the table's, and the card stands
@@ -4248,7 +4297,7 @@ describe('the one menu', () => {
   // recorded"): a pill on the map, a field in the panel, a button in the
   // results bar's group. Everything else is the one menu.
   it('keeps three trigger shapes and no more', () => {
-    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field'])
+    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'segment', 'square'])
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.bar).toBe(ACTION_ITEM)
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())
@@ -4616,6 +4665,31 @@ describe('the calendar field wraps', () => {
 // #706); the values it left to derive (the middle ink, the faint ink, the
 // outline, the range band's hover, the shade, the thumb and the muted fade)
 // are each held to the floor they owe. Measured 2026-10-15.
+// The chart's hover card wears the marker popup's anatomy (#499; TJ
+// 2026-10-29): its band is the popup's own token, and the hour on it and the
+// heads and the footer in the label ink are measured on it in both themes.
+describe('the chart card', () => {
+  const cls = (r: string) => r.split(/\s+/)
+  it('builds the card from the popup band, the frame rim and the overlay step', () => {
+    expect(cls(CHART_CARD.card)).toEqual(expect.arrayContaining(['bg-panel', 'border-frame', RADIUS.surface, ELEVATION.overlay, 'overflow-hidden']))
+    // The name column is always 160px, a long name ending in an ellipsis, so
+    // the card keeps one width as the hour moves.
+    expect(cls(CHART_CARD.name)).toEqual(['min-w-0', 'w-40', 'truncate'])
+    expect(cls(CHART_CARD.value)).toEqual(['min-w-[6ch]', 'text-right', 'font-mono'])
+    expect(cls(CHART_CARD.head)).toEqual(expect.arrayContaining(['bg-band', 'border-rule', 'text-ink-strong', 'font-semibold']))
+    expect(cls(CHART_CARD.rule)).toEqual(expect.arrayContaining(['col-span-full', 'bg-frame']))
+    expect(cls(CHART_CARD.foot)).toEqual(expect.arrayContaining(['border-t', 'border-rule', 'text-ink-soft']))
+    expect(mapCss).toContain('--popup-band: var(--ui-band);')
+  })
+  it('reads the title and the label ink on the band above AA in both themes', () => {
+    const on = (ink: string) => [ratio(dark(ink), dark('band')), ratio(light(ink), light('band'))]
+    expect([on('ink-strong'), on('ink-soft')]).toEqual([
+      [12.39, 14.42],
+      [4.71, 7.89],
+    ])
+  })
+})
+
 describe('the light theme', () => {
   // A role's light hex through one of its utilities.
   const hex = (recipe: string, utility: string) => light(token(recipe, utility))

@@ -17,6 +17,8 @@ import type { ClosureProps } from '../utils/closures'
 import type { MapInputs } from '../map/controller'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import type { PanelMessages } from '../hooks/usePanelMessages'
+import type { ChartMetricsState } from '../hooks/useChartMetrics'
+import type { ChartMetrics } from '../utils/chart/chartData'
 import { worstSeverity } from '../utils/notices'
 import type { RefusalPanel } from '../utils/analyzeGate'
 import { ALL_ANSWERED } from '../utils/metricReach'
@@ -538,6 +540,7 @@ export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
     onAddPoi: () => {},
     onRemovePoi: () => {},
     onRemoveResult: () => {},
+    onMoveAggregate: () => {},
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,
@@ -570,4 +573,12 @@ export function panelMessages(over: Partial<PanelMessages> = {}): PanelMessages 
     failureSeq: 0,
     ...over,
   }
+}
+
+/**
+ * The chart's metric slots as `useChartMetrics` hands them (#499), with
+ * setters that do nothing unless a test hands its own.
+ */
+export function chartMetricsOf(metrics: ChartMetrics = ['precip'], over: Partial<ChartMetricsState> = {}): ChartMetricsState {
+  return { metrics, pick: () => {}, add: () => {}, remove: () => {}, move: () => {}, layout: null, setLayout: () => {}, ...over }
 }

@@ -282,24 +282,25 @@ describe('resultPopupHtml mirrors the table', () => {
   // keeps the card short enough to stand beside a phone's controls.
   it('lays the families out as a grid, one row each', () => {
     const html = resultPopupHtml({ ...base })
-    const heads = [...html.matchAll(/<th scope="col"[^>]*>([^<]*)<\/th>/g)].map((m) => m[1])
-    expect(heads).toEqual(['Min', 'Max', 'Avg', 'Total'])
+    // In the table's order, Avg first by default (record 0257).
+    const heads = [...html.matchAll(/<th scope="col"[^>]*>([^<]*)/g)].map((m) => m[1])
+    expect(heads).toEqual(['Avg', 'Min', 'Max', 'Total'])
     // The heads lead the grid, above the first family.
     expect(html.indexOf('scope="col"')).toBeLessThan(html.indexOf('scope="row"'))
     // The temperature's three numbers stand under those three heads, in order.
     const temp = html.match(new RegExp(`<tr><th scope="row"[^>]*>${NOUN.temp} \\(°F\\)</th>(.*?)</tr>`))![1]
-    expect([...temp.matchAll(/>([\d.,]+)</g)].map((m) => m[1])).toEqual(['21.4', '38.9', '30.1'])
+    expect([...temp.matchAll(/>([\d.,]+)</g)].map((m) => m[1])).toEqual(['30.1', '21.4', '38.9'])
     // One line for each of the seven families, precipitation and snowfall
     // included.
     expect(html.match(/<th scope="row"/g) ?? []).toHaveLength(7)
   })
 
-  // An AQI ranking's table leads its family with Avg; the grid keeps one order
-  // for every family, so its Avg moves under the Avg head with the others.
+  // The grid keeps one order for every family, the first family's, so every
+  // family's Avg stands under the one Avg head.
   it('keeps one aggregate order for every family', () => {
     const html = resultPopupHtml({ ...base, columns: displayedColumns(false, 'aqi_avg') })
     const aqi = html.match(new RegExp(`<tr><th scope="row"[^>]*>${NOUN.aqi}</th>(.*?)</tr>`))![1]
-    expect([...aqi.matchAll(/>(\d+)</g)].map((m) => m[1])).toEqual(['11', '31', '24'])
+    expect([...aqi.matchAll(/>(\d+)</g)].map((m) => m[1])).toEqual(['24', '11', '31'])
   })
 
   // Precipitation and snowfall (#678) are the families whose columns do not
@@ -310,7 +311,7 @@ describe('resultPopupHtml mirrors the table', () => {
     const html = resultPopupHtml({ ...base })
     expect(html).toContain(`>${NOUN.snowfall} (in/hr)</th>`)
     const precip = html.match(new RegExp(`<tr><th scope="row"[^>]*>${NOUN.precip} \\(in/hr\\)</th>(.*?)</tr>`))![1]
-    expect([...precip.matchAll(/>([\d.]+)</g)].map((m) => m[1])).toEqual(['0.000', '0.009', '0.004', '0.123'])
+    expect([...precip.matchAll(/>([\d.]+)</g)].map((m) => m[1])).toEqual(['0.004', '0.000', '0.009', '0.123'])
     expect(html).not.toContain('Total</span>:')
     expect(html).not.toContain(' in<')
   })
@@ -406,7 +407,7 @@ describe('resultPopupHtml type', () => {
     const rowHeads = html.match(/<th scope="row" style="[^"]*"/g) ?? []
     expect(rowHeads.length).toBeGreaterThan(0)
     for (const th of rowHeads) expect(th).toContain('font-weight:normal')
-    const colHeads = html.match(/<th scope="col" style="[^"]*"/g) ?? []
+    const colHeads = html.match(/<th scope="col" [^>]*?style="[^"]*"/g) ?? []
     expect(colHeads).toHaveLength(4)
     for (const th of colHeads) expect(th).toContain('font-weight:600')
   })
@@ -424,8 +425,11 @@ describe('resultPopupHtml ranked number and insets', () => {
     const bold = [...html.matchAll(/<span style="[^"]*font-weight:600[^"]*">([^<]*)<\/span>/g)].map((m) => m[1])
     expect(bold).toEqual(['41.8'])
     const tinted = [...html.matchAll(new RegExp(`<td ${POPUP_TINT_ATTR} style="[^"]*;background:([^;]+);--tint-dark:([^;]+);--tint-light:([^;]+);`, 'g'))]
-    // The grid's column order, Min, Max, Avg.
-    const wind = (['wind_min_mph', 'wind_max_mph', 'wind_avg_mph'] as const).filter((k) => columns.some((c) => c.key === k))
+    // The grid's column order, which follows the table's (record 0257).
+    const token = { Min: 'min', Max: 'max', Avg: 'avg' } as Record<string, string>
+    const wind = [...html.matchAll(/data-agg="([^"]+)"/g)]
+      .map((m) => `wind_${token[m[1]]}_mph` as 'wind_min_mph')
+      .filter((k) => columns.some((c) => c.key === k))
     expect(wind).toHaveLength(3)
     expect(tinted).toHaveLength(wind.length)
     const group = new Set<string>(FAMILY_KEYS.wind)

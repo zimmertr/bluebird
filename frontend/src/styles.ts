@@ -1027,6 +1027,18 @@ export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
 export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
 
 /**
+ * An icon button inside a surface: a raised square with a frame (TJ
+ * 2026-10-30). A button's shape says where it stands: a circle floats on the
+ * map with nothing behind it (`MAP_ROUND_BUTTON`, the Legend and Layers
+ * chips), and every control inside the panel, a sheet, a card or a popup is a
+ * rounded rectangle, an icon-only one a square. The pinned chart card's ✕,
+ * the panel header's buttons and, in `map.css`, the marker popup's ✕ wear it.
+ */
+const SQUARE_BUTTON =
+  `flex items-center justify-center ${RADIUS.control} border border-frame bg-raised text-ink-soft ` +
+  `transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
+
+/**
  * A bare icon button: the glyph alone, no surface. The results' collapse
  * chevrons wear it, and so does every × inside a card or a field (record
  * 0222): the tutorial card's, the search's clear (`ICON_CLOSE_BUTTON`), and
@@ -1449,27 +1461,61 @@ export const CHART_METRIC_W = 'w-38'
 export const CHART_PLOT_TOUCH = 'touch-pan-y'
 
 /**
- * A phone chart's metric picker, as the plot's title (#696, record 0149): the
- * metric's full label with its unit, at the plot's top left,
- * `CHART_TITLE_INSET_PX` (12px, `top-3 left-3`) from the grip's rule above it
- * and the sheet's edge, the results bar's own inset, and the same 12px over
- * the plot's top label (`TITLED_PLOT_MARGIN`). The field row above the plot
- * was 44px a phone's chart could not spare, and a plain title did not read as
- * a control, so it is look 4 of the second picker mockups (TJ 2026-10-14):
- * the desktop picker shrunk to its label.
- *
- * It is the desk's `MenuSelect`, opening the one menu's sheet as the model
- * picker does (record 0252), so it is a field trigger like every other and
- * this is its place alone: `box` stands it over the plot, and `field` sizes
- * it to its words rather than to `CHART_METRIC_W`, at 32px (`h-8`), which is
- * `CHART_TITLE_PX` and what `TITLED_PLOT_MARGIN` reserves over the plot, so
- * nothing the plot draws, its dashed lines and their labels included, meets
- * the box. It was a native select laid invisible over a look of its own,
- * 28px tall, until 2026-10-30.
+ * The chart's hover card, built like the marker popup (record 0215; TJ
+ * 2026-10-29, mockup 1 of four): a header band carrying the hour as its
+ * title, a body of rows, and a footer for the rows cut. The band is the
+ * popup's (`band`, halfway from the panel to the raised step) under the
+ * popup's rule edge and its 0 1px 3px shade, so a chart card and a map card
+ * read as one family. The card stands on the panel, not the floating
+ * surface, with the `frame` rim, 8px corners and the overlay step, and
+ * clips, so the band's corners follow the card's. Over two or more metrics
+ * the body opens on a heads row in the label ink and one `frame` rule
+ * across every column, the colour the popup's grid heads stand on. The
+ * title's and the label ink's contrast on the band are pinned in both
+ * themes in `styles.test.ts`.
  */
-export const CHART_TITLE = {
-  box: 'absolute left-3 top-3 z-[1] flex max-w-[calc(100%-1.5rem)]',
-  field: 'h-8 min-w-0 px-2',
+export const CHART_CARD = {
+  card: `bg-panel border border-frame ${RADIUS.surface} ${ELEVATION.overlay} overflow-hidden`,
+  head: 'bg-band border-b border-rule shadow-[0_1px_3px_var(--scroll-shade)] px-2.5 pt-2 pb-[7px] text-[13px] font-semibold text-ink-strong',
+  body: 'px-2.5 pt-1.5 pb-2',
+  // The heads in the results table's type (`TABLE.head`), one header style
+  // across the table, the marker popup and the card (TJ 2026-10-30).
+  heads: `${TEXT.subheading} text-right`,
+  rule: 'col-span-full h-px bg-frame mb-[3px]',
+  foot: 'border-t border-rule px-2.5 py-[5px] text-xs text-ink-soft',
+  // A row's name is always 160px and ends in an ellipsis past it, as a long
+  // name does in the results table (TJ 2026-10-30): a fixed column rather
+  // than a cap, because the card resized to the longest name in view as the
+  // hour moved, and every value column's width is its head's.
+  name: 'min-w-0 w-40 truncate',
+  // A pinned card (TJ 2026-10-30, P2): no ring, its ✕ and grips saying it holds still;
+  // its body scrolls through every row, and the ✕ in its band lets it go.
+  scroll: 'min-h-0 overflow-y-auto overscroll-contain',
+  unpin: `${SQUARE_BUTTON} ml-auto size-5.5 flex-shrink-0 font-normal touch:size-8`,
+  // A pinned card moves by its band and sizes by its corner (TJ 2026-10-30);
+  // its heads sort it, an arrow in the accent on the one that does, as the
+  // results table's heads do, the slot kept on every head so none moves.
+  grab: 'cursor-grab select-none active:cursor-grabbing',
+  sortHead: `${TEXT.subheading} ${FOCUS_RING} flex items-center gap-0.5 whitespace-nowrap ${ACCENT.hoverText} select-none`,
+  // A pinned card's row lights under the pointer as a results row does
+  // (`TABLE.row`'s tint), one grid row across every column.
+  row: 'col-span-full grid grid-cols-subgrid items-center border-t border-rule/50 hover:bg-raised/30',
+  // A head's cell, which its right edge resizes and a carried head lands
+  // on (TJ 2026-10-30), as a results column's head does.
+  headCell: 'relative flex min-w-0 items-center',
+  // The divider between two heads, which drags the column on its left wider
+  // or narrower (TJ 2026-10-30: an edge with nothing drawn was a handle no
+  // reader would find). A 1px line in the gutter's `edge`, which owes a UI
+  // boundary's 3:1 like `CHART_GUTTER`'s, the accent under the pointer; its
+  // 8px hit area stands centred in the grid's 14px gap.
+  colEdge: 'group/edge absolute -right-[11px] top-0 bottom-0 flex w-2 cursor-col-resize touch-none justify-center',
+  colLine: 'h-full w-px bg-edge transition-colors group-hover/edge:bg-accent-ink',
+  dropAt: 'shadow-[inset_2px_0_0_var(--ui-accent-ink)]',
+  corner: 'absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize text-ink-soft touch-none',
+  // A value is never narrower than six mono digits, the widest a cell prints
+  // (`≥30000` on the cloud deck), so a column with no head over it (one
+  // metric) keeps its width as the hour moves too.
+  value: 'min-w-[6ch] text-right font-mono',
 } as const
 
 /**
@@ -2712,17 +2758,18 @@ export const PANEL_HEADER = {
 } as const
 
 /**
- * A round button in a panel's header: the desk panel's close button and the
- * theme switch beside it, and the switch again in a phone's Controls sheet
- * beside Done (#706). A 32px circle on either pointer, a finger's height
- * (`TAP`, record 0223), and no wider: `TAP.action`'s 44px width would draw it
- * as a capsule. The glyph in the control ink, on the raised surface at 80%.
- * The close button's recipe, named once it had a twin, so the two cannot
- * drift apart.
+ * A button in a panel's header: the desk panel's close button and the theme
+ * switch beside it, and the switch again in a phone's Controls sheet beside
+ * Done (#706). A 32px square on either pointer, a finger's height (`TAP`,
+ * record 0223), and no wider: `TAP.action`'s 44px width would draw it as a
+ * bar. `SQUARE_BUTTON`'s shape without its frame.
  */
+// No frame (TJ 2026-10-30): the header's two stand in chrome rather than among
+// the panel's fields, and the frame drew them as form controls; the square
+// keeps the shape rule, the raised fill at 80% the quiet they had as circles.
 export const HEADER_BUTTON =
-  `flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} ` +
-  'bg-raised/80 transition-colors hover:bg-raised-hover active:bg-raised-hover'
+  `flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.control} ` +
+  `bg-raised/80 transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
 
 /**
  * Movement that answers a reader's action, at two speeds, and stops where
@@ -3110,7 +3157,22 @@ const TRIGGER_FIELD = `${FIELD_LOOK} ${TAP.height} appearance-none pr-6 relative
 export const MENU_TRIGGER = {
   chip: CHIP_FACE,
   field: TRIGGER_FIELD,
+  /**
+   * A field's left segment inside `CHART_PICKER`'s group (#499): the field's
+   * type and arrow room with no edge or radius of its own, because the group
+   * wears them, and the one trigger's states (`TRIGGER_STATE`, record 0252).
+   */
+  segment: `${TEXT.control} appearance-none pr-6 group relative ${TRIGGER_STATE}`,
   bar: ACTION_ITEM,
+  /**
+   * The chart's Panel layout button (#499): the + square's look, the field's
+   * fill, edge and radius around the quiet icon ink, 22px at a desk, and the
+   * one trigger's states. It wears no chevron; the miniature of the layout
+   * inside it is the glyph.
+   */
+  square:
+    `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} text-ink-faint ` +
+    `flex size-5.5 flex-shrink-0 items-center justify-center touch:size-8 ${TRIGGER_STATE}`,
 } as const
 
 /**
@@ -3131,6 +3193,8 @@ export const MENU_CHEVRON = {
   chip: '-mr-1',
   bar: '-mr-0.5',
   field: ICON_ADORNMENT,
+  segment: ICON_ADORNMENT,
+  square: '',
 } as const
 
 // A row's shape in any menu: 6px in from the list's 4px, so its words stand
@@ -3765,3 +3829,122 @@ export const TOUR = {
   /** The sheet at the top edge, for a target that stands where the bottom sheet would. */
   sheetTop: `${SURFACE_CARD} fixed inset-x-4 top-4 p-4 space-y-3 focus:outline-none`,
 }
+
+/**
+ * The chart's panel controls (#499; TJ 2026-10-29).
+ *
+ * `add` is the + after the last picker, in
+ * the field's fill, edge and radius so the row reads as one set of controls,
+ * with the bare icon's ink and its accent on hover, greyed at the ceiling.
+ * The × is a segment of its picker (`CHART_PICKER`). The + is a square as
+ * tall as what it stands beside (TJ's review, 2026-10-29: the + read as a
+ * sliver): `square` beside a desk's picker, 22px, which is the picker's own
+ * height (`TEXT.control`'s 16px line, `py-0.5`'s 4px and a 1px edge top and
+ * bottom), and 32px under a finger, the picker's `touch:min-h-8`.
+ */
+/**
+ * A removable chart picker (#499; TJ's review 2026-10-29, option A): one
+ * field in two segments, the picker on the left (`MENU_TRIGGER.segment`) and the × on the right, under one outline.
+ * The group wears the field's fill, edge and radius, and takes the accent
+ * edge while the picker is hovered or open and the focus edge while it has
+ * the keyboard, which the field's own edge did before. The × is a segment
+ * behind a 1px `edge` divider, its glyph the quiet `ICON_ACTION` ink with the
+ * accent on hover and its focus ring drawn inside it (`FOCUS_RING_INSET`).
+ * `x` is 22px, the picker's height (32px under a finger), so
+ * the picker keeps `CHART_METRIC_W` and the group is that plus the segment.
+ */
+export const CHART_PICKER = {
+  group:
+    `${FIELD_LOOK} flex flex-shrink-0 items-stretch touch:min-h-8`,
+  remove: `${ICON_ACTION} ${FOCUS_RING_INSET} flex flex-shrink-0 items-center justify-center border-l border-edge leading-none`,
+  x: 'w-5.5 touch:w-8',
+  // The grip that moves a panel (#499; TJ 2026-10-30): the left segment of
+  // every picker but the first, the ×'s twin across the field, so the field
+  // reads grip, metric, ×. It takes a pointer drag (`cursor-grab`, and
+  // `touch-none` so a finger drags rather than scrolls) and the arrow keys.
+  // While a picker is dragged its field dims (`dragged`) and an accent bar
+  // stands in the 8px gap where it will land (`drop`, centred in the gap by
+  // `before` or `after`).
+  grip: `${ICON_ACTION} ${FOCUS_RING_INSET} flex flex-shrink-0 items-center justify-center border-r border-edge cursor-grab touch-none active:cursor-grabbing`,
+  dragged: 'opacity-50',
+  drop: 'pointer-events-none absolute inset-y-0 w-0.5 bg-accent',
+  before: '-left-1.25',
+  after: '-right-1.25',
+  // On a phone each panel wears its own picker (TJ 2026-10-30): `bar` stands
+  // it at the panel's top left, 8px under the top (`PHONE_PICKER_INSET_PX`)
+  // and 12px in, the results bar's own inset, over the plot and under the
+  // card, with the + 8px after the first. A drag between panels marks the
+  // picker it will land on with the accent ring (`target`), there being no
+  // gap between pickers to stand a bar in.
+  bar: 'absolute left-3 right-3 top-2 z-[2] flex items-center gap-2',
+  target: 'ring-2 ring-accent',
+} as const
+
+/**
+ * The Panel layout button's shape and its menu (#499; TJ 2026-10-30): the
+ * button is `CHART_PANEL_BUTTON`'s square wearing a 16 by 12 miniature of the
+ * current layout (`thumb`, twelve tracks so every row's blocks share its
+ * width), and the menu is one row of 34 by 26 squares, each a layout, the
+ * current one in the accent edge (`current`). The blocks are the icon ink at
+ * 60 percent, so the shape reads as a glyph rather than as panels.
+ */
+export const CHART_LAYOUT = {
+  thumb: 'grid h-3 w-4 grid-cols-12 gap-px',
+  cell: 'rounded-[1px] bg-current opacity-60',
+  menu: 'flex gap-1.5 p-2',
+  // The edge and ink are one or the other, never both, because two colour
+  // utilities resolve by stylesheet order rather than by the class list.
+  option: `${RECESSED_FILL} ${RADIUS.control} ${FOCUS_RING} flex h-6.5 w-8.5 items-center justify-center`,
+  idle: `${RECESSED_EDGE} ${ICON_ACTION}`,
+  current: 'border border-accent-ink text-accent-ink',
+} as const
+
+export const CHART_PANEL_BUTTON = {
+  add: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ${ICON_ACTION} ${FOCUS_RING} ${DISABLED} flex flex-shrink-0 items-center justify-center`,
+  square: 'size-5.5 touch:size-8',
+} as const
+
+/**
+ * The gutters of the chart's grid of three or four panels (#499; TJ's review,
+ * 2026-10-29): the gutters themselves are the handles. `col` is the vertical
+ * gutter, which drags the column split (`cursor-col-resize`); `row` the
+ * horizontal one, which drags the row split (`cursor-row-resize`); `cross`
+ * the 16px square where they meet, which drags both (`cursor-move`) and draws
+ * nothing of its own. Each gutter is the grid's 8px gap, holding a 1px line
+ * in the `edge` token at rest and in the accent on hover and while dragged
+ * (`active`), the way `ResizeGrip` lights under the pointer. The line is the
+ * handle's whole visual, so it owes a UI boundary's 3:1 on the panel, which
+ * `rule` missed (about 1.4:1 dark, 1.5:1 light); `edge` clears it, pinned in
+ * `styles.test.ts`.
+ */
+export const CHART_GUTTER = {
+  col: 'group absolute z-[2] w-2 cursor-col-resize touch-none',
+  row: 'group absolute z-[2] h-2 cursor-row-resize touch-none',
+  // z 2 like the bars, and after them in the DOM, so a crossing stands over
+  // its bars and under the hover card (z 3), which it used to tie and win.
+  cross: 'group absolute z-[2] flex size-4 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none items-center justify-center',
+  colLine: 'absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors',
+  rowLine: 'absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors',
+  // The line's colour, one or the other and never both, because two colour
+  // utilities resolve by stylesheet order rather than by the class list.
+  idle: 'bg-edge group-hover:bg-accent',
+  active: 'bg-accent',
+  /**
+   * The grip at a bar's middle and the dot at a crossing (TJ 2026-10-30,
+   * option B of three mockups): visible at rest, so a new reader sees a bar
+   * can move, and flat on the panel's own fill with an `edge` rim, where the
+   * sheet's grip above is a raised band, so these read one level down. The
+   * grip is three dots run along its bar; the dots and the crossing's fill
+   * take the accent with the line, and the rim stays `edge`, because no edge
+   * lights under the pointer (record 0251; TJ 2026-10-30, when #823 and #828
+   * were released together). `knobRow` and `knobCol` size it either way.
+   */
+  knob: `absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-0.5 border border-edge bg-panel ${RADIUS.control}`,
+  knobRow: 'h-2 w-5.5',
+  knobCol: 'h-5.5 w-2 flex-col',
+  knobDot: `size-0.5 ${RADIUS.pill}`,
+  crossDot: `size-2.5 border border-edge ${RADIUS.pill}`,
+  // The crossing's fill, one or the other for the same reason as the line's.
+  crossIdle: 'bg-panel group-hover:bg-accent',
+  crossActive: 'bg-accent',
+} as const
