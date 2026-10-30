@@ -28,7 +28,7 @@ from app import db, ratelimit
 # test modules import the app anyway and got this for free, so a single-file
 # run like `pytest tests/test_osm.py` used to fail on the missing attribute.
 from app import main as _main  # noqa: F401
-from app.services import aggregation, cache, hms, http, nifc, osm, usfs_closures
+from app.services import aggregation, cache, fire_activity, hms, http, nifc, osm, usfs_closures
 
 # The loop's own sleep, held before any test patches `asyncio.sleep`: the stub
 # below yields through it, so a test that records sleeps records the code's
@@ -279,6 +279,7 @@ def _rate_limiting_off(monkeypatch):
     monkeypatch.setattr(ratelimit.client, "SMOKE_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(ratelimit.client, "CLOSURES_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(ratelimit.client, "LANDMARKS_LIMITER", ratelimit.RateLimiter(0, 1))
+    monkeypatch.setattr(ratelimit.client, "FIRE_ACTIVITY_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(
         ratelimit,
         "NOMINATIM_GATE",
@@ -336,6 +337,18 @@ def _no_live_smoke(monkeypatch):
         raise AssertionError("test reached NOAA HMS; install a stub smoke cache")
 
     monkeypatch.setattr(hms, "PLUMES", hms.smoke_cache(fetch=refuse))
+
+
+@pytest.fixture(autouse=True)
+def _no_live_fire_activity(monkeypatch):
+    """The fire detection cache reaches NASA FIRMS on its first miss, for the
+    same reason and with the same consequence as the wildfire one above. Tests
+    that mean to exercise it install their own cache (test_fire_activity.py)."""
+
+    async def refuse():
+        raise AssertionError("test reached NASA FIRMS; install a stub detection cache")
+
+    monkeypatch.setattr(fire_activity, "DETECTIONS", fire_activity.detection_cache(fetch=refuse))
 
 
 @pytest.fixture(autouse=True)

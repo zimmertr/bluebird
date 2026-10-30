@@ -1,6 +1,6 @@
 import { useGripDrag } from '../hooks/useGripDrag'
 import { type CSSProperties, useState } from 'react'
-import { CHART_GUTTER, RADIUS, TAP } from '../styles'
+import { CHART_GUTTER, RESIZE_GRIP } from '../styles'
 import { HANDLE_ATTR } from '../hooks/useStretchDrag'
 
 // Marks a handle a chart split drag moves by transform (#499).
@@ -61,14 +61,8 @@ export default function ResizeGrip({ onReset, onDragStart, onDrag, onDragEnd, li
   }
 
   return (
-    <div
-      {...HANDLE_MARK}
-      onPointerDown={handlePointerDown}
-      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-raised border-t border-b border-frame hover:bg-raised-hover transition-colors group`}
-    >
-      <div
-        className={`w-10 h-0.5 ${RADIUS.pill} bg-edge group-hover:bg-ink-mid transition-colors`}
-      />
+    <div {...HANDLE_MARK} onPointerDown={handlePointerDown} className={RESIZE_GRIP.bar}>
+      <div className={RESIZE_GRIP.pill} />
     </div>
   )
 }

@@ -19,7 +19,7 @@
 import { resolvePanelHeights } from '../layout'
 
 /** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
-export const MAP_ROWS_PX = 92
+export const MAP_ROWS_PX = 88
 
 /**
  * The top a phone's resting sheet reserves map below: the inset the legend
@@ -53,7 +53,7 @@ export const FAB_GAP_PX = 8
  * metric key and a section per layer that is on. Measured in Chrome 2026-09-17
  * with every layer on, the forecast grid drawn and a freezing-level ranking
  * held. The same number at both widths, because the card is one fixed width
- * (`MAP_MENU_W`) and a legend row is read rather than operated, so no part of
+ * (`CHIP_CARD_W.key`) and a legend row is read rather than operated, so no part of
  * it takes a coarse pointer's target.
  *
  * It has been 245, then 265, then 313 as bands and layers joined — a six-band
@@ -66,6 +66,18 @@ export const FAB_GAP_PX = 8
  * line plus its label whatever its band count, so the six-band key that cost
  * 20px here in September costs nothing now; what still moves this number is
  * another layer, or a section growing a line.
+ *
+ * Re-measured 2026-10-29 in the built image at 1440 wide, the card at its
+ * 224px, a freezing-level ranking held and the forecast grid drawn: the same
+ * five sections as in September still measure 182, the two closure sections
+ * (#550) make it 222, and every layer on since #799, fire activity and slope
+ * angle among them, makes it 294. The ground layers (relief, contours,
+ * imagery) key nothing. The number stays at 182 all the same. Past it the
+ * card scrolls inside the map's height (`legendMaxCss`), so no key is lost,
+ * while every pixel here is a pixel the results lose at rest: 112 more would
+ * ask a desk window 112px taller before Both mode opens, and would lower a
+ * phone's resting sheet by as much, on a phone whose legend is a sheet of
+ * its own and stands nowhere on the map (#696).
  */
 export const LEGEND_STACK_PX = 182
 

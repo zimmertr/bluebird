@@ -182,7 +182,8 @@ Istio VirtualService publishes the API by allowlist
 (`ingress.publicApiPrefixes` in the chart, #240): only the endpoints the web
 app itself calls, plus `/api/version` for checking which build answers, are
 forwarded (`/api/destinations`, `/api/capabilities`, `/api/version`,
-`/api/geocode`, `/api/wildfires`, `/api/smoke`, `/api/closures`, `/api/config`), and every
+`/api/geocode`, `/api/wildfires`, `/api/smoke`, `/api/closures`, `/api/config`, and
+`/api/fire-activity` once the chart lists it, #799), and every
 other path under `/api/` answers the app's own JSON `404` at the edge. The gateway matches
 those prefixes as literal text and does not decode `%2F`, while the pod does, so
 on their own they let `/api%2Fanalyze` through to the analyze route without a key.
@@ -432,22 +433,26 @@ default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';
 form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
 style-src-elem 'self'; style-src-attr 'unsafe-inline';
 img-src 'self' data: blob: https://tiles.openfreemap.org https://mesonet.agron.iastate.edu
-  https://mapservices.weather.noaa.gov;
+  https://mapservices.weather.noaa.gov https://tiles.mapterhorn.com https://basemap.nationalmap.gov
+  https://tiles.maps.eox.at;
 connect-src 'self' data: https://api.open-meteo.com https://air-quality-api.open-meteo.com
   https://archive-api.open-meteo.com https://tiles.openfreemap.org https://mesonet.agron.iastate.edu
-  https://mapservices.weather.noaa.gov;
+  https://mapservices.weather.noaa.gov https://tiles.mapterhorn.com https://basemap.nationalmap.gov
+  https://tiles.maps.eox.at;
 worker-src 'self' blob:; child-src 'self' blob:
 ```
 
 Five points in it are measurements rather than habits.
 
 - **`connect-src` is the browser's third-party surface, and nothing else.**
-  The six origins are the ones in the "Outbound" table marked **browser**:
+  The nine origins are the ones in the "Outbound" table marked **browser**:
   Open-Meteo's three services (forecast, air quality, and the archive that
-  answers the calendar's older windows), the basemap, the radar frames, and
-  NOAA's snow analysis, its renders and the point a click on it asks about. Overpass, Nominatim, NIFC, the Forest
-  Service's closure layers and NOAA's HMS smoke
-  files are absent because the pod fetches those, so for them the browser talks
+  answers the calendar's older windows), the basemap, the radar frames,
+  NOAA's snow analysis, its renders and the point a click on it asks about,
+  and the three ground layer hosts: Mapterhorn's elevation tiles and the two
+  imagery services, USGS and EOX (#799). Overpass, Nominatim, NIFC, NASA
+  FIRMS's fire detection files, the Forest Service's closure layers and NOAA's
+  HMS smoke files are absent because the pod fetches those, so for them the browser talks
   to this origin only. NOAA appears on both sides for that reason: the smoke
   files are the pod's fetch and the snow images are the browser's. The one origin covers every
   basemap request, checked against the served style document rather than
@@ -584,11 +589,16 @@ release.
 | [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) (`nominatim.openstreetmap.org`) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=1200` spacing in one gate for the whole deployment while the database holds it, 50 a minute whatever the replica count, and `NOMINATIM_POD_MIN_INTERVAL_MS=10000` per pod when it does not, one a second at ten replicas (#760; the previous 3.5 s per pod went over the policy once the autoscaler passed 3) + a 10-min cache per query and limit, shared by every pod while the database is up, which the policy asks for and which answers a repeat before the gate + per-client geocode bucket |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (`services3.arcgis.com`; wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country): with the database, by one pod for every pod on a timer (below); without it, by each pod on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600`, for the deployment with the database and per pod without, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure for up to 24 hours, a deadline on the whole refresh (60 s on a pod's own, 120 s on the shared one, which nobody waits on), and `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed per-pod refresh is retried, where the shared one backs off from a minute to an hour + per-client wildfires bucket |
 | [US Forest Service Regions 3, 4 and 6](https://www.fs.usda.gov/) (`services1.arcgis.com`; the two closure layers) | backend (`usfs_closures.py`), three feeds and 11 queries per refresh: Region 6's 5 (the closed sites once, and the closed trails and roads and the closed areas each at full resolution and simplified), and 3 for each of Regions 3 and 4 (every live order's attributes, then the geometry of the orders that close an area to entry, once per fidelity; none when no order passes), on demand and never when idle. Region 6's trail lines page, so today the 11 queries are 13 requests (1,536 lines at 1,000 a page, measured 2026-09-30). With the database, one pod refreshes for every pod on a timer instead (below) | cluster egress IP | per-minute request-unit quota belonging to the Forest Service's ArcGIS organization, shared with every other consumer of its public layers | `CLOSURE_CACHE_TTL_S=1800`, shared or per pod as for wildfires, one refresh at a time, refreshed behind the request, last good snapshot served on failure for up to 24 hours, the wildfire row's deadlines and backoff, `CLOSURE_RETRY_AFTER_FAILURE_S=60` before a failed per-pod refresh is retried + per-client closures bucket |
+| [NASA FIRMS](https://earthdata.nasa.gov/firms) (`firms.modaps.eosdis.nasa.gov`; fire activity layer) | backend (`fire_activity.py`), 3 files per refresh, the Global 48-hour CSVs for NOAA-20, NOAA-21 and MODIS (13.3, 12.5 and 1.8 MB on 2026-10-27, about 2.5 s each), on demand and never when idle, or with the database by one pod for every pod on a timer (above). The browser never asks: the files carry no CORS header, so no CSP entry is needed | cluster egress IP | none published; keyless public files, rewritten every 60 minutes | a refresh every 60 minutes and never sooner, the files' own cadence, so no knob; one refresh at a time, refreshed behind the request, last good snapshot served on failure for up to 24 hours, the wildfire row's deadlines and backoff, 60 s before a failed per-pod refresh is retried + per-client fire activity bucket |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) (`satepsanone.nesdis.noaa.gov`; smoke overlay) | backend (`hms.py`), 1 file per refresh (the whole day's national analysis), on demand and never when idle, or with the database by one pod for every pod on a timer (below) | cluster egress IP | none published; a static file server with no quota to exhaust | `SMOKE_CACHE_TTL_S=1800`, shared or per pod as for wildfires, one refresh at a time, refreshed behind the request, last good snapshot served on failure for up to 24 hours, the wildfire row's deadlines and backoff, `SMOKE_RETRY_AFTER_FAILURE_S=60` before a failed per-pod refresh is retried + per-client smoke bucket |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) (rain radar overlay) | **browser**, raster tiles per visible frame | visitor IP | none published; IEM asks that applications with thousands of simultaneous users self-host | off by default, one frame's tiles on toggle and the rest only as the loop reaches them, plus IEM's own `max-age=300` edge cache. The map loads its tiles through the app (`map/heldTileProtocol.ts`), which keeps a copy of each as it arrives, so a click on an echo, the pointer over one, and an open card following the player ask IEM for nothing (#737, #748) |
 | [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) (`mapservices.weather.noaa.gov`; snow depth overlay) | **browser**, one server-side render per visible tile | visitor IP | none published; a public National Weather Service GIS endpoint with no key | off by default, and the service refuses caching (`max-age=0, must-revalidate`) so every pan re-renders. Bounded by a 512 px tile rather than 256, which is four times fewer renders per screen at the same ~0.46 s each; by the source's `bounds`, so nothing is requested outside the analysis extent; and by a zoom cap at the point the 1 km analysis has no more detail to give, past which MapLibre magnifies what it holds. The tiles load through the app, which keeps a copy of each, so the pointer over painted snow asks for nothing; a click on it is one `identify` request of about 0.8 s, asked once more only after an ArcGIS error inside a 200 (#737), plus, for the glacier check, the zoom-12 basemap tile under the click from `tiles.openfreemap.org`, one to four of them, kept for the next click nearby (#748) |
 | [OpenStreetMap planet](https://planet.openstreetmap.org/) (`planet.openstreetmap.org/pbf/`) | the planet fill (`fill/fill.py`, a weekly CronJob), one download of the planet file (95.4 GB on 2026-10-15) and its `.md5` per fill: the first, and one per change to the rules. A run that finds the table current downloads nothing | cluster egress IP | none published; the planet is what OpenStreetMap offers bulk users in place of its API | one fill at a time (an advisory lock and `concurrencyPolicy: Forbid`), the digest checked, a dropped connection resumed where it stopped rather than started over |
 | [OpenStreetMap replication](https://planet.openstreetmap.org/replication/day/) (`planet.openstreetmap.org/replication/day`) | backend (`services/places/update.py`), one pod for every pod: `state.txt` once an hour, and each new day file (about 110 MB) once. The fill reads `state.txt` once per fill | cluster egress IP | none published | one refresh an hour for the whole deployment, chosen by an advisory lock, and a shared backoff from a minute to an hour after a failure |
+| [OpenFreeMap](https://openfreemap.org) (`tiles.openfreemap.org`; the basemap) | **browser**, through MapLibre: the style JSON, its TileJSON, the vector tiles for the view, the glyphs and the sprites, all from the one origin. The snow card's glacier check reads one to four zoom-12 tiles under a click (#748) | visitor IP | none published; keyless and free, with no registration | MapLibre's own tile cache and the browser's HTTP cache. Nothing is fetched beyond what the view needs |
+| [Mapterhorn](https://mapterhorn.com) (`tiles.mapterhorn.com`; contours, shaded relief and 3D terrain) | **browser**, Terrarium elevation tiles per visible tile (#799) | visitor IP | none published; keyless. Its privacy policy keeps each request's IP address, referrer and user agent for up to 30 days | off by default. No layer draws them yet: the switches and the CSP are in, and the next phase of #799 draws the layers |
+| [USGS The National Map](https://www.usgs.gov/programs/national-geospatial-program/national-map) (`basemap.nationalmap.gov`; satellite) | **browser**, NAIP imagery tiles per visible tile over the United States, from zoom 13 to 16 and only inside a box from American Samoa to the Arctic and the Aleutians to the Virgin Islands (#799) | visitor IP | none published; keyless, and the imagery is in the public domain | off by default: nothing until the Satellite row is first switched on. MapLibre's tile cache, and the hidden layer keeps its tiles for the next switch-on. A tile outside its coverage is a 404, which MapLibre leaves empty rather than retrying |
+| [EOX](https://s2maps.eu) (`tiles.maps.eox.at`; satellite) | **browser**, Sentinel-2 cloudless tiles per visible tile, under USGS's, to zoom 14 and stretched past it (#799) | visitor IP | keyless; the imagery is CC BY-NC-SA 4.0, so noncommercial use only | off by default, as for USGS. A failed tile from either host is asked again once per browser `online` event |
 | Open-Meteo forecast + air quality (forecast grid overlay) | **browser** (`useForecastGrid.ts`), 1 lattice of ≤ 600 points per analysis while the layer is on, weather, the cloud column and AQI concurrently | visitor IP | same weighted accounting as the rows above, on the same per-visitor quota | off by default, and the toggle is the spend gate: nothing is fetched until it is on with an analysis held. Sequenced behind the ranked report by construction, so it can never delay a ranking; capped at 600 cells by coarsening the lattice; shares the ranked fetch's ~550 weighted/min pacer, its 4 open requests per host and its 15-min per-location cache, so a re-toggle or a second analysis over the same ground costs ~0, and a grid fetch beside an analysis waits its turn on the host rather than opening more |
 
 Everything the browser fetches itself costs our egress IP nothing — that is
@@ -619,15 +629,21 @@ snapshot serves everyone, so the cost upstream is now a fixed handful of
 requests per hour rather than a multiple of traffic.
 
 With the database up (#760) that handful no longer grows with the replica
-count either. Each of the three snapshots is fetched by one pod for every pod,
+count either. Each of the four snapshots is fetched by one pod for every pod,
 on its own interval, chosen by an advisory lock: wildfires every 10 minutes
 at 2 queries a refresh, about 12 an hour; closures every 30 minutes at 13
-requests a refresh, about 26 an hour; and smoke every 30 minutes at 1 or 2
-requests a refresh. The cadence no longer follows traffic, so an idle deployment
+requests a refresh, about 26 an hour; smoke every 30 minutes at 1 or 2
+requests a refresh; and fire detections every 60 minutes at 3 file downloads
+a refresh, about 28 MB an hour. The cadence no longer follows traffic, so an idle deployment
 refreshes as often as a busy one. Every pod serves the row, and none calls the
 upstream while the database answers. A new deployment answers each overlay's
 `503` until its first refresh lands, which starts at the first refresh tick,
-24 to 36 s after a pod starts. Record: [0182](decisions/0182-shared-snapshots.md)
+24 to 36 s after a pod starts. The fire detections are the exception: while
+no row exists, each pod downloads the three files itself, about 28 MB, and
+holds them for an hour before it reads the row again, so a PR preview, which
+reads production's row and writes none, fetches FIRMS once an hour per pod
+until production has written one. Record: [0182](decisions/0182-shared-snapshots.md),
+[0246](decisions/0246-fire-activity-from-firms-files.md)
 
 The two overlays added in
 [#121](https://github.com/zimmertr/bluebird/issues/121) split on that same

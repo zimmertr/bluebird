@@ -63,12 +63,13 @@ import {
   COMPASS_IDLE_CLASS,
   OPEN_METEO_ATTRIBUTION,
   SCALE_MAX_WIDTH_PX,
+  TerrainControl,
   addAttribution,
   addControls,
   placeControl,
   withOpenMeteo,
 } from './controls'
-import { DISABLED, MAP_CREDIT, MAP_ROUND_BUTTON, MAP_ZOOM_PAIR, RADIUS } from '../styles'
+import { DISABLED, MAP_CREDIT, MAP_ROUND_BUTTON, MAP_TERRAIN_BUTTON, MAP_ZOOM_PAIR, RADIUS } from '../styles'
 
 type Fake = ReturnType<typeof fakeElement>
 const roleOf = (role: string) => role.split(/\s+/).filter(Boolean)
@@ -97,22 +98,24 @@ function stub() {
 }
 
 const buttonsOf = (control: unknown) => (control as { _container: Fake })._container.buttons
+const DEPS = { onTerrainChange: () => {} }
 
 describe('addControls', () => {
   it('spends shift on pinning rather than box zoom, and puts each control in its corner', () => {
     const { map, added, boxZoom } = stub()
-    const { compass, locate, zoom, scale } = addControls(map)
+    const { compass, locate, zoom, scale, terrain } = addControls(map, DEPS)
     expect(boxZoom.disable).toHaveBeenCalledTimes(1)
-    expect(added.map(([, , at]) => at)).toEqual(['top-right', 'top-right', 'top-right', 'bottom-left'])
-    // The four it hands back, for the rows and a desk's corner to stand them in.
-    expect(added.map(([, control]) => control)).toEqual([compass, locate, zoom, scale])
+    expect(added.map(([, , at]) => at)).toEqual(['top-right', 'top-right', 'top-right', 'top-right', 'bottom-left'])
+    // The five it hands back, for the rows and a desk's corner to stand them in.
+    expect(added.map(([, control]) => control)).toEqual([compass, locate, terrain, zoom, scale])
+    expect(terrain).toBeInstanceOf(TerrainControl)
   })
 
   // Two controls where the library would draw one group, so the compass and
   // the zoom pair each stand in a slot of their own (record 0174).
   it('draws the compass and the zoom pair as two controls', () => {
     const { map } = stub()
-    const { compass, zoom } = addControls(map)
+    const { compass, zoom } = addControls(map, DEPS)
     expect((compass as unknown as { options: Record<string, unknown> }).options).toEqual({ showZoom: false })
     expect((zoom as unknown as { options: Record<string, unknown> }).options).toEqual({ showCompass: false })
     expect(buttonsOf(compass).map((b) => [...b.classes][0])).toEqual(['maplibregl-ctrl-compass'])
@@ -122,7 +125,7 @@ describe('addControls', () => {
   // The app's map button on the compass and the locate button (record 0147).
   it('dresses the compass and the locate button in the app\'s round button', () => {
     const { map } = stub()
-    const { compass, locate } = addControls(map)
+    const { compass, locate } = addControls(map, DEPS)
     const buttons = [...buttonsOf(compass), ...buttonsOf(locate)]
     expect(buttons).toHaveLength(2)
     for (const button of buttons) {
@@ -134,7 +137,7 @@ describe('addControls', () => {
   // library disables it at either end of the zoom (record 0174).
   it('dresses the zoom pair as one capsule, each half greyed while disabled', () => {
     const { map } = stub()
-    const [zoomIn, zoomOut] = buttonsOf(addControls(map).zoom)
+    const [zoomIn, zoomOut] = buttonsOf(addControls(map, DEPS).zoom)
     for (const [half, role] of [[zoomIn, MAP_ZOOM_PAIR.in], [zoomOut, MAP_ZOOM_PAIR.out]] as const) {
       for (const c of [...roleOf(role), ...roleOf(DISABLED)]) expect(half.classes.has(c), c).toBe(true)
       expect(half.classes.has(RADIUS.pill)).toBe(false)
@@ -145,7 +148,7 @@ describe('addControls', () => {
   // of the scale at this width.
   it('draws the scale no wider than the room map.css keeps for it', () => {
     const { map, added } = stub()
-    addControls(map)
+    addControls(map, DEPS)
     const [, scale] = added.find(([, , at]) => at === 'bottom-left')!
     expect((scale as { options: Record<string, unknown> }).options).toEqual({ maxWidth: SCALE_MAX_WIDTH_PX })
   })
@@ -162,7 +165,7 @@ describe('the compass while north-up', () => {
   // it under the class, and a desk's corner greys it by `DISABLED`.
   it('idles the compass while north-up and flat, and wakes it once either moves', () => {
     const { map, handlers, camera } = stub()
-    const compass = compassOf(addControls(map).compass)
+    const compass = compassOf(addControls(map, DEPS).compass)
     for (const c of roleOf(DISABLED)) expect(compass.classes.has(c), c).toBe(true)
     expect(Object.keys(handlers).sort()).toEqual(['pitch', 'rotate'])
     const idle = () => [compass.classes.has(COMPASS_IDLE_CLASS), compass.disabled]
@@ -186,7 +189,7 @@ describe('the compass while north-up', () => {
   // the page.
   it('hands the keyboard to the map when it idles under it', () => {
     const { map, handlers, camera, canvas } = stub()
-    const compass = compassOf(addControls(map).compass)
+    const compass = compassOf(addControls(map, DEPS).compass)
     camera.bearing = 12
     handlers.rotate()
     compass.ownerDocument = { activeElement: compass }
@@ -331,5 +334,102 @@ describe('the Open-Meteo credit on the attribution line', () => {
       expect(line(custom).split('Open-Meteo.com')).toHaveLength(2)
     }
     expect(withOpenMeteo('MapLibre')).toEqual(['MapLibre', OPEN_METEO_ATTRIBUTION])
+  })
+})
+
+// The 3D button is the app's own markup, so it is built here against a
+// document that records what the control made of it.
+describe('the 3D button', () => {
+  type El = {
+    tag: string
+    className: string
+    type?: string
+    textContent: string | null
+    attrs: Record<string, string>
+    classes: Set<string>
+    children: El[]
+    listeners: Record<string, () => void>
+    removed: boolean
+    classList: { add: (...c: string[]) => void }
+    setAttribute: (name: string, value: string) => void
+    getAttribute: (name: string) => string | null
+    hasAttribute: (name: string) => boolean
+    addEventListener: (type: string, fn: () => void) => void
+    appendChild: (child: El) => void
+    remove: () => void
+  }
+  const element = (tag: string): El => {
+    const el: El = {
+      tag,
+      className: '',
+      textContent: null,
+      attrs: {},
+      classes: new Set(),
+      children: [],
+      listeners: {},
+      removed: false,
+      classList: { add: (...c) => c.forEach((x) => el.classes.add(x)) },
+      setAttribute: (name, value) => void (el.attrs[name] = value),
+      getAttribute: (name) => el.attrs[name] ?? null,
+      hasAttribute: (name) => name in el.attrs,
+      addEventListener: (type, fn) => void (el.listeners[type] = fn),
+      appendChild: (child) => void el.children.push(child),
+      remove: () => void (el.removed = true),
+    }
+    return el
+  }
+  const mapWithDocument = () =>
+    ({ getContainer: () => ({ ownerDocument: { createElement: element } }) }) as unknown as maplibregl.Map
+
+  function added(onChange = vi.fn()) {
+    const control = new TerrainControl(onChange)
+    const container = control.onAdd(mapWithDocument()) as unknown as El
+    return { control, container, button: container.children[0], onChange }
+  }
+
+  it('is a button reading 3D, named 3D terrain, in the library\'s group', () => {
+    const { container, button } = added()
+    expect(container.className).toBe('maplibregl-ctrl maplibregl-ctrl-group')
+    expect(container.children).toHaveLength(1)
+    expect([button.tag, button.type, button.textContent]).toEqual(['button', 'button', '3D'])
+    expect(button.getAttribute('aria-label')).toBe('3D terrain')
+    for (const c of roleOf(MAP_TERRAIN_BUTTON)) expect(button.classes.has(c), c).toBe(true)
+  })
+
+  // The library gives its own buttons a title; this one carries none, since
+  // a tooltip does not exist on touch (record 0064).
+  it('carries no title', () => {
+    expect(added().button.hasAttribute('title')).toBe(false)
+  })
+
+  // The switch is the overlays', so a press asks for the other state and the
+  // map hands the answer back.
+  it('asks for the other state on a press, and shows the state it is handed', () => {
+    const { control, button, onChange } = added()
+    expect(button.getAttribute('aria-pressed')).toBe('false')
+    button.listeners.click()
+    expect(onChange).toHaveBeenLastCalledWith(true)
+    // Nothing changes until the state comes back.
+    expect(button.getAttribute('aria-pressed')).toBe('false')
+    control.setPressed(true)
+    expect(button.getAttribute('aria-pressed')).toBe('true')
+    button.listeners.click()
+    expect(onChange).toHaveBeenLastCalledWith(false)
+    control.setPressed(false)
+    expect(button.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  // A link that opens with 3D on presses the button before the map adds it.
+  it('shows a state handed to it before it was added', () => {
+    const control = new TerrainControl(() => {})
+    control.setPressed(true)
+    const container = control.onAdd(mapWithDocument()) as unknown as El
+    expect(container.children[0].getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('takes its markup with it when removed', () => {
+    const { control, container } = added()
+    control.onRemove()
+    expect(container.removed).toBe(true)
   })
 })

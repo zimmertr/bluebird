@@ -23,6 +23,7 @@ function rows(over: Partial<Parameters<typeof MapRows>[0]> = {}) {
       onSearchSelect={() => {}}
       searchPointed={false}
       onLocateSlot={() => {}}
+      onTerrainSlot={() => {}}
       onCompassSlot={() => {}}
       desk={false}
       sidebarOpen={false}
@@ -90,6 +91,19 @@ describe('MapRows', () => {
     expect(onLocateSlot).toHaveBeenCalledWith(expect.any(HTMLDivElement))
   })
 
+  // A phone's 3D button, in the search row beside the locate button (#799),
+  // and so out of the chip row.
+  it('hands up the 3D button\'s slot in the search row, before the locate button\'s', () => {
+    const onTerrainSlot = vi.fn()
+    const onLocateSlot = vi.fn()
+    render(rows({ onTerrainSlot, onLocateSlot }))
+    const slot = onTerrainSlot.mock.calls[0][0] as HTMLDivElement
+    const locate = onLocateSlot.mock.calls[0][0] as HTMLDivElement
+    expect(slot.parentElement).toBe(locate.parentElement)
+    expect(slot.nextElementSibling).toBe(locate)
+    expect(slot.parentElement).not.toBe(screen.getByRole('button', { name: 'Open controls' }).parentElement)
+  })
+
   // A phone's compass, at the chip row's right end under the locate button
   // (record 0147).
   it('hands up the compass\'s slot at the end of a phone\'s chip row', () => {
@@ -141,11 +155,13 @@ describe('MapRows at a desk', () => {
 
   // A desk's map buttons stand in the map's top-right corner with the zoom
   // pair (record 0174), so its rows hand up no slot for either.
-  it('hands up no slot for the locate button or the compass', () => {
+  it('hands up no slot for the locate button, the 3D button or the compass', () => {
     const onLocateSlot = vi.fn()
+    const onTerrainSlot = vi.fn()
     const onCompassSlot = vi.fn()
-    render(rows({ desk: true, onLocateSlot, onCompassSlot }))
+    render(rows({ desk: true, onLocateSlot, onTerrainSlot, onCompassSlot }))
     expect(onLocateSlot).not.toHaveBeenCalledWith(expect.any(HTMLDivElement))
+    expect(onTerrainSlot).not.toHaveBeenCalledWith(expect.any(HTMLDivElement))
     expect(onCompassSlot).not.toHaveBeenCalledWith(expect.any(HTMLDivElement))
   })
 

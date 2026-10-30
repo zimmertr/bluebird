@@ -1,4 +1,4 @@
-# 0243. The chart draws up to four metrics, each a panel on one time axis
+# 0255. The chart draws up to four metrics, each a panel on one time axis
 
 - Status: Accepted
 - Date: 2026-10-29
@@ -54,7 +54,7 @@ A split drag, 30 moves each timed to the next frame, three runs, on 2026-10-29. 
 
 `will-change` halves a four-panel frame, so it stays. The release pays the one redraw a drag still makes. A redraw of one panel at 200 lines over 15 days profiled at about 160 ms, about half of it Recharts' own `Line` building a label entry and a point for every hour of every line, labels or not; the axis's tick formatter built a new `Intl.DateTimeFormat` per candidate tick (17 ms a redraw) and now keeps one. Path building is about 6 ms, the grid 7 ms, and the commit 5 ms; no dots mount at this count and the tooltip does no work on a resize.
 
-On the canvas renderer (record 0244), the same probe with a long-task observer, three runs, 2026-10-30. The Playwright image composites in software at 60 Hz, so a frame cannot read under 16 ms there; the main-thread time per move is the figure that carries to a Mac. It is the page's task time over the run divided by the 30 moves, so it also carries the release.
+On the canvas renderer (record 0256), the same probe with a long-task observer, three runs, 2026-10-30. The Playwright image composites in software at 60 Hz, so a frame cannot read under 16 ms there; the main-thread time per move is the figure that carries to a Mac. It is the page's task time over the run divided by the 30 moves, so it also carries the release.
 
 | | two panels, stretch | two panels, compositor | four panels, stretch | four panels, compositor |
 |---|---|---|---|---|

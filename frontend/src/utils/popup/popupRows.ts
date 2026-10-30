@@ -296,7 +296,7 @@ export type PopupGrid = { columns: string[]; rows: PopupGridRow[] }
 
 /**
  * The aggregates that can become columns. Their order is the table's, read
- * off the first family that shows them (record 0251), one order for every
+ * off the first family that shows them (record 0257), one order for every
  * family. The window total is the last column, filled for precipitation and
  * snowfall alone (TJ, 2026-10-08, rather than a line of its own above their
  * rates).

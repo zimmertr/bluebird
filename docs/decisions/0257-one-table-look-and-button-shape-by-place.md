@@ -1,6 +1,6 @@
-# 0251. The three tables share one look, and a button's shape says where it stands
+# 0257. The three tables share one look, and a button's shape says where it stands
 
-- Status: Accepted
+- Status: Accepted. Amends 0251 (a marker popup's grid row is no control and takes the table's row tint under the pointer).
 - Date: 2026-10-30
 - Decider: the maintainer (TJ), on reviewing PR #828 on 2026-10-30: the shared heads, rows, digits and ranked colour as proposed, the raised square for a close button over a ghost square and a framed circle, the shape rule by where a button stands over one by what it carries and squares everywhere, and the column moves shared with the table
 - Issues and PRs: #499, #828
@@ -16,6 +16,8 @@ The results table, the marker popup and the chart's card each drew a table of nu
 - **One table look.** All three take the table's heads (`TEXT.subheading`, right over the digits they name), its rows (a hairline between each, the raised step at 30% under the pointer), its digit grouping, and its ranked colour (`cellStyle`'s tint and ink). The popup's column bands are gone. What stays apart is each one's own strength: the table's sticky head, the popup's metrics down the side, and the card's line swatches.
 - **Columns move and size the same way everywhere.** A pinned chart card's heads size by their right edges and a metric's head carries its panel to a new place, the card's columns being the panels. A marker popup's aggregate heads size by their edges, every result card alike for the session, and a head carried onto another moves the table's columns of that aggregate, every family's, which the popup's columns follow, being laid out in the table's order. The window total stays last. The popup therefore opens in the table's default order, Avg, Min, Max, Total, where it opened Min, Max, Avg, Total from 2026-10-08 (TJ 2026-10-30, choosing one order everywhere over keeping the old one until a column is moved).
 - **A button's shape says where it stands.** A circle floats on the map with nothing behind it (`MAP_ROUND_BUTTON`, the Legend and Layers chips). Every control inside a surface, the panel, a sheet, a card or a popup, is a rounded rectangle, and an icon-only one a raised square with a frame (`SQUARE_BUTTON`): the pinned card's ✕ and the marker popup's ✕. The panel header's theme switch and close are the same square without the frame, on the raised fill at 80% they wore as circles, because the frame drew them as form controls in the header's chrome (TJ 2026-10-30).
+
+- **Released beside #823's one hover** (TJ, 2026-10-30, when #823 and #828 were merged together). Under the pointer every square lights its glyph in the accent (record 0251) and keeps its fill and frame; the popup's ✕ takes `--popup-close-hover`, the accent ink. The marker popup's grid row keeps the results table's row tint, the one fill `map.css` paints under the pointer besides the 3D button's, because a row is not a control: the tint carries the eye across the row. Every chart picker is a `MenuSelect` ending in `TRIGGER_STATE` and opens the one menu's sheet on a phone (record 0252); the pickers' group lights no edge on hover. A column divider paints `currentColor` and its hover changes only the colour.
 
 ## Evidence
 

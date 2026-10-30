@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import { useId, type ComponentProps } from 'react'
 import MapLegend, { LegendSections, legendSections, type LegendInputs } from './MapLegend'
@@ -8,7 +8,7 @@ import { SMOKE_DENSITIES } from '../utils/smoke'
 import { legendMaxCss } from '../utils/results/resultsSheet'
 import { readViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
 import { IconChevron } from './icons'
-import { MENU_CHEVRON } from '../styles'
+import { MENU_CHEVRON, SR_ONLY } from '../styles'
 
 const NONE = {
   showWildfires: false,
@@ -17,6 +17,8 @@ const NONE = {
   showRadar: false,
   showSmoke: false,
   showSnow: false,
+  showFireActivity: false,
+  showSlope: false,
 }
 const SMOKE_AND_RADAR = { ...NONE, showSmoke: true, showRadar: true }
 const NO_GRID = {
@@ -24,6 +26,8 @@ const NO_GRID = {
   gridCued: false,
   gridFailed: false,
   gridLegend: { label: 'Forecast grid', value: '', kind: 'status' as const },
+  gridStyle: 'smooth' as const,
+  setGridStyle: () => {},
 }
 const TEMP_SCALE = rankedScale('temp_avg_f')
 const BASE = {
@@ -57,14 +61,43 @@ describe('MapLegend', () => {
     expect(container.textContent).toBe('Legend')
   })
 
-  // Alphabetical by what each section reads, the metric key included.
-  it('sorts the sections by their labels, the metric key among them', () => {
+  // In the Layers menu's order (record 0249): the metric key first, then
+  // the base map, the hazards and the forecast, smoke before the radar.
+  it('lists the sections in the Layers menu\'s order, the metric key first', () => {
     const { container } = render(<Legend {...BASE} hasColoredMarkers overlays={SMOKE_AND_RADAR} />)
     const text = container.textContent ?? ''
     const at = (s: string) => text.indexOf(s)
-    expect(at('Rain radar')).toBeGreaterThanOrEqual(0)
-    expect(at('Rain radar')).toBeLessThan(at('Smoke'))
-    expect(at('Smoke')).toBeLessThan(at('Temperature'))
+    expect(at('Temperature')).toBeGreaterThanOrEqual(0)
+    expect(at('Temperature')).toBeLessThan(at('Smoke'))
+    expect(at('Smoke')).toBeLessThan(at('Rain radar'))
+  })
+
+  // Every layer on: each section where its row stands in the menu.
+  it('lists every section with every layer on, in the menu\'s order', () => {
+    const ALL = {
+      showWildfires: true,
+      showAreaClosures: true,
+      showTrailClosures: true,
+      showRadar: true,
+      showSmoke: true,
+      showSnow: true,
+      showFireActivity: true,
+      showSlope: true,
+    }
+    const grid = { ...NO_GRID, gridPainted: true, gridLegend: { label: 'Forecast grid', value: '3 km', kind: 'pitch' as const } }
+    const sections = legendSections({ ...BASE, hasColoredMarkers: true, overlays: ALL, grid }, 'id')
+    expect(sections.map((s) => s.label)).toEqual([
+      'Temperature (°F)',
+      'Slope angle',
+      'Active wildfires',
+      'Fire activity',
+      'Smoke',
+      'Area closures',
+      'Trail closures',
+      'Rain radar',
+      'Snow depth (in)',
+      'Forecast grid',
+    ])
   })
 
   // A chip shows a letter, and the word it stands for was its title alone,
@@ -104,6 +137,21 @@ describe('MapLegend', () => {
     expect(snowfall.container.textContent).toContain('Snowfall (in)')
   })
 
+  // The style's name in the grid's line is a quiet button that switches it.
+  it("switches the grid's style from its name in the legend", () => {
+    const setGridStyle = vi.fn()
+    const PAINTED = {
+      ...NO_GRID,
+      gridPainted: true,
+      setGridStyle,
+      gridLegend: { label: 'Forecast grid', value: '3 km', kind: 'pitch' as const, styleName: 'Smooth' },
+    }
+    const { container } = render(<Legend {...BASE} grid={PAINTED} />)
+    expect(container.textContent).toContain('3 km · Smooth⇄')
+    fireEvent.click(screen.getByRole('button', { name: 'Grid style: Smooth' }))
+    expect(setGridStyle).toHaveBeenCalledWith('blocks')
+  })
+
   it('credits NIFC beside the wildfire section', () => {
     render(<Legend {...BASE} overlays={{ ...NONE, showWildfires: true }} />)
     expect(screen.getByRole('link', { name: 'NIFC' })).toBeTruthy()
@@ -120,14 +168,81 @@ describe('MapLegend', () => {
     )
   })
 
-  it('sorts the area section first and the trail section after smoke', () => {
+  // The fire detections (#799): one line like Smoke's, the layer's name and an
+  // icon per age band, newest first, each with its hour drawn on it rather
+  // than set in type, credited to FIRMS.
+  it('keys the fire detections by age on one line, an icon per band, credited to FIRMS', () => {
+    const { container } = render(<Legend {...BASE} overlays={{ ...NONE, showFireActivity: true }} />)
+    const text = container.textContent ?? ''
+    expect(text).toContain('Fire activity (FIRMS)')
+    expect(screen.getByRole('link', { name: 'FIRMS' }).getAttribute('href')).toBe('https://earthdata.nasa.gov/firms')
+    const icons = [...container.querySelectorAll('svg')].filter((svg) => svg.querySelector('polygon'))
+    expect(icons).toHaveLength(3)
+    expect(icons.every((icon) => icon.getAttribute('viewBox') === '0 0 16 16')).toBe(true)
+    // The band's fill rims the star and draws the hour; the layer's ink is the body.
+    const stars = icons.map((icon) => icon.querySelector('polygon')!)
+    const digits = icons.map((icon) => icon.querySelector('path')!)
+    expect(stars.map((star) => star.getAttribute('stroke'))).toEqual(['#ff5a45', '#fb923c', '#fde047'])
+    expect(new Set(stars.map((star) => star.getAttribute('fill')))).toEqual(new Set(['#1c1917']))
+    expect(stars.every((star) => star.getAttribute('points')!.split(' ').length === 24)).toBe(true)
+    expect(digits.map((digit) => digit.getAttribute('stroke'))).toEqual(['#ff5a45', '#fb923c', '#fde047'])
+    expect(new Set(digits.map((digit) => digit.getAttribute('d'))).size).toBe(3)
+    // No text in the drawing: the hours are paths.
+    expect(icons.every((icon) => icon.querySelector('text') === null && icon.textContent === '')).toBe(true)
+    // One row: the name and the three chips share it, each chip its band's
+    // hidden words and nothing else.
+    const row = screen.getByText('FIRMS').closest('div')!
+    expect(row.textContent).toBe('Fire activity (FIRMS)Under 12 hours12 to 24 hours24 to 48 hours')
+    const chips = icons.map((icon) => icon.parentElement!)
+    for (const chip of chips) expect(chip.hasAttribute('title')).toBe(false)
+  })
+
+  // An icon alone does not say what its hour bounds, so each chip carries its
+  // band's words for a screen reader, the way the smoke chips carry theirs.
+  it('names each fire age band to a screen reader', () => {
+    const { container } = render(<Legend {...BASE} overlays={{ ...NONE, showFireActivity: true }} />)
+    const chips = [...container.querySelectorAll('polygon')].map((star) => star.parentElement!.parentElement!)
+    const words = chips.map((chip) => document.getElementById(chip.getAttribute('aria-describedby')!)!)
+    expect(words.map((word) => word.textContent)).toEqual(['Under 12 hours', '12 to 24 hours', '24 to 48 hours'])
+    expect(words.every((word) => word.className === SR_ONLY)).toBe(true)
+  })
+
+  it('lists the fire activity section after the wildfires and before the smoke', () => {
+    const sections = legendSections(
+      { ...BASE, overlays: { ...NONE, showFireActivity: true, showAreaClosures: true, showSmoke: true, showWildfires: true } },
+      'id',
+    )
+    expect(sections.map((s) => s.label)).toEqual(['Active wildfires', 'Fire activity', 'Smoke', 'Area closures'])
+  })
+
+  it('lists the area section after the smoke and the trail section after it', () => {
     const { container } = render(
       <Legend {...BASE} overlays={{ ...NONE, showAreaClosures: true, showTrailClosures: true, showSmoke: true }} />,
     )
     const text = container.textContent ?? ''
-    expect(text.indexOf('Area closures')).toBeLessThan(text.indexOf('Smoke'))
-    expect(text.indexOf('Smoke')).toBeLessThan(text.indexOf('Trail closures'))
+    expect(text.indexOf('Smoke')).toBeLessThan(text.indexOf('Area closures'))
+    expect(text.indexOf('Area closures')).toBeLessThan(text.indexOf('Trail closures'))
     expect(screen.getAllByRole('link', { name: 'USFS' })).toHaveLength(2)
+  })
+
+  // The slope angle shading (#799): one strip of its seven bands with the
+  // degrees each starts at inside it, as the metric key draws a scale, and
+  // the elevation's credit beside the name. First of the layers' sections,
+  // as its row is the first with a key in the menu.
+  it('keys the slope bands on one strip, credited to Mapterhorn', () => {
+    const { container } = render(<Legend {...BASE} overlays={{ ...NONE, showSlope: true, showSmoke: true }} />)
+    const text = container.textContent ?? ''
+    expect(text).toContain('Slope angle (Mapterhorn)')
+    expect(text.indexOf('Slope angle')).toBeLessThan(text.indexOf('Smoke'))
+    expect(screen.getByRole('link', { name: 'Mapterhorn' }).getAttribute('href')).toBe('https://mapterhorn.com/attribution')
+    const strip = container.querySelector<HTMLElement>('[style*="grid-template-columns"]')!
+    expect(strip.style.gridTemplateColumns).toBe('repeat(7, minmax(0, 1fr))')
+    expect(strip.style.backgroundImage).toContain('linear-gradient')
+    const ticks = [...strip.children].filter((c) => c.textContent) as HTMLElement[]
+    expect(ticks.map((t) => t.textContent)).toEqual(['27', '30', '32', '35', '46', '51', '60'])
+    // Two ticks on neighbouring boundaries share a column, so every tick
+    // stands in the strip's one row rather than dropping to a second.
+    expect(new Set(ticks.map((t) => t.style.gridRow))).toEqual(new Set(['1']))
   })
 })
 
@@ -140,7 +255,7 @@ describe('legendSections', () => {
 
   it('draws the sections bare and in the box\'s order for the sheet', () => {
     const sections = legendSections({ ...BASE, hasColoredMarkers: true, overlays: SMOKE_AND_RADAR }, 'id')
-    expect(sections.map((s) => s.label)).toEqual(['Rain radar', 'Smoke', 'Temperature (°F)'])
+    expect(sections.map((s) => s.label)).toEqual(['Temperature (°F)', 'Smoke', 'Rain radar'])
     const { container } = render(<LegendSections sections={sections} />)
     expect(container.children).toHaveLength(3)
     expect(container.textContent).toContain('Smoke')

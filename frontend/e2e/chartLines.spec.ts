@@ -4,7 +4,7 @@ import { test, expect, resultRows, isoDay } from './fixtures'
 // own, with nothing drawn round it (#801): in light each clears 3:1 against
 // the panel. Dark asserts no ratio: four of its twenty stand under 3:1 by
 // decision (record 0228), Brewer's purple among the fixture's five, and
-// `chartColors.test.ts` pins every one. The lines are a canvas (record 0244),
+// `chartColors.test.ts` pins every one. The lines are a canvas (record 0256),
 // so a line's colour is read off its pixels: the five most common opaque
 // colours are the five lines, since anti-aliasing blends only their edges.
 // Only a browser can say a line paints its colour in each theme and that no

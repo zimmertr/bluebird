@@ -282,7 +282,7 @@ describe('resultPopupHtml mirrors the table', () => {
   // keeps the card short enough to stand beside a phone's controls.
   it('lays the families out as a grid, one row each', () => {
     const html = resultPopupHtml({ ...base })
-    // In the table's order, Avg first by default (record 0251).
+    // In the table's order, Avg first by default (record 0257).
     const heads = [...html.matchAll(/<th scope="col"[^>]*>([^<]*)/g)].map((m) => m[1])
     expect(heads).toEqual(['Avg', 'Min', 'Max', 'Total'])
     // The heads lead the grid, above the first family.
@@ -425,7 +425,7 @@ describe('resultPopupHtml ranked number and insets', () => {
     const bold = [...html.matchAll(/<span style="[^"]*font-weight:600[^"]*">([^<]*)<\/span>/g)].map((m) => m[1])
     expect(bold).toEqual(['41.8'])
     const tinted = [...html.matchAll(new RegExp(`<td ${POPUP_TINT_ATTR} style="[^"]*;background:([^;]+);--tint-dark:([^;]+);--tint-light:([^;]+);`, 'g'))]
-    // The grid's column order, which follows the table's (record 0251).
+    // The grid's column order, which follows the table's (record 0257).
     const token = { Min: 'min', Max: 'max', Avg: 'avg' } as Record<string, string>
     const wind = [...html.matchAll(/data-agg="([^"]+)"/g)]
       .map((m) => `wind_${token[m[1]]}_mph` as 'wind_min_mph')

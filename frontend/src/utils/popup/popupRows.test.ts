@@ -310,7 +310,7 @@ describe('a new metric family reaches the popup on its own', () => {
 describe('popupGrid', () => {
   const cols = displayedColumns(false, 'precip_total_in')
 
-  // In the table's order, Avg first by default, the total last (record 0251).
+  // In the table's order, Avg first by default, the total last (record 0257).
   it('heads the columns in the table\'s order, the total last', () => {
     const grid = popupGrid(popupGroups(row, cols))
     expect(grid.columns).toEqual([AGGREGATE.average, AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.total])

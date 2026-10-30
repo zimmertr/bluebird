@@ -62,7 +62,7 @@ vi.mock('./ResizeGrip', async (importOriginal) => ({
     return <i data-testid="split-grip" />
   },
 }))
-// The canvas lines (record 0244): every stroke the panel hands it, kept in the
+// The canvas lines (record 0256): every stroke the panel hands it, kept in the
 // order drawn, as the mock above kept every Recharts Line.
 vi.mock('./ChartLines', () => ({
   default: (p: { strokes: Record<string, unknown>[]; at: number | null }) => {
@@ -446,8 +446,26 @@ describe('TimeSeriesChart on a phone', () => {
     expect(bar.className).toBe(CHART_PICKER.bar)
     expect(bar.querySelector('[aria-label="Add a panel"]')).not.toBeNull()
     // The root holds the stack alone: the row is gone.
+    // No native select at any width (record 0252).
+    expect(container.querySelector('select')).toBeNull()
     expect(container.firstElementChild!.children).toHaveLength(1)
     expect(chart.margin).toEqual(PHONE_PLOT_MARGIN)
+  })
+
+  // Every panel's picker opens the one menu's sheet on a phone, headed by its
+  // name, as the model picker does (record 0252).
+  it('opens a sheet headed by its name and picks from it', () => {
+    const onPick = vi.fn()
+    const temp = CHART_METRICS.find((m) => m.key === 'temp')!
+    const other = CHART_METRICS.find((m) => m.key !== 'temp')!
+    render(<TimeSeriesChart {...props({ phone: true, metrics: ['temp'], onPick })} />)
+    const field = screen.getByRole('button', { name: `Chart metric ${temp.label}` })
+    expect(field.getAttribute('aria-haspopup')).toBe('dialog')
+    fireEvent.click(field)
+    const sheet = screen.getByRole('dialog', { name: 'Chart metric' })
+    fireEvent.click(within(sheet).getByRole('option', { name: other.label }))
+    expect(onPick).toHaveBeenCalledWith(0, other.key)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('keeps the row for a comparison note, with no picker in it', () => {
@@ -815,7 +833,7 @@ describe('TimeSeriesChart with more than one metric', () => {
     fireEvent.pointerMove(document, { clientX: 200, clientY: 100 })
     // Mid-drag nothing is laid out again and nothing renders: the boxes and
     // the gutters move by transform, the split from the 800 by 400 measured
-    // at the press (record 0243).
+    // at the press (record 0255).
     expect(colShare()).toBe('0.5')
     expect(rowShare()).toBe('0.5')
     const rows = Array.from(container.firstElementChild!.lastElementChild!.children).slice(0, 2) as HTMLElement[]

@@ -37,6 +37,9 @@ describe('data sources', () => {
 
     expect(byName.OpenStreetMap?.license).toBe('ODbL')
     expect(byName.NIFC?.license).toBe('CC BY 3.0')
+    // The imagery outside the United States is EOX's 2025 mosaic, under the
+    // noncommercial share-alike license its 2018 and later vintages carry (#799).
+    expect(byName['EOX IT Services']?.license).toBe('CC BY-NC-SA 4.0')
   })
 
   // A window older than the forecast endpoint reaches is answered by Open-Meteo's

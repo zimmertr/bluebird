@@ -52,7 +52,7 @@ describe('cloudDeckMark', () => {
     }
   })
 
-  // Grouped as the table and the popup print it (record 0251).
+  // Grouped as the table and the popup print it (record 0257).
   it('marks the chart tooltip but not another metric', () => {
     expect(formatTooltipValue(30066, 'cloud_deck')).toBe('≥30,000')
     expect(formatTooltipValue(4210, 'cloud_deck')).toBe('4,210')

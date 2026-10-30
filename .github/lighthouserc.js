@@ -11,7 +11,8 @@
  * Two deliberate choices make this a gate rather than a weather report:
  *
  * 1. **Every third-party host is blocked.** The map tiles, the Open-Meteo
- *    services, the radar and snow tiles and Nominatim are someone else's servers on someone else's day,
+ *    services, the radar and snow tiles, the elevation and imagery tiles and
+ *    Nominatim are someone else's servers on someone else's day,
  *    and a gate that fails when OpenFreeMap is slow teaches everyone to ignore
  *    it. What is left is exactly what this repository ships.
  * 2. **The default mobile preset, not desktop.** Lighthouse's throttling is a
@@ -53,6 +54,9 @@ module.exports = {
           '*nominatim.openstreetmap.org*',
           '*agron.iastate.edu*',
           '*mapservices.weather.noaa.gov*',
+          '*tiles.mapterhorn.com*',
+          '*basemap.nationalmap.gov*',
+          '*tiles.maps.eox.at*',
         ],
       },
     },

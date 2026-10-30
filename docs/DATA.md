@@ -7,8 +7,12 @@
 | [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | Hourly precipitation, 2 m temperature and 10 m wind for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles, and the glaciers the snow card names | Free | None |
+| [Mapterhorn](https://mapterhorn.com/attribution) | Elevation tiles for the contours, shaded relief and 3D terrain, worldwide | Free | None |
+| [USGS The National Map](https://www.usgs.gov/programs/national-geospatial-program/national-map) | Aerial imagery for the satellite layer, United States and its territories | Free (public domain) | None |
+| [EOX Sentinel-2 cloudless](https://s2maps.eu) | Aerial imagery for the satellite layer everywhere USGS has none | Free (non-commercial) | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
+| [NASA FIRMS](https://earthdata.nasa.gov/firms) | Satellite fire detections from VIIRS and MODIS, worldwide, the last 48 hours | Free (public files, no quota) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
 | [US Forest Service](https://www.fs.usda.gov/) | Closure orders: closed areas in Regions 3, 4 and 6 (Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington), and closed trails, roads and sites in Region 6 alone | Free (public domain; quota shared across all consumers) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
@@ -833,6 +837,108 @@ time the browser reports it is back online, and the error clears once the
 style arrives. Only the style counts: a tile, glyph or sprite that fails leaves
 a gap in a map that otherwise drew, and says nothing.
 
+### Elevation and imagery
+
+The Topographic, Shaded relief, Slope angle and Satellite rows, and the 3D
+terrain, read tiles the browser fetches itself from three more keyless hosts
+(#799). None of the five asks for anything until it is switched on.
+
+**Elevation is Mapterhorn's**, one model behind the contours, the relief, the
+slope angle and the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere,
+with finer national surveys stitched in where a country publishes one. 30 m is
+enough for a ridge and a valley, and too coarse for a
+gully or a cliff band. Past the zoom a region's survey reaches, a tile answers
+404. The contours ask for nothing past zoom 12, which the 30 m fill holds over
+all land, and stretch those tiles further in. The relief, the 3D terrain and
+the slope angle read finer tiles where they exist, to zoom 16, and where a
+finer tile is missing they stretch the finest one that is, smoothly, so a
+survey's edge leaves no hole. Open ocean has
+no tile at any zoom. The data is licensed per source, mostly CC BY 4.0 and US public domain,
+and Mapterhorn asks for one credit, `© Mapterhorn`, linked to its attribution
+page. Its privacy policy says it keeps each request's IP address, referrer and
+user agent for up to 30 days.
+
+**The contours are traced in your browser** from those same tiles, by
+maplibre-contour, and converted to feet. A line is where the model puts that
+height, so it can stand a little off a mapped trail or a lake shore, and its
+height is the model's, not a surveyed point's. A cell is 30 m across at its
+coarsest and holds one height, so a summit narrower than that can top out
+under the elevation its OpenStreetMap label carries, and the highest line round
+it can read one interval short. Use the label for the summit and the lines for
+the shape of the ground around it.
+
+**The slope angle is worked out in your browser** from the tiles the relief
+and the contours already fetched. Each pixel's slope is the height difference
+to its neighbours east and west and north and south, over the ground between
+them at that latitude. A pixel on a tile's edge reads its neighbours from the
+next tile, so a band does not break along tile boundaries. It is painted in
+CalTopo's bands, the avalanche world's, from 27 degrees up (record
+[0248](decisions/0248-slope-angle-from-the-shared-elevation.md)). Zoomed in
+past 12, it reads the finest tile Mapterhorn has, to zoom 16: lidar where a
+US survey has it, as around Issaquah, 10 m-class elsewhere in the United
+States, finer in the Alps, and the 30 m fill everywhere else. Where a
+finer tile is missing it falls back a zoom at a time to 12 and remembers the
+miss, so it asks once. It inherits the model's limits: a slope is measured
+over two pixels, about 13 m over Rainier from the US survey, 7 m over the
+Alps, and 26 m from the 30 m fill at Rainier's latitude, twice that at each
+zoom out. A cliff band or a gully narrower than that is averaged with the
+ground beside it and reads gentler than it is. Past zoom 16 the shading is
+stretched, not worked out again. It is a planning picture, not a measurement
+of the slope you will stand on.
+
+**Imagery is two sources, one picture.** Over the United States and its
+territories it is USGS's NAIP aerial photography, to zoom 16, in the public
+domain. NAIP is flown in summer with the leaves out, in the 2017 to 2021
+seasons, so it shows no snow you could plan on and nothing that has changed
+since. Everywhere else it is EOX's Sentinel-2 cloudless mosaic,
+one cloud-free picture of the year at 10 m per pixel. Its tiles stop adding
+detail at zoom 14: a zoom 15 tile differs from its zoom 14 parent, stretched,
+by 1.7 to 3.2 points of 255 on average, where a zoom 14 tile differs from its
+own parent by 8.7 to 12.6 (measured 2026-10-27 over a forest, a town and a
+range in Washington, British Columbia and the Alps). So the map asks EOX for
+nothing past 14 and stretches what it has. The 2025 mosaic is under
+CC BY-NC-SA 4.0, as every vintage from 2018 on is, so it is free for
+noncommercial use only. Neither is a recent pass: each is a still of the
+ground as it was, not of the conditions on it.
+
+While the layer is on, the map's corner credits the two by short name, `USGS`
+and `EOX Sentinel-2 cloudless`, each linked to its provider. The full line each
+asks for is in [NOTICES.md](../NOTICES.md), and the data sources list names
+and links both. EOX's own wording asks for its full line in the map; the
+maintainer chose the short names on 2026-10-28 to keep the corner to one line.
+
+The two draw as one layer at the row's opacity, EOX everywhere with USGS over
+it, both over Liberty's land and water fills and under its roads, trails and
+labels and under the relief and the contours (record
+[0250](decisions/0250-layers-palette-and-base-map-opacity.md)). Liberty's
+buildings, which it draws over its roads, fade by the same level instead. The
+trails wear a light casing over it, because their brown reads 1.69:1 on a
+forest (record [0243](decisions/0243-map-reads-on-a-dark-ground.md)), and from
+50% up the contour lines turn light on a thin dark edge, because their brown
+reads 1.25:1 there. USGS draws from zoom 13 up, and only over a box from American Samoa to
+the Arctic and the Aleutians to the Virgin Islands. Both limits are its cache's, measured 2026-10-27:
+
+- **Below zoom 13 it fills the land outside its coverage with white.** Zooms 9
+  to 12 answer opaque white JPEGs over British Columbia, Ontario and Sonora,
+  which would paint over EOX. Zoom 8 and under are a coarse world mosaic, not
+  NAIP. From zoom 13 the edge of its coverage is a transparent PNG and beyond
+  it a 404, which MapLibre leaves empty, so EOX shows through. Below 13 EOX
+  alone draws everywhere, which costs nothing: a screen pixel there is already
+  coarser than EOX's 10 m. The seam where USGS stops shows as a straight tile
+  edge where the two pictures' colours differ.
+- **Outside the box every tile is a 404**, about 30 a screen over the Alps,
+  each one logged in the browser's console. Its service metadata states the
+  whole world as its extent, so the box is drawn from where tiles were found
+  instead. Guam, the Northern Marianas and the western Aleutians have USGS
+  photos too, but lie past the antimeridian, where one box cannot reach them
+  without the whole Pacific, so they get EOX's.
+
+A tile host that fails, rather than answering 404, is asked again each time
+the browser reports it is back online, as the pod's overlays are. A tile
+failure carries no `Retry-After` to wait out and, like a failed basemap tile,
+says nothing on screen: the roads and labels still draw, and over the United
+States so does the other picture.
+
 ## Wildfires
 
 The optional perimeter overlay and the proximity warnings on result rows both
@@ -904,6 +1010,47 @@ say the check never happened. Perimeters are a surveyed product with reporting
 lag, so read them as where a fire has been mapped, not where it is burning right
 now. For decisions about an active incident, use
 [InciWeb](https://inciweb.wildfire.gov) and the responsible agency.
+
+## Fire activity
+
+The optional fire activity layer draws the satellite fire detections NASA's
+**Fire Information for Resource Management System** (FIRMS) publishes. A
+detection is one pixel that was hot when a satellite passed: 375 m across for
+the VIIRS instruments on NOAA-20 and NOAA-21, 1 km for the MODIS instruments on
+Terra and Aqua. It says something was burning there at that moment. It is not
+a fire's outline (the wildfire perimeters above are that): a large fire shows
+as a cluster of pixels along its active edge, not as its burned area.
+
+**It is about 3 hours behind the pass.** FIRMS publishes a detection about 3
+hours after the satellite saw it, and each satellite passes a given place about
+twice a day. So the newest starburst can be hours old, and a fire that started since
+the last pass is not on the map.
+
+**False alarms happen.** Anything hot enough looks like fire from orbit: gas
+flares, industrial roofs, volcanoes, and sun glint off water or metal. FIRMS
+grades each detection's confidence, and the layer drops nothing for it, so a
+lone star over a refinery is probably the refinery.
+
+**Cloud and smoke hide fire.** A pass under cloud sees nothing below it, so an
+empty map means no detection, not no fire.
+
+**Colour is age.** A star is red under 12 hours old, orange from 12 to 24 hours
+and yellow from 24 to 48, measured against your own clock, so it changes colour
+while the map is open. Nothing older than 48 hours is drawn. The layer draws
+nothing below zoom 5, where a view can hold a continent's fires.
+
+FIRMS's files carry no CORS header, so the browser cannot read them. Bluebird
+Forecast's server fetches the three global 48-hour files (NOAA-20, NOAA-21 and
+MODIS, 27.7 MB together on 2026-10-27) every hour, FIRMS's own cadence (one pod
+for all of them while the database is up), and answers the map's view from
+that copy. A copy is served through a failed refresh for up to 24 hours, like the
+perimeters; past that the layer is empty until FIRMS answers again. Suomi NPP's
+VIIRS feed ends on 2026-11-02, so the layer reads two VIIRS satellites, not
+three. The geostationary GOES detections are left out: they are 2 km
+pixels every few minutes, a different picture. See
+[API.md](API.md#fire-detections) for the route, and
+[record 0246](decisions/0246-fire-activity-from-firms-files.md) for why it is
+built this way.
 
 ## Smoke
 

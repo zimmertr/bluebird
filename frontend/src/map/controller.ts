@@ -47,6 +47,9 @@ export interface MapInputs {
   onCameraMove: (view: CameraView, readerMove: boolean) => void
   // The most positions a ring may carry, as /api/capabilities publishes it.
   maxPolygonPoints: number
+  // The 3D button's press, asking for the terrain on or off (#799). The
+  // switch is the overlays', so the button, the link and the map agree.
+  onTerrainChange: (on: boolean) => void
 }
 
 export interface MapController {

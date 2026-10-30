@@ -84,6 +84,12 @@ export function useGridLayer({
       setGridReachDraft(null)
     }
   }, [gridReachDraft])
+  // A double-click on the slider puts it back where it starts, as the
+  // opacity sliders do (the maintainer, 2026-10-30).
+  const resetGridReach = useCallback(() => {
+    setGridReachDraft(null)
+    setGridReachFrac(GRID_REACH_DEFAULT_FRAC)
+  }, [])
 
   // A report carrying archive hours is the one the grid cannot draw over:
   // those hours name no model, so there is no pitch the lattice could honestly
@@ -140,7 +146,7 @@ export function useGridLayer({
   // On and could not draw. Said out loud, because a switched-on layer with
   // nothing under it and nothing said reads as a broken app.
   const gridFailed = gridOn && gridHasValue && grid.status === 'failed'
-  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, grid.paceRemainingS, gridFailed, grid.complete)
+  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, grid.paceRemainingS, gridFailed, grid.complete, gridStyle)
 
   return {
     gridStyle,
@@ -149,6 +155,7 @@ export function useGridLayer({
     gridReachDraft,
     setGridReachDraft,
     commitGridReach,
+    resetGridReach,
     gridAvailable,
     gridOn,
     gridOffered,

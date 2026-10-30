@@ -35,6 +35,7 @@ import type { MapPopups, MapTargetHit } from './mapPopups'
 import {
   MARKER_LABEL_LAYOUT,
   MARKER_LABEL_PAINT,
+  MARKER_HALO_PAINT,
   MARKER_PAINT,
   PENDING_COLOR,
   RANK_LAYOUT,
@@ -163,6 +164,9 @@ export function mountResultsLayer(
 
   map.addSource('results', { type: 'geojson', data: emptyFC as FeatureCollection })
 
+  // Each dot's dark outer ring, under it, so its edge reads on a light ground
+  // as the white stroke does on a dark one (`MARKER_HALO_PAINT`, #799).
+  map.addLayer({ id: 'results-halo', type: 'circle', source: 'results', paint: MARKER_HALO_PAINT })
   map.addLayer({
     id: RESULT_MARKER_LAYER,
     type: 'circle',
@@ -218,6 +222,12 @@ export function mountResultsLayer(
   map.addSource('pending-destinations', {
     type: 'geojson',
     data: emptyFC as FeatureCollection,
+  })
+  map.addLayer({
+    id: 'pending-destinations-halo',
+    type: 'circle',
+    source: 'pending-destinations',
+    paint: MARKER_HALO_PAINT,
   })
   map.addLayer({
     id: 'pending-destinations-circles',

@@ -22,7 +22,7 @@ import {
   type ClosureKind,
   type ClosureProps,
 } from '../../utils/closures'
-import type { BBox } from '../../utils/wildfires'
+import { viewBoxOf } from '../../utils/viewBox'
 import { MARKER_STROKE } from '../mapStyles'
 import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
@@ -157,11 +157,11 @@ export function mountClosures(
     abort?.abort()
     const ac = new AbortController()
     abort = ac
-    const b = map.getBounds()
-    const bbox: BBox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
+    // The view as it would lie flat, as the fire perimeters ask for it.
+    const bbox = viewBoxOf(map)
     // The same coarse-or-full choice as the fire perimeters, because the pod
     // simplifies both at the same tolerance.
-    const detail = fireDetailFor(b.getWest(), b.getEast(), map.getCanvas().clientWidth)
+    const detail = fireDetailFor(bbox[0], bbox[2], map.getCanvas().clientWidth)
     try {
       const fc = await fetchClosures(bbox, kind, detail, ac.signal)
       if (ac.signal.aborted) return

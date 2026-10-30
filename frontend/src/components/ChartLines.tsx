@@ -10,7 +10,7 @@ const PASS_THROUGH = { pointerEvents: 'none' } as const
 
 /**
  * The series lines of one chart panel, drawn on a canvas rather than as one
- * SVG `<Line>` per destination (#499; record 0244). Rendered inside the
+ * SVG `<Line>` per destination (#499; record 0256). Rendered inside the
  * LineChart, so it reads the panel's own plot area and scales, and stands in
  * the SVG between the grid and the reference lines (Recharts' z order puts a
  * plain child at 0, the grid at -100 and the reference lines at 400). A

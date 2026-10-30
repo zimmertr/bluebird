@@ -60,6 +60,7 @@ import { closurePopupHtml, type ClosureKind, type ClosureProps } from '../../uti
 import { closureFeature } from '../../testSupport/fixtures'
 import { mountTestPopups } from '../../testSupport/mapPopups'
 import { stubMap } from '../../testSupport/stubMap'
+import { visibleBox } from '../../utils/viewBox'
 
 const SITE = closureFeature({ OBJECTID: 7, RouteName: null, RouteNum: null }, { type: 'Point', coordinates: [-121.9, 45.6] })
 const TRAILS = {
@@ -117,7 +118,7 @@ describe('mountClosures', () => {
     overlay.update({ show: true })
     expect(fetchClosures).toHaveBeenCalledTimes(1)
     const [bbox, kind, detail] = fetchClosures.mock.calls[0]
-    expect([bbox, kind, detail]).toEqual([[-122, 47, -121, 48], 'trail', 'coarse'])
+    expect([bbox, kind, detail]).toEqual([visibleBox(stub.map.getCenter(), 8, 1000, 0, 0), 'trail', 'coarse'])
     await vi.waitFor(() => expect(stub.sources[CLOSURE_SOURCES.trail].data).toBe(TRAILS))
     // The site is in the one source the dot layer reads.
     expect((stub.sources[CLOSURE_SOURCES.trail].data as typeof TRAILS).features).toContain(SITE)

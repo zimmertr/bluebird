@@ -38,12 +38,39 @@ services the data comes from, and the software bundled into the shipped image.
   which the app also reads for the glaciers the snow card names. The map
   corner credits OpenFreeMap, OpenMapTiles, and OpenStreetMap
   through the attribution the tile metadata declares.
+- [Mapterhorn](https://mapterhorn.com/attribution): elevation tiles for the
+  optional contours, shaded relief and 3D terrain. The data is licensed per
+  source, mostly under CC BY 4.0 or in the US public domain, with Copernicus
+  GLO-30 as the worldwide fill, and Mapterhorn's attribution page lists each
+  one. The credit it asks for is `© Mapterhorn`, linked to that page.
+  Mapterhorn keeps each request's IP address, referrer and user agent for up
+  to 30 days, under its own privacy policy.
+- [USGS The National Map](https://www.usgs.gov/programs/national-geospatial-program/national-map):
+  aerial imagery of the United States, for the optional satellite layer. A
+  work of the US government, and so in the public domain under 17 U.S.C. §105.
+  The credit USGS asks for is "Map services and data available from U.S.
+  Geological Survey, National Geospatial Program."
+- [EOX IT Services](https://s2maps.eu): Sentinel-2 cloudless imagery outside
+  the United States, for the optional satellite layer, under
+  [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), which
+  covers every yearly mosaic from 2018 on. The credit it asks for is
+  "EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains
+  modified Copernicus Sentinel data 2025)".
 - [Nominatim](https://nominatim.org): place lookup for the map search box. Its
   results derive from OpenStreetMap data, under the same ODbL.
 - [NIFC](https://www.nifc.gov): active wildfire perimeters from the WFIGS
   services, under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
   Credited on the map's fire legend whenever fire data is drawn, and in an
   exported CSV whenever the file carries the wildfire column.
+- [NASA FIRMS](https://earthdata.nasa.gov/firms): active fire detections from
+  the VIIRS instruments on NOAA-20 and NOAA-21 and the MODIS instruments on
+  Terra and Aqua, for the optional fire activity layer. The server fetches
+  them, so the browser never contacts FIRMS. NASA data is free to use with no
+  restriction, and FIRMS asks to be acknowledged in these words: "We
+  acknowledge the use of data and/or imagery from NASA's Fire Information for
+  Resource Management System (FIRMS) (https://earthdata.nasa.gov/firms), part
+  of NASA's Earth Science Data and Information System (ESDIS)." Credited on the
+  map's fire activity legend whenever detections are drawn.
 - [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html): smoke plumes
   traced from GOES imagery by analysts at the Hazard Mapping System. A work of
   the US government, and so in the public domain under 17 U.S.C. §105; no
@@ -109,6 +136,7 @@ Frontend (npm), bundled into the served JavaScript:
 |---|---|
 | react, react-dom | MIT |
 | maplibre-gl | BSD-3-Clause |
+| maplibre-contour | BSD-3-Clause |
 | recharts | MIT |
 | lz-string | MIT |
 | @mapbox/vector-tile | BSD-3-Clause |

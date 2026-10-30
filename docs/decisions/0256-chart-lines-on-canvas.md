@@ -1,10 +1,10 @@
-# 0244. The chart's series lines are drawn on a canvas
+# 0256. The chart's series lines are drawn on a canvas
 
 - Status: Accepted
 - Date: 2026-10-30
 - Decider: the maintainer (TJ), who folded the renderer into PR #828 on 2026-10-30 after the resize profile
 - Issues and PRs: #499, #828
-- Cited in code as: record 0244
+- Cited in code as: record 0256
 - Guide: `components/` guide: `ChartLines.tsx`, `TimeSeriesChart.tsx`; `utils/chart/` guide: `chartCanvas.ts`
 
 ## Context
