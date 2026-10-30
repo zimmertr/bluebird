@@ -86,8 +86,9 @@ const MICRO = `${MICRO_SIZE} text-ink-mid`
 /**
  * The one size under the floor, for a glyph inside a box whose size is fixed
  * by something else: the legend strip's numerals in their 11px scrim band
- * (`SWATCH_RAMP_TICK`), the smoke key's letters in their chips
- * (`SWATCH_CHIP`) and the fire key's hours in their stars (`SWATCH_STAR`). Named so it reads as the exception it is rather than as a
+ * (`SWATCH_RAMP_TICK`) and the smoke key's letters in their chips
+ * (`SWATCH_CHIP`). The fire key's hours are drawn into its icons rather than
+ * set in type (`SWATCH_STAR`). Named so it reads as the exception it is rather than as a
  * step of the ramp (#687): nothing here is prose, and each is measured against
  * its box. Spelled for `MICRO_SIZE`'s reason.
  */
@@ -852,21 +853,23 @@ const SWATCH_GLYPH = `${GLYPH_SIZE} font-semibold text-slate-900`
 export const SWATCH_CHIP = `inline-flex h-4 w-4 items-center justify-center ${RADIUS.control} border ${SWATCH_GLYPH}`
 
 /**
- * A legend swatch that is a starburst with its label inside: the fire
- * detections' three age bands (#799), `12`, `24` and `48`, one line like
- * the smoke key's three chips. The star is an inline SVG at the call site,
- * filled from `utils/fireActivity.ts`, which owns the bands' colours and the
- * shape; this is the box it fills and the label over it.
+ * A legend swatch that is a starburst with its hour drawn on it: the fire
+ * detections' three age bands (#799), one line like the smoke key's three
+ * chips. The icon is `IconFireAge`, coloured from `utils/fireActivity.ts`,
+ * which owns the bands' colours and the shape; this is only the box it fills.
  *
- * The label is `SWATCH_CHIP`'s glyph, the same ink at the same size, because
- * the three fills are as light as smoke's are pale: slate-900 clears 4.5:1 on
- * the red, the orange and the yellow (`styles.test.ts` holds each). 16px,
- * `SWATCH_CHIP`'s box, so the two keys read as one family (the maintainer,
- * 2026-10-29). A 10px `48` is 11.1px wide, which sits inside the star's inner
- * corners at the chip's depth (`STARBURST_INNER`), so it stands on the fill
- * rather than across the points, where it would land on the card.
+ * 16px, `SWATCH_CHIP`'s box, so the two keys read as one family (the
+ * maintainer, 2026-10-29). No type: the hours are paths in the icon, digits
+ * 8.5px tall in a 1px stroke on the ink body, because 10px type on the star
+ * was text laid over a shape, and the maintainer picked the drawn icon over
+ * three rounds of labs (record 0237). `relative` holds the chip's hidden
+ * words, which are absolutely placed, inside its own box.
+ *
+ * The digits are the band's fill on the layer's ink, 5.66, 7.73 and 13.27:1;
+ * the icon's edge is its rim on the dark card, 4.73, 6.46 and 11.09:1, and
+ * its ink body on the light card, 16.64:1 (`styles.test.ts` holds each).
  */
-export const SWATCH_STAR = `relative inline-flex h-4 w-4 flex-shrink-0 items-center justify-center ${SWATCH_GLYPH}`
+export const SWATCH_STAR = 'relative inline-flex h-4 w-4 flex-shrink-0'
 
 /**
  * A legend swatch for a layer that draws LINES: a 14px dashed rule with no

@@ -25,7 +25,7 @@ import {
   TEXT,
 } from '../styles'
 import BottomSheet from './BottomSheet'
-import { IconStarburst } from './icons'
+import { IconFireAge } from './icons'
 import { MenuButton } from './Menu'
 import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
@@ -299,10 +299,10 @@ export function legendSections(
           },
         ]
       : []),
-    // The satellite fire detections (#799): one line like Smoke's, a
-    // starburst per age band, newest first, each the band's fill in the
-    // layer's edge with the hour the band ends at inside it, read from the
-    // module that paints the map so the key and the picture cannot disagree.
+    // The satellite fire detections (#799): one line like Smoke's, an icon
+    // per age band, newest first, each the band's fill on the layer's ink
+    // with the hour the band ends at drawn on it, read from the module that
+    // paints the map so the key and the picture cannot disagree.
     // FIRMS asks to be acknowledged wherever its data is used; the section's
     // credit is that, and NOTICES.md carries the full sentence.
     ...(showFireActivity
@@ -317,13 +317,12 @@ export function legendSections(
                   // words ride in the chip as hidden text, the smoke chips'
                   // pattern without their title (#576).
                   <span
-                    key={chip.label}
+                    key={chip.hours}
                     className={SWATCH_STAR}
-                    aria-describedby={`${smokeId}-fire-${chip.label}`}
+                    aria-describedby={`${smokeId}-fire-${chip.hours}`}
                   >
-                    <IconStarburst fill={chip.fill} stroke={chip.stroke} className="absolute inset-0" />
-                    <span className="relative">{chip.label}</span>
-                    <span id={`${smokeId}-fire-${chip.label}`} className={SR_ONLY}>
+                    <IconFireAge hours={chip.hours} fill={chip.fill} ink={chip.ink} />
+                    <span id={`${smokeId}-fire-${chip.hours}`} className={SR_ONLY}>
                       {chip.words}
                     </span>
                   </span>

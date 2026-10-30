@@ -17,7 +17,7 @@
     "@mapbox/vector-tile": "^3.0.0",
     "lz-string": "^1.5.0",
     "maplibre-contour": "^0.1.1",
-    "maplibre-gl": "^6.14.0",
+    "maplibre-gl": "^6.15.0",
     "pbf": "^5.1.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.1",

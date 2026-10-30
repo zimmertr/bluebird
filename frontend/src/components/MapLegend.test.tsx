@@ -151,31 +151,37 @@ describe('MapLegend', () => {
     )
   })
 
-  // The fire detections (#799): one line like Smoke's, the layer's name and a
-  // starburst per age band, newest first, each with its hour inside, credited
-  // to FIRMS.
-  it('keys the fire detections by age on one line, a starburst per band, credited to FIRMS', () => {
+  // The fire detections (#799): one line like Smoke's, the layer's name and an
+  // icon per age band, newest first, each with its hour drawn on it rather
+  // than set in type, credited to FIRMS.
+  it('keys the fire detections by age on one line, an icon per band, credited to FIRMS', () => {
     const { container } = render(<Legend {...BASE} overlays={{ ...NONE, showFireActivity: true }} />)
     const text = container.textContent ?? ''
     expect(text).toContain('Fire activity (FIRMS)')
     expect(screen.getByRole('link', { name: 'FIRMS' }).getAttribute('href')).toBe('https://earthdata.nasa.gov/firms')
-    const stars = [...container.querySelectorAll('polygon')]
-    const chips = stars.map((star) => star.parentElement!.parentElement!)
-    expect(chips.map((chip) => chip.firstChild!.nextSibling!.textContent)).toEqual(['12', '24', '48'])
-    expect(stars.map((star) => star.getAttribute('fill'))).toEqual(['#ff5a45', '#fb923c', '#fde047'])
-    expect(new Set(stars.map((star) => star.getAttribute('stroke')))).toEqual(new Set(['#1c1917']))
+    const icons = [...container.querySelectorAll('svg')].filter((svg) => svg.querySelector('polygon'))
+    expect(icons).toHaveLength(3)
+    expect(icons.every((icon) => icon.getAttribute('viewBox') === '0 0 16 16')).toBe(true)
+    // The band's fill rims the star and draws the hour; the layer's ink is the body.
+    const stars = icons.map((icon) => icon.querySelector('polygon')!)
+    const digits = icons.map((icon) => icon.querySelector('path')!)
+    expect(stars.map((star) => star.getAttribute('stroke'))).toEqual(['#ff5a45', '#fb923c', '#fde047'])
+    expect(new Set(stars.map((star) => star.getAttribute('fill')))).toEqual(new Set(['#1c1917']))
     expect(stars.every((star) => star.getAttribute('points')!.split(' ').length === 24)).toBe(true)
-    // One row: the name and the three chips share it, each chip its hour
-    // and its band's hidden words.
+    expect(digits.map((digit) => digit.getAttribute('stroke'))).toEqual(['#ff5a45', '#fb923c', '#fde047'])
+    expect(new Set(digits.map((digit) => digit.getAttribute('d'))).size).toBe(3)
+    // No text in the drawing: the hours are paths.
+    expect(icons.every((icon) => icon.querySelector('text') === null && icon.textContent === '')).toBe(true)
+    // One row: the name and the three chips share it, each chip its band's
+    // hidden words and nothing else.
     const row = screen.getByText('FIRMS').closest('div')!
-    expect(row.textContent).toBe('Fire activity (FIRMS)12Under 12 hours2412 to 24 hours4824 to 48 hours')
-    // The band words are hidden text and nothing else: no title, and no
-    // line of their own.
+    expect(row.textContent).toBe('Fire activity (FIRMS)Under 12 hours12 to 24 hours24 to 48 hours')
+    const chips = icons.map((icon) => icon.parentElement!)
     for (const chip of chips) expect(chip.hasAttribute('title')).toBe(false)
   })
 
-  // `12` alone does not say what it bounds, so each chip carries its band's
-  // words for a screen reader, the way the smoke chips carry theirs.
+  // An icon alone does not say what its hour bounds, so each chip carries its
+  // band's words for a screen reader, the way the smoke chips carry theirs.
   it('names each fire age band to a screen reader', () => {
     const { container } = render(<Legend {...BASE} overlays={{ ...NONE, showFireActivity: true }} />)
     const chips = [...container.querySelectorAll('polygon')].map((star) => star.parentElement!.parentElement!)

@@ -6,7 +6,6 @@ import { fakeResponse } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'
 import {
   AGE_BANDS,
-  AGE_BAND_CHIPS,
   AGE_BAND_WORDS,
   FIRE_ACTIVITY_FILLS,
   FIRE_ACTIVITY_STROKE,
@@ -152,22 +151,20 @@ describe('the band colours', () => {
 })
 
 describe('fireActivityLegendChips', () => {
-  it('keys each band with the hour it ends at, in its fill and the layer edge', () => {
+  it('keys each band with the hour it ends at, in its fill on the layer\'s ink', () => {
     expect(fireActivityLegendChips()).toEqual([
-      { label: '12', words: 'Under 12 hours', fill: '#ff5a45', stroke: FIRE_ACTIVITY_STROKE },
-      { label: '24', words: '12 to 24 hours', fill: '#fb923c', stroke: FIRE_ACTIVITY_STROKE },
-      { label: '48', words: '24 to 48 hours', fill: '#fde047', stroke: FIRE_ACTIVITY_STROKE },
+      { hours: 12, words: 'Under 12 hours', fill: '#ff5a45', ink: FIRE_ACTIVITY_STROKE },
+      { hours: 24, words: '12 to 24 hours', fill: '#fb923c', ink: FIRE_ACTIVITY_STROKE },
+      { hours: 48, words: '24 to 48 hours', fill: '#fde047', ink: FIRE_ACTIVITY_STROKE },
     ])
-    expect(AGE_BAND_CHIPS).toHaveLength(AGE_BANDS.length)
     expect(AGE_BAND_WORDS).toHaveLength(AGE_BANDS.length)
-    expect(AGE_BAND_CHIPS.map((chip) => Number.parseInt(chip, 10))).toEqual([...AGE_BANDS])
   })
 })
 
 // The one shape the map's icon and the legend's chip both draw.
 describe('starburst', () => {
   it('alternates twelve points and twelve inner corners, from the top, clockwise', () => {
-    expect(STARBURST_INNER).toEqual({ map: 0.65, chip: 0.8 })
+    expect(STARBURST_INNER).toEqual({ map: 0.65, chip: 0.85 })
     const corners = starburst(10, 0.65, 5, 5)
     expect(corners).toHaveLength(STARBURST_POINTS * 2)
     const radius = ([x, y]: [number, number]) => Math.hypot(x - 5, y - 5)
@@ -208,13 +205,15 @@ describe('starburstSdf', () => {
     for (const [x, y] of [[0, 0], [43, 0], [0, 43], [43, 43]]) expect(alpha(x, y)).toBeLessThan(64)
   })
 
-  // The legend's 16px chip, points at 7.5px, holds its label inside its
-  // inner corners: their apothem against half the widest label measured,
-  // 11.1px (2026-10-29). The map's depth would not hold it.
-  it('leaves the chip room for its label inside the inner corners', () => {
-    const apothem = 7.5 * STARBURST_INNER.chip * Math.cos(Math.PI / STARBURST_POINTS)
-    expect(apothem).toBeGreaterThan(11.1 / 2)
-    expect(7.5 * STARBURST_INNER.map * Math.cos(Math.PI / STARBURST_POINTS)).toBeLessThan(11.1 / 2)
+  // The legend's 16px icon, points at 7.58, holds its digits on the body:
+  // the widest pair, the 48, spans 7.1 by 8.5 units stroke and all, so its
+  // corners stand 5.54 from the centre, inside the inner corners' apothem less
+  // half the 0.8 rim. The map's depth would not hold them.
+  it('leaves the chip\'s body room for its digits inside the inner corners', () => {
+    const inside = (inner: number) => 7.58 * inner * Math.cos(Math.PI / STARBURST_POINTS) - 0.8 / 2
+    const corner = Math.hypot(7.1 / 2, 8.5 / 2)
+    expect(inside(STARBURST_INNER.chip)).toBeGreaterThan(corner)
+    expect(inside(STARBURST_INNER.map)).toBeLessThan(corner)
   })
 
   // The same star turned a quarter is the same star: twelve points.
