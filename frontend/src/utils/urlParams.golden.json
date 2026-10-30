@@ -115,7 +115,8 @@
     "chart": [
       "temp",
       "precip"
-    ]
+    ],
+    "chartLayout": "row"
   },
   "nowOnly": {
     "selection": {

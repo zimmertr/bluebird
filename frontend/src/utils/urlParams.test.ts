@@ -145,7 +145,7 @@ describe('the codec table against the links it wrote before', () => {
   it('writes every parameter in the same order and spelling', () => {
     expect(encodeState(full, DEFAULT_MODEL)).toBe(
       'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&cloud_deck=max&precip=avg&snowfall=max&temp=max' +
-        '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025&chart=temp,precip' +
+        '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025&chart=temp,precip&layout=row' +
         '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06:00&h2=18:30' +
         '&minprecip=0&maxprecip=0.25&mintemp=-10&maxtemp=85.5&minwind=1&maxwind=30' +
         '&minfreeze=4000&maxfreeze=12000&minsnowfall=2&maxsnowfall=80&minaqi=0&maxaqi=50' +
@@ -241,6 +241,7 @@ describe('the codec table', () => {
       'model',
       'compare',
       'chart',
+      'layout',
       'mode',
       'd1',
       'd2',

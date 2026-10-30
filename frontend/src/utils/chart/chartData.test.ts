@@ -214,7 +214,7 @@ describe('extremeLabel', () => {
   it('prints the value with its unit', () => {
     expect(extremeLabel(75.4, 'wind')).toBe('75.4 mph')
     expect(extremeLabel(0, 'temp')).toBe('0.0 °F')
-    expect(extremeLabel(8398.95, 'freeze')).toBe('8399 ft')
+    expect(extremeLabel(8398.95, 'freeze')).toBe('8,399 ft')
     expect(extremeLabel(0.04, 'precip')).toBe('0.040 in/hr')
   })
 
