@@ -9,19 +9,16 @@ import {
   CLOSURE_KEY,
   type ColDef,
   WILDFIRE_KEY,
-  applyColumnOrder,
   withModelColumn,
 } from './tableColumns'
 
 export interface ReportCsvInputs {
   /** The table's rows, in the order on screen. */
   rows: readonly DestinationResult[]
-  /** Every column the report carries, before visibility, the Model column and the reader's order. */
+  /** Every column the report carries, before visibility and the Model column. */
   columns: readonly ColDef[]
   /** Whether the Model column is drawn. */
   modelColumnOn: boolean
-  /** The order the reader dragged the columns into, or null for the automatic one. */
-  columnOrder: readonly string[] | null
   /** The columns the table shows, which decides whether each flag column goes over. */
   visibleKeys: ReadonlySet<string>
   /** The wildfire check: where it stands, what it found, and what it could not cover. */
@@ -51,7 +48,6 @@ export function reportCsv({
   rows,
   columns,
   modelColumnOn,
-  columnOrder,
   visibleKeys,
   fireStatus,
   fireWarnings,
@@ -69,10 +65,9 @@ export function reportCsv({
     // The same insertion the table makes. The file is given the same rows,
     // so without it a comparison writes each destination once per model with
     // nothing saying which model each line is.
-    // The same columns the table shows, in the same order: the file leaves
-    // in the order that is on screen (#125), and a reader's reorder is no
-    // different from a sort in that respect.
-    applyColumnOrder(withModelColumn(columns, modelColumnOn), columnOrder),
+    // The standard order, never the reader's dragged one: a file is read by
+    // scripts, so it comes out the same way every time.
+    withModelColumn(columns, modelColumnOn),
     // The warnings go over only when the lookup actually produced them.
     // Anything else is `null`, which drops the wildfire column from the file
     // rather than filling it with blanks that would read as "checked, nothing

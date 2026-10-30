@@ -27,7 +27,6 @@ function inputs(over: Partial<ReportCsvInputs> = {}): ReportCsvInputs {
     rows: ROWS,
     columns: COLUMNS,
     modelColumnOn: false,
-    columnOrder: null,
     visibleKeys: ALL_VISIBLE,
     fireStatus: 'ready',
     fireWarnings: WARNINGS,
@@ -67,12 +66,6 @@ describe('reportCsv', () => {
     const csv = reportCsv(inputs({ visibleKeys: hidden }))
     expect(header(csv)).not.toContain(CLOSURE_COL.label)
     expect(header(csv)).toContain(WILDFIRE_COL.label)
-  })
-
-  it('writes the columns in the order on screen', () => {
-    const [first, second] = COLUMNS
-    const moved = header(reportCsv(inputs({ columnOrder: [second.key, first.key] })))
-    expect(moved.indexOf(second.label)).toBeLessThan(moved.indexOf(first.label))
   })
 
   it('adds the Model column only when it is drawn', () => {

@@ -395,8 +395,8 @@ export function useTableView({
     [modelColumnOn],
   )
 
-  // Download the displayed report (#125): the table's rows and columns, so the
-  // file leaves in the shape that is on screen.
+  // Download the displayed report (#125): the table's rows and shown columns,
+  // in the standard column order whatever the reader dragged.
   const fireStatus = fire.status
   const fireUncovered = fire.uncovered
   const closureStatus = closure.status
@@ -406,7 +406,6 @@ export function useTableView({
       rows: tableRows,
       columns: csvColumns,
       modelColumnOn,
-      columnOrder,
       visibleKeys: effectiveVisibleKeys,
       fireStatus,
       fireWarnings,
@@ -424,7 +423,6 @@ export function useTableView({
     tableRows,
     csvColumns,
     modelColumnOn,
-    columnOrder,
     effectiveVisibleKeys,
     fireStatus,
     fireWarnings,
