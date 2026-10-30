@@ -459,9 +459,9 @@ describe('LayersPopover', () => {
     expect(screen.getByRole('group', { name: 'Hazards' }).querySelector('input[type="range"]')).toBeNull()
   })
 
-  // While a layer is off its slider keeps its level in a fill without the
-  // accent; on, the accent fill.
-  it('dims a slider whose layer is off and keeps its level', () => {
+  // A slider looks the same whether its layer is on or off, and keeps its
+  // level while off (record 0242).
+  it('draws an off layer\'s slider as an on one\'s and keeps its level', () => {
     render(
       <LayersPopover
         mapRef={MAP}
@@ -475,12 +475,13 @@ describe('LayersPopover', () => {
     const fillOf = (name: string) =>
       (screen.getByRole('slider', { name: `${name} opacity` }).previousElementSibling as HTMLElement).className
     expect(fillOf('Shaded relief')).toBe(`absolute inset-0 ${ACCENT.fill}`)
-    expect(fillOf('Topographic')).toBe(`absolute inset-0 ${LAYER_ROW.restingFill}`)
+    expect(fillOf('Topographic')).toBe(`absolute inset-0 ${ACCENT.fill}`)
     expect((screen.getByRole('slider', { name: 'Topographic opacity' }) as HTMLInputElement).value).toBe('20')
   })
 
   // A level is set through the hook's one setter. A drag on an off layer's
-  // slider switches the layer on at the level it sets.
+  // slider checks its box at the level it sets, as a muted volume slider
+  // unmutes.
   it('sets a level, and switches an off layer on as its slider moves', () => {
     const setBaseOpacity = vi.fn()
     const setShowSlope = vi.fn()

@@ -360,7 +360,7 @@ export default function LayersPopover({
       <div className={`${sheet ? LAYER_ROW.sliderSheet : LAYER_ROW.slider} ${SLIDER.well}`}>
         <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
         <div
-          className={`absolute inset-0 ${layer.checked ? ACCENT.fill : LAYER_ROW.restingFill}`}
+          className={`absolute inset-0 ${ACCENT.fill}`}
           style={{ clipPath: `inset(0 ${100 - level}% 0 0)` }}
         >
           {line}

@@ -3183,12 +3183,11 @@ export const MENU_GROUP = {
  *   (measured in the browser suite's Chromium, 2026-10-29). The menu is
  *   24px wider for it.
  * - `sliderSheet`: the phone's, 120 by 24, the lab's size.
- * - `restingFill`: the fill of a slider whose layer is off. The slider keeps
- *   its level and still works (a drag switches the layer on), so its line
- *   owes 4.5:1 and a fade cannot dim it: the lab's 55% left the value on the
- *   accent at 2.9:1 in dark and 2.2:1 in light. It is dimmed by losing the
- *   accent instead, which says "this acts" (record 0009), for the raised
- *   fill and the control ink, and the thumb still marks the level.
+ * - An off layer's slider looks the same as an on one's, accent and all: it
+ *   is live, and a drag on it checks the layer's box at the level it sets,
+ *   the way a muted volume slider unmutes (the maintainer, 2026-10-29,
+ *   record 0242). A dimmed slider that still acted would look disabled and
+ *   behave enabled.
  */
 export const LAYER_ROW = {
   cardRows: SHEET_RULES,
@@ -3196,7 +3195,6 @@ export const LAYER_ROW = {
   line: 'flex items-center gap-2',
   slider: 'relative h-5 w-30 flex-shrink-0 overflow-hidden',
   sliderSheet: 'relative h-6 w-30 flex-shrink-0 overflow-hidden',
-  restingFill: 'bg-raised text-ink',
 } as const
 
 /**

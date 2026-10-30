@@ -3048,8 +3048,6 @@ describe('the map layer rows', () => {
 // an opacity slider on the four Base map rows, and the phone's sheet stepping
 // aside while one is dragged.
 describe('the layers palette', () => {
-  const both = (fn: (theme: (name: string) => string) => number) => [fn((n) => dark(n)), fn(light)]
-
   // Every row's switch is the menu's own checkbox, as in every checkbox list
   // in the app (the eye record 0242 first drew was taken back the same day).
   it('draws every row\'s switch as the menu\'s checkbox', () => {
@@ -3057,21 +3055,11 @@ describe('the layers palette', () => {
     expect(layersPopoverSource).not.toMatch(/IconEye/)
   })
 
-  // A slider whose layer is off still works, so its line owes 4.5:1. The
-  // lab's 55% fade would have left the value on the accent under it in both
-  // themes; the resting fill is the raised surface in the control ink.
-  it('dims an off layer\'s slider by its fill, its line still past AA', () => {
-    const fill = LAYER_ROW.restingFill
-    expect(fill).not.toMatch(/opacity/)
-    expect(both((t) => ratio(t(token(fill, 'text')), t(token(fill, 'bg'))))).toEqual([8.4, 13.66])
-    for (const t of [(n: string) => dark(n), light]) {
-      expect(contrast(t(token(fill, 'text')), t(token(fill, 'bg')))).toBeGreaterThanOrEqual(4.5)
-    }
-    // What the lab's fade would have given the value on the accent.
-    const faded = (t: (n: string) => string) =>
-      ratio(over(t('on-fill'), 0.55, t('floating')), over(t('accent'), 0.55, t('floating')))
-    expect(faded((n) => dark(n))).toBeLessThan(4.5)
-    expect(faded(light)).toBeLessThan(4.5)
+  // An off layer's slider is live and looks it: the same accent fill as an
+  // on one's, since a drag on it checks the layer's box (record 0242).
+  it('draws an off layer\'s slider exactly as an on one\'s', () => {
+    expect(layersPopoverSource).toContain('className={`absolute inset-0 ${ACCENT.fill}`}')
+    expect(Object.keys(LAYER_ROW)).not.toContain('restingFill')
   })
 
   // 120 by 20 at a desk, 120 by 24 on a phone, where the sheet's rows are
