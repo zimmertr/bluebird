@@ -294,8 +294,8 @@ function TimeSeriesChart({
   // The cards a desk pinned (TJ 2026-10-30, P2 of four mockups): a click on
   // a plot pins the card at that hour, where it stops following the pointer
   // and lists every row; Shift and a click pins a second hour beside it, so
-  // two hours can be read side by side. Two at most, a third replacing the
-  // older; each has its ✕. The last in the list is the active one, the card
+  // hours can be read side by side, as many as the reader pins (TJ
+  // 2026-10-30); each has its ✕. The last in the list is the active one, the card
   // pinned or touched most recently, and Escape lets it alone go, so a second
   // press closes the other (TJ 2026-10-30). Where each stands is set at the
   // click, in the chart's own pixels, and its header moves it from there.
@@ -328,7 +328,7 @@ function TimeSeriesChart({
       area: { x: area.left - r.left, y: area.top - r.top, w: area.width, h: area.height },
       height: hover,
     }
-    setPins((list) => (list.some((p) => p.t === t) ? list : add ? [...list.slice(-1), pin] : [pin]))
+    setPins((list) => (list.some((p) => p.t === t) ? list : add ? [...list, pin] : [pin]))
   }, [])
   const unpin = useCallback((t: number) => setPins((list) => list.filter((p) => p.t !== t)), [])
   const raise = useCallback(
