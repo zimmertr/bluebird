@@ -363,6 +363,8 @@ export const STYLES = [
     // the control panel, not a menu, so its file is left out, and so is the
     // message badge (record 0208): a count on the Analyze button's corner,
     // which the maintainer chose over a trigger shape, opening the one list.
+    // The badge keeps its severity colour while the list is out, because the
+    // colour is its message (record 0251).
     name: 'style-menu-trigger',
     files: SOURCES,
     ignores: [...TESTS, 'src/components/Menu.tsx', 'src/components/MapRows.tsx', MESSAGES.badge],
@@ -371,6 +373,21 @@ export const STYLES = [
       {
         selector: 'JSXOpeningElement[name.name="button"]:has(> JSXAttribute[name.name="aria-expanded"])',
         message: 'Open a menu from MenuButton, never from a button of its own.',
+      },
+    ],
+  },
+  {
+    // The one opening button outside MenuButton that lights: the summary chip
+    // raises the Controls sheet and wears the open state every trigger shares
+    // (record 0251), which a class of its own would drop.
+    name: 'style-summary-lit',
+    files: ['src/components/MapRows.tsx'],
+    require: [
+      {
+        selector:
+          'JSXOpeningElement[name.name="button"]:has(> JSXAttribute[name.name="aria-expanded"]):has(> JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="MAP_CHIP_SUMMARY"])',
+        count: 1,
+        message: 'Light the summary chip with MAP_CHIP_SUMMARY, the open state every trigger shares.',
       },
     ],
   },
