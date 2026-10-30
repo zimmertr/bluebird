@@ -378,6 +378,15 @@ export function IconPlus({ size = 'control', className }: IconProps & { size?: k
 }
 
 /** Two columns of dots: the standing picture for "drag this". */
+/** A pinned chart card's corner grip: two strokes that size the card. */
+export function IconResizeCorner({ className }: IconProps): ReactNode {
+  return (
+    <svg viewBox="0 0 10 10" className={join('h-full w-full', className)} aria-hidden="true">
+      <path d="M9 3 3 9M9 6 6 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function IconGrip({ className }: IconProps): ReactNode {
   return (
     <svg

@@ -13,7 +13,7 @@ import {
 import { DestinationResult, SortBy } from '../types'
 import { createPortal } from 'react-dom'
 import { ACCENT, CHART_CARD, DRAG, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLOT_TOUCH, RADIUS, TEXT } from '../styles'
-import { IconClose, IconGrip, IconPlus } from './icons'
+import { IconClose, IconGrip, IconPlus, IconResizeCorner } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
 import ChartLines from './ChartLines'
@@ -2172,9 +2172,7 @@ function PinnedCard({
           document.body,
         )}
       <span onPointerDown={onSize} className={CHART_CARD.corner} aria-hidden="true">
-        <svg viewBox="0 0 10 10" className="h-full w-full">
-          <path d="M9 3 3 9M9 6 6 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
+        <IconResizeCorner />
       </span>
     </div>
   )
