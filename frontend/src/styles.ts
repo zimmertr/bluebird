@@ -943,6 +943,18 @@ export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
 export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
 
 /**
+ * An icon button inside a surface: a raised square with a frame (TJ
+ * 2026-10-30). A button's shape says where it stands: a circle floats on the
+ * map with nothing behind it (`MAP_ROUND_BUTTON`, the Legend and Layers
+ * chips), and every control inside the panel, a sheet, a card or a popup is a
+ * rounded rectangle, an icon-only one a square. The pinned chart card's ✕,
+ * the panel header's buttons and, in `map.css`, the marker popup's ✕ wear it.
+ */
+export const SQUARE_BUTTON =
+  `flex items-center justify-center ${RADIUS.control} border border-frame bg-raised text-ink-soft ` +
+  `transition-colors hover:bg-raised-hover hover:text-ink-strong active:bg-raised-hover ${FOCUS_RING}`
+
+/**
  * A bare icon button: the glyph alone, no surface. The results' collapse
  * chevrons wear it, and so does every × inside a card or a field (record
  * 0222): the tutorial card's, the search's clear (`ICON_CLOSE_BUTTON`), and
@@ -2580,18 +2592,6 @@ export const PANEL_HEADER = {
    */
   actions: 'absolute top-3 right-2 z-10 flex gap-2',
 } as const
-
-/**
- * An icon button inside a surface: a raised square with a frame (TJ
- * 2026-10-30). A button's shape says where it stands: a circle floats on the
- * map with nothing behind it (`MAP_ROUND_BUTTON`, the Legend and Layers
- * chips), and every control inside the panel, a sheet, a card or a popup is a
- * rounded rectangle, an icon-only one a square. The pinned chart card's ✕,
- * the panel header's buttons and, in `map.css`, the marker popup's ✕ wear it.
- */
-export const SQUARE_BUTTON =
-  `flex items-center justify-center ${RADIUS.control} border border-frame bg-raised text-ink-soft ` +
-  `transition-colors hover:bg-raised-hover hover:text-ink-strong active:bg-raised-hover ${FOCUS_RING}`
 
 /**
  * A button in a panel's header: the desk panel's close button and the theme

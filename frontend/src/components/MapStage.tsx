@@ -88,7 +88,7 @@ export interface MapStageProps {
   /** The displayed rows and the named destinations not yet forecast. */
   report: Pick<PresentedReport, 'results' | 'pending'>
   /** The columns a marker's popup lists, and the model label it falls back to. */
-  tableView: Pick<TableView, 'tableColumns' | 'analysisModelLabel'>
+  tableView: Pick<TableView, 'tableColumns' | 'analysisModelLabel' | 'handleAggregateMove'>
   /** Which destinations stand near an active wildfire. */
   fire: Pick<FireProximity, 'warnings'>
   /** Which destinations stand inside an active Forest Service area closure. */
