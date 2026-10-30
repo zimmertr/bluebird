@@ -237,6 +237,67 @@ test.describe('a long Removed count at 1024', () => {
 // The panel's two field menus on a phone are bottom sheets instead (record
 // 0136), headed by their labels' words, with 44px days: no card is drawn
 // under either field there.
+// Every control that opens a menu is one component with one set of states
+// (record 0252): read in the browser, so a state a class list cannot show,
+// a field that lit its edge on the focus a closing menu hands back, fails
+// here. Each trigger is hovered, then opened and closed with the pointer, the
+// way the maintainer found the chart's metric and the model picker still lit
+// beside a Columns button at rest. Under the pointer only the ink moves, and
+// to one ink for all; open, one fill for all.
+test('every trigger lights the one way while open and rests as it was after', async ({ page }) => {
+  await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
+  await page.getByRole('button', { name: 'Show both chart and table' }).click()
+  const away = () => page.mouse.move(1, 1)
+  const look = (l: Locator) =>
+    l.evaluate((el) => {
+      const s = getComputedStyle(el)
+      return { ink: s.color, fill: s.backgroundColor, edge: s.borderTopColor }
+    })
+  // Each settles after its colour transition.
+  const settled = async (l: Locator) => {
+    await l.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+    return look(l)
+  }
+  const pick = (name: string) => async () => {
+    await page.getByRole('listbox', { name }).getByRole('option').last().click()
+  }
+  const triggers: [string, Locator, (() => Promise<void>) | null][] = [
+    ['Legend', page.getByRole('button', { name: 'Legend', exact: true }), null],
+    ['Layers', page.getByRole('button', { name: 'Layers', exact: true }), null],
+    ['Columns', page.getByRole('button', { name: 'Choose which columns to display', exact: true }), null],
+    ['Models', page.getByRole('button', { name: 'Models', exact: true }), null],
+    ['model picker', page.getByRole('button', { name: /^Forecast model:/ }), null],
+    ['calendar', page.getByRole('button', { name: /^When\b/ }), null],
+    ['aggregate', page.getByRole('button', { name: /^Temperature aggregate / }), pick('Temperature aggregate')],
+    ['chart metric', page.getByRole('button', { name: /^Chart metric / }), pick('Chart metric')],
+  ]
+  const lit = new Set<string>()
+  const lifted = new Set<string>()
+  for (const [name, trigger, close] of triggers) {
+    // The legend's card stands open on a desk until it is shut.
+    if ((await trigger.getAttribute('aria-expanded')) === 'true') await trigger.click()
+    await away()
+    const rest = await settled(trigger)
+    await trigger.hover()
+    const hovered = await settled(trigger)
+    lifted.add(hovered.ink)
+    expect({ fill: hovered.fill, edge: hovered.edge }, name).toEqual({ fill: rest.fill, edge: rest.edge })
+    await trigger.click()
+    await expect(trigger, name).toHaveAttribute('aria-expanded', 'true')
+    await away()
+    const open = await settled(trigger)
+    lit.add(`${open.ink} on ${open.fill}`)
+    expect(open.fill, name).not.toBe(rest.fill)
+    if (close) await close()
+    else await trigger.click()
+    await expect(trigger, name).toHaveAttribute('aria-expanded', 'false')
+    await away()
+    expect(await settled(trigger), name).toEqual(rest)
+  }
+  expect([...lit]).toHaveLength(1)
+  expect([...lifted]).toHaveLength(1)
+})
+
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
@@ -264,5 +325,23 @@ test.describe('on a phone', () => {
     near(sheet!.y + sheet!.height, 844)
     await when.getByRole('button', { name: 'Done' }).tap()
     await expect(when).toHaveCount(0)
+  })
+
+  // The chart's metric and the aggregates open the one menu's sheet as the
+  // model list does, headed by the field's name (record 0252): a phone has no
+  // native select.
+  test('the chart metric and an aggregate open as bottom sheets too', async ({ page }) => {
+    await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await expect(page.locator('select')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Open controls' }).tap()
+    const field = page.getByRole('button', { name: /^Temperature aggregate / })
+    await field.tap()
+    const sheet = page.getByRole('dialog', { name: 'Temperature aggregate' })
+    await expect(sheet.getByRole('listbox', { name: 'Temperature aggregate' })).toBeVisible()
+    await expect(card(page)).toHaveCount(0)
+    await sheet.getByRole('option').last().tap()
+    await expect(sheet).toHaveCount(0)
+    await expect(field).toHaveAttribute('aria-expanded', 'false')
   })
 })
