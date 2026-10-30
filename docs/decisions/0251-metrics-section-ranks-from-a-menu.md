@@ -1,4 +1,4 @@
-# 0242. The Metrics section ranks from a menu, and a bound row stands only while it is set or just added
+# 0251. The Metrics section ranks from a menu, and a bound row stands only while it is set or just added
 
 - Status: Accepted. Amends 0038 (the section still reads in two blocks, but the bounds are no longer a row for every metric, and Clear filters is no longer always drawn) and 0130 (the pitch its margin bought is not needed once the radio label goes).
 - Date: 2026-10-28
@@ -36,4 +36,6 @@ The Metrics section drew a row for every ranked metric, each with a radio, an ag
 
 ## Consequences
 
-`MetricsTable.test.tsx` holds the five rows, the adder, the added row's lifetime, the share-link rows and the conditional Clear filters. The linter's `style-metrics-table` check requires Clear filters inside `filtersActive &&` and under the box columns, and `style-menu-field` still counts one menu field in the file, which the local `Choice` supplies for all three menus. The section is shorter at rest and grows a row for each bound, so its height now moves with what the reader sets. Screenshots in both themes are owed on the PR.
+`MetricsTable.test.tsx` holds the five rows, the adder, the added row's lifetime, the share-link rows and the conditional Clear filters. The linter's `style-metrics-table` check requires Clear filters inside `filtersActive &&` and under the box columns, and `style-menu-field` still counts one menu field in the file, which the local `Choice` supplies for all three menus. The section is shorter at rest and grows a row for each bound, so its height now moves with what the reader sets.
+
+The box tracks are `auto`, so with no bound row drawn nothing in them had a width of its own. Measured on the first build at 1440x900 on 2026-10-29, the menus stood 106px wide at rest and would have grown to 118px when the first bound row appeared. The Order segment therefore wears `SEGMENT` and with it `CONTROL_W`: it is always drawn, it holds the tracks at two boxes and their gap, and every other control spanning them fills them. `SEGMENT_FILL`, which existed only for that segment, is gone. At rest the section measured 153px on that build, against 387px before.

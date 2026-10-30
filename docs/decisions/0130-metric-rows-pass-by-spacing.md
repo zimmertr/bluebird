@@ -1,6 +1,6 @@
 # 0130. The Metrics rows pass WCAG 2.2's target spacing by a 32px pitch, not by bigger targets
 
-- Status: Accepted. Amended by 0223 (under touch the label is 32px) and 0242 (the radio label is gone, so the rows are their 22px controls at a 28px pitch, which passes by 2px each side, and `METRIC_LABEL_PITCH` with it).
+- Status: Accepted. Amended by 0223 (under touch the label is 32px) and 0251 (the radio label is gone, so the rows are their 22px controls at a 28px pitch, which passes by 2px each side, and `METRIC_LABEL_PITCH` with it).
 - Date: 2026-10-13
 - Decider: the maintainer, on #687 (2026-10-13: the 32px pitch chosen over 24px targets from the round-2 mockup)
 - Issues and PRs: #687

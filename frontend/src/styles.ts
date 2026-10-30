@@ -1853,25 +1853,6 @@ export const BLOCKED = 'aria-disabled:opacity-40'
 
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 /**
- * The same segmented control sized by the box it is placed in, for a row whose
- * column is not the panel's.
- *
- * The third width a segment can have, and the three are exhaustive: `SEGMENT`
- * takes the panel's control column, `SEGMENT_FLUID` takes its own content, and
- * this one takes whatever it is given. It exists for the Metrics table's
- * direction row (#341), where the column is two grid tracks and the gap between
- * them rather than a width this file names. `CONTROL_W` now measures the same
- * 118px, but a fixed width in a grid cell states a number the tracks already
- * decide, and the two would drift the moment a box changed. Anything else in a
- * grid cell or a flex row that must match its neighbours rather than a named
- * column wears this.
- *
- * Its halves wear `SEGMENT_ITEM`, whose inset
- * has less room to spend on insets. See that recipe for the arithmetic.
- */
-export const SEGMENT_FILL = `flex w-full ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
-
-/**
  * A segmented control OUTSIDE the panel's column, sized by its content.
  *
  * `SEGMENT` bakes in `CONTROL_W` because the panel's rows must line up on both
@@ -1887,7 +1868,7 @@ const SEGMENT_FLUID_SHAPE = `inline-flex ${RADIUS.control} overflow-hidden`
 export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
 
 /**
- * The Metrics grid (#341, reshaped by #498; record 0242): the ranking, the
+ * The Metrics grid (#341, reshaped by #498; record 0251): the ranking, the
  * results cap and the bounds in one table, so the three controls that order
  * the list and the rows that bound it share two edges.
  *

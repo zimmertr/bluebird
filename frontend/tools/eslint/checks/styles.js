@@ -655,7 +655,7 @@ export const STYLES = [
     // The Metrics section: every control stands on the box columns' edges,
     // every numeric box comes off one shape, nothing is drawn inside the
     // table, and Clear filters is drawn only when there is something to
-    // clear (#498; record 0242).
+    // clear (#498; record 0251).
     name: 'style-metrics-table',
     files: [PANEL.metrics],
     ban: [
@@ -682,7 +682,9 @@ export const STYLES = [
       },
       // Spanning the two box columns rather than spelling their sum.
       { selector: follows('METRIC_BOX_WIDE', '^ col-span-2'), message: 'Span the wide box over the two box columns.' },
-      { selector: follows('SEGMENT_FILL', '^ col-span-2'), message: 'Span the fill segment over the two box columns.' },
+      // The Order segment is the one control that sizes the box tracks: they
+      // are `auto`, and with no bound row drawn nothing else gives them a width.
+      { selector: follows('SEGMENT', '^ col-span-2'), message: 'Span SEGMENT over the two box columns; it holds their width.' },
       // Vacuous if the grid stops being where the section is.
       { selector: within(GRID, 'Order'), message: 'The Metrics grid holds Order.' },
       { selector: within(GRID, 'results'), message: 'The Metrics grid holds the results cap.' },

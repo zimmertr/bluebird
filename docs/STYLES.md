@@ -78,7 +78,6 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip; a row marked `data-greyed` fades its box alone as far as a disabled row fades, its label at full ink, while its box stays live, for a Layers row still ticked where its layer cannot draw (#803) |
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
-| `SEGMENT_FILL` | Segmented control sized by the box it is placed in, for a row whose column is not the panel's (the Metrics direction row) |
 | `SEGMENT_FLUID` | Segmented control outside the panel column, sized by content |
 | `SEGMENT_IDLE` | Unchosen half of segmented control |
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
@@ -885,7 +884,7 @@ Every stacked panel control composes `CONTROL_W = 'w-[118px]'` = 118px.
 
 118px is not a taste. It is 2 x `METRIC_BOX_W` + the Metrics grid's `gap-x-1.5`, so the Forecast section's model picker and its two segments stand on exactly the edges the bound boxes below them do. The panel is one column at 225 and 343, measured. It was 144px, set by the widest segment label, until the Metrics row's label budget forced the narrower boxes and left the two sections 26px apart. `styles.test.ts` derives the sum from the roles.
 
-The Metrics table still sizes nothing by that token. Since #498 its grid is three columns, label, Min box and Max box (`METRIC_BOX_W`, 56px each), and every other control in it spans the two box columns: the Metric, Aggregate and Bound menus, the Order segment on `SEGMENT_FILL`, the results cap and Clear filters. Two boxes and their gap are 118px, so those controls stand on `CONTROL_W`'s edges by construction, and a fixed width in a grid cell would state a number the tracks already decide. Record: [0242](decisions/0242-metrics-section-ranks-from-a-menu.md)
+The Metrics table still sizes nothing by that token. Since #498 its grid is three columns, label, Min box and Max box (`METRIC_BOX_W`, 56px each), and every other control in it spans the two box columns: the Metric, Aggregate and Bound menus, the Order segment, the results cap and Clear filters. The box tracks are `auto`, so at rest, with no bound row drawn, nothing in them has a width of its own, and the menus measured 106px until the first bound row pushed them to 118px. The Order segment is therefore the one control here that wears `CONTROL_W`, through `SEGMENT`: it is always drawn, it holds the two tracks at two boxes and their gap, and everything else spanning them fills them. Record: [0251](decisions/0251-metrics-section-ranks-from-a-menu.md)
 
 Clear filters is drawn only when something is set, a bound or a changed **Max results**. It used to be always drawn and disabled, so the section's last row never moved; in the five-row section the bound rows above it come and go anyway, and a disabled button under none of them was one more row to read past (#498).
 

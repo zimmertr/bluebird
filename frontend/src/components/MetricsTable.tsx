@@ -9,7 +9,7 @@ import {
   METRICS_GRID,
   METRIC_HEAD_GAP,
   METRIC_BOX_W,
-  SEGMENT_FILL,
+  SEGMENT,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
@@ -34,7 +34,7 @@ import { ALL_ANSWERED, type UnansweredMetrics } from '../utils/metricReach'
 import { DEFAULT_LIMIT, clampLimit } from '../utils/urlState'
 
 // The app's core question: "top N destinations by <metric's aggregate>, lowest
-// or highest". Five rows ask it (#498; record 0242): which metric, which of its
+// or highest". Five rows ask it (#498; record 0251): which metric, which of its
 // aggregates, which way round, how many, and which bounds to add. A bound row
 // stands only while its bound is set or the reader has just added it, so a
 // new metric adds an option to two menus rather than a row to the panel.
@@ -208,8 +208,8 @@ function Choice<V extends string>({
   disabled?: boolean
 }) {
   // py-0.5 is SEGMENT_ITEM_SHAPE's own vertical padding, so the menus, the
-  // boxes and the segment are one height. `w-full` over two tracks rather
-  // than CONTROL_W, which the two tracks already are.
+  // boxes and the segment are one height. `w-full` over the two tracks,
+  // which the Order segment holds at CONTROL_W.
   const shape = `w-full ${DISABLED} px-2 py-0.5`
   return (
     // flex, not block: an inline-level select in a block wrapper reserves
@@ -404,13 +404,17 @@ export default function MetricsTable({
           </>
         )}
         {/* The one direction. Pressing a half never changes WHICH metric
-            ranks; the Metric menu owns that. It spans the two box columns,
-            so it wears SEGMENT_FILL rather than SEGMENT, whose CONTROL_W is
-            the same width spelled a second time. */}
+            ranks; the Metric menu owns that. It spans the two box columns
+            and is the one control here that wears CONTROL_W, through
+            SEGMENT: the box tracks are `auto`, and with no bound row drawn
+            nothing else would give them a width, so every control spanning
+            them shrank to its content and grew 12px when the first bound
+            row appeared. The segment is always drawn, so it holds the two
+            tracks at two boxes and their gap, and the rest fill them. */}
         <span id="rank-order" className={`${TEXT.control} truncate`}>
           Order
         </span>
-        <div className={`${SEGMENT_FILL} col-span-2`} role="group" aria-labelledby="rank-order">
+        <div className={`${SEGMENT} col-span-2`} role="group" aria-labelledby="rank-order">
           {[
             { desc: false, label: 'Lowest' },
             { desc: true, label: 'Highest' },

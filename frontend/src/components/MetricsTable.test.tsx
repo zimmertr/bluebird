@@ -7,7 +7,7 @@ import { NO_CONSTRAINTS } from '../utils/clientAnalyze'
 import { DEFAULT_LIMIT } from '../utils/urlState'
 import { render } from '../testSupport/render'
 
-// The ranking and the bounds in one table (#498; record 0242): Metric,
+// The ranking and the bounds in one table (#498; record 0251): Metric,
 // Aggregate, Order, Max results and the Bound adder, then a row for each
 // metric with a bound set or just added, and Clear filters only when there is
 // something to clear. Every control here reports to App and nothing needs an

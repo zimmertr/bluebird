@@ -53,7 +53,6 @@ import {
   SEGMENT_ITEM,
   DISABLED,
   SELECT,
-  SEGMENT_FILL,
   SPINNER,
   STATUS,
   TRANSPORT_AXIS_ITEM,
@@ -747,7 +746,6 @@ describe('grouping and segmenting', () => {
     expect(CALENDAR_GROUND).toContain(RECESSED_FILL)
     expect(SEGMENT_IDLE).toContain(RECESSED_FILL)
     expect(SEGMENT).toContain(RECESSED_EDGE)
-    expect(SEGMENT_FILL).toContain(RECESSED_EDGE)
     expect(SLIDER.track).toContain(RECESSED_EDGE)
     expect(SLIDER.well).toContain(RECESSED_EDGE)
   })
@@ -1245,7 +1243,7 @@ describe('shared recipes', () => {
   // `auto`, so the boxes are as wide as METRIC_BOX_W and nothing else, and
   // every other control spans them. A rem in the template would be a second
   // copy of that width, and two spellings of one width drift apart the moment
-  // either moves. Three columns since #498 (record 0242): the per-row
+  // either moves. Three columns since #498 (record 0251): the per-row
   // aggregate column went with the per-row menus.
   it('sizes the Metrics grid columns by their controls, not by the grid', () => {
     const template = METRICS_GRID.match(/grid-cols-\[([^\]]+)\]/)![1]
@@ -1283,16 +1281,6 @@ describe('shared recipes', () => {
     const labelAt = (contentPx: number, barPx: number) => contentPx - barPx - 2 * gapPx - metricPairPx()
     expect(labelAt(327, SHARED_BAR_PX)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
     expect(labelAt(328, 0)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
-  })
-
-  // The Metrics direction segment is the section's one control that is not a
-  // box, and it still shares the boxes' two edges: it spans the two box
-  // columns, so it wears the fill variant rather than SEGMENT's CONTROL_W.
-  // A CONTROL_W segment there hung 26px past the boxes on the left, which is
-  // what the maintainer sent the first build back for (2026-09-14).
-  it('sizes the fill segment by its container, never by the panel column', () => {
-    expect(SEGMENT_FILL).toContain('w-full')
-    expect(SEGMENT_FILL).not.toContain(CONTROL_W)
   })
 
   // What the column costs a segment half. Every segment in the panel is the
