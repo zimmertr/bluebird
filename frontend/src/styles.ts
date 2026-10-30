@@ -578,8 +578,15 @@ export const ACCENT = {
   input: 'accent-mark h-3.5 w-3.5',
   /** Resting accent text that is not a link: the table's detail-sort arrow. */
   text: 'text-accent-ink',
-  /** An icon or control reaching for the accent on hover. */
-  hoverText: 'hover:text-accent-ink',
+  /**
+   * The one hover (record 0251): under the pointer a control's label or glyph
+   * takes the accent ink. Every button, trigger, segment, map button and bare
+   * glyph wears this and spells no hover of its own; the linter's
+   * `style-hover-accent-only` fails a `hover:text-` in any other colour. Not
+   * on a disabled control, and not on an open trigger, which is lit in the
+   * accent fill and keeps the label-on-fill ink under the pointer.
+   */
+  hoverText: 'not-disabled:not-aria-expanded:hover:text-accent-ink',
   /** The accent on a boundary rather than a fill, for a field holding focus. No control lights its edge under the pointer (record 0251). */
   edgeFocus: 'focus-within:border-accent-ink',
 } as const
@@ -594,6 +601,20 @@ export const COLUMN_GRIP =
   'absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none ' +
   "before:absolute before:inset-y-0 before:right-0 before:w-0.5 before:bg-edge/40 before:content-[''] " +
   'hover:before:bg-accent-ink'
+
+/**
+ * The bar between two results panels (`ResizeGrip`), which a drag resizes and
+ * a double press resets. Its pill is the mark, and under the pointer the pill
+ * lights in the accent, as a column's grip does (`COLUMN_GRIP`, record 0251).
+ * The bar took the raised-hover fill and the pill brightened to `ink-mid`
+ * until 2026-10-30, a second hover beside the grips in the table's header.
+ */
+export const RESIZE_GRIP = {
+  bar:
+    `${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none ` +
+    'bg-raised border-t border-b border-frame group',
+  pill: `w-10 h-0.5 ${RADIUS.pill} bg-edge group-hover:bg-accent-ink transition-colors`,
+} as const
 
 /**
  * The visible keyboard-focus indicator for interactive controls.
@@ -620,6 +641,39 @@ export const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-
  */
 export const FOCUS_RING_INSET =
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-ink'
+
+/**
+ * What a control looks like when it does not apply.
+ *
+ * One role rather than a pair of utilities re-spelled at each call site, which
+ * is what it was in four places before the model picker needed a fifth. Faded
+ * rather than hidden: a control that vanishes takes its label and its last value
+ * with it, and a reader who set that value is owed the sight of it. No color of
+ * its own, so it composes over any button or field role without racing it by
+ * stylesheet order.
+ */
+export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
+
+/**
+ * Every state a control that opens something wears, and the one place they
+ * are spelled (record 0251): the hover, the open state, the faded look while
+ * it does not apply, and the keyboard's ring. A trigger's shape (`CHIP_FACE`,
+ * `TRIGGER_FIELD`, `ACTION_ITEM`) is its surface, size and resting ink alone,
+ * and ends in this, so no two triggers can answer the pointer, the keyboard
+ * or an open menu two ways. A field showed an accent edge while its menu was
+ * out, and again after it closed with the keyboard back on it, because it was
+ * built on the text input's focus edge; the maintainer found it beside the
+ * Columns button, lit whole, four rounds into making them one (2026-10-30).
+ *
+ * Open is `ACCENT.fill`'s two classes as `aria-expanded` variants, which sort
+ * after the resting ink, and the accent edge where a shape has one. No focus
+ * state but `FOCUS_RING`'s, which shows for the keyboard alone: a menu that
+ * closes hands the keyboard back to its trigger, and a pointer that picked a
+ * row sees nothing more than it did before it opened the menu.
+ */
+const TRIGGER_STATE =
+  `transition-colors ${ACCENT.hoverText} aria-expanded:bg-accent aria-expanded:text-on-fill ` +
+  `aria-expanded:border-accent ${DISABLED} ${FOCUS_RING}`
 
 /**
  * The full-width primary action: Analyze, and the modals' dismiss buttons.
@@ -803,7 +857,7 @@ export const CHIP = {
  * link's look while it has the keyboard (`SKIP_LINK`).
  *
  * It was the map's two buttons' too, Controls and Layers in the desk's column,
- * until #714 gave a desk the phone's chips (`MAP_CHIP`). The skip link kept
+ * until #714 gave a desk the phone's chips (`CHIP_FACE`). The skip link kept
  * it: it is one word on the floating surface, pressed with a keyboard, and a
  * chip's capsule would read as one more chip in the map's row.
  *
@@ -979,7 +1033,7 @@ export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
  * in their own markup a popup's (`map.css`) and a message's
  * (`NOTICE_DISMISS`). A round button is for a header's close alone.
  */
-export const ICON_BUTTON = `px-1 text-ink-soft hover:text-ink-strong transition-colors ${FOCUS_RING}`
+export const ICON_BUTTON = `px-1 text-ink-soft ${ACCENT.hoverText} transition-colors ${FOCUS_RING}`
 
 /**
  * A bare × with free room around it, the tutorial card's and the search
@@ -994,18 +1048,16 @@ export const ICON_CLOSE_BUTTON =
   "touch:before:content-['']"
 
 /**
- * A glyph drawn inside a field rather than beside it: the chevron a `SELECT`
- * reserves its room for (the phone's native selects). `ICON_ADORNMENT_PLACE`
- * is where it stands without an ink of its own: `MENU_CHEVRON.field`, whose
- * chevron takes its trigger's ink as every trigger's does (record 0251).
+ * A glyph drawn inside a field rather than beside it: the chevron a field
+ * trigger reserves its room for (`MENU_CHEVRON.field`). It has no ink of its
+ * own, so it takes its trigger's, as every trigger's chevron does (record
+ * 0251).
  *
  * `pointer-events-none` is the load-bearing part — the arrow overlays the
  * control it decorates, and without it the one place a user aims for is the one
- * place that does not open the dropdown. slate-400 is 7.0:1 on the recessed
- * fill, well past the 3:1 a UI glyph owes.
+ * place that does not open the dropdown.
  */
-const ICON_ADORNMENT_PLACE = 'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2'
-export const ICON_ADORNMENT = `${ICON_ADORNMENT_PLACE} text-ink-soft`
+const ICON_ADORNMENT = 'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2'
 
 /**
  * How big a drawn glyph is, for every icon in `components/icons.tsx`.
@@ -1032,7 +1084,7 @@ export const ICON = {
    * 16x16. The standing step: a glyph in or beside a control — the results
    * bar's mode switch, the map's two buttons, the panel's close, the columns
    * picker's grip, the collapse chevron, the search field's magnifier, and the
-   * arrow `SELECT` reserves room for (`ICON_ADORNMENT`, whose 24px reserve is
+   * arrow `TRIGGER_FIELD` reserves room for (`ICON_ADORNMENT`, whose 24px reserve is
    * measured off this step).
    *
    * The magnifier was 15 and is the reason this step is worth a number. Its
@@ -1190,7 +1242,7 @@ export const DRAG = {
    * the resize handle wears it.
    */
   grip:
-    `cursor-grab touch-none text-ink-faint hover:text-ink active:cursor-grabbing ` +
+    `cursor-grab touch-none text-ink-faint ${ACCENT.hoverText} active:cursor-grabbing ` +
     `transition-colors ${FOCUS_RING}`,
   /** The grip while its column is the one being moved. */
   gripActive: 'text-ink',
@@ -1281,8 +1333,8 @@ const RECESSED_EDGE = 'border border-edge'
 
 // What a field looks like, without how big it is (#696): the control type in
 // the recessed fill and edge at the control radius. `FIELD` adds the tap
-// height and the focus edge; `CHART_TITLE` wears it at 28px with an invisible
-// 44px select over it, which is why the look and the size are two things.
+// height and a text input's focus edge; a field that opens a menu adds the
+// tap height and `TRIGGER_STATE` instead (`MENU_TRIGGER.field`).
 const FIELD_LOOK = `${TEXT.control} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`
 
 /**
@@ -1325,10 +1377,10 @@ export const SEARCH_KIND = `${CAPTION_LIFTED} font-semibold`
  * and could not be seen; a fill step tried the same day put two hovers side
  * by side. The accent reads 6.45:1 on the light fill and 8.17 on the dark
  * one (measured 2026-10-30 from the tokens); in light it parts from the
- * resting label by hue, at 1.45:1 of luminance. `not-disabled:` so a
+ * resting label by hue, at 1.45:1 of luminance. `ACCENT.hoverText`, so a
  * disabled half (Both, too short for it) does not light. Record: 0251
  */
-export const SEGMENT_IDLE = `${RECESSED_FILL} text-ink-soft not-disabled:hover:text-accent-ink`
+export const SEGMENT_IDLE = `${RECESSED_FILL} text-ink-soft ${ACCENT.hoverText}`
 
 /**
  * The geometry the two halves sit in, which had been spelled out twice.
@@ -1367,7 +1419,7 @@ export const SEGMENT_IDLE = `${RECESSED_FILL} text-ink-soft not-disabled:hover:t
  *
  * Nothing here is sized to its own content, which is the point: a control that
  * picks its own width cannot line up with the one above it. What that costs is
- * written down where it lands — see `SELECT`, which had to give the arrow's
+ * written down where it lands — see `TRIGGER_FIELD`, which had to give the arrow's
  * slack back to make the model picker fit, and `SEGMENT_ITEM`'s inset.
  */
 export const CONTROL_W = 'w-[118px]'
@@ -1379,7 +1431,7 @@ export const CONTROL_W = 'w-[118px]'
  * It lives in the results sheet, not the sidebar, so it lines up with nothing
  * above it and its labels carry their units, an hour's (record 0222):
  * `Precipitation (in/hr)` measures 109.0px at text-xs in Chrome on macOS
- * (2026-10-22), where 118px of `SELECT` offers 84px of label. 152px offers
+ * (2026-10-22), where 118px of `TRIGGER_FIELD` offers 84px of label. 152px offers
  * 118px, which clears it by 9px; the 144px it was left under a pixel once the
  * label gained its `/hr`. Fixed rather than content-sized for the reason #348
  * gave: a select that grows with its labels lets a sixth metric wrap the row a
@@ -1398,30 +1450,26 @@ export const CHART_PLOT_TOUCH = 'touch-pan-y'
 
 /**
  * A phone chart's metric picker, as the plot's title (#696, record 0149): the
- * metric's full label with its unit in the app's own select, at the plot's
- * top left, `CHART_TITLE_INSET_PX` (12px, `top-3 left-3`) from the grip's
- * rule above it and the sheet's edge, the results bar's own inset, and the
- * same 12px over the plot's top label (`TITLED_PLOT_MARGIN`). The field row above the plot was
- * 44px a phone's chart could not spare, and a plain title did not read as a
- * control, so it is look 4 of the second picker mockups (TJ 2026-10-14): the
- * desktop picker's look shrunk to its label. `box` wears `FIELD_LOOK`, the
- * recessed fill, edge and radius every select here wears, with `SELECT`'s
- * `pr-6` holding the chevron in `ICON_ADORNMENT`'s place, and it sizes to
- * its words rather than to `CHART_METRIC_W`. It is 28px tall (`h-7`), which
- * is `CHART_TITLE_PX` and what `TITLED_PLOT_MARGIN` reserves over the plot,
- * so nothing the plot draws, its dashed lines and their labels included,
- * meets the box. `select` is the native select laid over it, transparent, so
- * a tap opens the phone's own picker; 44px tall on a coarse pointer, centred
- * on the box, so it reaches 8px into the room on either side and meets
- * neither the rule nor the plot's label. The focus edge
- * is `FIELD`'s, moved to the box because the select is invisible.
+ * metric's full label with its unit, at the plot's top left,
+ * `CHART_TITLE_INSET_PX` (12px, `top-3 left-3`) from the grip's rule above it
+ * and the sheet's edge, the results bar's own inset, and the same 12px over
+ * the plot's top label (`TITLED_PLOT_MARGIN`). The field row above the plot
+ * was 44px a phone's chart could not spare, and a plain title did not read as
+ * a control, so it is look 4 of the second picker mockups (TJ 2026-10-14):
+ * the desktop picker shrunk to its label.
+ *
+ * It is the desk's `MenuSelect`, opening the one menu's sheet as the model
+ * picker does (record 0252), so it is a field trigger like every other and
+ * this is its place alone: `box` stands it over the plot, and `field` sizes
+ * it to its words rather than to `CHART_METRIC_W`, at 32px (`h-8`), which is
+ * `CHART_TITLE_PX` and what `TITLED_PLOT_MARGIN` reserves over the plot, so
+ * nothing the plot draws, its dashed lines and their labels included, meets
+ * the box. It was a native select laid invisible over a look of its own,
+ * 28px tall, until 2026-10-30.
  */
 export const CHART_TITLE = {
-  box:
-    `absolute left-3 top-3 z-[1] flex h-7 max-w-[calc(100%-1.5rem)] items-center ` +
-    `${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-mark`,
-  text: 'min-w-0 truncate',
-  select: 'absolute inset-x-0 top-1/2 -translate-y-1/2 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
+  box: 'absolute left-3 top-3 z-[1] flex max-w-[calc(100%-1.5rem)]',
+  field: 'h-8 min-w-0 px-2',
 } as const
 
 /**
@@ -1636,7 +1684,7 @@ export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
  */
 export const MAP_ROUND_BUTTON =
   `size-10 bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
-  `transition-colors enabled:hover:text-accent-ink ${FOCUS_RING}`
+  `transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
 
 /**
  * The 3D button (#799): a map button whose glyph is the word `3D`, at the
@@ -1712,16 +1760,15 @@ export const MAP_CORNER = {
  * A desk's zoom buttons, joined into one capsule with a rule between them, as
  * Google Maps draws its own (TJ, 2026-10-20; record 0174): each half is a
  * 40px map button with the capsule's end for its outer edge and no edge where
- * the halves meet but the lower half's top, which is the rule. They are the
- * one pair of map buttons that does not take the sky edge on hover, because
- * the rule is the lower half's alone and could not light for the upper one,
- * so each half takes the raised fill under the pointer instead, while it is
- * enabled: the library disables a half at either end of the map's zoom, and
- * `map/controls.ts` greys it then as it greys the idle compass (`DISABLED`).
+ * the halves meet but the lower half's top, which is the rule. Under the
+ * pointer each half's glyph takes the accent, as every map button's does,
+ * while it is enabled: the library disables a half at either end of the
+ * map's zoom, and `map/controls.ts` greys it then as it greys the idle
+ * compass (`DISABLED`).
  */
 const MAP_ZOOM_HALF =
   `size-10 bg-floating/95 border border-edge ${ELEVATION.raised} backdrop-blur-sm ` +
-  `transition-colors enabled:hover:text-accent-ink ${FOCUS_RING}`
+  `transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
 export const MAP_ZOOM_PAIR = {
   in: `${MAP_ZOOM_HALF} border-b-0 rounded-t-full`,
   out: `${MAP_ZOOM_HALF} rounded-b-full`,
@@ -1761,29 +1808,13 @@ export const MAP_CREDIT = {
 const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:before:-inset-y-[7px] touch:before:content-['']"
 
 /**
- * Every menu trigger while its menu is out, chip, field and bar alike: lit in
- * the accent fill under the label-on-fill ink, `ACCENT.fill`'s two classes as
- * `aria-expanded` variants, which sort after the resting fill and the hover
- * and so win without a race. One state for all three, because a field that
- * showed only an accent edge beside a bar button that lit whole was the
- * inconsistency the maintainer found on 2026-10-30 (record 0251).
- */
-const TRIGGER_LIT = 'aria-expanded:bg-accent aria-expanded:text-on-fill'
-
-/**
- * One chip in the phone's second row (#696): the pill's surface at 32px, the
- * control size at the normal weight and 12px of padding a side. A chip
- * takes its content's width and never shrinks, but for the summary
- * (`MAP_CHIP_SUMMARY`). The row's right end is left empty: a primary action
- * may stand there later, and nothing here is placed against it.
- *
- * Lit while its sheet is open (`aria-expanded`), in the accent fill the
- * pressed half of a segment wears. Spelled as variants of `ACCENT.fill`'s two
- * classes, because Tailwind compiles only a class it finds whole and a
- * variant is what lets the lit fill beat the resting one without a race of
- * stylesheet order. Hover is the accent label, as every trigger's is (record 0251).
- * The call site adds `DISABLED`, which greys the Legend chip until it has a
- * key to show.
+ * One chip in the map's chip row (#696): the pill's surface at 32px, the
+ * control size at the normal weight and 12px of padding a side, then
+ * `TRIGGER_STATE`, which every trigger ends in. A chip takes its content's
+ * width; Layers and Legend say at their call sites that they never shrink,
+ * and the summary chip that it gives way first. The row's right end is left
+ * empty: a primary action may stand there later, and nothing here is placed
+ * against it.
  *
  * The lit chip's label and glyph take the label-on-fill ink. In dark that is
  * the white the chip wears at rest, so nothing moved there; in light the
@@ -1799,9 +1830,7 @@ const TRIGGER_LIT = 'aria-expanded:bg-accent aria-expanded:text-on-fill'
 const CHIP_FACE =
   `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `${CONTROL_SIZE} text-ink-strong h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
-  `transition-colors ${ACCENT.hoverText} active:bg-raised ` +
-  `${TRIGGER_LIT} aria-expanded:border-accent ${FOCUS_RING}`
-const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
+  TRIGGER_STATE
 
 /**
  * A chip's menu on a desk (#714; record 0174): the Layers menu and the legend
@@ -1823,20 +1852,17 @@ const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 export const MAP_CHIP_MENU = 'absolute left-0 top-full mt-1 px-2.5 py-2'
 
 /**
- * The summary chip, `☰ Current · NOAA GFS`, which opens the drawer: a chip
- * that gives way first. It is the one member allowed to shrink, so a phone
- * too narrow for the row cuts the summary with an ellipsis rather than
- * pushing a chip off the edge (`MAP_CHIP_SUMMARY_TEXT`). The ☰ stays whole:
- * it is the mark that says the chip opens the panel.
+ * The summary chip's words, `☰ Current · NOAA GFS`: the chip that opens the
+ * drawer is a `MenuButton` chip like Layers and Legend, the one member of the
+ * row allowed to shrink (`min-w-0` at its call site), so a phone too narrow
+ * for the row cuts its words with an ellipsis rather than pushing a chip off
+ * the edge. The ☰ stays whole: it is the mark that says the chip opens the
+ * panel. The words take the chip's ink, as every trigger's content does, so
+ * they light with the label under the pointer and while the sheet is up; they
+ * stood in `ink-soft` with an open state of their own until 2026-10-30, and
+ * so did not answer the pointer as the ☰ beside them did (record 0251).
  */
-export const MAP_CHIP_SUMMARY = `${CHIP_FACE} min-w-0`
-/**
- * The summary's words: one line, cut at its end, in the slate-400 the mockup
- * reads them in (5.56:1 on the chip). White while the chip is lit, since the
- * Controls sheet it raises is up (record 0141): slate-400 on the accent fill
- * fails AA, where white is the 4.56:1 every label on that fill reads at.
- */
-export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-ink-soft in-aria-expanded:text-on-fill'
+export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate'
 
 /**
  * The button's pressed state, Material's for a floating button (TJ,
@@ -1975,8 +2001,8 @@ export const SEGMENT_FILL = `flex w-full ${RADIUS.control} overflow-hidden ${REC
  * is left — and its longest noun, `Freezing level`, is measured at text-xs
  * in `styles.test.ts`, which pins the sum. The dropdown's own floor is its
  * content: the widest aggregate word measures 28px, plus the field's 8px
- * left padding and the 24px the SELECT recipe reserves for its arrow — 60px
- * (measured 2026-08-22, re-derived 2026-09-14 when SELECT gave 8px back).
+ * left padding and the 24px the TRIGGER_FIELD recipe reserves for its arrow — 60px
+ * (measured 2026-08-22, re-derived 2026-09-14 when the select gave 8px back).
  * The 12px of slack that leaves is deliberate: this width also sets a grid
  * track, so shrinking it to the floor would only widen a label that already
  * fits. Re-measure both sums before changing this, the box width, the grid
@@ -2118,15 +2144,14 @@ export const BAR_PRESS =
  * wide and 32 tall, and `BAR_PRESS` presses 44 around it.
  * The label is the slate-400 idle half's, as on the switch beside it.
  *
- * Under the pointer the label takes the accent, the hover every menu trigger
- * wears (record 0201), where the switch's idle half brightens to white. An
- * item has no edge of its own inside the group, so the label is the whole
- * of its hover. The three that open a menu wear `MENU_TRIGGER.bar` over this,
- * which adds the lit state; Download CSV opens nothing and wears this alone.
+ * Then `TRIGGER_STATE`, which every trigger ends in: the three that open a
+ * menu are `MENU_TRIGGER.bar`, which is this, and Download CSV, which opens
+ * nothing, wears the same states so it answers the pointer as they do.
  */
 export const ACTION_GROUP = BAR_GROUP
 export const ACTION_ITEM =
-  `${segmentHalf('flex-none')} ${BAR_PRESS} px-1.5 cursor-pointer whitespace-nowrap ${RECESSED_FILL} text-ink-soft ${ACCENT.hoverText}`
+  `${segmentHalf('flex-none')} ${BAR_PRESS} px-1.5 cursor-pointer whitespace-nowrap ${RECESSED_FILL} text-ink-soft ` +
+  TRIGGER_STATE
 
 /**
  * The word on a results bar control, shown only where the bar can hold the
@@ -2389,7 +2414,7 @@ export const NOTICE_DISMISS = {
   button:
     `group ${TAP.action} -my-0.5 touch:-my-2 touch:-ml-6 opacity-0 transition-[color,opacity] ` +
     `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
-    `hover:text-ink-strong ${FOCUS_RING}`,
+    `${ACCENT.hoverText} ${FOCUS_RING}`,
   pill: 'flex h-5 w-5 items-center justify-center',
 } as const
 
@@ -3025,20 +3050,18 @@ export const FIELD_NUMERIC =
   '[&::-webkit-outer-spin-button]:[appearance:none] [&::-webkit-inner-spin-button]:[appearance:none]'
 
 /**
- * The same recessed surface for a native `<select>`.
+ * A field that opens a menu: the model picker, the calendar, the chart's
+ * metric and each Metrics row's aggregate, at a desk and on a phone alike.
+ * The text input's recessed look and tap height (`FIELD_LOOK`, `TAP.height`)
+ * without its focus edge, then `TRIGGER_STATE`, which every trigger ends in.
+ * It was built on `FIELD` as a styled native select until 2026-10-30, and so
+ * lit its edge on any focus, a pointer's included: the chart's metric field
+ * kept an accent edge after its menu closed, where Columns beside it did not
+ * (record 0251).
  *
- * Composed from `FIELD` rather than written afresh so a dropdown and a text
- * input cannot drift apart, plus the two things a select needs that an input
- * does not:
- *
- * - `appearance-none`, because the platform control paints its own chrome from
- *   the *system* palette, not ours: on a light-mode OS the popup and its arrow
- *   render dark-on-light inside a dark panel. Suppressing it costs the arrow,
- *   which the call site draws back as the chevron every menu trigger wears
- *   (`IconChevron` in `ICON_ADORNMENT`, record 0201), one glyph we control
- *   on every platform rather than one we control on none.
- * - `pr-6`, reserving the room that arrow sits in. It belongs here and not at
- *   the call site because it is not decoration: without it a long option label
+ * - `appearance-none`, which a button needs no more than a select did, kept
+ *   so no platform paints a control of its own into the field.
+ * - `pr-6`, reserving the room the chevron sits in. Without it a long label
  *   runs underneath the arrow. 24px is the arrow's own box and nothing more:
  *   `ICON_ADORNMENT` puts a 16px glyph 8px from the edge, so it occupies 8px
  *   to 24px and a label may run to that line. It reserved 32px until the panel
@@ -3046,13 +3069,9 @@ export const FIELD_NUMERIC =
  *   `UK Met Office` (79.7px) fitting the model picker and truncating (TJ,
  *   2026-09-14). The glyph is drawn inside its box with its own margin, so the
  *   text does not touch the mark.
- *
- * `<option>` elements are deliberately left alone. Their rendering is the
- * platform's — several browsers ignore author styles on them outright — so
- * styling them would produce a control that matched the design system on some
- * machines and not others, which is worse than one that consistently does not.
+ * - `relative`, because its chevron stands inside it.
  */
-export const SELECT = `${FIELD} appearance-none pr-6`
+const TRIGGER_FIELD = `${FIELD_LOOK} ${TAP.height} appearance-none pr-6 relative ${TRIGGER_STATE}`
 
 /**
  * One menu for every control that opens one at a desk (#714; record 0201).
@@ -3073,39 +3092,19 @@ export const SELECT = `${FIELD} appearance-none pr-6`
  */
 
 /**
- * The three trigger shapes (record 0201), each with the one hover and the
- * one open state:
- *
- * - `chip`: `MAP_CHIP`, which already had both: under the pointer its label
- *   takes the accent (`ACCENT.hoverText`), and while its menu is out it is
- *   lit in the accent fill.
- * - `field`: `SELECT`, with the same accent label under the pointer, and lit
- *   like a chip while open. It showed only an accent edge while open until
- *   2026-10-30, because a filled field was thought to read as a value chosen
- *   rather than a list shown; the maintainer found it beside the Columns
- *   button, lit whole, and chose one open state for every trigger (record
- *   0251). Its hover is spelled `enabled:not-aria-expanded:`, so the faded
- *   model picker over an archive window does not light and an open field
- *   keeps the label-on-fill ink under the pointer. `relative`, because its
- *   chevron stands inside it.
- * - `bar`: `ACTION_ITEM`, whose hover is the accent label alone (it has no
- *   edge of its own inside its group), lit like a chip while open.
- *
- * The lit state is `TRIGGER_LIT`, the one all three wear. Each chevron takes
- * its trigger's ink rather than an ink of its own, so it follows the label
- * at rest, under the pointer and lit.
- *
- * The hover is the label alone, the edge never: a chip and a field lit their
- * edge too until 2026-10-30, when the maintainer found a dropdown lighting
- * its edge beside a segment that lit its label only, and chose the label
- * (record 0251).
+ * The three trigger shapes (record 0201): a pill on the map (`CHIP_FACE`), a
+ * field in the panel and the chart (`TRIGGER_FIELD`), a button in the results
+ * bar's group (`ACTION_ITEM`). A shape is its surface, size and resting ink;
+ * each ends in `TRIGGER_STATE`, the one hover, open state, faded state and
+ * focus ring, so the shape is the only thing two triggers can differ in
+ * (record 0251). `styles.test.ts` fails a shape whose states are not exactly
+ * the others', and the linter's `style-trigger-no-look` fails a colour or a
+ * state handed to a `MenuButton` or `MenuSelect` at its call site.
  */
 export const MENU_TRIGGER = {
-  chip: MAP_CHIP,
-  field:
-    `${SELECT} group relative enabled:not-aria-expanded:hover:text-accent-ink ` +
-    `${TRIGGER_LIT} aria-expanded:border-accent`,
-  bar: `${ACTION_ITEM} ${TRIGGER_LIT}`,
+  chip: CHIP_FACE,
+  field: TRIGGER_FIELD,
+  bar: ACTION_ITEM,
 } as const
 
 /**
@@ -3120,12 +3119,12 @@ export const MENU_TRIGGER = {
  * from its left. A bar button takes 2px (`-mr-0.5`): its inset is 6px, and
  * the stroke then stands 8px from its edge, where its leading glyph's stroke
  * stands. A field's stands in `ICON_ADORNMENT`'s place, inside the room
- * `SELECT` reserves, where the filled select arrow stood until record 0201.
+ * `TRIGGER_FIELD` reserves, where the filled select arrow stood until record 0201.
  */
 export const MENU_CHEVRON = {
   chip: '-mr-1',
   bar: '-mr-0.5',
-  field: ICON_ADORNMENT_PLACE,
+  field: ICON_ADORNMENT,
 } as const
 
 // A row's shape in any menu: 6px in from the list's 4px, so its words stand
@@ -3320,18 +3319,6 @@ export const CALENDAR_FIELD = {
 } as const
 
 /**
- * What a control looks like when it does not apply.
- *
- * One role rather than a pair of utilities re-spelled at each call site, which
- * is what it was in four places before the model picker needed a fifth. Faded
- * rather than hidden: a control that vanishes takes its label and its last value
- * with it, and a reader who set that value is owed the sight of it. No color of
- * its own, so it composes over any button or field role without racing it by
- * stylesheet order.
- */
-export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
-
-/**
  * The grid's style named in its legend line, as the button that switches it
  * (the maintainer, 2026-10-30): the word and a swap mark in the accent's ink
  * on a faint wash of the accent, matching the pitch beside it, which wears
@@ -3423,7 +3410,7 @@ export const SR_ONLY = 'sr-only'
  *
  * What the platform does *not* give is a look — it paints from the system
  * palette, so a light-mode OS renders a pale track inside a dark map card, the
- * same problem `SELECT` documents. So `appearance-none` on the input and on
+ * same problem `TRIGGER_FIELD` documents. So `appearance-none` on the input and on
  * both thumb pseudo-elements, then the track and thumb drawn here.
  *
  * The two vendor spellings are both required and neither is redundant: WebKit

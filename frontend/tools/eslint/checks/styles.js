@@ -155,6 +155,12 @@ const MESSAGES = {
 }
 
 const role = (name) => `MemberExpression[object.name="${name}"]`
+
+// A class string handed to a trigger, or to anything inside one.
+const IN_TRIGGER =
+  'JSXElement[openingElement.name.name=/^Menu(Button|Select)$/] JSXAttribute[name.name=/^(className|chevronClassName)$/]'
+// A colour utility on a theme token or a palette hue, or a state variant.
+const TRIGGER_LOOK = String.raw`(^|[\s:])(text|bg|border|outline|ring|fill|stroke|decoration)-(ink|accent|on-fill|edge|rule|frame|panel|raised|recessed|floating|warn|danger|mark|lift|range|white|black|slate|sky|red|amber|green)|(^|[\s:])(hover|focus|focus-visible|focus-within|active|aria-[\w-]+|disabled|enabled|not-[\w-]+|group-[\w-]+|peer-[\w-]+|in-[\w-]+|has-\[[^\]]*\]):`
 const defaultExport = (name) => `ExportDefaultDeclaration[declaration.id.name="${name}"]`
 // The body of the default export and everything after it.
 const fromExport = (name, target) =>
@@ -167,12 +173,6 @@ const POPOVER_BOX = pair('SURFACE_CARD', 'LAYER.popover', '^ $')
 // A trigger in one of the three shapes (record 0201).
 const MENU_BUTTON = (shape) =>
   `JSXOpeningElement[name.name="MenuButton"]:has(> JSXAttribute[name.name="shape"][value.value="${shape}"])`
-
-// Where a native select may stand: in a phone's branch, the Metrics table's
-// `phone ? ... :` and the chart's `titled && ...` (record 0149).
-const PHONE_ONLY =
-  'ConditionalExpression[test.name="phone"] > .consequent JSXOpeningElement, ' +
-  'LogicalExpression[left.name="titled"] > .right JSXOpeningElement'
 
 const GRID = elementWith('METRICS_GRID')
 const CLEAR = 'JSXOpeningElement:has(JSXAttribute[name.name="onClick"] > JSXExpressionContainer > Identifier[name="onClearFilters"])'
@@ -314,9 +314,9 @@ export const STYLES = [
     // its trigger wherever it opens, so no caller picks a placement, and a
     // list of options lives inside its card. The search box's results list is
     // the stated exception, so its file is the one left out. A native select
-    // opens the platform's own list, which no stylesheet reaches, so one is
-    // drawn on a phone only, where its picker rises from below like every
-    // phone menu (record 0149).
+    // opens the platform's own list, which no stylesheet reaches, and its
+    // field was a second trigger drawn to look like the first, so there is
+    // none: a phone picks from the same MenuSelect, in a sheet (record 0252).
     name: 'style-one-menu',
     files: ['src/App.tsx', 'src/components/*.tsx', 'src/hooks/*.ts', 'src/map/**/*.{ts,tsx}'],
     ignores: [...TESTS, 'src/hooks/usePopover.ts', 'src/components/SearchBox.tsx'],
@@ -332,8 +332,8 @@ export const STYLES = [
         message: 'A list of options lives in the card Menu.tsx draws; only the search box keeps its own.',
       },
       {
-        selector: `JSXOpeningElement[name.name="select"]:not(${PHONE_ONLY})`,
-        message: 'Draw a native select on a phone only: a desk picks from MenuSelect.',
+        selector: 'JSXOpeningElement[name.name="select"]',
+        message: 'Draw no native select: pick from MenuSelect, a card at a desk and a sheet on a phone.',
       },
     ],
   },
@@ -356,18 +356,19 @@ export const STYLES = [
     ],
   },
   {
-    // Every control that opens a menu is a MenuButton in one of the three
-    // shapes (record 0201), so it carries the chevron, the hover and the lit
-    // state every trigger shares. A plain button with aria-expanded is a
-    // fourth trigger with a look of its own. The map's sidebar toggle opens
-    // the control panel, not a menu, so its file is left out, and so is the
-    // message badge (record 0208): a count on the Analyze button's corner,
-    // which the maintainer chose over a trigger shape, opening the one list.
-    // The badge keeps its severity colour while the list is out, because the
-    // colour is its message (record 0251).
+    // Every control that opens a menu or a sheet is a MenuButton in one of
+    // the three shapes (record 0201), so it carries the chevron, the hover and
+    // the lit state every trigger shares (record 0251). A plain button with
+    // aria-expanded is a fourth trigger with a look of its own. The summary
+    // chip that raises the Controls sheet is a MenuButton chip too. The one
+    // exception is the message badge (record 0208): a count on the Analyze
+    // button's corner, which the maintainer chose over a trigger shape,
+    // opening the one list, and which keeps its severity colour while the
+    // list is out because the colour is its message (the maintainer,
+    // 2026-10-30).
     name: 'style-menu-trigger',
     files: SOURCES,
-    ignores: [...TESTS, 'src/components/Menu.tsx', 'src/components/MapRows.tsx', MESSAGES.badge],
+    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge],
     probe: 'src/components/ResultsBar.tsx',
     ban: [
       {
@@ -377,17 +378,41 @@ export const STYLES = [
     ],
   },
   {
-    // The one opening button outside MenuButton that lights: the summary chip
-    // raises the Controls sheet and wears the open state every trigger shares
-    // (record 0251), which a class of its own would drop.
-    name: 'style-summary-lit',
-    files: ['src/components/MapRows.tsx'],
-    require: [
+    // A trigger's look is its shape's and every state is TRIGGER_STATE's
+    // (record 0251), so what a call site hands a MenuButton or a MenuSelect,
+    // or puts inside one, is layout and width alone. A colour, a state
+    // variant or a state role there is a trigger beginning to differ.
+    name: 'style-trigger-no-look',
+    files: SOURCES,
+    ignores: TESTS,
+    probe: 'src/components/ResultsBar.tsx',
+    ban: [
       {
-        selector:
-          'JSXOpeningElement[name.name="button"]:has(> JSXAttribute[name.name="aria-expanded"]) > JSXAttribute[name.name="className"][value.expression.name="MAP_CHIP_SUMMARY"]',
-        count: 1,
-        message: 'Light the summary chip with MAP_CHIP_SUMMARY, the open state every trigger shares.',
+        selector: `${IN_TRIGGER} Literal[value=/${TRIGGER_LOOK}/]`,
+        message: 'Give a trigger no colour or state at its call site: its shape and TRIGGER_STATE are its whole look.',
+      },
+      {
+        selector: `${IN_TRIGGER} TemplateElement[value.raw=/${TRIGGER_LOOK}/]`,
+        message: 'Spell no colour or state in a trigger template: its shape and TRIGGER_STATE are its whole look.',
+      },
+      {
+        selector: `${IN_TRIGGER} Identifier[name=/^(DISABLED|MUTED|FOCUS_RING|FOCUS_RING_INSET|ACCENT|STATUS)$/]`,
+        message: 'Hand a trigger no state role: TRIGGER_STATE already fades it, rings it and lights it.',
+      },
+    ],
+  },
+  {
+    // The one hover is the accent ink (record 0251), spelled once as
+    // ACCENT.hoverText. A hover that brightens or dims a label instead is a
+    // second hover beside it.
+    name: 'style-hover-accent-only',
+    files: SHIPPED,
+    ignores: TESTS,
+    probe: 'src/styles.ts',
+    ban: [
+      {
+        selector: text(String.raw`hover:text-(?!accent-ink\b)`),
+        message: 'Light a label under the pointer in the accent ink alone (ACCENT.hoverText, record 0251).',
       },
     ],
   },

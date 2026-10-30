@@ -341,10 +341,8 @@ describe('MenuButton', () => {
   // The hover and the open state are the shape's roles, read here as the
   // classes the shape wears, so a trigger cannot drift to a hover of its own.
   it('lights the label under the pointer, never the edge, and the open state on aria-expanded', () => {
-    const words = (classes: string) => classes.split(' ')
-    expect(words(MENU_TRIGGER.chip)).toContain(ACCENT.hoverText)
-    expect(words(MENU_TRIGGER.field)).toContain(`enabled:not-aria-expanded:${ACCENT.hoverText}`)
-    expect(words(MENU_TRIGGER.bar)).toContain(ACCENT.hoverText)
+    const words = (classes: string) => classes.split(/\s+/)
+    for (const shape of Object.values(MENU_TRIGGER)) expect(words(shape)).toContain(ACCENT.hoverText)
     // One open state for all three: the accent fill under the label-on-fill
     // ink (record 0251).
     for (const shape of Object.values(MENU_TRIGGER)) {

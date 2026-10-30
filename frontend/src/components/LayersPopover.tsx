@@ -525,6 +525,7 @@ export default function LayersPopover({
       chevron={!sheet}
       onClick={() => setLayersOpen((o) => !o)}
       data-tour="layers"
+      className="flex-shrink-0"
     >
       Layers
     </MenuButton>

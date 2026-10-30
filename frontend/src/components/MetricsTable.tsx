@@ -7,7 +7,6 @@ import {
   CHOICE_ROW,
   DISABLED,
   FIELD_NUMERIC,
-  ICON_ADORNMENT,
   METRICS_GRID,
   METRIC_HEAD_GAP,
   METRIC_BOX_W,
@@ -17,11 +16,9 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
-  SELECT,
   SELECT_W_AGGREGATE,
   TEXT,
 } from '../styles'
-import { IconChevron } from './icons'
 import { MenuSelect } from './Menu'
 import {
   AGGREGATE,
@@ -202,8 +199,8 @@ interface Props {
   // Live ceiling for the results knob, from /api/capabilities (falls back to
   // the compiled analysis cap).
   maxLimit: number
-  // A phone (#696), where the aggregate stays the native select and opens the
-  // phone's own picker; a desk's opens the one menu (record 0201).
+  // A phone (#696), where the aggregate's menu opens as a bottom sheet; a
+  // desk's opens the one menu's card (records 0201 and 0252).
   phone?: boolean
   // The metrics the selected window and models cannot answer (#803,
   // `unansweredMetrics`): each one's row greys, the way a Layers row greys
@@ -395,33 +392,17 @@ export default function MetricsTable({
                   {/* py-0.5 is SEGMENT_ITEM_SHAPE's own vertical padding, so the
                       dropdown, the boxes and the segment above are the
                       same height. */}
-                  {phone ? (
-                    <>
-                      <select
-                        aria-label={`${NOUN[family]} aggregate`}
-                        value={rowKey}
-                        disabled={inert}
-                        onChange={(e) => setSortBy(e.target.value as SortBy)}
-                        className={`${SELECT} ${SELECT_W_AGGREGATE} ${DISABLED} px-2 py-0.5`}
-                      >
-                        {AGGREGATE_OPTIONS[family].map(({ value, label }) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <IconChevron up={false} className={ICON_ADORNMENT} />
-                    </>
-                  ) : (
-                    <MenuSelect
-                      label={`${NOUN[family]} aggregate`}
-                      value={rowKey}
-                      options={AGGREGATE_OPTIONS[family]}
-                      onChange={setSortBy}
-                      disabled={inert}
-                      className={`${SELECT_W_AGGREGATE} ${DISABLED} px-2 py-0.5`}
-                    />
-                  )}
+                  {/* The one menu at a desk and its sheet on a phone (record
+                      0252), so the aggregate is a field trigger like every other. */}
+                  <MenuSelect
+                    label={`${NOUN[family]} aggregate`}
+                    value={rowKey}
+                    options={AGGREGATE_OPTIONS[family]}
+                    onChange={setSortBy}
+                    disabled={inert}
+                    sheet={phone}
+                    className={`${SELECT_W_AGGREGATE} px-2 py-0.5`}
+                  />
                 </div>
               )}
               {EDGES.map(([edge, aggregate], i) => (

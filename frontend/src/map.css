@@ -65,7 +65,7 @@
   --popup-glyph-hover: var(--ui-accent-ink);
   --popup-thumb: var(--ui-edge-lifted);
   --popup-close: var(--ui-ink-soft);
-  --popup-close-hover: var(--ui-ink-strong);
+  --popup-close-hover: var(--ui-accent-ink);
 }
 :root[data-theme="light"] {
   --popup-scheme: light;

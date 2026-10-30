@@ -8,7 +8,6 @@ import {
   ACCENT,
   CHIP_CARD_W,
   CONTROL_SIZE,
-  DISABLED,
   LEGEND_GRID_STYLE,
   LINK,
   MAP_CHIP_MENU,
@@ -561,7 +560,7 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
       chevron={!sheet}
       onClick={toggle}
       disabled={!shown}
-      className={DISABLED}
+      className="flex-shrink-0"
     >
       Legend
     </MenuButton>

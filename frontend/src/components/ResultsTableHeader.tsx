@@ -170,7 +170,7 @@ function ResultsTableHeader({
         tabIndex={0}
         onKeyDown={(e) => handleSortKey(e, key)}
         aria-describedby={sortHintId}
-        className={`${column?.number ? TABLE.headNumber : TABLE.head} ${FOCUS_RING_INSET} ${cellClass} cursor-pointer whitespace-nowrap hover:text-ink-strong select-none`}
+        className={`${column?.number ? TABLE.headNumber : TABLE.head} ${FOCUS_RING_INSET} ${cellClass} cursor-pointer whitespace-nowrap ${ACCENT.hoverText} select-none`}
       >
         {/* The arrow's slot is drawn on every header, hidden where the sort
             is not, so a header keeps one width whether the sort lands on it

@@ -1,8 +1,9 @@
 import { useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import SearchBox, { type SearchBoxHandle } from './SearchBox'
 import { IconMenu } from './icons'
+import { MenuButton } from './Menu'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { LAYER, MAP_CHIP_SUMMARY, MAP_CHIP_SUMMARY_TEXT, MAP_ROWS, MAP_SLOT } from '../styles'
+import { LAYER, MAP_CHIP_SUMMARY_TEXT, MAP_ROWS, MAP_SLOT } from '../styles'
 import type { Place } from '../utils/geocode'
 
 interface MapRowsProps {
@@ -96,21 +97,25 @@ export default function MapRows({
           menu's chip and the panel's focus hand-off keep their state. */}
       <div className={searching ? 'hidden' : MAP_ROWS.chips}>
         {summaryShown && (
-          <button
+          // A chip like Layers and Legend beside it, so it answers the
+          // pointer and lights while its sheet is up as they do (record
+          // 0251), with no chevron because the drawer is not a menu. The one
+          // chip that gives way: a narrow row cuts its words.
+          <MenuButton
             ref={controlsRef}
-            // A phone's chip lowers the sheet it raised, and is lit while it
-            // is up, the way Layers and Legend are for theirs.
+            shape="chip"
+            open={sidebarOpen}
+            chevron={false}
             onClick={sidebarOpen ? onCloseControls : onOpenControls}
             aria-label="Open controls"
-            aria-expanded={sidebarOpen}
             aria-describedby={summaryId}
-            className={MAP_CHIP_SUMMARY}
+            className="min-w-0"
           >
             <IconMenu className="flex-shrink-0" />
             <span id={summaryId} className={MAP_CHIP_SUMMARY_TEXT}>
               {controlsSummary}
             </span>
-          </button>
+          </MenuButton>
         )}
         {/* Legend first, so its card, the one open by default, hangs over
             the map's left edge and covers less of it (TJ, 2026-10-18). */}

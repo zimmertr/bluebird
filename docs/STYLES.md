@@ -71,7 +71,6 @@ The app has two themes since #706, dark by default and light behind the switch i
 |---|---|
 | `FIELD` | Text input, recessed fill with border |
 | `FIELD_NUMERIC` | Number input with browser spinners suppressed |
-| `SELECT` | A field you choose from: recessed fill with suppressed platform chrome, worn by a phone's native selects and by the field shape of a desk's menu triggers |
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
 | `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.26:1 on the panel, 5.98:1 on an idle metric select and 5.41:1 on an unplotted chart chip, where 50% was 4.14, 4.61 and 4.23. The fade is the `--ui-muted` token, 65% in light, where 60% leaves the dark ink at 4.31, 4.50 and 4.38 and 65% measures 5.07, 5.34 and 5.10 (#706) |
 | `SR_ONLY` | Text for assistive technology only: the twin of an approved tooltip, the one sentence a row's metric links are described by, and a live region that must exist before it speaks |
@@ -84,7 +83,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
 | `SEGMENT_DIVIDER` | The rule between two segment halves |
 | `CONTROL_SIZE` | The one type size every control reads at (`text-xs`); `SLIDER.value` and `SLIDER.wordmark` compose it |
-| `SELECT_W_AGGREGATE` | The aggregate menu in a Metrics row: 72px (w-[4.5rem]), the widest aggregate word (28px) plus the field's 8px padding and the 24px `SELECT` reserves for its chevron, with 12px of deliberate slack because the width also sets a grid track |
+| `SELECT_W_AGGREGATE` | The aggregate menu in a Metrics row: 72px (w-[4.5rem]), the widest aggregate word (28px) plus the field's 8px padding and the 24px the field trigger reserves for its chevron, with 12px of deliberate slack because the width also sets a grid track |
 | `CAPTION_LIFTED` | `TEXT.caption` re-derived for the slate-700 fills: the window caption on the results sheet's header bar, and a search result's description, which stood on slate-700 until the search list took the menu card. slate-300 (6.97:1) because slate-400 falls to 3.93:1 on that fill |
 | `SEARCH_KIND` | A search result's kind beside its name: `CAPTION_LIFTED` at the heading weight, 600, so places with similar names read apart by what each one is (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
 | `SLIDER` | The parts of the two range inputs that are not the input itself, one object since #687: `overlay`, `value`, `wordmark` and `idle` are the coverage slider in the Layers popover (the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint), `well` is the recessed well that slider's layers stack in, and `track` is the rail the map timeline's scrubber slides on |
@@ -114,8 +113,9 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `ACCENT.mark` | Bare graphic with nothing on it: progress bar fill |
 | `ACCENT.input` | Native checkbox/radio tint and sizing |
 | `ACCENT.text` | Resting accent text: table detail-sort arrow |
-| `ACCENT.hoverText` | Text reaching for accent on hover |
+| `ACCENT.hoverText` | The one hover: a control's label or glyph takes the accent ink under the pointer, unless it is disabled or open. Nothing spells another (`style-hover-accent-only`, record [0252](decisions/0252-every-trigger-is-one-component.md)) |
 | `COLUMN_GRIP` | A results header's resize grip: a 2px line drawn by its `before`, the edge ink at rest and the accent under the pointer (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
+| `RESIZE_GRIP` | The bar between two results panels, which a drag resizes and a double press resets: its pill lights in the accent under the pointer, as a column's grip does, where the bar filled grey until record [0252](decisions/0252-every-trigger-is-one-component.md) |
 | `ACCENT.edgeFocus` | Border on focus-within |
 | `FOCUS_RING` | Visible keyboard-focus outline |
 | `FOCUS_RING_INSET` | The same outline drawn inside the edge: the results table's sticky headers, where an outer ring is clipped by the scroll box and lands on the first row (sky-400 is 4.75:1 on the slate-700 bar) |
@@ -155,9 +155,9 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `CHART_METRIC_W` | The chart's metric menu, 152px (w-38). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: its labels carry an hour's unit, and `Precipitation (in/hr)` is 109.03px (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
 | `CHIP_CARD_W` | Widths of the two chip cards at a desk, keyed like `SURFACE_CHIP_CARD`. `key`, the legend card: 224px (w-56) since #799. The fire activity key's one line needs 189.4px with the card's padding, the legend's wait line 176.8px. `menu`, the Layers menu: as wide as its widest row and never narrower than its chip (`w-max min-w-full`), as every other menu is; 246.7px since its base-map rows carry a slider (record [0250](decisions/0250-layers-palette-and-base-map-opacity.md)), 128.7px before. The two shared one width until 2026-10-29 (the maintainer, on #799) |
 | `MAP_CHIP_MENU` | Where a chip's menu stands at a desk: a whole card from the chip's left edge, 4px under it, at its own `CHIP_CARD_W` width. That is closer than the 8px between the pill and the chip row, so the card reads as its chip's menu and not as another row. Not joined: the chip keeps its pill and is lit while the card is out. The caller picks the surface: `SURFACE_CHIP_CARD.menu` for the Layers menu, `.key` for the legend card. Every other desk menu copies this card |
-| `TRIGGER_LIT` | Every menu trigger while its menu is out: `ACCENT.fill` as `aria-expanded` variants, the one open state for chip, field and bar (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
-| `MENU_TRIGGER` | The three trigger shapes, on purpose: `chip` for a pill on the map, `field` for a field in the panel or over the chart, `bar` for a button in the results bar's group. Each takes the accent on its label under the pointer, never its edge (record [0251](decisions/0251-controls-light-their-label-on-hover.md)), and while its menu is out every shape lights in the accent fill under the label-on-fill ink (`TRIGGER_LIT`), its chevron taking its trigger's ink. `MenuButton` in `components/Menu.tsx` is the only wearer |
-| `MENU_CHEVRON` | Where each shape's chevron stands: `IconChevron` after the label, down while the menu is shut and up while it is open. The chip's is pulled 4px into its padding and the bar button's 2px, so each sits as far from the right edge as the label does from the left; the field's stands in `ICON_ADORNMENT`'s place and takes the accent with the edge. A phone's chips and bar buttons have none, because their sheets rise from below |
+| `TRIGGER_STATE` | Every state a trigger has, in one string every shape ends in: `ACCENT.hoverText`, the accent fill, ink and edge while open, `DISABLED` and `FOCUS_RING`. No focus edge and no pressed fill (record [0252](decisions/0252-every-trigger-is-one-component.md)) |
+| `MENU_TRIGGER` | The three trigger shapes, on purpose: `chip` for a pill on the map, `field` for a field in the panel or over the chart, `bar` for a button in the results bar's group. Each is a surface, a size and a resting ink ending in `TRIGGER_STATE`, so they differ in nothing a pointer, a keyboard or an open menu can see (record [0252](decisions/0252-every-trigger-is-one-component.md)). `MenuButton` in `components/Menu.tsx` is the only wearer, the summary chip included |
+| `MENU_CHEVRON` | Where each shape's chevron stands: `IconChevron` after the label, down while the menu is shut and up while it is open. The chip's is pulled 4px into its padding and the bar button's 2px, so each sits as far from the right edge as the label does from the left; the field's stands at the right of the room the field reserves. Each takes its trigger's ink. A phone's chips and bar buttons have none, because their sheets rise from below |
 | `MENU` | The parts of the one menu: `card` (the chip card's `menu` surface on `LAYER.popover`), `foot` (a foot ruled off by `SURFACE_DIVIDER`; a menu has no header, its trigger names it, record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)), `list` (the scrolling rows on `SCROLL_BARS`), `row` and `option` (the Layers menu's 10px inset, `option` adding the control size and the touch row for a list you pick from), `cardRow` (a Layers row's inset, pulled out so its fill starts where a list row's does, 20px apart like every menu's rows), `active` (the raised fill under the pointer or the keyboard), `hover` (the same fill on every enabled checkbox row), `current` (the value a field shows, in semibold, with no check mark) and `heading` (a word over a group of rows, read and never pressed: the caption step in semibold, sentence case, 5.56:1 dark and 8.91:1 light on the card; the Layers menu's Base map, Hazards and Forecast, record [0249](decisions/0249-layers-in-three-groups.md)) |
 | `MENU_GROUP` | A group of the Layers menu's rows under its `MENU.heading` (record [0249](decisions/0249-layers-in-three-groups.md)). At a desk `card` sets each group 6px under the one over it, the first none, and `cardHeading` keeps 2px under the heading, the gap a row keeps, with no rule. On a phone's sheet `sheet` draws the sheet's own rule between the heading and each row, `sheetHeading` stands 6px under the rule over it and 2px over the next, 25px tall to a row's 33, and `sheetRow` is a row's 32px |
 | `LAYER_ROW` | A row of the Layers menu (record [0250](decisions/0250-layers-palette-and-base-map-opacity.md)): the menu's checkbox (`CHOICE_ROW`, `CHOICE_INPUT`), the name, and on the four Base map rows an opacity slider at the right. The record first drew the box as an eye, which the maintainer took back the same day. `slider` is the well at a desk, 120 by 20, and `sliderSheet` on a phone, half the row and 32 tall, the phone's control height: at the lab's 96 the thumb at 50% stood on the wordmark. An off layer's slider looks the same as an on one's, because a drag on it checks the box. `cardRows` rules a group's rows at a desk the sheet's way, and `cardRow` makes each 28px |
@@ -228,7 +228,6 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `ICON_BUTTON` | Bare icon button in header, and the bare × inside a card or a field: the popup's, the tutorial's, the search's (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
 | `ICON_CLOSE_BUTTON` | `ICON_BUTTON` for a × with free room around it, the tutorial card's and the search's clear: a 44px press under a finger through a pseudo-element, without growing the glyph |
 | `ICON_ACTION` | Icon that acts on hover |
-| `ICON_ADORNMENT` | Glyph drawn inside a field |
 | `SPINNER` | Indeterminate spinner |
 | `TABLE.cell` | Results table cell inset |
 | `TABLE.row` | One data row: the rule above it and what it does under a pointer. Both the pending destinations and the ranked results wear it |
@@ -271,7 +270,7 @@ utilities and ride the same block as plain variables: the accent ring's glow
 | `edge` / `edge-lifted` | slate-500 / slate-400 | `#72787f` / `#72787f` | `PANEL_EDGE`, `RECESSED_EDGE`, `SEGMENT_DIVIDER`, `SURFACE_CHIP_CARD`, `SURFACE_FLOATING`, `SURFACE_CARD`, the chips, the map's buttons, `POPUP_FACE`, the scroll thumb; the marker popup's scroll thumb |
 | `ink-strong` / `ink` | white / slate-200 | `#181c21` / `#181c21` | headings and the primary text |
 | `ink-mid` | slate-300 | `#2d3238` | `LINK`, `TEXT.micro`, `CAPTION_LIFTED`, `TEXT.section` |
-| `ink-soft` | slate-400 | `#42474e` | captions, `SEGMENT_IDLE`, `ICON_ADORNMENT`, placeholders |
+| `ink-soft` | slate-400 | `#42474e` | captions, `SEGMENT_IDLE`, placeholders |
 | `ink-faint` / `ink-ghost` | slate-500 / slate-600 | `#6c727a` / `#a0a6ae` | `ICON_ACTION` at rest; `DAY.unservable` |
 | `accent` / `accent-hover` | sky-650 / sky-600 | sky-650 / `#00639b` | `ACCENT.fill`, `BUTTON_PRIMARY`, `BADGE_STEP` |
 | `accent-ink` / `accent-ink-hover` | sky-400 / sky-300 | `#00639b` / `#004a75` | `LINK_ACTION`, `ACCENT.text`, `FOCUS_RING` |
@@ -392,8 +391,8 @@ button against the panel's in a browser. Record: [0163](decisions/0163-popups-fo
 | Every radio/checkbox uses the shared recipe | `styles.test.ts`, `checks/styles.js` | The test checks `CHOICE_INPUT` composition and counts one per `CHOICE_ROW` in each panel file; `style-call-site-classes` bans a size after `ACCENT.input` |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
-| One open state: every menu trigger lights in the accent fill | `styles.test.ts`, `Menu.test.tsx`, `checks/styles.js` | Every `MENU_TRIGGER` shape and the summary chip wear `TRIGGER_LIT`, and every chevron takes its trigger's ink; a button with `aria-expanded` outside `MenuButton` fails (`style-menu-trigger`), the summary chip must wear `MAP_CHIP_SUMMARY` (`style-summary-lit`), and the message badge alone keeps its severity colour while open (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
-| One hover: a control's label or glyph takes the accent, and no edge lights | `checks/styles.js`, `styles.test.ts` | `style-hover-no-edge` bans a `hover:` border, outline or ring in any class string; the test holds `map.css` to it (only a colour or a glyph's mask changes under the pointer, 3D's solid fill aside), every map glyph under the pointer to its own drawing in the accent, and the compass's to its drawing at rest with the north triangle alone refilled in each theme's accent ink (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
+| One trigger: every control that opens a menu has the same states | `styles.test.ts`, `Menu.test.tsx`, `checks/styles.js` | Every `MENU_TRIGGER` shape's state variants are exactly `TRIGGER_STATE`'s and none has a `focus:` state; every chevron takes its trigger's ink; a button with `aria-expanded` outside `MenuButton` fails (`style-menu-trigger`), and so does a colour, a state or a state role handed to a `MenuButton` or `MenuSelect` or set inside one (`style-trigger-no-look`); a native `<select>` fails anywhere (`style-one-menu`); the message badge alone keeps its severity colour while open (records [0251](decisions/0251-controls-light-their-label-on-hover.md), [0252](decisions/0252-every-trigger-is-one-component.md)) |
+| One hover: a control's label or glyph takes the accent, and no edge lights | `checks/styles.js`, `styles.test.ts` | `style-hover-no-edge` bans a `hover:` border, outline or ring in any class string, and `style-hover-accent-only` a `hover:text-` in any colour but the accent ink; the test holds `map.css` to it (only a colour or a glyph's mask changes under the pointer, 3D's solid fill aside), every map glyph under the pointer to its own drawing in the accent, and the compass's to its drawing at rest with the north triangle alone refilled in each theme's accent ink (record [0251](decisions/0251-controls-light-their-label-on-hover.md)) |
 | Metric names are centralized | `eslint.config.js` | Ban the six abbreviations in strings and templates across twelve consumer files |
 | Precipitation precision is centralized | `metrics.test.ts` | Ban a `toFixed` on a precipitation value in the same twelve files, read as text; `formatPrecipTotal` / `formatPrecipRate` decide |
 | Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
@@ -754,15 +753,14 @@ pointer, and never a grey after a run.
 Record: [0135](decisions/0135-phone-opens-on-the-map.md)
 
 A phone chart's metric picker is the plot's title (`CHART_TITLE`): the
-metric's label with its unit in the app's own select, sized to its words and
-28px tall. It wears `FIELD_LOOK`, the fill, edge, radius and type `FIELD` is
-built from, with `SELECT`'s `pr-6` and the chevron in `ICON_ADORNMENT`'s
-place, so it is the desktop picker shrunk rather than a look of its own. The
-native select is laid over it, transparent, 44px tall under a finger. The
-plot's top margin grows by the title's 28px (`TITLED_PLOT_MARGIN`), so its
+metric's label with its unit, sized to its words and 32px tall. It is the
+desk's `MenuSelect`, the field trigger every dropdown is, opening the one
+menu's sheet (record [0252](decisions/0252-every-trigger-is-one-component.md)),
+so it is the desktop picker shrunk rather than a look of its own. The
+plot's top margin grows by the title's 32px (`TITLED_PLOT_MARGIN`), so its
 dashed lines, their labels and the top tick start under it. Measured
-2026-10-14: the field row it replaced was 52px, and the plotting band grew
-24px at 360 and 390.
+2026-10-14, when the title was a 28px box over a native select: the field
+row it replaced was 52px, and the plotting band grew 24px at 360 and 390.
 Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
 
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
@@ -925,7 +923,7 @@ Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whol
 
 **Segment arithmetic:** 118px less the 2px border and the 1px divider is 57.5px a half. The longest words are `Highest` at 43.69px and `Current` at 42.89px, both at text-xs, so `SEGMENT_ITEM` carries a 4px inset leaving 49.5px. An 8px inset leaves 41.5px and clips them both, which is why there is one inset for every segment in the panel rather than two. Checked in `styles.test.ts`.
 
-**The chevron:** `SELECT` reserves `pr-6` = 24px, which is the chevron's own box and nothing more — `ICON_ADORNMENT` puts a 16px glyph 8px from the edge. It reserved 32px until the column came down to 118px, where those 8px were the difference between `UK Met Office` (79.69px) fitting the model picker's 84px of label and truncating. `Meteo-France ARPEGE` at 130.03px fits no trigger the panel can offer and truncated at 144px too.
+**The chevron:** the field trigger reserves `pr-6` = 24px, which is the chevron's own box and nothing more — `ICON_ADORNMENT` puts a 16px glyph 8px from the edge. It reserved 32px until the column came down to 118px, where those 8px were the difference between `UK Met Office` (79.69px) fitting the model picker's 84px of label and truncating. `Meteo-France ARPEGE` at 130.03px fits no trigger the panel can offer and truncated at 144px too.
 
 **Arithmetic:** `327 − 14 (radio) − 10 (label gap) − 3 × 6 (grid gaps) − 72 − 2 × 56 = 101px` for the label, and 91px with the 10px bar's room taken off. The noun's measured width is pinned beside that sum in `styles.test.ts`; re-measure before moving a width, the gap, or the nouns.
 
@@ -1103,7 +1101,7 @@ A range input is worth taking over a hand-rolled track for what it arrives
 knowing: arrow keys, Home and End, an announced value, and a drag a finger can
 do. What it does not arrive with is a look — it paints from the *system*
 palette, so a light-mode OS renders a pale track inside a dark map card, the
-same trap `SELECT` documents.
+same trap `TRIGGER_FIELD` documents.
 
 Suppressing that takes three declarations, not one, and missing any of them
 ships a control that looks native on half the machines it runs on:
@@ -1188,18 +1186,19 @@ Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
 Triggers come in three shapes, on purpose (`MENU_TRIGGER`): a pill on the map,
 a field in the panel or over the chart, and a button in the results bar. Each
 carries the chips' chevron after its label, down while shut and up while open.
-Download CSV opens nothing and has none. Under the pointer the edge and the
-label take the accent; a bar button has no edge, so only its label does. While
-its menu is open, a pill or a bar button fills with the accent and a field
-keeps its accent edge.
+Download CSV opens nothing and has none. Under the pointer the label takes
+the accent and no edge lights; while its menu is open every shape fills with
+the accent, and nothing stays lit once it closes (`TRIGGER_STATE`, record
+[0252](decisions/0252-every-trigger-is-one-component.md)).
 Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
 
 At a desk the chart's metric and each Metrics row's aggregate are menus. A
 native select opens the platform's own list, which no stylesheet reaches. The
 arrow keys, Enter, Space and Escape work as on a select, and the keyboard
-returns to the field when the list closes. A phone keeps the native select,
-whose picker rises from below like every phone menu.
-Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
+returns to the field when the list closes. On a phone the same menu opens as a
+bottom sheet headed by the field's name, as the model list does; the app has
+no native select.
+Record: [0201](decisions/0201-one-menu-for-every-trigger.md) Record: [0252](decisions/0252-every-trigger-is-one-component.md)
 
 The Layers chip's card is where the one menu came from. Squaring a 32px pill's
 bottom corners left a dome, so the chip stays a whole pill, lit while its card

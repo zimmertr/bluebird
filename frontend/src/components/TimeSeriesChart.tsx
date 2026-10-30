@@ -11,8 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_METRIC_W, CHART_PLOT_TOUCH, CHART_TITLE, ICON_ADORNMENT, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
-import { IconChevron } from './icons'
+import { CHART_METRIC_W, CHART_PLOT_TOUCH, CHART_TITLE, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
 import { MenuSelect } from './Menu'
 import {
   CHART_METRICS,
@@ -402,13 +401,6 @@ function TimeSeriesChart({
     if (typeof t === 'number') onPlayheadChange(t)
   }
 
-  const metricOptions = CHART_METRICS.map((m) => (
-    <option key={m.key} value={m.key}>
-      {m.label}
-    </option>
-  ))
-  const metricLabel = CHART_METRICS.find((m) => m.key === metric)?.label ?? ''
-
   return (
     // The tour's Chart step lights the chart, its picker and plot (#696).
     <div className="flex h-full flex-col" data-tour="chart">
@@ -451,24 +443,20 @@ function TimeSeriesChart({
       )}
 
       <div className="relative flex min-h-0 flex-1 flex-col">
-        {/* A phone's picker (#696, record 0149): the app's select at the
-            metric's width as the plot's title, the native select laid over it so a
-            tap opens the phone's own picker. Outside the plot's box, so a press
-            on it is the select's and not a finger reading the plot. */}
+        {/* A phone's picker (#696, record 0149): the plot's title, the
+            desk's field shrunk to its words, opening the one menu's sheet as
+            the model picker does (record 0252). Outside the plot's box, so a
+            press on it is the field's and not a finger reading the plot. */}
         {titled && (
           <div className={CHART_TITLE.box}>
-            <span aria-hidden="true" className={CHART_TITLE.text}>
-              {metricLabel}
-            </span>
-            <IconChevron up={false} className={ICON_ADORNMENT} />
-            <select
-              aria-label="Chart metric"
+            <MenuSelect
+              label="Chart metric"
               value={metric}
-              onChange={(e) => onMetricChange(e.target.value as ChartMetric)}
-              className={CHART_TITLE.select}
-            >
-              {metricOptions}
-            </select>
+              options={METRIC_OPTIONS}
+              onChange={onMetricChange}
+              sheet
+              className={CHART_TITLE.field}
+            />
           </div>
         )}
         <div

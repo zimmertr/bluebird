@@ -36,7 +36,6 @@ import {
   FOCUS_RING,
   FOCUS_RING_INSET,
   ICON,
-  ICON_ADORNMENT,
   METRICS_GRID,
   METRIC_BOX_W,
   METRIC_HEAD_GAP,
@@ -52,7 +51,6 @@ import {
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   DISABLED,
-  SELECT,
   SEGMENT_FILL,
   SELECT_W_AGGREGATE,
   SPINNER,
@@ -92,7 +90,6 @@ import {
   MENU_CHEVRON,
   MENU_TRIGGER,
   MAP_CHIP_MENU,
-  MAP_CHIP_SUMMARY,
   MAP_CHIP_SUMMARY_TEXT,
   MAP_FAB,
   MAP_FAB_SLOT,
@@ -175,6 +172,10 @@ import {
 // The map's chip is the chip shape of the one menu trigger (record 0201), and
 // that is the only name it is exported under.
 const MAP_CHIP = MENU_TRIGGER.chip
+// The field that opens a menu, and the chevron's place inside it: what a
+// styled native select and its adornment were until record 0252.
+const SELECT = MENU_TRIGGER.field
+const ICON_ADORNMENT = MENU_CHEVRON.field
 // `?raw` gives us the file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
@@ -826,7 +827,7 @@ describe('grouping and segmenting', () => {
     expect(SEGMENT_IDLE).not.toBe(ACCENT.fill)
     // Under the pointer the label takes the accent ink, as every dropdown,
     // menu trigger and choice row does (record 0251). Measured 2026-10-30.
-    expect(SEGMENT_IDLE).toContain('not-disabled:hover:text-accent-ink')
+    expect(SEGMENT_IDLE).toContain(ACCENT.hoverText)
     expect(SEGMENT_IDLE).not.toMatch(/hover:bg-/)
     expect(MENU_TRIGGER.field).toContain('hover:text-accent-ink')
     expect(CHOICE_ROW).toContain('hover:text-accent-ink')
@@ -1119,11 +1120,14 @@ describe('shared recipes', () => {
     expect(darkStep(token(FIELD, 'placeholder'))).toBe('slate-400')
   })
 
-  // A dropdown is a field with two additions, not a second field. Built from
-  // FIELD so the two cannot drift into different surfaces, borders or focus
-  // rings the way the segmented control's two hand-built copies once could.
-  it('builds the dropdown out of the field rather than beside it', () => {
-    expect(SELECT).toContain(FIELD)
+  // A dropdown wears a field's surface, so the two cannot drift into
+  // different fills, edges or radii, but not a text input's focus edge: that
+  // lit the chart's metric field after its menu closed, where Columns beside
+  // it did not (record 0251). Its only focus state is the keyboard's ring.
+  it("builds the dropdown on the field's look without its focus edge", () => {
+    for (const w of words(FIELD).filter((w) => !/^(focus|placeholder)/.test(w))) expect(words(SELECT)).toContain(w)
+    expect(SELECT).not.toMatch(/(^|\s)focus:/)
+    expect(FIELD).toMatch(/(^|\s)focus:border-/)
   })
 
   // The native control paints its own chrome from the SYSTEM palette, so on a
@@ -2495,7 +2499,7 @@ describe('the map rows', () => {
   // than the box's.
   it('dresses the pill, the map buttons and the chips in the floating box\'s chrome', () => {
     const chrome = tokens(SURFACE_FLOATING).filter((t) => t !== RADIUS.surface)
-    for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON, MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out, MAP_CHIP, MAP_CHIP_SUMMARY]) {
+    for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON, MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out, MAP_CHIP]) {
       for (const t of chrome) expect(tokens(recipe), `${t} in ${recipe}`).toContain(t)
       expect(tokens(recipe)).not.toContain(RADIUS.surface)
     }
@@ -2505,7 +2509,7 @@ describe('the map rows', () => {
   // weight. The 13px the mockup drew them at (#696) was the one size off the
   // ramp, so no role may drift back onto it.
   it('sets the chips at the control size with 12px a side', () => {
-    for (const recipe of [MAP_CHIP, MAP_CHIP_SUMMARY]) expect(sizes(recipe)).toEqual([CONTROL_SIZE])
+    expect(sizes(MAP_CHIP)).toEqual([CONTROL_SIZE])
     const recipes = Object.values(STYLES).flatMap((v) =>
       typeof v === 'string' ? [v] : Object.values(v as Record<string, unknown>).filter((x): x is string => typeof x === 'string'),
     )
@@ -2517,14 +2521,14 @@ describe('the map rows', () => {
   // The summary is the one chip that gives way, by an ellipsis on its words;
   // every other chip keeps its width, and nothing claims the row's right end.
   it('lets the summary alone shrink, and leaves the right end empty', () => {
-    expect(tokens(MAP_CHIP)).toContain('flex-shrink-0')
-    expect(MAP_CHIP_SUMMARY).not.toMatch(/(^|\s)(flex-)?shrink-0(\s|$)/)
-    expect(tokens(MAP_CHIP_SUMMARY)).toContain('min-w-0')
-    expect(tokens(MAP_CHIP_SUMMARY_TEXT)).toEqual(expect.arrayContaining(['min-w-0', 'truncate']))
-    // Lit, its words read white on the accent fill like every label there.
-    expect(token(MAP_CHIP_SUMMARY_TEXT, 'in-aria-expanded:text')).toBe(token(ACCENT.fill, 'text'))
+    // The chip says nothing about shrinking; each call site says it.
+    expect(MAP_CHIP).not.toMatch(/(^|\s)(flex-)?shrink(-0)?(\s|$)/)
+    expect(layersPopoverSource).toMatch(/shape="chip"[\s\S]*?className="flex-shrink-0"/)
+    expect(mapLegendSource).toMatch(/shape="chip"[\s\S]*?className="flex-shrink-0"/)
+    expect(mapRowsSource).toMatch(/shape="chip"[\s\S]*?className="min-w-0"/)
+    expect(tokens(MAP_CHIP_SUMMARY_TEXT)).toEqual(['min-w-0', 'truncate'])
     expect(token(MAP_CHIP, 'aria-expanded:bg')).toBe(token(ACCENT.fill, 'bg'))
-    for (const recipe of [MAP_CHIP, MAP_CHIP_SUMMARY, MAP_ROWS.chips]) expect(recipe).not.toMatch(/(^|\s)(ml-auto|justify-between)(\s|$)/)
+    for (const recipe of [MAP_CHIP, MAP_ROWS.chips]) expect(recipe).not.toMatch(/(^|\s)(ml-auto|justify-between)(\s|$)/)
   })
 
   // A chip lit for its open sheet takes the accent fill as a variant, so the
@@ -2533,7 +2537,9 @@ describe('the map rows', () => {
     // A map chip keeps its pill whole while its menu is out (TJ, 2026-10-18),
     // and is the chip shape of the one menu trigger (record 0201).
     for (const source of [mapLegendSource, layersPopoverSource]) expect(source).toContain('shape="chip"')
-    expect(mapLegendSource).toContain('className={DISABLED}')
+    // Greyed by the one trigger state, not by a role its call site adds.
+    expect(mapLegendSource).not.toContain('className={DISABLED}')
+    expect(MAP_CHIP).toContain(DISABLED)
     const fill = tokens(ACCENT.fill).find((t) => t.startsWith('bg-'))!
     expect(tokens(MAP_CHIP)).toContain(`aria-expanded:${fill}`)
     expect(tokens(MAP_CHIP)).toContain(`aria-expanded:${fill.replace(/^bg-/, 'border-')}`)
@@ -2570,7 +2576,7 @@ describe('the phone chrome\'s hit areas', () => {
 
   // A pseudo-element's inset is measured from inside the 1px border.
   it('presses a 32px chip as 44, by a box 6px above and below it', () => {
-    for (const recipe of [MAP_CHIP, MAP_CHIP_SUMMARY]) {
+    for (const recipe of [MAP_CHIP]) {
       const seen = steps(recipe, /(?:^|\s)h-(\d+)(?:\s|$)/)
       const rim = Number(recipe.match(/(?:^|\s)touch:before:-inset-y-\[(\d+)px\](?:\s|$)/)![1])
       expect(tokens(recipe)).toContain('border')
@@ -2712,7 +2718,7 @@ describe('the phone chrome\'s hit areas', () => {
     expect(lit.light).toBe(rest.replace('fill="#ef4444"', `fill="${light('accent-ink')}"`))
     // And the buttons' classes carry the hover the glyphs follow.
     for (const recipe of [MAP_ROUND_BUTTON, MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out]) {
-      expect(recipe).toContain('enabled:hover:text-accent-ink')
+      expect(recipe).toContain(ACCENT.hoverText)
     }
     expect(MAP_CREDIT.button).toContain(ACCENT.hoverText)
   })
@@ -3072,40 +3078,30 @@ describe('the chart under a finger', () => {
 // 44px select a finger presses and the row's 4px either side). The box stands
 // 12px from the grip's rule, 12px over the y axis's top label and 12px from
 // the sheet's edge, the results bar's own inset (the maintainer, 2026-10-14).
+// Since record 0252 it is the desk's field trigger, opening a sheet, at a
+// phone field's 32px rather than the 28px look it had over a native select.
 describe('the chart title on a phone', () => {
-  const MEASURED = { fieldRowPx: 52, insetPx: 28, rulePx: 12, labelPx: 12, leftPx: 12, barLeftPx: 12 }
+  const MEASURED = { fieldRowPx: 52, rulePx: 12, labelPx: 12, leftPx: 12, barLeftPx: 12 }
 
-  it('is a 28px box with the same room above it, below it and on its left', () => {
-    expect(words(CHART_TITLE.box)).toEqual(expect.arrayContaining(['h-7', 'top-3', 'left-3']))
-    expect(7 * 4).toBe(CHART_TITLE_PX)
-    expect(CHART_TITLE_PX).toBe(MEASURED.insetPx)
+  it('is a 32px field with the same room above it, below it and on its left', () => {
+    expect(words(CHART_TITLE.box)).toEqual(expect.arrayContaining(['top-3', 'left-3']))
+    expect(words(CHART_TITLE.field)).toContain('h-8')
+    expect(8 * 4).toBe(CHART_TITLE_PX)
+    expect(words(TAP.height)).toContain('touch:min-h-8')
     expect(3 * 4).toBe(CHART_TITLE_INSET_PX)
     for (const gap of [MEASURED.rulePx, MEASURED.labelPx, MEASURED.leftPx]) expect(gap).toBe(CHART_TITLE_INSET_PX)
     // Its left edge is the results bar's, where "Lowest" and the view buttons stand.
     expect(MEASURED.leftPx).toBe(MEASURED.barLeftPx)
     expect(TITLED_PLOT_MARGIN.top).toBe(2 * CHART_TITLE_INSET_PX + CHART_TITLE_PX + TOP_LABEL_RISE_PX)
+    // Still shorter than the row it replaced.
+    expect(TITLED_PLOT_MARGIN.top - TOP_LABEL_RISE_PX).toBeLessThan(MEASURED.fieldRowPx + CHART_TITLE_INSET_PX)
   })
 
-  it("wears the select's look, its fill, edge, radius, type and arrow room, at the plot's left margin", () => {
-    expect(words(CHART_TITLE.box)).toEqual(
-      expect.arrayContaining([...words(TEXT.control), RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, 'pr-6']),
-    )
-    expect(words(SELECT)).toContain('pr-6')
-    // The chevron every menu trigger wears, where every select's stands.
-    expect(timeSeriesChartSource).toContain('<IconChevron up={false} className={ICON_ADORNMENT} />')
-    // Sized to its words, not to the desktop picker's fixed width.
-    expect(CHART_TITLE.box).not.toContain(CHART_METRIC_W)
-  })
-
-  it('lays the native select over the title, invisible, a 44px target centred on it', () => {
-    expect(words(CHART_TITLE.select)).toEqual(
-      expect.arrayContaining(['absolute', 'opacity-0', 'touch:h-11', 'w-full', 'top-1/2', '-translate-y-1/2']),
-    )
-    // 44 over a 28px box is 8px either side, inside the 12px of room.
-    expect((44 - CHART_TITLE_PX) / 2).toBeLessThan(CHART_TITLE_INSET_PX)
-    // FIELD's focus edge, on the box because the select is invisible.
-    expect(darkStep(token(FIELD, 'focus:border'))).toBe('sky-500')
-    expect(token(CHART_TITLE.box, 'has-[select:focus]:border')).toBe(token(FIELD, 'focus:border'))
+  it('is the one field trigger, sized to its words, with no look of its own', () => {
+    expect(timeSeriesChartSource).toMatch(/<MenuSelect[\s\S]*?sheet[\s\S]*?className=\{CHART_TITLE\.field\}/)
+    expect(timeSeriesChartSource).not.toContain('<select')
+    expect(CHART_TITLE.field).not.toContain(CHART_METRIC_W)
+    for (const part of Object.values(CHART_TITLE)) expect(part).not.toMatch(/(^|[\s:])(bg|border|text)-(?!left)/)
   })
 })
 
@@ -3675,7 +3671,7 @@ describe('a desk\'s map corner', () => {
     for (const half of [MAP_ZOOM_PAIR.in, MAP_ZOOM_PAIR.out]) {
       for (const t of tokens(MAP_ROUND_BUTTON).filter((t) => !shape.has(t))) expect(tokens(half), t).toContain(t)
       expect(tokens(half)).not.toContain(RADIUS.pill)
-      expect(tokens(half)).toContain('enabled:hover:text-accent-ink')
+      expect(tokens(half)).toContain(ACCENT.hoverText)
       expect(half).not.toMatch(/hover:(bg|border)-/)
     }
     expect(tokens(MAP_ZOOM_PAIR.in)).toEqual(expect.arrayContaining(['border-b-0', 'rounded-t-full']))
@@ -3992,7 +3988,10 @@ describe('the popup card', () => {
     expect({
       rest: both('var(--popup-close)', HEADER_BAND_COLOR),
       hover: both('var(--popup-close-hover)', HEADER_BAND_COLOR),
-    }).toEqual({ rest: [4.71, 7.89], hover: [12.39, 14.42] })
+    }).toEqual({ rest: [4.71, 7.89], hover: [5.69, 5.43] })
+    // Under the pointer the × takes the accent ink, the one hover (record
+    // 0251); it brightened to the strong ink until 2026-10-30.
+    expect(mapCss).toContain('--popup-close-hover: var(--ui-accent-ink);')
     expect(mapCss).not.toMatch(/--popup-close-(?:fill|edge|hover-fill|hover-edge)/)
   })
 
@@ -4164,7 +4163,11 @@ describe('the one menu', () => {
   })
 
   it('fills the row under the pointer and sets the current value semibold', () => {
-    expect(MENU.active).toBe(`bg-${token(MAP_CHIP, 'active:bg')}`)
+    // The raised fill a menu row takes under the pointer. No trigger takes a
+    // pressed fill: the chip's was the one, and it went with the shared
+    // trigger state (record 0251).
+    expect(MENU.active).toBe('bg-raised')
+    expect(MAP_CHIP).not.toMatch(/(^|\s)active:/)
     expect(MENU.current).toBe('font-semibold')
   })
 
@@ -4195,41 +4198,55 @@ describe('the one menu', () => {
   it('keeps three trigger shapes and no more', () => {
     expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field'])
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
-    expect(MENU_TRIGGER.field.startsWith(SELECT)).toBe(true)
-    expect(MENU_TRIGGER.bar.startsWith(ACTION_ITEM)).toBe(true)
+    expect(MENU_TRIGGER.bar).toBe(ACTION_ITEM)
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())
+  })
+
+  // Every state a trigger has is one string every shape ends in (record
+  // 0251): the shapes differ in surface, size and resting ink, and in nothing
+  // a pointer, a keyboard or an open menu can see. Read off the classes, so a
+  // shape that gains a state of its own, or loses one, fails here by name.
+  const STATE_VARIANT = /^(?:hover|focus|focus-visible|focus-within|active|aria-[\w-]+|disabled|enabled|not-[\w-]+|has-\[[^\]]*\]|group-[\w-]+|peer-[\w-]+|in-[\w-]+):/
+  const statesOf = (recipe: string) => [...new Set(words(recipe).filter((w) => STATE_VARIANT.test(w)))].sort()
+  it('gives every trigger exactly the same states', () => {
+    const want = [
+      ...words(ACCENT.hoverText),
+      ...words(ACCENT.fill).map((part) => `aria-expanded:${part}`),
+      'aria-expanded:border-accent',
+      ...words(DISABLED),
+      ...words(FOCUS_RING),
+    ].sort()
+    for (const [shape, recipe] of Object.entries(MENU_TRIGGER)) expect(statesOf(recipe), shape).toEqual(want)
   })
 
   // The one hover: the accent on the label, never the edge, on every
   // trigger and on the segments beside them (record 0251).
   it('lights every trigger the same way under the pointer', () => {
-    const accent = token(ACCENT.hoverText, 'hover:text')
-    expect(token(MAP_CHIP, 'hover:text')).toBe(accent)
-    expect(token(MENU_TRIGGER.field, 'enabled:not-aria-expanded:hover:text')).toBe(accent)
-    expect(token(MENU_TRIGGER.bar, 'hover:text')).toBe(accent)
-    for (const recipe of [MAP_CHIP, MENU_TRIGGER.field, MENU_TRIGGER.bar, SEGMENT_IDLE, BUTTON_FLOATING]) {
+    expect(ACCENT.hoverText).toBe('not-disabled:not-aria-expanded:hover:text-accent-ink')
+    for (const recipe of [...Object.values(MENU_TRIGGER), SEGMENT_IDLE, BUTTON_FLOATING]) {
       expect(recipe).not.toMatch(/hover:border/)
     }
   })
 
   // Open, every trigger lights the one way, in the accent fill under the
-  // label-on-fill ink: chip, field and bar, and the summary chip that raises
-  // the Controls sheet (record 0251). A field showed only an accent edge
-  // until the maintainer found it beside a lit Columns button.
-  it('lights every trigger the same way while open', () => {
+  // label-on-fill ink: chip, field and bar, the summary chip among the chips
+  // (record 0251). A field showed only an accent edge until the maintainer
+  // found it beside a lit Columns button, and an edge again after it closed.
+  it('lights every trigger the same way while open, and nothing after', () => {
     const lit = words(ACCENT.fill).map((part) => `aria-expanded:${part}`)
-    for (const shape of [...Object.values(MENU_TRIGGER), MAP_CHIP_SUMMARY]) {
+    for (const shape of Object.values(MENU_TRIGGER)) {
       for (const part of lit) expect(words(shape)).toContain(part)
+      expect(shape).not.toMatch(/(^|\s)focus:/)
     }
-    // An open field keeps the label-on-fill ink under the pointer.
-    expect(MENU_TRIGGER.field).not.toMatch(/(^|\s)(enabled:)?hover:text-/)
+    // An open trigger keeps the label-on-fill ink under the pointer.
+    expect(ACCENT.hoverText).toContain('not-aria-expanded:')
   })
 
   // The chevron's stroke runs 6 to 18 of its 24-unit box, so at
   // `ICON.control`'s 16px a quarter of the box (4px) is empty past it. A chip
   // takes all of it back, so the glyph stands where its label does from the
   // other edge; a bar button, inset 6px, takes 2px, so the stroke stands 8px
-  // in; a field's stands in the adornment's place inside SELECT's reserve.
+  // in; a field's stands in the adornment's place inside the field's reserve.
   it("pulls each shape's chevron into its padding by its empty box", () => {
     expect(ICON.control).toBe('h-4 w-4')
     const empty = (16 * 6) / 24
@@ -4237,10 +4254,8 @@ describe('the one menu', () => {
     expect(MAP_CHIP).toContain('px-3')
     expect(MENU_CHEVRON.bar).toBe('-mr-0.5')
     expect(stepPx(ACTION_ITEM, 'px') + empty - 2).toBe(8)
-    expect(ICON_ADORNMENT).toBe(`${MENU_CHEVRON.field} text-ink-soft`)
     // Every chevron takes its trigger's ink, at rest, under the pointer and lit.
     for (const chevron of Object.values(MENU_CHEVRON)) expect(chevron).not.toMatch(/(^|[\s:])text-/)
-    expect(MENU_TRIGGER.field).toMatch(/(^|\s)group(\s|$)/)
     expect(MENU_TRIGGER.field).toMatch(/(^|\s)relative(\s|$)/)
   })
 
@@ -4616,13 +4631,11 @@ describe('the light theme', () => {
   // this theme first had), which is how the summary chip's menu glyph
   // vanished in light while its sheet was up.
   it('lights a map chip in the label-on-fill ink', () => {
-    for (const chip of [MAP_CHIP, MAP_CHIP_SUMMARY]) {
-      expect(hex(chip, 'aria-expanded:bg')).toBe(hex(ACCENT.fill, 'bg'))
-      expect(ratio(hex(chip, 'aria-expanded:text'), hex(chip, 'aria-expanded:bg'))).toBe(4.56)
-    }
-    expect(ratio(hex(MAP_CHIP_SUMMARY_TEXT, 'in-aria-expanded:text'), hex(ACCENT.fill, 'bg'))).toBe(4.56)
+    expect(hex(MAP_CHIP, 'aria-expanded:bg')).toBe(hex(ACCENT.fill, 'bg'))
+    expect(ratio(hex(MAP_CHIP, 'aria-expanded:text'), hex(MAP_CHIP, 'aria-expanded:bg'))).toBe(4.56)
     expect(ratio(hex(MAP_CHIP, 'text'), hex(ACCENT.fill, 'bg'))).toBe(3.75)
-    expect(MAP_CHIP_SUMMARY_TEXT).toContain('in-aria-expanded:text-on-fill')
+    // The summary's words take the chip's ink, lit or not.
+    expect(MAP_CHIP_SUMMARY_TEXT).not.toMatch(/(^|[\s:])text-(?!left|right|center)/)
   })
 
   // Every text role on every surface it lands on, past 4.5:1.
@@ -4679,7 +4692,8 @@ describe('the light theme', () => {
     expect(hex(ACCENT.mark, 'bg')).toBe(mark)
     const ring = hex(FOCUS_RING, 'focus-visible:outline')
     expect([PAGE, PANEL, RAISED, WELL].map((g) => ratio(ring, g))).toEqual([6.13, 5.74, 5.14, 6.45])
-    expect(ratio(hex(ICON_ADORNMENT, 'text'), WELL)).toBe(9.36)
+    // A field's chevron takes the field's ink (record 0251).
+    expect(ratio(hex(TEXT.control, 'text'), WELL)).toBe(17.12)
   })
 
   // The two quiet lines stay quiet, as the dark ones are (the rule 1.41 and
