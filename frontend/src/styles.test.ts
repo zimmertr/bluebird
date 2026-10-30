@@ -85,6 +85,7 @@ import {
   MENU,
   MENU_GROUP,
   LAYER_GRID,
+  LEGEND_GRID,
   LAYER_ROW,
   SHEET_ASIDE,
   MODEL_ROW,
@@ -1514,27 +1515,19 @@ describe('shared recipes', () => {
   // the coverage slider's widest value, `100 km`, is 39.4px with its own 8px
   // of padding either side (2026-10-29).
   it('gives the legend card its width and the Layers menu its content\'s', () => {
-    const MEASURED = { fireKey: 169.4, waitLine: 156.8, layersMenu: 128.7, reachValue: 16 + 39.4 }
+    const MEASURED = { fireKey: 169.4, waitLine: 156.8, layersMenu: 128.7 }
     const pad = 2 * stepPx(MAP_CHIP_MENU, 'px')
     expect(CHIP_CARD_W.key).toBe('w-56')
     expect(stepPx(CHIP_CARD_W.key, 'w')).toBeGreaterThanOrEqual(Math.max(MEASURED.fireKey, MEASURED.waitLine) + pad)
     // As wide as its widest row and never narrower than its chip.
     expect(CHIP_CARD_W.menu).toBe('w-max min-w-full')
     expect(MEASURED.layersMenu).toBeLessThan(stepPx(CHIP_CARD_W.key, 'w'))
-    // The coverage slider's value lies over its input and cannot size the
-    // menu, so the grid's column holds it: 120 less the style button and the
-    // 4px gap, with room to spare. The button is square at the sliders'
-    // height, so on a phone it is 32 like every other phone control.
-    const gap = stepPx(LAYER_GRID.controls, 'gap')
-    const reach = stepPx(LAYER_GRID.controls, 'w') - stepPx(LAYER_GRID.style, 'w') - gap
-    const reachSheet = stepPx(LAYER_GRID.controls, 'w') - stepPx(LAYER_GRID.styleSheet, 'w') - gap
-    expect([reach, reachSheet]).toEqual([96, 84])
-    expect([stepPx(LAYER_GRID.style, 'w'), stepPx(LAYER_GRID.style, 'h')]).toEqual([20, 20])
-    expect([stepPx(LAYER_GRID.styleSheet, 'w'), stepPx(LAYER_GRID.styleSheet, 'h')]).toEqual([32, 32])
-    expect(stepPx(LAYER_GRID.reachSheet, 'h')).toBe(stepPx(LAYER_GRID.styleSheet, 'h'))
-    expect(stepPx(LAYER_GRID.styleSheet, 'h')).toBe(stepPx(LAYER_ROW.sliderSheet, 'h'))
-    expect(stepPx(LAYER_GRID.controls, 'w')).toBe(stepPx(LAYER_ROW.slider, 'w'))
-    expect(reachSheet - MEASURED.reachValue).toBeGreaterThanOrEqual(8)
+    // The coverage slider is an opacity slider's size, with its value and
+    // `Coverage` in the well, and the grid's style is a button in its
+    // legend line, 32px on a finger like every other phone control.
+    expect([stepPx(LAYER_GRID.reach, 'w'), stepPx(LAYER_GRID.reach, 'h')]).toEqual([120, 20])
+    expect([stepPx(LAYER_GRID.reachSheet, 'w'), stepPx(LAYER_GRID.reachSheet, 'h')]).toEqual([120, 32])
+    expect(LEGEND_GRID.style).toContain('touch:h-8')
     expect(MAP_CHIP_MENU).not.toMatch(/(^|\s)w-/)
     expect(layersPopoverSource).toContain('${MAP_CHIP_MENU} ${CHIP_CARD_W.menu}')
     expect(layersPopoverSource).toContain('${sheet ? LAYER_GRID.reachSheet : LAYER_GRID.reach} ${SLIDER.well}')

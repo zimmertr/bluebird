@@ -4,7 +4,6 @@ import type { MapOverlays } from '../hooks/useMapOverlays'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import BottomSheet from './BottomSheet'
-import { IconGridBlocks, IconGridSmooth } from './icons'
 import { MenuButton } from './Menu'
 import {
   ACCENT,
@@ -107,8 +106,6 @@ interface LayersPopoverProps {
     | 'gridOffered'
     | 'gridArchived'
     | 'gridOn'
-    | 'gridStyle'
-    | 'setGridStyle'
     | 'gridReachFrac'
     | 'gridReachDraft'
     | 'setGridReachDraft'
@@ -178,8 +175,6 @@ export default function LayersPopover({
   const {
     gridOffered,
     gridArchived,
-    gridStyle,
-    setGridStyle,
     gridReachFrac,
     gridReachDraft,
     setGridReachDraft,
@@ -425,48 +420,35 @@ export default function LayersPopover({
     const shown = gridReachDraft ?? gridReachFrac
     const pct = shown * 100
     const line = (
-      <div className="pointer-events-none absolute inset-0 flex items-center px-2">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
         <span className={SLIDER.value}>{pitchLabel(reachKmFor(gridReachPitchKm, shown))}</span>
+        <span className={SLIDER.wordmark}>Coverage</span>
       </div>
     )
     return (
-      <div className={LAYER_GRID.controls}>
-        <button
-          type="button"
-          aria-label={gridStyle === 'smooth' ? 'Grid style: Smooth' : 'Grid style: Blocks'}
+      <div className={`${sheet ? LAYER_GRID.reachSheet : LAYER_GRID.reach} ${SLIDER.well}`}>
+        <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
+        <div className={`absolute inset-0 ${ACCENT.fill}`} style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}>
+          {line}
+        </div>
+        <input
+          type="range"
+          aria-label="Coverage"
+          min={0}
+          max={100}
+          step={5}
           disabled={off}
-          onClick={() => {
-            setGridStyle(gridStyle === 'smooth' ? 'blocks' : 'smooth')
+          value={Math.round(shown * 100)}
+          onChange={(e) => {
+            setGridReachDraft(Number(e.target.value) / 100)
             switchOn()
           }}
-          className={`${sheet ? LAYER_GRID.styleSheet : LAYER_GRID.style} ${ACCENT.fill}`}
-        >
-          {gridStyle === 'smooth' ? <IconGridSmooth /> : <IconGridBlocks />}
-        </button>
-        <div className={`${sheet ? LAYER_GRID.reachSheet : LAYER_GRID.reach} ${SLIDER.well}`}>
-          <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
-          <div className={`absolute inset-0 ${ACCENT.fill}`} style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}>
-            {line}
-          </div>
-          <input
-            type="range"
-            aria-label="Coverage"
-            min={0}
-            max={100}
-            step={5}
-            disabled={off}
-            value={Math.round(shown * 100)}
-            onChange={(e) => {
-              setGridReachDraft(Number(e.target.value) / 100)
-              switchOn()
-            }}
-            onPointerUp={commitGridReach}
-            onKeyUp={commitGridReach}
-            onBlur={commitGridReach}
-            onDoubleClick={resetGridReach}
-            className={SLIDER.overlay}
-          />
-        </div>
+          onPointerUp={commitGridReach}
+          onKeyUp={commitGridReach}
+          onBlur={commitGridReach}
+          onDoubleClick={resetGridReach}
+          className={SLIDER.overlay}
+        />
       </div>
     )
   }
