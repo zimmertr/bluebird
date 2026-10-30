@@ -45,7 +45,7 @@ const chart = vi.hoisted(() => ({
   series: [] as Record<string, unknown>[],
   tooltipContent: undefined as undefined | ((props: unknown) => ReactNode),
   margin: undefined as unknown,
-  quiet: undefined as boolean | undefined,
+  dotsAt: [] as (number | null)[],
   // Every LineChart, XAxis and Tooltip drawn, in order, so a two-panel test
   // can read each panel's (#499).
   charts: [] as { onClick?: Handler; onMouseMove?: Handler; syncId?: string }[],
@@ -65,9 +65,9 @@ vi.mock('./ResizeGrip', async (importOriginal) => ({
 // The canvas lines (record 0244): every stroke the panel hands it, kept in the
 // order drawn, as the mock above kept every Recharts Line.
 vi.mock('./ChartLines', () => ({
-  default: (p: { strokes: Record<string, unknown>[]; quiet?: boolean }) => {
+  default: (p: { strokes: Record<string, unknown>[]; at: number | null }) => {
     chart.series.push(...p.strokes)
-    chart.quiet = p.quiet
+    chart.dotsAt.push(p.at)
     return null
   },
 }))
@@ -263,7 +263,7 @@ describe('TimeSeriesChart under a finger', () => {
     // Held shut, so the tap's compatibility mouse events cannot reopen it,
     // and the hover dots go with it.
     expect(tip().active).toBe('false')
-    expect(chart.quiet).toBe(true)
+    expect(chart.dotsAt[chart.dotsAt.length - 1]).toBeNull()
     // A real mouse hands the card back to Recharts.
     fireEvent.pointerMove(plotOf(container), { pointerType: 'mouse', clientX: 252, clientY: 560 })
     expect(tip().active).toBe('undefined')
@@ -534,7 +534,8 @@ describe('TimeSeriesChart line marks', () => {
   function readout() {
     const { container } = render(<TimeSeriesChart {...props({ rows: TWO, colorFor: () => COLOR })} />)
     // Room for every line, so the card lists them all rather than a count.
-    Object.defineProperty(plotIn(container), 'clientHeight', { value: 400 })
+    // The card's room is the chart's area, the stack around the panel.
+    Object.defineProperty(plotIn(container).parentElement!.parentElement!, 'clientHeight', { value: 400 })
     const payload = chart.series.map((p) => ({ dataKey: p.dataKey as string, value: 30 }))
     render(<>{chart.tooltipContent!({ active: true, payload, label: T0 })}</>)
     // The swatch stands just before the name, which truncates in a span of its own (#499).
@@ -590,6 +591,17 @@ describe('TimeSeriesChart with more than one metric', () => {
   })
   // Only the charts and axes of the last render.
   const last = <T,>(list: T[], n: number) => list.slice(-n)
+
+  // One hour for every panel's dots (TJ 2026-10-30): a finger on one panel
+  // puts them all on its hour, and a lift takes them all away.
+  it('stands every panel\'s dots on one hour and hides them together', () => {
+    const { container } = render(<TimeSeriesChart {...props(TWO)} />)
+    placePlot(container, 360)
+    fireEvent.pointerDown(plotIn(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
+    expect(last(chart.dotsAt, 2)).toEqual([TIMES[32], TIMES[32]])
+    fireEvent.pointerUp(plotIn(container), { pointerType: 'touch' })
+    expect(last(chart.dotsAt, 2)).toEqual([null, null])
+  })
 
   it('draws one panel for one metric', () => {
     render(<TimeSeriesChart {...props()} />)

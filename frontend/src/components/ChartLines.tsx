@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useActiveTooltipLabel, useIsTooltipActive, usePlotArea } from 'recharts'
+import { usePlotArea } from 'recharts'
 import { type LineStroke, drawActiveDots, drawLines, rootTheme } from '../utils/chart/chartCanvas'
 import type { ChartPoint } from '../utils/chart/chartData'
 import type { Theme } from '../utils/viewPrefs'
@@ -21,21 +21,20 @@ export default function ChartLines({
   data,
   strokes,
   yDomain,
-  quiet = false,
+  at,
 }: {
   data: readonly ChartPoint[]
   strokes: readonly LineStroke[]
   /** The y axis's domain, which the panel hands its YAxis too. */
   yDomain: readonly [number, number]
   /**
-   * The card is held shut after a finger lifts (TJ 2026-10-30): no dots
-   * either, though Recharts' synced state may still call the hover active.
+   * The hour the dots stand on, or null for none (TJ 2026-10-30): the chart's
+   * one hour, shared by every panel, rather than Recharts' hover state, which
+   * each panel kept for itself and kept past a finger's lift.
    */
-  quiet?: boolean
+  at: number | null
 }) {
   const area = usePlotArea()
-  const activeLabel = useActiveTooltipLabel()
-  const tooltipActive = useIsTooltipActive()
   const linesRef = useRef<HTMLCanvasElement>(null)
   const dotsRef = useRef<HTMLCanvasElement>(null)
   // The theme the root wears: a switch repaints the canvas, which `light-dark()`
@@ -84,11 +83,11 @@ export default function ChartLines({
 
   useLayoutEffect(() => {
     const ctx = prepare(dotsRef.current)
-    if (!ctx || quiet || !tooltipActive || typeof activeLabel !== 'number' || strokes.some((s) => s.dot)) return
-    const row = data.find((r) => r.t === activeLabel)
+    if (!ctx || at === null || strokes.some((s) => s.dot)) return
+    const row = data.find((r) => r.t === at)
     if (row) drawActiveDots(ctx, row, strokes, x, y, theme)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLabel, tooltipActive, quiet, data, strokes, x, y, w, h, left, top, dpr, theme])
+  }, [at, data, strokes, x, y, w, h, left, top, dpr, theme])
 
   if (!area || w <= 0 || h <= 0) return null
   return (

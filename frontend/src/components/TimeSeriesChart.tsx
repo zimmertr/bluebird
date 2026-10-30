@@ -269,6 +269,11 @@ function TimeSeriesChart({
   // hover and keeps showing after the lift, so the card is held shut until a
   // pointer event says a mouse is back.
   const [lifted, setLifted] = useState(false)
+  // The hour a mouse rests on, in whichever panel (TJ 2026-10-30): with the
+  // finger's, the one hour every panel's dots stand on and the one switch
+  // that shows or hides them all. Recharts' own hover state was per panel
+  // and outlived a lift, so one panel's dots came back at the old hour.
+  const [mouseIndex, setMouseIndex] = useState<number | null>(null)
   // The top panel's share of two stacked panels' height, and a grid's column
   // and row splits (#499). Session state: a split is how this reader likes
   // this chart today, which no link or storage has reason to carry. Even by
@@ -362,7 +367,8 @@ function TimeSeriesChart({
     [lines, focusedKey],
   )
 
-  const onHover = useCallback((panel: number, key: string | null, value: number | null) => {
+  const onHover = useCallback((panel: number, key: string | null, value: number | null, idx: number | null) => {
+    setMouseIndex(idx)
     // A mouse takes the reading back from a finger that left one.
     setFingerIndex(null)
     setHoveredPanel(panel)
@@ -371,6 +377,7 @@ function TimeSeriesChart({
   }, [])
   const onEnter = useCallback((panel: number) => setHoveredPanel(panel), [])
   const onLeave = useCallback(() => {
+    setMouseIndex(null)
     setFocusedKey(null)
     setCursorValue(null)
   }, [])
@@ -552,6 +559,8 @@ function TimeSeriesChart({
   // The tutorial's hour wins over a finger's; an hour past a grid that has
   // since shrunk is no reading at all.
   const shownIndex = tooltipIndex ?? (fingerIndex !== null && fingerIndex < times.length ? fingerIndex : null)
+  const dotIndex = shownIndex ?? (lifted || mouseIndex === null || mouseIndex >= times.length ? null : mouseIndex)
+  const dotAt = dotIndex === null ? null : times[dotIndex]
   // The panel that shows the card (#499): the hovered one, or the first
   // before any hover. One card for every panel, reading each value a row.
   const cardPanel = hoveredPanel !== null && hoveredPanel < count ? hoveredPanel : 0
@@ -638,6 +647,7 @@ function TimeSeriesChart({
         onLift={onLift}
         onMouse={onMouse}
         lifted={lifted}
+        dotAt={dotAt}
         onPlayheadChange={onPlayheadChange}
         areaRef={areaRef}
         heading={
@@ -956,7 +966,9 @@ interface PanelProps {
   /** Whether this panel's tooltip draws the card; the other panel's draws nothing. */
   showsCard: boolean
   shownIndex: number | null
-  onHover: (panel: number, key: string | null, value: number | null) => void
+  onHover: (panel: number, key: string | null, value: number | null, idx: number | null) => void
+  /** The hour every panel's dots stand on, or null for none. */
+  dotAt: number | null
   onEnter: (panel: number) => void
   onLeave: () => void
   onFinger: (panel: number, index: number, key: string | null | undefined, value: number | null) => void
@@ -1029,6 +1041,7 @@ function ChartPanel({
   onLift,
   onMouse,
   lifted,
+  dotAt,
   onPlayheadChange,
   areaRef,
   heading,
@@ -1076,11 +1089,11 @@ function ChartPanel({
     const h = plotRef.current?.clientHeight ?? 0
     const plotHeight = plotBand(0, h, margin, drawsAxis).height
     if (idx == null || typeof py !== 'number' || plotHeight <= 0) {
-      onHover(index, null, null)
+      onHover(index, null, null, null)
       return
     }
     const cv = pixelToValue(py, margin.top, plotHeight, yMin, yMax)
-    onHover(index, nearestAt(idx, cv), cv)
+    onHover(index, nearestAt(idx, cv), cv, idx)
   }
 
   // A finger (or a pen) on the chart reads the hour under it, as a resting
@@ -1284,7 +1297,7 @@ function ChartPanel({
             {/* Every series on one canvas between the grid and the reference
                 lines (#499; record 0244): 200 SVG lines cost Recharts a
                 redraw of every point on every size change. */}
-            <ChartLines data={data} strokes={strokes} yDomain={yDomain} quiet={lifted} />
+            <ChartLines data={data} strokes={strokes} yDomain={yDomain} at={dotAt} />
             {/* One unpainted Recharts line, the anchor a tooltip opened by
                 `defaultIndex` (a finger, the tour) needs to stand: with no
                 graphical item Recharts places it nowhere and keeps it hidden
