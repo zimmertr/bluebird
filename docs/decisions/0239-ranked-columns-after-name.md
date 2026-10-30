@@ -38,4 +38,4 @@ Measured 2026-10-28 on built images in Playwright's Chromium at 360x780 with tou
 
 Tests that read a cell by its position read the Type cell by its header now (`typeCell` in `frontend/e2e/fixtures.ts`).
 
-A drag on a phone moves a column within the phone's order, so the stored order is that whole list, and the file then follows it the way it follows any dragged order. Without that, a first drag would store the desk's list and snap the phone's columns back to it.
+A drag on a phone moves a column within the phone's order, so the stored order is that whole list. Without that, a first drag would store the desk's list and snap the phone's columns back to it.

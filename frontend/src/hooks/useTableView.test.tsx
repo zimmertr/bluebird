@@ -185,6 +185,20 @@ describe('useTableView', () => {
     expect(after.indexOf('type')).toBeGreaterThan(after.indexOf('elevation_ft'))
   })
 
+  // The file keeps the standard column order whatever the reader dragged, so a
+  // script reading it finds every column in the same place each time.
+  it('downloads the standard column order after a drag', () => {
+    const { result } = renderHook(() => useTableView(inputs()))
+    const headerNow = () => {
+      act(() => result.current.handleDownloadCsv())
+      return downloads[downloads.length - 1].split('\r\n')[0]
+    }
+    const before = headerNow()
+    act(() => result.current.handleColumnMove('elevation_ft', 'name'))
+    expect(keys(result.current.tableColumns).indexOf('elevation_ft')).toBeLessThan(keys(result.current.tableColumns).indexOf('name'))
+    expect(headerNow()).toBe(before)
+  })
+
   // A point-sample flip relabels the metric columns under the same keys, so
   // their widths reopen; the identity columns keep theirs.
   it('keeps only the identity widths across a point-sample flip', () => {

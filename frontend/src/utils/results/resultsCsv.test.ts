@@ -128,7 +128,7 @@ describe('what the file carries', () => {
     const body = lines(csv).slice(1)
     expect(cells(body[0])[0]).toBe('')
     expect(cells(body[0])[1]).toBe('Somewhere New')
-    expect(cells(body[0])).toHaveLength(WINDOW_COLUMNS.length + 2)
+    expect(cells(body[0])).toHaveLength(WINDOW_COLUMNS.length + 3)
     expect(cells(body[1])[0]).toBe('1')
     expect(cells(body[1])[1]).toBe('Ranked')
   })
@@ -139,9 +139,9 @@ describe('what the file carries', () => {
     const point = displayedColumns(true, 'precip_total_in')
     const csv = buildResultsCsv([row()], point, NO_FIRES)
     const [header, body] = lines(csv)
-    expect(cells(header)).toHaveLength(point.length + 2)
-    expect(cells(body)).toHaveLength(point.length + 2)
-    expect(cells(header).length).toBeLessThan(WINDOW_COLUMNS.length + 2)
+    expect(cells(header)).toHaveLength(point.length + 3)
+    expect(cells(body)).toHaveLength(point.length + 3)
+    expect(cells(header).length).toBeLessThan(WINDOW_COLUMNS.length + 3)
   })
 })
 
@@ -178,6 +178,7 @@ describe('values a spreadsheet can compute over', () => {
       [row({ freeze_min_ft: null, freeze_max_ft: null, freeze_avg_ft: null })],
       WINDOW_COLUMNS,
       NO_FIRES,
+      { closureWarnings: new Map() },
     )
     const marked = WINDOW_COLUMNS.filter((c) => c.csvNull)
 
@@ -198,6 +199,7 @@ describe('values a spreadsheet can compute over', () => {
       ],
       WINDOW_COLUMNS,
       NO_FIRES,
+      { closureWarnings: new Map() },
     )
     expect(csv).not.toContain('N/A')
   })
@@ -331,14 +333,14 @@ describe('the wildfire column', () => {
 
   it('reports the distance for a flagged row', () => {
     const csv = buildResultsCsv([row()], WINDOW_COLUMNS, near)
-    expect(lines(csv)[1].endsWith(',5.3')).toBe(true)
+    expect(lines(csv)[1].endsWith(',5.3,N/A')).toBe(true)
   })
 
   // Presence in the map IS the threshold: useFireProximity only admits
   // warnings within FIRE_WARN_MILES, so this must not re-test it.
   it('leaves the cell empty for a row the check cleared', () => {
     const csv = buildResultsCsv([row({ latitude: 40, longitude: -120 })], WINDOW_COLUMNS, near)
-    expect(lines(csv)[1].endsWith(',')).toBe(true)
+    expect(lines(csv)[1].endsWith(',,N/A')).toBe(true)
   })
 
   // The third state of a fire cell (#256): outside the dataset's US-only
@@ -350,44 +352,26 @@ describe('the wildfire column', () => {
     const uncovered = new Set([geoKey(53.1106, -119.2317)])
     const csv = buildResultsCsv([row(), robson], WINDOW_COLUMNS, near, { fireUncovered: uncovered })
     const body = lines(csv).slice(1, 3)
-    expect(body[0].endsWith(',5.3')).toBe(true)
-    expect(body[1].endsWith(',N/A')).toBe(true)
-  })
-
-  it('still omits the whole column when the lookup itself never ran', () => {
-    const uncovered = new Set([geoKey(53.1106, -119.2317)])
-    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, { fireUncovered: uncovered })
-    // The row ends where the metric columns end, so no cell carries the fire
-    // check's answer at all. Counted rather than searched for the mark, which
-    // the freezing-level columns write for a reason of their own.
-    expect(cells(lines(csv)[1])).toHaveLength(WINDOW_COLUMNS.length + 1)
-    expect(cells(lines(csv)[0])).not.toContain(WILDFIRE_COL.label)
+    expect(body[0].endsWith(',5.3,N/A')).toBe(true)
+    expect(body[1].endsWith(',N/A,N/A')).toBe(true)
   })
 
   // The header is the table's own (WILDFIRE_COL), so the file and the screen
   // cannot name the column differently.
   it('keeps the column when the check ran and found nothing', () => {
     const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))[0])
-    expect(header[header.length - 1]).toBe(WILDFIRE_COL.label)
+    expect(header[header.length - 2]).toBe(WILDFIRE_COL.label)
     expect(WILDFIRE_COL.label).toBe('Wildfire (mi)')
   })
 
-  // The distinction the null carries. A column of blanks in a file nobody can
-  // see the app beside is not missing data, it is a claim that every row was
-  // checked and cleared. Withholding the column claims nothing.
+  // A check with no answer still has its column, so every file has one
+  // header, and each ranked row reads N/A there: a blank would claim the row
+  // was checked and cleared, which a file read away from the app cannot undo.
   describe('when the lookup produced no trustworthy answer', () => {
-    it('leaves the column out of the header entirely', () => {
-      const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, null))[0])
-      expect(header).not.toContain(WILDFIRE_COL.label)
-      expect(header[header.length - 1]).toBe(WINDOW_COLUMNS[WINDOW_COLUMNS.length - 1].label)
-    })
-
-    it('gives every row one fewer cell, so nothing reads as an empty distance', () => {
-      const withCheck = lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))
-      const without = lines(buildResultsCsv([row()], WINDOW_COLUMNS, null))
-      expect(cells(without[0])).toHaveLength(cells(withCheck[0]).length - 1)
-      expect(cells(without[1])).toHaveLength(cells(withCheck[1]).length - 1)
-      expect(without[1].endsWith(',')).toBe(false)
+    it('keeps the column and writes N/A in every ranked row', () => {
+      const csv = lines(buildResultsCsv([row()], WINDOW_COLUMNS, null))
+      expect(cells(csv[0]).slice(-2)).toEqual([WILDFIRE_COL.label, CLOSURE_COL.label])
+      expect(csv[1].endsWith(',N/A,N/A')).toBe(true)
     })
 
     it('changes nothing else about the file', () => {
@@ -395,15 +379,15 @@ describe('the wildfire column', () => {
       expect(csv.charCodeAt(0)).toBe(0xfeff)
       expect(cells(lines(csv)[0])[0]).toBe('Rank')
       // Header, two data rows, the blank row, and two credits: no NIFC line,
-      // because a file with no wildfire column must not credit its supplier.
+      // because a file with no wildfire data must not credit its supplier.
       expect(lines(csv)).toHaveLength(6)
     })
   })
 })
 
 // The Closure column on the wildfire column's terms (#550): the bare order
-// name, an empty cell for a cleared row, N/A outside Oregon and Washington,
-// and no column at all unless the check answered.
+// name, an empty cell for a cleared row, and N/A outside its coverage or
+// when the check has no answer.
 describe('the Closure column', () => {
   const closed = new Map([[geoKey(46.8523, -121.7603), closureWarning()]])
 
@@ -428,12 +412,13 @@ describe('the Closure column', () => {
     expect(body[1].endsWith(',N/A')).toBe(true)
   })
 
-  it('leaves the column out when the check has no answer', () => {
-    const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))[0])
-    expect(header).not.toContain(CLOSURE_COL.label)
+  it('keeps the column and writes N/A when the check has no answer', () => {
+    const csv = lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))
+    expect(cells(csv[0])).toContain(CLOSURE_COL.label)
+    expect(csv[1].endsWith(',N/A')).toBe(true)
   })
 
-  it('credits the Forest Service exactly when the file carries the column', () => {
+  it('credits the Forest Service exactly when the file carries its answers', () => {
     const usfs = DATA_SOURCES.find((d) => d.name === 'US Forest Service')!
     const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, { closureWarnings: closed })
     expect(csv).toContain(`Closure data by ${usfs.name},${usfs.href}`)
@@ -695,9 +680,9 @@ describe('the forecast window in the file', () => {
       const [header, data] = lines(csv)
       expect(cells(header)).not.toContain('Forecast start')
       expect(cells(header)).not.toContain('Forecast end')
-      expect(cells(header)[cells(header).length - 1]).toBe(WILDFIRE_COL.label)
+      expect(cells(header)[cells(header).length - 1]).toBe(CLOSURE_COL.label)
       expect(data).not.toContain('2026-09-18')
-      expect(cells(data)).toHaveLength(WINDOW_COLUMNS.length + 2)
+      expect(cells(data)).toHaveLength(WINDOW_COLUMNS.length + 3)
     })
 
     it('change nothing about the columns the file already had', () => {
