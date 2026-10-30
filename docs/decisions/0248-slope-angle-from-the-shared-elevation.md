@@ -6,7 +6,7 @@
 - Issues and PRs: #799, #823
 - Cited in code as: #799
 - Guide: [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), the `slope.ts` bullet; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `slopeAngle.ts` bullet
-- Related: 0235 (the relief, the contours and 3D on one elevation model, loaded on first use), 0050 (every strip in the legend blends)
+- Related: 0244 (the relief, the contours and 3D on one elevation model, loaded on first use), 0050 (every strip in the legend blends)
 
 ## Context
 
@@ -21,7 +21,7 @@ The maintainer asked for slope angle shading after seeing CalTopo's: each cell's
 - **On the main thread**, handed to MapLibre as an ImageBitmap.
 - **Half strength**, as `raster-opacity`, over opaque band colours.
 - **Over the relief, under the contours**: directly under the contours' casing, the lowest of their layers, so the bands read over the shading and the photos and the lines and their heights stay on top. Under the style's first label and every `ofm-` layer like the rest of the ground.
-- **Added the first time the row is on, hidden when it is off, nothing on load**, the rule 0235 set for the ground. There is no zoom floor.
+- **Added the first time the row is on, hidden when it is off, nothing on load**, the rule 0244 set for the ground. There is no zoom floor.
 - **The finest elevation Mapterhorn has, to zoom 14** (`SLOPE_MAXZOOM` in `map/slope.ts`, 2026-10-29). The relief and the 3D terrain stop at 12 (`DEM_MAXZOOM`), because a `raster-dem` tile that fails is a hole MapLibre cannot fill from the zoom below. The slope paints its own tiles, so it can: a tile past 12 asks for the elevation at its own zoom, then each zoom out to 12, which every part of the land has. It paints from the first that answers, from the square of that tile it lies over (`demWindow` in `utils/slopeAngle.ts`), at that tile's own ground spacing, each of its pixels drawn as a block. So a zoom-13 tile with no zoom-13 elevation paints the zoom-12 tile's bands there, pixel for pixel, rather than a slope read across heights stretched to look finer. The edge neighbours come from the same zoom, and only those the square touches. A 404 is remembered for the session, with every tile inside it, so a pan asks once; another failure falls back without being remembered. MapLibre stretches past 14.
 - **Keyed as one strip**, the six colours blended like every scale on the map (0050), with the degrees each band starts at inside it: `27 30 32 35 46 51`. The section reads `Slope angle (Mapterhorn)`, the credit linking Mapterhorn's attribution page, because every layer drawn from somebody else's data names them in its own section. The ticks needed one fix: two on neighbouring boundaries share a grid column, so every tick now stands in the strip's first row.
 
@@ -60,12 +60,12 @@ The maintainer asked for slope angle shading after seeing CalTopo's: each cell's
 ## Alternatives rejected
 
 - **Another provider's slope tiles.** A second source of heights under the map, with its own host, licence and credit, for a picture the elevation already in the browser can paint.
-- **A second fetch of the elevation for the slope**, outside the library's cache: a first view would download each tile twice, the case 0235 rejected for the relief.
+- **A second fetch of the elevation for the slope**, outside the library's cache: a first view would download each tile twice, the case 0244 rejected for the relief.
 - **One-sided differences at tile edges, with no neighbours.** A slope there is a slightly different number, and a different colour where it sits on a band's edge, which draws a line along every tile boundary.
 - **Tracing from the parent tile with a margin**, as the contours do with `overzoom: 1`. Each slope tile would be drawn from elevation half as fine, one zoom coarser than the tile itself.
 - **A worker of the app's own.** The fetch and the decode are already in the library's worker; a second worker would take each tile's five grids across another thread and the picture back, for a 4 ms loop.
 - **Encoding a PNG.** MapLibre takes an ImageBitmap from a scheme and draws it as it would a decoded image; a PNG would be encoded only to be decoded again.
-- **A zoom floor**, as the fire detections have (0238). Zoomed out the bands thin rather than mislead, the relief and the contours have none for the same tiles, and a floor is a layer that goes blank with nothing saying why.
+- **A zoom floor**, as the fire detections have (0247). Zoomed out the bands thin rather than mislead, the relief and the contours have none for the same tiles, and a floor is a layer that goes blank with nothing saying why.
 - **A hard-stopped strip in the legend**, one block per band. These bands are a classification, as NOAA's snow bands are, and 0050 already accepted a blend over a classification so that every strip in the box reads as one system.
 - **Six chips in a row**, one per band. Six 14px chips and their numbers do not fit the card.
 - **Over the contours.** The lines and their heights would sit under a colour.

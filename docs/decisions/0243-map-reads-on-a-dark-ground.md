@@ -9,7 +9,7 @@
 
 ## Context
 
-The map's own marks were built for one ground. `MARKER_STROKE` is white, the scale bar drew its ends dark "because the basemap is light in both" themes (record [0162](0162-scale-bar-on-the-theme-ground.md)), and `map.css`, `styles.test.ts` and `STYLES.md` said so. The Satellite row (record [0233](0233-imagery-under-liberty.md)) puts them on forest, which is dark, and on snow, which is lighter than Liberty. No single colour clears 3:1 on both: it would need a relative luminance of at least 0.286 to stand off the forest and at most 0.243 to stand off the snow.
+The map's own marks were built for one ground. `MARKER_STROKE` is white, the scale bar drew its ends dark "because the basemap is light in both" themes (record [0162](0162-scale-bar-on-the-theme-ground.md)), and `map.css`, `styles.test.ts` and `STYLES.md` said so. The Satellite row (record [0242](0242-imagery-under-liberty.md)) puts them on forest, which is dark, and on snow, which is lighter than Liberty. No single colour clears 3:1 on both: it would need a relative luminance of at least 0.286 to stand off the forest and at most 0.243 to stand off the snow.
 
 ## Decision
 

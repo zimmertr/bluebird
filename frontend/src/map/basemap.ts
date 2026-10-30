@@ -362,7 +362,7 @@ export const TRAIL_OPACITY = 0.85
  * 1.69:1 on a forest, where the trail all but vanishes, and 5.13:1 on
  * Liberty's ground. The casing is that ground: Liberty's own background, a
  * pixel wider than the trail on each side, so the trail stands on the photo
- * the way it stands on the map. Measured 2026-10-28 on record 0234's forest
+ * the way it stands on the map. Measured 2026-10-28 on record 0243's forest
  * (#3a4a33): the casing 8.69:1 on the forest, and the trail as drawn, 85%
  * over the casing, 3.89:1 on it. On snow the casing is lost (1.09:1) and the
  * trail reads on the snow itself (4.73:1). Hidden on Liberty, where it would

@@ -391,7 +391,7 @@ const FIRE_AGE_STAR = starburst(7.58, STARBURST_INNER.chip, 8, 8)
 // between them, a narrow 1 with a flag and no foot, a 2 on a round bowl, a
 // closed 4 and an 8 of two stacked ellipses, the smaller on top. Drawn in the
 // icon labs of 2026-10-29 and picked from sixteen variants for reading on a
-// 1x screen (record 0237); paths rather than text, so the digits are part of
+// 1x screen (record 0246); paths rather than text, so the digits are part of
 // the drawing and no face the browser picks can change them.
 const FIRE_AGE_NUMERALS: Record<AgeBandHours, string> = {
   12: 'M5.13 6.2L6.52 4.25V12.25M8.32 5.6A1.2 1.2 0 0 1 10.72 5.45C10.72 7.55 8.92 10.1 8.32 11.75H11.22',

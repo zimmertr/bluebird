@@ -1,6 +1,6 @@
 # 0233. Satellite imagery is two rasters under Liberty, and Liberty's ground fades by opacity
 
-- Status: Accepted. Amended by [0243](0243-layers-palette-and-base-map-opacity.md): the imagery now draws over Liberty's ground and under its roads at the Satellite row's opacity, and the land and water fills are no longer faded.
+- Status: Accepted. Amended by [0250](0250-layers-palette-and-base-map-opacity.md): the imagery now draws over Liberty's ground and under its roads at the Satellite row's opacity, and the land and water fills are no longer faded.
 - Date: 2026-10-27
 - Decider: the maintainer (TJ), 2026-10-27, on issue #799: the imagery providers, USGS and EOX, as the brief for the work records the call
 - Issues and PRs: #799

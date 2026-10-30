@@ -50,7 +50,7 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
   // bands, painted in the browser from the relief's own elevation.
   const [showSlope, setShowSlope] = useState(() => restored?.showSlope ?? false)
   const [showSatellite, setShowSatellite] = useState(() => restored?.showSatellite ?? false)
-  // The four Base map rows' opacity sliders (record 0243), 0 to 100, each
+  // The four Base map rows' opacity sliders (record 0250), 0 to 100, each
   // kept while its row is off so switching it back on brings the level back.
   // Presentation like the switches: no fetch follows a level, and the
   // ranking never reads one.

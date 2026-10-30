@@ -205,7 +205,7 @@ export function legendSections(
   // six-row metric key in another — which cost a border, a gap and
   // a second backdrop on a map that can be 161px tall on a phone.
   //
-  // **In the Layers menu's order** (record 0242): the metric key
+  // **In the Layers menu's order** (record 0249): the metric key
   // first, then the base map's one key (the slope bands), the
   // hazards and the forecast, each in the order its rows stand in
   // the menu, so a reader who just ticked a row finds its key

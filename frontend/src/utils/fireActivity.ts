@@ -48,7 +48,7 @@ export type AgeBandHours = (typeof AGE_BANDS)[number]
  * for a screen reader the way the smoke chips hide theirs: the icon draws
  * the hour (`IconFireAge`), and `12` alone does not say whether it is an
  * age, a bound or a span. Approved 2026-10-27
- * (record 0237).
+ * (record 0246).
  */
 export const AGE_BAND_WORDS = ['Under 12 hours', '12 to 24 hours', '24 to 48 hours'] as const
 
@@ -213,7 +213,7 @@ export async function fetchFireActivity(bbox: BBox, signal: AbortSignal): Promis
  * tall (`IconFireAge`), and a body that holds digits that tall leaves rays
  * about 1.1px long. Of the sixteen variants of the icon drawn on 2026-10-29,
  * taller digits read best on a 1x screen and this depth is the one that
- * holds 8.5px; the maintainer picked it that day (record 0237).
+ * holds 8.5px; the maintainer picked it that day (record 0246).
  */
 export const STARBURST_POINTS = 12
 export const STARBURST_INNER = { map: 0.65, chip: 0.85 } as const
@@ -344,7 +344,7 @@ export interface HotspotRow {
  * spells: `N20` and `N21` in the VIIRS files, `T` and `A` in the MODIS one
  * (read off the files on 2026-10-27, `backend/tests/data/firms_*.csv`), with
  * the long names FIRMS's own documentation also uses. Suomi NPP's `N` is
- * absent because its file is not read (record 0237).
+ * absent because its file is not read (record 0246).
  */
 const SATELLITES: Readonly<Record<string, string>> = {
   N20: 'NOAA-20',

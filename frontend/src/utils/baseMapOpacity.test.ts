@@ -11,7 +11,7 @@ import { SLOPE_ALPHA } from './slopeAngle'
 
 describe('the base-map opacity levels', () => {
   // Every slider starts at half, the strength each layer drew at before it
-  // had one (record 0243), and the slope's tuned strength is that half.
+  // had one (record 0250), and the slope's tuned strength is that half.
   it('starts every layer at half, the slope\'s tuned strength', () => {
     expect(OPACITY_DEFAULT).toBe(50)
     expect(BASE_LAYERS).toEqual(['satellite', 'topo', 'relief', 'slope'])

@@ -60,7 +60,7 @@ export const SLOPE_TILES = `${SLOPE_SCHEME}://{z}/{x}/{y}`
  * 1.7 m tiles drew the rock's own texture rather than a slope a skier plans
  * by, a screen at 15 over the Matterhorn asked for 21 tiles and 3.5 MB where
  * 14 stretched asks 12 and 1.9 MB, and a screen at 15 over Rainier asked 8
- * more tiles that answer 404. Record 0240 has the numbers.
+ * more tiles that answer 404. Record 0248 has the numbers.
  */
 export const SLOPE_MAXZOOM = 14
 
@@ -68,7 +68,7 @@ export const SLOPE_MAXZOOM = 14
  * The bands at half strength, the default level, so Liberty's ground, the
  * relief and the imagery all read through them. The colours are in the tile,
  * whole, so the Slope angle row's opacity slider is the layer's
- * `raster-opacity` and nothing else (`terrain.ts`, record 0243).
+ * `raster-opacity` and nothing else (`terrain.ts`, record 0250).
  * `utils/slopeAngle.ts` owns the colours and the default strength both.
  */
 export const SLOPE_PAINT: maplibregl.RasterLayerSpecification['paint'] = {

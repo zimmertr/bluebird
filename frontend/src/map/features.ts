@@ -4,7 +4,7 @@
  *
  * Lowest of all, the satellite imagery, which adds nothing until it is
  * switched on and then goes over the style's ground and under its first road,
- * symbol or layer of anybody else's (#799, record 0243). The basemap patch goes under the
+ * symbol or layer of anybody else's (#799, record 0250). The basemap patch goes under the
  * style's own labels, and the trailhead and crag markers over it, still under
  * those labels. Above the style: the
  * forecast grid, which is the ground everything else is read against, then
@@ -133,7 +133,7 @@ export function mountFeatures(
     // the imagery the lines turn light on a dark edge (`terrain.ts`), and
     // back when it goes off. The ink follows the ground that shows most, so
     // under half the photos give way to Liberty's and the lines go back to
-    // its brown (record 0243).
+    // its brown (record 0250).
     imagery: {
       update(next) {
         imagery.update(next)

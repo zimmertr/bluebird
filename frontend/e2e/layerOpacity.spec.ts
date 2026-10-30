@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import { test, expect } from './fixtures'
 
-// The four base-map layers' opacity sliders (record 0243): a drag on one sets
+// The four base-map layers' opacity sliders (record 0250): a drag on one sets
 // the layer's opacity on the map itself, read back off MapLibre with
 // `getPaintProperty`, at a desk and on a phone, where the Layers sheet steps
 // aside while the finger is down.

@@ -169,7 +169,7 @@ interface Props {
   // elevation tiles as the relief (`map/slope.ts`).
   showSlope: boolean
   showSatellite: boolean
-  // The four Base map rows' opacity levels, whole percents (record 0243).
+  // The four Base map rows' opacity levels, whole percents (record 0250).
   // One object that changes only when a level does, so the memo holds
   // through every other render.
   baseOpacity: BaseOpacity

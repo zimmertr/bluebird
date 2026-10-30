@@ -71,7 +71,7 @@ export const SLOPE_BANDS: readonly SlopeBand[] = [
  * Liberty's pale land, and at 0.6 the purple and the blue hid the imagery's
  * rock and snow, which is what a reader looks at a steep slope to see. The
  * relief under it shows through at half. The row's slider moves it from 0 to
- * 1 since record 0243, and the default stays here: `OPACITY_DEFAULT` in
+ * 1 since record 0250, and the default stays here: `OPACITY_DEFAULT` in
  * `baseMapOpacity.ts` is this half as a percent.
  */
 export const SLOPE_ALPHA = 0.5

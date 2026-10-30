@@ -643,7 +643,7 @@ no row exists, each pod downloads the three files itself, about 28 MB, and
 holds them for an hour before it reads the row again, so a PR preview, which
 reads production's row and writes none, fetches FIRMS once an hour per pod
 until production has written one. Record: [0182](decisions/0182-shared-snapshots.md),
-[0237](decisions/0237-fire-activity-from-firms-files.md)
+[0246](decisions/0246-fire-activity-from-firms-files.md)
 
 The two overlays added in
 [#121](https://github.com/zimmertr/bluebird/issues/121) split on that same

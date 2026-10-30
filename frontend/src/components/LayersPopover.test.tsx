@@ -178,7 +178,7 @@ describe('LayersPopover', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Area closures' }))
     expect(setShowAreaClosures).toHaveBeenCalledWith(true)
     // Down the list from Hazards into Forecast: the run takes no notice of
-    // the heading between them (record 0242).
+    // the heading between them (record 0249).
     fireEvent.click(screen.getByRole('checkbox', { name: 'Forecast player' }), { shiftKey: true })
     expect(setShowPlayer).toHaveBeenCalledWith(true)
     expect(setShowRadar).toHaveBeenCalledWith(true)
@@ -232,7 +232,7 @@ describe('LayersPopover', () => {
 
   // Three groups by what a layer changes, the ground first, each under its
   // heading and each a group to a screen reader named by it, the rows by
-  // kind inside (record 0242). Each row drives its own layer, and no label
+  // kind inside (record 0249). Each row drives its own layer, and no label
   // carries a coverage note: the row greys instead (below).
   it('lists the layers in three named groups, ordered by kind', () => {
     const setShowTrailClosures = vi.fn()
@@ -507,7 +507,7 @@ describe('LayersPopover', () => {
     before.remove()
   })
   // Every row's switch is the menu's own checkbox, named by its row, checked
-  // while its layer is on (record 0243 tried an eye here and took it back).
+  // while its layer is on (record 0250 tried an eye here and took it back).
   it('draws every row\'s switch as the menu\'s checkbox', () => {
     render(
       <LayersPopover
@@ -559,7 +559,7 @@ describe('LayersPopover', () => {
   })
 
   // A slider looks the same whether its layer is on or off, and keeps its
-  // level while off (record 0243).
+  // level while off (record 0250).
   it('draws an off layer\'s slider as an on one\'s and keeps its level', () => {
     render(
       <LayersPopover

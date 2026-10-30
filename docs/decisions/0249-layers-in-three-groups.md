@@ -1,10 +1,10 @@
 # 0242. The Layers rows stand in three groups, Base map, Hazards and Forecast, under muted headings, by kind inside each, and the legend follows their order
 
-- Status: Accepted. Amends 0019 (the rows are grouped under headings, not alphabetical) and 0048 (the legend's sections read in the menu's order, not alphabetically). Amended by [0243](0243-layers-palette-and-base-map-opacity.md): the groups stand, each row's checkbox is drawn as an eye, and the Base map rows carry opacity sliders.
+- Status: Accepted. Amends 0019 (the rows are grouped under headings, not alphabetical) and 0048 (the legend's sections read in the menu's order, not alphabetically). Amended by [0250](0250-layers-palette-and-base-map-opacity.md): the groups stand, each row's checkbox is drawn as an eye, and the Base map rows carry opacity sliders.
 - Date: 2026-10-29
 - Decider: the maintainer (TJ), on #799, 2026-10-29, from a lab of the Layers menu that grouped its rows four ways and marked the groups three ways: three groups, marked by headings, the headings in sentence case and muted rather than the panel's small caps, named `Base map`, `Hazards` and `Forecast`, the ground first, and the rows ordered by kind. The legend following the menu's order was in the brief that came with it. The heading's spacing and the metric key's place in the legend were the implementer's, for review on the pull request.
 - Issues and PRs: #799, #823
-- Cited in code as: record 0242
+- Cited in code as: record 0249
 - Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `MapLegend.tsx`/`LayersPopover.tsx` bullet; [`frontend/src/utils/forecastGrid/CLAUDE.md`](../../frontend/src/utils/forecastGrid/CLAUDE.md), the Layers rows and the legend's sections; [`docs/STYLES.md`](../STYLES.md), `MENU` and `MENU_GROUP`; [`docs/USAGE.md`](../USAGE.md), Map layers and The map's legend
 - Related: 0117 (a bounded row greys), 0174 (the desk's chips and their cards), 0208 (one list for the Analyze button's messages, the other grouped list in the app), 0227 (Shift ranges on every group of checkboxes)
 

@@ -862,7 +862,7 @@ export const SWATCH_CHIP = `inline-flex h-4 w-4 items-center justify-center ${RA
  * maintainer, 2026-10-29). No type: the hours are paths in the icon, digits
  * 8.5px tall in a 1px stroke on the ink body, because 10px type on the star
  * was text laid over a shape, and the maintainer picked the drawn icon over
- * three rounds of labs (record 0237). `relative` holds the chip's hidden
+ * three rounds of labs (record 0246). `relative` holds the chip's hidden
  * words, which are absolutely placed, inside its own box.
  *
  * The digits are the band's fill on the layer's ink, 5.66, 7.73 and 13.27:1;
@@ -1431,7 +1431,7 @@ export const CHART_TITLE = {
  * minimum). The two cards shared one width until 2026-10-29, when the
  * maintainer made this one size like the rest: a reader who opens one card
  * over the other no longer sees one edge, which was judged the lesser cost
- * (records 0174 and 0237). The rows are nowrap, so the widest, "Forecast
+ * (records 0174 and 0246). The rows are nowrap, so the widest, "Forecast
  * player", sets it, 128.7px with the padding (measured 2026-10-29 in the
  * browser suite's Chromium); while the forecast grid is on, its coverage
  * slider's floor (`SLIDER.fit`) makes it 140.
@@ -2546,7 +2546,7 @@ export const BOTTOM_SHEET = {
 
 /**
  * A sheet that steps aside while a finger tunes the map under it (record
- * 0243): the Layers sheet while one of its opacity sliders is dragged. The
+ * 0250): the Layers sheet while one of its opacity sliders is dragged. The
  * dim lifts, the card and every row in it go, and the row being dragged stays
  * where it stood, on the sheet's own fill with the card's edge and shadow, so
  * the map it changes is in sight. On release it all comes back. Visibility
@@ -3115,7 +3115,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   the way the model list sets its ranking model. No check mark: the weight
  *   says it, and a mark would take a column from every row.
  * - `heading`: a word over a group of rows, which a reader reads and never
- *   presses: the Layers menu's Base map, Hazards and Forecast (record 0242).
+ *   presses: the Layers menu's Base map, Hazards and Forecast (record 0249).
  *   The caption step in semibold, sentence case: the maintainer chose it over
  *   the panel's small caps (`TEXT.section`, `TEXT.overline`), which shout
  *   over a list of thirteen short rows. The size is the rows' own 12px and
@@ -3140,7 +3140,7 @@ export const MENU = {
 
 /**
  * A group of a menu's rows under its `MENU.heading`, at a desk and on a
- * phone's sheet (record 0242). Only the Layers menu has groups.
+ * phone's sheet (record 0249). Only the Layers menu has groups.
  *
  * - `card`: at a desk the rows stand on the card's padding, so a group is set
  *   off from the one over it by 6px of space, which with the last row's own
@@ -3169,7 +3169,7 @@ export const MENU_GROUP = {
 } as const
 
 /**
- * A row of the Layers menu (record 0243): the menu's checkbox, the layer's
+ * A row of the Layers menu (record 0250): the menu's checkbox, the layer's
  * name, and on the four Base map rows an opacity slider at the right. At a
  * desk and on a phone's sheet alike. The record built the row with an eye in
  * place of the box, drawn over a hidden checkbox; the maintainer chose the
@@ -3198,7 +3198,7 @@ export const MENU_GROUP = {
  * - An off layer's slider looks the same as an on one's, accent and all: it
  *   is live, and a drag on it checks the layer's box at the level it sets,
  *   the way a muted volume slider unmutes (the maintainer, 2026-10-29,
- *   record 0243). A dimmed slider that still acted would look disabled and
+ *   record 0250). A dimmed slider that still acted would look disabled and
  *   behave enabled.
  */
 export const LAYER_ROW = {

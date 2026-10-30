@@ -140,7 +140,7 @@ const RELIEF_LOOK = {
 } as const
 
 /**
- * The relief at the Shaded relief row's opacity, 0 to 1 (record 0243), where
+ * The relief at the Shaded relief row's opacity, 0 to 1 (record 0250), where
  * the default level, a half, is the look above. A hillshade layer has no
  * opacity of its own, so the level moves what it has. Under the default the
  * shadow and the light fade together and the depth holds, so the shading
@@ -189,7 +189,7 @@ const CONTOUR_INDEX_PAINT: maplibregl.LineLayerSpecification['paint'] = {
 /**
  * The contours over the satellite imagery (#799): a light line on a thin dark
  * edge, the way CalTopo draws them on its imagery, because the brown at 0.35
- * reads 1.25:1 on a forest and vanishes. Measured 2026-10-28 on record 0234's
+ * reads 1.25:1 on a forest and vanishes. Measured 2026-10-28 on record 0243's
  * two grounds, a forest (#3a4a33) and a snowfield (#e8ecef), each line taken
  * as drawn, its ink over its edge over the ground: the minor line's ink reads
  * 4.89:1 on the forest and its edge 3.20:1 on the snow, the index line's 7.23
@@ -335,7 +335,7 @@ export interface TerrainLayers {
    */
   overImagery(on: boolean): void
   /**
-   * The three rows' opacity sliders, each 0 to 1 (record 0243): the relief's
+   * The three rows' opacity sliders, each 0 to 1 (record 0250): the relief's
    * depth and light, the slope's raster opacity, and the contours' lines and
    * heights. A layer at 0 is hidden, as switched off, so it asks for nothing.
    */
