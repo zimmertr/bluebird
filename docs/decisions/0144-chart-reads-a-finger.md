@@ -1,6 +1,6 @@
 # 0144. The chart reads the hour under a finger as it reads a resting mouse
 
-- Status: Accepted. Amended by 0149 (a phone's plot is inset under its title, and a finger reads the inset band) and [0154](0154-phone-readout-rises-into-the-sheet.md) (a readout the band cannot hold rises into the sheet).
+- Status: Accepted. Amended by 0149 (a phone's plot is inset under its title, and a finger reads the inset band) and [0154](0154-phone-readout-rises-into-the-sheet.md) (a readout the band cannot hold rises into the sheet). Amended by [0243](0243-chart-metrics-as-panels.md) (a lift drops the reading).
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #336 (folded into #708), 2026-10-14
 - Issues and PRs: #336, #696, #708, #517

@@ -154,7 +154,7 @@ function props(over: Partial<Props> = {}): Props {
 // chart area, the last child of the box after the toolbar, beside a phone's
 // title when there is one.
 function plotIn(container: HTMLElement): HTMLElement {
-  return container.firstElementChild!.lastElementChild!.lastElementChild as HTMLElement
+  return container.querySelector('[data-chart-stage]')!.parentElement as HTMLElement
 }
 function placePlot(container: HTMLElement, width: number) {
   const plot = plotIn(container)
@@ -247,6 +247,17 @@ describe('TimeSeriesChart under a finger', () => {
     fireEvent.pointerMove(plotOf(container), { pointerType: 'touch', clientX: 52, clientY: 560 })
     expect(tip().index).toBe('0')
     fireEvent.pointerCancel(plotOf(container), { pointerType: 'touch' })
+    expect(tip().active).toBe('undefined')
+  })
+
+  // The reading lasts while the finger rests (TJ 2026-10-30): a lift takes it
+  // away, so there is never a card to dismiss.
+  it('lets go of the reading when the finger lifts', () => {
+    const { container } = render(<TimeSeriesChart {...props()} />)
+    placePlot(container, 360)
+    fireEvent.pointerDown(plotOf(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
+    expect(tip().active).toBe('true')
+    fireEvent.pointerUp(plotOf(container), { pointerType: 'touch' })
     expect(tip().active).toBe('undefined')
   })
 
@@ -674,9 +685,11 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(card.classList.contains('w-max')).toBe(true)
   })
 
-  it('keeps one panel\'s card inside its plot', () => {
+  // One panel stands in the stack too, so its card keeps to the chart's area
+  // rather than to the plot (TJ 2026-10-30).
+  it('lets one panel\'s card leave its plot for the chart\'s area', () => {
     render(<TimeSeriesChart {...props()} />)
-    expect(chart.tooltipProps[chart.tooltipProps.length - 1].allowEscapeViewBox).toBeUndefined()
+    expect(chart.tooltipProps[chart.tooltipProps.length - 1].allowEscapeViewBox).toEqual({ x: true, y: true })
   })
 
   it('keeps the one-metric card as it was: no header, bare numbers', () => {

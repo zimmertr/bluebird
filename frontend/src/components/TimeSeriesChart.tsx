@@ -1065,7 +1065,11 @@ function ChartPanel({
   // cursor, the nearest line drawn over the rest. A horizontal drag keeps
   // reading, because the plot leaves only vertical panning to the browser
   // (`touch-pan-y` below); a vertical drag is the sheet's scroll, and the
-  // browser cancels the pointer, which drops the reading.
+  // browser cancels the pointer, which drops the reading. A lift drops it too
+  // (TJ 2026-10-30, reversing record 0144's reading that stayed): on a phone
+  // the chart fills the sheet, so a tap meant to close a standing card moved
+  // the hour instead, and a reading held only under the finger leaves nothing
+  // to close. The tap's own click still seeks the map's playhead.
   function readFinger(e: PointerEvent<HTMLDivElement>) {
     if (e.pointerType === 'mouse') return
     if (e.type === 'pointerdown') tapXRef.current = e.clientX
@@ -1084,6 +1088,11 @@ function ChartPanel({
   function dropFinger() {
     tapXRef.current = null
     onDropFinger()
+  }
+
+  // Keeps `tapXRef`, which the click that follows a lift reads.
+  function liftFinger(e: PointerEvent<HTMLDivElement>) {
+    if (e.pointerType !== 'mouse') onDropFinger()
   }
 
 
@@ -1141,6 +1150,7 @@ function ChartPanel({
         ref={plotRef}
         onPointerDown={readFinger}
         onPointerMove={readFinger}
+        onPointerUp={liftFinger}
         onPointerCancel={dropFinger}
         // A card over several panels leaves this one (#499).
         className={`relative min-h-0 flex-1 ${areaRef ? 'overflow-visible' : 'overflow-hidden'} ${CHART_PLOT_TOUCH}`}

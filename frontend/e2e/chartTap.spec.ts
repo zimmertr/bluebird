@@ -56,8 +56,8 @@ test('a tap on the chart moves the map playhead at 360 px', async ({ page }) => 
 })
 
 // A finger reads the chart as a resting mouse does (#336; record 0144): a
-// drag across the plot shows the hour under it, and the reading stays when
-// the finger lifts. A touch drag is sent through the protocol, because the
+// drag across the plot shows the hour under it, and the reading goes when
+// the finger lifts (TJ 2026-10-30). A touch drag is sent through the protocol, because the
 // page's own touchscreen helper only taps.
 test('a finger dragged across the chart reads the hour under it at 360 px', async ({ page, context }) => {
   const box = await openChart(page)
@@ -74,8 +74,9 @@ test('a finger dragged across the chart reads the hour under it at 360 px', asyn
   const first = await tooltip.textContent()
   for (let i = 1; i <= 6; i++) await touch('touchMove', 0.3 + i * 0.07)
   await expect(tooltip).not.toHaveText(first ?? '')
+  // The reading lasts only while the finger rests (TJ 2026-10-30).
   await touch('touchEnd')
-  await expect(tooltip).toBeVisible()
+  await expect(tooltip).toBeHidden()
 })
 
 // A phone's Chart opens at the sheet's full stop (#696; record 0155), and
@@ -117,7 +118,12 @@ test.describe('on a 390 px phone', () => {
     await expect.poll(async () => (await grid.boundingBox())?.height ?? 0).toBeLessThan(100)
     await expect.poll(async () => (await grid.boundingBox())?.height ?? 0).toBeGreaterThan(20)
     const band = (await grid.boundingBox())!
-    await page.touchscreen.tap(band.x + band.width / 2, band.y + band.height / 2)
+    // Held, not tapped: the reading lasts only while the finger rests.
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: band.x + band.width / 2, y: band.y + band.height / 2 }],
+    })
     const card = page.locator('.recharts-tooltip-wrapper > div')
     await expect(card).toBeVisible()
     await expect(card.locator('.font-mono').first()).toBeVisible()
