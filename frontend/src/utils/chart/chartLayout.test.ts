@@ -1,20 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { defaultLayout, evenRows, isChartLayout, layoutFor, layoutsFor, rowRects, rowsOf, sharesAfterDrag } from './chartLayout'
+import { defaultLayout, evenRows, isChartLayout, layoutFor, layoutsFor, rowCrossings, rowRects, rowsOf, sharesAfterDrag } from './chartLayout'
 
 describe('the panel layouts', () => {
   it('offers each count its own, the one that shipped first leading', () => {
     expect(layoutsFor(1)).toEqual([])
     expect(layoutsFor(2)).toEqual(['column', 'row'])
-    expect(layoutsFor(4)).toEqual(['2x2', 'row', 'column', '1-3', '1-2-1'])
-    expect([2, 3, 4].map(defaultLayout)).toEqual(['column', '2-1', '2x2'])
+    expect(layoutsFor(4)).toEqual(['1-3', '2x2', 'column', '1-2-1', 'row'])
+    expect(layoutsFor(3)).toEqual(['1-2', '2-1', 'column', 'row'])
+    expect([2, 3, 4].map(defaultLayout)).toEqual(['column', '1-2', '1-3'])
   })
 
   it('keeps a choice the count offers and falls back otherwise', () => {
     expect(layoutFor('1-3', 4)).toBe('1-3')
-    expect(layoutFor('1-3', 3)).toBe('2-1')
+    expect(layoutFor('1-3', 3)).toBe('1-2')
     expect(layoutFor(null, 2)).toBe('column')
     expect(isChartLayout('1-2-1')).toBe(true)
     expect(isChartLayout('3x3')).toBe(false)
+  })
+
+  it('finds a crossing wherever a row bar meets a panel bar', () => {
+    expect(rowCrossings([1, 3]).map((x) => x.panel)).toEqual([2, 3])
+    expect(rowCrossings([1, 2, 1]).map((x) => [x.rowAt, x.panel])).toEqual([[0, 2], [1, 2]])
   })
 
   it('reads each layout as rows of panels', () => {
