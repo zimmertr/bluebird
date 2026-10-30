@@ -491,7 +491,7 @@
 
    `SQUARE_BUTTON` in styles.ts: a raised square with a frame, as every icon
    button inside a surface is (TJ 2026-10-30), the soft ink at rest and the
-   strong ink under a pointer. The vendor's own glyph is a bare character
+   accent under a pointer (record 0251). The vendor's own glyph is a bare character
    pressed into the corner with no hit area, which is why the box is drawn
    here at all.
 
@@ -522,12 +522,20 @@
   color: var(--popup-close-hover);
 }
 
-/* Coarse pointers get the 32px square every phone control has (`TAP` in
-   styles.ts, record 0223). */
+/* Coarse pointers get the 32px square every phone control draws, and the
+   44px press every phone control has (`TAP` in styles.ts, records 0223 and
+   0254): a rim inside its 1px edge, 30 + 14 across. The rim stops 6px out at
+   the top and the right, the button's own inset, so the press stays on the
+   card and does not reach the map past its corner. */
 @media (hover: none) {
   .maplibregl-popup-close-button {
     width: 2rem;
     height: 2rem;
+  }
+  .maplibregl-popup-close-button::before {
+    content: '';
+    position: absolute;
+    inset: -6px -6px -8px -8px;
   }
 }
 

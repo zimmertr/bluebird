@@ -3162,7 +3162,7 @@ export const MENU_TRIGGER = {
    * type and arrow room with no edge or radius of its own, because the group
    * wears them, and the one trigger's states (`TRIGGER_STATE`, record 0252).
    */
-  segment: `${TEXT.control} appearance-none pr-6 group relative focus:outline-none ${TRIGGER_STATE}`,
+  segment: `${TEXT.control} appearance-none pr-6 group relative ${TRIGGER_STATE}`,
   bar: ACTION_ITEM,
   /**
    * The chart's Panel layout button (#499): the + square's look, the field's
@@ -3855,8 +3855,7 @@ export const TOUR = {
  */
 export const CHART_PICKER = {
   group:
-    `${FIELD_LOOK} flex flex-shrink-0 items-stretch touch:min-h-8 ` +
-    'has-[[aria-haspopup]:focus-visible]:border-mark',
+    `${FIELD_LOOK} flex flex-shrink-0 items-stretch touch:min-h-8`,
   remove: `${ICON_ACTION} ${FOCUS_RING_INSET} flex flex-shrink-0 items-center justify-center border-l border-edge leading-none`,
   x: 'w-5.5 touch:w-8',
   // The grip that moves a panel (#499; TJ 2026-10-30): the left segment of

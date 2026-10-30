@@ -4089,6 +4089,9 @@ describe('the popup card', () => {
     expect(mapCss).toContain('--popup-close-hover: var(--ui-accent-ink);')
     expect(mapCss).toMatch(/--popup-close-fill: var\(--ui-raised\);/)
     expect(mapCss).not.toMatch(/--popup-close-fill-hover/)
+    // Under a finger it draws 32px and presses 44, as every phone control
+    // does (record 0254), its rim kept on the card at the top and the right.
+    expect(mapCss).toMatch(/\.maplibregl-popup-close-button::before \{[^}]*inset: -6px -6px -8px -8px;/)
   })
 
   // The ranked family's colours (#740) are the table's, and the card stands
