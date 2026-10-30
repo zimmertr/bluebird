@@ -1925,10 +1925,12 @@ export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
  * boxes' two edges and a grid item can never stretch a track.
  *
  * This is the panel's widest row, and the budget is the label's: `Freezing
- * level` must fit beside a dropdown and two boxes at the panel's 327px of
- * content. `styles.test.ts` does that arithmetic from the measured noun, so a
- * wider box or a longer noun fails there instead of as an ellipsis, which is
- * how the old Ranking row shipped `Freezing le…` (#341).
+ * level` must fit beside a dropdown and two boxes at both widths. The desk
+ * panel's 327px of content less its 10px bar is 317px and binds; a phone's
+ * Controls sheet gives the grid 328px with no scroll bar reserved, the wider
+ * of the two (#586). `styles.test.ts` does that arithmetic from the measured
+ * noun, so a wider box or a longer noun fails there instead of as an ellipsis,
+ * which is how the old Ranking row shipped `Freezing le…` (#341).
  */
 export const METRICS_GRID =
   'grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-1.5 gap-y-1.5'
