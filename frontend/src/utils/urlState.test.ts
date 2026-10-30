@@ -99,6 +99,7 @@ const base: ShareableState = {
   removed: [],
   tableSort: null,
   chart: metricsFor(DEFAULT_SORT),
+  chartLayout: null,
   view: null,
 }
 
@@ -134,6 +135,7 @@ const pristine: ShareableState = {
   removed: [],
   tableSort: null,
   chart: metricsFor(DEFAULT_SORT),
+  chartLayout: null,
   view: null,
 }
 
