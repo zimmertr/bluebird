@@ -3640,11 +3640,15 @@ export const CHART_PANEL_BUTTON = {
  * `styles.test.ts`.
  */
 export const CHART_GUTTER = {
-  col: 'group absolute z-[2] w-2 cursor-col-resize touch-none',
-  row: 'group absolute z-[2] h-2 cursor-row-resize touch-none',
+  // Each bar wears the stacked grip's look (TJ 2026-10-30): the raised band
+  // between two frame rules, with a pill at its middle, so every layout's
+  // bars read as one handle whichever way they run. The band fills the 8px
+  // gap the panels already leave.
+  col: 'group absolute z-[2] flex w-2 cursor-col-resize touch-none items-center justify-center border-x border-frame bg-raised hover:bg-raised-hover transition-colors',
+  row: 'group absolute z-[2] flex h-2 cursor-row-resize touch-none items-center justify-center border-y border-frame bg-raised hover:bg-raised-hover transition-colors',
   cross: 'absolute z-[3] size-4 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none',
-  colLine: 'absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors',
-  rowLine: 'absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors',
+  colLine: `h-10 w-0.5 ${RADIUS.pill} transition-colors`,
+  rowLine: `h-0.5 w-10 ${RADIUS.pill} transition-colors`,
   // The line's colour, one or the other and never both, because two colour
   // utilities resolve by stylesheet order rather than by the class list.
   idle: 'bg-edge group-hover:bg-accent',

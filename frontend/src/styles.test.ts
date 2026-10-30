@@ -2958,17 +2958,21 @@ describe('the chart picker row', () => {
     expect(words(CHART_PICKER.target)).toEqual(['ring-2', 'ring-accent'])
   })
 
-  // The grid's gutters are its handles (#499): a cursor per axis, a 1px line
-  // in the rule token that lights in the accent, and a crossing with no glyph.
-  it('draws the grid gutters as lines, each with its own resize cursor', () => {
+  // The grid's gutters are its handles (#499): a cursor per axis, a band
+  // with a pill in the edge token that lights in the accent, and a crossing
+  // with no glyph.
+  it('draws the grid gutters as grips, each with its own resize cursor', () => {
     expect(words(CHART_GUTTER.col)).toEqual(expect.arrayContaining(['w-2', 'cursor-col-resize']))
     expect(words(CHART_GUTTER.row)).toEqual(expect.arrayContaining(['h-2', 'cursor-row-resize']))
     expect(words(CHART_GUTTER.cross)).toEqual(expect.arrayContaining(['size-4', 'cursor-move']))
     expect(CHART_GUTTER.cross).not.toMatch(/(^|\s)(bg|border)-/)
-    expect(words(CHART_GUTTER.colLine)).toContain('w-px')
-    expect(words(CHART_GUTTER.rowLine)).toContain('h-px')
+    // The stacked grip's band and pill, run either way (TJ 2026-10-30).
+    expect(words(CHART_GUTTER.col)).toEqual(expect.arrayContaining(['bg-raised', 'border-x', 'border-frame']))
+    expect(words(CHART_GUTTER.row)).toEqual(expect.arrayContaining(['bg-raised', 'border-y', 'border-frame']))
+    expect(words(CHART_GUTTER.colLine)).toEqual(expect.arrayContaining(['h-10', 'w-0.5']))
+    expect(words(CHART_GUTTER.rowLine)).toEqual(expect.arrayContaining(['w-10', 'h-0.5']))
     expect(words(CHART_GUTTER.idle)).toEqual(['bg-edge', 'group-hover:bg-accent'])
-    // The line is the handle, so it owes a boundary's 3:1 on the panel.
+    // The pill is the handle, so it owes a boundary's 3:1 on the panel.
     expect([ratio(dark('edge'), dark('panel')), ratio(light('edge'), light('panel'))]).toEqual([3.07, 3.97])
     expect(CHART_GUTTER.active).toBe('bg-accent')
   })
