@@ -48,31 +48,41 @@ for (const width of [360, 390]) {
   })
 }
 
-// The (i)'s glyph is centred on its round button (TJ, 2026-10-14): the
-// library's 24px drawing, whose circle is centred in it, placed on the
-// button's whole box rather than at the top left of the padding box the 1px
-// border shrinks. Read off the computed background, since the glyph is one:
-// what this proves is that map.css's placement wins the cascade in a browser,
-// not where the drawn pixels land.
+// The (i)'s glyph is centred on its round button (TJ, 2026-10-14). It is a
+// mask in the button's ink on the button's `after` (record 0251), laid over
+// the button's whole box, the border included, rather than over the padding
+// box the 1px border shrinks. Read off the computed pseudo-element, since the
+// glyph is one: what this proves is that map.css's placement wins the cascade
+// in a browser, not where the drawn pixels land.
 for (const width of [360, 390]) {
-  test(`the (i) button's background is placed on its border box, centred, at ${width} px`, async ({ page }) => {
+  test(`the (i) button's glyph is a mask centred on its border box, at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
     await page.goto('/')
     await expect(page.locator('.maplibregl-ctrl-attrib-button')).toBeVisible()
     const at = await page.evaluate(() => {
       const b = document.querySelector('.maplibregl-ctrl-attrib-button')!
       const r = b.getBoundingClientRect()
-      const cs = getComputedStyle(b)
-      const border = parseFloat(cs.borderTopWidth)
-      const origin = cs.backgroundOrigin === 'border-box' ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: r.left + border, y: r.top + border, w: r.width - 2 * border, h: r.height - 2 * border }
-      const [px, py] = cs.backgroundPosition.split(' ').map((v) => parseFloat(v) / 100)
-      // The drawing is 24px square with its circle at the middle.
-      const glyph = { x: origin.x + (origin.w - 24) * px + 12, y: origin.y + (origin.h - 24) * py + 12 }
-      return { button: { x: r.left + r.width / 2, y: r.top + r.height / 2 }, glyph, repeat: cs.backgroundRepeat }
+      const border = parseFloat(getComputedStyle(b).borderTopWidth)
+      const cs = getComputedStyle(b, '::after')
+      const inset = parseFloat(cs.top)
+      // The after's box, from its inset against the padding box.
+      const box = { x: r.left + border + inset, y: r.top + border + inset, w: r.width - 2 * (border + inset), h: r.height - 2 * (border + inset) }
+      const [px, py] = cs.maskPosition.split(' ').map((v) => parseFloat(v) / 100)
+      const size = parseFloat(cs.maskSize)
+      const glyph = { x: box.x + (box.w - size) * px + size / 2, y: box.y + (box.h - size) * py + size / 2 }
+      return {
+        button: { x: r.left + r.width / 2, y: r.top + r.height / 2 },
+        glyph,
+        repeat: cs.maskRepeat,
+        image: cs.maskImage.startsWith('url('),
+        background: getComputedStyle(b).backgroundImage,
+      }
     })
     test.info().annotations.push({ type: `info glyph ${width} px`, description: JSON.stringify(at) })
     expect(at.glyph.x).toBeCloseTo(at.button.x, 1)
     expect(at.glyph.y).toBeCloseTo(at.button.y, 1)
     expect(at.repeat).toBe('no-repeat')
+    expect(at.image).toBe(true)
+    expect(at.background).toBe('none')
   })
 }

@@ -343,7 +343,7 @@ describe('MenuButton', () => {
   it('lights the label under the pointer, never the edge, and the open state on aria-expanded', () => {
     const words = (classes: string) => classes.split(' ')
     const fill = words(ACCENT.fill).find((t) => t.startsWith('bg-'))!
-    const edge = 'border-accent-ink'
+    const edge = ACCENT.text.replace(/^text-/, 'border-')
     expect(words(MENU_TRIGGER.chip)).toContain(ACCENT.hoverText)
     expect(words(MENU_TRIGGER.field)).toContain(`enabled:${ACCENT.hoverText}`)
     for (const shape of Object.values(MENU_TRIGGER)) expect(shape).not.toMatch(/hover:border/)
