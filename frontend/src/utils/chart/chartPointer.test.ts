@@ -19,7 +19,6 @@ import {
   cardPlacement,
   xAxisPx,
 } from './chartPointer'
-import { TOOLTIP_ROW_PX } from './chartData'
 
 const HOUR = 3_600_000
 // Seven hourly stamps, so the band of a 360px box divides into six steps.
