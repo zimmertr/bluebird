@@ -1555,14 +1555,14 @@ export const MAP_EDGE = {
   /**
    * On a phone, where the app's two rows span the map's top (#696), the
    * vendor's stack, which is the compass alone there, starts one inset below
-   * them rather than beside the pill: 84 + 12. While a ring is drawn the draw
-   * bar stands under the rows (`MAP_ROWS.drawBar`, 46px tall at 92), so the
-   * stack starts one inset under it instead: 92 + 46 + 12. `map.css` reads
+   * them rather than beside the pill: 88 + 12. While a ring is drawn the draw
+   * bar stands under the rows (`MAP_ROWS.drawBar`, 46px tall at 100), so the
+   * stack starts one inset under it instead: 100 + 46 + 12. `map.css` reads
    * `--map-vendor-top` as the stack's top margin, and `styles.test.ts` holds
    * both numbers to the rows' geometry.
    */
-  belowRows: '[--map-vendor-top:96px]',
-  belowDrawBar: '[--map-vendor-top:150px]',
+  belowRows: '[--map-vendor-top:100px]',
+  belowDrawBar: '[--map-vendor-top:158px]',
 } as const
 
 /**
@@ -1602,8 +1602,8 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  * column of boxed buttons so a reader meets one map at both widths.
  *
  * The geometry is four numbers, and every other anchor on the map's top is
- * built from them: the map's 12px inset (`MAP_EDGE`), the 32px first row, 8px
- * between the rows and the 32px chip row. So the rows end 84px down the map at
+ * built from them: the map's 12px inset (`MAP_EDGE`), the 32px first row, 12px
+ * between the rows and the 32px chip row. So the rows end 88px down the map at
  * both widths, and `styles.test.ts` holds each anchor below to that sum.
  *
  * A phone's rows span the map. A desk's are as wide as the wider of the pill
@@ -1622,26 +1622,31 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  * hangs from its left edge and the locate button from its right.
  */
 export const MAP_ROWS = {
-  stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-max lg:min-w-80 flex flex-col gap-2 pointer-events-none`,
+  stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-max lg:min-w-80 flex flex-col gap-3 pointer-events-none`,
   row: `relative h-8 ${YIELD_EMPTY}`,
   /**
    * Where the pill stands: on a phone across the row less the 3D and locate
-   * buttons and the 8px before each (`right-20`, 2 × (32 + 8)) at rest, and
+   * buttons and the 12px before each (`right-22`, 2 × (32 + 12)) at rest, and
    * across the whole row while the field has the keyboard or its list is
    * open, over the buttons. At a desk 320px either way (`lg:w-80`), with no
    * button beside it. Raised so its results list paints over the chip row and
    * the map.
    */
-  pill: 'absolute inset-y-0 left-0 right-20 lg:right-auto lg:w-80 z-10',
+  pill: 'absolute inset-y-0 left-0 right-22 lg:right-auto lg:w-80 z-10',
   pillWide: 'absolute inset-y-0 left-0 right-0 lg:right-auto lg:w-80 z-10',
-  /** The second row: one line of chips, 6px apart, never wrapping. */
+  /**
+   * The second row: one line of chips, 6px apart, never wrapping. The rows
+   * stand 12px apart, and 3D 12px left of locate (`MAP_SLOT`), because a
+   * finger's press reaches 6px past each 32px control (44 in all), so 12px
+   * is where two presses meet without one taking the other's (record 0254).
+   */
   chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
   /**
-   * The draw bar on a phone (#687): under the chip row, 8px below it (84 +
-   * 8), so every chip stays in reach while a ring is drawn and the foot of
+   * The draw bar on a phone (#687): under the chip row, 12px below it (88 +
+   * 12), so every chip stays in reach while a ring is drawn and the foot of
    * the map stays the notices' and the player's.
    */
-  drawBar: 'top-[92px]',
+  drawBar: 'top-[100px]',
 } as const
 
 /**
@@ -1707,7 +1712,7 @@ export const MAP_TERRAIN_BUTTON = `map-terrain ${MAP_ROUND_BUTTON} ${TEXT.contro
  * slots: its buttons stand in the map's bottom-right corner (`MAP_CORNER`).
  *
  * `locate` is a 32px box at the search pill's right, and `terrain` the same
- * box 8px left of it, for the 3D button (#799), so the pill's row ends in
+ * box 12px left of it, for the 3D button (#799), so the pill's row ends in
  * two round buttons the way a desk's column stacks them. `compass` is the
  * chip row's last member, under the locate button (record 0147), and takes no
  * room of its own: while the map is north-up the compass is hidden and the
@@ -1717,7 +1722,7 @@ export const MAP_TERRAIN_BUTTON = `map-terrain ${MAP_ROUND_BUTTON} ${TEXT.contro
  */
 export const MAP_SLOT = {
   locate: 'map-slot absolute right-0 top-0 size-8',
-  terrain: 'map-slot absolute right-10 top-0 size-8',
+  terrain: 'map-slot absolute right-11 top-0 size-8',
   compass: 'map-slot ml-auto flex-shrink-0',
 } as const
 
@@ -1726,7 +1731,8 @@ export const MAP_SLOT = {
  * (TJ, 2026-10-20): the credit line flush in the map's bottom-right corner,
  * on the results' edge, with the scale at its end, and over it a column of
  * the compass, the locate button and the zoom pair, 24px in from the map's
- * right edge, 6px apart and 10px above the line. A phone keeps its two
+ * right edge, 6px apart and 10px above the line, 12px apart on a touch
+ * screen, where each press reaches 6px past its button (record 0254). A phone keeps its two
  * buttons in its rows (`MAP_SLOT`) and has no zoom pair.
  *
  * Each piece is the library's own control, moved into a slot here
@@ -1745,7 +1751,7 @@ export const MAP_SLOT = {
  */
 export const MAP_CORNER = {
   box: `absolute right-0 bottom-[var(--map-corner-lift,0px)] flex flex-col items-end gap-2.5 pointer-events-none ${LAYER.base}`,
-  stack: 'map-corner mr-6 flex flex-col items-end gap-1.5',
+  stack: 'map-corner mr-6 flex flex-col items-end gap-1.5 touch:gap-3',
   // `leading-5` is the library's own 20px line, which the map's container
   // gives its controls and the corner, outside it, does not: without it the
   // scale shrank to 17px from the 22px box record 0162 holds it to.
@@ -2592,7 +2598,7 @@ export const BOTTOM_SHEET = {
   scrim: `fixed inset-0 ${LAYER.popover}`,
   dim: 'absolute inset-0 bg-scrim/40',
   card:
-    `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-96px)] flex-col ` +
+    `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-100px)] flex-col ` +
     `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
   grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-edge',
   /**

@@ -701,8 +701,8 @@ The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role b
 The map carries two rows across its top at both widths, and a phone's map one
 button at its foot as well
 (`MAP_ROWS`, `MAP_PILL`, `MAP_ROUND_BUTTON`, `MAP_CHIP`, `MAP_FAB` in `styles.ts`).
-The rows are four numbers, the map's 12px inset, the 32px first row, 8px
-between and the 32px chip row, so they end 84px down; the draw bar, the
+The rows are four numbers, the map's 12px inset, the 32px first row, 12px
+between and the 32px chip row, so they end 88px down; the draw bar, the
 compass, the bottom sheet's card and the results sheet's highest stop are all
 built from that sum, and
 `styles.test.ts` holds each to it. The chips are 12px type with 12px a side,

@@ -243,8 +243,8 @@ for (const width of [360, 390]) {
     expect(at.terrain.width).toBe(32)
     expect(at.terrain.height).toBe(at.locate.height)
     expect(at.terrain.top).toBe(at.locate.top)
-    expect(Math.round(at.locate.left - at.terrain.right)).toBe(8)
-    expect(Math.round(at.terrain.left - at.pill.right)).toBe(8)
+    expect(Math.round(at.locate.left - at.terrain.right)).toBe(12)
+    expect(Math.round(at.terrain.left - at.pill.right)).toBe(12)
     // Not in the chip row.
     expect(at.terrain.bottom).toBeLessThanOrEqual(at.chipRow.top)
     expect(at.words).toBeLessThanOrEqual(at.field)

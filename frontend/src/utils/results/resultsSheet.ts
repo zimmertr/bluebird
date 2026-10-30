@@ -19,7 +19,7 @@
 import { resolvePanelHeights } from '../layout'
 
 /** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
-export const MAP_ROWS_PX = 84
+export const MAP_ROWS_PX = 88
 
 /**
  * The top a phone's resting sheet reserves map below: the inset the legend

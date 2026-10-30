@@ -2427,9 +2427,12 @@ describe('the map rows', () => {
   const CHIPS = step(MAP_ROWS.chips, 'h')
   const BOTTOM = INSET + ROW + GAP + CHIPS
 
-  it('measures 32 and 32 with 8 between, so the rows end 84px down', () => {
-    expect([ROW, GAP, CHIPS]).toEqual([32, 8, 32])
-    expect(BOTTOM).toBe(84)
+  it('measures 32 and 32 with 12 between, so the rows end 88px down', () => {
+    expect([ROW, GAP, CHIPS]).toEqual([32, 12, 32])
+    expect(BOTTOM).toBe(88)
+    // Two 44px presses meet in the gap rather than overlap (record 0254):
+    // each reaches 6px past its 32px control.
+    expect(GAP).toBe(44 - ROW)
     expect(MAP_EDGE.publish).toContain(`[--map-edge-inset:${INSET / 16}rem]`)
     for (const part of [MAP_EDGE.top, MAP_EDGE.left, MAP_EDGE.right, 'pointer-events-none']) expect(MAP_ROWS.stack).toContain(part)
     // The rows yield their gaps; the stack must not hand them back.
@@ -3658,6 +3661,8 @@ describe('a desk\'s map corner', () => {
   it('stands the column 24px in, its buttons 6px apart and 10px above the line', () => {
     expect(step(MAP_CORNER.stack, 'mr')).toBe(24)
     expect(step(MAP_CORNER.stack, 'gap')).toBe(6)
+    // On a touch screen the column parts as the rows do (record 0254).
+    expect(MAP_CORNER.stack.split(/\s+/)).toContain('touch:gap-3')
     expect(step(MAP_CORNER.box, 'gap')).toBe(10)
     expect(tokens(MAP_CORNER.box)).toEqual(
       expect.arrayContaining(['absolute', 'right-0', 'flex-col', 'items-end', 'pointer-events-none', LAYER.base]),

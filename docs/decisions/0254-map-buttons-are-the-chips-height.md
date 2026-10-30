@@ -1,6 +1,6 @@
 # 0254. The map's buttons and its search pill are 32px, the chips' height
 
-- Status: Accepted. Amends 0135 (the first row is 32px, so the rows end 84px down), 0147 (the map buttons are 32px round, their glyphs 23px) and 0174 (a desk's corner column and zoom pair are 32px).
+- Status: Accepted. Amends 0135 (the first row is 32px and the rows 12px apart, so they end 88px down), 0147 (the map buttons are 32px round, their glyphs 23px) and 0174 (a desk's corner column and zoom pair are 32px).
 - Date: 2026-10-30
 - Decider: the maintainer (TJ), on #799: "Are the map buttons too big? They look bigger than the rest of the UI. They should probably be the same size, right?", then "32px, pill too" from a mock of both sizes at a desk and on a phone, folded into #823
 - Issues and PRs: #799, #823
@@ -14,19 +14,25 @@ The compass, the 3D button, the locate button, the zoom pair and the search pill
 
 ## Decision
 
-- **The map's buttons and the search pill are 32px at both widths**: the compass, 3D, locate, a desk's zoom halves, and the pill. The first row is 32px, so the rows end 84px down (12 + 32 + 8 + 32), and every anchor built from that sum moves with it: the draw bar, the compass's place under the rows, the bottom sheet's cap and the results sheet's highest stop (`MAP_ROWS_PX`).
+- **The map's buttons and the search pill are 32px at both widths**: the compass, 3D, locate, a desk's zoom halves, and the pill.
+- **Where two presses meet, the controls stand 12px apart**: the two rows, and 3D beside locate on a phone, at both widths; a desk's corner column on a touch screen, 6px apart with a mouse. A finger's press reaches 6px past each 32px control, so at the 8px the 40px controls stood apart the two presses overlapped by 4px and whichever control stood on top took the strip, leaving its neighbour 40px. At 12px they meet. So the rows end 88px down (12 + 32 + 12 + 32), and every anchor built from that sum moves with it: the draw bar, the compass's place under the rows, the bottom sheet's cap and the results sheet's highest stop (`MAP_ROWS_PX`).
 - **The library's glyphs scale to 23px**, the share of the button they held at 40px (29/40 of 32), at rest and in the hover fade.
-- **Every press stays 44px on a coarse pointer**: the buttons' rim is 7px inside their border (30 + 14) and the pill's field reaches 7px past its border.
+- **Every press stays 44px on a coarse pointer**: the buttons' rim is 7px inside their border (30 + 14) and the pill's field reaches 7px past its border. The 44 is the app's rule (`TAP`) and WCAG 2.2's AAA target (2.5.5); AA asks 24 (2.5.8).
 - The Analyze button stays 40px, the one primary button.
 - The (i) keeps its 24px in the corner band.
 
 ## Enforcement
 
-- `styles.test.ts` holds the rows to 32, 8 and 32, every anchor to their sum, the map buttons and the pill to the row, each press to 44, and the glyph to 29/40 of the button.
+- `styles.test.ts` holds the rows to 32, 12 and 32 with the gap at 44 less the row, the corner column to 12px apart on a touch screen, every anchor to their sum, the map buttons and the pill to the row, each press to 44, and the glyph to 29/40 of the button.
 - `resultsSheet.test.ts` holds `MAP_ROWS_PX` to the same sum.
-- `e2e/deskCorner.spec.ts` and `e2e/terrain.spec.ts` measure the buttons at 32.
+- `e2e/deskCorner.spec.ts` and `e2e/terrain.spec.ts` measure the buttons at 32, and the phone's 3D button 12px from the pill and from locate.
+
+## Evidence
+
+The Both thresholds move with the rows: a phone offers Both from 536px of viewport (540 before) and a desk opens on Both from 775px (779 before), because the rows end 4px higher than at 40px with 8px between.
 
 ## Alternatives rejected
 
 - Keeping 40px, as Google Maps sizes its map buttons: in this app 32 is every other round or pill control's size.
 - 32px at a desk only, with a phone's row kept at 40: two sizes for the same buttons.
+- 32px buttons 8px apart, as the 40px ones stood: measured on the preview on 2026-10-30, the 3D button pressed 40 by 40 at 360 wide, locate 44 by 40, and the summary chip and Legend 40 tall. That passes WCAG AA and fails the app's 44.
