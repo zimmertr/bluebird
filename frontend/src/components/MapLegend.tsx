@@ -2,14 +2,16 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { useExit } from '../hooks/useExit'
-import { familyOf, metricLabel } from '../metrics'
+import { SEP, familyOf, metricLabel } from '../metrics'
 import type { SortBy } from '../types'
 import {
   ACCENT,
   CHIP_CARD_W,
   CONTROL_SIZE,
   DISABLED,
+  FOCUS_RING,
   LINK,
+  LINK_QUIET,
   MAP_CHIP_MENU,
   RADIUS,
   STATUS,
@@ -171,7 +173,7 @@ export interface LegendInputs {
     | 'showSlope'
   >
   /** The forecast grid's state and its row (`useGridLayer`). */
-  grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend'>
+  grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend' | 'gridStyle' | 'setGridStyle'>
 }
 
 /** One section, as `legendSection` draws it. */
@@ -199,7 +201,7 @@ export function legendSections(
     showFireActivity,
     showSlope,
   } = overlays
-  const { gridPainted, gridCued, gridFailed, gridLegend } = grid
+  const { gridPainted, gridCued, gridFailed, gridLegend, gridStyle, setGridStyle } = grid
   // ONE box, gaining and losing sections as the report and the
   // layers change (#454). It was two — the layer rows in one, the
   // six-row metric key in another — which cost a border, a gap and
@@ -467,6 +469,22 @@ export function legendSections(
                 } flex-shrink-0`}
               >
                 {gridLegend.value}
+                {gridLegend.styleName !== undefined && (
+                  <>
+                    {` ${SEP} `}
+                    {/* The style's name is a quiet button that switches it,
+                        the one control in the legend, drawn as text rather
+                        than as the app's buttons (the maintainer, 2026-10-30). */}
+                    <button
+                      type="button"
+                      aria-label={`Grid style: ${gridLegend.styleName}`}
+                      onClick={() => setGridStyle(gridStyle === 'smooth' ? 'blocks' : 'smooth')}
+                      className={`${LINK_QUIET} ${FOCUS_RING}`}
+                    >
+                      {gridLegend.styleName}
+                    </button>
+                  </>
+                )}
               </span>
             ),
           },

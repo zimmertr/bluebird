@@ -440,7 +440,7 @@ something with numbers and it comes back without fetching anything again.
 
 The button beside the row's name shows how it is drawn, and a press switches to the
 other. The grid's line in the legend names the one in use, beside the spacing
-(`13 km · Smooth`). Both readings are true:
+(`13 km · Smooth`), and pressing that name switches it too. Both readings are true:
 
 - **Smooth** (the default) draws the space between the points, which is how every
   other forecast map reads and is the honest shape of something the model already

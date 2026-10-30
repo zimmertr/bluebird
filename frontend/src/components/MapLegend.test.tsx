@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import { useId, type ComponentProps } from 'react'
 import MapLegend, { LegendSections, legendSections, type LegendInputs } from './MapLegend'
@@ -26,6 +26,8 @@ const NO_GRID = {
   gridCued: false,
   gridFailed: false,
   gridLegend: { label: 'Forecast grid', value: '', kind: 'status' as const },
+  gridStyle: 'smooth' as const,
+  setGridStyle: () => {},
 }
 const TEMP_SCALE = rankedScale('temp_avg_f')
 const BASE = {
@@ -133,6 +135,21 @@ describe('MapLegend', () => {
     )
     expect(snowfall.container.textContent).toContain('Forecast grid')
     expect(snowfall.container.textContent).toContain('Snowfall (in)')
+  })
+
+  // The style's name in the grid's line is a quiet button that switches it.
+  it("switches the grid's style from its name in the legend", () => {
+    const setGridStyle = vi.fn()
+    const PAINTED = {
+      ...NO_GRID,
+      gridPainted: true,
+      setGridStyle,
+      gridLegend: { label: 'Forecast grid', value: '3 km', kind: 'pitch' as const, styleName: 'Smooth' },
+    }
+    const { container } = render(<Legend {...BASE} grid={PAINTED} />)
+    expect(container.textContent).toContain('3 km · Smooth')
+    fireEvent.click(screen.getByRole('button', { name: 'Grid style: Smooth' }))
+    expect(setGridStyle).toHaveBeenCalledWith('blocks')
   })
 
   it('credits NIFC beside the wildfire section', () => {
