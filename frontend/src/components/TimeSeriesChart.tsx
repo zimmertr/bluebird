@@ -2111,7 +2111,11 @@ function PinnedCard({
         {label}
         {col === 'name' && arrow(col)}
       </button>
-      <span onPointerDown={(e) => onEdgeDown(e, col)} className={CHART_CARD.colEdge} aria-hidden="true" />
+      {k < metrics.length - 1 && (
+        <span onPointerDown={(e) => onEdgeDown(e, col)} className={CHART_CARD.colEdge} aria-hidden="true">
+          <span className={CHART_CARD.colLine} />
+        </span>
+      )}
     </span>
   )
   const track = (col: string, fallback: string) => (widths[col] ? `${widths[col]}px` : fallback)

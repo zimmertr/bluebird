@@ -593,7 +593,9 @@ export const GRID_EDGE_ATTR = 'data-agg-edge'
 const gridHead = (c: string, style: string, width: number | undefined) => {
   const carried = c !== AGGREGATE.total ? ';cursor:grab' : ''
   const sized = width ? `;width:${width}px;min-width:${width}px` : ''
-  const edge = `<span ${GRID_EDGE_ATTR} aria-hidden="true" style="position:absolute;top:0;bottom:0;right:-4px;width:8px;cursor:col-resize;touch-action:none"></span>`
+  // The divider is drawn, a 1px line in the card's rule that takes the accent
+  // under the pointer (`map.css`), so a reader can see the column sizes.
+  const edge = `<span ${GRID_EDGE_ATTR} aria-hidden="true" style="position:absolute;top:2px;bottom:2px;right:-4px;width:8px;cursor:col-resize;touch-action:none;display:flex;justify-content:center"><span style="width:1px;background:var(--popup-edge)"></span></span>`
   return `<th scope="col" ${GRID_AGG_ATTR}="${c}" style="${style};position:relative;user-select:none${carried}${sized}">${c}${edge}</th>`
 }
 const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`

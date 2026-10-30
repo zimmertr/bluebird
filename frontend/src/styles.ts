@@ -1409,7 +1409,13 @@ export const CHART_CARD = {
   // A head's cell, which its right edge resizes and a carried head lands
   // on (TJ 2026-10-30), as a results column's head does.
   headCell: 'relative flex min-w-0 items-center',
-  colEdge: 'absolute -right-2 top-0 bottom-0 w-2 cursor-col-resize touch-none',
+  // The divider between two heads, which drags the column on its left wider
+  // or narrower (TJ 2026-10-30: an edge with nothing drawn was a handle no
+  // reader would find). A 1px line in the gutter's `edge`, which owes a UI
+  // boundary's 3:1 like `CHART_GUTTER`'s, the accent under the pointer; its
+  // 8px hit area stands centred in the grid's 14px gap.
+  colEdge: 'group/edge absolute -right-[11px] top-0 bottom-0 flex w-2 cursor-col-resize touch-none justify-center',
+  colLine: 'h-full w-px bg-edge transition-colors group-hover/edge:bg-accent-ink',
   dropAt: 'shadow-[inset_2px_0_0_var(--ui-accent-ink)]',
   corner: 'absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize text-ink-soft touch-none',
   // A value is never narrower than six mono digits, the widest a cell prints

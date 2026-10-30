@@ -69,6 +69,7 @@
   --popup-close-fill: var(--ui-raised);
   --popup-close-fill-hover: var(--ui-raised-hover);
   --popup-close-edge: var(--ui-frame);
+  --popup-edge: var(--ui-edge);
 }
 :root[data-theme="light"] {
   --popup-scheme: light;
@@ -308,6 +309,16 @@
    colour (TJ 2026-10-30). */
 .maplibregl-popup tr:hover > :not([data-tint]) {
   background: color-mix(in srgb, var(--ui-raised) 30%, transparent);
+}
+
+/* A grid head's divider, which sizes the column on its left: the accent under
+   the pointer, as the chart's gutters light, and none after the last column,
+   whose edge is the card's. */
+.maplibregl-popup [data-agg-edge]:hover > span {
+  background: var(--ui-accent-ink) !important;
+}
+.maplibregl-popup th:last-child [data-agg-edge] > span {
+  display: none;
 }
 
 /* The popup's close button, for the same reason as the controls above:
