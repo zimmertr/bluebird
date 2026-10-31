@@ -606,7 +606,8 @@ section for the marker colors and one for each layer that is switched on. The
 marker colors come first, and the layers follow in the order their rows stand
 under **Layers**, so a key is where you would look for its switch. Press **Legend** to fold the card away and again to bring it back; it
 remembers which you left it as. A legend taller than the map has room for
-scrolls inside its card. The chip is greyed until there is something on the
+scrolls inside its card. With the forecast player on, the card stops above the
+player only where the map is narrow enough for the two to meet. The chip is greyed until there is something on the
 map to explain. On a phone the same sections are in the sheet the **Legend**
 chip opens.
 

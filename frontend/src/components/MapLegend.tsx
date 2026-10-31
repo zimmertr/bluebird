@@ -606,8 +606,9 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
           data-map-overlay=""
           className={`${SURFACE_CHIP_CARD.key} ${MAP_CHIP_MENU} ${CHIP_CARD_W.key} flex flex-col gap-1 overflow-y-auto overscroll-contain`}
           // What is left of the map under the rows, less the floor the old
-          // stack kept: the player's band while it is on screen and a plain
-          // gap otherwise (`legendMaxPx`). A key too tall for that scrolls
+          // stack kept: the player's band while the bar is on screen and the
+          // map is narrow enough for it to reach under the card, and a plain
+          // gap otherwise (`legendMaxCss`). A key too tall for that scrolls
           // inside the card rather than running under the player.
           style={{ maxHeight: legendMaxCss(sheetLiftPx, timelineShown) }}
         >

@@ -734,7 +734,10 @@ carry none, because a sheet rises from below. The two cards wear one surface,
 the chips' colour made opaque, with the structural edge (`SURFACE_CHIP_CARD`), so the Layers
 menu reads as the legend card's twin and its outline and deeper shadow part it
 from the legend where it opens across it. The legend card scrolls inside the map's height under
-the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
+the rows, read off the wrapper as `100cqh` (`legendMaxCss`), and clears the
+forecast player's band only on a map narrower than `LEGEND_BESIDE_TRANSPORT_PX`,
+read as `100cqw`, where the centred bar reaches under it (record
+[0261](decisions/0261-legend-clears-the-player-only-where-they-meet.md)). Analyze stays in
 the panel. A phone draws no zoom pair, since a pinch zooms there, and nor
 does any touch screen at desk width, whose capsule halves could not both take
 a 44px press (record [0254](decisions/0254-map-buttons-are-the-chips-height.md)).
