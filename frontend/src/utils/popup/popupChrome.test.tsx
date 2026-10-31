@@ -272,14 +272,27 @@ describe('widestName', () => {
 })
 
 describe('the facts line', () => {
-  it('parts the type, elevation and coordinates with a dot a screen reader skips', () => {
-    const popup = mount(factsRow('Trailhead', '3,120 ft', 47.5, -121.25, null))
-    expect(popup.textContent).toBe('Trailhead·3,120 ft·47.50000, -121.25000')
+  // Read off a detached element, since each `mount` renders into the one page.
+  const lines = (html: string) => {
+    const el = document.createElement('div')
+    el.innerHTML = html
+    return [...el.children].map((line) => line.textContent)
+  }
+
+  // The coordinates alone, then the type, the elevation and the slope (TJ,
+  // 2026-10-31, #832).
+  it('stands the coordinates alone, then parts the type, elevation and slope with a dot a screen reader skips', () => {
+    const popup = mount(factsRow('Trailhead', '3,120 ft', 47.5, -121.25, null, '13° S'))
+    expect(lines(factsRow('Trailhead', '3,120 ft', 47.5, -121.25, null, '13° S'))).toEqual([
+      '47.50000, -121.25000',
+      'Trailhead·3,120 ft·13° S',
+    ])
     expect(popup.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2)
   })
 
-  it('drops a part it does not have', () => {
-    expect(mount(factsRow(null, null, 47.5, -121.25, null)).textContent).toBe('47.50000, -121.25000')
+  it('drops a part it does not have, and a line with none', () => {
+    expect(lines(factsRow('Lake', null, 47.5, -121.25, null))).toEqual(['47.50000, -121.25000', 'Lake'])
+    expect(lines(factsRow(null, null, 47.5, -121.25, null))).toEqual(['47.50000, -121.25000'])
   })
 
   // The pair is the link and the elevation is not (#712): a place is what a
@@ -287,7 +300,7 @@ describe('the facts line', () => {
   it('links the coordinates, and only them, where it is given somewhere to go', () => {
     const url = 'https://caltopo.com/map.html#ll=47.50000,-121.25000&z=14'
     const popup = mount(factsRow('Peak', '7,000 ft', 47.5, -121.25, url))
-    expect(popup.textContent).toBe('Peak·7,000 ft·47.50000, -121.25000')
+    expect(lines(factsRow('Peak', '7,000 ft', 47.5, -121.25, url))).toEqual(['47.50000, -121.25000', 'Peak·7,000 ft'])
     const links = within(popup).getAllByRole('link')
     expect(links).toHaveLength(1)
     expect(links[0].textContent).toBe('47.50000, -121.25000')

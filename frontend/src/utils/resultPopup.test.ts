@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { RESULT_ACTION_ATTR, resultPopupHtml } from './resultPopup'
+import { RESULT_ACTION_ATTR, pendingPopupHtml, resultPopupHtml } from './resultPopup'
 import { poiPopupHtml, POI_ACTION_ATTR } from './poiPopup'
 import { POPUP_BODY_ATTR, POPUP_TINT_ATTR } from './popup/popupChrome'
 import { cellTint } from './results/resultsCells'
@@ -343,20 +343,27 @@ describe('resultPopupHtml identity band', () => {
     expect(html.indexOf('46.85173, -121.76040')).toBeLessThan(body)
   })
 
-  // The type, the elevation and the coordinates share one line under the name,
-  // parted by a dot a screen reader skips (TJ, 2026-10-08). The line never
-  // wraps: a latitude and a longitude are one value in two halves, and a break
-  // between them leaves a bare negative number looking like a third figure.
-  it('puts the type, elevation and coordinates on one unlabelled line', () => {
+  // The coordinates alone under the name, then the type, the elevation and
+  // the slope, parted by a dot a screen reader skips (TJ, 2026-10-31, #832).
+  // Neither line wraps: a latitude and a longitude are one value in two
+  // halves, and a break between them leaves a bare negative number looking
+  // like a third figure.
+  it('puts the coordinates, then the type and elevation, on unlabelled lines', () => {
     const html = resultPopupHtml({ ...base })
-    expect(factsText(html)).toBe('Peak · 14,406 ft · 46.85173, -121.76040')
+    expect(factsText(html)).toBe('46.85173, -121.76040 / Peak · 14,406 ft')
     expect(html).not.toContain('Coordinates')
     expect(html).not.toContain('Elevation (ft)')
   })
 
   it('leaves the elevation off the line when the place has none', () => {
     const html = resultPopupHtml({ ...base, row: { ...base.row, elevation_ft: null } })
-    expect(factsText(html)).toBe('Peak · 46.85173, -121.76040')
+    expect(factsText(html)).toBe('46.85173, -121.76040 / Peak')
+  })
+
+  // The slope at the marker's point, after its elevation (#832).
+  it('says the slope and the way the ground falls after the elevation', () => {
+    const ground = { kind: 'read', reading: { elevationM: 4391, degrees: 12.3, aspect: 90 } } as const
+    expect(factsText(resultPopupHtml({ ...base, ground }))).toBe('46.85173, -121.76040 / Peak · 14,406 ft · 12° E')
   })
 
   // The pair links to CalTopo centred on the point, one level above the
@@ -537,7 +544,7 @@ describe('resultPopupHtml links out', () => {
   // inside its href, so a substring search for them finds the wrong anchor.
   it('links the coordinates and leaves the elevation unlinked', () => {
     const html = resultPopupHtml({ ...linked, mapZoom: 13 })
-    const line = html.match(/<div style="white-space:nowrap">.*?<\/div>/)![0]
+    const line = html.match(/(<div style="white-space:nowrap">.*?<\/div>)+/)![0]
     const anchors = line.match(/<a [^>]*>/g) ?? []
     expect(anchors).toHaveLength(1)
     expect(anchors[0]).toContain('href="https://caltopo.com/map.html#ll=46.85173,-121.76040&amp;z=14"')
@@ -557,6 +564,44 @@ describe('resultPopupHtml links out', () => {
   })
 })
 
+// A pending dot's card (#832): the ranked card's header with no rank and no
+// grid, and the table's × as its button where the table has one.
+describe('pendingPopupHtml', () => {
+  const at = { name: 'Camp Muir', latitude: 46.83545, longitude: -121.73231, elevation_ft: 10080 }
+
+  it('says what is known of the destination, and no forecast', () => {
+    const ground = { kind: 'read', reading: { elevationM: 3072, degrees: 21.5, aspect: 180 } } as const
+    const html = pendingPopupHtml({ pending: { ...at, source: 'csv' }, ground })
+    expect(html).toContain('Camp Muir')
+    expect(factsText(html)).toBe('46.83545, -121.73231 / 10,080 ft · 21° S')
+    expect(html).not.toContain('<table')
+    expect(html).not.toContain(POPUP_BODY_ATTR)
+  })
+
+  it("names a found or searched destination's type in the Type column's word", () => {
+    expect(factsText(pendingPopupHtml({ pending: { ...at, kind: 'peak', source: 'polygon' } }))).toBe(
+      '46.83545, -121.73231 / Peak · 10,080 ft',
+    )
+    expect(factsText(pendingPopupHtml({ pending: { ...at, kind: 'volcano', source: 'search' } }))).toBe(
+      '46.83545, -121.73231 / Peak · 10,080 ft',
+    )
+  })
+
+  // A pasted row leaves by the coordinates box, a found one by its ring
+  // (TJ, 2026-10-31).
+  it('offers the remove on a searched place alone, as its table row does', () => {
+    const remove = `${POI_ACTION_ATTR}="remove"`
+    expect(pendingPopupHtml({ pending: { ...at, source: 'search' } })).toContain(remove)
+    expect(pendingPopupHtml({ pending: { ...at, source: 'csv' } })).not.toContain(remove)
+    expect(pendingPopupHtml({ pending: { ...at, source: 'polygon' } })).not.toContain(remove)
+  })
+
+  it('escapes the name', () => {
+    const html = pendingPopupHtml({ pending: { ...at, name: '<img src=x>', source: 'csv' } })
+    expect(html).not.toContain('<img')
+  })
+})
+
 // #457: a marker's headings are the bare noun and unit, the same words the
 // table's headers use. The datum both once carried is gone for the reason
 // tableColumns.test.ts records, and the popup reads the columns it is handed,
@@ -572,15 +617,16 @@ describe('resultPopupHtml names no datum', () => {
 })
 
 /**
- * The facts line's text as a reader sees it, with each hidden dot spaced the
+ * The facts lines' text as a reader sees it, a slash between lines and each hidden dot spaced the
  * way the eye reads it. Read from the text runs between tags rather than by
  * deleting tags, so nothing here looks like a sanitizer to CodeQL.
  */
 function factsText(html: string): string {
-  const line = html.match(/<div style="white-space:nowrap">(.*?)<\/div>/)![1]
-  return [...`>${line}<`.matchAll(/>([^<]*)</g)]
-    .map((m) => (m[1] === '·' ? ' · ' : m[1]))
-    .join('')
+  return [...html.matchAll(/<div style="white-space:nowrap">(.*?)<\/div>/g)]
+    .map(([, line]) =>
+      [...`>${line}<`.matchAll(/>([^<]*)</g)].map((m) => (m[1] === '·' ? ' · ' : m[1])).join(''),
+    )
+    .join(' / ')
 }
 
 // A colour is a `var(--popup-*)` (#740), whose parentheses a pattern would

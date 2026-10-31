@@ -49,10 +49,10 @@ interface Props {
   // (it is in the Columns picker), and a dash there would say the row came
   // from nowhere.
   modelFallbackLabel?: string | null
-  // Center the map on a destination that has no forecast yet. Separate from
-  // `onFocusResult` because there is no result to pass: a pending row is a
-  // coordinate and a name, and the popup the ranked version opens is built
-  // from numbers this row does not have.
+  // Center the map on a destination that has no forecast yet and open its
+  // dot's card (#832). Separate from `onFocusResult` because there is no
+  // result to pass: a pending row is a coordinate and a name, and the card
+  // the ranked version opens is built from numbers this row does not have.
   onFocusPending?: (at: { latitude: number; longitude: number }) => void
   // Which forecast model the rows came from, so a metric cell can ask Windy
   // for the same one. A compared row carries its own and wins over this.

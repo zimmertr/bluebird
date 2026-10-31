@@ -71,6 +71,8 @@ vi.mock('maplibre-gl', () => ({
 }))
 
 import { mountPoiPopups } from './poiPopup'
+import type { GroundReadings } from './groundReadings'
+import type { GroundState } from '../utils/popup/groundFact'
 import { createMapController } from './controller'
 import { mapInputs } from '../testSupport/fixtures'
 import { RESULT_MARKER_LAYER } from './resultsLayer'
@@ -103,6 +105,7 @@ function setup({
   searchedPlaces = [] as Place[],
   glow = true,
   landmarks = undefined as { pointOf: (osmId: string) => [number, number] | null } | undefined,
+  ground = undefined as GroundReadings | undefined,
 } = {}) {
   const stub = stubMap({
     zoom: MAP_ZOOM,
@@ -111,7 +114,7 @@ function setup({
   const inputs = mapInputs({ drawing, searchedPlaces, onAddPoi: vi.fn(), onRemovePoi: vi.fn(), onRemoveResult: vi.fn() })
   const controller = createMapController(inputs)
   const { popups: mapPopups, click } = mountTestPopups(stub, controller)
-  const pois = mountPoiPopups(stub.map, { controller, popups: mapPopups, landmarks })
+  const pois = mountPoiPopups(stub.map, { controller, popups: mapPopups, landmarks, ground })
   // A click on the summit, with whatever else is drawn there under it.
   const peakClick = (shiftKey = false, also: { layer: { id: string } }[] = []) =>
     click([{ layer: { id: PEAK_LAYER }, geometry: { type: 'Point', coordinates: SUMMIT }, properties: PEAK_PROPS }, ...also], {
@@ -261,6 +264,22 @@ describe('mountPoiPopups', () => {
     expect(popups.map((p) => p.removed)).toEqual([false, false])
     peakClick()
     expect(popups.map((p) => p.removed)).toEqual([true, true, false])
+  })
+
+  // The ground under the place lands after the card opens (#832).
+  it('draws the slope when its read lands, and holds the credit while open', () => {
+    let state: GroundState = { kind: 'pending' }
+    const redraws: (() => void)[] = []
+    const release = vi.fn()
+    const ground: GroundReadings = { at: () => state, onRead: (r) => redraws.push(r), hold: vi.fn(() => release) }
+    const { peakClick } = setup({ ground })
+    peakClick()
+    expect(ground.hold).toHaveBeenCalledOnce()
+    state = { kind: 'read', reading: { elevationM: 2198, degrees: 33.1, aspect: 315 } }
+    for (const redraw of redraws) redraw()
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false, MAP_ZOOM, null, state))
+    peakClick()
+    expect(release).toHaveBeenCalledOnce()
   })
 
   it('lights every glow while the panel points at them, and skips a missing one', () => {

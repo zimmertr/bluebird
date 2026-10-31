@@ -1,4 +1,5 @@
 import { DestinationResult, SortBy } from '../types'
+import { type PendingDestination } from './customList'
 import { caltopoUrl } from './caltopoUrl'
 import { destinationLinkLabel, destinationUrl } from './destinationUrl'
 import { FireWarning, firePopupText } from './fireProximity'
@@ -12,8 +13,12 @@ import {
   popupCard,
   warningLine,
 } from './popup/popupChrome'
-import { ColDef } from './tableColumns'
-import { popupGrid, popupGroups, popupIdentity } from './popup/popupRows'
+import { type GroundState, slopeFact } from './popup/groundFact'
+import { POI_ACTION_ATTR } from './poiPopup'
+import { pendingLinkRow } from './results/resultsCells'
+import { placeType } from './geocode'
+import { ColDef, TYPE_COL } from './tableColumns'
+import { elevationFact, popupGrid, popupGroups, popupIdentity } from './popup/popupRows'
 import type { UsStates } from './usStates'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from './wildfires'
 
@@ -82,6 +87,9 @@ export function resultPopupHtml(d: {
   removable?: boolean
   // The state outlines a crag's search names its state by, when held.
   usStates?: UsStates | null
+  // The ground under the marker, as far as its read has got (#832); none
+  // where the card reads no ground.
+  ground?: GroundState
 }): string {
   const r = d.row
   const url = destinationUrl(
@@ -130,6 +138,7 @@ export function resultPopupHtml(d: {
       r.latitude,
       r.longitude,
       caltopoUrl(r.latitude, r.longitude, d.mapZoom),
+      slopeFact(d.ground),
     ),
   ])
 
@@ -146,4 +155,50 @@ export function resultPopupHtml(d: {
   // one destination says "out" the same way before and after an analysis.
   const action = d.removable ? popupButton(`${RESULT_ACTION_ATTR}="remove"`, 'Remove from analysis') : ''
   return popupCard({ title, link: { href: url, label: destinationLinkLabel(r.type) }, meta, warnings: [fire, closure].filter(Boolean), body, action })
+}
+
+/**
+ * The card a pending dot opens (#832, TJ 2026-10-31): a destination the
+ * analysis has not forecast yet, a pasted or searched point or one a ring's
+ * search found. A ranked card's header with no rank and no grid, because
+ * nothing on it is a forecast yet: its name, its link out, its coordinates,
+ * and its type, elevation and slope where it has them.
+ *
+ * It carries `Remove from analysis` exactly where the table's pending row
+ * carries its ×, on a searched place alone (TJ, 2026-10-31): a pasted row
+ * leaves by editing the coordinates box and a found one by the ring that
+ * found it (`customList.ts`). The button is the clicked label's, since what
+ * it does is the label's: it unregisters a place the session added.
+ */
+export function pendingPopupHtml(d: {
+  pending: PendingDestination
+  mapZoom?: number
+  usStates?: UsStates | null
+  ground?: GroundState
+}): string {
+  const p = d.pending
+  const link = pendingLinkRow(p)
+  // The type in the word the Type column will use once the destination ranks:
+  // a found row's kind is its row type already, and a searched place's is
+  // `placeType`'s. A pasted coordinate has none, and `custom` is no word a
+  // reader would use for it.
+  const rowType = p.source === 'polygon' ? (p.kind ?? 'custom') : placeType(p.kind ?? '')
+  const type = rowType === 'custom' ? null : String(TYPE_COL.format!(rowType))
+  const meta = metaBand([
+    factsRow(
+      type,
+      p.elevation_ft != null ? elevationFact(p.elevation_ft) : null,
+      p.latitude,
+      p.longitude,
+      caltopoUrl(p.latitude, p.longitude, d.mapZoom),
+      slopeFact(d.ground),
+    ),
+  ])
+  const action = p.source === 'search' ? popupButton(`${POI_ACTION_ATTR}="remove"`, 'Remove from analysis') : ''
+  return popupCard({
+    title: escapeHtml(p.name),
+    link: { href: destinationUrl(link, d.usStates ?? null), label: destinationLinkLabel(link.type) },
+    meta,
+    action,
+  })
 }

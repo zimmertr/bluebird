@@ -88,10 +88,9 @@ export interface MapViewHandle {
   // flies. The tutorial's marker step passes both; a click on a table row
   // passes neither (#536).
   focusResult: (result: DestinationResult, options?: { instant?: boolean; avoid?: readonly ViewportRect[] }) => void
-  // The same camera move for a destination with no forecast yet, and nothing
-  // else: no popup, because the one `focusResult` opens is a forecast card and
-  // this destination has no forecast. Clicking the dot still says what is
-  // known about it (TJ, 2026-09-14).
+  // The same camera move for a destination with no forecast yet, opening the
+  // card its dot opens (#832, TJ 2026-10-31), where `focusResult` opens a
+  // marker's.
   focusPoint: (at: { latitude: number; longitude: number }) => void
   /** Close every popup and move nothing: the tutorial leaving its marker step (#536), and a committed report (#577). */
   closePopups: () => void
@@ -572,18 +571,24 @@ const MapView = forwardRef<MapViewHandle, Props>(
       focusPoint(at: { latitude: number; longitude: number }) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        // Through the centring, as `focusResult` below.
-        centring.fly(map, CAMERA_MS.focus, (duration) =>
+        // Through the centring, as `focusResult` below, whose card the dot's
+        // rides the flight the same way.
+        centring.fly(map, CAMERA_MS.focus, (duration, again) => {
+          const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
+          const canvas = map.getCanvas()
+          const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
+          const placed = again ? undefined : featuresRef.current?.results.openPending(at, { markerAt })
+          if (!again && !placed) popups.closeAll()
+          const { dx, dy } = placed ?? { dx: 0, dy: 0 }
           map.flyTo({
             center: [at.longitude, at.latitude],
             zoom: Math.max(map.getZoom(), 10),
             duration,
             // The offset `focusResult` explains below: a padding handed to flyTo
             // is interpolated onto the transform and stays there.
-            offset: [0, -controller.inputs.cameraPadBottomPx / 2],
-          }),
-        )
-        popups.closeAll()
+            offset: [dx, -cameraPadBottomPx / 2 + dy],
+          })
+        })
       },
       closePopups() {
         popups.closeAll()

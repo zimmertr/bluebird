@@ -37,6 +37,7 @@ import type { MapController } from './controller'
 import type { LandmarkLayer } from './landmarks'
 import type { MapPopups } from './mapPopups'
 import { landmarkKindOf } from '../utils/landmarks'
+import type { GroundReadings } from './groundReadings'
 
 export interface PoiPopups {
   /** Light every clickable label, or put them back. */
@@ -50,9 +51,16 @@ export function mountPoiPopups(
     popups: MapPopups
     /** The marker layer, asked for a clicked trailhead's or crag's exact point. */
     landmarks?: Pick<LandmarkLayer, 'pointOf'>
+    /** The ground under the place (#832); with none, the card reads no ground. */
+    ground?: GroundReadings
   },
 ): PoiPopups {
-  const { controller, popups, landmarks } = deps
+  const { controller, popups, landmarks, ground } = deps
+  // The open cards' redraws, which a landed ground read calls.
+  const redraws = new Set<() => void>()
+  ground?.onRead(() => {
+    for (const redraw of redraws) redraw()
+  })
 
   function openPoiPopup(poi: BasemapPoi) {
     // Which registered place this POI is, or null. Held in the closure
@@ -60,12 +68,27 @@ export function mountPoiPopups(
     // only catches up on React's next render, and the button has to
     // flip on the click that caused it.
     let registered = controller.inputs.searchedPlaces.find((p) => samePoi(poi, p)) ?? null
-    const html = () => poiPopupHtml(poi, registered !== null, map.getZoom(), usStatesNow())
+    const html = () =>
+      poiPopupHtml(poi, registered !== null, map.getZoom(), usStatesNow(), ground?.at(poi.lat, poi.lon))
 
     // The result card's width (#712), the rule the facts line was measured
     // against, and the fit every card gets (`openCard`, #738), built with its
     // markup so the fit measures the card the reader will see.
-    const { popup } = popups.openCard([poi.lon, poi.lat], html(), { owner: 'poi', result: true })
+    let shown = html()
+    const { popup } = popups.openCard([poi.lon, poi.lat], shown, { owner: 'poi', result: true })
+
+    // The card's markup as it stands, where it changed. A redraw that answers
+    // a read rather than a press leaves focus where it is.
+    function write(keepFocus: boolean) {
+      const next = html()
+      if (next === shown || !popup.isOpen()) return
+      shown = next
+      const focus = popup.options?.focusAfterOpen
+      if (keepFocus && popup.options) popup.options.focusAfterOpen = false
+      popup.setHTML(next)
+      if (keepFocus && popup.options) popup.options.focusAfterOpen = focus
+      arm()
+    }
 
     // setHTML replaces the content element's children, so the button is a
     // new node every time and its listener has to be re-armed. The timeout
@@ -85,21 +108,29 @@ export function mountPoiPopups(
               controller.inputs.onAddPoi(place)
               registered = place
             }
-            popup.setHTML(html())
-            arm()
+            write(false)
           })
       }, 0)
     }
     arm()
+
+    // The ground's read lands after the card opens, unless the point was read
+    // before.
+    const redraw = () => write(true)
+    redraws.add(redraw)
+    const release = ground?.hold()
+    popup.on('close', () => {
+      redraws.delete(redraw)
+      release?.()
+    })
 
     // A crag's search names its state once the outlines are held. The
     // markers asked for them when the crag came into view, so this waits
     // only on a card opened before they landed.
     if (placeType(poi.kind) === 'crag' && usStatesNow() === null) {
       void loadUsStates().then((states) => {
-        if (!states || !popup.isOpen()) return
-        popup.setHTML(html())
-        arm()
+        if (!states) return
+        write(true)
       })
     }
   }

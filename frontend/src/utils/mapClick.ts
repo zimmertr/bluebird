@@ -20,7 +20,8 @@
  *
  * Small, deliberate targets first, because a reader who aims at one means it,
  * and a large shape under it can be clicked anywhere else. The ring's own
- * handles lead, then a ranked marker, then a satellite fire detection (#799),
+ * handles lead, then a ranked marker, then a pending dot (#832), then a
+ * satellite fire detection (#799),
  * a star drawn over every label and shape beneath it, then a clickable
  * basemap label (a destination the reader may add), then a closed trail, road
  * or site, then a fire perimeter, then the closed ground around it, then a
@@ -39,6 +40,7 @@
 export const MAP_TARGETS = [
   'vertex',
   'result',
+  'pending',
   'fire-activity',
   'poi',
   'closure-trail',

@@ -841,7 +841,8 @@ a gap in a map that otherwise drew, and says nothing.
 
 The Topographic, Shaded relief, Slope angle and Satellite rows, and the 3D
 terrain, read tiles the browser fetches itself from three more keyless hosts
-(#799). None of the five asks for anything until it is switched on.
+(#799). None of the five asks for anything until it is switched on, or,
+for the elevation, until a card reads the ground under its point (#832).
 
 **Elevation is Mapterhorn's**, one model behind the contours, the relief, the
 slope angle and the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere,
@@ -885,6 +886,25 @@ zoom out. A cliff band or a gully narrower than that is averaged with the
 ground beside it and reads gentler than it is. Past zoom 16 the shading is
 stretched, not worked out again. It is a planning picture, not a measurement
 of the slope you will stand on.
+
+**A card reads one pixel of the same tiles** (#832): a ranked marker's, a
+clicked label's, a neutral dot's and a right-clicked spot's. It reads the slope
+worked out as above, and the way the slope faces, from the finest tile
+Mapterhorn has under the point, whatever the map's zoom. So a card can name a
+steeper band than the shading shows under the pointer when you are zoomed out,
+because the shading there is painted from a coarser tile. The elevation on a
+destination's card stays OpenStreetMap's; only the right-clicked spot, which
+has none, shows the tile's height. A destination's point is OpenStreetMap's
+too, and a summit's sits where the ground turns over. Measured on 2026-10-31
+at 36 summits around Mount Rainier, reading the point and eight points 15 m
+from it: 27 read at least 15 degrees steeper somewhere within those 15 m than
+at the point, and 32 faced opposite ways (Whitman Crest reads 4° N at its
+point and 17° to 51°, NE or SW, around it). Trailheads swing less, by 18
+degrees at the median of 14, and lakes read flat or nearly so, since the model
+flattens water.
+While a card is open, the map's corner credits Mapterhorn, as it does while a
+terrain row is on (record
+[0253](decisions/0253-slope-on-every-card-and-the-right-click-card.md)).
 
 **Imagery is two sources, one picture.** Over the United States and its
 territories it is USGS's NAIP aerial photography, to zoom 16, in the public

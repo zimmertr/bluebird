@@ -1,7 +1,7 @@
 /**
  * The analysis on the map: the ranked markers, their wind arrows, rank digits
- * and labels, the pending dots for destinations not yet ranked, and the
- * forecast popup a marker or a table row opens.
+ * and labels, the pending dots for destinations not yet ranked, the forecast
+ * popup a marker or a table row opens, and the card a pending dot opens.
  *
  * The layers are added once, when the map loads, above the drawn ring, so a
  * marker is never under the outline of the area it was found in. The pending
@@ -16,7 +16,8 @@ import type { DestinationResult, SortBy } from '../types'
 import type { PendingDestination } from '../utils/customList'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
 import type { ModelRow } from '../utils/model/modelCompare'
-import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
+import { RESULT_ACTION_ATTR, pendingPopupHtml, resultPopupHtml } from '../utils/resultPopup'
+import { POI_ACTION_ATTR } from '../utils/poiPopup'
 import { GRID_AGG_ATTR, GRID_EDGE_ATTR } from '../utils/popup/popupChrome'
 import { DRAG_THRESHOLD_PX, ghostLeft, travel } from '../utils/columnDrag'
 import { clamp } from '../utils/numbers'
@@ -31,6 +32,7 @@ import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeat
 import { usStatesNow } from '../utils/usStatesLoad'
 import { emptyFC, setSource } from './basemap'
 import type { MapController } from './controller'
+import type { GroundReadings } from './groundReadings'
 import type { MapPopups, MapTargetHit } from './mapPopups'
 import {
   MARKER_LABEL_LAYOUT,
@@ -48,6 +50,8 @@ import { POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popup/popup
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'
+/** The pending dots, which a click asks about by name while no ring is drawn (#832). */
+export const PENDING_MARKER_LAYER = 'pending-destinations-circles'
 
 /**
  * The wind arrow drawn beside a result marker during playback (#121).
@@ -144,6 +148,12 @@ export interface ResultsLayer {
    * on another marker opens its card without stopping the flight.
    */
   hasOpenCard(at: { latitude: number; longitude: number }): boolean
+  /**
+   * Open the card of the pending dot at this point, for a click on its name in
+   * the table, and say how far the map must move for it, as `openPopup` does.
+   * Nothing where no dot stands there.
+   */
+  openPending(at: { latitude: number; longitude: number }, options?: { markerAt?: ScreenPoint }): PopupPlacement | undefined
 }
 
 /** How far the marker, and its popup with it, should move across the screen. */
@@ -158,9 +168,11 @@ export function mountResultsLayer(
   deps: {
     controller: MapController
     popups: MapPopups
+    /** The ground under each card's point (#832); with none, no card reads it. */
+    ground?: GroundReadings
   },
 ): ResultsLayer {
-  const { controller, popups } = deps
+  const { controller, popups, ground } = deps
 
   map.addSource('results', { type: 'geojson', data: emptyFC as FeatureCollection })
 
@@ -215,10 +227,10 @@ export function mountResultsLayer(
   // ── Pending destinations ───────────────────────────────────────
   // A pasted CSV row or searched place not yet in the displayed analysis, or
   // a destination a ring's search found whose forecast has not landed (#782):
-  // a neutral dot (`PENDING_COLOR`) so the point never vanishes, no forecast
-  // popup yet. Not a click target, on purpose — a pending
-  // dot must never swallow a polygon click while you draw around a
-  // just-added spot; it starts blocking (opening a popup) once it ranks in.
+  // a neutral dot (`PENDING_COLOR`) so the point never vanishes. A click
+  // opens its card, which has no forecast yet (#832), and only while no ring
+  // is drawn: a pending dot must never swallow a polygon click while you draw
+  // around a just-added spot (`DRAW_TARGETS` in `utils/mapClick.ts`).
   map.addSource('pending-destinations', {
     type: 'geojson',
     data: emptyFC as FeatureCollection,
@@ -230,7 +242,7 @@ export function mountResultsLayer(
     paint: MARKER_HALO_PAINT,
   })
   map.addLayer({
-    id: 'pending-destinations-circles',
+    id: PENDING_MARKER_LAYER,
     type: 'circle',
     source: 'pending-destinations',
     paint: { ...MARKER_PAINT, 'circle-color': PENDING_COLOR },
@@ -292,6 +304,7 @@ export function mountResultsLayer(
       // The table's crag rows asked for them, so by the time a crag's card
       // opens they are held, and a redraw picks them up if not.
       usStates: usStatesNow(),
+      ground: ground?.at(row.latitude, row.longitude),
     })
   }
 
@@ -397,8 +410,10 @@ export function mountResultsLayer(
     armRemove(card)
     armGrid(card)
     cards.push(card)
+    const release = ground?.hold()
     popup.on('close', () => {
       cards = cards.filter((c) => c !== card)
+      release?.()
     })
     return { dx, dy }
   }
@@ -430,6 +445,10 @@ export function mountResultsLayer(
       card.html = html
       if (row) card.row = row
       armRemove(card)
+      // The grid's heads are new nodes too. A redraw that left them unarmed
+      // went unnoticed while one came only from the panel; the ground's read
+      // landing redraws every card that opens (#832).
+      armGrid(card)
       const body = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
       if (body && card.capped !== null) capPopupBody(body, card.capped)
       if (body) body.scrollTop = scrolled
@@ -437,6 +456,79 @@ export function mountResultsLayer(
   }
 
   popups.register({ target: 'result', layers: [RESULT_MARKER_LAYER], open: openResultPopup })
+
+  // ── Pending cards ──────────────────────────────────────────────
+  // The dots as last drawn, which a click finds its destination among.
+  let pendingNow: PendingDestination[] = []
+  type PendingCard = { popup: Popup; pending: PendingDestination; html: string }
+  let pendingCards: PendingCard[] = []
+  const pendingHtml = (d: PendingDestination) =>
+    pendingPopupHtml({
+      pending: d,
+      mapZoom: map.getZoom(),
+      usStates: usStatesNow(),
+      ground: ground?.at(d.latitude, d.longitude),
+    })
+  // A searched place's card carries the clicked label's remove, which
+  // unregisters the place and takes the card with it, since its dot goes too.
+  const armPending = (card: PendingCard) => {
+    card.popup
+      .getElement()
+      ?.querySelector<HTMLButtonElement>(`[${POI_ACTION_ATTR}="remove"]`)
+      ?.addEventListener('click', () => {
+        controller.inputs.onRemovePoi(card.pending.latitude, card.pending.longitude)
+        card.popup.remove()
+      })
+  }
+  const openPendingCard = (d: PendingDestination, at: [number, number], options: { markerAt?: ScreenPoint; pan?: boolean }) => {
+    const html = pendingHtml(d)
+    // The caller flies the map for a table click, as for a ranked row's, and
+    // a dot's own click pans by the card's fit.
+    const { popup, dx, dy } = popups.openCard(at, html, {
+      owner: 'pending',
+      result: true,
+      markerAt: options.markerAt,
+      pan: options.pan ?? false,
+    })
+    const card: PendingCard = { popup, pending: d, html }
+    pendingCards.push(card)
+    armPending(card)
+    const release = ground?.hold()
+    popup.on('close', () => {
+      pendingCards = pendingCards.filter((c) => c !== card)
+      release?.()
+    })
+    return { dx, dy }
+  }
+  const pendingAt = (lat: number, lon: number) => pendingNow.find((d) => d.latitude === lat && d.longitude === lon)
+  popups.register({
+    target: 'pending',
+    layers: [PENDING_MARKER_LAYER],
+    open: ({ feature: f }) => {
+      const p = f.properties
+      const d = p ? pendingAt(p.lat as number, p.lon as number) : undefined
+      if (!d) return false
+      openPendingCard(d, (f.geometry as Point).coordinates as [number, number], { pan: true })
+    },
+  })
+  function refreshPendingCards() {
+    for (const card of pendingCards) {
+      const html = pendingHtml(card.pending)
+      if (html === card.html) continue
+      const focus = card.popup.options.focusAfterOpen
+      card.popup.options.focusAfterOpen = false
+      card.popup.setHTML(html)
+      card.popup.options.focusAfterOpen = focus
+      card.html = html
+      armPending(card)
+    }
+  }
+
+  // A ground read landing redraws every card that may be waiting on it.
+  ground?.onRead(() => {
+    refreshCards()
+    refreshPendingCards()
+  })
 
   let arrows = false
   return {
@@ -450,7 +542,14 @@ export function mountResultsLayer(
       }
     },
     setPending(pending) {
+      pendingNow = pending
       setSource(map, 'pending-destinations', pendingFC(pending))
+    },
+    openPending(at, options = {}) {
+      const d = pendingAt(at.latitude, at.longitude)
+      if (!d) return undefined
+      popups.closeAll()
+      return openPendingCard(d, [d.longitude, d.latitude], options)
     },
     openPopup(result, options = {}) {
       popups.closeAll()

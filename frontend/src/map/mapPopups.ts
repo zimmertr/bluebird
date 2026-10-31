@@ -89,7 +89,7 @@ export interface MapPopupTarget {
 }
 
 /** Where a point target is asked about: the clicked coordinate, and the map's zoom. */
-interface MapPoint {
+export interface MapPoint {
   lng: number
   lat: number
   zoom: number
@@ -161,6 +161,12 @@ export interface MapPopups {
   /** Register a picture that is asked about a point rather than found under it. */
   registerPoint(target: MapPointTarget): void
   /**
+   * What a right-click or a long press opens, at the point it landed on
+   * (#832). One opener, since the gesture means "this spot" wherever it
+   * lands, over a marker or a label as over bare ground.
+   */
+  registerContextMenu(open: (at: MapPoint) => void): void
+  /**
    * A point target's picture changed without the reader doing anything, as
    * the radar's does when the player moves to another frame (#748): every
    * open card it is on reads its section again where the card stands, and the
@@ -190,6 +196,23 @@ export interface MapPopups {
   /** Close every popup, or every one this kind of thing owns. */
   closeAll(owner?: MapTarget): void
 }
+
+/**
+ * How long a finger rests on the map before it means "this spot" (#832):
+ * iOS's own long press (`UILongPressGestureRecognizer`'s default
+ * `minimumPressDuration`, 0.5 s), so the map answers when the reader's other
+ * apps do. iOS Safari fires no `contextmenu` for a long press, so the map
+ * keeps a timer of its own; Android Chrome does fire one, and it is refused
+ * like a mouse's so the two do not open two cards.
+ */
+const LONG_PRESS_MS = 500
+
+/**
+ * How far a press may wander and still be one, in screen pixels: Android's
+ * touch slop (`ViewConfiguration`, 8 dp). Past it a finger is panning, and a
+ * right button is rotating the map, which is MapLibre's right-drag.
+ */
+const PRESS_SLOP_PX = 8
 
 export function mountMapPopups(
   map: maplibregl.Map,
@@ -266,7 +289,67 @@ export function mountMapPopups(
     return { under, features }
   }
 
+  // A right-click or a long press: the card for the spot itself (#832). The
+  // right button opens on its release rather than on `contextmenu`, which a
+  // Mac fires on the press, so a right-drag still rotates the map and opens
+  // nothing. The browser's own menu is refused on the map alone.
+  let openContextMenu: ((at: MapPoint) => void) | null = null
+  let rightDown: { x: number; y: number } | null = null
+  let press: { timer: ReturnType<typeof setTimeout>; x: number; y: number } | null = null
+  // Whether the touch now ending opened a card, so the click some browsers
+  // send after it does not close the card it just opened.
+  let pressed = false
+  const wandered = (from: { x: number; y: number }, to: { x: number; y: number }) =>
+    Math.hypot(to.x - from.x, to.y - from.y) > PRESS_SLOP_PX
+  function pressAt(lngLat: maplibregl.LngLat, pinning: boolean) {
+    if (!openContextMenu || controller.inputs.drawing) return
+    reading?.abort()
+    reading = null
+    if (!pinning) board.closeAll()
+    openContextMenu(pointOf(lngLat))
+  }
+  const cancelPress = () => {
+    if (press) clearTimeout(press.timer)
+    press = null
+  }
+  map.on('contextmenu', (e) => {
+    e.originalEvent.preventDefault()
+  })
+  map.on('mousedown', (e) => {
+    rightDown = e.originalEvent.button === 2 ? { x: e.point.x, y: e.point.y } : null
+  })
+  map.on('mouseup', (e) => {
+    const down = rightDown
+    rightDown = null
+    if (e.originalEvent.button !== 2 || down === null || wandered(down, e.point)) return
+    pressAt(e.lngLat, isPinning(e))
+  })
+  map.on('touchstart', (e) => {
+    cancelPress()
+    pressed = false
+    if (e.points.length !== 1) return
+    const { lngLat } = e
+    press = {
+      x: e.point.x,
+      y: e.point.y,
+      timer: setTimeout(() => {
+        press = null
+        pressed = true
+        pressAt(lngLat, false)
+      }, LONG_PRESS_MS),
+    }
+  })
+  map.on('touchmove', (e) => {
+    if (press && (e.points.length !== 1 || wandered(press, e.point))) cancelPress()
+  })
+  map.on('touchend', cancelPress)
+  map.on('touchcancel', cancelPress)
+
   map.on('click', (e) => {
+    if (pressed) {
+      pressed = false
+      return
+    }
     reading?.abort()
     reading = null
     const { under, features } = targetsAt(e.point)
@@ -424,6 +507,9 @@ export function mountMapPopups(
     },
     registerPoint(target) {
       points.push(target)
+    },
+    registerContextMenu(open) {
+      openContextMenu = open
     },
     refreshPoint(kind) {
       if (resting && !resting.dragging) {

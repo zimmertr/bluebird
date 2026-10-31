@@ -4,13 +4,16 @@ import {
   SLOPE_ALPHA,
   SLOPE_BANDS,
   bandOf,
+  compassPoint,
   coveringTile,
   demWindow,
+  groundAt,
   groundMetresPerPixel,
   slopeDegrees,
   slopeRampCss,
   slopeRaster,
   slopeTicks,
+  tilePixel,
   windowEdges,
   type HeightGrid,
 } from './slopeAngle'
@@ -319,6 +322,65 @@ describe('the legend', () => {
       { at: 5, label: '46', align: 'center' },
       { at: 6, label: '51', align: 'center' },
       { at: 6, label: '60', align: 'end' },
+    ])
+  })
+})
+
+// The right-click card's ground (#832): one pixel of the tile a point falls on.
+describe('tilePixel', () => {
+  it('finds the tile MapLibre asks for and the pixel inside it', () => {
+    // Null Island sits on the corner of the four middle tiles at zoom 1.
+    expect(tilePixel(0, 0, 1, 512)).toEqual({ x: 1, y: 1, col: 0, row: 0 })
+    // Mount Rainier's summit, on the zoom-12 tile slopeTile reads there.
+    const at = tilePixel(46.8529, -121.7604, 12, 512)
+    expect([at.x, at.y]).toEqual([662, 1443])
+    expect(at.col).toBeGreaterThanOrEqual(0)
+    expect(at.col).toBeLessThan(512)
+  })
+
+  it('keeps the poles and the antimeridian on the world', () => {
+    expect(tilePixel(89.9, -180, 2, 4)).toEqual({ x: 0, y: 0, col: 0, row: 0 })
+    expect(tilePixel(-89.9, 179.9999, 2, 4)).toEqual({ x: 3, y: 3, col: 3, row: 3 })
+  })
+})
+
+describe('groundAt', () => {
+  const Z = 12
+  const Y = 1443
+  const spacing = groundMetresPerPixel(Z, Y, 2, 5)
+
+  it('reads the height, and flat ground as 0 degrees facing nowhere', () => {
+    expect(groundAt(grid(5, () => 2564), 2, 2, Z, Y)).toEqual({ elevationM: 2564, degrees: 0, aspect: null })
+  })
+
+  // A slope as steep as it is long, falling to the east: 45 degrees, facing east.
+  it('reads the slope bandOf paints and the way the ground falls', () => {
+    const east = groundAt(grid(5, (col) => 1000 - col * spacing), 2, 2, Z, Y)!
+    expect(east.degrees).toBeCloseTo(45, 5)
+    expect(east.aspect).toBeCloseTo(90, 5)
+    // Rows run south, so heights that rise with the row fall to the north.
+    const north = groundAt(grid(5, (_c, row) => 1000 + row * 10), 2, 2, Z, Y)!
+    expect(north.aspect).toBeCloseTo(0, 5)
+    const southWest = groundAt(grid(5, (col, row) => 1000 + col * 10 - row * 10), 2, 2, Z, Y)!
+    expect(southWest.aspect).toBeCloseTo(225, 5)
+  })
+
+  // A point on the tile's edge carries the slope on past it, as slopeRaster
+  // does where it has no next tile, rather than reading a flat edge.
+  it('carries the slope on past the edge of the tile', () => {
+    const ramp = grid(5, (col) => 1000 - col * spacing)
+    expect(groundAt(ramp, 0, 0, Z, Y)!.degrees).toBeCloseTo(groundAt(ramp, 2, 2, Z, Y)!.degrees, 1)
+  })
+
+  it('says nothing where a height is missing', () => {
+    expect(groundAt(grid(5, (col) => (col === 3 ? Number.NaN : 0)), 2, 2, Z, Y)).toBeNull()
+  })
+})
+
+describe('compassPoint', () => {
+  it('names the nearest of the eight points', () => {
+    expect([0, 38, 90, 140, 180, 225, 292, 337.4, 337.6, 359].map(compassPoint)).toEqual([
+      'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'N',
     ])
   })
 })

@@ -23,6 +23,8 @@ vi.mock('maplibre-contour', () => ({
 import {
   CONTOUR_CASING_LAYER,
   CONTOUR_IMAGERY_EDGE,
+  CREDIT_LAYER,
+  CREDIT_SOURCE,
   CONTOUR_IMAGERY_INK,
   CONTOUR_INDEX_LAYER,
   CONTOUR_LABEL_LAYER,
@@ -486,5 +488,48 @@ describe('the opacity levels', () => {
     for (const id of [RELIEF_LAYER, SLOPE_LAYER, CONTOUR_LAYER, CONTOUR_CASING_LAYER]) {
       expect([id, visibility(stub, id)]).toEqual([id, 'visible'])
     }
+  })
+})
+
+// The right-click card reads the same elevation (#832), loaded once whoever
+// asks first, and holds Mapterhorn's credit while its numbers show.
+describe('the card\'s elevation', () => {
+  it('shares one load with the switches, whoever asks first', async () => {
+    const { terrain, load } = setup()
+    const first = await terrain.demTiles()
+    terrain.update({ ...OFF, relief: true })
+    expect(await terrain.demTiles()).toBe(first)
+    expect(load).toHaveBeenCalledOnce()
+  })
+
+  it('asks again after a load that failed', async () => {
+    const stub = stubMap({ styleLayers: STYLE_LAYERS })
+    const load = vi.fn().mockRejectedValueOnce(new Error('chunk')).mockResolvedValue({} as DemTiles)
+    const terrain = mountTerrain(stub.map, { load })
+    await expect(terrain.demTiles()).rejects.toThrow('chunk')
+    await expect(terrain.demTiles()).resolves.toEqual({})
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  // MapLibre credits a source while a visible layer uses it, so the empty
+  // layer's visibility is the credit: on with the first card, off with the last.
+  it('credits Mapterhorn while any card holds it', () => {
+    const { stub, terrain } = setup()
+    terrain.credit(false)
+    expect(stub.sources[CREDIT_SOURCE]).toBeUndefined()
+    terrain.credit(true)
+    expect(stub.calls.find((c) => c[0] === 'addSource' && c[1] === CREDIT_SOURCE)![2]).toMatchObject({
+      type: 'geojson',
+      attribution: MAPTERHORN_ATTRIBUTION,
+    })
+    expect(stub.stack).toContain(CREDIT_LAYER)
+    terrain.credit(true)
+    terrain.credit(false)
+    expect(visibility(stub, CREDIT_LAYER)).toBe('visible')
+    terrain.credit(false)
+    expect(visibility(stub, CREDIT_LAYER)).toBe('none')
+    terrain.credit(true)
+    expect(visibility(stub, CREDIT_LAYER)).toBe('visible')
+    expect(stub.calls.filter((c) => c[0] === 'addLayer' && c[1] === CREDIT_LAYER)).toHaveLength(1)
   })
 })
