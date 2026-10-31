@@ -16,6 +16,7 @@ import type { Feature, Geometry } from 'geojson'
 import type { ClosureProps } from '../utils/closures'
 import type { MapInputs } from '../map/controller'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
+import { AQI_LIMIT_DAYS } from '../utils/calendar/calendar'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { ChartMetricsState } from '../hooks/useChartMetrics'
 import type { ChartMetrics } from '../utils/chart/chartData'
@@ -545,6 +546,10 @@ export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
     onCameraMove: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,
     onTerrainChange: () => {},
+    forecastStartMs: Date.UTC(2026, 9, 30, 18),
+    forecastEndMs: Date.UTC(2026, 9, 30, 18, 59),
+    windowLimits: FALLBACK_WINDOW_LIMITS,
+    aqiForecastDays: AQI_LIMIT_DAYS,
     ...over,
   }
 }

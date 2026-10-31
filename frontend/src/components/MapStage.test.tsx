@@ -10,6 +10,7 @@ import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import { DRAGGED_MAP_PX, FAB_INSET_PX, phoneCornerLiftPx, transportStandPx } from '../utils/results/resultsSheet'
 import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
 import type { Place } from '../utils/geocode'
+import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 
 // MapView draws with WebGL, which jsdom has none of, and what this suite is
 // about is what reaches it: the props of every render are kept here.
@@ -183,6 +184,10 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     restoredView: null,
     onBasemapFailed: ON_BASEMAP_FAILED,
     maxPolygonPoints: MAX_POLYGON_POINTS,
+    forecastStartMs: 0,
+    forecastEndMs: 0,
+    windowLimits: FALLBACK_WINDOW_LIMITS,
+    aqiForecastDays: 5,
     onOpenControls: NOOP,
     controlsSummary: 'Current · NOAA GFS',
     messages: MESSAGES,

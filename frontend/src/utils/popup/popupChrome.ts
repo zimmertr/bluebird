@@ -353,6 +353,25 @@ export function factsRow(
   return `<div style="white-space:nowrap">${parts.join(FACTS_DOT)}</div>`
 }
 
+/** A number in a facts line, in the face every value on a card wears. */
+export function factValue(inner: string): string {
+  return `<span style="${VALUE_FACE}">${inner}</span>`
+}
+
+/**
+ * A square of a layer's colour before the number it keys, as a legend's
+ * swatch keys a band (#832): the slope's band beside its angle. A swatch
+ * rather than the number in the colour, because the yellow band would read
+ * about 1.1:1 as text on a light card. Its edge is the legend swatches' own
+ * outline (`SWATCH_EDGE`), which holds a pale fill apart from the band
+ * behind it. `color` is the layer's, from its owning module; it is the one
+ * value on a card that is somebody else's colour rather than the app's.
+ * Hidden from a screen reader, which hears the number.
+ */
+export function colorSwatch(color: string): string {
+  return `<span aria-hidden="true" style="display:inline-block;width:0.8em;height:0.8em;vertical-align:-0.05em;border-radius:2px;margin-right:4px;background:${color};box-shadow:inset 0 0 0 1px var(--popup-swatch-edge)"></span>`
+}
+
 /** The light dot between two facts, which a screen reader skips. */
 const FACTS_DOT = `<span aria-hidden="true" style="color:${FINE_COLOR};padding:0 5px">${SEP}</span>`
 

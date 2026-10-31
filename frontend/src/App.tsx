@@ -813,6 +813,10 @@ export default function App() {
           restoredView={restoredView}
           onBasemapFailed={setBasemapFailed}
           maxPolygonPoints={caps.maxPolygonPoints}
+          forecastStartMs={view.window.startMs}
+          forecastEndMs={view.window.endMs}
+          windowLimits={caps.windowLimits}
+          aqiForecastDays={caps.aqiForecastDays}
         />
 
         <ResultsSheet

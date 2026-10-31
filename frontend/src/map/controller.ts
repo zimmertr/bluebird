@@ -17,6 +17,7 @@ import type { FireWarning } from '../utils/fireProximity'
 import type { Place } from '../utils/geocode'
 import { geoKey } from '../utils/points'
 import type { CameraView } from '../utils/mapView'
+import type { WindowLimits } from '../utils/forecastWindow'
 import type { ColDef } from '../utils/tableColumns'
 
 export interface MapInputs {
@@ -50,6 +51,14 @@ export interface MapInputs {
   // The 3D button's press, asking for the terrain on or off (#799). The
   // switch is the overlays', so the button, the link and the map agree.
   onTerrainChange: (on: boolean) => void
+  // The window the right-click card forecasts (#832): the last analysis's,
+  // else the panel's, which is the report's view (`reportView`). The model is
+  // `modelId`, which follows the same rule.
+  forecastStartMs: number
+  forecastEndMs: number
+  // The deployment's window bounds and air-quality reach, from /api/capabilities.
+  windowLimits: WindowLimits
+  aqiForecastDays: number
 }
 
 export interface MapController {
