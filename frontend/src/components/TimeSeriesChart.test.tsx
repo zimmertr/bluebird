@@ -984,17 +984,39 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(screen.getAllByRole('button', { name: /^Unpin / }).map((b) => b.getAttribute('aria-label'))).toEqual([second])
   })
 
+  // The pinned card on screen, found by its unpin.
+  const pinnedCard = () => screen.getByRole('button', { name: /^Unpin / }).closest<HTMLElement>('[class*="absolute"]')!
+
   it('sorts a pinned card by the head pressed, again to turn it round', () => {
     const { container } = render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange: () => {} })} />)
     placePlot(container, 360)
     act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))
-    const name = screen.getByRole('button', { name: /^Name/ })
-    expect(name.getAttribute('aria-pressed')).toBe('false')
-    fireEvent.click(name)
-    expect(name.getAttribute('aria-pressed')).toBe('true')
-    expect(name.textContent).toContain('↑')
-    fireEvent.click(name)
-    expect(name.textContent).toContain('↓')
+    const heads = Array.from(pinnedCard().querySelectorAll<HTMLButtonElement>('button[aria-pressed]'))
+    // One head orders the card, the clicked panel's metric.
+    expect(heads.filter((h) => h.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
+    const other = heads.find((h) => h.getAttribute('aria-pressed') === 'false')!
+    fireEvent.click(other)
+    expect(other.getAttribute('aria-pressed')).toBe('true')
+    expect(other.textContent).toContain('↓')
+    fireEvent.click(other)
+    expect(other.textContent).toContain('↑')
+  })
+
+  // A pinned card is the hover card it was pinned from, at its size (the
+  // maintainer, 2026-10-30): no head over the names, an arrow only on the
+  // sorted head, outside it, and no rule between rows.
+  it('pins a card that looks like the hover card', () => {
+    const { container } = render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange: () => {} })} />)
+    placePlot(container, 360)
+    act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))
+    expect(screen.queryByRole('button', { name: /^Name/ })).toBeNull()
+    const heads = Array.from(pinnedCard().querySelectorAll<HTMLButtonElement>('button[aria-pressed]'))
+    // The arrow on the sorted head alone, outside its label's width.
+    expect(heads.map((h) => h.textContent!.includes('↓'))).toEqual(heads.map((h) => h.getAttribute('aria-pressed') === 'true'))
+    const sorted = heads.find((h) => h.getAttribute('aria-pressed') === 'true')!
+    expect(sorted.querySelector(`.${CHART_CARD.sortArrow.split(' ')[0]}`)).not.toBeNull()
+    const row = pinnedCard().querySelector('[data-pin-row]')!
+    expect(row.className).not.toMatch(/border-t/)
   })
 
   it('greys the + at four on a desk', () => {
