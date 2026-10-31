@@ -23,7 +23,10 @@ test('the results sheet goes full screen dragged to the top, and comes back down
   await expect(resultRows(page).first()).toBeAttached()
 
   const sheet = page.locator('[data-tour="results"]')
-  const controls = page.getByRole('button', { name: 'Open controls' })
+  // By CSS rather than by role: under a full-screen sheet both are inert,
+  // which takes them out of the accessibility tree a role query reads.
+  const controls = page.locator('button[aria-label="Open controls"]')
+  const fab = page.locator('[data-tour="analyze"]')
   const resting = (await sheet.boundingBox())!
   expect(resting.y).toBeGreaterThan(300)
   await expect(controls).toBeVisible()
@@ -50,14 +53,14 @@ test('the results sheet goes full screen dragged to the top, and comes back down
   // within a pixel or two of the screen's.
   await expect.poll(async () => (await sheet.boundingBox())!.y).toBeLessThan(3)
   await expect.poll(() => onTop(controls)).toBe('sheet')
-  await expect.poll(() => onTop(analyze)).toBe('sheet')
+  await expect.poll(() => onTop(fab)).toBe('sheet')
   await expect(page.locator('[data-map-overlay][inert]')).toHaveCount(1)
 
   // Back down to the middle: it holds there, and they come back.
   await dragTo(page, await grip(), 420)
   await expect.poll(async () => (await sheet.boundingBox())!.y).toBeGreaterThan(300)
   await expect.poll(() => onTop(controls)).toBe('control')
-  await expect.poll(() => onTop(analyze)).toBe('control')
+  await expect.poll(() => onTop(fab)).toBe('control')
   await expect(page.locator('[data-map-overlay][inert]')).toHaveCount(0)
 })
 
