@@ -86,8 +86,11 @@ test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is th
   await expect(sheet).toHaveCount(0)
 })
 
+// Short enough that four keys outgrow the card even where it keeps the plain
+// gap over the player (record 0261): at 1280 wide the map is past the line, so
+// the player on for radar takes no height from the card.
 test('the desk legend card scrolls when its sections outgrow the map', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 300 })
+  await page.setViewportSize({ width: 1280, height: 220 })
   await page.goto('/?fires=1&radar=1&smoke=1&snow=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const label = page.getByText('Active wildfires').first()
@@ -107,3 +110,34 @@ test('the desk legend card scrolls when its sections outgrow the map', async ({ 
   await page.mouse.wheel(0, 200)
   await expect.poll(() => scroller.evaluate((box) => (box as HTMLElement).scrollTop)).toBeGreaterThan(0)
 })
+
+// With the player on, the card stops above its band only where the centred
+// bar reaches under it: a map narrower than 864px (record 0261). The panel is
+// open at both widths, so the map is the window less the panel.
+for (const [width, side] of [
+  [1440, 'wide'],
+  [1024, 'narrow'],
+] as const) {
+  test(`the desk legend card clears the player only where the bar reaches under it, ${side} map`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 720 })
+    await page.goto('/?fires=1&radar=1')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Play the timeline' })).toBeVisible()
+    const label = page.getByText('Active wildfires').first()
+    await expect(label).toBeVisible()
+    const at = await label.evaluate((el) => {
+      let box = el.parentElement!
+      while (getComputedStyle(box).overflowY !== 'auto') box = box.parentElement!
+      let map = box.parentElement!
+      while (getComputedStyle(map).containerType !== 'size') map = map.parentElement!
+      return { maxHeight: parseFloat(getComputedStyle(box).maxHeight), mapW: map.clientWidth, mapH: map.clientHeight }
+    })
+    test.info().annotations.push({ type: `legend cap ${width} px`, description: JSON.stringify(at) })
+    // The rows (88) and the gap under the chip (4), then the plain gap (32)
+    // or the player's band (112).
+    if (side === 'wide') expect(at.mapW).toBeGreaterThanOrEqual(864)
+    else expect(at.mapW).toBeLessThan(864)
+    const floor = side === 'wide' ? 32 : 112
+    expect(Math.abs(at.maxHeight - (at.mapH - 88 - 4 - floor))).toBeLessThanOrEqual(0.5)
+  })
+}
