@@ -774,9 +774,13 @@ export const STYLES = [
   },
   {
     // Every message in the app fits one line at 360px, measured with the full
-    // text column. A list indent and its marker take 16px of it.
+    // text column. A list indent and its marker take 16px of it. The
+    // Destinations section is out of it: the one list there is the note of
+    // example lists beside Coordinate search, which holds no message (record
+    // 0258, the maintainer, 2026-10-31).
     name: 'style-panel-messages',
     files: [...Object.values(PANEL), MESSAGES.list],
+    ignores: [PANEL.destinations],
     ban: [
       {
         selector: `JSXOpeningElement[name.name="ul"], ${text('list-disc')}, ${text('<ul')}`,
