@@ -2032,7 +2032,9 @@ function PinnedCard({
       if (row.getBoundingClientRect().bottom <= limit + 0.5) held++
     })
     if (held !== fits) setFits(held)
-  })
+    // Whatever moves a row or the body's bottom: the size, the sort, the rows,
+    // the columns, where it stands, and the count itself, whose foot takes room.
+  }, [fits, size, sort, lines, metrics, at, pin.t, times])
   const index = times.indexOf(pin.t)
   if (index < 0) return null
   const hour = fmtTooltipTime(pin.t)
