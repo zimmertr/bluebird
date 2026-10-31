@@ -862,6 +862,12 @@ space above the rule before it: 16px in Controls, the row's own in a menu
 sheet. 0 on a desk.
 Record: [0145](decisions/0145-safe-area-bottom.md), [0152](decisions/0152-sheets-end-above-the-home-indicator.md)
 
+A phone's map rows and its Analyze button stand above a resting results
+sheet (`LAYER.mapControls`). For a whole drag and at full screen the sheet
+takes `LAYER.sheetRaised`, one step over them and under the analysis overlay,
+so it slides over them; at full screen they are `inert` under it.
+Record: [0259](decisions/0259-phone-results-sheet-drags-to-full-screen.md)
+
 The results table's Name column sticks at the left edge on an opaque fill
 (`TABLE.stickyNameCell`, `TABLE.stickyNameHead`), with the row's hover tint
 laid over it as a gradient. On a phone it opens no wider than 45% of the

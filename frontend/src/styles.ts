@@ -1192,6 +1192,13 @@ export const LAYER = {
    * only order that child against its own siblings.
    */
   mapControls: 'z-[18]',
+  /**
+   * The results sheet on a phone while a drag moves it and while it stands
+   * at full screen (#837): over the map's rows and its Analyze button, so it
+   * slides over them rather than under, and still below `overlay`, which
+   * speaks for the whole screen while an analysis runs.
+   */
+  sheetRaised: 'z-[19]',
   /** The analysis overlay, over the map while a run is in flight. */
   overlay: 'z-20',
   /**

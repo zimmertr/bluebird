@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type ResultsLayoutInputs, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
-import { RESULTS_BAR_PX, dockedMapFloorPx } from '../utils/results/resultsSheet'
+import {
+  RESULTS_BAR_PX,
+  dockedMapFloorPx,
+  draggedMapFloorPx,
+  fullScreenMapFloorPx,
+} from '../utils/results/resultsSheet'
+import { SHEET_SNAP_PX } from '../utils/sheetDrag'
 import { PANEL_FLOOR_PX } from '../utils/layout'
 
 // jsdom has no media queries, so the one the Both widening asks is answered
@@ -183,9 +189,10 @@ describe('useResultsLayout', () => {
       act(() => result.current.chooseResultsMode('chart'))
       const full = result.current.chartPanelPx
       expect(full).toBeGreaterThan(resting)
-      // As high as a drag on the Table takes it: the same stop.
+      // The cap a drag on the Table holds at: the same stop, short of full
+      // screen (#837).
       act(() => result.current.chooseResultsMode('table'))
-      drag(result, 'tableGrip', 2000)
+      drag(result, 'tableGrip', full - resting)
       expect(result.current.tablePanelPx).toBe(full)
     })
 
@@ -241,6 +248,117 @@ describe('useResultsLayout', () => {
       expect(result.current.chartPanelPx).toBe(full)
       rerender({ ...PHONE, fullOverride: false })
       expect(result.current.chartPanelPx).toBe(full - 200)
+    })
+  })
+
+  // A drag on a phone's grip runs past the cap to the top of the map (#837),
+  // and a release near the top leaves the sheet over the whole map. It is
+  // never where the sheet opens, and the next drag or a double press brings
+  // it down.
+  describe('a phone sheet at full screen', () => {
+    const VIEWPORT = 1000
+    function phone(over: Partial<ResultsLayoutInputs> = {}) {
+      setDesktopQuery(false)
+      setViewport(VIEWPORT)
+      const PHONE = { ...DESKTOP, isDesktop: false, response: {}, ...over }
+      const hook = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), { initialProps: PHONE })
+      return { ...hook, PHONE }
+    }
+    type Hook = { current: ReturnType<typeof useResultsLayout> }
+    const drag = (result: Hook, grip: 'chartGrip' | 'tableGrip', up: number) => {
+      act(() => result.current[grip].onDragStart())
+      act(() => result.current[grip].onDrag(up))
+      act(() => result.current[grip].onDragEnd())
+    }
+    const capPx = VIEWPORT - draggedMapFloorPx(1)
+    const fullPx = VIEWPORT - fullScreenMapFloorPx(1)
+
+    it('opens at rest, and goes full when let go near the top', () => {
+      const { result } = phone()
+      const resting = result.current.tablePanelPx
+      expect(resting).toBeLessThan(capPx)
+      expect(result.current.overMapRows).toBe(false)
+      drag(result, 'tableGrip', fullPx - SHEET_SNAP_PX - resting)
+      expect(result.current.tablePanelPx).toBe(fullPx)
+      expect(result.current.overMapRows).toBe(true)
+    })
+
+    // A drag renders twice, when it begins and when it ends (record 0259):
+    // the sheet is drawn at its most and raised over the map's controls, the
+    // foot keeps the lift it began on, and the moves between render nothing.
+    it('draws the sheet at its most for a drag, and falls back to the cap short of the top', () => {
+      const { result } = phone()
+      const resting = result.current.tablePanelPx
+      const lift = result.current.sheetLiftPx
+      act(() => result.current.tableGrip.onDragStart())
+      expect(result.current.tablePanelPx).toBe(fullPx)
+      expect(result.current.sheetRaised).toBe(true)
+      expect(result.current.sheetLiftPx).toBe(lift)
+      const before = result.current
+      act(() => result.current.tableGrip.onDrag(capPx + 60 - resting))
+      // No render: the hook hands back the very object it did.
+      expect(result.current).toBe(before)
+      act(() => result.current.tableGrip.onDragEnd())
+      expect(result.current.tablePanelPx).toBe(capPx)
+      expect(result.current.sheetRaised).toBe(false)
+      expect(result.current.overMapRows).toBe(false)
+    })
+
+    it('comes down under the next drag, from where it stands, or a double press', () => {
+      const { result } = phone()
+      const resting = result.current.tablePanelPx
+      drag(result, 'tableGrip', 2000)
+      expect(result.current.tablePanelPx).toBe(fullPx)
+      drag(result, 'tableGrip', -400)
+      expect(result.current.tablePanelPx).toBe(fullPx - 400)
+      expect(result.current.overMapRows).toBe(false)
+      drag(result, 'tableGrip', 2000)
+      act(() => result.current.tableGrip.onReset())
+      expect(result.current.tablePanelPx).toBe(resting)
+      expect(result.current.overMapRows).toBe(false)
+    })
+
+    it('keeps it through a switch to Chart, which alone lifts only to the cap', () => {
+      const { result } = phone()
+      act(() => result.current.chooseResultsMode('chart'))
+      expect(result.current.chartPanelPx).toBe(capPx)
+      expect(result.current.overMapRows).toBe(false)
+      act(() => result.current.chooseResultsMode('table'))
+      drag(result, 'tableGrip', 2000)
+      act(() => result.current.chooseResultsMode('chart'))
+      expect(result.current.chartPanelPx).toBe(fullPx)
+      expect(result.current.overMapRows).toBe(true)
+    })
+
+    // In Both the map grip takes it there, the chart keeps the reader's
+    // share, and the divider trades the pair without bringing it down.
+    it('fills Both with the table under the chart, and keeps it through the divider', () => {
+      const { result } = phone({ modeChosen: 'both' })
+      const fullBoth = VIEWPORT - fullScreenMapFloorPx(2)
+      drag(result, 'chartGrip', 2000)
+      expect(result.current.overMapRows).toBe(true)
+      expect(result.current.chartPanelPx + result.current.tablePanelPx).toBe(fullBoth)
+      const chart = result.current.chartPanelPx
+      drag(result, 'tableGrip', 50)
+      expect(result.current.chartPanelPx).toBe(chart - 50)
+      expect(result.current.chartPanelPx + result.current.tablePanelPx).toBe(fullBoth)
+      expect(result.current.overMapRows).toBe(true)
+    })
+
+    it("gives way to the tutorial's rest", () => {
+      const { result, rerender, PHONE } = phone()
+      const resting = result.current.tablePanelPx
+      drag(result, 'tableGrip', 2000)
+      rerender({ ...PHONE, restView: 'table' })
+      expect(result.current.tablePanelPx).toBe(resting)
+      expect(result.current.overMapRows).toBe(false)
+    })
+
+    it('never happens at a desk', () => {
+      setViewport(VIEWPORT)
+      const { result } = renderHook(() => useResultsLayout(DESKTOP))
+      drag(result, 'tableGrip', 2000)
+      expect(result.current.overMapRows).toBe(false)
     })
   })
 

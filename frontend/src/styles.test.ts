@@ -916,6 +916,7 @@ describe('shared recipes', () => {
       LAYER.base,
       LAYER.sheet,
       LAYER.mapControls,
+      LAYER.sheetRaised,
       LAYER.overlay,
       LAYER.scrim,
       LAYER.drawer,
@@ -937,6 +938,10 @@ describe('shared recipes', () => {
     // overlay an analysis puts over the whole map.
     expect(depth(LAYER.mapControls)).toBeGreaterThan(depth(LAYER.sheet))
     expect(depth(LAYER.mapControls)).toBeLessThan(depth(LAYER.overlay))
+    // A dragged or full-screen phone sheet slides over the map's rows and its
+    // Analyze button, and stays under the analysis overlay (#837).
+    expect(depth(LAYER.sheetRaised)).toBeGreaterThan(depth(LAYER.mapControls))
+    expect(depth(LAYER.sheetRaised)).toBeLessThan(depth(LAYER.overlay))
   })
 
   // The map timeline's scrubber (#121). A real range input arrives knowing
@@ -2922,9 +2927,11 @@ describe('the bottom sheet', () => {
     for (const recipe of [BOTTOM_SHEET.scrim, BOTTOM_SHEET.card]) expect(recipe).toContain(LAYER.popover)
     // The Analyze button among it: every sheet's dim covers the button where
     // it stands, and the sheet's modality keeps it from a press, so the foot
-    // neither hides it nor makes it inert (record 0207).
+    // neither hides it nor makes it inert (record 0207). The one inert is a
+    // full-screen results sheet's, which covers the button whole (#837).
     expect(zOf(MAP_FAB_SLOT.match(/(?:^|\s)(z-\S+)/)![1])).toBeLessThan(zOf(LAYER.popover))
-    expect(phoneFootSource).not.toMatch(/\binert\b/)
+    expect(phoneFootSource.match(/\binert\b/g)).toEqual(['inert'])
+    expect(phoneFootSource).toContain('inert={covered}')
     expect(tokens(BOTTOM_SHEET.scrim)).toEqual(expect.arrayContaining(['fixed', 'inset-0']))
     expect(darkStep(token(BOTTOM_SHEET.dim, 'bg'))).toBe('black')
     expect(BOTTOM_SHEET.dim).toMatch(/(^|\s)bg-scrim\/\d+(\s|$)/)

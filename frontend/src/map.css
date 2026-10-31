@@ -802,6 +802,11 @@
   height: var(--map-corner-band);
   display: flex;
   flex-direction: column-reverse;
+  /* A drag on a phone's results sheet moves the corner with the Analyze
+   * button it stands beside, as a transform, so a move lays nothing out
+   * (#837): `useResultsLayout` sets `--sheet-shift` on the map wrapper for
+   * the drag's length, and the release puts the new lift in its place. */
+  transform: translateY(var(--sheet-shift, 0px));
 }
 
 .maplibregl-ctrl-bottom-left {

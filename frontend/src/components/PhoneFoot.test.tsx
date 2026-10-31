@@ -65,6 +65,20 @@ describe('PhoneFoot', () => {
     expect(onAnalyze).toHaveBeenCalledOnce()
   })
 
+  // A full-screen results sheet stands over the button (#837): it stays
+  // where it is and is out of reach until the sheet comes down. A drag on
+  // the sheet moves it by `--sheet-shift`, as a transform.
+  it('goes out of reach under a full-screen sheet, and rides a drag by transform', () => {
+    const { rerender } = render(foot())
+    const slot = () => button().parentElement!
+    expect(slot().hasAttribute('inert')).toBe(false)
+    expect(slot().style.transform).toBe('translateY(var(--sheet-shift, 0px))')
+    rerender(foot({ covered: true }))
+    expect(slot().hasAttribute('inert')).toBe(true)
+    rerender(foot({ covered: false }))
+    expect(slot().hasAttribute('inert')).toBe(false)
+  })
+
   it('disables while busy, and reads the word it is handed', () => {
     const { rerender } = render(foot({ analyzeEnabled: false, word: 'Analyzing…' }))
     expect(button().disabled).toBe(true)
