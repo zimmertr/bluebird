@@ -98,7 +98,8 @@ describe("the card's forecast", () => {
   it('stands a bar in every cell while it fetches', () => {
     const html = coordinatePopupHtml(POINT, false, { ...view, forecast: { kind: 'pending' } })
     expect(html).toContain(pendingValue())
-    expect(markupText(html)).not.toMatch(/\d+\.\d/)
+    // No number but the title's coordinates.
+    expect(markupText(html).replace('48.79012, -121.83211', '')).not.toMatch(/\d/)
   })
 
   // Its numbers exist and were not got, which a dash would say were never there.
