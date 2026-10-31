@@ -2,9 +2,8 @@ import { test, expect, resultRows, isoDay } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A phone's results sheet goes to full screen when its grip is dragged to the
-// top of the screen and let go there (#837; record 0259), with the map's rows
-// and its Analyze button out of the way, and comes back down under the next
-// drag. Driven by a pointer moving slowly, the way sheetDrag.spec.ts drags.
+// top of the screen and let go there (#837; record 0259), sliding over the
+// map's rows and its Analyze button, and comes back down under the next drag. Driven by a pointer moving slowly, the way sheetDrag.spec.ts drags.
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
@@ -35,19 +34,31 @@ test('the results sheet goes full screen dragged to the top, and comes back down
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
   }
 
-  // To the top: the sheet covers the map, and the rows and the button go.
+  // What stands on top at a control's centre: the sheet, or the control.
+  const onTop = (locator: typeof controls) =>
+    locator.evaluate((el) => {
+      const box = el.getBoundingClientRect()
+      const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+      return top?.closest('[data-tour="results"]') ? 'sheet' : el.contains(top) ? 'control' : 'other'
+    })
+  await expect.poll(() => onTop(controls)).toBe('control')
+
+  // To the top: the sheet slides over the rows and the button, which are
+  // out of reach under it.
   await dragTo(page, await grip(), 2)
   // The sheet's panels are sized from its header's estimate, so its top is
   // within a pixel or two of the screen's.
   await expect.poll(async () => (await sheet.boundingBox())!.y).toBeLessThan(3)
-  await expect(controls).toBeHidden()
-  await expect(analyze).toBeHidden()
+  await expect.poll(() => onTop(controls)).toBe('sheet')
+  await expect.poll(() => onTop(analyze)).toBe('sheet')
+  await expect(page.locator('[data-map-overlay][inert]')).toHaveCount(1)
 
   // Back down to the middle: it holds there, and they come back.
   await dragTo(page, await grip(), 420)
   await expect.poll(async () => (await sheet.boundingBox())!.y).toBeGreaterThan(300)
-  await expect(controls).toBeVisible()
-  await expect(analyze).toBeVisible()
+  await expect.poll(() => onTop(controls)).toBe('control')
+  await expect.poll(() => onTop(analyze)).toBe('control')
+  await expect(page.locator('[data-map-overlay][inert]')).toHaveCount(0)
 })
 
 test('a release short of the top falls back to the strip under the chips', async ({ page }) => {
