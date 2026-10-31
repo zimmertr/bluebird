@@ -4,7 +4,16 @@ import { describe, expect, it, vi } from 'vitest'
 // through it, so the suite hands in its own.
 vi.mock('maplibre-gl', () => ({ addProtocol: vi.fn() }))
 
-import { DEM_FILL_SCHEME, SLOPE_SCHEME, SLOPE_TILES, demFillTile, serveSlopeTiles, slopeTile, type DemGrids } from './slope'
+import {
+  DEM_FILL_SCHEME,
+  SLOPE_SCHEME,
+  SLOPE_TILES,
+  demFillTile,
+  groundReading,
+  serveSlopeTiles,
+  slopeTile,
+  type DemGrids,
+} from './slope'
 import { terrariumHeight } from '../utils/demFill'
 import { slopeRaster, type HeightGrid } from '../utils/slopeAngle'
 
@@ -266,5 +275,36 @@ describe('demFillTile', () => {
     expect(heightAt(filled, 0)).toBe(500)
     expect(asked).toContain('13/1324/2886')
     expect(asked).toContain('12/662/1443')
+  })
+})
+
+// The right-click card's ground (#832): the finest elevation under the point,
+// whatever the map's zoom, falling back as a slope tile does.
+describe('groundReading', () => {
+  // Rainier's summit, where Mapterhorn's survey stops at 13 (record 0248).
+  const RAINIER = { lat: 46.8529, lon: -121.7604 }
+  const FINEST_DOWN = ['16/10602/23089', '15/5301/11544', '14/2650/5772', '13/1325/2886']
+
+  it('reads the finest tile there is, from zoom 16 down', async () => {
+    const { dem, asked } = demOf({ '13/1325/2886': flat(4392), '12/662/1443': flat(4000) })
+    const ground = await groundReading(dem, RAINIER.lat, RAINIER.lon, new AbortController(), new Set())
+    expect(ground).toEqual({ elevationM: 4392, degrees: 0, aspect: null })
+    expect(asked).toEqual(FINEST_DOWN)
+  })
+
+  it('falls back to zoom 12, and asks no missing tile twice', async () => {
+    const { dem, asked } = demOf({ '12/662/1443': flat(4000) })
+    const missing = new Set<string>()
+    await groundReading(dem, RAINIER.lat, RAINIER.lon, new AbortController(), missing)
+    expect(asked).toEqual([...FINEST_DOWN, '12/662/1443'])
+    asked.length = 0
+    const again = await groundReading(dem, RAINIER.lat, RAINIER.lon, new AbortController(), missing)
+    expect(again?.elevationM).toBe(4000)
+    expect(asked).toEqual(['12/662/1443'])
+  })
+
+  it('fails over open ocean, where no zoom has a tile', async () => {
+    const { dem } = demOf({})
+    await expect(groundReading(dem, 0, -140, new AbortController(), new Set())).rejects.toThrow(/404/)
   })
 })

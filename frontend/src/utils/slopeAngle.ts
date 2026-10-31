@@ -8,6 +8,7 @@
 // that decides what the picture says is here, and none of it needs a map.
 import { hexToRgb } from './colors'
 import { type RampTick, rampCss, rampTicks } from './legendRamp'
+import { clamp } from './numbers'
 
 /**
  * One band of the shading: the steepness it starts at, in degrees, and its
@@ -318,4 +319,86 @@ export function slopeRampCss(): string {
 export function slopeTicks(): RampTick[] {
   const last = SLOPE_BANDS.length - 1
   return rampTicks(SLOPE_BANDS.map((band, i) => ({ at: i === last ? i : i + 1, text: String(band.from) })))
+}
+
+/** The tile at zoom `z` a point falls in, and its pixel in a tile `size` pixels square. */
+export interface TilePixel {
+  readonly x: number
+  readonly y: number
+  readonly col: number
+  readonly row: number
+}
+
+/** The Web Mercator world ends here, north and south, where its square does. */
+const MERCATOR_MAX_LAT = 85.0511287798
+
+/**
+ * The tile and pixel a latitude and longitude fall on at zoom `z`, Web
+ * Mercator's, which is every tile here: the same address MapLibre asks a
+ * tile at and the same pixel `slopeRaster` would paint for the point.
+ */
+export function tilePixel(lat: number, lon: number, z: number, size: number): TilePixel {
+  const tiles = 2 ** z
+  const phi = (clamp(lat, -MERCATOR_MAX_LAT, MERCATOR_MAX_LAT) * Math.PI) / 180
+  const wx = (((lon + 180) / 360) % 1 + 1) % 1 * tiles
+  const wy = ((1 - Math.log(Math.tan(phi) + 1 / Math.cos(phi)) / Math.PI) / 2) * tiles
+  const x = Math.min(tiles - 1, Math.floor(wx))
+  const y = clamp(Math.floor(wy), 0, tiles - 1)
+  const col = Math.min(size - 1, Math.floor((wx - x) * size))
+  const row = clamp(Math.floor((wy - y) * size), 0, size - 1)
+  return { x, y, col, row }
+}
+
+/** What the ground is at one point (#832): its height, how steep it is, and which way it faces. */
+export interface GroundReading {
+  readonly elevationM: number
+  readonly degrees: number
+  /**
+   * The compass bearing the slope faces, the way down, in degrees from north
+   * clockwise; null on ground with no fall at all, which faces nowhere.
+   */
+  readonly aspect: number | null
+}
+
+/**
+ * The ground at one pixel of an elevation tile: the pixel's own height, and
+ * the slope and aspect of a central difference across its four neighbours,
+ * the difference `slopeRaster` takes for the pixel it paints, so the number
+ * names the band the shading draws from the same tile. A neighbour off the
+ * tile's edge is carried on in a straight line from the pixel and the one
+ * inside it, as `slopeRaster` does where it has no next tile; a point is one
+ * pixel, and the next tile is not worth a fetch for it. Null where the pixel
+ * or a neighbour has no height.
+ *
+ * `z` and `tileY` are the tile's own, for the ground spacing at its row.
+ */
+export function groundAt(grid: HeightGrid, col: number, row: number, z: number, tileY: number): GroundReading | null {
+  const { width: w, height: h, data } = grid
+  const at = (c: number, r: number) => data[r * w + c]
+  const here = at(col, row)
+  // A neighbour, or past the edge the line through the pixel and the one on
+  // the other side of it.
+  const side = (dc: number, dr: number) => {
+    const c = col + dc
+    const r = row + dr
+    if (c >= 0 && c < w && r >= 0 && r < h) return at(c, r)
+    return 2 * here - at(col - dc, row - dr)
+  }
+  const twoPixels = 2 * groundMetresPerPixel(z, tileY, row, h)
+  // Rise per metre east and per metre north; north is up the tile, a row less.
+  const dzDx = (side(1, 0) - side(-1, 0)) / twoPixels
+  const dzDy = (side(0, -1) - side(0, 1)) / twoPixels
+  if (!Number.isFinite(here) || !Number.isFinite(dzDx) || !Number.isFinite(dzDy)) return null
+  const flat = dzDx === 0 && dzDy === 0
+  // The way down is against the rise: east of it by -dzDx, north by -dzDy.
+  const aspect = flat ? null : (((Math.atan2(-dzDx, -dzDy) * 180) / Math.PI) % 360 + 360) % 360
+  return { elevationM: here, degrees: slopeDegrees(dzDx, dzDy), aspect }
+}
+
+/** The eight points of the compass, from north clockwise, as a card writes a bearing. */
+const COMPASS_POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
+
+/** The nearest of the eight points to a bearing in degrees, `NE` for 38. */
+export function compassPoint(bearing: number): string {
+  return COMPASS_POINTS[Math.round((((bearing % 360) + 360) % 360) / 45) % 8]
 }

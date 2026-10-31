@@ -89,6 +89,10 @@ describe('rankedTargets', () => {
   it('lists every live target under the cursor, highest first', () => {
     expect(rankedTargets(false, ['smoke', 'poi', 'fire'])).toEqual(['poi', 'fire', 'smoke'])
     expect(rankedTargets(true, ['smoke', 'result', 'fire', 'vertex'])).toEqual(['vertex', 'result'])
+    // A pending dot opens its card only while no ring is drawn, so it never
+    // swallows a corner placed around it (#832).
+    expect(resolveMapClick(true, ['pending'])).toEqual({ kind: 'add-vertex' })
+    expect(resolveMapClick(false, ['poi', 'pending'])).toEqual({ kind: 'open', target: 'pending' })
     expect(rankedTargets(true, ['fire'])).toEqual([])
   })
 })

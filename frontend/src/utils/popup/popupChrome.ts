@@ -311,30 +311,33 @@ export function metaBand(lines: string[]): string {
 }
 
 /**
- * A destination's facts on one line under its name: the type, the elevation
- * and the coordinates, parted by a light dot (TJ, 2026-10-08), the app's
- * one separator (`SEP`; record 0222). A ranked
- * result and a clicked basemap feature both draw it, so the same mountain
- * reads the same before and after an analysis (TJ, 2026-10-14, #712); a
- * fact the card does not have is left off rather than filled in.
+ * A destination's facts under its name, on two lines (TJ, 2026-10-31, #832):
+ * the coordinates alone, then the type, the elevation and the slope, parted
+ * by a light dot (TJ, 2026-10-08), the app's one separator (`SEP`; record
+ * 0222). A ranked result, a clicked basemap feature and a pending dot all
+ * draw it, so the same mountain reads the same before and after an analysis
+ * (TJ, 2026-10-14, #712); a fact the card does not have is left off rather
+ * than filled in, and a line with no fact on it is left off whole.
+ *
+ * Two lines rather than the one the three facts shared before the slope
+ * joined them: on one, a peak's line measured 372px with its slope, past the
+ * 340px card, and the line never wraps.
  *
  * The dot is drawn in `FINE_COLOR`, which shows on the header band where
  * `RULE_COLOR` all but vanishes, and is hidden from a screen reader, which
- * hears the three facts as a list; it is a divider, not a character to read.
+ * hears the facts as a list; it is a divider, not a character to read.
  *
- * The line never wraps. A latitude and a longitude are one value in two
- * halves, and breaking between them leaves a bare negative number on its own
- * line looking like a third figure; it stays at the popup's own size, since a
- * line that shrank to fit would read as an afterthought, so the room comes
- * from the card's width instead. A trailhead's is the longest, 274.7px
- * measured on macOS with the bars' 5px, which the 340px card holds beside a
- * touch screen's close-button lane.
+ * Neither line wraps. A latitude and a longitude are one value in two halves,
+ * and breaking between them leaves a bare negative number on its own line
+ * looking like a third figure; each stays at the popup's own size, since a
+ * line that shrank to fit would read as an afterthought.
  *
  * `href` is where the pair links to: CalTopo, centred on the point (#712, TJ
  * 2026-10-14). The coordinates are the one fact on a card that names a place,
  * and the place is what a reader takes elsewhere to see the ground around it.
  * The elevation stays plain: it is a measurement rather than a place, and
- * nothing on the card is its forecast.
+ * nothing on the card is its forecast. `ground` is the slope's markup
+ * (`groundFact.ts`), empty where the card reads none.
  */
 export function factsRow(
   type: string | null,
@@ -342,15 +345,36 @@ export function factsRow(
   latitude: number,
   longitude: number,
   href: string | null,
+  ground = '',
 ): string {
   const pair = `<span style="${VALUE_FACE}">${coordinateLabel(latitude, longitude)}</span>`
   const coords = href ? popupLink(href, pair) : pair
-  const parts = [
+  const facts = [
     type ? escapeHtml(type) : '',
     elevation ? `<span style="${VALUE_FACE}">${escapeHtml(elevation)}</span>` : '',
-    coords,
+    ground,
   ].filter(Boolean)
-  return `<div style="white-space:nowrap">${parts.join(FACTS_DOT)}</div>`
+  const line = (inner: string) => `<div style="white-space:nowrap">${inner}</div>`
+  return `${line(coords)}${facts.length ? line(facts.join(FACTS_DOT)) : ''}`
+}
+
+/** A number in a facts line, in the face every value on a card wears. */
+export function factValue(inner: string): string {
+  return `<span style="${VALUE_FACE}">${inner}</span>`
+}
+
+/**
+ * A square of a layer's colour before the number it keys, as a legend's
+ * swatch keys a band (#832): the slope's band beside its angle. A swatch
+ * rather than the number in the colour, because the yellow band would read
+ * about 1.1:1 as text on a light card. Its edge is the legend swatches' own
+ * outline (`SWATCH_EDGE`), which holds a pale fill apart from the band
+ * behind it. `color` is the layer's, from its owning module; it is the one
+ * value on a card that is somebody else's colour rather than the app's.
+ * Hidden from a screen reader, which hears the number.
+ */
+export function colorSwatch(color: string): string {
+  return `<span aria-hidden="true" style="display:inline-block;width:0.8em;height:0.8em;vertical-align:-0.05em;border-radius:2px;margin-right:4px;background:${color};box-shadow:inset 0 0 0 1px var(--popup-swatch-edge)"></span>`
 }
 
 /** The light dot between two facts, which a screen reader skips. */

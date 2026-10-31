@@ -4,6 +4,7 @@ import { destinationLinkLabel, destinationUrl } from './destinationUrl'
 import { placeType } from './geocode'
 import { escapeHtml, factsRow, metaBand, popupAction, popupButton, popupCard } from './popup/popupChrome'
 import { elevationFact } from './popup/popupRows'
+import { type GroundState, slopeFact } from './popup/groundFact'
 import { TYPE_COL } from './tableColumns'
 import type { UsStates } from './usStates'
 
@@ -66,12 +67,14 @@ function poiTypeFact(poi: BasemapPoi): string | null {
  * CalTopo link carries (#712); a card built with no map links without one.
  * @param states The state outlines a crag's search names its state by, when
  * held (`usStates.ts`).
+ * @param ground The ground under the place, as far as its read has got (#832).
  */
 export function poiPopupHtml(
   poi: BasemapPoi,
   added: boolean,
   mapZoom?: number,
   states: UsStates | null = null,
+  ground?: GroundState,
 ): string {
   // The button stands alone in the body, under the band's edge, with the
   // body's own padding around it; it needs no gap of its own. It is centred
@@ -92,6 +95,7 @@ export function poiPopupHtml(
       poi.lat,
       poi.lon,
       caltopoUrl(poi.lat, poi.lon, mapZoom),
+      slopeFact(ground),
     ),
   ])
 

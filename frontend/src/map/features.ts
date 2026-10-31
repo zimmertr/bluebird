@@ -33,7 +33,9 @@ import type { GeoPolygon } from '../types'
 import { enhanceBasemap } from './basemap'
 import { mountCamera } from './camera'
 import type { MapController } from './controller'
+import { mountCoordinatePopups } from './coordinatePopup'
 import { mountDrawRing, type DrawRing } from './drawRing'
+import { createGroundReadings } from './groundReadings'
 import { serveHeldTiles } from './heldTileProtocol'
 import { mountLandmarks, type LandmarkLayer } from './landmarks'
 import { mountMapPopups } from './mapPopups'
@@ -123,8 +125,12 @@ export function mountFeatures(
     onPolygonChange: deps.onPolygonChange,
     onDrawUpdate: deps.onDrawUpdate,
   })
-  const results = mountResultsLayer(map, { controller, popups: mapPopups })
-  const pois = mountPoiPopups(map, { controller, popups: mapPopups, landmarks })
+  // One reading of the ground per point for every card that names a place,
+  // off the terrain rows' one elevation source (#832).
+  const ground = createGroundReadings(terrain)
+  const results = mountResultsLayer(map, { controller, popups: mapPopups, ground })
+  const pois = mountPoiPopups(map, { controller, popups: mapPopups, landmarks, ground })
+  mountCoordinatePopups(map, { controller, popups: mapPopups, ground })
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })
