@@ -59,8 +59,12 @@ test('a release short of the top falls back to the strip under the chips', async
 
   const sheet = page.locator('[data-tour="results"]')
   const box = (await page.locator('.cursor-ns-resize').last().boundingBox())!
-  // 120px down the screen: over the rows, and well short of the top.
-  await dragTo(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 120)
+  const grip = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  // The sheet's top let go 120px down the screen: over the rows, and well
+  // short of the top. The grip stands under the sheet's bar, so the finger
+  // goes that much lower.
+  const below = grip.y - (await sheet.boundingBox())!.y
+  await dragTo(page, grip, 120 + below)
   // The cap leaves the rows and the button's strip, 176px of map.
   const top = async () => (await sheet.boundingBox())!.y
   await expect.poll(top).toBeGreaterThan(170)
