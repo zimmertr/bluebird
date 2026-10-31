@@ -42,10 +42,10 @@ describe('MessageBadge', () => {
     const badge = screen.getByRole('button', { name: '1 message' })
     expect(badge.className).toBe(`${MESSAGE_BADGE.base} ${MESSAGE_BADGE.warn}`)
     rerender(<MessageBadge count={2} worst="warn" open={false} onPress={() => {}} arrivalSeq={1} />)
-    expect(badge.className).toBe(`${MESSAGE_BADGE.base} ${MESSAGE_BADGE.warn} ${MESSAGE_BADGE.arrival[1]}`)
+    expect(badge.className).toBe(`${MESSAGE_BADGE.base} ${MESSAGE_BADGE.warn} ${MESSAGE_BADGE.arrivalOdd}`)
     rerender(<MessageBadge count={3} worst="error" open={false} onPress={() => {}} arrivalSeq={2} />)
     expect(screen.getByRole('button', { name: '3 messages' })).toBe(badge)
-    expect(badge.className).toBe(`${MESSAGE_BADGE.base} ${MESSAGE_BADGE.error} ${MESSAGE_BADGE.arrival[0]}`)
+    expect(badge.className).toBe(`${MESSAGE_BADGE.base} ${MESSAGE_BADGE.error} ${MESSAGE_BADGE.arrivalEven}`)
   })
 
   it('names one message in the singular and the rest in the plural', () => {

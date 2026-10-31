@@ -40,8 +40,9 @@ interface Props {
 export default function MessageBadge({ count, worst, open, onPress, arrivalSeq = 0, ref }: Props) {
   if (count === 0 || worst === null) return null
   // One spelling of the arrival per count, alternating, so each new count
-  // names a new animation and plays it again (`MESSAGE_BADGE.arrival`).
-  const arrival = arrivalSeq > 0 ? ` ${MESSAGE_BADGE.arrival[arrivalSeq % 2]}` : ''
+  // names a new animation and plays it again (`MESSAGE_BADGE.arrivalOdd`).
+  const arrival =
+    arrivalSeq === 0 ? '' : ` ${arrivalSeq % 2 === 1 ? MESSAGE_BADGE.arrivalOdd : MESSAGE_BADGE.arrivalEven}`
   return (
     <button
       ref={ref}

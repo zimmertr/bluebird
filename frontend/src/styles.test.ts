@@ -2997,7 +2997,7 @@ describe('the message badge', () => {
   // colour, under reduced motion not at all. Two spellings of one animation,
   // which the badge alternates, since a new name is what restarts one.
   it('moves once on arrival, in two names of one animation, and only when motion is welcome', () => {
-    const [a, b] = MESSAGE_BADGE.arrival
+    const { arrivalOdd: a, arrivalEven: b } = MESSAGE_BADGE
     expect(words(a)).toEqual(['motion-safe:animate-badge-bump-a', 'motion-safe:after:animate-badge-ripple-a'])
     expect(b).toBe(a.replace(/-a\b/g, '-b'))
     // Each name is a theme animation with its keyframes, and the pair match:

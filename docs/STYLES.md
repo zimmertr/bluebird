@@ -830,7 +830,7 @@ up from that edge. The band that held the whole block on the sheet's edge
 the rest.
 Record: [0208](decisions/0208-analyze-button-counts-the-messages.md)
 
-A new message moves the badge once (`MESSAGE_BADGE.arrival`): the disc swells
+A new message moves the badge once (`MESSAGE_BADGE.arrivalOdd`/`arrivalEven`): the disc swells
 and settles over 320ms while a ring in its own colour spreads from it and
 fades over 700ms. The ring is the badge's `after:` box, filled with whatever
 the disc is, so it follows the severity with no colour of its own. Two names

@@ -297,7 +297,7 @@ body,
   animation: indeterminate-slide 1.2s ease-in-out infinite;
 }
 
-/* The message badge's arrival (#834, `MESSAGE_BADGE.arrival`): the disc swells
+/* The message badge's arrival (#834, `MESSAGE_BADGE.arrivalOdd`/`arrivalEven`): the disc swells
    and settles over 320ms while a ring of its colour spreads and fades over
    700ms. Each is spelled twice under two names, because the badge alternates
    them per arrival and a new animation name is what restarts one. */

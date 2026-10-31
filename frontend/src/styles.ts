@@ -2004,8 +2004,9 @@ export const MAP_FAB_WORDS = {
  * fades, because a digit that changed and nothing else was easy to miss. The
  * ring is the `after:` box, filled with whatever the disc is (`bg-inherit`)
  * and stacked under the digit (`isolate`, `-z-10`), so it follows the
- * severity with no colour of its own. `arrival` is two spellings of the one
- * animation under two names: the badge wears one per arrival, alternating,
+ * severity with no colour of its own. `arrivalOdd` and `arrivalEven` are two
+ * spellings of the one animation under two names: the badge wears one per
+ * arrival, alternating,
  * because a change of name is what restarts a CSS animation, so the next
  * arrival plays again on the same element without remounting it or the
  * keyboard on it. Under reduced motion it does not move at all.
@@ -2022,10 +2023,8 @@ export const MESSAGE_BADGE = {
   error: 'bg-danger text-panel',
   warn: 'bg-warn text-panel',
   info: 'bg-info text-panel',
-  arrival: [
-    'motion-safe:animate-badge-bump-a motion-safe:after:animate-badge-ripple-a',
-    'motion-safe:animate-badge-bump-b motion-safe:after:animate-badge-ripple-b',
-  ],
+  arrivalOdd: 'motion-safe:animate-badge-bump-a motion-safe:after:animate-badge-ripple-a',
+  arrivalEven: 'motion-safe:animate-badge-bump-b motion-safe:after:animate-badge-ripple-b',
 } as const
 
 /**
