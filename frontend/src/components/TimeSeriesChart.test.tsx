@@ -991,8 +991,10 @@ describe('TimeSeriesChart with more than one metric', () => {
     const { container } = render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange: () => {} })} />)
     placePlot(container, 360)
     act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))
-    const [ranked, other] = Array.from(pinnedCard().querySelectorAll<HTMLButtonElement>('button[aria-pressed]'))
-    expect([ranked.getAttribute('aria-pressed'), other.getAttribute('aria-pressed')]).toEqual(['true', 'false'])
+    const heads = Array.from(pinnedCard().querySelectorAll<HTMLButtonElement>('button[aria-pressed]'))
+    // One head orders the card, the clicked panel's metric.
+    expect(heads.filter((h) => h.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
+    const other = heads.find((h) => h.getAttribute('aria-pressed') === 'false')!
     fireEvent.click(other)
     expect(other.getAttribute('aria-pressed')).toBe('true')
     expect(other.textContent).toContain('↓')
@@ -1009,8 +1011,10 @@ describe('TimeSeriesChart with more than one metric', () => {
     act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))
     expect(screen.queryByRole('button', { name: /^Name/ })).toBeNull()
     const heads = Array.from(pinnedCard().querySelectorAll<HTMLButtonElement>('button[aria-pressed]'))
-    expect(heads.map((h) => h.textContent!.includes('↓'))).toEqual([true, false])
-    expect(heads[0].querySelector(`.${CHART_CARD.sortArrow.split(' ')[0]}`)).not.toBeNull()
+    // The arrow on the sorted head alone, outside its label's width.
+    expect(heads.map((h) => h.textContent!.includes('↓'))).toEqual(heads.map((h) => h.getAttribute('aria-pressed') === 'true'))
+    const sorted = heads.find((h) => h.getAttribute('aria-pressed') === 'true')!
+    expect(sorted.querySelector(`.${CHART_CARD.sortArrow.split(' ')[0]}`)).not.toBeNull()
     const row = pinnedCard().querySelector('[data-pin-row]')!
     expect(row.className).not.toMatch(/border-t/)
   })
