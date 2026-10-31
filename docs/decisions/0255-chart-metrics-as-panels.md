@@ -1,6 +1,6 @@
 # 0255. The chart draws up to four metrics, each a panel on one time axis
 
-- Status: Accepted
+- Status: Accepted; amended by 0258
 - Date: 2026-10-29
 - Decider: the maintainer (TJ), who chose two stacked panels, the swap, and the link parameter on 2026-10-28, and on reviewing PR #828 on 2026-10-29 the card's headers, the + and the ×, four panels in a grid with one knob, and the names `Chart metric`, `Metric 2` to `Metric 4`, `Add a panel`, `Remove {metric label}` and `Resize the panels`
 - Issues and PRs: #499, #828
