@@ -691,13 +691,14 @@ export function nearestKey(
 //
 // The two measurements are of the rendered card: a row is the 12px control
 // step on its default line box, and the chrome is the card's rim, the header
-// band with the hour (34px), the body's padding (14px) and the footer with
-// "+N more" (27px), the card's anatomy since it took the marker popup's
-// (#499; TJ 2026-10-29).
+// band with the hour (34px), the body's padding (14px), the heads row with
+// its rule (20px: a 16px line, the 1px rule and its 3px margin), which every
+// card carries since 2026-10-30, and the footer with "+N more" (27px), the
+// card's anatomy since it took the marker popup's (#499; TJ 2026-10-29).
 // Both are deliberately slight over-estimates, so the cap errs toward one row
 // fewer rather than one row of overhang.
 export const TOOLTIP_ROW_PX = 18
-export const TOOLTIP_CHROME_PX = 78
+export const TOOLTIP_CHROME_PX = 98
 
 // Eight is where the card stops being scannable, so height can only ever
 // lower it. One is the floor: a tooltip listing nothing is worse than a
