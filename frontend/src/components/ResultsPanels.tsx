@@ -76,7 +76,7 @@ export interface ResultsPanelsProps {
   /** The panels shown, their heights, and their grips (`useResultsLayout`). */
   layout: Pick<ResultsLayout, 'resultsMode' | 'chartGrip' | 'chartPanelPx' | 'tableGrip' | 'tablePanelPx'>
   /** The charted set and the comparison (`useChartCompare`). */
-  charts: Pick<ChartCompare, 'chart' | 'compare' | 'rowChartColor' | 'shared'>
+  charts: Pick<ChartCompare, 'chart' | 'chartMetrics' | 'compare' | 'rowChartColor' | 'shared'>
   /** An hour the chart's tooltip stands on without a mouse (the tutorial, #536). */
   chartTooltipIndex?: number | null
   /** The table's rows, columns and widths (`useTableView`). */
@@ -101,8 +101,8 @@ export interface ResultsPanelsProps {
   sortBy: SortBy
   /** The ranking's direction, which the chart's extreme line follows. */
   sortDesc: boolean
-  /** A phone, where the chart's metric picker is its title (#696; record 0149). */
-  chartTitled: boolean
+  /** A phone, where three or four chart panels stack in one column (#499). */
+  chartPhone: boolean
   /**
    * A desk, where a press on Table, Chart or Both and the collapse chevron
    * open and close the panes at the panel's speed (record 0202). A phone's
@@ -160,7 +160,7 @@ export default function ResultsPanels({
   removeResult,
   sortBy,
   sortDesc,
-  chartTitled,
+  chartPhone,
   panesMove = false,
   collapsed = false,
   layoutMotion = null,
@@ -202,7 +202,7 @@ export default function ResultsPanels({
   // rather than 131 at a quarter of the CPU (2026-10-22).
   const layer = pushing ? LAYOUT_HOLD.layer : ''
   useScrollShadows(tableScrollRef, tablePane.mounted)
-  const { chart, compare, rowChartColor, shared } = charts
+  const { chart, chartMetrics, compare, rowChartColor, shared } = charts
   const {
     tableRows,
     tableColumns,
@@ -316,8 +316,13 @@ export default function ResultsPanels({
                         // draw. With nothing compared it is the row list it
                         // has always been.
                         rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
-                        metric={chart.metric}
-                        onMetricChange={chart.setMetric}
+                        metrics={chartMetrics.metrics}
+                        onPick={chartMetrics.pick}
+                        onAdd={chartMetrics.add}
+                        onRemove={chartMetrics.remove}
+                        onMove={chartMetrics.move}
+                        layout={chartMetrics.layout}
+                        onLayout={chartMetrics.setLayout}
                         sortBy={sortBy}
                         sortDesc={sortDesc}
                         colorFor={chart.colorFor}
@@ -329,7 +334,7 @@ export default function ResultsPanels({
                         extraLines={compare.lines}
                         modelEnds={compare.endLines}
                         controls={compareControls}
-                        titled={chartTitled}
+                        phone={chartPhone}
                       />
                     </Suspense>
                   </div>

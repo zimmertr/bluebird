@@ -3,7 +3,7 @@
  *
  * A thing on the map that describes itself in a popup is a target: a ranked
  * marker, a clickable basemap label, a ring handle, a fire perimeter, a closure,
- * a smoke plume. Each registers here with the layers it draws on and how it
+ * a smoke plume, a satellite fire detection. Each registers here with the layers it draws on and how it
  * opens, and this module does the rest the same way for all of them: a click
  * opens the popup of the highest-ranked target under it (the rank is
  * `utils/mapClick.ts`), a click without shift clears the board first, the

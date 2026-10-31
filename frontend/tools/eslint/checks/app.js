@@ -135,7 +135,8 @@ export const APP = [
       },
     ],
     require: [
-      { selector: EFFECT, count: 2, message: 'useChartSelection.ts runs its two effects through useEffect.' },
+      // One since #499, when the metric and its ranking effect moved to useChartPair.
+      { selector: EFFECT, count: 1, message: 'useChartSelection.ts runs its one effect through useEffect.' },
       {
         selector:
           'VariableDeclarator[id.name="candidatesKey"] > CallExpression[callee.name="useMemo"]' +
@@ -868,7 +869,7 @@ export const APP = [
   {
     // The sync effect and the unmount flush are the two effects this hook took
     // from App.tsx. The sync effect keys on every input its encodeState call
-    // reads, 27 entries with the sync callback last, and it never flushes: a
+    // reads, 34 entries with the sync callback last, and it never flushes: a
     // flush per run writes on every keystroke and the debounce collapses
     // nothing. The flush runs only on unmount, keyed on the writer alone. The
     // camera is not an entry: it reaches the writer through reportView, so a
@@ -884,8 +885,8 @@ export const APP = [
     require: [
       { selector: EFFECT, count: 2, message: 'useUrlSync.ts runs its two effects through useEffect.' },
       {
-        selector: `${EFFECT} > ArrayExpression[elements.length=27][elements.26.name="sync"]`,
-        message: 'Key the sync effect on all 27 inputs it reads, sync last.',
+        selector: `${EFFECT} > ArrayExpression[elements.length=36][elements.35.name="sync"]`,
+        message: 'Key the sync effect on all 36 inputs it reads, sync last.',
       },
       { selector: keyedOnlyOn('writeUrl'), message: 'Flush on unmount in an effect keyed on writeUrl alone.' },
       { selector: 'ReturnStatement Property[key.name="writeUrl"]', message: 'Return the writer.' },

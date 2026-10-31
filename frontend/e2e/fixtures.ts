@@ -1,5 +1,5 @@
 // Every host the browser fetches is answered here, so a run spends no
-// Open-Meteo quota and no third-party outage can turn it red. The six
+// Open-Meteo quota and no third-party outage can turn it red. The nine
 // third-party origins are the ones BROWSER_FETCH_ORIGINS in
 // backend/app/security_headers.py lists; the CSP would refuse any other.
 // A request to a host no handler claims is aborted and counted as a leak,
@@ -9,6 +9,19 @@ import { test as base, expect, type Locator, type Page, type Route } from '@play
 
 const here = new URL('.', import.meta.url)
 const style = JSON.parse(readFileSync(new URL('fixtures/style.json', here), 'utf8'))
+// One Terrarium elevation tile for every request to the elevation host (#799):
+// a cone 2,500 m high on a 500 m plain, 64px square, so the relief has a slope
+// to shade, the contours heights to trace and the 3D terrain a hill to stand
+// up. MapLibre refuses a DEM tile that is not square, and a 1px one has no
+// slope at all. Past zoom 12 the host answers 404, as Mapterhorn does wherever
+// no survey reaches that far, so the slope angle's fallback to the zoom-12
+// tile runs in every test that draws it there.
+const TERRARIUM_PNG = readFileSync(new URL('fixtures/terrarium.png', here))
+const DEM_ALL_LAND_ZOOM = 12
+const demTile = (route: Route) =>
+  Number(new URL(route.request().url()).pathname.split('/')[1]) > DEM_ALL_LAND_ZOOM
+    ? route.fulfill({ status: 404, contentType: 'text/plain', body: 'Tile not found' })
+    : route.fulfill({ status: 200, contentType: 'image/png', body: TERRARIUM_PNG })
 
 // The forecast bodies reuse the inputs of the shared aggregation vectors, so the
 // rows and the chart carry the shapes the aggregation is pinned against rather
@@ -160,6 +173,36 @@ export async function expectRanked(page: Page, count = DESTINATION_NAMES.length)
 }
 
 const json = (body: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+
+/**
+ * The one satellite fire detection `/api/fire-activity` answers, at Mount
+ * Rainier, seen by NOAA-20 three hours before START, so the layer draws it
+ * red and its card says `3h ago` (#799). Drawn only where a page turns
+ * the layer on.
+ */
+export const FIRE_DETECTION = {
+  lng: -121.76,
+  lat: 46.853,
+  properties: {
+    acquired: new Date(START - 3 * 60 * 60 * 1000).toISOString(),
+    instrument: 'VIIRS',
+    satellite: 'N20',
+    confidence: 'nominal',
+    frp: 12.4,
+  },
+}
+const fireActivity = () =>
+  json({
+    type: 'FeatureCollection',
+    fetched_at: START,
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [FIRE_DETECTION.lng, FIRE_DETECTION.lat] },
+        properties: FIRE_DETECTION.properties,
+      },
+    ],
+  })
 const emptyCollection = () => json({ type: 'FeatureCollection', features: [], fetched_at: new Date().toISOString() })
 
 // A 1x1 transparent PNG, for any raster tile an overlay asks for.
@@ -195,6 +238,10 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
   await page.route('https://tiles.openfreemap.org/styles/**', answer((r) => r.fulfill(json(style))))
   await page.route('https://mesonet.agron.iastate.edu/**', answer(blankTile))
   await page.route('https://mapservices.weather.noaa.gov/**', answer(blankTile))
+  // The ground layers' elevation and imagery tiles (#799).
+  await page.route('https://tiles.mapterhorn.com/**', answer(demTile))
+  await page.route('https://basemap.nationalmap.gov/**', answer(blankTile))
+  await page.route('https://tiles.maps.eox.at/**', answer(blankTile))
   const weather = answer((r) =>
     r.fulfill(json(hourlyBodies(new URL(r.request().url()), WEATHER_INPUTS, isCloud(r) ? CLOUD_UNITS : WEATHER_UNITS))),
   )
@@ -204,9 +251,9 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
     'https://air-quality-api.open-meteo.com/**',
     answer((r) => r.fulfill(json(hourlyBodies(new URL(r.request().url()), AQI_INPUTS, {})))),
   )
-  // The pod answers these five from its database, or from Overpass, NIFC,
-  // NOAA and the Forest Service on a deployment without one, and the image
-  // under test has none, so they are stubbed too. /api/capabilities and
+  // The pod answers these six from its database, or from Overpass, NIFC,
+  // NOAA, the Forest Service and FIRMS on a deployment without one, and the
+  // image under test has none, so they are stubbed too. /api/capabilities and
   // /api/config reach no upstream and are left to the image, so the limits the
   // page reads are the real ones.
   await page.route('**/api/destinations', (r) => r.fulfill(json(destinationsBody(r))))
@@ -214,6 +261,7 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
   await page.route('**/api/landmarks**', (r) => r.fulfill(emptyCollection()))
   await page.route('**/api/smoke**', (r) => r.fulfill(emptyCollection()))
   await page.route('**/api/closures**', (r) => r.fulfill(emptyCollection()))
+  await page.route('**/api/fire-activity**', (r) => r.fulfill(fireActivity()))
   return traffic
 }
 

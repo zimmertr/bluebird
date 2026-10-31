@@ -45,13 +45,14 @@ function setup(drawing = false) {
 describe('mountFeatures', () => {
   // The order the layers go on in is the order they draw in, so this is the
   // whole stack in one list: the basemap patch and the trailhead and crag
-  // markers over it under the style's labels, then the grid, smoke, fire, closures, ring, markers and pending dots above the
-  // style.
+  // markers over it under the style's labels, then the grid, smoke, fire,
+  // closures, detections, ring, markers and pending dots above the style.
   it('stacks every feature, lowest first', () => {
     const { stub } = setup()
     expect(stub.stack).toEqual([
       'background',
       'water',
+      'ofm-trails-casing',
       'ofm-trails',
       'ofm-peaks-glow',
       'ofm-peaks',
@@ -76,17 +77,45 @@ describe('mountFeatures', () => {
       'closure-area-outline',
       'closure-trail-line',
       'closure-trail-site',
+      'fire-activity-points',
       'draw-fill',
       'draw-line',
       'draw-midpoints',
       'draw-vertices',
+      'results-halo',
       RESULT_MARKER_LAYER,
       'results-wind',
       'results-rank',
       'results-labels',
+      'pending-destinations-halo',
       'pending-destinations-circles',
       'pending-destinations-labels',
     ])
+  })
+
+  // The imagery adds nothing on load, and switched on it goes over the
+  // style's ground and under its first layer that is not ground, and so under
+  // every feature the app adds (#799, record 0250). This style's ground is its
+  // background alone: its `water` names no source of Liberty's.
+  it('puts the satellite imagery over the ground and under every feature', () => {
+    const { stub, features } = setup()
+    const before = [...stub.stack]
+    features.imagery.update({ show: true, opacity: 0.5 })
+    expect(stub.stack).toEqual(['background', 'imagery-eox', 'imagery-usgs', ...before.slice(1)])
+  })
+
+  // The Satellite row turns the contours to their imagery ink and back
+  // (`terrain.ts`), through the one switch the component drives, and so does
+  // its level across a half, where the photos stop being the ground that
+  // shows most (record 0250).
+  it('hands the Satellite row and its level to the contours as well as the photos', () => {
+    const { features } = setup()
+    const overImagery = vi.spyOn(features.terrain, 'overImagery')
+    features.imagery.update({ show: true, opacity: 0.5 })
+    features.imagery.update({ show: true, opacity: 0.45 })
+    features.imagery.update({ show: true, opacity: 1 })
+    features.imagery.update({ show: false, opacity: 1 })
+    expect(overImagery.mock.calls).toEqual([[true], [false], [true], [false]])
   })
 
   // Every popup opens through map/mapPopups.ts: one click and one pointer
@@ -110,7 +139,31 @@ describe('mountFeatures', () => {
   it('hands back every feature the component drives', () => {
     const { features } = setup()
     expect(Object.keys(features).sort()).toEqual(
-      ['areaClosures', 'drawRing', 'grid', 'landmarks', 'pois', 'radar', 'results', 'smoke', 'snow', 'trailClosures', 'wildfires'].sort(),
+      [
+        'areaClosures',
+        'drawRing',
+        'fireActivity',
+        'grid',
+        'imagery',
+        'landmarks',
+        'pois',
+        'radar',
+        'results',
+        'smoke',
+        'snow',
+        'terrain',
+        'trailClosures',
+        'wildfires',
+      ].sort(),
     )
+  })
+
+  // The ground waits for a switch (#799): the cold load adds no elevation
+  // source, no relief and no contours.
+  it('adds nothing of the ground until a switch asks for it', () => {
+    const { stub } = setup()
+    const added = stub.calls.filter((c) => c[0] === 'addSource').map((c) => c[1])
+    expect(added.filter((id) => /dem|contour/.test(String(id)))).toEqual([])
+    expect(stub.stack.filter((id) => /relief|contour/.test(id))).toEqual([])
   })
 })

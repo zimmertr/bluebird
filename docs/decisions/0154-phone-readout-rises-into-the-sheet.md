@@ -1,6 +1,6 @@
 # 0154. A phone's chart readout rises into the sheet rather than being cut off
 
-- Status: Accepted. Amends [0144](0144-chart-reads-a-finger.md). Amended by [0155](0155-phone-chart-rests-at-the-full-stop.md) (a phone's Chart rests at the full stop, so the rise matters on a Chart the reader has dragged short)
+- Status: Superseded by [0255](0255-chart-metrics-as-panels.md) (a phone wears the desk's picker row, and its card stays inside the chart). Amends [0144](0144-chart-reads-a-finger.md). Amended by [0155](0155-phone-chart-rests-at-the-full-stop.md) (a phone's Chart rests at the full stop, so the rise matters on a Chart the reader has dragged short)
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696 (round 8 review of #708), 2026-10-14
 - Issues and PRs: #696, #708, #336

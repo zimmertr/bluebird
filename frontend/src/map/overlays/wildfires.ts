@@ -18,13 +18,13 @@ import {
   fetchWildfires,
   nifcFireUrl,
   wildfirePopupHtml,
-  type BBox,
   type FireDetail,
   type WildfireProps,
 } from '../../utils/wildfires'
 import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
 import { isAbort } from '../../utils/abort'
+import { viewBoxOf } from '../../utils/viewBox'
 
 // How long a pan or zoom must settle before the viewport is asked about again.
 export const FIRE_REFETCH_DEBOUNCE_MS = 400
@@ -113,9 +113,10 @@ export function mountWildfires(
     abort?.abort()
     const ac = new AbortController()
     abort = ac
-    const b = map.getBounds()
-    const bbox: BBox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
-    const detail = fireDetailFor(b.getWest(), b.getEast(), map.getCanvas().clientWidth)
+    // The view as it would lie flat: a pitched camera's bounds run to the
+    // horizon (`utils/viewBox.ts`, #799).
+    const bbox = viewBoxOf(map)
+    const detail = fireDetailFor(bbox[0], bbox[2], map.getCanvas().clientWidth)
     try {
       const fc = await fetchWildfires(bbox, detail, ac.signal)
       if (ac.signal.aborted) return

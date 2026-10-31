@@ -18,7 +18,7 @@ interface Probe {
 // Found through a section's label and the nearest scrolling ancestor, so the
 // test follows the card rather than the classes it wears today.
 async function probe(page: Page): Promise<Probe> {
-  const label = page.getByText('Active wildfire').first()
+  const label = page.getByText('Active wildfires').first()
   await expect(label).toBeVisible()
   return label.evaluate((el) => {
     let box = el.parentElement!
@@ -64,7 +64,7 @@ test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is th
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const legend = page.getByRole('button', { name: 'Legend', exact: true })
   await expect(legend).toBeEnabled()
-  await expect(page.getByText('Active wildfire')).toHaveCount(0)
+  await expect(page.getByText('Active wildfires')).toHaveCount(0)
 
   // About 20px at 360 wide, where the three chips take 316 of 336. Layers is
   // the row's last chip, after Legend (TJ, 2026-10-18).
@@ -80,7 +80,7 @@ test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is th
 
   await legend.click()
   const sheet = page.getByRole('dialog', { name: 'Legend' })
-  await expect(sheet.getByText('Active wildfire')).toBeVisible()
+  await expect(sheet.getByText('Active wildfires')).toBeVisible()
   await expect(legend).toHaveAttribute('aria-expanded', 'true')
   await sheet.getByRole('button', { name: 'Done' }).click()
   await expect(sheet).toHaveCount(0)
@@ -90,7 +90,7 @@ test('the desk legend card scrolls when its sections outgrow the map', async ({ 
   await page.setViewportSize({ width: 1280, height: 300 })
   await page.goto('/?fires=1&radar=1&smoke=1&snow=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const label = page.getByText('Active wildfire').first()
+  const label = page.getByText('Active wildfires').first()
   await expect(label).toBeVisible()
   const scroller = await label.evaluateHandle((el) => {
     let box = el.parentElement!

@@ -8,7 +8,7 @@ The welcome dialog offers a guided tutorial, the `Tutorial` link at the bottom o
 
 ## At a desk
 
-The controls panel docks at the left, beside the map. The search box stands at the top left of the map, and under it sit **Legend** and **Layers**. Close the panel and the chip that names the forecast window and the model (`☰ Current · NOAA GFS`) joins the front of that row; press it to bring the panel back. **Analyze** lives in the panel, so closing the panel puts it away too. A small disc at its corner counts the panel's messages, in the colour of the worst of them. Press it, or the greyed button when something holds Analyze up, and the messages open as a card over the button. The zoom buttons stand at the bottom right of the map, over the credits, with the locate button and the compass above them, and scroll, pinch or double-click zoom too. The compass is greyed out while north is up; turn the map and press it to put north back up.
+The controls panel docks at the left, beside the map. The search box stands at the top left of the map, and under it sit **Legend** and **Layers**. Close the panel and the chip that names the forecast window and the model (`☰ Current · NOAA GFS`) joins the front of that row; press it to bring the panel back. **Analyze** lives in the panel, so closing the panel puts it away too. A small disc at its corner counts the panel's messages, in the colour of the worst of them. Press it, or the greyed button when something holds Analyze up, and the messages open as a card over the button. The zoom buttons stand at the bottom right of the map, over the credits, with the locate button and the compass above them, and scroll, pinch or double-click zoom too. A touch screen leaves the zoom buttons out, since a pinch zooms there. The compass is greyed out while north is up; turn the map and press it to put north back up.
 
 Every menu at a desk opens as a card just under the chip, field or button that opens it, and that control's arrow points down while the menu is shut and up while it is open. The arrow keys, Enter and Escape work in every list you pick one value from, as they would in any dropdown.
 
@@ -26,7 +26,7 @@ Every menu on a phone is a sheet that rises from the bottom of the screen: Legen
 
 ## Light theme
 
-The app opens dark, whatever your system is set to. The round sun button at the top right of the panel, beside the close button, switches it to light, and the same button, now a moon, switches it back. On a phone it sits beside **Done** in the Controls sheet's title row. Your browser remembers the choice, so the next visit opens in it; it does not ride a shared link, so whoever opens yours sees their own. The map, its markers and overlays look the same in both: the map is terrain, and it is light either way. The popups follow the switch, dark in dark and white in light. In light the results table's shaded cells print their numbers in a darker shade of the band's own colour, so they stay legible on a light page, and the chart draws eight of its twenty line colors darker for the same reason.
+The app opens dark, whatever your system is set to. The round sun button at the top right of the panel, beside the close button, switches it to light, and the same button, now a moon, switches it back. On a phone it sits beside **Done** in the Controls sheet's title row. Your browser remembers the choice, so the next visit opens in it; it does not ride a shared link, so whoever opens yours sees their own. The map, its markers and overlays look the same in both: the ground is Liberty's light terrain, or the **Satellite** layer's photos, whichever theme you pick, and the markers, their names and the scale bar read on either. The popups follow the switch, dark in dark and white in light. In light the results table's shaded cells print their numbers in a darker shade of the band's own colour, so they stay legible on a light page, and the chart draws eight of its twenty line colors darker for the same reason.
 
 ## Destinations
 
@@ -216,28 +216,92 @@ The default is 200, sized to sit above the 100-row lists people usually paste so
 
 ## Map layers
 
-Seven optional overlays, on the map's own **Layers** chip rather than in the
+Twelve optional overlays, on the map's own **Layers** chip rather than in the
 controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Each of the six that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer is never switched on, though one that is still on gets switched off with the rest.
+again. Eight are credited in their own section of the map's legend, and the three that draw the ground (Topographic, Shaded relief and Satellite) in the map's corner. Each rides in the shared link. Hold Shift and click a box in the list to switch every layer between it and the last one you clicked; a greyed layer is never switched on, though one that is still on gets switched off with the rest.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
+| *Base map* | | |
+| **Satellite** | Aerial photos of the ground, over the map's land and water and under its roads, trails and labels | Worldwide: USGS photos over the United States, a Sentinel-2 mosaic elsewhere |
+| **Topographic** | Contour lines from an elevation model | Worldwide, at 30 m or finer ([DATA.md](DATA.md#elevation-and-imagery)) |
+| **Shaded relief** | The ridges and valleys shaded, from the same model | Worldwide |
+| **Slope angle** | How steep the ground is, in seven bands from 27 degrees, from the same model | Worldwide |
+| *Hazards* | | |
+| **Active wildfires** | Active fire perimeters, in red | United States, which the proximity check shares ([DATA.md](DATA.md#wildfires)) |
+| **Fire activity** | Hot spots satellites saw in the last 48 hours, as starbursts coloured by age | Worldwide, from zoom 5 in ([DATA.md](DATA.md#fire-activity)) |
+| **Smoke** | Smoke plumes at three densities, in grey | North America, Hawaii and the Caribbean |
 | **Area closures** | Ground closed by a Forest Service closure order, in fuchsia | Forest Service orders in Oregon, Washington, Arizona, New Mexico, Utah, most of Nevada, southern Idaho and western Wyoming. No national park, state, BLM or tribal closure is drawn ([DATA.md](DATA.md#closures)) |
 | **Trail closures** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
-| **Wildfires** | Active fire perimeters, in red | United States, which the proximity check shares ([DATA.md](DATA.md#wildfires)) |
+| *Forecast* | | |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | The contiguous states, Alaska, Hawaii, Puerto Rico and Guam |
-| **Smoke** | Smoke plumes at three densities, in grey | North America, Hawaii and the Caribbean |
 | **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
-The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the
+**Topographic** draws contour lines and **Shaded relief** shading, both from
+one elevation model, under the trails, the peaks and every name on the map.
+The contours are in feet, like every height in the app. They start 1,000 feet
+apart at about the zoom a whole range fills the map, and close to 40 feet as
+you zoom in; further out there are none. Every fifth line is heavier, with its
+height written along it. The relief shades the slopes facing away from a light
+in the northwest, lightly enough that the woods, the ice and the water read
+through it. The model is 30 m everywhere and finer where a country has
+surveyed its own ground, as the United States has, so a gully that shows over
+Rainier may not show over the Alps. Its heights can differ from the height a
+summit's label gives ([DATA.md](DATA.md#elevation-and-imagery)). Neither layer
+downloads anything until you switch it on.
+
+**Slope angle** paints how steep the ground is, in the bands avalanche
+forecasters and CalTopo use: yellow from 27 to 29 degrees, orange at 30 and
+31, red from 32 to 34, purple from 35 to 45, blue from 46 to 50 and black from
+51 up. Under 27 nothing is painted. Most slab avalanches start on slopes of 30
+to 45 degrees. Your browser works the bands out from the relief's elevation
+model, at the finest it has where you zoom in: 10 m-class over the United
+States, finer in the Alps and 30 m in most of the rest of the world, so a
+short cliff band or a narrow gully can blur into the gentler ground around it. Zoomed out, a
+pixel covers more ground and the bands read gentler: Rainier's cleavers are
+black at zoom 12 and purple at zoom 10. Read it zoomed in. It is no substitute
+for measuring a slope in the field. It paints at half strength unless you move
+its slider, over the relief and the photos and under the contour lines, and
+downloads nothing until you switch it on.
+
+**Satellite** lays photos over the map's own colours for land and water and
+under its roads, trails and labels. At 100% the photos hide the map's ground;
+at 0% the map shows through whole. Over the United
+States, zoomed in, they are USGS's NAIP aerial photos at about a metre, flown
+in summer in the 2017 to 2021 seasons. Everywhere else, and over the US when
+zoomed out, they are EOX's Sentinel-2 cloudless mosaic at 10 m, which goes soft
+past a few streets' width. Neither is a recent pass, so neither shows today's
+snow: for that, use **Snow depth**. **Shaded relief** and **Topographic** draw
+over the photos; tick **Topographic** for a hybrid look. While the photos are
+on, the trails wear a light edge so they read over the woods, and from 50% up
+the contour lines turn light on a dark edge, as a topo drawn over a photo does.
+The two providers are credited in the map's corner, with the map's own.
+
+Each **Base map** row carries an **Opacity** slider at its right, 50% to start,
+which is how strong each layer drew before it had one. Drag it toward 0% and the
+map under the layer shows through; toward 100% and the layer takes over. For
+**Shaded relief** and **Topographic**, 100% is twice the look at 50%: the
+shading deeper, the lines darker. A slider stays where you left it while its
+layer is off, and dragging it switches the layer back on. Double-click one to
+put it back at 50%; the forecast grid's coverage slider does the same. Moving one never asks
+for a new analysis, and a level other than 50% rides in the shared link while
+its layer is on. On a phone the Layers sheet steps aside while you drag a
+slider, leaving that row alone over the map so you can see what you are
+tuning; let go and the sheet comes back.
+
+The rows stand in three groups, by what a layer changes: **Base map** changes the
+map itself, **Hazards** draws a danger on it, and **Forecast** draws the weather on
+it. Inside a group they go by kind rather than by name, so a fire comes before its
+smoke and an area closure before the trails it closes. The last row of
+**Forecast** draws nothing: **Forecast player** switches the
 timeline bar at the bottom of the map on and off. It is on by default in a
 desktop-sized window and off on a phone, where the bar is a band across a map the
 report already stands on. It changes nothing about the ranking either, and once
-you have set it, it rides in the shared link like the seven above. It goes gray when
+you have set it, it rides in the shared link like the twelve above. It goes gray when
 nothing on the map spans time, which is a report of one hour with the rain radar
 off. Every row stays in the list whether or not it applies, so the list is the same
 length every time you open it.
@@ -245,7 +309,7 @@ length every time you open it.
 The six rows in the table above with a coverage edge go gray the same way, when
 the map you are looking at lies wholly outside it: over Colorado the two closure
 rows gray, because no Forest Service feed here covers it, and over the Alps every
-row but the forecast grid and the player does. A gray row says the layer has
+row but the forecast grid, the player and the five worldwide ones does. A gray row says the layer has
 nothing to draw here, which is the one thing an empty layer cannot say for
 itself: outside a feed's coverage, empty means "not covered", never "open" or
 "clear". Pan back into coverage and the row returns. A layer you switched on
@@ -271,6 +335,19 @@ Forest Service orders and nothing else, so a closure a national park, a state,
 the BLM or a tribe puts in place never appears, and in Oregon and Washington
 the feed holds fire closures only.
 
+Fire activity is the satellites' picture, where the perimeters are the
+surveyors'. Each starburst is a pixel NASA's FIRMS flagged as hot, 375 m or 1 km
+across, and its colour is its age: red under 12 hours, orange from 12 to 24
+hours, yellow from 24 to 48. The age runs on your clock, so a star turns from
+red to orange while the map is open, and nothing older than 48 hours is drawn.
+The newest star is already about 3 hours old when it arrives, a cloudy pass sees
+nothing, and a gas flare or a hot roof can look like fire, so read a star as a
+place to look closer, not a fire line ([DATA.md](DATA.md#fire-activity)).
+Click a star for its card, **Hotspot**: when the satellite saw it and how long
+ago, which satellite and instrument, FIRMS's confidence (a word for VIIRS, a
+percent for MODIS), and the fire's radiative power in megawatts. Zoomed out far enough to see a whole continent,
+the layer draws nothing, and draws again as you zoom in.
+
 Clicking a perimeter, a closure or a plume opens the same card a destination
 gets, and the map moves to show it the same way: its name on a light grey band,
 and what kind of thing it is under that. A fire's card gives its size and how
@@ -293,11 +370,12 @@ pointer follows the frames under a mouse that is not moving. Where both are pain
 both, titled **Precipitation and snow**, the radar first. A click where neither
 is painted opens nothing. Nothing on the map opens on a hover. Where things overlap, the
 smaller and more deliberate target takes the click: a marker or a peak inside a
-fire or a closure opens its own popup, a closed trail opens before the fire or
+fire or a closure opens its own popup, a star opens before the label or the
+shape under it, a closed trail opens before the fire or
 the ground around it, a fire before the closure drawn around it, any of them
 before the smoke over it, and the smoke before the radar and the snow under it.
 A closed trail answers a click a few pixels either side of its line. While you
-draw a polygon, fires, closures, smoke, the radar, the snow and map labels are
+draw a polygon, fires, closures, smoke, the stars, the radar, the snow and map labels are
 scenery, and a click on one places a point.
 
 Read them for what they are. Radar is a **measurement of the last hour** and
@@ -310,9 +388,21 @@ day, and it describes a column of air rather than the ground: a plume overhead c
 mean a hazy sky and clean air to breathe, or the opposite. The AQI columns in the
 table are what measure air.
 
+### 3D terrain
+
+The **3D** button stands with the map's own buttons: under the compass at a
+desk, and beside the locate button at the end of the search box on a phone.
+Press it and the map stands the ground up on the same elevation model and
+tilts to look across it; press it again and the map lies flat, facing the way
+it faced. It is off by default, lit while on, and rides in the shared link as
+`terrain`, so a link made in 3D opens tilted. Drag with the right mouse button, or with two
+fingers, to change the tilt and the heading; the compass puts both back.
+3D draws nothing of its own, so it is best with **Shaded relief** on. Like the
+layers above, it changes nothing about the analysis.
+
 ### The forecast grid
 
-The other three overlays draw somebody else's data. This one draws yours: the same
+Every other overlay draws somebody else's data. This one draws yours: the same
 metric your results are ranked by, asked for on a lattice of points across the area
 your analysis covered, and painted on the colors the marker legend already shows. It answers the question the markers cannot — is this one summit's
 weather, or is the whole valley like that?
@@ -350,7 +440,8 @@ for the player. A box you ticked before analyzing, or one a shared link ticked,
 stays ticked, and the layer draws as soon as a report can carry it. Rank by
 something with numbers and it comes back without fetching anything again.
 
-A segment under the row picks how it is drawn, and both readings are true:
+The grid's line in the legend names how it is drawn, beside the spacing
+(`13 km · Smooth ⇄`), and pressing that name switches to the other. Both readings are true:
 
 - **Smooth** (the default) draws the space between the points, which is how every
   other forecast map reads and is the honest shape of something the model already
@@ -362,8 +453,8 @@ A segment under the row picks how it is drawn, and both readings are true:
   hard edges are the one thing it overstates: the model has no boundary there.
 
 Switching costs nothing. It is the same data drawn two ways, so it applies instantly
-and rides in the shared link. The segment and the coverage slider show only while the
-layer is on.
+and rides in the shared link. The coverage slider stays on the row
+while the layer is off, and using either one switches it on.
 
 Two things to know when reading it:
 
@@ -375,8 +466,8 @@ Two things to know when reading it:
   fetched, the legend says `Unavailable` instead, and whatever did arrive stays
   drawn.
 - **It covers where you looked.** The field extends a set distance around each
-  destination the analysis found — the **Coverage** slider under the style
-  toggle — and fades out at that edge. The slider's range follows the model:
+  destination the analysis found — the coverage slider on the row —
+  and fades out at that edge. The slider's range follows the model:
   from one to four of its own grid cells around each destination, with the
   default in the middle. On NOAA GFS's 3 km grid that is 3 to 12 km; on
   ECMWF's 25 km grid, 25 to 100 km. Destinations far apart each get their own
@@ -430,7 +521,7 @@ hand from the analysis; the timeline is a position in it.
 
 ## Viewing the results
 
-The results bar at the top of the report gives you three viewing modes. The report opens as a table; a desktop-sized window switches to Both when an analysis completes, as long as it is tall enough for the table to keep more than a few rows under the chart (a 768px-tall laptop screen stays on Table, an 800px one switches), and a mode you pick yourself sticks across visits. Beside the modes, **Columns**, **Models**, **Removed** and **Download CSV** are buttons, each with its icon; **Removed** is greyed while nothing is removed, and **Download CSV** until it has a row to download. On a phone, and wherever the bar is too narrow for every word, the modes and the buttons show their icons alone, all on one line. Open-Meteo, whose forecasts every number comes from, is credited on the map's attribution line at the bottom right, beside the map's own credits (behind the ⓘ beside the scale at the bottom left on a phone). **Table** is the detailed breakdown you can sort, filter and download. **Chart** is a time series of the plotted destinations, one metric at a time: the dropdown above the plot picks it, and opens on the metric the report is ranked by. On a phone the metric's name at the top left of the plot is the dropdown: tap it to pick another. Rest the pointer on the plot to read every line's value at that hour, with the nearest line drawn over the rest; on a phone, touch the plot and slide sideways, and the reading stays when you lift your finger. Where the plot is too short to hold it, the reading rises over the results bar rather than being cut off. A drag up or down still scrolls the sheet. A dashed line runs across the plot at the most extreme value among the lines drawn, drawn like the **Now** line and labeled with that value at its right end: the highest or the lowest hour, whichever way the report is ranked, or the highest on a metric it is not ranked by. There is no line when the extreme is zero rain, snow, wind or AQI, and with models compared only the ranking model's lines can set it. In Both, the table's checkbox column is the series picker; in Chart alone, a legend under the plot lists the rows the table would, one chip per line in that line's color. Click a chip to hide or show its destination, or its × to remove the destination from the report, and scroll the legend when two rows cannot hold them all. Every destination gets its line color the moment it appears — searched places included, before any analysis — and keeps it for the whole session no matter how the list changes; the first destination of a session wears Bluebird Forecast blue. **Both** stacks them. Each view has a drag handle to trade height with the map, and in Both the divider between the two trades their share. Double-press a handle to put its panel back. On a phone, Chart rises to the sheet's full height when you pick it, because the plot needs the room; drag its handle to set your own height for as long as Chart is up, and Table comes back at the height it had.
+The results bar at the top of the report gives you three viewing modes. The report opens as a table; a desktop-sized window switches to Both when an analysis completes, as long as it is tall enough for the table to keep more than a few rows under the chart (a 768px-tall laptop screen stays on Table, an 800px one switches), and a mode you pick yourself sticks across visits. Beside the modes, **Columns**, **Models**, **Removed** and **Download CSV** are buttons, each with its icon; **Removed** is greyed while nothing is removed, and **Download CSV** until it has a row to download. On a phone, and wherever the bar is too narrow for every word, the modes and the buttons show their icons alone, all on one line. Open-Meteo, whose forecasts every number comes from, is credited on the map's attribution line at the bottom right, beside the map's own credits (behind the ⓘ beside the scale at the bottom left on a phone). **Table** is the detailed breakdown you can sort, filter and download. **Chart** is a time series of the plotted destinations, in up to four plots, one metric each. The first dropdown above the plots picks the first plot's metric, and opens on the one the report is ranked by. The **+** after the last dropdown adds a plot with the first metric not yet drawn, and the **×** after each dropdown but the first takes its plot away; the **+** greys at four. The dots at the left end of each dropdown but the first move its plot: drag them along the row, or focus them and press Left or Right, and the plots follow the row's order, left to right and then top to bottom. The first dropdown stays first, because it follows the ranking. Two plots stack on one time axis, and the bar between them trades their height. At a desk, three stand as two side by side over one, and four as two rows of two, each with its own axes; on a phone every plot stacks on the one time axis, with a bar between each pair, and each plot wears its own dropdown at its top left, the **+** after the first. On a phone the dots move a plot up or down the stack. Drag a gap between them to resize that way, or the spot where the gaps cross to resize both: drag it into a corner and one plot takes the whole area, and a plot squeezed too small to read is hidden until you drag it back. Double-press the bar or a gap to even them up. At a desk, four plots open as one across the top over three below, and three as one over two. The square after the **+** shows the arrangement; press it to pick another, such as two by two, four in a column, one, two, one, or four in a row. Where bars meet, drag the spot they cross to resize both. A link carries the arrangement. Pick a metric another dropdown holds and the two swap places, and when the ranking moves to a metric another plot shows, those two swap too. Click a plot to pin the reading where it stands, at that hour; it then scrolls through every destination. Each further click pins another hour beside it, as many as you like, to compare them. Drag a pinned card by its header, size it from its corner, press a column's head to sort by it, drag a head's right edge to size its column, and drag a metric's head to move its plot. Its × lets it go, and Escape lets go of the one you touched last. Rest the pointer on the plot to read every line's value at that hour, with the nearest line drawn over the rest; with more than one plot the reading has a column per metric, headed with its name and unit; on a phone, touch the plot and slide sideways, and the reading goes when you lift your finger. A drag up or down still scrolls the sheet. A dashed line runs across the plot at the most extreme value among the lines drawn, drawn like the **Now** line and labeled with that value at its right end: the highest or the lowest hour, whichever way the report is ranked, or the highest on a metric it is not ranked by. There is no line when the extreme is zero rain, snow, wind or AQI, and with models compared only the ranking model's lines can set it. In Both, the table's checkbox column is the series picker; in Chart alone, a legend under the plot lists the rows the table would, one chip per line in that line's color. Click a chip to hide or show its destination, or its × to remove the destination from the report, and scroll the legend when two rows cannot hold them all. Every destination gets its line color the moment it appears — searched places included, before any analysis — and keeps it for the whole session no matter how the list changes; the first destination of a session wears Bluebird Forecast blue. **Both** stacks them. Each view has a drag handle to trade height with the map, and in Both the divider between the two trades their share. Double-press a handle to put its panel back. On a phone, Chart rises to the sheet's full height when you pick it, because the plot needs the room; drag its handle to set your own height for as long as Chart is up, and Table comes back at the height it had.
 
 On a phone the report is a sheet standing on the map rather than a panel beside it: the map keeps its full height and runs on behind the sheet, and the sheet opens low enough for a good stretch of map to stay in view. Drag its handle up for more rows; at its highest it stops a strip under the chips, so the Analyze button still has room to stand, and with the timeline on it leaves room for that too.
 
@@ -470,13 +561,13 @@ The results table marks the same thing. On the rows of a model that ends before 
 
 A model Open-Meteo has no data for at that spot draws no line and says so in a note beside the chart's metric dropdown, which is never the same as drawing a flat one. Its rows leave the table too, so whenever the chart is not on screen the same note stands under the results bar. A model you have hidden leaves no note, because its lines are missing by your own instruction.
 
-Two metrics cannot always be compared, and **Analyze** says so rather than selling you a report that cannot answer the question. Ranking by **AQI** with more than one model selected blocks it: `AQI data is retrieved independently of the model and cannot be compared.` Ranking by **Freezing level** with any selected model that does not forecast one blocks it too, and names them: `Freezing level data is not available for ECMWF IFS.` Three of the eight models forecast a freezing level; the other five answer with nothing at all, which on a chart is indistinguishable from never having asked. Either way the remedy is yours to choose, rank on something else or change the models, so the message says what is wrong and leaves it there. See [Data Sources](DATA.md) for the rest of the caveats.
+Two metrics cannot always be compared, and **Analyze** says so rather than selling you a report that cannot answer the question. Ranking by **AQI** with more than one model selected blocks it: `AQI data is retrieved independently of the model and cannot be compared.` Putting **AQI** in the chart's second plot has the same effect on the chart alone: the compared lines leave while it is there and come back when you pick something else. Ranking by **Freezing level** with any selected model that does not forecast one blocks it too, and names them: `Freezing level data is not available for ECMWF IFS.` Three of the eight models forecast a freezing level; the other five answer with nothing at all, which on a chart is indistinguishable from never having asked. Either way the remedy is yours to choose, rank on something else or change the models, so the message says what is wrong and leaves it there. See [Data Sources](DATA.md) for the rest of the caveats.
 
 The comparison travels in the link as `compare=`, a comma-separated list of model ids in the picker's own order, so the same set of models always reads the same way whoever built the link. A restored link reopens with the boxes ticked and buys the forecasts on your first Analyze, never on load, unless the link carries `analyze=1` (below).
 
 The rest of the panel travels the same way. A shared link carries the destination types and the unnamed-peaks toggle, the polygon, a pasted list (compressed), the forecast window, the model and its comparison, the ranking, its direction and the results cap once you change them from their defaults, every bound, the layer switches, the coverage slider, the forecast player once you have set it, pinned destinations, the rows you removed with ×, the order you sorted the table in with a header click, and the map's camera. It does not carry column order or widths, hidden models, or anything else that is one reader's view of the report rather than the report. A shared link opens the map where its camera was, as `view=` (longitude, latitude and zoom). A link with no camera opens the map on every destination it carries: the polygon, a pasted list, and searched places.
 
-A pan or a zoom alone makes a link, so a link copied after you move the map reopens at the same place. The map's own moves (the opening frame, a search, a click on a row's rank, a report whose rows were all off screen) keep the camera in a link that already exists, and make no link by themselves. Removed rows travel as `removed=`, one `longitude,latitude` pair for each row, and a restored link hides them from its first report and lists them under **Removed** once that report lands. The header sort travels as `tsort=` with the column and `tdesc=1` for highest first. It is written only while it differs from the ranking's own order, which a sort by `#` always does (as `tsort=rank`, even when its rows come out in the same order), and it holds for the first report a link opens with. A change to **Rank by** drops it, as it does any header sort.
+A pan or a zoom alone makes a link, so a link copied after you move the map reopens at the same place. The map's own moves (the opening frame, a search, a click on a row's rank, a report whose rows were all off screen) keep the camera in a link that already exists, and make no link by themselves. Removed rows travel as `removed=`, one `longitude,latitude` pair for each row, and a restored link hides them from its first report and lists them under **Removed** once that report lands. The chart's metrics travel as `chart=`, one per plot, first plot first, comma separated (`chart=precip,temp,wind,aqi`), or the first alone for one plot. Their arrangement at a desk travels as `layout=` (`row`, `column`, `2x2`, `2-1`, `1-2`, `1-3` or `1-2-1`), and only when it differs from the one the number of plots opens in. It is written only when the chart differs from what a fresh report shows: more than one plot, or a first metric that is not the ranking's. A name the app does not know is dropped, and so is a fifth. The header sort travels as `tsort=` with the column and `tdesc=1` for highest first. It is written only while it differs from the ranking's own order, which a sort by `#` always does (as `tsort=rank`, even when its rows come out in the same order), and it holds for the first report a link opens with. A change to **Rank by** drops it, as it does any header sort.
 
 The link stays readable. Commas, semicolons, colons and slashes show as they are, except a comma or a semicolon inside a pinned place's name, which shows as `%2C` or `%3B`, and a space shows as `+`. A pinned place reads as its coordinates, its kind, its elevation, its OpenStreetMap id and its name: `?model=gfs_seamless&mode=now&pins=-121.94734,47.48844,peak,2995,node/349018340,East+Tiger+Mountain`. Only the pasted list is compressed, because 100 rows of plain text would make a link too long to share.
 
@@ -513,20 +604,23 @@ If Open-Meteo cannot be reached from your browser, the analysis stops and says s
 ### The map's legend
 
 A card under the **Legend** chip, which stands beside **Layers**. It holds a
-section for the marker colors and one for each layer that is switched on, and
-they read in alphabetical order by name, so a section is where you last looked
-for it. Press **Legend** to fold the card away and again to bring it back; it
+section for the marker colors and one for each layer that is switched on. The
+marker colors come first, and the layers follow in the order their rows stand
+under **Layers**, so a key is where you would look for its switch. Press **Legend** to fold the card away and again to bring it back; it
 remembers which you left it as. A legend taller than the map has room for
 scrolls inside its card. The chip is greyed until there is something on the
 map to explain. On a phone the same sections are in the sheet the **Legend**
 chip opens.
 
 A section keyed on a single value — smoke, rain radar, active wildfires — is one
-line with its swatch on the right. A section keyed on a **scale** is a strip
+line with its swatch on the right. Fire activity is one line too: three
+starbursts on the right, red, orange and yellow, reading `12`, `24` and
+`48`, the hour each age band ends at. A section keyed on a **scale** is a strip
 across the box with its numbers **inside** it, along the bottom edge: the bottom
 of the scale, its middle and its top, each standing on the band boundary it
-names. That is the shape both the marker colors and the snow depth layer take,
-and it is one line rather than two. The unit rides the section's name —
+names. That is the shape the marker colors, the snow depth layer and the slope
+angle layer take, and it is one line rather than two. The slope angle strip
+names every band by the degrees it starts at. The unit rides the section's name —
 `Temperature (°F)`, `Precipitation (in)`, `Precipitation (in/hr)` while the
 forecast player is scrubbing, and `Snow depth (in)` — so the numbers on the strip
 stay bare. AQI is the one with no unit to state, its index being a plain index.
@@ -557,7 +651,7 @@ Click any column header to sort the rows on screen by it, ascending or descendin
 
 The **Name** column stays put as you scroll the table sideways, so every number keeps its destination beside it. Click or tap anywhere on a row, away from its checkbox, its × and its links, and that destination's popup opens on the map, the same as a click on its marker; on a phone the sheet drops to its bar first so the popup has the map to stand on. On a phone the **Name** column opens as wide as the longest name, but never more than about half the sheet; a longer name ends in an ellipsis, and the popup a tap opens shows it whole. Drag the column's edge to widen it. A name centres the map on its destination, and the numbers in the table and the popup each link to Windy. Links read in the colour of the text around them: at a desk one underlines when the pointer rests on it, and on a touch screen every link wears a faint underline.
 
-Hovering a row reveals a × at its end (shown to the keyboard when Tab reaches it) that removes the destination from the report. On a touch screen there is no hover, so the remove is in the popup a tap on the row opens: **Remove from analysis** at the card's foot does what the × does and closes the popup. Either way — the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any bound. Changing the destinations themselves starts a fresh report where it may return: edit the pasted list or the checked types and a removed destination you still name comes back as a pending destination immediately, while the report on screen keeps it struck out until you run the analysis. To undo one, the **Removed** button in the results bar lists every removed row by name, with its type beside any name two removed rows share, and restores them one at a time or all at once with **Restore all**. Restoring the last one closes the list and puts the keyboard on that row's name in the table. A restore never fetches — a row the report still holds simply reappears, and one it no longer holds (a searched place, or a row removed before a re-analysis) comes back as a pending destination that rejoins the next Analyze.
+Hovering a row reveals a × at its end (shown to the keyboard when Tab reaches it) that removes the destination from the report. On a touch screen there is no hover, so the remove is in the popup a tap on the row opens: **Remove from analysis** at the card's foot does what the × does and closes the popup. In a result's popup, drag a column's head onto another to move that column in the table too, for every metric, and drag a head's right edge to size that column on every popup. Either way — the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any bound. Changing the destinations themselves starts a fresh report where it may return: edit the pasted list or the checked types and a removed destination you still name comes back as a pending destination immediately, while the report on screen keeps it struck out until you run the analysis. To undo one, the **Removed** button in the results bar lists every removed row by name, with its type beside any name two removed rows share, and restores them one at a time or all at once with **Restore all**. Restoring the last one closes the list and puts the keyboard on that row's name in the table. A restore never fetches — a row the report still holds simply reappears, and one it no longer holds (a searched place, or a row removed before a re-analysis) comes back as a pending destination that rejoins the next Analyze.
 
 | Column | Description |
 |---|---|

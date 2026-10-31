@@ -20,7 +20,7 @@
 // answer means "not covered", not "clear".
 import type { FeatureCollection } from 'geojson'
 import { apiFetch, overlayFeatures } from './apiFetch'
-import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard } from './popup/popupChrome'
+import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, monthDayTime, popupCard } from './popup/popupChrome'
 import { hexToRgb } from './colors'
 
 const SMOKE_URL = '/api/smoke'
@@ -189,11 +189,9 @@ export function formatObserved(
   try {
     const sameDay = end !== null && start.toDateString() === end.toDateString()
     const time = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    const dated = (d: Date) =>
-      d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-    if (end === null) return `Observed: ${dated(start)}`
+    if (end === null) return `Observed: ${monthDayTime(start)}`
     if (sameDay) return `Observed: ${time(start)} to ${time(end)}`
-    return `Observed: ${dated(start)} to ${dated(end)}`
+    return `Observed: ${monthDayTime(start)} to ${monthDayTime(end)}`
   } catch {
     return null
   }

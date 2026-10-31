@@ -87,7 +87,8 @@ const MICRO = `${MICRO_SIZE} text-ink-mid`
  * The one size under the floor, for a glyph inside a box whose size is fixed
  * by something else: the legend strip's numerals in their 11px scrim band
  * (`SWATCH_RAMP_TICK`) and the smoke key's letters in their chips
- * (`SWATCH_CHIP`). Named so it reads as the exception it is rather than as a
+ * (`SWATCH_CHIP`). The fire key's hours are drawn into its icons rather than
+ * set in type (`SWATCH_STAR`). Named so it reads as the exception it is rather than as a
  * step of the ramp (#687): nothing here is prose, and each is measured against
  * its box. Spelled for `MICRO_SIZE`'s reason.
  */
@@ -577,11 +578,42 @@ export const ACCENT = {
   input: 'accent-mark h-3.5 w-3.5',
   /** Resting accent text that is not a link: the table's detail-sort arrow. */
   text: 'text-accent-ink',
-  /** An icon or control reaching for the accent on hover. */
-  hoverText: 'hover:text-accent-ink',
-  /** The accent on a boundary rather than a fill, in the two states that use it. */
-  edgeHover: 'hover:border-accent-ink',
+  /**
+   * The one hover (record 0251): under the pointer a control's label or glyph
+   * takes the accent ink. Every button, trigger, segment, map button and bare
+   * glyph wears this and spells no hover of its own; the linter's
+   * `style-hover-accent-only` fails a `hover:text-` in any other colour. Not
+   * on a disabled control, and not on an open trigger, which is lit in the
+   * accent fill and keeps the label-on-fill ink under the pointer.
+   */
+  hoverText: 'not-disabled:not-aria-expanded:hover:text-accent-ink',
+  /** The accent on a boundary rather than a fill, for a field holding focus. No control lights its edge under the pointer (record 0251). */
   edgeFocus: 'focus-within:border-accent-ink',
+} as const
+
+/**
+ * A results header's resize grip (record 0251): a hit strip at the column's
+ * right edge whose mark is a 2px line drawn by its `before`, in the edge ink
+ * at rest and the accent under the pointer, as every control's mark is. The
+ * line was the strip's own border, the one hover left lighting an edge.
+ */
+export const COLUMN_GRIP =
+  'absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none ' +
+  "before:absolute before:inset-y-0 before:right-0 before:w-0.5 before:bg-edge/40 before:content-[''] " +
+  'hover:before:bg-accent-ink'
+
+/**
+ * The bar between two results panels (`ResizeGrip`), which a drag resizes and
+ * a double press resets. Its pill is the mark, and under the pointer the pill
+ * lights in the accent, as a column's grip does (`COLUMN_GRIP`, record 0251).
+ * The bar took the raised-hover fill and the pill brightened to `ink-mid`
+ * until 2026-10-30, a second hover beside the grips in the table's header.
+ */
+export const RESIZE_GRIP = {
+  bar:
+    `${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none ` +
+    'bg-raised border-t border-b border-frame group',
+  pill: `w-10 h-0.5 ${RADIUS.pill} bg-edge group-hover:bg-accent-ink transition-colors`,
 } as const
 
 /**
@@ -609,6 +641,39 @@ export const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-
  */
 export const FOCUS_RING_INSET =
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-ink'
+
+/**
+ * What a control looks like when it does not apply.
+ *
+ * One role rather than a pair of utilities re-spelled at each call site, which
+ * is what it was in four places before the model picker needed a fifth. Faded
+ * rather than hidden: a control that vanishes takes its label and its last value
+ * with it, and a reader who set that value is owed the sight of it. No color of
+ * its own, so it composes over any button or field role without racing it by
+ * stylesheet order.
+ */
+export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
+
+/**
+ * Every state a control that opens something wears, and the one place they
+ * are spelled (record 0251): the hover, the open state, the faded look while
+ * it does not apply, and the keyboard's ring. A trigger's shape (`CHIP_FACE`,
+ * `TRIGGER_FIELD`, `ACTION_ITEM`) is its surface, size and resting ink alone,
+ * and ends in this, so no two triggers can answer the pointer, the keyboard
+ * or an open menu two ways. A field showed an accent edge while its menu was
+ * out, and again after it closed with the keyboard back on it, because it was
+ * built on the text input's focus edge; the maintainer found it beside the
+ * Columns button, lit whole, four rounds into making them one (2026-10-30).
+ *
+ * Open is `ACCENT.fill`'s two classes as `aria-expanded` variants, which sort
+ * after the resting ink, and the accent edge where a shape has one. No focus
+ * state but `FOCUS_RING`'s, which shows for the keyboard alone: a menu that
+ * closes hands the keyboard back to its trigger, and a pointer that picked a
+ * row sees nothing more than it did before it opened the menu.
+ */
+const TRIGGER_STATE =
+  `transition-colors ${ACCENT.hoverText} aria-expanded:bg-accent aria-expanded:text-on-fill ` +
+  `aria-expanded:border-accent ${DISABLED} ${FOCUS_RING}`
 
 /**
  * The full-width primary action: Analyze, and the modals' dismiss buttons.
@@ -792,19 +857,20 @@ export const CHIP = {
  * link's look while it has the keyboard (`SKIP_LINK`).
  *
  * It was the map's two buttons' too, Controls and Layers in the desk's column,
- * until #714 gave a desk the phone's chips (`MAP_CHIP`). The skip link kept
+ * until #714 gave a desk the phone's chips (`CHIP_FACE`). The skip link kept
  * it: it is one word on the floating surface, pressed with a keyboard, and a
  * chip's capsule would read as one more chip in the map's row.
  *
  * Its label is `CONTROL_SIZE`, colorless, so the ink below does not race it by
  * stylesheet order. It takes `SURFACE_FLOATING` whole and adds what
- * pressability needs: the accent on hover, and a pressed state. Layout stays
+ * pressability needs: the accent label on hover (record 0251), and a pressed
+ * state. Layout stays
  * at the call site, the way `FIELD` leaves padding to the control that wears
  * it.
  */
 export const BUTTON_FLOATING =
   `${SURFACE_FLOATING} ${CONTROL_SIZE} font-semibold text-ink-strong transition-colors ` +
-  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-raised ${FOCUS_RING}`
+  `${ACCENT.hoverText} active:bg-raised ${FOCUS_RING}`
 
 /**
  * The preview-deployment banner, the one surface that is deliberately loud.
@@ -848,9 +914,27 @@ export const BANNER_PREVIEW =
  * does not touch because the map does not change, so the letter on it does
  * not either.
  */
-export const SWATCH_CHIP =
-  `inline-flex h-4 w-4 items-center justify-center ${RADIUS.control} border ` +
-  `${GLYPH_SIZE} font-semibold text-slate-900`
+const SWATCH_GLYPH = `${GLYPH_SIZE} font-semibold text-slate-900`
+export const SWATCH_CHIP = `inline-flex h-4 w-4 items-center justify-center ${RADIUS.control} border ${SWATCH_GLYPH}`
+
+/**
+ * A legend swatch that is a starburst with its hour drawn on it: the fire
+ * detections' three age bands (#799), one line like the smoke key's three
+ * chips. The icon is `IconFireAge`, coloured from `utils/fireActivity.ts`,
+ * which owns the bands' colours and the shape; this is only the box it fills.
+ *
+ * 16px, `SWATCH_CHIP`'s box, so the two keys read as one family (the
+ * maintainer, 2026-10-29). No type: the hours are paths in the icon, digits
+ * 8.5px tall in a 1px stroke on the ink body, because 10px type on the star
+ * was text laid over a shape, and the maintainer picked the drawn icon over
+ * three rounds of labs (record 0246). `relative` holds the chip's hidden
+ * words, which are absolutely placed, inside its own box.
+ *
+ * The digits are the band's fill on the layer's ink, 5.66, 7.73 and 13.27:1;
+ * the icon's edge is its rim on the dark card, 4.73, 6.46 and 11.09:1, and
+ * its ink body on the light card, 16.64:1 (`styles.test.ts` holds each).
+ */
+export const SWATCH_STAR = 'relative inline-flex h-4 w-4 flex-shrink-0'
 
 /**
  * A legend swatch for a layer that draws LINES: a 14px dashed rule with no
@@ -943,13 +1027,25 @@ export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
 export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
 
 /**
+ * An icon button inside a surface: a raised square with a frame (TJ
+ * 2026-10-30). A button's shape says where it stands: a circle floats on the
+ * map with nothing behind it (`MAP_ROUND_BUTTON`, the Legend and Layers
+ * chips), and every control inside the panel, a sheet, a card or a popup is a
+ * rounded rectangle, an icon-only one a square. The pinned chart card's ✕,
+ * the panel header's buttons and, in `map.css`, the marker popup's ✕ wear it.
+ */
+const SQUARE_BUTTON =
+  `flex items-center justify-center ${RADIUS.control} border border-frame bg-raised text-ink-soft ` +
+  `transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
+
+/**
  * A bare icon button: the glyph alone, no surface. The results' collapse
  * chevrons wear it, and so does every × inside a card or a field (record
  * 0222): the tutorial card's, the search's clear (`ICON_CLOSE_BUTTON`), and
  * in their own markup a popup's (`map.css`) and a message's
  * (`NOTICE_DISMISS`). A round button is for a header's close alone.
  */
-export const ICON_BUTTON = `px-1 text-ink-soft hover:text-ink-strong transition-colors ${FOCUS_RING}`
+export const ICON_BUTTON = `px-1 text-ink-soft ${ACCENT.hoverText} transition-colors ${FOCUS_RING}`
 
 /**
  * A bare × with free room around it, the tutorial card's and the search
@@ -964,17 +1060,16 @@ export const ICON_CLOSE_BUTTON =
   "touch:before:content-['']"
 
 /**
- * A glyph drawn inside a field rather than beside it: the chevron a `SELECT`
- * reserves its room for (`MENU_CHEVRON.field` at a desk, and the phone's two
- * native selects).
+ * A glyph drawn inside a field rather than beside it: the chevron a field
+ * trigger reserves its room for (`MENU_CHEVRON.field`). It has no ink of its
+ * own, so it takes its trigger's, as every trigger's chevron does (record
+ * 0251).
  *
  * `pointer-events-none` is the load-bearing part — the arrow overlays the
  * control it decorates, and without it the one place a user aims for is the one
- * place that does not open the dropdown. slate-400 is 7.0:1 on the recessed
- * fill, well past the 3:1 a UI glyph owes.
+ * place that does not open the dropdown.
  */
-export const ICON_ADORNMENT =
-  'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft'
+const ICON_ADORNMENT = 'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2'
 
 /**
  * How big a drawn glyph is, for every icon in `components/icons.tsx`.
@@ -1001,14 +1096,14 @@ export const ICON = {
    * 16x16. The standing step: a glyph in or beside a control — the results
    * bar's mode switch, the map's two buttons, the panel's close, the columns
    * picker's grip, the collapse chevron, the search field's magnifier, and the
-   * arrow `SELECT` reserves room for (`ICON_ADORNMENT`, whose 24px reserve is
+   * arrow `TRIGGER_FIELD` reserves room for (`ICON_ADORNMENT`, whose 24px reserve is
    * measured off this step).
    *
    * The magnifier was 15 and is the reason this step is worth a number. Its
-   * row is the search pill's 40px (`MAP_PILL`), which is even: a 16px box
-   * centres on 12px of clear space, a 15px box on 12.5. The row also holds two
+   * row is the search pill's 32px (`MAP_PILL`), which is even: a 16px box
+   * centres on 8px of clear space, a 15px box on 8.5. The row also holds two
    * 16px boxes already — the clear cross, and the spinner that stands in its
-   * place — which sit at that same 12px. So the odd step bought nothing and
+   * place — which sit at that same 8px. So the odd step bought nothing and
    * cost a half-pixel, on the one glyph in the row that was off the pixel grid
    * and the one that was off the scale.
    */
@@ -1159,7 +1254,7 @@ export const DRAG = {
    * the resize handle wears it.
    */
   grip:
-    `cursor-grab touch-none text-ink-faint hover:text-ink active:cursor-grabbing ` +
+    `cursor-grab touch-none text-ink-faint ${ACCENT.hoverText} active:cursor-grabbing ` +
     `transition-colors ${FOCUS_RING}`,
   /** The grip while its column is the one being moved. */
   gripActive: 'text-ink',
@@ -1250,8 +1345,8 @@ const RECESSED_EDGE = 'border border-edge'
 
 // What a field looks like, without how big it is (#696): the control type in
 // the recessed fill and edge at the control radius. `FIELD` adds the tap
-// height and the focus edge; `CHART_TITLE` wears it at 28px with an invisible
-// 44px select over it, which is why the look and the size are two things.
+// height and a text input's focus edge; a field that opens a menu adds the
+// tap height and `TRIGGER_STATE` instead (`MENU_TRIGGER.field`).
 const FIELD_LOOK = `${TEXT.control} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`
 
 /**
@@ -1285,8 +1380,19 @@ export const SEARCH_KIND = `${CAPTION_LIFTED} font-semibold`
  * `ACCENT.fill` above is the chosen half. Naming the pair is what makes the
  * second segmented control in the panel the *same* control rather than a
  * lookalike that drifted — the hazard #159-#165 spent five PRs on.
+ *
+ * Under the pointer the label takes the accent ink, the hover every
+ * dropdown, menu trigger and choice row wears (record 0201), so a segment
+ * beside Columns in the results bar or beside the model picker in the panel
+ * answers the pointer as they do (the maintainer, 2026-10-30). The label used
+ * to go from `ink-soft` to `ink`, which in light is two near-blacks on white
+ * and could not be seen; a fill step tried the same day put two hovers side
+ * by side. The accent reads 6.45:1 on the light fill and 8.17 on the dark
+ * one (measured 2026-10-30 from the tokens); in light it parts from the
+ * resting label by hue, at 1.45:1 of luminance. `ACCENT.hoverText`, so a
+ * disabled half (Both, too short for it) does not light. Record: 0251
  */
-export const SEGMENT_IDLE = `${RECESSED_FILL} text-ink-soft hover:text-ink`
+export const SEGMENT_IDLE = `${RECESSED_FILL} text-ink-soft ${ACCENT.hoverText}`
 
 /**
  * The geometry the two halves sit in, which had been spelled out twice.
@@ -1325,7 +1431,7 @@ export const SEGMENT_IDLE = `${RECESSED_FILL} text-ink-soft hover:text-ink`
  *
  * Nothing here is sized to its own content, which is the point: a control that
  * picks its own width cannot line up with the one above it. What that costs is
- * written down where it lands — see `SELECT`, which had to give the arrow's
+ * written down where it lands — see `TRIGGER_FIELD`, which had to give the arrow's
  * slack back to make the model picker fit, and `SEGMENT_ITEM`'s inset.
  */
 export const CONTROL_W = 'w-[118px]'
@@ -1337,7 +1443,7 @@ export const CONTROL_W = 'w-[118px]'
  * It lives in the results sheet, not the sidebar, so it lines up with nothing
  * above it and its labels carry their units, an hour's (record 0222):
  * `Precipitation (in/hr)` measures 109.0px at text-xs in Chrome on macOS
- * (2026-10-22), where 118px of `SELECT` offers 84px of label. 152px offers
+ * (2026-10-22), where 118px of `TRIGGER_FIELD` offers 84px of label. 152px offers
  * 118px, which clears it by 9px; the 144px it was left under a pixel once the
  * label gained its `/hr`. Fixed rather than content-sized for the reason #348
  * gave: a select that grows with its labels lets a sixth metric wrap the row a
@@ -1355,56 +1461,105 @@ export const CHART_METRIC_W = 'w-38'
 export const CHART_PLOT_TOUCH = 'touch-pan-y'
 
 /**
- * A phone chart's metric picker, as the plot's title (#696, record 0149): the
- * metric's full label with its unit in the app's own select, at the plot's
- * top left, `CHART_TITLE_INSET_PX` (12px, `top-3 left-3`) from the grip's
- * rule above it and the sheet's edge, the results bar's own inset, and the
- * same 12px over the plot's top label (`TITLED_PLOT_MARGIN`). The field row above the plot was
- * 44px a phone's chart could not spare, and a plain title did not read as a
- * control, so it is look 4 of the second picker mockups (TJ 2026-10-14): the
- * desktop picker's look shrunk to its label. `box` wears `FIELD_LOOK`, the
- * recessed fill, edge and radius every select here wears, with `SELECT`'s
- * `pr-6` holding the chevron in `ICON_ADORNMENT`'s place, and it sizes to
- * its words rather than to `CHART_METRIC_W`. It is 28px tall (`h-7`), which
- * is `CHART_TITLE_PX` and what `TITLED_PLOT_MARGIN` reserves over the plot,
- * so nothing the plot draws, its dashed lines and their labels included,
- * meets the box. `select` is the native select laid over it, transparent, so
- * a tap opens the phone's own picker; 44px tall on a coarse pointer, centred
- * on the box, so it reaches 8px into the room on either side and meets
- * neither the rule nor the plot's label. The focus edge
- * is `FIELD`'s, moved to the box because the select is invisible.
+ * The chart's hover card, built like the marker popup (record 0215; TJ
+ * 2026-10-29, mockup 1 of four): a header band carrying the hour as its
+ * title, a body of rows, and a footer for the rows cut. The band is the
+ * popup's (`band`, halfway from the panel to the raised step) under the
+ * popup's rule edge and its 0 1px 3px shade, so a chart card and a map card
+ * read as one family. The card stands on the panel, not the floating
+ * surface, with the `frame` rim, 8px corners and the overlay step, and
+ * clips, so the band's corners follow the card's. Over two or more metrics
+ * the body opens on a heads row in the label ink and one `frame` rule
+ * across every column, the colour the popup's grid heads stand on. The
+ * title's and the label ink's contrast on the band are pinned in both
+ * themes in `styles.test.ts`.
  */
-export const CHART_TITLE = {
-  box:
-    `absolute left-3 top-3 z-[1] flex h-7 max-w-[calc(100%-1.5rem)] items-center ` +
-    `${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-mark`,
-  text: 'min-w-0 truncate',
-  select: 'absolute inset-x-0 top-1/2 -translate-y-1/2 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
+export const CHART_CARD = {
+  card: `bg-panel border border-frame ${RADIUS.surface} ${ELEVATION.overlay} overflow-hidden`,
+  head: 'bg-band border-b border-rule shadow-[0_1px_3px_var(--scroll-shade)] px-2.5 pt-2 pb-[7px] text-[13px] font-semibold text-ink-strong',
+  body: 'px-2.5 pt-1.5 pb-2',
+  // The heads in the results table's type (`TABLE.head`), one header style
+  // across the table, the marker popup and the card (TJ 2026-10-30).
+  heads: `${TEXT.subheading} text-right`,
+  rule: 'col-span-full h-px bg-frame mb-[3px]',
+  foot: 'border-t border-rule px-2.5 py-[5px] text-xs text-ink-soft',
+  // A row's name is always 160px and ends in an ellipsis past it, as a long
+  // name does in the results table (TJ 2026-10-30): a fixed column rather
+  // than a cap, because the card resized to the longest name in view as the
+  // hour moved, and every value column's width is its head's.
+  name: 'min-w-0 w-40 truncate',
+  // A pinned card (TJ 2026-10-30, P2): no ring, its ✕ and grips saying it holds still;
+  // its body scrolls through every row, and the ✕ in its band lets it go.
+  scroll: 'min-h-0 overflow-y-auto overscroll-contain',
+  unpin: `${SQUARE_BUTTON} ml-auto size-5.5 flex-shrink-0 font-normal touch:size-8`,
+  // A pinned card moves by its band and sizes by its corner (TJ 2026-10-30);
+  // its heads sort it, an arrow in the accent on the one that does, as the
+  // results table's heads do, the slot kept on every head so none moves.
+  grab: 'cursor-grab select-none active:cursor-grabbing',
+  sortHead: `${TEXT.subheading} ${FOCUS_RING} flex items-center gap-0.5 whitespace-nowrap ${ACCENT.hoverText} select-none`,
+  // A pinned card's row lights under the pointer as a results row does
+  // (`TABLE.row`'s tint), one grid row across every column.
+  row: 'col-span-full grid grid-cols-subgrid items-center border-t border-rule/50 hover:bg-raised/30',
+  // A head's cell, which its right edge resizes and a carried head lands
+  // on (TJ 2026-10-30), as a results column's head does.
+  headCell: 'relative flex min-w-0 items-center',
+  // The divider between two heads, which drags the column on its left wider
+  // or narrower (TJ 2026-10-30: an edge with nothing drawn was a handle no
+  // reader would find). A 1px line in the gutter's `edge`, which owes a UI
+  // boundary's 3:1 like `CHART_GUTTER`'s, the accent under the pointer; its
+  // 8px hit area stands centred in the grid's 14px gap.
+  colEdge: 'group/edge absolute -right-[11px] top-0 bottom-0 flex w-2 cursor-col-resize touch-none justify-center',
+  colLine: 'h-full w-px bg-edge transition-colors group-hover/edge:bg-accent-ink',
+  dropAt: 'shadow-[inset_2px_0_0_var(--ui-accent-ink)]',
+  corner: 'absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize text-ink-soft touch-none',
+  // A value is never narrower than six mono digits, the widest a cell prints
+  // (`≥30000` on the cloud deck), so a column with no head over it (one
+  // metric) keeps its width as the hour moves too.
+  value: 'min-w-[6ch] text-right font-mono',
 } as const
 
 /**
- * The width of a chip's menu on a desk (#714): the Layers menu and the legend
- * card, each unfurling out of its chip in the row under the search pill.
+ * The widths of the two chip cards on a desk (#714): the legend card and the
+ * Layers menu, each unfurling out of its chip in the row under the search
+ * pill and standing under it from its left edge (`MAP_CHIP_MENU`). The keys
+ * follow `SURFACE_CHIP_CARD`'s: `key` the legend, `menu` the Layers menu.
  *
- * A chip is its word's width, 65 to 70px, and both menus need more, so each is
- * wider than its chip and stands under it from its left edge (`MAP_CHIP_MENU`).
- * The two share the width so a reader who opens one over the other sees one
- * edge.
+ * ## The legend card, `key`
  *
- * ## The number
- *
- * Measured in Chrome on macOS 2026-09-14 at the app's own type sizes: the grid
- * legend's wait line, "Forecast grid" against "Waiting · 99s", is
+ * One fixed width, because the card gains and loses sections as layers switch
+ * and a card that changed width with them would jump under the reader's eye.
+ * Measured in Chrome on macOS 2026-09-14 at the app's own type sizes: the
+ * grid legend's wait line, "Forecast grid" against "Waiting · 99s", is
  * 74.7 + 8 + 74.1 = 156.8px of content, so 176.8px with the 20px of side
  * padding a card carries. The countdown switches to minutes past 99s, so that
- * row's widest case is bounded. 184 leaves 7.2px; at 176 (`w-44`) the wait
- * line wraps. The widest Layers row, "Forecast player", needs 130.0px
- * (measured 2026-10-07). Re-measure before lengthening a line in either.
+ * row's widest case is bounded. 184 left 7.2px; at 176 (`w-44`) the wait line
+ * wraps. 224 since #799, whose fire activity key is one line like Smoke's:
+ * the name, "Fire activity (FIRMS)", and three 16px starburst chips, 109.4 +
+ * 8 + 52 = 169.4px of content, 189.4px with the padding (measured 2026-10-29
+ * in the browser suite's Chromium, whose sans is wider than macOS's, so the
+ * number errs wide). 184 would not hold it; 224 leaves 34.6px, and the card
+ * keeps that width because the maintainer fixed it there on 2026-10-29.
+ * Re-measure before lengthening a line in it.
+ *
+ * ## The Layers menu, `menu`
+ *
+ * As wide as its widest row and never narrower than its chip, the rule every
+ * other menu in the app follows (`Menu.tsx` takes its trigger's width as the
+ * minimum). The two cards shared one width until 2026-10-29, when the
+ * maintainer made this one size like the rest: a reader who opens one card
+ * over the other no longer sees one edge, which was judged the lesser cost
+ * (records 0174 and 0246). The rows are nowrap, so the widest, "Forecast
+ * player", sets it, 128.7px with the padding (measured 2026-10-29 in the
+ * browser suite's Chromium), until a row with a 120px column at its right
+ * (`LAYER_ROW.slider`, `LAYER_GRID.controls`) widens it.
  *
  * It was the width of the whole left column until #714, when the search field
  * became the pill and the buttons became chips at both widths.
  */
-export const MAP_MENU_W = 'w-46'
+export const CHIP_CARD_W = {
+  key: 'w-56',
+  menu: 'w-max min-w-full',
+} as const
 
 /**
  * How far anything floating on the map stands off its edge.
@@ -1446,13 +1601,13 @@ export const MAP_EDGE = {
   /**
    * On a phone, where the app's two rows span the map's top (#696), the
    * vendor's stack, which is the compass alone there, starts one inset below
-   * them rather than beside the pill: 92 + 12. While a ring is drawn the draw
+   * them rather than beside the pill: 88 + 12. While a ring is drawn the draw
    * bar stands under the rows (`MAP_ROWS.drawBar`, 46px tall at 100), so the
    * stack starts one inset under it instead: 100 + 46 + 12. `map.css` reads
    * `--map-vendor-top` as the stack's top margin, and `styles.test.ts` holds
    * both numbers to the rows' geometry.
    */
-  belowRows: '[--map-vendor-top:104px]',
+  belowRows: '[--map-vendor-top:100px]',
   belowDrawBar: '[--map-vendor-top:158px]',
 } as const
 
@@ -1493,8 +1648,8 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  * column of boxed buttons so a reader meets one map at both widths.
  *
  * The geometry is four numbers, and every other anchor on the map's top is
- * built from them: the map's 12px inset (`MAP_EDGE`), the 40px first row, 8px
- * between the rows and the 32px chip row. So the rows end 92px down the map at
+ * built from them: the map's 12px inset (`MAP_EDGE`), the 32px first row, 12px
+ * between the rows and the 32px chip row. So the rows end 88px down the map at
  * both widths, and `styles.test.ts` holds each anchor below to that sum.
  *
  * A phone's rows span the map. A desk's are as wide as the wider of the pill
@@ -1513,29 +1668,35 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  * hangs from its left edge and the locate button from its right.
  */
 export const MAP_ROWS = {
-  stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-max lg:min-w-80 flex flex-col gap-2 pointer-events-none`,
-  row: `relative h-10 ${YIELD_EMPTY}`,
+  stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-max lg:min-w-80 flex flex-col gap-3 pointer-events-none`,
+  row: `relative h-8 ${YIELD_EMPTY}`,
   /**
-   * Where the pill stands: on a phone across the row less the locate button
-   * and the 8px between them (`right-12`, 40 + 8) at rest, and across the
-   * whole row while the field has the keyboard or its list is open, over the
-   * button. At a desk 320px either way (`lg:w-80`), with no button beside it.
-   * Raised so its results list paints over the chip row and the map.
+   * Where the pill stands: on a phone across the row less the 3D and locate
+   * buttons and the 12px before each (`right-22`, 2 × (32 + 12)) at rest, and
+   * across the whole row while the field has the keyboard or its list is
+   * open, over the buttons. At a desk 320px either way (`lg:w-80`), with no
+   * button beside it. Raised so its results list paints over the chip row and
+   * the map.
    */
-  pill: 'absolute inset-y-0 left-0 right-12 lg:right-auto lg:w-80 z-10',
+  pill: 'absolute inset-y-0 left-0 right-22 lg:right-auto lg:w-80 z-10',
   pillWide: 'absolute inset-y-0 left-0 right-0 lg:right-auto lg:w-80 z-10',
-  /** The second row: one line of chips, 6px apart, never wrapping. */
+  /**
+   * The second row: one line of chips, 6px apart, never wrapping. The rows
+   * stand 12px apart, and 3D 12px left of locate (`MAP_SLOT`), because a
+   * finger's press reaches 6px past each 32px control (44 in all), so 12px
+   * is where two presses meet without one taking the other's (record 0254).
+   */
   chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
   /**
-   * The draw bar on a phone (#687): under the chip row, 8px below it (92 +
-   * 8), so every chip stays in reach while a ring is drawn and the foot of
+   * The draw bar on a phone (#687): under the chip row, 12px below it (88 +
+   * 12), so every chip stays in reach while a ring is drawn and the foot of
    * the map stays the notices' and the player's.
    */
   drawBar: 'top-[100px]',
 } as const
 
 /**
- * The search field as a pill (#696): the floating surface at the row's 40px,
+ * The search field as a pill (#696): the floating surface at the row's 32px,
  * fully rounded, its icon and its clear button inside the same 14px of
  * padding the mockup drew. The ring the panel's hover lights rides a wrapper
  * of the same radius (`ACCENT_RING`). `styles.test.ts` holds the fill, edge
@@ -1543,22 +1704,27 @@ export const MAP_ROWS = {
  */
 export const MAP_PILL =
   `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
-  `h-10 flex items-center gap-2 px-3.5 transition-colors ${ACCENT.edgeFocus}`
+  `h-8 flex items-center gap-2 px-3.5 transition-colors ${ACCENT.edgeFocus}`
 
 /**
- * The pill's field on a coarse pointer: 40px seen, 44 pressed. The input is
+ * The pill's field on a coarse pointer: 32px seen, 44 pressed. The input is
  * transparent, so it stretches to the height inside the pill's 1px border
- * (38) and reaches 3px past that at each edge, 2px past the pill, which is a
+ * (30) and reaches 7px past that at each edge, 6px past the pill, which is a
  * target the reader cannot see. The clear button is
  * `ICON_BUTTON` with `TAP.action`: 44 wide and a finger's 32 tall, a glyph
- * with no box of its own inside the pill's 38.
+ * with no box of its own, as tall as the pill.
  */
-export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
+export const MAP_PILL_FIELD = 'self-stretch touch:-my-[7px]'
 
 /**
  * A map button: the locate button and the compass, at both widths (TJ,
- * 2026-10-14; record 0147). 40px and round, in the pill's dark chrome, with
- * the floating buttons' sky edge on hover and the app's focus ring. The
+ * 2026-10-14; record 0147). 32px and round, as the chips are tall (record
+ * 0254), in the pill's dark chrome, with
+ * the app's focus ring. Under the pointer its glyph takes the accent, as every
+ * control's label does (record 0251): at rest `map.css` keeps the library's
+ * own drawings, and under the pointer it draws the same paths as a mask in
+ * the button's ink, which this class's hover makes the accent. A disabled
+ * button does not light. The
  * buttons are MapLibre's own, so their states (asking, tracking, failed; a
  * compass that resets north) stay the library's: `map/controls.ts` hands each
  * of them this role when the map is built, the one way a class reaches markup
@@ -1569,8 +1735,20 @@ export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
  * into one capsule instead (`MAP_ZOOM_PAIR`).
  */
 export const MAP_ROUND_BUTTON =
-  `size-10 bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
-  `transition-colors ${ACCENT.edgeHover} ${FOCUS_RING}`
+  `size-8 bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
+
+/**
+ * The 3D button (#799): a map button whose glyph is the word `3D`, at the
+ * control size in bold so two characters hold the round button the way a
+ * drawn glyph does, in the ink the rest of the chrome reads in. The one map
+ * button the app draws rather than the library, though it stands among the
+ * library's (`TerrainControl` in `map/controls.ts`). While it is on it wears
+ * the accent fill, painted by `map.css` on `aria-pressed`, because a class on
+ * markup outside React is set once and the pressed state is the button's
+ * own attribute; `map-terrain` is the hook that rule is keyed on.
+ */
+export const MAP_TERRAIN_BUTTON = `map-terrain ${MAP_ROUND_BUTTON} ${TEXT.control} font-bold`
 
 /**
  * Where a phone stands one of those buttons at a row's right end (#696): the
@@ -1579,16 +1757,18 @@ export const MAP_ROUND_BUTTON =
  * on `map-slot`, takes the library's margin off it. A desk's rows have no
  * slots: its buttons stand in the map's bottom-right corner (`MAP_CORNER`).
  *
- * `locate` is a 40px box beside the search pill. `compass` is the chip row's
- * last member, under the locate button (record 0147), and takes no room of
- * its own: while the map is north-up the compass is hidden and the slot is
- * nothing, so the row's empty end stays the map's, about 20px at 360 wide.
- * While it shows, the slot is the button's 40px and the summary chip, the one
- * member that gives way, gives it up; at 32px the row is shorter than the
- * button, which stands 4px proud of it top and bottom, centred on it.
+ * `locate` is a 32px box at the search pill's right, and `terrain` the same
+ * box 12px left of it, for the 3D button (#799), so the pill's row ends in
+ * two round buttons the way a desk's column stacks them. `compass` is the
+ * chip row's last member, under the locate button (record 0147), and takes no
+ * room of its own: while the map is north-up the compass is hidden and the
+ * slot is nothing, so the row's empty end stays the map's, about 20px at 360
+ * wide. While it shows, the slot is the button's 32px and the summary chip,
+ * the one member that gives way, gives it up; the button is the row's height.
  */
 export const MAP_SLOT = {
-  locate: 'map-slot absolute right-0 top-0 size-10',
+  locate: 'map-slot absolute right-0 top-0 size-8',
+  terrain: 'map-slot absolute right-11 top-0 size-8',
   compass: 'map-slot ml-auto flex-shrink-0',
 } as const
 
@@ -1597,7 +1777,8 @@ export const MAP_SLOT = {
  * (TJ, 2026-10-20): the credit line flush in the map's bottom-right corner,
  * on the results' edge, with the scale at its end, and over it a column of
  * the compass, the locate button and the zoom pair, 24px in from the map's
- * right edge, 6px apart and 10px above the line. A phone keeps its two
+ * right edge, 6px apart and 10px above the line, 12px apart on a touch
+ * screen, where each press reaches 6px past its button (record 0254). A phone keeps its two
  * buttons in its rows (`MAP_SLOT`) and has no zoom pair.
  *
  * Each piece is the library's own control, moved into a slot here
@@ -1616,7 +1797,7 @@ export const MAP_SLOT = {
  */
 export const MAP_CORNER = {
   box: `absolute right-0 bottom-[var(--map-corner-lift,0px)] flex flex-col items-end gap-2.5 pointer-events-none ${LAYER.base}`,
-  stack: 'map-corner mr-6 flex flex-col items-end gap-1.5',
+  stack: 'map-corner mr-6 flex flex-col items-end gap-1.5 touch:gap-3',
   // `leading-5` is the library's own 20px line, which the map's container
   // gives its controls and the corner, outside it, does not: without it the
   // scale shrank to 17px from the 22px box record 0162 holds it to.
@@ -1630,17 +1811,16 @@ export const MAP_CORNER = {
 /**
  * A desk's zoom buttons, joined into one capsule with a rule between them, as
  * Google Maps draws its own (TJ, 2026-10-20; record 0174): each half is a
- * 40px map button with the capsule's end for its outer edge and no edge where
- * the halves meet but the lower half's top, which is the rule. They are the
- * one pair of map buttons that does not take the sky edge on hover, because
- * the rule is the lower half's alone and could not light for the upper one,
- * so each half takes the raised fill under the pointer instead, while it is
- * enabled: the library disables a half at either end of the map's zoom, and
- * `map/controls.ts` greys it then as it greys the idle compass (`DISABLED`).
+ * 32px map button with the capsule's end for its outer edge and no edge where
+ * the halves meet but the lower half's top, which is the rule. Under the
+ * pointer each half's glyph takes the accent, as every map button's does,
+ * while it is enabled: the library disables a half at either end of the
+ * map's zoom, and `map/controls.ts` greys it then as it greys the idle
+ * compass (`DISABLED`).
  */
 const MAP_ZOOM_HALF =
-  `size-10 bg-floating/95 border border-edge ${ELEVATION.raised} backdrop-blur-sm ` +
-  `transition-colors enabled:hover:bg-raised ${FOCUS_RING}`
+  `size-8 bg-floating/95 border border-edge ${ELEVATION.raised} backdrop-blur-sm ` +
+  `transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
 export const MAP_ZOOM_PAIR = {
   in: `${MAP_ZOOM_HALF} border-b-0 rounded-t-full`,
   out: `${MAP_ZOOM_HALF} rounded-b-full`,
@@ -1660,8 +1840,8 @@ export const MAP_ZOOM_PAIR = {
  */
 export const MAP_CREDIT = {
   button:
-    `size-6 bg-floating/95 border border-edge ${RADIUS.pill} transition-colors ` +
-    `${ACCENT.edgeHover} ${FOCUS_RING}`,
+    `size-6 bg-floating/95 border border-edge ${RADIUS.pill} text-ink-mid transition-colors ` +
+    `${ACCENT.hoverText} ${FOCUS_RING}`,
   card: `${SURFACE_FLOATING} text-ink-mid`,
 } as const
 
@@ -1680,19 +1860,13 @@ export const MAP_CREDIT = {
 const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:before:-inset-y-[7px] touch:before:content-['']"
 
 /**
- * One chip in the phone's second row (#696): the pill's surface at 32px, the
- * control size at the normal weight and 12px of padding a side. A chip
- * takes its content's width and never shrinks, but for the summary
- * (`MAP_CHIP_SUMMARY`). The row's right end is left empty: a primary action
- * may stand there later, and nothing here is placed against it.
- *
- * Lit while its sheet is open (`aria-expanded`), in the accent fill the
- * pressed half of a segment wears. Spelled as variants of `ACCENT.fill`'s two
- * classes, because Tailwind compiles only a class it finds whole and a
- * variant is what lets the lit fill beat the resting one without a race of
- * stylesheet order. Hover is `BUTTON_FLOATING`'s: the accent label and edge.
- * The call site adds `DISABLED`, which greys the Legend chip until it has a
- * key to show.
+ * One chip in the map's chip row (#696): the pill's surface at 32px, the
+ * control size at the normal weight and 12px of padding a side, then
+ * `TRIGGER_STATE`, which every trigger ends in. A chip takes its content's
+ * width; Layers and Legend say at their call sites that they never shrink,
+ * and the summary chip that it gives way first. The row's right end is left
+ * empty: a primary action may stand there later, and nothing here is placed
+ * against it.
  *
  * The lit chip's label and glyph take the label-on-fill ink. In dark that is
  * the white the chip wears at rest, so nothing moved there; in light the
@@ -1708,14 +1882,13 @@ const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:be
 const CHIP_FACE =
   `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `${CONTROL_SIZE} text-ink-strong h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
-  `transition-colors ${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-raised ` +
-  `aria-expanded:bg-accent aria-expanded:border-accent aria-expanded:text-on-fill ${FOCUS_RING}`
-const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
+  TRIGGER_STATE
 
 /**
  * A chip's menu on a desk (#714; record 0174): the Layers menu and the legend
  * card, each a whole card standing 4px under its chip from the chip's left
- * edge. A phone's open as bottom sheets instead (record 0136).
+ * edge, each at its own width (`CHIP_CARD_W`). A phone's open as bottom
+ * sheets instead (record 0136).
  *
  * The reference every desk menu was made from (record 0201): the pill kept
  * whole and lit, as a phone's chip is, with the card set apart, because
@@ -1728,23 +1901,20 @@ const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
  * step over the legend's. Its 10px side inset is the one every menu's rows
  * stand at (`MENU.list` and `MENU.row`).
  */
-export const MAP_CHIP_MENU = `absolute left-0 top-full mt-1 ${MAP_MENU_W} px-2.5 py-2`
+export const MAP_CHIP_MENU = 'absolute left-0 top-full mt-1 px-2.5 py-2'
 
 /**
- * The summary chip, `☰ Current · NOAA GFS`, which opens the drawer: a chip
- * that gives way first. It is the one member allowed to shrink, so a phone
- * too narrow for the row cuts the summary with an ellipsis rather than
- * pushing a chip off the edge (`MAP_CHIP_SUMMARY_TEXT`). The ☰ stays whole:
- * it is the mark that says the chip opens the panel.
+ * The summary chip's words, `☰ Current · NOAA GFS`: the chip that opens the
+ * drawer is a `MenuButton` chip like Layers and Legend, the one member of the
+ * row allowed to shrink (`min-w-0` at its call site), so a phone too narrow
+ * for the row cuts its words with an ellipsis rather than pushing a chip off
+ * the edge. The ☰ stays whole: it is the mark that says the chip opens the
+ * panel. The words take the chip's ink, as every trigger's content does, so
+ * they light with the label under the pointer and while the sheet is up; they
+ * stood in `ink-soft` with an open state of their own until 2026-10-30, and
+ * so did not answer the pointer as the ☰ beside them did (record 0251).
  */
-export const MAP_CHIP_SUMMARY = `${CHIP_FACE} min-w-0`
-/**
- * The summary's words: one line, cut at its end, in the slate-400 the mockup
- * reads them in (5.56:1 on the chip). White while the chip is lit, since the
- * Controls sheet it raises is up (record 0141): slate-400 on the accent fill
- * fails AA, where white is the 4.56:1 every label on that fill reads at.
- */
-export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-ink-soft in-aria-expanded:text-on-fill'
+export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate'
 
 /**
  * The button's pressed state, Material's for a floating button (TJ,
@@ -1883,8 +2053,8 @@ export const SEGMENT_FILL = `flex w-full ${RADIUS.control} overflow-hidden ${REC
  * is left — and its longest noun, `Freezing level`, is measured at text-xs
  * in `styles.test.ts`, which pins the sum. The dropdown's own floor is its
  * content: the widest aggregate word measures 28px, plus the field's 8px
- * left padding and the 24px the SELECT recipe reserves for its arrow — 60px
- * (measured 2026-08-22, re-derived 2026-09-14 when SELECT gave 8px back).
+ * left padding and the 24px the TRIGGER_FIELD recipe reserves for its arrow — 60px
+ * (measured 2026-08-22, re-derived 2026-09-14 when the select gave 8px back).
  * The 12px of slack that leaves is deliberate: this width also sets a grid
  * track, so shrinking it to the floor would only widen a label that already
  * fits. Re-measure both sums before changing this, the box width, the grid
@@ -2026,15 +2196,14 @@ export const BAR_PRESS =
  * wide and 32 tall, and `BAR_PRESS` presses 44 around it.
  * The label is the slate-400 idle half's, as on the switch beside it.
  *
- * Under the pointer the label takes the accent, the hover every menu trigger
- * wears (record 0201), where the switch's idle half brightens to white. An
- * item has no edge of its own inside the group, so the label is the whole
- * of its hover. The three that open a menu wear `MENU_TRIGGER.bar` over this,
- * which adds the lit state; Download CSV opens nothing and wears this alone.
+ * Then `TRIGGER_STATE`, which every trigger ends in: the three that open a
+ * menu are `MENU_TRIGGER.bar`, which is this, and Download CSV, which opens
+ * nothing, wears the same states so it answers the pointer as they do.
  */
 export const ACTION_GROUP = BAR_GROUP
 export const ACTION_ITEM =
-  `${segmentHalf('flex-none')} ${BAR_PRESS} px-1.5 cursor-pointer whitespace-nowrap ${RECESSED_FILL} text-ink-soft ${ACCENT.hoverText}`
+  `${segmentHalf('flex-none')} ${BAR_PRESS} px-1.5 cursor-pointer whitespace-nowrap ${RECESSED_FILL} text-ink-soft ` +
+  TRIGGER_STATE
 
 /**
  * The word on a results bar control, shown only where the bar can hold the
@@ -2089,9 +2258,18 @@ export const BAR_LABEL = 'hidden @min-[584px]:inline'
  * cannot be ticked again until the layer can draw. A natively disabled row
  * keeps its whole-row fade, since axe and a reader both read it as
  * unavailable, and nothing on it owes a contrast ratio.
+ *
+ * Under the pointer the label takes the accent ink, the hover every dropdown
+ * and menu trigger wears (record 0201), because the browser's own hover on
+ * the box, a slightly darker edge, could not be seen in light (the
+ * maintainer, 2026-10-30, option 1 of the hover lab; record 0251). Not on a
+ * disabled row. The accent ink reads 5.74:1 on the light panel, 6.13 on the
+ * light menu card and 5.14 on a light menu row's hover fill, 6.71 on the
+ * dark panel and card and 4.74 on a dark menu row's hover fill (measured
+ * 2026-10-30 from the tokens).
  */
 export const CHOICE_ROW =
-  `${TEXT.control} ${TAP.row} gap-2.5 cursor-pointer ` +
+  `${TEXT.control} ${TAP.row} gap-2.5 cursor-pointer has-[:enabled]:hover:text-accent-ink ` +
   `has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40 data-[greyed]:[&>input]:opacity-40 ` +
   `has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent-ink`
 export const CHOICE_INPUT = `${ACCENT.input} flex-shrink-0 cursor-pointer align-middle`
@@ -2288,7 +2466,7 @@ export const NOTICE_DISMISS = {
   button:
     `group ${TAP.action} -my-0.5 touch:-my-2 touch:-ml-6 opacity-0 transition-[color,opacity] ` +
     `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
-    `hover:text-ink-strong ${FOCUS_RING}`,
+    `${ACCENT.hoverText} ${FOCUS_RING}`,
   pill: 'flex h-5 w-5 items-center justify-center',
 } as const
 
@@ -2458,11 +2636,15 @@ export const SAFE_AREA = {
   probe: 'pointer-events-none invisible fixed bottom-0 left-0 w-0 h-[env(safe-area-inset-bottom)]',
 } as const
 
+// The hairline between a phone sheet's rows, which a group of rows inside the
+// sheet draws between its own (`MENU_GROUP.sheet`), so the two rules are one.
+const SHEET_RULES = 'divide-y divide-rule'
+
 export const BOTTOM_SHEET = {
   scrim: `fixed inset-0 ${LAYER.popover}`,
   dim: 'absolute inset-0 bg-scrim/40',
   card:
-    `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-104px)] flex-col ` +
+    `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-100px)] flex-col ` +
     `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
   grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-edge',
   /**
@@ -2482,7 +2664,25 @@ export const BOTTOM_SHEET = {
   actions: 'ml-auto flex items-center gap-2',
   body:
     `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 ${SAFE_AREA.pad} ` +
-    'divide-y divide-rule [&>*]:min-h-8',
+    `${SHEET_RULES} [&>*]:min-h-8`,
+} as const
+
+/**
+ * A sheet that steps aside while a finger tunes the map under it (record
+ * 0250): the Layers sheet while one of its opacity sliders is dragged. The
+ * dim lifts, the card and every row in it go, and the row being dragged stays
+ * where it stood, on the sheet's own fill with the card's edge and shadow, so
+ * the map it changes is in sight. On release it all comes back. Visibility
+ * rather than unmounting, so the slider under the finger keeps its drag and
+ * the sheet comes back exactly as it was. Apart from `BOTTOM_SHEET` because
+ * only one sheet steps aside, and a role is one string or a flat object.
+ */
+export const SHEET_ASIDE = {
+  dim: 'opacity-0',
+  card: 'invisible',
+  // 8px out either side and padded back, so the row's words stay put and its
+  // card does not end at the eye. The rule under it goes with the rest.
+  keep: `visible -mx-2 px-2 border-transparent bg-panel rounded-lg outline outline-1 outline-frame ${ELEVATION.overlay}`,
 } as const
 
 /**
@@ -2558,17 +2758,18 @@ export const PANEL_HEADER = {
 } as const
 
 /**
- * A round button in a panel's header: the desk panel's close button and the
- * theme switch beside it, and the switch again in a phone's Controls sheet
- * beside Done (#706). A 32px circle on either pointer, a finger's height
- * (`TAP`, record 0223), and no wider: `TAP.action`'s 44px width would draw it
- * as a capsule. The glyph in the control ink, on the raised surface at 80%.
- * The close button's recipe, named once it had a twin, so the two cannot
- * drift apart.
+ * A button in a panel's header: the desk panel's close button and the theme
+ * switch beside it, and the switch again in a phone's Controls sheet beside
+ * Done (#706). A 32px square on either pointer, a finger's height (`TAP`,
+ * record 0223), and no wider: `TAP.action`'s 44px width would draw it as a
+ * bar. `SQUARE_BUTTON`'s shape without its frame.
  */
+// No frame (TJ 2026-10-30): the header's two stand in chrome rather than among
+// the panel's fields, and the frame drew them as form controls; the square
+// keeps the shape rule, the raised fill at 80% the quiet they had as circles.
 export const HEADER_BUTTON =
-  `flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} ` +
-  'bg-raised/80 transition-colors hover:bg-raised-hover active:bg-raised-hover'
+  `flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.control} ` +
+  `bg-raised/80 transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
 
 /**
  * Movement that answers a reader's action, at two speeds, and stops where
@@ -2902,20 +3103,18 @@ export const FIELD_NUMERIC =
   '[&::-webkit-outer-spin-button]:[appearance:none] [&::-webkit-inner-spin-button]:[appearance:none]'
 
 /**
- * The same recessed surface for a native `<select>`.
+ * A field that opens a menu: the model picker, the calendar, the chart's
+ * metric and each Metrics row's aggregate, at a desk and on a phone alike.
+ * The text input's recessed look and tap height (`FIELD_LOOK`, `TAP.height`)
+ * without its focus edge, then `TRIGGER_STATE`, which every trigger ends in.
+ * It was built on `FIELD` as a styled native select until 2026-10-30, and so
+ * lit its edge on any focus, a pointer's included: the chart's metric field
+ * kept an accent edge after its menu closed, where Columns beside it did not
+ * (record 0251).
  *
- * Composed from `FIELD` rather than written afresh so a dropdown and a text
- * input cannot drift apart, plus the two things a select needs that an input
- * does not:
- *
- * - `appearance-none`, because the platform control paints its own chrome from
- *   the *system* palette, not ours: on a light-mode OS the popup and its arrow
- *   render dark-on-light inside a dark panel. Suppressing it costs the arrow,
- *   which the call site draws back as the chevron every menu trigger wears
- *   (`IconChevron` in `ICON_ADORNMENT`, record 0201), one glyph we control
- *   on every platform rather than one we control on none.
- * - `pr-6`, reserving the room that arrow sits in. It belongs here and not at
- *   the call site because it is not decoration: without it a long option label
+ * - `appearance-none`, which a button needs no more than a select did, kept
+ *   so no platform paints a control of its own into the field.
+ * - `pr-6`, reserving the room the chevron sits in. Without it a long label
  *   runs underneath the arrow. 24px is the arrow's own box and nothing more:
  *   `ICON_ADORNMENT` puts a 16px glyph 8px from the edge, so it occupies 8px
  *   to 24px and a label may run to that line. It reserved 32px until the panel
@@ -2923,13 +3122,9 @@ export const FIELD_NUMERIC =
  *   `UK Met Office` (79.7px) fitting the model picker and truncating (TJ,
  *   2026-09-14). The glyph is drawn inside its box with its own margin, so the
  *   text does not touch the mark.
- *
- * `<option>` elements are deliberately left alone. Their rendering is the
- * platform's — several browsers ignore author styles on them outright — so
- * styling them would produce a control that matched the design system on some
- * machines and not others, which is worse than one that consistently does not.
+ * - `relative`, because its chevron stands inside it.
  */
-export const SELECT = `${FIELD} appearance-none pr-6`
+const TRIGGER_FIELD = `${FIELD_LOOK} ${TAP.height} appearance-none pr-6 relative ${TRIGGER_STATE}`
 
 /**
  * One menu for every control that opens one at a desk (#714; record 0201).
@@ -2949,38 +3144,35 @@ export const SELECT = `${FIELD} appearance-none pr-6`
  * the open state, the card, its gap and width, the rows and their type.
  */
 
-// The field chevron's inks: the adornment's slate at rest, and the accent
-// under the pointer and while its menu is open, where the field's edge turns
-// accent with it. On the chevron rather than inherited from the field,
-// because an open field keeps its label's ink and only its edge and chevron
-// say it is open. `group-enabled` so a faded field does not light.
-const FIELD_CHEVRON_INK = 'group-enabled:group-hover:text-accent-ink group-aria-expanded:text-accent-ink'
-
 /**
- * The three trigger shapes (record 0201), each with the one hover and the
- * one open state:
- *
- * - `chip`: `MAP_CHIP`, which already had both: under the pointer its edge
- *   and label take the accent (`ACCENT.edgeHover`, `ACCENT.hoverText`), and
- *   while its menu is out it is lit in the accent fill.
- * - `field`: `SELECT`, with the same accent edge and label under the pointer,
- *   and the accent edge while open. A field is not lit while open, because a
- *   filled field would read as a value chosen rather than a list shown.
- *   Spelled with `enabled:` here rather than composed from `ACCENT`'s hover
- *   roles, so the faded model picker over an archive window does not light.
- *   `relative`, because its chevron stands inside it.
- * - `bar`: `ACTION_ITEM`, whose hover is the accent label alone (it has no
- *   edge of its own inside its group), lit like a chip while open.
- *
- * The lit fill is `ACCENT.fill`'s two classes as `aria-expanded` variants,
- * which sort after the resting fill and the hover and so win without a race.
+ * The three trigger shapes (record 0201): a pill on the map (`CHIP_FACE`), a
+ * field in the panel and the chart (`TRIGGER_FIELD`), a button in the results
+ * bar's group (`ACTION_ITEM`). A shape is its surface, size and resting ink;
+ * each ends in `TRIGGER_STATE`, the one hover, open state, faded state and
+ * focus ring, so the shape is the only thing two triggers can differ in
+ * (record 0251). `styles.test.ts` fails a shape whose states are not exactly
+ * the others', and the linter's `style-trigger-no-look` fails a colour or a
+ * state handed to a `MenuButton` or `MenuSelect` at its call site.
  */
 export const MENU_TRIGGER = {
-  chip: MAP_CHIP,
-  field:
-    `${SELECT} group relative enabled:hover:border-accent-ink enabled:hover:text-accent-ink ` +
-    'aria-expanded:border-accent-ink',
-  bar: `${ACTION_ITEM} aria-expanded:bg-accent aria-expanded:text-on-fill`,
+  chip: CHIP_FACE,
+  field: TRIGGER_FIELD,
+  /**
+   * A field's left segment inside `CHART_PICKER`'s group (#499): the field's
+   * type and arrow room with no edge or radius of its own, because the group
+   * wears them, and the one trigger's states (`TRIGGER_STATE`, record 0252).
+   */
+  segment: `${TEXT.control} appearance-none pr-6 group relative ${TRIGGER_STATE}`,
+  bar: ACTION_ITEM,
+  /**
+   * The chart's Panel layout button (#499): the + square's look, the field's
+   * fill, edge and radius around the quiet icon ink, 22px at a desk, and the
+   * one trigger's states. It wears no chevron; the miniature of the layout
+   * inside it is the glyph.
+   */
+  square:
+    `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} text-ink-faint ` +
+    `flex size-5.5 flex-shrink-0 items-center justify-center touch:size-8 ${TRIGGER_STATE}`,
 } as const
 
 /**
@@ -2995,12 +3187,14 @@ export const MENU_TRIGGER = {
  * from its left. A bar button takes 2px (`-mr-0.5`): its inset is 6px, and
  * the stroke then stands 8px from its edge, where its leading glyph's stroke
  * stands. A field's stands in `ICON_ADORNMENT`'s place, inside the room
- * `SELECT` reserves, where the filled select arrow stood until record 0201.
+ * `TRIGGER_FIELD` reserves, where the filled select arrow stood until record 0201.
  */
 export const MENU_CHEVRON = {
   chip: '-mr-1',
   bar: '-mr-0.5',
-  field: `${ICON_ADORNMENT} ${FIELD_CHEVRON_INK}`,
+  field: ICON_ADORNMENT,
+  segment: ICON_ADORNMENT,
+  square: '',
 } as const
 
 // A row's shape in any menu: 6px in from the list's 4px, so its words stand
@@ -3037,6 +3231,16 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  * - `current`: the value a list that replaced a select holds, set semibold
  *   the way the model list sets its ranking model. No check mark: the weight
  *   says it, and a mark would take a column from every row.
+ * - `heading`: a word over a group of rows, which a reader reads and never
+ *   presses: the Layers menu's Base map, Hazards and Forecast (record 0249).
+ *   The caption step in semibold, sentence case: the maintainer chose it over
+ *   the panel's small caps (`TEXT.section`, `TEXT.overline`), which shout
+ *   over a list of thirteen short rows. The size is the rows' own 12px and
+ *   the ink a step quieter (`text-ink-soft`: 5.56:1 on the dark card, 8.91:1
+ *   on the light), so weight and ink part a heading from the rows under it
+ *   and its size does not. 12px is the size the lab drew it at; the 11px
+ *   step would be allowed, since nothing presses a heading, and was not
+ *   needed.
  */
 export const MENU = {
   card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
@@ -3047,7 +3251,81 @@ export const MENU = {
   active: 'bg-raised',
   hover: 'hover:bg-raised',
   current: 'font-semibold',
+  heading: `${TEXT.caption} font-semibold`,
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
+} as const
+
+/**
+ * A group of a menu's rows under its `MENU.heading`, at a desk and on a
+ * phone's sheet (record 0249). Only the Layers menu has groups.
+ *
+ * - `card`: at a desk the rows stand on the card's padding, so a group is set
+ *   off from the one over it by 6px of space, which with the last row's own
+ *   2px makes 8px, and the first group takes none.
+ * - `cardHeading`: the heading's 2px under it, the gap a row keeps over its
+ *   words, so the heading stands as close to its first row as the rows stand
+ *   to each other. No rule as well: the heading is the mark, and the lab's
+ *   other two marks, a rule or a gap alone, lost to it.
+ * - `sheet`: on a phone the group is one child of the sheet's body, whose
+ *   rule then falls over the heading, and it draws the same rule between its
+ *   own heading and rows.
+ * - `sheetHeading`: 6px under the rule over it and 2px over the next, so the
+ *   heading hangs from the rule over its group and stands 25px tall where a
+ *   row stands 33. Short on purpose: the tutorial's Layers card stands
+ *   between the chip and the sheet it holds open, and with 8px over each
+ *   heading the sheet rose past the card's band at 390x844 (2026-10-29).
+ * - `sheetRow`: a row's 32px, which the sheet's body gives its own children
+ *   and a group's rows are not.
+ */
+export const MENU_GROUP = {
+  card: 'not-first:mt-1.5',
+  cardHeading: `${MENU.heading} pb-0.5`,
+  sheet: SHEET_RULES,
+  sheetHeading: `${MENU.heading} pt-1.5 pb-0.5`,
+  sheetRow: 'min-h-8',
+} as const
+
+/**
+ * A row of the Layers menu (record 0250): the menu's checkbox, the layer's
+ * name, and on the four Base map rows an opacity slider at the right. At a
+ * desk and on a phone's sheet alike. The record built the row with an eye in
+ * place of the box, drawn over a hidden checkbox; the maintainer chose the
+ * box back the same day, so the row is `CHOICE_ROW` with `CHOICE_INPUT`, as
+ * every other checkbox list in the app is.
+ *
+ * - `cardRows`: at a desk a group's rows under its heading, a hairline
+ *   between each, as the sheet already rules its rows. The heading keeps no
+ *   rule over its first row (`MENU_GROUP`).
+ * - `cardRow`: a desk row, 28px tall: the 20px slider well and 4px over and
+ *   under it, so the rows with a slider and the rows without stand on one
+ *   pitch. The checkbox's own row would have been 20 (`MENU.cardRow`), and a
+ *   slider row 24 beside it.
+ * - `line`: the checkbox and the name with the slider beside them, on a desk
+ *   row and a sheet row alike. The label (`CHOICE_ROW`) takes the free
+ *   space, so a press anywhere left of the slider switches the layer.
+ * - `slider`: the opacity slider's well (`SLIDER.well`) at a desk, 120 by
+ *   20px, the phone's width. The lab drew it 96 wide, where the thumb at the
+ *   default 50% stood on the wordmark's first letter: `Opacity` is 44px
+ *   semibold and starts 52px from the well's right edge, and the thumb's
+ *   4px bar at the half ends 6px clear of it only from 120. There `100%`
+ *   (30.7px) and `Opacity` with 8px either side leave 29px between them
+ *   (measured in the browser suite's Chromium, 2026-10-29). The menu is
+ *   24px wider for it.
+ * - `sliderSheet`: the phone's, half the row and 32 tall, the height of every
+ *   other phone control (record 0223), wide enough to drag with a thumb; the
+ *   lab drew it 120 by 24 (the maintainer, 2026-10-30).
+ * - An off layer's slider looks the same as an on one's, accent and all: it
+ *   is live, and a drag on it checks the layer's box at the level it sets,
+ *   the way a muted volume slider unmutes (the maintainer, 2026-10-29,
+ *   record 0250). A dimmed slider that still acted would look disabled and
+ *   behave enabled.
+ */
+export const LAYER_ROW = {
+  cardRows: SHEET_RULES,
+  cardRow: 'min-h-7',
+  line: 'flex items-center gap-2',
+  slider: 'relative h-5 w-30 flex-shrink-0 overflow-hidden',
+  sliderSheet: 'relative h-8 w-1/2 flex-shrink-0 overflow-hidden',
 } as const
 
 /**
@@ -3103,24 +3381,48 @@ export const MESSAGE_LIST = {
  * (one line is 30px); 8px is the border plus 7px on a touch screen, where a
  * one-line field is `TAP.height`'s 32px. The chevron is `ICON_ADORNMENT`'s
  * placement pinned to that first line rather than to the middle of the box,
- * in the field chevron's inks (`FIELD_CHEVRON_INK`).
+ * in its field's ink, as every trigger's chevron is (record 0251).
  */
 export const CALENDAR_FIELD = {
   box: 'flex w-full items-start px-2 py-1.5 touch:py-[7px] text-left',
-  arrow: `pointer-events-none absolute right-2 top-[7px] touch:top-[8px] text-ink-soft ${FIELD_CHEVRON_INK}`,
+  arrow: 'pointer-events-none absolute right-2 top-[7px] touch:top-[8px]',
 } as const
 
 /**
- * What a control looks like when it does not apply.
+ * The grid's style named in its legend line, as the button that switches it
+ * (the maintainer, 2026-10-30): the word and a swap mark in the accent's ink
+ * on a faint wash of the accent, matching the pitch beside it, which wears
+ * the accent's ink too. The one control in the legend, and the one place the
+ * app draws a button this way: it must add no height to the line, so it has
+ * no edge and only a pixel of padding over and under the 12px word.
  *
- * One role rather than a pair of utilities re-spelled at each call site, which
- * is what it was in four places before the model picker needed a fifth. Faded
- * rather than hidden: a control that vanishes takes its label and its last value
- * with it, and a reader who set that value is owed the sight of it. No color of
- * its own, so it composes over any button or field role without racing it by
- * stylesheet order.
+ * The ink on the wash, on the legend card (`bg-floating`), measured
+ * 2026-10-30 from the tokens: 5.79:1 dark and 5.09 light at rest, 5.48 and
+ * 4.77 under the pointer. The hover stops at 20%: at 25% the light ink fell
+ * to 4.47. The wash stands only 1.16 to 1.29 off the card, which 1.4.11
+ * does not ask of it: the word names the control, as a text link's does.
  */
-export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
+export const LEGEND_GRID_STYLE =
+  `inline-flex items-center gap-0.5 px-1.5 py-px ${RADIUS.control} bg-accent/15 hover:bg-accent/20 ` +
+  `${ACCENT.text} font-semibold cursor-pointer ${FOCUS_RING}`
+
+/**
+ * The forecast grid's coverage slider on its own Layers row, at the right
+ * where the Base map rows carry their opacity sliders, the same well with its
+ * value alone, since `Coverage` beside it would stand under the thumb at the
+ * default half on a desk's 120px; `Coverage` is its accessible name
+ * (the maintainer, 2026-10-29).
+ * The grid's style switches from its legend line (`LEGEND_GRID_STYLE`); the
+ * icon that stood here first was taken off the row on 2026-10-30.
+ *
+ * - `reach` / `reachSheet`: `LAYER_ROW`'s slider sizes, so the five sliders
+ *   stand on one column. It fades as `DISABLED` fades a control while its
+ *   input is disabled, since the row greys when there is nothing to grid.
+ */
+export const LAYER_GRID = {
+  reach: 'relative h-5 w-30 flex-shrink-0 overflow-hidden has-[:disabled]:opacity-40',
+  reachSheet: 'relative h-8 w-1/2 flex-shrink-0 overflow-hidden has-[:disabled]:opacity-40',
+} as const
 
 /**
  * What a control looks like when it is not the one in force, but still works.
@@ -3178,7 +3480,7 @@ export const SR_ONLY = 'sr-only'
  *
  * What the platform does *not* give is a look — it paints from the system
  * palette, so a light-mode OS renders a pale track inside a dark map card, the
- * same problem `SELECT` documents. So `appearance-none` on the input and on
+ * same problem `TRIGGER_FIELD` documents. So `appearance-none` on the input and on
  * both thumb pseudo-elements, then the track and thumb drawn here.
  *
  * The two vendor spellings are both required and neither is redundant: WebKit
@@ -3254,8 +3556,7 @@ export const SLIDER = {
    *
    * The same size as the value beside it (`CONTROL_SIZE`) and in sentence case,
    * so the slider reads as one line of one control rather than two labels of
-   * different ranks — and so it matches the Blocks/Smooth segment directly above
-   * it, which is the app's rule everywhere (TJ, 2026-09-14). It used to wear
+   * different ranks, which is the app's rule everywhere (TJ, 2026-09-14). It used to wear
    * `TEXT.overline`'s shape, a 10px uppercase with letter-spacing, which is the
    * shape of a heading OVER a group rather than of a label inside a control.
    *
@@ -3528,3 +3829,122 @@ export const TOUR = {
   /** The sheet at the top edge, for a target that stands where the bottom sheet would. */
   sheetTop: `${SURFACE_CARD} fixed inset-x-4 top-4 p-4 space-y-3 focus:outline-none`,
 }
+
+/**
+ * The chart's panel controls (#499; TJ 2026-10-29).
+ *
+ * `add` is the + after the last picker, in
+ * the field's fill, edge and radius so the row reads as one set of controls,
+ * with the bare icon's ink and its accent on hover, greyed at the ceiling.
+ * The × is a segment of its picker (`CHART_PICKER`). The + is a square as
+ * tall as what it stands beside (TJ's review, 2026-10-29: the + read as a
+ * sliver): `square` beside a desk's picker, 22px, which is the picker's own
+ * height (`TEXT.control`'s 16px line, `py-0.5`'s 4px and a 1px edge top and
+ * bottom), and 32px under a finger, the picker's `touch:min-h-8`.
+ */
+/**
+ * A removable chart picker (#499; TJ's review 2026-10-29, option A): one
+ * field in two segments, the picker on the left (`MENU_TRIGGER.segment`) and the × on the right, under one outline.
+ * The group wears the field's fill, edge and radius, and takes the accent
+ * edge while the picker is hovered or open and the focus edge while it has
+ * the keyboard, which the field's own edge did before. The × is a segment
+ * behind a 1px `edge` divider, its glyph the quiet `ICON_ACTION` ink with the
+ * accent on hover and its focus ring drawn inside it (`FOCUS_RING_INSET`).
+ * `x` is 22px, the picker's height (32px under a finger), so
+ * the picker keeps `CHART_METRIC_W` and the group is that plus the segment.
+ */
+export const CHART_PICKER = {
+  group:
+    `${FIELD_LOOK} flex flex-shrink-0 items-stretch touch:min-h-8`,
+  remove: `${ICON_ACTION} ${FOCUS_RING_INSET} flex flex-shrink-0 items-center justify-center border-l border-edge leading-none`,
+  x: 'w-5.5 touch:w-8',
+  // The grip that moves a panel (#499; TJ 2026-10-30): the left segment of
+  // every picker but the first, the ×'s twin across the field, so the field
+  // reads grip, metric, ×. It takes a pointer drag (`cursor-grab`, and
+  // `touch-none` so a finger drags rather than scrolls) and the arrow keys.
+  // While a picker is dragged its field dims (`dragged`) and an accent bar
+  // stands in the 8px gap where it will land (`drop`, centred in the gap by
+  // `before` or `after`).
+  grip: `${ICON_ACTION} ${FOCUS_RING_INSET} flex flex-shrink-0 items-center justify-center border-r border-edge cursor-grab touch-none active:cursor-grabbing`,
+  dragged: 'opacity-50',
+  drop: 'pointer-events-none absolute inset-y-0 w-0.5 bg-accent',
+  before: '-left-1.25',
+  after: '-right-1.25',
+  // On a phone each panel wears its own picker (TJ 2026-10-30): `bar` stands
+  // it at the panel's top left, 8px under the top (`PHONE_PICKER_INSET_PX`)
+  // and 12px in, the results bar's own inset, over the plot and under the
+  // card, with the + 8px after the first. A drag between panels marks the
+  // picker it will land on with the accent ring (`target`), there being no
+  // gap between pickers to stand a bar in.
+  bar: 'absolute left-3 right-3 top-2 z-[2] flex items-center gap-2',
+  target: 'ring-2 ring-accent',
+} as const
+
+/**
+ * The Panel layout button's shape and its menu (#499; TJ 2026-10-30): the
+ * button is `CHART_PANEL_BUTTON`'s square wearing a 16 by 12 miniature of the
+ * current layout (`thumb`, twelve tracks so every row's blocks share its
+ * width), and the menu is one row of 34 by 26 squares, each a layout, the
+ * current one in the accent edge (`current`). The blocks are the icon ink at
+ * 60 percent, so the shape reads as a glyph rather than as panels.
+ */
+export const CHART_LAYOUT = {
+  thumb: 'grid h-3 w-4 grid-cols-12 gap-px',
+  cell: 'rounded-[1px] bg-current opacity-60',
+  menu: 'flex gap-1.5 p-2',
+  // The edge and ink are one or the other, never both, because two colour
+  // utilities resolve by stylesheet order rather than by the class list.
+  option: `${RECESSED_FILL} ${RADIUS.control} ${FOCUS_RING} flex h-6.5 w-8.5 items-center justify-center`,
+  idle: `${RECESSED_EDGE} ${ICON_ACTION}`,
+  current: 'border border-accent-ink text-accent-ink',
+} as const
+
+export const CHART_PANEL_BUTTON = {
+  add: `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ${ICON_ACTION} ${FOCUS_RING} ${DISABLED} flex flex-shrink-0 items-center justify-center`,
+  square: 'size-5.5 touch:size-8',
+} as const
+
+/**
+ * The gutters of the chart's grid of three or four panels (#499; TJ's review,
+ * 2026-10-29): the gutters themselves are the handles. `col` is the vertical
+ * gutter, which drags the column split (`cursor-col-resize`); `row` the
+ * horizontal one, which drags the row split (`cursor-row-resize`); `cross`
+ * the 16px square where they meet, which drags both (`cursor-move`) and draws
+ * nothing of its own. Each gutter is the grid's 8px gap, holding a 1px line
+ * in the `edge` token at rest and in the accent on hover and while dragged
+ * (`active`), the way `ResizeGrip` lights under the pointer. The line is the
+ * handle's whole visual, so it owes a UI boundary's 3:1 on the panel, which
+ * `rule` missed (about 1.4:1 dark, 1.5:1 light); `edge` clears it, pinned in
+ * `styles.test.ts`.
+ */
+export const CHART_GUTTER = {
+  col: 'group absolute z-[2] w-2 cursor-col-resize touch-none',
+  row: 'group absolute z-[2] h-2 cursor-row-resize touch-none',
+  // z 2 like the bars, and after them in the DOM, so a crossing stands over
+  // its bars and under the hover card (z 3), which it used to tie and win.
+  cross: 'group absolute z-[2] flex size-4 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none items-center justify-center',
+  colLine: 'absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors',
+  rowLine: 'absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors',
+  // The line's colour, one or the other and never both, because two colour
+  // utilities resolve by stylesheet order rather than by the class list.
+  idle: 'bg-edge group-hover:bg-accent',
+  active: 'bg-accent',
+  /**
+   * The grip at a bar's middle and the dot at a crossing (TJ 2026-10-30,
+   * option B of three mockups): visible at rest, so a new reader sees a bar
+   * can move, and flat on the panel's own fill with an `edge` rim, where the
+   * sheet's grip above is a raised band, so these read one level down. The
+   * grip is three dots run along its bar; the dots and the crossing's fill
+   * take the accent with the line, and the rim stays `edge`, because no edge
+   * lights under the pointer (record 0251; TJ 2026-10-30, when #823 and #828
+   * were released together). `knobRow` and `knobCol` size it either way.
+   */
+  knob: `absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-0.5 border border-edge bg-panel ${RADIUS.control}`,
+  knobRow: 'h-2 w-5.5',
+  knobCol: 'h-5.5 w-2 flex-col',
+  knobDot: `size-0.5 ${RADIUS.pill}`,
+  crossDot: `size-2.5 border border-edge ${RADIUS.pill}`,
+  // The crossing's fill, one or the other for the same reason as the line's.
+  crossIdle: 'bg-panel group-hover:bg-accent',
+  crossActive: 'bg-accent',
+} as const

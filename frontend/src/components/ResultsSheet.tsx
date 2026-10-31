@@ -26,7 +26,7 @@ interface ResultsSheetProps
     | 'onFocusResult'
     | 'onFocusPending'
     // Read off `isDesktop` here (#696, record 0202).
-    | 'chartTitled'
+    | 'chartPhone'
     | 'panesMove'
     // Read off the layout's collapse here (record 0202).
     | 'collapsed'
@@ -73,6 +73,7 @@ interface ResultsSheetView {
   charts: Pick<
     ChartCompare,
     | 'chart'
+    | 'chartMetrics'
     | 'compare'
     | 'rowChartColor'
     | 'shared'
@@ -200,8 +201,6 @@ export default function ResultsSheet({
         <div
           ref={sheetRef}
           data-tour="results"
-          // How far up a phone chart's readout may rise (#696; TimeSeriesChart).
-          data-readout-room=""
           className={
             isDesktop
               ? // On a layer of its own while a desk's panel moves (record 0216).
@@ -257,7 +256,7 @@ export default function ResultsSheet({
               removeResult={removeResult}
               sortBy={sortBy}
               sortDesc={sortDesc}
-              chartTitled={!isDesktop}
+              chartPhone={!isDesktop}
               panesMove={isDesktop}
               collapsed={resultsCollapsed}
               layoutMotion={layoutMotion}

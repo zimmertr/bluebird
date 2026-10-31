@@ -82,6 +82,13 @@ const full: ShareableState = {
   showSmoke: true,
   showSnow: true,
   showGrid: true,
+  showContours: true,
+  showRelief: true,
+  showSlope: true,
+  showSatellite: true,
+  baseOpacity: { satellite: 80, topo: 30, relief: 100, slope: 0 },
+  showTerrain: true,
+  showFireActivity: true,
   gridStyle: 'smooth',
   showPlayer: false,
   gridReachFrac: 0.4,
@@ -91,6 +98,8 @@ const full: ShareableState = {
   ],
   removed: ['46.85289,-121.76041', '48.10000,-121.11391'],
   tableSort: { key: 'elevation_ft', desc: true },
+  chart: ['temp', 'precip'],
+  chartLayout: 'row',
   view: { lng: -121.612345, lat: 47.1, zoom: 9.456 },
 }
 
@@ -116,10 +125,18 @@ const nowOnly: ShareableState = {
   showSmoke: false,
   showSnow: false,
   showGrid: false,
+  showContours: false,
+  showRelief: false,
+  showSlope: false,
+  showSatellite: false,
+  showTerrain: false,
+  showFireActivity: false,
   showPlayer: true,
   pins: [],
   removed: [],
   tableSort: null,
+  chart: ['aqi'],
+  chartLayout: null,
   view: null,
 }
 
@@ -129,6 +146,7 @@ const dateless: ShareableState = {
   forecastModel: DEFAULT_MODEL,
   selection: { kind: 'days', startDate: null, endDate: null, hours: { start: '00:00', end: '23:59' } },
   sortBy: 'temp_min_f',
+  chart: ['temp'],
   showGrid: true,
   gridStyle: 'blocks',
   gridReachFrac: 0.5,
@@ -140,14 +158,16 @@ describe('the codec table against the links it wrote before', () => {
   it('writes every parameter in the same order and spelling', () => {
     expect(encodeState(full, DEFAULT_MODEL)).toBe(
       'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&cloud_deck=max&precip=avg&snowfall=max&temp=max' +
-        '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025' +
+        '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025&chart=temp,precip&layout=row' +
         '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06:00&h2=18:30' +
         '&minprecip=0&maxprecip=0.25&mintemp=-10&maxtemp=85.5&minwind=1&maxwind=30' +
         '&minfreeze=4000&maxfreeze=12000&minsnowfall=2&maxsnowfall=80&minaqi=0&maxaqi=50' +
         '&minclouddeck=3000&maxclouddeck=15000' +
         '&poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223' +
         '&customz=HIQwtgpgNAMiAusD2A7AUAQQAQAcIgGsoAWANgDoAOAVigFoBGAJgfIHZS0g' +
-        '&fires=1&closedareas=1&closedtrails=1&radar=1&smoke=1&snow=1&grid=smooth&reach=40&player=0&unnamed=1' +
+        '&fires=1&closedareas=1&closedtrails=1&radar=1&smoke=1&snow=1' +
+        '&topo=1&topoopacity=30&relief=1&reliefopacity=100&slope=1&slopeopacity=0&satellite=1&satelliteopacity=80' +
+        '&terrain=1&fireactivity=1&grid=smooth&reach=40&player=0&unnamed=1' +
         '&pins=-121.8144,48.7768,peak,14505,node/123,Tricky%2C+name%3B+%26+co+%25' +
         ';-118.2,36.12346,coordinates,,,' +
         '&removed=-121.76041,46.85289;-121.11391,48.1&tsort=elevation_ft&tdesc=1&view=-121.6123,47.1,9.46',
@@ -185,6 +205,40 @@ describe('the codec table against the links it wrote before', () => {
   })
 })
 
+// The chart's metrics (#499): every slot, first panel first, comma joined, and
+// written only when the chart is not the one a fresh session draws.
+describe('the chart param', () => {
+  const encodeChart = (chart: ShareableState['chart'], sortBy: ShareableState['sortBy'] = 'wind_max_mph') =>
+    encodeState({ ...full, sortBy, chart }, DEFAULT_MODEL).match(/(?:^|&)chart=([^&]*)/)?.[1] ?? null
+
+  it('writes every slot, and one name for one panel', () => {
+    expect(encodeChart(['precip', 'temp'])).toBe('precip,temp')
+    expect(encodeChart(['precip', 'temp', 'wind', 'aqi'])).toBe('precip,temp,wind,aqi')
+    expect(encodeChart(['temp'])).toBe('temp')
+  })
+
+  it('leaves the param out while the chart follows the ranking alone', () => {
+    expect(encodeChart(['wind'])).toBeNull()
+    expect(encodeChart(['wind', 'aqi'])).toBe('wind,aqi')
+  })
+
+  it('makes a link by itself', () => {
+    expect(encodeState({ ...nowOnly, forecastModel: DEFAULT_MODEL, constraints: NO_CONSTRAINTS, showPlayer: null, chart: ['aqi', 'temp'] }, DEFAULT_MODEL)).toContain(
+      'chart=aqi,temp',
+    )
+  })
+
+  it('reads a link tolerantly', () => {
+    expect(decodeState('chart=precip,temp')?.chart).toEqual(['precip', 'temp'])
+    expect(decodeState('chart=precip,temp,wind,aqi')?.chart).toEqual(['precip', 'temp', 'wind', 'aqi'])
+    expect(decodeState('chart=temp')?.chart).toEqual(['temp'])
+    expect(decodeState('chart=nope,temp')?.chart).toEqual(['temp'])
+    expect(decodeState('chart=temp,temp')?.chart).toEqual(['temp'])
+    expect(decodeState('chart=temp,wind,aqi,precip,freeze')?.chart).toEqual(['temp', 'wind', 'aqi', 'precip'])
+    expect(decodeState('chart=,&limit=50')?.chart).toBeUndefined()
+  })
+})
+
 describe('the codec table', () => {
   it('holds one row per key, in the order a link writes them', () => {
     expect(URL_PARAMS.map((row) => row.key)).toEqual([
@@ -201,6 +255,8 @@ describe('the codec table', () => {
       'limit',
       'model',
       'compare',
+      'chart',
+      'layout',
       'mode',
       'd1',
       'd2',
@@ -228,6 +284,16 @@ describe('the codec table', () => {
       'radar',
       'smoke',
       'snow',
+      'topo',
+      'topoopacity',
+      'relief',
+      'reliefopacity',
+      'slope',
+      'slopeopacity',
+      'satellite',
+      'satelliteopacity',
+      'terrain',
+      'fireactivity',
       'grid',
       'reach',
       'player',
@@ -314,5 +380,21 @@ describe('decodeLink', () => {
     expect(out.dropped).toEqual(['model', 'ring', 'list'])
     // Nothing was restored, which `decodeState` has always answered as null.
     expect(out.state).toBeNull()
+  })
+})
+
+// The panels' arrangement (#499): written only off the count's own, read
+// tolerantly.
+describe('the chart layout param', () => {
+  it('writes a layout the count does not open in, and nothing for its own', () => {
+    const four = { ...nowOnly, chart: ['aqi', 'temp', 'wind', 'precip'] as ShareableState['chart'] }
+    expect(encodeState({ ...four, chartLayout: '2x2' }, DEFAULT_MODEL)).toContain('layout=2x2')
+    expect(encodeState({ ...four, chartLayout: '1-3' }, DEFAULT_MODEL)).not.toContain('layout=')
+    // A layout the count does not offer draws the count's own, so says nothing.
+    expect(encodeState({ ...nowOnly, chartLayout: '2x2' }, DEFAULT_MODEL)).not.toContain('layout=')
+  })
+  it('reads a known layout and drops an unknown one', () => {
+    expect(decodeState('?chart=temp&layout=1-2-1')?.chartLayout).toBe('1-2-1')
+    expect(decodeState('?chart=temp&layout=3x3')?.chartLayout).toBeUndefined()
   })
 })

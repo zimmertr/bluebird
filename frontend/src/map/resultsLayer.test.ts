@@ -103,7 +103,7 @@ import { closureWarning, mapInputs, resultRow } from '../testSupport/fixtures'
 import { closurePopupText } from '../utils/closureProximity'
 import { geoKey } from '../utils/points'
 import { stubMap } from '../testSupport/stubMap'
-import { MARKER_LABEL_PAINT, MARKER_PAINT, PENDING_COLOR } from './mapStyles'
+import { MARKER_HALO_PAINT, MARKER_LABEL_PAINT, MARKER_PAINT, PENDING_COLOR } from './mapStyles'
 import { POPUP_FACE } from '../styles'
 
 // A full card's size, and a map tall enough to hold one below a centred marker.
@@ -164,10 +164,12 @@ describe('mountResultsLayer', () => {
   it('adds the markers and then the pending dots, arrows hidden', () => {
     const { stub } = setup()
     expect(stub.stack).toEqual([
+      'results-halo',
       RESULT_MARKER_LAYER,
       'results-wind',
       'results-rank',
       'results-labels',
+      'pending-destinations-halo',
       'pending-destinations-circles',
       'pending-destinations-labels',
     ])
@@ -183,6 +185,9 @@ describe('mountResultsLayer', () => {
     const pending = stub.paint['pending-destinations-circles']
     expect(ranked).toEqual({ ...MARKER_PAINT, 'circle-color': ['get', 'color'] })
     expect(pending).toEqual({ ...MARKER_PAINT, 'circle-color': PENDING_COLOR })
+    // Each under its own dark ring, the edge a light ground reads (#799).
+    expect(stub.paint['results-halo']).toEqual(MARKER_HALO_PAINT)
+    expect(stub.paint['pending-destinations-halo']).toEqual(MARKER_HALO_PAINT)
     expect(stub.paint['results-labels']).toEqual(MARKER_LABEL_PAINT)
     expect(stub.paint['pending-destinations-labels']).toEqual(MARKER_LABEL_PAINT)
   })

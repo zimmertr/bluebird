@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import MetricsTable from './MetricsTable'
 import { AGGREGATE, DEFAULT_FAMILY_KEY, FAMILY_KEYS, NOUN, RANKED_FAMILIES, windowAggregate } from '../metrics'
 import { NO_CONSTRAINTS } from '../utils/clientAnalyze'
@@ -61,8 +61,8 @@ describe('MetricsTable', () => {
     RANKED_FAMILIES.forEach((f, i) => expect(radios[i]).toBe(screen.getByRole('radio', { name: NOUN[f] })))
   })
 
-  // A desk picks the aggregate from the one menu (record 0201), and a phone
-  // from its own native picker (record 0149). Both name the choice alike.
+  // A desk picks the aggregate from the one menu's card (record 0201), and a
+  // phone from the same menu's sheet (record 0252). Both name the choice alike.
   it('ranks by a new aggregate from the menu', async () => {
     const setSortBy = vi.fn()
     const { user } = render(<MetricsTable {...props({ setSortBy })} />)
@@ -75,21 +75,25 @@ describe('MetricsTable', () => {
     expect(document.activeElement).toBe(field)
   })
 
-  it('ranks by a new aggregate from the native select on a phone', () => {
+  it('ranks by a new aggregate from a sheet on a phone', async () => {
     const setSortBy = vi.fn()
-    render(<MetricsTable {...props({ setSortBy, phone: true })} />)
+    const { user } = render(<MetricsTable {...props({ setSortBy, phone: true })} />)
     const other = FAMILY_KEYS.temp.find((k) => k !== DEFAULT_FAMILY_KEY.temp)!
-    fireEvent.change(screen.getByRole('combobox', { name: `${NOUN.temp} aggregate` }), {
-      target: { value: other },
-    })
+    expect(screen.queryAllByRole('combobox')).toEqual([])
+    const field = screen.getByRole('button', { name: new RegExp(`^${NOUN.temp} aggregate `) })
+    expect(field.getAttribute('aria-haspopup')).toBe('dialog')
+    await user.click(field)
+    const sheet = screen.getByRole('dialog', { name: `${NOUN.temp} aggregate` })
+    await user.click(within(sheet).getByRole('option', { name: windowAggregate(other) }))
     expect(setSortBy).toHaveBeenCalledWith(other)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('hides every aggregate choice for a single-hour window', () => {
     render(<MetricsTable {...props({ pointSample: true })} />)
     expect(screen.queryAllByRole('button', { name: / aggregate / })).toEqual([])
     render(<MetricsTable {...props({ pointSample: true, phone: true })} />)
-    expect(screen.queryAllByRole('combobox')).toEqual([])
+    expect(screen.queryAllByRole('button', { name: / aggregate / })).toEqual([])
   })
 
   it('sets a bound from its box and clears it from an empty one', () => {
@@ -182,10 +186,10 @@ describe('MetricsTable', () => {
       expect(screen.queryByRole('listbox')).toBeNull()
     })
 
-    it('greys the native aggregate on a phone too', () => {
+    it('greys the aggregate on a phone too', () => {
       render(<MetricsTable {...props({ unanswered: ARCHIVE, phone: true })} />)
       expect(
-        (screen.getByRole('combobox', { name: `${NOUN.cloud_deck} aggregate` }) as HTMLSelectElement).disabled,
+        (screen.getByRole('button', { name: new RegExp(`^${NOUN.cloud_deck} aggregate `) }) as HTMLButtonElement).disabled,
       ).toBe(true)
     })
 

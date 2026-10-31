@@ -39,12 +39,17 @@ export interface MapInputs {
   onRemovePoi: (latitude: number, longitude: number) => void
   // A result card's `Remove from analysis`: the row's × (#696).
   onRemoveResult: (row: DestinationResult) => void
+  // A result card's aggregate head carried to another (TJ 2026-10-30).
+  onMoveAggregate: (from: string, to: string) => void
   cameraPadBottomPx: number
   // Where the settled camera goes, and whether the reader moved it
   // (`map/camera.ts`). The share link's writer, which never renders.
   onCameraMove: (view: CameraView, readerMove: boolean) => void
   // The most positions a ring may carry, as /api/capabilities publishes it.
   maxPolygonPoints: number
+  // The 3D button's press, asking for the terrain on or off (#799). The
+  // switch is the overlays', so the button, the link and the map agree.
+  onTerrainChange: (on: boolean) => void
 }
 
 export interface MapController {

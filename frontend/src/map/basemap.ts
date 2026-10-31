@@ -347,6 +347,30 @@ export function townMarker(
   }
 }
 
+/** The trail line's id, and the zoom and filter it and its casing share. */
+export const TRAIL_LAYER = 'ofm-trails'
+const TRAIL_MINZOOM = 11
+const TRAIL_FILTER: FilterSpecification = ['match', ['get', 'class'], ['path', 'track'], true, false]
+
+/** The trail's sienna, matched to Liberty's terrain, drawn at 85%. */
+export const TRAIL_COLOR = '#a0522d'
+export const TRAIL_OPACITY = 0.85
+
+/**
+ * A light line under the trail while the Satellite row is on (#799), shown
+ * and hidden by `map/overlays/imagery.ts` and nothing else. The sienna reads
+ * 1.69:1 on a forest, where the trail all but vanishes, and 5.13:1 on
+ * Liberty's ground. The casing is that ground: Liberty's own background, a
+ * pixel wider than the trail on each side, so the trail stands on the photo
+ * the way it stands on the map. Measured 2026-10-28 on record 0243's forest
+ * (#3a4a33): the casing 8.69:1 on the forest, and the trail as drawn, 85%
+ * over the casing, 3.89:1 on it. On snow the casing is lost (1.09:1) and the
+ * trail reads on the snow itself (4.73:1). Hidden on Liberty, where it would
+ * only redraw the ground. `styles.test.ts` pins the numbers.
+ */
+export const TRAIL_CASING_LAYER = 'ofm-trails-casing'
+export const TRAIL_CASING_COLOR = '#f8f4f0'
+
 export function enhanceBasemap(map: maplibregl.Map) {
   // Slot our additions just beneath the style's first text layer so labels
   // (including the ones we add) stay on top of lines and fills.
@@ -370,19 +394,36 @@ export function enhanceBasemap(map: maplibregl.Map) {
 
   // Trails: OSM class=path/track. Liberty only draws these from z14, too late
   // for orienting while drawing a polygon — show them from z11 in a trail hue.
+  // The casing goes on first, so it draws directly under the trail.
   map.addLayer(
     {
-      id: 'ofm-trails',
+      id: TRAIL_CASING_LAYER,
       type: 'line',
       source: 'openmaptiles',
       'source-layer': 'transportation',
-      minzoom: 11,
-      filter: ['match', ['get', 'class'], ['path', 'track'], true, false],
+      minzoom: TRAIL_MINZOOM,
+      filter: TRAIL_FILTER,
+      layout: { visibility: 'none' },
       paint: {
-        'line-color': '#a0522d',
+        'line-color': TRAIL_CASING_COLOR,
+        'line-width': ['interpolate', ['exponential', 1.2], ['zoom'], 11, 2.6, 16, 4.5, 20, 8],
+      },
+    },
+    firstSymbolId,
+  )
+  map.addLayer(
+    {
+      id: TRAIL_LAYER,
+      type: 'line',
+      source: 'openmaptiles',
+      'source-layer': 'transportation',
+      minzoom: TRAIL_MINZOOM,
+      filter: TRAIL_FILTER,
+      paint: {
+        'line-color': TRAIL_COLOR,
         'line-dasharray': [2, 1.5],
         'line-width': ['interpolate', ['exponential', 1.2], ['zoom'], 11, 0.6, 16, 2.5, 20, 6],
-        'line-opacity': 0.85,
+        'line-opacity': TRAIL_OPACITY,
       },
     },
     firstSymbolId,

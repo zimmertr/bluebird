@@ -89,12 +89,12 @@ describe('the map chrome anchors', () => {
   })
 
   // The rows are four numbers in the role (`MAP_ROWS`): the 12px inset, the
-  // 40px pill row, 8px between and the 32px chip row. Their sum is what every
+  // 32px pill row, 12px between and the 32px chip row. Their sum is what every
   // anchor under them reads, a desk's legend card included (#714).
   it('ends the rows where the role\'s four numbers do, at both widths', () => {
-    expect(stylesSource).toContain("row: `relative h-10 ${YIELD_EMPTY}`")
+    expect(stylesSource).toContain("row: `relative h-8 ${YIELD_EMPTY}`")
     expect(stylesSource).toContain("chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`")
-    expect(MAP_ROWS_PX).toBe(12 + 40 + 8 + 32)
+    expect(MAP_ROWS_PX).toBe(12 + 32 + 12 + 32)
     // The phone's resting reserve keeps the column it was measured with.
     expect(RESTING_TOP_PX).toBe(156)
     expect(RESTING_TOP_PX).toBeGreaterThan(MAP_ROWS_PX)
@@ -237,11 +237,11 @@ describe('the resting height', () => {
 // strip under the chip row (#696). The resting reserve above holds only until
 // the reader takes hold of a grip; this one holds however far they pull.
 describe('the drag cap', () => {
-  it('leaves the rows and the button\'s strip: 92 and 16 + 56 + 16', () => {
-    expect(MAP_ROWS_PX).toBe(92)
+  it('leaves the rows and the button\'s strip: 88 and 16 + 56 + 16', () => {
+    expect(MAP_ROWS_PX).toBe(88)
     expect(FAB_STRIP_PX).toBe(FAB_INSET_PX + FAB_PX + FAB_INSET_PX)
     expect([FAB_INSET_PX, FAB_PX, FAB_STRIP_PX]).toEqual([16, 56, 88])
-    expect(DRAGGED_MAP_PX).toBe(180)
+    expect(DRAGGED_MAP_PX).toBe(176)
   })
 
   // With the player on, a full sheet also leaves the bar its room over the

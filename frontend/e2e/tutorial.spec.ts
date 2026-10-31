@@ -129,7 +129,8 @@ async function expectPopupClear(page: Page) {
 
 // The Chart card shows the readout a finger resting mid-window shows: the
 // cursor's line on the middle of the demonstration's thirteen hours, with a
-// dot on every destination's line (#696; record 0153).
+// dot on every destination's line (#696; record 0153), drawn on the hover
+// canvas since the lines moved there (record 0256).
 async function expectReadoutMidWindow(page: Page) {
   const chart = '[data-tour="chart"]'
   await expect(page.locator(`${chart} .recharts-tooltip-cursor`)).toBeAttached()
@@ -137,7 +138,13 @@ async function expectReadoutMidWindow(page: Page) {
     const grid = (await box(page, `${chart} .recharts-cartesian-grid`))!
     const cursor = (await box(page, `${chart} .recharts-tooltip-cursor`))!
     expect(Math.abs((cursor.left + cursor.right) / 2 - (grid.left + grid.right) / 2)).toBeLessThan(2)
-    await expect(page.locator(`${chart} .recharts-active-dot`)).toHaveCount(5)
+    const dotted = await page.locator(`${chart} canvas`).nth(1).evaluate((c: HTMLCanvasElement) => {
+      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data
+      let n = 0
+      for (let k = 3; k < d.length; k += 4) if (d[k] > 0) n++
+      return n
+    })
+    expect(dotted).toBeGreaterThan(0)
   }).toPass({ timeout: 5_000 })
 }
 
@@ -265,11 +272,11 @@ test.describe('on a phone with a report', () => {
     await page.keyboard.press('ArrowRight')
     await expect(heading(page)).toHaveText('Layers')
     await expect(messages).toHaveCount(0)
-    // A phone's Layers card opens the sheet and switches Wildfires on
+    // A phone's Layers card opens the sheet and switches Active wildfires on
     // (record 0153), and the next card puts both back.
     const layers = page.locator('[data-tour="layers-menu"]')
     await expect(layers).toBeVisible()
-    await expect(layers.getByRole('checkbox', { name: 'Wildfires' })).toBeChecked()
+    await expect(layers.getByRole('checkbox', { name: 'Active wildfires' })).toBeChecked()
     // Its card stands in the map between the chip and the sheet, over
     // neither, and the light holds both (#696).
     await expectSpotlightOn(page, 'layers')
@@ -303,17 +310,27 @@ test.describe('on a phone with a report', () => {
     await page.keyboard.press('Escape')
     await expect(card(page)).toHaveCount(0)
     // The sheet is left open in the chart with the reader's own lines and
-    // no readout over them, and Wildfires off again.
+    // no readout over them, and Active wildfires off again.
     await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
-    await expect(page.locator('[data-tour="chart"] .recharts-line')).toHaveCount(5)
+    // The lines and the hover dots are the panel's two canvases (record 0256):
+    // the lines drawn, the dots canvas blank.
+    await expect(page.locator('[data-tour="chart"] canvas')).toHaveCount(2)
     await expect(page.locator('[data-tour="chart"] .recharts-tooltip-cursor')).toHaveCount(0)
-    await expect(page.locator('[data-tour="chart"] .recharts-active-dot')).toHaveCount(0)
+    const inked = (i: number) =>
+      page.locator('[data-tour="chart"] canvas').nth(i).evaluate((c: HTMLCanvasElement) => {
+        const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data
+        let n = 0
+        for (let k = 3; k < d.length; k += 4) if (d[k] > 0) n++
+        return n
+      })
+    expect(await inked(0)).toBeGreaterThan(0)
+    expect(await inked(1)).toBe(0)
     // The tour started from the Controls sheet and gives it back open, modal
     // over the map (record 0207), so Done comes before the Layers chip.
     const controls = page.getByRole('dialog', { name: 'Controls' })
     await expect(controls).not.toHaveAttribute('inert')
     await controls.getByRole('button', { name: 'Done' }).tap()
     await page.getByRole('button', { name: 'Layers', exact: true }).first().tap()
-    await expect(page.getByRole('dialog', { name: 'Layers', exact: true }).getByRole('checkbox', { name: 'Wildfires' })).not.toBeChecked()
+    await expect(page.getByRole('dialog', { name: 'Layers', exact: true }).getByRole('checkbox', { name: 'Active wildfires' })).not.toBeChecked()
   })
 })

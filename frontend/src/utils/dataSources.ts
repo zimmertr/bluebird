@@ -15,9 +15,9 @@
  * The credits the licenses place next to the data live outside this list:
  * OpenStreetMap in the map's corner control (delivered by the tile server's
  * TileJSON) with Open-Meteo beside it on the same line (`map/controls.ts`),
- * and NIFC, NOAA, IEM and the US Forest Service each on their own overlay's
- * legend, NOAA twice, for smoke and for snow, and the Forest Service twice,
- * for its two closure layers.
+ * and NIFC, NASA FIRMS, NOAA, IEM and the US Forest Service each on their own
+ * overlay's legend, NOAA twice, for smoke and for snow, and the Forest Service
+ * twice, for its two closure layers.
  * CC BY 3.0 wants the fire credit wherever the fire data is drawn, not only in
  * a list of sources somewhere else, and the overlays added beside it follow
  * the same shape so the map has one idea of what a credit looks like. Each of
@@ -88,6 +88,23 @@ export const DATA_SOURCES: readonly DataSource[] = [
     provides: 'The vector tiles the basemap is drawn from, and the glaciers the snow card names.',
   },
   {
+    name: 'Mapterhorn',
+    href: 'https://mapterhorn.com/attribution',
+    provides: 'Elevation tiles for the optional contours, shaded relief and 3D terrain.',
+  },
+  {
+    name: 'USGS The National Map',
+    href: 'https://www.usgs.gov/programs/national-geospatial-program/national-map',
+    provides: 'Aerial imagery of the United States, for the optional satellite layer.',
+  },
+  {
+    name: 'EOX IT Services',
+    href: 'https://s2maps.eu',
+    provides: 'Sentinel-2 cloudless imagery outside the United States, for the optional satellite layer.',
+    license: 'CC BY-NC-SA 4.0',
+    licenseHref: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+  },
+  {
     name: 'Nominatim',
     href: 'https://nominatim.org',
     provides: 'Place lookup for the map search box.',
@@ -98,6 +115,11 @@ export const DATA_SOURCES: readonly DataSource[] = [
     provides: 'Active wildfire perimeters for the optional fire overlay.',
     license: 'CC BY 3.0',
     licenseHref: 'https://creativecommons.org/licenses/by/3.0/',
+  },
+  {
+    name: 'NASA FIRMS',
+    href: 'https://earthdata.nasa.gov/firms',
+    provides: 'Active fire detections from the VIIRS and MODIS satellites, for the optional fire activity layer.',
   },
   {
     name: 'NOAA HMS',

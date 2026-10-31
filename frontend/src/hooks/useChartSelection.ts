@@ -1,16 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DestinationResult, SortBy } from '../types'
-import {
-  ChartMetric,
-  candidateSetKey,
-  chartKey,
-  debutRows,
-  metricForSort,
-} from '../utils/chart/chartData'
+import { DestinationResult } from '../types'
+import { candidateSetKey, chartKey, debutRows } from '../utils/chart/chartData'
 import { CHROME, allocateColors, lineColor } from '../utils/chart/chartColors'
 
 // Chart selection for the results table and the chart-only legend: which
-// destinations are overlaid, their stable line colors, and the active metric.
+// destinations are overlaid and their stable line colors. The metrics drawn
+// are `useChartMetrics`' since #499, because they ride the share link.
 //
 // `results` is every destination on show, INCLUDING pending ones an analysis
 // has not covered yet — a searched place earns its color the moment it appears
@@ -26,16 +21,9 @@ import { CHROME, allocateColors, lineColor } from '../utils/chart/chartColors'
 // it at once (#706, #786), so a theme switch recolours every line already
 // charted, its swatch and its checkbox with it, without re-allocating one or
 // re-rendering anything that draws it.
-export function useChartSelection(results: DestinationResult[], sortBy: SortBy) {
+export function useChartSelection(results: DestinationResult[]) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [colorByKey, setColorByKey] = useState<Record<string, number>>({})
-  const [metric, setMetric] = useState<ChartMetric>(() => metricForSort(sortBy))
-
-  // The metric follows each new ranking; a same-ranking refresh leaves a
-  // manually chosen metric alone (the dep is the value, not the report).
-  useEffect(() => {
-    setMetric(metricForSort(sortBy))
-  }, [sortBy])
 
   // Debut rule, applied whenever the displayed set changes (live state is read
   // through a ref so unchecking never re-selects). Keyed on the rows and not
@@ -152,7 +140,5 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
     colorFor,
     colorByKey,
     rememberColors,
-    metric,
-    setMetric,
   }
 }

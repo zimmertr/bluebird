@@ -51,10 +51,11 @@ interface Props {
  * linter's `style-own-menu` check fails a second `position: 'fixed'` or a
  * second copy of the card anywhere under `components/`.
  *
- * On a phone the panel's two field menus, the model list and the calendar,
- * stand in a bottom sheet instead (`sheet`), as every phone menu does (record
- * 0136). The choice is made here rather than at each caller so that the rows
- * are written once, inside the one menu, for both.
+ * On a phone every field menu, the model list, the calendar, the chart's
+ * metric and the aggregates, stands in a bottom sheet instead (`sheet`), as
+ * every phone menu does (records 0136 and 0252). The choice is made here
+ * rather than at each caller so that the rows are written once, inside the
+ * one menu, for both.
  */
 export default function Menu({ box, popoverRef, closing, sheet, children }: Props) {
   // The rows as one block of the sheet, so its rules fall around the menu
@@ -111,10 +112,12 @@ interface MenuButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
 }
 
 /**
- * A control that opens a menu, in one of the three shapes, with the chevron
- * and the hover and open states every trigger shares (`MENU_TRIGGER`,
- * `MENU_CHEVRON`). The shape is the one thing a call site picks; whatever it
- * adds in `className` is layout and width, never a look.
+ * A control that opens a menu or a sheet, in one of the three shapes, with
+ * the chevron and every state a trigger has (`MENU_TRIGGER`, `MENU_CHEVRON`,
+ * record 0251). The shape is the one thing a call site picks; whatever it adds
+ * in `className` is layout and width, never a colour or a state, which the
+ * linter's `style-trigger-no-look` fails. Every button with `aria-expanded` in
+ * the app is one of these but the message badge (`style-menu-trigger`).
  */
 export function MenuButton({ shape, open, chevron = true, chevronClassName, className, children, ref, ...rest }: MenuButtonProps) {
   return (
@@ -144,17 +147,23 @@ interface MenuSelectProps<V extends string> {
   onChange: (value: V) => void
   /** The field's width and insets, from the role its call site already wore. */
   className: string
+  /** A field of its own, or the left segment of a group that wears the field's look (#499). */
+  shape?: 'field' | 'segment'
   /** Out of play, as a Metrics row the window cannot answer is (#803): the field takes no press. */
   disabled?: boolean
+  /** A phone: the list opens in a bottom sheet headed by `label`, as the model list does (record 0252). */
+  sheet?: boolean
 }
 
 /**
  * A choice of one value from a short list, as the one menu rather than a
  * native select (record 0201): the chart's metric and the Metrics table's
- * aggregates at a desk. A native select opens the platform's own list, which
- * no stylesheet reaches, so at a desk it was the one menu that looked and
- * behaved like nothing else in the app. A phone keeps the native select,
- * whose picker rises from the bottom like every phone menu (record 0149).
+ * aggregates. A native select opens the platform's own list, which no
+ * stylesheet reaches, so at a desk it was the one menu that looked and
+ * behaved like nothing else in the app. A phone kept the native select until
+ * 2026-10-30, whose field was then a second control drawn to look like this
+ * one and lit its edge where this did not; it opens the one menu's sheet now,
+ * as the model list does (record 0252).
  *
  * The WAI-ARIA listbox pattern, as the model list wears it: the field is a
  * button that opens a `listbox`, the list takes the keyboard when it opens
@@ -171,6 +180,8 @@ export function MenuSelect<V extends string>({
   onChange,
   className,
   disabled = false,
+  shape = 'field',
+  sheet = false,
 }: MenuSelectProps<V>) {
   const [open, setOpen] = useState(false)
   const selectedIndex = Math.max(
@@ -180,7 +191,13 @@ export function MenuSelect<V extends string>({
   const [active, setActive] = useState(selectedIndex)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const { popoverRef, box, closing } = usePopover({ open, onOpenChange: setOpen, triggerRef, initialFocusRef: listRef })
+  // Closed to the hook on a phone, whose sheet places and dismisses itself.
+  const { popoverRef, box, closing } = usePopover({
+    open: open && !sheet,
+    onOpenChange: setOpen,
+    triggerRef,
+    initialFocusRef: listRef,
+  })
   const listId = useId()
   const nameId = useId()
   const valueId = useId()
@@ -211,9 +228,9 @@ export function MenuSelect<V extends string>({
     <>
       <MenuButton
         ref={triggerRef}
-        shape="field"
+        shape={shape}
         open={open}
-        aria-haspopup="listbox"
+        aria-haspopup={sheet ? 'dialog' : 'listbox'}
         aria-labelledby={`${nameId} ${valueId}`}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openList())}
@@ -232,8 +249,13 @@ export function MenuSelect<V extends string>({
           {options[selectedIndex]?.label ?? value}
         </span>
       </MenuButton>
-      {box && (
-        <Menu box={box} popoverRef={popoverRef} closing={closing}>
+      {(box || (sheet && open)) && (
+        <Menu
+          box={box}
+          popoverRef={popoverRef}
+          closing={closing}
+          sheet={sheet ? { heading: label, onClose: () => setOpen(false) } : undefined}
+        >
           <div
             ref={listRef}
             role="listbox"

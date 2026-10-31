@@ -88,7 +88,7 @@ export interface MapStageProps {
   /** The displayed rows and the named destinations not yet forecast. */
   report: Pick<PresentedReport, 'results' | 'pending'>
   /** The columns a marker's popup lists, and the model label it falls back to. */
-  tableView: Pick<TableView, 'tableColumns' | 'analysisModelLabel'>
+  tableView: Pick<TableView, 'tableColumns' | 'analysisModelLabel' | 'handleAggregateMove'>
   /** Which destinations stand near an active wildfire. */
   fire: Pick<FireProximity, 'warnings'>
   /** Which destinations stand inside an active Forest Service area closure. */
@@ -193,6 +193,7 @@ export default function MapStage({
   const [locateSlot, setLocateSlot] = useState<HTMLDivElement | null>(null)
   // The compass's, under it at a phone's chip row's end (record 0147).
   const [compassSlot, setCompassSlot] = useState<HTMLDivElement | null>(null)
+  const [terrainSlot, setTerrainSlot] = useState<HTMLDivElement | null>(null)
   // A desk's corner (`MapCorner`, record 0174), which stands the compass, the
   // locate button, the zoom pair, the credit line and the scale.
   const [cornerSlots, setCornerSlots] = useState<CornerSlots | null>(null)
@@ -357,6 +358,14 @@ export default function MapStage({
           showRadar={overlays.showRadar}
           showSmoke={overlays.showSmoke}
           showSnow={overlays.showSnow}
+          showContours={overlays.showContours}
+          showRelief={overlays.showRelief}
+          showSlope={overlays.showSlope}
+          showSatellite={overlays.showSatellite}
+          baseOpacity={overlays.baseOpacity}
+          showTerrain={overlays.showTerrain}
+          onTerrainChange={overlays.setShowTerrain}
+          showFireActivity={overlays.showFireActivity}
           radarIndex={timeline.radarIndex}
           gridSpec={grid.grid.spec}
           gridCells={grid.grid.cells}
@@ -367,6 +376,7 @@ export default function MapStage({
           onAddPoi={handleAddPoi}
           onRemovePoi={handleRemovePoi}
           onRemoveResult={removeResult}
+          onMoveAggregate={tableView.handleAggregateMove}
           cameraPadBottomPx={layout.cameraPadBottomPx}
           restoredView={restoredView}
           onCameraMove={urlSync.reportView}
@@ -374,6 +384,7 @@ export default function MapStage({
           maxPolygonPoints={maxPolygonPoints}
           locateSlot={locateSlot}
           compassSlot={compassSlot}
+          terrainSlot={terrainSlot}
           cornerSlots={cornerSlots}
         />
       </div>
@@ -383,6 +394,7 @@ export default function MapStage({
         searchPointed={searchPointed}
         onLocateSlot={setLocateSlot}
         onCompassSlot={setCompassSlot}
+        onTerrainSlot={setTerrainSlot}
         desk={isDesktop}
         sidebarOpen={sidebarOpen}
         onOpenControls={onOpenControls}

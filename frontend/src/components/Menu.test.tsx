@@ -340,20 +340,15 @@ describe('MenuButton', () => {
 
   // The hover and the open state are the shape's roles, read here as the
   // classes the shape wears, so a trigger cannot drift to a hover of its own.
-  it('lights the edge and the label under the pointer, and the open state on aria-expanded', () => {
-    const words = (classes: string) => classes.split(' ')
-    const fill = words(ACCENT.fill).find((t) => t.startsWith('bg-'))!
-    const edge = ACCENT.edgeHover.replace(/^hover:/, '')
-    expect(words(MENU_TRIGGER.chip)).toContain(ACCENT.edgeHover)
-    expect(words(MENU_TRIGGER.chip)).toContain(ACCENT.hoverText)
-    expect(words(MENU_TRIGGER.field)).toContain(`enabled:${ACCENT.edgeHover}`)
-    expect(words(MENU_TRIGGER.field)).toContain(`enabled:${ACCENT.hoverText}`)
-    expect(words(MENU_TRIGGER.bar)).toContain(ACCENT.hoverText)
-    expect(MENU_TRIGGER.bar).not.toMatch(/hover:border/)
-    expect(words(MENU_TRIGGER.chip)).toContain(`aria-expanded:${fill}`)
-    expect(words(MENU_TRIGGER.bar)).toContain(`aria-expanded:${fill}`)
-    expect(words(MENU_TRIGGER.field)).toContain(`aria-expanded:${edge}`)
-    expect(MENU_TRIGGER.field).not.toContain('aria-expanded:bg-')
+  it('lights the label under the pointer, never the edge, and the open state on aria-expanded', () => {
+    const words = (classes: string) => classes.split(/\s+/)
+    for (const shape of Object.values(MENU_TRIGGER)) expect(words(shape)).toContain(ACCENT.hoverText)
+    // One open state for all three: the accent fill under the label-on-fill
+    // ink (record 0251).
+    for (const shape of Object.values(MENU_TRIGGER)) {
+      expect(shape).not.toMatch(/hover:border/)
+      for (const part of words(ACCENT.fill)) expect(words(shape)).toContain(`aria-expanded:${part}`)
+    }
   })
 
   it('points its chevron down while shut and up while open', () => {

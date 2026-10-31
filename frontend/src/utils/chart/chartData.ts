@@ -3,7 +3,7 @@ import { cloudDeckMark } from '../cloudDeckMark'
 import { HOURLY_UNIT, MetricFamily, RANKED_FAMILIES, familyOf, formatPrecipRate, metricLabel } from '../../metrics'
 import { setKey } from '../points'
 import { TYPE_COL } from '../tableColumns'
-import { clamp } from '../numbers'
+import { clamp, grouped as groupDigits } from '../numbers'
 import { HOUR_MS } from '../forecastWindow'
 
 /**
@@ -39,6 +39,74 @@ export const CHART_METRICS: { key: ChartMetric; label: string }[] = RANKED_FAMIL
 // naming one of them each opened the precipitation chart for the other two.
 export function metricForSort(sortBy: SortBy): ChartMetric {
   return familyOf(sortBy)
+}
+
+/**
+ * The chart's metric slots (#499), top left first: one to four distinct
+ * families, each drawn as its own panel. The first is the primary, which
+ * follows the ranking.
+ */
+export type ChartMetrics = readonly ChartMetric[]
+
+/**
+ * The most panels a desk draws (#499; TJ 2026-10-29): four is a 2x2 grid,
+ * past which each panel at a laptop's chart height is shorter than its own
+ * axis labels can stand in.
+ */
+export const MAX_CHART_PANELS = 4
+
+/** The slots a session opens on: the ranking's family alone. */
+export function metricsFor(sortBy: SortBy): ChartMetrics {
+  return [metricForSort(sortBy)]
+}
+
+/**
+ * Put a metric in slot `index`, from its picker or (slot 0) from a new
+ * ranking. One rule for every slot: a metric another slot already holds swaps
+ * the two rather than drawing one family twice, so precipitation over
+ * temperature ranked by temperature becomes temperature over precipitation.
+ * Answers the same list when nothing moves, so a memoized chart is handed the
+ * value it already has.
+ */
+export function pickMetric(metrics: ChartMetrics, index: number, metric: ChartMetric): ChartMetrics {
+  if (index < 0 || index >= metrics.length || metrics[index] === metric) return metrics
+  const next = [...metrics]
+  const other = metrics.indexOf(metric)
+  if (other >= 0) next[other] = metrics[index]
+  next[index] = metric
+  return next
+}
+
+/** Add a slot holding the first family of `CHART_METRICS` not drawn yet, up to `MAX_CHART_PANELS`. */
+export function addMetric(metrics: ChartMetrics): ChartMetrics {
+  if (metrics.length >= MAX_CHART_PANELS) return metrics
+  const unused = CHART_METRICS.find((m) => !metrics.includes(m.key))
+  return unused ? [...metrics, unused.key] : metrics
+}
+
+/** Take slot `index` away. Never the first, which the ranking keeps. */
+export function removeMetric(metrics: ChartMetrics, index: number): ChartMetrics {
+  if (index <= 0 || index >= metrics.length) return metrics
+  return metrics.filter((_, i) => i !== index)
+}
+
+/**
+ * Move the panel in slot `from` to slot `to` (#499; TJ 2026-10-30), the
+ * others closing up behind it, so the panels follow the row's new order.
+ * The first slot never moves and nothing moves into it: it is the
+ * ranking's. A move that changes nothing hands the same list back.
+ */
+export function moveMetric(metrics: ChartMetrics, from: number, to: number): ChartMetrics {
+  if (from <= 0 || from >= metrics.length || to <= 0 || to >= metrics.length || from === to) return metrics
+  const next = metrics.slice()
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved)
+  return next
+}
+
+/** Whether a link's word names a chart metric. */
+export function isChartMetric(raw: string): raw is ChartMetric {
+  return CHART_METRICS.some((m) => m.key === raw)
 }
 
 // Coordinate-based identity: it survives the table's client-side re-sorting and
@@ -321,14 +389,29 @@ export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): numb
  * plain format, because a tick is a round number on a scale, not a reading.
  */
 export function formatTooltipValue(v: number, metric: ChartMetric): string {
-  return (metric === 'cloud_deck' ? cloudDeckMark(v, false) : null) ?? formatMetricValue(v, metric)
+  return (metric === 'cloud_deck' ? cloudDeckMark(v) : null) ?? formatMetricValue(v, metric)
+}
+
+/**
+ * A card row's cells (#499): each drawn metric's value at the hour, through
+ * its own formatter, top left panel first. Bare numbers, because the card's
+ * header names each column with its unit; a metric with no value at that hour
+ * is an empty cell, so the columns stay in step.
+ */
+export function cardCells(line: ChartLine, metrics: ChartMetrics, index: number): string[] {
+  return metrics.map((m) => {
+    const v = valueAt(line, m, index)
+    return v === null ? '' : formatTooltipValue(v, m)
+  })
 }
 
 export function formatMetricValue(v: number, metric: ChartMetric): string {
   if (metric === 'precip' || metric === 'snowfall') return formatPrecipRate(v)
   // Whole units: an AQI is an integer index, and a freezing level or a cloud
   // deck in feet carries no decimal the model could support.
-  if (metric === 'aqi' || metric === 'freeze' || metric === 'cloud_deck') return v.toFixed(0)
+  // Grouped in thousands, as the table and the marker popup print a height
+  // (TJ 2026-10-30), so one number reads alike on all three.
+  if (metric === 'aqi' || metric === 'freeze' || metric === 'cloud_deck') return groupDigits(Math.round(v))
   return v.toFixed(1)
 }
 
@@ -350,10 +433,20 @@ const AXIS_DATE_SPAN_MS = 48 * HOUR_MS
  * A calendar makes a 16-day range two clicks (#166), where it used to mean typing
  * two datetimes, so the long-span case went from rare to ordinary.
  */
+// One formatter per face, made on first use. `toLocaleString` with options
+// builds a new Intl.DateTimeFormat on every call, and Recharts formats every
+// candidate tick on every redraw to see which fit: at 15 days that was 17 ms
+// of a 141 ms redraw (measured 2026-10-29, #499).
+let dateTick: Intl.DateTimeFormat | undefined
+let dayTick: Intl.DateTimeFormat | undefined
+
 export function axisTimeLabel(t: number, spanMs: number): string {
-  return spanMs > AXIS_DATE_SPAN_MS
-    ? new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric' })
-    : new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric' })
+  if (spanMs > AXIS_DATE_SPAN_MS) {
+    dateTick ??= new Intl.DateTimeFormat([], { month: 'short', day: 'numeric', hour: 'numeric' })
+    return dateTick.format(t)
+  }
+  dayTick ??= new Intl.DateTimeFormat([], { weekday: 'short', hour: 'numeric' })
+  return dayTick.format(t)
 }
 
 /**
@@ -404,6 +497,11 @@ const CURSOR_POINT_BUDGET = 25_000
  * than destinations analyzed, so unchecking rows in the table brings the
  * emphasis back. The tooltip itself is unaffected either way: Recharts tracks
  * the cursor for that on its own.
+ *
+ * `lineCount` is every path a hover redraws, which with a second panel is
+ * each line twice (#499): a hover's emphasis dims a destination in both
+ * panels, so both re-render on every move, and the budget was calibrated on
+ * the cost of that re-render rather than on how many destinations it shows.
  */
 export function tracksCursor(timestampCount: number, lineCount: number): boolean {
   return timestampCount * lineCount <= CURSOR_POINT_BUDGET
@@ -592,12 +690,14 @@ export function nearestKey(
 // hangs over the results table below it.
 //
 // The two measurements are of the rendered card: a row is the 12px control
-// step on its default line box, and the chrome is the card's vertical padding
-// plus the timestamp line above the rows and the "+N more" line below them.
+// step on its default line box, and the chrome is the card's rim, the header
+// band with the hour (34px), the body's padding (14px) and the footer with
+// "+N more" (27px), the card's anatomy since it took the marker popup's
+// (#499; TJ 2026-10-29).
 // Both are deliberately slight over-estimates, so the cap errs toward one row
 // fewer rather than one row of overhang.
 export const TOOLTIP_ROW_PX = 18
-export const TOOLTIP_CHROME_PX = 46
+export const TOOLTIP_CHROME_PX = 78
 
 // Eight is where the card stops being scannable, so height can only ever
 // lower it. One is the floor: a tooltip listing nothing is worse than a

@@ -69,6 +69,9 @@ export function resultPopupHtml(d: {
   // Whether the grid takes its narrow insets, for a map too narrow for the
   // widest grid at full inset (`compactGrid`).
   compact?: boolean
+  // Each grid column's width once a reader dragged its head's edge, which
+  // every result card shares (TJ 2026-10-30).
+  widths?: Readonly<Record<string, number>>
   // The map's zoom when the card is drawn, which the coordinates' CalTopo link
   // carries so the reader lands on the view they were looking at (#712).
   // Optional for a card built with no map under it, which links without one.
@@ -136,7 +139,7 @@ export function resultPopupHtml(d: {
   const grid = popupGrid(
     popupGroups(r, d.columns, { modelId: d.modelId, times: d.times, rankedBy: d.rankedBy, pointSample: d.pointSample }),
   )
-  const body = grid.rows.length ? metricGrid(grid, { compact: d.compact }) : ''
+  const body = grid.rows.length ? metricGrid(grid, { compact: d.compact, widths: d.widths }) : ''
 
   const title = `${d.rank ? `#${escapeHtml(String(d.rank))} ` : ''}${escapeHtml(r.name)}`
   // The clicked feature's remove, in its words and its look (#712), so the

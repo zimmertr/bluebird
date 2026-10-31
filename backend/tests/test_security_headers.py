@@ -345,14 +345,27 @@ LINK_ONLY_HOSTS = {
     # The map a popup's coordinate pair opens (#712); nothing is fetched from it.
     "caltopo.com",
     "climate.copernicus.eu",
+    # The address inside EOX's own credit line, which the satellite layer's
+    # source carries to the map corner (#799); its tiles come from
+    # tiles.maps.eox.at.
+    "cloudless.eox.at",
     "creativecommons.org",
     "data-nifc.opendata.arcgis.com",
+    # The credit link for the fire detections (#799); the pod fetches them
+    # from firms.modaps.eosdis.nasa.gov, so the browser never does.
+    "earthdata.nasa.gov",
     "github.com",
+    # The credit link for the elevation tiles (#799); the tiles come from
+    # tiles.mapterhorn.com.
+    "mapterhorn.com",
     "nominatim.org",
     "open-meteo.com",
     "opendatacommons.org",
     "openfreemap.org",
     "polyformproject.org",
+    # The credit link for EOX's mosaic (#799); its tiles come from
+    # tiles.maps.eox.at.
+    "s2maps.eu",
     "www.cloudflare.com",
     "www.fs.usda.gov",
     # A crag row's name opens a search here (#715); nothing is fetched from it.
@@ -362,6 +375,9 @@ LINK_ONLY_HOSTS = {
     "www.openstreetmap.org",
     "www.ospo.noaa.gov",
     "www.peakbagger.com",
+    # The credit link for the USGS imagery (#799); its tiles come from
+    # basemap.nationalmap.gov.
+    "www.usgs.gov",
     "www.weather.gov",
     "www.windy.com",
 }

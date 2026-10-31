@@ -2,12 +2,13 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { useExit } from '../hooks/useExit'
-import { familyOf, metricLabel } from '../metrics'
+import { SEP, familyOf, metricLabel } from '../metrics'
 import type { SortBy } from '../types'
 import {
   ACCENT,
+  CHIP_CARD_W,
   CONTROL_SIZE,
-  DISABLED,
+  LEGEND_GRID_STYLE,
   LINK,
   MAP_CHIP_MENU,
   RADIUS,
@@ -15,6 +16,7 @@ import {
   SR_ONLY,
   SURFACE_CHIP_CARD,
   SWATCH_CHIP,
+  SWATCH_STAR,
   SWATCH_EDGE,
   SWATCH_LINE,
   SWATCH_RAMP,
@@ -23,15 +25,19 @@ import {
   TEXT,
 } from '../styles'
 import BottomSheet from './BottomSheet'
+import { IconFireAge } from './icons'
 import { MenuButton } from './Menu'
 import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
+import { FIRMS_HREF, fireActivityLegendChips } from '../utils/fireActivity'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF, radarSwatchCss } from '../utils/radar'
 import { legendMaxCss } from '../utils/results/resultsSheet'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from '../utils/smoke'
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../utils/snowDepth'
+import { SLOPE_BANDS, slopeRampCss, slopeTicks } from '../utils/slopeAngle'
+import { MAPTERHORN_HREF } from '../utils/terrainSources'
 import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
 
 /**
@@ -47,9 +53,9 @@ import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
  * scale section is 40px where two of them under their strips were 54 apiece
  * (TJ, 2026-09-17).
  *
- * One function for both, and one for the metric key and the layers alike,
- * because the sections are sorted by their labels at the call site: a shape
- * that could only be built inline could not take its place in that order. They
+ * One function for every shape, and one for the metric key and the layers alike,
+ * so every section is a member of one list that `legendSections` orders: a
+ * shape that could only be built inline could not take its place in it. They
  * had already drifted into two shapes once, six swatch rows against a strip.
  *
  * `credit` is what the data licences ask for, and it is a section's own rather
@@ -127,6 +133,10 @@ function legendSection({
                 tick.align === 'center'
                   ? `${tick.at} / ${tick.at + 2}`
                   : `${tick.at + 1} / span 1`,
+              // One row for every tick: two on neighbouring boundaries, as
+              // the slope key's are (#799), share a column, and placed
+              // automatically the second would drop to a row of its own.
+              gridRow: 1,
               justifySelf: tick.align,
             }}
           >
@@ -151,10 +161,17 @@ export interface LegendInputs {
   /** Which overlays are on, each keyed by a section. */
   overlays: Pick<
     MapOverlays,
-    'showWildfires' | 'showAreaClosures' | 'showTrailClosures' | 'showRadar' | 'showSmoke' | 'showSnow'
+    | 'showWildfires'
+    | 'showAreaClosures'
+    | 'showTrailClosures'
+    | 'showRadar'
+    | 'showSmoke'
+    | 'showSnow'
+    | 'showFireActivity'
+    | 'showSlope'
   >
   /** The forecast grid's state and its row (`useGridLayer`). */
-  grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend'>
+  grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend' | 'gridStyle' | 'setGridStyle'>
 }
 
 /** One section, as `legendSection` draws it. */
@@ -165,34 +182,43 @@ export type LegendSectionSpec = Parameters<typeof legendSection>[0]
  * answer a desk's box on the map and a phone's Legend sheet both draw (#696),
  * so the two cannot disagree about what is keyed. Empty when nothing on the
  * map has anything to key, which is also what greys the phone's Legend chip.
- * `smokeId` is the caller's `useId`, which names the smoke chips' hidden words.
+ * `smokeId` is the caller's `useId`, which names the smoke chips' hidden words
+ * and, with a suffix of their own, the fire chips'.
  */
 export function legendSections(
   { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }: LegendInputs,
   smokeId: string,
 ): LegendSectionSpec[] {
-  const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow } = overlays
-  const { gridPainted, gridCued, gridFailed, gridLegend } = grid
+  const {
+    showWildfires,
+    showAreaClosures,
+    showTrailClosures,
+    showRadar,
+    showSmoke,
+    showSnow,
+    showFireActivity,
+    showSlope,
+  } = overlays
+  const { gridPainted, gridCued, gridFailed, gridLegend, gridStyle, setGridStyle } = grid
   // ONE box, gaining and losing sections as the report and the
   // layers change (#454). It was two — the layer rows in one, the
   // six-row metric key in another — which cost a border, a gap and
   // a second backdrop on a map that can be 161px tall on a phone.
   //
-  // **Alphabetical by the label each section READS**, the metric
-  // key included (TJ, 2026-09-17). Nothing ranks these against
-  // each other — no cost, no severity, no dependency — so any
-  // other order is one the reader has to learn, and a key that is
-  // a list member cannot be a headline above the list. It costs
-  // the metric key a fixed position: a temperature ranking sorts
-  // last and an AQI one first. That is the order working rather
-  // than the key moving on its own, and it is the same rule that
-  // moved `Active wildfire` off the bottom, where it had been
-  // sorting under the Layers popover's own name for it.
+  // **In the Layers menu's order** (record 0249): the metric key
+  // first, then the base map's one key (the slope bands), the
+  // hazards and the forecast, each in the order its rows stand in
+  // the menu, so a reader who just ticked a row finds its key
+  // where the row stood. No headings: the legend is a key rather
+  // than a list of switches, and a section stands only while its
+  // layer is on, so a heading would often head one line. The
+  // metric key leads because it keys the markers, which stand on
+  // the map whatever layer is on; it was sorted among the others
+  // by its label until the menu took groups, which moved it with
+  // every ranking.
   //
-  // Sorted on the way out rather than written in order, because one of
-  // the labels is the ranked metric's and changes under the reader.
-  // Every label is spelled once, as the sort key AND as what the
-  // section renders, so the two cannot disagree.
+  // Written in order rather than sorted, so the source reads as
+  // the card does.
   const sections: LegendSectionSpec[] = [
     // Keyed to the markers OR to the grid, because either can be
     // the only colored thing on screen: a live filter can empty
@@ -236,6 +262,24 @@ export function legendSections(
           },
         ]
       : []),
+    // The slope angle shading (#799): six avalanche bands, keyed as a scale
+    // because they are one, each number the degrees its band starts at. The
+    // shading is the app's own reading of Mapterhorn's elevation, and the
+    // section names whose elevation it is, as every layer drawn from somebody
+    // else's data does.
+    ...(showSlope
+      ? [
+          {
+            label: 'Slope angle',
+            credit: { href: MAPTERHORN_HREF, name: 'Mapterhorn' },
+            ramp: {
+              css: slopeRampCss(),
+              ticks: slopeTicks(),
+              bands: SLOPE_BANDS.length,
+            },
+          },
+        ]
+      : []),
     // CC BY 3.0 wants the credit wherever the fire data is drawn,
     // and section 4(b) lets it be "implemented in any reasonable
     // manner" — so it is the section's own label. The licence URI
@@ -244,7 +288,7 @@ export function legendSections(
     ...(showWildfires
       ? [
           {
-            label: 'Active wildfire',
+            label: 'Active wildfires',
             credit: { href: NIFC_HREF, name: 'NIFC' },
             swatch: (
               <span
@@ -255,84 +299,35 @@ export function legendSections(
           },
         ]
       : []),
-    // The closure orders (#550). US government work, so no licence
-    // asks for the credit; it is here because every layer that draws
-    // somebody else's data names them in its own section. The area
-    // keys on the fire's chip in the closure hue, and the trail on a
-    // dashed rule, because a line is what it draws.
-    ...(showAreaClosures
+    // The satellite fire detections (#799): one line like Smoke's, an icon
+    // per age band, newest first, each the band's fill on the layer's ink
+    // with the hour the band ends at drawn on it, read from the module that
+    // paints the map so the key and the picture cannot disagree.
+    // FIRMS asks to be acknowledged wherever its data is used; the section's
+    // credit is that, and NOTICES.md carries the full sentence.
+    ...(showFireActivity
       ? [
           {
-            label: 'Area closures',
-            credit: { href: USFS_HREF, name: 'USFS' },
+            label: 'Fire activity',
+            credit: { href: FIRMS_HREF, name: 'FIRMS' },
             swatch: (
-              <span
-                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                style={closureAreaSwatch()}
-              />
-            ),
-          },
-        ]
-      : []),
-    ...(showTrailClosures
-      ? [
-          {
-            label: 'Trail closures',
-            credit: { href: USFS_HREF, name: 'USFS' },
-            swatch: <span className={SWATCH_LINE} style={closureTrailSwatch()} />,
-          },
-        ]
-      : []),
-    // No swatch: the grid's colours are the metric key's, which
-    // the markers share. What this row adds is the one thing that
-    // IS the grid's own — how far apart the samples are, or why
-    // it is not there yet. Every state right-justifies its value
-    // like every other row, statuses included: one row breaking
-    // the column reads as a fault rather than as a distinction.
-    ...(gridPainted || gridCued || gridFailed
-      ? [
-          {
-            label: gridLegend.label,
-            swatch: (
-              // Colored by state (TJ, 2026-08-21): amber while
-              // the grid is waiting or loading so a stall catches
-              // the eye, red when it failed, and the accent once
-              // the pitch is real. The size is the colorless
-              // CONTROL_SIZE because a color beside
-              // TEXT.control's own would resolve by stylesheet
-              // order.
-              <span
-                className={`${CONTROL_SIZE} ${
-                  gridLegend.kind === 'pitch'
-                    ? ACCENT.text
-                    : gridLegend.kind === 'error'
-                      ? STATUS.error
-                      : STATUS.warn
-                } flex-shrink-0`}
-              >
-                {gridLegend.value}
+              <span className="flex flex-shrink-0 gap-0.5">
+                {fireActivityLegendChips().map((chip) => (
+                  // The hour alone does not say what it bounds, so the band's
+                  // words ride in the chip as hidden text, the smoke chips'
+                  // pattern without their title (#576).
+                  <span
+                    key={chip.hours}
+                    className={SWATCH_STAR}
+                    aria-describedby={`${smokeId}-fire-${chip.hours}`}
+                  >
+                    <IconFireAge hours={chip.hours} fill={chip.fill} ink={chip.ink} />
+                    <span id={`${smokeId}-fire-${chip.hours}`} className={SR_ONLY}>
+                      {chip.words}
+                    </span>
+                  </span>
+                ))}
               </span>
-            ),
-          },
-        ]
-      : []),
-    ...(showRadar
-      ? [
-          {
-            label: 'Rain radar',
-            credit: { href: IEM_HREF, name: 'IEM' },
-            // A gradient rather than banded swatches: NEXRAD's
-            // own reflectivity ramp is continuous, and a legend
-            // that invented boundaries would assert thresholds
-            // Bluebird Forecast does not know.
-            swatch: (
-              <span
-                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                style={{
-                  backgroundImage: radarSwatchCss(),
-                  borderColor: SWATCH_EDGE,
-                }}
-              />
             ),
           },
         ]
@@ -378,6 +373,55 @@ export function legendSections(
           },
         ]
       : []),
+    // The closure orders (#550). US government work, so no licence
+    // asks for the credit; it is here because every layer that draws
+    // somebody else's data names them in its own section. The area
+    // keys on the fire's chip in the closure hue, and the trail on a
+    // dashed rule, because a line is what it draws.
+    ...(showAreaClosures
+      ? [
+          {
+            label: 'Area closures',
+            credit: { href: USFS_HREF, name: 'USFS' },
+            swatch: (
+              <span
+                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                style={closureAreaSwatch()}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(showTrailClosures
+      ? [
+          {
+            label: 'Trail closures',
+            credit: { href: USFS_HREF, name: 'USFS' },
+            swatch: <span className={SWATCH_LINE} style={closureTrailSwatch()} />,
+          },
+        ]
+      : []),
+    ...(showRadar
+      ? [
+          {
+            label: 'Rain radar',
+            credit: { href: IEM_HREF, name: 'IEM' },
+            // A gradient rather than banded swatches: NEXRAD's
+            // own reflectivity ramp is continuous, and a legend
+            // that invented boundaries would assert thresholds
+            // Bluebird Forecast does not know.
+            swatch: (
+              <span
+                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                style={{
+                  backgroundImage: radarSwatchCss(),
+                  borderColor: SWATCH_EDGE,
+                }}
+              />
+            ),
+          },
+        ]
+      : []),
     // Hard-stopped between bands where the metric strip blends,
     // because those boundaries are NOAA's own classification —
     // the picture and its key have to agree, which is why both
@@ -395,8 +439,57 @@ export function legendSections(
           },
         ]
       : []),
+    // No swatch: the grid's colours are the metric key's, which
+    // the markers share. What this row adds is the one thing that
+    // IS the grid's own — how far apart the samples are, or why
+    // it is not there yet. Every state right-justifies its value
+    // like every other row, statuses included: one row breaking
+    // the column reads as a fault rather than as a distinction.
+    ...(gridPainted || gridCued || gridFailed
+      ? [
+          {
+            label: gridLegend.label,
+            swatch: (
+              // Colored by state (TJ, 2026-08-21): amber while
+              // the grid is waiting or loading so a stall catches
+              // the eye, red when it failed, and the accent once
+              // the pitch is real. The size is the colorless
+              // CONTROL_SIZE because a color beside
+              // TEXT.control's own would resolve by stylesheet
+              // order.
+              <span
+                className={`${CONTROL_SIZE} ${
+                  gridLegend.kind === 'pitch'
+                    ? ACCENT.text
+                    : gridLegend.kind === 'error'
+                      ? STATUS.error
+                      : STATUS.warn
+                } flex-shrink-0`}
+              >
+                {gridLegend.value}
+                {gridLegend.styleName !== undefined && (
+                  <>
+                    {` ${SEP} `}
+                    {/* The style's name is the button that switches it, the
+                        one control in the legend (the maintainer, 2026-10-30). */}
+                    <button
+                      type="button"
+                      aria-label={`Grid style: ${gridLegend.styleName}`}
+                      onClick={() => setGridStyle(gridStyle === 'smooth' ? 'blocks' : 'smooth')}
+                      className={LEGEND_GRID_STYLE}
+                    >
+                      {gridLegend.styleName}
+                      <span aria-hidden="true">⇄</span>
+                    </button>
+                  </>
+                )}
+              </span>
+            ),
+          },
+        ]
+      : []),
   ]
-  return sections.sort((a, b) => a.label.localeCompare(b.label))
+  return sections
 }
 
 /** The sections themselves, in their order, with no box around them: a phone's Legend sheet holds them (#696). */
@@ -467,7 +560,7 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
       chevron={!sheet}
       onClick={toggle}
       disabled={!shown}
-      className={DISABLED}
+      className="flex-shrink-0"
     >
       Legend
     </MenuButton>
@@ -494,7 +587,7 @@ export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown,
           // A popup keeps clear of this card (`resultsLayer.ts` finds every
           // `data-map-overlay`).
           data-map-overlay=""
-          className={`${SURFACE_CHIP_CARD.key} ${MAP_CHIP_MENU} flex flex-col gap-1 overflow-y-auto overscroll-contain`}
+          className={`${SURFACE_CHIP_CARD.key} ${MAP_CHIP_MENU} ${CHIP_CARD_W.key} flex flex-col gap-1 overflow-y-auto overscroll-contain`}
           // What is left of the map under the rows, less the floor the old
           // stack kept: the player's band while it is on screen and a plain
           // gap otherwise (`legendMaxPx`). A key too tall for that scrolls
