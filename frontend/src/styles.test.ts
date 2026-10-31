@@ -4691,6 +4691,20 @@ describe('the chart card', () => {
     expect(cls(CHART_CARD.foot)).toEqual(expect.arrayContaining(['border-t', 'border-rule', 'text-ink-soft']))
     expect(mapCss).toContain('--popup-band: var(--ui-band);')
   })
+  // A pinned card stands at the hover card's size (the maintainer,
+  // 2026-10-30): its ✕ pulled into the title's line, its arrow out of its
+  // head, no rule between rows, and its body clipped rather than scrolled.
+  it('keeps a pinned card at the hover card\'s size', () => {
+    // The 22px square against the 13px title's 17.3px line, and the 32px
+    // touch square: each margin leaves 16px, under the line.
+    expect(cls(CHART_CARD.unpin)).toEqual(expect.arrayContaining(['size-5.5', '-my-[3px]', 'touch:size-8', 'touch:-my-2']))
+    expect(22 - 2 * 3).toBeLessThanOrEqual(13 * (4 / 3))
+    expect(32 - 2 * 8).toBeLessThanOrEqual(13 * (4 / 3))
+    expect(cls(CHART_CARD.sortArrow)).toEqual(expect.arrayContaining(['absolute', 'right-full']))
+    expect(cls(CHART_CARD.sortHead)).not.toContain('gap-0.5')
+    expect(CHART_CARD.row).not.toMatch(/border-t/)
+    expect(cls(CHART_CARD.clip)).toContain('overflow-hidden')
+  })
   it('reads the title and the label ink on the band above AA in both themes', () => {
     const on = (ink: string) => [ratio(dark(ink), dark('band')), ratio(light(ink), light('band'))]
     expect([on('ink-strong'), on('ink-soft')]).toEqual([

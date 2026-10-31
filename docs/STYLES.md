@@ -773,7 +773,11 @@ dragged, with a small three-dot grip at its middle on the panel's fill, and a 16
 The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:
 the hour as a 13px title on the popup's `band` token, the rows in a body,
 and `+N more` in a footer. The band is an app token now (`--ui-band`), and
-map.css reads it for the popup, so the two cards share one band.
+map.css reads it for the popup, so the two cards share one band. A pinned
+card is the same card at the same size: its ✕ is pulled into the title's
+line by its margins, its sort arrow stands outside its head, its rows carry
+no rule, and its body clips to the rows its height holds, the rest counted
+in the same footer (record [0258](decisions/0258-a-pinned-chart-card-is-the-hover-card.md)).
 Every picker is the desk's `MenuSelect`, opening the one menu's sheet on a phone (record [0252](decisions/0252-every-trigger-is-one-component.md)).
 Record: [0255](decisions/0255-chart-metrics-as-panels.md)
 
