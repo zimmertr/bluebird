@@ -4701,6 +4701,9 @@ describe('the chart card', () => {
     expect(22 - 2 * 3).toBeLessThanOrEqual(13 * (4 / 3))
     expect(32 - 2 * 8).toBeLessThanOrEqual(13 * (4 / 3))
     expect(cls(CHART_CARD.sortArrow)).toEqual(expect.arrayContaining(['absolute', 'right-full']))
+    expect(cls(CHART_CARD.sortArrowAfter)).toEqual(expect.arrayContaining(['absolute', 'left-full']))
+    // The names' head on every card, left over the names, in the heads' type.
+    expect(CHART_CARD.nameHead).toBe(TEXT.subheading)
     expect(cls(CHART_CARD.sortHead)).not.toContain('gap-0.5')
     expect(CHART_CARD.row).not.toMatch(/border-t/)
     expect(cls(CHART_CARD.clip)).toContain('overflow-hidden')

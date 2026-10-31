@@ -1761,8 +1761,9 @@ function useCardInArea(cardRef: RefObject<HTMLDivElement | null>, areaRef: RefOb
 // to the cursor (focused line bold and first), capped so a big overlay stays
 // readable. With more than one panel it is one card on the hovered panel, a
 // column per metric under a header naming each with its unit, so the cells
-// print bare numbers (#499; TJ 2026-10-29). One metric's card has no header:
-// its picker already names the unit.
+// print bare numbers (#499; TJ 2026-10-29). Every card carries the heads, one
+// metric's too, with `Name` over the names, so a card pinned from it can sort
+// by name at the same size (the maintainer, 2026-10-30).
 function ChartTooltip({
   active,
   label,
@@ -1868,25 +1869,20 @@ function CardGrid({
   index: number
   tone: CardTone | null
 }) {
-  const headed = metrics.length > 1
   const shown = items
   return (
     <div
       className="grid items-center gap-x-3.5"
       style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${metrics.length}, auto)` }}
     >
-      {headed && (
-        <>
-          <span />
-          {metrics.map((m) => (
-            <span key={m} className={CHART_CARD.heads}>
-              {CHART_METRICS.find((c) => c.key === m)?.label}
-            </span>
-          ))}
-          {/* One rule under the heads, across every column. */}
-          <span className={CHART_CARD.rule} data-card-rule="" />
-        </>
-      )}
+      <span className={CHART_CARD.nameHead}>Name</span>
+      {metrics.map((m) => (
+        <span key={m} className={CHART_CARD.heads}>
+          {CHART_METRICS.find((c) => c.key === m)?.label}
+        </span>
+      ))}
+      {/* One rule under the heads, across every column. */}
+      <span className={CHART_CARD.rule} data-card-rule="" />
       {shown.map((it) => {
         const strong = it.key === focusedKey ? 'font-semibold text-ink-strong' : ''
         return (
@@ -1933,19 +1929,16 @@ const PIN_MIN = { w: 180, h: 96 }
 // The narrowest a reader may drag a column: a three-digit value and its head's arrow.
 const CARD_COL_MIN_PX = 40
 
-/**
- * Which metric orders a pinned card, and which way. The names have no head
- * to press, as the hover card's name column has none (the maintainer,
- * 2026-10-30).
- */
+/** Which column orders a pinned card: the names, or a metric. */
 interface PinSort {
-  col: ChartMetric
+  col: ChartMetric | 'name'
   desc: boolean
 }
 
 /** A pinned card's rows in its sort, a row with no value last either way. */
 function pinnedOrder(items: readonly TooltipItem[], index: number, sort: PinSort): TooltipItem[] {
   const dir = sort.desc ? -1 : 1
+  if (sort.col === 'name') return [...items].sort((a, b) => dir * a.line.label.localeCompare(b.line.label))
   const m = sort.col
   return [...items].sort((a, b) => {
     const va = valueAt(a.line, m, index)
@@ -2040,8 +2033,8 @@ function PinnedCard({
   const hour = fmtTooltipTime(pin.t)
   const items = pinnedOrder(cardItems(lines, metric, metrics, index, null, null), index, sort)
   const rest = Math.max(0, items.length - fits)
-  // A metric opens high to low, as the card first lists it.
-  const press = (col: ChartMetric) => setSort((s) => (s.col === col ? { col, desc: !s.desc } : { col, desc: true }))
+  // A metric opens high to low, as the card first lists it; names A to Z.
+  const press = (col: PinSort['col']) => setSort((s) => (s.col === col ? { col, desc: !s.desc } : { col, desc: col !== 'name' }))
   // The column a pointer stands over, by its head's span; the first metric
   // stays first, because it follows the ranking, as its panel does.
   const slotAt = (x: number): number | null => {
@@ -2116,14 +2109,11 @@ function PinnedCard({
       }),
     )
   }
-  // The column's right edge, which drags it wider or narrower.
-  const edge = (col: string) => (
-    <span onPointerDown={(e) => onEdgeDown(e, col)} className={CHART_CARD.colEdge} aria-hidden="true">
-      <span className={CHART_CARD.colLine} />
-    </span>
-  )
-  const head = (col: ChartMetric, k: number, label: ReactNode) => (
-    <span className={`${CHART_CARD.headCell} justify-end ${carry && carry.to === k && carry.m !== col ? CHART_CARD.dropAt : ''}`} data-card-col={k}>
+  const head = (col: PinSort['col'], k: number, label: ReactNode) => (
+    <span
+      className={`${CHART_CARD.headCell} ${col === 'name' ? 'justify-start' : 'justify-end'} ${carry && carry.to === k && carry.m !== col ? CHART_CARD.dropAt : ''}`}
+      data-card-col={k}
+    >
       <button
         type="button"
         aria-pressed={sort.col === col}
@@ -2132,13 +2122,17 @@ function PinnedCard({
         className={`${CHART_CARD.sortHead} ${k >= 1 && onMovePanel ? CHART_CARD.grab : ''}`}
       >
         {sort.col === col && (
-          <span className={`${CHART_CARD.sortArrow} ${ACCENT.text}`} aria-hidden="true">
+          <span className={`${col === 'name' ? CHART_CARD.sortArrowAfter : CHART_CARD.sortArrow} ${ACCENT.text}`} aria-hidden="true">
             {sort.desc ? '↓' : '↑'}
           </span>
         )}
         {label}
       </button>
-      {k < metrics.length - 1 && edge(col)}
+      {k < metrics.length - 1 && (
+        <span onPointerDown={(e) => onEdgeDown(e, col)} className={CHART_CARD.colEdge} aria-hidden="true">
+          <span className={CHART_CARD.colLine} />
+        </span>
+      )}
     </span>
   )
   const track = (col: string, fallback: string) => (widths[col] ? `${widths[col]}px` : fallback)
@@ -2168,17 +2162,12 @@ function PinnedCard({
           className="grid items-center gap-x-3.5"
           style={{ gridTemplateColumns: [track('name', 'minmax(0, 1fr)'), ...metrics.map((m) => track(m, 'auto'))].join(' ') }}
         >
-          {/* The hover card's heads: none over one metric, and over several
-              an empty one over the names, whose edge still sizes them. */}
-          {metrics.length > 1 && (
-            <>
-              <span className={CHART_CARD.headCell}>{edge('name')}</span>
-              {metrics.map((m, k) => (
-                <Fragment key={m}>{head(m, k, CHART_METRICS.find((c) => c.key === m)?.label)}</Fragment>
-              ))}
-              <span className={CHART_CARD.rule} />
-            </>
-          )}
+          {/* The hover card's heads, each a button that sorts the card. */}
+          {head('name', -1, 'Name')}
+          {metrics.map((m, k) => (
+            <Fragment key={m}>{head(m, k, CHART_METRICS.find((c) => c.key === m)?.label)}</Fragment>
+          ))}
+          <span className={CHART_CARD.rule} />
           {items.map((it, i) => (
             <div key={it.key} data-pin-row="" className={`${CHART_CARD.row} ${i < fits ? '' : 'invisible'}`}>
               <span className="flex min-w-0 items-center gap-1.5">

@@ -1481,6 +1481,10 @@ export const CHART_CARD = {
   // The heads in the results table's type (`TABLE.head`), one header style
   // across the table, the marker popup and the card (TJ 2026-10-30).
   heads: `${TEXT.subheading} text-right`,
+  // The head over the names, which every card carries (the maintainer,
+  // 2026-10-30), left like the names under it, so a pinned card can sort by
+  // name and still stand at the hover card's size.
+  nameHead: TEXT.subheading,
   rule: 'col-span-full h-px bg-frame mb-[3px]',
   foot: 'border-t border-rule px-2.5 py-[5px] text-xs text-ink-soft',
   // A row's name is always 160px and ends in an ellipsis past it, as a long
@@ -1503,10 +1507,12 @@ export const CHART_CARD = {
   // results table's heads do.
   grab: 'cursor-grab select-none active:cursor-grabbing',
   sortHead: `${TEXT.subheading} ${FOCUS_RING} relative flex items-center whitespace-nowrap ${ACCENT.hoverText} select-none`,
-  // The sorted head's arrow, outside its head in the gap before it, so a head
-  // is as wide as the hover card's and the arrow moves nothing (the
-  // maintainer, 2026-10-30).
+  // The sorted head's arrow, outside its head, so a head is as wide as the
+  // hover card's and the arrow moves nothing (the maintainer, 2026-10-30): in
+  // the gap before a metric's head, and after the names' head, in the room
+  // the name column has past its word.
   sortArrow: 'absolute right-full mr-0.5',
+  sortArrowAfter: 'absolute left-full ml-0.5',
   // A pinned card's row lights under the pointer as a results row does
   // (`TABLE.row`'s tint), one grid row across every column, with no rule
   // between rows, so it stands at the hover card's pitch.

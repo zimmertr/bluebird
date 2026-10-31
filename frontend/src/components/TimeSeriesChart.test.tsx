@@ -735,15 +735,17 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(chart.tooltipProps[chart.tooltipProps.length - 1].allowEscapeViewBox).toEqual({ x: true, y: true })
   })
 
-  it('keeps the one-metric card as it was: no header, bare numbers', () => {
+  // Every card carries its heads, one metric's too, so a card pinned from it
+  // sorts by name at the same size (the maintainer, 2026-10-30).
+  it('heads the one-metric card too, over bare numbers', () => {
     height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(209)
     render(<TimeSeriesChart {...props({ ...TWO, metrics: ['temp'] })} />)
     const card = chart.tooltips[chart.tooltips.length - 1]
     const shown = within(render(<>{card({ active: true, payload: [{ dataKey: 'x', value: 1 }], label: TIMES[T] })}</>).container)
-    expect(shown.queryByText(CHART_METRICS.find((m) => m.key === 'temp')!.label)).toBeNull()
+    expect(shown.getByText('Name')).toBeTruthy()
+    expect(shown.getByText(CHART_METRICS.find((m) => m.key === 'temp')!.label)).toBeTruthy()
     expect(shown.getByText('Sahale Mountain').parentElement!.nextElementSibling!.textContent).toBe('38.9')
-    // The same band and body, with no heads and no rule under them.
-    expect(shown.getByText('Sahale Mountain').closest('.overflow-hidden')!.querySelector('[data-card-rule]')).toBeNull()
+    expect(shown.getByText('Sahale Mountain').closest('.overflow-hidden')!.querySelector('[data-card-rule]')).not.toBeNull()
   })
 
   it('moves the playhead from a click on any panel', () => {
@@ -994,22 +996,30 @@ describe('TimeSeriesChart with more than one metric', () => {
     const heads = Array.from(pinnedCard().querySelectorAll<HTMLButtonElement>('button[aria-pressed]'))
     // One head orders the card, the clicked panel's metric.
     expect(heads.filter((h) => h.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
-    const other = heads.find((h) => h.getAttribute('aria-pressed') === 'false')!
-    fireEvent.click(other)
-    expect(other.getAttribute('aria-pressed')).toBe('true')
-    expect(other.textContent).toContain('↓')
-    fireEvent.click(other)
-    expect(other.textContent).toContain('↑')
+    // The names sort A to Z first, then turn round.
+    const name = screen.getByRole('button', { name: /^Name/ })
+    expect(name.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(name)
+    expect(name.getAttribute('aria-pressed')).toBe('true')
+    expect(name.textContent).toContain('↑')
+    fireEvent.click(name)
+    expect(name.textContent).toContain('↓')
+    // A metric opens high to low.
+    const metric = heads.find((h) => h !== name && h.getAttribute('aria-pressed') === 'false')!
+    fireEvent.click(metric)
+    expect(metric.textContent).toContain('↓')
+    fireEvent.click(metric)
+    expect(metric.textContent).toContain('↑')
   })
 
   // A pinned card is the hover card it was pinned from, at its size (the
-  // maintainer, 2026-10-30): no head over the names, an arrow only on the
-  // sorted head, outside it, and no rule between rows.
+  // maintainer, 2026-10-30): the hover card's heads, `Name` among them, an
+  // arrow only on the sorted head, outside it, and no rule between rows.
   it('pins a card that looks like the hover card', () => {
     const { container } = render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange: () => {} })} />)
     placePlot(container, 360)
     act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))
-    expect(screen.queryByRole('button', { name: /^Name/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /^Name/ })).toBeTruthy()
     const heads = Array.from(pinnedCard().querySelectorAll<HTMLButtonElement>('button[aria-pressed]'))
     // The arrow on the sorted head alone, outside its label's width.
     expect(heads.map((h) => h.textContent!.includes('↓'))).toEqual(heads.map((h) => h.getAttribute('aria-pressed') === 'true'))
