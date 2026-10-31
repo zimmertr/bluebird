@@ -39,7 +39,10 @@ import {
   SLOPE_ALPHA,
   coveringTile,
   demWindow,
+  groundAt,
   slopeRaster,
+  tilePixel,
+  type GroundReading,
   windowEdges,
   type EdgeTiles,
   type HeightGrid,
@@ -107,6 +110,13 @@ const toBitmap: ToImage = (rgba, width, height) => createImageBitmap(new ImageDa
  * zoom (Rainier at 14) carries no cache header, so the browser would ask again.
  */
 type MissingTiles = Set<string>
+
+/**
+ * The page's tiles known missing, shared by every reader of the elevation:
+ * the slope tiles, the filled elevation and the right-click card's point
+ * (#832), so none asks a tile another has already learned is not there.
+ */
+const SESSION_MISSING: MissingTiles = new Set()
 
 const keyOf = (z: number, x: number, y: number) => `${z}/${x}/${y}`
 
@@ -250,17 +260,44 @@ export async function slopeTile(
 }
 
 /**
+ * The ground at one point (#832): its height, slope and aspect from the
+ * finest elevation Mapterhorn holds under it, starting at
+ * {@link SLOPE_MAXZOOM} and falling back zoom by zoom to 12 as a slope tile
+ * does. The finest rather than the view's zoom, so the card names one slope
+ * for a spot however far out the reader is (the maintainer, 2026-10-30): a
+ * slope read off a coarser tile comes out gentler, which is the difference
+ * between 27 and 35 degrees on avalanche ground. Zoomed out, the shading under
+ * the pointer is painted from the coarser tile and may show a gentler band.
+ * Null where the ground has no height, over open ocean.
+ */
+export async function groundReading(
+  dem: DemGrids,
+  lat: number,
+  lon: number,
+  abort: AbortController,
+  missing: MissingTiles = SESSION_MISSING,
+): Promise<GroundReading | null> {
+  const top = tilePixel(lat, lon, SLOPE_MAXZOOM, 1)
+  const { level, centre } = await finestUnder(dem, SLOPE_MAXZOOM, top.x, top.y, abort, missing)
+  const at = coveringTile(SLOPE_MAXZOOM, top.x, top.y, level)
+  const grid = centre ?? (await dem.getDemTile(level, at.x, at.y, abort))
+  const { col, row } = tilePixel(lat, lon, level, grid.width)
+  return groundAt(grid, col, row, level, at.y)
+}
+
+/**
  * Registers the two schemes with MapLibre, the slope's and the filled
  * elevation's. Called once, when the contour library has loaded, so the cold
- * load registers nothing. The tiles known missing are this registration's,
- * the page's, and shared by both, since both read the same elevation.
+ * load registers nothing. The tiles known missing are the page's
+ * (`SESSION_MISSING`), shared by both and by the card's point, since all
+ * three read the same elevation.
  */
 export function serveSlopeTiles(
   dem: DemGrids,
-  deps: { register?: typeof addProtocol; toImage?: ToImage } = {},
+  deps: { register?: typeof addProtocol; toImage?: ToImage; missing?: MissingTiles } = {},
 ): void {
   const register = deps.register ?? addProtocol
-  const missing: MissingTiles = new Set()
+  const missing = deps.missing ?? SESSION_MISSING
   const address = (url: string) => (/(\d+)\/(\d+)\/(\d+)/.exec(url) ?? []).slice(1).map(Number)
   register(SLOPE_SCHEME, async (request, abort) => {
     const [z, x, y] = address(request.url)

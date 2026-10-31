@@ -52,11 +52,19 @@ vi.mock('maplibre-gl', () => ({
 
 import { mountCoordinatePopups } from './coordinatePopup'
 import { createMapController } from './controller'
-import { mapInputs } from '../testSupport/fixtures'
+import type { DemTiles } from './terrain'
+import { mapInputs, resultRow } from '../testSupport/fixtures'
+import { markupText } from '../testSupport/markupText'
 import { mountTestPopups } from '../testSupport/mapPopups'
 import { stubMap } from '../testSupport/stubMap'
-import { coordinatePlace, coordinatePopupHtml } from '../utils/coordinatePopup'
+import { FEET_PER_METER } from '../utils/basemapPoi'
+import { coordinatePlace } from '../utils/coordinatePopup'
 import type { Place } from '../utils/geocode'
+import { COVERAGE_PHRASE, OpenMeteoModelCoverage } from '../utils/openMeteoErrors'
+import { popupButton } from '../utils/popup/popupChrome'
+import { POI_ACTION_ATTR } from '../utils/poiPopup'
+import type { PointForecast, pointForecast } from '../utils/pointForecast'
+import { displayedColumns } from '../utils/tableColumns'
 
 const MAP_ZOOM = 13
 const AT = { lng: -121.832114999, lat: 48.790123456 }
@@ -70,12 +78,35 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function setup({ drawing = false, searchedPlaces = [] as Place[] } = {}) {
+// The spot's forecast as `pointForecast` would answer it: a temperature to find.
+const FORECAST: PointForecast = { row: resultRow({ temp_avg_f: 27.4 }), aqiFailed: false }
+
+/** Ground at 8,412 ft on every tile, flat, as the elevation tiles would answer it. */
+const FLAT_DEM = {
+  getDemTile: async () => ({ width: 4, height: 4, data: new Float32Array(16).fill(8412 / FEET_PER_METER) }),
+} as unknown as DemTiles
+
+function setup({
+  drawing = false,
+  searchedPlaces = [] as Place[],
+  answer = (async () => FORECAST) as typeof pointForecast,
+} = {}) {
   const stub = stubMap({ zoom: MAP_ZOOM })
-  const inputs = mapInputs({ drawing, searchedPlaces, onAddPoi: vi.fn(), onRemovePoi: vi.fn() })
+  const inputs = mapInputs({
+    drawing,
+    searchedPlaces,
+    onAddPoi: vi.fn(),
+    onRemovePoi: vi.fn(),
+    modelId: 'gfs_seamless',
+    modelFallbackLabel: 'NOAA GFS',
+    pointSample: true,
+    popupColumns: displayedColumns(true, 'aqi_avg'),
+  })
   const controller = createMapController(inputs)
   const { popups: mapPopups, click } = mountTestPopups(stub, controller)
-  mountCoordinatePopups(stub.map, { controller, popups: mapPopups })
+  const terrain = { demTiles: vi.fn(async () => FLAT_DEM), credit: vi.fn() }
+  const forecast = vi.fn(answer)
+  const coordinates = mountCoordinatePopups(stub.map, { controller, popups: mapPopups, terrain, forecast })
   const mouse = (type: string, button: number, x = 10, y = 10, shiftKey = false) =>
     stub.fire(type, undefined, { point: { x, y }, lngLat: AT, originalEvent: { button, shiftKey, preventDefault: () => {} } })
   const rightClick = (shiftKey = false) => {
@@ -84,15 +115,19 @@ function setup({ drawing = false, searchedPlaces = [] as Place[] } = {}) {
   }
   const touch = (type: string, x = 10, y = 10, fingers = 1) =>
     stub.fire(type, undefined, { point: { x, y }, points: Array(fingers).fill({ x, y }), lngLat: AT })
-  return { stub, inputs, mouse, rightClick, touch, click }
+  return { stub, inputs, controller, coordinates, terrain, forecast, mouse, rightClick, touch, click }
 }
+
+const ADD = popupButton(`${POI_ACTION_ATTR}="add"`, 'Add to analysis')
+const REMOVE = popupButton(`${POI_ACTION_ATTR}="remove"`, 'Remove from analysis')
 
 describe('mountCoordinatePopups', () => {
   it('opens the card for the spot a right-click lands on', () => {
     const { rightClick } = setup()
     rightClick()
     expect(popups).toHaveLength(1)
-    expect(popups[0].html).toBe(coordinatePopupHtml(PLACE, false, MAP_ZOOM))
+    expect(markupText(popups[0].html)).toContain('48.79012, -121.83211')
+    expect(popups[0].html).toContain(ADD)
   })
 
   // The map's own menu, not the browser's, answers a right-click on it.
@@ -165,16 +200,73 @@ describe('mountCoordinatePopups', () => {
     vi.runAllTimers()
     popups[0].press()
     expect(inputs.onAddPoi).toHaveBeenCalledWith(PLACE)
-    expect(popups[0].html).toBe(coordinatePopupHtml(PLACE, true, MAP_ZOOM))
+    expect(popups[0].html).toContain(REMOVE)
 
     vi.runAllTimers()
     popups[0].press()
     expect(inputs.onRemovePoi).toHaveBeenCalledWith(PLACE.lat, PLACE.lon)
-    expect(popups[0].html).toBe(coordinatePopupHtml(PLACE, false, MAP_ZOOM))
+    expect(popups[0].html).toContain(ADD)
   })
 
   it('knows a spot the session already holds', () => {
     setup({ searchedPlaces: [PLACE] }).rightClick()
-    expect(popups[0].html).toBe(coordinatePopupHtml(PLACE, true, MAP_ZOOM))
+    expect(popups[0].html).toContain(REMOVE)
+  })
+
+  // Option A: the card opens at once and fills in as the ground and the
+  // forecast land, for the window and model the inputs name.
+  it('fills in the ground and the forecast once each lands', async () => {
+    const { rightClick, forecast, inputs } = setup()
+    rightClick()
+    expect(markupText(popups[0].html)).not.toContain('27.4')
+    await vi.runAllTimersAsync()
+    expect(markupText(popups[0].html)).toMatch(/8,412 ft\s*·\s*0°/)
+    expect(markupText(popups[0].html)).toContain('27.4')
+    const [at, height, window] = forecast.mock.calls[0]
+    expect(at).toEqual({ lat: PLACE.lat, lon: PLACE.lon })
+    expect(await height).toBeCloseTo(8412, 0)
+    expect(window).toEqual({
+      startMs: inputs.forecastStartMs,
+      endMs: inputs.forecastEndMs,
+      model: 'gfs_seamless',
+      windowLimits: inputs.windowLimits,
+      aqiForecastDays: inputs.aqiForecastDays,
+    })
+  })
+
+  // Mapterhorn's elevation is CC BY 4.0, and with every terrain row off no
+  // source on the map credits it, so the card holds the credit while open.
+  it("holds Mapterhorn's credit while the card is open", async () => {
+    const { rightClick, terrain } = setup()
+    rightClick()
+    expect(terrain.credit).toHaveBeenLastCalledWith(true)
+    await vi.runAllTimersAsync()
+    // The next right-click takes this card down and opens its own.
+    rightClick()
+    expect(terrain.credit.mock.calls.map((c) => c[0])).toEqual([true, false, true])
+  })
+
+  it("says the model's failure in the card", async () => {
+    const { rightClick } = setup({
+      answer: (async () => {
+        throw new OpenMeteoModelCoverage('gfs_seamless')
+      }) as typeof pointForecast,
+    })
+    rightClick()
+    await vi.runAllTimersAsync()
+    expect(markupText(popups[0].html)).toContain(`NOAA GFS ${COVERAGE_PHRASE}`)
+  })
+
+  // A card left open across a new analysis follows it, as a ranked card does.
+  it('asks again when the window moves, and only then', async () => {
+    const { rightClick, controller, coordinates, forecast, inputs } = setup()
+    rightClick()
+    await vi.runAllTimersAsync()
+    coordinates.refresh()
+    expect(forecast).toHaveBeenCalledOnce()
+    controller.update({ ...inputs, forecastStartMs: inputs.forecastStartMs + 3_600_000 })
+    coordinates.refresh()
+    expect(forecast).toHaveBeenCalledTimes(2)
+    expect(forecast.mock.calls[0][3].aborted).toBe(true)
   })
 })

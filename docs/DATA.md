@@ -841,7 +841,9 @@ a gap in a map that otherwise drew, and says nothing.
 
 The Topographic, Shaded relief, Slope angle and Satellite rows, and the 3D
 terrain, read tiles the browser fetches itself from three more keyless hosts
-(#799). None of the five asks for anything until it is switched on.
+(#799). None of the five asks for anything until it is switched on, or,
+for the elevation, until a right-click card reads the ground under a spot
+(#832).
 
 **Elevation is Mapterhorn's**, one model behind the contours, the relief, the
 slope angle and the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere,
@@ -885,6 +887,15 @@ zoom out. A cliff band or a gully narrower than that is averaged with the
 ground beside it and reads gentler than it is. Past zoom 16 the shading is
 stretched, not worked out again. It is a planning picture, not a measurement
 of the slope you will stand on.
+
+**A right-click card reads one pixel of the same tiles** (#832): the height,
+the slope worked out as above, and the way the slope faces, from the finest
+tile Mapterhorn has under the spot, whatever the map's zoom. So the card can
+name a steeper band than the shading shows under the pointer when you are
+zoomed out, because the shading there is painted from a coarser tile. The
+card's wind and temperature are read at that height. While a card is open,
+the map's corner credits Mapterhorn, as it does while a terrain row is on
+(record [0253](decisions/0253-right-click-opens-a-card-for-the-spot.md)).
 
 **Imagery is two sources, one picture.** Over the United States and its
 territories it is USGS's NAIP aerial photography, to zoom 16, in the public

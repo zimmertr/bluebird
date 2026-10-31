@@ -69,6 +69,7 @@
   --popup-close-fill: var(--ui-raised);
   --popup-close-edge: var(--ui-frame);
   --popup-edge: var(--ui-edge);
+  --popup-swatch-edge: var(--ui-swatch-edge);
 }
 :root[data-theme="light"] {
   --popup-scheme: light;

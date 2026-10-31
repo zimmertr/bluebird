@@ -27,6 +27,7 @@ import type { PendingDestination } from '../utils/customList'
 import { ringPolygon, ringToPts } from '../utils/drawGeometry'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 import { createMapController, type MapInputs } from '../map/controller'
+import type { WindowLimits } from '../utils/forecastWindow'
 import { STYLE } from '../map/basemap'
 import { addAttribution, addControls, placeControl, type CornerSlots, type MapControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
@@ -239,6 +240,14 @@ interface Props {
   // The most positions a ring may carry (`limits.max_polygon_points`): the draw
   // tool places no point past it (#619).
   maxPolygonPoints: number
+  // The window a right-click card forecasts (#832), the report's: the last
+  // analysis's, else the panel's. Two numbers rather than an object, so the
+  // memo sees a change only when one moves.
+  forecastStartMs: number
+  forecastEndMs: number
+  // The deployment's window bounds and air-quality reach, for that forecast.
+  windowLimits: WindowLimits
+  aqiForecastDays: number
   // The round slot at the right of a phone's search pill, which the locate
   // button stands in (#696), or null at a desk and before the rows mount. A
   // DOM node held in state, so it is one identity for as long as the slot is
@@ -316,6 +325,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onCameraMove,
       onBasemapFailed,
       maxPolygonPoints,
+      forecastStartMs,
+      forecastEndMs,
+      windowLimits,
+      aqiForecastDays,
       locateSlot,
       compassSlot,
       terrainSlot,
@@ -391,6 +404,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onCameraMove,
       maxPolygonPoints,
       onTerrainChange,
+      forecastStartMs,
+      forecastEndMs,
+      windowLimits,
+      aqiForecastDays,
     }
     const [controller] = useState(() => createMapController(inputs))
     // Declared before every other effect so it runs first in a commit, and any
@@ -825,6 +842,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.results.refreshPopups()
     }, [results, sortBy, popupColumns, pointSample, modelId, times, modelFallbackLabel, fireWarnings, closureWarnings, mapReady])
+
+    // A right-click card follows the same way: its grid takes the columns,
+    // and a new window or model asks its forecast again (#832).
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.coordinates.refresh()
+    }, [popupColumns, pointSample, modelId, modelFallbackLabel, forecastStartMs, forecastEndMs, mapReady])
 
     // The forecast field and its arrows, on the same contract as the markers
     // above: one redraw per scrub tick, from series the browser already holds.

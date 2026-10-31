@@ -41,6 +41,7 @@ import type { UrlSync } from '../hooks/useUrlSync'
 import type { LayerCoverage } from '../utils/layerCoverage'
 import type { CornerSlots } from '../map/controls'
 import type { ActionWord } from '../utils/analyzeGate'
+import type { WindowLimits } from '../utils/forecastWindow'
 
 export interface MapStageProps {
   /** The map's handle; draw mode, the drawer and the table's focus callbacks drive it too. */
@@ -140,6 +141,12 @@ export interface MapStageProps {
   onBasemapFailed: (failed: boolean) => void
   /** The most positions a drawn ring may carry, from /api/capabilities. */
   maxPolygonPoints: number
+  /** The report's window, which a right-click card forecasts (#832). */
+  forecastStartMs: number
+  forecastEndMs: number
+  /** The deployment's window bounds and air-quality reach, from /api/capabilities. */
+  windowLimits: WindowLimits
+  aqiForecastDays: number
 }
 
 /**
@@ -184,6 +191,10 @@ export default function MapStage({
   restoredView,
   onBasemapFailed,
   maxPolygonPoints,
+  forecastStartMs,
+  forecastEndMs,
+  windowLimits,
+  aqiForecastDays,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
@@ -382,6 +393,10 @@ export default function MapStage({
           onCameraMove={urlSync.reportView}
           onBasemapFailed={onBasemapFailed}
           maxPolygonPoints={maxPolygonPoints}
+          forecastStartMs={forecastStartMs}
+          forecastEndMs={forecastEndMs}
+          windowLimits={windowLimits}
+          aqiForecastDays={aqiForecastDays}
           locateSlot={locateSlot}
           compassSlot={compassSlot}
           terrainSlot={terrainSlot}

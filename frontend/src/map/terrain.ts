@@ -58,6 +58,14 @@ export const CONTOUR_INDEX_LAYER = 'contours-index'
 export const CONTOUR_LABEL_LAYER = 'contours-label'
 /** The dark edge under every contour line while the satellite imagery is on. */
 export const CONTOUR_CASING_LAYER = 'contours-casing'
+/**
+ * An empty source carrying Mapterhorn's credit, and the layer that draws
+ * nothing from it, shown while a right-click card reads the elevation with
+ * no terrain row on (#832). MapLibre credits a source only while a visible
+ * layer uses it, so the layer's visibility is the credit's switch.
+ */
+export const CREDIT_SOURCE = 'ground-credit'
+export const CREDIT_LAYER = 'ground-credit'
 const CONTOUR_LAYERS = [CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER] as const
 
 /**
@@ -343,6 +351,20 @@ export interface TerrainLayers {
    * heights. A layer at 0 is hidden, as switched off, so it asks for nothing.
    */
   opacity(next: { relief: number; contours: number; slope: number }): void
+  /**
+   * The elevation tiles, loaded on the first ask, which is a switch's or the
+   * right-click card's (#832), whichever comes first: one library chunk, one
+   * worker and one cache for both, whether or not a row is on.
+   */
+  demTiles(): Promise<DemTiles>
+  /**
+   * Holds Mapterhorn's credit in the map's corner while a card shows its
+   * numbers, `true` once per card and `false` when that card closes; the
+   * credit stands while any card holds it. CC BY 4.0 asks for the credit
+   * wherever the data is shown, and with every terrain row off no source
+   * of the map's carries it.
+   */
+  credit(on: boolean): void
 }
 
 export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<DemTiles> } = {}): TerrainLayers {
@@ -357,6 +379,11 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
   let tiles: DemTiles | null = null
   let loading = false
   let standing = false
+  // The one load, which a switch and the card share; forgotten when it fails,
+  // so the next ask tries again.
+  let pending: Promise<DemTiles> | null = null
+  // The cards holding the credit.
+  let credits = 0
 
   // Under the style's first label and every `ofm-` layer the app adds
   // (`enhanceBasemap` puts its trails and labels there), so the trails, the
@@ -536,15 +563,26 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
     if (map.getLayer(SLOPE_LAYER)) map.setPaintProperty(SLOPE_LAYER, 'raster-opacity', level.slope)
   }
 
+  function loaded(): Promise<DemTiles> {
+    pending ??= load().then(
+      (got) => {
+        tiles = got
+        return got
+      },
+      (err: unknown) => {
+        pending = null
+        throw err
+      },
+    )
+    return pending
+  }
+
   function request() {
     if (tiles) return apply()
     if (loading || !(want.relief || want.contours || want.terrain || slopeWanted)) return
     loading = true
-    load().then(
-      (loaded) => {
-        tiles = loaded
-        apply()
-      },
+    loaded().then(
+      () => apply(),
       (err: unknown) => {
         // A failed chunk draws nothing and leaves the next switch to try
         // again; nothing else on the map depends on it.
@@ -575,6 +613,21 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
       // A level to or from 0 shows or hides its layer, which waits for the
       // tiles like a switch does.
       if (tiles) apply()
+    },
+    demTiles: loaded,
+    credit(on) {
+      credits = Math.max(0, credits + (on ? 1 : -1))
+      if (!map.getLayer(CREDIT_LAYER)) {
+        if (credits === 0) return
+        map.addSource(CREDIT_SOURCE, {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+          attribution: MAPTERHORN_ATTRIBUTION,
+        })
+        map.addLayer({ id: CREDIT_LAYER, type: 'circle', source: CREDIT_SOURCE })
+        return
+      }
+      show([CREDIT_LAYER], credits > 0)
     },
   }
 }

@@ -33,8 +33,9 @@ import type { GeoPolygon } from '../types'
 import { enhanceBasemap } from './basemap'
 import { mountCamera } from './camera'
 import type { MapController } from './controller'
-import { mountCoordinatePopups } from './coordinatePopup'
+import { mountCoordinatePopups, type CoordinatePopups } from './coordinatePopup'
 import { mountDrawRing, type DrawRing } from './drawRing'
+import { createGridHeads } from './gridHeads'
 import { serveHeldTiles } from './heldTileProtocol'
 import { mountLandmarks, type LandmarkLayer } from './landmarks'
 import { mountMapPopups } from './mapPopups'
@@ -66,6 +67,7 @@ export interface MapFeatures {
   results: ResultsLayer
   pois: PoiPopups
   terrain: TerrainLayers
+  coordinates: CoordinatePopups
 }
 
 /** The imagery's level from which the contours wear their ink for the photos: half. */
@@ -124,9 +126,12 @@ export function mountFeatures(
     onPolygonChange: deps.onPolygonChange,
     onDrawUpdate: deps.onDrawUpdate,
   })
-  const results = mountResultsLayer(map, { controller, popups: mapPopups })
+  // One set of grid heads for every card's forecast grid, the ranked marker's
+  // and the right-click card's, so a column sized on one is sized on both.
+  const gridHeads = createGridHeads(controller)
+  const results = mountResultsLayer(map, { controller, popups: mapPopups, gridHeads })
   const pois = mountPoiPopups(map, { controller, popups: mapPopups, landmarks })
-  mountCoordinatePopups(map, { controller, popups: mapPopups })
+  const coordinates = mountCoordinatePopups(map, { controller, popups: mapPopups, terrain, gridHeads })
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })
@@ -155,5 +160,6 @@ export function mountFeatures(
     results,
     pois,
     terrain,
+    coordinates,
   }
 }
