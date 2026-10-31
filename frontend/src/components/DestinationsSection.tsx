@@ -6,6 +6,7 @@ import {
   DISABLED,
   DRAW_ROW,
   FIELD,
+  LINK,
   STATUS,
   TEXT,
 } from '../styles'
@@ -13,6 +14,7 @@ import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import { parseCustomCsv } from '../utils/customDestinations'
+import { CSV_EXAMPLES_URL } from '../utils/contact'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
 import DrawReadout from './DrawReadout'
@@ -188,9 +190,18 @@ export default function DestinationsSection({
           bring to the map rather than a gesture on it. Two rows tall at
           rest, so a reader sees that several rows go in, with the format and
           one row that follows it as the placeholder. No helper line; the
-          format states itself. */}
+          format states itself. The placeholder shows one row, so Examples
+          beside the subheading opens the ready-made lists in csv-examples/,
+          whole lists to copy in or follow (#838). */}
       <div className="mb-3">
-        <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinate search</h3>
+        <div className="mb-1.5 flex items-baseline justify-between gap-x-2">
+          <h3 className={TEXT.subheading}>Coordinate search</h3>
+          <p className={TEXT.caption}>
+            <a href={CSV_EXAMPLES_URL} target="_blank" rel="noreferrer" className={LINK}>
+              Examples
+            </a>
+          </p>
+        </div>
         <textarea
           aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
           value={customCsv}

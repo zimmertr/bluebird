@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
+import { REPO_URL } from '../utils/contact'
 import type { DiscoveryType } from '../types'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
@@ -377,6 +378,14 @@ describe('DestinationsSection', () => {
     const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
     expect(headings).toEqual(['Map search', 'Coordinate search', 'Polygon search'])
     expect(screen.getByText('Search by name, or select a destination from the map.')).toBeTruthy()
+  })
+
+  // The placeholder shows one row; the link opens whole lists (#838).
+  it('links Examples beside Coordinate search to the ready-made lists', () => {
+    render(<DestinationsSection {...props()} />)
+    const link = screen.getByRole('link', { name: 'Examples' })
+    expect(link.getAttribute('href')).toBe(`${REPO_URL}/tree/main/csv-examples`)
+    expect(link.getAttribute('target')).toBe('_blank')
   })
 
   it('points at the map while the Map group is hovered', () => {

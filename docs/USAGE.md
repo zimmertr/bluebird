@@ -83,7 +83,7 @@ Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing
 
 ### d. Coordinate search
 
-Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinate search** is a box two rows tall that shows the format and one example row until you paste or type into it; drag its corner to make it taller.
+Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinate search** is a box two rows tall that shows the format and one example row until you paste or type into it; drag its corner to make it taller. **Examples**, beside the heading, opens the ready-made lists in [`csv-examples/`](../csv-examples/) on GitHub.
 
 ```
 # Lines beginning with # are ignored
