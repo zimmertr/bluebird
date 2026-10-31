@@ -1,6 +1,6 @@
-"""Write a Bluebird Forecast csv-examples/*.csv from peaks<lid>.json + coords<lid>.json.
+"""Write a Bluebird Forecast frontend/src/csv-examples/*.csv from peaks<lid>.json + coords<lid>.json.
 
-Row format mirrors csv-examples/washington-bulger-list.csv:
+Row format mirrors frontend/src/csv-examples/washington-bulger-list.csv:
     Lat, Lon, Name
 ordered as the list page presents them (normally highest -> lowest).
 

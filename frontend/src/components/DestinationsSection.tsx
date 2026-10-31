@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { CustomDestination, DiscoveryType } from '../types'
 import {
   CHOICE_INPUT,
@@ -6,6 +6,8 @@ import {
   DISABLED,
   DRAW_ROW,
   FIELD,
+  ICON_BUTTON,
+  LINK_ACTION,
   STATUS,
   TEXT,
 } from '../styles'
@@ -13,6 +15,8 @@ import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import { parseCustomCsv } from '../utils/customDestinations'
+import { EXAMPLE_LISTS, fetchExampleList, withList, type ExampleList } from '../utils/exampleLists'
+import { IconHelp } from './icons'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
 import DrawReadout from './DrawReadout'
@@ -120,6 +124,23 @@ export default function DestinationsSection({
   // true exactly when a change came from a paste — including a paste that
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
+  // The note of example lists beside the subheading (#838). A loaded list
+  // frames the map as a paste does, since it arrives whole rather than typed,
+  // and the note closes behind it with the keyboard handed to the box the
+  // rows just landed in, because the button that was pressed goes with it.
+  const [listsOpen, setListsOpen] = useState(false)
+  const listsId = useId()
+  const csvBoxRef = useRef<HTMLTextAreaElement>(null)
+  const loadList = async (list: ExampleList) => {
+    const text = await fetchExampleList(list)
+    if (text === null) return
+    const next = withList(customCsv, text)
+    setCustomCsv(next)
+    const points = parseCustomCsv(next)
+    if (points.length > 0) onCsvPasted(points)
+    setListsOpen(false)
+    csvBoxRef.current?.focus()
+  }
   // The row's three buttons never unmount; a press that greys the one it
   // landed on (Draw polygon turning into a Done that waits for three points,
   // Cancel leaving the mode, Clear emptying the ring) would park the keyboard
@@ -188,10 +209,39 @@ export default function DestinationsSection({
           bring to the map rather than a gesture on it. Two rows tall at
           rest, so a reader sees that several rows go in, with the format and
           one row that follows it as the placeholder. No helper line; the
-          format states itself. */}
+          format states itself. The question mark right after the subheading
+          opens a note of the ready-made lists, each of which loads into the
+          box on a press, so a reader can see a whole list work (#838, record
+          0258). It sits beside the words rather than at the row's edge, where
+          the panel's controls stand, because it is about the heading. */}
       <div className="mb-3">
-        <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinate search</h3>
+        <div className="mb-1.5 flex items-center gap-0.5">
+          <h3 className={TEXT.subheading}>Coordinate search</h3>
+          <button
+            type="button"
+            aria-label="About coordinate search"
+            aria-expanded={listsOpen}
+            aria-controls={listsId}
+            onClick={() => setListsOpen((open) => !open)}
+            className={ICON_BUTTON}
+          >
+            <IconHelp />
+          </button>
+        </div>
+        <div id={listsId} hidden={!listsOpen} className={`${TEXT.caption} mb-1.5`}>
+          <p>Paste a CSV of coordinate pairs, or load a list:</p>
+          <ul className="mt-0.5 list-disc pl-4">
+            {EXAMPLE_LISTS.map((list) => (
+              <li key={list.name}>
+                <button type="button" onClick={() => void loadList(list)} className={LINK_ACTION}>
+                  {list.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
         <textarea
+          ref={csvBoxRef}
           aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
           value={customCsv}
           onKeyDown={() => (csvPasteRef.current = false)}

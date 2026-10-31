@@ -107,6 +107,12 @@ these providers.
   `frontend/tools/us-states/build.sh` and served by the pod. A work of the US
   government, and so in the public domain under 17 U.S.C. §105.
 
+- [Peakbagger.com](https://www.peakbagger.com/): the four peak lists Coordinate
+  search loads, in `frontend/src/csv-examples/`. Each list's membership, order
+  and coordinates come from its peakbagger.com list and peak pages; the lists
+  themselves are the Bulger group's, The Mountaineers', Jeff Smoot's
+  (*Climbing Washington's Mountains*) and the Alpine Lakes "Home Court" list's.
+
 ## Software
 
 The runtime dependencies bundled into the browser app or installed into the
