@@ -6,6 +6,13 @@ import { roundTo } from '../numbers'
 import type { GridStyle } from './forecastGridRaster'
 
 /**
+ * Each grid style's name, as the legend's button says it. Both are listed so
+ * the button can hold the wider one's width whichever it shows, and not jump
+ * as it is pressed (the maintainer, 2026-10-30).
+ */
+export const GRID_STYLE_NAMES: Readonly<Record<GridStyle, string>> = { smooth: 'Smooth', blocks: 'Blocks' }
+
+/**
  * The pitch as a distance, formatted the way the model picker formats the same
  * kind of number (`gridLabel` in useCapabilities): a space before the unit, so
  * the figure in the legend and the figure beside a model's name are visibly the
@@ -91,7 +98,7 @@ export function gridLegendLine(
   // switches it.
   if (painted) {
     const pitch = { label, value: pitchLabel(pitchKm), kind: 'pitch' as const }
-    return style === undefined ? pitch : { ...pitch, styleName: style === 'smooth' ? 'Smooth' : 'Blocks' }
+    return style === undefined ? pitch : { ...pitch, styleName: GRID_STYLE_NAMES[style] }
   }
   if (pacing) return waiting
   return { label, value: 'Loading', kind: 'status' }
