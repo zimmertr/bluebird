@@ -8,6 +8,7 @@
 // that decides what the picture says is here, and none of it needs a map.
 import { hexToRgb } from './colors'
 import { type RampTick, rampCss, rampTicks } from './legendRamp'
+import { clamp } from './numbers'
 
 /**
  * One band of the shading: the steepness it starts at, in degrees, and its
@@ -338,13 +339,13 @@ const MERCATOR_MAX_LAT = 85.0511287798
  */
 export function tilePixel(lat: number, lon: number, z: number, size: number): TilePixel {
   const tiles = 2 ** z
-  const phi = (Math.max(-MERCATOR_MAX_LAT, Math.min(MERCATOR_MAX_LAT, lat)) * Math.PI) / 180
+  const phi = (clamp(lat, -MERCATOR_MAX_LAT, MERCATOR_MAX_LAT) * Math.PI) / 180
   const wx = (((lon + 180) / 360) % 1 + 1) % 1 * tiles
   const wy = ((1 - Math.log(Math.tan(phi) + 1 / Math.cos(phi)) / Math.PI) / 2) * tiles
   const x = Math.min(tiles - 1, Math.floor(wx))
-  const y = Math.min(tiles - 1, Math.max(0, Math.floor(wy)))
+  const y = clamp(Math.floor(wy), 0, tiles - 1)
   const col = Math.min(size - 1, Math.floor((wx - x) * size))
-  const row = Math.min(size - 1, Math.max(0, Math.floor((wy - y) * size)))
+  const row = clamp(Math.floor((wy - y) * size), 0, size - 1)
   return { x, y, col, row }
 }
 
