@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Takes viewport-fit=cover back off on Android before the first layout
+         (#837): a file, for the CSP, and right under the tag it edits. -->
+    <script src="/viewport.js"></script>
     <title>Bluebird Forecast</title>
     <meta
       name="description"

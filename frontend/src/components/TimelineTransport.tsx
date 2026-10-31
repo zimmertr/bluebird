@@ -102,8 +102,9 @@ export default function TimelineTransport({
       // chosen: it is the room MapLibre's scale bar and attribution need,
       // measured from whatever the bar is standing on — the map's own bottom
       // edge where the results are docked, the top of the sheet where they
-      // cover it (#249).
-      style={{ bottom: transportBottomPx(liftPx) }}
+      // cover it (#249). A drag on a phone's sheet moves it with the Analyze
+      // button it stands on, as a transform (`--sheet-shift`, #837).
+      style={{ bottom: transportBottomPx(liftPx), transform: 'translateY(var(--sheet-shift, 0px))' }}
     >
       <button
         onClick={() => onPlayingChange(!playing)}

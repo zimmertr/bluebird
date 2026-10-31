@@ -144,6 +144,7 @@ const LAYOUT: MapStageProps['layout'] = {
   mapCornerLift: 12,
   sheetLiftPx: 0,
   overMapRows: false,
+  stageRef: createRef<HTMLDivElement>(),
   cameraPadBottomPx: 40,
   sheetPadBottomPx: 300,
   mapPx: 800,
@@ -452,19 +453,19 @@ describe('MapStage', () => {
     expect(screen.getByTestId('transport').dataset.lift).toBe(String(transportStandPx(fab)))
   })
 
-  // A sheet dragged over the map's rows (#837) takes the rows, the button and
-  // the player off until it comes down.
-  it('steps the rows, the button and the player off under a sheet over the rows', () => {
-    const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
-    const phone = { isDesktop: false, sidebarOpen: false, timeline }
-    const { rerender } = render(<MapStage {...props(phone)} />)
+  // A full-screen sheet (#837) covers the rows and the button, which the
+  // stage hands that cover so they go out of reach under it. The column is
+  // the one a drag moves the foot of.
+  it('hands the rows and the button a full-screen sheet\'s cover, and the drag its column', () => {
+    const phone = { isDesktop: false, sidebarOpen: false }
+    const stageRef = createRef<HTMLDivElement>()
+    const { container, rerender } = render(<MapStage {...props({ ...phone, layout: { ...LAYOUT, stageRef } })} />)
+    expect(stageRef.current).toBe(container.firstElementChild)
     expect(screen.getByTestId('rows').dataset.covered).toBe('false')
     expect(screen.getByTestId('foot').dataset.covered).toBe('false')
-    expect(screen.queryByTestId('transport')).not.toBeNull()
-    rerender(<MapStage {...props({ ...phone, layout: { ...LAYOUT, overMapRows: true } })} />)
+    rerender(<MapStage {...props({ ...phone, layout: { ...LAYOUT, stageRef, overMapRows: true } })} />)
     expect(screen.getByTestId('rows').dataset.covered).toBe('true')
     expect(screen.getByTestId('foot').dataset.covered).toBe('true')
-    expect(screen.queryByTestId('transport')).toBeNull()
   })
 
   // The opened credit line stops short of the button (map.css), so a phone

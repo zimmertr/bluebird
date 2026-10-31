@@ -283,15 +283,24 @@ describe('useResultsLayout', () => {
       expect(result.current.overMapRows).toBe(true)
     })
 
-    it('steps over the rows while a drag is above the cap, and falls back to the cap short of the top', () => {
+    // A drag renders twice, when it begins and when it ends (record 0259):
+    // the sheet is drawn at its most and raised over the map's controls, the
+    // foot keeps the lift it began on, and the moves between render nothing.
+    it('draws the sheet at its most for a drag, and falls back to the cap short of the top', () => {
       const { result } = phone()
       const resting = result.current.tablePanelPx
+      const lift = result.current.sheetLiftPx
       act(() => result.current.tableGrip.onDragStart())
+      expect(result.current.tablePanelPx).toBe(fullPx)
+      expect(result.current.sheetRaised).toBe(true)
+      expect(result.current.sheetLiftPx).toBe(lift)
+      const before = result.current
       act(() => result.current.tableGrip.onDrag(capPx + 60 - resting))
-      expect(result.current.tablePanelPx).toBe(capPx + 60)
-      expect(result.current.overMapRows).toBe(true)
+      // No render: the hook hands back the very object it did.
+      expect(result.current).toBe(before)
       act(() => result.current.tableGrip.onDragEnd())
       expect(result.current.tablePanelPx).toBe(capPx)
+      expect(result.current.sheetRaised).toBe(false)
       expect(result.current.overMapRows).toBe(false)
     })
 

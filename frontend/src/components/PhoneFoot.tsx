@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import type { PanelMessages } from '../hooks/usePanelMessages'
-import { BLOCKED, DISABLED, MAP_FAB, MAP_FAB_SLOT, MAP_FAB_WORDS, UNDER_FULL_SHEET } from '../styles'
+import { BLOCKED, DISABLED, MAP_FAB, MAP_FAB_SLOT, MAP_FAB_WORDS } from '../styles'
 import { ACTION_WORDS, type ActionWord } from '../utils/analyzeGate'
 import MessageBadge, { MessageRegion } from './MessageBadge'
 import MessageList from './MessageList'
@@ -23,7 +23,7 @@ interface PhoneFootProps {
   onAnalyze: () => void
   /** The panel's messages (`usePanelMessages`): the badge's count and colour, and the sheet's rows. */
   messages: PanelMessages
-  /** The results sheet stands over the button (#837), which steps off until it comes down. */
+  /** A full-screen results sheet stands over the button (#837), which is out of reach until it comes down. */
   covered?: boolean
 }
 
@@ -85,7 +85,14 @@ export default function PhoneFoot({
 
   return (
     <>
-      <div className={covered ? `${MAP_FAB_SLOT} ${UNDER_FULL_SHEET}` : MAP_FAB_SLOT} style={{ bottom: fabBottomPx }}>
+      <div
+        className={MAP_FAB_SLOT}
+        // A drag on the results sheet moves the button with it, as a
+        // transform (`--sheet-shift`, #837); a full-screen sheet covers it,
+        // and nothing under the sheet takes a press or the keyboard.
+        style={{ bottom: fabBottomPx, transform: 'translateY(var(--sheet-shift, 0px))' }}
+        inert={covered}
+      >
         <button
           ref={buttonRef}
           onClick={blocked ? toggle : onAnalyze}

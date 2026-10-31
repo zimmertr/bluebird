@@ -25,6 +25,7 @@ import {
   draggedMapFloorPx,
   fullScreenMapFloorPx,
   sheetTopRelease,
+  fabShiftPx,
   controlsFullPx,
   controlsSheetPx,
   fabBottomPx,
@@ -341,6 +342,17 @@ describe('full screen', () => {
     expect(sheetTopRelease(cap + 1, cap, full)).toBe('cap')
     expect(sheetTopRelease(cap, cap, full)).toBe('hold')
     expect(sheetTopRelease(120, cap, full)).toBe('hold')
+  })
+
+  // A drag moves the map's foot by what the button would move, as a
+  // transform: with the sheet, and no higher than one inset under the rows.
+  it('moves the foot with the sheet, up to the button\'s highest place', () => {
+    const mapPx = 740
+    expect(fabShiftPx(200, 0, mapPx)).toBe(0)
+    expect(fabShiftPx(200, 100, mapPx)).toBe(-100)
+    expect(fabShiftPx(200, -50, mapPx)).toBe(50)
+    const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
+    expect(fabShiftPx(200, 2000, mapPx)).toBe(fabBottomPx(200, mapPx) - highest)
   })
 
   // The band between the cap and the top is the rows and the button's strip,

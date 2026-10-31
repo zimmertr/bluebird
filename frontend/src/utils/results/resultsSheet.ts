@@ -483,6 +483,18 @@ export function fabBottomPx(liftPx: number, mapPx: number): number {
 }
 
 /**
+ * How far a drag on a phone's results sheet moves the Analyze button, down
+ * positive (#837): from where it stood on the lift the drag began at to
+ * where it would stand with the sheet `risePx` higher. The drag moves the
+ * button, the player on it and the scale and credit beside it by this, as a
+ * transform, so a move renders nothing (record 0259); the release renders the
+ * new lift, which puts them all where this said.
+ */
+export function fabShiftPx(liftPx: number, risePx: number, mapPx: number): number {
+  return fabBottomPx(liftPx, mapPx) - fabBottomPx(liftPx + risePx, mapPx)
+}
+
+/**
  * Where a phone's scale and (i) stand: on the Analyze button's row, at its
  * left, each with its bottom on the button's bottom edge (record 0140; TJ,
  * 2026-10-14). `map.css` stands each control on the library's 10px margin

@@ -58,6 +58,7 @@ interface ResultsSheetView {
   layout: Pick<
     ResultsLayout,
     | 'sheetRef'
+    | 'sheetRaised'
     | 'barRef'
     | 'resultsCollapsed'
     | 'toggleCollapsed'
@@ -212,7 +213,9 @@ export default function ResultsSheet({
                 // sized from the header's estimate, and a header taller than
                 // that clips the table's foot rather than lifting the bar off
                 // the top of the screen.
-                `absolute inset-x-0 bottom-0 max-h-full flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${LAYER.sheet}`
+                `absolute inset-x-0 bottom-0 max-h-full flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${
+                  layout.sheetRaised ? LAYER.sheetRaised : LAYER.sheet
+                }`
           }
         >
           <ResultsBar

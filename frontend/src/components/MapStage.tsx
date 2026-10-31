@@ -99,7 +99,7 @@ export interface MapStageProps {
    */
   layout: Pick<
     ResultsLayout,
-    'mapCornerLift' | 'sheetLiftPx' | 'overMapRows' | 'cameraPadBottomPx' | 'sheetPadBottomPx' | 'mapPx'
+    'mapCornerLift' | 'sheetLiftPx' | 'overMapRows' | 'stageRef' | 'cameraPadBottomPx' | 'sheetPadBottomPx' | 'mapPx'
   >
   /** The run in flight, which the loading card reports and can cancel. */
   analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'paceRemainingS' | 'cancel'>
@@ -262,14 +262,11 @@ export default function MapStage({
   // A phone's Analyze button rides the results sheet (record 0135), and the
   // player stands on the button rather than on the sheet, stepping off while
   // a sheet dragged high leaves it no room. The Controls sheet moves none of
-  // them: it opens over them, modal (record 0207). A sheet dragged over the
-  // map's rows takes all of them off with the rows (#837).
+  // them: it opens over them, modal (record 0207). A full-screen sheet
+  // stands over all of them (#837).
   const footLift = layout.sheetLiftPx
   const fabBottom = fabBottomPx(footLift, layout.mapPx)
-  const timelineShown =
-    timelineAxis !== null &&
-    !drawBarShown &&
-    (isDesktop || (!layout.overMapRows && transportFits(fabBottom, layout.mapPx)))
+  const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
   // Legend and Layers are chips in the row under the search pill at both
   // widths, each with its menu a card joined to the chip at a desk (#714) and
@@ -317,6 +314,8 @@ export default function MapStage({
     // map area keeps the whole column, so the canvas runs on behind the
     // sheet and its ResizeObserver sees no change on a drag.
     <div
+      // The column a drag on a phone's sheet moves the foot of (#837).
+      ref={layout.stageRef}
       // On a phone the library's stack, the compass alone there, starts under
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${

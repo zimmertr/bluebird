@@ -78,7 +78,6 @@ import {
   BOTTOM_SHEET,
   CONTROLS_SHEET,
   SAFE_AREA,
-  UNDER_FULL_SHEET,
   CHART_PLOT_TOUCH,
   CHART_PANEL_BUTTON,
   CHART_PICKER,
@@ -917,6 +916,7 @@ describe('shared recipes', () => {
       LAYER.base,
       LAYER.sheet,
       LAYER.mapControls,
+      LAYER.sheetRaised,
       LAYER.overlay,
       LAYER.scrim,
       LAYER.drawer,
@@ -938,6 +938,10 @@ describe('shared recipes', () => {
     // overlay an analysis puts over the whole map.
     expect(depth(LAYER.mapControls)).toBeGreaterThan(depth(LAYER.sheet))
     expect(depth(LAYER.mapControls)).toBeLessThan(depth(LAYER.overlay))
+    // A dragged or full-screen phone sheet slides over the map's rows and its
+    // Analyze button, and stays under the analysis overlay (#837).
+    expect(depth(LAYER.sheetRaised)).toBeGreaterThan(depth(LAYER.mapControls))
+    expect(depth(LAYER.sheetRaised)).toBeLessThan(depth(LAYER.overlay))
   })
 
   // The map timeline's scrubber (#121). A real range input arrives knowing
@@ -2923,9 +2927,11 @@ describe('the bottom sheet', () => {
     for (const recipe of [BOTTOM_SHEET.scrim, BOTTOM_SHEET.card]) expect(recipe).toContain(LAYER.popover)
     // The Analyze button among it: every sheet's dim covers the button where
     // it stands, and the sheet's modality keeps it from a press, so the foot
-    // neither hides it nor makes it inert (record 0207).
+    // neither hides it nor makes it inert (record 0207). The one inert is a
+    // full-screen results sheet's, which covers the button whole (#837).
     expect(zOf(MAP_FAB_SLOT.match(/(?:^|\s)(z-\S+)/)![1])).toBeLessThan(zOf(LAYER.popover))
-    expect(phoneFootSource).not.toMatch(/\binert\b/)
+    expect(phoneFootSource.match(/\binert\b/g)).toEqual(['inert'])
+    expect(phoneFootSource).toContain('inert={covered}')
     expect(tokens(BOTTOM_SHEET.scrim)).toEqual(expect.arrayContaining(['fixed', 'inset-0']))
     expect(darkStep(token(BOTTOM_SHEET.dim, 'bg'))).toBe('black')
     expect(BOTTOM_SHEET.dim).toMatch(/(^|\s)bg-scrim\/\d+(\s|$)/)
@@ -3056,13 +3062,6 @@ describe('the safe area', () => {
     expect(words(SAFE_AREA.probe)).toEqual(
       expect.arrayContaining(['h-[env(safe-area-inset-bottom)]', 'fixed', 'bottom-0', 'invisible', 'pointer-events-none']),
     )
-  })
-
-  // The rows and the Analyze button step off under a full-screen sheet
-  // (#837): `invisible`, so they keep their boxes and the map its slots, where
-  // `hidden` would take them out of the layout.
-  it('hides the chrome a full-screen sheet covers without taking its box', () => {
-    expect(UNDER_FULL_SHEET).toBe('invisible')
   })
 
   // A sheet whose body scrolls ends its content the band above the screen's

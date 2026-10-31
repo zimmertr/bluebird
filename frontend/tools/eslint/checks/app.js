@@ -656,18 +656,18 @@ export const APP = [
         message: 'Floor a drag at draggedMapFloorPx(gripCount).',
       },
       {
-        // Both grips that resize against the map run past the cap to full
-        // screen on a phone (#837), and their release is clamped the same way:
-        // the dragged height and the full-screen ceiling.
-        selector: 'CallExpression[callee.name="clampPanelHeight"]:has(> Identifier[name="fullFloorPx"])',
-        count: 4,
-        message: 'Pass fullFloorPx to both clamps that resize against the map, and to the release.',
+        // A desk's two grips that resize against the map, and the cap a
+        // phone's release short of full screen falls back to (#837).
+        selector: 'CallExpression[callee.name="clampPanelHeight"]:has(> Identifier[name="dragFloorPx"])',
+        count: 3,
+        message: 'Pass dragFloorPx to both clamps that resize against the map, and to the release\'s cap.',
       },
       {
-        // The cap a release short of full screen falls back to.
-        selector: 'CallExpression[callee.name="clampPanelHeight"]:has(> Identifier[name="dragFloorPx"])',
+        // A phone's drag runs to full screen's floor, the ceiling the sheet is
+        // drawn at while it lasts (#837).
+        selector: 'CallExpression[callee.name="clampPanelHeight"]:has(> Identifier[name="fullFloorPx"])',
         count: 1,
-        message: 'Settle a release above the cap at dragFloorPx.',
+        message: 'Draw a phone drag at the full-screen ceiling, fullFloorPx.',
       },
       {
         selector: 'CallExpression[callee.name="sheetTopRelease"]',

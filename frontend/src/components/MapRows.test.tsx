@@ -4,7 +4,6 @@ import { fireEvent, screen } from '@testing-library/react'
 import MapRows from './MapRows'
 import type { SearchBoxHandle } from './SearchBox'
 import { render } from '../testSupport/render'
-import { UNDER_FULL_SHEET } from '../styles'
 
 // The search has a suite of its own; what this one needs from it is the
 // report that the field has the keyboard, which steps the chip row aside.
@@ -137,15 +136,15 @@ describe('MapRows', () => {
 // with its own Close, so the summary chip stands only while it is shut, as
 // the one way back to it from the map.
 describe('MapRows under a full-screen sheet', () => {
-  // A phone's results sheet over the rows (#837): they step off rather than
-  // draw over its bar, kept mounted so the map keeps its slots.
-  it('steps off while covered, and keeps its slots', () => {
+  // A full-screen results sheet stands over the rows (#837): they stay where
+  // they are, mounted so the map keeps its slots, and out of reach.
+  it('goes out of reach while covered, and keeps its slots', () => {
     const onLocateSlot = vi.fn()
     const { container, rerender } = render(rows({ onLocateSlot }))
     const stack = container.firstElementChild as HTMLElement
-    expect(stack.className).not.toContain(UNDER_FULL_SHEET)
+    expect(stack.hasAttribute('inert')).toBe(false)
     rerender(rows({ onLocateSlot, covered: true }))
-    expect(stack.className).toContain(UNDER_FULL_SHEET)
+    expect(stack.hasAttribute('inert')).toBe(true)
     expect(onLocateSlot).toHaveBeenCalledTimes(1)
   })
 })
