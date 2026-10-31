@@ -34,6 +34,10 @@ import {
   legendBottomPx,
   legendMaxCss,
   CHIP_MENU_GAP_PX,
+  LEGEND_BESIDE_TRANSPORT_PX,
+  LEGEND_CARD_W_PX,
+  MAP_EDGE_INSET_PX,
+  TRANSPORT_W_PX,
   mapCornerLiftPx,
   resolveSheetLift,
   restingLiftPx,
@@ -50,6 +54,7 @@ import { SHEET_SNAP_PX } from '../sheetDrag'
 // useResultsLayout.ts and TimelineTransport.tsx spell is held by the `app-` checks in
 // tools/eslint/checks/app.js.
 import stylesSource from '../../styles.ts?raw'
+import transportSource from '../../components/TimelineTransport.tsx?raw'
 
 describe('sheetHeightPx', () => {
   it('is the header alone while the results are collapsed', () => {
@@ -109,8 +114,40 @@ describe('the map chrome anchors', () => {
   it('caps a desk\'s legend card at the map under the rows, less the floor', () => {
     expect(CHIP_MENU_GAP_PX).toBe(4)
     expect(legendMaxCss(0, false)).toBe(`calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + LEGEND_GAP_PX}px)`)
-    expect(legendMaxCss(0, true)).toBe(`calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + TRANSPORT_BAND_PX}px)`)
     expect(stylesSource).toContain('[container-type:size]')
+  })
+
+  // With the player on, the card clears its band only on a map narrow enough
+  // for the centred bar to reach under it; wider, it keeps the plain gap.
+  it('clears the player only where the bar reaches under the card', () => {
+    const base = MAP_ROWS_PX + CHIP_MENU_GAP_PX + LEGEND_GAP_PX
+    const extra = TRANSPORT_BAND_PX - LEGEND_GAP_PX
+    expect(legendMaxCss(0, true)).toBe(
+      `calc(100cqh - ${base}px - clamp(0px, (${LEGEND_BESIDE_TRANSPORT_PX}px - 100cqw) * 1000, ${extra}px))`,
+    )
+    expect(legendMaxCss(120, true)).toBe(
+      `calc(100cqh - ${base + 120}px - clamp(0px, (${LEGEND_BESIDE_TRANSPORT_PX}px - 100cqw) * 1000, ${extra}px))`,
+    )
+    // The clamp is a step: evaluate it at a few map widths the way CSS would.
+    const reserve = (mapW: number) => LEGEND_GAP_PX + Math.min(extra, Math.max(0, (LEGEND_BESIDE_TRANSPORT_PX - mapW) * 1000))
+    expect(reserve(LEGEND_BESIDE_TRANSPORT_PX)).toBe(LEGEND_GAP_PX)
+    expect(reserve(1648)).toBe(LEGEND_GAP_PX)
+    expect(reserve(LEGEND_BESIDE_TRANSPORT_PX - 1)).toBe(TRANSPORT_BAND_PX)
+    expect(reserve(737)).toBe(TRANSPORT_BAND_PX)
+  })
+
+  // The line is where the bar's left edge stands one inset clear of the
+  // card's right edge, read off the widths the two components spell.
+  it('puts the line where the centred bar clears the card by one inset', () => {
+    expect(MAP_EDGE_INSET_PX).toBe(12)
+    expect(stylesSource).toContain(`[--map-edge-inset:${MAP_EDGE_INSET_PX / 16}rem]`)
+    expect(LEGEND_CARD_W_PX).toBe(224)
+    expect(stylesSource).toContain("key: 'w-56'")
+    expect(TRANSPORT_W_PX).toBe(368)
+    expect(transportSource).toContain(`w-[min(${TRANSPORT_W_PX / 16}rem,calc(100%-4rem))]`)
+    const w = LEGEND_BESIDE_TRANSPORT_PX
+    expect(w / 2 - TRANSPORT_W_PX / 2).toBe(MAP_EDGE_INSET_PX + LEGEND_CARD_W_PX + MAP_EDGE_INSET_PX)
+    expect(w).toBe(864)
   })
 
   // The band above the results holds the taller of MapLibre's two bottom
