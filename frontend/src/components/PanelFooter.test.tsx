@@ -260,9 +260,30 @@ describe('PanelFooter', () => {
     }
   })
 
+  // #834: a check or the basemap failing opens the list too, and leaves the
+  // keyboard where it was, since the line can land while the reader types in
+  // a field. A failed run over the open list takes the keyboard in, as ever.
+  it('opens the list for a check or basemap failure without taking the keyboard', () => {
+    const field = document.createElement('input')
+    document.body.append(field)
+    field.focus()
+    const { rerender } = render(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES }) })} />)
+    rerender(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES, openingSeq: 1 }) })} />)
+    expect(list()).toBeTruthy()
+    expect(badge().getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement).toBe(field)
+    rerender(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES, openingSeq: 1, failureSeq: 1 }) })} />)
+    expect(list().contains(document.activeElement)).toBe(true)
+    field.remove()
+  })
+
   it('opens nothing on a phone, whose footer has no list', () => {
     const { rerender } = render(<PanelFooter {...props({ phone: true, messages: panelMessages({ messages: MESSAGES }) })} />)
     rerender(<PanelFooter {...props({ phone: true, messages: panelMessages({ messages: MESSAGES, failureSeq: 1 }) })} />)
+    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
+    rerender(
+      <PanelFooter {...props({ phone: true, messages: panelMessages({ messages: MESSAGES, failureSeq: 1, openingSeq: 1 }) })} />,
+    )
     expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
   })
 

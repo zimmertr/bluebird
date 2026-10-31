@@ -2993,6 +2993,37 @@ describe('the message badge', () => {
     expect(words(MAP_FAB_SLOT)).toContain('absolute')
   })
 
+  // #834: a message arriving swells the disc and spreads a ring of its own
+  // colour, under reduced motion not at all. Two spellings of one animation,
+  // which the badge alternates, since a new name is what restarts one.
+  it('moves once on arrival, in two names of one animation, and only when motion is welcome', () => {
+    const { arrivalOdd: a, arrivalEven: b } = MESSAGE_BADGE
+    expect(words(a)).toEqual(['motion-safe:animate-badge-bump-a', 'motion-safe:after:animate-badge-ripple-a'])
+    expect(b).toBe(a.replace(/-a\b/g, '-b'))
+    // Each name is a theme animation with its keyframes, and the pair match:
+    // a keyframes block is read whole by counting its braces.
+    const frames = (name: string) => {
+      const start = indexCss.indexOf(`@keyframes ${name} {`)
+      if (start < 0) return undefined
+      let depth = 0
+      for (let i = indexCss.indexOf('{', start); i < indexCss.length; i++) {
+        if (indexCss[i] === '{') depth++
+        else if (indexCss[i] === '}' && --depth === 0) return indexCss.slice(start, i + 1)
+      }
+      return undefined
+    }
+    for (const motion of ['bump', 'ripple']) {
+      expect(indexCss).toContain(`--animate-badge-${motion}-a: badge-${motion}-a `)
+      expect(indexCss).toContain(`--animate-badge-${motion}-b: badge-${motion}-b `)
+      expect(frames(`badge-${motion}-a`)).toBeTruthy()
+      expect(frames(`badge-${motion}-a`)!.replace('-a', '-b')).toBe(frames(`badge-${motion}-b`))
+    }
+    // The ring is the disc's own fill, under the digit, and invisible at rest.
+    expect(words(MESSAGE_BADGE.base)).toEqual(
+      expect.arrayContaining(['isolate', 'after:absolute', 'after:-z-10', 'after:bg-inherit', 'after:opacity-0', 'after:pointer-events-none']),
+    )
+  })
+
   it('fills in the severity\'s ink with the panel\'s digit, clearing AA in both themes', () => {
     const measured = { dark: {} as Record<string, number>, light: {} as Record<string, number> }
     for (const tone of ['error', 'warn', 'info'] as const) {

@@ -830,6 +830,15 @@ up from that edge. The band that held the whole block on the sheet's edge
 the rest.
 Record: [0208](decisions/0208-analyze-button-counts-the-messages.md)
 
+A new message moves the badge once (`MESSAGE_BADGE.arrivalOdd`/`arrivalEven`): the disc swells
+and settles over 320ms while a ring in its own colour spreads from it and
+fades over 700ms. The ring is the badge's `after:` box, filled with whatever
+the disc is, so it follows the severity with no colour of its own. Two names
+of the one animation take turns, because a new name is what restarts a CSS
+animation, and the badge never remounts under a keyboard. Under a
+reduced-motion setting it does not move.
+Record: [0260](decisions/0260-messages-draw-the-eye-and-failures-open-the-list.md)
+
 The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`),
 the bottom sheet the menus below are, kept mounted: modal over the same dim,
 slid below the map while shut, its height a fixed share of the map that
@@ -873,7 +882,9 @@ in 150ms (`MOTION.menu`). A panel, a sheet or a results pane moves in 300ms
 whole screen is laid out against. Each recipe names the one property it
 moves, so nothing a grip drags is ever animated, and each stops under a
 reduced-motion setting. `PANEL_MS` is the slower speed in numbers, and
-`styles.test.ts` holds each class to its speed.
+`styles.test.ts` holds each class to its speed. The one movement nobody's
+press started is the message badge's, once per arrival, in `MESSAGE_BADGE`
+rather than here.
 
 The desk panel pushes the map's edge rather than sliding over the map
 (`DESK_PANEL`). It stays in the row while it is shut and its left margin takes

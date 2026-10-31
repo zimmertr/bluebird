@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PanelMessages } from './usePanelMessages'
 
 /**
- * Opens something the moment a run fails (#803): the message list over the
+ * Opens something the moment a run fails (#803), or a check or the basemap
+ * does (#834, keyed on `openingSeq` instead): the message list over the
  * panel's Analyze at a desk, the Messages sheet on a phone, and a desk's
  * panel itself when it is shut. A failed run used to show itself only as a
  * count on the badge, which a reader took for no error at all, so a failure
@@ -30,19 +31,25 @@ export function useOpenOnFailure(failureSeq: number, open: () => void, enabled =
  * panel is shut or sliding (#803). The list is a card placed against the
  * Analyze button when it opens, and a card placed against a button still off
  * the screen stays where it was placed. So a failure that reopens the panel
- * reaches its list once the panel stands still, and opens it there.
+ * reaches its list once the panel stands still, and opens it there. A check
+ * or basemap failure (`openingSeq`, #834) reopens the panel too, and is held
+ * the same way.
  *
- * Only `failureSeq` is held; every message and the gate pass through as
+ * Only the two counts are held; every message and the gate pass through as
  * they are.
  */
 export function useHeldFailure(messages: PanelMessages, hold: boolean): PanelMessages {
-  const [released, setReleased] = useState(messages.failureSeq)
+  const [released, setReleased] = useState({ failureSeq: messages.failureSeq, openingSeq: messages.openingSeq })
   useEffect(() => {
-    if (!hold) setReleased(messages.failureSeq)
-  }, [hold, messages.failureSeq])
-  const failureSeq = hold ? released : messages.failureSeq
+    if (!hold) setReleased({ failureSeq: messages.failureSeq, openingSeq: messages.openingSeq })
+  }, [hold, messages.failureSeq, messages.openingSeq])
+  const failureSeq = hold ? released.failureSeq : messages.failureSeq
+  const openingSeq = hold ? released.openingSeq : messages.openingSeq
   return useMemo(
-    () => (failureSeq === messages.failureSeq ? messages : { ...messages, failureSeq }),
-    [messages, failureSeq],
+    () =>
+      failureSeq === messages.failureSeq && openingSeq === messages.openingSeq
+        ? messages
+        : { ...messages, failureSeq, openingSeq },
+    [messages, failureSeq, openingSeq],
   )
 }
