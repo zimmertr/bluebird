@@ -4,6 +4,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import MapRows from './MapRows'
 import type { SearchBoxHandle } from './SearchBox'
 import { render } from '../testSupport/render'
+import { UNDER_FULL_SHEET } from '../styles'
 
 // The search has a suite of its own; what this one needs from it is the
 // report that the field has the keyboard, which steps the chip row aside.
@@ -135,6 +136,20 @@ describe('MapRows', () => {
 // A desk's rows are the phone's (#714): the panel is docked beside the map
 // with its own Close, so the summary chip stands only while it is shut, as
 // the one way back to it from the map.
+describe('MapRows under a full-screen sheet', () => {
+  // A phone's results sheet over the rows (#837): they step off rather than
+  // draw over its bar, kept mounted so the map keeps its slots.
+  it('steps off while covered, and keeps its slots', () => {
+    const onLocateSlot = vi.fn()
+    const { container, rerender } = render(rows({ onLocateSlot }))
+    const stack = container.firstElementChild as HTMLElement
+    expect(stack.className).not.toContain(UNDER_FULL_SHEET)
+    rerender(rows({ onLocateSlot, covered: true }))
+    expect(stack.className).toContain(UNDER_FULL_SHEET)
+    expect(onLocateSlot).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('MapRows at a desk', () => {
   it('offers the summary chip only while the panel is shut, and it opens the panel', () => {
     const onOpenControls = vi.fn()

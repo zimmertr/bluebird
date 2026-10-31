@@ -17,6 +17,7 @@
 // at both widths and is answered from the same constants.
 
 import { resolvePanelHeights } from '../layout'
+import { SHEET_SNAP_PX } from '../sheetDrag'
 
 /** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
 export const MAP_ROWS_PX = 88
@@ -267,6 +268,37 @@ export function sheetChromePx(gripCount: number): number {
  */
 export function draggedMapFloorPx(gripCount: number, playerOn = false): number {
   return DRAGGED_MAP_PX + (playerOn ? PLAYER_ROOM_PX : 0) + sheetChromePx(gripCount)
+}
+
+/**
+ * The map a phone's results sheet leaves at full screen (#837): none. The
+ * sheet's chrome is the whole floor, so its panels take every pixel of the
+ * map and the sheet's top edge is the map's. A drag on the grip is the one
+ * way there: the sheet opens at rest, a phone's Chart lifts to the cap
+ * (`draggedMapFloorPx`, record 0155) and the tutorial holds the same, so full
+ * screen is never a default.
+ */
+export function fullScreenMapFloorPx(gripCount: number): number {
+  return sheetChromePx(gripCount)
+}
+
+/** Where a phone's results sheet goes when a drag on its map grip is let go. */
+export type SheetTopRelease = 'full' | 'cap' | 'hold'
+
+/**
+ * Where a drag on a phone's results sheet comes to rest (#837), from the
+ * dragged panel's height when the finger lets go (`panelPx`), the most it may
+ * have under the cap (`capPx`) and the most at full screen (`fullPx`).
+ *
+ * Within `SHEET_SNAP_PX` of full screen it goes there, the menu sheets' snap.
+ * Above the cap but short of that it falls back to the cap, because between
+ * the two the map's rows and its Analyze button would stand over the sheet's
+ * bar. Anywhere lower holds where it was let go, as it always has.
+ */
+export function sheetTopRelease(panelPx: number, capPx: number, fullPx: number): SheetTopRelease {
+  if (fullPx - panelPx <= SHEET_SNAP_PX) return 'full'
+  if (panelPx > capPx) return 'cap'
+  return 'hold'
 }
 
 /**

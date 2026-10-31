@@ -40,8 +40,15 @@ vi.mock('./PhoneFoot', () => ({
     word: string
     onAnalyze: () => void
     messages: { count: number }
+    covered: boolean
   }) => (
-    <div data-testid="foot" data-fab={String(props.fabBottomPx)} data-word={props.word} data-count={String(props.messages.count)}>
+    <div
+      data-testid="foot"
+      data-fab={String(props.fabBottomPx)}
+      data-word={props.word}
+      data-count={String(props.messages.count)}
+      data-covered={String(props.covered)}
+    >
       <button onClick={() => props.onFabPx(120)}>Fab</button>
       <button onClick={props.onAnalyze} disabled={!props.analyzeEnabled}>
         Analyze
@@ -60,8 +67,14 @@ vi.mock('./MapRows', () => ({
     controlsSummary: string
     layers: ReactNode
     legend: ReactNode
+    covered: boolean
   }) => (
-    <div data-testid="rows" data-desk={String(props.desk)} data-summary={props.controlsSummary}>
+    <div
+      data-testid="rows"
+      data-desk={String(props.desk)}
+      data-summary={props.controlsSummary}
+      data-covered={String(props.covered)}
+    >
       <button onClick={props.onOpenControls}>Controls</button>
       <button onClick={() => props.onSearchSelect(PLACE)}>Pick</button>
       <div data-testid="terrain" ref={props.onTerrainSlot} />
@@ -130,6 +143,7 @@ const CLOSURE = { warnings: new Map() } as unknown as MapStageProps['closure']
 const LAYOUT: MapStageProps['layout'] = {
   mapCornerLift: 12,
   sheetLiftPx: 0,
+  overMapRows: false,
   cameraPadBottomPx: 40,
   sheetPadBottomPx: 300,
   mapPx: 800,
@@ -436,6 +450,21 @@ describe('MapStage', () => {
     const fab = 104 + FAB_INSET_PX
     expect(screen.getByTestId('foot').dataset.fab).toBe(String(fab))
     expect(screen.getByTestId('transport').dataset.lift).toBe(String(transportStandPx(fab)))
+  })
+
+  // A sheet dragged over the map's rows (#837) takes the rows, the button and
+  // the player off until it comes down.
+  it('steps the rows, the button and the player off under a sheet over the rows', () => {
+    const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
+    const phone = { isDesktop: false, sidebarOpen: false, timeline }
+    const { rerender } = render(<MapStage {...props(phone)} />)
+    expect(screen.getByTestId('rows').dataset.covered).toBe('false')
+    expect(screen.getByTestId('foot').dataset.covered).toBe('false')
+    expect(screen.queryByTestId('transport')).not.toBeNull()
+    rerender(<MapStage {...props({ ...phone, layout: { ...LAYOUT, overMapRows: true } })} />)
+    expect(screen.getByTestId('rows').dataset.covered).toBe('true')
+    expect(screen.getByTestId('foot').dataset.covered).toBe('true')
+    expect(screen.queryByTestId('transport')).toBeNull()
   })
 
   // The opened credit line stops short of the button (map.css), so a phone

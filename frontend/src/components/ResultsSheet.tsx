@@ -207,8 +207,12 @@ export default function ResultsSheet({
                 'flex flex-shrink-0 flex-col bg-panel' +
                 (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '')
               : // The sheet's surface runs under a phone's home indicator and
-                // its grip and header stand above it (record 0145).
-                `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${LAYER.sheet}`
+                // its grip and header stand above it (record 0145). Never
+                // taller than the map: at full screen (#837) its panels are
+                // sized from the header's estimate, and a header taller than
+                // that clips the table's foot rather than lifting the bar off
+                // the top of the screen.
+                `absolute inset-x-0 bottom-0 max-h-full flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${LAYER.sheet}`
           }
         >
           <ResultsBar

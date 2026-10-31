@@ -5,7 +5,7 @@ import PhoneFoot from './PhoneFoot'
 import BottomSheet from './BottomSheet'
 import { render, placeAt } from '../testSupport/render'
 import { panelMessages } from '../testSupport/fixtures'
-import { BLOCKED, DISABLED, MAP_FAB, MAP_FAB_SLOT, MAP_FAB_WORDS, MESSAGE_BADGE } from '../styles'
+import { BLOCKED, DISABLED, MAP_FAB, MAP_FAB_SLOT, MAP_FAB_WORDS, MESSAGE_BADGE, UNDER_FULL_SHEET } from '../styles'
 import type { FooterMessage } from '../utils/notices'
 
 // The foot of a phone's map (#696): the Analyze button (record 0135),
@@ -63,6 +63,16 @@ describe('PhoneFoot', () => {
     expect(button().dataset.tour).toBe('analyze')
     fireEvent.click(button())
     expect(onAnalyze).toHaveBeenCalledOnce()
+  })
+
+  // A full-screen results sheet stands over the button (#837): the button and
+  // its badge step off until it comes down.
+  it('steps off under a full-screen sheet', () => {
+    const { rerender } = render(foot())
+    rerender(foot({ covered: true }))
+    expect(button().parentElement!.className).toBe(`${MAP_FAB_SLOT} ${UNDER_FULL_SHEET}`)
+    rerender(foot({ covered: false }))
+    expect(button().parentElement!.className).toBe(MAP_FAB_SLOT)
   })
 
   it('disables while busy, and reads the word it is handed', () => {
