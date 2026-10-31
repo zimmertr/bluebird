@@ -374,6 +374,26 @@ export function IconExternalLink({ className }: IconProps): ReactNode {
   )
 }
 
+/** The question mark beside Coordinate search that opens its note (#838). */
+export function IconHelp({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6" />
+      <line x1="12" y1="17.2" x2="12" y2="17.3" />
+    </svg>
+  )
+}
+
 /** The timeline transport's one button, which is two glyphs in one box. */
 export function IconPlay({ playing, className }: IconProps & { playing: boolean }): ReactNode {
   return (

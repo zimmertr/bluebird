@@ -18,8 +18,3 @@ export const SUPPORT_EMAIL = 'hello@bluebirdforecast.com'
 export const REPO_URL = 'https://github.com/zimmertr/bluebird'
 export const ISSUES_URL = `${REPO_URL}/issues`
 export const SECURITY_URL = `${REPO_URL}/security/advisories/new`
-
-// The ready-made lists for Coordinate search (#838). The image does not carry
-// csv-examples/ (.dockerignore), so the link goes to the repository, and it is
-// built from REPO_URL so the move in #311 stays one edit.
-export const CSV_EXAMPLES_URL = `${REPO_URL}/tree/main/csv-examples`

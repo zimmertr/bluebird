@@ -1,9 +1,9 @@
 import type { ComponentProps } from 'react'
-import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
-import { REPO_URL } from '../utils/contact'
+import { fakeResponse } from '../testSupport/fixtures'
 import type { DiscoveryType } from '../types'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
@@ -380,12 +380,42 @@ describe('DestinationsSection', () => {
     expect(screen.getByText('Search by name, or select a destination from the map.')).toBeTruthy()
   })
 
-  // The placeholder shows one row; the link opens whole lists (#838).
-  it('links Examples beside Coordinate search to the ready-made lists', () => {
-    render(<DestinationsSection {...props()} />)
-    const link = screen.getByRole('link', { name: 'Examples' })
-    expect(link.getAttribute('href')).toBe(`${REPO_URL}/tree/main/csv-examples`)
-    expect(link.getAttribute('target')).toBe('_blank')
+  // The question mark beside the subheading opens the lists, and a press
+  // loads one into the box and frames it like a paste (#838, record 0258).
+  describe('the example lists', () => {
+    afterEach(() => vi.unstubAllGlobals())
+    const about = () => screen.getByRole('button', { name: 'About coordinate search' })
+
+    it('open and close beside the subheading', () => {
+      render(<DestinationsSection {...props()} />)
+      expect(about().getAttribute('aria-expanded')).toBe('false')
+      expect(screen.queryByRole('button', { name: 'The Bulger List' })).toBeNull()
+      fireEvent.click(about())
+      expect(about().getAttribute('aria-expanded')).toBe('true')
+      expect(screen.getByText('Paste a CSV of coordinate pairs, or load a list:')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'The Bulger List' })).toBeTruthy()
+      fireEvent.click(about())
+      expect(screen.queryByRole('button', { name: 'The Bulger List' })).toBeNull()
+    })
+
+    it('add a pressed list under the rows already there, frame it and hand the keyboard to the box', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: '48.7768,-121.8145,Mount Baker' })))
+      const setCustomCsv = vi.fn()
+      const onCsvPasted = vi.fn()
+      render(
+        <DestinationsSection
+          {...props({ customCsv: '46.8529,-121.7604,Mount Rainier', setCustomCsv, onCsvPasted })}
+        />,
+      )
+      fireEvent.click(about())
+      fireEvent.click(screen.getByRole('button', { name: 'The Bulger List' }))
+      await waitFor(() =>
+        expect(setCustomCsv).toHaveBeenCalledWith('46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'),
+      )
+      expect(onCsvPasted.mock.calls[0][0].map((d: { name: string }) => d.name)).toEqual(['Mount Rainier', 'Mount Baker'])
+      expect(about().getAttribute('aria-expanded')).toBe('false')
+      expect(document.activeElement).toBe(coordinates())
+    })
   })
 
   it('points at the map while the Map group is hovered', () => {

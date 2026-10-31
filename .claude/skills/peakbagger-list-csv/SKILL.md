@@ -1,15 +1,15 @@
 ---
 name: peakbagger-list-csv
-description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast csv-examples/*.csv files for the "Custom (CSV)" destination type. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list CSV (e.g. "create CSV list", "add the Bulgers/Home Court/Smoot list").
+description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast frontend/src/csv-examples/*.csv files for the "Custom (CSV)" destination type. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list CSV (e.g. "create CSV list", "add the Bulgers/Home Court/Smoot list").
 ---
 
 # Peakbagger list → Bluebird Forecast CSV
 
-Turns a peakbagger.com list (`list.aspx?lid=<N>`) into `csv-examples/<list-slug>.csv`, matching
-`csv-examples/washington-bulger-list.csv`. One CSV row per peak in the list — no sampling, no
+Turns a peakbagger.com list (`list.aspx?lid=<N>`) into `frontend/src/csv-examples/<list-slug>.csv`, matching
+`frontend/src/csv-examples/washington-bulger-list.csv`. One CSV row per peak in the list — no sampling, no
 truncation.
 
-**Row format** (mirrors `csv-examples/washington-bulger-list.csv` exactly):
+**Row format** (mirrors `frontend/src/csv-examples/washington-bulger-list.csv` exactly):
 
 ```
 # <List Title> — ordered highest to lowest.
@@ -109,7 +109,7 @@ its `lid`, the target output path, the plausible lat/lon box for the region, an 
 ### 3. Build the CSV
 
 ```bash
-python3 <SKILL_DIR>/scripts/build_csv.py <lid> /path/to/repo/csv-examples
+python3 <SKILL_DIR>/scripts/build_csv.py <lid> /path/to/repo/frontend/src/csv-examples
 ```
 
 Derives the filename and the headline from the list title. Override with `--out name.csv` and
@@ -119,7 +119,7 @@ never acceptable, so report the gap instead of working around the guard.
 ### 4. Verify before reporting
 
 ```bash
-python3 <SKILL_DIR>/scripts/verify_csv.py <lid> /path/to/csv-examples/<slug>.csv \
+python3 <SKILL_DIR>/scripts/verify_csv.py <lid> /path/to/repo/frontend/src/csv-examples/<slug>.csv \
   --bbox 45.5 49.1 -124.8 -116.9      # Washington State; adjust per region
 ```
 
@@ -131,6 +131,13 @@ bounding box. The CSV itself carries no elevation to check.
 
 Then spot-check two or three peaks against their peak pages by eye. Sanity anchor: Mount
 Rainier is `46.851731, -121.760395`.
+
+### 5. Offer it in the app
+
+The note beside Coordinate search loads every list the app ships (#838). Add the new file to
+`EXAMPLE_LISTS` in `frontend/src/utils/exampleLists.ts` and to the list test in
+`exampleLists.test.ts` beside it. The name it shows there is a user-facing string, so confirm it
+with the maintainer first.
 
 ## Conventions and gotchas
 
@@ -169,7 +176,7 @@ Rainier is `46.851731, -121.760395`.
 
 - `scripts/fetch_list.py` — list page → `peaks<lid>.json` (title, slug, ordered peaks)
 - `scripts/fetch_coords.py` — peak pages → `coords<lid>.json` (cached, resumable, throttle-aware)
-- `scripts/build_csv.py` — both JSONs → `csv-examples/<slug>.csv` (refuses on missing coords)
+- `scripts/build_csv.py` — both JSONs → `frontend/src/csv-examples/<slug>.csv` (refuses on missing coords)
 - `scripts/verify_csv.py` — cross-checks the CSV against `peaks<lid>.json`; non-zero on problems
 
 All four are stdlib-only (they shell out to `curl`), so they need no venv and no `pip install`.

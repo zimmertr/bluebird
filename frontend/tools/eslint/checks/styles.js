@@ -365,10 +365,13 @@ export const STYLES = [
     // button's corner, which the maintainer chose over a trigger shape,
     // opening the one list, and which keeps its severity colour while the
     // list is out because the colour is its message (the maintainer,
-    // 2026-10-30).
+    // 2026-10-30). The second is the question mark beside Coordinate search
+    // (record 0258), which opens a note in the panel's flow rather than a menu
+    // over it, so a trigger's chevron would promise a list of choices it does
+    // not hold (the maintainer, 2026-10-31).
     name: 'style-menu-trigger',
     files: SOURCES,
-    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge],
+    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge, 'src/components/DestinationsSection.tsx'],
     probe: 'src/components/ResultsBar.tsx',
     ban: [
       {

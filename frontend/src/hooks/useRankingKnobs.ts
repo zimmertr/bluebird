@@ -37,7 +37,7 @@ export function useRankingKnobs(restored: Partial<ShareableState> | null, maxLim
     () => restored?.constraints ?? NO_CONSTRAINTS,
   )
   // 200 rather than 100 because the pasted lists people bring are themselves
-  // often 100 long (peakbagger exports, the csv-examples/ CSVs). At 100 a list plus
+  // often 100 long (peakbagger exports, the lists in src/csv-examples/). At 100 a list plus
   // anything else — one searched peak, a polygon — spills over the cut on its
   // first analysis, which is what made #205 visible.
   const [limit, setLimit] = useState(() => clampLimit(restored?.limit ?? DEFAULT_LIMIT, maxLimit))
