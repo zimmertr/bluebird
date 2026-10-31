@@ -363,7 +363,6 @@ export function mountResultsLayer(
       card.html = html
       if (row) card.row = row
       armRemove(card)
-      gridHeads.arm(card.popup)
       const body = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
       if (body && card.capped !== null) capPopupBody(body, card.capped)
       if (body) body.scrollTop = scrolled

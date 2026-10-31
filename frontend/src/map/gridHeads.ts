@@ -24,8 +24,8 @@ export interface GridHeads {
   /** The column widths a reader dragged, kept for the session. */
   widths(): Readonly<Record<string, number>>
   /**
-   * Wires a card's heads to the drag and the resize. Called after every write
-   * of the card's markup, which replaces the heads.
+   * Wires a card's heads to the drag and the resize. A write of the card's
+   * markup replaces the heads, which then need wiring again.
    */
   arm(popup: Popup): void
   /** Called when a resize ends, so every card redraws at the new width. */
