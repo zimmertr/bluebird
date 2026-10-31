@@ -9,7 +9,6 @@ import {
   CHIP_CARD_W,
   CONTROL_SIZE,
   LEGEND_GRID_STYLE,
-  LEGEND_GRID_STYLE_WORDS,
   LINK,
   MAP_CHIP_MENU,
   RADIUS,
@@ -31,7 +30,6 @@ import { MenuButton } from './Menu'
 import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
 import { FIRMS_HREF, fireActivityLegendChips } from '../utils/fireActivity'
-import { GRID_STYLE_NAMES } from '../utils/forecastGrid/forecastGridLegend'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF, radarSwatchCss } from '../utils/radar'
@@ -41,9 +39,6 @@ import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../u
 import { SLOPE_BANDS, slopeRampCss, slopeTicks } from '../utils/slopeAngle'
 import { MAPTERHORN_HREF } from '../utils/terrainSources'
 import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
-
-// Every name the grid style's button can say, which its word is held to the widest of.
-const GRID_STYLE_WORD_LIST = Object.values(GRID_STYLE_NAMES)
 
 /**
  * One section of the map's legend box: what it keys, who it came from, and the
@@ -483,19 +478,7 @@ export function legendSections(
                       onClick={() => setGridStyle(gridStyle === 'smooth' ? 'blocks' : 'smooth')}
                       className={LEGEND_GRID_STYLE}
                     >
-                      <span className={LEGEND_GRID_STYLE_WORDS.stack}>
-                        {GRID_STYLE_WORD_LIST.map((name) => (
-                          <span
-                            key={name}
-                            aria-hidden={name === gridLegend.styleName ? undefined : true}
-                            className={`${LEGEND_GRID_STYLE_WORDS.word}${
-                              name === gridLegend.styleName ? '' : ` ${LEGEND_GRID_STYLE_WORDS.hidden}`
-                            }`}
-                          >
-                            {name}
-                          </span>
-                        ))}
-                      </span>
+                      {gridLegend.styleName}
                       <span aria-hidden="true">⇄</span>
                     </button>
                   </>

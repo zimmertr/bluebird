@@ -87,7 +87,6 @@ import {
   MENU_GROUP,
   LAYER_GRID,
   LEGEND_GRID_STYLE,
-  LEGEND_GRID_STYLE_WORDS,
   LAYER_ROW,
   SHEET_ASIDE,
   MODEL_ROW,
@@ -1581,15 +1580,6 @@ describe('shared recipes', () => {
       expect(Math.min(theme.rest, theme.hover)).toBeGreaterThanOrEqual(4.5)
     }
     expect(mapLegendSource).toContain('className={LEGEND_GRID_STYLE}')
-  })
-
-  // The button stays one size as it switches: every name in one cell, the
-  // unshown ones invisible rather than gone, so they keep their room.
-  it("holds the legend's grid style word at its widest name", () => {
-    expect(LEGEND_GRID_STYLE_WORDS.stack).toContain('inline-grid')
-    expect(LEGEND_GRID_STYLE_WORDS.word).toBe('[grid-area:1/1]')
-    expect(LEGEND_GRID_STYLE_WORDS.hidden).toBe('invisible')
-    expect(mapLegendSource).toContain('className={LEGEND_GRID_STYLE_WORDS.stack}')
   })
 
   // The floating button is the skip link's now, at the control size the map

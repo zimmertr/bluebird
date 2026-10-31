@@ -3407,21 +3407,6 @@ export const LEGEND_GRID_STYLE =
   `${ACCENT.text} font-semibold cursor-pointer ${FOCUS_RING}`
 
 /**
- * The button's word held at the width of the wider name, so the button stays
- * one size as it switches between `Smooth` and `Blocks` (the maintainer,
- * 2026-10-30, #832): every name stands in one grid cell (`stack`, each
- * `word` on the cell's one area), the one not shown `hidden` from sight and,
- * by `aria-hidden` at the call site, from a screen reader. The way
- * `widestName` holds a popup's changing name at one width. Centred, so the
- * narrower word sits in the middle of the room the wider one keeps.
- */
-export const LEGEND_GRID_STYLE_WORDS = {
-  stack: 'inline-grid text-center',
-  word: '[grid-area:1/1]',
-  hidden: 'invisible',
-} as const
-
-/**
  * The forecast grid's coverage slider on its own Layers row, at the right
  * where the Base map rows carry their opacity sliders, the same well with its
  * value alone, since `Coverage` beside it would stand under the thumb at the
