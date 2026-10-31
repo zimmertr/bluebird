@@ -78,6 +78,7 @@ import {
   BOTTOM_SHEET,
   CONTROLS_SHEET,
   SAFE_AREA,
+  UNDER_FULL_SHEET,
   CHART_PLOT_TOUCH,
   CHART_PANEL_BUTTON,
   CHART_PICKER,
@@ -3045,6 +3046,13 @@ describe('the safe area', () => {
     expect(words(SAFE_AREA.probe)).toEqual(
       expect.arrayContaining(['h-[env(safe-area-inset-bottom)]', 'fixed', 'bottom-0', 'invisible', 'pointer-events-none']),
     )
+  })
+
+  // The rows and the Analyze button step off under a full-screen sheet
+  // (#837): `invisible`, so they keep their boxes and the map its slots, where
+  // `hidden` would take them out of the layout.
+  it('hides the chrome a full-screen sheet covers without taking its box', () => {
+    expect(UNDER_FULL_SHEET).toBe('invisible')
   })
 
   // A sheet whose body scrolls ends its content the band above the screen's

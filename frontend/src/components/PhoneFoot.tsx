@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import type { PanelMessages } from '../hooks/usePanelMessages'
-import { BLOCKED, DISABLED, MAP_FAB, MAP_FAB_SLOT, MAP_FAB_WORDS } from '../styles'
+import { BLOCKED, DISABLED, MAP_FAB, MAP_FAB_SLOT, MAP_FAB_WORDS, UNDER_FULL_SHEET } from '../styles'
 import { ACTION_WORDS, type ActionWord } from '../utils/analyzeGate'
 import MessageBadge, { MessageRegion } from './MessageBadge'
 import MessageList from './MessageList'
@@ -23,6 +23,8 @@ interface PhoneFootProps {
   onAnalyze: () => void
   /** The panel's messages (`usePanelMessages`): the badge's count and colour, and the sheet's rows. */
   messages: PanelMessages
+  /** The results sheet stands over the button (#837), which steps off until it comes down. */
+  covered?: boolean
 }
 
 /**
@@ -38,7 +40,15 @@ interface PhoneFootProps {
  * the button by its height went with the badge: on touch it showed one
  * message and no sign of the rest.
  */
-export default function PhoneFoot({ fabBottomPx, onFabPx, analyzeEnabled, word, onAnalyze, messages }: PhoneFootProps) {
+export default function PhoneFoot({
+  fabBottomPx,
+  onFabPx,
+  analyzeEnabled,
+  word,
+  onAnalyze,
+  messages,
+  covered = false,
+}: PhoneFootProps) {
   // The button's width is the widest word's whichever it reads, so it moves
   // only with the face, the size or the zoom; observed for those. It is
   // mounted for as long as the foot is, so a ref is enough.
@@ -75,7 +85,7 @@ export default function PhoneFoot({ fabBottomPx, onFabPx, analyzeEnabled, word, 
 
   return (
     <>
-      <div className={MAP_FAB_SLOT} style={{ bottom: fabBottomPx }}>
+      <div className={covered ? `${MAP_FAB_SLOT} ${UNDER_FULL_SHEET}` : MAP_FAB_SLOT} style={{ bottom: fabBottomPx }}>
         <button
           ref={buttonRef}
           onClick={blocked ? toggle : onAnalyze}

@@ -3,7 +3,7 @@ import SearchBox, { type SearchBoxHandle } from './SearchBox'
 import { IconMenu } from './icons'
 import { MenuButton } from './Menu'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { LAYER, MAP_CHIP_SUMMARY_TEXT, MAP_ROWS, MAP_SLOT } from '../styles'
+import { LAYER, MAP_CHIP_SUMMARY_TEXT, MAP_ROWS, MAP_SLOT, UNDER_FULL_SHEET } from '../styles'
 import type { Place } from '../utils/geocode'
 
 interface MapRowsProps {
@@ -33,6 +33,8 @@ interface MapRowsProps {
   layers: ReactNode
   /** The Legend chip and its key (`MapLegend`). */
   legend: ReactNode
+  /** A phone's results sheet stands over the rows (#837), which step off until it comes down. */
+  covered?: boolean
 }
 
 /**
@@ -69,6 +71,7 @@ export default function MapRows({
   controlsSummary,
   layers,
   legend,
+  covered = false,
 }: MapRowsProps) {
   const summaryId = useId()
   const [searching, setSearching] = useState(false)
@@ -82,7 +85,7 @@ export default function MapRows({
   return (
     // A popup keeps clear of the rows (`resultsLayer.ts` finds every
     // `data-map-overlay`), which stand over the top of every map.
-    <div data-map-overlay="" className={`${MAP_ROWS.stack} ${LAYER.mapControls}`}>
+    <div data-map-overlay="" className={`${MAP_ROWS.stack} ${LAYER.mapControls}${covered ? ` ${UNDER_FULL_SHEET}` : ''}`}>
       <div className={MAP_ROWS.row}>
         <div className={searching ? MAP_ROWS.pillWide : MAP_ROWS.pill}>
           <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} onExpandedChange={setSearching} />

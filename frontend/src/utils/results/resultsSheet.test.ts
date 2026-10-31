@@ -23,6 +23,8 @@ import {
   TRANSPORT_HEIGHT_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
+  fullScreenMapFloorPx,
+  sheetTopRelease,
   controlsFullPx,
   controlsSheetPx,
   fabBottomPx,
@@ -40,6 +42,7 @@ import {
   sheetHeightPx,
   transportBottomPx,
 } from './resultsSheet'
+import { SHEET_SNAP_PX } from '../sheetDrag'
 // `?raw` reads the sources as text, so the offsets the anchors here mirror can be
 // asserted without a DOM. The classes quoted below are already in the bundle
 // because styles.ts spells them; quoting one that is NOT would emit its CSS,
@@ -279,6 +282,35 @@ describe('the drag cap', () => {
     const fab = fabBottomPx(capped, VIEWPORT)
     expect(fab).toBe(capped + FAB_INSET_PX)
     expect(VIEWPORT - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
+  })
+})
+
+// Full screen (#837): past the cap a drag runs on to the map's top, and the
+// release decides whether the sheet stays there.
+describe('full screen', () => {
+  // The sheet's chrome is the whole floor, so the sheet is the map's height.
+  it.each([1, 2])('leaves no map under a sheet with %i grips', (gripCount) => {
+    const availPx = 757
+    const panelsPx = availPx - fullScreenMapFloorPx(gripCount)
+    expect(sheetHeightPx({ collapsed: false, gripCount, panelsPx })).toBe(availPx)
+  })
+
+  it('goes full within the snap of the top, falls back to the cap above it, and holds below it', () => {
+    const cap = 400
+    const full = 576
+    expect(sheetTopRelease(full, cap, full)).toBe('full')
+    expect(sheetTopRelease(full - SHEET_SNAP_PX, cap, full)).toBe('full')
+    expect(sheetTopRelease(full - SHEET_SNAP_PX - 1, cap, full)).toBe('cap')
+    expect(sheetTopRelease(cap + 1, cap, full)).toBe('cap')
+    expect(sheetTopRelease(cap, cap, full)).toBe('hold')
+    expect(sheetTopRelease(120, cap, full)).toBe('hold')
+  })
+
+  // The band between the cap and the top is the rows and the button's strip,
+  // wider than the snap, so a release short of the top lands on the cap.
+  it('is farther above the cap than the snap reaches', () => {
+    expect(draggedMapFloorPx(1) - fullScreenMapFloorPx(1)).toBe(DRAGGED_MAP_PX)
+    expect(DRAGGED_MAP_PX).toBeGreaterThan(SHEET_SNAP_PX)
   })
 })
 

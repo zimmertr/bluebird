@@ -2636,6 +2636,16 @@ export const SAFE_AREA = {
   probe: 'pointer-events-none invisible fixed bottom-0 left-0 w-0 h-[env(safe-area-inset-bottom)]',
 } as const
 
+/**
+ * The map chrome a phone's results sheet rises over at full screen (#837):
+ * the two rows and the Analyze button with its badge. They stand above the
+ * sheet (`LAYER.mapControls`), so they would draw over its bar. Hidden rather
+ * than unmounted, so the map keeps the slots it stands its own buttons in;
+ * `invisible` rather than only covered, so neither the keyboard nor a screen
+ * reader reaches a control no finger can.
+ */
+export const UNDER_FULL_SHEET = 'invisible'
+
 // The hairline between a phone sheet's rows, which a group of rows inside the
 // sheet draws between its own (`MENU_GROUP.sheet`), so the two rules are one.
 const SHEET_RULES = 'divide-y divide-rule'

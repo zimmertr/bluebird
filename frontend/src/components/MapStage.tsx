@@ -97,7 +97,10 @@ export interface MapStageProps {
    * How far the phone sheet lifts the map's bottom chrome, the camera's bottom
    * padding, and the padding for the sheet a search is about to open.
    */
-  layout: Pick<ResultsLayout, 'mapCornerLift' | 'sheetLiftPx' | 'cameraPadBottomPx' | 'sheetPadBottomPx' | 'mapPx'>
+  layout: Pick<
+    ResultsLayout,
+    'mapCornerLift' | 'sheetLiftPx' | 'overMapRows' | 'cameraPadBottomPx' | 'sheetPadBottomPx' | 'mapPx'
+  >
   /** The run in flight, which the loading card reports and can cancel. */
   analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'paceRemainingS' | 'cancel'>
   /** The metric the markers are coloured on. */
@@ -259,10 +262,14 @@ export default function MapStage({
   // A phone's Analyze button rides the results sheet (record 0135), and the
   // player stands on the button rather than on the sheet, stepping off while
   // a sheet dragged high leaves it no room. The Controls sheet moves none of
-  // them: it opens over them, modal (record 0207).
+  // them: it opens over them, modal (record 0207). A sheet dragged over the
+  // map's rows takes all of them off with the rows (#837).
   const footLift = layout.sheetLiftPx
   const fabBottom = fabBottomPx(footLift, layout.mapPx)
-  const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
+  const timelineShown =
+    timelineAxis !== null &&
+    !drawBarShown &&
+    (isDesktop || (!layout.overMapRows && transportFits(fabBottom, layout.mapPx)))
 
   // Legend and Layers are chips in the row under the search pill at both
   // widths, each with its menu a card joined to the chip at a desk (#714) and
@@ -402,6 +409,7 @@ export default function MapStage({
         controlsSummary={controlsSummary}
         layers={layers}
         legend={legendChip}
+        covered={layout.overMapRows}
       />
       {/* A desk's map buttons, credit line and scale, in the map's
           bottom-right corner (record 0174). */}
@@ -416,6 +424,7 @@ export default function MapStage({
           word={actionWord}
           onAnalyze={onAnalyze}
           messages={messages}
+          covered={layout.overMapRows}
         />
       )}
       {/* The timeline, present exactly while something spans time: radar
