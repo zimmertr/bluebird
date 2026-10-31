@@ -1,6 +1,6 @@
 # 0233. A failed run opens its messages, and a refused run is a blocker
 
-- Status: Accepted. Amends 0208 (the list opens itself when a run fails, a desk's shut panel opens again around it, a refusal is a blocker rather than a dismissable line, and a desk's card is the button's width rather than at least it).
+- Status: Accepted, amended by 0260 (a check or basemap failure opens the list too, leaving the keyboard where it is at a desk). Amends 0208 (the list opens itself when a run fails, a desk's shut panel opens again around it, a refusal is a blocker rather than a dismissable line, and a desk's card is the button's width rather than at least it).
 - Date: 2026-10-27
 - Decider: the maintainer (TJ), on issue #803: option A for M1 (a run that ends in an error or a refusal opens the message list itself), option A1 for M2 (a desk's panel shut when the failure lands opens again, with the list inside it), and a refusal that stands as a blocker until the panel changes; on 2026-10-28, a desk's card exactly the button's width, so a long line wraps. The blocker sentences are the issue's approved strings. The stricter rule for when a refusal lifts (a cleared ring and a shorter list count) is Claude's call, flagged on the PR.
 - Issues and PRs: #803, #808, #786, #736, #782

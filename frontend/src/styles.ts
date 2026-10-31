@@ -1998,6 +1998,17 @@ export const MAP_FAB_WORDS = {
  * 44px hit area through an invisible box drawn 10px past its edge on every
  * side (the `before:` box, as `TAP` would size it), without growing the disc.
  * The box overhangs the button's corner, where the label is not.
+ *
+ * A message arriving moves it once (#834; the maintainer, 2026-10-30): the
+ * disc swells and settles while a ring of its own colour spreads from it and
+ * fades, because a digit that changed and nothing else was easy to miss. The
+ * ring is the `after:` box, filled with whatever the disc is (`bg-inherit`)
+ * and stacked under the digit (`isolate`, `-z-10`), so it follows the
+ * severity with no colour of its own. `arrival` is two spellings of the one
+ * animation under two names: the badge wears one per arrival, alternating,
+ * because a change of name is what restarts a CSS animation, so the next
+ * arrival plays again on the same element without remounting it or the
+ * keyboard on it. Under reduced motion it does not move at all.
  */
 export const MESSAGE_BADGE = {
   /** The box the button and its badge share, which the badge's corner is placed in. */
@@ -2005,10 +2016,16 @@ export const MESSAGE_BADGE = {
   base:
     `absolute -right-2.5 -top-2.5 flex h-6 min-w-6 items-center justify-center border-2 border-panel px-1 ${RADIUS.pill} ` +
     `${MICRO_SIZE} font-bold leading-none tabular-nums transition-colors ` +
-    `touch:before:absolute touch:before:-inset-2.5 touch:before:content-[''] ${FOCUS_RING}`,
+    `touch:before:absolute touch:before:-inset-2.5 touch:before:content-[''] ${FOCUS_RING} ` +
+    `isolate after:pointer-events-none after:absolute after:-inset-0.5 after:-z-10 after:rounded-full ` +
+    `after:bg-inherit after:opacity-0 after:content-['']`,
   error: 'bg-danger text-panel',
   warn: 'bg-warn text-panel',
   info: 'bg-info text-panel',
+  arrival: [
+    'motion-safe:animate-badge-bump-a motion-safe:after:animate-badge-ripple-a',
+    'motion-safe:animate-badge-bump-b motion-safe:after:animate-badge-ripple-b',
+  ],
 } as const
 
 /**

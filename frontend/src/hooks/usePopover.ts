@@ -95,6 +95,14 @@ interface Options {
    * the click, a press later, so the card left a frame before the rest.
    */
   ownPressRef?: React.RefObject<HTMLElement | null>
+  /**
+   * Whether the keyboard goes into the panel as it opens, true unless a
+   * caller says otherwise: the message list opened by a check or the basemap
+   * failing (#834), which lands while the reader may be typing in a field and
+   * must not take the keyboard from it. Turning true while the panel is open
+   * takes it then, as a failed run does over a list already standing open.
+   */
+  takeFocus?: boolean
 }
 
 export function usePopover({
@@ -106,6 +114,7 @@ export function usePopover({
   anchorRef,
   ownPressRef,
   widthRef,
+  takeFocus = true,
 }: Options): {
   popoverRef: React.RefObject<HTMLDivElement | null>
   /** Where the card stands while it is drawn, open or on its way out; null when there is no card. */
@@ -209,11 +218,11 @@ export function usePopover({
   // the placement above), and an [open]-keyed pass would find nothing to focus.
   const shown = open && box !== null
   useEffect(() => {
-    if (!shown) return
+    if (!shown || !takeFocus) return
     const panel = popoverRef.current
     const target = initialFocusRef?.current ?? (panel ? tabbables(panel)[0] : undefined)
     target?.focus()
-  }, [shown, initialFocusRef])
+  }, [shown, initialFocusRef, takeFocus])
 
   // And back out to the trigger when it closes, by whatever route, if the
   // keyboard was inside. A closed card leaves over `MOTION.menu`'s 150ms
