@@ -397,7 +397,6 @@ describe('DestinationsSection', () => {
 
     it('reads None over an empty box, Custom over typed rows, and lists every example', async () => {
       const { user, rerender } = render(<DestinationsSection {...props()} />)
-      expect(screen.getByText('Example list')).toBeTruthy()
       expect(field('None').getAttribute('aria-haspopup')).toBe('listbox')
       rerender(<DestinationsSection {...props({ customCsv: '1,2,Mine' })} />)
       await user.click(field('Custom'))

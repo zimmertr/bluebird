@@ -249,7 +249,7 @@ export default function DestinationsSection({
         </div>
         {pendingList && (
           <ConfirmDialog
-            title={`Load ${pendingList.name}?`}
+            question={`Load ${pendingList.name}?`}
             body="This replaces the rows in the Coordinate search box."
             confirmLabel="Load"
             onConfirm={() => void loadList(pendingList)}

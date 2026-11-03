@@ -4,7 +4,7 @@ import ConfirmDialog from './ConfirmDialog'
 import { render } from '../testSupport/render'
 
 const props = (over: Partial<Parameters<typeof ConfirmDialog>[0]> = {}) => ({
-  title: 'Load The Bulger List?',
+  question: 'Load The Bulger List?',
   body: 'This replaces the rows in the Coordinate search box.',
   confirmLabel: 'Load',
   onConfirm: vi.fn(),
