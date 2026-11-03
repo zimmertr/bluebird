@@ -39,8 +39,8 @@ test('a failed polygon run keeps its found destinations, and Try again forecasts
     const dashes = (await row.locator('td').allTextContents()).filter((text) => text.trim() === '—')
     expect(dashes.length).toBeGreaterThan(1)
   }
-  // Pending rows rank nowhere, and a found one carries no remove button.
-  await expect(table.getByRole('button', { name: /^Remove / })).toHaveCount(0)
+  // Pending rows rank nowhere, and each carries its remove, a found one too (#832).
+  await expect(table.getByRole('button', { name: /^Remove / })).toHaveCount(DESTINATION_NAMES.length)
   expect(discoveries).toBe(1)
 
   await page.unroute('https://api.open-meteo.com/**', refuse)

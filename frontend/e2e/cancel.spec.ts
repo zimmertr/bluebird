@@ -136,9 +136,10 @@ test('a cancel after partial rows puts the last report back, and the next Analyz
   await page.getByRole('button', { name: 'Analyze' }).click()
   await expect(page.getByText(/so far/)).toBeVisible()
   // The first batch's 50 rows are ranked, and the ten still waiting on their
-  // forecasts stand above them as pending rows, which carry no remove (#782).
+  // forecasts stand above them as pending rows (#782), each with the remove
+  // every row carries (#832).
   await expect(resultRows(page)).toHaveCount(60)
-  await expect(page.locator('[data-results-table]').getByRole('button', { name: /^Remove / })).toHaveCount(50)
+  await expect(page.locator('[data-results-table]').getByRole('button', { name: /^Remove / })).toHaveCount(60)
   // A card over a partial row, which names a row the report put back does not
   // hold. The last row is a ranked one, since the pending rows come first.
   const popup = page.locator('.maplibregl-popup')
