@@ -31,6 +31,21 @@ Contrast of the title, `ink-soft` on `band`, measured in `styles.test.ts` on 202
 
 Placement, from `panelTitle.ts` on 2026-11-03. The plot band's corner is `PLOT_MARGIN.left` plus the 44px y axis in, and `PLOT_MARGIN.top` down: the chip stands at (56, 12) in its box and spans 12 to 27px down. At the narrowest panel `panelWidthFloorPx` draws, a 156px band, the longest title and the extreme label at the band's right end share columns, so the extreme label is moved on height alone. At the shortest, a 40px band (`panelFloorPx`), a label moved under the chip ends 32px under the band's top, inside it.
 
+The drag, measured on 2026-11-03 by `frontend/e2e/perf/panelDrag.spec.ts` in the pinned Playwright image's Chromium (1.64.1) against the built image, Open-Meteo answered from the suite's fixtures: a 1440 by 900 window, the dark theme, Chart alone, its area 1,080 by 220px, four panels in 1 over 3 (precipitation, temperature, wind, freezing level), 200 lines over 15 days (360 hourly stamps). Each run drags the last slot's title to over the second in 30 moves, one a frame, and releases; three runs. Before is the same build with the panels keyed by slot.
+
+| | Keyed by metric | Keyed by slot |
+|---|---|---|
+| Main thread per move | 2.5 / 2.8 / 3.2 ms | 2.8 / 3.2 / 3.3 ms |
+| The `pointermove` handler, median | 0.1 ms | 0.1 to 0.2 ms |
+| Box measures during the moves | 0 | 0 |
+| Layout passes during the moves | 2 | 2 |
+| React commits during the moves | 0 / 1 / 2 | 1 / 1 / 2 |
+| Release to the new order on screen | 65 / 72 / 73 ms | 101 / 104 / 144 ms |
+| Main thread over the release | 55 / 67 / 73 ms | 101 / 104 / 144 ms |
+| Longest task in the release | 9.9 to 13.5 ms, none over 16 | 11.2 to 15.0 ms, none over 16 |
+
+The commits are not the drag's: its handlers set no state, and the page commits at the same rate with nothing moving (0 or 1 over 30 idle frames, with no DOM change in a 3 s idle window). The two layout passes are the landing bar's two writes, over the third slot and then the second; no move reads layout. A move's main-thread time is mostly the compositor's layerizing for the moved ghost. The release time runs to the first frame painted after the titles stand in their new order; keying by metric cut it by about a third (a median of 72 ms against 104), since the three panels that moved keep their data, domains and drawings.
+
 ## Alternatives rejected
 
 - **The name above the plot, in the panel's top margin.** It covers no data, but every panel grows a title band of about 18px, and it moves `PLOT_MARGIN.top`, which `plotBand`, `fingerReading` and `panelFloorPx` read.
@@ -39,6 +54,7 @@ Placement, from `panelTitle.ts` on 2026-11-03. The plot band's corner is `PLOT_M
 - **The title in the panel's own fill.** Declined in the lab for the `band` fill, which sets the chip off the plot.
 - **No unit in the title.** Declined in the lab: the title is the picker's option label as it stands.
 - **A swap on drop.** See above.
+- **Handing the redrawn panels back one a frame after the release**, as the split drag does. The release measured no task over 16 ms, so there was nothing to spread.
 - **The picker grip's drag, which renders its ghost on every move.** A whole-panel ghost moved by state would render the chart on every move; this one moves by a transform written from a ref.
 
 ## Consequences
