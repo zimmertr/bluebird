@@ -545,7 +545,13 @@ export function useResultsLayout({
     const panelPx = dragPanelPx(drag, dragUp.current)
     const capPx = clampPanelHeight(0, Infinity, drag.otherPx, window.innerHeight, dragFloorPx)
     const release = sheetTopRelease(panelPx, capPx, drag.ceilPx)
-    setHeight(release === 'cap' ? capPx : panelPx)
+    const px = release === 'cap' ? capPx : panelPx
+    // The chart's box takes the committed height here, not only from the
+    // render: React rewrites the style only when its own last value moved,
+    // and a drag let go where it began leaves that value where it was while
+    // the element still wears the last move's.
+    if (drag.panel === 'chart') chartPaneRef.current?.style.setProperty('height', `${px}px`)
+    setHeight(px)
     if (release === 'full') setFullScreen(true)
   }
   // The drag's placement goes on in the layout effect above, in the commit

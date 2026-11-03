@@ -325,6 +325,14 @@ describe('useResultsLayout', () => {
       act(() => result.current.chartGrip.onDragEnd())
       expect(result.current.chartPanelPx).toBe(chart + 120)
       expect(result.current.tablePanelPx).toBe(table)
+      // The box wears the committed height after a release that lands where
+      // the drag began too, which no render rewrites.
+      act(() => result.current.chartGrip.onDragStart())
+      act(() => result.current.chartGrip.onDrag(40))
+      act(() => result.current.chartGrip.onDrag(0))
+      act(() => result.current.chartGrip.onDragEnd())
+      expect(result.current.chartPanelPx).toBe(chart + 120)
+      expect(pane.style.height).toBe(`${chart + 120}px`)
     })
 
     it('comes down under the next drag, from where it stands, or a double press', () => {
