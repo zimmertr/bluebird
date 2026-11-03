@@ -249,9 +249,12 @@ export function MenuSelect<V extends string>({
         }}
         className={`${className} text-left`}
       >
-        <span id={nameId} className={SR_ONLY}>
-          {label}
-        </span>
+        {/* The placeholder is the label's own words, so it names the field alone. */}
+        {!showsPlaceholder && (
+          <span id={nameId} className={SR_ONLY}>
+            {label}
+          </span>
+        )}
         <span id={valueId} className="block min-w-0 truncate">
           {showsPlaceholder ? placeholder : (options[selectedIndex]?.label ?? value)}
         </span>

@@ -331,8 +331,8 @@ describe('panelMessages', () => {
   // #834: the lines whose arrival opens the list are the two checks and the
   // basemap, by the keys this module gives them, and nothing else.
   describe('the lines that open the list', () => {
-    it('are the keys the check and basemap failures carry', () => {
-      const failing = keys({ wildfireCheckFailed: true, closureCheckFailed: true, basemapFailed: true })
+    it('are the keys the check, basemap and example-list failures carry', () => {
+      const failing = keys({ wildfireCheckFailed: true, closureCheckFailed: true, basemapFailed: true, exampleListFailed: true })
       expect([...LIST_OPENING_KEYS].sort()).toEqual([...failing].sort())
     })
   })
