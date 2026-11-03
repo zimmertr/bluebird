@@ -4,6 +4,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
 import { fakeResponse } from '../testSupport/fixtures'
+import { forgetExampleLists } from '../utils/exampleLists'
 import type { DiscoveryType } from '../types'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
@@ -381,17 +382,25 @@ describe('DestinationsSection', () => {
     expect(screen.getByText('Search by name, or select a destination from the map.')).toBeTruthy()
   })
 
-  // Load a list, beside the subheading, is the one menu over the example
-  // lists; a pick puts the list in the box and frames it like a paste (#838,
-  // record 0263).
-  describe('Load a list', () => {
-    afterEach(() => vi.unstubAllGlobals())
-    const field = () => screen.getByRole('button', { name: 'Load a list' })
+  // The Example list row under the subheading is the one menu over the
+  // example lists; a pick replaces the box, asking first only over rows the
+  // reader typed (#838, record 0263).
+  describe('the Example list field', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+      forgetExampleLists()
+    })
+    const field = (reads: string) => screen.getByRole('button', { name: `Example list ${reads}` })
+    const BULGERS = '46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'
+    const arrives = () => vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: BULGERS })))
 
-    it('reads Load a list, and lists every example in the one menu', async () => {
-      const { user } = render(<DestinationsSection {...props()} />)
-      expect(field().getAttribute('aria-haspopup')).toBe('listbox')
-      await user.click(field())
+    it('reads None over an empty box, Custom over typed rows, and lists every example', async () => {
+      const { user, rerender } = render(<DestinationsSection {...props()} />)
+      expect(screen.getByText('Example list')).toBeTruthy()
+      expect(field('None').getAttribute('aria-haspopup')).toBe('listbox')
+      rerender(<DestinationsSection {...props({ customCsv: '1,2,Mine' })} />)
+      await user.click(field('Custom'))
       expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
         'The Bulger List',
         'Mountaineers 100 Peaks at Mount Rainier',
@@ -400,25 +409,48 @@ describe('DestinationsSection', () => {
       ])
     })
 
-    it('adds the picked list under the rows already there, frames it, says it arrived and hands the keyboard to the box', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: '48.7768,-121.8145,Mount Baker' })))
+    it('fills an empty box at once, frames the rows, says the list arrived and hands the keyboard to the box', async () => {
+      arrives()
       const setCustomCsv = vi.fn()
       const onCsvPasted = vi.fn()
       const onExampleListFailed = vi.fn()
-      const { user } = render(
-        <DestinationsSection
-          {...props({ customCsv: '46.8529,-121.7604,Mount Rainier', setCustomCsv, onCsvPasted, onExampleListFailed })}
-        />,
+      const { user, rerender } = render(
+        <DestinationsSection {...props({ setCustomCsv, onCsvPasted, onExampleListFailed })} />,
       )
-      await user.click(field())
+      await user.click(field('None'))
       await user.click(screen.getByRole('option', { name: 'The Bulger List' }))
-      await waitFor(() =>
-        expect(setCustomCsv).toHaveBeenCalledWith('46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'),
-      )
+      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(BULGERS))
+      expect(screen.queryByRole('dialog')).toBeNull()
       expect(onCsvPasted.mock.calls[0][0].map((d: { name: string }) => d.name)).toEqual(['Mount Rainier', 'Mount Baker'])
       expect(onExampleListFailed).toHaveBeenCalledWith(false)
-      expect(field().textContent).toBe('Load a list')
       expect(document.activeElement).toBe(coordinates())
+      // The box now holds the list, so the field names it.
+      rerender(<DestinationsSection {...props({ customCsv: BULGERS, setCustomCsv, onCsvPasted, onExampleListFailed })} />)
+      expect(field('The Bulger List')).toBeTruthy()
+    })
+
+    it('asks before replacing rows the reader typed, and Cancel keeps them', async () => {
+      arrives()
+      const setCustomCsv = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv })} />)
+      await user.click(field('Custom'))
+      await user.click(screen.getByRole('option', { name: "Smoot's 100 Peaks" }))
+      const dialog = screen.getByRole('dialog', { name: "Load Smoot's 100 Peaks?" })
+      expect(within(dialog).getByText('This replaces the rows in the Coordinate search box.')).toBeTruthy()
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(setCustomCsv).not.toHaveBeenCalled()
+    })
+
+    it('replaces the typed rows on Load', async () => {
+      arrives()
+      const setCustomCsv = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv })} />)
+      await user.click(field('Custom'))
+      await user.click(screen.getByRole('option', { name: 'The Bulger List' }))
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Load' }))
+      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(BULGERS))
+      expect(screen.queryByRole('dialog')).toBeNull()
     })
 
     // A stale tab asks for an old build's name and gets a 404: the box stays
@@ -429,11 +461,10 @@ describe('DestinationsSection', () => {
       const setCustomCsv = vi.fn()
       const onExampleListFailed = vi.fn()
       const { user } = render(<DestinationsSection {...props({ setCustomCsv, onExampleListFailed })} />)
-      await user.click(field())
-      await user.click(screen.getByRole('option', { name: "Smoot's 100 Peaks" }))
+      await user.click(field('None'))
+      await user.click(screen.getByRole('option', { name: 'Alpine Lakes Home Court Top 100' }))
       await waitFor(() => expect(onExampleListFailed).toHaveBeenCalledWith(true))
       expect(setCustomCsv).not.toHaveBeenCalled()
-      vi.restoreAllMocks()
     })
   })
 

@@ -4,7 +4,7 @@ import rainier from '../csv-examples/mountaineers-100-peaks-at-mount-rainier-np.
 import smoot from '../csv-examples/smoots-climbing-washingtons-mountains-100-peaks.csv?url&no-inline'
 import homeCourt from '../csv-examples/alpine-lakes-home-court-top-100.csv?url&no-inline'
 
-// The ready-made lists the Load a list field beside Coordinate search puts in
+// The ready-made lists the Example list field under Coordinate search puts in
 // the box (#838), each a hashed asset fetched on the pick that asks for it. A fetch
 // rather than a lazy `import()` for `usStatesLoad.ts`'s reason: a stale tab's
 // failed import reloads the page (`staleChunk.ts`), and a list is not worth a
@@ -31,12 +31,20 @@ export const EXAMPLE_LISTS: readonly ExampleList[] = [
   { name: 'Alpine Lakes Home Court Top 100', url: homeCourt },
 ]
 
+// Every list that has arrived this session, by URL, so the field can tell a
+// box that holds one from a box that holds the reader's own rows.
+const held = new Map<string, string>()
+
 /** The list's text, or null when it cannot be had. Never rejects. */
 export async function fetchExampleList(list: ExampleList): Promise<string | null> {
+  const kept = held.get(list.url)
+  if (kept !== undefined) return kept
   try {
     const res = await apiFetch(list.url)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.text()
+    const text = await res.text()
+    held.set(list.url, text)
+    return text
   } catch (err) {
     console.warn('Example list failed to load', err)
     return null
@@ -44,10 +52,22 @@ export async function fetchExampleList(list: ExampleList): Promise<string | null
 }
 
 /**
- * The box once a list lands: the list alone in an empty box, else under the
- * rows already there, so a press never costs a reader what they typed. A row
- * in both is analyzed once, as a line pasted twice already is.
+ * The list the box holds, when it holds exactly one that arrived this session
+ * (a trailing newline aside), else null. What the Example list field reads,
+ * and what lets a pick replace the box without asking: a list is nothing the
+ * reader typed. A share link restores the rows and not this, so a reloaded
+ * page reads such a box as Custom until a list is picked again.
  */
-export function withList(current: string, list: string): string {
-  return current.trim() === '' ? list : `${current.trimEnd()}\n${list}`
+export function exampleListIn(box: string): ExampleList | null {
+  const text = box.trimEnd()
+  for (const list of EXAMPLE_LISTS) {
+    const kept = held.get(list.url)
+    if (kept !== undefined && kept.trimEnd() === text) return list
+  }
+  return null
+}
+
+/** Tests only: forget what arrived. */
+export function forgetExampleLists(): void {
+  held.clear()
 }

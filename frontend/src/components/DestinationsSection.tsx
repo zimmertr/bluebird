@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { CustomDestination, DiscoveryType } from '../types'
 import {
   CHOICE_INPUT,
@@ -14,8 +14,9 @@ import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import { parseCustomCsv } from '../utils/customDestinations'
-import { EXAMPLE_LISTS, fetchExampleList, withList } from '../utils/exampleLists'
+import { EXAMPLE_LISTS, exampleListIn, fetchExampleList, type ExampleList } from '../utils/exampleLists'
 import { MenuSelect } from './Menu'
+import ConfirmDialog from './ConfirmDialog'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
 import DrawReadout from './DrawReadout'
@@ -91,7 +92,7 @@ interface Props {
   // Whether the example list last picked arrived (#838): false on a pick that
   // lands, true on one that does not, which the Analyze button's list says.
   onExampleListFailed: (failed: boolean) => void
-  // A phone, where the Load a list field opens the one menu's sheet (record 0252).
+  // A phone, where the Example list field opens the one menu's sheet (record 0252).
   phone?: boolean
 }
 
@@ -130,20 +131,30 @@ export default function DestinationsSection({
   // true exactly when a change came from a paste — including a paste that
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
-  // A list picked from the field beside the subheading (#838, record 0263).
-  // It frames the map as a paste does, since it arrives whole rather than
-  // typed, and the keyboard goes to the box the rows just landed in.
+  // A list picked from the Example list field (#838, record 0263) replaces
+  // the box. An empty box, or one holding a list that arrived this session,
+  // is replaced at once; rows the reader typed are asked about first, since
+  // a list is nothing of theirs and their rows are. The list frames the map
+  // as a paste does, since it arrives whole rather than typed, and the
+  // keyboard goes to the box the rows just landed in.
   const csvBoxRef = useRef<HTMLTextAreaElement>(null)
-  const loadList = async (url: string) => {
-    const list = EXAMPLE_LISTS.find((l) => l.url === url)
-    const text = list ? await fetchExampleList(list) : null
+  const currentList = exampleListIn(customCsv)
+  const [pendingList, setPendingList] = useState<ExampleList | null>(null)
+  const loadList = async (list: ExampleList) => {
+    setPendingList(null)
+    const text = await fetchExampleList(list)
     onExampleListFailed(text === null)
     if (text === null) return
-    const next = withList(customCsv, text)
-    setCustomCsv(next)
-    const points = parseCustomCsv(next)
+    setCustomCsv(text)
+    const points = parseCustomCsv(text)
     if (points.length > 0) onCsvPasted(points)
     csvBoxRef.current?.focus()
+  }
+  const pickList = (url: string) => {
+    const list = EXAMPLE_LISTS.find((l) => l.url === url)
+    if (!list) return
+    if (customCsv.trim() === '' || currentList !== null) void loadList(list)
+    else setPendingList(list)
   }
   // The row's three buttons never unmount; a press that greys the one it
   // landed on (Draw polygon turning into a Done that waits for three points,
@@ -213,25 +224,38 @@ export default function DestinationsSection({
           bring to the map rather than a gesture on it. Two rows tall at
           rest, so a reader sees that several rows go in, with the format and
           one row that follows it as the placeholder. No helper line; the
-          format states itself. Load a list, in the control column beside the
-          subheading like every other row's control, is the one menu over the
-          ready-made lists (#838, record 0263): a pick puts that list in the
-          box and the field reads Load a list again, since it keeps no choice.
-          A menu rather than the lists written out, because the lists will
-          outgrow a note (the maintainer, 2026-11-03). */}
+          format states itself. The Example list row under the subheading is
+          a label beside its control like every other row in the panel (#838,
+          record 0263): the one menu over the ready-made lists, in the control
+          column, reading the list's name while the box is that list and None
+          or Custom otherwise, so the field says what the box holds the way
+          Model says which model. A menu rather than the lists written out,
+          because the lists will outgrow a note, and a row of its own rather
+          than the subheading's line, where a control beside one of three
+          parallel headings read as out of place (the maintainer, 2026-11-03). */}
       <div className="mb-3">
+        <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinate search</h3>
         <div className="mb-1.5 flex items-center gap-2">
-          <h3 className={`${TEXT.subheading} flex-1`}>Coordinate search</h3>
+          <span className={`${TEXT.control} flex-1`}>Example list</span>
           <MenuSelect
-            label="Load a list"
-            placeholder="Load a list"
-            value=""
+            label="Example list"
+            placeholder={customCsv.trim() === '' ? 'None' : 'Custom'}
+            value={currentList?.url ?? ''}
             options={EXAMPLE_LISTS.map((list) => ({ value: list.url, label: list.name }))}
-            onChange={(url) => void loadList(url)}
+            onChange={pickList}
             sheet={phone}
             className={`${CONTROL_W} px-2 py-0.5`}
           />
         </div>
+        {pendingList && (
+          <ConfirmDialog
+            title={`Load ${pendingList.name}?`}
+            body="This replaces the rows in the Coordinate search box."
+            confirmLabel="Load"
+            onConfirm={() => void loadList(pendingList)}
+            onCancel={() => setPendingList(null)}
+          />
+        )}
         <textarea
           ref={csvBoxRef}
           aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
