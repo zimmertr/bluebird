@@ -72,7 +72,11 @@ export default function PhoneFoot({
   // on the button while a blocker greys it (the maintainer, 2026-10-21). It
   // goes with the last message, since there is nothing left to list. The
   // tutorial's Messages card holds it open (`messages.held`), and a run that
-  // fails opens it, as the panel's list opens at a desk (#803).
+  // fails opens it, as the panel's list opens at a desk (#803). So does a
+  // check or the basemap failing (#834), and the sheet takes the keyboard
+  // then as it always does: it is modal, and a modal that left the keyboard
+  // behind it would leave it on a page a screen reader cannot reach (the
+  // maintainer, 2026-10-30).
   const { count, blocked, held } = messages
   const [pressedOpen, setOpen] = useState(false)
   const open = pressedOpen || held
@@ -81,6 +85,7 @@ export default function PhoneFoot({
   }, [count])
   const openSheet = useCallback(() => setOpen(true), [])
   useOpenOnFailure(messages.failureSeq, openSheet)
+  useOpenOnFailure(messages.openingSeq, openSheet)
   const toggle = () => setOpen((o) => !o)
 
   return (
@@ -113,7 +118,13 @@ export default function PhoneFoot({
             ))}
           </span>
         </button>
-        <MessageBadge count={count} worst={messages.worst} open={open} onPress={toggle} />
+        <MessageBadge
+          count={count}
+          worst={messages.worst}
+          open={open}
+          onPress={toggle}
+          arrivalSeq={messages.arrivalSeq}
+        />
         <MessageRegion messages={messages.messages} />
       </div>
       {open && (

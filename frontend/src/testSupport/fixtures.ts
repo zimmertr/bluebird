@@ -571,6 +571,8 @@ export function panelMessages(over: Partial<PanelMessages> = {}): PanelMessages 
     unanswered: ALL_ANSWERED,
     held: false,
     failureSeq: 0,
+    arrivalSeq: 0,
+    openingSeq: 0,
     ...over,
   }
 }

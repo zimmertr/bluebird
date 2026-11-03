@@ -615,6 +615,9 @@ export default function App() {
   // up (#803): the list that says what went wrong is the panel's, and a shut
   // panel is inert, its badge and its live region with it.
   useOpenOnFailure(failureSeq, openDrawer, isDesktop)
+  // A check or the basemap failing does the same (#834): its line opens the
+  // list, and the list is the panel's.
+  useOpenOnFailure(messages.openingSeq, openDrawer, isDesktop)
 
   // On mobile the controls are an off-canvas drawer, and it closes when an
   // analysis SUCCEEDS rather than when the button is pressed. Closing on press
