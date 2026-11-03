@@ -247,7 +247,12 @@ export function MenuSelect<V extends string>({
             openList()
           }
         }}
-        className={`${className} text-left`}
+        // Centred, as the model picker centres its label: every field in the
+        // panel's control column reads the same way. It was `text-left` until
+        // 2026-11-03, which the aggregate's and the chart's fields never showed,
+        // each being sized to its longest label, and the Example list field's
+        // `None` at the column's width did (the maintainer).
+        className={`${className} text-center`}
       >
         <span id={nameId} className={SR_ONLY}>
           {label}

@@ -423,7 +423,7 @@ describe('MenuSelect', () => {
   it('is a field named by its label and the value it shows', () => {
     render(<Select />)
     expect(field().getAttribute('aria-haspopup')).toBe('listbox')
-    expect(field().className).toBe(`${MENU_TRIGGER.field} w-14 text-left`)
+    expect(field().className).toBe(`${MENU_TRIGGER.field} w-14 text-center`)
     const name = field().getAttribute('aria-labelledby')!.split(' ').map((id) => document.getElementById(id)!.textContent)
     expect(name).toEqual(['Wind aggregate', 'Max'])
   })
