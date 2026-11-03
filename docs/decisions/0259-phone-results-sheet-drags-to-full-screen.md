@@ -25,14 +25,15 @@ A phone's results sheet stopped under the map's rows however far it was dragged 
 
 ## Evidence
 
-Measured 2026-10-31 with the browser suite's image at 390x844, a 200-row report, one pointer move each frame and the CPU slowed four times (`e2e/perf/sheetDrag.spec.ts`), Chrome's main-thread work per move:
+Measured with the browser suite's image at 390x844, a 200-row report, one pointer move each frame and the CPU slowed four times (`e2e/perf/sheetDrag.spec.ts`), Chrome's main-thread work per move and the frames over 20 ms of 60. A height per move is the code before this record (2026-10-31); the transform on every panel is this PR's second cut, which stretched the chart (2026-11-03); the last column is what shipped (2026-11-03).
 
-| Drag | Before | After |
-|---|---|---|
-| Table | 68.1 ms; median frame 53 ms; 53 of 60 frames over 20 ms | 9.5 ms; median frame 16 ms; 1 of 60 |
-| Chart | 34.2 ms; median frame 40 ms; 39 of 60 | 4.4 ms; median frame 16 ms; 1 of 60 |
+| Drag | A height per move | The transform on every panel | Shipped |
+|---|---|---|---|
+| Table | 68.1 ms; 53 frames | 7.9 ms; 0 | 8.5 ms; 2 |
+| Chart | 34.2 ms; 39 frames | 3.4 ms; 0 | 16.8 ms; 17 |
+| Both, the map grip | not measured | 5.5 ms; 0 | 19.1 ms; 35 |
 
-The one slow frame left is the render a drag begins with. Before, each move rendered the whole app twice, the second time for the sheet's measured height, and laid out the table and the chart at a new height.
+A table's move is the transform's. A chart's move is the chart's own redraw to its new box, 8.6 ms of script of the 16.8, which is the price of a plot that grows with the finger: at four times slower it holds a 60 Hz frame more often than not, and at a phone's own speed a quarter of that is inside a 120 Hz frame's 8.3 ms. Before, each move rendered the whole app twice, the second time for the sheet's measured height, and laid out the table and the chart at a new height.
 
 `useResultsLayout.test.tsx` holds the release at 390 by 1000, and that a move renders nothing: a sheet let go 48px under the top covers the whole map, one let go 60px over the cap falls back to the cap, the next drag brings it down from where it stands, a double press puts it at rest, Chart lifts only to the cap and keeps full screen once it is there, Both fills with the table, and a desk never reaches it. `resultsSheet.test.ts` holds the release rule and that the band between the cap and the top is wider than the snap. `fullScreen.spec.ts` drags the sheet to the top at 390x844 in the browser suite.
 
