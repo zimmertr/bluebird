@@ -101,6 +101,7 @@ import { createMapController } from './controller'
 import { mountTestPopups } from '../testSupport/mapPopups'
 import { mapInputs, resultRow } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
+import { displayedColumns } from '../utils/tableColumns'
 import { type CardView, destinationPopupHtml, spotPlace } from '../utils/destinationCard'
 import { type BasemapPoi, poiToPlace } from '../utils/basemapPoi'
 import { type PendingDestination, pendingAsResult } from '../utils/customList'
@@ -251,7 +252,7 @@ describe('mountDestinationCards', () => {
   // the owners on so a picture switched off takes the card down.
   it("redraws a spot's sections where it stands, under the owners it was opened for", () => {
     const { cards, board } = setup()
-    const rain: PointSection = { title: 'Light precipitation', source: 'NEXRAD radar', rows: ['Rate: 0.1'], when: 'now' }
+    const rain: PointSection = { layer: 'Rain radar', title: 'Light precipitation', source: 'NEXRAD radar', rows: ['Rate: 0.1'], when: 'now' }
     const opened = cards.open(SPOT, [SPOT.lon, SPOT.lat], { owner: ['radar'] })
     expect(popups[0].html).not.toContain('NEXRAD radar')
     opened.update({ ...SPOT, sections: [rain] })
@@ -328,7 +329,7 @@ describe('redrawing', () => {
     const a = { ...RAINIER, modelId: 'gfs_seamless', modelLabel: 'GFS' }
     const b = { ...RAINIER, modelId: 'ecmwf_ifs025', modelLabel: 'ECMWF', temp_max_f: 12.5 }
     const { cards, controller } = setup()
-    controller.update({ ...controller.inputs, results: [a, b] })
+    controller.update({ ...controller.inputs, results: [a, b], popupColumns: displayedColumns(false, 'aqi_avg') })
     cards.open({ kind: 'ranked', row: b, rank: 2 }, [0, 0])
     controller.update({ ...controller.inputs, results: [{ ...b }, { ...a }], sortBy: 'temp_max_f' })
     cards.refresh()
@@ -350,7 +351,9 @@ describe('redrawing', () => {
   // A column a reader sizes on one card, every card then wears.
   it('redraws every card when a grid column is resized', () => {
     const stub = stubMap({ canvasWidth: 1280, canvasHeight: 900, zoom: MAP_ZOOM })
-    const controller = createMapController(mapInputs({ results: [ADAMS, RAINIER], onRemoveResult: vi.fn() }))
+    const controller = createMapController(
+      mapInputs({ results: [ADAMS, RAINIER], popupColumns: displayedColumns(false, 'aqi_avg'), onRemoveResult: vi.fn() }),
+    )
     const { popups: board } = mountTestPopups(stub, controller)
     let widths: Record<string, number> = {}
     let resized = () => {}

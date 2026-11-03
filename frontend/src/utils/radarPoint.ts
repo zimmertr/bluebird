@@ -27,7 +27,7 @@
 import type { HeldTiles, Rgba } from './heldTiles'
 import { inBounds, type PointReading, type PointSection } from './pointReadout'
 import { ageAgo, escapeHtml, row } from './popup/popupChrome'
-import { RADAR_EXTENTS } from './radar'
+import { RADAR_EXTENTS, RADAR_ROW_LABEL } from './radar'
 import { clamp } from './numbers'
 import { UNAVAILABLE } from './unavailableCell'
 
@@ -193,6 +193,7 @@ export function radarSection(dbz: number, offsetMin: number): PointSection {
     title: escapeHtml(radarTitle(dbz)),
     titles: RADAR_TITLES,
     source: escapeHtml(RADAR_SOURCE),
+    layer: escapeHtml(RADAR_ROW_LABEL),
     rows: [row('Rate', escapeHtml(rate)), row('Reflectivity', formatReflectivity(dbz))],
     when: radarUpdated(offsetMin),
   }
@@ -223,6 +224,7 @@ export function noEchoSection(offsetMin: number): PointSection {
     title: escapeHtml(NO_ECHO_TITLE),
     titles: RADAR_TITLES,
     source: escapeHtml(RADAR_SOURCE),
+    layer: escapeHtml(RADAR_ROW_LABEL),
     rows: [row('Rate', '0 in/h'), row('Reflectivity', NO_VALUE)],
     when: radarUpdated(offsetMin),
   }

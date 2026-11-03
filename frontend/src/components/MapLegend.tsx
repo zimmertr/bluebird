@@ -34,7 +34,7 @@ import { FIRMS_HREF, fireActivityLegendChips } from '../utils/fireActivity'
 import { GRID_STYLE_NAMES } from '../utils/forecastGrid/forecastGridLegend'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
-import { IEM_HREF, radarSwatchCss } from '../utils/radar'
+import { IEM_HREF, RADAR_ROW_LABEL, radarSwatchCss } from '../utils/radar'
 import { legendMaxCss } from '../utils/results/resultsSheet'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from '../utils/smoke'
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../utils/snowDepth'
@@ -409,7 +409,7 @@ export function legendSections(
     ...(showRadar
       ? [
           {
-            label: 'Rain radar',
+            label: RADAR_ROW_LABEL,
             credit: { href: IEM_HREF, name: 'IEM' },
             // A gradient rather than banded swatches: NEXRAD's
             // own reflectivity ramp is continuous, and a legend

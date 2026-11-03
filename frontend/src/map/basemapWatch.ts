@@ -8,9 +8,12 @@
  * while the failure is open (`overlays/recovery.ts`, the overlays' own rule).
  * `diff: false` because there is no loaded style to diff against; MapLibre
  * builds a fresh one, and the map's first `load` then fires as it would have.
- * When the style arrives the note clears.
+ * The reload carries the credit rewrite every load of the style does
+ * (`utils/basemapCredit.ts`), or the recovered map would credit the basemap
+ * in the style's own words. When the style arrives the note clears.
  */
 import type * as maplibregl from 'maplibre-gl'
+import { BASEMAP_STYLE_OPTIONS } from '../utils/basemapCredit'
 import { isStyleFailure } from '../utils/basemapFailure'
 import { overlayRecovery } from './overlays/recovery'
 
@@ -29,7 +32,9 @@ export function watchBasemap(
   },
 ): BasemapWatch {
   let styleLoaded = false
-  const recovery = overlayRecovery(() => map.setStyle(deps.style, { diff: false }), { online: deps.online })
+  const recovery = overlayRecovery(() => map.setStyle(deps.style, { diff: false, ...BASEMAP_STYLE_OPTIONS }), {
+    online: deps.online,
+  })
   map.on('style.load', () => {
     styleLoaded = true
     recovery.succeeded()

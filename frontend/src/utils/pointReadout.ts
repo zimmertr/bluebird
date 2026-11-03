@@ -20,6 +20,8 @@
  */
 /** What one layer says at the clicked point. Every string is markup the reader has escaped. */
 export interface PointSection {
+  /** Which layer it is a reading of, as the Layers menu names it: `Rain radar`, `Snow depth`. */
+  layer: string
   /** What is there, as a name: `Moderate precipitation`, `Deep snow`. */
   title: string
   /**

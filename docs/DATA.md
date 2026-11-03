@@ -805,10 +805,13 @@ The basemap is OpenFreeMap's vector tiles, fetched straight from
 `tiles.openfreemap.org` by your browser: the style document, its TileJSON, the
 tiles, the glyphs and the sprites all resolve to that one host, which is the
 only basemap origin the page's Content-Security-Policy allows. OpenFreeMap
-publishes no quota and asks for nothing but the OpenStreetMap credit, which
-arrives through the tile server's own TileJSON and is drawn in the map's corner
-control rather than by the app. The tiles carry OpenStreetMap data under the
-ODbL, which is why that credit links to OpenStreetMap's copyright page.
+publishes no quota and asks for nothing but a credit. Its style declares one
+for its one source, `OpenFreeMap © OpenMapTiles Data from OpenStreetMap`,
+which the app rewrites as the style loads into three credits parted the way
+the map's corner parts every other, `OpenFreeMap | © OpenMapTiles | ©
+OpenStreetMap contributors`, each in the words its licence asks for. The tiles
+carry OpenStreetMap data under the ODbL, which is why that credit links to
+OpenStreetMap's copyright page.
 
 Until #760 the same tiles were also what a drawn area's peaks and lakes were
 searched from, and the first source of a pasted coordinate's elevation. The

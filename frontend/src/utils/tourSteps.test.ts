@@ -15,7 +15,7 @@ import messageListSource from '../components/MessageList.tsx?raw'
 import layersPopoverSource from '../components/LayersPopover.tsx?raw'
 import resultsSheetSource from '../components/ResultsSheet.tsx?raw'
 import timeSeriesChartSource from '../components/TimeSeriesChart.tsx?raw'
-import resultsLayerSource from '../map/resultsLayer.ts?raw'
+import destinationCardsSource from '../map/destinationCards.ts?raw'
 import welcomeSource from '../components/WelcomeModal.tsx?raw'
 import backendMain from '../../../backend/app/main.py?raw'
 
@@ -33,7 +33,8 @@ const SOURCES: Record<string, string> = {
   'LayersPopover.tsx': layersPopoverSource,
   'ResultsSheet.tsx': resultsSheetSource,
   'TimeSeriesChart.tsx': timeSeriesChartSource,
-  'resultsLayer.ts': resultsLayerSource,
+  // The marker step frames a ranked card, which this module opens (#832).
+  'destinationCards.ts': destinationCardsSource,
   'WelcomeModal.tsx': welcomeSource,
 }
 

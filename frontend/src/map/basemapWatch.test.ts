@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { watchBasemap } from './basemapWatch'
+import { creditBasemap } from '../utils/basemapCredit'
 import { stubMap } from '../testSupport/stubMap'
 
 const STYLE = 'https://tiles.example/style'
@@ -22,7 +23,8 @@ describe('watchBasemap', () => {
     online.dispatchEvent(new Event('online'))
     online.dispatchEvent(new Event('online'))
     await new Promise((r) => setTimeout(r, 0))
-    expect(reloads()).toEqual([['setStyle', STYLE, { diff: false }]])
+    // The reload rewrites the credit as the first load did.
+    expect(reloads()).toEqual([['setStyle', STYLE, { diff: false, transformStyle: creditBasemap }]])
   })
 
   it('clears the failure when the style arrives, and stops asking', async () => {

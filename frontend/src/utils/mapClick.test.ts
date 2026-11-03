@@ -74,7 +74,8 @@ describe('resolveMapClick while drawing', () => {
   // perimeter used to swallow the click.
   it('treats every overlay and basemap label as scenery a corner lands on', () => {
     const scenery = MAP_TARGETS.filter((t) => !DRAW_TARGETS.includes(t))
-    expect(scenery).toEqual(['fire-activity', 'poi', 'closure-trail', 'fire', 'closure-area', 'smoke', 'radar', 'snow'])
+    // A pending dot is scenery while drawing too (#832): a corner lands on it.
+    expect(scenery).toEqual(['pending', 'fire-activity', 'poi', 'closure-trail', 'fire', 'closure-area', 'smoke', 'radar', 'snow'])
     expect(resolveMapClick(true, scenery)).toEqual({ kind: 'add-vertex' })
   })
 

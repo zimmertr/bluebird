@@ -3,7 +3,6 @@ import { RADAR_OPACITY, RADAR_WARM_MS, activeOffset, mountRadar } from './radar'
 import { radarHeldUrl, radarLayerId, radarOffsets } from '../../utils/radar'
 import { RADAR_TILE_PX, radarHeldLayer, radarTileZoom } from '../../utils/radarPoint'
 import { storeHolding } from '../../testSupport/heldTiles'
-import { markupText } from '../../testSupport/markupText'
 import { fakeMapPopups } from '../../testSupport/fakeMapPopups'
 import { stubMap } from '../../testSupport/stubMap'
 
@@ -124,7 +123,7 @@ describe('mountRadar click reading', () => {
     radar.update({ show: true, index: 2 })
     expect(await points[0].paints(AT)).toBe(true)
     const reading = await points[0].read(AT, new AbortController().signal)
-    expect(reading?.section.rows.map(markupText)).toContain(`Updated: ${onScreen} min ago`)
+    expect(reading?.section.when).toBe(`${onScreen} min ago`)
     radar.update({ show: true, index: 5 })
     expect(await points[0].paints(AT)).toBe(false)
   })
@@ -172,7 +171,7 @@ describe('mountRadar click reading', () => {
     const radar = mountRadar(stubMap({ layers: [SMOKE_FIRST] }).map, { popups, tiles })
     radar.update({ show: true, index: 2 })
     const signal = new AbortController().signal
-    expect((await points[0].refresh!(AT, signal)).rows.map(markupText)).toContain(`Updated: ${onScreen} min ago`)
+    expect((await points[0].refresh!(AT, signal)).when).toBe(`${onScreen} min ago`)
     radar.update({ show: true, index: 5 })
     expect((await points[0].refresh!(AT, signal)).title).toBe('No radar echo')
   })

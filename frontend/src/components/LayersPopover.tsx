@@ -27,6 +27,8 @@ import { useLayerReach } from '../hooks/useLayerReach'
 import { type BaseLayer, OPACITY_DEFAULT } from '../utils/baseMapOpacity'
 import type { LayerCoverage } from '../utils/layerCoverage'
 import type { MapViewHandle } from './MapView'
+import { RADAR_ROW_LABEL } from '../utils/radar'
+import { SNOW_ROW_LABEL } from '../utils/snowDepth'
 
 // One row's switch in the Layers menu: the menu's own checkbox and the
 // layer's name (record 0250 tried an eye here; the maintainer chose the box
@@ -313,12 +315,12 @@ export default function LayersPopover({
       rows: [
         {
           key: 'radar',
-          label: 'Rain radar',
+          label: RADAR_ROW_LABEL,
           checked: showRadar,
           onChange: setShowRadar,
           disabled: outOfView.has('radar'),
         },
-        { key: 'snow', label: 'Snow depth', checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
+        { key: 'snow', label: SNOW_ROW_LABEL, checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
         // Grey, too, with nothing to grid (#803, M5): before any report, and
         // over one whose ranked metric has no number anywhere. Those two carry
         // no `note`, for the player's reason; the archive's older sentence stays.

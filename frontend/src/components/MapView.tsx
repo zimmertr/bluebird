@@ -32,6 +32,7 @@ import { addAttribution, addControls, placeControl, type CornerSlots, type MapCo
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { watchView } from '../map/viewWatch'
 import { watchBasemap } from '../map/basemapWatch'
+import { BASEMAP_STYLE_OPTIONS } from '../utils/basemapCredit'
 import { createPopupBoard } from '../map/popups'
 import { createCentring } from '../map/centring'
 import { CAMERA_MS, FIT_PADDING_PX, PLACE_PADDING_PX } from '../map/mapStyles'
@@ -682,7 +683,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const opening = initialCamera(restoredView)
       const map = new maplibregl.Map({
         container: containerRef.current,
-        style: STYLE,
         center: [opening.lng, opening.lat],
         zoom: opening.zoom,
         // The library adds its own attribution unless told not to, and the
@@ -701,6 +701,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
       controlsRef.current = addControls(map, { onTerrainChange: (on) => controller.inputs.onTerrainChange(on) })
       // Before `load`: a style that fails never gets there.
       const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
+      // The style is asked for here and not by the constructor, because the
+      // rewrite of the basemap's credit (`utils/basemapCredit.ts`) is an
+      // option `setStyle` takes and the constructor does not; the watch above
+      // is registered first, so a style that fails is heard.
+      map.setStyle(STYLE, BASEMAP_STYLE_OPTIONS)
 
       // A polygon, custom CSV list or searched places restored from the URL
       // take precedence over the default framing, and a link's own camera over

@@ -62,6 +62,14 @@ export const IEM_HREF = 'https://mesonet.agron.iastate.edu/ogc/'
  * a view none of them touches, and an edge drawn too tight would grey a row
  * the mosaic could still paint. `[west, south, east, north]`.
  */
+/**
+ * The layer's name as the Layers menu's row gives it, which a spot card's
+ * radar section opens on too, `Rain radar: Moderate precipitation` (#832, TJ
+ * 2026-11-03), so a reader knows which layer a reading is of. One spelling,
+ * or the row and the heading drift.
+ */
+export const RADAR_ROW_LABEL = 'Rain radar'
+
 export const RADAR_EXTENTS: readonly [number, number, number, number][] = [
   [-126, 23, -65, 50],
   [-170, 51, -130, 72],

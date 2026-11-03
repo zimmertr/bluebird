@@ -719,7 +719,10 @@ are as wide as the wider of it and the chip row, so the rest of the map's top
 is the map's. The map's buttons stand in its bottom-right corner instead, as
 Google Maps stands its own (`MAP_CORNER`): the credit line flush in the corner
 with the scale at its end, and over it the compass, the locate button and the
-zoom pair, 24px in, 6px apart and 10px above the line. The line sets the
+zoom pair, 24px in, 6px apart and 10px above the line. The column yields the
+gaps between its buttons to the map; the credit box does not, since a reader
+sees one banner and expects a press anywhere on it to select its text rather
+than drag the map (record [0262](decisions/0262-the-corner-credits-the-basemap-in-each-providers-words.md)). The line sets the
 library's 20px line (`leading-5`), which its controls lose outside the map's
 container, so the scale keeps its 22px box and the line is 27px tall
 (measured 2026-10-21, `e2e/deskCorner.spec.ts`). The zoom pair is one

@@ -1818,8 +1818,12 @@ export const MAP_CORNER = {
   // `leading-5` is the library's own 20px line, which the map's container
   // gives its controls and the corner, outside it, does not: without it the
   // scale shrank to 17px from the 22px box record 0162 holds it to.
+  // The box takes its own presses, where the column above it yields them:
+  // it is one floating banner to a reader, and a press on its padding or in
+  // the gap beside the scale dragged the map while the text beside it could
+  // be selected (TJ, 2026-11-03).
   credit:
-    'map-corner flex items-center gap-2.5 py-0.5 pl-2.5 pr-2 leading-5 ' +
+    'map-corner pointer-events-auto flex items-center gap-2.5 py-0.5 pl-2.5 pr-2 leading-5 ' +
     'bg-floating/95 border-t border-l border-edge rounded-tl-lg backdrop-blur-sm',
   slot: 'contents',
   scale: 'flex w-27.5 justify-end',

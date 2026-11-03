@@ -41,7 +41,7 @@
 import type { HeldTiles, Rgba } from './heldTiles'
 import { inBounds, layerFetch, type PointReading, type PointSection } from './pointReadout'
 import { escapeHtml, pendingValue, row, updatedAt } from './popup/popupChrome'
-import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_SERVICE_URL } from './snowDepth'
+import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_ROW_LABEL, SNOW_SERVICE_URL } from './snowDepth'
 import { GLACIERS, type GlacierCheck } from './glacierCell'
 import { clamp, grouped } from './numbers'
 import { hexToRgb } from './colors'
@@ -214,6 +214,7 @@ export function pendingSnowSection(word: string, glacier: boolean | undefined): 
   return {
     title: glacier === undefined ? pendingValue() : escapeHtml(glacier ? GLACIER_TITLE : word),
     source: escapeHtml(SNOW_SOURCE),
+    layer: escapeHtml(SNOW_ROW_LABEL),
     rows: [row('Depth', pendingValue()), row('Snow water equivalent', pendingValue())],
     when: pendingValue(),
   }
@@ -230,6 +231,7 @@ export function snowSection(word: string, reading: SnowReading, glacier = false)
   return {
     title: escapeHtml(glacier ? GLACIER_TITLE : word),
     source: escapeHtml(SNOW_SOURCE),
+    layer: escapeHtml(SNOW_ROW_LABEL),
     rows: [
       row('Depth', inches(reading.depthIn)),
       row('Snow water equivalent', inches(reading.sweIn)),

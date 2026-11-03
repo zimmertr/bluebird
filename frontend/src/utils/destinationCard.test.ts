@@ -641,6 +641,22 @@ describe('a pending card', () => {
     )
   })
 
+  // A pasted or clicked spot is named by its pair, which stood as the title
+  // and again as the first fact (TJ, 2026-11-03): once, as the spot card's.
+  it('says a coordinate-named destination\'s pair once, as the title, opening CalTopo', () => {
+    const ground = { kind: 'read', reading: { elevationM: 1800, degrees: 14.2, aspect: 45 } } as const
+    const spot = { name: '48.07030, -121.07337', latitude: 48.0703, longitude: -121.07337, kind: 'coordinates' }
+    for (const html of [
+      pendingHtml({ pending: { ...spot, source: 'search' }, ground }),
+      rankedHtml({ rank: 1, row: resultRow({ ...spot, type: 'coordinates', elevation_ft: null }), ground, columns: [] }),
+    ]) {
+      expect(html.split('48.07030, -121.07337')).toHaveLength(2)
+      expect(html).toContain('aria-label="Open in CalTopo"')
+      expect(html).toContain('href="https://caltopo.com/map.html#ll=48.07030,-121.07337"')
+      expect(markupText(html)).toMatch(/Coordinates\s*·\s*14° NE/)
+    }
+  })
+
   it('escapes the name', () => {
     const html = pendingHtml({ pending: { ...at, name: '<img src=x>', source: 'csv' } })
     expect(html).not.toContain('<img')
@@ -841,12 +857,14 @@ describe("a spot card's sections", () => {
   // adjacent block elements with nothing between them.
   const text = (html: string) => markupText(html.split('</div>').join('</div> ')).replace(/\s+/g, ' ').trim()
   const rain: PointSection = {
+    layer: 'Rain radar',
     title: 'Light precipitation',
     source: 'NEXRAD radar',
     rows: [valueRow('Rate', '~0.02 in/h'), valueRow('Reflectivity', '16.5 dBZ')],
     when: '10 min ago',
   }
   const snow: PointSection = {
+    layer: 'Snow depth',
     title: 'Very deep snow',
     source: 'NOAA snow analysis',
     rows: [valueRow('Depth', '151 in'), valueRow('Snow water equivalent', '83 in')],
@@ -854,11 +872,13 @@ describe("a spot card's sections", () => {
   }
   const body = (html: string) => text(html.slice(html.indexOf(POPUP_BODY_ATTR)))
 
-  it('opens a section on its name, its values under it, and its source and time at its foot', () => {
+  // The heading names the layer first, so a reader knows what `Weak radar
+  // echo` is a reading of (TJ, 2026-11-03).
+  it("opens a section on its layer's name and its reading, its values under it, and its source and time at its foot", () => {
     const html = spotHtml(48.79012, -121.83211, [rain])
-    expect(html).toContain(sectionHeading('Light precipitation'))
+    expect(html).toContain(sectionHeading('Rain radar: Light precipitation'))
     expect(html).toContain(updatedLine('10 min ago', 'NEXRAD radar'))
-    expect(body(html)).toMatch(/Light precipitation Rate: ~0.02 in\/h Reflectivity: 16.5 dBZ NEXRAD radar: 10 min ago/)
+    expect(body(html)).toMatch(/Rain radar: Light precipitation Rate: ~0.02 in\/h Reflectivity: 16.5 dBZ NEXRAD radar: 10 min ago/)
   })
 
   // Both pictures under one click, each section on its own name and ruled
@@ -866,7 +886,7 @@ describe("a spot card's sections", () => {
   // snow's (TJ, 2026-10-16).
   it('rules each later section off from the one above it', () => {
     const html = spotHtml(48.79012, -121.83211, [rain, snow])
-    expect(body(html)).toMatch(/Light precipitation .* NEXRAD radar: 10 min ago .*Very deep snow .* NOAA snow analysis: Oct 16, 2026, 5:00 AM/)
+    expect(body(html)).toMatch(/Rain radar: Light precipitation .* NEXRAD radar: 10 min ago .*Snow depth: Very deep snow .* NOAA snow analysis: Oct 16, 2026, 5:00 AM/)
     expect(html.split(`border-top:${SECTION_EDGE}`).length - spotHtml(48.79012, -121.83211, [rain]).split(`border-top:${SECTION_EDGE}`).length).toBe(1)
   })
 
@@ -888,7 +908,7 @@ describe("a spot card's sections", () => {
   it('sizes a heading that can change to the widest of its names', () => {
     const NAMES = ['Light precipitation', 'Very heavy precipitation', 'No radar echo']
     const html = spotHtml(48.79012, -121.83211, [{ ...rain, titles: NAMES }])
-    expect(html).toContain(sectionHeading(widestName('Light precipitation', NAMES)))
+    expect(html).toContain(sectionHeading(`Rain radar: ${widestName('Light precipitation', NAMES)}`))
     expect(spotHtml(48.79012, -121.83211, [rain])).not.toContain('inline-grid')
   })
 })

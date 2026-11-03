@@ -169,12 +169,24 @@ function typeWord(rowType: string): string | null {
   return rowType === 'custom' ? null : String(TYPE_COL.format!(rowType))
 }
 
+/** Whether a destination is named by its own coordinates: a pasted pair, or a spot the map added. */
+function spotNamed(name: string, lat: number, lon: number): boolean {
+  return name === coordinateLabel(lat, lon)
+}
+
 /** The name, its link out, and the facts under it, for every subject but a spot. */
 function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView) {
   const states = view.usStates ?? null
   const ground = slopeFact(view.ground)
   const facts = (type: string | null, elevationFt: number | null | undefined, lat: number, lon: number) =>
     factsRow(type, elevationFt != null ? elevationFact(elevationFt) : null, lat, lon, caltopoUrl(lat, lon, view.mapZoom), ground)
+  // A destination named by its coordinates would say the pair twice, as its
+  // name and as its first fact (TJ, 2026-11-03). Its header is the spot's:
+  // the pair as the title, opening CalTopo, and the facts under it without
+  // the pair.
+  const spotLink = (lat: number, lon: number) => ({ href: caltopoUrl(lat, lon, view.mapZoom), label: 'Open in CalTopo' })
+  const spotFacts = (type: string | null, elevation: string | null) =>
+    factsLine([type ? escapeHtml(type) : '', elevation ? factValue(escapeHtml(elevation)) : '', ground])
   switch (s.kind) {
     case 'ranked': {
       const r = s.row
@@ -182,18 +194,23 @@ function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView) 
       // because a model's name can be as long as the rest of the line.
       const identity = popupIdentity(r, view.columns ?? [], view.modelFallbackLabel)
       const elevation = identity.elevation
+      const spot = spotNamed(r.name, r.latitude, r.longitude)
       return {
         title: `${s.rank ? `#${escapeHtml(String(s.rank))} ` : ''}${escapeHtml(r.name)}`,
-        link: {
-          href: destinationUrl(
-            { name: r.name, type: r.type, latitude: r.latitude, longitude: r.longitude, osm_id: r.osm_id ?? null },
-            states,
-          ),
-          label: destinationLinkLabel(r.type),
-        },
+        link: spot
+          ? spotLink(r.latitude, r.longitude)
+          : {
+              href: destinationUrl(
+                { name: r.name, type: r.type, latitude: r.latitude, longitude: r.longitude, osm_id: r.osm_id ?? null },
+                states,
+              ),
+              label: destinationLinkLabel(r.type),
+            },
         meta: metaBand([
           identity.model ? `<div>${escapeHtml(identity.model)}</div>` : '',
-          factsRow(identity.type, elevation, r.latitude, r.longitude, caltopoUrl(r.latitude, r.longitude, view.mapZoom), ground),
+          spot
+            ? spotFacts(identity.type, elevation)
+            : factsRow(identity.type, elevation, r.latitude, r.longitude, caltopoUrl(r.latitude, r.longitude, view.mapZoom), ground),
         ]),
       }
     }
@@ -201,10 +218,18 @@ function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView) 
       // The word the Type column will use once the destination ranks.
       const p = s.pending
       const link = pendingLinkRow(p)
+      const type = typeWord(subjectType(s)!)
+      if (spotNamed(p.name, p.latitude, p.longitude)) {
+        return {
+          title: escapeHtml(p.name),
+          link: spotLink(p.latitude, p.longitude),
+          meta: metaBand([spotFacts(type, p.elevation_ft != null ? elevationFact(p.elevation_ft) : null)]),
+        }
+      }
       return {
         title: escapeHtml(p.name),
         link: { href: destinationUrl(link, states), label: destinationLinkLabel(link.type) },
-        meta: metaBand([facts(typeWord(subjectType(s)!), p.elevation_ft, p.latitude, p.longitude)]),
+        meta: metaBand([facts(type, p.elevation_ft, p.latitude, p.longitude)]),
       }
     }
     case 'label': {
@@ -272,17 +297,19 @@ function spotGround(ground: GroundState | undefined): string {
 }
 
 /**
- * What the pictures painted at a spot (#737), each a section on its name, its
- * values under it, and where and when it was measured in the fine print at
- * its foot: `NEXRAD radar: 10 min ago` (TJ, 2026-11-03, layout C1). A name
- * that changes while the card is open, the radar's during playback, stands at
- * the width of its widest so the card does not jump (#752).
+ * What the pictures painted at a spot (#737), each a section opening on the
+ * layer's name and its reading, `Rain radar: Moderate precipitation`, so a
+ * reader knows which layer said it (TJ, 2026-11-03), its values under it,
+ * and where and when it was measured in the fine print at its foot: `NEXRAD
+ * radar: 10 min ago` (layout C1). A reading's name that changes while the
+ * card is open, the radar's during playback, stands at the width of its
+ * widest so the card does not jump (#752).
  */
 function spotSections(sections: readonly PointSection[]): string {
   return sections
     .map((s, i) => {
       const name = s.titles ? widestName(s.title, s.titles) : s.title
-      const inner = sectionHeading(name) + bodyLines([...s.rows, s.when === undefined ? null : updatedLine(s.when, s.source)])
+      const inner = sectionHeading(`${s.layer}: ${name}`) + bodyLines([...s.rows, s.when === undefined ? null : updatedLine(s.when, s.source)])
       return i === 0 ? inner : bodySection(inner)
     })
     .join('')

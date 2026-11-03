@@ -56,7 +56,7 @@ A polygon finds every trailhead or crag in an area at once: tick **Trailheads** 
 
 The slope on a card is the ground's angle at the place's point, with a swatch of its Slope angle band from 27 degrees up, and the way the ground falls, as `33° NW`. Flat ground, such as a lake, reads `0°` with no direction. A summit's point sits where the ground turns over, so its slope says little: 15 metres off the top, the same summit often reads 15 degrees steeper and faces the other way. The elevation beside it stays the map data's.
 
-A neutral dot, a destination not yet forecast, opens a card too, whenever you are not drawing: its name, its coordinates, and what is known of it. Its card offers **Remove from analysis**, as its row in the results table offers ×, whatever named the destination; a removed one is listed under Removed, where it can be put back. Its name in the results table opens the same card.
+A neutral dot, a destination not yet forecast, opens a card too, whenever you are not drawing: its name, its coordinates, and what is known of it. A destination named by its coordinates alone, a pasted pair or an added spot, says the pair once, as its title, with the glyph that opens CalTopo there. Its card offers **Remove from analysis**, as its row in the results table offers ×, whatever named the destination; a removed one is listed under Removed, where it can be put back. Its name in the results table opens the same card.
 
 Click anywhere else on the map for a card about that spot. Its title is the coordinates, and the glyph beside them opens CalTopo there. Under the title is the ground, its height and its slope, and under that whatever the rain radar or the snow depth shows there while either layer is on, each with where and when it was measured. **Add to analysis** makes the spot a destination, the same as pasting its coordinates into the search box, and the next **Analyze** forecasts it. While a card is open, a click on the map closes it; hold Shift to open another beside it.
 
@@ -363,14 +363,16 @@ Washington an amber line under the band gives the order's type, such as
 name already says. A plume's card says how dense it is, which satellite it was
 traced from, and over what hours. A click on a radar echo or on painted snow
 opens the spot's card with a section for each, and the pointer says where one
-will: the radar's is named for how strong the echo is and gives an estimated
-rate and the reflectivity it is read from, and the snow's is named for how
-deep the snow is and gives the depth and the snow water equivalent. Each
-section ends with where and when it was measured, **NEXRAD radar: 10 min
-ago**. The snow's numbers land a moment after the card opens, since they are
-asked of NOAA at the click, and over a glacier OpenStreetMap has mapped its
-section is titled **Glacier**. A card left open follows the forecast player,
-frame by frame, reading **No radar echo** on a frame with none at its point,
+will. A section opens on its layer's name and what it reads there: the
+radar's on how strong the echo is, **Rain radar: Weak radar echo**, with an
+estimated rate and the reflectivity it is read from, and the snow's on how
+deep the snow is, **Snow depth: Deep snow**, with the depth and the snow water
+equivalent. Each section ends with where and when it was measured, **NEXRAD
+radar: 10 min ago**. The snow's numbers land a moment after the card opens,
+since they are asked of NOAA at the click, and over a glacier OpenStreetMap has
+mapped its section reads **Snow depth: Glacier**. A card left open follows the
+forecast player, frame by frame, reading **Rain radar: No radar echo** on a
+frame with none at its point,
 and the pointer follows the frames under a mouse that is not moving. Where
 both are painted under one click, the card carries both, the radar first. A
 click where neither is painted opens the spot's card with neither. Nothing on

@@ -391,7 +391,7 @@ describe('mountMapPopups openCard and openBare', () => {
 })
 
 describe('mountMapPopups point targets', () => {
-  const section = (title: string, rows: string[] = []): PointSection => ({ title, source: `${title} source`, rows })
+  const section = (title: string, rows: string[] = []): PointSection => ({ layer: 'Layer', title, source: `${title} source`, rows })
   const whole = (title: string): PointReading => ({ section: section(title) })
   // Lets every promise that has answered settle.
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -637,7 +637,7 @@ describe('mountMapPopups point target cursor', () => {
 // The radar's frames move under an open card and a resting mouse during
 // playback, and neither a click nor a move comes to say so (#748).
 describe('mountMapPopups point targets that change', () => {
-  const section = (title: string): PointSection => ({ title, source: `${title} source`, rows: [] })
+  const section = (title: string): PointSection => ({ layer: 'Layer', title, source: `${title} source`, rows: [] })
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
   function changing(popups: ReturnType<typeof setup>['popups'], refresh: NonNullable<MapPointTarget['refresh']>) {
