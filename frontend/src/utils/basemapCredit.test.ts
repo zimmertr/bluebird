@@ -7,10 +7,10 @@ import { markupText } from '../testSupport/markupText'
 const OPENFREEMAP =
   '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
 
-const style = (attribution?: string): StyleSpecification => ({
+const style = (attribution?: string, url = 'https://tiles.openfreemap.org/planet'): StyleSpecification => ({
   version: 8,
   sources: {
-    openmaptiles: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', ...(attribution ? { attribution } : {}) },
+    openmaptiles: { type: 'vector', url, ...(attribution ? { attribution } : {}) },
     ours: { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, attribution: 'Ours' },
   },
   layers: [{ id: 'water', type: 'fill', source: 'openmaptiles', 'source-layer': 'water' }],
@@ -35,10 +35,17 @@ describe('creditBasemap', () => {
     expect(next.sources.openmaptiles).toHaveProperty('attribution', OPENFREEMAP)
   })
 
+  // The source is known by its TileJSON's host, not by the words of its
+  // credit, so a style that names the host in prose alone is left alone.
   it('leaves a style with no OpenFreeMap source as it was', () => {
-    const next = style()
+    const next = style(OPENFREEMAP, 'https://tiles.example.org/planet')
     expect(creditBasemap(undefined, next)).toBe(next)
     expect(creditBasemap(style(OPENFREEMAP), next)).toBe(next)
+    expect(creditBasemap(undefined, style(undefined, 'not a url'))).toEqual(style(undefined, 'not a url'))
+  })
+
+  it('credits the source whether or not the style gave it a credit', () => {
+    expect(creditBasemap(undefined, style()).sources.openmaptiles).toHaveProperty('attribution', BASEMAP_CREDIT)
   })
 
   it('is what every load of the style passes', () => {

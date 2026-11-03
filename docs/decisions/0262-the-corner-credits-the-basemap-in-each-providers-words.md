@@ -35,6 +35,8 @@ On production the same day, a press on the credit box's padding or in the gap be
 
 ## Consequences
 
-`MapView` constructs the map with no `style` and asks for it with `map.setStyle(STYLE, BASEMAP_STYLE_OPTIONS)` right after the basemap watch is registered, so a style that fails is still heard. `basemapWatch.test.ts` pins the reload's options, and `basemapCredit.test.ts` the rewrite and the words.
+`MapView` constructs the map with no `style` and asks for it with `map.setStyle(STYLE, BASEMAP_STYLE_OPTIONS)` right after the basemap watch is registered, so a style that fails is still heard. The watch's reload drops the failed style first, with `setStyle(null)`, because MapLibre 6.15.0 holds a `transformStyle` reload until the style it replaces has loaded (`Map._updateStyle`), which a failed style never does; the browser suite's basemap spec found that on the first build. The drop releases the map's workers and the reload takes them again, on a map that has drawn nothing. `basemapWatch.test.ts` pins the reload's two calls, and `basemapCredit.test.ts` the rewrite and the words.
+
+The source to credit is known by its TileJSON's host, `tiles.openfreemap.org`, not by the words of the credit it carries, which is what CodeQL flags as an incomplete URL check.
 
 `NOTICES.md` and `DATA.md` say the corner's words rather than deferring to the tile metadata.

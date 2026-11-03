@@ -156,7 +156,8 @@ import {
   CONTOUR_LAYER,
 } from './map/terrain'
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
-import { SNOW_RAMP } from './utils/snowDepth'
+import { RADAR_ROW_LABEL } from './utils/radar'
+import { SNOW_RAMP, SNOW_ROW_LABEL } from './utils/snowDepth'
 import { contrast, mixOver, relativeLuminance, round2 } from './testSupport/contrast'
 import {
   FINE_COLOR,
@@ -3250,7 +3251,12 @@ describe('the map layer rows', () => {
   // other check here is: Vitest has no DOM, and the order is a property of the
   // literal the popover maps over.
   const block = layersPopoverSource.match(/const MAP_LAYERS(?:: [^=]+)? = \[[\s\S]*?\n {2}\]/)?.[0] ?? ''
-  const labels = [...block.matchAll(/label: '([^']+)'/g)].map((m) => m[1])
+  // The radar's and the snow's rows read their name off the layer's module,
+  // because the spot card's section heading says the same name (#832).
+  const NAMED = { RADAR_ROW_LABEL, SNOW_ROW_LABEL } as const
+  const labels = [...block.matchAll(/label: (?:'([^']+)'|(\w+))/g)].map(
+    (m) => m[1] ?? NAMED[m[2] as keyof typeof NAMED] ?? m[2],
+  )
   const headings = [...block.matchAll(/heading: '([^']+)'/g)].map((m) => m[1])
 
   it('found every row', () => {
@@ -3386,7 +3392,7 @@ describe('the map legend sections', () => {
     "label: 'Area closures'",
     "label: 'Trail closures'",
     'label: gridLegend.label',
-    "label: 'Rain radar'",
+    'label: RADAR_ROW_LABEL',
     "label: 'Smoke'",
     'label: SNOW_LABEL',
     "label: 'Fire activity'",
@@ -3398,7 +3404,7 @@ describe('the map legend sections', () => {
     "label: 'Smoke'",
     "label: 'Area closures'",
     "label: 'Trail closures'",
-    "label: 'Rain radar'",
+    'label: RADAR_ROW_LABEL',
     'label: SNOW_LABEL',
     'label: gridLegend.label',
   ]

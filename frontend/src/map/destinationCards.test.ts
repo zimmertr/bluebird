@@ -101,6 +101,7 @@ import { createMapController } from './controller'
 import { mountTestPopups } from '../testSupport/mapPopups'
 import { mapInputs, resultRow } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
+import { AGGREGATE } from '../metrics'
 import { displayedColumns } from '../utils/tableColumns'
 import { type CardView, destinationPopupHtml, spotPlace } from '../utils/destinationCard'
 import { type BasemapPoi, poiToPlace } from '../utils/basemapPoi'
@@ -363,7 +364,7 @@ describe('redrawing', () => {
       gridHeads: { widths: () => widths, arm: () => {}, onResize: (fn) => (resized = fn) },
     })
     cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [0, 0])
-    widths = { avg: 80 }
+    widths = { [AGGREGATE.average]: 80 }
     resized()
     expect(popups[0].sets).toHaveLength(2)
     expect(popups[0].html).not.toBe(popups[0].sets[0].html)

@@ -648,7 +648,7 @@ describe('a pending card', () => {
     const spot = { name: '48.07030, -121.07337', latitude: 48.0703, longitude: -121.07337, kind: 'coordinates' }
     for (const html of [
       pendingHtml({ pending: { ...spot, source: 'search' }, ground }),
-      rankedHtml({ rank: 1, row: resultRow({ ...spot, type: 'coordinates', elevation_ft: null }), ground, columns: [] }),
+      rankedHtml({ rank: 1, row: resultRow({ ...spot, type: 'coordinates', elevation_ft: null }), ground, columns: WINDOW_COLS }),
     ]) {
       expect(html.split('48.07030, -121.07337')).toHaveLength(2)
       expect(html).toContain('aria-label="Open in CalTopo"')

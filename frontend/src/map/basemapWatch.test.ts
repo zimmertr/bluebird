@@ -23,8 +23,13 @@ describe('watchBasemap', () => {
     online.dispatchEvent(new Event('online'))
     online.dispatchEvent(new Event('online'))
     await new Promise((r) => setTimeout(r, 0))
-    // The reload rewrites the credit as the first load did.
-    expect(reloads()).toEqual([['setStyle', STYLE, { diff: false, transformStyle: creditBasemap }]])
+    // The failed style is dropped first, or MapLibre would hold the reload
+    // for a load that never comes; the reload rewrites the credit as the
+    // first load did.
+    expect(reloads()).toEqual([
+      ['setStyle', null, undefined],
+      ['setStyle', STYLE, { diff: false, transformStyle: creditBasemap }],
+    ])
   })
 
   it('clears the failure when the style arrives, and stops asking', async () => {

@@ -32,9 +32,17 @@ export function watchBasemap(
   },
 ): BasemapWatch {
   let styleLoaded = false
-  const recovery = overlayRecovery(() => map.setStyle(deps.style, { diff: false, ...BASEMAP_STYLE_OPTIONS }), {
-    online: deps.online,
-  })
+  const reload = () => {
+    // The failed style is dropped before the reload is asked for, because
+    // MapLibre holds a `transformStyle` reload until the style it replaces
+    // has loaded (`Map._updateStyle`, 6.15.0), which a style that failed
+    // never does; with no style to replace it loads at once. The drop
+    // releases the map's workers and the reload takes them again, which
+    // costs nothing on a map that has drawn nothing.
+    map.setStyle(null)
+    map.setStyle(deps.style, { diff: false, ...BASEMAP_STYLE_OPTIONS })
+  }
+  const recovery = overlayRecovery(reload, { online: deps.online })
   map.on('style.load', () => {
     styleLoaded = true
     recovery.succeeded()

@@ -26,20 +26,28 @@ export const BASEMAP_CREDIT = [
   link('https://www.openstreetmap.org/copyright', '© OpenStreetMap contributors'),
 ].join(' | ')
 
-/** The host whose attribution is rewritten, wherever the style names it. */
-const OPENFREEMAP = 'openfreemap.org'
+/** The host the basemap's tiles come from; a source whose TileJSON is there is the one credited. */
+const TILE_HOST = 'tiles.openfreemap.org'
+
+/** Whether a source's TileJSON is OpenFreeMap's, read off its URL's host rather than its words. */
+function fromOpenFreeMap(source: StyleSpecification['sources'][string]): boolean {
+  const url = 'url' in source && typeof source.url === 'string' ? source.url : null
+  if (!url) return false
+  try {
+    return new URL(url).hostname === TILE_HOST
+  } catch {
+    return false
+  }
+}
 
 /** The style with every OpenFreeMap source credited as `BASEMAP_CREDIT`; `setStyle`'s `transformStyle`. */
 export function creditBasemap(_previous: StyleSpecification | undefined, next: StyleSpecification): StyleSpecification {
   const sources = Object.entries(next.sources ?? {})
-  if (!sources.some(([, s]) => 'attribution' in s && s.attribution?.includes(OPENFREEMAP))) return next
+  if (!sources.some(([, s]) => fromOpenFreeMap(s))) return next
   return {
     ...next,
     sources: Object.fromEntries(
-      sources.map(([id, s]) => [
-        id,
-        'attribution' in s && s.attribution?.includes(OPENFREEMAP) ? { ...s, attribution: BASEMAP_CREDIT } : s,
-      ]),
+      sources.map(([id, s]) => [id, fromOpenFreeMap(s) ? { ...s, attribution: BASEMAP_CREDIT } : s]),
     ),
   }
 }
