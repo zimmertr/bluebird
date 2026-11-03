@@ -242,7 +242,12 @@ export function snowSection(word: string, reading: SnowReading, glacier = false)
 
 /** The snow's section when NOAA could not answer: its name kept, and the failure in place of the values. */
 export function failedSnowSection(word: string): PointSection {
-  return { title: escapeHtml(word), source: escapeHtml(SNOW_SOURCE), rows: [escapeHtml(SNOW_FAILED)] }
+  return {
+    layer: escapeHtml(SNOW_ROW_LABEL),
+    title: escapeHtml(word),
+    source: escapeHtml(SNOW_SOURCE),
+    rows: [escapeHtml(SNOW_FAILED)],
+  }
 }
 
 /** Ask NOAA for the analysis at a point, once more after an error inside a 200. */
