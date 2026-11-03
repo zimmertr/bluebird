@@ -36,6 +36,7 @@ function props(over: Partial<Props> = {}): Props {
     setCustomCsv: noop,
     parsedCount: 0,
     onCsvPasted: noop,
+    onExampleListFailed: noop,
     ...over,
   }
 }

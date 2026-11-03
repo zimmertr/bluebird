@@ -83,6 +83,7 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
       mapRef={MAP}
       onPointAtSearch={NOOP}
       onPointAtMapPois={NOOP}
+      onExampleListFailed={NOOP}
       messages={MESSAGES}
       onAnalyze={NOOP}
       autoAnalyze={false}
