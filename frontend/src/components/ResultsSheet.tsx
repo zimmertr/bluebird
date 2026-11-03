@@ -67,6 +67,7 @@ interface ResultsSheetView {
     | 'bothHasRoom'
     | 'chartGrip'
     | 'chartPanelPx'
+    | 'chartPaneRef'
     | 'tableGrip'
     | 'tablePanelPx'
   >
