@@ -614,13 +614,15 @@ export function useResultsLayout({
     onReset: () => {
       setTableHeight(DEFAULT_TABLE_HEIGHT)
       // In Both the grip is the divider, and a double press puts the table
-      // back alone: the chart keeps its height, and the sheet's top moves by
-      // the difference, out of full screen if it stood there (the
-      // maintainer, 2026-11-03: it reset both). Alone, the grip is the
-      // map's, and the sheet goes back to its rest with the table.
+      // back alone (the maintainer, 2026-11-03: it reset both): the chart
+      // keeps its height and the sheet's top moves by the difference. At
+      // full screen the top cannot move, so the chart takes the difference
+      // and the sheet stays full. Alone, the grip is the map's, and the
+      // sheet goes back to its rest with the table.
       if (resultsMode === 'both') {
-        setChartHeight(chartPanelPx)
-        setFullScreen(false)
+        setChartHeight(
+          fullScreen ? Math.max(PANEL_FLOOR_PX, chartPanelPx + tablePanelPx - DEFAULT_TABLE_HEIGHT) : chartPanelPx,
+        )
         return
       }
       setHeightsChosen(false)
@@ -630,10 +632,14 @@ export function useResultsLayout({
       dragFrom.current = { chart: chartPanelPx, table: tablePanelPx }
       dragUp.current = 0
       setIsDragging(true)
-      setHeightsChosen(true)
       // The divider in Both trades the pair's height and leaves the sheet's
-      // top where it is, full screen included; alone, the grip is the map's.
+      // top where it is, full screen included, so it leaves the floor alone
+      // too: calling the heights chosen here switched a resting sheet to the
+      // drag cap at the press, and both panels grew to their stored heights
+      // before the finger moved (the maintainer, 2026-11-03). Alone, the
+      // grip is the map's.
       if (resultsMode === 'both') return
+      setHeightsChosen(true)
       setFullScreen(false)
       setTableHeight(tablePanelPx)
       beginSheetDrag('table', tablePanelPx, reservedPx)

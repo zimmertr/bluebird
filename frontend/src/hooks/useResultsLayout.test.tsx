@@ -390,13 +390,17 @@ describe('useResultsLayout', () => {
       act(() => result.current.tableGrip.onReset())
       expect(result.current.tablePanelPx).toBe(DEFAULT_PANEL_HEIGHT)
       expect(result.current.chartPanelPx).toBe(chart)
-      // From full screen it comes down to the table's default under the chart.
+      // At full screen the top cannot move, so the chart takes the
+      // difference and the sheet stays full.
       drag(result, 'chartGrip', 2000)
       expect(result.current.overMapRows).toBe(true)
+      const sum = result.current.chartPanelPx + result.current.tablePanelPx
+      drag(result, 'tableGrip', -100)
+      expect(result.current.tablePanelPx).toBe(DEFAULT_PANEL_HEIGHT - 100)
       act(() => result.current.tableGrip.onReset())
-      expect(result.current.overMapRows).toBe(false)
+      expect(result.current.overMapRows).toBe(true)
       expect(result.current.tablePanelPx).toBe(DEFAULT_PANEL_HEIGHT)
-      expect(result.current.chartPanelPx).toBeGreaterThan(chart)
+      expect(result.current.chartPanelPx).toBe(sum - DEFAULT_PANEL_HEIGHT)
     })
 
     it("gives way to the tutorial's rest", () => {
@@ -413,6 +417,42 @@ describe('useResultsLayout', () => {
       const { result } = renderHook(() => useResultsLayout(DESKTOP))
       drag(result, 'tableGrip', 2000)
       expect(result.current.overMapRows).toBe(false)
+    })
+  })
+
+  // Nothing has been resized at first load, so a double press on either bar
+  // changes nothing (the maintainer, 2026-11-03): a press that does not move
+  // leaves the floor and both heights where they stood, and the reset puts a
+  // panel back to the height the rest gave it, not to a number the rest
+  // clamps differently.
+  describe('a double press at first load', () => {
+    const doublePress = (result: { current: ReturnType<typeof useResultsLayout> }, grip: 'chartGrip' | 'tableGrip') => {
+      act(() => result.current[grip].onDragStart())
+      act(() => result.current[grip].onDragEnd())
+      act(() => result.current[grip].onReset())
+    }
+    it.each([
+      ['a short phone', { isDesktop: false, height: 740 }],
+      ['a tall phone', { isDesktop: false, height: 1000 }],
+      ['a short desk', { isDesktop: true, height: 768 }],
+      ['a tall desk', { isDesktop: true, height: 1000 }],
+    ])('changes nothing in Both on %s', (_, { isDesktop, height }) => {
+      setDesktopQuery(isDesktop)
+      setViewport(height)
+      const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, isDesktop, modeChosen: 'both', response: {} }))
+      const heights = () => [result.current.chartPanelPx, result.current.tablePanelPx]
+      const at = heights()
+      for (const grip of ['tableGrip', 'chartGrip'] as const) {
+        act(() => result.current[grip].onDragStart())
+        expect(heights()).toEqual(at)
+        act(() => result.current[grip].onDragEnd())
+        expect(heights()).toEqual(at)
+        act(() => result.current[grip].onReset())
+        expect(heights()).toEqual(at)
+      }
+      doublePress(result, 'tableGrip')
+      doublePress(result, 'chartGrip')
+      expect(heights()).toEqual(at)
     })
   })
 
