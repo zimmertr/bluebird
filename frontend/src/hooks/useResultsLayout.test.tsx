@@ -284,9 +284,10 @@ describe('useResultsLayout', () => {
     })
 
     // A drag renders twice, when it begins and when it ends (record 0259):
-    // the sheet is drawn at its most and raised over the map's controls, the
-    // foot keeps the lift it began on, and the moves between render nothing.
-    it('draws the sheet at its most for a drag, and falls back to the cap short of the top', () => {
+    // a table is drawn at its most and the sheet raised over the map's
+    // controls, the foot keeps the lift it began on, and the moves between
+    // render nothing.
+    it('draws a table at its most for a drag, and falls back to the cap short of the top', () => {
       const { result } = phone()
       const resting = result.current.tablePanelPx
       const lift = result.current.sheetLiftPx
@@ -302,6 +303,28 @@ describe('useResultsLayout', () => {
       expect(result.current.tablePanelPx).toBe(capPx)
       expect(result.current.sheetRaised).toBe(false)
       expect(result.current.overMapRows).toBe(false)
+    })
+
+    // A chart keeps its height at the press (the maintainer, 2026-11-03):
+    // its box is sized per move on the element, so nothing on screen moves
+    // until the finger does, and in Both the table stays where it was.
+    it('leaves a chart at its height for a drag, and sizes its box per move', () => {
+      const { result } = phone({ modeChosen: 'both' })
+      const pane = document.createElement('div')
+      result.current.chartPaneRef.current = pane
+      const chart = result.current.chartPanelPx
+      const table = result.current.tablePanelPx
+      act(() => result.current.chartGrip.onDragStart())
+      expect(result.current.chartPanelPx).toBe(chart)
+      expect(result.current.tablePanelPx).toBe(table)
+      expect(result.current.sheetRaised).toBe(true)
+      const before = result.current
+      act(() => result.current.chartGrip.onDrag(120))
+      expect(result.current).toBe(before)
+      expect(pane.style.height).toBe(`${chart + 120}px`)
+      act(() => result.current.chartGrip.onDragEnd())
+      expect(result.current.chartPanelPx).toBe(chart + 120)
+      expect(result.current.tablePanelPx).toBe(table)
     })
 
     it('comes down under the next drag, from where it stands, or a double press', () => {

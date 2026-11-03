@@ -4,7 +4,8 @@ import type { Browser, Page } from '@playwright/test'
 // What a drag on a phone's results sheet costs (#837; the maintainer,
 // 2026-10-31: "the performance of sliding up and down is pretty poor on
 // mobile"): one move of the pointer per animation frame, up the screen and
-// back, on the grip of a 200-row report in Table and in Chart. Read frame by
+// back, on the map grip of a 200-row report in Table, in Chart and in Both,
+// where the chart grows over a table that stays put. Read frame by
 // frame: the gaps between frames (`medianMs`, `p95Ms`, `worstMs`), how many
 // missed a 60 Hz frame (`missed`, a gap over 20 ms), and Chrome's account of
 // the main thread's work per move by kind (`perMoveMs`), which is the number
@@ -44,7 +45,8 @@ interface Drag {
 function drag(page: Page): Promise<Drag> {
   return page.evaluate(
     async ([moves, step]) => {
-      const grip = [...document.querySelectorAll('[data-tour="results"] .cursor-ns-resize')].pop() as HTMLElement
+      // The map grip: the first, which alone is the only one.
+      const grip = document.querySelector('[data-tour="results"] .cursor-ns-resize') as HTMLElement
       const box = grip.getBoundingClientRect()
       const x = box.left + box.width / 2
       const y0 = box.top + box.height / 2
@@ -115,7 +117,7 @@ test('a drag on a phone results sheet', async ({ browser, page }, testInfo) => {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_SLOWDOWN })
 
   const results = []
-  for (const mode of ['Show table only', 'Show chart only'] as const) {
+  for (const mode of ['Show table only', 'Show chart only', 'Show both chart and table'] as const) {
     await page.locator(`button[aria-label="${mode}"]`).click()
     await page.waitForTimeout(1200)
     await drag(page) // warm
