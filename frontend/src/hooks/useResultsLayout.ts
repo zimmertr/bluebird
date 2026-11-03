@@ -612,8 +612,17 @@ export function useResultsLayout({
   // against the map exactly as the chart grip above does.
   const tableGrip: GripHandlers = {
     onReset: () => {
-      if (resultsMode === 'both') setChartHeight(chartPanelPx)
       setTableHeight(DEFAULT_TABLE_HEIGHT)
+      // In Both the grip is the divider, and a double press puts the table
+      // back alone: the chart keeps its height, and the sheet's top moves by
+      // the difference, out of full screen if it stood there (the
+      // maintainer, 2026-11-03: it reset both). Alone, the grip is the
+      // map's, and the sheet goes back to its rest with the table.
+      if (resultsMode === 'both') {
+        setChartHeight(chartPanelPx)
+        setFullScreen(false)
+        return
+      }
       setHeightsChosen(false)
       setFullScreen(false)
     },

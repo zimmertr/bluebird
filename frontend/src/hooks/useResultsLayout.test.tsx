@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { type ResultsLayoutInputs, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
 import {
+  DEFAULT_PANEL_HEIGHT,
   RESULTS_BAR_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
@@ -374,6 +375,28 @@ describe('useResultsLayout', () => {
       expect(result.current.chartPanelPx).toBe(chart - 50)
       expect(result.current.chartPanelPx + result.current.tablePanelPx).toBe(fullBoth)
       expect(result.current.overMapRows).toBe(true)
+    })
+
+    // The divider's double press in Both puts the table back alone (the
+    // maintainer, 2026-11-03): the chart keeps the height it had, and the
+    // sheet's top moves by the difference, out of full screen if it stood
+    // there.
+    it('resets the table alone from the divider in Both', () => {
+      const { result } = phone({ modeChosen: 'both' })
+      drag(result, 'chartGrip', 100)
+      drag(result, 'tableGrip', -60)
+      const chart = result.current.chartPanelPx
+      expect(result.current.tablePanelPx).not.toBe(DEFAULT_PANEL_HEIGHT)
+      act(() => result.current.tableGrip.onReset())
+      expect(result.current.tablePanelPx).toBe(DEFAULT_PANEL_HEIGHT)
+      expect(result.current.chartPanelPx).toBe(chart)
+      // From full screen it comes down to the table's default under the chart.
+      drag(result, 'chartGrip', 2000)
+      expect(result.current.overMapRows).toBe(true)
+      act(() => result.current.tableGrip.onReset())
+      expect(result.current.overMapRows).toBe(false)
+      expect(result.current.tablePanelPx).toBe(DEFAULT_PANEL_HEIGHT)
+      expect(result.current.chartPanelPx).toBeGreaterThan(chart)
     })
 
     it("gives way to the tutorial's rest", () => {
