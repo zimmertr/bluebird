@@ -8,6 +8,7 @@ import { mountFeatures } from './features'
 import { createMapController } from './controller'
 import { mapInputs } from '../testSupport/fixtures'
 import { createPopupBoard } from './popups'
+import { CREDIT_LAYER } from './terrain'
 import { RESULT_MARKER_LAYER } from './resultsLayer'
 import { POI_LAYERS } from '../utils/basemapPoi'
 import { stubMap } from '../testSupport/stubMap'
@@ -65,6 +66,8 @@ describe('mountFeatures', () => {
       'landmark-crags-glow',
       'landmark-crags',
       'road_label',
+      // The empty layer carrying Mapterhorn's credit, from the map's load (#832).
+      CREDIT_LAYER,
       'forecast-grid-fill',
       'forecast-grid-wind',
       'smoke-fill-Light',

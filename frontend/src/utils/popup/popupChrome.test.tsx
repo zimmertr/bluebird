@@ -13,6 +13,8 @@ import {
   LABEL_COLOR,
   RESULT_CARD_PAD_PX,
   RESULT_POPUP_MAX_WIDTH_PX,
+  FINE_COLOR,
+  POPUP_MAX_WIDTH_PX,
   POPUP_TINT_ATTR,
   SECTION_EDGE,
   WIDEST_GRID_PX,
@@ -23,6 +25,8 @@ import {
   bodyLines,
   factsLine,
   popupCard,
+  fineprint,
+  popupWidth,
   resultPopupWidth,
   row,
   updatedAt,
@@ -34,7 +38,7 @@ import {
 } from './popupChrome'
 import { AGGREGATE } from '../../metrics'
 import { closurePopupHtml } from '../closures'
-import { resultPopupHtml } from '../resultPopup'
+import { destinationPopupHtml } from '../destinationCard'
 import { smokePopupHtml } from '../smoke'
 import { wildfirePopupHtml } from '../wildfires'
 import { displayedColumns } from '../tableColumns'
@@ -82,7 +86,7 @@ describe('a result popup', () => {
   // nothing checked, reaches the link-out glyph through `destinationUrl`.
   it('writes an OSM id carrying markup as text inside the link', () => {
     const popup = mount(
-      resultPopupHtml({ rank: 1, row: resultRow({ type: 'city', osm_id: QUOTED }), columns, warning: null }),
+      destinationPopupHtml({ kind: 'ranked', rank: 1, row: resultRow({ type: 'city', osm_id: QUOTED }) }, { columns }),
     )
     const hrefs = within(popup)
       .getAllByRole('link')
@@ -97,7 +101,7 @@ describe('a result popup', () => {
   it('links a closure order whose url carries an ampersand to that url', () => {
     const url = 'https://www.fs.usda.gov/r06/alerts?order=1&forest=probe'
     const popup = mount(
-      resultPopupHtml({ rank: 1, row: resultRow(), columns, warning: null, closure: closureWarning({ url }) }),
+      destinationPopupHtml({ kind: 'ranked', rank: 1, row: resultRow() }, { columns, closure: closureWarning({ url }) }),
     )
     const hrefs = within(popup)
       .getAllByRole('link')
@@ -369,6 +373,18 @@ describe('the updated line', () => {
     expect(line.firstElementChild!.getAttribute('style')).toContain('font-style:italic')
   })
 
+  // A source the card names says the time beside its own name, `NEXRAD
+  // radar: 10 min ago`, in place of `Updated:` (TJ, 2026-11-03).
+  it('names the source in place of the label where there is one', () => {
+    expect(mount(updatedLine('10 min ago', 'NEXRAD radar')).textContent).toBe('NEXRAD radar: 10 min ago')
+  })
+
+  it('sets fine print small, italic and stepped back', () => {
+    expect(fineprint('Updated: today')).toBe(
+      `<span style="color:${FINE_COLOR};font-size:11px;font-style:italic">Updated: today</span>`,
+    )
+  })
+
   it("formats a source's time with its date, and leaves the line off without one", () => {
     // The reader's locale and zone decide the rendering, so only its two
     // halves are asserted.
@@ -451,5 +467,26 @@ describe('every overlay card', () => {
     expect(notice.textContent).toContain('Safety Closure')
     expect(notice.getAttribute('style')).toContain(`border-bottom:${SECTION_EDGE}`)
     expect(body.hasAttribute('data-popup-body')).toBe(true)
+  })
+})
+
+// A phone's map is the constraint, not the content: a 300px card on a 320px
+// map is the whole map, and with the chart and table open the map can be a
+// couple of hundred pixels tall.
+describe('sizing a popup to the map it opens on', () => {
+  it('takes the ceiling on a desktop-sized canvas', () => {
+    expect(popupWidth(1200)).toBe(`${POPUP_MAX_WIDTH_PX}px`)
+  })
+
+  // The bug this exists for: subtracting a fixed margin from a phone-width map
+  // still left the ceiling winning, so the card was 88% of the map.
+  it('leaves a real band of map either side on a phone', () => {
+    const px = Number(popupWidth(320).replace('px', ''))
+    expect(px).toBeLessThan(POPUP_MAX_WIDTH_PX)
+    expect(320 - px).toBeGreaterThanOrEqual(48)
+  })
+
+  it('never collapses to unreadable, however narrow the canvas', () => {
+    expect(Number(popupWidth(0).replace('px', ''))).toBeGreaterThanOrEqual(180)
   })
 })

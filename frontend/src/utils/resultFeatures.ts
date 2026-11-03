@@ -112,7 +112,7 @@ export function resultsFeatureCollection(
         ...(hourIndex !== null ? bearingAt(r, hourIndex) : {}),
         precip: r.precip_total_in,
         elevation_ft: r.elevation_ft,
-        // Raw numbers; resultPopupHtml formats them (and the click handler reads
+        // Raw numbers; destinationPopupHtml formats them (and the click handler reads
         // them straight back from the feature, so they must stay numeric).
         wind_avg: r.wind_avg_mph,
         temp_avg: r.temp_avg_f,

@@ -7,7 +7,7 @@ const DEM = {} as DemTiles
 const READING: GroundReading = { elevationM: 2198, degrees: 33.1, aspect: 315 }
 
 function setup(answer: () => Promise<GroundReading | null> = async () => READING) {
-  const terrain = { demTiles: vi.fn(async () => DEM), credit: vi.fn() }
+  const terrain = { demTiles: vi.fn(async () => DEM) }
   const read = vi.fn(answer)
   const ground = createGroundReadings(terrain, read)
   const redraw = vi.fn()
@@ -19,7 +19,6 @@ describe('createGroundReadings', () => {
   it('reads nothing with no elevation to read from', () => {
     const ground = createGroundReadings(undefined)
     expect(ground.at(46.85844, -121.66287)).toEqual({ kind: 'none' })
-    ground.hold()()
   })
 
   it('stands pending until the read lands, then redraws the cards with it', async () => {
@@ -58,16 +57,5 @@ describe('createGroundReadings', () => {
     expect(failed.ground.at(46.85844, -121.66287)).toEqual({ kind: 'none' })
     expect(failed.read).toHaveBeenCalledOnce()
     warn.mockRestore()
-  })
-
-  // CC BY 4.0 asks for the credit wherever the data is shown.
-  it('holds the credit for each open card, and lets each go once', () => {
-    const { ground, terrain } = setup()
-    const first = ground.hold()
-    const second = ground.hold()
-    first()
-    first()
-    second()
-    expect(terrain.credit.mock.calls.map((c) => c[0])).toEqual([true, true, false, false])
   })
 })

@@ -74,6 +74,9 @@ function setup({ pitch = 0, bearing = 0 } = {}) {
   }
   const load = vi.fn(async () => tiles)
   const terrain = mountTerrain(stub.map, { load })
+  // The credit's empty source goes in at mount (#832), and its test pins it;
+  // every other test reads what a switch does from there.
+  stub.calls.length = 0
   return { stub, terrain, load, contourUrl }
 }
 
@@ -85,14 +88,14 @@ afterEach(() => {
 })
 
 describe('mountTerrain', () => {
-  // The cold load must not change: no source, no layer, no library.
+  // The cold load must not change: no tile, no layer that draws, no library.
   it('adds nothing and loads nothing on mount or while all three are off', async () => {
     const { stub, terrain, load } = setup()
     terrain.update(OFF)
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(load).not.toHaveBeenCalled()
     expect(stub.calls).toEqual([])
-    expect(stub.stack).toEqual(STYLE_LAYERS.map((l) => l.id))
+    expect(stub.stack).toEqual([...STYLE_LAYERS.map((l) => l.id), CREDIT_LAYER])
   })
 
   // The relief goes in the first time it is asked for, as Terrarium: read as
@@ -120,7 +123,16 @@ describe('mountTerrain', () => {
     const { stub, terrain } = setup()
     terrain.update({ ...OFF, relief: true })
     await vi.waitFor(() => expect(stub.stack).toContain(RELIEF_LAYER))
-    expect(stub.stack).toEqual(['background', 'water', 'road_minor', RELIEF_LAYER, 'ofm-trails', 'road_one_way_arrow', 'label_city'])
+    expect(stub.stack).toEqual([
+      'background',
+      'water',
+      'road_minor',
+      RELIEF_LAYER,
+      'ofm-trails',
+      'road_one_way_arrow',
+      'label_city',
+      CREDIT_LAYER,
+    ])
   })
 
   // Off hides; nothing is removed or added again, and a hidden layer asks
@@ -491,8 +503,8 @@ describe('the opacity levels', () => {
   })
 })
 
-// The right-click card reads the same elevation (#832), loaded once whoever
-// asks first, and holds Mapterhorn's credit while its numbers show.
+// Every card that names a place reads the same elevation (#832), loaded once
+// whoever asks first, under a credit that stands from the map's load.
 describe('the card\'s elevation', () => {
   it('shares one load with the switches, whoever asks first', async () => {
     const { terrain, load } = setup()
@@ -512,24 +524,16 @@ describe('the card\'s elevation', () => {
   })
 
   // MapLibre credits a source while a visible layer uses it, so the empty
-  // layer's visibility is the credit: on with the first card, off with the last.
-  it('credits Mapterhorn while any card holds it', () => {
-    const { stub, terrain } = setup()
-    terrain.credit(false)
-    expect(stub.sources[CREDIT_SOURCE]).toBeUndefined()
-    terrain.credit(true)
-    expect(stub.calls.find((c) => c[0] === 'addSource' && c[1] === CREDIT_SOURCE)![2]).toMatchObject({
+  // source has a layer, and both stand from the map's load (TJ, 2026-11-03).
+  it('credits Mapterhorn from the start, with nothing to draw', () => {
+    const stub = stubMap({ styleLayers: STYLE_LAYERS })
+    mountTerrain(stub.map, { load: vi.fn() })
+    expect(stub.calls.find((c) => c[0] === 'addSource' && c[1] === CREDIT_SOURCE)![2]).toEqual({
       type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
       attribution: MAPTERHORN_ATTRIBUTION,
     })
     expect(stub.stack).toContain(CREDIT_LAYER)
-    terrain.credit(true)
-    terrain.credit(false)
-    expect(visibility(stub, CREDIT_LAYER)).toBe('visible')
-    terrain.credit(false)
-    expect(visibility(stub, CREDIT_LAYER)).toBe('none')
-    terrain.credit(true)
-    expect(visibility(stub, CREDIT_LAYER)).toBe('visible')
-    expect(stub.calls.filter((c) => c[0] === 'addLayer' && c[1] === CREDIT_LAYER)).toHaveLength(1)
+    expect(visibility(stub, CREDIT_LAYER)).toBeUndefined()
   })
 })

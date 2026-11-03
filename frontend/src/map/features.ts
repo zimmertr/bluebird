@@ -17,8 +17,9 @@
  * are switched on, beneath the first smoke fill, so the chain comes out grid,
  * snow, radar, smoke, fire, closures, detections, draw, results. The basemap
  * POI popups add no layers and go last. The ground (`terrain.ts`, #799) adds
- * nothing on load either: its relief and contours go in the first time they
- * are switched on, under the basemap patch and the style's labels.
+ * one empty layer on load, which carries Mapterhorn's credit (#832): its
+ * relief and contours go in the first time they are switched on, under the
+ * basemap patch and the style's labels.
  *
  * The map's popups mount first of all (`map/mapPopups.ts`): every feature that
  * opens a popup registers itself there as it mounts, and the one click that
@@ -33,8 +34,9 @@ import type { GeoPolygon } from '../types'
 import { enhanceBasemap } from './basemap'
 import { mountCamera } from './camera'
 import type { MapController } from './controller'
-import { mountCoordinatePopups } from './coordinatePopup'
 import { mountDrawRing, type DrawRing } from './drawRing'
+import { mountDestinationCards } from './destinationCards'
+import { createGridHeads } from './gridHeads'
 import { createGroundReadings } from './groundReadings'
 import { serveHeldTiles } from './heldTileProtocol'
 import { mountLandmarks, type LandmarkLayer } from './landmarks'
@@ -125,12 +127,26 @@ export function mountFeatures(
     onPolygonChange: deps.onPolygonChange,
     onDrawUpdate: deps.onDrawUpdate,
   })
-  // One reading of the ground per point for every card that names a place,
-  // off the terrain rows' one elevation source (#832).
-  const ground = createGroundReadings(terrain)
-  const results = mountResultsLayer(map, { controller, popups: mapPopups, ground })
-  const pois = mountPoiPopups(map, { controller, popups: mapPopups, landmarks, ground })
-  mountCoordinatePopups(map, { controller, popups: mapPopups, ground })
+  // Every card that describes a place, with one reading of the ground per
+  // point off the terrain rows' one elevation source (#832). A click on a
+  // marker, a dot or a label opens one through the layer that draws it, and a
+  // click on bare map through the map's own.
+  const cards = mountDestinationCards(map, {
+    controller,
+    popups: mapPopups,
+    gridHeads: createGridHeads(controller),
+    ground: createGroundReadings(terrain),
+  })
+  mapPopups.registerSpot((at, anchor, sections, owner) => {
+    const spot = { kind: 'spot', lat: at.lat, lon: at.lng } as const
+    const card = cards.open({ ...spot, sections }, anchor, { owner })
+    return {
+      popup: card.popup,
+      setSections: (next) => card.update({ ...spot, sections: next }),
+    }
+  })
+  const results = mountResultsLayer(map, { controller, popups: mapPopups, cards })
+  const pois = mountPoiPopups(map, { popups: mapPopups, cards, landmarks })
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })

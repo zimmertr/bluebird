@@ -26,7 +26,6 @@ import {
 import { heldTiles } from './heldTiles'
 import { storeHolding } from '../testSupport/heldTiles'
 import { markupText } from '../testSupport/markupText'
-import { updatedLine } from './popup/popupChrome'
 
 // A moderate echo's colour, index 130 of the palette: 32.5 dBZ.
 const MODERATE = [9, 111, 12, 255] as const
@@ -111,17 +110,14 @@ describe('formatReflectivity', () => {
 })
 
 describe('radarSection', () => {
-  // The band names what the echo is and where it comes from; when it was
-  // measured is data, in the body with the rest (TJ, 2026-10-16).
+  // The section opens on what the echo is, lists its values, and says where
+  // and when it was measured at its foot (TJ, 2026-11-03, layout C1).
   it('names the echo and its source, and lists its values and when it was measured', () => {
     const section = radarSection(38.5, 0)
     expect(section.title).toBe('Moderate precipitation')
     expect(section.source).toBe(RADAR_SOURCE)
-    expect(section.rows.map(markupText)).toEqual([
-      'Rate: ~0.37 in/h',
-      'Reflectivity: 38.5 dBZ',
-      'Updated: now',
-    ])
+    expect(section.rows.map(markupText)).toEqual(['Rate: ~0.37 in/h', 'Reflectivity: 38.5 dBZ'])
+    expect(section.when).toBe('now')
   })
 
   // Inclusive: an echo at the cap reads the cap's rate, so it is a floor too.
@@ -136,9 +132,8 @@ describe('radarSection', () => {
   // rate to give, and says so in a row of its own so the card keeps its
   // height through playback (TJ, 2026-10-16, #748).
   it('gives a weak echo no rain rate, keeping the row', () => {
-    expect(radarSection(5, 20).rows.map(markupText)).toEqual(['Rate: N/A', 'Reflectivity: 5.0 dBZ', 'Updated: 20 min ago'])
-    // The frame's age is fine print, as every overlay card's date is (TJ, 2026-10-16).
-    expect(radarSection(5, 20).rows[2]).toBe(updatedLine('20 min ago'))
+    expect(radarSection(5, 20).rows.map(markupText)).toEqual(['Rate: N/A', 'Reflectivity: 5.0 dBZ'])
+    expect(radarSection(5, 20).when).toBe('20 min ago')
   })
 
   // A card open through playback stays open on a frame that painted nothing
@@ -147,7 +142,8 @@ describe('radarSection', () => {
     const section = noEchoSection(30)
     expect(section.title).toBe(NO_ECHO_TITLE)
     expect(section.source).toBe(RADAR_SOURCE)
-    expect(section.rows.map(markupText)).toEqual(['Rate: 0 in/h', 'Reflectivity: N/A', 'Updated: 30 min ago'])
+    expect(section.rows.map(markupText)).toEqual(['Rate: 0 in/h', 'Reflectivity: N/A'])
+    expect(section.when).toBe('30 min ago')
     expect(section.rows).toHaveLength(radarSection(38.5, 0).rows.length)
   })
 
@@ -202,7 +198,7 @@ describe('rereadRadarAt', () => {
   it('reads the frame now on screen for a card already open', async () => {
     const section = await rereadRadarAt(held(30), 30, AT)
     expect(section.title).toBe('Moderate precipitation')
-    expect(section.rows.map(markupText)).toContain('Updated: 30 min ago')
+    expect(section.when).toBe('30 min ago')
   })
 
   // The map shows no echo there either way, so the card says so rather than closing.
@@ -217,7 +213,7 @@ describe('readRadarAt', () => {
   it('reads the frame on screen into a whole section, with nothing to wait for', async () => {
     const reading = await readRadarAt(held(30), 30, AT)
     expect(reading?.section.title).toBe('Moderate precipitation')
-    expect(reading?.section.rows.map(markupText)).toContain('Updated: 30 min ago')
+    expect(reading?.section.when).toBe('30 min ago')
     expect(reading?.later).toBeUndefined()
   })
 

@@ -26,7 +26,7 @@
  */
 import type { HeldTiles, Rgba } from './heldTiles'
 import { inBounds, type PointReading, type PointSection } from './pointReadout'
-import { ageAgo, escapeHtml, row, updatedLine } from './popup/popupChrome'
+import { ageAgo, escapeHtml, row } from './popup/popupChrome'
 import { RADAR_EXTENTS } from './radar'
 import { clamp } from './numbers'
 import { UNAVAILABLE } from './unavailableCell'
@@ -173,7 +173,7 @@ export function radarUpdated(offsetMin: number): string {
   return ageAgo(offsetMin * 60 * 1000)
 }
 
-/** What the card names the radar as, on its band. */
+/** What the card names the radar as, in its section's fine print. */
 export const RADAR_SOURCE = 'NEXRAD radar'
 
 /** What a radar row the frame cannot fill reads: the table's own mark for a value it does not have. */
@@ -193,7 +193,8 @@ export function radarSection(dbz: number, offsetMin: number): PointSection {
     title: escapeHtml(radarTitle(dbz)),
     titles: RADAR_TITLES,
     source: escapeHtml(RADAR_SOURCE),
-    rows: [row('Rate', escapeHtml(rate)), row('Reflectivity', formatReflectivity(dbz)), updatedLine(radarUpdated(offsetMin))],
+    rows: [row('Rate', escapeHtml(rate)), row('Reflectivity', formatReflectivity(dbz))],
+    when: radarUpdated(offsetMin),
   }
 }
 
@@ -222,7 +223,8 @@ export function noEchoSection(offsetMin: number): PointSection {
     title: escapeHtml(NO_ECHO_TITLE),
     titles: RADAR_TITLES,
     source: escapeHtml(RADAR_SOURCE),
-    rows: [row('Rate', '0 in/h'), row('Reflectivity', NO_VALUE), updatedLine(radarUpdated(offsetMin))],
+    rows: [row('Rate', '0 in/h'), row('Reflectivity', NO_VALUE)],
+    when: radarUpdated(offsetMin),
   }
 }
 

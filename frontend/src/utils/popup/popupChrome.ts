@@ -213,13 +213,14 @@ export function fineprint(inner: string): string {
 
 /**
  * The fine print that ends a card whose source says when it measured: a
- * fire's survey, the snow analysis, the radar frame. One label for all of them
- * (`Updated:`; TJ, 2026-10-16), so the source's date reads the same on every
- * card. `when` is markup the caller escaped, which lets a card still waiting
- * on its source stand a `pendingValue` there.
+ * fire's survey, the snow analysis, the radar frame. Named by its source
+ * where the card knows it, `NEXRAD radar: 10 min ago`, and `Updated:`
+ * otherwise (TJ, 2026-11-03), so a section on a card that carries two says
+ * whose time it is. `when` is markup the caller escaped, which lets a card
+ * still waiting on its source stand a `pendingValue` there; `source` is too.
  */
-export function updatedLine(when: string): string {
-  return fineprint(`Updated: ${when}`)
+export function updatedLine(when: string, source?: string): string {
+  return fineprint(`${source ?? 'Updated'}: ${when}`)
 }
 
 /**
@@ -285,7 +286,7 @@ export function ageAgo(ageMs: number): string {
  * for all three, because a card has one action and the app marks every
  * command in the accent. `attr` is the
  * attribute the map handler finds the button by, written whole (`data-rm`, or
- * `data-poi-action="add"`).
+ * `data-card-action="add"`).
  */
 export function popupButton(attr: string, label: string): string {
   return `<button ${attr} class="${BUTTON_ACCENT}">${label}</button>`

@@ -326,7 +326,7 @@ describe('the legend', () => {
   })
 })
 
-// The right-click card's ground (#832): one pixel of the tile a point falls on.
+// A card's ground (#832): one pixel of the tile a point falls on.
 describe('tilePixel', () => {
   it('finds the tile MapLibre asks for and the pixel inside it', () => {
     // Null Island sits on the corner of the four middle tiles at zoom 1.

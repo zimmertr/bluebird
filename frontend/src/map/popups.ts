@@ -47,8 +47,12 @@ export interface PopupBoard {
    * one point names both (#737), and either one switched off takes it down.
    */
   track(popup: BoardPopup, owner?: MapTarget | readonly MapTarget[]): void
-  /** Close every popup on the board, or every one this kind of thing owns. */
-  closeAll(owner?: MapTarget): void
+  /**
+   * Close every popup on the board, or every one this kind of thing owns,
+   * and say how many it closed: a click on bare map that closed a card does
+   * nothing else (#832).
+   */
+  closeAll(owner?: MapTarget): number
 }
 
 export function createPopupBoard(): PopupBoard {
@@ -66,6 +70,7 @@ export function createPopupBoard(): PopupBoard {
       const closing = open.filter((p) => owner === undefined || p.owners.includes(owner))
       open = open.filter((p) => !closing.includes(p))
       for (const { popup } of closing) popup.remove()
+      return closing.length
     },
   }
 }

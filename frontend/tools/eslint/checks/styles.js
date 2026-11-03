@@ -1038,7 +1038,7 @@ export const STYLES = [
     name: 'value-inline-style',
     files: SHIPPED,
     ignores: [...TESTS, 'src/utils/popup/popupChrome.ts'],
-    probe: 'src/utils/poiPopup.ts',
+    probe: 'src/utils/destinationCard.ts',
     ban: [
       {
         selector: text(String.raw`\b(font-size|padding|border-radius|background)\s*:`),

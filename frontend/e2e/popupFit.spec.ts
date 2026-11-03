@@ -35,6 +35,14 @@ async function openMarkerCard(page: Page) {
   for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight')
   await expect(heading).toHaveText('Markers')
   await expect(page.locator('.maplibregl-popup [data-popup-body] table')).toBeVisible()
+  await groundLanded(page)
+}
+
+// The ground under the marker lands after the card opens and redraws it
+// (#832), which would undo the widening below: wait until no bar stands in
+// the card for it (`pendingValue` in popupChrome.ts).
+async function groundLanded(page: Page) {
+  await expect(page.locator('.maplibregl-popup span[aria-hidden="true"][style*="width:3.5em"]')).toHaveCount(0)
 }
 
 /** Make the fonts measure like the Mac's, and put the widest numbers in. */

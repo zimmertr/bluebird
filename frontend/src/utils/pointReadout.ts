@@ -1,6 +1,5 @@
 /**
- * What a picture on the map says at a point, and the one card that says it
- * (#737).
+ * What a picture on the map says at a point (#737).
  *
  * The rain radar and the snow depth are raster layers: the map holds pixels
  * for them rather than features, so a click finds nothing under it to
@@ -10,20 +9,15 @@
  * for the numbers (`snowPoint.ts`). So a card opens as fast as any other, and
  * a value still on its way stands as a bar until it lands.
  *
- * A card is laid out like every other on the map (TJ, 2026-10-16): what the
- * thing IS on the band, its name and its source, and what is said ABOUT it in
- * the body, including when it was measured. Every section a click gathered
- * goes on one card, so a reader who clicks a storm over a snowpack hears about
- * both rather than the rank choosing which half to hide; the band then names
- * both and lists both sources, and each section opens on its own name, ruled
- * off from the other's.
+ * Every section a click gathered goes on the card of the spot clicked
+ * (`destinationCard.ts`, #832), so a reader who clicks a storm over a
+ * snowpack hears about both, each section on its own name and ruled off from
+ * the other's.
  *
  * A third such layer writes a reader that returns a section and registers it
  * with `registerPoint` in `map/mapPopups.ts`; the card, the rank, the abort of
- * a stale answer and the failure posture are all here or there already.
+ * a stale answer and the failure posture are all there or in the card already.
  */
-import { bodyLines, bodySection, escapeHtml, factsLine, metaBand, popupCard, sectionHeading, widestName } from './popup/popupChrome'
-
 /** What one layer says at the clicked point. Every string is markup the reader has escaped. */
 export interface PointSection {
   /** What is there, as a name: `Moderate precipitation`, `Deep snow`. */
@@ -36,8 +30,13 @@ export interface PointSection {
   titles?: readonly string[]
   /** Where it comes from: `NEXRAD radar`. */
   source: string
-  /** The values, each a `row`, the last saying when it was measured. */
+  /** The values, each a `row`. */
   rows: readonly string[]
+  /**
+   * When the source measured, as markup, which the section's fine print says
+   * beside the source; none for a section that holds a failure instead.
+   */
+  when?: string
 }
 
 /** A layer's reading: the section as it stands at the click, and the finished one where part of it is still coming. */
@@ -49,39 +48,6 @@ export interface PointReading {
    * and rejects only when the card it was for is gone.
    */
   later?: Promise<PointSection>
-}
-
-/**
- * The band's name for a card that describes both pictures (TJ, 2026-10-16):
- * the two sections under it carry the specifics, and a name joining both of
- * theirs ran past the card. The radar and the snow are the only two point
- * layers, so this is their pair's name; a third would need its own.
- */
-export const BOTH_TITLE = 'Precipitation and snow'
-
-/**
- * The card for every section one click gathered, in rank order. One section
- * names the card on its band, with its source under the name, and lists its
- * values in the body. Two share a band naming both and listing both sources,
- * and each section opens on its own name, so a reader can tell the rain's
- * values from the snow's and still sees how heavy each is (TJ, 2026-10-16).
- */
-export function pointCardHtml(sections: readonly PointSection[]): string {
-  const name = (s: PointSection) => (s.titles ? widestName(s.title, s.titles) : s.title)
-  if (sections.length === 1) {
-    const [only] = sections
-    return popupCard({ title: name(only), meta: metaBand([factsLine([only.source])]), body: bodyLines(only.rows) })
-  }
-  return popupCard({
-    title: escapeHtml(BOTH_TITLE),
-    meta: metaBand([factsLine(sections.map((s) => s.source))]),
-    body: sections
-      .map((s, i) => {
-        const inner = sectionHeading(name(s)) + bodyLines(s.rows)
-        return i === 0 ? inner : bodySection(inner)
-      })
-      .join(''),
-  })
 }
 
 /**

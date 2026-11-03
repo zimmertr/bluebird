@@ -88,9 +88,8 @@ interface Props {
   // before Analyze runs, so every input has feedback, then a ring's found
   // destinations until their forecasts land or a failed run leaves them (#782).
   pending?: PendingDestination[]
-  // Called for a searched place only. A CSV row's truth is the textarea text
-  // and a found row's is the ring, so each is removed by editing that, not by
-  // an × here.
+  // A pending row's ×, on every row whatever named it (#832): the removal a
+  // ranked row's × records, so the Removed list can restore it.
   onRemovePending?: (d: PendingDestination) => void
   // The × that replaces a row's rank number on hover — removes the destination
   // from the current report (and, for a searched place, deregisters it).

@@ -596,9 +596,8 @@ interface PendingProps {
   chartBox?: ChartBox
   charted: boolean
   chartColor?: string
-  // Used for a searched place only. A CSV row's truth is the textarea text and
-  // a found row's is the ring (#782), so each is removed by editing that, not
-  // by an × here.
+  // On every pending row, whatever named it: the dot's card offers the same
+  // way out (#832, TJ 2026-11-03).
   onRemovePending?: (d: PendingDestination) => void
   onFocusPending?: (at: { latitude: number; longitude: number }) => void
 }
@@ -628,7 +627,7 @@ function PendingTableRow({
       <RankRemoveCell
         rank={NO_VALUE_MARK}
         name={d.name}
-        onRemove={onRemovePending && d.source === 'search' ? () => onRemovePending(d) : undefined}
+        onRemove={onRemovePending ? () => onRemovePending(d) : undefined}
       />
       {columns.map((col) => {
         const key = col.key as string

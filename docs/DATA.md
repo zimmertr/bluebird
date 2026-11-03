@@ -888,12 +888,12 @@ stretched, not worked out again. It is a planning picture, not a measurement
 of the slope you will stand on.
 
 **A card reads one pixel of the same tiles** (#832): a ranked marker's, a
-clicked label's, a neutral dot's and a right-clicked spot's. It reads the slope
+clicked label's, a neutral dot's and a clicked spot's. It reads the slope
 worked out as above, and the way the slope faces, from the finest tile
 Mapterhorn has under the point, whatever the map's zoom. So a card can name a
 steeper band than the shading shows under the pointer when you are zoomed out,
 because the shading there is painted from a coarser tile. The elevation on a
-destination's card stays OpenStreetMap's; only the right-clicked spot, which
+destination's card stays OpenStreetMap's; only a spot clicked on bare map, which
 has none, shows the tile's height. A destination's point is OpenStreetMap's
 too, and a summit's sits where the ground turns over. Measured on 2026-10-31
 at 36 summits around Mount Rainier, reading the point and eight points 15 m
@@ -902,9 +902,9 @@ at the point, and 32 faced opposite ways (Whitman Crest reads 4° N at its
 point and 17° to 51°, NE or SW, around it). Trailheads swing less, by 18
 degrees at the median of 14, and lakes read flat or nearly so, since the model
 flattens water.
-While a card is open, the map's corner credits Mapterhorn, as it does while a
-terrain row is on (record
-[0253](decisions/0253-slope-on-every-card-and-the-right-click-card.md)).
+The map's corner credits Mapterhorn from the moment it loads, since any card
+may read it (record
+[0253](decisions/0253-slope-on-every-card-and-the-spot-card.md)).
 
 **Imagery is two sources, one picture.** Over the United States and its
 territories it is USGS's NAIP aerial photography, to zoom 16, in the public

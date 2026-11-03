@@ -24,7 +24,7 @@ import { heldTiles } from './heldTiles'
 import { storeHolding } from '../testSupport/heldTiles'
 import { fakeResponse, snowIdentify } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'
-import { updatedAt, updatedLine } from './popup/popupChrome'
+import { updatedAt } from './popup/popupChrome'
 import type { GlacierCheck } from './glacierCell'
 
 // The ArcGIS error the service sometimes answers with a 200 (2026-10-16).
@@ -175,25 +175,22 @@ describe('the snow sections', () => {
     const section = pendingSnowSection('Very deep snow', false)
     expect(section.title).toBe('Very deep snow')
     expect(section.source).toBe(SNOW_SOURCE)
-    expect(section.rows.map(markupText)).toEqual(['Depth: ', 'Snow water equivalent: ', 'Updated: '])
+    expect(section.rows.map(markupText)).toEqual(['Depth: ', 'Snow water equivalent: '])
     expect(section.rows.every((r) => r.includes('aria-hidden'))).toBe(true)
+    expect(section.when).toContain('aria-hidden')
   })
 
   it('fills the values NOAA answered, the time with its date', () => {
     const section = snowSection('Very deep snow', READING)
-    expect(section.rows.map(markupText)).toEqual([
-      'Depth: 151 in',
-      'Snow water equivalent: 83 in',
-      `Updated: ${updatedAt(VALID_MS)}`,
-    ])
-    // The date is fine print, as on every overlay card that says one (TJ, 2026-10-16).
-    expect(section.rows[2]).toBe(updatedLine(String(updatedAt(VALID_MS))))
+    expect(section.rows.map(markupText)).toEqual(['Depth: 151 in', 'Snow water equivalent: 83 in'])
+    expect(section.when).toBe(String(updatedAt(VALID_MS)))
   })
 
   // Every snow section has the same lines (#748).
   it('marks a value NOAA did not give rather than leaving its row off', () => {
     const section = snowSection('Light snow', { depthIn: 2, sweIn: null, validMs: null })
-    expect(section.rows.map(markupText)).toEqual(['Depth: 2.0 in', 'Snow water equivalent: N/A', 'Updated: N/A'])
+    expect(section.rows.map(markupText)).toEqual(['Depth: 2.0 in', 'Snow water equivalent: N/A'])
+    expect(markupText(section.when!)).toBe('N/A')
   })
 
   // On a glacier the name says where the numbers stand, and the numbers
@@ -204,7 +201,7 @@ describe('the snow sections', () => {
     expect(pendingSnowSection('Very deep snow', undefined).title).toContain('aria-hidden')
     const section = snowSection('Very deep snow', READING, true)
     expect(section.title).toBe(GLACIER_TITLE)
-    expect(section.rows.map(markupText)).toEqual(['Depth: 151 in', 'Snow water equivalent: 83 in', `Updated: ${updatedAt(VALID_MS)}`])
+    expect(section.rows.map(markupText)).toEqual(['Depth: 151 in', 'Snow water equivalent: 83 in'])
   })
 
   it('says NOAA failed in place of the values, keeping its name', () => {

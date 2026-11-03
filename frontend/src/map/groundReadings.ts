@@ -1,6 +1,6 @@
 /**
  * The ground under the points the map's cards describe (#832): a ranked
- * marker's, a clicked label's, a pending dot's and a right-clicked spot's.
+ * marker's, a clicked label's, a pending dot's and a clicked spot's.
  * Each card asks for its point as it draws and redraws when the read lands,
  * so every card reads one slope at one point, and a point is read once a
  * session however many cards open on it: the ground does not change while
@@ -9,8 +9,8 @@
  * The read is `groundReading`'s, at the finest tile Mapterhorn holds, off the
  * one elevation source the terrain rows load (`terrain.ts`), so a card opened
  * with no terrain row on loads the same chunk a switch would and no second
- * one. Mapterhorn's credit stands in the map's corner while any card that
- * reads it is open, which CC BY 4.0 asks for wherever the data is shown.
+ * one. Mapterhorn's credit stands in the map's corner from the map's load
+ * (`terrain.ts`), which CC BY 4.0 asks for wherever the data is shown.
  */
 import { isAbort } from '../utils/abort'
 import type { GroundState } from '../utils/popup/groundFact'
@@ -23,15 +23,13 @@ export interface GroundReadings {
   at(lat: number, lon: number): GroundState
   /** Calls `redraw` whenever a read lands, so the open cards draw it. */
   onRead(redraw: () => void): void
-  /** Holds the credit for one open card; the function returned lets it go, once. */
-  hold(): () => void
 }
 
 const NOTHING: GroundState = { kind: 'none' }
 const PENDING: GroundState = { kind: 'pending' }
 
 export function createGroundReadings(
-  terrain?: Pick<TerrainLayers, 'demTiles' | 'credit'>,
+  terrain?: Pick<TerrainLayers, 'demTiles'>,
   read: typeof groundReading = groundReading,
 ): GroundReadings {
   const known = new Map<string, GroundState>()
@@ -69,16 +67,6 @@ export function createGroundReadings(
     },
     onRead(redraw) {
       redraws.push(redraw)
-    },
-    hold() {
-      if (!terrain) return () => {}
-      terrain.credit(true)
-      let held = true
-      return () => {
-        if (!held) return
-        held = false
-        terrain.credit(false)
-      }
     },
   }
 }

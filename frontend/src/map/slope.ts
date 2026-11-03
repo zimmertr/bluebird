@@ -113,7 +113,7 @@ type MissingTiles = Set<string>
 
 /**
  * The page's tiles known missing, shared by every reader of the elevation:
- * the slope tiles, the filled elevation and the right-click card's point
+ * the slope tiles, the filled elevation and the cards' point
  * (#832), so none asks a tile another has already learned is not there.
  */
 const SESSION_MISSING: MissingTiles = new Set()

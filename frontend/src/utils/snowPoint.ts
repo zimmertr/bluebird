@@ -40,7 +40,7 @@
  */
 import type { HeldTiles, Rgba } from './heldTiles'
 import { inBounds, layerFetch, type PointReading, type PointSection } from './pointReadout'
-import { escapeHtml, pendingValue, row, updatedAt, updatedLine } from './popup/popupChrome'
+import { escapeHtml, pendingValue, row, updatedAt } from './popup/popupChrome'
 import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_SERVICE_URL } from './snowDepth'
 import { GLACIERS, type GlacierCheck } from './glacierCell'
 import { clamp, grouped } from './numbers'
@@ -183,7 +183,7 @@ export function formatInches(inches: number): string {
   return inches < 10 ? `${inches.toFixed(1)} in` : `${grouped(Math.round(inches))} in`
 }
 
-/** What the card names the snow analysis as, on its band. */
+/** What the card names the snow analysis as, in its section's fine print. */
 export const SNOW_SOURCE = 'NOAA snow analysis'
 
 /** The line the body carries when NOAA could not answer (TJ, 2026-10-16). */
@@ -214,7 +214,8 @@ export function pendingSnowSection(word: string, glacier: boolean | undefined): 
   return {
     title: glacier === undefined ? pendingValue() : escapeHtml(glacier ? GLACIER_TITLE : word),
     source: escapeHtml(SNOW_SOURCE),
-    rows: [row('Depth', pendingValue()), row('Snow water equivalent', pendingValue()), updatedLine(pendingValue())],
+    rows: [row('Depth', pendingValue()), row('Snow water equivalent', pendingValue())],
+    when: pendingValue(),
   }
 }
 
@@ -232,8 +233,8 @@ export function snowSection(word: string, reading: SnowReading, glacier = false)
     rows: [
       row('Depth', inches(reading.depthIn)),
       row('Snow water equivalent', inches(reading.sweIn)),
-      updatedLine(valid === null ? NO_VALUE : escapeHtml(valid)),
     ],
+    when: valid === null ? NO_VALUE : escapeHtml(valid),
   }
 }
 

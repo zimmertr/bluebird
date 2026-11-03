@@ -41,7 +41,7 @@ vi.mock('maplibre-gl', () => ({
 
 import { createMapController } from './controller'
 import { mapInputs } from '../testSupport/fixtures'
-import { mountMapPopups, type MapPointTarget, type MapPopupTarget } from './mapPopups'
+import { mountMapPopups, type MapPoint, type MapPointTarget, type MapPopupTarget } from './mapPopups'
 import { createPopupBoard, popupOptions } from './popups'
 import { stubMap, type StubFeature } from '../testSupport/stubMap'
 import type { MapTarget } from '../utils/mapClick'
@@ -56,6 +56,16 @@ function setup({ drawing = false, layers = LAYERS } = {}) {
   const addPoint = vi.fn()
   const board = createPopupBoard()
   const popups = mountMapPopups(stub.map, { controller, board, addPoint })
+  // The spot's card as a test reads it: each section's name, source and rows
+  // as text. The real card is `destinationCards.ts`'s.
+  const spots: { at: MapPoint; sections: readonly PointSection[]; owner: readonly MapTarget[] }[] = []
+  const spotText = (sections: readonly PointSection[]) =>
+    ['Spot', ...sections.map((x) => [x.title, x.source, ...x.rows].join(' '))].join(' | ')
+  popups.registerSpot((at, anchor, sections, owner) => {
+    spots.push({ at, sections, owner })
+    const { popup } = popups.openCard(anchor, spotText(sections), { owner })
+    return { popup, setSections: (next) => void popup.setHTML(spotText(next)) }
+  })
   const opened: { target: MapTarget; layer: string }[] = []
   const register = (target: MapTarget, targetLayers: string[], extra: Partial<MapPopupTarget> = {}) =>
     popups.register({
@@ -71,7 +81,7 @@ function setup({ drawing = false, layers = LAYERS } = {}) {
   const click = (shiftKey = false) =>
     stub.fire('click', undefined, { point: { x: 10, y: 20 }, lngLat: { lng: -121.5, lat: 47.5 }, originalEvent: { shiftKey } })
   const move = () => stub.fire('mousemove', undefined, { point: { x: 10, y: 20 }, lngLat: { lng: -121.5, lat: 47.5 } })
-  return { stub, controller, addPoint, popups, opened, register, under, click, move }
+  return { stub, controller, addPoint, popups, opened, register, under, click, move, spots }
 }
 
 describe('mountMapPopups', () => {
@@ -160,6 +170,57 @@ describe('mountMapPopups', () => {
     under()
     click()
     expect(made.every((p) => p.removed)).toBe(true)
+  })
+})
+
+// A click on bare map is the spot's (#832, TJ 2026-11-03): the same left
+// click every marker and label answers.
+describe('mountMapPopups bare map', () => {
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  it("opens the spot's card where nothing under the click opens", async () => {
+    const { click, spots } = setup()
+    click()
+    await settle()
+    expect(spots.map((x) => x.at)).toEqual([{ lng: -121.5, lat: 47.5, zoom: 8 }])
+    expect(made).toHaveLength(1)
+  })
+
+  // A reader dismissing a card does not get another one for it.
+  it('only closes the open cards on a click while any is open', async () => {
+    const { register, under, click, spots } = setup()
+    register('fire', ['fire-fill'])
+    under('fire-fill')
+    click()
+    under()
+    click()
+    await settle()
+    expect(made.map((p) => p.removed)).toEqual([true])
+    expect(spots).toEqual([])
+    click()
+    await settle()
+    expect(spots).toHaveLength(1)
+  })
+
+  it('opens the spot beside the open cards on a shift-click', async () => {
+    const { register, under, click, spots } = setup()
+    register('fire', ['fire-fill'])
+    under('fire-fill')
+    click()
+    under()
+    click(true)
+    await settle()
+    expect(spots).toHaveLength(1)
+    expect(made.map((p) => p.removed)).toEqual([false, false])
+  })
+
+  it('opens nothing with no spot card registered', async () => {
+    made.length = 0
+    const stub = stubMap({ layers: LAYERS })
+    mountMapPopups(stub.map, { controller: createMapController(mapInputs()), board: createPopupBoard(), addPoint: vi.fn() })
+    stub.fire('click', undefined, { point: { x: 0, y: 0 }, lngLat: { lng: -121.5, lat: 47.5 }, originalEvent: {} })
+    await settle()
+    expect(made).toEqual([])
   })
 })
 
@@ -421,13 +482,16 @@ describe('mountMapPopups point targets', () => {
     expect(read.mock.calls[0][0]).toEqual({ lng: -121.5, lat: 47.5, zoom: 8 })
   })
 
-  it('opens nothing where no picture painted', async () => {
-    const { popups, click } = setup()
+  // The spot's card opens whatever the pictures say (#832); where none
+  // painted, it carries no section and no picture owns it.
+  it('opens the spot with no section where no picture painted', async () => {
+    const { popups, click, spots } = setup()
     point(popups, 'radar', async () => null)
     point(popups, 'snow', async () => null)
     click()
     await settle()
-    expect(made).toEqual([])
+    expect(made).toHaveLength(1)
+    expect(spots).toEqual([{ at: { lng: -121.5, lat: 47.5, zoom: 8 }, sections: [], owner: [] }])
   })
 
   it('never asks a picture that is switched off', () => {
@@ -490,7 +554,9 @@ describe('mountMapPopups point targets', () => {
     click()
     answer(whole('Snow'))
     await settle()
-    expect(made).toEqual([])
+    // The second click's card, which nothing painted under.
+    expect(made).toHaveLength(1)
+    expect(made[0].html).not.toContain('Snow')
     expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
   })

@@ -686,7 +686,7 @@ export default function App() {
     fire,
     closure,
     mapRef,
-    removePlace,
+    removeResult: removals.removeResult,
   })
   const { layout, tableView } = resultsView
   // Which edge of a desk's layout is moving, so the map and the results

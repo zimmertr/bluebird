@@ -14,6 +14,12 @@ async function analyze(page: Page, phone: boolean) {
   await expectRanked(page)
 }
 
+// The ground under the marker lands after its card opens and redraws it
+// (#832), replacing every node in it: wait until no bar stands for it
+// (`pendingValue` in popupChrome.ts) before holding on to a link.
+const groundLanded = (page: Page) =>
+  expect(page.locator('.maplibregl-popup span[aria-hidden="true"][style*="width:3.5em"]')).toHaveCount(0)
+
 const look = (el: Locator) =>
   el.evaluate((node) => {
     const style = getComputedStyle(node)
@@ -49,6 +55,7 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
   await row.locator('td').nth(3).click()
   const popup = page.locator('.maplibregl-popup')
   await expect(popup).toHaveCount(1)
+  await groundLanded(page)
   const link = popup.locator('[data-popup-link]').first()
   expect((await look(link)).line).toBe('none')
   // Hovered again on each try: the map pans to fit a popup it has just
@@ -76,6 +83,7 @@ test.describe('on a phone', () => {
     const name = row.getByRole('button', { name: /^Center map on / })
     expect(await look(name)).toMatchObject({ line: 'underline', decoration: await paint(page, 'var(--ui-ink-soft)') })
     await (await typeCell(page, row)).tap()
+    await groundLanded(page)
     const link = page.locator('.maplibregl-popup [data-popup-link]').first()
     await expect(link).toBeAttached()
     expect(await look(link)).toMatchObject({ line: 'underline', decoration: await paint(page, 'var(--popup-label)') })

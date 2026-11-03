@@ -104,7 +104,10 @@ import { POPUP_PAN_MS } from '../utils/popup/popupFit'
 import { createMapController, type MapInputs } from './controller'
 import { mountTestPopups } from '../testSupport/mapPopups'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
-import { RESULT_ACTION_ATTR, pendingPopupHtml, resultPopupHtml } from '../utils/resultPopup'
+import { CARD_ACTION_ATTR, type CardView, destinationPopupHtml } from '../utils/destinationCard'
+import { pendingAsResult } from '../utils/customList'
+import { mountDestinationCards } from './destinationCards'
+import { createGridHeads } from './gridHeads'
 import { POPUP_TINT_ATTR } from '../utils/popup/popupChrome'
 import { displayedColumns } from '../utils/tableColumns'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
@@ -154,7 +157,8 @@ function setup(
   })
   const controller = createMapController(inputs)
   const { popups: board, click } = mountTestPopups(stub, controller)
-  const layer = mountResultsLayer(stub.map, { controller, popups: board, ground })
+  const cards = mountDestinationCards(stub.map, { controller, popups: board, gridHeads: createGridHeads(controller), ground })
+  const layer = mountResultsLayer(stub.map, { controller, popups: board, cards })
   // A click on a marker: the rendered feature, whose properties carry the
   // exact coordinates the row is matched on.
   const clickMarker = (row: typeof ADAMS, rank: number, shiftKey = false) =>
@@ -181,6 +185,12 @@ function setup(
 
 // The map's zoom when a card is drawn, which its CalTopo link carries (#712).
 const MAP_ZOOM = 13
+
+// A ranked card and a pending card as the map draws them (`destinationCards.ts`).
+const resultPopupHtml = ({ rank, row, ...view }: { rank: number | string; row: typeof ADAMS } & CardView) =>
+  destinationPopupHtml({ kind: 'ranked', row, rank }, view)
+const pendingPopupHtml = ({ pending, ...view }: { pending: PendingDestination } & CardView) =>
+  destinationPopupHtml({ kind: 'pending', pending }, view)
 
 describe('mountResultsLayer', () => {
   it('adds the markers and then the pending dots, arrows hidden', () => {
@@ -252,7 +262,7 @@ describe('mountResultsLayer', () => {
         rank: 2,
         row: RAINIER,
         columns: live.popupColumns,
-        warning: null,
+        added: false,
         modelId: live.modelId,
         times: live.times,
         modelFallbackLabel: null,
@@ -281,7 +291,7 @@ describe('mountResultsLayer', () => {
         rank: 5,
         row: featureRow(props, ghost.latitude, ghost.longitude),
         columns: live.popupColumns,
-        warning: null,
+        added: false,
         modelId: live.modelId,
         times: live.times,
         modelFallbackLabel: null,
@@ -320,7 +330,7 @@ describe('mountResultsLayer', () => {
         rank: 2,
         row: RAINIER,
         columns: live.popupColumns,
-        warning: null,
+        added: false,
         modelId: live.modelId,
         times: live.times,
         modelFallbackLabel: null,
@@ -340,7 +350,7 @@ describe('mountResultsLayer', () => {
   it('removes the row from its card, and closes the card', () => {
     const { controller, clickMarker } = setup()
     clickMarker(RAINIER, 2)
-    expect(popups[0].html).toContain(`${RESULT_ACTION_ATTR}="remove"`)
+    expect(popups[0].html).toContain(`${CARD_ACTION_ATTR}="remove"`)
     popups[0].body.press!()
     expect(controller.inputs.onRemoveResult).toHaveBeenCalledWith(RAINIER)
     expect(popups[0].removed).toBe(true)
@@ -376,7 +386,7 @@ describe('mountResultsLayer', () => {
         rank: 2,
         row: RAINIER,
         columns: live.popupColumns,
-        warning: null,
+        added: false,
         modelId: live.modelId,
         times: live.times,
         modelFallbackLabel: null,
@@ -520,14 +530,17 @@ describe('mountResultsLayer', () => {
 describe('pending cards', () => {
   const MUIR: PendingDestination = { name: 'Camp Muir', latitude: 46.83545, longitude: -121.73231, source: 'search' }
 
-  it("opens a pending dot's card, whose remove unregisters a searched place", () => {
+  // The card's remove is the pending row's × (TJ, 2026-11-03): a removal, as
+  // a ranked row's, whatever named the destination.
+  it("opens a pending dot's card, whose remove records the row's removal", () => {
     const { layer, controller, clickPending } = setup()
     layer.setPending([MUIR])
     clickPending(MUIR)
     expect(popups).toHaveLength(1)
-    expect(popups[0].html).toBe(pendingPopupHtml({ pending: MUIR, mapZoom: MAP_ZOOM, usStates: null }))
+    expect(popups[0].html).toBe(pendingPopupHtml({ pending: MUIR, mapZoom: MAP_ZOOM, usStates: null, added: false }))
     popups[0].body.press!()
-    expect(controller.inputs.onRemovePoi).toHaveBeenCalledWith(MUIR.latitude, MUIR.longitude)
+    expect(controller.inputs.onRemoveResult).toHaveBeenCalledWith(pendingAsResult(MUIR))
+    expect(controller.inputs.onRemovePoi).not.toHaveBeenCalled()
     expect(popups[0].removed).toBe(true)
   })
 
@@ -557,32 +570,25 @@ describe('the ground on a card', () => {
   function fakeGround() {
     let state: GroundState = { kind: 'pending' }
     const redraws: (() => void)[] = []
-    const release = vi.fn()
-    const ground: GroundReadings = {
-      at: () => state,
-      onRead: (redraw) => redraws.push(redraw),
-      hold: vi.fn(() => release),
-    }
+    const ground: GroundReadings = { at: () => state, onRead: (redraw) => redraws.push(redraw) }
     const land = (next: GroundState) => {
       state = next
       for (const redraw of redraws) redraw()
     }
-    return { ground, land, release }
+    return { ground, land }
   }
   const READ: GroundState = { kind: 'read', reading: { elevationM: 4391, degrees: 12.3, aspect: 90 } }
 
-  it('draws the slope when it lands, arming the grid again, and holds the credit while open', () => {
-    const { ground, land, release } = fakeGround()
+  it('draws the slope when it lands, arming the grid again', () => {
+    const { ground, land } = fakeGround()
     const { clickMarker } = setup(undefined, undefined, undefined, ground)
     clickMarker(RAINIER, 2)
-    expect(ground.hold).toHaveBeenCalledOnce()
     const armed = popups[0].gridArms
     land(READ)
     expect(popups[0].html).toContain('12°')
-    expect(popups[0].sets.at(-1)!.focus).toBe(false)
+    const sets = popups[0].sets
+    expect(sets[sets.length - 1].focus).toBe(false)
     expect(popups[0].gridArms).toBe(armed + 1)
-    popups[0].body.press!()
-    expect(release).toHaveBeenCalledOnce()
   })
 
   it("draws it on a pending dot's card too", () => {
@@ -603,7 +609,7 @@ describe('refreshPopups', () => {
       rank,
       row,
       columns: live.popupColumns,
-      warning: null,
+      added: false,
       modelId: live.modelId,
       times: live.times,
       modelFallbackLabel: null,

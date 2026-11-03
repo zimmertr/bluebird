@@ -16,16 +16,23 @@
  * a hover: one opened under the cursor covers the destinations inside a fire
  * or a closure, and a touch screen has no hover to open it.
  *
+ * A click on bare map opens the card of the spot itself (#832, TJ
+ * 2026-11-03): its coordinates, the ground under it, and a button that adds it
+ * as a destination, on the same left click every marker and label answers, so
+ * a reader finds it where they already click. While a card is open, a click
+ * on bare map only closes it, so dismissing a card does not open another;
+ * shift opens the spot's card beside the rest, as it does any card. The card
+ * is `destinationCards.ts`'s, registered here with `registerSpot`.
+ *
  * A picture rather than a shape, the rain radar or the snow depth (#737), is
- * a point target instead (`registerPoint`): it has no feature for a click to
- * find, so it says whether it painted at the point from the copy of its tile
- * the app keeps (`utils/heldTiles.ts`), once no shape there has answered.
- * That answers the cursor on every move, a pointer over painted pixels as over
- * a fire, and opens the card at once with every picture painted there on it
- * (`utils/pointReadout.ts`); a value still on its way, the snow's from NOAA,
- * fills its row when it lands. The next click drops a reading that has not
- * opened its card yet, and closing a card drops what it was still waiting
- * for.
+ * a point target (`registerPoint`): it has no feature for a click to find, so
+ * it says whether it painted at the point from the copy of its tile the app
+ * keeps (`utils/heldTiles.ts`). That answers the cursor on every move, a
+ * pointer over painted pixels as over a fire, and puts a section on the
+ * spot's card for every picture painted there (`utils/pointReadout.ts`); a
+ * value still on its way, the snow's from NOAA, fills its section when it
+ * lands. The next click drops a reading whose card has not opened yet, and
+ * closing a card drops what it was still waiting for.
  *
  * So a new layer with something to say registers a target and inherits all of
  * this. The linter's `map-popups-owned` check fails a `new Popup`, a DOM
@@ -38,7 +45,7 @@ import type * as maplibregl from 'maplibre-gl'
 import { mapCursor, pointTargetsToAsk, rankedTargets, type MapTarget } from '../utils/mapClick'
 import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody } from '../utils/popup/popupChrome'
 import { POPUP_FACE } from '../styles'
-import { pointCardHtml, type PointReading, type PointSection } from '../utils/pointReadout'
+import type { PointReading, PointSection } from '../utils/pointReadout'
 import { POPUP_PAN_MS, capHeight, placePopup, type Point, type PopupSide, type Rect } from '../utils/popup/popupFit'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
@@ -94,6 +101,25 @@ export interface MapPoint {
   lat: number
   zoom: number
 }
+
+/** A spot's card as the map holds it open, whose sections a later reading fills (#832). */
+export interface SpotCard {
+  popup: Popup
+  /** Draw these sections where the card stands. */
+  setSections(sections: readonly PointSection[]): void
+}
+
+/**
+ * What opens a spot's card: at the clicked coordinate, anchored where the
+ * reader clicked, with the pictures' sections and the kinds they came from,
+ * so a picture switched off takes its card down.
+ */
+export type SpotOpener = (
+  at: MapPoint,
+  anchor: maplibregl.LngLat,
+  sections: readonly PointSection[],
+  owner: readonly MapTarget[],
+) => SpotCard
 
 /** A picture on the map that answers a click by what it painted at the point (#737). */
 export interface MapPointTarget {
@@ -160,12 +186,8 @@ export interface MapPopups {
   register(target: MapPopupTarget): void
   /** Register a picture that is asked about a point rather than found under it. */
   registerPoint(target: MapPointTarget): void
-  /**
-   * What a right-click or a long press opens, at the point it landed on
-   * (#832). One opener, since the gesture means "this spot" wherever it
-   * lands, over a marker or a label as over bare ground.
-   */
-  registerContextMenu(open: (at: MapPoint) => void): void
+  /** What a click on bare map opens (#832). */
+  registerSpot(open: SpotOpener): void
   /**
    * A point target's picture changed without the reader doing anything, as
    * the radar's does when the player moves to another frame (#748): every
@@ -197,23 +219,6 @@ export interface MapPopups {
   closeAll(owner?: MapTarget): void
 }
 
-/**
- * How long a finger rests on the map before it means "this spot" (#832):
- * iOS's own long press (`UILongPressGestureRecognizer`'s default
- * `minimumPressDuration`, 0.5 s), so the map answers when the reader's other
- * apps do. iOS Safari fires no `contextmenu` for a long press, so the map
- * keeps a timer of its own; Android Chrome does fire one, and it is refused
- * like a mouse's so the two do not open two cards.
- */
-const LONG_PRESS_MS = 500
-
-/**
- * How far a press may wander and still be one, in screen pixels: Android's
- * touch slop (`ViewConfiguration`, 8 dp). Past it a finger is panning, and a
- * right button is rotating the map, which is MapLibre's right-drag.
- */
-const PRESS_SLOP_PX = 8
-
 export function mountMapPopups(
   map: maplibregl.Map,
   deps: {
@@ -244,7 +249,7 @@ export function mountMapPopups(
     lngLat: maplibregl.LngLat
     kinds: MapTarget[]
     sections: PointSection[]
-    placed: PlacedCard
+    card: SpotCard
     signal: AbortSignal
     seq: Map<MapTarget, number>
   }
@@ -289,71 +294,13 @@ export function mountMapPopups(
     return { under, features }
   }
 
-  // A right-click or a long press: the card for the spot itself (#832). The
-  // right button opens on its release rather than on `contextmenu`, which a
-  // Mac fires on the press, so a right-drag still rotates the map and opens
-  // nothing. The browser's own menu is refused on the map alone.
-  let openContextMenu: ((at: MapPoint) => void) | null = null
-  let rightDown: { x: number; y: number } | null = null
-  let press: { timer: ReturnType<typeof setTimeout>; x: number; y: number } | null = null
-  // Whether the touch now ending opened a card, so the click some browsers
-  // send after it does not close the card it just opened.
-  let pressed = false
-  const wandered = (from: { x: number; y: number }, to: { x: number; y: number }) =>
-    Math.hypot(to.x - from.x, to.y - from.y) > PRESS_SLOP_PX
-  function pressAt(lngLat: maplibregl.LngLat, pinning: boolean) {
-    if (!openContextMenu || controller.inputs.drawing) return
-    reading?.abort()
-    reading = null
-    if (!pinning) board.closeAll()
-    openContextMenu(pointOf(lngLat))
-  }
-  const cancelPress = () => {
-    if (press) clearTimeout(press.timer)
-    press = null
-  }
-  map.on('contextmenu', (e) => {
-    e.originalEvent.preventDefault()
-  })
-  map.on('mousedown', (e) => {
-    rightDown = e.originalEvent.button === 2 ? { x: e.point.x, y: e.point.y } : null
-  })
-  map.on('mouseup', (e) => {
-    const down = rightDown
-    rightDown = null
-    if (e.originalEvent.button !== 2 || down === null || wandered(down, e.point)) return
-    pressAt(e.lngLat, isPinning(e))
-  })
-  map.on('touchstart', (e) => {
-    cancelPress()
-    pressed = false
-    if (e.points.length !== 1) return
-    const { lngLat } = e
-    press = {
-      x: e.point.x,
-      y: e.point.y,
-      timer: setTimeout(() => {
-        press = null
-        pressed = true
-        pressAt(lngLat, false)
-      }, LONG_PRESS_MS),
-    }
-  })
-  map.on('touchmove', (e) => {
-    if (press && (e.points.length !== 1 || wandered(press, e.point))) cancelPress()
-  })
-  map.on('touchend', cancelPress)
-  map.on('touchcancel', cancelPress)
+  let openSpot: SpotOpener | null = null
 
   map.on('click', (e) => {
-    if (pressed) {
-      pressed = false
-      return
-    }
     reading?.abort()
     reading = null
     const { under, features } = targetsAt(e.point)
-    if (!isPinning(e)) board.closeAll()
+    const closed = isPinning(e) ? 0 : board.closeAll()
     const drawing = controller.inputs.drawing
     for (const kind of rankedTargets(drawing, under)) {
       const target = targets.find((t) => t.target === kind)!
@@ -363,17 +310,19 @@ export function mountMapPopups(
       if (feature && target.open({ feature, lngLat: e.lngLat, point: e.point }) !== false) return
     }
     if (drawing) deps.addPoint([e.lngLat.lng, e.lngLat.lat])
-    else void readPoint(e.lngLat)
+    // A click that closed a card has done what the reader meant by it.
+    else if (closed === 0) void readPoint(e.lngLat)
   })
 
-  // Every picture that is on, asked together. Each reads its own held tile,
-  // so the card opens as fast as a fire's, with every picture painted here on
-  // it in rank order; a reading that failed is left off and warned about. A
-  // value one of them is still asking for fills its section when it lands,
-  // for as long as the card is open: closing it aborts the ask.
+  // The spot's card, with every picture that is on asked first. Each reads
+  // its own held tile, so the card opens as fast as a fire's, with every
+  // picture painted here on it in rank order; a reading that failed is left
+  // off and warned about. A value one of them is still asking for fills its
+  // section when it lands, for as long as the card is open: closing it aborts
+  // the ask.
   async function readPoint(lngLat: maplibregl.LngLat) {
+    if (!openSpot) return
     const asked = pointsOn()
-    if (asked.length === 0) return
     const ac = new AbortController()
     reading = ac
     const at = pointOf(lngLat)
@@ -385,19 +334,15 @@ export function mountMapPopups(
         }),
       ),
     )
-    if (ac.signal.aborted) return
+    if (ac.signal.aborted || !openSpot) return
     reading = null
     const found = asked.flatMap((p, i) => (answers[i] ? [{ kind: p.target, reading: answers[i] }] : []))
-    if (found.length === 0) {
-      ac.abort()
-      return
-    }
     const sections = found.map((f) => f.reading.section)
     const kinds = found.map((f) => f.kind)
-    const placed = api.openCard(lngLat, pointCardHtml(sections), { owner: kinds })
-    const open: OpenPoint = { lngLat, kinds, sections, placed, signal: ac.signal, seq: new Map() }
+    const card = openSpot(pointOf(lngLat), lngLat, [...sections], kinds)
+    const open: OpenPoint = { lngLat, kinds, sections, card, signal: ac.signal, seq: new Map() }
     openPoints.add(open)
-    placed.popup.on('close', () => {
+    card.popup.on('close', () => {
       ac.abort()
       openPoints.delete(open)
     })
@@ -406,19 +351,10 @@ export function mountMapPopups(
         ?.then((section) => {
           if (ac.signal.aborted) return
           sections[i] = section
-          redraw(placed, pointCardHtml(sections))
+          card.setSections([...sections])
         })
         .catch(() => {})
     })
-  }
-
-  // A card's content replaced where it stands. Its body keeps the cap it
-  // opened with, so a card that had to scroll still scrolls rather than
-  // growing past the free map.
-  function redraw(placed: PlacedCard, html: string) {
-    placed.popup.setHTML(html)
-    const body = placed.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
-    if (body && placed.capped !== null) capPopupBody(body, placed.capped)
   }
 
   // The cursor follows the same rule as the click, read on every move over
@@ -508,8 +444,8 @@ export function mountMapPopups(
     registerPoint(target) {
       points.push(target)
     },
-    registerContextMenu(open) {
-      openContextMenu = open
+    registerSpot(open) {
+      openSpot = open
     },
     refreshPoint(kind) {
       if (resting && !resting.dragging) {
@@ -528,7 +464,7 @@ export function mountMapPopups(
           .then((section) => {
             if (open.signal.aborted || open.seq.get(kind) !== seq) return
             open.sections[i] = section
-            redraw(open.placed, pointCardHtml(open.sections))
+            open.card.setSections([...open.sections])
           })
           .catch((err: unknown) => {
             if (!open.signal.aborted) console.warn(`The ${kind} reading failed`, err)

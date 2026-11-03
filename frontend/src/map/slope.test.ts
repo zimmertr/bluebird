@@ -278,7 +278,7 @@ describe('demFillTile', () => {
   })
 })
 
-// The right-click card's ground (#832): the finest elevation under the point,
+// A card's ground (#832): the finest elevation under the point,
 // whatever the map's zoom, falling back as a slope tile does.
 describe('groundReading', () => {
   // Rainier's summit, where Mapterhorn's survey stops at 13 (record 0248).
