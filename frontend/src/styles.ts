@@ -3929,6 +3929,34 @@ export const CHART_PICKER = {
 } as const
 
 /**
+ * A desk panel's title (#846; TJ 2026-11-03, from the mockup lab): with two
+ * or more panels drawn, each names its metric at its plot band's top left,
+ * so a reader need not match the picker row to the panels by position. The
+ * words are the picker's own option label. A chip rather than bare type, so a
+ * line running under the letters never crosses them: the popup's `band`
+ * fill, the label ink (`ink-soft`, the chart's axis colour) and the micro
+ * step, quiet because the pickers above are the controls and this only
+ * names. `leading-none` and `py-0.5` stand it 15px tall, the room the Now and
+ * extreme labels move down by in a titled panel (`TITLE_HEIGHT_PX`,
+ * `utils/chart/panelTitle.ts`). Its ink on the fill is pinned in both themes
+ * in `styles.test.ts`. z 2, over the plot and under the hover card (z 3).
+ *
+ * Every title but the first is the panel's handle (`grab`, with `touch-none`
+ * for the grip's reason). A drag lifts a picture of the panel (`ghost`, the
+ * hover card's surface on the popover layer, translucent, drawn at half size
+ * from its top left, and `pointer-events-none` so the drag's hit test finds
+ * the panels under it), and the accent bar the picker row's drag wears
+ * (`drop`, sized by the drag) stands where it lands. The first title is a
+ * label only, because the first slot is the ranking's (record 0255).
+ */
+export const CHART_PANEL_TITLE = {
+  chip: `${MICRO_SIZE} text-ink-soft bg-band ${RADIUS.control} absolute z-[2] whitespace-nowrap px-1.5 py-0.5 leading-none select-none`,
+  grab: 'cursor-grab touch-none active:cursor-grabbing',
+  ghost: `${CHART_CARD.card} pointer-events-none fixed left-0 top-0 ${LAYER.popover} flex flex-col origin-top-left opacity-85`,
+  drop: 'pointer-events-none absolute z-[2] bg-accent',
+} as const
+
+/**
  * The Panel layout button's shape and its menu (#499; TJ 2026-10-30): the
  * button is `CHART_PANEL_BUTTON`'s square wearing a 16 by 12 miniature of the
  * current layout (`thumb`, twelve tracks so every row's blocks share its

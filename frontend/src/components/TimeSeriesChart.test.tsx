@@ -1,11 +1,12 @@
-import type { ComponentProps, ReactNode } from 'react'
+import { type ComponentProps, type ReactNode, useState } from 'react'
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
-import { CHART_METRICS, extremeValue } from '../utils/chart/chartData'
+import { CHART_METRICS, type ChartMetric, type ChartMetrics, extremeValue, moveMetric } from '../utils/chart/chartData'
 import { CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
 import { PHONE_PLOT_MARGIN, PLOT_MARGIN } from '../utils/chart/chartPointer'
-import { CHART_CARD, CHART_PICKER, DRAG } from '../styles'
+import { CHART_CARD, CHART_PANEL_TITLE, CHART_PICKER, DRAG } from '../styles'
+import { GHOST_SCALE, TITLED_TOP_LABEL_DY, ghostTransform, titleAt } from '../utils/chart/panelTitle'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
 
@@ -34,6 +35,7 @@ interface LineProps {
     strokeWidth?: number
     paintOrder?: string
     content?: unknown
+    dy?: number
   }
 }
 const chart = vi.hoisted(() => ({
@@ -86,8 +88,8 @@ vi.mock('recharts', () => {
     CartesianGrid: Nothing,
     // The one unpainted anchor line; the series are the canvas's strokes.
     Line: () => null,
-    Label: (p: { position: string; value: string; paintOrder?: string; stroke?: string }) => (
-      <i data-testid="label" data-position={p.position} data-paint-order={p.paintOrder} data-stroke={p.stroke}>
+    Label: (p: { position: string; value: string; paintOrder?: string; stroke?: string; dy?: number }) => (
+      <i data-testid="label" data-position={p.position} data-paint-order={p.paintOrder} data-stroke={p.stroke} data-dy={p.dy}>
         {p.value}
       </i>
     ),
@@ -935,7 +937,7 @@ describe('TimeSeriesChart with more than one metric', () => {
   // as rows with a bar between them and a bar between each pair in a row.
   it('stands one over three in rows, each with its own bars', () => {
     const { container } = render(<TimeSeriesChart {...props({ ...FOUR, layout: '1-3', onLayout: () => {} })} />)
-    const rows = Array.from(container.firstElementChild!.lastElementChild!.children).filter((el) => !el.getAttribute('role'))
+    const rows = Array.from(container.firstElementChild!.lastElementChild!.children).filter((el) => !el.getAttribute('role') && !el.hasAttribute('aria-hidden'))
     expect(rows.map((r) => r.querySelectorAll('[data-chart-box]').length)).toEqual([1, 3])
     expect(screen.getAllByRole('separator', { name: 'Resize the rows' })).toHaveLength(1)
     expect(screen.getAllByRole('separator', { name: 'Resize the columns' })).toHaveLength(2)
@@ -946,7 +948,7 @@ describe('TimeSeriesChart with more than one metric', () => {
 
   it('opens four as one over three, with the ranking full width', () => {
     const { container } = render(<TimeSeriesChart {...props({ ...FOUR, layout: null })} />)
-    const rows = Array.from(container.firstElementChild!.lastElementChild!.children).filter((el) => !el.getAttribute('role'))
+    const rows = Array.from(container.firstElementChild!.lastElementChild!.children).filter((el) => !el.getAttribute('role') && !el.hasAttribute('aria-hidden'))
     expect(rows.map((r) => r.querySelectorAll('[data-chart-box]').length)).toEqual([1, 3])
   })
 
@@ -1052,5 +1054,255 @@ describe('TimeSeriesChart with more than one metric', () => {
   it("offers a phone's two panels a +", () => {
     render(<TimeSeriesChart {...props({ ...TWO, phone: true })} />)
     expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
+// Every desk panel names its metric when two or more are drawn, and a title
+// past the first drags its panel to another slot (#846; TJ 2026-11-03).
+describe('TimeSeriesChart panel titles', () => {
+  const label = (k: ChartMetric) => CHART_METRICS.find((m) => m.key === k)!.label
+  const titles = (c: HTMLElement) => Array.from(c.querySelectorAll<HTMLElement>('[data-panel-label]'))
+  const texts = (c: HTMLElement) => titles(c).map((t) => t.textContent)
+  const titleOf = (c: HTMLElement, k: ChartMetric) => titles(c).find((t) => t.textContent === label(k))!
+  const FOUR: ChartMetrics = ['precip', 'temp', 'wind', 'aqi']
+  const grips = () => screen.getAllByRole('button', { name: /^Move / }).map((b) => b.getAttribute('aria-label'))
+  const bar = (c: HTMLElement) => c.querySelector<HTMLElement>(`[class="${CHART_PANEL_TITLE.drop}"]`)!
+  const ghost = () => Array.from(document.body.children).find((el) => el.className === CHART_PANEL_TITLE.ghost) as HTMLElement | undefined
+
+  // The panels' metrics as the chart holds them, moved by `moveMetric` as
+  // `useChartMetrics` moves them, so a test reads what a move did.
+  function Held({ start, onMove, ...over }: Partial<Props> & { start: ChartMetrics }) {
+    const [metrics, setMetrics] = useState(start)
+    return (
+      <TimeSeriesChart
+        {...props({
+          ...over,
+          metrics,
+          sortBy: 'precip_total_in',
+          onMove: (from, to) => {
+            onMove?.(from, to)
+            setMetrics((m) => moveMetric(m, from, to))
+          },
+        })}
+      />
+    )
+  }
+
+  // One row of four, each box 100 by 100 and 8px apart, the area at the
+  // page's origin; jsdom lays nothing out, so the drag measures these.
+  let rects: { mockRestore: () => void } | undefined
+  let raf: { mockRestore: () => void } | undefined
+  function layOut(container: HTMLElement) {
+    rects?.mockRestore()
+    const box = (left: number, top: number, width: number, height: number) =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect
+    rects = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const i = Array.from(container.querySelectorAll('[data-chart-box]')).indexOf(this)
+      return i >= 0 ? box(i * 108, 0, 100, 100) : box(0, 0, 424, 100)
+    })
+  }
+  // A drag from a title: a press, a move past the threshold, then each point.
+  function dragTitle(title: HTMLElement, from: { x: number; y: number }, ...to: { x: number; y: number }[]) {
+    fireEvent.pointerDown(title, { button: 0, pointerId: 1, clientX: from.x, clientY: from.y })
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: from.x + 10, clientY: from.y })
+    for (const p of to) fireEvent.pointerMove(document, { pointerId: 1, clientX: p.x, clientY: p.y })
+  }
+  const release = (p: { x: number; y: number }) => fireEvent.pointerUp(document, { pointerId: 1, clientX: p.x, clientY: p.y })
+
+  beforeEach(() => {
+    chart.lines = []
+    chart.dotsAt = []
+    // Every frame at once; 0 so the next move queues its own.
+    raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0)
+      return 0
+    })
+  })
+  afterEach(() => {
+    rects?.mockRestore()
+    raf?.mockRestore()
+    rects = undefined
+    raf = undefined
+    ghost()?.remove()
+  })
+
+  it('names every drawn panel at two, three and four, in the picker\'s own words', () => {
+    for (const metrics of [FOUR.slice(0, 2), FOUR.slice(0, 3), FOUR]) {
+      const { container, unmount } = render(<TimeSeriesChart {...props({ metrics, sortBy: 'precip_total_in' })} />)
+      expect(texts(container)).toEqual(metrics.map(label))
+      for (const t of titles(container)) {
+        // A quiet name: hidden from assistive technology, no control, no tooltip.
+        expect(t.tagName).toBe('DIV')
+        expect(t.getAttribute('aria-hidden')).toBe('true')
+        expect(t.hasAttribute('title')).toBe(false)
+        expect(t.className.startsWith(CHART_PANEL_TITLE.chip)).toBe(true)
+      }
+      unmount()
+    }
+  })
+
+  it('names no panel when one is drawn, and none on a phone', () => {
+    const one = render(<TimeSeriesChart {...props()} />)
+    expect(titles(one.container)).toEqual([])
+    one.unmount()
+    const phone = render(<TimeSeriesChart {...props({ metrics: FOUR, phone: true })} />)
+    expect(titles(phone.container)).toEqual([])
+  })
+
+  // Placed over the plot band's corner rather than in its margin, so the
+  // plot keeps its margins and a hover reads the hours it read before.
+  it('stands at the band\'s top left, outside the plot, the margins unmoved', () => {
+    const { container } = render(<TimeSeriesChart {...props({ metrics: FOUR.slice(0, 2) })} />)
+    const [first] = titles(container)
+    expect({ left: first.style.left, top: first.style.top }).toEqual({ left: `${titleAt().left}px`, top: `${titleAt().top}px` })
+    for (const plot of Array.from(container.querySelectorAll('[data-chart-stage]')).map((s) => s.parentElement!)) {
+      expect(titles(container).some((t) => plot.contains(t))).toBe(false)
+    }
+    // Beside the plot in its box, which a split drag moves, and out of the
+    // stage, which a split drag stretches.
+    expect(first.parentElement!.hasAttribute('data-chart-box')).toBe(true)
+    expect(chart.margin).toEqual(PLOT_MARGIN)
+  })
+
+  it('follows a pick and a move', () => {
+    const { container, rerender } = render(<TimeSeriesChart {...props({ metrics: FOUR })} />)
+    rerender(<TimeSeriesChart {...props({ metrics: ['wind', 'temp', 'precip', 'aqi'] })} />)
+    expect(texts(container)).toEqual(['wind', 'temp', 'precip', 'aqi'].map((k) => label(k as ChartMetric)))
+    rerender(<TimeSeriesChart {...props({ metrics: ['wind', 'precip', 'aqi', 'temp'] })} />)
+    expect(texts(container)).toEqual(['wind', 'precip', 'aqi', 'temp'].map((k) => label(k as ChartMetric)))
+  })
+
+  it('makes the first title a label and every other a handle', () => {
+    const { container } = render(<TimeSeriesChart {...props({ metrics: FOUR })} />)
+    const [first, ...rest] = titles(container)
+    expect(first.className).not.toContain('cursor-grab')
+    for (const t of rest) expect(t.className).toContain(CHART_PANEL_TITLE.grab)
+  })
+
+  // The chrome label moves, the title never does: a titled first panel's Now
+  // label stands under the chip, and one panel's keeps its place.
+  it('moves the Now label under the title, and only in a titled panel', () => {
+    vi.setSystemTime(TIMES[10])
+    const seam = () => (chart.lines as LineProps[]).filter((l) => l.x === TIMES[10] && l.label).map((l) => l.label!)
+    const two = render(<TimeSeriesChart {...props({ metrics: FOUR.slice(0, 2) })} />)
+    expect(seam().map((l) => [l.value, l.dy])).toEqual([['Now', TITLED_TOP_LABEL_DY]])
+    two.unmount()
+    chart.lines = []
+    const one = render(<TimeSeriesChart {...props()} />)
+    expect(seam().map((l) => [l.value, l.dy])).toEqual([['Now', undefined]])
+    one.unmount()
+    chart.lines = []
+    render(<TimeSeriesChart {...props({ metrics: FOUR.slice(0, 2), phone: true })} />)
+    expect(seam().map((l) => [l.value, l.dy])).toEqual([['Now', undefined]])
+  })
+
+  it('hangs a titled panel\'s extreme label under the title', () => {
+    const rows = [resultRow({ name: 'Mount Alpha', series: series({ wind_mph: TIMES.map((_, i) => (i === 6 ? 75.4 : 20)) }) })]
+    render(<TimeSeriesChart {...props({ rows, metrics: ['wind', 'temp'], sortBy: 'wind_avg_mph' })} />)
+    const [extreme] = (chart.lines as LineProps[]).filter((p) => p.y === 75.4)
+    const Content = extreme.label!.content as (p: object) => ReactNode
+    render(<>{Content({ ...extreme.label, viewBox: { x: 52, y: PLOT_MARGIN.top + 2, width: 156, height: 0 } })}</>)
+    const drawn = screen.getByTestId('label')
+    expect(drawn.dataset.position).toBe('insideTopRight')
+    // 5px off its line and 14 more: 21px under the band's top, under the chip.
+    expect(drawn.dataset.dy).toBe('14')
+  })
+
+  it('moves a panel by its title as the grip would, and the row follows', () => {
+    const onMove = vi.fn()
+    const { container } = render(<Held start={FOUR} layout="row" onMove={onMove} />)
+    layOut(container)
+    const aqiBox = titleOf(container, 'aqi').closest('[data-chart-box]')
+    // From the last slot to over the second: the move the grip test makes.
+    dragTitle(titleOf(container, 'aqi'), { x: 350, y: 10 }, { x: 158, y: 50 })
+    release({ x: 158, y: 50 })
+    expect(onMove.mock.calls).toEqual([[3, 1]])
+    expect(texts(container)).toEqual(['precip', 'aqi', 'temp', 'wind'].map((k) => label(k as ChartMetric)))
+    expect(grips()).toEqual(['aqi', 'temp', 'wind'].map((k) => `Move ${label(k as ChartMetric)}`))
+    // Keyed by metric, so the panel that moved is the same element.
+    expect(titleOf(container, 'aqi').closest('[data-chart-box]')).toBe(aqiBox)
+    expect(container.querySelectorAll('[data-chart-box]')[1]).toBe(aqiBox)
+  })
+
+  it('lifts a picture of the panel and marks where it lands with one bar', () => {
+    const { container } = render(<Held start={FOUR} layout="row" />)
+    layOut(container)
+    expect(bar(container).hidden).toBe(true)
+    dragTitle(titleOf(container, 'aqi'), { x: 350, y: 10 }, { x: 158, y: 50 })
+    const lifted = ghost()!
+    expect(lifted.getAttribute('aria-hidden')).toBe('true')
+    expect(lifted.querySelector('[data-chart-box], [data-chart-stage], [data-panel-label]')).toBeNull()
+    expect(lifted.textContent).toContain(label('aqi'))
+    // Pressed 26px into the box and 10 down, at half size, under the pointer.
+    expect(lifted.style.transform).toBe(ghostTransform({ x: 158, y: 50 }, { x: 26, y: 10 }, GHOST_SCALE))
+    expect([lifted.style.width, lifted.style.height]).toEqual(['100px', '100px'])
+    // Before the second panel: in the gutter on its left.
+    const b = bar(container)
+    expect(b.hidden).toBe(false)
+    expect([b.style.left, b.style.top, b.style.width, b.style.height]).toEqual(['103px', '0px', '2px', '100px'])
+    // Back over its own slot: no bar.
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 380, clientY: 50 })
+    expect(bar(container).hidden).toBe(true)
+    release({ x: 380, y: 50 })
+    expect(ghost()).toBeUndefined()
+  })
+
+  it('changes nothing on a drop on the first slot, its own slot, or outside every panel', () => {
+    const onMove = vi.fn()
+    const { container } = render(<Held start={FOUR} layout="row" onMove={onMove} />)
+    layOut(container)
+    for (const at of [{ x: 50, y: 50 }, { x: 380, y: 50 }, { x: 200, y: 400 }]) {
+      dragTitle(titleOf(container, 'aqi'), { x: 350, y: 10 }, at)
+      expect(bar(container).hidden).toBe(true)
+      release(at)
+      expect(ghost()).toBeUndefined()
+    }
+    // A press that never travels is no drag.
+    fireEvent.pointerDown(titleOf(container, 'aqi'), { button: 0, pointerId: 1, clientX: 350, clientY: 10 })
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 352, clientY: 11 })
+    expect(ghost()).toBeUndefined()
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 352, clientY: 11 })
+    // The first title takes no drag at all.
+    dragTitle(titleOf(container, 'precip'), { x: 60, y: 10 }, { x: 260, y: 50 })
+    expect(ghost()).toBeUndefined()
+    release({ x: 260, y: 50 })
+    expect(onMove).not.toHaveBeenCalled()
+    expect(texts(container)).toEqual(FOUR.map(label))
+  })
+
+  it('lets go on a cancel, and on Escape without closing a pinned card', () => {
+    const onMove = vi.fn()
+    const { container } = render(<Held start={FOUR} layout="row" onMove={onMove} onPlayheadChange={() => {}} />)
+    layOut(container)
+    dragTitle(titleOf(container, 'aqi'), { x: 350, y: 10 }, { x: 158, y: 50 })
+    fireEvent.pointerCancel(document, { pointerId: 1 })
+    expect(ghost()).toBeUndefined()
+    expect(bar(container).hidden).toBe(true)
+    release({ x: 158, y: 50 })
+    act(() => chart.charts[chart.charts.length - 1].onClick!({ activeLabel: TIMES[2] }, { clientX: 100 }))
+    expect(screen.getAllByRole('button', { name: /^Unpin / })).toHaveLength(1)
+    dragTitle(titleOf(container, 'aqi'), { x: 350, y: 10 }, { x: 158, y: 50 })
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(ghost()).toBeUndefined()
+    expect(screen.getAllByRole('button', { name: /^Unpin / })).toHaveLength(1)
+    release({ x: 158, y: 50 })
+    expect(onMove).not.toHaveBeenCalled()
+    expect(texts(container)).toEqual(FOUR.map(label))
+  })
+
+  // The title stands outside the plot, so the plot's own handlers never hear it.
+  it('never pins a card, moves the playhead or reads a finger from a press on a title', () => {
+    const onPlayheadChange = vi.fn()
+    const { container } = render(<TimeSeriesChart {...props({ metrics: FOUR, onPlayheadChange })} />)
+    for (const t of titles(container)) {
+      fireEvent.pointerDown(t, { pointerType: 'touch', pointerId: 2, clientX: 252, clientY: 560 })
+      fireEvent.pointerUp(t, { pointerType: 'touch', pointerId: 2, clientX: 252, clientY: 560 })
+      fireEvent.pointerDown(t, { button: 0, pointerId: 1, clientX: 252, clientY: 560 })
+      fireEvent.pointerUp(document, { pointerId: 1, clientX: 252, clientY: 560 })
+      fireEvent.click(t)
+    }
+    expect(onPlayheadChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /^Unpin / })).toBeNull()
+    expect(chart.dotsAt.every((at) => at === null)).toBe(true)
   })
 })

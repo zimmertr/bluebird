@@ -12,7 +12,7 @@ import {
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
 import { createPortal } from 'react-dom'
-import { ACCENT, CHART_CARD, DRAG, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PICKER, CHART_PLOT_TOUCH, RADIUS, TEXT } from '../styles'
+import { ACCENT, CHART_CARD, DRAG, CHART_METRIC_W, CHART_PANEL_BUTTON, CHART_PANEL_TITLE, CHART_PICKER, CHART_PLOT_TOUCH, RADIUS, TEXT } from '../styles'
 import { IconClose, IconGrip, IconPlus, IconResizeCorner } from './icons'
 import { MenuSelect } from './Menu'
 import ResizeGrip, { GridGutter } from './ResizeGrip'
@@ -24,6 +24,8 @@ import { type ChartLayout, type RowCrossing, type RowShares, evenRows, layoutFor
 import { DRAG_THRESHOLD_PX, GHOST_MAX_PX, ghostLeft, travel } from '../utils/columnDrag'
 import { lineStrokes } from '../utils/chart/chartCanvas'
 import { BOX_ATTR, type DragLayout, type Rect, STAGE_ATTR, useStretchDrag } from '../hooks/useStretchDrag'
+import { usePanelDrag } from '../hooks/usePanelDrag'
+import { TITLED_TOP_LABEL_DY, extremeLabelPlacement, titleAt } from '../utils/chart/panelTitle'
 import {
   CHART_METRICS,
   ChartLine,
@@ -38,7 +40,6 @@ import {
   chartKey,
   computeYDomain,
   extremeLabel,
-  extremeLabelPosition,
   extremeValue,
   formatMetricValue,
   metricForSort,
@@ -98,10 +99,12 @@ const CHROME_LINE = { stroke: CHROME.axis, strokeDasharray: '4 3' }
 // series crossed it. 3px is a pixel and a half either side of an 11px glyph's
 // strokes, enough to clear a 2.5px focused line without fattening the type.
 type ChromeLabelPosition = 'insideTopLeft' | 'insideTopRight' | 'insideBottomRight'
-function chromeLabel(value: string, position: ChromeLabelPosition) {
+// `dy` moves a top-left label under a panel's title (#846), and only there.
+function chromeLabel(value: string, position: ChromeLabelPosition, dy = 0) {
   return {
     value,
     position,
+    ...(dy ? { dy } : {}),
     fill: CHROME.axis,
     fontSize: CHART_TICK_PX,
     stroke: CHROME.surface,
@@ -114,19 +117,24 @@ function chromeLabel(value: string, position: ChromeLabelPosition) {
 /**
  * The extreme line's label, placed once Recharts knows where the line is: at
  * its right end, above it, or below it when the line runs through the top
- * headroom (`extremeLabelPosition`). Everything else is the chrome label as
- * given; the computed x and y are dropped so the inner Label places itself
- * for the position chosen here rather than the one it was handed.
+ * headroom (`extremeLabelPosition`), and in a titled panel clear of the
+ * title's rows (`extremeLabelPlacement`, #846). Everything else is the chrome
+ * label as given; the computed x and y are dropped so the inner Label places
+ * itself for the position chosen here rather than the one it was handed.
  */
-function headroomLabel(plotTop: number) {
+function headroomLabel(plotTop: number, titled: boolean) {
   return function HeadroomLabel({ viewBox, x: _x, y: _y, content: _content, ...rest }: any) {
-    return <Label {...rest} viewBox={viewBox} position={extremeLabelPosition(viewBox.y, plotTop)} />
+    const { position, dy } = extremeLabelPlacement(viewBox.y, plotTop, titled)
+    return <Label {...rest} viewBox={viewBox} position={position} {...(dy ? { dy } : {})} />
   }
 }
 // Hoisted, so the label's component is the same between renders and
 // Recharts never remounts it.
-const HEADROOM_LABEL = headroomLabel(PLOT_MARGIN.top)
-const PHONE_HEADROOM_LABEL = headroomLabel(PHONE_PLOT_MARGIN.top)
+const HEADROOM_LABEL = headroomLabel(PLOT_MARGIN.top, false)
+const TITLED_HEADROOM_LABEL = headroomLabel(PLOT_MARGIN.top, true)
+const PHONE_HEADROOM_LABEL = headroomLabel(PHONE_PLOT_MARGIN.top, false)
+// Where a desk panel's title stands, hoisted for the reason above.
+const TITLE_PLACE = titleAt(PLOT_MARGIN)
 
 // The chart's words (#499), each one constant so a change is one edit. The
 // pickers, the + and the × were confirmed by the maintainer on 2026-10-29:
@@ -376,6 +384,15 @@ function TimeSeriesChart({
   // The rows' area (#499), for every layout that is neither the grid nor the stack.
   const rowsRef = useRef<HTMLDivElement>(null)
   const areaRef = gridded ? gridRef : rowed ? rowsRef : stackRef
+  // At a desk with two or more panels each names its metric at its plot's top
+  // left (#846; TJ 2026-11-03), and every title but the first drags its panel
+  // to another slot through `onMove`, the grip's own move. One panel's picker
+  // stands right over it, and a phone's picker is its panel's heading.
+  const titled = !phone && count > 1
+  const { onTitleDown, barRef } = usePanelDrag(areaRef, onMove, GUTTER_PX / 2)
+  // The one bar a title drag stands where its panel will land, hidden until
+  // then and written by the drag alone (`usePanelDrag`).
+  const landingBar = titled ? <span ref={barRef} aria-hidden="true" hidden className={CHART_PANEL_TITLE.drop} /> : null
   const gutterStartRef = useRef<{ shares: GridShares; w: number; h: number } | null>(null)
   // One sync group per chart, so every panel's cursor stands on the hour the
   // hovered one is at.
@@ -782,8 +799,11 @@ function TimeSeriesChart({
 
   function panel(i: number, flexGrow: number | null, drawsAxis: boolean, boxRef?: RefObject<HTMLDivElement | null>, hidden = false) {
     return (
+      // Keyed by metric (#846), so a move reorders the panels it moved rather
+      // than handing every slot a new metric to draw from nothing. Metrics are
+      // unique across slots, as the pickers' keys already rely on.
       <ChartPanel
-        key={`panel-${i}`}
+        key={`panel-${drawn[i]}`}
         index={i}
         boxRef={boxRef}
         hidden={hidden}
@@ -796,6 +816,7 @@ function TimeSeriesChart({
         cursorValue={cursorValue}
         drawsAxis={drawsAxis}
         labelsChrome={i === 0}
+        titled={titled}
         syncId={count > 1 ? syncId : undefined}
         times={times}
         spanMs={spanMs}
@@ -827,6 +848,20 @@ function TimeSeriesChart({
             <div className={CHART_PICKER.bar}>
               {picker(pickers[i])}
               {i === 0 && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />}
+            </div>
+          ) : titled ? (
+            // The picker's own option label, so no new words (#846). Hidden
+            // from assistive technology: the pickers name every panel and the
+            // grip is the keyboard's move. Outside the plot, so a press here
+            // never pins a card or moves the playhead.
+            <div
+              aria-hidden="true"
+              data-panel-label={i}
+              className={`${CHART_PANEL_TITLE.chip} ${i > 0 ? CHART_PANEL_TITLE.grab : ''}`}
+              style={TITLE_PLACE}
+              onPointerDown={i > 0 ? (e) => onTitleDown(e, i) : undefined}
+            >
+              {metricLabelOf(drawn[i])}
             </div>
           ) : null
         }
@@ -889,21 +924,23 @@ function TimeSeriesChart({
         // One panel, two at any width, and three or four on a phone stand in
         // one column on one time axis, with a grip between each pair (#499).
         // One panel stands in it too, so every card keeps to the same area.
+        // Flat rather than a fragment per slot, so a panel keyed by its metric
+        // is a sibling of the others and a move reorders it (#846).
         <div ref={stackRef} className="relative flex min-h-0 flex-1 flex-col">
-          {drawn.map((_, i) => (
-            <Fragment key={`stack-${i}`}>
-              {i > 0 && (
-                <ResizeGrip
-                  line={!phone}
-                  onReset={onSplitReset}
-                  onDragStart={() => onSplitStart(i - 1)}
-                  onDrag={onSplitDrag}
-                  onDragEnd={onSplitEnd}
-                />
-              )}
-              {panel(i, shares[i], i === count - 1, boxes[i])}
-            </Fragment>
-          ))}
+          {drawn.flatMap((_, i) => [
+            i > 0 && (
+              <ResizeGrip
+                key={`grip-${i}`}
+                line={!phone}
+                onReset={onSplitReset}
+                onDragStart={() => onSplitStart(i - 1)}
+                onDrag={onSplitDrag}
+                onDragEnd={onSplitEnd}
+              />
+            ),
+            panel(i, shares[i], i === count - 1, boxes[i]),
+          ])}
+          {landingBar}
         </div>
       )}
       {gridded && (
@@ -963,6 +1000,7 @@ function TimeSeriesChart({
             onDrag={onGutterDrag}
             onDragEnd={onGutterEnd}
           />
+          {landingBar}
         </div>
       )}
       {rowed && (
@@ -987,26 +1025,26 @@ function TimeSeriesChart({
                   />
                 )}
                 <div className="flex min-h-0" style={{ flexGrow: rowShares.rows[r], flexBasis: 0 }}>
+                  {/* Flat, the panels keyed by metric, for the stack's reason. */}
                   {Array.from({ length: n }, (_, c) => {
                     const i = first + c
                     const rect = rowsArea[i]
-                    return (
-                      <Fragment key={`panel-${i}`}>
-                        {c > 0 && (
-                          <GridGutter
-                            axis="col"
-                            place={INLINE_COL_GUTTER}
-                            label={RESIZE_COLUMNS_LABEL}
-                            onReset={() => onRowBarReset({ rowAt: null, row: r, colAt: c - 1 })}
-                            onDragStart={() => onRowsStart({ rowAt: null, row: r, colAt: c - 1 })}
-                            onDrag={onRowsDrag}
-                            onDragEnd={onRowsEnd}
-                          />
-                        )}
-                        {panel(i, rowShares.cols[r]?.[c] ?? 1, true, boxes[i], rect ? tooSmallRect(rect.w, rect.h) : false)}
-                      </Fragment>
-                    )
-                  })}
+                    return [
+                      c > 0 && (
+                        <GridGutter
+                          key={`bar-${c}`}
+                          axis="col"
+                          place={INLINE_COL_GUTTER}
+                          label={RESIZE_COLUMNS_LABEL}
+                          onReset={() => onRowBarReset({ rowAt: null, row: r, colAt: c - 1 })}
+                          onDragStart={() => onRowsStart({ rowAt: null, row: r, colAt: c - 1 })}
+                          onDrag={onRowsDrag}
+                          onDragEnd={onRowsEnd}
+                        />
+                      ),
+                      panel(i, rowShares.cols[r]?.[c] ?? 1, true, boxes[i], rect ? tooSmallRect(rect.w, rect.h) : false),
+                    ]
+                  }).flat()}
                 </div>
               </Fragment>
             )
@@ -1030,6 +1068,7 @@ function TimeSeriesChart({
                 />
               )
             })}
+          {landingBar}
         </div>
       )}
       {pins.map((p) => (
@@ -1294,6 +1333,8 @@ interface PanelProps {
   drawsAxis: boolean
   /** The top panel names the Now seam and each model's end; the lines stand in both. */
   labelsChrome: boolean
+  /** The panel wears a title at its top left (#846), so its chrome labels stand clear of it. */
+  titled: boolean
   syncId: string | undefined
   times: number[]
   spanMs: number
@@ -1331,7 +1372,10 @@ interface PanelProps {
    * one panel included (TJ 2026-10-30).
    */
   areaRef: RefObject<HTMLDivElement | null>
-  /** A phone panel's own picker, over its top left, or null at a desk. */
+  /**
+   * A phone panel's own picker over its top left, a desk panel's title when
+   * more than one is drawn (#846), or null.
+   */
   heading: ReactNode
 }
 
@@ -1366,6 +1410,7 @@ function ChartPanel({
   cursorValue,
   drawsAxis,
   labelsChrome,
+  titled,
   syncId,
   times,
   spanMs,
@@ -1593,7 +1638,7 @@ function ChartPanel({
               <ReferenceLine
                 x={nowMs}
                 {...CHROME_LINE}
-                label={labelsChrome ? chromeLabel('Now', 'insideTopLeft') : undefined}
+                label={labelsChrome ? chromeLabel('Now', 'insideTopLeft', titled ? TITLED_TOP_LABEL_DY : 0) : undefined}
               />
             )}
             {/* Where a compared model's forecast ends. Chrome marking where
@@ -1606,7 +1651,7 @@ function ChartPanel({
                 key={end.endMs}
                 x={end.endMs}
                 {...CHROME_LINE}
-                label={labelsChrome ? chromeLabel(end.label, 'insideTopLeft') : undefined}
+                label={labelsChrome ? chromeLabel(end.label, 'insideTopLeft', titled ? TITLED_TOP_LABEL_DY : 0) : undefined}
               />
             ))}
             {/* The map's playhead. Solid and in the accent where the "Now"
@@ -1682,7 +1727,7 @@ function ChartPanel({
                 {...CHROME_LINE}
                 label={{
                   ...chromeLabel(extremeLabel(extreme, metric), 'insideBottomRight'),
-                  content: margin.top === PLOT_MARGIN.top ? HEADROOM_LABEL : PHONE_HEADROOM_LABEL,
+                  content: margin.top !== PLOT_MARGIN.top ? PHONE_HEADROOM_LABEL : titled ? TITLED_HEADROOM_LABEL : HEADROOM_LABEL,
                 }}
               />
             )}
