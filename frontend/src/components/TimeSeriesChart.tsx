@@ -1761,8 +1761,9 @@ function useCardInArea(cardRef: RefObject<HTMLDivElement | null>, areaRef: RefOb
 // to the cursor (focused line bold and first), capped so a big overlay stays
 // readable. With more than one panel it is one card on the hovered panel, a
 // column per metric under a header naming each with its unit, so the cells
-// print bare numbers (#499; TJ 2026-10-29). One metric's card has no header:
-// its picker already names the unit.
+// print bare numbers (#499; TJ 2026-10-29). Every card carries the heads, one
+// metric's too, with `Name` over the names, so a card pinned from it can sort
+// by name at the same size (the maintainer, 2026-10-30).
 function ChartTooltip({
   active,
   label,
@@ -1868,25 +1869,20 @@ function CardGrid({
   index: number
   tone: CardTone | null
 }) {
-  const headed = metrics.length > 1
   const shown = items
   return (
     <div
       className="grid items-center gap-x-3.5"
       style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${metrics.length}, auto)` }}
     >
-      {headed && (
-        <>
-          <span />
-          {metrics.map((m) => (
-            <span key={m} className={CHART_CARD.heads}>
-              {CHART_METRICS.find((c) => c.key === m)?.label}
-            </span>
-          ))}
-          {/* One rule under the heads, across every column. */}
-          <span className={CHART_CARD.rule} data-card-rule="" />
-        </>
-      )}
+      <span className={CHART_CARD.nameHead}>Name</span>
+      {metrics.map((m) => (
+        <span key={m} className={CHART_CARD.heads}>
+          {CHART_METRICS.find((c) => c.key === m)?.label}
+        </span>
+      ))}
+      {/* One rule under the heads, across every column. */}
+      <span className={CHART_CARD.rule} data-card-rule="" />
       {shown.map((it) => {
         const strong = it.key === focusedKey ? 'font-semibold text-ink-strong' : ''
         return (
@@ -1998,6 +1994,12 @@ function PinnedCard({
   const [at, setAt] = useState<{ x: number; y: number } | null>(null)
   const [size, setSize] = useState<{ w: number; h: number } | null>(null)
   const [sort, setSort] = useState<PinSort>(() => ({ col: metric, desc: true }))
+  // How many rows the card's height holds, the rest counted in its foot as
+  // the hover card counts them; measured after every render, so a corner
+  // drag shows more and the count drops. Every row is laid out, and those
+  // past the count are hidden, so the measure can find them.
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const [fits, setFits] = useState(Number.POSITIVE_INFINITY)
   // Each column's width once the reader drags its edge, as a results column's
   // is (TJ 2026-10-30); the content's until then.
   const [widths, setWidths] = useState<Readonly<Record<string, number>>>({})
@@ -2014,10 +2016,23 @@ function PinnedCard({
     const from = pin.at ?? { x: right ? pin.x - CARD_CURSOR_OFFSET_PX - w : pin.x + CARD_CURSOR_OFFSET_PX, y: a.y + 8 }
     setAt({ x: clamp(from.x, a.x, Math.max(a.x, a.x + a.w - w)), y: clamp(from.y, a.y, Math.max(a.y, a.y + a.h - h)) })
   }, [at, pin.x, pin.at, a.x, a.y, a.w, a.h])
+  useLayoutEffect(() => {
+    const body = bodyRef.current
+    if (!body) return
+    const limit = body.getBoundingClientRect().bottom - parseFloat(getComputedStyle(body).paddingBottom || '0')
+    let held = 0
+    body.querySelectorAll<HTMLElement>('[data-pin-row]').forEach((row) => {
+      if (row.getBoundingClientRect().bottom <= limit + 0.5) held++
+    })
+    if (held !== fits) setFits(held)
+    // Whatever moves a row or the body's bottom: the size, the sort, the rows,
+    // the columns, where it stands, and the count itself, whose foot takes room.
+  }, [fits, size, sort, lines, metrics, at, pin.t, times])
   const index = times.indexOf(pin.t)
   if (index < 0) return null
   const hour = fmtTooltipTime(pin.t)
   const items = pinnedOrder(cardItems(lines, metric, metrics, index, null, null), index, sort)
+  const rest = Math.max(0, items.length - fits)
   // A metric opens high to low, as the card first lists it; names A to Z.
   const press = (col: PinSort['col']) => setSort((s) => (s.col === col ? { col, desc: !s.desc } : { col, desc: col !== 'name' }))
   // The column a pointer stands over, by its head's span; the first metric
@@ -2094,23 +2109,24 @@ function PinnedCard({
       }),
     )
   }
-  const arrow = (col: PinSort['col']) => (
-    <span className={`${ACCENT.text} ${sort.col === col ? '' : 'invisible'}`} aria-hidden="true">
-      {sort.col === col && !sort.desc ? '↑' : '↓'}
-    </span>
-  )
   const head = (col: PinSort['col'], k: number, label: ReactNode) => (
-    <span className={`${CHART_CARD.headCell} ${carry && carry.to === k && carry.m !== col ? CHART_CARD.dropAt : ''}`} data-card-col={k}>
+    <span
+      className={`${CHART_CARD.headCell} ${col === 'name' ? 'justify-start' : 'justify-end'} ${carry && carry.to === k && carry.m !== col ? CHART_CARD.dropAt : ''}`}
+      data-card-col={k}
+    >
       <button
         type="button"
         aria-pressed={sort.col === col}
         onPointerDown={(e) => onHeadDown(e, k)}
         onClick={() => (dragged.current ? (dragged.current = false) : press(col))}
-        className={`${CHART_CARD.sortHead} ${col === 'name' ? 'justify-start' : 'justify-end'} ${k >= 1 && onMovePanel ? CHART_CARD.grab : ''}`}
+        className={`${CHART_CARD.sortHead} ${k >= 1 && onMovePanel ? CHART_CARD.grab : ''}`}
       >
-        {col !== 'name' && arrow(col)}
+        {sort.col === col && (
+          <span className={`${col === 'name' ? CHART_CARD.sortArrowAfter : CHART_CARD.sortArrow} ${ACCENT.text}`} aria-hidden="true">
+            {sort.desc ? '↓' : '↑'}
+          </span>
+        )}
         {label}
-        {col === 'name' && arrow(col)}
       </button>
       {k < metrics.length - 1 && (
         <span onPointerDown={(e) => onEdgeDown(e, col)} className={CHART_CARD.colEdge} aria-hidden="true">
@@ -2141,18 +2157,19 @@ function PinnedCard({
           <IconClose size="chip" />
         </button>
       </div>
-      <div className={`${CHART_CARD.body} ${CHART_CARD.scroll} flex-1`}>
+      <div ref={bodyRef} className={`${CHART_CARD.body} ${CHART_CARD.clip} flex-1`}>
         <div
           className="grid items-center gap-x-3.5"
           style={{ gridTemplateColumns: [track('name', 'minmax(0, 1fr)'), ...metrics.map((m) => track(m, 'auto'))].join(' ') }}
         >
+          {/* The hover card's heads, each a button that sorts the card. */}
           {head('name', -1, 'Name')}
           {metrics.map((m, k) => (
             <Fragment key={m}>{head(m, k, CHART_METRICS.find((c) => c.key === m)?.label)}</Fragment>
           ))}
           <span className={CHART_CARD.rule} />
-          {items.map((it) => (
-            <div key={it.key} className={CHART_CARD.row}>
+          {items.map((it, i) => (
+            <div key={it.key} data-pin-row="" className={`${CHART_CARD.row} ${i < fits ? '' : 'invisible'}`}>
               <span className="flex min-w-0 items-center gap-1.5">
                 <span className={`h-2 w-2 flex-shrink-0 ${RADIUS.control}`} style={{ backgroundColor: it.line.color }} />
                 <span className={CHART_CARD.name}>{it.line.label}</span>
@@ -2166,6 +2183,7 @@ function PinnedCard({
           ))}
         </div>
       </div>
+      {rest > 0 && <div className={CHART_CARD.foot}>+{rest} more</div>}
       {carry &&
         createPortal(
           <div className={DRAG.ghost} style={{ left: ghostLeft(carry.x, window.innerWidth), top: carry.y - 10, maxWidth: GHOST_MAX_PX }}>

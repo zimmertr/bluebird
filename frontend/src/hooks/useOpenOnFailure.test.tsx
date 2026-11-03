@@ -71,6 +71,20 @@ describe('useHeldFailure', () => {
     expect(result.current.failureSeq).toBe(1)
   })
 
+  // #834: a check or basemap failure reopens a shut panel too, and is held
+  // the same way, apart from the run's count.
+  it('holds a check or basemap failure the same way', () => {
+    const { result, rerender } = renderHook(
+      ({ seq, hold }) => useHeldFailure(panelMessages({ openingSeq: seq }), hold),
+      { initialProps: { seq: 0, hold: true } },
+    )
+    rerender({ seq: 1, hold: true })
+    expect(result.current.openingSeq).toBe(0)
+    expect(result.current.failureSeq).toBe(0)
+    rerender({ seq: 1, hold: false })
+    expect(result.current.openingSeq).toBe(1)
+  })
+
   it('holds nothing but the count', () => {
     const messages = panelMessages({ failureSeq: 4, count: 2, analyzeEnabled: false })
     const { result } = renderHook(() => useHeldFailure(messages, false))

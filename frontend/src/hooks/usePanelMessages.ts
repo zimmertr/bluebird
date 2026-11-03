@@ -23,6 +23,7 @@ import {
   worstSeverity,
 } from '../utils/notices'
 import { panelMessages } from '../utils/panelMessages'
+import { useMessageArrivals } from './useMessageArrivals'
 import { spendVeto } from '../utils/analysisSpend'
 import { knownCount } from '../utils/destinationCount'
 import { comparedInPlay, selectedIds } from '../utils/model/modelSelection'
@@ -148,6 +149,18 @@ export interface PanelMessages {
    * on the badge read as no failure at all.
    */
   failureSeq: number
+  /**
+   * Moves once per render that shows a message the last one did not, which
+   * the badge moves on (`useMessageArrivals`, #834): a digit that changed and
+   * nothing else was easy to miss.
+   */
+  arrivalSeq: number
+  /**
+   * Moves once per arrival of a check or basemap failure (`LIST_OPENING_KEYS`),
+   * which opens the list as a failed run does, leaving the keyboard where it
+   * is at a desk (#834).
+   */
+  openingSeq: number
 }
 
 /**
@@ -297,6 +310,7 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     setDismissed((prev) => pruneDismissals(prev, activeKeySig.split('\u0000')))
   }, [activeKeySig])
   const messages = all.filter((m) => !isDismissed(m.key, dismissed))
+  const { arrivalSeq, openingSeq } = useMessageArrivals(messages)
 
   const { dismissEvent } = s
   const dismiss = useCallback(
@@ -324,5 +338,7 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     unanswered,
     held: false,
     failureSeq: s.failureSeq,
+    arrivalSeq,
+    openingSeq,
   }
 }

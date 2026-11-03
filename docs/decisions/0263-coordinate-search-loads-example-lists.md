@@ -1,4 +1,4 @@
-# 0258. A question mark beside Coordinate search opens example lists that load into the box
+# 0263. A question mark beside Coordinate search opens example lists that load into the box
 
 - Status: Accepted. Amends [0156](0156-destination-subheadings-say-search.md) and [0251](0251-metrics-section-ranks-from-a-menu.md)
 - Date: 2026-10-31

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AQI_NOTE_KEY, AQI_PARTIAL_KEY, panelMessages, type PanelMessageInputs } from './panelMessages'
+import { AQI_NOTE_KEY, AQI_PARTIAL_KEY, LIST_OPENING_KEYS, panelMessages, type PanelMessageInputs } from './panelMessages'
 import type { AnalyzeBlocker } from './analyzeGate'
 import type { CommitReason } from './present'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
@@ -324,6 +324,15 @@ describe('panelMessages', () => {
         'window:archive-model',
         'blocker:destinations',
       ])
+    })
+  })
+
+  // #834: the lines whose arrival opens the list are the two checks and the
+  // basemap, by the keys this module gives them, and nothing else.
+  describe('the lines that open the list', () => {
+    it('are the keys the check and basemap failures carry', () => {
+      const failing = keys({ wildfireCheckFailed: true, closureCheckFailed: true, basemapFailed: true })
+      expect([...LIST_OPENING_KEYS].sort()).toEqual([...failing].sort())
     })
   })
 

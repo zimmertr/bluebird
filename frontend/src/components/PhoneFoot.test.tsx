@@ -170,6 +170,21 @@ describe('PhoneFoot', () => {
     expect(screen.getByRole('dialog', { name: 'Messages' })).toBeTruthy()
   })
 
+  // #834: a check or the basemap failing opens the sheet as a failure does,
+  // and the sheet takes the keyboard, being modal (the maintainer, 2026-10-30).
+  it('opens the sheet for a check or basemap failure, once each', () => {
+    const { rerender } = render(foot({ messages: panelMessages({ messages: MESSAGES }) }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    rerender(foot({ messages: panelMessages({ messages: MESSAGES, openingSeq: 1 }) }))
+    const sheet = screen.getByRole('dialog', { name: 'Messages' })
+    expect(sheet.contains(document.activeElement)).toBe(true)
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }))
+    rerender(foot({ messages: panelMessages({ messages: [...MESSAGES], openingSeq: 1 }) }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    rerender(foot({ messages: panelMessages({ messages: MESSAGES, openingSeq: 2 }) }))
+    expect(screen.getByRole('dialog', { name: 'Messages' })).toBeTruthy()
+  })
+
   // The tutorial's Messages card holds the sheet open (#786) and frames it
   // whole, and the sheet leaves the keyboard to the card, as the Layers sheet
   // does for its own.

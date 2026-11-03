@@ -162,6 +162,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `MENU_GROUP` | A group of the Layers menu's rows under its `MENU.heading` (record [0249](decisions/0249-layers-in-three-groups.md)). At a desk `card` sets each group 6px under the one over it, the first none, and `cardHeading` keeps 2px under the heading, the gap a row keeps, with no rule. On a phone's sheet `sheet` draws the sheet's own rule between the heading and each row, `sheetHeading` stands 6px under the rule over it and 2px over the next, 25px tall to a row's 33, and `sheetRow` is a row's 32px |
 | `LAYER_ROW` | A row of the Layers menu (record [0250](decisions/0250-layers-palette-and-base-map-opacity.md)): the menu's checkbox (`CHOICE_ROW`, `CHOICE_INPUT`), the name, and on the four Base map rows an opacity slider at the right. The record first drew the box as an eye, which the maintainer took back the same day. `slider` is the well at a desk, 120 by 20, and `sliderSheet` on a phone, half the row and 32 tall, the phone's control height: at the lab's 96 the thumb at 50% stood on the wordmark. An off layer's slider looks the same as an on one's, because a drag on it checks the box. `cardRows` rules a group's rows at a desk the sheet's way, and `cardRow` makes each 28px |
 | `LEGEND_GRID_STYLE` | The grid's style in its legend line, the button that switches it: the word and a swap mark in the accent's ink on a faint accent wash, no edge, so the line keeps its height |
+| `LEGEND_GRID_STYLE_WORDS` | That button's word, held at the wider name's width: `Smooth` and `Blocks` stand in one grid cell, the one not shown invisible, so the button keeps one size as it switches |
 | `LAYER_GRID` | The forecast grid's coverage slider on its own Layers row, at the opacity sliders' sizes and on their column, its value alone, faded while disabled |
 | `SHEET_ASIDE` | A phone sheet stepping aside while a finger drags one of its sliders: `dim` lifts the scrim, `card` hides the card and every row in it, and `keep` brings back the one row being dragged on the sheet's fill with its edge and shadow (record [0250](decisions/0250-layers-palette-and-base-map-opacity.md)). Only the Layers sheet does it |
 | `MODEL_ROW` | A row of the model list: the box first, a hairline (`SURFACE_DIVIDER`) between rows with 8px over and under each, every name semibold (`name`). The fill follows a mouse (`MENU.hover`) and the keyboard while the list shows its ring (`keys`, through `list`'s `group/list`), never a finger (record [0225](decisions/0225-model-rows-box-first-ruled.md)) |
@@ -733,7 +734,10 @@ carry none, because a sheet rises from below. The two cards wear one surface,
 the chips' colour made opaque, with the structural edge (`SURFACE_CHIP_CARD`), so the Layers
 menu reads as the legend card's twin and its outline and deeper shadow part it
 from the legend where it opens across it. The legend card scrolls inside the map's height under
-the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
+the rows, read off the wrapper as `100cqh` (`legendMaxCss`), and clears the
+forecast player's band only on a map narrower than `LEGEND_BESIDE_TRANSPORT_PX`,
+read as `100cqw`, where the centred bar reaches under it (record
+[0261](decisions/0261-legend-clears-the-player-only-where-they-meet.md)). Analyze stays in
 the panel. A phone draws no zoom pair, since a pinch zooms there, and nor
 does any touch screen at desk width, whose capsule halves could not both take
 a 44px press (record [0254](decisions/0254-map-buttons-are-the-chips-height.md)).
@@ -772,7 +776,11 @@ dragged, with a small three-dot grip at its middle on the panel's fill, and a 16
 The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:
 the hour as a 13px title on the popup's `band` token, the rows in a body,
 and `+N more` in a footer. The band is an app token now (`--ui-band`), and
-map.css reads it for the popup, so the two cards share one band.
+map.css reads it for the popup, so the two cards share one band. A pinned
+card is the same card at the same size: its ✕ is pulled into the title's
+line by its margins, it carries the hover card's heads, `Name` among them on
+every card, its sort arrow stands outside its head, its rows carry no rule, and its body clips to the rows its height holds, the rest counted
+in the same footer (record [0258](decisions/0258-a-pinned-chart-card-is-the-hover-card.md)).
 Every picker is the desk's `MenuSelect`, opening the one menu's sheet on a phone (record [0252](decisions/0252-every-trigger-is-one-component.md)).
 Record: [0255](decisions/0255-chart-metrics-as-panels.md)
 
@@ -830,6 +838,15 @@ up from that edge. The band that held the whole block on the sheet's edge
 the rest.
 Record: [0208](decisions/0208-analyze-button-counts-the-messages.md)
 
+A new message moves the badge once (`MESSAGE_BADGE.arrivalOdd`/`arrivalEven`): the disc swells
+and settles over 320ms while a ring in its own colour spreads from it and
+fades over 700ms. The ring is the badge's `after:` box, filled with whatever
+the disc is, so it follows the severity with no colour of its own. Two names
+of the one animation take turns, because a new name is what restarts a CSS
+animation, and the badge never remounts under a keyboard. Under a
+reduced-motion setting it does not move.
+Record: [0260](decisions/0260-messages-draw-the-eye-and-failures-open-the-list.md)
+
 The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`),
 the bottom sheet the menus below are, kept mounted: modal over the same dim,
 slid below the map while shut, its height a fixed share of the map that
@@ -873,7 +890,9 @@ in 150ms (`MOTION.menu`). A panel, a sheet or a results pane moves in 300ms
 whole screen is laid out against. Each recipe names the one property it
 moves, so nothing a grip drags is ever animated, and each stops under a
 reduced-motion setting. `PANEL_MS` is the slower speed in numbers, and
-`styles.test.ts` holds each class to its speed.
+`styles.test.ts` holds each class to its speed. The one movement nobody's
+press started is the message badge's, once per arrival, in `MESSAGE_BADGE`
+rather than here.
 
 The desk panel pushes the map's edge rather than sliding over the map
 (`DESK_PANEL`). It stays in the row while it is shut and its left margin takes

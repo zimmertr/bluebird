@@ -8,7 +8,7 @@ import { SMOKE_DENSITIES } from '../utils/smoke'
 import { legendMaxCss } from '../utils/results/resultsSheet'
 import { readViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
 import { IconChevron } from './icons'
-import { MENU_CHEVRON, SR_ONLY } from '../styles'
+import { LEGEND_GRID_STYLE_WORDS, MENU_CHEVRON, SR_ONLY } from '../styles'
 
 const NONE = {
   showWildfires: false,
@@ -147,9 +147,31 @@ describe('MapLegend', () => {
       gridLegend: { label: 'Forecast grid', value: '3 km', kind: 'pitch' as const, styleName: 'Smooth' },
     }
     const { container } = render(<Legend {...BASE} grid={PAINTED} />)
-    expect(container.textContent).toContain('3 km · Smooth⇄')
+    expect(container.textContent).toContain('3 km · ')
     fireEvent.click(screen.getByRole('button', { name: 'Grid style: Smooth' }))
     expect(setGridStyle).toHaveBeenCalledWith('blocks')
+  })
+
+  // The button keeps one size as it switches (the maintainer, 2026-10-30):
+  // every name stands in its one cell, and only the shown one is seen or read.
+  it("holds the grid style's button at its widest name's width", () => {
+    const grid = (styleName: string) => ({
+      ...NO_GRID,
+      gridPainted: true,
+      gridLegend: { label: 'Forecast grid', value: '3 km', kind: 'pitch' as const, styleName },
+    })
+    for (const shown of ['Smooth', 'Blocks']) {
+      const { unmount } = render(<Legend {...BASE} grid={grid(shown)} />)
+      const button = screen.getByRole('button', { name: `Grid style: ${shown}` })
+      const words = [...button.querySelectorAll(`.${LEGEND_GRID_STYLE_WORDS.stack.split(' ')[0]} > span`)]
+      expect(words.map((w) => w.textContent)).toEqual(['Smooth', 'Blocks'])
+      for (const word of words) {
+        const hidden = word.textContent !== shown
+        expect(word.classList.contains(LEGEND_GRID_STYLE_WORDS.hidden)).toBe(hidden)
+        expect(word.getAttribute('aria-hidden')).toBe(hidden ? 'true' : null)
+      }
+      unmount()
+    }
   })
 
   it('credits NIFC beside the wildfire section', () => {

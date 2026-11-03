@@ -16,6 +16,11 @@ interface Props {
   open: boolean
   /** Opens or closes the list. */
   onPress: () => void
+  /**
+   * Moves once per message arriving (`useMessageArrivals`), and the badge
+   * moves once with it (#834). None yet, none moved.
+   */
+  arrivalSeq?: number
   ref?: Ref<HTMLButtonElement>
 }
 
@@ -29,10 +34,15 @@ interface Props {
  *
  * A badge is the one summary a reader gets without a press, so it says the
  * two things that matter at a glance, how many and how bad, and nothing
- * else: the words are in the list.
+ * else: the words are in the list. It moves once when a message arrives
+ * (#834), so the change is seen as well as counted.
  */
-export default function MessageBadge({ count, worst, open, onPress, ref }: Props) {
+export default function MessageBadge({ count, worst, open, onPress, arrivalSeq = 0, ref }: Props) {
   if (count === 0 || worst === null) return null
+  // One spelling of the arrival per count, alternating, so each new count
+  // names a new animation and plays it again (`MESSAGE_BADGE.arrivalOdd`).
+  const arrival =
+    arrivalSeq === 0 ? '' : ` ${arrivalSeq % 2 === 1 ? MESSAGE_BADGE.arrivalOdd : MESSAGE_BADGE.arrivalEven}`
   return (
     <button
       ref={ref}
@@ -43,7 +53,7 @@ export default function MessageBadge({ count, worst, open, onPress, ref }: Props
       // The tutorial's Messages card, which the tour skips while there is no
       // badge to point at.
       data-tour="messages"
-      className={`${MESSAGE_BADGE.base} ${MESSAGE_BADGE[worst]}`}
+      className={`${MESSAGE_BADGE.base} ${MESSAGE_BADGE[worst]}${arrival}`}
     >
       {count}
     </button>

@@ -1481,6 +1481,10 @@ export const CHART_CARD = {
   // The heads in the results table's type (`TABLE.head`), one header style
   // across the table, the marker popup and the card (TJ 2026-10-30).
   heads: `${TEXT.subheading} text-right`,
+  // The head over the names, which every card carries (the maintainer,
+  // 2026-10-30), left like the names under it, so a pinned card can sort by
+  // name and still stand at the hover card's size.
+  nameHead: TEXT.subheading,
   rule: 'col-span-full h-px bg-frame mb-[3px]',
   foot: 'border-t border-rule px-2.5 py-[5px] text-xs text-ink-soft',
   // A row's name is always 160px and ends in an ellipsis past it, as a long
@@ -1488,18 +1492,31 @@ export const CHART_CARD = {
   // than a cap, because the card resized to the longest name in view as the
   // hour moved, and every value column's width is its head's.
   name: 'min-w-0 w-40 truncate',
-  // A pinned card (TJ 2026-10-30, P2): no ring, its ✕ and grips saying it holds still;
-  // its body scrolls through every row, and the ✕ in its band lets it go.
-  scroll: 'min-h-0 overflow-y-auto overscroll-contain',
-  unpin: `${SQUARE_BUTTON} ml-auto size-5.5 flex-shrink-0 font-normal touch:size-8`,
+  // A pinned card (TJ 2026-10-30, P2): no ring, its ✕ and grips saying it holds still,
+  // and otherwise the hover card it was pinned from, at the same size (the
+  // maintainer, 2026-10-30): the rows its height holds, and the rest counted
+  // in the same foot. Its body clips rather than scrolls; the corner grip is
+  // how it shows more.
+  clip: 'min-h-0 overflow-hidden',
+  // The ✕ in the band, pulled into the title's line by its margins, so the
+  // band stands no taller than the hover card's: the 22px square, 32px on a
+  // touch screen, against a 13px title's 17.3px line (the card's 4/3 leading).
+  unpin: `${SQUARE_BUTTON} ml-auto size-5.5 -my-[3px] flex-shrink-0 font-normal touch:size-8 touch:-my-2`,
   // A pinned card moves by its band and sizes by its corner (TJ 2026-10-30);
   // its heads sort it, an arrow in the accent on the one that does, as the
-  // results table's heads do, the slot kept on every head so none moves.
+  // results table's heads do.
   grab: 'cursor-grab select-none active:cursor-grabbing',
-  sortHead: `${TEXT.subheading} ${FOCUS_RING} flex items-center gap-0.5 whitespace-nowrap ${ACCENT.hoverText} select-none`,
+  sortHead: `${TEXT.subheading} ${FOCUS_RING} relative flex items-center whitespace-nowrap ${ACCENT.hoverText} select-none`,
+  // The sorted head's arrow, outside its head, so a head is as wide as the
+  // hover card's and the arrow moves nothing (the maintainer, 2026-10-30): in
+  // the gap before a metric's head, and after the names' head, in the room
+  // the name column has past its word.
+  sortArrow: 'absolute right-full mr-0.5',
+  sortArrowAfter: 'absolute left-full ml-0.5',
   // A pinned card's row lights under the pointer as a results row does
-  // (`TABLE.row`'s tint), one grid row across every column.
-  row: 'col-span-full grid grid-cols-subgrid items-center border-t border-rule/50 hover:bg-raised/30',
+  // (`TABLE.row`'s tint), one grid row across every column, with no rule
+  // between rows, so it stands at the hover card's pitch.
+  row: 'col-span-full grid grid-cols-subgrid items-center hover:bg-raised/30',
   // A head's cell, which its right edge resizes and a carried head lands
   // on (TJ 2026-10-30), as a results column's head does.
   headCell: 'relative flex min-w-0 items-center',
@@ -1998,6 +2015,18 @@ export const MAP_FAB_WORDS = {
  * 44px hit area through an invisible box drawn 10px past its edge on every
  * side (the `before:` box, as `TAP` would size it), without growing the disc.
  * The box overhangs the button's corner, where the label is not.
+ *
+ * A message arriving moves it once (#834; the maintainer, 2026-10-30): the
+ * disc swells and settles while a ring of its own colour spreads from it and
+ * fades, because a digit that changed and nothing else was easy to miss. The
+ * ring is the `after:` box, filled with whatever the disc is (`bg-inherit`)
+ * and stacked under the digit (`isolate`, `-z-10`), so it follows the
+ * severity with no colour of its own. `arrivalOdd` and `arrivalEven` are two
+ * spellings of the one animation under two names: the badge wears one per
+ * arrival, alternating,
+ * because a change of name is what restarts a CSS animation, so the next
+ * arrival plays again on the same element without remounting it or the
+ * keyboard on it. Under reduced motion it does not move at all.
  */
 export const MESSAGE_BADGE = {
   /** The box the button and its badge share, which the badge's corner is placed in. */
@@ -2005,10 +2034,14 @@ export const MESSAGE_BADGE = {
   base:
     `absolute -right-2.5 -top-2.5 flex h-6 min-w-6 items-center justify-center border-2 border-panel px-1 ${RADIUS.pill} ` +
     `${MICRO_SIZE} font-bold leading-none tabular-nums transition-colors ` +
-    `touch:before:absolute touch:before:-inset-2.5 touch:before:content-[''] ${FOCUS_RING}`,
+    `touch:before:absolute touch:before:-inset-2.5 touch:before:content-[''] ${FOCUS_RING} ` +
+    `isolate after:pointer-events-none after:absolute after:-inset-0.5 after:-z-10 after:rounded-full ` +
+    `after:bg-inherit after:opacity-0 after:content-['']`,
   error: 'bg-danger text-panel',
   warn: 'bg-warn text-panel',
   info: 'bg-info text-panel',
+  arrivalOdd: 'motion-safe:animate-badge-bump-a motion-safe:after:animate-badge-ripple-a',
+  arrivalEven: 'motion-safe:animate-badge-bump-b motion-safe:after:animate-badge-ripple-b',
 } as const
 
 /**
@@ -3405,6 +3438,21 @@ export const CALENDAR_FIELD = {
 export const LEGEND_GRID_STYLE =
   `inline-flex items-center gap-0.5 px-1.5 py-px ${RADIUS.control} bg-accent/15 hover:bg-accent/20 ` +
   `${ACCENT.text} font-semibold cursor-pointer ${FOCUS_RING}`
+
+/**
+ * The button's word held at the width of the wider name, so the button stays
+ * one size as it switches between `Smooth` and `Blocks` (the maintainer,
+ * 2026-10-30, #832): every name stands in one grid cell (`stack`, each
+ * `word` on the cell's one area), the one not shown `hidden` from sight and,
+ * by `aria-hidden` at the call site, from a screen reader. The way
+ * `widestName` holds a popup's changing name at one width. Centred, so the
+ * narrower word sits in the middle of the room the wider one keeps.
+ */
+export const LEGEND_GRID_STYLE_WORDS = {
+  stack: 'inline-grid text-center',
+  word: '[grid-area:1/1]',
+  hidden: 'invisible',
+} as const
 
 /**
  * The forecast grid's coverage slider on its own Layers row, at the right

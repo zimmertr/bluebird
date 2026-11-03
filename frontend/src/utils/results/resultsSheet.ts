@@ -389,15 +389,50 @@ export function legendBottomPx(liftPx: number, timelineShown: boolean): number {
  */
 export const CHIP_MENU_GAP_PX = 4
 
+/** The map's edge inset (`MAP_EDGE.publish`'s 0.75rem), which the legend card stands in from the left. */
+export const MAP_EDGE_INSET_PX = 12
+
+/** A desk's legend card's width (`CHIP_CARD_W.key`, `w-56`). */
+export const LEGEND_CARD_W_PX = 224
+
+/**
+ * The player's width on any map wide enough to matter here: the 23rem of
+ * `TimelineTransport`'s `w-[min(23rem,calc(100%-4rem))]`. The `100% - 4rem`
+ * arm only wins under 432px of map, where the bar meets the card anyway.
+ */
+export const TRANSPORT_W_PX = 368
+
+/**
+ * The narrowest map on which the centred player cannot reach under a desk's
+ * legend card, so the card need not stop above it. The bar's left edge is
+ * half the map less half the bar; the card's right edge is the inset plus its
+ * width, and the two keep one more inset between them so they never stand
+ * closer than either stands to the map's edge. 864px.
+ */
+export const LEGEND_BESIDE_TRANSPORT_PX = 2 * (2 * MAP_EDGE_INSET_PX + LEGEND_CARD_W_PX) + TRANSPORT_W_PX
+
 /**
  * The tallest a desk's legend card may be (#714): the map below the rows and
  * the gap under its chip, less the floor `legendBottomPx` keeps. A CSS length,
  * because the card hangs from its chip inside the rows and cannot see the
  * map's height; the map wrapper is a size container (`MAP_EDGE.publish`), so
  * `100cqh` is it. Past this the card scrolls inside itself.
+ *
+ * With the player on screen the card clears its band only where the two
+ * would meet: on a map narrower than `LEGEND_BESIDE_TRANSPORT_PX`. Wider, the
+ * bar stands clear to the card's right and the card keeps the plain gap, as
+ * it does with no player at all. The map's width is `100cqw` off the same
+ * container, and the clamp is a step on it: under the line the product is
+ * past the band's extra height within a thousandth of a pixel, and from the
+ * line up it is negative and clamps to nothing. A step in CSS because the
+ * card cannot see the map's width any more than its height, and a container
+ * query would want the line spelled as a literal class Tailwind can scan.
  */
 export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
-  return `calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + legendBottomPx(liftPx, timelineShown)}px)`
+  const base = MAP_ROWS_PX + CHIP_MENU_GAP_PX + legendBottomPx(liftPx, false)
+  if (!timelineShown) return `calc(100cqh - ${base}px)`
+  const extra = legendBottomPx(liftPx, true) - legendBottomPx(liftPx, false)
+  return `calc(100cqh - ${base}px - clamp(0px, (${LEGEND_BESIDE_TRANSPORT_PX}px - 100cqw) * 1000, ${extra}px))`
 }
 
 /**

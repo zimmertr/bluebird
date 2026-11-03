@@ -9,6 +9,10 @@ import type { ActionWord } from '../utils/analyzeGate'
 import MessageBadge, { MessageRegion } from './MessageBadge'
 import MessageList from './MessageList'
 
+// The list shut, open from a press or a failed run, or open from a check or
+// the basemap failing with the keyboard left where it was (#834).
+type ListState = boolean | 'quiet'
+
 interface Props {
   analyzeEnabled: boolean
   // What the button reads (#736, `actionWord`): `Analyze`, `Analyzing…`
@@ -80,26 +84,32 @@ export default function PanelFooter({
   // card goes with the last message, since there is nothing left to list.
   // The tutorial's Messages card holds it open (`messages.held`), and a run
   // that fails opens it (#803): a failure that showed only as a count read as
-  // no failure at all. A phone's footer has no list to open.
+  // no failure at all. A check or the basemap failing opens it too, quietly
+  // (#834): the keyboard stays where it is, because the line lands while the
+  // reader may be typing in a field, and a press or a failed run over it
+  // takes the keyboard in. A phone's footer has no list to open.
   const { count, blocked, held } = messages
-  const [pressedOpen, setOpen] = useState(false)
-  const open = pressedOpen || held
+  const [listState, setListState] = useState<ListState>(false)
+  const open = listState !== false || held
   const badgeRef = useRef<HTMLButtonElement>(null)
   const slotRef = useRef<HTMLDivElement>(null)
   const { popoverRef, box, closing } = usePopover({
     open,
-    onOpenChange: setOpen,
+    onOpenChange: setListState,
     triggerRef: badgeRef,
     anchorRef: slotRef,
     widthRef: slotRef,
     ownPressRef: analyzeRef,
+    takeFocus: listState !== 'quiet',
   })
   useEffect(() => {
-    if (count === 0) setOpen(false)
+    if (count === 0) setListState(false)
   }, [count])
-  const openList = useCallback(() => setOpen(true), [])
+  const openList = useCallback(() => setListState(true), [])
+  const openQuietly = useCallback(() => setListState((was) => (was === false ? 'quiet' : was)), [])
   useOpenOnFailure(messages.failureSeq, openList, !phone)
-  const toggle = () => setOpen((o) => !o)
+  useOpenOnFailure(messages.openingSeq, openQuietly, !phone)
+  const toggle = () => setListState((was) => was === false)
 
   return (
     // The tour's Analyze step lights this footer at a desk; a phone's Analyze
@@ -121,7 +131,14 @@ export default function PanelFooter({
           >
             {word}
           </button>
-          <MessageBadge ref={badgeRef} count={count} worst={messages.worst} open={open} onPress={toggle} />
+          <MessageBadge
+            ref={badgeRef}
+            count={count}
+            worst={messages.worst}
+            open={open}
+            onPress={toggle}
+            arrivalSeq={messages.arrivalSeq}
+          />
           <MessageRegion messages={messages.messages} />
         </div>
       )}

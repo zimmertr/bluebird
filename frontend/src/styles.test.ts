@@ -87,6 +87,7 @@ import {
   MENU_GROUP,
   LAYER_GRID,
   LEGEND_GRID_STYLE,
+  LEGEND_GRID_STYLE_WORDS,
   LAYER_ROW,
   SHEET_ASIDE,
   MODEL_ROW,
@@ -1582,6 +1583,15 @@ describe('shared recipes', () => {
     expect(mapLegendSource).toContain('className={LEGEND_GRID_STYLE}')
   })
 
+  // The button stays one size as it switches: every name in one cell, the
+  // unshown ones invisible rather than gone, so they keep their room.
+  it("holds the legend's grid style word at its widest name", () => {
+    expect(LEGEND_GRID_STYLE_WORDS.stack).toContain('inline-grid')
+    expect(LEGEND_GRID_STYLE_WORDS.word).toBe('[grid-area:1/1]')
+    expect(LEGEND_GRID_STYLE_WORDS.hidden).toBe('invisible')
+    expect(mapLegendSource).toContain('className={LEGEND_GRID_STYLE_WORDS.stack}')
+  })
+
   // The floating button is the skip link's now, at the control size the map
   // column was set in (TJ, 2026-09-14): a 14px label beside 12px controls
   // read as a different kind of object rather than as a louder one.
@@ -2991,6 +3001,37 @@ describe('the message badge', () => {
     // The phone's slot is the positioned box, so the badge's corner is the
     // button's there too.
     expect(words(MAP_FAB_SLOT)).toContain('absolute')
+  })
+
+  // #834: a message arriving swells the disc and spreads a ring of its own
+  // colour, under reduced motion not at all. Two spellings of one animation,
+  // which the badge alternates, since a new name is what restarts one.
+  it('moves once on arrival, in two names of one animation, and only when motion is welcome', () => {
+    const { arrivalOdd: a, arrivalEven: b } = MESSAGE_BADGE
+    expect(words(a)).toEqual(['motion-safe:animate-badge-bump-a', 'motion-safe:after:animate-badge-ripple-a'])
+    expect(b).toBe(a.replace(/-a\b/g, '-b'))
+    // Each name is a theme animation with its keyframes, and the pair match:
+    // a keyframes block is read whole by counting its braces.
+    const frames = (name: string) => {
+      const start = indexCss.indexOf(`@keyframes ${name} {`)
+      if (start < 0) return undefined
+      let depth = 0
+      for (let i = indexCss.indexOf('{', start); i < indexCss.length; i++) {
+        if (indexCss[i] === '{') depth++
+        else if (indexCss[i] === '}' && --depth === 0) return indexCss.slice(start, i + 1)
+      }
+      return undefined
+    }
+    for (const motion of ['bump', 'ripple']) {
+      expect(indexCss).toContain(`--animate-badge-${motion}-a: badge-${motion}-a `)
+      expect(indexCss).toContain(`--animate-badge-${motion}-b: badge-${motion}-b `)
+      expect(frames(`badge-${motion}-a`)).toBeTruthy()
+      expect(frames(`badge-${motion}-a`)!.replace('-a', '-b')).toBe(frames(`badge-${motion}-b`))
+    }
+    // The ring is the disc's own fill, under the digit, and invisible at rest.
+    expect(words(MESSAGE_BADGE.base)).toEqual(
+      expect.arrayContaining(['isolate', 'after:absolute', 'after:-z-10', 'after:bg-inherit', 'after:opacity-0', 'after:pointer-events-none']),
+    )
   })
 
   it('fills in the severity\'s ink with the panel\'s digit, clearing AA in both themes', () => {
@@ -4680,6 +4721,23 @@ describe('the chart card', () => {
     expect(cls(CHART_CARD.rule)).toEqual(expect.arrayContaining(['col-span-full', 'bg-frame']))
     expect(cls(CHART_CARD.foot)).toEqual(expect.arrayContaining(['border-t', 'border-rule', 'text-ink-soft']))
     expect(mapCss).toContain('--popup-band: var(--ui-band);')
+  })
+  // A pinned card stands at the hover card's size (the maintainer,
+  // 2026-10-30): its ✕ pulled into the title's line, its arrow out of its
+  // head, no rule between rows, and its body clipped rather than scrolled.
+  it('keeps a pinned card at the hover card\'s size', () => {
+    // The 22px square against the 13px title's 17.3px line, and the 32px
+    // touch square: each margin leaves 16px, under the line.
+    expect(cls(CHART_CARD.unpin)).toEqual(expect.arrayContaining(['size-5.5', '-my-[3px]', 'touch:size-8', 'touch:-my-2']))
+    expect(22 - 2 * 3).toBeLessThanOrEqual(13 * (4 / 3))
+    expect(32 - 2 * 8).toBeLessThanOrEqual(13 * (4 / 3))
+    expect(cls(CHART_CARD.sortArrow)).toEqual(expect.arrayContaining(['absolute', 'right-full']))
+    expect(cls(CHART_CARD.sortArrowAfter)).toEqual(expect.arrayContaining(['absolute', 'left-full']))
+    // The names' head on every card, left over the names, in the heads' type.
+    expect(CHART_CARD.nameHead).toBe(TEXT.subheading)
+    expect(cls(CHART_CARD.sortHead)).not.toContain('gap-0.5')
+    expect(CHART_CARD.row).not.toMatch(/border-t/)
+    expect(cls(CHART_CARD.clip)).toContain('overflow-hidden')
   })
   it('reads the title and the label ink on the band above AA in both themes', () => {
     const on = (ink: string) => [ratio(dark(ink), dark('band')), ratio(light(ink), light('band'))]
