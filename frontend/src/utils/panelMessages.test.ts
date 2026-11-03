@@ -47,6 +47,7 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     wildfireCheckFailed: false,
     closureCheckFailed: false,
     basemapFailed: false,
+    exampleListFailed: false,
     now: NOW,
     ...over,
   }
@@ -339,6 +340,11 @@ describe('panelMessages', () => {
   describe('the basemap line', () => {
     // #580: a blank map says why, below Analyze with every other message.
     it('says the map could not load while the basemap style is failing', () => {
+      expect(only({ exampleListFailed: true })).toEqual({
+        key: 'list:failed',
+        text: 'The list could not load. Try again later.',
+        severity: 'error',
+      })
       expect(only({ basemapFailed: true })).toEqual({
         key: 'map:style',
         text: 'The map could not load. Try again later.',

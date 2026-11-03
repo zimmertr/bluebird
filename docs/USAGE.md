@@ -83,7 +83,7 @@ Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing
 
 ### d. Coordinate search
 
-Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinate search** is a box two rows tall that shows the format and one example row until you paste or type into it; drag its corner to make it taller. The **?** beside the heading opens four ready-made peak lists; press one and it loads into the box, under any rows already there, and the map frames it as it would a paste.
+Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinate search** is a box two rows tall that shows the format and one example row until you paste or type into it; drag its corner to make it taller. **Load a list**, beside the heading, offers four ready-made peak lists; pick one and it loads into the box, under any rows already there, and the map frames it as it would a paste. If a list cannot load, the Analyze button's messages say so.
 
 ```
 # Lines beginning with # are ignored

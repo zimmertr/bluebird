@@ -1,6 +1,7 @@
 import { NOUN } from '../metrics'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
 import { BASEMAP_FAILED_NOTE } from './basemapFailure'
+import { EXAMPLE_LIST_FAILED_NOTE } from './exampleLists'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import type { CommitReason } from './present'
 import type { AnalyzeBlocker } from './analyzeGate'
@@ -49,7 +50,12 @@ export const AQI_PARTIAL_KEY = 'aqi:partial'
  * a blocker or a cue answers a change the reader just made, and opening the
  * list for one would put a card over the control under their hand.
  */
-export const LIST_OPENING_KEYS: ReadonlySet<string> = new Set(['fire:unavailable', 'closure:unavailable', 'map:style'])
+export const LIST_OPENING_KEYS: ReadonlySet<string> = new Set([
+  'fire:unavailable',
+  'closure:unavailable',
+  'map:style',
+  'list:failed',
+])
 
 // One sentence for the AQI warning over a report and for the blocker that
 // stops a ranking on air quality the window has none of (#803), so the two
@@ -180,6 +186,8 @@ export interface PanelMessageInputs {
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
+  /** The example list last picked beside Coordinate search did not arrive (#838). */
+  exampleListFailed: boolean
   // What the link carried and could not restore (`useLinkDrops`, #803). Absent
   // reads as nothing lost.
   linkLost?: readonly LinkDrop[]
@@ -376,6 +384,13 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     // on its condition like every derived line, and gone once the style loads.
     ...(p.basemapFailed
       ? [{ key: 'map:style', text: BASEMAP_FAILED_NOTE, severity: 'error' as const }]
+      : []),
+    // A list picked beside Coordinate search that did not arrive (#838; record
+    // 0263): the reader asked for rows and the box stayed as it was, so the
+    // line opens the list the way the map's does. Gone when the next pick
+    // lands.
+    ...(p.exampleListFailed
+      ? [{ key: 'list:failed', text: EXAMPLE_LIST_FAILED_NOTE, severity: 'error' as const }]
       : []),
     ...(aqiNoteActive
       ? [

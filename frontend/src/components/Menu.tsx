@@ -153,6 +153,13 @@ interface MenuSelectProps<V extends string> {
   disabled?: boolean
   /** A phone: the list opens in a bottom sheet headed by `label`, as the model list does (record 0252). */
   sheet?: boolean
+  /**
+   * What the field reads while `value` names no option: a select that runs a
+   * command and keeps nothing, the Load a list field beside Coordinate search
+   * (#838, record 0263). The field is then named by this alone, since `label`
+   * is the same words.
+   */
+  placeholder?: string
 }
 
 /**
@@ -182,12 +189,12 @@ export function MenuSelect<V extends string>({
   disabled = false,
   shape = 'field',
   sheet = false,
+  placeholder,
 }: MenuSelectProps<V>) {
   const [open, setOpen] = useState(false)
-  const selectedIndex = Math.max(
-    options.findIndex((o) => o.value === value),
-    0,
-  )
+  const found = options.findIndex((o) => o.value === value)
+  const selectedIndex = Math.max(found, 0)
+  const showsPlaceholder = placeholder !== undefined && found < 0
   const [active, setActive] = useState(selectedIndex)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -231,7 +238,7 @@ export function MenuSelect<V extends string>({
         shape={shape}
         open={open}
         aria-haspopup={sheet ? 'dialog' : 'listbox'}
-        aria-labelledby={`${nameId} ${valueId}`}
+        aria-labelledby={showsPlaceholder ? valueId : `${nameId} ${valueId}`}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={(e) => {
@@ -246,7 +253,7 @@ export function MenuSelect<V extends string>({
           {label}
         </span>
         <span id={valueId} className="block min-w-0 truncate">
-          {options[selectedIndex]?.label ?? value}
+          {showsPlaceholder ? placeholder : (options[selectedIndex]?.label ?? value)}
         </span>
       </MenuButton>
       {(box || (sheet && open)) && (

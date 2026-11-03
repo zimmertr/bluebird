@@ -428,6 +428,34 @@ describe('MenuSelect', () => {
     expect(name).toEqual(['Wind aggregate', 'Max'])
   })
 
+  // A select that runs a command and keeps nothing, the Load a list field
+  // (record 0263): with no option current it reads its placeholder, is named
+  // by that alone, and a pick of the same row twice fires twice.
+  it('reads its placeholder while no option is current, and fires on every pick', async () => {
+    const onChange = vi.fn()
+    const { user } = render(
+      <MenuSelect
+        label="Load a list"
+        placeholder="Load a list"
+        value=""
+        options={[{ value: 'bulgers', label: 'The Bulger List' }]}
+        onChange={onChange}
+        className="w-14"
+      />,
+    )
+    const load = () => screen.getByRole('button', { name: 'Load a list' })
+    expect(load().textContent).toBe('Load a list')
+    const name = load().getAttribute('aria-labelledby')!.split(' ')
+    expect(name).toHaveLength(1)
+    await user.click(load())
+    expect(option('The Bulger List').getAttribute('aria-selected')).toBe('false')
+    await user.click(option('The Bulger List'))
+    await user.click(load())
+    await user.click(option('The Bulger List'))
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(load().textContent).toBe('Load a list')
+  })
+
   it('opens the one menu, the current value set semibold and no check mark', async () => {
     const { user } = render(<Select />)
     await user.click(field())

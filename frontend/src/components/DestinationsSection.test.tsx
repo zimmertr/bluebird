@@ -380,41 +380,59 @@ describe('DestinationsSection', () => {
     expect(screen.getByText('Search by name, or select a destination from the map.')).toBeTruthy()
   })
 
-  // The question mark beside the subheading opens the lists, and a press
-  // loads one into the box and frames it like a paste (#838, record 0258).
-  describe('the example lists', () => {
+  // Load a list, beside the subheading, is the one menu over the example
+  // lists; a pick puts the list in the box and frames it like a paste (#838,
+  // record 0263).
+  describe('Load a list', () => {
     afterEach(() => vi.unstubAllGlobals())
-    const about = () => screen.getByRole('button', { name: 'About coordinate search' })
+    const field = () => screen.getByRole('button', { name: 'Load a list' })
 
-    it('open and close beside the subheading', () => {
-      render(<DestinationsSection {...props()} />)
-      expect(about().getAttribute('aria-expanded')).toBe('false')
-      expect(screen.queryByRole('button', { name: 'The Bulger List' })).toBeNull()
-      fireEvent.click(about())
-      expect(about().getAttribute('aria-expanded')).toBe('true')
-      expect(screen.getByText('Paste a CSV of coordinate pairs, or load a list:')).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'The Bulger List' })).toBeTruthy()
-      fireEvent.click(about())
-      expect(screen.queryByRole('button', { name: 'The Bulger List' })).toBeNull()
+    it('reads Load a list, and lists every example in the one menu', async () => {
+      const { user } = render(<DestinationsSection {...props()} />)
+      expect(field().getAttribute('aria-haspopup')).toBe('listbox')
+      await user.click(field())
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+        'The Bulger List',
+        'Mountaineers 100 Peaks at Mount Rainier',
+        "Smoot's 100 Peaks",
+        'Alpine Lakes Home Court Top 100',
+      ])
     })
 
-    it('add a pressed list under the rows already there, frame it and hand the keyboard to the box', async () => {
+    it('adds the picked list under the rows already there, frames it, says it arrived and hands the keyboard to the box', async () => {
       vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: '48.7768,-121.8145,Mount Baker' })))
       const setCustomCsv = vi.fn()
       const onCsvPasted = vi.fn()
-      render(
+      const onExampleListFailed = vi.fn()
+      const { user } = render(
         <DestinationsSection
-          {...props({ customCsv: '46.8529,-121.7604,Mount Rainier', setCustomCsv, onCsvPasted })}
+          {...props({ customCsv: '46.8529,-121.7604,Mount Rainier', setCustomCsv, onCsvPasted, onExampleListFailed })}
         />,
       )
-      fireEvent.click(about())
-      fireEvent.click(screen.getByRole('button', { name: 'The Bulger List' }))
+      await user.click(field())
+      await user.click(screen.getByRole('option', { name: 'The Bulger List' }))
       await waitFor(() =>
         expect(setCustomCsv).toHaveBeenCalledWith('46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'),
       )
       expect(onCsvPasted.mock.calls[0][0].map((d: { name: string }) => d.name)).toEqual(['Mount Rainier', 'Mount Baker'])
-      expect(about().getAttribute('aria-expanded')).toBe('false')
+      expect(onExampleListFailed).toHaveBeenCalledWith(false)
+      expect(field().textContent).toBe('Load a list')
       expect(document.activeElement).toBe(coordinates())
+    })
+
+    // A stale tab asks for an old build's name and gets a 404: the box stays
+    // as it was and the Analyze button's list says so.
+    it('leaves the box alone and reports a list that did not arrive', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: 'Not Found' }, 404)))
+      const setCustomCsv = vi.fn()
+      const onExampleListFailed = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ setCustomCsv, onExampleListFailed })} />)
+      await user.click(field())
+      await user.click(screen.getByRole('option', { name: "Smoot's 100 Peaks" }))
+      await waitFor(() => expect(onExampleListFailed).toHaveBeenCalledWith(true))
+      expect(setCustomCsv).not.toHaveBeenCalled()
+      vi.restoreAllMocks()
     })
   })
 

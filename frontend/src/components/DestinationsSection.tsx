@@ -1,13 +1,12 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { CustomDestination, DiscoveryType } from '../types'
 import {
   CHOICE_INPUT,
   CHOICE_ROW,
+  CONTROL_W,
   DISABLED,
   DRAW_ROW,
   FIELD,
-  ICON_BUTTON,
-  LINK_ACTION,
   STATUS,
   TEXT,
 } from '../styles'
@@ -15,8 +14,8 @@ import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import { parseCustomCsv } from '../utils/customDestinations'
-import { EXAMPLE_LISTS, fetchExampleList, withList, type ExampleList } from '../utils/exampleLists'
-import { IconHelp } from './icons'
+import { EXAMPLE_LISTS, fetchExampleList, withList } from '../utils/exampleLists'
+import { MenuSelect } from './Menu'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
 import DrawReadout from './DrawReadout'
@@ -89,6 +88,11 @@ interface Props {
   // A paste landed in the CSV box and parsed to at least one destination —
   // App frames the list on the map. Paste only: typing never moves the camera.
   onCsvPasted: (points: CustomDestination[]) => void
+  // Whether the example list last picked arrived (#838): false on a pick that
+  // lands, true on one that does not, which the Analyze button's list says.
+  onExampleListFailed: (failed: boolean) => void
+  // A phone, where the Load a list field opens the one menu's sheet (record 0252).
+  phone?: boolean
 }
 
 /**
@@ -116,6 +120,8 @@ export default function DestinationsSection({
   setCustomCsv,
   parsedCount,
   onCsvPasted,
+  onExampleListFailed,
+  phone = false,
 }: Props) {
   // True between a paste into the CSV box and the change event it produces —
   // how onChange tells a pasted list (frame it on the map) from typing (leave
@@ -124,21 +130,19 @@ export default function DestinationsSection({
   // true exactly when a change came from a paste — including a paste that
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
-  // The note of example lists beside the subheading (#838). A loaded list
-  // frames the map as a paste does, since it arrives whole rather than typed,
-  // and the note closes behind it with the keyboard handed to the box the
-  // rows just landed in, because the button that was pressed goes with it.
-  const [listsOpen, setListsOpen] = useState(false)
-  const listsId = useId()
+  // A list picked from the field beside the subheading (#838, record 0263).
+  // It frames the map as a paste does, since it arrives whole rather than
+  // typed, and the keyboard goes to the box the rows just landed in.
   const csvBoxRef = useRef<HTMLTextAreaElement>(null)
-  const loadList = async (list: ExampleList) => {
-    const text = await fetchExampleList(list)
+  const loadList = async (url: string) => {
+    const list = EXAMPLE_LISTS.find((l) => l.url === url)
+    const text = list ? await fetchExampleList(list) : null
+    onExampleListFailed(text === null)
     if (text === null) return
     const next = withList(customCsv, text)
     setCustomCsv(next)
     const points = parseCustomCsv(next)
     if (points.length > 0) onCsvPasted(points)
-    setListsOpen(false)
     csvBoxRef.current?.focus()
   }
   // The row's three buttons never unmount; a press that greys the one it
@@ -209,36 +213,24 @@ export default function DestinationsSection({
           bring to the map rather than a gesture on it. Two rows tall at
           rest, so a reader sees that several rows go in, with the format and
           one row that follows it as the placeholder. No helper line; the
-          format states itself. The question mark right after the subheading
-          opens a note of the ready-made lists, each of which loads into the
-          box on a press, so a reader can see a whole list work (#838, record
-          0258). It sits beside the words rather than at the row's edge, where
-          the panel's controls stand, because it is about the heading. */}
+          format states itself. Load a list, in the control column beside the
+          subheading like every other row's control, is the one menu over the
+          ready-made lists (#838, record 0263): a pick puts that list in the
+          box and the field reads Load a list again, since it keeps no choice.
+          A menu rather than the lists written out, because the lists will
+          outgrow a note (the maintainer, 2026-11-03). */}
       <div className="mb-3">
-        <div className="mb-1.5 flex items-center gap-0.5">
-          <h3 className={TEXT.subheading}>Coordinate search</h3>
-          <button
-            type="button"
-            aria-label="About coordinate search"
-            aria-expanded={listsOpen}
-            aria-controls={listsId}
-            onClick={() => setListsOpen((open) => !open)}
-            className={ICON_BUTTON}
-          >
-            <IconHelp />
-          </button>
-        </div>
-        <div id={listsId} hidden={!listsOpen} className={`${TEXT.caption} mb-1.5`}>
-          <p>Paste a CSV of coordinate pairs, or load a list:</p>
-          <ul className="mt-0.5 list-disc pl-4">
-            {EXAMPLE_LISTS.map((list) => (
-              <li key={list.name}>
-                <button type="button" onClick={() => void loadList(list)} className={LINK_ACTION}>
-                  {list.name}
-                </button>
-              </li>
-            ))}
-          </ul>
+        <div className="mb-1.5 flex items-center gap-2">
+          <h3 className={`${TEXT.subheading} flex-1`}>Coordinate search</h3>
+          <MenuSelect
+            label="Load a list"
+            placeholder="Load a list"
+            value=""
+            options={EXAMPLE_LISTS.map((list) => ({ value: list.url, label: list.name }))}
+            onChange={(url) => void loadList(url)}
+            sheet={phone}
+            className={`${CONTROL_W} px-2 py-0.5`}
+          />
         </div>
         <textarea
           ref={csvBoxRef}

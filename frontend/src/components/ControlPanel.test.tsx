@@ -98,6 +98,7 @@ function props(over: Partial<Props> = {}): Props {
     customCsv: '',
     setCustomCsv: noop,
     onCsvPasted: noop,
+    onExampleListFailed: vi.fn(),
     sortBy: DEFAULT_FAMILY_KEY.precip,
     setSortBy: noop,
     sortDesc: false,

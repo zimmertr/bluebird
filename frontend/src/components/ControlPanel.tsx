@@ -49,6 +49,8 @@ interface Props {
   customCsv: string
   setCustomCsv: (s: string) => void
   onCsvPasted: (points: CustomDestination[]) => void
+  /** Whether the example list last picked beside Coordinate search arrived (#838). */
+  onExampleListFailed: (failed: boolean) => void
   sortBy: SortBy
   setSortBy: (s: SortBy) => void
   sortDesc: boolean
@@ -128,6 +130,7 @@ export default function ControlPanel({
   customCsv,
   setCustomCsv,
   onCsvPasted,
+  onExampleListFailed,
   sortBy,
   setSortBy,
   sortDesc,
@@ -259,6 +262,8 @@ export default function ControlPanel({
           setCustomCsv={setCustomCsv}
           parsedCount={customCount}
           onCsvPasted={onCsvPasted}
+          onExampleListFailed={onExampleListFailed}
+          phone={phone}
         />
 
         {/* which model answers, and over which hours. One calendar,

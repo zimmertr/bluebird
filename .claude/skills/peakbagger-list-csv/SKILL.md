@@ -134,7 +134,7 @@ Rainier is `46.851731, -121.760395`.
 
 ### 5. Offer it in the app
 
-The note beside Coordinate search loads every list the app ships (#838). Add the new file to
+The Load a list field beside Coordinate search offers every list the app ships (#838). Add the new file to
 `EXAMPLE_LISTS` in `frontend/src/utils/exampleLists.ts` and to the list test in
 `exampleLists.test.ts` beside it. The name it shows there is a user-facing string, so confirm it
 with the maintainer first.

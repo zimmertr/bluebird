@@ -4,13 +4,20 @@ import rainier from '../csv-examples/mountaineers-100-peaks-at-mount-rainier-np.
 import smoot from '../csv-examples/smoots-climbing-washingtons-mountains-100-peaks.csv?url&no-inline'
 import homeCourt from '../csv-examples/alpine-lakes-home-court-top-100.csv?url&no-inline'
 
-// The ready-made lists the note beside Coordinate search loads into the box
-// (#838), each a hashed asset fetched on the press that asks for it. A fetch
+// The ready-made lists the Load a list field beside Coordinate search puts in
+// the box (#838), each a hashed asset fetched on the pick that asks for it. A fetch
 // rather than a lazy `import()` for `usStatesLoad.ts`'s reason: a stale tab's
 // failed import reloads the page (`staleChunk.ts`), and a list is not worth a
 // reader's drawn ring. `?url&no-inline` because each list sits just under Vite's
 // 4 kB inline limit, which would put all four in the cold load's script as
 // data URLs.
+
+/**
+ * The line the Analyze button's list carries while the last list asked for
+ * did not arrive (#838): a refusal or a dropped connection, which only a
+ * stale tab or an offline reader meets. The map's own failure line's shape.
+ */
+export const EXAMPLE_LIST_FAILED_NOTE = 'The list could not load. Try again later.'
 
 export interface ExampleList {
   name: string
