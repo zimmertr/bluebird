@@ -34,8 +34,7 @@ import {
   SNOW_SOURCE_ID,
   SNOW_TILE_SIZE,
 } from '../../utils/snowDepth'
-import type { MapPoint, PointAnswer, PointReading } from '../../utils/pointReadout'
-import { whenReady } from '../../utils/pointReadout'
+import { whenReady, type MapPoint, type PointAnswer, type PointReading } from '../../utils/pointReadout'
 import { SNOW_HELD_LAYER, readSnowAt, snowPaints, snowTileZoom } from '../../utils/snowPoint'
 
 /**

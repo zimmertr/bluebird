@@ -174,9 +174,9 @@ describe('mountRadar click reading', () => {
     const radar = mountRadar(stubMap({ layers: [SMOKE_FIRST] }).map, { popups, tiles })
     radar.update({ show: true, index: 2 })
     const signal = new AbortController().signal
-    expect((await points[0].refresh!(AT, signal)).section.when).toBe(`${onScreen} min ago`)
+    expect((await points[0].refresh!(AT, signal))?.section.when).toBe(`${onScreen} min ago`)
     radar.update({ show: true, index: 5 })
-    expect((await points[0].refresh!(AT, signal)).section.title).toBe('No radar echo')
+    expect((await points[0].refresh!(AT, signal))?.section.title).toBe('No radar echo')
   })
 
   // The frames load through the scheme that keeps a copy of every tile.
