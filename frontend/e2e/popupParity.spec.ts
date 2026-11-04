@@ -22,6 +22,9 @@ const LOOK = [
   'paddingLeft',
   'borderTopLeftRadius',
   'borderTopWidth',
+  'borderTopColor',
+  'width',
+  'height',
 ] as const
 
 const look = (el: Locator) =>
@@ -82,17 +85,25 @@ for (const theme of ['dark', 'light'] as const) {
     await expect.poll(() => popup.evaluate((el) => getComputedStyle(el).color)).toBe(ink)
 
     // The button looks the way the same class list does in the panel, at rest
-    // and under the pointer, and stands in the middle of its row.
+    // and under the pointer. It stands in the title row, after the name and
+    // left of the ×, as tall as the × and centred on it, with at least 8px
+    // between the two (TJ, 2026-11-04). Polled for the pan, as above.
     const button = popup.getByRole('button', { name: 'Remove from analysis' })
-    const offCentre = await button.evaluate((el) => {
-      const own = el.getBoundingClientRect()
-      const row = el.parentElement!.getBoundingClientRect()
-      return Math.abs(own.left + own.width / 2 - (row.left + row.width / 2))
-    })
-    expect(offCentre).toBeLessThan(1)
-    expect(await button.evaluate((el) => el.getBoundingClientRect().width)).toBeLessThan(
-      await button.evaluate((el) => el.parentElement!.getBoundingClientRect().width),
-    )
+    await expect(button).toHaveText('Remove')
+    const place = () =>
+      button.evaluate((el) => {
+        const own = el.getBoundingClientRect()
+        const close = el.closest('.maplibregl-popup')!.querySelector('.maplibregl-popup-close-button')!.getBoundingClientRect()
+        const title = el.closest('.maplibregl-popup')!.querySelector('strong')!.getBoundingClientRect()
+        return {
+          gap: Math.round(close.left - own.right),
+          height: Math.round(own.height) === Math.round(close.height),
+          centred: Math.abs(own.top + own.height / 2 - (close.top + close.height / 2)) < 1,
+          afterTitle: own.left >= title.right,
+        }
+      })
+    await expect.poll(place).toMatchObject({ height: true, centred: true, afterTitle: true })
+    expect((await place()).gap).toBeGreaterThanOrEqual(8)
     const className = await button.getAttribute('class')
     expect(className).toBeTruthy()
     await page.mouse.move(0, 0)

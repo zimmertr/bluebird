@@ -41,8 +41,11 @@ import {
   METRIC_HEAD_GAP,
   ICON_ACTION,
   ICON_BUTTON,
+  CARD_ACTION,
+  CARD_BODY_END,
   CARD_FOLD,
   CARD_RESIZE,
+  CARD_TITLE_ROW,
   NOTICE,
   NOTICE_DISMISS,
   NOTICE_DIVIDER,
@@ -1419,6 +1422,7 @@ describe('shared recipes', () => {
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['ICON_BUTTON', ICON_BUTTON],
     ['CARD_FOLD', CARD_FOLD],
+    ['CARD_ACTION', CARD_ACTION],
     ['CHIP.label', CHIP.label],
     ['CHIP.remove', CHIP.remove],
   ])('%s composes the keyboard focus ring', (_name, recipe) => {
@@ -1829,6 +1833,60 @@ describe('tap targets', () => {
     )
     expect(CARD_RESIZE).not.toContain(FOCUS_RING)
     expect(grip.filter((w) => /^(?:[\w-]+:)*text-/.test(w))).toEqual([])
+  })
+
+  // The body ends the card since its button moved to the title row (TJ,
+  // 2026-11-04), so it keeps the handle's height clear at its end, at a desk
+  // and under a finger: the handle stands under the last section rather
+  // than over a folded heading's chevron, which the card button lab drew
+  // 4px into it.
+  it("ends a card's body on the resize handle's height", () => {
+    const end = words(CARD_BODY_END)
+    const grip = words(CARD_RESIZE)
+    expect(end).toEqual(['pb-4', 'touch:pb-8'])
+    expect(grip).toEqual(expect.arrayContaining(['h-4', 'touch:h-8']))
+  })
+
+  // The card's title row, its button and the × that MapLibre draws stand at
+  // one height, so the three share a centre line (TJ, 2026-11-04): 22px at a
+  // desk, 32px under a finger, where map.css sizes the × in rem.
+  it('sizes the card title row and its button to the ×', () => {
+    const close = mapCss.match(/\n\.maplibregl-popup-close-button \{[^}]*?width: ([\d.]+)rem;\s*height: ([\d.]+)rem;/)!
+    const touchClose = mapCss.match(/@media \(hover: none\) \{\s*\.maplibregl-popup-close-button \{\s*width: ([\d.]+)rem;\s*height: ([\d.]+)rem;/)!
+    const deskPx = Number(close[2]) * 16
+    const touchPx = Number(touchClose[2]) * 16
+    expect([deskPx, touchPx]).toEqual([22, 32])
+    expect(stepPx(CARD_TITLE_ROW, 'min-h')).toBe(deskPx)
+    expect(words(CARD_TITLE_ROW)).toContain('touch:min-h-8')
+    expect(stepPx(CARD_ACTION, 'h')).toBe(deskPx)
+    expect(words(CARD_ACTION)).toContain('touch:h-8')
+  })
+
+  // The card's one button (TJ, 2026-11-04, the card button lab's treatment
+  // 6): `BUTTON_ACCENT`'s fill, label, hover, type, corners and ring, so it
+  // reads as the panel's button at the ×'s height.
+  it("dresses the card's button as the panel's accent button", () => {
+    const action = words(CARD_ACTION)
+    for (const part of [ACCENT.fill, ACCENT.fillHover, FOCUS_RING, RADIUS.control, 'text-xs'])
+      expect(action).toEqual(expect.arrayContaining(words(part)))
+    expect(action).toEqual(expect.arrayContaining(['border', 'whitespace-nowrap', 'shrink-0', 'justify-center']))
+  })
+
+  // One width for both words, so a press on Add that turns the button into
+  // Remove moves nothing (TJ, 2026-11-04: no flapping between sizes). The
+  // width is Remove's, the wider word, at the button's text-xs in the app's
+  // face, measured in Chrome on macOS 2026-11-04: 44.95px (Add 22.48px).
+  // The button spends 8px a side and its 1px edge; the rest is the word's.
+  it("holds the card button's one width to the wider word", () => {
+    const REMOVE_PX = 44.95
+    const ADD_PX = 22.48
+    const width = stepPx(CARD_ACTION, 'w')
+    const room = width - 2 * stepPx(CARD_ACTION, 'px') - 2
+    expect(width).toBe(64)
+    expect(room).toBeGreaterThanOrEqual(REMOVE_PX)
+    expect(room - REMOVE_PX).toBeLessThan(4)
+    expect(room).toBeGreaterThan(ADD_PX)
+    expect(words(CARD_ACTION).filter((w) => /^(?:[\w-]+:)*(?:min-|max-)?w-/.test(w))).toEqual(['w-16'])
   })
 
   // A drag handle is a strip: only the vertical axis is scarce, and 44px of
@@ -4288,6 +4346,21 @@ describe('the popup card', () => {
   it('dresses its button as the panel\'s accent button and nothing else', () => {
     expect(popupButton('data-x', 'Go')).toBe(`<button data-x class="${BUTTON_ACCENT}">Go</button>`)
     expect(mapCss).not.toMatch(/data-popup-button|--popup-(?:primary|secondary|danger)/)
+  })
+
+  // A card's button stands on the header band, beside the × (TJ,
+  // 2026-11-04). The accent fill reads 2.72:1 off the dark band, under the
+  // 3:1 a control's boundary owes (light clears it at 3.43:1), so the button
+  // wears a 1px edge in the accent ink, which reads past 3:1 on the band in
+  // both themes. Measured 2026-11-04.
+  it("edges the card's button so it reads off the header band in both themes", () => {
+    const edge = `var(--ui-${token(CARD_ACTION, 'border')})`
+    const fill = `var(--ui-${token(CARD_ACTION, 'bg')})`
+    expect(edge).toBe('var(--ui-accent-ink)')
+    expect(fill).toBe('var(--ui-accent)')
+    expect(both(fill, HEADER_BAND_COLOR)).toEqual([2.72, 3.43])
+    expect(both(edge, HEADER_BAND_COLOR)).toEqual([5.69, 4.85])
+    for (const r of both(edge, HEADER_BAND_COLOR)) expect(r).toBeGreaterThanOrEqual(3)
   })
 
   // The × is a raised square (record 0257): its glyph owes 3:1 on its fill

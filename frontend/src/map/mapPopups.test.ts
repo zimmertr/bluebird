@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { POPUP_BODY_ATTR, POPUP_CARD_CLASS } from '../utils/popup/popupChrome'
+import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, RESULT_POPUP_MAX_WIDTH_PX, resultPopupWidth } from '../utils/popup/popupChrome'
 import { BODY_CEILING_SHARE, BODY_FLOOR_SHARE, FIT_MARGIN_PX, POPUP_PAN_MS, figureOf } from '../utils/popup/popupFit'
 
 // MapLibre's Popup needs a DOM. This one records the options it was made with
@@ -617,6 +617,24 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     const fitted = popups.refit(flying, { markerAt: { x: 640, y: 500 }, pan: false })
     expect(fitted).toEqual({ capped: 750, dx: 0, dy: -308, size: { width: 280, height: 790 } })
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+  })
+
+  // A card is as wide as its widest line (TJ, 2026-11-04): the ranked cap is
+  // its ceiling, the map less 10px a side where the map is narrower, and no
+  // width is set on it until a reader chooses one, so MapLibre's popup
+  // shrinks to what it holds and the fit measures the box it drew.
+  it('caps a card at the ranked width and leaves its width to its lines', () => {
+    const { popups } = mount(1280, 1000, { x: 640, y: 500 })
+    const { content } = standCard(40, 200)
+    popups.openCard([0, 0], '<p>card</p>', { owner: 'poi', result: true })
+    expect(made[0].options.maxWidth).toBe(`${RESULT_POPUP_MAX_WIDTH_PX}px`)
+    expect(made[0].maxWidth).toBeUndefined()
+    expect(content.style.width).toBeUndefined()
+    const narrow = mount(360, 740, { x: 180, y: 370 })
+    standCard(40, 200)
+    narrow.popups.openCard([0, 0], '<p>card</p>', { owner: 'poi', result: true })
+    expect(made[0].options.maxWidth).toBe(resultPopupWidth(360))
+    expect(resultPopupWidth(360)).toBe('340px')
   })
 
   it('says the bounds a drag sizes a card between, and sizes one to them', () => {

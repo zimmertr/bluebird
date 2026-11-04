@@ -230,6 +230,9 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `ICON_CLOSE_BUTTON` | `ICON_BUTTON` for a × with free room around it, the tutorial card's and the search's clear: a 44px press under a finger through a pseudo-element, without growing the glyph |
 | `CARD_FOLD` | The chevron that folds each section of a card on the map (#832): a 24px box at the section's right edge, 32px under a finger, with the control radius for its focus ring. It names no colour: its ink is the popup's glyph grey, set in the card's markup, and it takes the accent under the pointer through `data-popup-glyph` in `map.css`, as the band's link-out glyph does (record [0266](decisions/0266-every-card-is-a-stack-of-foldable-layer-sections.md)) |
 | `CARD_RESIZE` | The handle in a card's bottom-right corner that a pointer or a finger drags to size the card (#832): a 16px box with the grip 2px in from both edges, 32px under a finger, a phone control's size. No focus ring, since it is pointer-only and never focused. Like `CARD_FOLD` it names no colour: its grip wears the popup's glyph grey and takes the accent under the pointer through `data-popup-glyph`, 5.56:1 and 6.71:1 on the dark card, 8.34:1 and 5.74:1 on the light (record [0270](decisions/0270-a-card-body-between-a-quarter-and-three-quarters-and-a-resize-handle.md)) |
+| `CARD_ACTION` | A card's one button, **Add** or **Remove**, in its title row left of the × (2026-11-04): `BUTTON_ACCENT`'s fill, label, type, corners, hover and ring at the ×'s 22px, 32px under a finger. One width, 64px, for both words: `Remove` measures 44.95px at 12px on a Mac, plus 8px a side and the edge, so a press that turns **Add** into **Remove** moves nothing. The accent fill reads 2.72:1 off the dark header band and 3.43:1 off the light one, so it wears a 1px edge in the accent ink, 5.69:1 and 4.85:1 (record [0266](decisions/0266-every-card-is-a-stack-of-foldable-layer-sections.md)) |
+| `CARD_TITLE_ROW` | A card's title row, at least the ×'s height, 22px at a desk and 32px under a finger, so the title, the button and the × share a centre line |
+| `CARD_BODY_END` | The bottom padding of a card's body, as tall as `CARD_RESIZE`'s box at a desk and under a finger, so the handle stands under the last section and never over a folded heading's chevron |
 | `ICON_ACTION` | Icon that acts on hover |
 | `SPINNER` | Indeterminate spinner |
 | `TABLE.cell` | Results table cell inset |
@@ -388,9 +391,14 @@ a grid number in its cell's colour, the coordinates in the facts line's grey. It
 underlines on hover and keyboard focus at a desk, and on a touch screen it
 wears a thin underline at rest in the label grey (`[data-popup-link]` in
 `map.css`), as the table's links do (`LINK_QUIET`, record [0212](decisions/0212-links-underline-on-hover-and-touch.md)).
-A card's one action, Add to analysis, Remove from analysis or ✕ Remove point,
-is `BUTTON_ACCENT` itself, worn as its class list: a popup is in the same
-document as the panel, and Tailwind emits a class for any name in the source.
+A bare popup's one action, ✕ Remove point, is `BUTTON_ACCENT` itself, worn as
+its class list: a popup is in the same document as the panel, and Tailwind
+emits a class for any name in the source. A card's one action, **Add** or
+**Remove**, stands in its title row left of the × and wears `CARD_ACTION`,
+the same fill, label, type, corners, hover and ring at the ×'s height, one
+width for both words, with a 1px edge in the accent ink so it reads off the
+dark header band. Its name for a screen reader is the whole phrase, Add to
+analysis or Remove from analysis (record [0266](decisions/0266-every-card-is-a-stack-of-foldable-layer-sections.md)).
 `styles.test.ts` fails a `--popup-*` value that is not a token and measures
 every pair in both themes; `popupParity.spec.ts` reads the rendered card and
 button against the panel's in a browser. Record: [0163](decisions/0163-popups-follow-the-theme.md) Record: [0215](decisions/0215-popup-is-the-panel.md)

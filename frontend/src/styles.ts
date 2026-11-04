@@ -1089,6 +1089,50 @@ export const CARD_RESIZE =
   'absolute bottom-0 right-0 flex h-4 w-4 items-end justify-end p-0.5 cursor-nwse-resize touch-none select-none transition-colors touch:h-8 touch:w-8'
 
 /**
+ * The bottom of a card's body, which ends the card since its action moved to
+ * the title row (TJ, 2026-11-04): as tall as `CARD_RESIZE`'s box, at a desk
+ * and under a finger, so the handle in the corner stands below the last
+ * section rather than over a folded heading's chevron or a grid's last
+ * number. Its own role so the two heights are spelled side by side and
+ * `styles.test.ts` holds them equal.
+ */
+export const CARD_BODY_END = 'pb-4 touch:pb-8'
+
+/**
+ * A card's title row, at least as tall as the × MapLibre stands in its corner
+ * (`map.css`: 1.375rem at a desk, 2rem under a finger), so the title, the
+ * card's one button and the × share a centre line (TJ, 2026-11-04). The band
+ * starts the row at the ×'s own 0.375rem inset for the same reason.
+ */
+export const CARD_TITLE_ROW = 'min-h-5.5 touch:min-h-8'
+
+/**
+ * A card's one action, `Add` or `Remove`, in its title row left of the ×
+ * (TJ, 2026-11-04, the card button lab's treatment 6), where it was a foot of
+ * its own under the body. `BUTTON_ACCENT`'s look, its fill, label, type,
+ * corners, hover and ring, at the ×'s height rather than the panel button's
+ * 28px, so the row does not grow at a desk; 32px under a finger, every phone
+ * control's (record 0223).
+ *
+ * One width for both words: `Remove`'s, measured, with 8px a side and the
+ * edge (`w-16`, 64px; `styles.test.ts` holds it to the word). A press on
+ * `Add` turns the card pending and its button into `Remove`, and two widths
+ * would move the title's ellipsis under the reader's pointer (TJ,
+ * 2026-11-04: no flapping between sizes).
+ *
+ * The 1px edge is the accent ink, because the fill alone reads 2.72:1 off
+ * the dark header band it stands on, under the 3:1 a control's boundary
+ * owes (light passes at 3.43:1; measured 2026-11-04); the accent ink reads
+ * 5.69:1 and 4.85:1 on that band, the ratios the band's link-out glyph
+ * lights to. Spelled here
+ * rather than composed from `BUTTON_ACCENT`, whose padding and tap target
+ * would race these by stylesheet order.
+ */
+export const CARD_ACTION =
+  `flex h-5.5 w-16 shrink-0 items-center justify-center whitespace-nowrap border border-accent-ink px-2 text-xs ` +
+  `${RADIUS.control} transition-colors ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING} touch:h-8`
+
+/**
  * A bare × with free room around it, the tutorial card's and the search
  * field's, and a 44px press on a coarse pointer: an invisible box 10px
  * either side of the 24 by 16 button and 14px above and below it, the way

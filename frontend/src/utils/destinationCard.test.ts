@@ -24,8 +24,8 @@ import {
   POPUP_TINT_ATTR,
   colorSwatch,
   escapeHtml,
+  cardButton,
   pendingValue,
-  popupButton,
   row as valueRow,
   sectionHeading,
   updatedAt,
@@ -41,12 +41,9 @@ import {
   GRID_INSET_PX,
   GRID_RANKED_COLOR,
   HEADER_BAND_COLOR,
-  HEADER_EDGE_COLOR,
   INK_COLOR,
   LABEL_COLOR,
-  SECTION_EDGE,
   SECTION_GAP,
-  SECTION_PAD_Y,
   WARNING_BAND_COLOR,
   WARNING_COLOR,
 } from './popup/popupChrome'
@@ -57,6 +54,12 @@ import { resultRow, series } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'
 import outlines from './usStateOutlines.json'
 import { decodeUsStates, type UsStateOutlines } from './usStates'
+
+// A card's one button in its title row, after the name and its link, where
+// it stood in a foot under the body until 2026-11-04 (TJ, the lab's
+// treatment 6). The row holds no `</div>` until it ends.
+const inTitleRow = (action: 'add' | 'remove') =>
+  new RegExp(`<strong[^>]*>(?:(?!</div>).)*</strong>(?:(?!</div>).)*<button type="button" ${CARD_ACTION_ATTR}="${action}"`)
 
 // Each subject's card, spelled the way a test reads it.
 const rankedHtml = ({ rank, row, ...view }: { rank: number | string; row: DestinationResult } & CardView) =>
@@ -164,37 +167,27 @@ describe('a ranked card: remove', () => {
     expect(rankedHtml(base)).not.toContain(CARD_ACTION_ATTR)
   })
 
-  it('offers the clicked feature\'s remove, centred under the numbers', () => {
+  it('offers the clicked feature\'s remove, in its title row', () => {
     const html = rankedHtml({ ...base, removable: true })
-    const button = html.match(new RegExp(`<button ${CARD_ACTION_ATTR}="remove"[^>]*>([^<]*)</button>`))
-    expect(button?.[1]).toBe('Remove from analysis')
-    // The same look as the clicked feature's remove: only the attribute differs.
+    expect(html).toContain(cardButton(`${CARD_ACTION_ATTR}="remove"`, 'Remove', 'Remove from analysis'))
+    // The same button as the clicked feature's remove, word, name and look.
     const poi = labelHtml({ name: 'Mount Rainier', lat: 46.85, lon: -121.76, kind: 'peak' }, true)
-    const poiButton = poi.match(new RegExp(`<button ${CARD_ACTION_ATTR}="remove"([^>]*)>`))![1]
-    expect(button![0]).toContain(poiButton)
-    // On a line of its own at the foot of the card, after the body the scroll
-    // cap shortens rather than inside it, so a capped card keeps it in view,
-    // with only the resize handle after it, over the foot's corner.
-    expect(html).toMatch(
-      new RegExp(`<div style="padding:8px 10px;border-top:1px solid ${escapeRegExp(HEADER_EDGE_COLOR)}"><div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div><span ${CARD_RESIZE_ATTR}[^>]*><svg[^>]*>(?:<line [^>]*/>)+</svg></span>\\s*</div>$`),
-    )
-    expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(CARD_ACTION_ATTR))
+    expect(poi).toContain(cardButton(`${CARD_ACTION_ATTR}="remove"`, 'Remove', 'Remove from analysis'))
+    // Beside the name, left of the ×, ahead of the body, so a capped card
+    // keeps it in view with its name (TJ, 2026-11-04).
+    expect(html).toMatch(inTitleRow('remove'))
+    expect(html.indexOf(CARD_ACTION_ATTR)).toBeLessThan(html.indexOf(POPUP_BODY_ATTR))
   })
 
-  // A part of its own (#696): ruled off from the sections by the header's
-  // edge, on the narrow map's compact grid and the full one alike. It is the
-  // one rule under the band, since the sections part on their own bands
-  // (TJ, 2026-11-03).
-  it('rules the remove off from the sections, at both widths', () => {
+  // The foot that held it is gone, on the narrow map's compact grid and the
+  // full one alike: nothing under the band is ruled off, and the card ends
+  // on its body and the resize handle.
+  it('rules nothing off under the sections, at both widths', () => {
     for (const compact of [false, true]) {
       const html = rankedHtml({ ...base, compact, removable: true, sections: [FIRE] })
-      const action = html.match(new RegExp(`<div style="padding:(\\d+px) 10px;border-top:([^"]+)"><div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}`))!
-      expect(action[2]).toBe(SECTION_EDGE)
-      expect(action[1]).toBe(SECTION_PAD_Y)
-      expect(html.match(/border-top:/g)).toHaveLength(1)
+      expect(html).not.toContain('border-top:')
+      expect(html).toMatch(new RegExp(`</table>.*</div></div><span ${CARD_RESIZE_ATTR}[^>]*><svg[^>]*>(?:<line [^>]*/>)+</svg></span>\\s*</div>$`, 's'))
     }
-    // No remove, no rule under the grid.
-    expect(rankedHtml({ ...base })).not.toContain('border-top:')
   })
 })
 
@@ -549,17 +542,17 @@ describe('a pending card', () => {
   it('offers the remove on every pending destination, as its table row does', () => {
     for (const source of ['search', 'csv', 'polygon'] as const) {
       expect(pendingHtml({ pending: { ...at, source } })).toContain(
-        popupButton(`${CARD_ACTION_ATTR}="remove"`, 'Remove from analysis'),
+        cardButton(`${CARD_ACTION_ATTR}="remove"`, 'Remove', 'Remove from analysis'),
       )
     }
   })
 
-  // With nothing under the band, the button stands alone in the body, centred
-  // (record 0139), where a foot's rule would draw a second line under the first.
-  it('centres the lone button in the body', () => {
-    expect(pendingHtml({ pending: { ...at, source: 'csv' } })).toMatch(
-      new RegExp(`<div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}="remove"`),
-    )
+  // With nothing under the band, the card is its band alone, the button in
+  // its title row as on every card (TJ, 2026-11-04).
+  it('keeps the button in the title row with nothing under the band', () => {
+    const html = pendingHtml({ pending: { ...at, source: 'csv' } })
+    expect(html).toMatch(inTitleRow('remove'))
+    expect(html).not.toContain(POPUP_BODY_ATTR)
   })
 
   // A pasted or clicked spot is named by its pair, which stood as the title
@@ -623,23 +616,28 @@ describe('a label card', () => {
   })
 
   // The add and the remove are one button, the panel's accent (#786, record
-  // 0215), so the two states of one place say "in" and "out" in one look.
-  it('dresses both its buttons as the one popup button', () => {
-    expect(labelHtml(RAINIER, false)).toContain(popupButton(`${CARD_ACTION_ATTR}="add"`, 'Add to analysis'))
-    expect(labelHtml(RAINIER, true)).toContain(popupButton(`${CARD_ACTION_ATTR}="remove"`, 'Remove from analysis'))
+  // 0215), so the two states of one place say "in" and "out" in one look:
+  // `Add` and `Remove` on its face, the whole phrase its name for a screen
+  // reader (TJ, 2026-11-04).
+  it('dresses both its buttons as the one card button, a word named by its phrase', () => {
+    expect(labelHtml(RAINIER, false)).toContain(cardButton(`${CARD_ACTION_ATTR}="add"`, 'Add', 'Add to analysis'))
+    expect(labelHtml(RAINIER, true)).toContain(cardButton(`${CARD_ACTION_ATTR}="remove"`, 'Remove', 'Remove from analysis'))
+    expect(labelHtml(RAINIER, false)).toMatch(/aria-label="Add to analysis"[^>]*>Add<\/button>/)
+    expect(labelHtml(RAINIER, true)).toMatch(/aria-label="Remove from analysis"[^>]*>Remove<\/button>/)
   })
 
   // The result card's own dress (TJ, 2026-10-14): the header band in place of
-  // a rule, the link out beside the name, and the facts on the band above the
-  // body, which holds the button alone, centred.
-  it('wears the result card, band and all, with the button centred in the body', () => {
+  // a rule, the link out beside the name, and the facts on the band. The
+  // button stands in the title row (TJ, 2026-11-04), so a label with no layer
+  // at its point is its band alone.
+  it('wears the result card, band and all, with the button beside the name', () => {
     const html = labelHtml(RAINIER, false)
     expect(html).toContain(HEADER_BAND_COLOR)
     expect(html).not.toContain('<hr')
     expect(html).toContain('peakbagger.com')
-    expect(html.indexOf('46.85290, -121.76040')).toBeLessThan(html.indexOf(POPUP_BODY_ATTR))
-    expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(`${CARD_ACTION_ATTR}="add"`))
-    expect(html).toMatch(new RegExp(`<div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}="add"`))
+    expect(html).toMatch(inTitleRow('add'))
+    expect(html.indexOf(`${CARD_ACTION_ATTR}="add"`)).toBeLessThan(html.indexOf('46.85290, -121.76040'))
+    expect(html).not.toContain(POPUP_BODY_ATTR)
   })
 
   // A latitude and a longitude are one value in two halves; breaking between
@@ -726,9 +724,9 @@ describe('a spot card', () => {
   })
 
   it('offers to add the point, and once added to take it back out', () => {
-    expect(spotHtml(48.79012, -121.83211, [])).toContain(popupButton(`${CARD_ACTION_ATTR}="add"`, 'Add to analysis'))
+    expect(spotHtml(48.79012, -121.83211, [])).toContain(cardButton(`${CARD_ACTION_ATTR}="add"`, 'Add', 'Add to analysis'))
     expect(spotHtml(48.79012, -121.83211, [], { added: true })).toContain(
-      popupButton(`${CARD_ACTION_ATTR}="remove"`, 'Remove from analysis'),
+      cardButton(`${CARD_ACTION_ATTR}="remove"`, 'Remove', 'Remove from analysis'),
     )
   })
 
@@ -813,8 +811,8 @@ describe("a spot card's sections", () => {
     expect(body(html)).toMatch(/Rain radar: Light precipitation .* NEXRAD radar: 10 min ago .*Snow depth: Very deep snow .* NOAA snow analysis: Oct 16, 2026, 5:00 AM/)
     expect(html.match(gap)).toHaveLength(1)
     expect(spotHtml(48.79012, -121.83211, [rain]).match(gap)).toBeNull()
-    // The one rule left is the action foot's, under the body.
-    expect(html.match(/border-top:/g)).toHaveLength(1)
+    // No rule under the band: the action's foot that wore one is gone.
+    expect(html).not.toContain('border-top:')
   })
 
   // A section that holds a failure has no time to give.
@@ -823,12 +821,12 @@ describe("a spot card's sections", () => {
     expect(html).not.toContain('NEXRAD radar:')
   })
 
-  // The section has its body, so the button is ruled off in a foot of its
-  // own after it (#696), as a ranked card's is.
-  it('puts the button in the foot under the sections', () => {
+  // The button stands in the title row whatever is under the band (TJ,
+  // 2026-11-04), as a ranked card's does.
+  it('puts the button in the title row, ahead of the sections', () => {
     const html = spotHtml(48.79012, -121.83211, [rain])
-    expect(html.indexOf('NEXRAD radar: 10 min ago')).toBeLessThan(html.indexOf(`${CARD_ACTION_ATTR}="add"`))
-    expect(html).toMatch(new RegExp(`border-top:[^"]+"><div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}="add"`))
+    expect(html.indexOf(`${CARD_ACTION_ATTR}="add"`)).toBeLessThan(html.indexOf('NEXRAD radar: 10 min ago'))
+    expect(html).toMatch(inTitleRow('add'))
   })
 
   // A section the forecast player renames keeps its card one width (#752).
@@ -865,8 +863,7 @@ describe("a card's sections", () => {
   it('parts every section after the first by a gap, and rules none off', () => {
     expect(pendingWith([FIRE]).match(LATER)).toBeNull()
     expect(pendingWith([FIRE, CLOSURE, RADAR]).match(LATER)).toHaveLength(2)
-    // The one rule left is the action foot's, under the body.
-    expect(pendingWith([FIRE, CLOSURE, RADAR]).match(/border-top:/g)).toHaveLength(1)
+    expect(pendingWith([FIRE, CLOSURE, RADAR])).not.toContain('border-top:')
   })
 
   // A fire and a closure are warnings: the amber band and the table's own
@@ -1008,13 +1005,13 @@ describe("a ranked card's forecast section", () => {
   })
 
   // With no column to show there is no forecast to section, and with no
-  // layer either the button stands alone, centred in the body (record 0139).
-  it('draws no section without a column, and stands the lone button', () => {
+  // layer either the card is its band, the button in its title row.
+  it('draws no section without a column, and keeps the button in the title row', () => {
     const html = rankedHtml({ rank: 1, row, removable: true })
     expect(html).not.toContain('Forecast')
     expect(html).not.toContain(CARD_FOLD_ATTR)
-    expect(html).not.toContain('border-top:')
-    expect(html).toMatch(new RegExp(`<div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}="remove"`))
+    expect(html).not.toContain(POPUP_BODY_ATTR)
+    expect(html).toMatch(inTitleRow('remove'))
   })
 
   it('stands the layers alone without a column', () => {
@@ -1059,6 +1056,41 @@ describe('sectionOpen', () => {
     expect(sectionOpen(ranked, 'smoke', folds)).toBe(false)
     expect(sectionOpen(others[2], 'radar', folds)).toBe(false)
     expect(sectionOpen(others[2], 'snow', folds)).toBe(true)
+  })
+
+  // On a phone every section but the forecast opens folded, on every card,
+  // before and after an analysis, a warning's too (TJ, 2026-11-04).
+  it('folds every section but the forecast on a phone, warnings included', () => {
+    expect(sectionOpen(ranked, FORECAST_SECTION, undefined, false, true)).toBe(true)
+    for (const subject of [ranked, ...others]) {
+      for (const key of ['fire', 'fire-activity', 'closure-area', 'closure-trail']) expect(sectionOpen(subject, key, undefined, true, true)).toBe(false)
+      for (const key of ['smoke', 'radar', 'snow']) expect(sectionOpen(subject, key, undefined, false, true)).toBe(false)
+    }
+  })
+
+  it("lets the reader's choice win on a phone too", () => {
+    const folds = new Map([
+      ['fire', true],
+      [FORECAST_SECTION, false],
+    ])
+    expect(sectionOpen(others[1], 'fire', folds, true, true)).toBe(true)
+    expect(sectionOpen(ranked, FORECAST_SECTION, folds, false, true)).toBe(false)
+    expect(sectionOpen(ranked, 'smoke', folds, false, true)).toBe(false)
+  })
+
+  // The card draws what `sectionOpen` says: a phone's label card stands its
+  // fire folded to its heading, and a phone's ranked card its forecast open.
+  it('draws a phone card with only its forecast open', () => {
+    const label = destinationPopupHtml({ kind: 'label', poi: RAINIER }, { sections: [FIRE], phone: true })
+    expect(label).toMatch(new RegExp(`${CARD_FOLD_ATTR}="fire"[^>]*aria-expanded="false"`))
+    expect(destinationPopupHtml({ kind: 'label', poi: RAINIER }, { sections: [FIRE] })).toContain('aria-expanded="true"')
+    const html = destinationPopupHtml(
+      { kind: 'ranked', row, rank: 1 },
+      { columns: displayedColumns(false, 'aqi_avg'), sections: [FIRE], phone: true },
+    )
+    expect(html).toMatch(new RegExp(`${CARD_FOLD_ATTR}="${FORECAST_SECTION}"[^>]*aria-expanded="true"`))
+    expect(html).toMatch(new RegExp(`${CARD_FOLD_ATTR}="fire"[^>]*aria-expanded="false"`))
+    expect(html).toContain('</table>')
   })
 })
 

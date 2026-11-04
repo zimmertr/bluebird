@@ -30,7 +30,8 @@
  * Each section is its name, its rows and its fine print, and each folds on
  * its chevron: before an analysis every section stands open, and on a ranked
  * card only the forecast does, the hazards folded to their names, since the
- * grid is what the marker was clicked for. A fold the reader makes holds on
+ * grid is what the marker was clicked for; on a phone every card opens with
+ * only the forecast open (TJ, 2026-11-04). A fold the reader makes holds on
  * every card for the session (`map/destinationCards.ts` keeps the choices).
  * The sections used to be the overlays' own cards, one per shape, so a click
  * on a hotspot said nothing about the rain under it; now a hotspot over snow
@@ -49,6 +50,7 @@ import { coordinateLabel } from './points'
 import { type GroundState, slopeFact } from './popup/groundFact'
 import {
   bodyLines,
+  cardButton,
   cardSection,
   cardSections,
   escapeHtml,
@@ -58,8 +60,6 @@ import {
   metaBand,
   metricGrid,
   pendingValue,
-  popupAction,
-  popupButton,
   popupCard,
   updatedAt,
   updatedLine,
@@ -86,6 +86,15 @@ export type CardSubject =
 export const CARD_ACTION_ATTR = 'data-card-action'
 export type CardAction = 'add' | 'remove'
 
+/**
+ * What the card's button says, beside the × in its title row (TJ,
+ * 2026-11-04): a word, since beside a card's name the object is the place
+ * the card is about. The button's name for a screen reader is the whole
+ * phrase (`CARD_ACTION_LABEL`), which hears the button apart from the title.
+ */
+const CARD_ACTION_WORD: Record<CardAction, string> = { add: 'Add', remove: 'Remove' }
+const CARD_ACTION_LABEL: Record<CardAction, string> = { add: 'Add to analysis', remove: 'Remove from analysis' }
+
 /** What the map knows when it draws a card, every part optional. */
 export interface CardView {
   /** The map's zoom, which the coordinates' CalTopo link carries (#712). */
@@ -107,6 +116,8 @@ export interface CardView {
   sections?: readonly PointSection[]
   /** Each section the reader folded or opened by hand, by its key, which overrides the default. */
   folds?: ReadonlyMap<string, boolean>
+  /** Whether the map is a phone's, where every section but the forecast opens folded (`sectionOpen`). */
+  phone?: boolean
   /** When the report was analyzed, which the forecast section's fine print says. */
   analyzedAtMs?: number | null
   /** The model the numbers came from and the report's hours, for the Windy links. */
@@ -285,10 +296,23 @@ const FORECAST_HEADING = 'Forecast'
  * a hotspot or a closure at the point) with the rest folded to their names
  * (TJ, 2026-11-03). The grid is what a marker is clicked for, and a reason
  * to stay away is worth reading before it.
+ *
+ * On a phone every section but the forecast opens folded, on every card,
+ * before and after an analysis, a warning's too (TJ, 2026-11-04), so a card
+ * on a phone's small map opens as its headings and the forecast; a folded
+ * heading still names what is at the point, a warning's mark with it. The
+ * reader's own fold still wins.
  */
-export function sectionOpen(s: CardSubject, key: string, folds?: ReadonlyMap<string, boolean>, warning = false): boolean {
+export function sectionOpen(
+  s: CardSubject,
+  key: string,
+  folds?: ReadonlyMap<string, boolean>,
+  warning = false,
+  phone = false,
+): boolean {
   const chosen = folds?.get(key)
   if (chosen !== undefined) return chosen
+  if (phone) return key === FORECAST_SECTION
   return s.kind !== 'ranked' || key === FORECAST_SECTION || warning
 }
 
@@ -326,7 +350,7 @@ function forecastSection(s: Extract<CardSubject, { kind: 'ranked' }>, view: Card
     key: FORECAST_SECTION,
     layer: FORECAST_HEADING,
     ...(model ? { name: escapeHtml(model) } : {}),
-    open: sectionOpen(s, FORECAST_SECTION, view.folds),
+    open: sectionOpen(s, FORECAST_SECTION, view.folds, false, view.phone),
     body: grid + (analyzed ? bodyLines([updatedLine(escapeHtml(analyzed), ANALYZED)]) : ''),
   })
 }
@@ -363,7 +387,7 @@ function layerSection(s: CardSubject, section: PointSection, view: CardView): st
     name,
     warning: section.warning,
     link: section.link,
-    open: sectionOpen(s, section.kind, view.folds, section.warning),
+    open: sectionOpen(s, section.kind, view.folds, section.warning, view.phone),
     body: bodyLines([
       section.warn === undefined ? null : warningLine(section.warn, null),
       ...section.rows,
@@ -381,12 +405,7 @@ function layerSection(s: CardSubject, section: PointSection, view: CardView): st
  */
 export function destinationPopupHtml(s: CardSubject, view: CardView = {}): string {
   const action = cardAction(s, view)
-  const button =
-    action === 'remove'
-      ? popupButton(`${CARD_ACTION_ATTR}="remove"`, 'Remove from analysis')
-      : action === 'add'
-        ? popupButton(`${CARD_ACTION_ATTR}="add"`, 'Add to analysis')
-        : ''
+  const button = action ? cardButton(`${CARD_ACTION_ATTR}="${action}"`, CARD_ACTION_WORD[action], CARD_ACTION_LABEL[action]) : ''
   const at = subjectPoint(s)
   const forecast = s.kind === 'ranked' ? forecastSection(s, view) : null
   const header =
@@ -400,15 +419,7 @@ export function destinationPopupHtml(s: CardSubject, view: CardView = {}): strin
   const sections = [...(view.sections ?? []).map((section) => layerSection(s, section, view)), forecast].filter(
     (part): part is string => part !== null,
   )
-  const body = cardSections(sections)
-  // A card with something under its band rules its button off in a foot of
-  // its own (#696), or it reads as one more row; a card with nothing else
-  // stands the button alone and centred in the body, under the band's edge,
-  // where a foot's rule would draw a second line under the first (record 0139).
-  const lone = !body
-  return popupCard({
-    ...header,
-    body: lone && button ? popupAction(button) : body,
-    action: lone ? '' : button,
-  })
+  // The button stands in the title row whatever is under the band (TJ,
+  // 2026-11-04), so a card with no section is its band alone.
+  return popupCard({ ...header, body: cardSections(sections), action: button })
 }

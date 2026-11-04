@@ -232,6 +232,12 @@ test.describe('on a phone', () => {
     await expect
       .poll(() => popups.locator('[data-card-fold]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label'))))
       .toEqual(['Trail closure', 'Area closure'])
+    // On a phone every section but a forecast opens folded, warnings too
+    // (TJ, 2026-11-04): the headings name what is at the point.
+    expect(await popups.locator('[data-card-fold]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-expanded')))).toEqual([
+      'false',
+      'false',
+    ])
   })
 
   // A card is placed as every card is (#738): a tap just under the chip rows

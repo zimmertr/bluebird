@@ -1,6 +1,6 @@
 // The shared chrome of every map popup: the card (`popupCard`), its header
-// band with the title, link-out glyph and facts line, and the sections and
-// the action below it.
+// band with the title, link-out glyph, the card's one button and the facts
+// line, and the sections below it.
 //
 // Every popup that describes a thing wears it: a ranked result, a clicked
 // basemap feature, a fire, a closure and a smoke plume (#738). They had
@@ -24,7 +24,7 @@
 // the popup bodies that compose it, because a string module is unit-testable
 // without pulling maplibre-gl into a node test.
 import { chevronMarkup, externalLinkMarkup, gripMarkup } from '../../iconPaths'
-import { BUTTON_ACCENT, CARD_FOLD, CARD_RESIZE } from '../../styles'
+import { BUTTON_ACCENT, CARD_ACTION, CARD_BODY_END, CARD_FOLD, CARD_RESIZE, CARD_TITLE_ROW } from '../../styles'
 import { AGGREGATE, SEP } from '../../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
 import { clamp, isFiniteNumber } from '../numbers'
@@ -295,17 +295,27 @@ export function ageAgo(ageMs: number): string {
 }
 
 /**
- * A popup's one action, the add, the remove or a ring's remove-point: the
- * panel's own `BUTTON_ACCENT`, worn as its class list (#786, record 0215), so
- * its fill, label, corners, size and hover are the app's button's in both
- * themes rather than a copy of them, which would be free to drift. One look
- * for all three, because a card has one action and the app marks every
- * command in the accent. `attr` is the
- * attribute the map handler finds the button by, written whole (`data-rm`, or
- * `data-card-action="add"`).
+ * A bare popup's one action, a ring's remove-point: the panel's own
+ * `BUTTON_ACCENT`, worn as its class list (#786, record 0215), so its fill,
+ * label, corners, size and hover are the app's button's in both themes rather
+ * than a copy of them, which would be free to drift. `attr` is the attribute
+ * the map handler finds the button by, written whole (`data-rm`).
  */
 export function popupButton(attr: string, label: string): string {
   return `<button ${attr} class="${BUTTON_ACCENT}">${label}</button>`
+}
+
+/**
+ * A card's one action, for `popupCard`'s title row (TJ, 2026-11-04): the
+ * short word on the button, `Add` or `Remove`, and the whole phrase as its
+ * name, `Add to analysis`, since a screen reader hears the button apart from
+ * the title the word leans on. `CARD_ACTION` is `BUTTON_ACCENT`'s look at the
+ * ×'s height and one width for both words. `attr` is the attribute the map
+ * finds it by, written whole (`data-card-action="add"`); the word and the
+ * name are the app's own strings.
+ */
+export function cardButton(attr: string, word: string, label: string): string {
+  return `<button type="button" ${attr} aria-label="${label}" class="${CARD_ACTION}">${word}</button>`
 }
 
 /**
@@ -857,14 +867,19 @@ export const POPUP_MAX_WIDTH_PX = 280
  * a three-digit one, or a map narrower still, scrolls sideways, which TJ
  * accepted for narrow phones. A desktop card shrinks to its grid, so the cap
  * is reached only by a card with the widest numbers.
+ *
+ * It is every card's ceiling, not its width (TJ, 2026-11-04): a spot, label
+ * or pending card shrinks to its widest line, its title row, facts or a
+ * section's heading, and only a heading longer than the cap is cut with its
+ * ellipsis (`popupCard`).
  */
 export const RESULT_POPUP_MAX_WIDTH_PX = 381
 
 /**
  * The narrowest any card on the map is, whatever the map's width, and the
  * narrowest a reader's drag on the resize handle takes one (#832, TJ
- * 2026-11-03): the facts line's coordinates and the action's button still
- * stand on one line at it.
+ * 2026-11-03): the facts line's coordinates still stand on one line at it,
+ * and the title row keeps its button and the start of the name.
  */
 export const POPUP_MIN_WIDTH_PX = 180
 
@@ -939,19 +954,19 @@ export interface PopupCard {
   meta?: string
   /** The details: the card's sections (`cardSections` of `cardSection`), each on its own band. */
   body?: string
-  /** One button, in a section of its own under the body. */
+  /** One button (`cardButton`), at the end of the title row, left of the ×. */
   action?: string
 }
 
 /**
  * A card: the name and its facts on a slate band, shadowed onto the parts
  * below it, so what a thing IS reads apart from what is said about it (TJ,
- * 2026-10-08). Three parts, each but the band optional (#738):
+ * 2026-10-08). Two parts, the body optional (#738):
  *
- * 1. The header band: the title and its link-out glyph, and the facts line.
+ * 1. The header band: the title, its link-out glyph and the card's one
+ *    button in one row, and the facts line.
  * 2. The body: the card's sections, a layer's reading or a destination's grid
  *    each (`cardSection`, #832).
- * 3. The action: one centred button.
  *
  * Every popup that describes a thing wears it. A ranked result and a clicked
  * basemap feature did first (#712: one mountain, one card, before and after an
@@ -974,35 +989,58 @@ export interface PopupCard {
  * The card draws its own padding (`map.css` zeroes MapLibre's for
  * `.popup-card`), so the band can run edge to edge and the grid can stand 10px
  * from both sides. The band keeps a lane on its right for the close button,
- * `--popup-close-lane` in `map.css`: 2rem, or 3.375rem on a touch screen,
- * where the button is 44px and reaches past the name's line into the facts
- * line below it. The body is `border-box` because the scroll cap sets its
- * height from its measured outer height (`capPopupBody`), and it scrolls
- * sideways on a map narrower than its grid.
+ * `--popup-close-lane` in `map.css`: 2rem, or 3.375rem on a touch screen. The
+ * body is `border-box` because the scroll cap sets its height from its
+ * measured outer height (`capPopupBody`), and it scrolls sideways on a map
+ * narrower than its grid.
+ *
+ * The action stands at the end of the title row, left of the × (TJ,
+ * 2026-11-04, the card button lab's treatment 6), where it had a foot of its
+ * own under the body: the foot cost every card a strip of map, and beside the
+ * × is where a reader already reaches to act on the card. The row is the ×'s
+ * height (`CARD_TITLE_ROW`) and starts at the ×'s inset, so the title, the
+ * button and the × share a centre line, and the title gives its end to its
+ * ellipsis before the button gives anything. `ACTION_CLEAR` keeps the button
+ * 8px off the × at a desk, so `Remove` and × read as two controls.
+ *
+ * A card is as wide as its widest line (TJ, 2026-11-04): MapLibre's popup is
+ * shrink-to-fit under the `maxWidth` its opener gives it (the ranked cap,
+ * `resultPopupWidth`, for every card), so a label card with three short lines
+ * stands narrow and a ranked card stands at its grid. `POPUP_MIN_WIDTH_PX` is
+ * the floor, on the card's root, so a short spot never shrinks under it.
  *
  * Every card ends on its resize handle (`resizeHandle`), last in the markup
- * so it stands over the action's foot in the card's bottom-right corner.
+ * so it stands in the card's bottom-right corner: under the body's end, which
+ * keeps the handle's height clear (`CARD_BODY_END`) so it never stands over a
+ * folded heading's chevron or a grid's last number, or on the band's end on
+ * a card with no body, where the close lane keeps the facts clear of it.
  */
 export function popupCard({ title, link = null, meta = '', body = '', action = '' }: PopupCard): string {
   const content = body
-    ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px ${BODY_SIDE} 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
+    ? `<div ${POPUP_BODY_ATTR} class="${CARD_BODY_END}" style="${POPUP_BODY_SIZE};padding-top:8px;padding-left:${BODY_SIDE};padding-right:${BODY_SIDE};box-sizing:border-box;overflow-x:auto">${body}</div>`
     : ''
-  return `<div style="${POPUP_LEADING};position:relative">
-    <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
-      <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}</div>
+  const button = action ? `<span style="display:flex;flex:none;margin-left:auto;margin-right:${ACTION_CLEAR}">${action}</span>` : ''
+  return `<div style="${POPUP_LEADING};position:relative;min-width:${POPUP_MIN_WIDTH_PX}px">
+    <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0;padding:${CLOSE_INSET} var(--popup-close-lane, 2rem) 8px 10px">
+      <div class="${CARD_TITLE_ROW}" style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}${button}</div>
       ${meta}
-    </div>${content}${
-      // Under the body rather than in it, so a card whose numbers the scroll
-      // cap shortened keeps its action in view the way it keeps its name. A
-      // part of its own, ruled off from the body by the header's edge (#696,
-      // TJ 2026-10-14): without the rule the button read as one more row of
-      // the grid.
-      action
-        ? `<div style="padding:${SECTION_PAD_Y} 10px;border-top:${SECTION_EDGE}">${popupAction(action)}</div>`
-        : ''
-    }${resizeHandle()}
+    </div>${content}${resizeHandle()}
   </div>`
 }
+
+/**
+ * Where the band's title row starts: the ×'s own inset from the card's top
+ * (`map.css`, `.maplibregl-popup-close-button`), so a row the ×'s height
+ * (`CARD_TITLE_ROW`) is centred on it.
+ */
+const CLOSE_INSET = '0.375rem'
+
+/**
+ * Between the card's button and the close lane. The lane is the ×'s width,
+ * its inset and 4px of air, so 4px more stands the button 8px off the × at a
+ * desk, where under a finger the lane's wider air leaves 20px.
+ */
+const ACTION_CLEAR = '4px'
 
 /**
  * The attribute the map finds a card's resize handle by (`map/destinationCards.ts`),
@@ -1027,19 +1065,6 @@ function resizeHandle(): string {
 }
 
 /**
- * A card's one action, centred on its own line (TJ, 2026-10-14): a lone button
- * left against the edge of a card the facts line made wider than it read as a
- * row that lost its label. One spelling for the clicked feature's add or
- * remove and the ranked result's remove, so the two cards place it alike.
- * Centred by flex rather than by `text-align`, which centres only an inline
- * box: the button wears the panel's class, whose tap target is a flex box
- * (`TAP.action`), and a flex box is a block.
- */
-export function popupAction(button: string): string {
-  return `<div style="display:flex;justify-content:center">${button}</div>`
-}
-
-/**
  * The title row and the name in it. A name keeps one line and ends in an
  * ellipsis where it outruns the card, which is what the results table does
  * with the same name (TJ, 2026-10-08). A long name used to wrap the rank onto
@@ -1061,16 +1086,6 @@ const TITLE_TEXT = `min-width:0;${BOLD};${ONE_LINE}`
 export const HEADER_BAND_COLOR = 'var(--popup-band)'
 export const HEADER_EDGE_COLOR = 'var(--popup-line)'
 const HEADER_SHADOW_COLOR = 'var(--popup-shadow)'
-
-/**
- * The edge and the padding the action's foot wears under the sections (#696).
- * The edge is the header's own, which is what lets the foot read as part of
- * the card rather than as a second card. It is the one ruled part below the
- * header: the sections part on their headings' bands (`cardSection`, TJ
- * 2026-11-03), where each after the first wore this edge before.
- */
-export const SECTION_EDGE = `1px solid ${HEADER_EDGE_COLOR}`
-export const SECTION_PAD_Y = '8px'
 
 /**
  * The link-out glyph on the band, in the label grey at rest, as the results

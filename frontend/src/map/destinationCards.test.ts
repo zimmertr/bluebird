@@ -691,6 +691,44 @@ describe('sections', () => {
     expect(expanded(popups[0].html, 'fire')).toBe('false')
   })
 
+  // On a phone every section but the forecast opens folded, on every card,
+  // warnings too (TJ, 2026-11-04), read off the controller's `phone`; the
+  // first press opens what the phone folded, and that fold holds.
+  it('folds every section but the forecast on a phone, and opens one at the first press', async () => {
+    const { cards, board, controller } = setup()
+    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'aqi_avg'), phone: true })
+    layer(board, 'fire', async () => ({ section: { ...section('fire', 'Active wildfire', 'Bolt Creek'), warning: true } }))
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [0, 0])
+    cards.open({ kind: 'label', poi: PEAK }, [PEAK.lon, PEAK.lat], { pan: false })
+    await settle()
+    expect(['fire', 'radar', 'forecast'].map((key) => expanded(popups[0].html, key))).toEqual(['false', 'false', 'true'])
+    expect(['fire', 'radar'].map((key) => expanded(popups[1].html, key))).toEqual(['false', 'false'])
+    popups[1].folds.find((b) => b.key === 'radar')!.press()
+    expect(popups.map((p) => expanded(p.html, 'radar'))).toEqual(['true', 'true'])
+  })
+
+  // The button stands in the title row now (TJ, 2026-11-04), and the press
+  // still finds it by its attribute: `Add` turns to `Remove` on one card
+  // that carries a section, the same button at the same width.
+  it('arms the title row\'s button on a card with sections, its word flipping on the press', async () => {
+    const { cards, board, inputs } = setup()
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    cards.open({ kind: 'label', poi: PEAK }, [PEAK.lon, PEAK.lat])
+    await settle()
+    const button = (html: string) => /<button type="button" data-card-action="(\w+)" aria-label="([^"]+)" class="([^"]+)">(\w+)<\/button>/.exec(html)!
+    const add = button(popups[0].html)
+    expect(add.slice(1, 3)).toEqual(['add', 'Add to analysis'])
+    expect(add[4]).toBe('Add')
+    expect(popups[0].html.indexOf('data-card-action')).toBeLessThan(popups[0].html.indexOf('data-popup-body'))
+    popups[0].press()
+    expect(inputs.onAddPoi).toHaveBeenCalledWith(poiToPlace(PEAK))
+    const remove = button(popups[0].html)
+    expect(remove.slice(1, 3)).toEqual(['remove', 'Remove from analysis'])
+    expect(remove[4]).toBe('Remove')
+    expect(remove[3]).toBe(add[3])
+  })
+
   // The forecast section's fine print says when the report was analyzed.
   it("draws the analysis's time on a ranked card", () => {
     const { cards, controller, rankedHtml } = setup()

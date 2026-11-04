@@ -153,7 +153,11 @@ interface MapCardOptions {
    * down; every kind, for a card that describes more than one.
    */
   owner?: MapTarget | readonly MapTarget[]
-  /** A ranked destination's card, which takes its own width rule. */
+  /**
+   * The ranked card's cap as the card's ceiling (`resultPopupWidth`), which
+   * every place's card takes: the popup shrinks to its widest line under it
+   * (TJ, 2026-11-04), so only a ranked card's grid reaches it.
+   */
   result?: boolean
   /**
    * Where the card's point WILL stand, in the map container's pixels, for a

@@ -31,6 +31,7 @@ import {
   metaBand,
   metricGrid,
   bodyLines,
+  cardButton,
   cardSection,
   cardSections,
   factsLine,
@@ -48,7 +49,7 @@ import {
 } from './popupChrome'
 import { AGGREGATE } from '../../metrics'
 import { CHEVRON, GRIP, GRIP_PX } from '../../iconPaths'
-import { CARD_FOLD, CARD_RESIZE } from '../../styles'
+import { CARD_ACTION, CARD_BODY_END, CARD_FOLD, CARD_RESIZE, CARD_TITLE_ROW } from '../../styles'
 import { destinationPopupHtml } from '../destinationCard'
 import { WARNING_MARK } from '../fireProximity'
 import type { PointSection } from '../pointReadout'
@@ -289,11 +290,91 @@ describe('the header band', () => {
     expect(HEADER_BAND_COLOR).toBe(GRID_BAND_COLOR)
   })
 
+  // The title row starts at the ×'s own inset and is at least its height, so
+  // the title, the button and the × share a centre line (TJ, 2026-11-04).
   it('keeps the close button\'s lane, which map.css widens on a touch screen', () => {
     const html = popupCard({ title: 'Title', link: { href: 'https://example.com', label: 'Open' } })
     expect(html).toContain(`background:${HEADER_BAND_COLOR}`)
-    expect(html).toContain('padding:10px var(--popup-close-lane, 2rem) 8px 10px')
+    expect(html).toContain('padding:0.375rem var(--popup-close-lane, 2rem) 8px 10px')
+    expect(mount(html).querySelector('strong')!.parentElement!.getAttribute('class')).toBe(CARD_TITLE_ROW)
     expect(html).not.toContain('<hr')
+  })
+})
+
+// The card's one action stands in its title row, left of the ×, where it had
+// a foot of its own under the body (TJ, 2026-11-04, the lab's treatment 6).
+describe('the card\'s button', () => {
+  const ADD = cardButton('data-card-action="add"', 'Add', 'Add to analysis')
+  const REMOVE = cardButton('data-card-action="remove"', 'Remove', 'Remove from analysis')
+  const card = (action: string, body = '<p>rows</p>') =>
+    mount(popupCard({ title: 'Title', link: { href: 'https://example.com', label: 'Open' }, body, action }))
+
+  it('reads a word and is named for the whole phrase', () => {
+    const add = within(card(ADD)).getByRole('button', { name: 'Add to analysis' })
+    expect(add.textContent).toBe('Add')
+    expect(add.getAttribute('type')).toBe('button')
+    expect(add.getAttribute('data-card-action')).toBe('add')
+    const remove = within(card(REMOVE)).getByRole('button', { name: 'Remove from analysis' })
+    expect(remove.textContent).toBe('Remove')
+  })
+
+  // One role, so one width for both words: a press on Add that turns the
+  // card's button into Remove moves nothing (TJ, 2026-11-04).
+  it('wears one role, at one width, whichever word it says', () => {
+    const classes = [ADD, REMOVE].map((html) => mount(html).querySelector('button')!.getAttribute('class'))
+    expect(classes).toEqual([CARD_ACTION, CARD_ACTION])
+    expect(CARD_ACTION.split(' ')).toContain('w-16')
+  })
+
+  it('stands at the end of the title row, after the name and its link, clear of the ×', () => {
+    const popup = card(REMOVE)
+    const button = popup.querySelector('button[data-card-action]')!
+    const slot = button.parentElement!
+    const titleRow = slot.parentElement!
+    expect(titleRow.firstElementChild!.tagName).toBe('STRONG')
+    expect(titleRow.lastElementChild).toBe(slot)
+    expect(titleRow.querySelector('a[data-popup-glyph]')!.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Pushed to the row's end, and 4px short of the close lane, which with
+    // the lane's own 4px of air stands it 8px off the × at a desk.
+    expect(slot.getAttribute('style')).toBe('display:flex;flex:none;margin-left:auto;margin-right:4px')
+  })
+
+  // The body ends the card, so no foot follows it: only the handle does.
+  it('leaves no foot under the body', () => {
+    const root = card(ADD).firstElementChild as HTMLElement
+    const parts = [...root.children]
+    expect(parts).toHaveLength(3)
+    expect(parts[1].hasAttribute('data-popup-body')).toBe(true)
+    expect(parts[2].hasAttribute(CARD_RESIZE_ATTR)).toBe(true)
+    expect(root.innerHTML).not.toContain('border-top')
+  })
+
+  it('stands in the title row of a card with no body too', () => {
+    const root = card(ADD, '').firstElementChild as HTMLElement
+    expect(root.querySelector('[data-popup-body]')).toBeNull()
+    expect(root.querySelector('strong')!.parentElement!.querySelector('button[data-card-action="add"]')).not.toBeNull()
+  })
+})
+
+// A card is as wide as its widest line (TJ, 2026-11-04): MapLibre's popup
+// shrinks to its content under the max width its opener sets, so the card
+// sets no width of its own, only the floor every card keeps.
+describe('a card\'s width', () => {
+  it('sets the floor on its root and no width anywhere', () => {
+    const root = mount(popupCard({ title: 'Title', body: '<p>rows</p>' })).firstElementChild as HTMLElement
+    expect(root.style.minWidth).toBe(`${POPUP_MIN_WIDTH_PX}px`)
+    for (const el of [root, ...root.querySelectorAll<HTMLElement>('*')]) expect(el.style.width).toBe('')
+  })
+
+  // A section heading longer than the cap gives way with its ellipsis rather
+  // than widening the card past it.
+  it('cuts a heading longer than the card with an ellipsis', () => {
+    const LONG = 'Taumatawhakatangihangakōauauotamateapōkaiwhenuakitānatahu Fire Closure Order'
+    const html = cardSection({ key: 'area-closure', layer: 'Area closure', name: LONG, open: true, body: '' })
+    const text = mount(html).querySelector<HTMLElement>(`[${CARD_FOLD_ATTR}]`)!.parentElement!.children
+    const heading = [...text].find((el) => el.textContent!.includes(LONG)) as HTMLElement
+    expect(heading.getAttribute('style')).toContain('min-width:0;')
+    expect(heading.getAttribute('style')).toContain('overflow:hidden;text-overflow:ellipsis;white-space:nowrap')
   })
 })
 
@@ -418,6 +499,16 @@ describe('the resize handle', () => {
     expect(handle.hasAttribute(CARD_RESIZE_ATTR)).toBe(true)
     expect(popup.querySelectorAll(`[${CARD_RESIZE_ATTR}]`)).toHaveLength(1)
     expect(handle.getAttribute('class')).toBe(CARD_RESIZE)
+  })
+
+  // With no foot under it, the body ends the card, so it keeps the handle's
+  // height clear at its end: the handle stands under the last section, not
+  // over a folded heading's chevron or a grid's last number (TJ, 2026-11-04).
+  it('stands under the body\'s end, which keeps its height clear', () => {
+    const body = card().querySelector<HTMLElement>('[data-popup-body]')!
+    expect(body.getAttribute('class')).toBe(CARD_BODY_END)
+    expect(body.style.paddingBottom).toBe('')
+    expect(body.style.paddingTop).toBe('8px')
   })
 
   // A name would be a new string for a control the keyboard cannot work, and

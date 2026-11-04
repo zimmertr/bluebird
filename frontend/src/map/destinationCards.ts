@@ -221,6 +221,7 @@ export function mountDestinationCards(
       // In the map's rank, whatever order the layers answered in.
       sections: MAP_TARGETS.filter((kind) => card.sections.has(kind)).map((kind) => card.sections.get(kind)!),
       folds,
+      phone: controller.inputs.phone,
     }
     if (s.kind !== 'ranked') return shared
     const live = controller.inputs
@@ -306,9 +307,11 @@ export function mountDestinationCards(
   }
 
   // A chevron's press: the section folds or opens on every card, and the
-  // chevron pressed keeps the reader's focus, in its new markup.
+  // chevron pressed keeps the reader's focus, in its new markup. The flip is
+  // of what the card showed, a phone's default included.
   function fold(card: Card, key: string) {
-    folds.set(key, !sectionOpen(card.subject, key, folds, card.sections.get(key as MapTarget)?.warning))
+    const warning = card.sections.get(key as MapTarget)?.warning
+    folds.set(key, !sectionOpen(card.subject, key, folds, warning, controller.inputs.phone))
     for (const c of cards) write(c)
     card.popup.getElement()?.querySelector?.<HTMLButtonElement>(`[${CARD_FOLD_ATTR}="${key}"]`)?.focus?.()
   }

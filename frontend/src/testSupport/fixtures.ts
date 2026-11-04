@@ -545,6 +545,7 @@ export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
     maxPolygonPoints: MAX_POLYGON_POINTS,
     onTerrainChange: () => {},
     lowerSheetFirst: (then) => then(),
+    phone: false,
     ...over,
   }
 }
