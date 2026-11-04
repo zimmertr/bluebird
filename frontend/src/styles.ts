@@ -744,7 +744,9 @@ export const BUTTON_ACCENT =
 /**
  * The Polygon row (#687): the mode button, Cancel and Clear, always the three,
  * a third of the panel each, so the row stands on the edges the coordinates
- * box above it does.
+ * box above it does. The Coordinate search row shares it since #838: the
+ * Coordinate list field across the first two cells and Clear in the third, on
+ * the edge the Polygon row's Clear stands on (record 0263).
  *
  * The two button roles at a 4px inset rather than 12px, and nothing else
  * changed. In a third the cell sets the width and the label is centred in it,
@@ -760,6 +762,18 @@ export const DRAW_ROW = {
   row: 'grid grid-cols-3 gap-2',
   secondary: BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '),
   accent: BUTTON_ACCENT.replace(' px-3 ', ' px-1 '),
+  /**
+   * The Coordinate list field (#838): what a `MenuSelect` adds to the field
+   * shape to stand in the first two cells. The trigger is the grid item
+   * itself, so the span is its own. Two cells because one leaves 72px of
+   * label beside the chevron at 12px and `The Bulger List` is 85px, so every
+   * name would truncate (measured 2026-11-03). The 5px is the button's 6px
+   * less the field's 1px border, so the field stands 28px beside a 28px Clear
+   * (16px of line each) where the Model row's 2px would leave it 22px; on
+   * touch both grow to `TAP`'s 32px, the field by `TAP.height` and the button
+   * by `TAP.action`.
+   */
+  field: 'col-span-2 px-2 py-[5px]',
 } as const
 
 /**
@@ -3138,6 +3152,56 @@ export const FIELD =
   'focus:outline-none focus:border-mark placeholder-ink-soft'
 
 /**
+ * The coordinates box under Coordinate search (#838, record
+ * [0265](../../docs/decisions/0265-coordinate-box-numbers-and-flags-its-lines.md)):
+ * a field whose lines are numbered in a gutter, with each line the parse
+ * drops flagged there.
+ *
+ * - `frame`: the field's look on the wrapper, since the textarea inside has
+ *   no edge of its own, and the field's focus edge on `focus-within`. Two
+ *   columns, the gutter as wide as its widest number and the textarea the
+ *   rest. No `TAP.height`: two rows of text stand 48px, over any finger's.
+ * - `gutter`: a mirror column rather than an editor library. CodeMirror or
+ *   Monaco would number the lines, and either would spend much of the
+ *   headroom left under the cold load's script budget
+ *   (`.github/lighthouserc.js`) on one box most readers fill from the menu.
+ *   The caption's ink, the placeholder's step, because the faint ink
+ *   reads under 4.5:1 on the dark field; 16px lines on the textarea's type
+ *   and 8px over the first, so a number stands on its line. `h-0 min-h-full`
+ *   so the grid row is the textarea's height alone: a gutter of a hundred
+ *   numbers would otherwise stand the row a hundred lines tall, and with
+ *   `min-h-full` it still fills the row when the reader drags the resize
+ *   corner. It scrolls with the textarea (`CoordinateBox` copies the
+ *   `scrollTop`), and the 32px under the last number lets it scroll as far
+ *   as a textarea whose scroll bar takes a line's height off its own.
+ * - `line`: one number, one line of the box.
+ * - `flagged`: a line the parse drops, its number in the error ink with a
+ *   4px dot before it in the same ink. The dot is placed out of the flow, so
+ *   a flag never widens the gutter and moves the text beside it. A `STATUS`
+ *   colour in the panel, and the one exception beside the draw counter's:
+ *   it is the field's own readout beside the field, as the counter is,
+ *   rather than a message about the analysis, which belongs in the list the
+ *   Analyze button opens. The caption under the box says the count in
+ *   words, since the gutter is hidden from a screen reader. The linter's
+ *   `style-coord-gutter` check pins it to one use.
+ * - `area`: the textarea with wrapping off, so one line of the box is one
+ *   line on screen and one number; a long name scrolls sideways. The
+ *   textarea takes its type from the frame (`font: inherit`, Tailwind's
+ *   base), so the two columns cannot drift onto two sizes.
+ */
+export const COORD_BOX = {
+  frame: `${FIELD_LOOK} grid grid-cols-[auto_minmax(0,1fr)] focus-within:border-mark`,
+  gutter: `${TEXT.caption} h-0 min-h-full overflow-hidden select-none border-r ${SURFACE_DIVIDER} pt-2 pb-8 pl-3 pr-1.5 text-right font-mono`,
+  line: 'block',
+  flagged:
+    `relative ${STATUS.error} before:absolute before:top-1/2 before:-translate-y-1/2 before:-ml-1.5 ` +
+    'before:size-1 before:rounded-full before:bg-current',
+  area:
+    'w-full min-w-0 bg-transparent p-2 font-mono resize-y whitespace-pre overflow-x-auto ' +
+    'focus:outline-none placeholder-ink-soft',
+} as const
+
+/**
  * A numeric field with the browser's spinner arrows suppressed.
  *
  * The arrows cost roughly 16px of every field's inner width and buy a pair of
@@ -3268,6 +3332,12 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   No card repeats its own name over its rows: it stands under the
  *   trigger that names it (record 0222). The model picker's overlines name
  *   groups of rows inside its card, which is a different job.
+ * - `divider`: a hairline between two runs of options inside a `list`, in
+ *   the foot's rule colour and pulled out to the card's sides as the foot's
+ *   rule runs. `Custom coordinates` stands under one in the Coordinate list
+ *   field, apart from the lists (#838, record 0263). A rule rather than a
+ *   `heading`: one option set apart names itself. Hidden from a screen
+ *   reader, because a listbox holds options and nothing else.
  * - `list`: the scrolling list, 4px in from the card's sides and 6px from its
  *   top and bottom, so a row's words stand 10px from the edge and the first
  *   one 8px down, where the Layers menu's `px-2.5 py-2` stands its own.
@@ -3310,6 +3380,7 @@ export const MENU = {
   current: 'font-semibold',
   heading: `${TEXT.caption} font-semibold`,
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
+  divider: `-mx-1 my-1 border-t ${SURFACE_DIVIDER}`,
 } as const
 
 /**

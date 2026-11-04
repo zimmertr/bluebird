@@ -187,6 +187,8 @@ export default function App() {
   // The basemap style is failing to load: the map reports it and the panel's
   // messages say so (#580).
   const [basemapFailed, setBasemapFailed] = useState(false)
+  // The preset list last picked beside Coordinate search did not arrive (#838).
+  const [presetListFailed, setPresetListFailed] = useState(false)
   const overlays = useMapOverlays(restored, isDesktop)
   const {
     showWildfires,
@@ -585,6 +587,7 @@ export default function App() {
     wildfireCheckFailed: checkNoticeDue(fire.status, showWildfires, results.length),
     closureCheckFailed: checkNoticeDue(closure.status, showAreaClosures, results.length),
     basemapFailed,
+    presetListFailed,
     archiveDays: caps.archiveDays,
     aqiForecastDays: caps.aqiForecastDays,
     windowLimits: caps.windowLimits,
@@ -757,6 +760,7 @@ export default function App() {
         mapRef={mapRef}
         onPointAtSearch={setSearchPointed}
         onPointAtMapPois={setPoisPointed}
+        onPresetListFailed={setPresetListFailed}
         messages={shownMessages}
         onAnalyze={handleAnalyze}
         autoAnalyze={autoAnalyze}

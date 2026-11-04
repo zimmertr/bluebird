@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react'
+import { Fragment, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import type { PopoverBox } from '../utils/listbox'
 import { nextActiveIndex, optionDomId } from '../utils/listbox'
@@ -137,6 +137,12 @@ export function MenuButton({ shape, open, chevron = true, chevronClassName, clas
 interface MenuOption<V extends string> {
   value: V
   label: string
+  /**
+   * A hairline over this option (`MENU.divider`), setting it and the ones
+   * after it apart from the ones before: the Coordinate list field's `Custom
+   * coordinates` under the lists (#838, record 0263).
+   */
+  divided?: boolean
 }
 
 interface MenuSelectProps<V extends string> {
@@ -153,6 +159,14 @@ interface MenuSelectProps<V extends string> {
   disabled?: boolean
   /** A phone: the list opens in a bottom sheet headed by `label`, as the model list does (record 0252). */
   sheet?: boolean
+  /**
+   * What the field reads while `value` names no option: the Coordinate list
+   * field under Coordinate search reads its own name while the box is shut
+   * and empty (#838, record 0263). The field is named by its label and this, as by
+   * its label and a value. A placeholder that is the label names the field
+   * once, or a screen reader would hear the name twice.
+   */
+  placeholder?: string
 }
 
 /**
@@ -182,12 +196,12 @@ export function MenuSelect<V extends string>({
   disabled = false,
   shape = 'field',
   sheet = false,
+  placeholder,
 }: MenuSelectProps<V>) {
   const [open, setOpen] = useState(false)
-  const selectedIndex = Math.max(
-    options.findIndex((o) => o.value === value),
-    0,
-  )
+  const found = options.findIndex((o) => o.value === value)
+  const selectedIndex = Math.max(found, 0)
+  const showsPlaceholder = placeholder !== undefined && found < 0
   const [active, setActive] = useState(selectedIndex)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -231,7 +245,7 @@ export function MenuSelect<V extends string>({
         shape={shape}
         open={open}
         aria-haspopup={sheet ? 'dialog' : 'listbox'}
-        aria-labelledby={`${nameId} ${valueId}`}
+        aria-labelledby={showsPlaceholder && placeholder === label ? nameId : `${nameId} ${valueId}`}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={(e) => {
@@ -240,13 +254,18 @@ export function MenuSelect<V extends string>({
             openList()
           }
         }}
-        className={`${className} text-left`}
+        // Centred, as the model picker centres its label: every field in the
+        // panel's control column reads the same way. It was `text-left` until
+        // 2026-11-03, which the aggregate's and the chart's fields never showed,
+        // each being sized to its longest label, and the Coordinate list field's
+        // placeholder, then at the column's width, did (the maintainer).
+        className={`${className} text-center`}
       >
         <span id={nameId} className={SR_ONLY}>
           {label}
         </span>
         <span id={valueId} className="block min-w-0 truncate">
-          {options[selectedIndex]?.label ?? value}
+          {showsPlaceholder ? placeholder : (options[selectedIndex]?.label ?? value)}
         </span>
       </MenuButton>
       {(box || (sheet && open)) && (
@@ -266,19 +285,21 @@ export function MenuSelect<V extends string>({
             className={`${MENU.list} focus:outline-none`}
           >
             {options.map((option, i) => (
-              <div
-                key={option.value}
-                id={optionDomId(listId, option.value)}
-                role="option"
-                aria-selected={option.value === value}
-                onPointerEnter={() => setActive(i)}
-                onClick={() => pick(i)}
-                className={`${MENU.option} ${i === active ? MENU.active : ''} ${
-                  option.value === value ? MENU.current : ''
-                }`}
-              >
-                {option.label}
-              </div>
+              <Fragment key={option.value}>
+                {option.divided && <div aria-hidden="true" className={MENU.divider} />}
+                <div
+                  id={optionDomId(listId, option.value)}
+                  role="option"
+                  aria-selected={option.value === value}
+                  onPointerEnter={() => setActive(i)}
+                  onClick={() => pick(i)}
+                  className={`${MENU.option} ${i === active ? MENU.active : ''} ${
+                    option.value === value ? MENU.current : ''
+                  }`}
+                >
+                  {option.label}
+                </div>
+              </Fragment>
             ))}
           </div>
         </Menu>
