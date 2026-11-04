@@ -886,6 +886,30 @@ export const STYLES = [
     ],
   },
   {
+    // The second STATUS colour outside the list, pinned by count beside the
+    // draw counter's: the coordinates box's gutter numbers a line the parse
+    // drops in the error ink (record 0265). Like the counter it is the
+    // field's own readout beside the field rather than a message about the
+    // analysis, so it stays out of the list. The ink rides the role
+    // (`COORD_BOX.flagged`), so the file names no STATUS of its own, and the
+    // caption under the box says the count in words: a live region here would
+    // be a second voice beside MessageRegion.
+    name: 'style-coord-gutter',
+    files: ['src/components/CoordinateBox.tsx'],
+    ban: [
+      { selector: role('NOTICE'), message: 'Build no NOTICE box in the coordinates box.' },
+      { selector: role('STATUS'), message: 'Flag a line with COORD_BOX.flagged, never a bare STATUS.' },
+      { selector: LIVE_REGION, message: 'Announce nothing from the coordinates box: the caption under it says the count.' },
+    ],
+    require: [
+      {
+        selector: 'MemberExpression[object.name="COORD_BOX"][property.name="flagged"]',
+        count: 1,
+        message: 'The gutter flags a dropped line with COORD_BOX.flagged, once.',
+      },
+    ],
+  },
+  {
     // Why the model control is faded is said in the message block, not on it.
     name: 'style-model-picker-quiet',
     files: ['src/components/ModelPicker.tsx'],

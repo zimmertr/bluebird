@@ -90,6 +90,8 @@ export interface PanelMessageState {
   closureCheckFailed: boolean
   /** The basemap style is failing to load (#580). */
   basemapFailed: boolean
+  /** The preset list last picked beside Coordinate search did not arrive (#838). */
+  presetListFailed: boolean
   archiveDays: number
   aqiForecastDays: number
   windowLimits: WindowLimits
@@ -299,6 +301,7 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     wildfireCheckFailed: s.wildfireCheckFailed,
     closureCheckFailed: s.closureCheckFailed,
     basemapFailed: s.basemapFailed,
+    presetListFailed: s.presetListFailed,
     linkLost: s.linkLost,
     now,
   })

@@ -47,6 +47,7 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     wildfireCheckFailed: false,
     closureCheckFailed: false,
     basemapFailed: false,
+    presetListFailed: false,
     now: NOW,
     ...over,
   }
@@ -330,8 +331,8 @@ describe('panelMessages', () => {
   // #834: the lines whose arrival opens the list are the two checks and the
   // basemap, by the keys this module gives them, and nothing else.
   describe('the lines that open the list', () => {
-    it('are the keys the check and basemap failures carry', () => {
-      const failing = keys({ wildfireCheckFailed: true, closureCheckFailed: true, basemapFailed: true })
+    it('are the keys the check, basemap and preset list failures carry', () => {
+      const failing = keys({ wildfireCheckFailed: true, closureCheckFailed: true, basemapFailed: true, presetListFailed: true })
       expect([...LIST_OPENING_KEYS].sort()).toEqual([...failing].sort())
     })
   })
@@ -339,6 +340,11 @@ describe('panelMessages', () => {
   describe('the basemap line', () => {
     // #580: a blank map says why, below Analyze with every other message.
     it('says the map could not load while the basemap style is failing', () => {
+      expect(only({ presetListFailed: true })).toEqual({
+        key: 'list:failed',
+        text: 'The list could not load. Try again later.',
+        severity: 'error',
+      })
       expect(only({ basemapFailed: true })).toEqual({
         key: 'map:style',
         text: 'The map could not load. Try again later.',
