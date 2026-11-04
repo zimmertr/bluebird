@@ -3,6 +3,7 @@ import { CLOUD_DECK_CEILING_FT, roundHalfEven } from '../utils/openMeteoAggregat
 import { analyzedSnapshot, resultRow, series } from '../testSupport/fixtures'
 import type { AnalyzeResponse, DestinationResult } from '../types'
 import { HOUR_MS } from '../utils/forecastWindow'
+import { clamp } from '../utils/numbers'
 
 /**
  * The report the tutorial's last step shows (#536). A first-visit tour runs
@@ -50,7 +51,7 @@ function bump(i: number, at: number, width: number): number {
 }
 
 function smoothstep(x: number): number {
-  const t = Math.min(1, Math.max(0, x))
+  const t = clamp(x, 0, 1)
   return t * t * (3 - 2 * t)
 }
 
