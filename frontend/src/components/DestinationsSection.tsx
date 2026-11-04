@@ -132,8 +132,10 @@ export default function DestinationsSection({
   // A list picked from the Example list field (#838, record 0263) replaces
   // whatever the box holds, typed rows included, with nothing asked: the pick
   // is the press that means it (the maintainer, 2026-11-03). The list frames
-  // the map as a paste does, since it arrives whole rather than typed, and the
-  // keyboard goes to the box the rows just landed in.
+  // the map as a paste does, since it arrives whole rather than typed. The
+  // keyboard stays where it was: a box that took it scrolled to its end and
+  // hid a line of the two it shows, so a click into the box is what places
+  // the cursor (the maintainer, 2026-11-03).
   const csvBoxRef = useRef<HTMLTextAreaElement>(null)
   const csvHeadingId = useId()
   const csvClearId = useId()
@@ -147,7 +149,6 @@ export default function DestinationsSection({
     setCustomCsv(text)
     const points = parseCustomCsv(text)
     if (points.length > 0) onCsvPasted(points)
-    csvBoxRef.current?.focus()
   }
   // The row's three buttons never unmount; a press that greys the one it
   // landed on (Draw polygon turning into a Done that waits for three points,

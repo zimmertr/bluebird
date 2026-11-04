@@ -47,7 +47,9 @@ export async function fetchExampleList(list: ExampleList): Promise<string | null
   try {
     const res = await apiFetch(list.url)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const text = await res.text()
+    // Without the file's ending newline: in the box it is an empty last line,
+    // which hides one of the two the box shows (the maintainer, 2026-11-03).
+    const text = (await res.text()).trimEnd()
     held.set(list.url, text)
     return text
   } catch (err) {

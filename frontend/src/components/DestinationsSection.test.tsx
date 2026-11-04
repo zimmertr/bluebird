@@ -405,7 +405,7 @@ describe('DestinationsSection', () => {
       expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(EXAMPLE_LISTS.map((l) => l.name))
     })
 
-    it('fills an empty box, frames the rows, says the list arrived and hands the keyboard to the box', async () => {
+    it('fills an empty box, frames the rows, says the list arrived and leaves the keyboard where it was', async () => {
       arrives()
       const setCustomCsv = vi.fn()
       const onCsvPasted = vi.fn()
@@ -418,7 +418,8 @@ describe('DestinationsSection', () => {
       await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
       expect(onCsvPasted.mock.calls[0][0].map((d: { name: string }) => d.name)).toEqual(['Mount Rainier', 'Mount Baker'])
       expect(onExampleListFailed).toHaveBeenCalledWith(false)
-      expect(document.activeElement).toBe(coordinates())
+      // A box that took the keyboard scrolled to its end and hid a line.
+      expect(document.activeElement).not.toBe(coordinates())
       // The box now holds the list, so the field names it.
       rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv, onCsvPasted, onExampleListFailed })} />)
       expect(field(EXAMPLE_LISTS[0].name)).toBeTruthy()
@@ -436,7 +437,6 @@ describe('DestinationsSection', () => {
       await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
       expect(setCustomCsv).toHaveBeenCalledOnce()
       expect(onCsvPasted).toHaveBeenCalledOnce()
-      expect(document.activeElement).toBe(coordinates())
       expect(screen.queryByRole('dialog')).toBeNull()
     })
 

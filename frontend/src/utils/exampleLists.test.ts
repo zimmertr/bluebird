@@ -72,8 +72,10 @@ describe('exampleListIn', () => {
 })
 
 describe('fetchExampleList', () => {
-  it('answers the file as text', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: '46.85,-121.76,Mount Rainier' })))
+  // Without the file's ending newline, which in the box would be an empty
+  // last line hiding one of the two the box shows.
+  it('answers the file as text, less its ending newline', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: '46.85,-121.76,Mount Rainier\n' })))
     expect(await fetchExampleList(EXAMPLE_LISTS[0])).toBe('46.85,-121.76,Mount Rainier')
   })
 
