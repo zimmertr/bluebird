@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { EXAMPLE_LISTS, exampleListIn, fetchExampleList, forgetExampleLists } from './exampleLists'
+import { PRESET_LISTS, presetListIn, fetchPresetList, forgetPresetLists } from './presetLists'
 import { parseCustomCsv } from './customDestinations'
 import { fakeResponse } from '../testSupport/fixtures'
 
@@ -24,10 +24,10 @@ const baseName = (path: string): string => path.slice(path.lastIndexOf('/') + 1)
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
-  forgetExampleLists()
+  forgetPresetLists()
 })
 
-describe('EXAMPLE_LISTS', () => {
+describe('PRESET_LISTS', () => {
   // The directory is the list (record 0263): the menu offers every file in
   // it, by its name, alphabetically.
   it('offers every file in the directory by its name, alphabetically', () => {
@@ -37,7 +37,7 @@ describe('EXAMPLE_LISTS', () => {
     const names = files
       .map((file: string) => file.slice(0, -'.csv'.length))
       .sort((a: string, b: string) => a.localeCompare(b))
-    expect(EXAMPLE_LISTS.map((l) => l.name)).toEqual(names)
+    expect(PRESET_LISTS.map((l) => l.name)).toEqual(names)
     expect(Object.keys(csvs)).toHaveLength(files.length)
   })
 
@@ -59,35 +59,35 @@ describe('EXAMPLE_LISTS', () => {
   })
 })
 
-describe('exampleListIn', () => {
+describe('presetListIn', () => {
   // The field reads the list's name only once that list has arrived and the
-  // box is that list; a share link's restored rows read as Custom until then.
+  // box is that list; a share link's restored rows are not one until then.
   it('names the list the box holds once it has arrived, a trailing newline aside', async () => {
-    const list = EXAMPLE_LISTS[0]
-    expect(exampleListIn('46.85,-121.76,Mount Rainier')).toBeNull()
+    const list = PRESET_LISTS[0]
+    expect(presetListIn('46.85,-121.76,Mount Rainier')).toBeNull()
     vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: '46.85,-121.76,Mount Rainier' })))
-    await fetchExampleList(list)
-    expect(exampleListIn('46.85,-121.76,Mount Rainier')).toBe(list)
-    expect(exampleListIn('46.85,-121.76,Mount Rainier\n')).toBe(list)
-    expect(exampleListIn('46.85,-121.76,Mount Rainier\n1,2,Mine')).toBeNull()
-    expect(exampleListIn('')).toBeNull()
+    await fetchPresetList(list)
+    expect(presetListIn('46.85,-121.76,Mount Rainier')).toBe(list)
+    expect(presetListIn('46.85,-121.76,Mount Rainier\n')).toBe(list)
+    expect(presetListIn('46.85,-121.76,Mount Rainier\n1,2,Mine')).toBeNull()
+    expect(presetListIn('')).toBeNull()
   })
 
   it('serves a list that arrived without asking again', async () => {
     const spy = vi.fn(async () => fakeResponse({ raw: '1,2,A' }))
     vi.stubGlobal('fetch', spy)
-    await fetchExampleList(EXAMPLE_LISTS[0])
-    await fetchExampleList(EXAMPLE_LISTS[0])
+    await fetchPresetList(PRESET_LISTS[0])
+    await fetchPresetList(PRESET_LISTS[0])
     expect(spy).toHaveBeenCalledTimes(1)
   })
 })
 
-describe('fetchExampleList', () => {
+describe('fetchPresetList', () => {
   // Without the file's ending newline, which in the box would be an empty
   // last line hiding one of the two the box shows.
   it('answers the file as text, less its ending newline', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: '46.85,-121.76,Mount Rainier\n' })))
-    expect(await fetchExampleList(EXAMPLE_LISTS[0])).toBe('46.85,-121.76,Mount Rainier')
+    expect(await fetchPresetList(PRESET_LISTS[0])).toBe('46.85,-121.76,Mount Rainier')
   })
 
   // A stale tab asks for an old build's hashed name and gets a 404; the box
@@ -95,8 +95,8 @@ describe('fetchExampleList', () => {
   it('answers null for a refusal or a dropped connection, and never rejects', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: 'Not Found' }, 404)))
-    expect(await fetchExampleList(EXAMPLE_LISTS[0])).toBeNull()
+    expect(await fetchPresetList(PRESET_LISTS[0])).toBeNull()
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))))
-    expect(await fetchExampleList(EXAMPLE_LISTS[0])).toBeNull()
+    expect(await fetchPresetList(PRESET_LISTS[0])).toBeNull()
   })
 })

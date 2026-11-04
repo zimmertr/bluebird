@@ -1,6 +1,6 @@
 ---
 name: peakbagger-list-csv
-description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast frontend/src/coordinate-lists/*.csv files, the lists the Example list field under Coordinate search offers. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list CSV (e.g. "create CSV list", "add the Bulgers/Home Court/Smoot list").
+description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast frontend/src/coordinate-lists/*.csv files, the lists the Preset list field under Coordinate search offers. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list CSV (e.g. "create CSV list", "add the Bulgers/Home Court/Smoot list").
 ---
 
 # Peakbagger list → Bluebird Forecast CSV
@@ -9,7 +9,7 @@ Turns a peakbagger.com list (`list.aspx?lid=<N>`) into `frontend/src/coordinate-
 matching `frontend/src/coordinate-lists/The Bulger List.csv`. One CSV row per peak in the list: no
 sampling, no truncation.
 
-**The file name is the menu's string.** The Example list field offers every file in that directory,
+**The file name is the menu's string.** The Preset list field offers every file in that directory,
 named by its file name without `.csv`, alphabetically, so the name you give the file is a user-facing
 string. Agree it with the maintainer before building; the files already there show the style.
 
@@ -138,9 +138,9 @@ Rainier is `46.851731, -121.760395`.
 
 ### 5. Offer it in the app
 
-Nothing to edit. The Example list field under Coordinate search offers every file in
-`frontend/src/coordinate-lists/` on the next build (#838, record 0263): `exampleLists.ts` globs the
-directory, and `exampleLists.test.ts` holds every file there to rows only, each of which parses. The
+Nothing to edit. The Preset list field under Coordinate search offers every file in
+`frontend/src/coordinate-lists/` on the next build (#838, record 0263): `presetLists.ts` globs the
+directory, and `presetLists.test.ts` holds every file there to rows only, each of which parses. The
 file's name is what the menu shows, a user-facing string, so it is approved by the maintainer before
 the file lands (step 3). Credit the list's source in `NOTICES.md` beside the others.
 

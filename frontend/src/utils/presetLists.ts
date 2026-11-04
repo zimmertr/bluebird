@@ -1,6 +1,6 @@
 import { apiFetch } from './apiFetch'
 
-// The ready-made lists the Example list field under Coordinate search puts in
+// The ready-made lists the Preset list field under Coordinate search puts in
 // the box (#838, record 0263). The directory is the list: every file in
 // `src/coordinate-lists/` is one entry, so adding or removing a file changes
 // the next build and nothing else. The file's name is the menu's string, so a
@@ -25,14 +25,14 @@ const files = import.meta.glob('../coordinate-lists/*.csv', {
  * did not arrive (#838): a refusal or a dropped connection, which only a
  * stale tab or an offline reader meets. The map's own failure line's shape.
  */
-export const EXAMPLE_LIST_FAILED_NOTE = 'The list could not load. Try again later.'
+export const PRESET_LIST_FAILED_NOTE = 'The list could not load. Try again later.'
 
-export interface ExampleList {
+export interface PresetList {
   name: string
   url: string
 }
 
-export const EXAMPLE_LISTS: readonly ExampleList[] = Object.entries(files)
+export const PRESET_LISTS: readonly PresetList[] = Object.entries(files)
   .map(([path, url]) => ({ name: path.slice(path.lastIndexOf('/') + 1, -'.csv'.length), url }))
   .sort((a, b) => a.name.localeCompare(b.name))
 
@@ -41,7 +41,7 @@ export const EXAMPLE_LISTS: readonly ExampleList[] = Object.entries(files)
 const held = new Map<string, string>()
 
 /** The list's text, or null when it cannot be had. Never rejects. */
-export async function fetchExampleList(list: ExampleList): Promise<string | null> {
+export async function fetchPresetList(list: PresetList): Promise<string | null> {
   const kept = held.get(list.url)
   if (kept !== undefined) return kept
   try {
@@ -53,20 +53,20 @@ export async function fetchExampleList(list: ExampleList): Promise<string | null
     held.set(list.url, text)
     return text
   } catch (err) {
-    console.warn('Example list failed to load', err)
+    console.warn('Preset list failed to load', err)
     return null
   }
 }
 
 /**
  * The list the box holds, when it holds exactly one that arrived this session
- * (a trailing newline aside), else null. What the Example list field reads.
- * A share link restores the rows and not this, so a reloaded page reads such
- * a box as Custom until a list is picked again.
+ * (a trailing newline aside), else null. What the Preset list field reads.
+ * A share link restores the rows and not this, so a reloaded page's field
+ * reads its own name over such a box until a list is picked again.
  */
-export function exampleListIn(box: string): ExampleList | null {
+export function presetListIn(box: string): PresetList | null {
   const text = box.trimEnd()
-  for (const list of EXAMPLE_LISTS) {
+  for (const list of PRESET_LISTS) {
     const kept = held.get(list.url)
     if (kept !== undefined && kept.trimEnd() === text) return list
   }
@@ -74,6 +74,6 @@ export function exampleListIn(box: string): ExampleList | null {
 }
 
 /** Tests only: forget what arrived. */
-export function forgetExampleLists(): void {
+export function forgetPresetLists(): void {
   held.clear()
 }

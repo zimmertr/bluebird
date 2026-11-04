@@ -4,7 +4,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
 import { fakeResponse } from '../testSupport/fixtures'
-import { EXAMPLE_LISTS, forgetExampleLists } from '../utils/exampleLists'
+import { PRESET_LISTS, forgetPresetLists } from '../utils/presetLists'
 import type { DiscoveryType } from '../types'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
@@ -37,7 +37,7 @@ function props(over: Partial<Props> = {}): Props {
     setCustomCsv: noop,
     parsedCount: 0,
     onCsvPasted: noop,
-    onExampleListFailed: noop,
+    onPresetListFailed: noop,
     ...over,
   }
 }
@@ -383,46 +383,49 @@ describe('DestinationsSection', () => {
   })
 
   // The row under the subheading is the Polygon row's grid: the one menu
-  // over the example lists across two cells and Clear in the third. A pick
+  // over the preset lists across two cells and Clear in the third. A pick
   // replaces the box at once, typed rows included (#838, record 0263).
-  describe('the Example list field', () => {
+  describe('the Preset list field', () => {
     afterEach(() => {
       vi.unstubAllGlobals()
       vi.restoreAllMocks()
-      forgetExampleLists()
+      forgetPresetLists()
     })
-    const field = (reads: string) => screen.getByRole('button', { name: `Example list ${reads}` })
+    // Named once at rest, where it reads its own name, and by its name and
+    // the list's once a list is in the box.
+    const field = (list?: string) =>
+      screen.getByRole('button', { name: list === undefined ? 'Preset list' : `Preset list ${list}` })
     // Named with the subheading, since the Polygon row's Clear reads the same word.
     const clear = () => screen.getByRole('button', { name: 'Clear Coordinate search' }) as HTMLButtonElement
     const LIST = '46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'
     const arrives = () => vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: LIST })))
 
-    it('reads None over an empty box, Custom over typed rows, and lists every example', async () => {
+    it('reads its own name over an empty box and over typed rows, and lists every preset', async () => {
       const { user, rerender } = render(<DestinationsSection {...props()} />)
-      expect(field('None').getAttribute('aria-haspopup')).toBe('listbox')
+      expect(field().getAttribute('aria-haspopup')).toBe('listbox')
       rerender(<DestinationsSection {...props({ customCsv: '1,2,Mine' })} />)
-      await user.click(field('Custom'))
-      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(EXAMPLE_LISTS.map((l) => l.name))
+      await user.click(field())
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(PRESET_LISTS.map((l) => l.name))
     })
 
     it('fills an empty box, frames the rows, says the list arrived and leaves the keyboard where it was', async () => {
       arrives()
       const setCustomCsv = vi.fn()
       const onCsvPasted = vi.fn()
-      const onExampleListFailed = vi.fn()
+      const onPresetListFailed = vi.fn()
       const { user, rerender } = render(
-        <DestinationsSection {...props({ setCustomCsv, onCsvPasted, onExampleListFailed })} />,
+        <DestinationsSection {...props({ setCustomCsv, onCsvPasted, onPresetListFailed })} />,
       )
-      await user.click(field('None'))
-      await user.click(screen.getByRole('option', { name: EXAMPLE_LISTS[0].name }))
+      await user.click(field())
+      await user.click(screen.getByRole('option', { name: PRESET_LISTS[0].name }))
       await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
       expect(onCsvPasted.mock.calls[0][0].map((d: { name: string }) => d.name)).toEqual(['Mount Rainier', 'Mount Baker'])
-      expect(onExampleListFailed).toHaveBeenCalledWith(false)
+      expect(onPresetListFailed).toHaveBeenCalledWith(false)
       // A box that took the keyboard scrolled to its end and hid a line.
       expect(document.activeElement).not.toBe(coordinates())
       // The box now holds the list, so the field names it.
-      rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv, onCsvPasted, onExampleListFailed })} />)
-      expect(field(EXAMPLE_LISTS[0].name)).toBeTruthy()
+      rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv, onCsvPasted, onPresetListFailed })} />)
+      expect(field(PRESET_LISTS[0].name)).toBeTruthy()
     })
 
     // The pick is the press: nothing asks first, over the reader's own rows
@@ -432,8 +435,8 @@ describe('DestinationsSection', () => {
       const setCustomCsv = vi.fn()
       const onCsvPasted = vi.fn()
       const { user } = render(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv, onCsvPasted })} />)
-      await user.click(field('Custom'))
-      await user.click(screen.getByRole('option', { name: EXAMPLE_LISTS[0].name }))
+      await user.click(field())
+      await user.click(screen.getByRole('option', { name: PRESET_LISTS[0].name }))
       await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
       expect(setCustomCsv).toHaveBeenCalledOnce()
       expect(onCsvPasted).toHaveBeenCalledOnce()
@@ -444,17 +447,17 @@ describe('DestinationsSection', () => {
     it('clears the box with Clear, which greys over a blank box', async () => {
       const setCustomCsv = vi.fn()
       const onCsvPasted = vi.fn()
-      const onExampleListFailed = vi.fn()
+      const onPresetListFailed = vi.fn()
       const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv })} />)
       expect(clear().disabled).toBe(true)
-      rerender(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv, onCsvPasted, onExampleListFailed })} />)
+      rerender(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv, onCsvPasted, onPresetListFailed })} />)
       expect(clear().disabled).toBe(false)
       await user.click(clear())
       expect(setCustomCsv).toHaveBeenCalledExactlyOnceWith('')
       expect(onCsvPasted).not.toHaveBeenCalled()
-      expect(onExampleListFailed).not.toHaveBeenCalled()
+      expect(onPresetListFailed).not.toHaveBeenCalled()
       rerender(<DestinationsSection {...props({ customCsv: '', setCustomCsv })} />)
-      expect(field('None')).toBeTruthy()
+      expect(field()).toBeTruthy()
       expect(clear().disabled).toBe(true)
       // The press greyed the button it landed on, so the box takes the keyboard (#576).
       expect(document.activeElement).toBe(coordinates())
@@ -466,11 +469,11 @@ describe('DestinationsSection', () => {
       vi.spyOn(console, 'warn').mockImplementation(() => {})
       vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: 'Not Found' }, 404)))
       const setCustomCsv = vi.fn()
-      const onExampleListFailed = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv, onExampleListFailed })} />)
-      await user.click(field('Custom'))
-      await user.click(screen.getByRole('option', { name: EXAMPLE_LISTS[0].name }))
-      await waitFor(() => expect(onExampleListFailed).toHaveBeenCalledWith(true))
+      const onPresetListFailed = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv, onPresetListFailed })} />)
+      await user.click(field())
+      await user.click(screen.getByRole('option', { name: PRESET_LISTS[0].name }))
+      await waitFor(() => expect(onPresetListFailed).toHaveBeenCalledWith(true))
       expect(setCustomCsv).not.toHaveBeenCalled()
     })
   })

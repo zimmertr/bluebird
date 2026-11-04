@@ -154,10 +154,11 @@ interface MenuSelectProps<V extends string> {
   /** A phone: the list opens in a bottom sheet headed by `label`, as the model list does (record 0252). */
   sheet?: boolean
   /**
-   * What the field reads while `value` names no option: the Example list
-   * field under Coordinate search, None over an empty box and Custom over the
-   * reader's own rows (#838, record 0263). The field is named by its label
-   * and this, as by its label and a value.
+   * What the field reads while `value` names no option: the Preset list
+   * field under Coordinate search reads its own name until a list is in the
+   * box (#838, record 0263). The field is named by its label and this, as by
+   * its label and a value. A placeholder that is the label names the field
+   * once, or a screen reader would hear the name twice.
    */
   placeholder?: string
 }
@@ -238,7 +239,7 @@ export function MenuSelect<V extends string>({
         shape={shape}
         open={open}
         aria-haspopup={sheet ? 'dialog' : 'listbox'}
-        aria-labelledby={`${nameId} ${valueId}`}
+        aria-labelledby={showsPlaceholder && placeholder === label ? nameId : `${nameId} ${valueId}`}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={(e) => {
@@ -250,8 +251,8 @@ export function MenuSelect<V extends string>({
         // Centred, as the model picker centres its label: every field in the
         // panel's control column reads the same way. It was `text-left` until
         // 2026-11-03, which the aggregate's and the chart's fields never showed,
-        // each being sized to its longest label, and the Example list field's
-        // `None`, then at the column's width, did (the maintainer).
+        // each being sized to its longest label, and the Preset list field's
+        // placeholder, then at the column's width, did (the maintainer).
         className={`${className} text-center`}
       >
         <span id={nameId} className={SR_ONLY}>

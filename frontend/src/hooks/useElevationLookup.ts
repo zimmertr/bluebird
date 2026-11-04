@@ -43,7 +43,7 @@ const NO_KEYS: ReadonlySet<string> = new Set()
  * rows rather than when Analyze is pressed (#673), and the only thing in the
  * app that looks an elevation up: an analysis reads what this has learned and
  * never waits for it. However the rows got there (a paste, a typed line, a
- * share link, an example), every distinct coordinate the browser has no
+ * share link, a preset list), every distinct coordinate the browser has no
  * answer for is looked up once the box has been still for
  * `LOOKUP_DEBOUNCE_MS`, one lookup at a time, by the pod, which reads its own
  * copy of OpenStreetMap, or the map server on a deployment without one

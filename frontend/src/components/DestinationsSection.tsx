@@ -13,7 +13,7 @@ import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import { parseCustomCsv } from '../utils/customDestinations'
-import { EXAMPLE_LISTS, exampleListIn, fetchExampleList } from '../utils/exampleLists'
+import { PRESET_LISTS, presetListIn, fetchPresetList } from '../utils/presetLists'
 import { MenuSelect } from './Menu'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
@@ -87,10 +87,10 @@ interface Props {
   // A paste landed in the CSV box and parsed to at least one destination —
   // App frames the list on the map. Paste only: typing never moves the camera.
   onCsvPasted: (points: CustomDestination[]) => void
-  // Whether the example list last picked arrived (#838): false on a pick that
+  // Whether the preset list last picked arrived (#838): false on a pick that
   // lands, true on one that does not, which the Analyze button's list says.
-  onExampleListFailed: (failed: boolean) => void
-  // A phone, where the Example list field opens the one menu's sheet (record 0252).
+  onPresetListFailed: (failed: boolean) => void
+  // A phone, where the Preset list field opens the one menu's sheet (record 0252).
   phone?: boolean
 }
 
@@ -119,7 +119,7 @@ export default function DestinationsSection({
   setCustomCsv,
   parsedCount,
   onCsvPasted,
-  onExampleListFailed,
+  onPresetListFailed,
   phone = false,
 }: Props) {
   // True between a paste into the CSV box and the change event it produces —
@@ -129,7 +129,7 @@ export default function DestinationsSection({
   // true exactly when a change came from a paste — including a paste that
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
-  // A list picked from the Example list field (#838, record 0263) replaces
+  // A list picked from the Preset list field (#838, record 0263) replaces
   // whatever the box holds, typed rows included, with nothing asked: the pick
   // is the press that means it (the maintainer, 2026-11-03). The list frames
   // the map as a paste does, since it arrives whole rather than typed. The
@@ -141,10 +141,10 @@ export default function DestinationsSection({
   const csvClearId = useId()
   const csvBlank = customCsv.trim() === ''
   const loadList = async (url: string) => {
-    const list = EXAMPLE_LISTS.find((l) => l.url === url)
+    const list = PRESET_LISTS.find((l) => l.url === url)
     if (!list) return
-    const text = await fetchExampleList(list)
-    onExampleListFailed(text === null)
+    const text = await fetchPresetList(list)
+    onPresetListFailed(text === null)
     if (text === null) return
     setCustomCsv(text)
     const points = parseCustomCsv(text)
@@ -220,9 +220,10 @@ export default function DestinationsSection({
           one row that follows it as the placeholder. No helper line; the
           format states itself. The row under the subheading is the Polygon
           row's grid (#838, record 0263): the one menu over the ready-made
-          lists across two cells, reading the list's name while the box is
-          that list and None or Custom otherwise, so the field says what the
-          box holds the way Model says which model, and Clear in the third,
+          lists across two cells, reading its own name until a list is in the
+          box and that list's name while it is, so the field names what it
+          offers at rest and what the box holds once a list is in it (the
+          maintainer, 2026-11-03), and Clear in the third,
           on the edge the Polygon row's Clear stands on. Two cells because a
           third leaves 72px of label beside the chevron, and every list's
           name is wider than that. A menu rather than the lists written out,
@@ -235,10 +236,10 @@ export default function DestinationsSection({
         </h3>
         <div className={`${DRAW_ROW.row} mb-1.5`}>
           <MenuSelect
-            label="Example list"
-            placeholder={csvBlank ? 'None' : 'Custom'}
-            value={exampleListIn(customCsv)?.url ?? ''}
-            options={EXAMPLE_LISTS.map((list) => ({ value: list.url, label: list.name }))}
+            label="Preset list"
+            placeholder="Preset list"
+            value={presetListIn(customCsv)?.url ?? ''}
+            options={PRESET_LISTS.map((list) => ({ value: list.url, label: list.name }))}
             onChange={(url) => void loadList(url)}
             sheet={phone}
             className={DRAW_ROW.field}

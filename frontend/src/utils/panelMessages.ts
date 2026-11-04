@@ -1,7 +1,7 @@
 import { NOUN } from '../metrics'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
 import { BASEMAP_FAILED_NOTE } from './basemapFailure'
-import { EXAMPLE_LIST_FAILED_NOTE } from './exampleLists'
+import { PRESET_LIST_FAILED_NOTE } from './presetLists'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import type { CommitReason } from './present'
 import type { AnalyzeBlocker } from './analyzeGate'
@@ -186,8 +186,8 @@ export interface PanelMessageInputs {
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
-  /** The example list last picked beside Coordinate search did not arrive (#838). */
-  exampleListFailed: boolean
+  /** The preset list last picked beside Coordinate search did not arrive (#838). */
+  presetListFailed: boolean
   // What the link carried and could not restore (`useLinkDrops`, #803). Absent
   // reads as nothing lost.
   linkLost?: readonly LinkDrop[]
@@ -389,8 +389,8 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     // 0263): the reader asked for rows and the box stayed as it was, so the
     // line opens the list the way the map's does. Gone when the next pick
     // lands.
-    ...(p.exampleListFailed
-      ? [{ key: 'list:failed', text: EXAMPLE_LIST_FAILED_NOTE, severity: 'error' as const }]
+    ...(p.presetListFailed
+      ? [{ key: 'list:failed', text: PRESET_LIST_FAILED_NOTE, severity: 'error' as const }]
       : []),
     ...(aqiNoteActive
       ? [

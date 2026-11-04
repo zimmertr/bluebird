@@ -51,7 +51,7 @@ export function demoMessageList(limits: {
     wildfireCheckFailed: false,
     closureCheckFailed: false,
     basemapFailed: false,
-    exampleListFailed: false,
+    presetListFailed: false,
     now: new Date(),
   })
 }

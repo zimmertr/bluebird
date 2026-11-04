@@ -86,8 +86,8 @@ interface AppDrawerProps {
   /** The panel's Map group is hovered: the search box and the map's features wear a cue. */
   onPointAtSearch: (on: boolean) => void
   onPointAtMapPois: (on: boolean) => void
-  /** Whether the example list last picked beside Coordinate search arrived (#838). */
-  onExampleListFailed: (failed: boolean) => void
+  /** Whether the preset list last picked beside Coordinate search arrived (#838). */
+  onPresetListFailed: (failed: boolean) => void
   /** Every message the panel has to say, with the Analyze gate and the blockers by field (`usePanelMessages`). */
   messages: PanelMessages
   /** Analyze, and the one run a link may ask for on open. */
@@ -133,7 +133,7 @@ export default function AppDrawer({
   mapRef,
   onPointAtSearch,
   onPointAtMapPois,
-  onExampleListFailed,
+  onPresetListFailed,
   messages,
   onAnalyze,
   autoAnalyze,
@@ -206,7 +206,7 @@ export default function AppDrawer({
       customCsv={customCsv}
       setCustomCsv={setCustomCsv}
       onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
-      onExampleListFailed={onExampleListFailed}
+      onPresetListFailed={onPresetListFailed}
       messages={panelMessages}
       sortBy={sortBy}
       setSortBy={setSortBy}

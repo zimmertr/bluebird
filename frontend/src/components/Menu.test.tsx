@@ -428,23 +428,22 @@ describe('MenuSelect', () => {
     expect(name).toEqual(['Wind aggregate', 'Max'])
   })
 
-  // The Example list field (record 0263): while its value names no option it
-  // reads its placeholder, named by its label and that word as by its label
-  // and a value, no row is current, and a pick of the same row twice fires
-  // twice.
+  // A field whose value names no option (record 0263): it reads its
+  // placeholder, named by its label and that word as by its label and a
+  // value, no row is current, and a pick of the same row twice fires twice.
   it('reads its placeholder while no option is current, and fires on every pick', async () => {
     const onChange = vi.fn()
     const { user } = render(
       <MenuSelect
-        label="Example list"
-        placeholder="None"
+        label="Peak list"
+        placeholder="Pick one"
         value=""
         options={[{ value: 'bulgers', label: 'The Bulger List' }]}
         onChange={onChange}
         className="w-14"
       />,
     )
-    const load = () => screen.getByRole('button', { name: 'Example list None' })
+    const load = () => screen.getByRole('button', { name: 'Peak list Pick one' })
     expect(load()).toBeTruthy()
     await user.click(load())
     expect(option('The Bulger List').getAttribute('aria-selected')).toBe('false')
@@ -453,6 +452,24 @@ describe('MenuSelect', () => {
     await user.click(option('The Bulger List'))
     expect(onChange).toHaveBeenCalledTimes(2)
     expect(load()).toBeTruthy()
+  })
+
+  // The Preset list field reads its own name at rest (record 0263): the name
+  // is said once, not once as the label and again as the placeholder, and a
+  // value that names an option is said after the label as before.
+  it('names a field once while its placeholder is its label', () => {
+    const props = {
+      label: 'Preset list',
+      placeholder: 'Preset list',
+      options: [{ value: 'bulgers', label: 'The Bulger List' }],
+      onChange: () => {},
+      className: 'w-14',
+    }
+    const { rerender } = render(<MenuSelect {...props} value="" />)
+    const named = (name: string) => screen.getByRole('button', { name })
+    expect(named('Preset list').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(1)
+    rerender(<MenuSelect {...props} value="bulgers" />)
+    expect(named('Preset list The Bulger List').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
   })
 
   it('opens the one menu, the current value set semibold and no check mark', async () => {
