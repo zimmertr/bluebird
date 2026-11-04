@@ -8,7 +8,7 @@ Usage: python3 fetch_list.py <lid> [<lid> ...]
 Writes peaks<lid>.json ({lid, title, peaks:[{seq, pb_rank, pid, name, elev}]})
 into the current directory, ordered exactly as the list page presents them.
 """
-import html, json, re, subprocess, sys, time, unicodedata
+import html, json, re, subprocess, sys, time
 
 # <tr><td>RANK.</td><td><a href=peak.aspx?pid=NNNN>NAME</a></td><td align=right>ELEV</td>
 # The first align=right cell after the peak link is elevation; prominence follows later.
