@@ -53,7 +53,9 @@
  *   following them; a card whose lines ask for more than the width chosen
  *   opens at its own. A card opened at that size is still fitted and panned
  *   as any card is, its body at the reader's height rather than under the
- *   app's cap;
+ *   app's cap. A double press on the handle puts the card back at the size
+ *   it opens at with no reader's choice and forgets the reader's, so later
+ *   cards open at their own again (TJ, 2026-11-04);
  * - **answered** by its one button: a row in the analysis leaves it as the
  *   table's × does, and a place outside it joins it as a search by name does.
  *
@@ -76,6 +78,7 @@ import {
   subjectPoint,
   subjectType,
 } from '../utils/destinationCard'
+import { cancelTouchEnd, type PressClock, secondPress } from '../utils/doublePress'
 import type { Place } from '../utils/geocode'
 import { MAP_TARGETS, type MapTarget } from '../utils/mapClick'
 import type { ModelRow } from '../utils/model/modelCompare'
@@ -200,6 +203,11 @@ interface Card {
   steer: (() => void) | null
   /** Counts its flights, so a landing heard from one the next replaced is not its own. */
   flights: number
+  /**
+   * Its handle's last press, held on the card rather than the handle: every
+   * write draws the handle anew, and a double press is one gesture on it.
+   */
+  presses: PressClock
 }
 
 // What each kind of card is closed by, when a click elsewhere or an overlay
@@ -292,11 +300,19 @@ export function mountDestinationCards(
   // that height as the drag goes, so it scrolls under its header where it is
   // shorter than what it holds. The handle captures the pointer, so every
   // move of a drag that leaves the card, or of a finger that leaves the
-  // handle, comes to it until the button or the finger lifts.
+  // handle, comes to it until the button or the finger lifts. The second
+  // press of a double press starts no drag: it puts the card back (`restore`).
   function resize(card: Card, handle: HTMLElement, e: PointerEvent) {
     if (e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
+    if (secondPress(card.presses, e)) {
+      // The card shrinks out from under the finger, and a click Firefox for
+      // Android aimed at the map left under it would open a spot's card.
+      if (e.pointerType === 'touch') cancelTouchEnd()
+      restore(card)
+      return
+    }
     handle.setPointerCapture(e.pointerId)
     // The reader sizes the card now, so no re-fit undoes it.
     card.landing = null
@@ -335,6 +351,19 @@ export function mountDestinationCards(
     handle.addEventListener('pointermove', move)
     handle.addEventListener('pointerup', up)
     handle.addEventListener('pointercancel', up)
+  }
+
+  // A double press on the handle (TJ, 2026-11-04): the card goes back to the
+  // size it opens at with no reader's choice, the width its own lines asked
+  // for and its body under the app's cap, and the reader's size is forgotten,
+  // so every card opened after it opens at its own size again. Fitted again
+  // as a card that changed size after it landed is, so it stands whole on its
+  // point, the map panning where it must.
+  function restore(card: Card) {
+    chosen = null
+    card.fixed = false
+    popups.sizeCard(card.popup, popups.cardBounds(card.popup).width.min)
+    refit(card)
   }
 
   // A chevron's press: the section folds or opens on every card, and the
@@ -593,6 +622,7 @@ export function mountDestinationCards(
         fitted: null,
         steer: steer ?? null,
         flights: 0,
+        presses: { current: null },
       }
       // Every layer that is on, asked for what it has here before the card
       // is drawn, so each that answers at once is in the markup the fit

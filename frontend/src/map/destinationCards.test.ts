@@ -971,6 +971,45 @@ describe('sections', () => {
     expect(popups[popups.length - 1].body.style.minHeight).toBeUndefined()
   })
 
+  // A double press on the handle puts the card back at the size it opens at
+  // with no reader's choice (TJ, 2026-11-04, record 0270): its own width and
+  // its body under the app's cap, fitted again once where it stands, and the
+  // size dragged to is forgotten, so the next card opens at its own. A press
+  // long after the last, or far from it, is a drag of its own.
+  it('puts a card back at its opening size on a double press of its handle, and forgets the size dragged to', () => {
+    const { cards, board } = setup()
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    const card = popups[0]
+    const handle = card.handle!
+    handle.fire('pointerdown', { pointerId: 1, clientX: 100, clientY: 100, timeStamp: 1000 })
+    handle.fire('pointermove', { pointerId: 1, clientX: 140, clientY: 300 })
+    handle.fire('pointerup', { pointerId: 1 })
+    expect([card.maxWidth, card.body.style.minHeight]).toEqual(['360px', '350px'])
+    const refit = vi.spyOn(board, 'refit')
+    // Long after the first press, and then soon after but where the drag
+    // left the handle, 200px from where it was first pressed.
+    handle.fire('pointerdown', { pointerId: 2, clientX: 140, clientY: 300, timeStamp: 3000 })
+    handle.fire('pointerup', { pointerId: 2 })
+    handle.fire('pointerdown', { pointerId: 3, clientX: 140, clientY: 100, timeStamp: 3100 })
+    handle.fire('pointerup', { pointerId: 3 })
+    expect(handle.captured).toEqual([1, 2, 3])
+    expect(refit).not.toHaveBeenCalled()
+    // The double press, a few pixels off the press before it.
+    handle.fire('pointerdown', { pointerId: 4, clientX: 142, clientY: 103, timeStamp: 3300, pointerType: 'mouse' })
+    expect(handle.captured).toEqual([1, 2, 3])
+    expect(refit).toHaveBeenCalledOnce()
+    expect([card.maxWidth, card.content.style.width]).toEqual(['280px', '280px'])
+    expect([card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['', ''])
+    // It started no drag: a move after it sizes nothing.
+    handle.fire('pointermove', { pointerId: 4, clientX: 400, clientY: 400 })
+    expect([card.maxWidth, card.body.style.minHeight]).toEqual(['280px', ''])
+    board.closeAll()
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude])
+    const next = popups[popups.length - 1]
+    expect([next.maxWidth, next.content.style.width]).toEqual([undefined, '280px'])
+    expect(next.body.style.minHeight).toBeUndefined()
+  })
+
   // A card keeps the width it opened at (TJ, 2026-11-04): MapLibre centres a
   // card on its point, so a card that widened when the snow's numbers landed
   // moved both its edges. The width the fit measured is set on it at once,

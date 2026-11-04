@@ -9,10 +9,10 @@ import { test, expect, expectRanked, DESTINATION_NAMES, FIRE_DETECTION } from '.
 // the reader's (TJ, 2026-11-04): a ranked card dragged far up and left stops
 // at the width it opened at and a quarter of the map, its lines whole, and a
 // short card dragged down stands taller than what it holds, past the three
-// quarters of the map the app caps a card by, up to the free map's height.
-// At a desk only: a
-// finger's drag is the same pointer events, and the phone's 32px box is the
-// role's, which `styles.test.ts` pins.
+// quarters of the map the app caps a card by, up to the free map's height;
+// and that a double click on the handle puts the card back at its opening
+// size. At a desk only: a finger's drag is the same pointer events, and the
+// phone's 32px box is the role's, which `styles.test.ts` pins.
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
@@ -136,6 +136,41 @@ test('a drag on a card’s corner sizes it, and the next card opens at that size
   const next = await measure(await centredCard(page, DESTINATION_NAMES[1]))
   expect(Math.abs(next.card.width - after.card.width)).toBeLessThanOrEqual(1)
   expect(Math.abs(next.body.height - Math.min(after.body.height, next.freeMap))).toBeLessThanOrEqual(1)
+})
+
+// A double click on the handle puts the card back at the size it opened at
+// and forgets the size the drag left (TJ, 2026-11-04, record 0270): the card
+// stands at its opening width and height on its point again, and the next
+// card opens at its own size rather than the dragged one.
+test('a double click on a card’s corner puts it back at its opening size', async ({ page }) => {
+  await page.goto(`/?type=peak&poly=${RING}`)
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await page.getByRole('button', { name: 'Analyze' }).click()
+  await expectRanked(page)
+  await resultsOpened(page)
+
+  const card = await centredCard(page, DESTINATION_NAMES[0])
+  const before = await measure(card)
+  await drag(page, card, 80, 120)
+  const dragged = await measure(card)
+  expect(dragged.card.width).toBeGreaterThan(before.card.width + 100)
+
+  const grip = (await card.locator('[data-card-resize]').boundingBox())!
+  await page.mouse.dblclick(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  // The re-fit can pan the map, and the card rides along: read it once still.
+  await expect
+    .poll(async () => Math.round((await measure(card)).card.width), { intervals: [200] })
+    .toBe(Math.round(before.card.width))
+  const reset = await measure(card)
+  test.info().annotations.push({ type: 'card reset', description: JSON.stringify({ before, dragged, reset }) })
+  expect(Math.abs(reset.body.height - before.body.height)).toBeLessThanOrEqual(1)
+  expect(reset.cut).toEqual(before.cut)
+
+  // The same row's card again opens at the size it first opened at.
+  await card.locator('.maplibregl-popup-close-button').click()
+  const again = await measure(await centredCard(page, DESTINATION_NAMES[0]))
+  expect(Math.abs(again.card.width - before.card.width)).toBeLessThanOrEqual(1)
+  expect(Math.abs(again.body.height - before.body.height)).toBeLessThanOrEqual(1)
 })
 
 // Dragged far up and left, a ranked card stops at the width it opened at,

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent } from '@testing-library/react'
 import ResizeGrip from './ResizeGrip'
-import { DOUBLE_PRESS_MS } from '../hooks/useGripDrag'
+import { DOUBLE_PRESS_MS } from '../utils/doublePress'
 import { render } from '../testSupport/render'
 
 // The bar between the results panels (#382). The gesture reads each event's

@@ -19,6 +19,7 @@ import ResizeGrip, { GridGutter } from './ResizeGrip'
 import ChartLines from './ChartLines'
 import { type ColorScale, cellStyle, hourlyScale } from '../utils/colors'
 import { clamp } from '../utils/numbers'
+import { cancelTouchEnd, type Press, secondPress } from '../utils/doublePress'
 import ChartLayoutButton from './ChartLayoutButton'
 import { type ChartLayout, type RowCrossing, type RowShares, evenRows, layoutFor, rowCrossings, rowRects, rowsOf, sharesAfterDrag } from '../utils/chart/chartLayout'
 import { DRAG_THRESHOLD_PX, GHOST_MAX_PX, ghostLeft, travel } from '../utils/columnDrag'
@@ -2195,6 +2196,13 @@ function PinnedCard({
   // card's columns being the panels in their order (TJ 2026-10-30).
   const [carry, setCarry] = useState<{ m: ChartMetric; x: number; y: number; to: number } | null>(null)
   const dragged = useRef(false)
+  // The corner's last press, for its double press (record 0270).
+  const sizePresses = useRef<Press | null>(null)
+  // Set by that double press: the card takes its pinned size back, which can
+  // be wider or taller than the room left where it stands, so once it has
+  // its size again it is brought back inside the plotting area as a move
+  // keeps it.
+  const resettled = useRef(false)
   useLayoutEffect(() => {
     const el = ref.current
     if (!el || at) return
@@ -2219,6 +2227,18 @@ function PinnedCard({
     // Whatever moves a row or the body's bottom: the size, the sort, the rows,
     // the columns, where it stands, and the count itself, whose foot takes room.
   }, [fits, size, sort, lines, metrics, at, pin.t, times])
+  // After every render rather than on a list, since the flag is a ref: the
+  // render that follows the reset is the first with the pinned size drawn.
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!resettled.current || !el || !at) return
+    resettled.current = false
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    const x = clamp(at.x, a.x, Math.max(a.x, a.x + a.w - w))
+    const y = clamp(at.y, a.y, Math.max(a.y, a.y + a.h - h))
+    if (x !== at.x || y !== at.y) setAt({ x, y })
+  })
   const index = times.indexOf(pin.t)
   if (index < 0) return null
   const hour = fmtTooltipTime(pin.t)
@@ -2287,9 +2307,21 @@ function PinnedCard({
       setAt({ x: clamp(start.x + dx, a.x, Math.max(a.x, a.x + a.w - w)), y: clamp(start.y + dy, a.y, Math.max(a.y, a.y + a.h - h)) }),
     )
   }
+  // A drag on the corner sizes the card; a double press puts it back at the
+  // size it was pinned at, the hover card's (TJ, 2026-11-04). Each pinned
+  // card keeps its own size, so the reset touches no other.
   const onSize = (e: PointerEvent<HTMLSpanElement>) => {
     if (!at || !ref.current) return
     onRaise(pin.t)
+    if (secondPress(sizePresses, e)) {
+      e.preventDefault()
+      e.stopPropagation()
+      // The card shrinks out from under the finger, onto the plot.
+      if (e.pointerType === 'touch') cancelTouchEnd()
+      resettled.current = true
+      setSize(null)
+      return
+    }
     const w0 = ref.current.offsetWidth
     const h0 = ref.current.offsetHeight
     const from = at
