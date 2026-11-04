@@ -56,6 +56,19 @@ const TIP_PX = 10
 export const FIT_MARGIN_PX = 8
 /** Half the square a marker needs around itself to read as the card's subject. */
 const MARKER_HALF_PX = 8
+/**
+ * How far apart two areas may be and still be one, in square pixels. A point
+ * MapLibre projects after a flight carries noise in its last digits
+ * (416.5000000000477 for 416.5), and an exact comparison let that noise
+ * outweigh a whole card's worth of tie: a card that showed whole on either
+ * side turned to the side 42px away (measured 2026-11-04).
+ */
+const AREA_SLOP = 0.5
+
+/** Whether a candidate that shows `area` beats the best so far, the shorter move breaking a tie. */
+function better(area: number, bestArea: number, shorter: boolean): boolean {
+  return area > bestArea + AREA_SLOP || (Math.abs(area - bestArea) <= AREA_SLOP && shorter)
+}
 
 /** The card and its marker together, standing on the given side of the marker. */
 export function figureOf(marker: Point, size: Size, anchor: PopupSide, tip = TIP_PX): Rect {
@@ -145,7 +158,7 @@ export function fitPan(figure: Rect, region: Rect, obstacles: readonly Rect[], m
   for (const c of candidates) {
     const area = visibleArea(shifted(figure, c.x, c.y), region, obstacles)
     const shorter = Math.abs(c.x) + Math.abs(c.y) < Math.abs(best.x) + Math.abs(best.y)
-    if (area > bestArea || (area === bestArea && shorter)) {
+    if (better(area, bestArea, shorter)) {
       best = c
       bestArea = area
     }
@@ -168,7 +181,7 @@ export function placePopup(marker: Point, size: Size, region: Rect, obstacles: r
     const area = visibleArea(shifted(figure, pan.x, pan.y), region, obstacles)
     const shorter =
       best !== null && Math.abs(pan.x) + Math.abs(pan.y) < Math.abs(best.dx) + Math.abs(best.dy)
-    if (area > bestArea || (area === bestArea && shorter)) {
+    if (better(area, bestArea, shorter)) {
       best = { anchor, dx: pan.x, dy: pan.y }
       bestArea = area
     }

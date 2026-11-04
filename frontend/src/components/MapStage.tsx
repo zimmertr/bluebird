@@ -137,6 +137,11 @@ export interface MapStageProps {
   onBasemapFailed: (failed: boolean) => void
   /** The most positions a drawn ring may carry, from /api/capabilities. */
   maxPolygonPoints: number
+  /**
+   * Lowers a phone's results sheet, then does what it is handed (`useRowFocus`):
+   * how a tap on the map that opens a card gives it room, as a row's press does.
+   */
+  lowerSheetFirst: (then: () => void) => void
 }
 
 /**
@@ -179,6 +184,7 @@ export default function MapStage({
   restoredView,
   onBasemapFailed,
   maxPolygonPoints,
+  lowerSheetFirst,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
@@ -379,6 +385,7 @@ export default function MapStage({
           onCameraMove={urlSync.reportView}
           onBasemapFailed={onBasemapFailed}
           maxPolygonPoints={maxPolygonPoints}
+          lowerSheetFirst={lowerSheetFirst}
           locateSlot={locateSlot}
           compassSlot={compassSlot}
           terrainSlot={terrainSlot}

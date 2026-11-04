@@ -87,6 +87,21 @@ describe('placePopup', () => {
       dy: -178,
     })
   })
+
+  // A table row's card on a 1080x833 desk map, measured in a browser on
+  // 2026-11-04: whole above its point with no move, or whole below it 42px up,
+  // clear of the forecast player. The point MapLibre projected once the flight
+  // landed carried noise in its last digits, and an exact comparison of the
+  // two areas let the noise pick the longer move: the card turned under its
+  // point and the map panned after the flight had landed.
+  it('breaks a tie on the shorter move whatever noise the point carries', () => {
+    const desk: Rect = { left: 0, top: 0, right: 1080, bottom: 833 }
+    const player: Rect = { left: 356, top: 738.5, right: 724, bottom: 789 }
+    const card = { width: 198, height: 346 }
+    const still = { anchor: 'bottom', dx: 0, dy: 0 }
+    expect(placePopup({ x: 540, y: 416.5 }, card, desk, [player])).toEqual(still)
+    expect(placePopup({ x: 540.0000000000239, y: 416.5000000000477 }, card, desk, [player])).toEqual(still)
+  })
 })
 
 // The tutorial's marker step on a 360x740 phone, as measured in a browser on

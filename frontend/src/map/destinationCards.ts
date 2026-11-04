@@ -30,7 +30,8 @@
  *   scroll and the reader's focus, since it answers something the reader did
  *   elsewhere, and a card that grew past the free map is capped where it
  *   stands (`bodyCap`), or where the map's move leaves it when it grew in
- *   the air, as under a table row's flight;
+ *   the air, as under the pan a card opens with; a table row's card is
+ *   placed again and its flight steered instead (`steer`, `place`);
  * - **folded** by its chevrons: a fold the reader makes on one card's
  *   section holds for that section on every card until the page is reloaded
  *   (TJ, 2026-11-03), so a reader who shut the smoke on one marker is not
@@ -87,6 +88,13 @@ export interface CardOpenOptions {
   avoid?: readonly Rect[]
   /** Whether the map pans by the fit's move; a caller folding it into a flight says no. */
   pan?: boolean
+  /**
+   * For a caller flying the card's point to `markerAt`: asked when the card
+   * changes size while the flight is in the air, so the caller can place it
+   * again (`place`) and steer the flight to where that fit puts it, and the
+   * card lands whole rather than being moved after it has landed.
+   */
+  steer?: () => void
 }
 
 /** A card on the map, and the move its fit asked of the map. */
@@ -107,6 +115,17 @@ export interface DestinationCards {
   refresh(): void
   /** Whether a ranked card stands open on this destination. */
   hasOpenRanked(at: { latitude: number; longitude: number }): boolean
+  /**
+   * Fit the card standing on this point ahead of a flight again, for where
+   * the flight will now set its point down (`markerAt`), and say the move,
+   * which the caller folds into the flight it sends again: a flight aimed
+   * again after a resize (record 0202) or after the card changed size in the
+   * air (`steer`). Undefined where no such card stands, as one the reader
+   * closed since.
+   */
+  place(at: { latitude: number; longitude: number }, options: { markerAt: ScreenPoint; avoid?: readonly Rect[] }):
+    | { dx: number; dy: number }
+    | undefined
 }
 
 /** One open card, with what redraws it. */
@@ -141,10 +160,23 @@ interface Card {
    * card and once the re-fit is spent.
    */
   landing: 'flying' | 'landed' | null
-  /** Whether its markup changed during the flight, so it re-fits as it lands. */
+  /**
+   * Whether it changed size in the air with no flight steered to the new
+   * fit, so it re-fits as it lands.
+   */
   grew: boolean
   /** What else it was fitted around, which its re-fit is fitted around too. */
   avoid: readonly Rect[]
+  /**
+   * Its box as the fit last measured it. A redraw that leaves the box as it
+   * was moves nothing: the ground's slope, which lands on every card a table
+   * row opens, rewrites a line and keeps the height.
+   */
+  fitted: { width: number; height: number } | null
+  /** The opener's `steer`, for a card whose flight can still be aimed again. */
+  steer: (() => void) | null
+  /** Counts its flights, so a landing heard from one the next replaced is not its own. */
+  flights: number
 }
 
 // What each kind of card is closed by, when a click elsewhere or an overlay
@@ -335,11 +367,18 @@ export function mountDestinationCards(
     // capped where it stands; one capped already keeps its cap. While the
     // map moves, the point is somewhere along the way, as it is under a
     // table row's flight, and a cap measured there is a keyhole or nothing.
-    // A table row's card that grows in its flight or after it lands is
-    // fitted again once instead (`land`).
-    if (card.landing === 'flying') card.grew ||= grown
-    else if (card.landing === 'landed' && grown) refit(card)
-    else if (body && card.capped === null) {
+    // A table row's card that changes size in its flight is placed again
+    // and its flight steered to the new place, so it lands whole; one that
+    // changes size after it lands is fitted again once (`land`). A redraw
+    // that leaves its box as it was moves nothing.
+    if (card.landing === 'flying') {
+      if (grown && resized(card)) {
+        card.grew = true
+        card.steer?.()
+      }
+    } else if (card.landing === 'landed') {
+      if (grown && resized(card)) refit(card)
+    } else if (body && card.capped === null) {
       if (map.isMoving()) capWhenStill(card)
       else card.capped = popups.bodyCap(card.popup, card.roof)
     }
@@ -347,18 +386,36 @@ export function mountDestinationCards(
     if (body) body.scrollTop = scrolled
   }
 
+  // Whether the card's box is not the one its fit measured.
+  function resized(card: Card): boolean {
+    const el = card.popup.getElement()
+    if (!el || !card.fitted) return false
+    return el.offsetWidth !== card.fitted.width || el.offsetHeight !== card.fitted.height
+  }
+
   // A table row's card opens before its flight, and the layers that fetch
   // for the view the flight lands on (the hazards, the snow's tiles) answer
   // only once it has: their sections join the card after the fit placed it
-  // (TJ, 2026-11-04). So the card fits again once, as it lands where it grew
-  // in the air, or at the first growth after, and the map's next move ends
-  // the wait, the card's place being the reader's from then on.
+  // (TJ, 2026-11-04). A section that joins in the air steers the flight
+  // (`steer`); so the card fits again once, as it lands where it changed
+  // size in the air with no flight steered for it, or at the first change
+  // after, and the map's next move ends the wait, the card's place being the
+  // reader's from then on.
+  //
+  // The landing is heard from the flight's own `moveend`, armed at its
+  // `movestart`: a flight sent again starts by stopping the one in the air,
+  // which ends that one with a `moveend` of its own.
   function land(card: Card) {
     card.landing = 'flying'
+    const flight = ++card.flights
+    const started = () => {
+      map.off('movestart', started)
+      if (card.flights === flight) map.on('moveend', landed)
+    }
     const landed = () => {
       map.off('moveend', landed)
-      if (!cards.includes(card) || card.landing !== 'flying') return
-      if (card.grew) {
+      if (!cards.includes(card) || card.flights !== flight || card.landing !== 'flying') return
+      if (card.grew && resized(card)) {
         refit(card)
         return
       }
@@ -369,14 +426,14 @@ export function mountDestinationCards(
       }
       map.on('movestart', moved)
     }
-    map.on('moveend', landed)
+    map.on('movestart', started)
   }
 
   // The one re-fit: the body measured afresh between the floor and the
   // ceiling, the side and the pan the fit asks for, as `openCard` does.
   function refit(card: Card) {
     card.landing = null
-    card.capped = popups.refit(card.popup, { roof: card.roof, avoid: card.avoid })
+    card.capped = popups.refit(card.popup, { roof: card.roof, avoid: card.avoid })?.capped ?? null
   }
 
   // The cap a card that grew in the air takes where the move set it down.
@@ -485,7 +542,7 @@ export function mountDestinationCards(
   })
 
   return {
-    open(subject, at, { markerAt, avoid, pan = true } = {}) {
+    open(subject, at, { markerAt, avoid, pan = true, steer } = {}) {
       const card: Card = {
         popup: null as unknown as Popup,
         subject,
@@ -500,6 +557,9 @@ export function mountDestinationCards(
         landing: null,
         grew: false,
         avoid: avoid ?? [],
+        fitted: null,
+        steer: steer ?? null,
+        flights: 0,
       }
       // Every layer that is on, asked for what it has here before the card
       // is drawn, so each that answers at once is in the markup the fit
@@ -517,6 +577,7 @@ export function mountDestinationCards(
       })
       card.popup = placed.popup
       card.capped = placed.capped
+      card.fitted = placed.size
       // A point given for where the card WILL stand is a flight to come.
       if (markerAt) land(card)
       // The tutorial's marker step frames a ranked card (#536).
@@ -541,6 +602,25 @@ export function mountDestinationCards(
       return cards.some(
         (c) => c.subject.kind === 'ranked' && c.subject.row.latitude === latitude && c.subject.row.longitude === longitude,
       )
+    },
+    place({ latitude, longitude }, { markerAt, avoid }) {
+      const card = [...cards].reverse().find((c) => {
+        const p = subjectPoint(c.subject)
+        return c.landing === 'flying' && p.lat === latitude && p.lon === longitude
+      })
+      if (!card) return undefined
+      // Drawn first for the map as it stands, as a card opening now would
+      // be: a resize can change how the grid is laid out.
+      write(card)
+      if (avoid) card.avoid = avoid
+      const fit = popups.refit(card.popup, { roof: card.roof, avoid: card.avoid, markerAt, pan: false })
+      if (!fit) return undefined
+      card.capped = fit.capped
+      card.fitted = fit.size
+      card.grew = false
+      // The flight it is about to ride.
+      land(card)
+      return { dx: fit.dx, dy: fit.dy }
     },
   }
 }

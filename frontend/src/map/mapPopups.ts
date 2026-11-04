@@ -194,6 +194,8 @@ interface PlacedCard {
   dy: number
   /** The height its body was capped to, which a redraw must keep, or null. */
   capped: number | null
+  /** The card's box as the fit measured it, which tells a later redraw whether the card changed size. */
+  size: { width: number; height: number }
 }
 
 export interface MapPopups {
@@ -253,16 +255,21 @@ export interface MapPopups {
    */
   sizeCard(popup: Popup, width: number): number
   /**
-   * Fit an open card again where its point now stands, as `openCard` fits a
-   * new one: its body measured uncapped and capped between the floor and the
-   * ceiling (or under the reader's `roof`), its side the one the fit picks,
-   * and the map panned by the fit's move. For a table row's card whose
-   * sections joined during or after its flight, once it lands (TJ,
-   * 2026-11-04), so a card that grew stands whole rather than hanging off an
-   * edge or keeping a cap measured on the shorter card. Says the body's cap,
-   * or null.
+   * Fit an open card again, as `openCard` fits a new one: its body measured
+   * uncapped and capped between the floor and the ceiling (or under the
+   * reader's `roof`), its side the one the fit picks, and the map panned by
+   * the fit's move. For a table row's card that changed size around its
+   * flight (TJ, 2026-11-04), so a card that grew stands whole rather than
+   * hanging off an edge or keeping a cap measured on the shorter card. Where
+   * its point stands now, once the flight has landed; or, given `markerAt`
+   * and no `pan`, where the flight in the air will set it down, the move
+   * handed back for the caller to steer the flight by. Says the body's cap,
+   * the move, and the card's box as fitted.
    */
-  refit(popup: Popup, options?: { roof?: number | null; avoid?: readonly Rect[] }): number | null
+  refit(
+    popup: Popup,
+    options?: { roof?: number | null; avoid?: readonly Rect[]; markerAt?: Point; pan?: boolean },
+  ): { capped: number | null; dx: number; dy: number; size: { width: number; height: number } } | null
   /**
    * Open a card on the board, placed where it shows the most of itself
    * (#738): every card the map opens, a destination's, a fire's, a closure's
@@ -359,16 +366,26 @@ export function mountMapPopups(
     const { under, features } = targetsAt(e.point)
     const closed = isPinning(e) ? 0 : board.closeAll()
     const drawing = controller.inputs.drawing
-    for (const kind of rankedTargets(drawing, under)) {
-      const target = targets.find((t) => t.target === kind)!
-      const feature = target.layers
-        .map((id) => features.find((f) => f.layer.id === id))
-        .find((f) => f !== undefined)
-      if (feature && target.open({ feature, lngLat: e.lngLat, point: e.point }) !== false) return
+    const ranked = rankedTargets(drawing, under)
+    const open = () => {
+      for (const kind of ranked) {
+        const target = targets.find((t) => t.target === kind)!
+        const feature = target.layers
+          .map((id) => features.find((f) => f.layer.id === id))
+          .find((f) => f !== undefined)
+        if (feature && target.open({ feature, lngLat: e.lngLat, point: e.point }) !== false) return
+      }
+      if (drawing) deps.addPoint([e.lngLat.lng, e.lngLat.lat])
+      // A click that closed a card has done what the reader meant by it.
+      else if (closed === 0) api.openSpot(e.lngLat)
     }
-    if (drawing) deps.addPoint([e.lngLat.lng, e.lngLat.lat])
-    // A click that closed a card has done what the reader meant by it.
-    else if (closed === 0) api.openSpot(e.lngLat)
+    // A click that opens a card, on a marker, a dot, a label, a hazard or
+    // bare map, lowers a phone's results sheet first, as a table row's press
+    // does, and the card opens once it is down, fitted to the map it leaves
+    // (TJ, 2026-11-04). A ring being drawn opens nothing but its handles'
+    // buttons, and a click that only closed a card opens nothing at all.
+    if (!drawing && (ranked.length > 0 || closed === 0)) controller.inputs.lowerSheetFirst(open)
+    else open()
   })
 
   // The cursor follows the same rule as the click, read on every move over
@@ -530,7 +547,7 @@ export function mountMapPopups(
       return { width: cardWidthRange(map.getCanvas().clientWidth), body: bodyBounds(regionNow()) }
     },
     sizeCard: sizeTo,
-    refit(popup, { roof = null, avoid = [] } = {}) {
+    refit(popup, { roof = null, avoid = [], markerAt, pan = true } = {}) {
       const el = popup.getElement()
       // Optional: a test's stub popup has no place on the map.
       const at = popup.getLngLat?.()
@@ -538,12 +555,13 @@ export function mountMapPopups(
       const body = el.querySelector?.<HTMLElement>(`[${POPUP_BODY_ATTR}]`) ?? null
       if (body) uncapPopupBody(body)
       const region = regionNow()
-      const point = map.project(at)
+      const point = markerAt ?? map.project(at)
       const standing = obstacles(avoid)
       const measure = () => ({ width: el.offsetWidth, height: el.offsetHeight })
       const capped = body ? openingBodyCap(point, measure(), body.offsetHeight, region, standing, roof) : null
       if (body && capped !== null) capPopupBody(body, capped)
-      const placed = placePopup(point, measure(), region, standing)
+      const size = measure()
+      const placed = placePopup(point, size, region, standing)
       // MapLibre reads a popup's side on every update, so the card turns in
       // place and keeps its listeners and its place on the board, where a
       // new card would be a second one for the reader to lose.
@@ -551,8 +569,10 @@ export function mountMapPopups(
         popup.options.anchor = placed.anchor
         popup.setLngLat(at)
       }
-      if (placed.dx !== 0 || placed.dy !== 0) map.panBy([-placed.dx || 0, -placed.dy || 0], { duration: POPUP_PAN_MS })
-      return capped
+      if (pan && (placed.dx !== 0 || placed.dy !== 0)) {
+        map.panBy([-placed.dx || 0, -placed.dy || 0], { duration: POPUP_PAN_MS })
+      }
+      return { capped, dx: placed.dx, dy: placed.dy, size }
     },
     openCard(at, html, { owner, result = false, markerAt, avoid = [], pan = true, size = null } = {}) {
       // Built hanging below its point, measured, and rebuilt above it only
@@ -603,7 +623,7 @@ export function mountMapPopups(
       if (pan && (placed.dx !== 0 || placed.dy !== 0)) {
         map.panBy([-placed.dx || 0, -placed.dy || 0], { duration: POPUP_PAN_MS })
       }
-      return { popup, dx: placed.dx, dy: placed.dy, capped }
+      return { popup, dx: placed.dx, dy: placed.dy, capped, size: card }
     },
     openBare(at, html, { owner, offset }) {
       return make(at, html, owner, { ...popupOptions(map), closeButton: false, ...(offset !== undefined && { offset }) })

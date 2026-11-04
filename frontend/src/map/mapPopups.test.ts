@@ -280,6 +280,59 @@ describe('mountMapPopups bare map', () => {
   })
 })
 
+// On a phone a tap that opens a card lowers the results sheet first, as a
+// table row's press does, and the card opens once the sheet is down, fitted
+// to the map it leaves (TJ, 2026-11-04). `lowerSheetFirst` holds the open
+// here as the phone's does until its sheet has dropped.
+describe('mountMapPopups with a sheet to lower first', () => {
+  function lowering(drawing = false) {
+    const env = setup({ drawing })
+    const held: (() => void)[] = []
+    env.controller.update({ ...env.controller.inputs, lowerSheetFirst: (then) => held.push(then) })
+    const lowered = () => held.splice(0).forEach((then) => then())
+    return { ...env, held, lowered }
+  }
+
+  it("opens a marker's card once the sheet is down", () => {
+    const { register, under, click, opened, held, lowered } = lowering()
+    register('result', ['marker'])
+    under('marker')
+    click()
+    expect(held).toHaveLength(1)
+    expect(opened).toEqual([])
+    lowered()
+    expect(opened).toEqual([{ target: 'result', layer: 'marker' }])
+  })
+
+  it("opens the spot's card on bare map once the sheet is down", () => {
+    const { click, spots, held, lowered } = lowering()
+    click()
+    expect(held).toHaveLength(1)
+    expect(spots).toEqual([])
+    lowered()
+    expect(spots).toEqual([{ lng: -121.5, lat: 47.5 }])
+  })
+
+  it('lowers nothing for a click that only closes a card', () => {
+    const { register, under, click, spots, held, lowered } = lowering()
+    register('fire', ['fire-fill'])
+    under('fire-fill')
+    click()
+    lowered()
+    under()
+    click()
+    expect(held).toEqual([])
+    expect(spots).toEqual([])
+  })
+
+  it('places a point at once while the ring is drawn', () => {
+    const { click, addPoint, held } = lowering(true)
+    click()
+    expect(held).toEqual([])
+    expect(addPoint).toHaveBeenCalledWith([-121.5, 47.5])
+  })
+})
+
 describe('mountMapPopups fall-through', () => {
   // A label with no name has nothing to add, so the click is the fire's.
   it('hands the click to the next target when the first opens nothing', () => {
@@ -538,7 +591,7 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     // A cap measured on the shorter card, which the re-fit must not keep.
     body.style.maxHeight = '100px'
     const hanging = new Popup({ anchor: 'top' })
-    expect(below.popups.refit(hanging)).toBe(750)
+    expect(below.popups.refit(hanging)?.capped).toBe(750)
     expect(body.style.maxHeight).toBe('750px')
     // 500 + 10 + 790 runs 308 past the map less its breath: the point rises.
     expect(below.stub.calls.filter((c) => c[0] === 'panBy')).toEqual([['panBy', [0, 308], { duration: POPUP_PAN_MS }]])
@@ -549,9 +602,21 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     const above = mount(1280, 1000, { x: 640, y: 100 })
     standCard(40, 760)
     const turned = new Popup({ anchor: 'bottom' })
-    expect(above.popups.refit(turned, { roof: 400 })).toBe(400)
+    expect(above.popups.refit(turned, { roof: 400 })?.capped).toBe(400)
     expect(turned.options.anchor).toBe('top')
     expect(above.stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+  })
+
+  // A card that changed size while its flight is in the air is fitted again
+  // for where the flight will set its point down, and the move goes back to
+  // the caller to steer the flight by, since panning now would fight it.
+  it('fits a card in the air for the point its flight lands on, and hands the move back', () => {
+    const { stub, popups } = mount(1280, 1000, { x: 0, y: -300 })
+    standCard(40, 760)
+    const flying = new Popup({ anchor: 'top' })
+    const fitted = popups.refit(flying, { markerAt: { x: 640, y: 500 }, pan: false })
+    expect(fitted).toEqual({ capped: 750, dx: 0, dy: -308, size: { width: 280, height: 790 } })
+    expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
   })
 
   it('says the bounds a drag sizes a card between, and sizes one to them', () => {

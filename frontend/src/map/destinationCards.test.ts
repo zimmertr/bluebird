@@ -12,7 +12,7 @@ type Handle = {
   captured: number[]
   fire: (type: string, e: Record<string, unknown>) => void
 }
-const { popups, outlines } = vi.hoisted(() => ({
+const { popups, outlines, look } = vi.hoisted(() => ({
   popups: [] as {
     html: string
     removed: boolean
@@ -34,6 +34,9 @@ const { popups, outlines } = vi.hoisted(() => ({
     load: null as null | ((states: import('../utils/usStates').UsStates) => void),
     calls: 0,
   },
+  // How tall a card stands for its markup, for a test whose sections change
+  // its size; 200px whatever it holds otherwise.
+  look: { height: null as null | ((html: string) => number) },
 }))
 vi.mock('../utils/usStatesLoad', () => ({
   usStatesNow: () => outlines.held,
@@ -117,7 +120,7 @@ vi.mock('maplibre-gl', () => ({
     getElement() {
       return {
         offsetWidth: 280,
-        offsetHeight: 200,
+        offsetHeight: look.height?.(this.state.html) ?? 200,
         setAttribute: (k: string, v: string) => (this.state.attrs[k] = v),
         querySelector: (selector: string) => {
           if (selector === '.maplibregl-popup-content') return this.state.content
@@ -189,6 +192,7 @@ beforeEach(() => {
   outlines.held = null
   outlines.load = null
   outlines.calls = 0
+  look.height = null
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -865,9 +869,10 @@ describe('sections', () => {
   })
 
   // A table row's card opens before its flight, and the layers that fetch
-  // for the view it lands on answer only after it has (TJ, 2026-11-04): the
-  // card fits again once, as it lands where its sections joined in the air,
-  // or at the first that joins after, and never again.
+  // for the view it lands on answer only after it has (TJ, 2026-11-04): a
+  // card that changes size in the air steers its flight to its new place,
+  // and one that changes size after it lands fits again once. A redraw that
+  // keeps its size moves nothing.
   describe('a card opened ahead of a flight', () => {
     // A layer whose answer the test hands over when it chooses.
     function later(board: ReturnType<typeof setup>['board'], kind: PointSection['kind'], answer: PointSection) {
@@ -875,18 +880,23 @@ describe('sections', () => {
       layer(board, kind, () => new Promise<PointReading>((resolve) => (land = () => resolve({ section: answer }))))
       return () => land()
     }
+    // Each section heading stands 32px of the card, as a band and its gap do.
+    const bySections = (html: string) => 200 + 32 * (html.match(/data-card-fold=/g)?.length ?? 0)
     const ROW = { kind: 'ranked', row: RAINIER, rank: 2 } as const
     const AT: [number, number] = [RAINIER.longitude, RAINIER.latitude]
+    const POINT = { latitude: RAINIER.latitude, longitude: RAINIER.longitude }
+    const MARKER = { x: 640, y: 450 }
+    const fitted = (capped: number | null, height: number, dy = 0) => ({ capped, dx: 0, dy, size: { width: 280, height } })
 
     it('re-fits once, after it lands, when sections join it there', async () => {
-      let moving = true
-      const { cards, board, stub } = setup({ moving: () => moving })
-      const fit = vi.spyOn(board, 'refit').mockReturnValue(300)
+      look.height = bySections
+      const { cards, board, stub } = setup()
+      const fit = vi.spyOn(board, 'refit').mockReturnValue(fitted(300, 300))
       const cap = vi.spyOn(board, 'bodyCap')
       const fire = later(board, 'fire', section('fire', 'Active wildfire', 'Bolt Creek'))
       const snow = later(board, 'snow', SNOW)
-      cards.open(ROW, AT, { markerAt: { x: 640, y: 450 }, pan: false })
-      moving = false
+      cards.open(ROW, AT, { markerAt: MARKER, pan: false })
+      stub.fire('movestart')
       stub.fire('moveend')
       // Nothing joined in the air, so the landing alone moves nothing.
       expect(fit).not.toHaveBeenCalled()
@@ -905,13 +915,16 @@ describe('sections', () => {
       expect(popups[0].body.style.maxHeight).toBe('300px')
     })
 
+    // With no flight to steer, a card that grew in the air fits as it lands.
     it('re-fits as it lands where sections joined in the air, and once', async () => {
+      look.height = bySections
       let moving = true
       const { cards, board, stub } = setup({ moving: () => moving })
-      const fit = vi.spyOn(board, 'refit').mockReturnValue(null)
+      const fit = vi.spyOn(board, 'refit').mockReturnValue(fitted(null, 264))
       const cap = vi.spyOn(board, 'bodyCap')
       const radar = later(board, 'radar', RAIN)
-      cards.open(ROW, AT, { markerAt: { x: 640, y: 450 }, pan: false })
+      cards.open(ROW, AT, { markerAt: MARKER, pan: false })
+      stub.fire('movestart')
       radar()
       await settle()
       expect(popups[0].html).toContain('Rain radar')
@@ -923,13 +936,79 @@ describe('sections', () => {
       expect(fit).toHaveBeenCalledTimes(1)
     })
 
+    // The ground's slope lands on every card a table row opens, in the air
+    // or after: it rewrites a line and keeps the card's size. On the preview
+    // at 984f70e1 it set off the re-fit on every row's press, whose float
+    // noise could then turn a card that stood whole and pan the map 42px
+    // after the flight had landed (measured 2026-11-04).
+    it('moves nothing for a redraw that keeps its size, in the air or after it lands', () => {
+      const { ground, land } = fakeGround()
+      const { cards, board, stub } = setup({ ground })
+      const fit = vi.spyOn(board, 'refit')
+      const steer = vi.fn()
+      cards.open(ROW, AT, { markerAt: MARKER, pan: false, steer })
+      stub.fire('movestart')
+      land({ kind: 'read', reading: { elevationM: 4391, degrees: 28.4, aspect: 270 } })
+      expect(popups[0].html).toContain('28°')
+      stub.fire('moveend')
+      land({ kind: 'read', reading: { elevationM: 4391, degrees: 31.2, aspect: 270 } })
+      expect(popups[0].html).toContain('31°')
+      expect(steer).not.toHaveBeenCalled()
+      expect(fit).not.toHaveBeenCalled()
+    })
+
+    // A section that joins in the air, from a tile decoded a few
+    // milliseconds after the fit, grew the card upward past the map's top,
+    // and the map then panned after the flight had landed (the maintainer,
+    // 2026-11-04). The flight is steered to the card's new place instead,
+    // and lands it whole.
+    it('steers its flight to its new place when it changes size in the air, and lands without a re-fit', async () => {
+      look.height = bySections
+      const { cards, board, stub } = setup()
+      const fit = vi.spyOn(board, 'refit').mockReturnValue(fitted(null, 264, 64))
+      const moves: ({ dx: number; dy: number } | undefined)[] = []
+      // The caller's flight sent again: the card placed for where it lands,
+      // then the flight in the air stopped, which ends it with a `moveend`,
+      // and the new one started.
+      const steer = vi.fn(() => {
+        moves.push(cards.place(POINT, { markerAt: MARKER }))
+        stub.fire('moveend')
+        stub.fire('movestart')
+      })
+      const radar = later(board, 'radar', RAIN)
+      cards.open(ROW, AT, { markerAt: MARKER, pan: false, steer })
+      stub.fire('movestart')
+      radar()
+      await settle()
+      expect(steer).toHaveBeenCalledTimes(1)
+      expect(moves).toEqual([{ dx: 0, dy: 64 }])
+      expect(fit).toHaveBeenCalledWith(expect.anything(), { roof: null, avoid: [], markerAt: MARKER, pan: false })
+      // The stopped flight's `moveend` was not the card's landing, and the
+      // steered flight's lands it as it was placed.
+      stub.fire('moveend')
+      expect(fit).toHaveBeenCalledTimes(1)
+    })
+
+    // A flight sent again finds only the card that still rides it.
+    it('places nothing for a flight sent again once its card has closed', () => {
+      const { cards, board, stub } = setup()
+      vi.spyOn(board, 'refit').mockReturnValue(fitted(null, 200))
+      cards.open(ROW, AT, { markerAt: MARKER, pan: false })
+      stub.fire('movestart')
+      expect(cards.place(POINT, { markerAt: MARKER })).toEqual({ dx: 0, dy: 0 })
+      board.closeAll()
+      expect(cards.place(POINT, { markerAt: MARKER })).toBeUndefined()
+    })
+
     // The reader's own move ends the wait: the card's place is theirs.
     it('leaves a card that grew after the next move to the cap where it stands', async () => {
+      look.height = bySections
       const { cards, board, stub } = setup()
       const fit = vi.spyOn(board, 'refit')
       const cap = vi.spyOn(board, 'bodyCap').mockReturnValue(null)
       const radar = later(board, 'radar', RAIN)
-      cards.open(ROW, AT, { markerAt: { x: 640, y: 450 }, pan: false })
+      cards.open(ROW, AT, { markerAt: MARKER, pan: false })
+      stub.fire('movestart')
       stub.fire('moveend')
       stub.fire('movestart')
       radar()
@@ -941,6 +1020,7 @@ describe('sections', () => {
 
     // A card clicked on the map has no flight to wait for.
     it('never re-fits a card opened where it stands', async () => {
+      look.height = bySections
       const { cards, board } = setup()
       const fit = vi.spyOn(board, 'refit')
       const radar = later(board, 'radar', RAIN)

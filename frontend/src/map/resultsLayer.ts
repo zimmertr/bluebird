@@ -113,9 +113,13 @@ export interface ResultsLayer {
    * read. `avoid` is what else stands over the map, as viewport rects, on
    * top of the button column the layer finds for itself. The answer is the
    * move for the caller to make, because a table click folds it into a
-   * flight and a marker click pans by it.
+   * flight and a marker click pans by it. `steer` is asked when the card
+   * changes size while that flight is in the air (`CardOpenOptions.steer`).
    */
-  openPopup(result: DestinationResult, options?: { markerAt?: ScreenPoint; avoid?: readonly Rect[] }): PopupPlacement
+  openPopup(
+    result: DestinationResult,
+    options?: { markerAt?: ScreenPoint; avoid?: readonly Rect[]; steer?: () => void },
+  ): PopupPlacement
   /**
    * Redraw every open card from the inputs as they stand: a ranked card's
    * rank, the number it marks as ranked, and the columns it shows. The
@@ -137,7 +141,19 @@ export interface ResultsLayer {
    * the table, and say how far the map must move for it, as `openPopup` does.
    * Nothing where no dot stands there.
    */
-  openPending(at: { latitude: number; longitude: number }, options?: { markerAt?: ScreenPoint }): PopupPlacement | undefined
+  openPending(
+    at: { latitude: number; longitude: number },
+    options?: { markerAt?: ScreenPoint; steer?: () => void },
+  ): PopupPlacement | undefined
+  /**
+   * Fit the card a table row opened on this point again, for a flight sent
+   * again (`map/centring.ts`), and say the move, as `openPopup` does.
+   * Nothing where that card no longer stands.
+   */
+  placeAgain(
+    at: { latitude: number; longitude: number },
+    options: { markerAt: ScreenPoint; avoid?: readonly Rect[] },
+  ): PopupPlacement | undefined
 }
 
 /** How far the marker, and its popup with it, should move across the screen. */
@@ -292,14 +308,18 @@ export function mountResultsLayer(
     },
     // The caller flies the map for a table click, folding the card's fit
     // into the flight, so neither of these pans by it.
-    openPending(at, { markerAt } = {}) {
+    openPending(at, { markerAt, steer } = {}) {
       const d = pendingAt(at.latitude, at.longitude)
       if (!d) return undefined
       popups.closeAll()
-      const { dx, dy } = cards.open({ kind: 'pending', pending: d }, [d.longitude, d.latitude], { markerAt, pan: false })
+      const { dx, dy } = cards.open({ kind: 'pending', pending: d }, [d.longitude, d.latitude], {
+        markerAt,
+        pan: false,
+        steer,
+      })
       return { dx, dy }
     },
-    openPopup(result, { markerAt, avoid } = {}) {
+    openPopup(result, { markerAt, avoid, steer } = {}) {
       popups.closeAll()
       // Rank is the analyzed order the markers are labelled with, so the popup
       // matches the marker it lands on. A table row is a copy stamped with
@@ -311,9 +331,11 @@ export function mountResultsLayer(
         markerAt,
         avoid,
         pan: false,
+        steer,
       })
       return { dx, dy }
     },
+    placeAgain: (at, options) => cards.place(at, options),
     hasOpenCard: (at) => cards.hasOpenRanked(at),
     refreshPopups: () => cards.refresh(),
   }

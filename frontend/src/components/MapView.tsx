@@ -235,6 +235,10 @@ interface Props {
   // The most positions a ring may carry (`limits.max_polygon_points`): the draw
   // tool places no point past it (#619).
   maxPolygonPoints: number
+  // Lowers a phone's results sheet and then does what it is handed, at once
+  // where there is no sheet up (`useRowFocus`): a tap that opens a card goes
+  // through it, so the card has the map to stand on (TJ, 2026-11-04).
+  lowerSheetFirst: (then: () => void) => void
   // The round slot at the right of a phone's search pill, which the locate
   // button stands in (#696), or null at a desk and before the rows mount. A
   // DOM node held in state, so it is one identity for as long as the slot is
@@ -311,6 +315,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onCameraMove,
       onBasemapFailed,
       maxPolygonPoints,
+      lowerSheetFirst,
       locateSlot,
       compassSlot,
       terrainSlot,
@@ -385,6 +390,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onCameraMove,
       maxPolygonPoints,
       onTerrainChange,
+      lowerSheetFirst,
     }
     const [controller] = useState(() => createMapController(inputs))
     // Declared before every other effect so it runs first in a commit, and any
@@ -572,7 +578,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
           const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
           const canvas = map.getCanvas()
           const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
-          const placed = again ? undefined : featuresRef.current?.results.openPending(at, { markerAt })
+          const results = featuresRef.current?.results
+          const placed = again
+            ? results?.placeAgain(at, { markerAt })
+            : results?.openPending(at, { markerAt, steer: () => centring.reaim() })
           if (!again && !placed) popups.closeAll()
           const { dx, dy } = placed ?? { dx: 0, dy: 0 }
           map.flyTo({
@@ -619,12 +628,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // The popup opens first, against the point the marker is flying
           // to, and rides the flight; what it asks for joins the offset, so
           // one camera move lands marker and card together. A flight sent
-          // again places the card again only while it stands: one closed
+          // again, by a resize or by the card changing size in the air
+          // (`steer`), places the card again only while it stands: one closed
           // since, by its own button or by the next report, stays closed, and
           // the marker flies alone.
-          const reopen = !again || (results?.hasOpenCard(result) ?? false)
           const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
-          const { dx, dy } = (reopen ? results?.openPopup(result, { markerAt, avoid }) : undefined) ?? { dx: 0, dy: 0 }
+          const placed = again
+            ? results?.hasOpenCard(result)
+              ? results.placeAgain(result, { markerAt, avoid })
+              : undefined
+            : results?.openPopup(result, { markerAt, avoid, steer: () => centring.reaim() })
+          const { dx, dy } = placed ?? { dx: 0, dy: 0 }
           map.flyTo({
             center: [result.longitude, result.latitude],
             zoom: Math.max(map.getZoom(), 10),

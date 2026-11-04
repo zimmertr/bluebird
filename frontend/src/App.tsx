@@ -818,6 +818,7 @@ export default function App() {
           restoredView={restoredView}
           onBasemapFailed={setBasemapFailed}
           maxPolygonPoints={caps.maxPolygonPoints}
+          lowerSheetFirst={resultsView.lowerSheetFirst}
         />
 
         <ResultsSheet

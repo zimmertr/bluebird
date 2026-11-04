@@ -48,6 +48,10 @@ export interface MapInputs {
   // The 3D button's press, asking for the terrain on or off (#799). The
   // switch is the overlays', so the button, the link and the map agree.
   onTerrainChange: (on: boolean) => void
+  // Lowers a phone's results sheet and then does what it is handed, at once
+  // where no sheet is up: a click that opens a card goes through it, so the
+  // card is fitted to the map the lowered sheet leaves (TJ, 2026-11-04).
+  lowerSheetFirst: (then: () => void) => void
 }
 
 export interface MapController {

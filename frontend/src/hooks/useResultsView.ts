@@ -177,18 +177,16 @@ export function useResultsView({
     (d: PendingDestination) => removeResult(pendingAsResult(d)),
     [removeResult],
   )
-  // A row's name, or a press on its ground, opens its marker's popup, and on
-  // a phone lowers the sheet first (`useRowFocus`, record 0143).
-  const onFocusResult = useRowFocus({
+  // A row's name, or a press on its ground, opens its marker's or its dot's
+  // card, and on a phone lowers the sheet first (`useRowFocus`, record
+  // 0143); a tap on the map that opens a card lowers it the same way
+  // (`lowerSheetFirst`, record 0266).
+  const { onFocusResult, onFocusPending, lowerSheetFirst } = useRowFocus({
     isDesktop,
     resultsCollapsed: layout.resultsCollapsed,
     collapse: layout.collapse,
     mapRef,
   })
-  const onFocusPending = useCallback(
-    (at: { latitude: number; longitude: number }) => mapRef.current?.focusPoint(at),
-    [mapRef],
-  )
 
-  return { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending }
+  return { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending, lowerSheetFirst }
 }
