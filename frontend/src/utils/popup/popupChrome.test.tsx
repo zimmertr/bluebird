@@ -11,7 +11,11 @@ import {
   GRID_LABEL_GAP_PX,
   GRID_RANKED_COLOR,
   HEADER_BAND_COLOR,
+  INK_COLOR,
   LABEL_COLOR,
+  SECTION_BAND_COLOR,
+  SECTION_GAP,
+  WARNING_BAND_COLOR,
   RESULT_CARD_PAD_PX,
   RESULT_POPUP_MAX_WIDTH_PX,
   FINE_COLOR,
@@ -24,6 +28,7 @@ import {
   metricGrid,
   bodyLines,
   cardSection,
+  cardSections,
   factsLine,
   popupCard,
   fineprint,
@@ -41,6 +46,7 @@ import { AGGREGATE } from '../../metrics'
 import { CHEVRON } from '../../iconPaths'
 import { CARD_FOLD } from '../../styles'
 import { destinationPopupHtml } from '../destinationCard'
+import { WARNING_MARK } from '../fireProximity'
 import type { PointSection } from '../pointReadout'
 import { displayedColumns } from '../tableColumns'
 
@@ -103,8 +109,9 @@ describe('a result popup', () => {
     const url = 'https://www.fs.usda.gov/r06/alerts?order=1&forest=probe'
     const section: PointSection = {
       kind: 'closure-area',
-      layer: 'Area closures',
+      layer: 'Area closure',
       title: 'Probe Fire Closure',
+      warning: true,
       link: { href: url, label: 'View closure order' },
       source: 'US Forest Service',
       rows: [],
@@ -443,9 +450,10 @@ describe('dateOfMs', () => {
   })
 })
 
-// One section of a card (#832): its name, the link out where the thing has a
-// page, the fold's chevron, and the body only while it is open. Mounted the
-// way MapLibre mounts it, so the structure is read off the DOM a reader gets.
+// One section of a card (#832): its heading on the band, the link out where
+// the thing has a page, the fold's chevron, and the body only while it is
+// open. Mounted the way MapLibre mounts it, so the structure is read off the
+// DOM a reader gets.
 describe('cardSection', () => {
   // A test mounts a second section to compare against the first, so the
   // first is taken down before, or the popup is found twice.
@@ -454,8 +462,8 @@ describe('cardSection', () => {
     return mount(
       cardSection({
         key: 'fire',
-        heading: 'Active wildfires: Bolt Creek',
-        label: 'Active wildfires',
+        layer: 'Active wildfire',
+        name: 'Bolt Creek',
         open: true,
         body: '<div data-testid="body">Size: 10 acres</div>',
         ...over,
@@ -463,17 +471,68 @@ describe('cardSection', () => {
     )
   }
   const fold = (popup: HTMLElement) => popup.querySelector(`[${CARD_FOLD_ATTR}]`) as HTMLButtonElement
+  const band = (popup: HTMLElement) => popup.firstElementChild as HTMLElement
+  const headingText = (popup: HTMLElement) => fold(popup).parentElement!.querySelector('div') as HTMLElement
 
-  it('opens on its heading, on one line', () => {
-    const heading = section().firstElementChild!.firstElementChild as HTMLElement
-    expect(heading.textContent).toBe('Active wildfires: Bolt Creek')
-    expect(heading.getAttribute('style')).toContain('font-weight:600')
-    expect(heading.getAttribute('style')).toContain('text-overflow:ellipsis')
-    expect(heading.getAttribute('style')).toContain('white-space:nowrap')
+  // The layer's word and its colon at the heading weight, the name after it
+  // regular, both in the ink, on one line cut with an ellipsis (TJ,
+  // 2026-11-03).
+  it('opens on the layer semibold and the name regular, in the ink, on one line', () => {
+    const text = headingText(section())
+    expect(text.textContent).toBe('Active wildfire: Bolt Creek')
+    expect(text.getAttribute('style')).toContain(INK_COLOR)
+    expect(text.getAttribute('style')).not.toContain('font-weight')
+    expect(text.getAttribute('style')).toContain('text-overflow:ellipsis')
+    expect(text.getAttribute('style')).toContain('white-space:nowrap')
+    const word = text.querySelector('span')!
+    expect(word.textContent).toBe('Active wildfire:')
+    expect(word.getAttribute('style')).toBe('font-weight:600')
   })
 
-  it('shows the body only while open', () => {
-    expect(within(section()).getByTestId('body').textContent).toBe('Size: 10 acres')
+  it('stands the layer alone, with no colon, where there is no name', () => {
+    expect(headingText(section({ layer: 'Forecast', name: undefined })).textContent).toBe('Forecast')
+  })
+
+  // The band fill, run through the body's 10px sides to the card's edges,
+  // with the rows' inset inside it, as tall as the fold's box at least.
+  it('draws the heading on the band, edge to edge, at the rows\' inset', () => {
+    const style = band(section()).getAttribute('style')!
+    expect(style).toContain(`background:${SECTION_BAND_COLOR}`)
+    expect(SECTION_BAND_COLOR).toBe(HEADER_BAND_COLOR)
+    expect(style).toContain('margin:0 -10px')
+    expect(style).toContain('padding:0 10px')
+    expect(style).toContain('min-height:24px')
+    expect(style).toContain('display:flex')
+  })
+
+  // A warning lays the amber over the band and stands the table's own mark
+  // in a slot of fixed width before the layer's word, so a name cut short
+  // never moves it.
+  it('stands a warning on the amber band, the mark in a fixed slot before the layer', () => {
+    const popup = section({ warning: true })
+    expect(band(popup).getAttribute('style')).toContain(`background:${WARNING_BAND_COLOR}`)
+    const [slot, text] = Array.from(band(popup).children) as HTMLElement[]
+    expect(slot.tagName).toBe('SPAN')
+    expect(slot.textContent).toBe(WARNING_MARK)
+    expect(slot.getAttribute('style')).toContain('flex:none')
+    expect(slot.getAttribute('style')).toContain('width:1.5em')
+    expect(text.textContent).toBe('Active wildfire: Bolt Creek')
+    // The mark is text, as the table's cell is, which a screen reader names
+    // itself; no label of the app's own.
+    expect(slot.hasAttribute('aria-label')).toBe(false)
+    expect(slot.hasAttribute('aria-hidden')).toBe(false)
+  })
+
+  it('carries no mark and the plain band where it is no warning', () => {
+    const popup = section()
+    expect(popup.textContent).not.toContain(WARNING_MARK)
+    expect(band(popup).getAttribute('style')).not.toContain(WARNING_BAND_COLOR)
+  })
+
+  it('shows the body only while open, a step under the heading', () => {
+    const body = within(section()).getByTestId('body')
+    expect(body.textContent).toBe('Size: 10 acres')
+    expect(body.parentElement!.getAttribute('style')).toBe('padding-top:4px')
     expect(within(section({ open: false })).queryByTestId('body')).toBeNull()
   })
 
@@ -490,7 +549,7 @@ describe('cardSection', () => {
     expect(button.tagName).toBe('BUTTON')
     expect(button.getAttribute('type')).toBe('button')
     expect(button.getAttribute(CARD_FOLD_ATTR)).toBe('fire')
-    expect(button.getAttribute('aria-label')).toBe('Active wildfires')
+    expect(button.getAttribute('aria-label')).toBe('Active wildfire')
     expect(button.getAttribute('aria-expanded')).toBe('true')
     expect(fold(section({ open: false })).getAttribute('aria-expanded')).toBe('false')
   })
@@ -511,14 +570,55 @@ describe('cardSection', () => {
   })
 
   // The link stands beside the name and the fold at the row's end, folded or
-  // open.
+  // open, with the mark first on a warning.
   it('keeps the name, the link and the fold on one row whether open or folded', () => {
     const link = { href: 'https://nifc.example/', label: 'View on NIFC map' }
     for (const isOpen of [true, false]) {
-      const line = section({ link, open: isOpen }).firstElementChild as HTMLElement
-      expect(line.getAttribute('style')).toContain('display:flex')
-      expect(Array.from(line.children).map((c) => c.tagName)).toEqual(['DIV', 'A', 'BUTTON'])
+      expect(Array.from(band(section({ link, open: isOpen })).children).map((c) => c.tagName)).toEqual(['DIV', 'A', 'BUTTON'])
+      expect(Array.from(band(section({ link, open: isOpen, warning: true })).children).map((c) => c.tagName)).toEqual([
+        'SPAN',
+        'DIV',
+        'A',
+        'BUTTON',
+      ])
     }
+  })
+})
+
+// A card's sections part on their bands with a gap of the card's surface
+// between them, where a hairline ruled them off before (TJ, 2026-11-03).
+describe('cardSections', () => {
+  it('stands each section after the first a gap below the one above, and rules none off', () => {
+    const html = cardSections(['<p>one</p>', '<p>two</p>', '<p>three</p>'])
+    expect(html).toBe(`<p>one</p><div style="margin-top:${SECTION_GAP}"><p>two</p></div><div style="margin-top:${SECTION_GAP}"><p>three</p></div>`)
+    expect(SECTION_GAP).toBe('8px')
+    expect(cardSections(['<p>one</p>'])).toBe('<p>one</p>')
+    expect(cardSections([])).toBe('')
+  })
+})
+
+// A section's row (TJ, 2026-11-03, the design lab's mockup 1): the key
+// semibold in the ink, the value regular in the label's grey and the values'
+// face. A grey key over a dark value read as inverted.
+describe('row', () => {
+  it('sets the key semibold in the ink and the value regular in the grey mono', () => {
+    const line = mount(row('Size', '10 acres')).firstElementChild as HTMLElement
+    expect(line.textContent).toBe('Size: 10 acres')
+    const [key, value] = Array.from(line.querySelectorAll('span'))
+    expect(key.textContent).toBe('Size')
+    expect(key.getAttribute('style')).toBe(`${INK_COLOR};font-weight:600`)
+    expect(value.textContent).toBe('10 acres')
+    expect(value.getAttribute('style')).toContain('font-family:ui-monospace')
+    expect(value.getAttribute('style')).toContain(LABEL_COLOR)
+    expect(value.getAttribute('style')).not.toContain('font-weight')
+  })
+
+  // A linked value is the grey value still: a card's link takes its text's colour.
+  it('links the value alone, in its grey', () => {
+    const line = mount(row('Wind', '5.0', 'https://www.windy.com/')).firstElementChild as HTMLElement
+    const link = within(line).getByRole('link')
+    expect(link.textContent).toBe('5.0')
+    expect(link.querySelector('span')!.getAttribute('style')).toContain(LABEL_COLOR)
   })
 })
 

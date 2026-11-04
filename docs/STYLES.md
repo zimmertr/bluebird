@@ -363,12 +363,21 @@ compass turns with the map and a turned layer shimmers as it fades (records
 `--popup-*` value that `map.css` declares once, each the app's `--ui-*` token
 for the part it is, and `popupChrome.ts` names them in its markup as
 `var(--popup-label)` and the rest. The card is the panel: its surface `panel`,
-its header band and grid columns halfway between `panel` and `raised`, its
-ranked cell `raised`, its inks the panel's, its warning the table's `warn`,
-its link-out glyph and each section's fold chevron the label grey, taking
-`accent-ink` on hover. The light
-theme redefines the tokens, so the light card is the light panel and its
-`map.css` block says only the colour scheme. A link in a
+its header band, section headings and grid columns halfway between `panel`
+and `raised`, its ranked cell `raised`, its inks the panel's, its warning
+the table's `warn`, its link-out glyph and each section's fold chevron the
+label grey, taking `accent-ink` on hover. The light
+theme redefines the tokens, so the light card is the light panel, and its
+`map.css` block says the colour scheme and three values more. The light band
+halfway to `raised` read 1.06:1 on the light panel and all but vanished, so
+the light card's band sits halfway between `raised` and `raised-hover`,
+which reads the dark band's 1.18:1, and its ranked cell is `raised-hover`, a
+step past it as in dark. The third is the warning band, below. A section's
+heading stands on the band, edge to edge: the layer's word and its colon
+semibold, the name regular, both in the ink, `Active wildfire: Bolt Creek`.
+Its rows set the key semibold in the ink and the value regular in the label
+grey's mono, and a gap of the card's surface parts one section from the next
+(record [0266](decisions/0266-every-card-is-a-stack-of-foldable-layer-sections.md)). A link in a
 card is in the colour of the text around it, the way the results table's are:
 a grid number in the ink, the coordinates in the facts line's grey. It
 underlines on hover and keyboard focus at a desk, and on a touch screen it
@@ -452,7 +461,7 @@ values (#365):
 |---|---|---|
 | MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; `map/terrain.ts` for the shaded relief's shadow and light and the contours' ink and labels (#799), one value for both themes because the map stays light in both; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch; `utils/slopeAngle.ts` for the slope angle's six bands and the half strength they paint at by default, read by the raster and the legend alike (#799); the row's opacity level moves the raster's opacity from there (record 0250) | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
 | Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow); `utils/chart/chartColors.ts` for the chart's series lines, which `utils/chart/chartCanvas.ts` draws in the theme's half of each line's pair (record 0256) | The same |
-| Popup HTML handed to `setHTML` | `utils/popup/popupChrome.ts` | The three type sizes, the face, the names of the card's colours (each a `--popup-*` value, an app token in `map.css`, record 0215), the one button (`BUTTON_ACCENT` as its class list), the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
+| Popup HTML handed to `setHTML` | `utils/popup/popupChrome.ts` | The three type sizes, the face, the names of the card's colours (each a `--popup-*` value, an app token in `map.css`, record 0215), the one button (`BUTTON_ACCENT` as its class list), the card every popup wears (`popupCard`: its header band, its sections and its action), each section's heading on the band, or a warning's on the amber band behind the table's warning mark (`cardSection`), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
 | Recharts props | `utils/chart/chartColors.ts` | The axis, grid and playhead colours beside the line palette |
 
 A colour in one of those channels is measured against the surface it actually
@@ -463,7 +472,13 @@ value, including the ones that sat under AA as shipped (`FINE_COLOR`,
 the table's amber in #786 and the fine print the label's ink in #832, when
 every card came to end on one and the browser suite's axe read it on the
 ranked card at 3.07:1. A third, the overlays' sky-400 link, left with the
-overlays' own shell in #738.
+overlays' own shell in #738. A warning section, a fire, a hotspot or a
+closure at the card's point, lays that amber over the band for its heading
+(`WARNING_BAND_COLOR`, `--popup-warn-band`): 15% in dark, where the grey
+glyphs on it read 3.3:1 and 20% would take them to 2.94:1, and 30% in light.
+The heading's ink reads 7.05:1 and 8.2:1 on it, the grey glyphs 3.3:1 and
+4.48:1 and the accent under the pointer 3.99:1 and 3.09:1, dark and light,
+measured 2026-11-03.
 
 ### Two enforcers, split by what they know
 
@@ -781,7 +796,7 @@ three or four panels: a 1px `edge` line, 3:1 or better on the panel, that turns 
 dragged, with a small three-dot grip at its middle on the panel's fill, and a 16px crossing that shows a dot, both rimmed in `edge` and one level quieter than the sheet's raised grip.
 `CHART_PANEL_TITLE` names each desk panel while two or more are drawn: the
 picker's option label in a 15px chip at the plot band's top left, the strong
-`ink` on the popup's `band` token at the micro step (10.05:1 dark, 14.42:1
+`ink` on the `band` token at the micro step (10.05:1 dark, 14.42:1
 light). Every title but the first takes a grab cursor and lights its words
 in the accent ink under the pointer, as every control does
 (`ACCENT.hoverText`), at 5.69:1 dark and 5.43:1 light on the band; a drag carries a
@@ -790,9 +805,11 @@ picker row's 2px accent bar where it lands. In a titled panel the Now,
 model-end and extreme labels move down under the chip
 (record [0264](decisions/0264-chart-panels-titled-and-dragged-by-title.md)).
 The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:
-the hour as a 13px title on the popup's `band` token, the rows in a body,
+the hour as a 13px title on the `band` token, the rows in a body,
 and `+N more` in a footer. The band is an app token now (`--ui-band`), and
-map.css reads it for the popup, so the two cards share one band. A pinned
+map.css reads it for the dark popup, so in dark the two cards share one
+band; the light popup's stands a step further (record
+[0266](decisions/0266-every-card-is-a-stack-of-foldable-layer-sections.md)). A pinned
 card is the same card at the same size: its ✕ is pulled into the title's
 line by its margins, it carries the hover card's heads, `Name` among them on
 every card, its sort arrow stands outside its head, its rows carry no rule, and its body clips to the rows its height holds, the rest counted

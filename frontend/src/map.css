@@ -43,12 +43,25 @@
 
    Each value is the app's `--ui-*` token for the part it is, declared once
    on the root, where the light theme redefines the tokens, so a card is the
-   panel every popover stands on, its header band and grid columns halfway
-   between that and the raised step, its ranked cell the raised step, its
-   inks, rules, warning amber and header shade the panel's. A value here
-   that is not a token would be a second palette beside the app's, free to
-   drift from it, so `styles.test.ts` fails one, and a light block that says
-   more than the scheme, and measures every pair in both themes. */
+   panel every popover stands on, its header band, section headings and grid
+   columns halfway between that and the raised step, its ranked cell the
+   raised step, its inks, rules, warning amber and header shade the panel's.
+   A value here that is not a token would be a second palette beside the
+   app's, free to drift from it, so `styles.test.ts` fails one, and measures
+   every pair in both themes.
+
+   The light block says three things besides the scheme, and the test holds
+   it to them. The light band halfway between the panel and the raised step,
+   as `--ui-band` paints it for the chart's heads, read 1.06:1 on the light
+   card and all but vanished (TJ, 2026-11-03), where the dark one reads
+   1.18:1. So the light card's band is halfway between the raised step and
+   its hover, a step further, which reads the dark band's 1.18:1 on the
+   light panel, and the ranked cell moves a step too, to the hover, so it
+   stays one step darker than its column. A warning section's heading is
+   the amber over the band: 15% in dark, where the grey glyphs on it read
+   3.3:1 and 20% would take them under 3:1 (2.94:1), and 30% in light,
+   where the amber is a dark brown, the pair the maintainer chose in the
+   design lab (TJ, 2026-11-03). */
 :root {
   --popup-scheme: dark;
   --popup-surface: var(--ui-panel);
@@ -61,6 +74,7 @@
   --popup-label: var(--ui-ink-soft);
   --popup-fine: var(--ui-ink-soft);
   --popup-warn: var(--ui-warn);
+  --popup-warn-band: color-mix(in srgb, var(--ui-warn) 15%, var(--popup-band));
   --popup-glyph: var(--ui-ink-soft);
   --popup-glyph-hover: var(--ui-accent-ink);
   --popup-thumb: var(--ui-edge-lifted);
@@ -73,6 +87,9 @@
 }
 :root[data-theme="light"] {
   --popup-scheme: light;
+  --popup-band: color-mix(in oklab, var(--ui-raised-hover) 50%, var(--ui-raised));
+  --popup-ranked: var(--ui-raised-hover);
+  --popup-warn-band: color-mix(in srgb, var(--ui-warn) 30%, var(--popup-band));
 }
 
 /* A ranked family's grid cell carries the table's ink for both themes

@@ -13,9 +13,13 @@
  * features the layer drew and asks these readers with them, so a card costs
  * no fetch, and a layer switched off is never asked.
  *
- * Every section opens on the Layers menu's name for the layer and the thing's
- * own name, `Active wildfires: Bolt Creek`, so a reader knows which layer said
- * it. The reach is the table's: a fire or a hotspot within `FIRE_WARN_MILES`,
+ * Every section opens on the layer's word for one of its things and the
+ * thing's own name, `Active wildfire: Bolt Creek`, so a reader knows which
+ * layer said it: the Layers menu's row in the singular for a fire and a
+ * closure, whose menu rows are plural (TJ, 2026-11-03). The fire, the
+ * hotspot and the two closures are warnings (`PointSection.warning`): each is
+ * a reason to stay away, where a plume, like the radar and the snow, is
+ * weather. The reach is the table's: a fire or a hotspot within `FIRE_WARN_MILES`,
  * a closure only where the point stands inside it, and a closed trail within
  * `CLOSED_TRAIL_MILES`, because a trail says nothing about the summit it
  * leads to and a mile is as far as a trail's closure reaches a reader
@@ -30,7 +34,7 @@ import type { Feature, FeatureCollection, Point } from 'geojson'
 import type { FireActivityResponse, FireDetectionProps } from '../types'
 import {
   CLOSURE_LINK_LABEL,
-  CLOSURE_ROW_LABELS,
+  CLOSURE_SECTION_LABELS,
   type ClosureKind,
   type ClosureProps,
   closureDate,
@@ -49,7 +53,7 @@ import {
   FIRE_LINK_LABEL,
   FIRE_LINK_ZOOM,
   NIFC_SOURCE,
-  WILDFIRE_ROW_LABEL,
+  WILDFIRE_SECTION_LABEL,
   type WildfireProps,
   fireName,
   formatAcres,
@@ -109,7 +113,8 @@ export function wildfireSectionAt(fires: FeatureCollection, at: MapPoint): Point
   const revised = updatedAt(props.attr_ModifiedOnDateTime_dt)
   return {
     kind: 'fire',
-    layer: escapeHtml(WILDFIRE_ROW_LABEL),
+    layer: escapeHtml(WILDFIRE_SECTION_LABEL),
+    warning: true,
     title: escapeHtml(fireName(props)),
     link: { href, label: FIRE_LINK_LABEL },
     source: escapeHtml(NIFC_SOURCE),
@@ -135,6 +140,7 @@ export function hotspotSectionAt(detections: FireActivityResponse, at: MapPoint,
   return {
     kind: 'fire-activity',
     layer: escapeHtml(FIRE_ACTIVITY_ROW_LABEL),
+    warning: true,
     title: escapeHtml(HOTSPOT_TITLE),
     source: escapeHtml(FIRMS_SOURCE),
     rows: [distanceRow(hit.near), ...hotspotRows(hit.feature, nowMs).map(({ label, value }) => row(label, escapeHtml(value)))].filter(
@@ -201,7 +207,8 @@ export function closureSectionAt(closures: FeatureCollection, kind: ClosureKind,
   const reason = closureReason(props)
   return {
     kind: kind === 'area' ? 'closure-area' : 'closure-trail',
-    layer: escapeHtml(CLOSURE_ROW_LABELS[kind]),
+    layer: escapeHtml(CLOSURE_SECTION_LABELS[kind]),
+    warning: true,
     title: escapeHtml(closureName(props)),
     ...(order !== null && { link: { href: order, label: CLOSURE_LINK_LABEL } }),
     ...(reason !== null && { warn: escapeHtml(reason) }),

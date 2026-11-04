@@ -49,8 +49,8 @@ import { coordinateLabel } from './points'
 import { type GroundState, slopeFact } from './popup/groundFact'
 import {
   bodyLines,
-  bodySection,
   cardSection,
+  cardSections,
   escapeHtml,
   factValue,
   factsLine,
@@ -280,13 +280,16 @@ const FORECAST_HEADING = 'Forecast'
 
 /**
  * Whether a section shows its body: the reader's own choice for that section
- * where they made one, and otherwise open on every card but the ranked one,
- * where only the forecast is (TJ, 2026-11-03).
+ * where they made one, and otherwise open on every card before an analysis,
+ * and on a ranked card open for the forecast and for every warning (a fire,
+ * a hotspot or a closure at the point) with the rest folded to their names
+ * (TJ, 2026-11-03). The grid is what a marker is clicked for, and a reason
+ * to stay away is worth reading before it.
  */
-export function sectionOpen(s: CardSubject, key: string, folds?: ReadonlyMap<string, boolean>): boolean {
+export function sectionOpen(s: CardSubject, key: string, folds?: ReadonlyMap<string, boolean>, warning = false): boolean {
   const chosen = folds?.get(key)
   if (chosen !== undefined) return chosen
-  return s.kind !== 'ranked' || key === FORECAST_SECTION
+  return s.kind !== 'ranked' || key === FORECAST_SECTION || warning
 }
 
 /**
@@ -321,8 +324,8 @@ function forecastSection(s: Extract<CardSubject, { kind: 'ranked' }>, view: Card
   const analyzed = updatedAt(view.analyzedAtMs)
   return cardSection({
     key: FORECAST_SECTION,
-    heading: escapeHtml(model ? `${FORECAST_HEADING}: ${model}` : FORECAST_HEADING),
-    label: FORECAST_HEADING,
+    layer: FORECAST_HEADING,
+    ...(model ? { name: escapeHtml(model) } : {}),
     open: sectionOpen(s, FORECAST_SECTION, view.folds),
     body: grid + (analyzed ? bodyLines([updatedLine(escapeHtml(analyzed), ANALYZED)]) : ''),
   })
@@ -356,10 +359,11 @@ function layerSection(s: CardSubject, section: PointSection, view: CardView): st
   const name = section.titles ? widestName(section.title, section.titles) : section.title
   return cardSection({
     key: section.kind,
-    heading: `${section.layer}: ${name}`,
-    label: section.layer,
+    layer: section.layer,
+    name,
+    warning: section.warning,
     link: section.link,
-    open: sectionOpen(s, section.kind, view.folds),
+    open: sectionOpen(s, section.kind, view.folds, section.warning),
     body: bodyLines([
       section.warn === undefined ? null : warningLine(section.warn, null),
       ...section.rows,
@@ -373,7 +377,7 @@ function layerSection(s: CardSubject, section: PointSection, view: CardView): st
  * and its link-out glyph opens CalTopo there (`Open in CalTopo`), since the
  * title already says what the facts' pair would (TJ, 2026-10-30). Under the
  * band, the layers' sections in the map's rank and then the forecast's, each
- * ruled off from the one above it.
+ * heading on a band of its own (`cardSections`).
  */
 export function destinationPopupHtml(s: CardSubject, view: CardView = {}): string {
   const action = cardAction(s, view)
@@ -396,7 +400,7 @@ export function destinationPopupHtml(s: CardSubject, view: CardView = {}): strin
   const sections = [...(view.sections ?? []).map((section) => layerSection(s, section, view)), forecast].filter(
     (part): part is string => part !== null,
   )
-  const body = sections.map((inner, i) => (i === 0 ? inner : bodySection(inner))).join('')
+  const body = cardSections(sections)
   // A card with something under its band rules its button off in a foot of
   // its own (#696), or it reads as one more row; a card with nothing else
   // stands the button alone and centred in the body, under the band's edge,

@@ -179,6 +179,9 @@ describe('the snow sections', () => {
     expect(section.rows.map(markupText)).toEqual(['Depth: ', 'Snow water equivalent: '])
     expect(section.rows.every((r) => r.includes('aria-hidden'))).toBe(true)
     expect(section.when).toContain('aria-hidden')
+    // Snow is weather rather than a reason to stay away: the plain band, and
+    // folded on a ranked card (#832).
+    expect(section.warning).toBeUndefined()
   })
 
   it('fills the values NOAA answered, the time with its date', () => {

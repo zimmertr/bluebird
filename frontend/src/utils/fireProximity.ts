@@ -329,6 +329,15 @@ function featureFireName(props: WildfireProps | null): string {
 }
 
 /**
+ * The mark a warned cell opens on, the Wildfire and Closure columns' alike,
+ * and the one a card's warning section stands before its name
+ * (`popup/popupChrome.ts`, #832). Text rather than an icon with a name of its
+ * own: a screen reader says the character's own name, so the mark needs no
+ * word of the app's.
+ */
+export const WARNING_MARK = '⚠️'
+
+/**
  * The Wildfire (mi) column's on-screen cell once the check has answered
  * (#256). Three states, each visible (TJ, PR #275 review): the ⚠️ and the
  * mileage where a fire is within FIRE_WARN_MILES (the column is the flag's
@@ -341,7 +350,7 @@ function featureFireName(props: WildfireProps | null): string {
  * this string is written for a human reading a row.
  */
 export function fireCellText(warning: FireWarning | undefined, uncovered: boolean): string {
-  if (warning) return `⚠️ ${warning.miles.toFixed(1)}`
+  if (warning) return `${WARNING_MARK} ${warning.miles.toFixed(1)}`
   return uncovered ? UNAVAILABLE : NO_VALUE_MARK
 }
 

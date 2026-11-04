@@ -195,8 +195,18 @@ export function closureReason(props: ClosureProps): string | null {
 /** What a screen reader hears for an order's link out: the text link it replaced (#738). */
 export const CLOSURE_LINK_LABEL = 'View closure order'
 
-/** The Layers menu's row for each kind, which the legend and a card's section open on. */
+/** The Layers menu's row for each kind, which the legend names too. */
 export const CLOSURE_ROW_LABELS: Record<ClosureKind, string> = {
   area: 'Area closures',
   trail: 'Trail closures',
+}
+
+/**
+ * What a card's section opens on for one order of each kind, `Area closure:
+ * Probe Fire Closure`: the row's word in the singular, since a section names
+ * the one order at the point (TJ, 2026-11-03).
+ */
+export const CLOSURE_SECTION_LABELS: Record<ClosureKind, string> = {
+  area: 'Area closure',
+  trail: 'Trail closure',
 }

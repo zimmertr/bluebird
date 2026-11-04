@@ -126,6 +126,7 @@ import { createGridHeads } from './gridHeads'
 import type { GroundReadings } from './groundReadings'
 import { createMapController } from './controller'
 import { mountTestPopups } from '../testSupport/mapPopups'
+import { markupText } from '../testSupport/markupText'
 import { mapInputs, resultRow } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
 import { AGGREGATE } from '../metrics'
@@ -460,12 +461,12 @@ describe('sections', () => {
     expect(at.zoom).toBe(MAP_ZOOM)
     answers.snow!({ section: SNOW })
     await settle()
-    expect(popups[0].html).toContain('Snow depth: Deep snow')
+    expect(markupText(popups[0].html)).toContain('Snow depth: Deep snow')
     // A section landing is a redraw, which leaves the reader's focus alone.
     expect(popups[0].sets[popups[0].sets.length - 1].focus).toBe(false)
     answers.radar!({ section: RAIN })
     await settle()
-    const html = popups[0].html
+    const html = markupText(popups[0].html)
     expect(html.indexOf('Rain radar: Light precipitation')).toBeGreaterThan(-1)
     expect(html.indexOf('Rain radar: Light precipitation')).toBeLessThan(html.indexOf('Snow depth: Deep snow'))
     expect(popups).toHaveLength(1)
@@ -529,7 +530,7 @@ describe('sections', () => {
     await settle()
     expect(radar.read).toHaveBeenCalledTimes(1)
     expect(radar.refresh).toHaveBeenCalledTimes(1)
-    expect(popups[0].html).toContain('Rain radar: No echo')
+    expect(markupText(popups[0].html)).toContain('Rain radar: No echo')
     expect(popups[0].html).toContain('Snow depth')
     // A layer with no refresh of its own is read again.
     board.refreshPoint('snow')
@@ -554,7 +555,7 @@ describe('sections', () => {
     on = true
     board.refreshPoint('fire')
     await settle()
-    expect(popups[0].html).toContain('Wildfires: Bolt Creek')
+    expect(markupText(popups[0].html)).toContain('Wildfires: Bolt Creek')
   })
 
   // A scrub moves faster than a tile decodes: the newest frame wins.
@@ -609,7 +610,7 @@ describe('sections', () => {
     expect(popups.map((p) => expanded(p.html, 'radar'))).toEqual(['true', 'true'])
     popups[0].folds.find((b) => b.key === 'radar')!.press()
     expect(popups.map((p) => expanded(p.html, 'radar'))).toEqual(['false', 'false'])
-    expect(popups[0].html).not.toContain('Rate: 0.1 in/hr')
+    expect(markupText(popups[0].html)).not.toContain('Rate: 0.1 in/hr')
     expect(popups.map((p) => p.folds.find((b) => b.key === 'radar')!.focused)).toEqual([true, false])
     // Every write was a redraw, so MapLibre moved focus for none of them.
     expect(popups[1].sets[popups[1].sets.length - 1].focus).toBe(false)
@@ -632,6 +633,21 @@ describe('sections', () => {
     expect(expanded(popups[0].html, 'radar')).toBe('false')
     expect(expanded(popups[0].html, 'forecast')).toBe('true')
     expect(popups[0].html.indexOf('Rain radar')).toBeLessThan(popups[0].html.indexOf('data-card-fold="forecast"'))
+  })
+
+  // A warning stands open on a ranked card beside the forecast (TJ,
+  // 2026-11-03), and its chevron folds it at the first press: the press
+  // reads the default the card drew, warning and all.
+  it("opens a ranked card's warnings by default, and folds one at the first press", async () => {
+    const { cards, board, controller } = setup()
+    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'aqi_avg') })
+    layer(board, 'fire', async () => ({ section: { ...section('fire', 'Active wildfire', 'Bolt Creek'), warning: true } }))
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [0, 0])
+    await settle()
+    expect(['fire', 'radar', 'forecast'].map((key) => expanded(popups[0].html, key))).toEqual(['true', 'false', 'true'])
+    popups[0].folds.find((b) => b.key === 'fire')!.press()
+    expect(expanded(popups[0].html, 'fire')).toBe('false')
   })
 
   // The forecast section's fine print says when the report was analyzed.
@@ -670,8 +686,8 @@ describe('sections', () => {
     cards.open(SPOT, [SPOT.lon, SPOT.lat])
     const card = popups[popups.length - 1]
     expect(card.sets).toHaveLength(1)
-    expect(card.sets[0].html).toContain('Wildfires: Bolt Creek')
-    expect(card.sets[0].html).toContain('Snow depth: Deep snow')
+    expect(markupText(card.sets[0].html)).toContain('Wildfires: Bolt Creek')
+    expect(markupText(card.sets[0].html)).toContain('Snow depth: Deep snow')
   })
 
   // Two clicks on one table row open one card.
@@ -726,11 +742,11 @@ describe('sections', () => {
     wet = true
     board.refreshPoint('radar')
     await settle()
-    expect(popups[0].html).toContain('Rain radar: Light precipitation')
+    expect(markupText(popups[0].html)).toContain('Rain radar: Light precipitation')
     board.refreshPoint('radar')
     await settle()
     expect(radar.refresh).toHaveBeenCalledTimes(1)
-    expect(popups[0].html).toContain('Rain radar: No echo')
+    expect(markupText(popups[0].html)).toContain('Rain radar: No echo')
   })
 
   it('caps nothing where the card still stands whole', async () => {

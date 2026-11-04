@@ -14,7 +14,8 @@ import {
 import { hotspotRows } from './fireActivity'
 import { escapeHtml, row, updatedAt } from './popup/popupChrome'
 import { observedSpan } from './smoke'
-import { FIRE_LINK_ZOOM, nifcFireUrl } from './wildfires'
+import { FIRE_LINK_ZOOM, WILDFIRE_ROW_LABEL, WILDFIRE_SECTION_LABEL, nifcFireUrl } from './wildfires'
+import { CLOSURE_ROW_LABELS, CLOSURE_SECTION_LABELS } from './closures'
 
 // One mile of latitude, so a point a set number of miles due south of an edge
 // is easy to spell.
@@ -61,12 +62,21 @@ describe('wildfireSectionAt', () => {
   const INSIDE = { lng: -121.05, lat: 47.05, zoom: 8 }
   const south = (miles: number) => ({ lng: -121.05, lat: 47.0 - miles * MILE, zoom: 8 })
 
+  // One fire, so the menu's plural row in the singular (TJ, 2026-11-03).
   it('names the layer, the fire and NIFC', () => {
     const section = wildfireSectionAt(fires(), INSIDE)!
     expect(section.kind).toBe('fire')
-    expect(section.layer).toBe('Active wildfires')
+    expect(section.layer).toBe('Active wildfire')
+    expect(section.layer).toBe(WILDFIRE_SECTION_LABEL)
+    expect(WILDFIRE_ROW_LABEL).toBe('Active wildfires')
     expect(section.title).toBe('Bolt Creek')
     expect(section.source).toBe('NIFC')
+  })
+
+  // A fire within reach is a reason to stay away, inside it or beside it.
+  it('is a warning, inside the perimeter and beside it', () => {
+    expect(wildfireSectionAt(fires(), INSIDE)!.warning).toBe(true)
+    expect(wildfireSectionAt(fires(), south(3))!.warning).toBe(true)
   })
 
   // Inside the perimeter the point is on the fire, so no Distance row.
@@ -159,6 +169,10 @@ describe('hotspotSectionAt', () => {
     expect(section.source).toBe('NASA FIRMS')
   })
 
+  it('is a warning', () => {
+    expect(hotspotSectionAt(detections(), south(3), NOW)!.warning).toBe(true)
+  })
+
   it("puts the distance first and the detection's own lines after it", () => {
     expect(hotspotSectionAt(detections(), south(3), NOW)!.rows).toEqual([row('Distance', '3.0 mi N'), ...detectionRows])
   })
@@ -211,6 +225,12 @@ describe('smokeSectionAt', () => {
     expect(smokeSectionAt(PLUMES, at(-121.4, 47))!.rows).toEqual([])
   })
 
+  // A plume is weather, as the radar and the snow are: it folds on a ranked
+  // card and wears the plain band.
+  it('is no warning', () => {
+    expect(smokeSectionAt(PLUMES, at(-121, 47))!.warning).toBeUndefined()
+  })
+
   it('dates the section by the window it was traced over, and not at all without one', () => {
     const start = Date.parse('2026-08-04T11:00:00')
     const end = Date.parse('2026-08-04T14:00:00')
@@ -243,16 +263,24 @@ describe('closureSectionAt', () => {
   const south = (miles: number) => ({ lng: -121.9, lat: 45.6 - miles * MILE, zoom: 10 })
   const ON = { lng: -121.9, lat: 45.6, zoom: 10 }
 
-  it('names each layer by its row in the Layers menu, the order and the Forest Service', () => {
+  // One order each, so the menu's plural rows in the singular (TJ, 2026-11-03).
+  it('names each layer by its row in the Layers menu in the singular, the order and the Forest Service', () => {
     const area = closureSectionAt(areas(), 'area', ON)!
     expect(area.kind).toBe('closure-area')
-    expect(area.layer).toBe('Area closures')
+    expect(area.layer).toBe('Area closure')
+    expect(CLOSURE_SECTION_LABELS).toEqual({ area: 'Area closure', trail: 'Trail closure' })
+    expect(CLOSURE_ROW_LABELS).toEqual({ area: 'Area closures', trail: 'Trail closures' })
     expect(area.title).toBe('Probe Fire Closure')
     expect(area.source).toBe(USFS_SOURCE)
     expect(USFS_SOURCE).toBe('US Forest Service')
     const trail = closureSectionAt(trails(), 'trail', ON)!
     expect(trail.kind).toBe('closure-trail')
-    expect(trail.layer).toBe('Trail closures')
+    expect(trail.layer).toBe('Trail closure')
+  })
+
+  it('is a warning, an area the point is in and a trail beside it', () => {
+    expect(closureSectionAt(areas(), 'area', ON)!.warning).toBe(true)
+    expect(closureSectionAt(trails(), 'trail', south(0.5))!.warning).toBe(true)
   })
 
   // An area reaches only the point standing inside it.

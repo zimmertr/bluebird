@@ -128,14 +128,22 @@ test('a fire opens the spot’s card on a click and never on a hover, and a mark
   await expect(popups).toHaveCount(0)
 
   // The marker inside the fire takes the click. Its card carries the fire as
-  // a section folded to its name, and the forecast open under it.
+  // a section open over the forecast, since a fire at a destination is a
+  // warning (TJ, 2026-11-03), on the amber band behind the table's mark.
   await page.mouse.click(marker.x, marker.y)
   await expect(card).toHaveCount(1)
   await expect(card).toContainText(DESTINATION_NAMES[0])
   await expect(popups).toHaveCount(1)
-  await expect(card.getByText('Active wildfires: Probe Fire', { exact: true })).toBeVisible()
-  await expect(card.getByRole('button', { name: 'Active wildfires', exact: true })).toHaveAttribute('aria-expanded', 'false')
+  await expect(card.getByText('Active wildfire: Probe Fire', { exact: true })).toBeVisible()
+  await expect(card.getByRole('button', { name: 'Active wildfire', exact: true })).toHaveAttribute('aria-expanded', 'true')
   await expect(card.getByRole('button', { name: 'Forecast', exact: true })).toHaveAttribute('aria-expanded', 'true')
+  const heading = card.getByRole('button', { name: 'Active wildfire', exact: true }).locator('..')
+  await expect(heading).toContainText('⚠️')
+  // The warning band is the amber laid over the plain band the forecast's
+  // heading wears, so the two differ.
+  const fill = (button: string) =>
+    card.getByRole('button', { name: button, exact: true }).locator('..').evaluate((el) => getComputedStyle(el).backgroundColor)
+  expect(await fill('Active wildfire')).not.toBe(await fill('Forecast'))
 
   // The fire around it opens the spot's card in place of the marker's, titled
   // with the clicked coordinates, its fire section open and linked to NIFC,
@@ -144,8 +152,8 @@ test('a fire opens the spot’s card on a click and never on a hover, and a mark
   await expect(card).toHaveCount(0)
   await expect(popups).toHaveCount(1)
   await expect(popups.locator('strong').first()).toHaveText(/^-?\d+\.\d{5}, -?\d+\.\d{5}$/)
-  await expect(popups.getByText('Active wildfires: Probe Fire', { exact: true })).toBeVisible()
-  await expect(popups.getByRole('button', { name: 'Active wildfires', exact: true })).toHaveAttribute('aria-expanded', 'true')
+  await expect(popups.getByText('Active wildfire: Probe Fire', { exact: true })).toBeVisible()
+  await expect(popups.getByRole('button', { name: 'Active wildfire', exact: true })).toHaveAttribute('aria-expanded', 'true')
   await expect(popups.getByRole('link', { name: /NIFC/ })).toBeVisible()
   expect(tabs).toEqual([])
 })
@@ -212,18 +220,18 @@ test.describe('on a phone', () => {
     // once both layers have drawn, which nothing on the page announces.
     await expect(async () => {
       await page.touchscreen.tap(middle.x, middle.y + 120)
-      await expect(popups.getByText('Area closures: Probe Area Closure', { exact: true })).toBeVisible({ timeout: 1_500 })
+      await expect(popups.getByText('Area closure: Probe Area Closure', { exact: true })).toBeVisible({ timeout: 1_500 })
     }).toPass({ timeout: 20_000 })
 
     // Four pixels off the 2.5px line: a new card at the tap, the trail's
     // section first in the map's rank and the ground's under it.
     await page.touchscreen.tap(middle.x, middle.y + 4)
     await expect(popups).toHaveCount(1)
-    await expect(popups.getByText('Trail closures: Probe Trail Closure', { exact: true })).toBeVisible()
-    await expect(popups.getByText('Area closures: Probe Area Closure', { exact: true })).toBeVisible()
+    await expect(popups.getByText('Trail closure: Probe Trail Closure', { exact: true })).toBeVisible()
+    await expect(popups.getByText('Area closure: Probe Area Closure', { exact: true })).toBeVisible()
     await expect
       .poll(() => popups.locator('[data-card-fold]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label'))))
-      .toEqual(['Trail closures', 'Area closures'])
+      .toEqual(['Trail closure', 'Area closure'])
   })
 
   // A card is placed as every card is (#738): a tap just under the chip rows

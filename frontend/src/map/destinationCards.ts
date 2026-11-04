@@ -206,7 +206,7 @@ export function mountDestinationCards(
   // A chevron's press: the section folds or opens on every card, and the
   // chevron pressed keeps the reader's focus, in its new markup.
   function fold(card: Card, key: string) {
-    folds.set(key, !sectionOpen(card.subject, key, folds))
+    folds.set(key, !sectionOpen(card.subject, key, folds, card.sections.get(key as MapTarget)?.warning))
     for (const c of cards) write(c)
     card.popup.getElement()?.querySelector?.<HTMLButtonElement>(`[${CARD_FOLD_ATTR}="${key}"]`)?.focus?.()
   }

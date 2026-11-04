@@ -69,6 +69,10 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
   const glyph = popup.locator('a[data-popup-glyph]').first()
   const fold = popup.getByRole('button', { name: 'Forecast', exact: true })
   await expect(fold).toHaveAttribute('data-popup-glyph', '')
+  // The forecast's heading stands on the band the header wears (TJ,
+  // 2026-11-03), and its fold rests in the same grey there.
+  const backdrop = (el: Locator) => el.evaluate((node) => getComputedStyle(node).backgroundColor)
+  expect(await backdrop(fold.locator('..'))).toBe(await backdrop(popup.locator('.maplibregl-popup-content > div > div').first()))
   await page.mouse.move(0, 0)
   const grey = await paint(page, 'var(--popup-label)')
   expect((await look(glyph)).color).toBe(grey)

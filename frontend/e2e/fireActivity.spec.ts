@@ -65,6 +65,10 @@ for (const [name, width, height] of [
     await expect(card.locator('strong').first()).toHaveText(/^-?\d+\.\d{5}, -?\d+\.\d{5}$/)
     const body = card.locator('[data-popup-body]')
     await expect(body.getByText('Fire activity: Hotspot', { exact: true })).toBeVisible()
+    // A hotspot is a warning (TJ, 2026-11-03): the table's mark before the
+    // layer's word, outside the heading's text so a cut name never moves it.
+    const heading = card.getByRole('button', { name: 'Fire activity', exact: true }).locator('..')
+    await expect(heading).toContainText('⚠️Fire activity: Hotspot')
     for (const label of ['Detected', 'Satellite', 'Confidence', 'Fire power']) {
       await expect(body.getByText(label, { exact: true })).toBeVisible()
     }

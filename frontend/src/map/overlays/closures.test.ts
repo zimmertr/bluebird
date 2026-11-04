@@ -57,7 +57,7 @@ import {
 } from './closures'
 import { FIRE_REFETCH_DEBOUNCE_MS, WILDFIRE_FILL_LAYER, mountWildfires } from './wildfires'
 import type { FeatureCollection } from 'geojson'
-import { CLOSURE_ROW_LABELS, type ClosureKind } from '../../utils/closures'
+import { CLOSURE_SECTION_LABELS, type ClosureKind } from '../../utils/closures'
 import { closureSectionAt } from '../../utils/hazardSections'
 import { closureFeature } from '../../testSupport/fixtures'
 import { fakeMapPopups } from '../../testSupport/fakeMapPopups'
@@ -280,7 +280,7 @@ describe('mountClosures point target', () => {
     await vi.waitFor(() => expect(refreshed).toEqual([name]))
     const reading = await target.read(NEAR, signal())
     expect(reading).toEqual({ section: closureSectionAt(HELD[kind], kind, NEAR) })
-    expect(reading?.section).toMatchObject({ kind: name, layer: CLOSURE_ROW_LABELS[kind] })
+    expect(reading?.section).toMatchObject({ kind: name, layer: CLOSURE_SECTION_LABELS[kind], warning: true })
     expect(await target.read(FAR, signal())).toBeNull()
     overlay.update({ show: false })
     expect(refreshed).toEqual([name, name])
