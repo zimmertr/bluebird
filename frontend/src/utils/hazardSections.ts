@@ -23,7 +23,8 @@
  * not on carries a `Distance` row, how far and which way.
  *
  * Every value here is third-party text on its way to setHTML, so it is
- * escaped at the one place it enters a section.
+ * escaped at the one place it enters a section; a link's url alone is handed
+ * on as given, since the chrome escapes it into the attribute.
  */
 import type { Feature, FeatureCollection, Point } from 'geojson'
 import type { FireActivityResponse, FireDetectionProps } from '../types'
@@ -110,7 +111,7 @@ export function wildfireSectionAt(fires: FeatureCollection, at: MapPoint): Point
     kind: 'fire',
     layer: escapeHtml(WILDFIRE_ROW_LABEL),
     title: escapeHtml(fireName(props)),
-    link: { href: escapeHtml(href), label: FIRE_LINK_LABEL },
+    link: { href, label: FIRE_LINK_LABEL },
     source: escapeHtml(NIFC_SOURCE),
     rows: [
       distanceRow(hit.near),
@@ -202,7 +203,7 @@ export function closureSectionAt(closures: FeatureCollection, kind: ClosureKind,
     kind: kind === 'area' ? 'closure-area' : 'closure-trail',
     layer: escapeHtml(CLOSURE_ROW_LABELS[kind]),
     title: escapeHtml(closureName(props)),
-    ...(order !== null && { link: { href: escapeHtml(order), label: CLOSURE_LINK_LABEL } }),
+    ...(order !== null && { link: { href: order, label: CLOSURE_LINK_LABEL } }),
     ...(reason !== null && { warn: escapeHtml(reason) }),
     source: escapeHtml(USFS_SOURCE),
     rows: [kind === 'trail' ? distanceRow(hit.near) : null, forest ? row('Forest', escapeHtml(forest)) : null, figure].filter(

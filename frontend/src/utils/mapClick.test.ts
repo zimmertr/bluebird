@@ -116,23 +116,21 @@ describe('mapCursor', () => {
 })
 
 describe('pointTargetsToAsk', () => {
-  // A picture is asked only once every shape has passed, so it ranks under
-  // all of them, and rain over snow is what the card leads with (#737).
-  it('ranks the pictures under every shape, the radar over the snow', () => {
-    expect(MAP_TARGETS.slice(-POINT_TARGETS.length)).toEqual(['radar', 'snow'])
+  // Every layer a card reads at its point, the five hazards and the two
+  // pictures, in the order their sections stand on a card (#832).
+  it('lists the layers a card reads at its point, in rank order', () => {
+    expect(POINT_TARGETS).toEqual(['fire-activity', 'closure-trail', 'fire', 'closure-area', 'smoke', 'radar', 'snow'])
+    expect(MAP_TARGETS.filter((t) => POINT_TARGETS.includes(t))).toEqual(POINT_TARGETS)
   })
 
-  it('asks the pictures that are on, in rank order', () => {
-    expect(pointTargetsToAsk(false, ['snow', 'radar'])).toEqual(['radar', 'snow'])
-    expect(pointTargetsToAsk(false, ['snow'])).toEqual(['snow'])
-    expect(pointTargetsToAsk(false, [])).toEqual([])
+  it('asks the layers that are on, in rank order', () => {
+    expect(pointTargetsToAsk(['snow', 'radar'])).toEqual(['radar', 'snow'])
+    expect(pointTargetsToAsk(['smoke', 'snow', 'fire', 'fire-activity'])).toEqual(['fire-activity', 'fire', 'smoke', 'snow'])
+    expect(pointTargetsToAsk(['snow'])).toEqual(['snow'])
+    expect(pointTargetsToAsk([])).toEqual([])
   })
 
-  it('asks none of them while the ring is drawn', () => {
-    expect(pointTargetsToAsk(true, ['radar', 'snow'])).toEqual([])
-  })
-
-  it('never asks a shape as though it were a picture', () => {
-    expect(pointTargetsToAsk(false, ['smoke', 'fire', 'radar'])).toEqual(['radar'])
+  it('never asks a place as though it were a layer', () => {
+    expect(pointTargetsToAsk(['result', 'pending', 'poi', 'vertex', 'radar'])).toEqual(['radar'])
   })
 })

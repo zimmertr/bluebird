@@ -1,22 +1,30 @@
-import { describe, expect, it, vi } from 'vitest'
-import { POPUP_CARD_CLASS } from '../utils/popup/popupChrome'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { POPUP_BODY_ATTR, POPUP_CARD_CLASS } from '../utils/popup/popupChrome'
 import { POPUP_PAN_MS } from '../utils/popup/popupFit'
 
 // MapLibre's Popup needs a DOM. This one records the options it was made with
 // and whether it is open, and fires `close` when removed, as MapLibre's does.
-const { made } = vi.hoisted(() => ({
+// Its element and its point are whatever `dom` holds, so a test can stand a
+// card of a given size at a given place for `bodyCap`.
+const { made, dom } = vi.hoisted(() => ({
   made: [] as { options: Record<string, unknown>; html: string; removed: boolean }[],
+  dom: { element: undefined as unknown, lngLat: { lng: -121.5, lat: 47.5 } as { lng: number; lat: number } | undefined },
 }))
 vi.mock('maplibre-gl', () => ({
   Popup: class {
     state: { options: Record<string, unknown>; html: string; removed: boolean }
+    options: Record<string, unknown>
     closers: (() => void)[] = []
     constructor(options: Record<string, unknown>) {
+      this.options = options
       this.state = { options, html: '', removed: false }
       made.push(this.state)
     }
     setLngLat() {
       return this
+    }
+    getLngLat() {
+      return dom.lngLat
     }
     setHTML(html: string) {
       this.state.html = html
@@ -26,7 +34,7 @@ vi.mock('maplibre-gl', () => ({
       return this
     }
     getElement() {
-      return undefined
+      return dom.element
     }
     on(_type: string, fn: () => void) {
       this.closers.push(fn)
@@ -39,13 +47,20 @@ vi.mock('maplibre-gl', () => ({
   },
 }))
 
+import { Popup } from 'maplibre-gl'
 import { createMapController } from './controller'
 import { mapInputs } from '../testSupport/fixtures'
-import { mountMapPopups, type MapPoint, type MapPointTarget, type MapPopupTarget } from './mapPopups'
+import { mountMapPopups, type MapPointTarget, type MapPopupTarget } from './mapPopups'
 import { createPopupBoard, popupOptions } from './popups'
 import { stubMap, type StubFeature } from '../testSupport/stubMap'
 import type { MapTarget } from '../utils/mapClick'
 import type { PointReading, PointSection } from '../utils/pointReadout'
+
+// A card a test stood for `bodyCap` is gone before the next test opens one.
+beforeEach(() => {
+  dom.element = undefined
+  dom.lngLat = { lng: -121.5, lat: 47.5 }
+})
 
 const LAYERS = ['fire-fill', 'marker', 'heavy', 'light', 'trail', 'vertices']
 
@@ -56,15 +71,12 @@ function setup({ drawing = false, layers = LAYERS } = {}) {
   const addPoint = vi.fn()
   const board = createPopupBoard()
   const popups = mountMapPopups(stub.map, { controller, board, addPoint })
-  // The spot's card as a test reads it: each section's name, source and rows
-  // as text. The real card is `destinationCards.ts`'s.
-  const spots: { at: MapPoint; sections: readonly PointSection[]; owner: readonly MapTarget[] }[] = []
-  const spotText = (sections: readonly PointSection[]) =>
-    ['Spot', ...sections.map((x) => [x.title, x.source, ...x.rows].join(' '))].join(' | ')
-  popups.registerSpot((at, anchor, sections, owner) => {
-    spots.push({ at, sections, owner })
-    const { popup } = popups.openCard(anchor, spotText(sections), { owner })
-    return { popup, setSections: (next) => void popup.setHTML(spotText(next)) }
+  // The spot's card as a test sees it: where it was asked to open, and a card
+  // there. The real card is `destinationCards.ts`'s.
+  const spots: { lng: number; lat: number }[] = []
+  popups.registerSpot((at) => {
+    spots.push(at)
+    popups.openCard(at, 'Spot', {})
   })
   const opened: { target: MapTarget; layer: string }[] = []
   const register = (target: MapTarget, targetLayers: string[], extra: Partial<MapPopupTarget> = {}) =>
@@ -173,54 +185,94 @@ describe('mountMapPopups', () => {
   })
 })
 
+
 // A click on bare map is the spot's (#832, TJ 2026-11-03): the same left
 // click every marker and label answers.
 describe('mountMapPopups bare map', () => {
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
-
-  it("opens the spot's card where nothing under the click opens", async () => {
+  it("opens the spot's card where nothing under the click opens", () => {
     const { click, spots } = setup()
     click()
-    await settle()
-    expect(spots.map((x) => x.at)).toEqual([{ lng: -121.5, lat: 47.5, zoom: 8 }])
+    expect(spots).toEqual([{ lng: -121.5, lat: 47.5 }])
     expect(made).toHaveLength(1)
   })
 
   // A reader dismissing a card does not get another one for it.
-  it('only closes the open cards on a click while any is open', async () => {
+  it('only closes the open cards on a click while any is open', () => {
     const { register, under, click, spots } = setup()
     register('fire', ['fire-fill'])
     under('fire-fill')
     click()
     under()
     click()
-    await settle()
     expect(made.map((p) => p.removed)).toEqual([true])
     expect(spots).toEqual([])
     click()
-    await settle()
     expect(spots).toHaveLength(1)
   })
 
-  it('opens the spot beside the open cards on a shift-click', async () => {
+  it('opens the spot beside the open cards on a shift-click', () => {
     const { register, under, click, spots } = setup()
     register('fire', ['fire-fill'])
     under('fire-fill')
     click()
     under()
     click(true)
-    await settle()
     expect(spots).toHaveLength(1)
     expect(made.map((p) => p.removed)).toEqual([false, false])
   })
 
-  it('opens nothing with no spot card registered', async () => {
+  it('opens nothing with no spot card registered', () => {
     made.length = 0
     const stub = stubMap({ layers: LAYERS })
-    mountMapPopups(stub.map, { controller: createMapController(mapInputs()), board: createPopupBoard(), addPoint: vi.fn() })
+    const popups = mountMapPopups(stub.map, { controller: createMapController(mapInputs()), board: createPopupBoard(), addPoint: vi.fn() })
     stub.fire('click', undefined, { point: { x: 0, y: 0 }, lngLat: { lng: -121.5, lat: 47.5 }, originalEvent: {} })
-    await settle()
+    popups.openSpot([-121.5, 47.5])
     expect(made).toEqual([])
+  })
+
+  // What a fire's perimeter says is a section of the spot's card, so its
+  // shape opens that card where it was clicked.
+  it("opens the spot at the click from a shape target's own open", () => {
+    const { popups, under, click, spots } = setup()
+    popups.register({ target: 'fire', layers: ['fire-fill'], open: (hit) => popups.openSpot(hit.lngLat) })
+    under('fire-fill')
+    click()
+    expect(spots).toEqual([{ lng: -121.5, lat: 47.5 }])
+    expect(made).toHaveLength(1)
+  })
+
+  // A star's coordinates come as GeoJSON's pair, a feature's as `lon`.
+  it('opens the spot at a coordinate however it is spelled', () => {
+    const { popups, spots } = setup()
+    popups.openSpot([-120.25, 46.5])
+    popups.openSpot({ lon: -119.75, lat: 45.5 })
+    popups.openSpot({ lng: -118.5, lat: 44.25 })
+    // A map scrolled past the antimeridian reports a longitude outside
+    // -180..180, which the spot's title and its link must not carry.
+    popups.openSpot({ lng: 238.5, lat: 47.5 })
+    expect(spots).toEqual([
+      { lng: -120.25, lat: 46.5 },
+      { lng: -119.75, lat: 45.5 },
+      { lng: -118.5, lat: 44.25 },
+      { lng: -121.5, lat: 47.5 },
+    ])
+  })
+
+  // The card asks the layers for itself; the click only says where.
+  it('reads no point target on a click', () => {
+    const { popups, click, spots } = setup()
+    const read = vi.fn(async () => null)
+    popups.registerPoint({ target: 'radar', shown: () => true, paints: () => true, read })
+    click()
+    expect(spots).toHaveLength(1)
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it('places a point rather than opening the spot while the ring is drawn', () => {
+    const { click, addPoint, spots } = setup({ drawing: true })
+    click()
+    expect(addPoint).toHaveBeenCalledTimes(1)
+    expect(spots).toEqual([])
   })
 })
 
@@ -390,178 +442,6 @@ describe('mountMapPopups openCard and openBare', () => {
   })
 })
 
-describe('mountMapPopups point targets', () => {
-  const section = (title: string, rows: string[] = []): PointSection => ({ layer: 'Layer', title, source: `${title} source`, rows })
-  const whole = (title: string): PointReading => ({ section: section(title) })
-  // Lets every promise that has answered settle.
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
-
-  function point(
-    popups: ReturnType<typeof setup>['popups'],
-    target: MapTarget,
-    read: MapPointTarget['read'],
-    { shown = (): boolean => true, paints = (): boolean | Promise<boolean> => true } = {},
-  ) {
-    const spy = vi.fn(read)
-    popups.registerPoint({ target, shown, paints, read: spy })
-    return spy
-  }
-
-  // A storm over a snowpack is described whole: both readings, one card,
-  // the radar first, and either layer switched off takes the card down.
-  it('puts every picture painted under the click on one card in rank order', async () => {
-    const { popups, click } = setup()
-    point(popups, 'snow', async () => whole('Snow'))
-    point(popups, 'radar', async () => whole('Rain'))
-    click()
-    await settle()
-    expect(made).toHaveLength(1)
-    expect(made[0].html.indexOf('Rain source')).toBeLessThan(made[0].html.indexOf('Snow source'))
-    popups.closeAll('snow')
-    expect(made[0].removed).toBe(true)
-  })
-
-  // The card opens on what the tile says at once, and a value asked for
-  // after fills its row when it lands (TJ, 2026-10-16).
-  it('opens at once and fills a value that lands later', async () => {
-    const { popups, click } = setup()
-    let land: (s: PointSection) => void = () => {}
-    point(popups, 'snow', async () => ({
-      section: section('Snow', ['waiting']),
-      later: new Promise<PointSection>((resolve) => (land = resolve)),
-    }))
-    click()
-    await settle()
-    expect(made).toHaveLength(1)
-    expect(made[0].html).toContain('waiting')
-    land(section('Snow', ['151 in']))
-    await settle()
-    expect(made).toHaveLength(1)
-    expect(made[0].html).toContain('151 in')
-    expect(made[0].html).not.toContain('waiting')
-  })
-
-  // A closed card's question is dropped rather than answered into nothing.
-  it('aborts what a card was waiting for when it closes', async () => {
-    const { popups, click } = setup()
-    let signal: AbortSignal | null = null
-    point(popups, 'snow', async (_at, s) => {
-      signal = s
-      return { section: section('Snow'), later: new Promise<PointSection>(() => {}) }
-    })
-    click()
-    await settle()
-    expect(signal!.aborted).toBe(false)
-    popups.closeAll()
-    expect(signal!.aborted).toBe(true)
-  })
-
-  // A shift-click keeps the first card and its wait.
-  it('keeps filling a card that a later shift-click leaves open', async () => {
-    const { popups, click } = setup()
-    let land: (s: PointSection) => void = () => {}
-    let first = true
-    point(popups, 'snow', async () => {
-      if (!first) return null
-      first = false
-      return { section: section('Snow', ['waiting']), later: new Promise<PointSection>((resolve) => (land = resolve)) }
-    })
-    click()
-    await settle()
-    click(true)
-    land(section('Snow', ['151 in']))
-    await settle()
-    expect(made[0].removed).toBe(false)
-    expect(made[0].html).toContain('151 in')
-  })
-
-  it('hands a reader the clicked point, its longitude wrapped, and the zoom', async () => {
-    const { stub, popups } = setup()
-    const read = point(popups, 'radar', async () => null)
-    stub.fire('click', undefined, { point: { x: 0, y: 0 }, lngLat: { lng: 238.5, lat: 47.5 }, originalEvent: {} })
-    expect(read.mock.calls[0][0]).toEqual({ lng: -121.5, lat: 47.5, zoom: 8 })
-  })
-
-  // The spot's card opens whatever the pictures say (#832); where none
-  // painted, it carries no section and no picture owns it.
-  it('opens the spot with no section where no picture painted', async () => {
-    const { popups, click, spots } = setup()
-    point(popups, 'radar', async () => null)
-    point(popups, 'snow', async () => null)
-    click()
-    await settle()
-    expect(made).toHaveLength(1)
-    expect(spots).toEqual([{ at: { lng: -121.5, lat: 47.5, zoom: 8 }, sections: [], owner: [] }])
-  })
-
-  it('never asks a picture that is switched off', () => {
-    const { popups, click } = setup()
-    const read = point(popups, 'snow', async () => whole('Snow'), { shown: () => false })
-    click()
-    expect(read).not.toHaveBeenCalled()
-  })
-
-  it('leaves a failed reading off the card and warns', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const { popups, click } = setup()
-    point(popups, 'radar', async () => whole('Rain'))
-    point(popups, 'snow', async () => {
-      throw new Error('down')
-    })
-    click()
-    await settle()
-    expect(made).toHaveLength(1)
-    expect(made[0].html).toContain('Rain')
-    expect(made[0].html).not.toContain('Snow')
-    expect(warn).toHaveBeenCalledTimes(1)
-    warn.mockRestore()
-  })
-
-  it('asks no picture when a shape under the click opens', () => {
-    const { popups, register, under, click, opened } = setup()
-    const read = point(popups, 'radar', async () => whole('Rain'))
-    register('smoke', ['heavy'])
-    under('heavy')
-    click()
-    expect(opened).toEqual([{ target: 'smoke', layer: 'heavy' }])
-    expect(read).not.toHaveBeenCalled()
-  })
-
-  it('asks no picture while the ring is drawn, and places a point', () => {
-    const { popups, click, addPoint } = setup({ drawing: true })
-    const read = point(popups, 'radar', async () => whole('Rain'))
-    click()
-    expect(read).not.toHaveBeenCalled()
-    expect(addPoint).toHaveBeenCalledTimes(1)
-  })
-
-  // A reader who has clicked somewhere else before the first card opened is
-  // not shown a card about the place they left.
-  it('drops a reading the next click made stale', async () => {
-    const { popups, click } = setup()
-    let answer: (r: PointReading) => void = () => {}
-    let first = true
-    point(popups, 'snow', (_at, signal) => {
-      if (!first) return Promise.resolve(null)
-      first = false
-      return new Promise((resolve, reject) => {
-        answer = resolve
-        signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
-      })
-    })
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    click()
-    click()
-    answer(whole('Snow'))
-    await settle()
-    // The second click's card, which nothing painted under.
-    expect(made).toHaveLength(1)
-    expect(made[0].html).not.toContain('Snow')
-    expect(warn).not.toHaveBeenCalled()
-    warn.mockRestore()
-  })
-})
-
 describe('mountMapPopups point target cursor', () => {
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
   const pointTarget = (target: MapTarget, paints: MapPointTarget['paints'], shown = () => true) => ({
@@ -634,61 +514,182 @@ describe('mountMapPopups point target cursor', () => {
   })
 })
 
-// The radar's frames move under an open card and a resting mouse during
-// playback, and neither a click nor a move comes to say so (#748).
-describe('mountMapPopups point targets that change', () => {
-  const section = (title: string): PointSection => ({ layer: 'Layer', title, source: `${title} source`, rows: [] })
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-  function changing(popups: ReturnType<typeof setup>['popups'], refresh: NonNullable<MapPointTarget['refresh']>) {
-    const spy = vi.fn(refresh)
-    popups.registerPoint({ target: 'radar', shown: () => true, paints: () => true, read: async () => ({ section: section('Rain') }), refresh: spy })
-    popups.registerPoint({ target: 'snow', shown: () => true, paints: () => true, read: async () => ({ section: section('Snow') }) })
-    return spy
+// Every card asks every layer that is on for its section at the card's point
+// (#832), and these are the questions it asks with.
+describe('mountMapPopups point targets', () => {
+  const section = (kind: MapTarget, title: string): PointSection => ({ kind, layer: 'Layer', title, source: `${title} source`, rows: [] })
+  const whole = (kind: MapTarget, title: string): PointReading => ({ section: section(kind, title) })
+  const signal = () => new AbortController().signal
+
+  function point(
+    popups: ReturnType<typeof setup>['popups'],
+    target: MapTarget,
+    { shown = (): boolean => true, read = async (): Promise<PointReading | null> => whole(target, target), refresh }: Partial<MapPointTarget> = {},
+  ) {
+    const spy = vi.fn(read)
+    const again = refresh && vi.fn(refresh)
+    popups.registerPoint({ target, shown, paints: () => false, read: spy, ...(again && { refresh: again }) })
+    return { read: spy, refresh: again }
   }
 
-  it('reads an open card again where it stands, and redraws only that picture', async () => {
-    const { popups, click } = setup()
-    const refresh = changing(popups, async () => section('No echo'))
-    click()
-    await settle()
-    expect(made[0].html).toContain('Rain')
-    popups.refreshPoint('radar')
-    await settle()
-    expect(refresh.mock.calls[0][0]).toEqual({ lng: -121.5, lat: 47.5, zoom: 8 })
-    expect(made[0].html).toContain('No echo')
-    expect(made[0].html).not.toContain('Rain')
-    expect(made[0].html).toContain('Snow')
-    expect(made).toHaveLength(1)
+  // A card's sections stand in rank order whatever order the layers were
+  // switched on in.
+  it('names the layers that are on, in rank order', () => {
+    const { popups } = setup()
+    point(popups, 'snow')
+    point(popups, 'radar')
+    point(popups, 'fire', { shown: () => false })
+    point(popups, 'closure-area')
+    point(popups, 'fire-activity')
+    expect(popups.pointKinds()).toEqual(['fire-activity', 'closure-area', 'radar', 'snow'])
   })
 
-  it('asks nothing for a card that has closed, or of a picture that does not change', async () => {
-    const { popups, click } = setup()
-    const refresh = changing(popups, async () => section('No echo'))
-    click()
-    await settle()
+  // A card a reader opened before starting a ring still reads its layers.
+  it('names them while the ring is drawn too', () => {
+    const { popups } = setup({ drawing: true })
+    point(popups, 'smoke')
+    expect(popups.pointKinds()).toEqual(['smoke'])
+  })
+
+  it('answers null for a layer that is off or was never registered', async () => {
+    const { popups } = setup()
+    const { read } = point(popups, 'snow', { shown: () => false })
+    expect(await popups.readPoint('snow', [-121.5, 47.5], signal())).toBeNull()
+    expect(await popups.readPoint('radar', [-121.5, 47.5], signal())).toBeNull()
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it("hands the layer the point, its longitude wrapped, the zoom and the card's signal", async () => {
+    const { popups } = setup()
+    const { read } = point(popups, 'radar')
+    const ac = new AbortController()
+    expect(await popups.readPoint('radar', { lng: 238.5, lat: 47.5 }, ac.signal)).toEqual(whole('radar', 'radar'))
+    await popups.readPoint('radar', [-481.5, 47.5], ac.signal)
+    await popups.readPoint('radar', { lon: -121.5, lat: 47.5 }, ac.signal)
+    expect(read.mock.calls.map((c) => c[0])).toEqual([
+      { lng: -121.5, lat: 47.5, zoom: 8 },
+      { lng: -121.5, lat: 47.5, zoom: 8 },
+      { lng: -121.5, lat: 47.5, zoom: 8 },
+    ])
+    expect(read.mock.calls[0][1]).toBe(ac.signal)
+  })
+
+  // The radar's frame moved under an open card (#748): it answers with what
+  // it shows there now rather than taking its section off.
+  it('reads again through refresh only for a card already open, and only where the layer has one', async () => {
+    const { popups } = setup()
+    const radar = point(popups, 'radar', { refresh: async () => whole('radar', 'No echo') })
+    const snow = point(popups, 'snow')
+    expect(await popups.readPoint('radar', [-121.5, 47.5], signal())).toEqual(whole('radar', 'radar'))
+    expect(radar.refresh).not.toHaveBeenCalled()
+    expect(await popups.readPoint('radar', [-121.5, 47.5], signal(), true)).toEqual(whole('radar', 'No echo'))
+    expect(radar.read).toHaveBeenCalledTimes(1)
+    expect(radar.refresh!.mock.calls[0][0]).toEqual({ lng: -121.5, lat: 47.5, zoom: 8 })
+    expect(await popups.readPoint('snow', [-121.5, 47.5], signal(), true)).toEqual(whole('snow', 'snow'))
+    expect(snow.read).toHaveBeenCalledTimes(1)
+  })
+
+  // The card warns and carries on without it.
+  it('hands a failed reading back as a rejection', async () => {
+    const { popups } = setup()
+    point(popups, 'snow', {
+      read: async () => {
+        throw new Error('down')
+      },
+    })
+    await expect(popups.readPoint('snow', [-121.5, 47.5], signal())).rejects.toThrow('down')
+  })
+})
+
+// A layer's picture or features change under the open cards and a resting
+// mouse, and neither a click nor a move comes to say so: the radar's frames
+// during playback (#748), a fire layer's fetch landing or the layer going off
+// (#832).
+describe('mountMapPopups point targets that change', () => {
+  it('tells every listener which layer changed', () => {
+    const { popups } = setup()
+    const heard: MapTarget[][] = [[], []]
+    popups.onPointChange((kind) => heard[0].push(kind))
+    popups.onPointChange((kind) => heard[1].push(kind))
+    popups.refreshPoint('radar')
+    popups.refreshPoint('fire')
+    expect(heard).toEqual([
+      ['radar', 'fire'],
+      ['radar', 'fire'],
+    ])
+  })
+
+  it('tells them whether or not any card is open', () => {
+    const { popups } = setup()
+    const listen = vi.fn()
+    popups.onPointChange(listen)
     popups.refreshPoint('snow')
-    await settle()
-    expect(made[0].html).toContain('Rain')
-    popups.closeAll()
-    popups.refreshPoint('radar')
-    expect(refresh).not.toHaveBeenCalled()
+    expect(made).toEqual([])
+    expect(listen).toHaveBeenCalledWith('snow')
+  })
+})
+
+// A card that grew after it opened, as one does when a layer's section lands
+// on it (#832), is capped where it stands rather than moved.
+describe('mountMapPopups bodyCap', () => {
+  // A card of this height whose body is this tall, standing on this side of
+  // a marker at this height on a 600px map, the sheet taking `sheetPx` off it.
+  function card({ markerY, height, body, anchor = 'top', sheetPx = 0 }: { markerY: number; height: number; body: number; anchor?: 'top' | 'bottom'; sheetPx?: number }) {
+    made.length = 0
+    const stub = stubMap({ canvasWidth: 800, canvasHeight: 600 + sheetPx, markerAt: { x: 400, y: markerY } })
+    const controller = createMapController(mapInputs({ cameraPadBottomPx: sheetPx }))
+    const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint: vi.fn() })
+    const bodyEl = { offsetHeight: body }
+    dom.lngLat = { lng: -121.5, lat: 47.5 }
+    dom.element = {
+      offsetWidth: 300,
+      offsetHeight: height,
+      querySelector: (sel: string) => (sel === `[${POPUP_BODY_ATTR}]` ? bodyEl : null),
+    }
+    return { popups, popup: new Popup({ anchor }) }
+  }
+
+  it('caps nothing where the card has no element, no body or no point', () => {
+    const { popups, popup } = card({ markerY: 500, height: 200, body: 180 })
+    expect(popups.bodyCap(popup)).not.toBeNull()
+    dom.element = undefined
+    expect(popups.bodyCap(popup)).toBeNull()
+    dom.element = { offsetWidth: 300, offsetHeight: 200, querySelector: () => null }
+    expect(popups.bodyCap(popup)).toBeNull()
+    const { popups: again, popup: placeless } = card({ markerY: 500, height: 200, body: 180 })
+    dom.lngLat = undefined
+    expect(again.bodyCap(placeless)).toBeNull()
   })
 
-  // A scrub moves faster than a tile decodes: the newest frame wins.
-  it('never lets a slower answer paint over a newer frame', async () => {
-    const { popups, click } = setup()
-    const answers: ((s: PointSection) => void)[] = []
-    changing(popups, () => new Promise((resolve) => answers.push(resolve)))
-    click()
-    await settle()
-    popups.refreshPoint('radar')
-    popups.refreshPoint('radar')
-    answers[1](section('Newer'))
-    answers[0](section('Older'))
-    await settle()
-    expect(made[0].html).toContain('Newer')
-    expect(made[0].html).not.toContain('Older')
+  it('caps nothing where the card still stands whole', () => {
+    const { popups, popup } = card({ markerY: 100, height: 200, body: 180 })
+    expect(popups.bodyCap(popup)).toBeNull()
+  })
+
+  // Hanging below its marker: the tip's 10px and the card's 200 end at 710,
+  // 110 under the sheet's edge at 600, and the fit's 8px breath comes off too.
+  it('takes off the body what a card hanging below its point hangs past the sheet', () => {
+    const { popups, popup } = card({ markerY: 500, height: 200, body: 180, sheetPx: 300 })
+    expect(popups.bodyCap(popup)).toBe(180 - 110 - 8)
+  })
+
+  // Ending 4px short of the edge is inside the fit's breath, so it is capped.
+  it("keeps the fit's breath from the edge", () => {
+    const { popups, popup } = card({ markerY: 386, height: 200, body: 180 })
+    expect(popups.bodyCap(popup)).toBe(180 + 4 - 8)
+  })
+
+  // Standing above its marker: the card's top is at 150 - 10 - 200 = -60.
+  it('takes off the body what a card standing above its point hangs past the top', () => {
+    const { popups, popup } = card({ markerY: 150, height: 200, body: 180, anchor: 'bottom' })
+    expect(popups.bodyCap(popup)).toBe(180 - 60 - 8)
+  })
+
+  // A card near the edge keeps the name of the section that landed.
+  it('never caps a body under 48px', () => {
+    const { popups, popup } = card({ markerY: 500, height: 200, body: 100 })
+    expect(popups.bodyCap(popup)).toBe(48)
   })
 })
 

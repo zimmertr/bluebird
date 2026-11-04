@@ -35,7 +35,11 @@ export interface MapPoint {
   zoom: number
 }
 
-/** Where a section's name links out, and what a screen reader hears for the glyph. */
+/**
+ * Where a section's name links out, and what a screen reader hears for the
+ * glyph. The url as given, not escaped: the chrome escapes it into the
+ * attribute (`linkIcon` in `popup/popupChrome.ts`), as it does the band's.
+ */
 export interface SectionLink {
   href: string
   label: string
@@ -58,7 +62,7 @@ export interface PointSection {
    * jump sideways when the name changes (#752).
    */
   titles?: readonly string[]
-  /** Where the name links out: NIFC's map at a fire, a closure order's page. The url is escaped by the reader. */
+  /** Where the name links out: NIFC's map at a fire, a closure order's page. */
   link?: SectionLink
   /** A line in the warning amber under the name: a closure order's own type. */
   warn?: string

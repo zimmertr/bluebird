@@ -1,6 +1,6 @@
 # 0139. The clicked feature's popup wears the result card: the header band, the facts line, and the button alone below
 
-- Status: Accepted
+- Status: Accepted; since [0264](0264-every-card-is-a-stack-of-foldable-layer-sections.md) the body under the band carries the layers' sections, as the overlay cards of the time became, and the button stands alone only on a card with none
 - Date: 2026-10-14
 - Decider: TJ (#712, on the PR #713 preview)
 - Issues and PRs: #712, #713

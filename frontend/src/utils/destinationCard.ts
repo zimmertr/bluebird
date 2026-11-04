@@ -192,8 +192,13 @@ function spotNamed(name: string, lat: number, lon: number): boolean {
   return name === coordinateLabel(lat, lon)
 }
 
-/** The name, its link out, and the facts under it, for every subject but a spot. */
-function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView) {
+/**
+ * The name, its link out, and the facts under it, for every subject but a
+ * spot. `modelOnBand` keeps a comparison row's model line on the band only
+ * while no forecast section names the model under it, so a card never says
+ * the model twice.
+ */
+function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView, modelOnBand = true) {
   const states = view.usStates ?? null
   const ground = slopeFact(view.ground)
   const facts = (type: string | null, elevationFt: number | null | undefined, lat: number, lon: number) =>
@@ -225,7 +230,7 @@ function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView) 
               label: destinationLinkLabel(r.type),
             },
         meta: metaBand([
-          identity.model ? `<div>${escapeHtml(identity.model)}</div>` : '',
+          modelOnBand && identity.model ? `<div>${escapeHtml(identity.model)}</div>` : '',
           spot
             ? spotFacts(identity.type, elevation)
             : factsRow(identity.type, elevation, r.latitude, r.longitude, caltopoUrl(r.latitude, r.longitude, view.mapZoom), ground),
@@ -379,6 +384,7 @@ export function destinationPopupHtml(s: CardSubject, view: CardView = {}): strin
         ? popupButton(`${CARD_ACTION_ATTR}="add"`, 'Add to analysis')
         : ''
   const at = subjectPoint(s)
+  const forecast = s.kind === 'ranked' ? forecastSection(s, view) : null
   const header =
     s.kind === 'spot'
       ? {
@@ -386,11 +392,10 @@ export function destinationPopupHtml(s: CardSubject, view: CardView = {}): strin
           link: { href: caltopoUrl(at.lat, at.lon, view.mapZoom), label: 'Open in CalTopo' },
           meta: metaBand([spotGround(view.ground)]),
         }
-      : placeHeader(s, view)
-  const sections = [
-    ...(view.sections ?? []).map((section) => layerSection(s, section, view)),
-    ...(s.kind === 'ranked' ? [forecastSection(s, view)] : []),
-  ].filter((part): part is string => part !== null)
+      : placeHeader(s, view, forecast === null)
+  const sections = [...(view.sections ?? []).map((section) => layerSection(s, section, view)), forecast].filter(
+    (part): part is string => part !== null,
+  )
   const body = sections.map((inner, i) => (i === 0 ? inner : bodySection(inner))).join('')
   // A card with something under its band rules its button off in a foot of
   // its own (#696), or it reads as one more row; a card with nothing else

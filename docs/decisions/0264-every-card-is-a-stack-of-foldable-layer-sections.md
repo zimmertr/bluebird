@@ -1,0 +1,53 @@
+# 0264. Every card on the map is one stack of foldable sections, one for each layer that has something at its point, with the forecast last
+
+- Status: Accepted; extends [0253](0253-slope-on-every-card-and-the-spot-card.md) (the spot card's sections are every card's) and [0165](0165-radar-and-snow-answer-a-click.md) (the radar's and the snow's sections wear `cardSection`); supersedes [0161](0161-every-popup-is-the-card.md) in part (the overlay cards and the notices band) and [0123](0123-popup-grid-and-scroll-cap.md) in part (the ranked card's warnings section)
+- Date: 2026-11-03
+- Decider: the maintainer (TJ), 2026-11-03, on PR #845
+- Issues and PRs: #832, PR #845; builds on #737 (record 0165), #738 (record 0161) and #799 (record 0246)
+- Cited in code as: #832; TJ, 2026-11-03
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/hazardSections.ts`, `src/utils/destinationCard.ts`, `src/utils/pointReadout.ts` and `src/utils/mapClick.ts` bullets; [`frontend/src/utils/popup/CLAUDE.md`](../../frontend/src/utils/popup/CLAUDE.md), `popupChrome.ts`; [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), the `mapPopups.ts` and `destinationCards.ts` bullets; [`STYLES.md`](../STYLES.md), `CARD_FOLD`; [`USAGE.md`](../USAGE.md), Click a destination and the overlays; [`DATA.md`](../DATA.md), Wildfires, Fire activity, Smoke and Closures
+
+## Context
+
+Record 0253 gave every card that names a place one builder and one map module, and put the rain radar and the snow depth on the spot's card as sections. The four hazard layers were left as they were: a fire perimeter, a closure, a smoke plume and a satellite hotspot each opened a card of its own, built by its own function in its own module (`wildfirePopupHtml`, `closurePopupHtml`, `smokePopupHtml` and `hotspotPopupHtml`). A shape that opened ended the click, and the radar and the snow were asked only when no shape had, so a hotspot under a storm opened a card that said nothing about the rain. The hazards reached a destination's card only as two amber lines between its band and its grid, the nearest fire and the closure it stood in, read from the table's warning maps rather than from the layers on the map. A pending dot's card and a label's carried neither.
+
+The maintainer asked on 2026-11-03 for one common object: every layer merging into one card, the same sections on the pending and ranked cards as on the spot's, and a chevron on each section that folds it.
+
+## Decision
+
+- **Every card on the map is one stack of sections under its band**: a ranked marker's, a pending dot's, a basemap label's and the spot's. There is one section for each layer that is on in the Layers menu and has something at the card's point, in the map's click rank: `Fire activity`, `Trail closures`, `Active wildfires`, `Area closures`, `Smoke`, `Rain radar`, `Snow depth` (`POINT_TARGETS` in `utils/mapClick.ts`). A hazard's shape opens the spot's card at the click, a star's at the star's own point, and that card carries the hazard's section beside every other layer's, so a hotspot over snow in a closed area under rain is one card of four sections.
+- **Each section is one shape** (`cardSection` in `utils/popup/popupChrome.ts`): a bold heading, `{layer}: {name}`, the layer being the Layers menu's own row (`Active wildfires: Bolt Creek`, `Fire activity: Hotspot`, `Smoke: Heavy smoke`); the link-out glyph beside the name where the thing has a page, NIFC's map for a fire and the order's page for a closure, named `View on NIFC map` and `View closure order` for a screen reader; a closure order's type in amber under the name (`Safety Closure`); the rows; and the fine print `{source}: {when}`, `NIFC:`, `NASA FIRMS:`, `NOAA HMS:`, `US Forest Service:`, `NEXRAD radar:` or `NOAA snow analysis:`, which replaces the old cards' `Updated:`, `Effective:` and `Observed:`. A closure's span still never says it is active, for 0161's reason.
+- **The reach is the table's where the table has one, and the point's where it does not** (`utils/hazardSections.ts`): a fire or a hotspot within 10 miles of the point (`FIRE_WARN_MILES`, record 0020); an area closure only where the point stands inside its outer ring, as the Closure column tests; a closed trail, road or site within a mile (`CLOSED_TRAIL_MILES`); a plume only over the point, the densest where HMS nests them. A section about a thing the point is not on starts with a `Distance` row, how far and which of eight compass points, `3.2 mi NW`.
+- **The folds**: before an analysis, on a pending, label or spot card, every section stands open; on a ranked card only the forecast does, and the hazards stand folded to their names, since the grid is what the marker was clicked for. A fold the reader makes on any card holds for that section on every card until the page is reloaded (`map/destinationCards.ts` keeps the choices), so a reader who shut the smoke on one marker is not shown it open on the next.
+- **The forecast is a ranked card's last section**: `Forecast: {model}`, the model the numbers came from (`Forecast: NOAA GFS`), or `Forecast` alone over an archive report, which no model produced; the grid; and the fine print `Analyzed: Nov 3, 2026, 1:36 PM`, when the report committed (`analyzedAtMs` from `hooks/useAnalysisReport.ts`). Last, because the hazards are what a reader weighs the forecast against.
+- **The sections follow the layers.** A layer switched off takes its section off every open card and leaves the card; a fetch that lands after a pan adds its sections to the open cards it reaches; the radar's section follows the player as before (record 0166). A layer that is off adds nothing, so the ranked card's two amber warning lines are gone and the table's Wildfire and Closure columns keep their always-on checks.
+- **A hotspot's fine print is when the app last fetched the detections**, the response's `fetched_at`, because the detection's own time is already its `Detected` row.
+- **The fold button is named for the layer** (`aria-label`, the Layers row's name) and says whether it is open through `aria-expanded`, so a screen reader hears "Active wildfires, expanded" rather than a `Hide` or `Show` of the app's own. It is a chevron from `iconPaths.ts`, down while open and up while folded as the results bar's is, in a new role, `CARD_FOLD` in `styles.ts`: a 24px box, 32px under a finger, in the popup's glyph grey, taking the accent under a pointer as the band's link-out glyph does.
+
+## Evidence
+
+On the branch as it stood on 2026-11-03 before this change (`dabb0fe7`), `mapPopups.ts` asked the point targets only after every shape under the click had passed, so a click that a hotspot, a fire, a closure or a plume answered never reached the radar or the snow; the four hazard cards were four builders in four modules, each with its own facts line (`Wildfire | 138,285 acres`, `Area closure | 4,210 acres`) and its own date label; and the ranked card's two warning lines came from `firePopupText` and `closurePopupText` over `MapInputs.fireWarnings` and `closureWarnings`, the table's maps, which a pending, label or spot card never read.
+
+The change that followed, `d5afce7f` on 2026-11-03, touched 36 files, 1,048 lines in and 656 out: `hazardSections.ts` is new, the four builders and the two popup texts are gone, and every overlay registers a point target that reads from the features it already holds, so a card asks no upstream for its sections.
+
+A distance under a twentieth of a mile prints no `Distance` row (`ON_IT_MILES`), so a card opened on a star or inside a perimeter says nothing about how far the thing is. A card that grows past the free map after it opened, a section having landed on it, caps its body where it stands and keeps at least 48 px of it (`LEAST_BODY_PX` in `mapPopups.ts`, 2026-11-03).
+
+## Alternatives rejected
+
+- A closure and a closed trail reaching 10 miles, as a fire does: the maintainer chose inside-only for an area, as the Closure column tests, and a mile for a trail, road or site, because a closed trail says nothing about the summit it leads to and a reader standing on a peak beside it is not on it (2026-11-03).
+- Sections drawn per card kind, the spot's, the label's and the ranked card's each with its own, and no shared folds: the maintainer asked for one object, and a fold that held on one card and not the next would be a second rule to learn.
+- Keeping the amber warning band on the ranked card beside the sections: a fire within reach would be said twice, once in amber and once as a section, which is 0161's reason a fire's card never carried a notice.
+- A `Hide` and `Show` word on the fold: a new string, where the layer's name and `aria-expanded` already say both.
+- A second PR for the sections: folded into #845, the PR that made the spot card the sections' home (the maintainer, 2026-11-03).
+
+## Consequences
+
+`PointSection` carries `kind`, the target it is a reading of, which is the key its fold is kept under and what takes it off a card when its layer goes off, and `link` and `warn` for the hazards. `MapPoint` moved to `utils/pointReadout.ts`, since the hazard readers in utils take one.
+
+`mapPopups.ts` no longer opens the spot's card with sections in hand: `openSpot` opens it at a point, `pointKinds` and `readPoint` are what every card asks its layers, `onPointChange` is how a card hears that one changed, and `bodyCap` caps a card that grew. The spot card has no owner on the board, since what it carries is the layers' sections.
+
+`popupCard` lost its `warnings` and the notices band with its one ⚠️; `sectionHeading` became `cardSection`. A comparison row's model leaves the band while its forecast section names it, so a card says the model once. `MapStage` lost its `fire` and `closure` props, `MapView` its warning maps, and `controller.ts` its `fireWarningAt` and `closureWarningAt`, all replaced by `analyzedAtMs`.
+
+The Layers menu's row names are spelled once each beside their layer (`WILDFIRE_ROW_LABEL`, `FIRE_ACTIVITY_ROW_LABEL`, `SMOKE_ROW_LABEL`, `CLOSURE_ROW_LABELS`), read by the menu, the legend and the sections, so a section's heading cannot drift from the switch it answers to.
+
+The browser suite expects the spot's card from a click on a star, a fire or a closure, with the layer's section in it (`fireActivity.spec.ts`, `mapPopups.spec.ts`), and reads the band's link-out glyph and the forecast's fold apart (`linkLook.spec.ts`).

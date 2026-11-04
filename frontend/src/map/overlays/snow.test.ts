@@ -79,11 +79,26 @@ describe('mountSnow click reading', () => {
     expect((added?.[2] as { tiles: string[] }).tiles).toEqual([SNOW_HELD_URL])
   })
 
-  it('takes its cards down when switched off', () => {
-    const { popups, closed } = fakeMapPopups()
+  // A section about snow the map no longer draws leaves its card; the card
+  // stays for whatever else it says.
+  it('asks the open cards to read it again when switched off', () => {
+    const { popups, points, closed, refreshed } = fakeMapPopups()
     const snow = mountSnow(stubMap({ layers: [SMOKE_FIRST] }).map, { popups })
     snow.update({ show: true })
+    expect(refreshed).toEqual([])
     snow.update({ show: false })
-    expect(closed).toEqual(['snow'])
+    expect(refreshed).toEqual(['snow'])
+    expect(closed).toEqual([])
+    expect(points[0].shown()).toBe(false)
+  })
+
+  it('forgets the tiles it held when switched off', async () => {
+    const AT = { lng: -121.76, lat: 46.85, zoom: 11 }
+    const tiles = storeHolding({ size: SNOW_TILE_SIZE, layer: SNOW_HELD_LAYER, ...AT, z: snowTileZoom(11), rgba: [60, 63, 194, 255] })
+    const { popups, points } = fakeMapPopups()
+    const snow = mountSnow(stubMap({ layers: [SMOKE_FIRST] }).map, { popups, tiles })
+    snow.update({ show: true })
+    snow.update({ show: false })
+    expect(await points[0].paints(AT)).toBe(false)
   })
 })

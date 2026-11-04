@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { within } from '@testing-library/react'
 import { render } from '../../testSupport/render'
-import { closureFeature, closureWarning, resultRow } from '../../testSupport/fixtures'
+import { resultRow } from '../../testSupport/fixtures'
 import {
+  CARD_FOLD_ATTR,
   GRID_BAND_COLOR,
   GRID_COMPACT_INSET_PX,
   GRID_COMPACT_LABEL_GAP_PX,
@@ -16,13 +17,13 @@ import {
   FINE_COLOR,
   POPUP_MAX_WIDTH_PX,
   POPUP_TINT_ATTR,
-  SECTION_EDGE,
   WIDEST_GRID_PX,
   compactGrid,
   factsRow,
   metaBand,
   metricGrid,
   bodyLines,
+  cardSection,
   factsLine,
   popupCard,
   fineprint,
@@ -37,10 +38,10 @@ import {
   monthDayTime,
 } from './popupChrome'
 import { AGGREGATE } from '../../metrics'
-import { closurePopupHtml } from '../closures'
+import { CHEVRON } from '../../iconPaths'
+import { CARD_FOLD } from '../../styles'
 import { destinationPopupHtml } from '../destinationCard'
-import { smokePopupHtml } from '../smoke'
-import { wildfirePopupHtml } from '../wildfires'
+import type { PointSection } from '../pointReadout'
 import { displayedColumns } from '../tableColumns'
 
 // A popup is a string MapLibre hands to innerHTML (`Popup.setHTML`), so these
@@ -96,12 +97,20 @@ describe('a result popup', () => {
     expect(within(popup).queryByText('probe')).toBeNull()
   })
 
-  // The closure url was escaped before it reached the link, so once the link
-  // escapes for itself an ampersand must not come out escaped twice.
+  // A section's url reaches the link as given and the link escapes it once,
+  // so an ampersand must not come out escaped twice.
   it('links a closure order whose url carries an ampersand to that url', () => {
     const url = 'https://www.fs.usda.gov/r06/alerts?order=1&forest=probe'
+    const section: PointSection = {
+      kind: 'closure-area',
+      layer: 'Area closures',
+      title: 'Probe Fire Closure',
+      link: { href: url, label: 'View closure order' },
+      source: 'US Forest Service',
+      rows: [],
+    }
     const popup = mount(
-      destinationPopupHtml({ kind: 'ranked', rank: 1, row: resultRow() }, { columns, closure: closureWarning({ url }) }),
+      destinationPopupHtml({ kind: 'ranked', rank: 1, row: resultRow() }, { columns, sections: [section] }),
     )
     const hrefs = within(popup)
       .getAllByRole('link')
@@ -434,39 +443,78 @@ describe('dateOfMs', () => {
   })
 })
 
-// Every popup that describes a thing is one card (#738): a header band holding
-// the title, then the sections below it. Mounted the way MapLibre mounts them,
-// so the structure is read off the DOM a reader gets rather than off a string.
-describe('every overlay card', () => {
-  const band = (popup: HTMLElement) => popup.firstElementChild!.firstElementChild as HTMLElement
-  const cards: [string, string][] = [
-    ['a fire', wildfirePopupHtml({ attr_IncidentName: 'Kaiser Canyon', poly_GISAcres: 138285, attr_PercentContained: 100 }, 'https://nifc.example/')],
-    ['an area closure', closurePopupHtml(closureFeature({ GIS_Acres: 4210, FireName: null, ClosureType: 'Safety Closure' }).properties, 'area')],
-    ['a trail closure', closurePopupHtml(closureFeature().properties, 'trail')],
-    ['a smoke plume', smokePopupHtml({ density: 'Medium', satellite: 'GOES-EAST' })],
-  ]
+// One section of a card (#832): its name, the link out where the thing has a
+// page, the fold's chevron, and the body only while it is open. Mounted the
+// way MapLibre mounts it, so the structure is read off the DOM a reader gets.
+describe('cardSection', () => {
+  const section = (over: Partial<Parameters<typeof cardSection>[0]> = {}) =>
+    mount(
+      cardSection({
+        key: 'fire',
+        heading: 'Active wildfires: Bolt Creek',
+        label: 'Active wildfires',
+        open: true,
+        body: '<div data-testid="body">Size: 10 acres</div>',
+        ...over,
+      }),
+    )
+  const fold = (popup: HTMLElement) => popup.querySelector(`[${CARD_FOLD_ATTR}]`) as HTMLButtonElement
 
-  it.each(cards)('draws %s on the header band, its title and facts line inside it', (_, html) => {
-    const popup = mount(html)
-    expect(band(popup).getAttribute('style')).toContain(`background:${HEADER_BAND_COLOR}`)
-    expect(band(popup).querySelector('strong')).not.toBeNull()
-    expect(band(popup).children).toHaveLength(2)
-    expect(popup.querySelector('hr')).toBeNull()
-    expect(popup.textContent).not.toMatch(/🔥|🚫|🌫/u)
+  it('opens on its heading, on one line', () => {
+    const heading = section().firstElementChild!.firstElementChild as HTMLElement
+    expect(heading.textContent).toBe('Active wildfires: Bolt Creek')
+    expect(heading.getAttribute('style')).toContain('font-weight:600')
+    expect(heading.getAttribute('style')).toContain('text-overflow:ellipsis')
+    expect(heading.getAttribute('style')).toContain('white-space:nowrap')
   })
 
-  // The glyph is aria-hidden, so the label is the link's whole name (#738).
-  it.each(cards.slice(0, 3))('names the link out of %s for a screen reader', (_, html) => {
-    const [link] = within(mount(html)).getAllByRole('link')
-    expect(link.getAttribute('aria-label')).toMatch(/^View (on NIFC map|closure order)$/)
+  it('shows the body only while open', () => {
+    expect(within(section()).getByTestId('body').textContent).toBe('Size: 10 acres')
+    expect(within(section({ open: false })).queryByTestId('body')).toBeNull()
   })
 
-  it('puts the closure type in a notice section between the band and the body', () => {
-    const popup = mount(cards[1][1])
-    const [, notice, body] = Array.from(popup.firstElementChild!.children) as HTMLElement[]
-    expect(notice.textContent).toContain('Safety Closure')
-    expect(notice.getAttribute('style')).toContain(`border-bottom:${SECTION_EDGE}`)
-    expect(body.hasAttribute('data-popup-body')).toBe(true)
+  // Down while the body shows, up while it is folded, as the results bar reads.
+  it('points the chevron down while open and up while folded', () => {
+    expect(fold(section()).querySelector('polyline')!.getAttribute('points')).toBe(CHEVRON.down)
+    expect(fold(section({ open: false })).querySelector('polyline')!.getAttribute('points')).toBe(CHEVRON.up)
+  })
+
+  // Named for the layer, so a screen reader hears the layer and whether it is
+  // expanded rather than a word of the app's own.
+  it('names the fold for the layer and says whether it is expanded', () => {
+    const button = fold(section())
+    expect(button.tagName).toBe('BUTTON')
+    expect(button.getAttribute('type')).toBe('button')
+    expect(button.getAttribute(CARD_FOLD_ATTR)).toBe('fire')
+    expect(button.getAttribute('aria-label')).toBe('Active wildfires')
+    expect(button.getAttribute('aria-expanded')).toBe('true')
+    expect(fold(section({ open: false })).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('wears the fold role and lights as a glyph', () => {
+    const button = fold(section())
+    expect(button.getAttribute('class')).toBe(CARD_FOLD)
+    expect(button.hasAttribute('data-popup-glyph')).toBe(true)
+    expect(button.getAttribute('style')).toContain('color:var(--popup-glyph)')
+  })
+
+  it('carries the link-out glyph only with a link, named for a screen reader', () => {
+    expect(within(section()).queryAllByRole('link')).toHaveLength(0)
+    const [link] = within(section({ link: { href: 'https://nifc.example/?a=1&b=2', label: 'View on NIFC map' } })).getAllByRole('link')
+    expect(link.getAttribute('href')).toBe('https://nifc.example/?a=1&b=2')
+    expect(link.getAttribute('aria-label')).toBe('View on NIFC map')
+    expect(link.hasAttribute('data-popup-glyph')).toBe(true)
+  })
+
+  // The link stands beside the name and the fold at the row's end, folded or
+  // open.
+  it('keeps the name, the link and the fold on one row whether open or folded', () => {
+    const link = { href: 'https://nifc.example/', label: 'View on NIFC map' }
+    for (const isOpen of [true, false]) {
+      const line = section({ link, open: isOpen }).firstElementChild as HTMLElement
+      expect(line.getAttribute('style')).toContain('display:flex')
+      expect(Array.from(line.children).map((c) => c.tagName)).toEqual(['DIV', 'A', 'BUTTON'])
+    }
   })
 })
 

@@ -41,6 +41,7 @@ import {
   METRIC_HEAD_GAP,
   ICON_ACTION,
   ICON_BUTTON,
+  CARD_FOLD,
   NOTICE,
   NOTICE_DISMISS,
   NOTICE_DIVIDER,
@@ -136,7 +137,7 @@ import {
   YIELD_EMPTY,
 } from './styles'
 import * as STYLES from './styles'
-import { EXTERNAL_LINK_PX } from './iconPaths'
+import { CHEVRON_PX, EXTERNAL_LINK_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
@@ -145,7 +146,7 @@ import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
 import { TRAIL_CASING_COLOR, TRAIL_COLOR, TRAIL_OPACITY } from './map/basemap'
-import { FIRE_ACTIVITY_FILLS, FIRE_ACTIVITY_STROKE } from './utils/fireActivity'
+import { FIRE_ACTIVITY_FILLS, FIRE_ACTIVITY_ROW_LABEL, FIRE_ACTIVITY_STROKE } from './utils/fireActivity'
 import {
   CONTOUR_EDGE_OPACITY,
   CONTOUR_IMAGERY_EDGE,
@@ -158,6 +159,9 @@ import {
 import { METRIC_SCALE, hexToRgb } from './utils/colors'
 import { RADAR_ROW_LABEL } from './utils/radar'
 import { SNOW_RAMP, SNOW_ROW_LABEL } from './utils/snowDepth'
+import { WILDFIRE_ROW_LABEL } from './utils/wildfires'
+import { SMOKE_ROW_LABEL } from './utils/smoke'
+import { CLOSURE_ROW_LABELS } from './utils/closures'
 import { contrast, mixOver, relativeLuminance, round2 } from './testSupport/contrast'
 import {
   FINE_COLOR,
@@ -1398,6 +1402,7 @@ describe('shared recipes', () => {
     ['BUTTON_FLOATING', BUTTON_FLOATING],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['ICON_BUTTON', ICON_BUTTON],
+    ['CARD_FOLD', CARD_FOLD],
     ['CHIP.label', CHIP.label],
     ['CHIP.remove', CHIP.remove],
   ])('%s composes the keyboard focus ring', (_name, recipe) => {
@@ -1507,6 +1512,12 @@ describe('shared recipes', () => {
   // number. This is what keeps that number the ramp's.
   it('draws the popup glyph at the step its React twin takes', () => {
     expect(EXTERNAL_LINK_PX).toBe(stepPx(ICON.inline, 'h'))
+  })
+
+  // The same for the fold's chevron on a card's sections (#832), at the step
+  // the results bar's collapse draws its React twin.
+  it('draws the card fold chevron at the step its React twin takes', () => {
+    expect(CHEVRON_PX).toBe(stepPx(ICON.control, 'h'))
   })
 
   // Every floating box on the map is one surface: the search field and its
@@ -1771,6 +1782,18 @@ describe('tap targets', () => {
   it('leaves the icon button out of the rule on purpose', () => {
     expect(ICON_BUTTON).not.toContain('touch:')
     expect(ICON_BUTTON).not.toMatch(/\bmin-[hw]-/)
+  })
+
+  // The fold on a card's sections (#832): a 24px box, 32 under a finger, with
+  // the card's own corner for its ring. Its ink is the card's glyph ink, set
+  // in the popup's markup, so the role names no colour of its own.
+  it('gives the card fold its box, its ring and no colour', () => {
+    const fold = words(CARD_FOLD)
+    expect(CARD_FOLD).toContain(FOCUS_RING)
+    expect(fold).toContain(RADIUS.control)
+    expect(CARD_FOLD).toContain('h-6 w-6')
+    expect(fold).toEqual(expect.arrayContaining(['touch:h-8', 'touch:w-8']))
+    expect(fold.filter((w) => /^(?:[\w-]+:)*text-/.test(w))).toEqual([])
   })
 
   // A drag handle is a strip: only the vertical axis is scarce, and 44px of
@@ -3253,10 +3276,17 @@ describe('the map layer rows', () => {
   const block = layersPopoverSource.match(/const MAP_LAYERS(?:: [^=]+)? = \[[\s\S]*?\n {2}\]/)?.[0] ?? ''
   // The radar's and the snow's rows read their name off the layer's module,
   // because the spot card's section heading says the same name (#832).
-  const NAMED = { RADAR_ROW_LABEL, SNOW_ROW_LABEL } as const
-  const labels = [...block.matchAll(/label: (?:'([^']+)'|(\w+))/g)].map(
-    (m) => m[1] ?? NAMED[m[2] as keyof typeof NAMED] ?? m[2],
-  )
+  // So do the five hazards', because each card's section opens on it (#832).
+  const NAMED: Record<string, string> = {
+    RADAR_ROW_LABEL,
+    SNOW_ROW_LABEL,
+    WILDFIRE_ROW_LABEL,
+    FIRE_ACTIVITY_ROW_LABEL,
+    SMOKE_ROW_LABEL,
+    'CLOSURE_ROW_LABELS.area': CLOSURE_ROW_LABELS.area,
+    'CLOSURE_ROW_LABELS.trail': CLOSURE_ROW_LABELS.trail,
+  }
+  const labels = [...block.matchAll(/label: (?:'([^']+)'|([\w.]+))/g)].map((m) => m[1] ?? NAMED[m[2]] ?? m[2])
   const headings = [...block.matchAll(/heading: '([^']+)'/g)].map((m) => m[1])
 
   it('found every row', () => {
@@ -3388,22 +3418,22 @@ describe('the map legend sections', () => {
   // metric's noun, which changes under the reader, so it is the one that cannot
   // be listed here.
   const LAYER_LABELS = [
-    "label: 'Active wildfires'",
-    "label: 'Area closures'",
-    "label: 'Trail closures'",
+    'label: WILDFIRE_ROW_LABEL',
+    'label: CLOSURE_ROW_LABELS.area',
+    'label: CLOSURE_ROW_LABELS.trail',
     'label: gridLegend.label',
     'label: RADAR_ROW_LABEL',
-    "label: 'Smoke'",
+    'label: SMOKE_ROW_LABEL',
     'label: SNOW_LABEL',
-    "label: 'Fire activity'",
+    'label: FIRE_ACTIVITY_ROW_LABEL',
   ]
   // The same, in the order the card reads them after the slope bands.
   const LAYER_LABELS_IN_ORDER = [
-    "label: 'Active wildfires'",
-    "label: 'Fire activity'",
-    "label: 'Smoke'",
-    "label: 'Area closures'",
-    "label: 'Trail closures'",
+    'label: WILDFIRE_ROW_LABEL',
+    'label: FIRE_ACTIVITY_ROW_LABEL',
+    'label: SMOKE_ROW_LABEL',
+    'label: CLOSURE_ROW_LABELS.area',
+    'label: CLOSURE_ROW_LABELS.trail',
     'label: RADAR_ROW_LABEL',
     'label: SNOW_LABEL',
     'label: gridLegend.label',

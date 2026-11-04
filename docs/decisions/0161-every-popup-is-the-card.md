@@ -1,6 +1,6 @@
 # 0161. Every popup that describes a thing is the card: the band, the notices, the body and the action
 
-- Status: Accepted
+- Status: Accepted; superseded in part by [0264](0264-every-card-is-a-stack-of-foldable-layer-sections.md): the fire, closure and smoke cards are sections of the place's card, their date labels the section's `{source}: {when}`, and the notices band is gone
 - Date: 2026-10-16
 - Decider: TJ, in the session that filed #738 (2026-10-16)
 - Issues and PRs: #738, #741

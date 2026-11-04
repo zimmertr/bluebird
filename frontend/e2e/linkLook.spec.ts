@@ -51,7 +51,8 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
   await expect.poll(async () => (await look(name)).line).toBe('underline')
 
   // The popup the row opens says it the same way, and its link-out glyph
-  // rests in a grey and takes the accent under the pointer.
+  // rests in a grey and takes the accent under the pointer, as its forecast
+  // section's fold does (#832).
   await row.locator('td').nth(3).click()
   const popup = page.locator('.maplibregl-popup')
   await expect(popup).toHaveCount(1)
@@ -64,14 +65,21 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
     await link.hover()
     expect((await look(link)).line).toBe('underline')
   }).toPass({ timeout: 5_000 })
-  const glyph = popup.locator('[data-popup-glyph]')
+  // The band's glyph is the first; the fold is a button that wears the same.
+  const glyph = popup.locator('a[data-popup-glyph]').first()
+  const fold = popup.getByRole('button', { name: 'Forecast', exact: true })
+  await expect(fold).toHaveAttribute('data-popup-glyph', '')
   await page.mouse.move(0, 0)
-  expect((await look(glyph)).color).toBe(await paint(page, 'var(--popup-label)'))
+  const grey = await paint(page, 'var(--popup-label)')
+  expect((await look(glyph)).color).toBe(grey)
+  await expect.poll(async () => (await look(fold)).color).toBe(grey)
   const accent = await paint(page, 'var(--popup-glyph-hover)')
-  await expect(async () => {
-    await glyph.hover()
-    expect((await look(glyph)).color).toBe(accent)
-  }).toPass({ timeout: 5_000 })
+  for (const el of [glyph, fold]) {
+    await expect(async () => {
+      await el.hover()
+      expect((await look(el)).color).toBe(accent)
+    }).toPass({ timeout: 5_000 })
+  }
 })
 
 test.describe('on a phone', () => {

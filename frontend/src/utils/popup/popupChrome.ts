@@ -118,7 +118,7 @@ export function row(label: string, value: string, href?: string | null): string 
  * hard to read.
  *
  * A row's label and value therefore never go bold. The bold in a card is the
- * title's, and a section's name where a card holds two (`sectionHeading`).
+ * title's, and each section's name (`cardSection`).
  */
 export const LABEL_COLOR = 'color:var(--popup-label)'
 

@@ -56,8 +56,11 @@ import {
   mountClosures,
 } from './closures'
 import { FIRE_REFETCH_DEBOUNCE_MS, WILDFIRE_FILL_LAYER, mountWildfires } from './wildfires'
-import { closurePopupHtml, type ClosureKind, type ClosureProps } from '../../utils/closures'
+import type { FeatureCollection } from 'geojson'
+import { CLOSURE_ROW_LABELS, type ClosureKind } from '../../utils/closures'
+import { closureSectionAt } from '../../utils/hazardSections'
 import { closureFeature } from '../../testSupport/fixtures'
+import { fakeMapPopups } from '../../testSupport/fakeMapPopups'
 import { mountTestPopups } from '../../testSupport/mapPopups'
 import { stubMap } from '../../testSupport/stubMap'
 import { visibleBox } from '../../utils/viewBox'
@@ -78,9 +81,12 @@ const closure = (over = {}, layer = CLOSURE_AREA_FILL_LAYER) => ({
 function setup(kind: ClosureKind = 'area', online: EventTarget | null = null) {
   const stub = stubMap({ canvasWidth: 1000, zoom: 8 })
   const { popups, click } = mountTestPopups(stub)
+  // Where the spot's card was asked to open; the card is `destinationCards.ts`'s.
+  const spots: { lng: number; lat: number }[] = []
+  popups.registerSpot((at) => spots.push(at))
   mountWildfires(stub.map, { popups, online: null })
   const overlay = mountClosures(stub.map, kind, { popups, online })
-  return { stub, overlay, click }
+  return { stub, overlay, click, spots }
 }
 
 beforeEach(() => {
@@ -165,33 +171,25 @@ describe('mountClosures', () => {
     expect(stub.sources[CLOSURE_SOURCES.trail].data).toBeUndefined()
   })
 
-  // A click on a closure describes the order, where a hover used to (TJ,
-  // 2026-10-08); a hover opens nothing.
-  it('opens the closure’s popup on a click, and nothing on a hover', () => {
-    const { stub, click } = setup('area')
+  // A click on a closure opens the spot's card there, whose closure section
+  // describes the order (#832); a hover opens nothing.
+  it('opens the spot’s card at a click on a closure, and nothing on a hover', () => {
+    const { stub, click, spots } = setup('area')
     expect(stub.handlerCount('mouseenter', CLOSURE_AREA_FILL_LAYER)).toBe(0)
     click([closure()], { lngLat: { lng: -121.4, lat: 45.6 } })
-    expect(popups).toHaveLength(1)
-    expect(popups[0].at).toEqual({ lng: -121.4, lat: 45.6 })
-    expect(popups[0].html).toBe(closurePopupHtml(closureFeature().properties as ClosureProps, 'area'))
+    expect(spots).toEqual([{ lng: -121.4, lat: 45.6 }])
+    expect(popups).toEqual([])
   })
 
-  // The fire is the smaller shape and the hazard itself; the closure is often
-  // drawn around it.
-  it('gives a fire inside a closed area the click', () => {
-    const { click } = setup('area')
-    click([closure(), { layer: { id: WILDFIRE_FILL_LAYER }, properties: { poly_IncidentName: 'Alpha' } }])
-    expect(popups).toHaveLength(1)
-    expect(popups[0].html).toContain('Alpha')
-  })
-
-  // A site is the smaller target, so a click on a site that sits on a line
-  // describes the site.
-  it('opens a site before the line it sits on', () => {
-    const { click } = setup('trail')
-    click([closure({ ClosureOrderName: 'Line' }, CLOSURE_TRAIL_LINE_LAYER), closure({ ClosureOrderName: 'Site' }, CLOSURE_TRAIL_SITE_LAYER)])
-    expect(popups).toHaveLength(1)
-    expect(popups[0].html).toContain('Site')
+  // A fire inside a closed area, or a site on its closed trail, is one card
+  // at the click, which carries a section for each.
+  it('opens one spot for a fire inside a closed area, and for a site on its line', () => {
+    const area = setup('area')
+    area.click([closure(), { layer: { id: WILDFIRE_FILL_LAYER }, properties: { poly_IncidentName: 'Alpha' } }])
+    expect(area.spots).toHaveLength(1)
+    const trail = setup('trail')
+    trail.click([closure({ ClosureOrderName: 'Line' }, CLOSURE_TRAIL_LINE_LAYER), closure({ ClosureOrderName: 'Site' }, CLOSURE_TRAIL_SITE_LAYER)])
+    expect(trail.spots).toHaveLength(1)
   })
 
   // A closed trail is a 2.5px line, so it answers a click near it.
@@ -210,11 +208,82 @@ describe('mountClosures', () => {
     ])
   })
 
-  it('takes its popups down when switched off', () => {
-    const { overlay, click } = setup('area')
+  // A section about a closure the map no longer draws leaves its card; the
+  // card stays for whatever else it says.
+  it('asks the open cards to read it again when switched off', () => {
+    const { popups: mapPopups, closed, refreshed } = fakeMapPopups()
+    const overlay = mountClosures(stubMap({ canvasWidth: 1000 }).map, 'area', { popups: mapPopups, online: null })
     overlay.update({ show: true })
-    click([closure()])
     overlay.update({ show: false })
-    expect(popups[0].removed).toBe(true)
+    expect(refreshed).toEqual(['closure-area'])
+    expect(closed).toEqual([])
+  })
+})
+
+// Every card asks each closure layer for the order at its point, from the
+// closures it holds (#832): the area it stands in, or the closed trail
+// within a mile.
+describe('mountClosures point target', () => {
+  const AREA = closureFeature(
+    { ClosureOrderName: 'Area order', GIS_Acres: 640 },
+    {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [-122, 45.5],
+          [-121.8, 45.5],
+          [-121.8, 45.7],
+          [-122, 45.7],
+          [-122, 45.5],
+        ],
+      ],
+    },
+  )
+  const HELD: Record<ClosureKind, FeatureCollection> = {
+    area: { type: 'FeatureCollection', features: [AREA] },
+    trail: { type: 'FeatureCollection', features: [closureFeature()] },
+  }
+  // Inside the area, and about a third of a mile from the trail's start.
+  const NEAR = { lng: -121.9, lat: 45.605, zoom: 8 }
+  // Some twenty miles east of both.
+  const FAR = { lng: -121.5, lat: 45.6, zoom: 8 }
+  const signal = () => new AbortController().signal
+
+  function mounted(kind: ClosureKind) {
+    fetchClosures.mockResolvedValue(HELD[kind])
+    const fake = fakeMapPopups()
+    const overlay = mountClosures(stubMap({ canvasWidth: 1000 }).map, kind, { popups: fake.popups, online: null })
+    return { overlay, ...fake, target: fake.points[0] }
+  }
+
+  it('registers each kind under its own target, on while its layer is, painting nothing', () => {
+    for (const [kind, name] of [
+      ['area', 'closure-area'],
+      ['trail', 'closure-trail'],
+    ] as const) {
+      const { overlay, points, target } = mounted(kind)
+      expect(points.map((p) => p.target)).toEqual([name])
+      expect(target.shown()).toBe(false)
+      overlay.update({ show: true })
+      expect(target.shown()).toBe(true)
+      expect(target.paints(NEAR)).toBe(false)
+      overlay.update({ show: false })
+      expect(target.shown()).toBe(false)
+    }
+  })
+
+  it.each(['area', 'trail'] as const)('tells the open cards when its %s closures land, and describes the one at the point', async (kind) => {
+    const { overlay, target, refreshed } = mounted(kind)
+    const name = kind === 'area' ? 'closure-area' : 'closure-trail'
+    expect(await target.read(NEAR, signal())).toBeNull()
+    overlay.update({ show: true })
+    await vi.waitFor(() => expect(refreshed).toEqual([name]))
+    const reading = await target.read(NEAR, signal())
+    expect(reading).toEqual({ section: closureSectionAt(HELD[kind], kind, NEAR) })
+    expect(reading?.section).toMatchObject({ kind: name, layer: CLOSURE_ROW_LABELS[kind] })
+    expect(await target.read(FAR, signal())).toBeNull()
+    overlay.update({ show: false })
+    expect(refreshed).toEqual([name, name])
+    expect(await target.read(NEAR, signal())).toBeNull()
   })
 })

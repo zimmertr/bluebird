@@ -10,11 +10,11 @@ import {
   FIRE_LOADING_FRAMES,
   FIRE_UNAVAILABLE_NOTE,
   FIRE_UNCOVERED_NOTE,
-  firePopupText,
   fireWarningText,
   pointsBbox,
   pointsKey,
   nearestFire,
+  nearestPoint,
   FIRE_WARN_MILES,
 } from './fireProximity'
 import { geoKey } from './points'
@@ -53,17 +53,6 @@ describe('fireWarningText', () => {
     expect(fireWarningText(fireWarning({ miles: 3.24, name: 'P-L Gulch' }))).toBe(
       '3.2 mi from an active wildfire (P-L Gulch)',
     )
-  })
-})
-
-// The marker popup's shorter line: one form at every distance, the name as
-// NIFC sends it (TJ, 2026-10-08).
-describe('firePopupText', () => {
-  it('phrases a nearby hit to one decimal', () => {
-    expect(firePopupText(fireWarning({ miles: 0.24, name: 'KING' }))).toBe('Near a wildfire (KING): 0.2 mi')
-  })
-  it('phrases an inside hit at 0.0 mi', () => {
-    expect(firePopupText(fireWarning({ miles: 0, name: 'Beehive' }))).toBe('Near a wildfire (Beehive): 0.0 mi')
   })
 })
 
@@ -206,6 +195,109 @@ describe('nearestFire', () => {
     // assertion moved with it and so could not notice the radius changing;
     // all it needs to say is that a far fire is reported rather than dropped.
     expect(near!.miles).toBeGreaterThan(100)
+  })
+})
+
+// The card's Distance row (#832): how far a feature is and which way, for
+// every geometry a hazard layer draws.
+describe('nearestPoint', () => {
+  it('is 0 miles inside a polygon', () => {
+    expect(nearestPoint(40.05, -119.95, square.features[0].geometry)).toEqual({ miles: 0, bearing: 0 })
+  })
+
+  it('measures to the nearest edge and bears toward it', () => {
+    // ~0.1 degrees east of the east edge: about 5.3 mi, the edge due west.
+    const near = nearestPoint(40.05, -119.8, square.features[0].geometry)!
+    expect(near.miles).toBeGreaterThan(4.8)
+    expect(near.miles).toBeLessThan(5.8)
+    expect(near.bearing).toBeCloseTo(270, 0)
+  })
+
+  it('bears north to a polygon above the place', () => {
+    const near = nearestPoint(39.9, -119.95, square.features[0].geometry)!
+    expect(near.miles).toBeCloseTo(0.1 * 69, 1)
+    expect(near.bearing).toBeCloseTo(0, 0)
+  })
+
+  it('finds the inside of either part of a MultiPolygon', () => {
+    const geom = {
+      type: 'MultiPolygon' as const,
+      coordinates: [
+        [
+          [
+            [-121.0, 41.0],
+            [-120.9, 41.0],
+            [-120.9, 41.1],
+            [-121.0, 41.1],
+            [-121.0, 41.0],
+          ],
+        ],
+        [
+          [
+            [-120.0, 40.0],
+            [-119.9, 40.0],
+            [-119.9, 40.1],
+            [-120.0, 40.1],
+            [-120.0, 40.0],
+          ],
+        ],
+      ],
+    }
+    expect(nearestPoint(40.05, -119.95, geom)!.miles).toBe(0)
+  })
+
+  it('measures a Point and bears toward it', () => {
+    // 0.1 degrees of latitude due south.
+    const near = nearestPoint(40.1, -120, { type: 'Point', coordinates: [-120, 40] })!
+    expect(near.miles).toBeCloseTo(6.9, 1)
+    expect(near.bearing).toBeCloseTo(180, 0)
+  })
+
+  it('takes the nearest of a MultiPoint', () => {
+    const near = nearestPoint(40, -120, {
+      type: 'MultiPoint',
+      coordinates: [
+        [-120, 41],
+        [-120, 40.1],
+      ],
+    })!
+    expect(near.miles).toBeCloseTo(6.9, 1)
+    expect(near.bearing).toBeCloseTo(0, 0)
+  })
+
+  it('measures a LineString to its nearest segment, not its nearest vertex', () => {
+    // A north-south line 0.1 degrees east whose vertices are both a degree away.
+    const near = nearestPoint(40, -120, {
+      type: 'LineString',
+      coordinates: [
+        [-119.9, 39],
+        [-119.9, 41],
+      ],
+    })!
+    expect(near.miles).toBeCloseTo(0.1 * 69 * Math.cos((40 * Math.PI) / 180), 1)
+    expect(near.bearing).toBeCloseTo(90, 0)
+  })
+
+  it('takes the nearest line of a MultiLineString', () => {
+    const near = nearestPoint(40, -120, {
+      type: 'MultiLineString',
+      coordinates: [
+        [
+          [-121, 39],
+          [-121, 41],
+        ],
+        [
+          [-120.5, 39.9],
+          [-119.5, 39.9],
+        ],
+      ],
+    })!
+    expect(near.miles).toBeCloseTo(6.9, 1)
+    expect(near.bearing).toBeCloseTo(180, 0)
+  })
+
+  it('is null with no geometry', () => {
+    expect(nearestPoint(40, -120, null)).toBeNull()
   })
 })
 

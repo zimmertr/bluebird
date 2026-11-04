@@ -79,8 +79,10 @@ vi.mock('maplibre-gl', () => ({
           selector === '.maplibregl-popup-content'
             ? { classList: { add: (...cs: string[]) => this.state.face.push(...cs) } }
             : body,
-        querySelectorAll: () => {
-          this.state.gridArms++
+        // The grid's heads (`th[...]`, which `gridHeads.ts` arms), or the
+        // sections' chevrons, which a test here never presses.
+        querySelectorAll: (selector: string) => {
+          if (!selector.includes('data-card-fold')) this.state.gridArms++
           return []
         },
       }
@@ -111,9 +113,7 @@ import { createGridHeads } from './gridHeads'
 import { POPUP_TINT_ATTR } from '../utils/popup/popupChrome'
 import { displayedColumns } from '../utils/tableColumns'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
-import { closureWarning, mapInputs, resultRow } from '../testSupport/fixtures'
-import { closurePopupText } from '../utils/closureProximity'
-import { geoKey } from '../utils/points'
+import { mapInputs, resultRow } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
 import { MARKER_HALO_PAINT, MARKER_LABEL_PAINT, MARKER_PAINT, PENDING_COLOR } from './mapStyles'
 import { POPUP_FACE } from '../styles'
@@ -303,19 +303,6 @@ describe('mountResultsLayer', () => {
     )
     expect(popups[0].html).toContain('—')
     for (const name of [ADAMS.name, RAINIER.name]) expect(popups[0].html).not.toContain(name)
-  })
-
-  // The popup's closure line reads the same map the table's Closure column
-  // does, keyed on the marker's exact coordinates (#550).
-  it('names the closure a clicked destination stands inside', () => {
-    const { controller, clickMarker } = setup()
-    const closure = closureWarning()
-    controller.update({
-      ...controller.inputs,
-      closureWarnings: new Map([[geoKey(RAINIER.latitude, RAINIER.longitude), closure]]),
-    })
-    clickMarker(RAINIER, 2)
-    expect(popups[0].html).toContain(closurePopupText(closure))
   })
 
   // The card marks the number the report ranks by, read from the inputs at

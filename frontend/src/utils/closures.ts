@@ -170,8 +170,8 @@ export function closureDate(ms: number | null | undefined): string | null {
  * The order's own page, when it has one worth linking. Only an http(s) URL
  * passes: the value is the service's free text, and `escapeHtml` keeps it
  * inside the attribute without stopping a `javascript:` link from running.
- * Exported for the results table's Closure column and the marker popup's
- * closure line (closureProximity.ts), which link the same order.
+ * Exported for the results table's Closure column and a card's closure
+ * section (hazardSections.ts), which link the same order.
  */
 export function closureUrl(props: ClosureProps): string | null {
   const url = text(props.ClosureURLlink)

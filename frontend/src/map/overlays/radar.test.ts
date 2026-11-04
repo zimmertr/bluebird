@@ -171,9 +171,9 @@ describe('mountRadar click reading', () => {
     const radar = mountRadar(stubMap({ layers: [SMOKE_FIRST] }).map, { popups, tiles })
     radar.update({ show: true, index: 2 })
     const signal = new AbortController().signal
-    expect((await points[0].refresh!(AT, signal)).when).toBe(`${onScreen} min ago`)
+    expect((await points[0].refresh!(AT, signal)).section.when).toBe(`${onScreen} min ago`)
     radar.update({ show: true, index: 5 })
-    expect((await points[0].refresh!(AT, signal)).title).toBe('No radar echo')
+    expect((await points[0].refresh!(AT, signal)).section.title).toBe('No radar echo')
   })
 
   // The frames load through the scheme that keeps a copy of every tile.
@@ -186,13 +186,24 @@ describe('mountRadar click reading', () => {
     }
   })
 
-  it('takes its cards down when switched off', () => {
-    const { popups, closed } = fakeMapPopups()
+  // A section about echoes the map no longer draws leaves its card; the card
+  // stays for whatever else it says. The layer is off by the time the cards
+  // ask, so each takes the section off rather than reading it again.
+  it('asks the open cards to read it again when switched off', () => {
+    const { popups, points, closed, refreshed } = fakeMapPopups()
+    // What the cards would find when they ask the layer again.
+    const shownWhenAsked: boolean[] = []
+    popups.refreshPoint = (target) => {
+      shownWhenAsked.push(points[0].shown())
+      refreshed.push(target)
+    }
     const radar = mountRadar(stubMap({ layers: [SMOKE_FIRST] }).map, { popups })
     radar.update({ show: true, index: 0 })
-    expect(closed).toEqual([])
+    const asked = refreshed.length
     radar.update({ show: false, index: 0 })
-    expect(closed).toEqual(['radar'])
+    expect(refreshed.slice(asked)).toEqual(['radar'])
+    expect(shownWhenAsked[shownWhenAsked.length - 1]).toBe(false)
+    expect(closed).toEqual([])
   })
 
   it('forgets the tiles it held when switched off', async () => {

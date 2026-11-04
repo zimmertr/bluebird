@@ -52,7 +52,10 @@ vi.mock('../../utils/smoke', async (importOriginal) => ({
 import { mountSmoke } from './smoke'
 import { createMapController } from '../controller'
 import { mapInputs } from '../../testSupport/fixtures'
-import { SMOKE_CLICK_ORDER, SMOKE_DENSITIES, smokeLayerId, smokePopupHtml, type SmokeDensity, type SmokeProps } from '../../utils/smoke'
+import type { FeatureCollection } from 'geojson'
+import { SMOKE_CLICK_ORDER, SMOKE_DENSITIES, SMOKE_ROW_LABEL, smokeLayerId, type SmokeDensity } from '../../utils/smoke'
+import { smokeSectionAt } from '../../utils/hazardSections'
+import { fakeMapPopups } from '../../testSupport/fakeMapPopups'
 import { mountTestPopups } from '../../testSupport/mapPopups'
 import { stubMap } from '../../testSupport/stubMap'
 
@@ -62,8 +65,11 @@ function setup(drawing = false, online: EventTarget | null = null) {
   const stub = stubMap({ canvasWidth: 800 })
   const controller = createMapController(mapInputs({ drawing }))
   const { popups, click } = mountTestPopups(stub, controller)
+  // Where the spot's card was asked to open; the card is `destinationCards.ts`'s.
+  const spots: { lng: number; lat: number }[] = []
+  popups.registerSpot((at) => spots.push(at))
   const smoke = mountSmoke(stub.map, { popups, online })
-  return { stub, smoke, click }
+  return { stub, smoke, click, spots }
 }
 
 beforeEach(() => {
@@ -102,27 +108,27 @@ describe('mountSmoke', () => {
     expect(stub.sources.smoke.data).not.toBe(PLUME)
   })
 
-  // HMS nests its plumes, so a click lands on three at once and the reader
-  // means the densest.
-  it('describes the densest plume under a click', () => {
-    const { stub, click } = setup()
+  // A click on a plume opens the spot's card there, whose smoke section
+  // describes the densest plume over it (#832), however many it lands on.
+  it('opens the spot’s card at a click on the plumes', () => {
+    const { stub, click, spots } = setup()
     expect(stub.handlerCount('mouseenter', SMOKE_CLICK_ORDER[0])).toBe(0)
     const plume = (density: SmokeDensity) => ({ layer: { id: smokeLayerId(density) }, properties: { density } })
     click([plume('Light'), plume('Heavy'), plume('Medium')])
-    expect(opened).toHaveLength(1)
-    expect(opened[0].html).toBe(smokePopupHtml({ density: 'Heavy' } as SmokeProps))
-    expect(opened[0].options).toMatchObject({ closeOnClick: false })
+    expect(spots).toEqual([{ lng: -121.5, lat: 47.5 }])
+    expect(opened).toEqual([])
   })
 
-  // Every overlay takes down the popups about what it drew when it is
-  // switched off; smoke used to leave its own standing.
-  it('takes its popups down when switched off', () => {
+  // A section about a plume the map no longer draws leaves its card; the card
+  // stays for whatever else it says.
+  it('asks the open cards to read it again when switched off', () => {
     fetchSmoke.mockResolvedValue(PLUME)
-    const { smoke, click } = setup()
+    const { popups, closed, refreshed } = fakeMapPopups()
+    const smoke = mountSmoke(stubMap({ canvasWidth: 800 }).map, { popups, online: null })
     smoke.update({ show: true })
-    click([{ layer: { id: SMOKE_CLICK_ORDER[0] }, properties: { density: 'Heavy' } }])
     smoke.update({ show: false })
-    expect(opened[0].removed).toBe(true)
+    expect(refreshed).toEqual(['smoke'])
+    expect(closed).toEqual([])
   })
 
   // #580: one failed fetch used to leave the layer empty until a toggle.
@@ -171,5 +177,71 @@ describe('mountSmoke', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+// Every card asks the layer for the plume over its point, from the analysis
+// it holds (#832).
+describe('mountSmoke point target', () => {
+  const square = (density: SmokeDensity, half: number) => ({
+    type: 'Feature' as const,
+    properties: { density, satellite: 'GOES-West' },
+    geometry: {
+      type: 'Polygon' as const,
+      coordinates: [
+        [
+          [-121.5 - half, 47.5 - half],
+          [-121.5 + half, 47.5 - half],
+          [-121.5 + half, 47.5 + half],
+          [-121.5 - half, 47.5 + half],
+          [-121.5 - half, 47.5 - half],
+        ],
+      ],
+    },
+  })
+  // HMS nests its plumes: a wide light one around a narrow heavy one.
+  const HELD: FeatureCollection = { type: 'FeatureCollection', features: [square('Light', 1), square('Heavy', 0.2)] }
+  const UNDER = { lng: -121.5, lat: 47.5, zoom: 8 }
+  // Outside every plume.
+  const CLEAR = { lng: -118, lat: 47.5, zoom: 8 }
+  const signal = () => new AbortController().signal
+
+  function mounted() {
+    fetchSmoke.mockResolvedValue(HELD)
+    const fake = fakeMapPopups()
+    const smoke = mountSmoke(stubMap({ canvasWidth: 800 }).map, { popups: fake.popups, online: null })
+    return { smoke, ...fake, target: fake.points[0] }
+  }
+
+  it('is on while the layer is, and paints nothing for the cursor', () => {
+    const { smoke, points, target } = mounted()
+    expect(points.map((p) => p.target)).toEqual(['smoke'])
+    expect(target.shown()).toBe(false)
+    smoke.update({ show: true })
+    expect(target.shown()).toBe(true)
+    expect(target.paints(UNDER)).toBe(false)
+    smoke.update({ show: false })
+    expect(target.shown()).toBe(false)
+  })
+
+  it('tells the open cards when the analysis lands, and describes the densest plume over the point', async () => {
+    const { smoke, target, refreshed } = mounted()
+    expect(await target.read(UNDER, signal())).toBeNull()
+    smoke.update({ show: true })
+    await vi.waitFor(() => expect(refreshed).toEqual(['smoke']))
+    const reading = await target.read(UNDER, signal())
+    expect(reading).toEqual({ section: smokeSectionAt(HELD, UNDER) })
+    expect(reading?.section).toMatchObject({ kind: 'smoke', layer: SMOKE_ROW_LABEL })
+    expect(reading?.section.title).toContain('Heavy')
+    expect(await target.read(CLEAR, signal())).toBeNull()
+  })
+
+  it('answers nothing once switched off', async () => {
+    const { smoke, target, refreshed } = mounted()
+    smoke.update({ show: true })
+    await vi.waitFor(() => expect(refreshed).toEqual(['smoke']))
+    smoke.update({ show: false })
+    expect(refreshed).toEqual(['smoke', 'smoke'])
+    expect(await target.read(UNDER, signal())).toBeNull()
   })
 })

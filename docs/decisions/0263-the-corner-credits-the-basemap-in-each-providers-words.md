@@ -1,4 +1,4 @@
-# 0262. The map's corner credits the basemap's three providers in each one's own words, parted like the rest of the line
+# 0263. The map's corner credits the basemap's three providers in each one's own words, parted like the rest of the line
 
 - Status: Accepted
 - Date: 2026-11-03

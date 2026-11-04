@@ -228,6 +228,7 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `ICON` | How big a drawn glyph is, in four steps: `control` 16 (in or beside a control, the search magnifier included), `inline` 14 (a mark inside a line of text), `chip` 12 (a chip's remove cross, either chip), `micro` 10 (inside a drawn disc or button smaller than a control). Read by `components/icons.tsx`, which draws every icon in the app; every step carries the measurement that chose it |
 | `ICON_BUTTON` | Bare icon button in header, and the bare × inside a card or a field: the popup's, the tutorial's, the search's (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
 | `ICON_CLOSE_BUTTON` | `ICON_BUTTON` for a × with free room around it, the tutorial card's and the search's clear: a 44px press under a finger through a pseudo-element, without growing the glyph |
+| `CARD_FOLD` | The chevron that folds each section of a card on the map (#832): a 24px box at the section's right edge, 32px under a finger, with the control radius for its focus ring. It names no colour: its ink is the popup's glyph grey, set in the card's markup, and it takes the accent under the pointer through `data-popup-glyph` in `map.css`, as the band's link-out glyph does (record [0264](decisions/0264-every-card-is-a-stack-of-foldable-layer-sections.md)) |
 | `ICON_ACTION` | Icon that acts on hover |
 | `SPINNER` | Indeterminate spinner |
 | `TABLE.cell` | Results table cell inset |
@@ -364,7 +365,8 @@ for the part it is, and `popupChrome.ts` names them in its markup as
 `var(--popup-label)` and the rest. The card is the panel: its surface `panel`,
 its header band and grid columns halfway between `panel` and `raised`, its
 ranked cell `raised`, its inks the panel's, its warning the table's `warn`,
-its link-out glyph the label grey, taking `accent-ink` on hover. The light
+its link-out glyph and each section's fold chevron the label grey, taking
+`accent-ink` on hover. The light
 theme redefines the tokens, so the light card is the light panel and its
 `map.css` block says only the colour scheme. A link in a
 card is in the colour of the text around it, the way the results table's are:
@@ -722,7 +724,7 @@ with the scale at its end, and over it the compass, the locate button and the
 zoom pair, 24px in, 6px apart and 10px above the line. The column yields the
 gaps between its buttons to the map; the credit box does not, since a reader
 sees one banner and expects a press anywhere on it to select its text rather
-than drag the map (record [0262](decisions/0262-the-corner-credits-the-basemap-in-each-providers-words.md)). The line sets the
+than drag the map (record [0263](decisions/0263-the-corner-credits-the-basemap-in-each-providers-words.md)). The line sets the
 library's 20px line (`leading-5`), which its controls lose outside the map's
 container, so the scale keeps its 22px box and the line is 27px tall
 (measured 2026-10-21, `e2e/deskCorner.spec.ts`). The zoom pair is one
@@ -1178,14 +1180,17 @@ new role: add it to `ICON` with its rationale and pin its pixels in
 states the number that chose it (#436), so a fifth arrives with a measurement
 or not at all — the key set is pinned as well as the values.
 
-**The one glyph drawn twice.** A map popup is an HTML string handed to
+**The two glyphs drawn twice.** A map popup is an HTML string handed to
 MapLibre's `setHTML`, so Tailwind never sees its class names and the icon
 module cannot draw it. The link-out arrow in a popup's title row is therefore
 the same shape as the results table's, read from `frontend/src/iconPaths.ts`
-by both `icons.tsx` and `utils/popup/popupChrome.ts` (#435). That module carries the
+by both `icons.tsx` and `utils/popup/popupChrome.ts` (#435), and so is the
+chevron that folds a card's section, the same shape `IconChevron` draws on the
+results bar and every menu trigger (`CHEVRON`, #832). That module carries the
 geometry, the stroke, and the one size a string has to spell; the linter's
 `style-popup-glyph` check bans a literal SVG tag in `popupChrome.ts`, and
-`styles.test.ts` pins that size to the `inline` step. It sits at `src/` rather than in `components/`, beside `styles.ts` and
+`styles.test.ts` pins the arrow's size to the `inline` step and the chevron's
+to `control`. It sits at `src/` rather than in `components/`, beside `styles.ts` and
 `metrics.ts`, because `popupChrome.ts` is a util and no util in the app imports
 a component.
 

@@ -1,15 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // MapLibre's Popup needs a DOM. This one records what it says, keeps the one
-// button a card arms and counts each arming of its grid's heads, and fires
-// `close` when removed, as MapLibre's does. Hoisted, because `vi.mock` runs
-// before the imports.
+// button a card arms and the chevrons it arms, counts each arming of its
+// grid's heads, and fires `close` when removed, as MapLibre's does. Hoisted,
+// because `vi.mock` runs before the imports.
+type FoldButton = { key: string; press: () => void; focused: boolean }
 const { popups, outlines } = vi.hoisted(() => ({
   popups: [] as {
     html: string
     removed: boolean
     attrs: Record<string, string>
     press: () => void
+    // Each section's chevron in the markup last set, rebuilt by every
+    // setHTML as MapLibre's are.
+    folds: FoldButton[]
     // Each setHTML, with whether MapLibre would have moved focus for it.
     sets: { html: string; focus: unknown }[]
     gridArms: number
@@ -38,6 +42,7 @@ vi.mock('maplibre-gl', () => ({
     state: (typeof popups)[number]
     closers: (() => void)[] = []
     options: Record<string, unknown>
+    lngLat: unknown = undefined
     constructor(options: Record<string, unknown>) {
       this.options = { ...options }
       this.state = {
@@ -45,19 +50,29 @@ vi.mock('maplibre-gl', () => ({
         removed: false,
         attrs: {},
         press: () => {},
+        folds: [],
         sets: [],
         gridArms: 0,
         body: { scrollTop: 0, style: {}, classList: { add: () => {} } },
       }
       popups.push(this.state)
     }
-    setLngLat() {
+    setLngLat(at: unknown) {
+      this.lngLat = at
       return this
+    }
+    getLngLat() {
+      return this.lngLat
     }
     setHTML(html: string) {
       this.state.html = html
       this.state.sets.push({ html, focus: this.options.focusAfterOpen ?? true })
       this.state.body.scrollTop = 0
+      this.state.folds = [...html.matchAll(/data-card-fold="([^"]+)"/g)].map((m) => ({
+        key: m[1],
+        press: () => {},
+        focused: false,
+      }))
       return this
     }
     addTo() {
@@ -79,13 +94,25 @@ vi.mock('maplibre-gl', () => ({
         offsetWidth: 280,
         offsetHeight: 200,
         setAttribute: (k: string, v: string) => (this.state.attrs[k] = v),
-        querySelector: (selector: string) =>
-          selector === '.maplibregl-popup-content'
-            ? { classList: { add: () => {} } }
-            : selector.includes('data-popup-body')
-              ? this.state.body
-              : { addEventListener: (_type: string, fn: () => void) => (this.state.press = fn) },
-        querySelectorAll: () => {
+        querySelector: (selector: string) => {
+          if (selector === '.maplibregl-popup-content') return { classList: { add: () => {} } }
+          if (selector.includes('data-popup-body')) return this.state.body
+          // One chevron, by the key in its selector, for the focus a fold keeps.
+          if (selector.includes('data-card-fold')) {
+            const button = this.state.folds.find((b) => selector.includes(`"${b.key}"`))
+            return button ? { focus: () => (button.focused = true) } : null
+          }
+          return { addEventListener: (_type: string, fn: () => void) => (this.state.press = fn) }
+        },
+        // The chevrons' selector, or the grid's heads' (`th[...]`), which
+        // `gridHeads.ts` arms.
+        querySelectorAll: (selector: string) => {
+          if (selector.includes('data-card-fold')) {
+            return this.state.folds.map((b) => ({
+              getAttribute: () => b.key,
+              addEventListener: (_type: string, fn: () => void) => (b.press = fn),
+            }))
+          }
           this.state.gridArms++
           return []
         },
@@ -108,7 +135,7 @@ import { type BasemapPoi, poiToPlace } from '../utils/basemapPoi'
 import { type PendingDestination, pendingAsResult } from '../utils/customList'
 import type { Place } from '../utils/geocode'
 import type { GroundState } from '../utils/popup/groundFact'
-import type { PointSection } from '../utils/pointReadout'
+import type { MapPoint, PointReading, PointSection } from '../utils/pointReadout'
 import stateOutlines from '../utils/usStateOutlines.json'
 import { decodeUsStates, type UsStateOutlines } from '../utils/usStates'
 
@@ -117,7 +144,7 @@ const ADAMS = resultRow({ name: 'Mount Adams', latitude: 46.2, longitude: -121.5
 const RAINIER = resultRow({ name: 'Mount Rainier', latitude: 46.85, longitude: -121.76 })
 const PEAK: BasemapPoi = { name: 'Mount Rainier', kind: 'volcano', lat: 46.8529, lon: -121.7604, elevationFt: 14410 }
 const MUIR: PendingDestination = { name: 'Camp Muir', latitude: 46.83545, longitude: -121.73231, source: 'csv' }
-const SPOT = { kind: 'spot', lat: 48.790123, lon: -121.832114, sections: [] as readonly PointSection[] } as const
+const SPOT = { kind: 'spot', lat: 48.790123, lon: -121.832114 } as const
 
 beforeEach(() => {
   popups.length = 0
@@ -162,9 +189,9 @@ function setup({ searchedPlaces = [] as Place[], ground = undefined as GroundRea
         usStates: null,
         ground: ground?.at(row.latitude, row.longitude),
         added: false,
+        sections: [],
+        folds: new Map(),
         columns: controller.inputs.popupColumns,
-        warning: null,
-        closure: null,
         modelId: controller.inputs.modelId,
         times: controller.inputs.times,
         modelFallbackLabel: null,
@@ -173,6 +200,7 @@ function setup({ searchedPlaces = [] as Place[], ground = undefined as GroundRea
         compact: false,
         widths: {},
         removable: true,
+        analyzedAtMs: controller.inputs.analyzedAtMs,
         ...over,
       },
     )
@@ -249,17 +277,14 @@ describe('mountDestinationCards', () => {
     expect(again.inputs.onRemovePoi).toHaveBeenCalledWith(48.79012, -121.83211)
   })
 
-  // The pictures' sections land after the card opens, and the opener hands
-  // the owners on so a picture switched off takes the card down.
-  it("redraws a spot's sections where it stands, under the owners it was opened for", () => {
+  // A spot's card carries no owner: what it holds is the layers' sections,
+  // which leave it when their layer goes off rather than taking it down.
+  it("leaves a spot's card open when a layer is switched off", () => {
     const { cards, board } = setup()
-    const rain: PointSection = { layer: 'Rain radar', title: 'Light precipitation', source: 'NEXRAD radar', rows: ['Rate: 0.1'], when: 'now' }
-    const opened = cards.open(SPOT, [SPOT.lon, SPOT.lat], { owner: ['radar'] })
-    expect(popups[0].html).not.toContain('NEXRAD radar')
-    opened.update({ ...SPOT, sections: [rain] })
-    expect(popups[0].html).toContain('NEXRAD radar: now')
-    expect(popups[0].sets[1].focus).toBe(false)
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
     board.closeAll('radar')
+    expect(popups[0].removed).toBe(false)
+    board.closeAll()
     expect(popups[0].removed).toBe(true)
   })
 
@@ -382,5 +407,260 @@ describe('redrawing', () => {
     expect(outlines.calls).toBe(1)
     outlines.load!(decodeUsStates(stateOutlines as UsStateOutlines))
     await vi.waitFor(() => expect(popups[1].html).toContain('search?q=Family%20Wall%20Washington"'))
+  })
+})
+
+// Every card asks every layer that is on for its section at the card's point
+// (#832), and hears when one changes under it.
+describe('sections', () => {
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+  const section = (kind: PointSection['kind'], layer: string, title: string, rows: string[] = []): PointSection => ({
+    kind,
+    layer,
+    title,
+    source: `${layer} source`,
+    rows,
+  })
+  const RAIN = section('radar', 'Rain radar', 'Light precipitation', ['Rate: 0.1 in/hr'])
+  const SNOW = section('snow', 'Snow depth', 'Deep snow')
+  // Whether a section's chevron says it is open, read off the card's markup.
+  const expanded = (html: string, key: string) => new RegExp(`data-card-fold="${key}"[^>]*aria-expanded="(true|false)"`).exec(html)?.[1]
+
+  // A layer the test answers for, registered with the map's real popups.
+  function layer(
+    board: ReturnType<typeof setup>['board'],
+    kind: PointSection['kind'],
+    read: (signal: AbortSignal) => Promise<PointReading | null>,
+    { shown = () => true, refresh }: { shown?: () => boolean; refresh?: () => Promise<PointReading> } = {},
+  ) {
+    const spy = vi.fn((_at: MapPoint, signal: AbortSignal) => read(signal))
+    const again = refresh && vi.fn(refresh)
+    board.registerPoint({ target: kind, shown, paints: () => false, read: spy, ...(again && { refresh: again }) })
+    return { read: spy, refresh: again }
+  }
+
+  it('asks every layer that is on at the point, and stands their sections in rank order whatever order they answer in', async () => {
+    const { cards, board } = setup()
+    const answers: Partial<Record<string, (r: PointReading | null) => void>> = {}
+    const asked = (kind: PointSection['kind']) => () => new Promise<PointReading | null>((resolve) => (answers[kind] = resolve))
+    const snow = layer(board, 'snow', asked('snow'))
+    layer(board, 'radar', asked('radar'))
+    const off = layer(board, 'smoke', async () => null, { shown: () => false })
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    expect(snow.read).toHaveBeenCalledTimes(1)
+    expect(off.read).not.toHaveBeenCalled()
+    // Asked where the card stands, at the five decimals its title shows.
+    const [at] = snow.read.mock.calls[0]
+    expect(at.lat).toBe(48.79012)
+    expect(at.lng).toBeCloseTo(-121.83211, 9)
+    expect(at.zoom).toBe(MAP_ZOOM)
+    answers.snow!({ section: SNOW })
+    await settle()
+    expect(popups[0].html).toContain('Snow depth: Deep snow')
+    // A section landing is a redraw, which leaves the reader's focus alone.
+    expect(popups[0].sets[popups[0].sets.length - 1].focus).toBe(false)
+    answers.radar!({ section: RAIN })
+    await settle()
+    const html = popups[0].html
+    expect(html.indexOf('Rain radar: Light precipitation')).toBeGreaterThan(-1)
+    expect(html.indexOf('Rain radar: Light precipitation')).toBeLessThan(html.indexOf('Snow depth: Deep snow'))
+    expect(popups).toHaveLength(1)
+  })
+
+  it('puts no section on the card where a layer has nothing there', async () => {
+    const { cards, board } = setup()
+    layer(board, 'radar', async () => null)
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    expect(popups[0].html).not.toContain('Rain radar')
+    expect(popups[0].sets).toHaveLength(1)
+  })
+
+  // The snow's numbers come from NOAA after its band (TJ, 2026-10-16).
+  it('fills a section with what lands after it', async () => {
+    const { cards, board } = setup()
+    let land: (s: PointSection) => void = () => {}
+    layer(board, 'snow', async () => ({
+      section: section('snow', 'Snow depth', 'Deep snow', ['waiting']),
+      later: new Promise<PointSection>((resolve) => (land = resolve)),
+    }))
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    expect(popups[0].html).toContain('waiting')
+    land(section('snow', 'Snow depth', 'Deep snow', ['151 in']))
+    await settle()
+    expect(popups[0].html).toContain('151 in')
+    expect(popups[0].html).not.toContain('waiting')
+  })
+
+  it('leaves a failed reading off the card and warns', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { cards, board } = setup()
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    layer(board, 'snow', async () => {
+      throw new Error('down')
+    })
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    expect(popups[0].html).toContain('Rain radar')
+    expect(popups[0].html).not.toContain('Snow depth')
+    expect(popups[0].removed).toBe(false)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0][0]).toBe('The snow reading failed')
+  })
+
+  // The radar's frame moved under the card (#748), or a fire layer's fetch
+  // landed or it went off (#832).
+  it('reads a layer again when it changes, and takes its section off once it is off', async () => {
+    const { cards, board } = setup()
+    let on = true
+    const radar = layer(board, 'radar', async () => ({ section: RAIN }), {
+      shown: () => on,
+      refresh: async () => ({ section: section('radar', 'Rain radar', 'No echo') }),
+    })
+    const snow = layer(board, 'snow', async () => ({ section: SNOW }))
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    board.refreshPoint('radar')
+    await settle()
+    expect(radar.read).toHaveBeenCalledTimes(1)
+    expect(radar.refresh).toHaveBeenCalledTimes(1)
+    expect(popups[0].html).toContain('Rain radar: No echo')
+    expect(popups[0].html).toContain('Snow depth')
+    // A layer with no refresh of its own is read again.
+    board.refreshPoint('snow')
+    await settle()
+    expect(snow.read).toHaveBeenCalledTimes(2)
+    on = false
+    board.refreshPoint('radar')
+    await settle()
+    expect(popups[0].html).not.toContain('Rain radar')
+    expect(popups[0].html).toContain('Snow depth')
+    expect(popups[0].removed).toBe(false)
+  })
+
+  // A layer that switches on after the card opened joins it on its change.
+  it('puts a layer that comes on after the card opened on it', async () => {
+    const { cards, board } = setup()
+    let on = false
+    layer(board, 'fire', async () => ({ section: section('fire', 'Wildfires', 'Bolt Creek') }), { shown: () => on })
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    expect(popups[0].html).not.toContain('Bolt Creek')
+    on = true
+    board.refreshPoint('fire')
+    await settle()
+    expect(popups[0].html).toContain('Wildfires: Bolt Creek')
+  })
+
+  // A scrub moves faster than a tile decodes: the newest frame wins.
+  it('never lets a slower answer paint over a newer one', async () => {
+    const { cards, board } = setup()
+    const answers: ((r: PointReading) => void)[] = []
+    layer(board, 'radar', async () => ({ section: RAIN }), {
+      refresh: () => new Promise<PointReading>((resolve) => answers.push(resolve)),
+    })
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    board.refreshPoint('radar')
+    board.refreshPoint('radar')
+    answers[1]({ section: section('radar', 'Rain radar', 'Newer') })
+    answers[0]({ section: section('radar', 'Rain radar', 'Older') })
+    await settle()
+    expect(popups[0].html).toContain('Newer')
+    expect(popups[0].html).not.toContain('Older')
+  })
+
+  // A closed card's question is dropped rather than answered into nothing.
+  it('aborts what a card was waiting for when it closes, and writes nothing after', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { cards, board } = setup()
+    let signal: AbortSignal | null = null
+    let answer: (r: PointReading) => void = () => {}
+    layer(board, 'snow', (s) => {
+      signal = s
+      return new Promise<PointReading>((resolve, reject) => {
+        answer = resolve
+        s.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+      })
+    })
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    expect(signal!.aborted).toBe(false)
+    board.closeAll()
+    expect(signal!.aborted).toBe(true)
+    answer({ section: SNOW })
+    await settle()
+    expect(popups[0].sets).toHaveLength(1)
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  // A fold the reader makes holds for that section on every card until the
+  // page reloads (TJ, 2026-11-03), and the chevron pressed keeps the focus.
+  it('folds a section on every card from one chevron, and keeps the focus on it', async () => {
+    const { cards, board } = setup()
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    cards.open({ kind: 'label', poi: PEAK }, [PEAK.lon, PEAK.lat], { pan: false })
+    await settle()
+    expect(popups.map((p) => expanded(p.html, 'radar'))).toEqual(['true', 'true'])
+    popups[0].folds.find((b) => b.key === 'radar')!.press()
+    expect(popups.map((p) => expanded(p.html, 'radar'))).toEqual(['false', 'false'])
+    expect(popups[0].html).not.toContain('Rate: 0.1 in/hr')
+    expect(popups.map((p) => p.folds.find((b) => b.key === 'radar')!.focused)).toEqual([true, false])
+    // Every write was a redraw, so MapLibre moved focus for none of them.
+    expect(popups[1].sets[popups[1].sets.length - 1].focus).toBe(false)
+    // A card opened later wears the reader's fold.
+    cards.open({ ...SPOT, lat: 47.5 }, [SPOT.lon, 47.5], { pan: false })
+    await settle()
+    expect(expanded(popups[2].html, 'radar')).toBe('false')
+    popups[1].folds.find((b) => b.key === 'radar')!.press()
+    expect(popups.map((p) => expanded(p.html, 'radar'))).toEqual(['true', 'true', 'true'])
+    expect(popups[1].folds.find((b) => b.key === 'radar')!.focused).toBe(true)
+  })
+
+  // A ranked card opens on its forecast with the layers folded under it.
+  it("folds a ranked card's layers and opens its forecast by default", async () => {
+    const { cards, board, controller } = setup()
+    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'aqi_avg') })
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [0, 0])
+    await settle()
+    expect(expanded(popups[0].html, 'radar')).toBe('false')
+    expect(expanded(popups[0].html, 'forecast')).toBe('true')
+    expect(popups[0].html.indexOf('Rain radar')).toBeLessThan(popups[0].html.indexOf('data-card-fold="forecast"'))
+  })
+
+  // The forecast section's fine print says when the report was analyzed.
+  it("draws the analysis's time on a ranked card", () => {
+    const { cards, controller, rankedHtml } = setup()
+    const analyzedAtMs = Date.UTC(2026, 10, 3, 21, 36)
+    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'aqi_avg'), analyzedAtMs })
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [0, 0])
+    expect(popups[0].html).toBe(rankedHtml(RAINIER, 2, { analyzedAtMs }))
+    expect(popups[0].html).toContain('Analyzed')
+    expect(popups[0].html).not.toBe(rankedHtml(RAINIER, 2, { analyzedAtMs: null }))
+  })
+
+  // A card that grew past the free map when a section landed is capped
+  // where it stands, and keeps that cap through later redraws.
+  it('caps a card that grew where it stands', async () => {
+    const { cards, board } = setup()
+    const cap = vi.spyOn(board, 'bodyCap').mockReturnValue(120)
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    layer(board, 'snow', async () => ({ section: SNOW }))
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    expect(popups[0].body.style.maxHeight).toBe('120px')
+    expect(cap).toHaveBeenCalledTimes(1)
+    expect(popups[0].sets.length).toBeGreaterThan(2)
+  })
+
+  it('caps nothing where the card still stands whole', async () => {
+    const { cards, board } = setup()
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    expect(popups[0].html).toContain('Rain radar')
+    expect(popups[0].body.style.maxHeight).toBeUndefined()
   })
 })

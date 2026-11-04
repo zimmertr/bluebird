@@ -998,8 +998,8 @@ itself unavailable. The same limit applies to smoke and closures below
 ([record 0077](decisions/0077-snapshot-max-stale-24h.md)). The overlay does not
 show the copy's age before that point.
 
-A fire's popup dates the perimeter: **Updated** is when NIFC last
-surveyed that incident, which is a fact about the fire and not about Bluebird Forecast.
+A fire's section on a card dates the perimeter: its small print, **NIFC:** and
+a date, is when NIFC last surveyed that incident, which is a fact about the fire and not about Bluebird Forecast.
 It routinely runs days old on a fire that is burning right now, which is normal
 for a surveyed product and not a sign of stale data on this end. If you are
 calling the API directly, the response also carries `fetched_at`, saying how
@@ -1047,7 +1047,10 @@ as a cluster of pixels along its active edge, not as its burned area.
 **It is about 3 hours behind the pass.** FIRMS publishes a detection about 3
 hours after the satellite saw it, and each satellite passes a given place about
 twice a day. So the newest starburst can be hours old, and a fire that started since
-the last pass is not on the map.
+the last pass is not on the map. A star's section on a card ends with when the
+app last fetched the detections, **NASA FIRMS:** and a time, which says how
+current the copy is and not when the satellite saw it; that is the
+**Detected** row above it.
 
 **False alarms happen.** Anything hot enough looks like fire from orbit: gas
 flares, industrial roofs, volcanoes, and sun glint off water or metal. FIRMS
@@ -1086,7 +1089,7 @@ morning Eastern.
 That has three consequences worth reading the layer with.
 
 **It is observation, with a lag.** A plume states the window of imagery it was
-traced from, which the popup shows, and that window can be hours behind now.
+traced from, which a card's smoke section ends with, and that window can be hours behind now.
 There is nothing here to animate, and the map timeline does not claim it.
 
 **It is a column of air, not the ground.** A satellite sees smoke from above, so
@@ -1216,21 +1219,23 @@ text can be wrong both ways, so read the order itself.
 status, a start date and an end date. The status is maintained by hand at the forest offices,
 and Bluebird Forecast shows every order the Forest Service marks active, whatever its
 dates say. So an active order can carry an end date that is already past.
-That is why a closure's card labels its dates **Effective** rather than
-Active: they are the span the order states, not a claim that it stands today.
+That is why a closure's section states its dates bare, **US Forest Service:**
+and the two dates, and never calls the order active:
+they are the span the order states, not a claim that it stands today.
 Measured 2026-09-30: the Eagle Creek area closure on the Mt. Hood National
 Forest ended 2026-07-07 by its own date and was still listed as active. A
 date filter here would hide an order the Forest Service still stands behind,
 which is the worse mistake. Read the order itself for the details.
 
-**A closure's card gives the order's type, in the region's own words.**
-Regions 3 and 4 file a type with every order, and the card shows it as filed,
+**A closure's section gives the order's type, in the region's own words.**
+Regions 3 and 4 file a type with every order, and the section shows it as filed
+in amber under the order's name,
 such as `Safety Closure`. That type is the forest's label and not a finding,
 for the reason under **Regions 3 and 4 publish every standing order** above.
 Region 6's feed is fire closures alone and names the fire (measured 2026-10-16:
 12 of 13 active areas, 891 of 901 lines and 172 of 172 sites), but the order's
 own name already says it, as in `Little Giant Fire Closure`, so a Region 6
-card has no line.
+section has no line.
 
 **The link is often missing.** Each order can carry a link to its page on
 `fs.usda.gov`, and most trail segments do not: 629 of the first 1,000 lines
@@ -1419,8 +1424,9 @@ far above the top band's 787 in, while a point on the Winthrop Glacier holds
 why a glaciated summit paints the top band in September. The depth over
 permanent snow and ice is not a number to plan on.
 
-**A click where the layer paints snow asks NOAA for the analysis there** (#737)
-and shows the depth, the snow water equivalent and the time the analysis is
+**A card opened where the layer paints snow asks NOAA for the analysis there**
+(#737), whether a click on the snow opened it or a marker, a label or a dot
+standing on the snow did (#832), and its snow section shows the depth, the snow water equivalent and the time the analysis is
 valid for, in your own time zone. The card opens at once, named for the band
 the map painted under the click, which the app reads off its own copy of the
 tile: NOAA's renders use exactly the legend's colours, so the pixel names the
@@ -1462,8 +1468,8 @@ describes, because the service resamples to the pixel that box implies: the
 same Rainier summit read 52.13 m asked about with a continent and 74.58 m asked
 about with a hundredth of a degree, and the 68.62 m above is the September
 figure. The card asks with a hundredth of a degree, a pixel well inside one cell
-of the 1 km grid, so it reads the cell under the click. A card opens only where
-the map shows snow, because the painted pixel decides rather than the number:
+of the 1 km grid, so it reads the cell under the click. A card carries a snow
+section only where the map shows snow, because the painted pixel decides rather than the number:
 0.02 m (0.8 in) came back unpainted although the legend starts at 0.39 in. Each
 click is one request of about 0.8 s. The service sometimes answers an error
 inside a 200, so that one shape of failure is asked once more; if NOAA still

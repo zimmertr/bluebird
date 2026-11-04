@@ -7,8 +7,10 @@ import type { PendingDestination } from './customList'
 import {
   CARD_ACTION_ATTR,
   type CardView,
+  FORECAST_SECTION,
   cardAction,
   destinationPopupHtml,
+  sectionOpen,
   spotPlace,
   subjectPlace,
   subjectPoint,
@@ -16,6 +18,7 @@ import {
 } from './destinationCard'
 import type { PointSection } from './pointReadout'
 import {
+  CARD_FOLD_ATTR,
   POPUP_BODY_ATTR,
   POPUP_TINT_ATTR,
   colorSwatch,
@@ -23,12 +26,13 @@ import {
   pendingValue,
   popupButton,
   row as valueRow,
-  sectionHeading,
+  updatedAt,
   updatedLine,
+  warningLine,
   widestName,
 } from './popup/popupChrome'
 import { cellTint } from './results/resultsCells'
-import type { FireWarning } from './fireProximity'
+import type { ModelRow } from './model/modelCompare'
 import { FAMILY_KEYS, NOUN, SEP } from '../metrics'
 import {
   GRID_COMPACT_INSET_PX,
@@ -42,8 +46,8 @@ import {
   WARNING_COLOR,
 } from './popup/popupChrome'
 import { SLOPE_BANDS } from './slopeAngle'
-import { ELEVATION_COL, displayedColumns } from './tableColumns'
-import { closureWarning, resultRow, series } from '../testSupport/fixtures'
+import { ELEVATION_COL, MODEL_COL, displayedColumns } from './tableColumns'
+import { resultRow, series } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'
 import outlines from './usStateOutlines.json'
 import { decodeUsStates, type UsStateOutlines } from './usStates'
@@ -56,7 +60,7 @@ const pendingHtml = ({ pending, ...view }: { pending: PendingDestination } & Car
 const labelHtml = (poi: BasemapPoi, added: boolean, view: CardView = {}) =>
   destinationPopupHtml({ kind: 'label', poi }, { ...view, added })
 const spotHtml = (lat: number, lon: number, sections: readonly PointSection[], view: CardView = {}) =>
-  destinationPopupHtml({ kind: 'spot', lat, lon, sections }, view)
+  destinationPopupHtml({ kind: 'spot', lat, lon }, { ...view, sections })
 
 // Every aggregate is a different number so a test can tell which column a
 // value came from.
@@ -87,7 +91,36 @@ const WINDOW_COLS = displayedColumns(false, 'precip_total_in')
 // A Current lookup, where the table collapses each family to one column.
 const POINT_COLS = displayedColumns(true, 'precip_total_in')
 
-const base = { rank: 1, row, columns: WINDOW_COLS, warning: null as FireWarning | null }
+const base = { rank: 1, row, columns: WINDOW_COLS }
+
+// What three layers say at a point (#832), as the readers hand them over:
+// every string already escaped, a fire's name linked out, a closure's type
+// in the warning amber.
+const FIRE: PointSection = {
+  kind: 'fire',
+  layer: 'Active wildfires',
+  title: 'Bolt Creek',
+  link: { href: 'https://data-nifc.opendata.arcgis.com/explore?location=47.80000,-121.30000,10', label: 'View on NIFC map' },
+  source: 'NIFC',
+  rows: [valueRow('Distance', '3.2 mi NW'), valueRow('Size', '10 acres')],
+  when: 'Jul 17, 2026, 5:00 AM',
+}
+const CLOSURE: PointSection = {
+  kind: 'closure-area',
+  layer: 'Area closures',
+  title: 'Probe Fire Closure',
+  warn: 'Safety Closure',
+  source: 'US Forest Service',
+  rows: [valueRow('Forest', 'Columbia River Gorge NSA')],
+}
+const RADAR: PointSection = {
+  kind: 'radar',
+  layer: 'Rain radar',
+  title: 'Light precipitation',
+  source: 'NEXRAD radar',
+  rows: [valueRow('Rate', '~0.02 in/h')],
+  when: '10 min ago',
+}
 
 describe('a ranked card: link out', () => {
   const crag = resultRow({ name: 'Family Wall', type: 'crag', latitude: 47.48886, longitude: -121.75024 })
@@ -100,122 +133,6 @@ describe('a ranked card: link out', () => {
     expect(rankedHtml({ ...base, row: crag })).toContain(
       'https://www.mountainproject.com/search?q=Family%20Wall"'
     )
-  })
-})
-
-describe('a ranked card: fire warning', () => {
-  it('omits the warning line when no fire is nearby', () => {
-    const html = rankedHtml({ ...base, warning: null })
-    expect(html).not.toContain('⚠️')
-  })
-
-  it('renders the ⚠️ and the proximity text when a fire is near', () => {
-    const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
-    const html = rankedHtml({ ...base, warning })
-    expect(html).toContain('⚠️')
-    expect(html).toContain('>Near a wildfire (Sourdough): 3.2 mi<')
-  })
-
-  // One form at every distance: a point inside a perimeter reads 0.0 mi.
-  it('phrases an inside-the-perimeter warning at 0.0 mi', () => {
-    const warning: FireWarning = { miles: 0, name: 'Bolt Creek', latitude: 0, longitude: 0 }
-    const html = rankedHtml({ ...base, warning })
-    expect(html).toContain('>Near a wildfire (Bolt Creek): 0.0 mi<')
-  })
-
-  // NIFC incident names are third-party strings rendered via setHTML, so the
-  // warning line must escape them rather than inject raw markup.
-  it('escapes HTML in a third-party incident name', () => {
-    const warning: FireWarning = { miles: 0, name: '<img src=x> "&', latitude: 0, longitude: 0 }
-    const html = rankedHtml({ ...base, warning })
-    expect(html).toContain('&lt;img src=x&gt; &quot;&amp;')
-    expect(html).not.toContain('<img src=x>')
-  })
-
-  // The wildfire flag is a safety statement, not a measurement, so it keeps its
-  // amber banner and is the one table column the popup does not mirror (TJ,
-  // 2026-09-14). A card that said it twice would be worse at saying it once.
-  it('never repeats the warning as a metric line', () => {
-    const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
-    const html = rankedHtml({ ...base, warning })
-    expect(html).not.toContain('Wildfire (mi)')
-    expect(html.match(/⚠️/g)).toHaveLength(1)
-  })
-})
-
-// The warnings stand in a section of their own between the header and the
-// grid, closed off from the grid by the header's own edge (TJ, 2026-10-08).
-describe('a ranked card: warnings section', () => {
-  const fire: FireWarning = { miles: 1, name: 'KING', latitude: 47.5, longitude: -121.3 }
-  const section = (html: string) =>
-    html.match(/<div style="font-size:12px;display:flex;[^"]*border-bottom:1px solid var\(--popup-[\w-]+\)">(.*?)<\/div>(?=\s*<div data-popup-body)/s)
-  const glyphs = (html: string) => html.split('⚠️').length - 1
-
-  it('puts both warnings after the header and before the grid, ruled off from it', () => {
-    const html = rankedHtml({ ...base, warning: fire, closure: closureWarning() })
-    const found = section(html)
-    expect(found).not.toBeNull()
-    expect(found![0]).toContain(`border-bottom:1px solid ${HEADER_EDGE_COLOR}`)
-    expect(found![1]).toContain('KING')
-    expect(found![1]).toContain('Within a closure')
-    // Neither warning is inside the body the scroll cap shortens.
-    const body = html.slice(html.indexOf('data-popup-body'))
-    expect(body).not.toContain('active')
-    // The header comes first.
-    expect(html.indexOf(HEADER_BAND_COLOR)).toBeLessThan(html.indexOf('⚠️'))
-  })
-
-  it('draws no section, and no glyph, without a warning', () => {
-    const html = rankedHtml({ ...base })
-    expect(section(html)).toBeNull()
-    expect(glyphs(html)).toBe(0)
-  })
-
-  // One glyph for the section, in a column of its own down its right side
-  // under the close button, rather than one spending the start of every line.
-  it('draws one glyph for the whole section, in a column after the warnings', () => {
-    for (const d of [{ warning: fire }, { closure: closureWarning() }, { warning: fire, closure: closureWarning() }]) {
-      const html = rankedHtml({ ...base, ...d })
-      expect(glyphs(html)).toBe(1)
-      expect(section(html)![1]).toMatch(/<span aria-hidden="true" style="flex:none;width:calc\(var\(--popup-close-lane, 2rem\) \+ 2px\);[^"]*">⚠️<\/span>$/)
-    }
-  })
-
-  // Each warning keeps one line and ends in an ellipsis where it outruns the
-  // card, linked or not, so a long order name no longer wraps the card.
-  it('keeps every warning to one line, cut with an ellipsis', () => {
-    const oneLine = /font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/g
-    expect(rankedHtml({ ...base, warning: fire, closure: closureWarning() }).match(oneLine)).toHaveLength(2)
-    expect(rankedHtml({ ...base, closure: closureWarning({ url: null }) }).match(oneLine)).toHaveLength(1)
-  })
-
-  // Two warnings are a bulleted list; a lone one is its sentence alone.
-  it('bullets two warnings, and leaves a lone one unbulleted', () => {
-    const both = section(rankedHtml({ ...base, warning: fire, closure: closureWarning() }))![1]
-    expect(both).toMatch(/<ul style="[^"]*list-style:disc[^"]*"><li>.*KING.*<\/li><li>.*Within a closure.*<\/li><\/ul>/s)
-    expect(section(rankedHtml({ ...base, closure: closureWarning() }))![1]).not.toContain('<li>')
-  })
-})
-
-// The closure line follows the fire line in its markup (#550): the approved
-// sentence, linked to the order's page when it has one.
-describe('a ranked card: closure line', () => {
-  it('says nothing without a closure', () => {
-    expect(rankedHtml({ ...base, closure: null })).not.toContain('closure (')
-  })
-
-  it('links the sentence to the order after the fire line', () => {
-    const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
-    const html = rankedHtml({ ...base, warning, closure: closureWarning() })
-    expect(html).toContain('>Within a closure (Probe Fire Closure)</a>')
-    expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
-    expect(html.indexOf('Sourdough')).toBeLessThan(html.indexOf('Within a closure'))
-  })
-
-  it('writes plain text for an order with no page, and escapes the name', () => {
-    const html = rankedHtml({ ...base, closure: closureWarning({ url: null, name: '<b>x</b>' }) })
-    expect(html).toContain('Within a closure (&lt;b&gt;x&lt;/b&gt;)')
-    expect(html).not.toContain('fs.usda.gov')
   })
 })
 
@@ -255,18 +172,17 @@ describe('a ranked card: remove', () => {
     expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(CARD_ACTION_ATTR))
   })
 
-  // A section of its own (#696): ruled off from the grid by the edge the
-  // warnings section wears, with that section's padding above and below, on
-  // the narrow map's compact grid and the full one alike.
-  it("rules the remove off in a section like the warnings', at both widths", () => {
-    const fire: FireWarning = { miles: 1, name: 'KING', latitude: 47.5, longitude: -121.3 }
+  // A part of its own (#696): ruled off from the sections by the edge a
+  // later section wears, with that section's padding, on the narrow map's
+  // compact grid and the full one alike.
+  it("rules the remove off like a later section, at both widths", () => {
     for (const compact of [false, true]) {
-      const html = rankedHtml({ ...base, compact, removable: true, warning: fire })
-      const warnings = html.match(/<div style="font-size:12px;display:flex;align-items:flex-start;padding:(\d+px) 0 (\d+px) 10px;border-bottom:([^"]+)">/)!
+      const html = rankedHtml({ ...base, compact, removable: true, sections: [FIRE] })
+      const later = html.match(/<div style="margin:(\d+px) -10px 0;padding:(\d+px) 10px 0;border-top:([^"]+)">/)!
       const action = html.match(new RegExp(`<div style="padding:(\\d+px) 10px;border-top:([^"]+)"><div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}`))!
-      expect(action[2]).toBe(warnings[3])
+      expect(action[2]).toBe(later[3])
       expect(action[2]).toBe(SECTION_EDGE)
-      expect([warnings[1], warnings[2]]).toEqual([SECTION_PAD_Y, SECTION_PAD_Y])
+      expect([later[1], later[2]]).toEqual([SECTION_PAD_Y, SECTION_PAD_Y])
       expect(action[1]).toBe(SECTION_PAD_Y)
     }
     // No remove, no rule under the grid.
@@ -411,9 +327,10 @@ describe('a ranked card: identity band', () => {
     expect(html).not.toMatch(/<a [^>]*>[^<]*14,406/)
   })
 
-  it('names no model while one model answered every row', () => {
+  // The forecast section's heading names it instead (#832).
+  it('names no model on the band while one model answered every row', () => {
     const html = rankedHtml({ ...base, modelFallbackLabel: 'GFS Seamless' })
-    expect(html).not.toContain('GFS Seamless')
+    expect(html.slice(0, html.indexOf(POPUP_BODY_ATTR))).not.toContain('GFS Seamless')
   })
 })
 
@@ -497,7 +414,7 @@ describe('a ranked card: ranked number and insets', () => {
 })
 
 // OSM supplies destination names, which makes them third-party text on its way
-// to setHTML exactly like the NIFC incident name the warning line carries.
+// to setHTML exactly like the NIFC incident name a fire's section carries.
 describe('a ranked card: escaping', () => {
   it('escapes HTML in a destination name', () => {
     const html = rankedHtml({ ...base, row: { ...row, name: '<img src=x> "&' } })
@@ -566,15 +483,6 @@ describe('a ranked card: links out', () => {
     expect(html).toContain('https://www.windy.com/?rain,46.8517,-121.7604,11')
   })
 
-  it('links the whole wildfire warning to the fire on the NIFC map', () => {
-    const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 48.8, longitude: -121.1 }
-    const html = rankedHtml({ ...linked, warning })
-    expect(html).toContain('data-nifc.opendata.arcgis.com')
-    expect(html).toContain('?location=48.80000,-121.10000,10')
-    // The line keeps its amber: popupLink's own colour is declared first.
-    expect(html).toContain(`color:${WARNING_COLOR}`)
-  })
-
   // The coordinates name a place and link to it on CalTopo (#712); the
   // elevation is a measurement, not a forecast, and links nowhere. Matched as
   // the whole line: the title's own link-out glyph carries the coordinates
@@ -590,11 +498,10 @@ describe('a ranked card: links out', () => {
   })
 
   it('opens every link in a new tab, with no window handle back', () => {
-    const warning: FireWarning = { miles: 1, name: 'Sourdough', latitude: 48.8, longitude: -121.1 }
-    const html = rankedHtml({ ...linked, warning })
+    const html = rankedHtml({ ...linked, sections: [FIRE] })
     const anchors = html.match(/<a /g) ?? []
-    // Twenty-three metric values, the warning, the title's link-out glyph
-    // and the coordinates.
+    // Twenty-three metric values, the fire section's glyph, the title's
+    // link-out glyph and the coordinates.
     expect(anchors.length).toBe(26)
     expect(html.match(/rel="noopener noreferrer"/g)?.length).toBe(26)
     expect(html.match(/target="_blank"/g)?.length).toBe(26)
@@ -857,6 +764,7 @@ describe("a spot card's sections", () => {
   // adjacent block elements with nothing between them.
   const text = (html: string) => markupText(html.split('</div>').join('</div> ')).replace(/\s+/g, ' ').trim()
   const rain: PointSection = {
+    kind: 'radar',
     layer: 'Rain radar',
     title: 'Light precipitation',
     source: 'NEXRAD radar',
@@ -864,6 +772,7 @@ describe("a spot card's sections", () => {
     when: '10 min ago',
   }
   const snow: PointSection = {
+    kind: 'snow',
     layer: 'Snow depth',
     title: 'Very deep snow',
     source: 'NOAA snow analysis',
@@ -876,7 +785,7 @@ describe("a spot card's sections", () => {
   // echo` is a reading of (TJ, 2026-11-03).
   it("opens a section on its layer's name and its reading, its values under it, and its source and time at its foot", () => {
     const html = spotHtml(48.79012, -121.83211, [rain])
-    expect(html).toContain(sectionHeading('Rain radar: Light precipitation'))
+    expect(html).toContain('>Rain radar: Light precipitation</div>')
     expect(html).toContain(updatedLine('10 min ago', 'NEXRAD radar'))
     expect(body(html)).toMatch(/Rain radar: Light precipitation Rate: ~0.02 in\/h Reflectivity: 16.5 dBZ NEXRAD radar: 10 min ago/)
   })
@@ -908,8 +817,208 @@ describe("a spot card's sections", () => {
   it('sizes a heading that can change to the widest of its names', () => {
     const NAMES = ['Light precipitation', 'Very heavy precipitation', 'No radar echo']
     const html = spotHtml(48.79012, -121.83211, [{ ...rain, titles: NAMES }])
-    expect(html).toContain(sectionHeading(`Rain radar: ${widestName('Light precipitation', NAMES)}`))
+    expect(html).toContain(`>Rain radar: ${widestName('Light precipitation', NAMES)}</div>`)
     expect(spotHtml(48.79012, -121.83211, [rain])).not.toContain('inline-grid')
+  })
+})
+
+// Every card is one stack of sections (#832, TJ 2026-11-03): one per layer
+// with something at the point, in the order the map hands them over, and a
+// ranked card's forecast last. Each folds on its chevron.
+describe("a card's sections", () => {
+  const at = { name: 'Camp Muir', latitude: 46.83545, longitude: -121.73231, source: 'csv' } as const
+  const pendingWith = (sections: readonly PointSection[], view: CardView = {}) =>
+    pendingHtml({ pending: at, sections, ...view })
+  const heading = (text: string) => `>${text}</div>`
+  const foldOf = (html: string, key: string) =>
+    html.match(new RegExp(`<button type="button" ${CARD_FOLD_ATTR}="${key}"[^>]*aria-expanded="(true|false)"[^>]*>`))?.[1]
+  const LATER = /<div style="margin:\d+px -10px 0;padding:\d+px 10px 0;border-top:[^"]+">/g
+
+  it("opens each section on its layer's name and its own, in the order given", () => {
+    const html = pendingWith([FIRE, CLOSURE, RADAR])
+    const starts = ['Active wildfires: Bolt Creek', 'Area closures: Probe Fire Closure', 'Rain radar: Light precipitation'].map(
+      (h) => html.indexOf(heading(h)),
+    )
+    expect(starts.every((i) => i > html.indexOf(POPUP_BODY_ATTR))).toBe(true)
+    expect(starts).toEqual([...starts].sort((a, b) => a - b))
+  })
+
+  // So one layer's values cannot be read as the next one's.
+  it('rules off every section after the first', () => {
+    expect(pendingWith([FIRE]).match(LATER)).toBeNull()
+    expect(pendingWith([FIRE, CLOSURE, RADAR]).match(LATER)).toHaveLength(2)
+  })
+
+  it("sets a closure's type in the warning amber under its name, above its rows", () => {
+    const html = pendingWith([CLOSURE])
+    expect(html).toContain(warningLine('Safety Closure', null))
+    expect(html).toContain(`color:${WARNING_COLOR}`)
+    expect(html.indexOf(heading('Area closures: Probe Fire Closure'))).toBeLessThan(html.indexOf('Safety Closure'))
+    expect(html.indexOf('Safety Closure')).toBeLessThan(html.indexOf('Columbia River Gorge NSA'))
+  })
+
+  it('ends a section on its source and time, and leaves the line off without a time', () => {
+    const html = pendingWith([FIRE, CLOSURE])
+    expect(html).toContain(updatedLine('Jul 17, 2026, 5:00 AM', 'NIFC'))
+    expect(html.indexOf('10 acres')).toBeLessThan(html.indexOf('NIFC: Jul 17'))
+    expect(html).not.toContain('US Forest Service')
+  })
+
+  it("links a section's name out where the thing has a page, named for a screen reader", () => {
+    const html = pendingWith([FIRE, RADAR])
+    expect(html).toContain('aria-label="View on NIFC map"')
+    expect(html).toContain(`href="${escapeHtml(FIRE.link!.href)}"`)
+    // The fire's glyph and the destination's own, and none for the radar.
+    expect(html.match(/data-popup-glyph href=/g)).toHaveLength(2)
+  })
+
+  // Before an analysis every section stands open; on a ranked card only the
+  // forecast does, since the grid is what the marker was clicked for.
+  it('opens every section on a card with no forecast', () => {
+    const cards = [
+      pendingWith([FIRE, RADAR]),
+      labelHtml(RAINIER, false, { sections: [FIRE, RADAR] }),
+      spotHtml(48.79012, -121.83211, [FIRE, RADAR]),
+    ]
+    for (const html of cards) {
+      expect([foldOf(html, 'fire'), foldOf(html, 'radar')]).toEqual(['true', 'true'])
+      expect(html).toContain('3.2 mi NW')
+      expect(html).toContain('~0.02 in/h')
+    }
+  })
+
+  it('folds the layers on a ranked card and opens its forecast', () => {
+    const html = rankedHtml({ ...base, sections: [FIRE, RADAR] })
+    expect([foldOf(html, 'fire'), foldOf(html, 'radar'), foldOf(html, FORECAST_SECTION)]).toEqual(['false', 'false', 'true'])
+    expect(html).toContain(heading('Active wildfires: Bolt Creek'))
+    expect(html).not.toContain('3.2 mi NW')
+    expect(html).not.toContain('NIFC: Jul 17')
+    expect(html).toContain('<table')
+  })
+
+  // A fold the reader made holds on every card, whichever way it went.
+  it("takes the reader's own fold over the default", () => {
+    const folds = new Map([
+      ['fire', true],
+      [FORECAST_SECTION, false],
+    ])
+    const ranked = rankedHtml({ ...base, sections: [FIRE, RADAR], folds })
+    expect([foldOf(ranked, 'fire'), foldOf(ranked, 'radar'), foldOf(ranked, FORECAST_SECTION)]).toEqual(['true', 'false', 'false'])
+    expect(ranked).toContain('3.2 mi NW')
+    expect(ranked).not.toContain('<table')
+    const pending = pendingWith([FIRE, RADAR], { folds: new Map([['radar', false]]) })
+    expect([foldOf(pending, 'fire'), foldOf(pending, 'radar')]).toEqual(['true', 'false'])
+    expect(pending).not.toContain('~0.02 in/h')
+  })
+
+  // The hazards are what a reader weighs the forecast against, so they come
+  // first and the forecast last, ruled off from them.
+  it("puts a ranked card's forecast after its layers", () => {
+    const html = rankedHtml({ ...base, sections: [FIRE] })
+    expect(html.indexOf(heading('Active wildfires: Bolt Creek'))).toBeLessThan(html.indexOf(heading('Forecast')))
+    expect(html.indexOf(heading('Forecast'))).toBeLessThan(html.indexOf('<table'))
+    expect(html.match(LATER)).toHaveLength(1)
+  })
+})
+
+// The forecast section (#832): the model the numbers came from in its name,
+// the grid, and when the report was analyzed in the fine print.
+describe("a ranked card's forecast section", () => {
+  const heading = (text: string) => `>${text}</div>`
+
+  it("names a comparison row's own model, or the one model that answered every row", () => {
+    const compared = { ...row, modelId: 'ecmwf_ifs025', modelLabel: 'ECMWF IFS' } as ModelRow
+    expect(rankedHtml({ ...base, row: compared, modelFallbackLabel: 'GFS Seamless' })).toContain(heading('Forecast: ECMWF IFS'))
+    expect(rankedHtml({ ...base, modelFallbackLabel: 'GFS Seamless' })).toContain(heading('Forecast: GFS Seamless'))
+  })
+
+  // A comparison shows the Model column, whose label used to stand on the
+  // band; the forecast heading names it now, so the band drops it rather
+  // than say the model twice (#832). With no forecast section to name it,
+  // the band keeps the line.
+  it("says a comparison row's model once, in the forecast heading, and on the band only without one", () => {
+    const compared = { ...row, modelId: 'ecmwf_ifs025', modelLabel: 'ECMWF IFS' } as ModelRow
+    const columns = [...WINDOW_COLS, MODEL_COL]
+    const html = rankedHtml({ ...base, row: compared, columns })
+    expect(html.slice(0, html.indexOf(POPUP_BODY_ATTR))).not.toContain('ECMWF IFS')
+    expect(html).toContain(heading('Forecast: ECMWF IFS'))
+    const bare = rankedHtml({ ...base, row: compared, columns: [MODEL_COL] })
+    expect(bare).toContain('<div>ECMWF IFS</div>')
+    expect(bare).not.toContain('Forecast')
+  })
+
+  // An archive report's numbers came from no model.
+  it('is plain Forecast with no model to name', () => {
+    const html = rankedHtml({ ...base })
+    expect(html).toContain(heading('Forecast'))
+    expect(html).not.toContain('Forecast:')
+  })
+
+  it('names its fold Forecast for a screen reader', () => {
+    expect(rankedHtml({ ...base, modelFallbackLabel: 'GFS Seamless' })).toMatch(
+      new RegExp(`<button type="button" ${CARD_FOLD_ATTR}="${FORECAST_SECTION}"[^>]*aria-label="Forecast"`),
+    )
+  })
+
+  it('says when the report was analyzed, under the grid, and nothing without the time', () => {
+    const analyzed = Date.UTC(2026, 10, 3, 21, 36)
+    const html = rankedHtml({ ...base, analyzedAtMs: analyzed })
+    const line = updatedLine(escapeHtml(updatedAt(analyzed)!), 'Analyzed')
+    expect(html).toContain(line)
+    expect(html.indexOf('</table>')).toBeLessThan(html.indexOf(line))
+    expect(rankedHtml({ ...base })).not.toContain('Analyzed:')
+    expect(rankedHtml({ ...base, analyzedAtMs: null })).not.toContain('Analyzed:')
+  })
+
+  // With no column to show there is no forecast to section, and with no
+  // layer either the button stands alone, centred in the body (record 0139).
+  it('draws no section without a column, and stands the lone button', () => {
+    const html = rankedHtml({ rank: 1, row, removable: true })
+    expect(html).not.toContain('Forecast')
+    expect(html).not.toContain(CARD_FOLD_ATTR)
+    expect(html).not.toContain('border-top:')
+    expect(html).toMatch(new RegExp(`<div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}="remove"`))
+  })
+
+  it('stands the layers alone without a column', () => {
+    const html = rankedHtml({ rank: 1, row, sections: [FIRE] })
+    expect(html).toContain(heading('Active wildfires: Bolt Creek'))
+    expect(html).not.toContain(heading('Forecast'))
+  })
+})
+
+describe('sectionOpen', () => {
+  const ranked = { kind: 'ranked', row, rank: 1 } as const
+  const others = [
+    { kind: 'pending', pending: { name: 'Camp Muir', latitude: 46.8, longitude: -121.7, source: 'csv' } },
+    { kind: 'label', poi: RAINIER },
+    { kind: 'spot', lat: 48.8, lon: -121.8 },
+  ] as const
+
+  it('opens only the forecast on a ranked card', () => {
+    expect(sectionOpen(ranked, FORECAST_SECTION)).toBe(true)
+    expect(sectionOpen(ranked, 'fire')).toBe(false)
+    expect(sectionOpen(ranked, 'radar')).toBe(false)
+  })
+
+  it('opens every section on every other card', () => {
+    for (const subject of others) {
+      expect(sectionOpen(subject, 'fire')).toBe(true)
+      expect(sectionOpen(subject, 'snow')).toBe(true)
+    }
+  })
+
+  it("lets the reader's choice win either way, and only for the section it names", () => {
+    const folds = new Map([
+      ['fire', true],
+      [FORECAST_SECTION, false],
+      ['radar', false],
+    ])
+    expect(sectionOpen(ranked, 'fire', folds)).toBe(true)
+    expect(sectionOpen(ranked, FORECAST_SECTION, folds)).toBe(false)
+    expect(sectionOpen(ranked, 'smoke', folds)).toBe(false)
+    expect(sectionOpen(others[2], 'radar', folds)).toBe(false)
+    expect(sectionOpen(others[2], 'snow', folds)).toBe(true)
   })
 })
 
@@ -932,7 +1041,7 @@ describe('what a subject is', () => {
       lat: 48.79012,
       lon: -121.83211,
     })
-    const spot = { kind: 'spot', lat: 48.790123456, lon: -121.832114999, sections: [] } as const
+    const spot = { kind: 'spot', lat: 48.790123456, lon: -121.832114999 } as const
     expect(subjectPlace(spot)).toEqual(spotPlace(48.790123456, -121.832114999))
     expect(subjectPoint(spot)).toEqual({ lat: 48.79012, lon: -121.83211 })
   })
@@ -957,7 +1066,7 @@ describe('what a subject is', () => {
     expect(subjectType({ kind: 'label', poi: RAINIER })).toBe('peak')
     expect(subjectType({ kind: 'pending', pending: pending({ kind: 'crag', source: 'polygon' }) })).toBe('crag')
     expect(subjectType({ kind: 'pending', pending: pending({}) })).toBe('custom')
-    expect(subjectType({ kind: 'spot', lat: 0, lon: 0, sections: [] })).toBeNull()
+    expect(subjectType({ kind: 'spot', lat: 0, lon: 0 })).toBeNull()
   })
 })
 

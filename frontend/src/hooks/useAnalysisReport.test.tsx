@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useAnalysisReport } from './useAnalysisReport'
 import { analyzedView } from '../utils/analysisSnapshot'
@@ -159,5 +159,59 @@ describe('useAnalysisReport', () => {
     expect(result.current).toMatchObject({
       response: null, universe: null, analyzed: null, arriving: false, fireField: null, analysisSeq: 1, fireSeq: 1,
     })
+  })
+})
+
+// When the report committed, which a ranked card's forecast section says in
+// its fine print (#832): the commit's wall time, held with the report.
+describe('useAnalysisReport analyzedAtMs', () => {
+  const T1 = Date.parse('2026-11-03T21:36:00Z')
+  const T2 = T1 + 5 * 60_000
+  const at = (ms: number) => vi.spyOn(Date, 'now').mockReturnValue(ms)
+  afterEach(() => vi.restoreAllMocks())
+
+  it('stamps each commit with the time it committed, and nothing before one', () => {
+    const { result } = renderHook(() => useAnalysisReport())
+    expect(result.current.analyzedAtMs).toBeNull()
+    at(T1)
+    act(() => result.current.commit(DATA, ROWS, VIEW))
+    expect(result.current.analyzedAtMs).toBe(T1)
+    at(T2)
+    act(() => result.current.commit(DATA, ROWS, VIEW))
+    expect(result.current.analyzedAtMs).toBe(T2)
+  })
+
+  // A lookup's answer fills in the report that committed; it is no new run.
+  it('keeps the time through a patch', () => {
+    const { result } = renderHook(() => useAnalysisReport())
+    at(T1)
+    act(() => result.current.commit(DATA, ROWS, VIEW))
+    at(T2)
+    act(() => result.current.patch([{ ...ROWS[0], elevation_ft: 6000 }], VIEW))
+    expect(result.current.analyzedAtMs).toBe(T1)
+  })
+
+  it('puts the committed time back on a discard, and none where nothing had committed', () => {
+    const { result } = renderHook(() => useAnalysisReport())
+    act(() => result.current.discard())
+    expect(result.current.analyzedAtMs).toBeNull()
+    at(T1)
+    act(() => result.current.commit(DATA, ROWS, VIEW))
+    at(T2)
+    act(() => {
+      result.current.commitArriving(DATA, ROWS.slice(0, 1), VIEW)
+      result.current.discard()
+    })
+    expect(result.current.analyzedAtMs).toBe(T1)
+  })
+
+  it('drops the time with the report, and puts nothing back from before a clear', () => {
+    const { result } = renderHook(() => useAnalysisReport())
+    at(T1)
+    act(() => result.current.commit(DATA, ROWS, VIEW))
+    act(() => result.current.clear())
+    expect(result.current.analyzedAtMs).toBeNull()
+    act(() => result.current.discard())
+    expect(result.current.analyzedAtMs).toBeNull()
   })
 })

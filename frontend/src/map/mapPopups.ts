@@ -411,7 +411,9 @@ export function mountMapPopups(
       spotOpener = open
     },
     openSpot(at) {
-      const { lng, lat } = lngLatOf(at)
+      // Wrapped, so the spot's title, its link and the destination it adds
+      // carry a longitude a tile or a share link knows.
+      const { lng, lat } = pointOf(lngLatOf(at))
       spotOpener?.({ lng, lat } as maplibregl.LngLat)
     },
     pointKinds() {

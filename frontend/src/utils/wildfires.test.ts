@@ -1,18 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { markupText } from '../testSupport/markupText'
 import {
   wildfireQueryUrl,
   formatAcres,
-  formatContainment,
-  wildfirePopupHtml,
+  fireName,
   nifcFireUrl,
   isRateLimited,
   COARSE_TOLERANCE_DEG,
 } from './wildfires'
-
-// A representative fire-scoped NIFC link, reused by the popup tests.
-const NIFC = nifcFireUrl(-121.5, 39.5, 11)
-const textOf = markupText
 
 describe('wildfireQueryUrl', () => {
   it('targets Bluebird Forecast rather than NIFC', () => {
@@ -60,17 +54,6 @@ describe('formatAcres', () => {
   })
 })
 
-describe('formatContainment', () => {
-  it('rounds a reported percentage', () => {
-    expect(formatContainment(55.4)).toBe('55% contained')
-    expect(formatContainment(0)).toBe('0% contained')
-    expect(formatContainment(100)).toBe('100% contained')
-  })
-  it('handles an unreported percentage', () => {
-    expect(formatContainment(null)).toBe('Containment not reported')
-  })
-})
-
 describe('nifcFireUrl', () => {
   it('deep-links the NIFC explore map to the fire, as lat,lon,zoom', () => {
     const url = nifcFireUrl(-121.5, 39.5, 11.42)
@@ -80,85 +63,19 @@ describe('nifcFireUrl', () => {
   })
 })
 
-describe('wildfirePopupHtml', () => {
-  it('coalesces the incident name and falls back when absent', () => {
-    expect(wildfirePopupHtml({ attr_IncidentName: 'P-L Gulch' }, NIFC)).toContain('P-L Gulch')
-    expect(wildfirePopupHtml({ poly_IncidentName: 'Beehive' }, NIFC)).toContain('Beehive')
-    expect(wildfirePopupHtml({}, NIFC)).toContain('Unnamed fire')
+// The name a fire's section opens on (#832): NIFC files it under either
+// field, and a perimeter with neither still needs a name.
+describe('fireName', () => {
+  it('coalesces the two name fields', () => {
+    expect(fireName({ attr_IncidentName: 'P-L Gulch' })).toBe('P-L Gulch')
+    expect(fireName({ poly_IncidentName: 'Beehive' })).toBe('Beehive')
+    expect(fireName({ attr_IncidentName: 'Kaiser', poly_IncidentName: 'Other' })).toBe('Kaiser')
   })
 
-  it('escapes HTML in third-party incident names', () => {
-    const html = wildfirePopupHtml({ attr_IncidentName: '<img src=x>' }, NIFC)
-    expect(html).not.toContain('<img src=x>')
-    expect(html).toContain('&lt;img src=x&gt;')
-  })
-
-  // The band says what it is and the body how it is going (#738): the kind and
-  // the size on the facts line, the containment under the band's edge.
-  it('puts the kind and the size on the facts line and the containment in the body', () => {
-    const html = wildfirePopupHtml({ poly_GISAcres: 5649, attr_PercentContained: 0 }, NIFC)
-    expect(textOf(html)).toContain('Wildfire·5,649 acres')
-    expect(html.indexOf('0% contained')).toBeGreaterThan(html.indexOf('data-popup-body'))
-    expect(html.indexOf('5,649 acres')).toBeLessThan(html.indexOf('data-popup-body'))
-  })
-
-  it('carries no emoji, and no notice or action section', () => {
-    const html = wildfirePopupHtml({ attr_IncidentName: 'Beehive', poly_GISAcres: 10 }, NIFC)
-    expect(html).not.toContain('🔥')
-    expect(html).not.toContain('⚠️')
-    expect(html).not.toContain('<button')
-  })
-
-  // The link out is the title's glyph, as a destination's is, and the text
-  // link it replaced is gone.
-  it('links the title to the fire-scoped NIFC map', () => {
-    const html = wildfirePopupHtml({ attr_IncidentName: 'Beehive' }, NIFC)
-    expect(html).toContain(`href="${NIFC}"`)
-    expect(html).toContain('target="_blank"')
-    expect(textOf(html)).not.toContain('View on NIFC map')
-    expect(html).toContain('aria-label="View on NIFC map"')
-    expect(html.indexOf(`href="${NIFC}"`)).toBeLessThan(html.indexOf('Wildfire'))
-  })
-
-  it('dates the perimeter, and says whose date it is', () => {
-    const html = wildfirePopupHtml(
-      { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
-      NIFC,
-    )
-    expect(html).toContain('Updated:')
-  })
-
-  // The date qualifies the facts above it rather than joining them, so it goes
-  // last and wears the footnote treatment. Asserted because the order is the
-  // whole point of putting it there.
-  it('sets the date last, and smaller and italic than the facts', () => {
-    const html = wildfirePopupHtml(
-      { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
-      NIFC,
-    )
-    expect(html.indexOf('Updated:')).toBeGreaterThan(html.indexOf('% contained'))
-    const line = html.slice(html.lastIndexOf('<span', html.indexOf('Updated:')))
-    expect(line).toContain('font-style:italic')
-    expect(line).toContain('font-size:11px')
-  })
-
-  it('says nothing about the age of our own copy', () => {
-    // Deliberate: the server serves an aged snapshot rather than failing, so a
-    // visitor's answer no longer hinges on a fetch of their own, and a
-    // freshness line on every fire would be noise about an internal detail.
-    // `fetched_at` stays in the API response for programmatic callers.
-    const html = wildfirePopupHtml(
-      { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
-      NIFC,
-    )
-    expect(html).not.toContain('Retrieved')
-    expect(html).not.toContain('Bluebird')
-  })
-
-  it('still renders a perimeter NIFC has never revised', () => {
-    const html = wildfirePopupHtml({ attr_IncidentName: 'Fresh' }, NIFC)
-    expect(html).not.toContain('Updated:')
-    expect(html).toContain('Fresh')
+  it('trims, and falls back to Unnamed fire', () => {
+    expect(fireName({ attr_IncidentName: '  Bolt Creek  ' })).toBe('Bolt Creek')
+    expect(fireName({ attr_IncidentName: '   ' })).toBe('Unnamed fire')
+    expect(fireName({})).toBe('Unnamed fire')
   })
 })
 

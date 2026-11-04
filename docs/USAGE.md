@@ -58,7 +58,9 @@ The slope on a card is the ground's angle at the place's point, with a swatch of
 
 A neutral dot, a destination not yet forecast, opens a card too, whenever you are not drawing: its name, its coordinates, and what is known of it. A destination named by its coordinates alone, a pasted pair or an added spot, says the pair once, as its title, with the glyph that opens CalTopo there. Its card offers **Remove from analysis**, as its row in the results table offers ×, whatever named the destination; a removed one is listed under Removed, where it can be put back. Its name in the results table opens the same card.
 
-Click anywhere else on the map for a card about that spot. Its title is the coordinates, and the glyph beside them opens CalTopo there. Under the title is the ground, its height and its slope, and under that whatever the rain radar or the snow depth shows there while either layer is on, each with where and when it was measured. **Add to analysis** makes the spot a destination, the same as pasting its coordinates into the search box, and the next **Analyze** forecasts it. While a card is open, a click on the map closes it; hold Shift to open another beside it.
+Click anywhere else on the map for a card about that spot. Its title is the coordinates, and the glyph beside them opens CalTopo there. Under the title is the ground, its height and its slope, and under that what each layer you have on says there. **Add to analysis** makes the spot a destination, the same as pasting its coordinates into the search box, and the next **Analyze** forecasts it. While a card is open, a click on the map closes it; hold Shift to open another beside it.
+
+Under its band, every card on the map is a stack of sections: a marker's, a neutral dot's, a label's and a spot's alike. There is one for each layer in the Layers menu that is on and has something at the card's point, in this order: **Fire activity**, **Trail closures**, **Active wildfires**, **Area closures**, **Smoke**, **Rain radar** and **Snow depth**. Each opens on the layer's name and what it found there, such as **Active wildfires: Bolt Creek** or **Rain radar: Moderate precipitation**, then its rows, then where and when it was measured in small italics, such as **NEXRAD radar: 10 min ago**. A fire's name has the glyph beside it that opens the fire on NIFC's map, and a closure's the one that opens the order's page where there is one. A fire or a hotspot gets a section within 10 miles of the point, a closed trail, road or site within a mile, an area closure only where the point stands inside it, and smoke only where a plume is over the point. A closed trail says nothing about the summit it leads to, which is why it reaches so much less far than a fire. A section about something the point is not on starts with how far it is and which way, **Distance: 3.2 mi NW**. The chevron at the right of each section folds it down to its name, and opens it again. Before an analysis every section is open; on a result's card only the forecast is, with the layers' sections folded above it. A fold you make holds for that layer on every card until you reload the page. Switch a layer off and its section leaves every open card, and a fire, a closure or a star that arrives after you pan joins the open cards it reaches. A card that grows past the edge of the map after it opens scrolls where it stands.
 
 ### c. Polygon search
 
@@ -325,7 +327,7 @@ label carries the coverage, because the one row that most needed a word for its
 coverage has none: the area feeds cover eight states, and "West" is not their
 name.
 
-Clicking a closure names its order, the national forest, the trail and its
+A closure's section names its order, the national forest, the trail and its
 number on a closed trail, and the dates the order runs when it states both, with
 a link to the order where the Forest Service publishes one. In Oregon and
 Washington the status is the Forest Service's own: Bluebird Forecast shows what
@@ -347,41 +349,43 @@ red to orange while the map is open, and nothing older than 48 hours is drawn.
 The newest star is already about 3 hours old when it arrives, a cloudy pass sees
 nothing, and a gas flare or a hot roof can look like fire, so read a star as a
 place to look closer, not a fire line ([DATA.md](DATA.md#fire-activity)).
-Click a star for its card, **Hotspot**: when the satellite saw it and how long
-ago, which satellite and instrument, FIRMS's confidence (a word for VIIRS, a
-percent for MODIS), and the fire's radiative power in megawatts. Zoomed out far enough to see a whole continent,
+Click a star and the spot's card opens on the star, with a **Fire activity:
+Hotspot** section: when the satellite saw it and how long ago, which satellite
+and instrument, FIRMS's confidence (a word for VIIRS, a percent for MODIS), and
+the fire's radiative power in megawatts. Its small print, **NASA FIRMS:** and a
+time, is when Bluebird Forecast last fetched the detections; the satellite's own
+time is the **Detected** row. Zoomed out far enough to see a whole continent,
 the layer draws nothing, and draws again as you zoom in.
 
-Clicking a perimeter, a closure or a plume opens the same card a destination
-gets, and the map moves to show it the same way: its name on a light grey band,
-and what kind of thing it is under that. A fire's card gives its size and how
-contained it is, and its name links to it on NIFC's live map. A closure's gives
-the area's acres or the trail's route, the forest and the dates, and its name
-links to the order where the Forest Service published one. Outside Oregon and
-Washington an amber line under the band gives the order's type, such as
-**Safety Closure**; an Oregon or Washington order is a fire closure, which its
-name already says. A plume's card says how dense it is, which satellite it was
-traced from, and over what hours. A click on a radar echo or on painted snow
-opens the spot's card with a section for each, and the pointer says where one
-will. A section opens on its layer's name and what it reads there: the
-radar's on how strong the echo is, **Rain radar: Weak radar echo**, with an
-estimated rate and the reflectivity it is read from, and the snow's on how
-deep the snow is, **Snow depth: Deep snow**, with the depth and the snow water
-equivalent. Each section ends with where and when it was measured, **NEXRAD
-radar: 10 min ago**. The snow's numbers land a moment after the card opens,
-since they are asked of NOAA at the click, and over a glacier OpenStreetMap has
-mapped its section reads **Snow depth: Glacier**. A card left open follows the
-forecast player, frame by frame, reading **Rain radar: No radar echo** on a
-frame with none at its point,
-and the pointer follows the frames under a mouse that is not moving. Where
-both are painted under one click, the card carries both, the radar first. A
-click where neither is painted opens the spot's card with neither. Nothing on
-the map opens on a hover. Where things overlap, the
-smaller and more deliberate target takes the click: a marker or a peak inside a
-fire or a closure opens its own popup, a star opens before the label or the
-shape under it, a closed trail opens before the fire or
-the ground around it, a fire before the closure drawn around it, any of them
-before the smoke over it, and the smoke before the radar and the snow under it.
+Clicking a perimeter, a closure or a plume opens the card of the spot you
+clicked, as a click on bare map does, and the map moves to show it the same way
+a destination's card does. What you clicked is a section of that card, beside
+every other layer that has something there. A fire's section gives how far
+the fire is when the point is outside it, its size and how contained it is,
+and ends with NIFC's date for the survey, **NIFC:** and the date. A closure's
+gives how far a closed trail is, the forest, and the area's acres or the
+trail's route, and ends with the dates the order states, **US Forest
+Service:** and the two dates.
+Outside Oregon and Washington an amber line under the order's name gives its
+type, such as **Safety Closure**; an Oregon or Washington order is a fire
+closure, which its name already says. A plume's section names how dense it is,
+**Smoke: Heavy smoke**, with the satellite it was traced from, and ends with
+the hours it was traced over, **NOAA HMS:** and the window. A click on a radar echo or on
+painted snow opens the spot's card too, and the pointer says where one will.
+The radar's section opens on how strong the echo is, **Rain radar: Weak radar
+echo**, with an estimated rate and the reflectivity it is read from, and the
+snow's on how deep the snow is, **Snow depth: Deep snow**, with the depth and
+the snow water equivalent. The snow's numbers land a moment after the card
+opens, since they are asked of NOAA when it does, and over a glacier
+OpenStreetMap has mapped its section reads **Snow depth: Glacier**. A card left
+open follows the forecast player, frame by frame, reading **Rain radar: No
+radar echo** on a frame with none at its point, and the pointer follows the
+frames under a mouse that is not moving. So a star over snow in a closed area
+under rain is one card of four sections, not four cards. Nothing on the map
+opens on a hover. Where things overlap, the smaller and more deliberate target
+takes the click: a marker or a peak inside a fire or a closure opens its own
+card, which carries the fire or the closure as a section, and a star opens its
+card on the star before the label or the shape under it.
 A closed trail answers a click a few pixels either side of its line. While you
 draw a polygon, fires, closures, smoke, the stars, the radar, the snow and map labels are
 scenery, and a click on one places a point.
@@ -650,7 +654,7 @@ Marker colors follow the ranked metric. Under the default ranking that is total 
 
 These six are the US EPA's air quality colors, and every metric with a plain good end and bad end uses them. Wind is green at or below 5 mph, yellow to 15, orange to 25, red to 35, purple to 50 and maroon above 50. Purple and maroon are the EPA's Very Unhealthy and Hazardous, so wherever you meet them the reading is the same: past the point of weighing an option. Temperature is the one scale with a bad end on both sides: purple at or below 30°F, through sky blue and cyan, green from 60 to 75°F, then orange and red above 90°F.
 
-Click a marker for a popup carrying the same metrics the results table is showing, listed alphabetically whatever the ranking. The map moves so the popup shows as much of itself as it can: above the results sheet, clear of the search box and the chips at the map's top left, the legend, the forecast player and a desk's buttons and credits at the bottom right, and title first where the whole card does not fit. A new analysis closes every open popup, pinned ones included, because a popup is drawn from the report it was opened over. Within one report an open popup keeps up with the panel: rank by another metric or aggregate, or hide a column, and the card changes with the table, its rank included. Centring a destination from the table does the same, with the marker flown to the middle of the map first. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate as a grid, one metric per row under Min, Max, Avg and Total columns, each column a shaded band. Precipitation and snowfall are labelled with their hourly rate, and their window totals in inches stand in the Total column, which is empty for every other metric. Every number of the metric the report is ranked by is coloured the way the table colours it, and the number the ranking reads is bold; both move when the ranking does. On a phone the card spans the map less a narrow margin each side, and its columns sit closer together, because the grid needs that room to keep every label on one line. A card too tall for the room the map has, on a short phone screen, keeps its title in view and scrolls the rest. Hiding a column in the **Columns** picker hides it in the popup too. The name, the coordinates, and the type, the elevation and the slope sit on a shaded band at the top of the card, with the model on a line of its own while a comparison is up. A name too long for the card ends in an ellipsis, as it does in the table. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning stays a banner rather than a line among the metrics, in a section of its own under the name and ruled off from the numbers, and links to that fire on the NIFC map. A closure warning follows it in the same section, linked to the order's page when there is one. Two warnings are bulleted, under one warning sign at the section's right. Each keeps one line, and a closure name too long for the card ends in an ellipsis; the order's page and the table's Closure column carry it whole. Both stay in view when a short screen scrolls the numbers. The coordinates are a link to CalTopo, centred on the destination at the zoom the map is showing, in whatever layers your own CalTopo settings choose. The elevation carries no link, because it is not a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not green to red: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's legend always names the metric it is drawing and the numbers its scale turns on.
+Click a marker for a popup carrying the same metrics the results table is showing, listed alphabetically whatever the ranking. The map moves so the popup shows as much of itself as it can: above the results sheet, clear of the search box and the chips at the map's top left, the legend, the forecast player and a desk's buttons and credits at the bottom right, and title first where the whole card does not fit. A new analysis closes every open popup, pinned ones included, because a popup is drawn from the report it was opened over. Within one report an open popup keeps up with the panel: rank by another metric or aggregate, or hide a column, and the card changes with the table, its rank included. Centring a destination from the table does the same, with the marker flown to the middle of the map first. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate as a grid, one metric per row under Min, Max, Avg and Total columns, each column a shaded band. Precipitation and snowfall are labelled with their hourly rate, and their window totals in inches stand in the Total column, which is empty for every other metric. Every number of the metric the report is ranked by is coloured the way the table colours it, and the number the ranking reads is bold; both move when the ranking does. On a phone the card spans the map less a narrow margin each side, and its columns sit closer together, because the grid needs that room to keep every label on one line. A card too tall for the room the map has, on a short phone screen, keeps its title in view and scrolls the rest. Hiding a column in the **Columns** picker hides it in the popup too. The name, the coordinates, and the type, the elevation and the slope sit on a shaded band at the top of the card. While a comparison is up, the forecast section's name says which model a row's numbers came from. A name too long for the card ends in an ellipsis, as it does in the table. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. The grid is the card's last section, named for the model the numbers came from, such as **Forecast: NOAA GFS**, or **Forecast** alone over an archive window, which no model produced, and it ends with when the report was analyzed, **Analyzed: Nov 3, 2026, 1:36 PM**. Above it stand the sections of the layers you have on, folded to their names, so a fire within 10 miles or a closure the destination stands in reads there by name; open one with its chevron. The card carries no warning line of its own: the table's **Wildfire (mi)** and **Closure** columns still check every ranked row, whatever layers are on. The coordinates are a link to CalTopo, centred on the destination at the zoom the map is showing, in whatever layers your own CalTopo settings choose. The elevation carries no link, because it is not a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not green to red: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's legend always names the metric it is drawing and the numbers its scale turns on.
 
 ## Results Table
 
