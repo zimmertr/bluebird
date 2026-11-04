@@ -791,7 +791,7 @@ function TimeSeriesChart({
       const area = areaEl.getBoundingClientRect()
       const first = (boxes[0].current ?? areaEl).getBoundingClientRect()
       const a = { x: area.left - r.left, y: area.top - r.top, w: area.width, h: area.height }
-      const height = Math.max(0, Math.min(Math.floor((a.h - 3 * PIN_INSET_PX) / 2), TOOLTIP_CHROME_PX + lineCount * TOOLTIP_ROW_PX))
+      const height = clamp(Math.floor((a.h - 3 * PIN_INSET_PX) / 2), 0, TOOLTIP_CHROME_PX + lineCount * TOOLTIP_ROW_PX)
       const next = tourPins.flatMap((index, k): Pin[] => {
         const t = times[index]
         if (t === undefined) return []
