@@ -384,6 +384,14 @@ frames, and the main thread's work by kind from Chrome's trace, where `Paint`
 is the number a layer saves. `CPU_SLOWDOWN` works here too, and shows what a
 loaded machine sees.
 
+And it drags a chart panel by its title (`frontend/e2e/perf/panelDrag.spec.ts`,
+#846): four panels in 1 over 3 over 200 lines and 15 days, dark, the last
+panel's title to over the second in 30 moves, three times. It prints a
+`panel drag` line with the main thread per move, the React commits, box
+measures and layout passes during the moves (an `idle` run of the same frames
+with nothing moving gives the page's own rate), and the release's time to the
+new order on screen with its longest task.
+
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model
 regenerates the committed OpenAPI snapshot with

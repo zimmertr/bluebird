@@ -1,4 +1,4 @@
-# 0264. Every card on the map is one stack of foldable sections, one for each layer that has something at its point, with the forecast last
+# 0266. Every card on the map is one stack of foldable sections, one for each layer that has something at its point, with the forecast last
 
 - Status: Accepted; extends [0253](0253-slope-on-every-card-and-the-spot-card.md) (the spot card's sections are every card's) and [0165](0165-radar-and-snow-answer-a-click.md) (the radar's and the snow's sections wear `cardSection`); supersedes [0161](0161-every-popup-is-the-card.md) in part (the overlay cards and the notices band) and [0123](0123-popup-grid-and-scroll-cap.md) in part (the ranked card's warnings section)
 - Date: 2026-11-03

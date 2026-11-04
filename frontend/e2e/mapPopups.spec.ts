@@ -5,7 +5,7 @@ import type { Locator, Page } from '@playwright/test'
 // under a click takes it (TJ, 2026-10-08, record 0125): a destination inside
 // a fire opens its own card, a click on the fire around it opens the spot's
 // card there with the fire in a section of its own rather than leaving for
-// NIFC (#832, record 0264), and a cursor resting on the fire opens nothing.
+// NIFC (#832, record 0266), and a cursor resting on the fire opens nothing.
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
@@ -152,7 +152,7 @@ test('a fire opens the spot’s card on a click and never on a hover, and a mark
 
 // A phone has no hover, so a closure's popup opened on nothing there until a
 // tap opened it. A tap on a closure opens the spot's card there, with a
-// section for each closure that reaches it (#832, record 0264): the closed
+// section for each closure that reaches it (#832, record 0266): the closed
 // trail first, the closed ground it crosses after. A closed trail answers a
 // tap a few pixels off its line.
 test.describe('on a phone', () => {

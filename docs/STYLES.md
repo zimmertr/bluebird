@@ -228,7 +228,7 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `ICON` | How big a drawn glyph is, in four steps: `control` 16 (in or beside a control, the search magnifier included), `inline` 14 (a mark inside a line of text), `chip` 12 (a chip's remove cross, either chip), `micro` 10 (inside a drawn disc or button smaller than a control). Read by `components/icons.tsx`, which draws every icon in the app; every step carries the measurement that chose it |
 | `ICON_BUTTON` | Bare icon button in header, and the bare × inside a card or a field: the popup's, the tutorial's, the search's (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
 | `ICON_CLOSE_BUTTON` | `ICON_BUTTON` for a × with free room around it, the tutorial card's and the search's clear: a 44px press under a finger through a pseudo-element, without growing the glyph |
-| `CARD_FOLD` | The chevron that folds each section of a card on the map (#832): a 24px box at the section's right edge, 32px under a finger, with the control radius for its focus ring. It names no colour: its ink is the popup's glyph grey, set in the card's markup, and it takes the accent under the pointer through `data-popup-glyph` in `map.css`, as the band's link-out glyph does (record [0264](decisions/0264-every-card-is-a-stack-of-foldable-layer-sections.md)) |
+| `CARD_FOLD` | The chevron that folds each section of a card on the map (#832): a 24px box at the section's right edge, 32px under a finger, with the control radius for its focus ring. It names no colour: its ink is the popup's glyph grey, set in the card's markup, and it takes the accent under the pointer through `data-popup-glyph` in `map.css`, as the band's link-out glyph does (record [0266](decisions/0266-every-card-is-a-stack-of-foldable-layer-sections.md)) |
 | `ICON_ACTION` | Icon that acts on hover |
 | `SPINNER` | Indeterminate spinner |
 | `TABLE.cell` | Results table cell inset |
@@ -779,6 +779,16 @@ segment of its picker's field (`CHART_PICKER`): one outline, an `edge`
 divider, and a quiet glyph with its focus ring inside. Its twin on the left end is the grip that moves the panel, behind an `edge` divider too, and a drag shows where it lands with a 2px accent bar in the row's 8px gap. `CHART_LAYOUT` draws the Panel layout button's miniature of the arrangement inside the + square's chrome, and its menu of 34 by 26 squares, the current one in the accent ink and edge. `CHART_GUTTER` draws the gaps of a desk's grid of
 three or four panels: a 1px `edge` line, 3:1 or better on the panel, that turns accent on hover and while
 dragged, with a small three-dot grip at its middle on the panel's fill, and a 16px crossing that shows a dot, both rimmed in `edge` and one level quieter than the sheet's raised grip.
+`CHART_PANEL_TITLE` names each desk panel while two or more are drawn: the
+picker's option label in a 15px chip at the plot band's top left, the strong
+`ink` on the popup's `band` token at the micro step (10.05:1 dark, 14.42:1
+light). Every title but the first takes a grab cursor and lights its words
+in the accent ink under the pointer, as every control does
+(`ACCENT.hoverText`), at 5.69:1 dark and 5.43:1 light on the band; a drag carries a
+half-size ghost of the panel on the hover card's surface and stands the
+picker row's 2px accent bar where it lands. In a titled panel the Now,
+model-end and extreme labels move down under the chip
+(record [0264](decisions/0264-chart-panels-titled-and-dragged-by-title.md)).
 The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:
 the hour as a 13px title on the popup's `band` token, the rows in a body,
 and `+N more` in a footer. The band is an app token now (`--ui-band`), and

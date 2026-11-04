@@ -1,6 +1,6 @@
 # 0253. Every card that names a place says its slope, one module opens them all, and a click on bare map opens the spot's
 
-- Status: Accepted; amends [0123](0123-popup-grid-and-scroll-cap.md) (the facts under the name are two lines); extended by [0264](0264-every-card-is-a-stack-of-foldable-layer-sections.md) (the spot card's sections are every card's, the hazards' among them, each folding on its chevron)
+- Status: Accepted; amends [0123](0123-popup-grid-and-scroll-cap.md) (the facts under the name are two lines); extended by [0266](0266-every-card-is-a-stack-of-foldable-layer-sections.md) (the spot card's sections are every card's, the hazards' among them, each folding on its chevron)
 - Date: 2026-10-31, revised 2026-11-03 before it shipped
 - Decider: the maintainer (TJ), on #832
 - Issues and PRs: #832; builds on #799 (PR #823) and #737 (record 0165). PR #835 built a point forecast on a right-click card and was closed for this; PR #845 ships it
