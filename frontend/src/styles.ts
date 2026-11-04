@@ -744,7 +744,9 @@ export const BUTTON_ACCENT =
 /**
  * The Polygon row (#687): the mode button, Cancel and Clear, always the three,
  * a third of the panel each, so the row stands on the edges the coordinates
- * box above it does.
+ * box above it does. The Coordinate search row shares it since #838: the
+ * Example list field across the first two cells and Clear in the third, on
+ * the edge the Polygon row's Clear stands on (record 0263).
  *
  * The two button roles at a 4px inset rather than 12px, and nothing else
  * changed. In a third the cell sets the width and the label is centred in it,
@@ -760,6 +762,18 @@ export const DRAW_ROW = {
   row: 'grid grid-cols-3 gap-2',
   secondary: BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '),
   accent: BUTTON_ACCENT.replace(' px-3 ', ' px-1 '),
+  /**
+   * The Example list field (#838): what a `MenuSelect` adds to the field
+   * shape to stand in the first two cells. The trigger is the grid item
+   * itself, so the span is its own. Two cells because one leaves 72px of
+   * label beside the chevron at 12px and `The Bulger List` is 85px, so every
+   * name would truncate (measured 2026-11-03). The 5px is the button's 6px
+   * less the field's 1px border, so the field stands 28px beside a 28px Clear
+   * (16px of line each) where the Model row's 2px would leave it 22px; on
+   * touch both grow to `TAP`'s 32px, the field by `TAP.height` and the button
+   * by `TAP.action`.
+   */
+  field: 'col-span-2 px-2 py-[5px]',
 } as const
 
 /**

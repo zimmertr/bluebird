@@ -4681,6 +4681,29 @@ describe('the polygon row', () => {
     }
     expect(destinationsSource).not.toMatch(/BUTTON_(SECONDARY|ACCENT)/)
   })
+
+  // The Coordinate search row is the same grid (#838, record 0263): the
+  // Example list field across two cells and Clear in the third, the two the
+  // same height under either pointer.
+  it('stands the Example list field as tall as the Clear beside it', () => {
+    const px = (cls: string, prefix: string) =>
+      Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-\\[(\\d+)px\\](?:\\s|$)`))![1])
+    const LINE = 16
+    expect(MENU_TRIGGER.field).toContain(TEXT.control)
+    expect(DRAW_ROW.secondary).toContain(TEXT.control)
+    expect(MENU_TRIGGER.field).toMatch(/(^|\s)border(\s|$)/)
+    expect(DRAW_ROW.secondary).not.toMatch(/(^|\s)border(\s|$)/)
+    const field = 2 * 1 + 2 * px(DRAW_ROW.field, 'py') + LINE
+    const button = 2 * stepPx(DRAW_ROW.secondary, 'py') + LINE
+    expect(field).toBe(28)
+    expect(button).toBe(28)
+    expect(MENU_TRIGGER.field).toContain(TAP.height)
+    expect(DRAW_ROW.secondary).toContain('touch:min-h-8')
+    expect(TAP.height).toBe('touch:min-h-8')
+    expect(DRAW_ROW.field).toMatch(/(^|\s)col-span-2(\s|$)/)
+    expect(destinationsSource).toContain('className={DRAW_ROW.field}')
+    expect(destinationsSource.match(/className=\{DRAW_ROW\.row\}|\$\{DRAW_ROW\.row\}/g)).toHaveLength(2)
+  })
 })
 
 describe('the calendar field wraps', () => {

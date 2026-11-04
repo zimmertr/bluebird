@@ -1,9 +1,8 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef } from 'react'
 import { CustomDestination, DiscoveryType } from '../types'
 import {
   CHOICE_INPUT,
   CHOICE_ROW,
-  CONTROL_W,
   DISABLED,
   DRAW_ROW,
   FIELD,
@@ -14,9 +13,8 @@ import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import { parseCustomCsv } from '../utils/customDestinations'
-import { EXAMPLE_LISTS, exampleListIn, fetchExampleList, type ExampleList } from '../utils/exampleLists'
+import { EXAMPLE_LISTS, exampleListIn, fetchExampleList } from '../utils/exampleLists'
 import { MenuSelect } from './Menu'
-import ConfirmDialog from './ConfirmDialog'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
 import DrawReadout from './DrawReadout'
@@ -132,16 +130,17 @@ export default function DestinationsSection({
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
   // A list picked from the Example list field (#838, record 0263) replaces
-  // the box. An empty box, or one holding a list that arrived this session,
-  // is replaced at once; rows the reader typed are asked about first, since
-  // a list is nothing of theirs and their rows are. The list frames the map
-  // as a paste does, since it arrives whole rather than typed, and the
+  // whatever the box holds, typed rows included, with nothing asked: the pick
+  // is the press that means it (the maintainer, 2026-11-03). The list frames
+  // the map as a paste does, since it arrives whole rather than typed, and the
   // keyboard goes to the box the rows just landed in.
   const csvBoxRef = useRef<HTMLTextAreaElement>(null)
-  const currentList = exampleListIn(customCsv)
-  const [pendingList, setPendingList] = useState<ExampleList | null>(null)
-  const loadList = async (list: ExampleList) => {
-    setPendingList(null)
+  const csvHeadingId = useId()
+  const csvClearId = useId()
+  const csvBlank = customCsv.trim() === ''
+  const loadList = async (url: string) => {
+    const list = EXAMPLE_LISTS.find((l) => l.url === url)
+    if (!list) return
     const text = await fetchExampleList(list)
     onExampleListFailed(text === null)
     if (text === null) return
@@ -149,12 +148,6 @@ export default function DestinationsSection({
     const points = parseCustomCsv(text)
     if (points.length > 0) onCsvPasted(points)
     csvBoxRef.current?.focus()
-  }
-  const pickList = (url: string) => {
-    const list = EXAMPLE_LISTS.find((l) => l.url === url)
-    if (!list) return
-    if (customCsv.trim() === '' || currentList !== null) void loadList(list)
-    else setPendingList(list)
   }
   // The row's three buttons never unmount; a press that greys the one it
   // landed on (Draw polygon turning into a Done that waits for three points,
@@ -224,38 +217,50 @@ export default function DestinationsSection({
           bring to the map rather than a gesture on it. Two rows tall at
           rest, so a reader sees that several rows go in, with the format and
           one row that follows it as the placeholder. No helper line; the
-          format states itself. The Example list row under the subheading is
-          a label beside its control like every other row in the panel (#838,
-          record 0263): the one menu over the ready-made lists, in the control
-          column, reading the list's name while the box is that list and None
-          or Custom otherwise, so the field says what the box holds the way
-          Model says which model. A menu rather than the lists written out,
-          because the lists will outgrow a note, and a row of its own rather
-          than the subheading's line, where a control beside one of three
-          parallel headings read as out of place (the maintainer, 2026-11-03). */}
+          format states itself. The row under the subheading is the Polygon
+          row's grid (#838, record 0263): the one menu over the ready-made
+          lists across two cells, reading the list's name while the box is
+          that list and None or Custom otherwise, so the field says what the
+          box holds the way Model says which model, and Clear in the third,
+          on the edge the Polygon row's Clear stands on. Two cells because a
+          third leaves 72px of label beside the chevron, and every list's
+          name is wider than that. A menu rather than the lists written out,
+          because the lists will outgrow a note (the maintainer, 2026-11-03).
+          Clear is named with the subheading, since the Polygon row's Clear
+          is a second button reading the same word. */}
       <div className="mb-3">
-        <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinate search</h3>
-        <div className="mb-1.5 flex items-center gap-2">
-          <span className={`${TEXT.control} flex-1`}>Example list</span>
+        <h3 id={csvHeadingId} className={`${TEXT.subheading} mb-1.5`}>
+          Coordinate search
+        </h3>
+        <div className={`${DRAW_ROW.row} mb-1.5`}>
           <MenuSelect
             label="Example list"
-            placeholder={customCsv.trim() === '' ? 'None' : 'Custom'}
-            value={currentList?.url ?? ''}
+            placeholder={csvBlank ? 'None' : 'Custom'}
+            value={exampleListIn(customCsv)?.url ?? ''}
             options={EXAMPLE_LISTS.map((list) => ({ value: list.url, label: list.name }))}
-            onChange={pickList}
+            onChange={(url) => void loadList(url)}
             sheet={phone}
-            className={`${CONTROL_W} px-2 py-0.5`}
+            className={DRAW_ROW.field}
           />
+          {/* What emptying the box by hand does, and nothing more. The press
+              greys the button it landed on, so a keyboard on it would land
+              on the body; the box takes it, as the Polygon row's first live
+              button takes its row's (#576). Only when the button held it,
+              so a press that focused nothing, as Safari's does, moves
+              nothing. */}
+          <button
+            id={csvClearId}
+            aria-labelledby={`${csvClearId} ${csvHeadingId}`}
+            onClick={(e) => {
+              setCustomCsv('')
+              if (document.activeElement === e.currentTarget) csvBoxRef.current?.focus()
+            }}
+            disabled={csvBlank}
+            className={`${DRAW_ROW.secondary} ${DISABLED}`}
+          >
+            Clear
+          </button>
         </div>
-        {pendingList && (
-          <ConfirmDialog
-            question={`Load ${pendingList.name}?`}
-            body="This replaces the rows in the Coordinate search box."
-            confirmLabel="Load"
-            onConfirm={() => void loadList(pendingList)}
-            onCancel={() => setPendingList(null)}
-          />
-        )}
         <textarea
           ref={csvBoxRef}
           aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
@@ -275,7 +280,7 @@ export default function DestinationsSection({
           rows={2}
           className={`${FIELD} w-full p-2 font-mono resize-y`}
         />
-        {customCsv.trim() !== '' && (
+        {!csvBlank && (
           <p className={`${TEXT.helper} mt-1`}>
             {parsedCount} destination{parsedCount !== 1 ? 's' : ''} parsed
           </p>
