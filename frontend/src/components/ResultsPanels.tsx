@@ -1,5 +1,4 @@
 import { Suspense, lazy, memo, useMemo, useRef, type ReactNode } from 'react'
-import { panelsFrom } from '../utils/chart/chartData'
 import type { DestinationResult, SortBy } from '../types'
 import type { ChartCompare } from '../hooks/useChartCompare'
 import type { FireProximity } from '../hooks/useFireProximity'
@@ -58,7 +57,7 @@ const TimeSeriesChart = lazy(() => {
 
 // What the chart is handed outside the tutorial's demonstration: the reader's
 // own metrics, layout and pins (#850). Hoisted, so the default is one value.
-const NO_CHART_TOUR: ChartTour = { panels: false, layoutOpen: false, pins: null }
+const NO_CHART_TOUR: ChartTour = { metrics: null, layoutOpen: false, pins: null }
 
 // What the chart draws for its rows while a model comparison is up: nothing,
 // because the comparison composes every line itself. A module constant so the
@@ -220,16 +219,10 @@ export default function ResultsPanels({
   const layer = pushing ? LAYOUT_HOLD.layer : ''
   useScrollShadows(tableScrollRef, tablePane.mounted)
   const { chart, chartMetrics, compare, rowChartColor, shared } = charts
-  // The tutorial's Panels card and the two after it (#850): the first slot
-  // the chart already shows, which the Chart card drew over the
-  // demonstration, then what three presses of the + add to it, so the card
-  // extends that panel rather than replacing it. Kept on the slot and the
-  // flag, so the three cards hand the memoized chart one list.
-  const firstSlot = chartMetrics.metrics[0]
-  const tourMetrics = useMemo(
-    () => (chartTour.panels ? panelsFrom(firstSlot) : null),
-    [chartTour.panels, firstSlot],
-  )
+  // Over the tutorial's demonstration the chart draws the tour's own panels
+  // (#850): temperature, and on the Panels card and the two after it the
+  // three beside it, each list one identity from `useTour`.
+  const tourMetrics = chartTour.metrics
   const {
     tableRows,
     tableColumns,

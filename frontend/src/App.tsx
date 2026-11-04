@@ -371,11 +371,23 @@ export default function App() {
   }, [destinationNamed])
 
   // What the displayed report is rendered under, and whether it is one hour.
-  const { view, pointSample } = reportView(shownAnalyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
+  // Over the demonstration its own ranking (#850): its rows are ranked by
+  // temperature, so the results bar, the table's ranked column, the markers'
+  // legend and the chart read that rather than the panel's. The panel, the
+  // chart's own slots and the address bar keep the reader's.
+  const { view, pointSample } = reportView(
+    shownAnalyzed,
+    demo?.analyzed.sortBy ?? sortBy,
+    demo?.analyzed.sortDesc ?? sortDesc,
+    selection.kind,
+    panelWindowMs,
+  )
+  const readerRanking = useMemo(() => ({ sortBy, sortDesc }), [sortBy, sortDesc])
   const preview = usePreview()
   // The chart's metric slots (#499), here rather than in the results view
-  // because the address bar's sync below carries them.
-  const chartMetrics = useChartMetrics(restored?.chart, view.sortBy, restored?.chartLayout ?? undefined)
+  // because the address bar's sync below carries them. The reader's ranking,
+  // never the demonstration's, so the tour moves none of the reader's slots.
+  const chartMetrics = useChartMetrics(restored?.chart, sortBy, restored?.chartLayout ?? undefined)
 
   const report = usePresentedReport({
     universe: shownUniverse,
@@ -385,7 +397,10 @@ export default function App() {
     analysisSeq,
     arriving,
     liveKnobs,
-    view,
+    // The panel's ranking for the header sort, and the demonstration's own
+    // knobs for its rows while it stands in (#850).
+    view: readerRanking,
+    demoKnobs: demo?.analyzed ?? null,
     pointSample,
     removedKeys,
     activeRemovedKeys,

@@ -17,7 +17,6 @@ import {
   buildChartData,
   MAX_CHART_PANELS,
   addMetric,
-  panelsFrom,
   cardCells,
   isChartMetric,
   metricsFor,
@@ -740,17 +739,6 @@ describe('the chart metric slots', () => {
     expect(addMetric([first])).toEqual([first, CHART_METRICS[1].key])
     const full = CHART_METRICS.slice(0, MAX_CHART_PANELS).map((m) => m.key)
     expect(addMetric(full)).toBe(full)
-  })
-
-  // The tutorial's Panels card (#850): the chart's own first slot, then what
-  // three presses of the + add to it.
-  it('gives the four panels three presses of the + add to a first slot', () => {
-    expect(panelsFrom('aqi')).toEqual(['aqi', 'cloud_deck', 'freeze', 'precip'])
-    expect(panelsFrom('wind')).toEqual(['wind', 'aqi', 'cloud_deck', 'freeze'])
-    let byHand: ChartMetrics = ['temp']
-    for (let i = 0; i < 3; i++) byHand = addMetric(byHand)
-    expect(panelsFrom('temp')).toEqual(byHand)
-    expect(panelsFrom('temp')).toHaveLength(MAX_CHART_PANELS)
   })
 
   it('moves a panel among the slots after the first, the rest closing up', () => {

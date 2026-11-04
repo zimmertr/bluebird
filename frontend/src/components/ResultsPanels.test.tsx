@@ -218,41 +218,34 @@ describe('ResultsPanels', () => {
   })
 })
 
-// The tutorial's Panels card and the two after it (#850) hand the chart four
-// panels that extend the one the Chart card showed: the reader's own first
-// slot, then what three presses of the + add to it, in the count's own
-// layout, one list across the three cards, and the reader's own back after.
+// Over the tutorial's demonstration (#850) the chart draws the tour's own
+// list in place of the reader's, in the count's own layout, one identity
+// across the cards, and the reader's own list and layout back after.
 describe("the tutorial's chart cards", () => {
-  const TOUR = { panels: true, layoutOpen: false, pins: [] }
-  const LAYOUT_TOUR = { panels: true, layoutOpen: true, pins: [] }
+  const ONE = ['temp'] as const
+  const FOUR = ['temp', 'freeze', 'snowfall', 'precip'] as const
   const ranked = (metrics: Parameters<typeof chartMetricsOf>[0]) => ({
     ...CHARTS_QUIET,
     chartMetrics: chartMetricsOf(metrics, { layout: 'row' }),
   })
 
-  it('starts the four from the first slot the chart shows', async () => {
+  it("draws the tour's panels in place of the reader's, and the reader's back after", async () => {
     seen.chart.length = 0
-    const charts = ranked(['wind', 'temp'])
-    const { rerender } = render(<ResultsPanels {...props({ charts })} chartTour={TOUR} />)
+    const charts = ranked(['aqi', 'wind'])
+    const { rerender } = render(<ResultsPanels {...props({ charts })} chartTour={{ metrics: ONE, layoutOpen: false, pins: [] }} />)
     await screen.findByTestId('chart')
-    expect(last(seen.chart).metrics).toEqual(['wind', 'aqi', 'cloud_deck', 'freeze'])
+    expect(last(seen.chart).metrics).toBe(ONE)
     expect(last(seen.chart).layout).toBeNull()
-    const four = last(seen.chart).metrics
+    rerender(<ResultsPanels {...props({ charts })} chartTour={{ metrics: FOUR, layoutOpen: false, pins: [] }} />)
+    expect(last(seen.chart).metrics).toBe(FOUR)
     // The next card hands the memoized chart the same list.
-    rerender(<ResultsPanels {...props({ charts })} chartTour={LAYOUT_TOUR} />)
-    expect(last(seen.chart).metrics).toBe(four)
+    rerender(<ResultsPanels {...props({ charts })} chartTour={{ metrics: FOUR, layoutOpen: true, pins: [] }} />)
+    expect(last(seen.chart).metrics).toBe(FOUR)
     expect(last(seen.chart).layoutMenuOpen).toBe(true)
     // And the tour gone, the reader's own list and layout.
     rerender(<ResultsPanels {...props({ charts })} />)
     expect(last(seen.chart).metrics).toBe(charts.chartMetrics.metrics)
     expect(last(seen.chart).layout).toBe('row')
-  })
-
-  it('draws air quality and the three after it under the default ranking', async () => {
-    seen.chart.length = 0
-    render(<ResultsPanels {...props({ charts: ranked(['aqi']) })} chartTour={TOUR} />)
-    await screen.findByTestId('chart')
-    expect(last(seen.chart).metrics).toEqual(['aqi', 'cloud_deck', 'freeze', 'precip'])
   })
 })
 

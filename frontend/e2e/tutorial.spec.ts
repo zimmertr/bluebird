@@ -133,17 +133,24 @@ async function expectPopupClear(page: Page) {
   }).toPass({ timeout: 5_000 })
 }
 
+// The demonstration's window, `DEMO_HOURS` in `src/tour/demoReport.ts`: four
+// whole days, hour by hour (#850). Its middle hour, which `useTour` stands
+// the readout on, falls half an hour short of the plot's centre.
+const DEMO_HOURS = 96
+const MIDDLE_HOUR = Math.floor((DEMO_HOURS - 1) / 2)
+
 // The Chart card shows the readout a finger resting mid-window shows: the
-// cursor's line on the middle of the demonstration's thirteen hours, with a
-// dot on every destination's line (#696; record 0153), drawn on the hover
-// canvas since the lines moved there (record 0256).
+// cursor's line on the demonstration's middle hour, with a dot on every
+// destination's line (#696; record 0153), drawn on the hover canvas since the
+// lines moved there (record 0256).
 async function expectReadoutMidWindow(page: Page) {
   const chart = '[data-tour="chart"]'
   await expect(page.locator(`${chart} .recharts-tooltip-cursor`)).toBeAttached()
   await expect(async () => {
     const grid = (await box(page, `${chart} .recharts-cartesian-grid`))!
     const cursor = (await box(page, `${chart} .recharts-tooltip-cursor`))!
-    expect(Math.abs((cursor.left + cursor.right) / 2 - (grid.left + grid.right) / 2)).toBeLessThan(2)
+    const at = grid.left + ((grid.right - grid.left) * MIDDLE_HOUR) / (DEMO_HOURS - 1)
+    expect(Math.abs((cursor.left + cursor.right) / 2 - at)).toBeLessThan(2)
     const dotted = await page.locator(`${chart} canvas`).nth(1).evaluate((c: HTMLCanvasElement) => {
       const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data
       let n = 0
@@ -156,10 +163,15 @@ async function expectReadoutMidWindow(page: Page) {
 
 // The Panels card and the two after it draw four panels over the
 // demonstration (#850): four boxes, each with its lines' and its dots'
-// canvases, so none fell under its floor and went undrawn.
+// canvases, so none fell under its floor and went undrawn, and the four the
+// tour names.
 async function expectFourPanels(page: Page) {
   await expect(page.locator('[data-tour="chart"] [data-chart-box]')).toHaveCount(4)
   await expect(page.locator('[data-tour="chart"] canvas')).toHaveCount(8)
+  // The demonstration's own four, whatever the reader's chart held (#850).
+  for (const noun of ['Temperature', 'Freezing level', 'Snowfall', 'Precipitation']) {
+    await expect(page.locator('[data-tour="chart"]')).toContainText(noun)
+  }
 }
 
 // The demonstration's panels never reach the address bar (#850).

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import type { MapCamera, MapViewHandle } from '../components/MapView'
-import { useTour } from './useTour'
+import { TOUR_FOUR_PANELS, TOUR_ONE_PANEL, useTour } from './useTour'
 import { sheetKeepOut, SPOTLIGHT_PAD } from './place'
 import { placeAt } from '../testSupport/render'
 import { TOUR_ATTR, TOUR_STEPS, TUTORIAL_PATH } from '../utils/tourSteps'
@@ -178,12 +178,15 @@ describe('the chart cards under the tour', () => {
     return { result, seen }
   }
 
-  // Which four is `ResultsPanels`' to say, from the chart's own first slot
-  // (its suite holds that); the tour says on which cards.
-  it('asks for the four panels on the three cards alone', async () => {
+  // The demonstration's own panels whatever the reader's chart holds (the
+  // maintainer, 2026-11-04): temperature, then the three beside it, one list
+  // each across the cards that draw it, so the memoized chart keeps one.
+  it('draws temperature, then temperature, freezing level, snowfall and precipitation on the three cards', async () => {
     const { seen } = await walk()
-    for (const a of ['chart-panels', 'chart-layout', 'chart-pins']) expect(seen.get(a)!.chartTour.panels, a).toBe(true)
-    for (const a of ['results', 'chart', 'marker']) expect(seen.get(a)!.chartTour.panels, a).toBe(false)
+    for (const a of ['results', 'chart', 'marker']) expect(seen.get(a)!.chartTour.metrics, a).toBe(TOUR_ONE_PANEL)
+    for (const a of ['chart-panels', 'chart-layout', 'chart-pins']) expect(seen.get(a)!.chartTour.metrics, a).toBe(TOUR_FOUR_PANELS)
+    expect(TOUR_ONE_PANEL).toEqual(['temp'])
+    expect(TOUR_FOUR_PANELS).toEqual(['temp', 'freeze', 'snowfall', 'precip'])
   })
 
   // One room from the Results card through Pinned hours (#850), and none on
@@ -209,7 +212,7 @@ describe('the chart cards under the tour', () => {
     expect(pins[1] - pins[0]).toBeGreaterThanOrEqual((hours - 1) / 2)
     for (const a of ['results', 'chart', 'chart-panels', 'chart-layout', 'marker']) expect(seen.get(a)!.chartTour.pins, a).toEqual([])
     act(() => result.current.end())
-    expect(result.current.chartTour).toEqual({ panels: false, layoutOpen: false, pins: null })
+    expect(result.current.chartTour).toEqual({ metrics: null, layoutOpen: false, pins: null })
   })
 })
 

@@ -2,6 +2,7 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { MapCamera, MapViewHandle } from '../components/MapView'
 import { anchorSelector, stepLayout, TOUR_STEPS, TUTORIAL_PATH, type TourStep } from '../utils/tourSteps'
 import type { DemoReport } from './demoReport'
+import type { ChartMetrics } from '../utils/chart/chartData'
 import { loadTimeSeriesChart } from '../components/ResultsPanels'
 import { cardMode, sheetKeepOut, SPOTLIGHT_PAD } from './place'
 
@@ -20,21 +21,31 @@ interface Args {
 
 /**
  * What the tour hands the chart while the demonstration stands in (#850):
- * whether it draws the Panels card's four panels in place of the reader's
- * (built in `ResultsPanels` from the first slot the chart already shows, so
- * the card extends the Chart card's panel), whether a desk's Panel layout
- * menu is held open, and the hour indexes it stands pinned cards on. `pins`
- * is null outside the demonstration, when the chart's pins are the reader's
- * own, and an array through it, so the reader's own pins stand aside until it
- * is null again rather than being dropped with the hours they named.
+ * the metrics it draws in place of the reader's, whether a desk's Panel
+ * layout menu is held open, and the hour indexes it stands pinned cards on.
+ * `metrics` and `pins` are null outside the demonstration, when the chart's
+ * slots and pins are the reader's own, and set through it, so the reader's
+ * own stand aside until they are null again rather than being dropped.
  */
 export interface ChartTour {
-  panels: boolean
+  metrics: ChartMetrics | null
   layoutOpen: boolean
   pins: readonly number[] | null
 }
 
-const NO_CHART_TOUR: ChartTour = { panels: false, layoutOpen: false, pins: null }
+const NO_CHART_TOUR: ChartTour = { metrics: null, layoutOpen: false, pins: null }
+/**
+ * The demonstration's own panels, one list each so the memoized chart is
+ * handed one identity across the cards that draw it (#850; the maintainer,
+ * 2026-11-04: "Can we use temperature instead of AQI for this tutorial? And
+ * then when multiple other charts are shown, they could shown freezing level,
+ * snow depth, and precipitation."; snow depth is snowfall since #678). The
+ * Results, Chart and Markers cards draw the temperature the demonstration is
+ * ranked by, and the Panels card and the two after it add the three that move
+ * with it, whatever the reader's chart holds.
+ */
+export const TOUR_ONE_PANEL: ChartMetrics = ['temp']
+export const TOUR_FOUR_PANELS: ChartMetrics = ['temp', 'freeze', 'snowfall', 'precip']
 const NO_PINS: readonly number[] = []
 
 /** The nearest ancestor that scrolls: the panel's column, for the sections inside it. */
@@ -243,7 +254,7 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
       demo === null
         ? NO_CHART_TOUR
         : {
-            panels: showingPanels,
+            metrics: showingPanels ? TOUR_FOUR_PANELS : TOUR_ONE_PANEL,
             layoutOpen,
             pins: pinsUp ? demoPins : NO_PINS,
           },

@@ -84,22 +84,6 @@ export function addMetric(metrics: ChartMetrics): ChartMetrics {
   return unused ? [...metrics, unused.key] : metrics
 }
 
-/**
- * What three presses of the + give a chart holding `first` alone, up to
- * `MAX_CHART_PANELS`: the four panels the tutorial's Panels card draws, from
- * the first slot the chart already shows, so the card extends the Chart
- * card's panel rather than replacing it (#850).
- */
-export function panelsFrom(first: ChartMetric): ChartMetrics {
-  let list: ChartMetrics = [first]
-  while (list.length < MAX_CHART_PANELS) {
-    const next = addMetric(list)
-    if (next === list) break
-    list = next
-  }
-  return list
-}
-
 /** Take slot `index` away. Never the first, which the ranking keeps. */
 export function removeMetric(metrics: ChartMetrics, index: number): ChartMetrics {
   if (index <= 0 || index >= metrics.length) return metrics
