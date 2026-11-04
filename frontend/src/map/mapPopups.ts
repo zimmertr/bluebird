@@ -62,17 +62,27 @@ import type { MapPoint, PointAnswer } from '../utils/pointReadout'
 import {
   FIT_MARGIN_PX,
   POPUP_PAN_MS,
+  bodyBounds,
   dragBodyRange,
   figureOf,
   grownBodyCap,
   openingBodyCap,
   placePopup,
+  standingRoom,
   type Point,
   type PopupSide,
   type Rect,
 } from '../utils/popup/popupFit'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
+
+/**
+ * What every pan a card's fit asks for carries on its move events, so a
+ * card can tell the fit's own move from one the reader or the app made
+ * under it (`destinationCards.ts`): after the second, the card's place is
+ * the reader's and no redraw fits it again (TJ, 2026-11-04).
+ */
+export const CARD_FIT_MOVE = { cardFit: true } as const
 
 /** What a target is handed when a click lands on it. */
 export interface MapTargetHit {
@@ -179,24 +189,6 @@ interface MapCardOptions {
    * as a table row's centring does.
    */
   pan?: boolean
-  /**
-   * The size a reader dragged a card to (TJ, 2026-11-03), which this card
-   * opens at: its width, held to the map's range, and its body's height,
-   * which the body stands at whatever it holds (`fixPopupBody`, TJ
-   * 2026-11-04), held between the drag's least and the free map's height on
-   * this map rather than the floor and the ceiling. The fit still places and
-   * pans the card as it does any card.
-   */
-  size?: CardSize | null
-}
-
-/**
- * A card's width and its body's height, as a reader's drag on its handle
- * leaves them; no height where the reader has only sized a card with no body.
- */
-export interface CardSize {
-  width: number
-  body: number | null
 }
 
 /** A card on the map, and the move its fit asked of the map. */
@@ -205,7 +197,7 @@ interface PlacedCard {
   /** How far the card's point, and the card with it, moves across the screen. */
   dx: number
   dy: number
-  /** The height its body was capped to, or stands at for a reader's size, which a redraw must keep, or null. */
+  /** The height its body was capped to, which a redraw must keep, or null. */
   capped: number | null
   /** The card's box as the fit measured it, which tells a later redraw whether the card changed size. */
   size: { width: number; height: number }
@@ -254,14 +246,15 @@ export interface MapPopups {
    * not fit, and otherwise the card is not moved, since it was placed where
    * the reader saw it open.
    */
-  bodyCap(popup: Popup): number | null
+  bodyCap(popup: Popup, stand?: boolean): number | null
   /**
    * The bounds a reader's drag sizes this card between on the map as it is
-   * now: its width from the width it opened at to the map's less 20px
-   * (`cardWidthRange`), and its body's height from the floor, or the
-   * body's own height where it holds less, to the free map's height less the
-   * card's header (`dragBodyRange`, TJ 2026-11-04). The ceiling bounds only
-   * a cap the app chooses, never the reader's drag.
+   * now: its width from the width it opened at (`cardWidthRange`) to the
+   * room its point leaves it, centred as it stands, and its body's height
+   * from the floor, or the body's own height where it holds less, to the
+   * room on its side of its point less the card's header (`dragBodyRange`,
+   * `standingRoom`, TJ 2026-11-04), so no drag takes it past the map's edge.
+   * The ceiling bounds only a cap the app chooses, never the reader's drag.
    */
   cardBounds(popup: Popup): { width: { min: number; max: number }; body: { min: number; max: number } }
   /**
@@ -479,7 +472,20 @@ export function mountMapPopups(
     // Optional: a test's stub popup has no DOM, or a content box it does not measure.
     return el?.querySelector?.<HTMLElement>('.maplibregl-popup-content')?.offsetWidth ?? el?.offsetWidth ?? 0
   }
-  const widthRange = (popup: Popup) => cardWidthRange(map.getCanvas().clientWidth, opened.get(popup) ?? 0)
+  // The room a card has where it stands, its point where the map puts it now
+  // and its side the one it opened on; none for a test's stub popup, which
+  // has no place on the map.
+  const roomOf = (popup: Popup) => {
+    const at = popup.getLngLat?.()
+    if (!at) return null
+    const anchor: PopupSide = popup.options?.anchor === 'bottom' ? 'bottom' : 'top'
+    return standingRoom(map.project(at), anchor, regionNow())
+  }
+  const widthRange = (popup: Popup) => {
+    const range = cardWidthRange(map.getCanvas().clientWidth, opened.get(popup) ?? 0)
+    const room = roomOf(popup)
+    return room ? { min: range.min, max: Math.max(range.min, Math.min(range.max, room.width)) } : range
+  }
 
   // The card's box, which MapLibre sizes to its content up to the popup's
   // max width: an explicit width on it and the same max width on the popup
@@ -538,7 +544,7 @@ export function mountMapPopups(
   const standBody = (popup: Popup, body: HTMLElement, px: number): number => {
     const el = popup.getElement()
     const chrome = (el?.offsetHeight ?? 0) - body.offsetHeight
-    const { min, max } = dragBodyRange(regionNow(), chrome, bodyContentHeight(body))
+    const { min, max } = dragBodyRange(regionNow(), chrome, bodyContentHeight(body), roomOf(popup)?.height)
     const height = Math.round(clamp(px, min, max))
     fixPopupBody(body, height)
     return height
@@ -579,7 +585,7 @@ export function mountMapPopups(
       }
       for (const listen of pointListeners) listen(kind)
     },
-    bodyCap(popup) {
+    bodyCap(popup, stand = true) {
       const el = popup.getElement()
       const body = el?.querySelector?.<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
       // Optional: a test's stub popup has no place on the map.
@@ -590,12 +596,19 @@ export function mountMapPopups(
       // edge, and the breath the fit keeps from it, comes off the body.
       const anchor: PopupSide = popup.options?.anchor === 'bottom' ? 'bottom' : 'top'
       const region = regionNow()
+      // A card the reader has moved the map under stands where they left
+      // it, so the edge it may hang past is no measure of it and the map is
+      // not panned for it (TJ, 2026-11-04): only the ceiling holds.
+      if (!stand) {
+        const { ceiling } = bodyBounds(region)
+        return body.offsetHeight > ceiling ? ceiling : null
+      }
       const figure = figureOf(map.project(at), { width: el.offsetWidth, height: el.offsetHeight }, anchor)
       const over = anchor === 'top' ? figure.bottom - region.bottom : region.top - figure.top
       const { cap, pan } = grownBodyCap(body.offsetHeight, over + FIT_MARGIN_PX, region)
       // The floor ran past the edge: the map brings it in, the point moving
       // up for a card hanging below it and down for one standing above.
-      if (pan > 0) map.panBy([0, anchor === 'top' ? pan : -pan], { duration: POPUP_PAN_MS })
+      if (pan > 0) map.panBy([0, anchor === 'top' ? pan : -pan], { duration: POPUP_PAN_MS }, CARD_FIT_MOVE)
       return cap
     },
     cardBounds(popup) {
@@ -603,7 +616,7 @@ export function mountMapPopups(
       const body = el?.querySelector?.<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
       const chrome = (el?.offsetHeight ?? 0) - (body?.offsetHeight ?? 0)
       const content = body ? bodyContentHeight(body) : 0
-      return { width: widthRange(popup), body: dragBodyRange(regionNow(), chrome, content) }
+      return { width: widthRange(popup), body: dragBodyRange(regionNow(), chrome, content, roomOf(popup)?.height) }
     },
     sizeCard: sizeTo,
     holdCard(popup) {
@@ -642,11 +655,11 @@ export function mountMapPopups(
         popup.setLngLat(at)
       }
       if (pan && (placed.dx !== 0 || placed.dy !== 0)) {
-        map.panBy([-placed.dx || 0, -placed.dy || 0], { duration: POPUP_PAN_MS })
+        map.panBy([-placed.dx || 0, -placed.dy || 0], { duration: POPUP_PAN_MS }, CARD_FIT_MOVE)
       }
       return { capped, dx: placed.dx, dy: placed.dy, size }
     },
-    openCard(at, html, { owner, result = false, markerAt, avoid = [], pan = true, size = null } = {}) {
+    openCard(at, html, { owner, result = false, markerAt, avoid = [], pan = true } = {}) {
       // Built hanging below its point, measured, and rebuilt above it only
       // when the fit says so, all before a frame is drawn, because MapLibre
       // fixes a popup's side at construction and this is the one moment its
@@ -654,16 +667,12 @@ export function mountMapPopups(
       // has its body capped first and scrolls (`capHeight`, TJ 2026-10-08),
       // so the fit then places the card the reader will actually see; the
       // cap keeps the body between a floor and a ceiling of the visible map
-      // (`openingBodyCap`, TJ 2026-11-03). A card a reader sized opens at
-      // that width, or its own where its lines ask for more, and its body at
-      // that height, before it is measured, so the fit measures the card the
-      // reader will see.
+      // (`openingBodyCap`, TJ 2026-11-03). Every card opens at this size,
+      // whatever a reader dragged another to, as a pinned chart card does
+      // (TJ, 2026-11-04).
       const build = (anchor: PopupSide) => {
         const made = make(at, html, owner, { ...popupOptions(map, { result }), anchor, className: POPUP_CARD_CLASS })
-        // Measured before the reader's width is set, so a card whose lines
-        // ask for more than that width opens at its own (TJ, 2026-11-04).
         opened.set(made, contentWidth(made))
-        if (size) sizeTo(made, size.width)
         return made
       }
       let popup = build('top')
@@ -679,12 +688,10 @@ export function mountMapPopups(
       // off the body alone, so the title and the band under it stay in view.
       const bodyOf = () => popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`) ?? null
       const first = bodyOf()
-      const asked = size?.body ?? null
-      const chosen = first !== null && asked !== null ? standBody(popup, first, asked) : null
-      const capped = first === null ? null : (chosen ?? openingBodyCap(point, card, first.offsetHeight, region, standing))
+      const capped = first === null ? null : openingBodyCap(point, card, first.offsetHeight, region, standing)
       const applyCap = () => {
         const body = capped === null ? null : bodyOf()
-        if (body) (chosen === null ? capPopupBody : fixPopupBody)(body, capped!)
+        if (body) capPopupBody(body, capped!)
       }
       applyCap()
       if (capped !== null) card = measure()
@@ -699,7 +706,7 @@ export function mountMapPopups(
       // the point riding along under the tip. `panBy` moves the camera, so
       // its sign is the point's move reversed.
       if (pan && (placed.dx !== 0 || placed.dy !== 0)) {
-        map.panBy([-placed.dx || 0, -placed.dy || 0], { duration: POPUP_PAN_MS })
+        map.panBy([-placed.dx || 0, -placed.dy || 0], { duration: POPUP_PAN_MS }, CARD_FIT_MOVE)
       }
       return { popup, dx: placed.dx, dy: placed.dy, capped, size: card }
     },

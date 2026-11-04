@@ -596,38 +596,6 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([['panBy', [0, -placed.dy], { duration: POPUP_PAN_MS }]])
   })
 
-  // A size the reader dragged a card to: its width, held between the card's
-  // opening width and the map less 10px a side, and its body's height, which
-  // the body stands at whatever it holds (TJ, 2026-11-04), from the floor, a
-  // quarter of the 1000px map, to the free map's height: 1000 less 8 at each
-  // edge, the marker's 8, the tip's 10 and the 40 of header, 926. The
-  // ceiling does not bound it.
-  it('opens a card at the size a reader chose, held to the bounds', () => {
-    const { popups } = mount(1280, 1000, { x: 640, y: 50 })
-    const { body, content } = standCard(40, 760)
-    const placed = popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 500, body: 300 } })
-    expect(made[0].maxWidth).toBe('500px')
-    expect(content.style.width).toBe('500px')
-    expect(placed.capped).toBe(300)
-    expect([body.style.maxHeight, body.style.minHeight]).toEqual(['300px', '300px'])
-    standCard(40, 760)
-    const wide = popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 5000, body: 5000 } })
-    expect(made[1].maxWidth).toBe('1260px')
-    expect(wide.capped).toBe(926)
-    // A short card stands taller than what it holds, its surface under it.
-    const short = standCard(40, 120)
-    expect(popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 300, body: 400 } }).capped).toBe(400)
-    expect(short.body.offsetHeight).toBe(400)
-    // A height under the floor opens at the floor.
-    standCard(40, 760)
-    expect(popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 300, body: 10 } }).capped).toBe(250)
-    // A size with no height, from a card that had no body, keeps the ceiling,
-    // and a width under the card's own opens at its own.
-    standCard(40, 760)
-    expect(popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 100, body: null } }).capped).toBe(750)
-    expect(made[4].maxWidth).toBe('280px')
-  })
-
   // A table row's card whose sections joined during or after its flight is
   // fitted again where it landed (TJ, 2026-11-04): measured uncapped, capped
   // between the bounds, turned to the side the fit picks, and panned.
@@ -684,43 +652,50 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
   })
 
   // A drag's width runs from the card's opening width, what its lines ask
-  // for, to the map less 20px, and its height from the floor, a quarter of
-  // the 1000px map, to the free map's, 1000 less the fit's breath, the
-  // marker, the tip and this card's 40 of header, past the ceiling the card
-  // opened under (TJ, 2026-11-04).
+  // for, to the room its point leaves it, centred as it stands, and its
+  // height from the floor, a quarter of the 1000px map, to the room on its
+  // side of its point less this card's 40 of header, past the ceiling the
+  // card opened under but never past the map's edge (TJ, 2026-11-04). Here
+  // the card hangs below a point 50px down the map's middle: 1000 less 8 of
+  // breath, the point's 50 and the tip's 10 is 932, less the header 892.
   it('says the bounds a drag sizes a card between, and sizes one to them', () => {
     const { popups } = mount(1280, 1000, { x: 640, y: 50 })
     const { content } = standCard(40, 760)
     const popup = popups.openCard([0, 0], '<p>card</p>', { result: true }).popup
-    expect(popups.cardBounds(popup)).toEqual({ width: { min: 280, max: 1260 }, body: { min: 250, max: 926 } })
+    expect(popups.cardBounds(popup)).toEqual({ width: { min: 280, max: 1260 }, body: { min: 250, max: 892 } })
     expect(popups.sizeCard(popup, 90)).toBe(280)
     expect(content.style.width).toBe('280px')
     expect(made[0].maxWidth).toBe('280px')
     expect(popups.sizeCard(popup, 400)).toBe(400)
   })
 
-  // A body that holds less than the floor has nothing to scroll into under
-  // it, so a drag stops at its own height, measured under the height it
-  // stands at, which it keeps.
-  it('stops a short body at its own height', () => {
-    const { popups } = mount(1280, 1000, { x: 640, y: 50 })
-    const { body } = standCard(40, 120)
-    const popup = popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 280, body: 400 } }).popup
-    expect(body.style.minHeight).toBe('400px')
-    expect(popups.cardBounds(popup).body).toEqual({ min: 120, max: 926 })
-    expect([body.style.maxHeight, body.style.minHeight]).toEqual(['400px', '400px'])
+  // The room is where the card stands, not the whole map: near the right
+  // edge it widens only as far as its nearer side allows, twice the 180px to
+  // the edge less 8 of breath at each, and standing above a point 900px down
+  // it grows only as far as the map's top, 900 less the tip's 10 and the
+  // breath's 8, less the header, so no drag runs it off the map.
+  it('bounds a drag by the room where the card stands', () => {
+    const { popups } = mount(1280, 1000, { x: 1100, y: 900 })
+    const { content } = standCard(40, 760)
+    const above = new Popup({ anchor: 'bottom' })
+    // A card made here rather than opened has no opening width, so its least
+    // is the 180px every card keeps.
+    expect(popups.cardBounds(above)).toEqual({ width: { min: 180, max: 344 }, body: { min: 250, max: 842 } })
+    expect(popups.sizeCard(above, 2000)).toBe(344)
+    expect(content.style.width).toBe('344px')
+    // Hanging below the same point it has no room at all, and a drag holds
+    // the body where it is rather than running it past the map's foot.
+    const below = new Popup({ anchor: 'top' })
+    expect(popups.cardBounds(below).body).toEqual({ min: 250, max: 250 })
   })
 
-  // A width a reader left on a narrower card is no narrower than this one's
-  // lines: it opens at its own, and at the reader's where that is wider.
-  it("opens a card at the reader's width or its own, whichever is wider", () => {
-    const { popups } = mount(1280, 1000, { x: 640, y: 500 })
-    const { content } = standCard(40, 200)
-    popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 200, body: null } })
-    expect([content.style.width, made[0].maxWidth]).toEqual(['280px', '280px'])
-    const wide = standCard(40, 200)
-    popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 400, body: null } })
-    expect([wide.content.style.width, made[made.length - 1].maxWidth]).toEqual(['400px', '400px'])
+  // A body that holds less than the floor has nothing to scroll into under
+  // it, so a drag stops at its own height.
+  it('stops a short body at its own height', () => {
+    const { popups } = mount(1280, 1000, { x: 640, y: 50 })
+    standCard(40, 120)
+    const popup = popups.openCard([0, 0], '<p>card</p>', { result: true }).popup
+    expect(popups.cardBounds(popup).body).toEqual({ min: 120, max: 892 })
   })
 
   // A card keeps the width it opened at (TJ, 2026-11-04): its content box
@@ -1013,6 +988,18 @@ describe('mountMapPopups bodyCap', () => {
     const above = card({ markerY: 150, height: 200, body: 180, anchor: 'bottom' })
     expect(above.popups.bodyCap(above.popup)).toBe(150)
     expect(above.pans()).toEqual([['panBy', [0, -38], { duration: POPUP_PAN_MS }]])
+  })
+
+  // A card the map moved under hangs wherever the reader left it: the edge
+  // takes nothing off it and the map is not panned, only the ceiling holds
+  // (TJ, 2026-11-04).
+  it('holds a card the map moved under to the ceiling alone, and pans nothing', () => {
+    const past = card({ markerY: 500, height: 200, body: 180 })
+    expect(past.popups.bodyCap(past.popup, false)).toBeNull()
+    expect(past.pans()).toEqual([])
+    const tall = card({ markerY: 500, height: 520, body: 500 })
+    expect(tall.popups.bodyCap(tall.popup, false)).toBe(450)
+    expect(tall.pans()).toEqual([])
   })
 })
 

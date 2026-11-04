@@ -5,13 +5,13 @@ import { test, expect, expectRanked, DESTINATION_NAMES, FIRE_DETECTION } from '.
 // 2026-11-03, record 0270). The unit suites pin the bounds and the drag's
 // arithmetic against stubs; this drags the built card's handle with a real
 // pointer and checks that the card grew, stands on its point, and that the
-// next card opens at the size the drag left; and that the drag's bounds are
-// the reader's (TJ, 2026-11-04): a ranked card dragged far up and left stops
-// at the width it opened at and a quarter of the map, its lines whole, and a
-// short card dragged down stands taller than what it holds, past the three
-// quarters of the map the app caps a card by, up to the free map's height;
-// and that a double click on the handle puts the card back at its opening
-// size. At a desk only: a finger's drag is the same pointer events, and the
+// next card opens at its own size, not the one the drag left (TJ,
+// 2026-11-04); that a ranked card dragged far up and left stops at the width
+// it opened at and a quarter of the map, its lines whole; that a card dragged
+// far down and right stops at the map's edge, never running off it; that a
+// short card dragged down stands taller than what it holds, up to the room
+// where it stands; and that a double click on the handle puts the card back
+// at its opening size. At a desk only: a finger's drag is the same pointer events, and the
 // phone's 32px box is the role's, which `styles.test.ts` pins.
 
 test.use({ viewport: { width: 1280, height: 800 } })
@@ -60,8 +60,10 @@ async function resultsOpened(page: Page) {
 // card cuts with its ellipsis, and whether its title is one; and the two
 // heights a drag stands a body between (`dragBodyRange` in
 // utils/popup/popupFit.ts): a quarter of the canvas, a desk's visible map,
-// and the free map, the canvas less the fit's 8px at each edge, the marker's
-// 8 and the tip's 10, less the card's header and tip.
+// and the room where the card stands (`standingRoom`), from the card's top
+// to the canvas's foot less the fit's 8px for a card hanging below its
+// point, or from the canvas's top plus 8 to the card's foot for one standing
+// above it, less the card's header.
 async function measure(card: Locator) {
   return card.evaluate((el) => {
     const box = (e: Element | null) => {
@@ -83,7 +85,14 @@ async function measure(card: Locator) {
       cut: [...el.querySelectorAll('*')].filter(isCut).map((e) => e.textContent),
       titleCut: isCut(title),
       floor: Math.floor(canvas.clientHeight / 4),
-      freeMap: canvas.clientHeight - 34 - ((el as HTMLElement).offsetHeight - body.offsetHeight),
+      room: (() => {
+        const content = el.querySelector('.maplibregl-popup-content')!.getBoundingClientRect()
+        const map = canvas.getBoundingClientRect()
+        const tip = el.querySelector('.maplibregl-popup-tip')!.getBoundingClientRect()
+        const header = content.height - body.getBoundingClientRect().height
+        const below = tip.top < content.top
+        return (below ? map.bottom - 8 - content.top : content.bottom - (map.top + 8)) - header
+      })(),
     }
   })
 }
@@ -100,7 +109,7 @@ async function drag(page: Page, card: Locator, dx: number, dy: number) {
   return { grip, from }
 }
 
-test('a drag on a card’s corner sizes it, and the next card opens at that size', async ({ page }) => {
+test('a drag on a card’s corner sizes it, and the next card opens at its own size', async ({ page }) => {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
@@ -131,17 +140,17 @@ test('a drag on a card’s corner sizes it, and the next card opens at that size
   // down to the quarter of the map a drag stops at.
   expect(Math.abs(after.body.height - Math.max(before.body.height - 30, after.floor))).toBeLessThanOrEqual(1)
 
-  // The next card opens at the width and the height the drag left.
+  // The size was that card's alone: the same row's card opens at the size it
+  // first opened at, as a pinned chart card does.
   await card.locator('.maplibregl-popup-close-button').click()
-  const next = await measure(await centredCard(page, DESTINATION_NAMES[1]))
-  expect(Math.abs(next.card.width - after.card.width)).toBeLessThanOrEqual(1)
-  expect(Math.abs(next.body.height - Math.min(after.body.height, next.freeMap))).toBeLessThanOrEqual(1)
+  const next = await measure(await centredCard(page, DESTINATION_NAMES[0]))
+  expect(Math.abs(next.card.width - before.card.width)).toBeLessThanOrEqual(1)
+  expect(Math.abs(next.body.height - before.body.height)).toBeLessThanOrEqual(1)
 })
 
 // A double click on the handle puts the card back at the size it opened at
-// and forgets the size the drag left (TJ, 2026-11-04, record 0270): the card
-// stands at its opening width and height on its point again, and the next
-// card opens at its own size rather than the dragged one.
+// (TJ, 2026-11-04, record 0270): the card stands at its opening width and
+// height on its point again.
 test('a double click on a card’s corner puts it back at its opening size', async ({ page }) => {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
@@ -200,6 +209,27 @@ test('a ranked card dragged far up and left stops at its opening width and a qua
   expect(after.cut).toEqual(before.cut)
 })
 
+// Dragged far down and right, a card stops at the map's edge: its width at
+// twice the distance from its point to the nearer side, its body at the room
+// on its side of its point, so it never runs off the map and under the
+// panel or the results (TJ, 2026-11-04).
+test('a card dragged far down and right stops at the map’s edge', async ({ page }) => {
+  await page.goto(`/?type=peak&poly=${RING}`)
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await page.getByRole('button', { name: 'Analyze' }).click()
+  await expectRanked(page)
+  await resultsOpened(page)
+
+  const card = await centredCard(page, DESTINATION_NAMES[0])
+  await drag(page, card, 2000, 2000)
+  const after = await measure(card)
+  test.info().annotations.push({ type: 'card at the edge', description: JSON.stringify(after) })
+  expect(after.card.left).toBeGreaterThanOrEqual(after.map.left + 7)
+  expect(after.card.right).toBeLessThanOrEqual(after.map.right - 7)
+  expect(after.card.top).toBeGreaterThanOrEqual(after.map.top + 7)
+  expect(after.card.bottom).toBeLessThanOrEqual(after.map.bottom - 7)
+})
+
 // A short card dragged down stands taller than what it holds, the card's
 // surface under its last section, rather than refusing a height it has no
 // content for: the spot's card on a satellite fire detection, one section
@@ -229,19 +259,19 @@ test('a short card dragged down stands taller than what it holds', async ({ page
   await drag(page, card, 0, 150)
   const after = await measure(card)
   test.info().annotations.push({ type: 'card grown', description: JSON.stringify({ before, after }) })
-  expect(Math.abs(after.body.height - Math.min(before.body.height + 150, after.freeMap))).toBeLessThanOrEqual(1)
+  expect(Math.abs(after.body.height - Math.min(before.body.height + 150, before.room))).toBeLessThanOrEqual(2)
   expect(after.scrolls).toBe(false)
   // The surface the drag added stands under the last section.
-  expect(after.emptyBelow).toBeGreaterThan(before.emptyBelow + 140)
+  expect(after.emptyBelow).toBeGreaterThan(before.emptyBelow + Math.min(140, before.room - before.body.height - 10))
 })
 
 // On a short map a ranked card opens capped, and a drag down opens its body
-// as far as the free map's height, past whatever the open's cap was, and no
-// further.
+// as far as the room where it stands, past whatever the open's cap was, and
+// no further.
 test.describe('at a short viewport', () => {
   test.use({ viewport: { width: 1280, height: 600 } })
 
-  test('a capped ranked card dragged down opens to the free map’s height', async ({ page }) => {
+  test('a capped ranked card dragged down opens to the room where it stands', async ({ page }) => {
     await page.goto(`/?type=peak&poly=${RING}`)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await page.getByRole('button', { name: 'Analyze' }).click()
@@ -255,8 +285,8 @@ test.describe('at a short viewport', () => {
     await drag(page, card, 0, travel)
     const after = await measure(card)
     test.info().annotations.push({ type: 'capped card grown', description: JSON.stringify({ before, after }) })
-    expect(after.body.height).toBeGreaterThan(before.body.height)
-    expect(Math.abs(after.body.height - Math.min(before.body.height + travel, after.freeMap))).toBeLessThanOrEqual(1)
-    expect(after.body.height).toBeLessThanOrEqual(after.freeMap + 1)
+    expect(after.body.height).toBeGreaterThanOrEqual(before.body.height)
+    expect(Math.abs(after.body.height - Math.min(before.body.height + travel, before.room))).toBeLessThanOrEqual(2)
+    expect(after.card.bottom).toBeLessThanOrEqual(after.map.bottom - 7)
   })
 })

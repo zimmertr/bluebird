@@ -797,6 +797,49 @@ describe('sections', () => {
     expect(cap).toHaveBeenCalledTimes(1)
   })
 
+  // A reader who zooms or pans with a card open has put it where it is. A
+  // redraw after that, the ground at the new zoom or a section the move
+  // brought in, used to cap the card against the edge it then hung past and
+  // pan the map to bring its floor in, so the card shrank and jumped back
+  // into view when the zoom stopped (TJ, 2026-11-04). It takes the ceiling
+  // alone now, wherever it stands, and the map is left alone.
+  it('fits nothing again once the map has moved under a card', async () => {
+    const { cards, board, stub } = setup()
+    const cap = vi.spyOn(board, 'bodyCap').mockReturnValue(null)
+    const fit = vi.spyOn(board, 'refit')
+    let wet = false
+    layer(board, 'radar', async () => (wet ? { section: RAIN } : null))
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    stub.fire('movestart', undefined, { originalEvent: {} })
+    stub.fire('moveend')
+    wet = true
+    board.refreshPoint('radar')
+    await settle()
+    expect(popups[0].html).toContain('Rain radar')
+    expect(cap).toHaveBeenCalledTimes(1)
+    expect(cap).toHaveBeenCalledWith(expect.anything(), false)
+    expect(fit).not.toHaveBeenCalled()
+  })
+
+  // The pan a card's own fit asks for is not a move under it.
+  it('still caps a card where it stands after its own fit panned the map', async () => {
+    const { cards, board, stub } = setup()
+    const cap = vi.spyOn(board, 'bodyCap').mockReturnValue(120)
+    let wet = false
+    layer(board, 'radar', async () => (wet ? { section: RAIN } : null))
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    stub.fire('movestart', undefined, { cardFit: true })
+    stub.fire('moveend')
+    wet = true
+    board.refreshPoint('radar')
+    await settle()
+    expect(cap).toHaveBeenCalledTimes(1)
+    expect(cap.mock.calls[0][1]).not.toBe(false)
+    expect(popups[0].body.style.maxHeight).toBe('120px')
+  })
+
   // The radar answers a frame with no echo under a card that had one with
   // the no-echo line (#748), and a dry point with nothing at all. A card that
   // carried no radar is asked as an opening one is, so a card open while the
@@ -833,13 +876,15 @@ describe('sections', () => {
     expect(popups[0].body.style.maxHeight).toBeUndefined()
   })
 
-  // The handle in a card's corner (TJ, 2026-11-03), on a 1280 by 900 map:
-  // widths from the card's opening width, 280 here, to 1260, and a body from
-  // the 225 floor the app caps by, or the body's own height where it holds
-  // less, as the stub's 150 does, to the free map's 816, 900 less the fit's
-  // 34 and the card's 50 of header, past the 675 ceiling (TJ, 2026-11-04).
-  // The card stands centred on its point, so its width takes twice the
-  // pointer's travel.
+  // The handle in a card's corner (TJ, 2026-11-03), on a 1280 by 900 map
+  // with the card hanging below its point in the middle: widths from the
+  // card's opening width, 280 here, to 1260, the room the point leaves it,
+  // and a body from the 225 floor the app caps by, or the body's own height
+  // where it holds less, as the stub's 150 does, to the room under its
+  // point, 900 less 8 of breath, the point's 450 and the tip's 10, less the
+  // card's 50 of header, 382, so no drag runs it past the map's foot (TJ,
+  // 2026-11-04). The card stands centred on its point, so its width takes
+  // twice the pointer's travel.
   const drag = (handle: NonNullable<(typeof popups)[number]['handle']>, dx: number, dy: number) => {
     handle.fire('pointerdown', { pointerId: 1, clientX: 100, clientY: 100 })
     handle.fire('pointermove', { pointerId: 1, clientX: 100 + dx, clientY: 100 + dy })
@@ -859,7 +904,7 @@ describe('sections', () => {
     expect([card.maxWidth, card.content.style.width, card.body.style.maxHeight]).toEqual(['360px', '360px', '350px'])
     expect(card.body.style.minHeight).toBe('350px')
     handle.fire('pointermove', { pointerId: 1, clientX: 5000, clientY: 5000 })
-    expect([card.maxWidth, card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['1260px', '816px', '816px'])
+    expect([card.maxWidth, card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['1260px', '382px', '382px'])
     handle.fire('pointermove', { pointerId: 1, clientX: -5000, clientY: -5000 })
     expect([card.maxWidth, card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['280px', '150px', '150px'])
     // Another pointer's move is no part of this drag.
@@ -911,27 +956,6 @@ describe('sections', () => {
     expect([card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['150px', '150px'])
   })
 
-  // The width a reader left on a narrow card follows them, but a card whose
-  // lines ask for more opens at its own rather than cut to it.
-  it('never narrows a wider card to a width chosen on a narrower one', () => {
-    const { cards, board } = setup()
-    look.width = () => 240
-    cards.open(SPOT, [SPOT.lon, SPOT.lat])
-    drag(popups[0].handle!, 0, 0)
-    expect(popups[0].maxWidth).toBe('240px')
-    board.closeAll()
-    look.width = () => 320
-    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude])
-    const next = popups[popups.length - 1]
-    expect([next.maxWidth, next.content.style.width]).toEqual(['320px', '320px'])
-    // And one narrower than the width chosen opens at the reader's.
-    drag(next.handle!, 40, 0)
-    board.closeAll()
-    look.width = () => 240
-    cards.open(SPOT, [SPOT.lon, SPOT.lat])
-    expect(popups[popups.length - 1].maxWidth).toBe('400px')
-  })
-
   it('keeps the height a reader dragged through a redraw', async () => {
     const { cards, board } = setup()
     const cap = vi.spyOn(board, 'bodyCap')
@@ -944,39 +968,26 @@ describe('sections', () => {
     expect(cap).not.toHaveBeenCalled()
   })
 
-  // The reader's choice follows them, as a fold does (TJ, 2026-11-03): every
-  // card opened after the drag opens at its width, its body standing at the
-  // height dragged to, which no later cap touches (TJ, 2026-11-04).
-  it('opens every card after it at the size it was dragged to, until the page is reloaded', async () => {
+  // A drag sizes the card it was made on and nothing else (TJ, 2026-11-04):
+  // the next card opens at its own width, held there, and its body under the
+  // app's cap, as a pinned chart card does.
+  it('opens the next card at its own size, whatever the last was dragged to', () => {
     const { cards, board } = setup()
     cards.open(SPOT, [SPOT.lon, SPOT.lat])
     drag(popups[0].handle!, 40, 200)
+    expect([popups[0].maxWidth, popups[0].body.style.minHeight]).toEqual(['360px', '350px'])
     board.closeAll()
-    const cap = vi.spyOn(board, 'bodyCap')
-    layer(board, 'radar', async () => ({ section: RAIN }))
     cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude])
     const next = popups[popups.length - 1]
-    expect([next.maxWidth, next.content.style.width]).toEqual(['360px', '360px'])
-    expect([next.body.style.maxHeight, next.body.style.minHeight]).toEqual(['350px', '350px'])
-    await settle()
-    expect(next.html).toContain('Rain radar')
-    expect(cap).not.toHaveBeenCalled()
-    expect([next.body.style.maxHeight, next.body.style.minHeight]).toEqual(['350px', '350px'])
-    // A mount is a page load: its cards open at their own width, held there,
-    // and their bodies under the app's cap.
-    const { cards: fresh } = setup()
-    fresh.open(SPOT, [SPOT.lon, SPOT.lat])
-    expect(popups[popups.length - 1].maxWidth).toBeUndefined()
-    expect(popups[popups.length - 1].content.style.width).toBe('280px')
-    expect(popups[popups.length - 1].body.style.minHeight).toBeUndefined()
+    expect([next.maxWidth, next.content.style.width]).toEqual([undefined, '280px'])
+    expect([next.body.style.maxHeight, next.body.style.minHeight]).toEqual([undefined, undefined])
   })
 
-  // A double press on the handle puts the card back at the size it opens at
-  // with no reader's choice (TJ, 2026-11-04, record 0270): its own width and
-  // its body under the app's cap, fitted again once where it stands, and the
-  // size dragged to is forgotten, so the next card opens at its own. A press
-  // long after the last, or far from it, is a drag of its own.
-  it('puts a card back at its opening size on a double press of its handle, and forgets the size dragged to', () => {
+  // A double press on the handle puts the card back at the size it opened at
+  // (TJ, 2026-11-04, record 0270): its own width and its body under the
+  // app's cap, fitted again once where it stands. A press long after the
+  // last, or far from it, is a drag of its own.
+  it('puts a card back at its opening size on a double press of its handle', () => {
     const { cards, board } = setup()
     cards.open(SPOT, [SPOT.lon, SPOT.lat])
     const card = popups[0]
@@ -1003,18 +1014,13 @@ describe('sections', () => {
     // It started no drag: a move after it sizes nothing.
     handle.fire('pointermove', { pointerId: 4, clientX: 400, clientY: 400 })
     expect([card.maxWidth, card.body.style.minHeight]).toEqual(['280px', ''])
-    board.closeAll()
-    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude])
-    const next = popups[popups.length - 1]
-    expect([next.maxWidth, next.content.style.width]).toEqual([undefined, '280px'])
-    expect(next.body.style.minHeight).toBeUndefined()
   })
 
   // A card keeps the width it opened at (TJ, 2026-11-04): MapLibre centres a
   // card on its point, so a card that widened when the snow's numbers landed
   // moved both its edges. The width the fit measured is set on it at once,
-  // and a write that would draw it wider leaves it there. The hold is not the
-  // reader's size, so the next card opens at its own width.
+  // and a write that would draw it wider leaves it there. The next card
+  // opens at its own width.
   it("holds a card at the width of its first paint through a later write, and not the next card's", async () => {
     const { cards, board } = setup()
     look.width = (html) => (html.includes('Rate: 0.1 in/hr') ? 320 : 240)

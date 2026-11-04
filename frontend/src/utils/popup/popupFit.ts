@@ -221,30 +221,56 @@ export function bodyBounds(region: Rect): BodyBounds {
 }
 
 /**
- * The heights a reader's drag, or the height a drag left for the next card,
- * stands a body between on the visible map `region`, for a card whose header
- * and tip are `chrome` tall and whose body holds `content` of its own.
+ * The room a card has where it stands (TJ, 2026-11-04): MapLibre centres a
+ * card on its point, so it can widen only as far as its nearer side of the
+ * visible map allows, twice that distance less the fit's breath at both
+ * edges; and it hangs on one side of its point, so it can grow only as far
+ * as that side's edge, less the tip and the breath. A reader's drag stops
+ * here, where the card would otherwise run off the map and under the panel
+ * or the results, which no fit could then bring back without moving the
+ * card off its point.
+ */
+export function standingRoom(marker: Point, anchor: PopupSide, region: Rect): Size {
+  const width = 2 * Math.min(marker.x - region.left, region.right - marker.x) - 2 * FIT_MARGIN_PX
+  const height =
+    anchor === 'top'
+      ? region.bottom - FIT_MARGIN_PX - (marker.y + TIP_PX)
+      : marker.y - TIP_PX - (region.top + FIT_MARGIN_PX)
+  return { width: Math.max(0, Math.floor(width)), height: Math.max(0, Math.floor(height)) }
+}
+
+/**
+ * The heights a reader's drag stands a body between on the visible map
+ * `region`, for a card whose header and tip are `chrome` tall, whose body
+ * holds `content` of its own, and which has `room` of height where it stands
+ * (`standingRoom`).
  *
  * The least is the floor the app caps a body by (`bodyBounds`, TJ
  * 2026-11-04), since a body much shorter cuts its rows mid-line and is no
  * size to read a card at. A body that holds less than the floor stops at its
- * own height instead, since under it there is nothing to scroll into. The most is the free map's
- * height, the region less the fit's breath at both edges, the marker's half
- * square and the tip, less the header; past the content's own height the
- * body stands taller than what it holds, with the card's surface under its
- * last section. The ceiling bounds only the app's cap: a reader who asks for
- * more of the map gets it.
+ * own height instead, since under it there is nothing to scroll into. The
+ * most is the room the card has on its side of its point less its header,
+ * and never more than the free map's height, the region less the fit's
+ * breath at both edges, the marker's half square and the tip: past the
+ * content's own height the body stands taller than what it holds, with the
+ * card's surface under its last section, but never past the map's edge
+ * (TJ, 2026-11-04). The ceiling bounds only the app's cap.
  *
  * A map with no visible height, a sheet standing over all of it, has
  * nothing to size a body to, so the body stands at its content, as
  * `openingBodyCap` leaves it whole.
  */
-export function dragBodyRange(region: Rect, chrome: number, content: number): { min: number; max: number } {
+export function dragBodyRange(
+  region: Rect,
+  chrome: number,
+  content: number,
+  room = Number.POSITIVE_INFINITY,
+): { min: number; max: number } {
   const height = Math.max(0, region.bottom - region.top)
   if (height === 0) return { min: content, max: content }
   const min = Math.min(content, bodyBounds(region).floor)
   const free = Math.floor(height - 2 * FIT_MARGIN_PX - MARKER_HALF_PX - TIP_PX - chrome)
-  return { min, max: Math.max(min, free) }
+  return { min, max: Math.max(min, Math.min(free, Math.floor(room - chrome))) }
 }
 
 /**

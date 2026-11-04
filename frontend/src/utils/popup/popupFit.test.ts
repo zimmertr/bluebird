@@ -12,6 +12,7 @@ import {
   grownBodyCap,
   openingBodyCap,
   placePopup,
+  standingRoom,
   visibleArea,
   type Rect,
 } from './popupFit'
@@ -224,6 +225,40 @@ describe('dragBodyRange', () => {
     expect(dragBodyRange({ left: 0, top: 0, right: 360, bottom: 120 }, 200, 400)).toEqual({ min: 30, max: 30 })
     // A map with no visible height stands the body at its content.
     expect(dragBodyRange({ left: 0, top: 0, right: 360, bottom: 0 }, 60, 400)).toEqual({ min: 400, max: 400 })
+  })
+
+  // The room where the card stands bounds the most (TJ, 2026-11-04): a card
+  // with 500px on its side of its point takes 500 less its 60 of header, and
+  // one with less room than the floor stays at the floor.
+  it('stops at the room the card has where it stands', () => {
+    const region = { left: 0, top: 0, right: 1280, bottom: 1000 }
+    expect(dragBodyRange(region, 60, 700, 500)).toEqual({ min: 250, max: 440 })
+    expect(dragBodyRange(region, 60, 700, 2000)).toEqual({ min: 250, max: 906 })
+    expect(dragBodyRange(region, 60, 700, 100)).toEqual({ min: 250, max: 250 })
+  })
+})
+
+// A card stands centred on its point and hangs on one side of it, so the
+// room it has is twice the distance to its nearer side less 8px of breath at
+// each edge, and the distance to the edge on its side less the tip's 10 and
+// the breath (TJ, 2026-11-04).
+describe('standingRoom', () => {
+  const region: Rect = { left: 0, top: 0, right: 1280, bottom: 1000 }
+
+  it('gives a card in the middle of the map the map less its breath', () => {
+    expect(standingRoom({ x: 640, y: 500 }, 'top', region)).toEqual({ width: 1264, height: 482 })
+    expect(standingRoom({ x: 640, y: 500 }, 'bottom', region)).toEqual({ width: 1264, height: 482 })
+  })
+
+  it('gives a card near an edge only the room to that edge', () => {
+    // 100 to the left edge: 200 less 16.
+    expect(standingRoom({ x: 100, y: 900 }, 'bottom', region)).toEqual({ width: 184, height: 882 })
+    // Hanging below a point 900 down: 1000 - 8 - 910.
+    expect(standingRoom({ x: 100, y: 900 }, 'top', region).height).toBe(82)
+  })
+
+  it('never answers less than nothing', () => {
+    expect(standingRoom({ x: -50, y: 995 }, 'top', region)).toEqual({ width: 0, height: 0 })
   })
 })
 

@@ -46,16 +46,11 @@
  *   height between the bounds the map gives (`cardBounds`, TJ 2026-11-04):
  *   the width from the one it opened at, so no drag cuts the lines the card
  *   asked that width for, and the height from the quarter of the map the
- *   app's cap keeps, or the body's own height where it holds less, to the
- *   free map's, shorter than its content to scroll or taller to leave the
- *   card's surface under it. The size holds for every card opened after it
- *   until the page is reloaded, by the folds' rule, the reader's choice
- *   following them; a card whose lines ask for more than the width chosen
- *   opens at its own. A card opened at that size is still fitted and panned
- *   as any card is, its body at the reader's height rather than under the
- *   app's cap. A double press on the handle puts the card back at the size
- *   it opens at with no reader's choice and forgets the reader's, so later
- *   cards open at their own again (TJ, 2026-11-04);
+ *   app's cap keeps, or the body's own height where it holds less, both up
+ *   to the room the card has where it stands, so no drag takes it past the
+ *   map's edge. The size is that card's alone: the next card opens at its
+ *   own, as a pinned chart card does (TJ, 2026-11-04). A double press on the
+ *   handle puts the card back at the size it opened at;
  * - **answered** by its one button: a row in the analysis leaves it as the
  *   table's × does, and a place outside it joins it as a search by name does.
  *
@@ -97,7 +92,7 @@ import { loadUsStates, usStatesNow } from '../utils/usStatesLoad'
 import type { MapController } from './controller'
 import type { GridHeads } from './gridHeads'
 import type { GroundReadings } from './groundReadings'
-import type { CardSize, MapPopups } from './mapPopups'
+import { CARD_FIT_MOVE, type MapPopups } from './mapPopups'
 
 /** Where a card opens, beyond its point. */
 export interface CardOpenOptions {
@@ -174,6 +169,15 @@ interface Card {
   /** Whether its cap waits for the map's move to end (`capWhenStill`). */
   capping: boolean
   /**
+   * Whether the map has moved under it since it was placed, by the reader's
+   * hand or the app's, any move but a card fit's own pan and the flight a
+   * table row's card rides. Its place is the reader's from then on (TJ,
+   * 2026-11-04): a redraw neither caps it against the map's edge nor pans
+   * the map for it, which after a zoom shrank the card and brought it back
+   * into view under the reader.
+   */
+  loose: boolean
+  /**
    * Whether its body stands at a height the reader dragged to (`fixPopupBody`),
    * on this card or on one before it, rather than under a cap the app chose:
    * such a body is never capped again, since it holds what the reader asked.
@@ -235,9 +239,6 @@ export function mountDestinationCards(
   // Each section the reader folded or opened by hand, by its key, for the
   // session: the default is the card's (`sectionOpen`) until they do.
   const folds = new Map<string, boolean>()
-  // The size the reader last dragged a card to, for the session: every card
-  // opened after it opens at it, as a fold holds for the next card.
-  let chosen: CardSize | null = null
 
   function viewOf(card: Card): CardView {
     const { subject: s } = card
@@ -320,27 +321,24 @@ export function mountDestinationCards(
     const width0 = el?.offsetWidth ?? 0
     const body0 = bodyOf(card)?.offsetHeight ?? 0
     // The body's range, read once: the card's header does not change under
-    // the drag, and the free map's height is the map's as the drag starts.
+    // the drag, and the room is the card's where it stands as the drag starts.
     const range = popups.cardBounds(card.popup).body
     const x0 = e.clientX
     const y0 = e.clientY
     const move = (ev: PointerEvent) => {
       if (ev.pointerId !== e.pointerId) return
-      const width = popups.sizeCard(card.popup, width0 + 2 * (ev.clientX - x0))
-      // A card with no body, a spot with no layer on, sizes its width alone
-      // and leaves the height the reader chose on another card as it was.
+      popups.sizeCard(card.popup, width0 + 2 * (ev.clientX - x0))
+      // A card with no body, a spot with no layer on, sizes its width alone.
       // The ceiling is the app's default and bounds nothing here (TJ,
       // 2026-11-04): the body stands at the height asked for, down to the
-      // floor or its own height.
+      // floor or its own height and up to the room where the card stands.
       const body = bodyOf(card)
-      let height = chosen?.body ?? null
       if (body) {
-        height = Math.round(clamp(body0 + ev.clientY - y0, range.min, range.max))
+        const height = Math.round(clamp(body0 + ev.clientY - y0, range.min, range.max))
         card.capped = height
         card.fixed = true
         fixPopupBody(body, height)
       }
-      chosen = { width, body: height }
     }
     const up = (ev: PointerEvent) => {
       if (ev.pointerId !== e.pointerId) return
@@ -354,13 +352,10 @@ export function mountDestinationCards(
   }
 
   // A double press on the handle (TJ, 2026-11-04): the card goes back to the
-  // size it opens at with no reader's choice, the width its own lines asked
-  // for and its body under the app's cap, and the reader's size is forgotten,
-  // so every card opened after it opens at its own size again. Fitted again
-  // as a card that changed size after it landed is, so it stands whole on its
-  // point, the map panning where it must.
+  // size it opened at, the width its own lines asked for and its body under
+  // the app's cap. Fitted again as a card that changed size after it landed
+  // is, so it stands whole on its point, the map panning where it must.
   function restore(card: Card) {
-    chosen = null
     card.fixed = false
     popups.sizeCard(card.popup, popups.cardBounds(card.popup).width.min)
     refit(card)
@@ -441,7 +436,9 @@ export function mountDestinationCards(
     } else if (card.landing === 'landed') {
       if (grown && resized(card)) refit(card)
     } else if (body && card.capped === null) {
-      if (map.isMoving()) capWhenStill(card)
+      // A card the map moved under takes the ceiling alone, wherever it is.
+      if (card.loose) card.capped = popups.bodyCap(card.popup, false)
+      else if (map.isMoving()) capWhenStill(card)
       else card.capped = popups.bodyCap(card.popup)
     }
     if (body && card.capped !== null) (card.fixed ? fixPopupBody : capPopupBody)(body, card.capped)
@@ -495,6 +492,7 @@ export function mountDestinationCards(
   // ceiling, the side and the pan the fit asks for, as `openCard` does.
   function refit(card: Card) {
     card.landing = null
+    card.loose = false
     card.capped = popups.refit(card.popup, { body: card.fixed ? card.capped : null, avoid: card.avoid })?.capped ?? null
   }
 
@@ -506,7 +504,7 @@ export function mountDestinationCards(
       map.off('moveend', still)
       card.capping = false
       if (!cards.includes(card) || card.capped !== null) return
-      card.capped = popups.bodyCap(card.popup)
+      card.capped = popups.bodyCap(card.popup, !card.loose)
       const body = bodyOf(card)
       if (body && card.capped !== null) capPopupBody(body, card.capped)
     }
@@ -590,6 +588,13 @@ export function mountDestinationCards(
     return null
   }
 
+  // Every move but a fit's own pan loosens the cards that stand placed. One
+  // riding a table row's flight is placed where the flight lands, so the
+  // flight is not a move under it.
+  map.on('movestart', (e: unknown) => {
+    if ((e as Partial<typeof CARD_FIT_MOVE> | undefined)?.cardFit) return
+    for (const card of cards) if (card.landing !== 'flying') card.loose = true
+  })
   ground?.onRead(() => refresh(true))
   gridHeads.onResize(() => refresh())
   // A layer whose picture or features changed is read again by every card,
@@ -615,7 +620,8 @@ export function mountDestinationCards(
         reading: new AbortController(),
         seq: new Map(),
         capping: false,
-        fixed: chosen?.body != null,
+        loose: false,
+        fixed: false,
         landing: null,
         grew: false,
         avoid: avoid ?? [],
@@ -636,19 +642,15 @@ export function mountDestinationCards(
         markerAt,
         avoid,
         pan,
-        size: chosen,
       })
       card.popup = placed.popup
       card.capped = placed.capped
-      // A card with no body has no height to hold, whatever the reader chose.
-      card.fixed = card.fixed && placed.capped !== null
       card.fitted = placed.size
       // Held at the width the fit measured, its first paint's, so nothing
       // that lands later widens it and moves it on its point (TJ, 2026-11-04):
       // the snow's numbers, a section a layer answers a moment late, the
-      // ground's slope. Not the reader's size: the next card opens at its own.
-      // A card opened at the reader's width stands at it already.
-      if (!chosen) popups.holdCard(placed.popup)
+      // ground's slope.
+      popups.holdCard(placed.popup)
       // A point given for where the card WILL stand is a flight to come.
       if (markerAt) land(card)
       // The tutorial's marker step frames a ranked card (#536).
