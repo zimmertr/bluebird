@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { demoReport } from './demoReport'
+import { CLOUD_DECK_CEILING_FT } from '../utils/openMeteoAggregate'
 
 const NOW = Date.UTC(2026, 8, 29, 17, 20)
 
@@ -37,6 +38,30 @@ describe('the tutorial report', () => {
       expect(row.series?.cloud_deck_ft).toHaveLength(n)
       expect(row.elevation_ft).not.toBeNull()
     }
+  })
+
+  // One summit per line colour (#850, record 0228), each its own place, in
+  // the order the demonstration ranks them, Mount Baker first: the marker
+  // card flies to `universe[0]`.
+  it('ranks twenty distinct summits by the least air-quality index, Mount Baker first', () => {
+    const { universe, analyzed } = demoReport(NOW)
+    expect(universe).toHaveLength(20)
+    expect(analyzed.sortBy).toBe('aqi_max')
+    expect(analyzed.sortDesc).toBe(false)
+    const aqi = universe.map((r) => r.aqi_max!)
+    expect(aqi).toEqual([...aqi].sort((a, b) => a - b))
+    expect(universe[0].name).toBe('Mount Baker')
+    expect(new Set(universe.map((r) => r.name)).size).toBe(20)
+    expect(new Set(universe.map((r) => `${r.latitude},${r.longitude}`)).size).toBe(20)
+  })
+
+  // A few rows show each mark the table and the popup print.
+  it('shows a dry deck, a freezing level under the summit and snowfall on a few rows each', () => {
+    const { universe } = demoReport(NOW)
+    expect(universe.filter((r) => r.cloud_deck_max_ft === CLOUD_DECK_CEILING_FT).length).toBeGreaterThanOrEqual(2)
+    expect(universe.filter((r) => r.freeze_min_ft! < r.elevation_ft!).length).toBeGreaterThanOrEqual(2)
+    expect(universe.filter((r) => r.snowfall_total_in! > 0).length).toBeGreaterThanOrEqual(2)
+    for (const r of universe) expect(r.snowfall_total_in!).toBeLessThanOrEqual(10 * r.precip_total_in! + 1e-9)
   })
 
   it('carries numbers a reader can tell apart, so the ranking is visible', () => {

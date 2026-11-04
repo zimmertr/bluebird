@@ -39,13 +39,13 @@ const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 // The least room a desk's results stand in from the tutorial's Results card
 // through Pinned hours (#850): two resting panels' height. The chart takes
 // it less its legend, so four panels in 1 over 3 stand well over their 72px
-// floors and two pinned cards, one over the other, each hold all five of the
-// demonstration's rows. A reader who never analyzed would reach the Chart
-// card from a 220px table, a 181px chart under the legend's one 39px row of
-// chips, and less its picker row of about 30px, 1 over 3 there has two rows
-// of about 71px against their 72px floors and draws none. At 1280x720 the
-// room is 440px and the chart 401px (720 less the legend less the drag's
-// 280px map), the most that window gives.
+// floors and two pinned cards, one over the other, stand apart inside the
+// panels' area. A reader who never analyzed would reach the Chart card from
+// a 220px table, a 149px chart under the legend's two 71px rows of chips (the
+// demonstration's twenty), and less its picker row of about 30px, 1 over 3
+// there has two rows of about 55px against their 72px floors and draws none.
+// At 1280x720 the room is 440px and the chart 369px (720 less the legend
+// less the drag's 280px map), the most that window gives.
 export const TALL_RESULTS_PX = 2 * DEFAULT_PANEL_HEIGHT
 // How long a press holds a desk's results at their height (#850): twice the
 // panes' own `PANEL_MS`, because their move starts a frame or more after the

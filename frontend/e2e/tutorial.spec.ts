@@ -220,7 +220,8 @@ test('walks the twelve cards from the footer link and puts the app back', async 
     }
     if (step.anchor === 'layers') await expect(page.getByRole('group', { name: 'Messages' })).toHaveCount(0)
     if (step.anchor === 'layers') await expect(page.locator('[data-tour="layers-menu"]')).toBeVisible()
-    if (step.anchor === 'results') await expect(resultRows(page)).toHaveCount(5)
+    // Twenty summits, one per line colour (#850).
+    if (step.anchor === 'results') await expect(resultRows(page)).toHaveCount(20)
     if (step.anchor === 'chart') await expectReadoutMidWindow(page)
     if (step.anchor === 'chart-panels') await expectFourPanels(page)
     if (step.anchor === 'chart-layout') {

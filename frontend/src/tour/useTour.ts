@@ -317,7 +317,7 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     /**
      * The Results card through Pinned hours hold a desk's results at one
      * taller room (#850): a reader who never analyzed would reach the Panels
-     * card with a 181px chart, where four panels fall under their own floors
+     * card with a 149px chart, where four panels fall under their own floors
      * and are not drawn, and one room from the Results card on keeps the
      * results' top edge still (the maintainer, 2026-11-04: "I want tutorial
      * steps 7 and 8 to have the same results area vertical size as 9, 10,
