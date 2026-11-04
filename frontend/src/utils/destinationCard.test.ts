@@ -19,6 +19,7 @@ import {
 import type { PointSection } from './pointReadout'
 import {
   CARD_FOLD_ATTR,
+  CARD_RESIZE_ATTR,
   POPUP_BODY_ATTR,
   POPUP_TINT_ATTR,
   colorSwatch,
@@ -171,9 +172,10 @@ describe('a ranked card: remove', () => {
     const poiButton = poi.match(new RegExp(`<button ${CARD_ACTION_ATTR}="remove"([^>]*)>`))![1]
     expect(button![0]).toContain(poiButton)
     // On a line of its own at the foot of the card, after the body the scroll
-    // cap shortens rather than inside it, so a capped card keeps it in view.
+    // cap shortens rather than inside it, so a capped card keeps it in view,
+    // with only the resize handle after it, over the foot's corner.
     expect(html).toMatch(
-      new RegExp(`<div style="padding:8px 10px;border-top:1px solid ${escapeRegExp(HEADER_EDGE_COLOR)}"><div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div>\\s*</div>$`),
+      new RegExp(`<div style="padding:8px 10px;border-top:1px solid ${escapeRegExp(HEADER_EDGE_COLOR)}"><div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div><span ${CARD_RESIZE_ATTR}[^>]*><svg[^>]*>(?:<line [^>]*/>)+</svg></span>\\s*</div>$`),
     )
     expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(CARD_ACTION_ATTR))
   })
