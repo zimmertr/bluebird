@@ -110,6 +110,7 @@ interface ResultsSheetView {
  */
 export default function ResultsSheet({
   chartTooltipIndex = null,
+  chartTour,
   resultsView,
   showResults,
   isDesktop,
@@ -258,6 +259,7 @@ export default function ResultsSheet({
               layout={layout}
               charts={charts}
               chartTooltipIndex={chartTooltipIndex}
+              chartTour={chartTour}
               tableView={tableView}
               report={report}
               pending={pending}

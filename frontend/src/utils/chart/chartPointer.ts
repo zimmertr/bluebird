@@ -133,6 +133,21 @@ export function hourIndexAt(x: number, boxWidth: number, times: readonly number[
 }
 
 /**
+ * The pixel from a chart box's left edge that hour `index` of the grid
+ * stands at: `hourIndexAt`'s inverse, so a card the tutorial pins on an hour
+ * stands beside that hour's line as a click's card does (#850). The band's
+ * left edge for a single stamp, which has no span to divide.
+ */
+export function hourX(boxWidth: number, times: readonly number[], index: number): number {
+  const band = plotBand(boxWidth, 0)
+  const first = times[0]
+  const last = times[times.length - 1]
+  const t = times[index]
+  if (first === undefined || t === undefined || last === first) return band.left
+  return band.left + (band.width * (t - first)) / (last - first)
+}
+
+/**
  * What a finger at (`x`, `y`) in a chart box of this size reads: the hour's
  * index and the y axis value at its height, which picks the nearest line the
  * way the mouse's cursor does. Null where there is no hour or no band to read.

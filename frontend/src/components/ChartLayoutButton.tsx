@@ -36,18 +36,28 @@ export default function ChartLayoutButton({
   layout,
   count,
   onLayout,
+  forcedOpen = false,
 }: {
   layout: ChartLayout
   count: number
   onLayout: (layout: ChartLayout) => void
+  /**
+   * The tutorial's Panel layout card holds the menu open for its length
+   * (#850), as its Layers card holds the Layers menu, and the menu goes when
+   * the card does. The keyboard stays on the tour's card, which is the one
+   * thing a reader presses while it runs.
+   */
+  forcedOpen?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [opened, setOpen] = useState(false)
+  const open = opened || forcedOpen
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const { popoverRef, box, closing } = usePopover({ open, onOpenChange: setOpen, triggerRef })
+  const { popoverRef, box, closing } = usePopover({ open, onOpenChange: setOpen, triggerRef, takeFocus: !forcedOpen })
   return (
     <>
       <MenuButton
         ref={triggerRef}
+        data-tour="chart-layout"
         shape="square"
         open={open}
         chevron={false}
@@ -59,7 +69,9 @@ export default function ChartLayoutButton({
       </MenuButton>
       {box && (
         <Menu box={box} popoverRef={popoverRef} closing={closing}>
-          <div role="group" aria-label={LAYOUT_LABEL} className={CHART_LAYOUT.menu}>
+          {/* The tutorial frames the menu with its button (#850): the card is
+              portalled to the body, so the button's box does not hold it. */}
+          <div role="group" aria-label={LAYOUT_LABEL} className={CHART_LAYOUT.menu} data-tour="chart-layout-menu">
             {layoutsFor(count).map((l) => (
               <button
                 key={l}

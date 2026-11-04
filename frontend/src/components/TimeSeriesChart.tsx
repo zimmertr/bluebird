@@ -48,6 +48,8 @@ import {
   tracksCursor,
   valueAt,
   tooltipCapacity,
+  TOOLTIP_CHROME_PX,
+  TOOLTIP_ROW_PX,
   collidingType,
   lineNamed,
 } from '../utils/chart/chartData'
@@ -59,6 +61,7 @@ import {
   Y_AXIS_WIDTH_PX,
   fingerReading,
   hourIndexAt,
+  hourX,
   panelFloorPx,
   plotBand,
   evenStack,
@@ -159,6 +162,18 @@ interface Props {
    * what a hover shows (#536), and the readout goes when the tour does.
    */
   tooltipIndex?: number | null
+  /**
+   * Hour indexes the tutorial's Pinned hours card stands pinned cards on
+   * (#850), placed from the plot's measured area as a click's card is, and
+   * gone when this moves on. Null outside the tour's demonstration, where
+   * the pins are the reader's own; an array through it, empty on its other
+   * cards, so the reader's own pins stand aside under the demonstration's
+   * hours and come back with their own rather than being dropped with them.
+   * A phone pins nothing, so a phone's tour never sets one.
+   */
+  tourPins?: readonly number[] | null
+  /** The tutorial's Panel layout card holds the layout menu open (#850). */
+  layoutMenuOpen?: boolean
 
   times: number[]
   rows: DestinationResult[]
@@ -244,6 +259,8 @@ const NO_SHARED_NAMES: ReadonlySet<string> = new Set()
 
 function TimeSeriesChart({
   tooltipIndex = null,
+  tourPins = null,
+  layoutMenuOpen = false,
   times,
   rows,
   metrics,
@@ -342,17 +359,29 @@ function TimeSeriesChart({
     (t: number) => setPins((list) => (list[list.length - 1]?.t === t ? list : [...list.filter((p) => p.t !== t), ...list.filter((p) => p.t === t)])),
     [],
   )
+  // While the tutorial's demonstration stands in, the reader's own pins wait
+  // under it (#850): Escape there ends the tour and lets none of them go.
+  const touring = tourPins !== null
   useEffect(() => {
-    if (pins.length === 0) return
+    if (pins.length === 0 || touring) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setPins((list) => list.slice(0, -1))
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [pins.length])
+  }, [pins.length, touring])
   // A new grid of hours is a new report: its pins named the old one's hours.
-  useEffect(() => setPins((list) => (list.length > 0 ? [] : list)), [times])
-  const pinTimes = useMemo(() => pins.map((p) => p.t), [pins])
+  // The tutorial's grid is not one (#850): the reader's pins keep the grid
+  // they were made on, and come back with it when the tour ends.
+  const pinGrid = useRef(times)
+  useEffect(() => {
+    if (touring || times === pinGrid.current) return
+    pinGrid.current = times
+    setPins((list) => (list.length > 0 ? [] : list))
+  }, [times, touring])
+  // The tutorial's two cards (#850), placed in the layout effect below.
+  const [tourCards, setTourCards] = useState<readonly Pin[]>(NO_PIN_CARDS)
+  const pinTimes = useMemo(() => (touring ? tourCards : pins).map((p) => p.t), [touring, tourCards, pins])
   // The top panel's share of two stacked panels' height, and a grid's column
   // and row splits (#499). Session state: a split is how this reader likes
   // this chart today, which no link or storage has reason to carry. Even by
@@ -741,6 +770,42 @@ function TimeSeriesChart({
     [rowCounts, rowShares, commitRows],
   )
 
+  // The tutorial's pinned hours (#850), placed as a click on each would place
+  // its card: at the hour's pixel on the first panel, inside the panels'
+  // area as measured. No hover card stands on screen to take a height from,
+  // so each takes half the area, less the gaps, up to the hover card's own
+  // height for every line; the first stands at the area's head and the
+  // second at its foot, so neither covers the other at any width. Measured
+  // again when the area resizes, since a desk's chart grows into the
+  // height the tour holds it at while the cards are up.
+  const lineCount = lines.length
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    const areaEl = areaRef.current
+    if (!tourPins || tourPins.length === 0 || !root || !areaEl) {
+      setTourCards((list) => (list.length > 0 ? NO_PIN_CARDS : list))
+      return
+    }
+    const place = () => {
+      const r = root.getBoundingClientRect()
+      const area = areaEl.getBoundingClientRect()
+      const first = (boxes[0].current ?? areaEl).getBoundingClientRect()
+      const a = { x: area.left - r.left, y: area.top - r.top, w: area.width, h: area.height }
+      const height = Math.max(0, Math.min(Math.floor((a.h - 3 * PIN_INSET_PX) / 2), TOOLTIP_CHROME_PX + lineCount * TOOLTIP_ROW_PX))
+      const next = tourPins.flatMap((index, k): Pin[] => {
+        const t = times[index]
+        if (t === undefined) return []
+        return [{ t, panel: 0, x: first.left - r.left + hourX(first.width, times, index), at: null, area: a, height, foot: k % 2 === 1 }]
+      })
+      setTourCards((list) => (samePins(list, next) ? list : next))
+    }
+    place()
+    if (typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(place)
+    watch.observe(areaEl)
+    return () => watch.disconnect()
+  }, [tourPins, times, lineCount, areaRef, boxes])
+
   // The tutorial's hour wins over a finger's; an hour past a grid that has
   // since shrunk is no reading at all.
   const shownIndex = tooltipIndex ?? (fingerIndex !== null && fingerIndex < times.length ? fingerIndex : null)
@@ -797,6 +862,15 @@ function TimeSeriesChart({
     </div>
   )
 
+  // The row that holds the +, which the tutorial's Panels card lights (#850):
+  // a desk's picker row, or a phone's first panel's own picker and +. One
+  // element at either width, so its anchor is spelled once.
+  const plusRow = (className: string, children: ReactNode) => (
+    <div data-tour="chart-panels" className={className}>
+      {children}
+    </div>
+  )
+
   function panel(i: number, flexGrow: number | null, drawsAxis: boolean, boxRef?: RefObject<HTMLDivElement | null>, hidden = false) {
     return (
       // Keyed by metric (#846), so a move reorders the panels it moved rather
@@ -845,10 +919,17 @@ function TimeSeriesChart({
         areaRef={areaRef}
         heading={
           phone ? (
-            <div className={CHART_PICKER.bar}>
-              {picker(pickers[i])}
-              {i === 0 && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />}
-            </div>
+            i === 0 ? (
+              plusRow(
+                CHART_PICKER.bar,
+                <>
+                  {picker(pickers[i])}
+                  <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />
+                </>,
+              )
+            ) : (
+              <div className={CHART_PICKER.bar}>{picker(pickers[i])}</div>
+            )
           ) : titled ? (
             // The picker's own option label, so no new words (#846). Hidden
             // from assistive technology: the pickers name every panel and the
@@ -907,18 +988,23 @@ function TimeSeriesChart({
           its own panel's top left, because four in a row wrapped onto a
           second line at a phone's width (TJ 2026-10-30), and the row stands
           only to hold a comparison's note. */}
-      {(!phone || controls) && (
-        // One gap through the row, the + included (TJ's review, 2026-10-30):
-        // the + used to ride inside the last picker's wrapper at 4px while
-        // the pickers stood 16px apart, two spacings for one row of peers.
-        // 8px is the grid's gutter.
-        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 px-3 py-1">
-          {!phone && pickers.map(picker)}
-          {!phone && <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />}
-          {!phone && count > 1 && onLayout && <ChartLayoutButton layout={shape} count={count} onLayout={onLayout} />}
-          {controls}
-        </div>
-      )}
+      {/* One gap through the row, the + included (TJ's review, 2026-10-30):
+          the + used to ride inside the last picker's wrapper at 4px while
+          the pickers stood 16px apart, two spacings for one row of peers.
+          8px is the grid's gutter. */}
+      {!phone &&
+        plusRow(
+          PICKER_ROW,
+          <>
+            {pickers.map(picker)}
+            <AddButton disabled={atCeiling} onAdd={onAdd} square={CHART_PANEL_BUTTON.square} />
+            {count > 1 && onLayout && (
+              <ChartLayoutButton layout={shape} count={count} onLayout={onLayout} forcedOpen={layoutMenuOpen} />
+            )}
+            {controls}
+          </>,
+        )}
+      {phone && controls && <div className={PICKER_ROW}>{controls}</div>}
 
       {!gridded && !rowed && (
         // One panel, two at any width, and three or four on a phone stand in
@@ -1071,12 +1157,37 @@ function TimeSeriesChart({
           {landingBar}
         </div>
       )}
-      {pins.map((p) => (
-        <PinnedCard key={p.t} pin={p} times={times} lines={lines} metric={drawn[p.panel] ?? drawn[0]} metrics={drawn} tone={tone} onUnpin={unpin} onRaise={raise} onMovePanel={phone ? undefined : onMove} />
-      ))}
+      {!touring &&
+        pins.map((p) => (
+          <PinnedCard key={p.t} pin={p} times={times} lines={lines} metric={drawn[p.panel] ?? drawn[0]} metrics={drawn} tone={tone} onUnpin={unpin} onRaise={raise} onMovePanel={phone ? undefined : onMove} />
+        ))}
+      {tourCards.length > 0 && (
+        // The tutorial's two cards on a layer the chart's size (#850), the
+        // Pinned hours card's anchor. Nothing presses them while the tour
+        // runs, and they go with it. Keyed by the area too, so a card placed
+        // before the chart had grown is placed again in the grown one.
+        <div data-tour="chart-pins" className="pointer-events-none absolute inset-0">
+          {tourCards.map((p) => (
+            <PinnedCard
+              key={`${p.t}-${p.area.w}x${p.area.h}`}
+              pin={p}
+              times={times}
+              lines={lines}
+              metric={drawn[p.panel] ?? drawn[0]}
+              metrics={drawn}
+              tone={tone}
+              onUnpin={leaveCard}
+              onRaise={leaveCard}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
+
+// The desk's picker row, and the row a phone keeps for a comparison's note.
+const PICKER_ROW = 'flex flex-shrink-0 flex-wrap items-center gap-2 px-3 py-1'
 
 // A 2 by 2 grid's bars each cross the other at the split, so each carries a
 // grip at the middle of either stretch, read off the split itself.
@@ -1964,7 +2075,39 @@ interface Pin {
   area: { x: number; y: number; w: number; h: number }
   /** The hover card's height at the click, which the pinned card keeps. */
   height: number | null
+  /**
+   * Stand at the plotting area's foot rather than its head: the second of
+   * the tutorial's two cards, which stands under the first (#850).
+   */
+  foot?: boolean
 }
+
+// No pinned card, hoisted so an empty list keeps one identity.
+const NO_PIN_CARDS: readonly Pin[] = []
+// How far a new pinned card stands in from the plotting area's edge.
+const PIN_INSET_PX = 8
+
+/** Whether two lists of pins say the same thing, so a re-measure that moved nothing sets nothing. */
+function samePins(a: readonly Pin[], b: readonly Pin[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((p, i) => {
+      const q = b[i]
+      return (
+        p.t === q.t &&
+        p.x === q.x &&
+        p.height === q.height &&
+        p.foot === q.foot &&
+        p.area.x === q.area.x &&
+        p.area.y === q.area.y &&
+        p.area.w === q.area.w &&
+        p.area.h === q.area.h
+      )
+    })
+  )
+}
+// The tutorial's cards are pressed by nothing while the tour runs (#850).
+const leaveCard = () => {}
 
 // The approved name of a pinned card's ✕ (TJ 2026-10-30).
 const unpinLabel = (hour: string) => `Unpin ${hour}`
@@ -2058,9 +2201,12 @@ function PinnedCard({
     const w = el.offsetWidth
     const h = el.offsetHeight
     const right = pin.x - a.x > a.w / 2
-    const from = pin.at ?? { x: right ? pin.x - CARD_CURSOR_OFFSET_PX - w : pin.x + CARD_CURSOR_OFFSET_PX, y: a.y + 8 }
+    const from = pin.at ?? {
+      x: right ? pin.x - CARD_CURSOR_OFFSET_PX - w : pin.x + CARD_CURSOR_OFFSET_PX,
+      y: pin.foot ? a.y + a.h - h - PIN_INSET_PX : a.y + PIN_INSET_PX,
+    }
     setAt({ x: clamp(from.x, a.x, Math.max(a.x, a.x + a.w - w)), y: clamp(from.y, a.y, Math.max(a.y, a.y + a.h - h)) })
-  }, [at, pin.x, pin.at, a.x, a.y, a.w, a.h])
+  }, [at, pin.x, pin.at, pin.foot, a.x, a.y, a.w, a.h])
   useLayoutEffect(() => {
     const body = bodyRef.current
     if (!body) return
@@ -2189,7 +2335,7 @@ function PinnedCard({
       className={`${CHART_CARD.card} ${TEXT.control} absolute z-[3] flex flex-col ${size ? '' : 'w-max'}`}
       style={{
         left: at?.x ?? a.x,
-        top: at?.y ?? a.y + 8,
+        top: at?.y ?? a.y + PIN_INSET_PX,
         visibility: at ? undefined : 'hidden',
         width: size?.w,
         maxWidth: a.w,

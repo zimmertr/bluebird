@@ -32,6 +32,11 @@ import { type ResultsMode, writeViewPrefs } from '../utils/viewPrefs'
 // measured in `utils/results/resultsSheet.ts` against the docked map floor.
 const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT
 const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
+// The chart the tutorial's Panels, Panel layout and Pinned hours cards hold
+// at a desk (#850): two resting panels' height, where four panels in 1 over 3
+// stand well over their 72px floors, and two pinned cards, one over the
+// other, each hold all five of the demonstration's rows.
+export const TALL_CHART_PX = 2 * DEFAULT_PANEL_HEIGHT
 
 // Live viewport height, so the chart/table panel heights can be re-clamped when
 // the window resizes or a phone rotates — otherwise a stale height could let the
@@ -92,6 +97,14 @@ export interface ResultsLayoutInputs {
    */
   fullOverride?: boolean
   /**
+   * Hold a desk's chart at `TALL_CHART_PX`, or as tall as a reader's own drag
+   * could make it where the window is shorter, for as long as this is true,
+   * and give it back to the height it had after (#850). The tutorial's three
+   * chart cards after Chart set it: at rest on a laptop the chart is the
+   * panels' 120px floor, under the four panels' own floors.
+   */
+  tallOverride?: boolean
+  /**
    * The reader has the forecast player on, so a phone's full sheet leaves it
    * room above the Analyze button (#696, `PLAYER_ROOM_PX`).
    */
@@ -126,6 +139,7 @@ export function useResultsLayout({
   collapsedOverride = null,
   restView = null,
   fullOverride = false,
+  tallOverride = false,
   playerOn = false,
   safeBottomPx = 0,
 }: ResultsLayoutInputs) {
@@ -379,10 +393,18 @@ export function useResultsLayout({
   // table under a phone's drag asks for the most the drag can reach; a chart
   // keeps the height it began at, and the layout effect below puts the
   // drag's own on its box after any render that lands mid-drag.
+  // The tutorial's tall chart at a desk (#850) asks the map only for the
+  // floor a reader's own drag keeps (`resolvePanelHeights`' default), and
+  // writes no height, so the reader's comes back when the tour moves on.
+  const heldTall = isDesktop && tallOverride
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
-    sheetDrag?.panel === 'chart' || !(heldFull || (atFullScreen && resultsMode !== 'both')) ? chartHeight : usableH,
+    heldTall
+      ? TALL_CHART_PX
+      : sheetDrag?.panel === 'chart' || !(heldFull || (atFullScreen && resultsMode !== 'both'))
+        ? chartHeight
+        : usableH,
     sheetDrag?.panel === 'table' ? sheetDrag.ceilPx : heldFull || atFullScreen ? usableH : tableHeight,
-    { ...panelOptions, mapMinPx: mapFloorPx },
+    { ...panelOptions, mapMinPx: heldTall ? undefined : mapFloorPx },
   )
   // What the map│chart grip may not drag the chart over: the table while it
   // is rendered, which is the one thing that differs between Both and

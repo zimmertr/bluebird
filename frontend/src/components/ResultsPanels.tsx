@@ -8,6 +8,7 @@ import type { ResultsLayout } from '../hooks/useResultsLayout'
 import type { TableView } from '../hooks/useTableView'
 import type { PendingDestination } from '../utils/customList'
 import type { TimelineAxis } from '../utils/timeline'
+import type { ChartTour } from '../tour/useTour'
 import ModelCompare from './ModelCompare'
 import ResizeGrip from './ResizeGrip'
 import ResultsTable from './ResultsTable'
@@ -54,6 +55,10 @@ const TimeSeriesChart = lazy(() => {
   return { then: (done: (m: ChartModule) => void) => done(loaded) } as unknown as Promise<ChartModule>
 })
 
+// What the chart is handed outside the tutorial's demonstration: the reader's
+// own metrics, layout and pins (#850). Hoisted, so the default is one value.
+const NO_CHART_TOUR: ChartTour = { metrics: null, layoutOpen: false, pins: null }
+
 // What the chart draws for its rows while a model comparison is up: nothing,
 // because the comparison composes every line itself. A module constant so the
 // chart's line memo is not rebuilt by a fresh empty array on every render.
@@ -79,6 +84,13 @@ export interface ResultsPanelsProps {
   charts: Pick<ChartCompare, 'chart' | 'chartMetrics' | 'compare' | 'rowChartColor' | 'shared'>
   /** An hour the chart's tooltip stands on without a mouse (the tutorial, #536). */
   chartTooltipIndex?: number | null
+  /**
+   * What the tutorial's chart cards draw in place of the reader's own chart
+   * (#850): four metrics in the count's own layout, a held Panel layout
+   * menu and two pinned hours. The reader's metrics, layout and pins wait
+   * underneath, and the address bar keeps reading theirs.
+   */
+  chartTour?: ChartTour
   /** The table's rows, columns and widths (`useTableView`). */
   tableView: Pick<
     TableView,
@@ -154,6 +166,7 @@ export default function ResultsPanels({
   layout,
   charts,
   chartTooltipIndex = null,
+  chartTour = NO_CHART_TOUR,
   tableView,
   report,
   pending,
@@ -319,12 +332,14 @@ export default function ResultsPanels({
                         // draw. With nothing compared it is the row list it
                         // has always been.
                         rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
-                        metrics={chartMetrics.metrics}
+                        metrics={chartTour.metrics ?? chartMetrics.metrics}
                         onPick={chartMetrics.pick}
                         onAdd={chartMetrics.add}
                         onRemove={chartMetrics.remove}
                         onMove={chartMetrics.move}
-                        layout={chartMetrics.layout}
+                        layout={chartTour.metrics ? null : chartMetrics.layout}
+                        layoutMenuOpen={chartTour.layoutOpen}
+                        tourPins={chartTour.pins}
                         onLayout={chartMetrics.setLayout}
                         sortBy={sortBy}
                         sortDesc={sortDesc}

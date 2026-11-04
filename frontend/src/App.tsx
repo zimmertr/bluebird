@@ -662,6 +662,7 @@ export default function App() {
     collapsedOverride: tour.sheetCollapsed,
     restView: tour.sheetView,
     fullOverride: tour.sheetFull,
+    tallOverride: tour.chartTall,
     response: shownResponse,
     results,
     pending,
@@ -822,6 +823,7 @@ export default function App() {
           resultsView={resultsView}
           showResults={showResults || demo !== null}
           chartTooltipIndex={tour.chartTooltipIndex}
+          chartTour={tour.chartTour}
           isDesktop={isDesktop}
           report={report}
           removals={removals}
