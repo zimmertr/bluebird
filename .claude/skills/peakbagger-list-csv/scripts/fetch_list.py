@@ -5,7 +5,7 @@ WebFetch both get 403. Wayback serves the same static data; the `id_` modifier r
 the original bytes (gzip-compressed, hence curl --compressed).
 
 Usage: python3 fetch_list.py <lid> [<lid> ...]
-Writes peaks<lid>.json ({lid, title, slug, peaks:[{seq, pb_rank, pid, name, elev}]})
+Writes peaks<lid>.json ({lid, title, peaks:[{seq, pb_rank, pid, name, elev}]})
 into the current directory, ordered exactly as the list page presents them.
 """
 import html, json, re, subprocess, sys, time, unicodedata
@@ -19,12 +19,6 @@ ROW = re.compile(
     re.S | re.I,
 )
 
-
-def slugify(title):
-    """'Smoot's "Climbing Washington's Mountains" 100 Peaks' -> smoots-climbing-...-100-peaks"""
-    t = unicodedata.normalize('NFKD', title).encode('ascii', 'ignore').decode()
-    t = t.replace("'", '').replace('.', '')
-    return re.sub(r'-+', '-', re.sub(r'[^a-z0-9]+', '-', t.lower())).strip('-')
 
 
 def fetch(lid):
@@ -65,14 +59,12 @@ def main():
             sys.exit(f'lid={lid}: snapshot fetched but no peak rows matched — markup may have '
                      f'changed; inspect the HTML before trusting this parser')
 
-        slug = slugify(title)
-        json.dump({'lid': lid, 'title': title, 'slug': slug, 'peaks': peaks},
+        json.dump({'lid': lid, 'title': title, 'peaks': peaks},
                   open(f'peaks{lid}.json', 'w'), indent=1)
 
         ev = [int(p['elev'].replace(',', '')) for p in peaks]
         desc = all(ev[i] >= ev[i + 1] for i in range(len(ev) - 1))
         print(f'lid={lid}  n={len(peaks)}  "{title}"')
-        print(f'  slug:          {slug}.csv')
         print(f'  elev-descending: {desc}   range: {ev[0]:,} -> {ev[-1]:,} ft')
         print(f'  first: {peaks[0]["name"]}   last: {peaks[-1]["name"]}')
         if not desc:

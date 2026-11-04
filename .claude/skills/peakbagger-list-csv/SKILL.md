@@ -56,8 +56,8 @@ cd <scratchpad>
 python3 <SKILL_DIR>/scripts/fetch_list.py 5005 5045 21307
 ```
 
-Writes `peaks<lid>.json` per list and prints the peak count, title, a filename slug (not the file's
-name: the file is named for the menu, step 3), and whether the list is elevation-descending. **Sanity-check the count against the list's own
+Writes `peaks<lid>.json` per list and prints the peak count, title, and whether the list is
+elevation-descending. **Sanity-check the count against the list's own
 name** ("Top 100" should yield 100). If it doesn't match, the markup changed — inspect the HTML
 before going further rather than shipping a short list.
 
@@ -179,7 +179,7 @@ the file lands (step 3). Credit the list's source in `NOTICES.md` beside the oth
 
 ## Files
 
-- `scripts/fetch_list.py` — list page → `peaks<lid>.json` (title, slug, ordered peaks)
+- `scripts/fetch_list.py` — list page → `peaks<lid>.json` (title, ordered peaks)
 - `scripts/fetch_coords.py` — peak pages → `coords<lid>.json` (cached, resumable, throttle-aware)
 - `scripts/build_csv.py` — both JSONs → `frontend/src/coordinate-lists/<Menu name>.csv`, rows only (refuses on missing coords)
 - `scripts/verify_csv.py` — cross-checks the CSV against `peaks<lid>.json`; non-zero on problems
