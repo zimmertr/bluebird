@@ -15,7 +15,6 @@
 // not "nothing burning".
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, overlayFeatures, type OverlayFailure } from './apiFetch'
-import { bodyLines, escapeHtml, factsLine, metaBand, popupCard, updatedAt, updatedLine } from './popup/popupChrome'
 import { grouped, isFiniteNumber, roundTo } from './numbers'
 import { hexToRgb } from './colors'
 
@@ -176,46 +175,16 @@ export function formatAcres(acres: number | null | undefined): string {
   return `${grouped(Math.round(acres))} acres`
 }
 
-export function formatContainment(pct: number | null | undefined): string {
-  if (!isFiniteNumber(pct)) return 'Containment not reported'
-  return `${Math.round(pct)}% contained`
+/** The Layers menu's row for the perimeters, which the legend and a card's section open on. */
+export const WILDFIRE_ROW_LABEL = 'Active wildfires'
+
+/** What a card names NIFC as, in a fire section's fine print beside the survey's date. */
+export const NIFC_SOURCE = 'NIFC'
+
+/** What a screen reader hears for a fire's link out: the text link it replaced (#738). */
+export const FIRE_LINK_LABEL = 'View on NIFC map'
+
+/** A fire's name as NIFC files it under either field, or `Unnamed fire`. */
+export function fireName(props: WildfireProps): string {
+  return (props.attr_IncidentName || props.poly_IncidentName || '').trim() || 'Unnamed fire'
 }
-
-/**
- * Popup markup for a clicked or tapped wildfire perimeter, on the card every
- * popup wears (`popupCard`, #738).
- *
- * The band says what it is: the incident's name, linked to NIFC's map at the
- * fire through the title's glyph, and `Wildfire | {acres}` under it, the
- * Layers menu's own word for the kind and the size that identifies it, the way
- * a summit's elevation does. The body says how it is going: the containment,
- * then the date, last, small and italic, because it qualifies everything
- * above it rather than being another fact in the list, and because it is the
- * one line that is about NIFC's survey rather than about the fire.
- *
- * No notices and no action: the card IS the hazard, so a warning on it would
- * say it twice.
- */
-export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string {
-  const name = (props.attr_IncidentName || props.poly_IncidentName || '').trim() || 'Unnamed fire'
-  // NIFC's own time for when the perimeter was last redrawn, a fact about the
-  // fire rather than about this app's copy: measured across one national
-  // snapshot it ran from minutes to two weeks old. The band names the fire and
-  // its glyph links NIFC, which is what keeps a bare `Updated` the fire's.
-  const revised = updatedAt(props.attr_ModifiedOnDateTime_dt)
-  return popupCard({
-    title: escapeHtml(name),
-    link: { href: nifcUrl, label: FIRE_LINK_LABEL },
-    meta: metaBand([factsLine([FIRE_KIND, escapeHtml(formatAcres(props.poly_GISAcres))])]),
-    body: bodyLines([
-      formatContainment(props.attr_PercentContained),
-      revised ? updatedLine(escapeHtml(revised)) : null,
-    ]),
-  })
-}
-
-/** What a screen reader hears for the title's link: the text link it replaced (#738). */
-const FIRE_LINK_LABEL = 'View on NIFC map'
-
-/** What a fire's facts line calls it: the Layers menu's row, singular. */
-const FIRE_KIND = 'Wildfire'

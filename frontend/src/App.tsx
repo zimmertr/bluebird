@@ -792,8 +792,6 @@ export default function App() {
           timeline={timeline}
           report={report}
           tableView={tableView}
-          fire={fire}
-          closure={closure}
           layout={layout}
           analysis={analysis}
           sortBy={view.sortBy}

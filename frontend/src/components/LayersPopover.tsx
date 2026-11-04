@@ -27,8 +27,12 @@ import { useLayerReach } from '../hooks/useLayerReach'
 import { type BaseLayer, OPACITY_DEFAULT } from '../utils/baseMapOpacity'
 import type { LayerCoverage } from '../utils/layerCoverage'
 import type { MapViewHandle } from './MapView'
+import { CLOSURE_ROW_LABELS } from '../utils/closures'
+import { FIRE_ACTIVITY_ROW_LABEL } from '../utils/fireActivity'
 import { RADAR_ROW_LABEL } from '../utils/radar'
+import { SMOKE_ROW_LABEL } from '../utils/smoke'
 import { SNOW_ROW_LABEL } from '../utils/snowDepth'
+import { WILDFIRE_ROW_LABEL } from '../utils/wildfires'
 
 // One row's switch in the Layers menu: the menu's own checkbox and the
 // layer's name (record 0250 tried an eye here; the maintainer chose the box
@@ -285,25 +289,25 @@ export default function LayersPopover({
       rows: [
         {
           key: 'fires',
-          label: 'Active wildfires',
+          label: WILDFIRE_ROW_LABEL,
           checked: showWildfires,
           onChange: setShowWildfires,
           disabled: outOfView.has('fires'),
         },
         // The fire detections (#799) never grey: the pod reads FIRMS's
         // global files, so no view is outside them.
-        { key: 'fireactivity', label: 'Fire activity', checked: showFireActivity, onChange: setShowFireActivity },
-        { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke, disabled: outOfView.has('smoke') },
+        { key: 'fireactivity', label: FIRE_ACTIVITY_ROW_LABEL, checked: showFireActivity, onChange: setShowFireActivity },
+        { key: 'smoke', label: SMOKE_ROW_LABEL, checked: showSmoke, onChange: setShowSmoke, disabled: outOfView.has('smoke') },
         {
           key: 'closedareas',
-          label: 'Area closures',
+          label: CLOSURE_ROW_LABELS.area,
           checked: showAreaClosures,
           onChange: setShowAreaClosures,
           disabled: outOfView.has('closedareas'),
         },
         {
           key: 'closedtrails',
-          label: 'Trail closures',
+          label: CLOSURE_ROW_LABELS.trail,
           checked: showTrailClosures,
           onChange: setShowTrailClosures,
           disabled: outOfView.has('closedtrails'),

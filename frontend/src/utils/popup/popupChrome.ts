@@ -23,8 +23,8 @@
 // the panel's `BUTTON_ACCENT` itself (`popupButton`). It lives in utils, like
 // the popup bodies that compose it, because a string module is unit-testable
 // without pulling maplibre-gl into a node test.
-import { externalLinkMarkup } from '../../iconPaths'
-import { BUTTON_ACCENT } from '../../styles'
+import { chevronMarkup, externalLinkMarkup } from '../../iconPaths'
+import { BUTTON_ACCENT, CARD_FOLD } from '../../styles'
 import { AGGREGATE, SEP } from '../../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
 import { clamp, isFiniteNumber } from '../numbers'
@@ -165,30 +165,30 @@ function popupLink(href: string, inner: string, extra = ''): string {
 export const RULE_COLOR = 'var(--popup-rule)'
 
 /**
- * The amber a safety warning wears in a popup: the fire line and the closure
- * line, which are flags rather than measurements. The `STATUS` amber the
+ * The amber a safety warning wears in a popup: a closure order's type under
+ * its section's name (#832; the fire and closure lines of the ranked card
+ * before it), a flag rather than a measurement. The `STATUS` amber the
  * table's Wildfire column wears, the same token, so the two cannot part
  * (#786, record 0215); it clears AA on the card in both themes.
  */
 export const WARNING_COLOR = 'var(--popup-warn)'
 
 /**
- * One safety warning, the whole sentence a link where it has one. It carries
- * no glyph of its own: the section's one ⚠️ stands for every line in it
- * (`popupCard`). It keeps one line and ends in an ellipsis where it
- * outruns the card, as a title does (TJ, 2026-10-08): a closure order's name
- * wrapped most cards onto a second line, which on a phone is a row of the
- * grid scrolled out of view. The card still widens to its cap first, so the
- * cut takes only what no card could show. The text is escaped by the caller,
- * since it carries third-party names, and stays whole in the markup for a
- * screen reader.
+ * One safety warning, the whole sentence a link where it has one, and no
+ * glyph. It keeps one line and ends in an ellipsis where it outruns the
+ * card, as a title does (TJ, 2026-10-08): a closure order's name wrapped most
+ * cards onto a second line, which on a phone is a row of the grid scrolled
+ * out of view. The card still widens to its cap first, so the cut takes only
+ * what no card could show. The text is escaped by the caller, since it
+ * carries third-party names, and stays whole in the markup for a screen
+ * reader.
  */
 export function warningLine(text: string, href: string | null): string {
   const style = `color:${WARNING_COLOR};font-weight:600;display:block;${ONE_LINE}`
   return href ? popupLink(href, text, style) : `<span style="${style}">${text}</span>`
 }
 
-/** One line, cut with an ellipsis: a popup's title and its warnings. */
+/** One line, cut with an ellipsis: a popup's title, a section's name and a warning. */
 const ONE_LINE = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
 
 /**
@@ -423,16 +423,51 @@ export function pendingValue(): string {
 }
 
 /**
- * The name a section opens on, where one card describes two things at one
- * point: the rain radar and the snow depth under one click (#737). The band
- * names the pair and lists both sources, and each section says which of the
- * two it is and how much, `Moderate precipitation` over its rows (TJ,
- * 2026-10-16). Bold, because it names the section rather than being one more
- * row in it; the band's title still outranks it on size. The text is markup
- * the caller escaped.
+ * The attribute the map finds a section's fold button by, with the section's
+ * key in its value, so the handler reads which section was pressed off the
+ * element (#832).
  */
-export function sectionHeading(inner: string): string {
-  return `<div style="${BOLD}">${inner}</div>`
+export const CARD_FOLD_ATTR = 'data-card-fold'
+
+/** What a section of a card is made of; the name alone is required. */
+export interface CardSection {
+  /** The key its fold is kept under: a layer's target, or `forecast`. */
+  key: string
+  /** The name it opens on, `Active wildfires: Bolt Creek`, as markup the caller escaped. */
+  heading: string
+  /** What the fold button is named for a screen reader: the layer, as the heading starts. Escaped by the caller. */
+  label: string
+  /** Where the name links out, and what a screen reader hears for the glyph. */
+  link?: { href: string; label: string } | null
+  /** Whether its body shows. */
+  open: boolean
+  /** The body under the name: the rows, the fine print, a grid. Drawn only while open. */
+  body: string
+}
+
+/**
+ * One section of a card, where a card describes several things at one point
+ * (#737, #832): the rain radar and the snow depth, a wildfire within reach, a
+ * closure, and a ranked row's forecast. Each opens on its name, bold because
+ * it names the section rather than being one more row in it (the band's
+ * title still outranks it on size), cut to one line with an ellipsis as the
+ * band's title is, with the link out beside it where the thing has a page,
+ * and the fold's chevron at the section's right edge (TJ, 2026-11-03): down
+ * while the body shows, up while it is folded, as the results bar's reads.
+ * The button is named for the layer and says whether it is open through
+ * `aria-expanded`, so a screen reader hears "Active wildfires, expanded"
+ * rather than a word of the app's own; it wears the glyph ink the band's
+ * link-out does and lights the same way under a pointer (`map.css`,
+ * `data-popup-glyph`), and `CARD_FOLD` in `styles.ts` gives it its box and
+ * its focus ring. A folded section is its name and nothing under it. Every
+ * string is markup the caller escaped.
+ */
+export function cardSection({ key, heading, label, link = null, open, body }: CardSection): string {
+  const name = `<div style="${BOLD};flex:1;min-width:0;${ONE_LINE}">${heading}</div>`
+  const fold =
+    `<button type="button" ${CARD_FOLD_ATTR}="${key}" data-popup-glyph class="${CARD_FOLD}" ` +
+    `aria-expanded="${open}" aria-label="${label}" style="color:${HEADER_ICON_COLOR}">${chevronMarkup(!open)}</button>`
+  return `<div style="display:flex;align-items:center;gap:6px">${name}${link ? linkIcon(link) : ''}${fold}</div>${open ? body : ''}`
 }
 
 /**
@@ -777,29 +812,30 @@ export interface PopupCard {
   link?: PopupCardLink | null
   /** The lines under the title on the band, usually `metaBand([...])`. */
   meta?: string
-  /** Safety lines, each a `warningLine`, in a section of their own. */
-  warnings?: readonly string[]
-  /** The details: a destination's grid, or an overlay's `bodyLines`. */
+  /** The details: the card's sections (`cardSection`), each ruled off from the last. */
   body?: string
   /** One button, in a section of its own under the body. */
   action?: string
 }
 
 /**
- * A card: the name and its facts on a slate band, shadowed onto the sections
+ * A card: the name and its facts on a slate band, shadowed onto the parts
  * below it, so what a thing IS reads apart from what is said about it (TJ,
- * 2026-10-08). Four sections, each but the band optional (#738):
+ * 2026-10-08). Three parts, each but the band optional (#738):
  *
  * 1. The header band: the title and its link-out glyph, and the facts line.
- * 2. The notices: what is wrong there, in amber under one ⚠️.
- * 3. The body: a destination's grid, an overlay's lines.
- * 4. The action: one centred button.
+ * 2. The body: the card's sections, a layer's reading or a destination's grid
+ *    each (`cardSection`, #832).
+ * 3. The action: one centred button.
  *
  * Every popup that describes a thing wears it. A ranked result and a clicked
  * basemap feature did first (#712: one mountain, one card, before and after an
  * analysis); a fire, a closure and a smoke plume followed (#738), because a
  * thing on the map that says what it is should read as one kind of card
- * whatever it is. A section the caller leaves empty is left out, rather than
+ * whatever it is, and since #832 those three are sections of the place's
+ * card rather than cards of their own. The notices that stood between the
+ * band and the body went with them: a closure's type is the amber line in
+ * its section. A part the caller leaves empty is left out, rather than
  * drawn as an empty strip.
  *
  * The name stays at the reading size and everything under it steps down one.
@@ -819,16 +855,7 @@ export interface PopupCard {
  * height from its measured outer height (`capPopupBody`), and it scrolls
  * sideways on a map narrower than its grid.
  */
-export function popupCard({ title, link = null, meta = '', warnings = [], body = '', action = '' }: PopupCard): string {
-  // The warnings, between the header and the grid and closed off from the grid
-  // by the header's own edge (TJ, 2026-10-08), so the card reads as three
-  // parts: what the place is, what is wrong there, what the forecast says.
-  // Without the edge they ran into the first row of numbers. No shadow, so
-  // the header stays the one raised band. Outside the body, so a capped card
-  // that scrolls its numbers keeps its warnings in view with its name.
-  const notice = warnings.length
-    ? `<div style="${POPUP_BODY_SIZE};display:flex;align-items:flex-start;padding:${SECTION_PAD_Y} 0 ${SECTION_PAD_Y} 10px;border-bottom:${SECTION_EDGE}"><div style="flex:1;min-width:0">${warningList(warnings)}</div>${WARNING_GLYPH}</div>`
-    : ''
+export function popupCard({ title, link = null, meta = '', body = '', action = '' }: PopupCard): string {
   const content = body
     ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
     : ''
@@ -836,12 +863,12 @@ export function popupCard({ title, link = null, meta = '', warnings = [], body =
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
       <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}</div>
       ${meta}
-    </div>${notice}${content}${
+    </div>${content}${
       // Under the body rather than in it, so a card whose numbers the scroll
       // cap shortened keeps its action in view the way it keeps its name. A
-      // section of its own, ruled off from the grid by the edge and padding
-      // the warnings section wears (#696, TJ 2026-10-14): without the rule
-      // the button read as one more row of the grid.
+      // section of its own, ruled off from the body by the edge and padding
+      // the card's sections wear (#696, TJ 2026-10-14): without the rule the
+      // button read as one more row of the grid.
       action
         ? `<div style="padding:${SECTION_PAD_Y} 10px;border-top:${SECTION_EDGE}">${popupAction(action)}</div>`
         : ''
@@ -886,38 +913,14 @@ export const HEADER_EDGE_COLOR = 'var(--popup-line)'
 const HEADER_SHADOW_COLOR = 'var(--popup-shadow)'
 
 /**
- * The edge and the padding a result card's sections wear below the header:
- * the warnings above the grid and the action below it (#696). One spelling,
- * so the card's two ruled-off parts cannot drift apart. The edge is the
- * header's own, which is what lets a section read as part of the card rather
+ * The edge and the padding a card's parts wear below the header: each section
+ * after the first (`bodySection`) and the action under them (#696). One
+ * spelling, so the card's ruled-off parts cannot drift apart. The edge is the
+ * header's own, which is what lets a part read as part of the card rather
  * than as a second card.
  */
 export const SECTION_EDGE = `1px solid ${HEADER_EDGE_COLOR}`
 export const SECTION_PAD_Y = '8px'
-
-/**
- * The warning section's one ⚠️, which stands for every line in it (TJ,
- * 2026-10-08). A glyph per line spent 20px of every line and wrapped a
- * closure name that fits without it. It stands in a column of its own down
- * the section's right side, the header's close-button lane carried on below
- * it, so it reads as the section's rather than the first line's: floated, the
- * lines below ran under it and it looked like the first warning's alone. The
- * column is the lane plus 2px, so the glyph centred in it sits under the
- * button's centre, which is half the lane plus 1px in from the card's edge
- * (`map.css`: a 0.375rem inset, and the lane is the button, that inset and
- * 0.25rem of air). 17px from the edge on a mouse, 28px on a touch screen.
- */
-const WARNING_GLYPH = `<span aria-hidden="true" style="flex:none;width:calc(var(--popup-close-lane, 2rem) + 2px);text-align:center">⚠️</span>`
-
-/**
- * The warnings themselves: a lone one as its sentence, two or more as a
- * bulleted list (TJ, 2026-10-08), the bullets in the warning amber. A rule
- * between them was tried and read as a section per warning.
- */
-function warningList(warnings: readonly string[]): string {
-  if (warnings.length === 1) return warnings[0]
-  return `<ul style="margin:0;padding-left:16px;list-style:disc;color:${WARNING_COLOR}">${warnings.map((w) => `<li>${w}</li>`).join('')}</ul>`
-}
 
 /**
  * The link-out glyph on the band, in the label grey at rest, as the results

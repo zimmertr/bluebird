@@ -8,29 +8,41 @@
  *
  * What differs between them is what is known, not how it is drawn:
  *
- * - a **ranked** row has a forecast, so it carries the warnings and the grid
- *   (#370), and its remove does what the table's × does (#696);
- * - a **pending** destination has no forecast yet, so the header alone, and
+ * - a **ranked** row has a forecast, so it carries the grid (#370) in a
+ *   section of its own, and its remove does what the table's × does (#696);
+ * - a **pending** destination has no forecast yet, so no such section, and
  *   its remove is the same × (TJ, 2026-11-03);
  * - a **label** is a feature the map draws, which `Add to analysis` registers
  *   the way a search by name does (#119, #712);
- * - a **spot** is a coordinate no label names: the pair is its title, the
- *   ground its facts, and the rain radar and the snow depth painted there its
- *   body (#737), since a click on bare map is how both are asked.
+ * - a **spot** is a coordinate no label names: the pair is its title and the
+ *   ground its facts, since a click on bare map is how the layers are asked
+ *   about a point (#737).
  *
  * Every header is the result card's band: the name and its link out, then the
  * coordinates alone, then the type, the elevation and the slope (TJ,
  * 2026-10-31). A spot has no name, kind or recorded height, so its title is
  * the pair and its facts are the tile's height and the slope.
+ *
+ * Under the band, every card is the same stack of sections (TJ, 2026-11-03):
+ * one for each layer that is on and has something at the point, in the rank
+ * the map reads them in (`mapClick.ts`), and last the forecast on a ranked
+ * card, because the hazards are what a reader weighs the forecast against.
+ * Each section is its name, its rows and its fine print, and each folds on
+ * its chevron: before an analysis every section stands open, and on a ranked
+ * card only the forecast does, the hazards folded to their names, since the
+ * grid is what the marker was clicked for. A fold the reader makes holds on
+ * every card for the session (`map/destinationCards.ts` keeps the choices).
+ * The sections used to be the overlays' own cards, one per shape, so a click
+ * on a hotspot said nothing about the rain under it; now a hotspot over snow
+ * in a closed area under rain is one card of four sections.
  */
 import type { DestinationResult, SortBy } from '../types'
 import { type BasemapPoi, FEET_PER_METER, poiToPlace } from './basemapPoi'
 import { caltopoUrl } from './caltopoUrl'
-import { type ClosureWarning, closurePopupText } from './closureProximity'
 import type { PendingDestination } from './customList'
 import { destinationLinkLabel, destinationUrl } from './destinationUrl'
-import { type FireWarning, firePopupText } from './fireProximity'
 import { type Place, placeType } from './geocode'
+import type { ModelRow } from './model/modelCompare'
 import { roundTo } from './numbers'
 import type { PointSection } from './pointReadout'
 import { coordinateLabel } from './points'
@@ -38,6 +50,7 @@ import { type GroundState, slopeFact } from './popup/groundFact'
 import {
   bodyLines,
   bodySection,
+  cardSection,
   escapeHtml,
   factValue,
   factsLine,
@@ -48,7 +61,7 @@ import {
   popupAction,
   popupButton,
   popupCard,
-  sectionHeading,
+  updatedAt,
   updatedLine,
   warningLine,
   widestName,
@@ -57,14 +70,13 @@ import { elevationFact, popupGrid, popupGroups, popupIdentity } from './popup/po
 import { pendingLinkRow } from './results/resultsCells'
 import { type ColDef, TYPE_COL } from './tableColumns'
 import type { UsStates } from './usStates'
-import { FIRE_LINK_ZOOM, nifcFireUrl } from './wildfires'
 
 /** What a card describes. */
 export type CardSubject =
   | { kind: 'ranked'; row: DestinationResult; rank: number | string }
   | { kind: 'pending'; pending: PendingDestination }
   | { kind: 'label'; poi: BasemapPoi }
-  | { kind: 'spot'; lat: number; lon: number; sections: readonly PointSection[] }
+  | { kind: 'spot'; lat: number; lon: number }
 
 /**
  * The attribute the map finds a card's one button by, with the action in its
@@ -88,9 +100,15 @@ export interface CardView {
   removable?: boolean
   /** The results table's columns, which a ranked card's grid follows (#370). */
   columns?: readonly ColDef[]
-  /** The nearest wildfire within the warn radius, and the closure the point stands in. */
-  warning?: FireWarning | null
-  closure?: ClosureWarning | null
+  /**
+   * What the layers say at the point (#832), in the rank the map reads them
+   * in; a card built with no map has none.
+   */
+  sections?: readonly PointSection[]
+  /** Each section the reader folded or opened by hand, by its key, which overrides the default. */
+  folds?: ReadonlyMap<string, boolean>
+  /** When the report was analyzed, which the forecast section's fine print says. */
+  analyzedAtMs?: number | null
   /** The model the numbers came from and the report's hours, for the Windy links. */
   modelId?: string | null
   times?: readonly number[]
@@ -249,29 +267,28 @@ function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView) 
   }
 }
 
+/** The key the forecast section's fold is kept under, beside the layers' targets. */
+export const FORECAST_SECTION = 'forecast'
+
+/** What the forecast section is named without a model to name: an archive report's, whose numbers no model produced. */
+const FORECAST_HEADING = 'Forecast'
+
 /**
- * A ranked row's warnings: the nearest wildfire and the closure it stands in,
- * the two table columns the card does not mirror as rows, since each is a
- * safety flag rather than a measurement (TJ, 2026-09-14). Each whole line is
- * its link: NIFC's map for the fire, the order's page for a closure that has
- * one. The names inside are third-party text, so they are escaped.
+ * Whether a section shows its body: the reader's own choice for that section
+ * where they made one, and otherwise open on every card but the ranked one,
+ * where only the forecast is (TJ, 2026-11-03).
  */
-function rankedWarnings(view: CardView): string[] {
-  const fire = view.warning
-    ? warningLine(
-        escapeHtml(firePopupText(view.warning)),
-        nifcFireUrl(view.warning.longitude, view.warning.latitude, FIRE_LINK_ZOOM),
-      )
-    : ''
-  const closure = view.closure ? warningLine(escapeHtml(closurePopupText(view.closure)), view.closure.url ?? null) : ''
-  return [fire, closure].filter(Boolean)
+export function sectionOpen(s: CardSubject, key: string, folds?: ReadonlyMap<string, boolean>): boolean {
+  const chosen = folds?.get(key)
+  if (chosen !== undefined) return chosen
+  return s.kind !== 'ranked' || key === FORECAST_SECTION
 }
 
 /**
  * A ranked row's measurements as one grid, a row per family and a column per
  * aggregate (TJ, 2026-10-08), every value from the COLUMNS the table is
  * showing rather than a list spelled here (#370; `popupRows.ts` owns the
- * derivation).
+ * derivation), or '' with no column to show.
  */
 function rankedGrid(row: DestinationResult, view: CardView): string {
   const grid = popupGrid(
@@ -286,6 +303,30 @@ function rankedGrid(row: DestinationResult, view: CardView): string {
 }
 
 /**
+ * A ranked row's forecast as the card's last section: `Forecast: GFS
+ * Seamless`, the model the numbers came from (a comparison row's own, or the
+ * one model that answered every row), the grid, and when the report was
+ * analyzed in the fine print, `Analyzed: Nov 3, 2026, 1:36 PM` (TJ,
+ * 2026-11-03). Nothing with no column to show.
+ */
+function forecastSection(s: Extract<CardSubject, { kind: 'ranked' }>, view: CardView): string | null {
+  const grid = rankedGrid(s.row, view)
+  if (!grid) return null
+  const model = (s.row as ModelRow).modelLabel ?? view.modelFallbackLabel ?? null
+  const analyzed = updatedAt(view.analyzedAtMs)
+  return cardSection({
+    key: FORECAST_SECTION,
+    heading: escapeHtml(model ? `${FORECAST_HEADING}: ${model}` : FORECAST_HEADING),
+    label: FORECAST_HEADING,
+    open: sectionOpen(s, FORECAST_SECTION, view.folds),
+    body: grid + (analyzed ? bodyLines([updatedLine(escapeHtml(analyzed), ANALYZED)]) : ''),
+  })
+}
+
+/** What the forecast section's fine print calls the report's time. */
+const ANALYZED = 'Analyzed'
+
+/**
  * A spot's ground: the tile's height in feet, then the slope, since a bare
  * point has no height of its own recorded.
  */
@@ -297,28 +338,37 @@ function spotGround(ground: GroundState | undefined): string {
 }
 
 /**
- * What the pictures painted at a spot (#737), each a section opening on the
- * layer's name and its reading, `Rain radar: Moderate precipitation`, so a
- * reader knows which layer said it (TJ, 2026-11-03), its values under it,
- * and where and when it was measured in the fine print at its foot: `NEXRAD
- * radar: 10 min ago` (layout C1). A reading's name that changes while the
- * card is open, the radar's during playback, stands at the width of its
- * widest so the card does not jump (#752).
+ * What the layers say at the point (#737, #832), each a section opening on
+ * the layer's name and its reading, `Rain radar: Moderate precipitation`, so
+ * a reader knows which layer said it (TJ, 2026-11-03), the order's type in
+ * the warning amber under a closure's name, its values under that, and where
+ * and when it was measured in the fine print at its foot: `NEXRAD radar: 10
+ * min ago` (layout C1). A reading's name that changes while the card is
+ * open, the radar's during playback, stands at the width of its widest so
+ * the card does not jump (#752).
  */
-function spotSections(sections: readonly PointSection[]): string {
-  return sections
-    .map((s, i) => {
-      const name = s.titles ? widestName(s.title, s.titles) : s.title
-      const inner = sectionHeading(`${s.layer}: ${name}`) + bodyLines([...s.rows, s.when === undefined ? null : updatedLine(s.when, s.source)])
-      return i === 0 ? inner : bodySection(inner)
-    })
-    .join('')
+function layerSection(s: CardSubject, section: PointSection, view: CardView): string {
+  const name = section.titles ? widestName(section.title, section.titles) : section.title
+  return cardSection({
+    key: section.kind,
+    heading: `${section.layer}: ${name}`,
+    label: section.layer,
+    link: section.link,
+    open: sectionOpen(s, section.kind, view.folds),
+    body: bodyLines([
+      section.warn === undefined ? null : warningLine(section.warn, null),
+      ...section.rows,
+      section.when === undefined ? null : updatedLine(section.when, section.source),
+    ]),
+  })
 }
 
 /**
  * The card for a subject as the map sees it now. A spot's title is the pair,
  * and its link-out glyph opens CalTopo there (`Open in CalTopo`), since the
- * title already says what the facts' pair would (TJ, 2026-10-30).
+ * title already says what the facts' pair would (TJ, 2026-10-30). Under the
+ * band, the layers' sections in the map's rank and then the forecast's, each
+ * ruled off from the one above it.
  */
 export function destinationPopupHtml(s: CardSubject, view: CardView = {}): string {
   const action = cardAction(s, view)
@@ -337,16 +387,18 @@ export function destinationPopupHtml(s: CardSubject, view: CardView = {}): strin
           meta: metaBand([spotGround(view.ground)]),
         }
       : placeHeader(s, view)
-  const warnings = s.kind === 'ranked' ? rankedWarnings(view) : []
-  const body = s.kind === 'ranked' ? rankedGrid(s.row, view) : s.kind === 'spot' ? spotSections(s.sections) : ''
+  const sections = [
+    ...(view.sections ?? []).map((section) => layerSection(s, section, view)),
+    ...(s.kind === 'ranked' ? [forecastSection(s, view)] : []),
+  ].filter((part): part is string => part !== null)
+  const body = sections.map((inner, i) => (i === 0 ? inner : bodySection(inner))).join('')
   // A card with something under its band rules its button off in a foot of
   // its own (#696), or it reads as one more row; a card with nothing else
   // stands the button alone and centred in the body, under the band's edge,
   // where a foot's rule would draw a second line under the first (record 0139).
-  const lone = !body && warnings.length === 0
+  const lone = !body
   return popupCard({
     ...header,
-    warnings,
     body: lone && button ? popupAction(button) : body,
     action: lone ? '' : button,
   })

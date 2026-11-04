@@ -1,5 +1,5 @@
 import { type ReactNode, useId } from 'react'
-import { EXTERNAL_LINK } from '../iconPaths'
+import { CHEVRON, EXTERNAL_LINK } from '../iconPaths'
 import { ICON } from '../styles'
 import { type AgeBandHours, STARBURST_INNER, starburst } from '../utils/fireActivity'
 
@@ -87,7 +87,7 @@ export function IconChevron({ up, className }: IconProps & { up: boolean }): Rea
       className={join(ICON.control, className)}
       aria-hidden="true"
     >
-      <polyline points={up ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+      <polyline points={up ? CHEVRON.up : CHEVRON.down} />
     </svg>
   )
 }

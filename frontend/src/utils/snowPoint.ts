@@ -214,6 +214,7 @@ export function pendingSnowSection(word: string, glacier: boolean | undefined): 
   return {
     title: glacier === undefined ? pendingValue() : escapeHtml(glacier ? GLACIER_TITLE : word),
     source: escapeHtml(SNOW_SOURCE),
+    kind: 'snow',
     layer: escapeHtml(SNOW_ROW_LABEL),
     rows: [row('Depth', pendingValue()), row('Snow water equivalent', pendingValue())],
     when: pendingValue(),
@@ -231,6 +232,7 @@ export function snowSection(word: string, reading: SnowReading, glacier = false)
   return {
     title: escapeHtml(glacier ? GLACIER_TITLE : word),
     source: escapeHtml(SNOW_SOURCE),
+    kind: 'snow',
     layer: escapeHtml(SNOW_ROW_LABEL),
     rows: [
       row('Depth', inches(reading.depthIn)),
@@ -243,6 +245,7 @@ export function snowSection(word: string, reading: SnowReading, glacier = false)
 /** The snow's section when NOAA could not answer: its name kept, and the failure in place of the values. */
 export function failedSnowSection(word: string): PointSection {
   return {
+    kind: 'snow',
     layer: escapeHtml(SNOW_ROW_LABEL),
     title: escapeHtml(word),
     source: escapeHtml(SNOW_SOURCE),

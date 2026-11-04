@@ -13,10 +13,23 @@
  * - **drawn** with what the map knows now: the zoom, the ground under the
  *   point (`groundReadings.ts`), the state outlines a crag's search names its
  *   state by, and for a ranked row everything the table shows of it;
+ * - **read** by every layer that is on, each for the section it has at the
+ *   card's point (`mapPopups.readPoint`): the hazards within reach and the
+ *   pictures painted there, which land on the card as each answers and are
+ *   read again when a layer's picture or features change under it
+ *   (`onPointChange`), so a fire that arrives after a pan joins the open
+ *   cards and a layer switched off leaves them; closing the card aborts what
+ *   it was still waiting for;
  * - **redrawn** where it stands whenever any of that changes: a ground read
- *   landing, the outlines arriving, a grid column a reader sized, or a new
- *   ranking. A redraw keeps the card's cap, its scroll and the reader's
- *   focus, since it answers something the reader did elsewhere;
+ *   landing, the outlines arriving, a section landing, a grid column a
+ *   reader sized, or a new ranking. A redraw keeps the card's cap, its
+ *   scroll and the reader's focus, since it answers something the reader did
+ *   elsewhere, and a card that grew past the free map is capped where it
+ *   stands (`bodyCap`);
+ * - **folded** by its chevrons: a fold the reader makes on one card's
+ *   section holds for that section on every card until the page is reloaded
+ *   (TJ, 2026-11-03), so a reader who shut the smoke on one marker is not
+ *   shown it open on the next;
  * - **answered** by its one button: a row in the analysis leaves it as the
  *   table's × does, and a place outside it joins it as a search by name does.
  *
@@ -34,14 +47,16 @@ import {
   type CardSubject,
   type CardView,
   destinationPopupHtml,
+  sectionOpen,
   subjectPlace,
   subjectPoint,
   subjectType,
 } from '../utils/destinationCard'
 import type { Place } from '../utils/geocode'
-import type { MapTarget } from '../utils/mapClick'
+import { MAP_TARGETS, type MapTarget } from '../utils/mapClick'
 import type { ModelRow } from '../utils/model/modelCompare'
-import { POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popup/popupChrome'
+import type { PointSection } from '../utils/pointReadout'
+import { CARD_FOLD_ATTR, POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popup/popupChrome'
 import type { Point as ScreenPoint, Rect } from '../utils/popup/popupFit'
 import { loadUsStates, usStatesNow } from '../utils/usStatesLoad'
 import type { MapController } from './controller'
@@ -60,8 +75,6 @@ export interface CardOpenOptions {
   avoid?: readonly Rect[]
   /** Whether the map pans by the fit's move; a caller folding it into a flight says no. */
   pan?: boolean
-  /** The kinds of thing it describes, for a spot whose sections are an overlay's. */
-  owner?: readonly MapTarget[]
 }
 
 /** A card on the map, and the move its fit asked of the map. */
@@ -69,8 +82,6 @@ export interface OpenedCard {
   popup: Popup
   dx: number
   dy: number
-  /** Replace what the card describes and redraw it where it stands: a spot's sections as they land. */
-  update(subject: CardSubject): void
 }
 
 export interface DestinationCards {
@@ -101,10 +112,17 @@ interface Card {
    * this one.
    */
   registered: Place | null
+  /** What each layer said at its point, by the layer's target. */
+  sections: Map<MapTarget, PointSection>
+  /** Aborts every reading for it when it closes. */
+  reading: AbortController
+  /** Each layer's latest ask, so a slower answer cannot paint over a newer one. */
+  seq: Map<MapTarget, number>
 }
 
 // What each kind of card is closed by, when a click elsewhere or an overlay
-// switched off clears the board.
+// switched off clears the board. A spot's card has no owner: what it carries
+// is the layers' sections, which leave it when their layer goes off.
 const OWNER: Record<Exclude<CardSubject['kind'], 'spot'>, MapTarget> = {
   ranked: 'result',
   pending: 'pending',
@@ -124,6 +142,9 @@ export function mountDestinationCards(
 ): DestinationCards {
   const { controller, popups, gridHeads, ground } = deps
   let cards: Card[] = []
+  // Each section the reader folded or opened by hand, by its key, for the
+  // session: the default is the card's (`sectionOpen`) until they do.
+  const folds = new Map<string, boolean>()
 
   function viewOf(card: Card): CardView {
     const { subject: s } = card
@@ -135,6 +156,9 @@ export function mountDestinationCards(
       usStates: usStatesNow(),
       ground: ground?.at(at.lat, at.lon),
       added: card.registered !== null,
+      // In the map's rank, whatever order the layers answered in.
+      sections: MAP_TARGETS.filter((kind) => card.sections.has(kind)).map((kind) => card.sections.get(kind)!),
+      folds,
     }
     if (s.kind !== 'ranked') return shared
     const live = controller.inputs
@@ -142,10 +166,6 @@ export function mountDestinationCards(
     return {
       ...shared,
       columns: live.popupColumns,
-      // Read from the row's own coordinates, which are the exact ones a
-      // marker carries, so the warnings match on them.
-      warning: controller.fireWarningAt(row.latitude, row.longitude),
-      closure: controller.closureWarningAt(row.latitude, row.longitude),
       // A per-model row names its own model; a single-model report has one
       // for every row. Same rule as the table's cells.
       modelId: (row as ModelRow).modelId ?? live.modelId,
@@ -156,18 +176,31 @@ export function mountDestinationCards(
       compact: compactGrid(map.getCanvas().clientWidth),
       widths: gridHeads.widths(),
       removable: true,
+      analyzedAtMs: live.analyzedAtMs,
     }
   }
 
   const htmlOf = (card: Card) => destinationPopupHtml(card.subject, viewOf(card))
 
-  // setHTML replaces the card's children, so its button and its grid's heads
-  // are new nodes after every write and are wired again each time.
+  // setHTML replaces the card's children, so its button, its folds and its
+  // grid's heads are new nodes after every write and are wired again each
+  // time.
   function arm(card: Card) {
     const el = card.popup.getElement()
     // Optional: a test's stub popup has no DOM.
     el?.querySelector?.<HTMLButtonElement>(`[${CARD_ACTION_ATTR}]`)?.addEventListener('click', () => act(card))
+    el?.querySelectorAll?.<HTMLButtonElement>(`[${CARD_FOLD_ATTR}]`).forEach((button) => {
+      button.addEventListener('click', () => fold(card, button.getAttribute(CARD_FOLD_ATTR)!))
+    })
     if (card.subject.kind === 'ranked') gridHeads.arm(card.popup)
+  }
+
+  // A chevron's press: the section folds or opens on every card, and the
+  // chevron pressed keeps the reader's focus, in its new markup.
+  function fold(card: Card, key: string) {
+    folds.set(key, !sectionOpen(card.subject, key, folds))
+    for (const c of cards) write(c)
+    card.popup.getElement()?.querySelector?.<HTMLButtonElement>(`[${CARD_FOLD_ATTR}="${key}"]`)?.focus?.()
   }
 
   // The button. Reads the card's subject at the press, so a ranked card a new
@@ -218,8 +251,42 @@ export function mountDestinationCards(
     card.html = html
     arm(card)
     const body = bodyOf()
+    // A card that grew past the free map, a section having landed on it, is
+    // capped where it stands; one capped already keeps its cap.
+    if (body && card.capped === null) card.capped = popups.bodyCap(card.popup)
     if (body && card.capped !== null) capPopupBody(body, card.capped)
     if (body) body.scrollTop = scrolled
+  }
+
+  // One layer's section for the card, asked where the card stands: landed
+  // when it answers, and again when a value it was still asking for lands
+  // (`later`). Taken off the card where the layer has nothing there or is
+  // off. A layer's answer that arrives after the card asked it again is
+  // dropped, and one that fails is warned about and leaves the card as it
+  // was.
+  function read(card: Card, kind: MapTarget, again: boolean) {
+    const seq = (card.seq.get(kind) ?? 0) + 1
+    card.seq.set(kind, seq)
+    const stale = () => card.reading.signal.aborted || card.seq.get(kind) !== seq
+    const at = subjectPoint(card.subject)
+    popups
+      .readPoint(kind, { lng: at.lon, lat: at.lat }, card.reading.signal, again)
+      .then((reading) => {
+        if (stale()) return
+        if (reading === null) card.sections.delete(kind)
+        else card.sections.set(kind, reading.section)
+        write(card)
+        reading?.later
+          ?.then((section) => {
+            if (stale()) return
+            card.sections.set(kind, section)
+            write(card)
+          })
+          .catch(() => {})
+      })
+      .catch((err: unknown) => {
+        if (!card.reading.signal.aborted) console.warn(`The ${kind} reading failed`, err)
+      })
   }
 
   // The displayed row a ranked card now stands for: the same row where it is
@@ -261,13 +328,27 @@ export function mountDestinationCards(
 
   ground?.onRead(refresh)
   gridHeads.onResize(refresh)
+  // A layer whose picture or features changed is read again by every card,
+  // which takes its section off where it now has nothing or is off.
+  popups.onPointChange((kind) => {
+    for (const card of cards) read(card, kind, true)
+  })
 
   return {
-    open(subject, at, { markerAt, avoid, pan = true, owner } = {}) {
-      const card: Card = { popup: null as unknown as Popup, subject, html: '', capped: null, registered: registeredAs(subject) }
+    open(subject, at, { markerAt, avoid, pan = true } = {}) {
+      const card: Card = {
+        popup: null as unknown as Popup,
+        subject,
+        html: '',
+        capped: null,
+        registered: registeredAs(subject),
+        sections: new Map(),
+        reading: new AbortController(),
+        seq: new Map(),
+      }
       card.html = htmlOf(card)
       const placed = popups.openCard(at, card.html, {
-        owner: owner ?? (subject.kind === 'spot' ? undefined : OWNER[subject.kind]),
+        owner: subject.kind === 'spot' ? undefined : OWNER[subject.kind],
         result: true,
         markerAt,
         avoid,
@@ -280,6 +361,7 @@ export function mountDestinationCards(
       cards.push(card)
       arm(card)
       placed.popup.on('close', () => {
+        card.reading.abort()
         cards = cards.filter((c) => c !== card)
       })
       // The markers asked for the outlines when a crag came into view, so
@@ -289,15 +371,10 @@ export function mountDestinationCards(
           if (states) write(card)
         })
       }
-      return {
-        popup: placed.popup,
-        dx: placed.dx,
-        dy: placed.dy,
-        update(next) {
-          card.subject = next
-          write(card)
-        },
-      }
+      // Every layer that is on, asked for what it has here. Each answers
+      // from what it holds, so the card is whole a moment after it opens.
+      for (const kind of popups.pointKinds()) read(card, kind, false)
+      return { popup: placed.popup, dx: placed.dx, dy: placed.dy }
     },
     refresh,
     hasOpenRanked({ latitude, longitude }) {

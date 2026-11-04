@@ -1,5 +1,5 @@
 /**
- * What a picture on the map says at a point (#737).
+ * What a layer on the map says at a point (#737, #832).
  *
  * The rain radar and the snow depth are raster layers: the map holds pixels
  * for them rather than features, so a click finds nothing under it to
@@ -9,20 +9,48 @@
  * for the numbers (`snowPoint.ts`). So a card opens as fast as any other, and
  * a value still on its way stands as a bar until it lands.
  *
- * Every section a click gathered goes on the card of the spot clicked
- * (`destinationCard.ts`, #832), so a reader who clicks a storm over a
- * snowpack hears about both, each section on its own name and ruled off from
- * the other's.
+ * The five hazard layers answer the same question from the features they
+ * hold (`hazardSections.ts`, TJ 2026-11-03): the wildfire within ten miles,
+ * the hotspot within ten, the plume over the point, the closure it stands in
+ * and the closed trail within a mile. Each is a section like the pictures',
+ * so a hotspot over snow in a closed area under rain is one card of four
+ * sections, as unlikely as that is, and not four cards that cannot share.
  *
- * A third such layer writes a reader that returns a section and registers it
- * with `registerPoint` in `map/mapPopups.ts`; the card, the rank, the abort of
- * a stale answer and the failure posture are all there or in the card already.
+ * Every section a layer gathered goes on the card of the place
+ * (`destinationCard.ts`): a ranked marker's, a pending dot's, a label's and
+ * the spot's, each section on its own name and ruled off from the other's,
+ * folded or open by the reader's hand.
+ *
+ * A new layer writes a reader that returns a section and registers it with
+ * `registerPoint` in `map/mapPopups.ts`; the card, the rank, the fold, the
+ * abort of a stale answer and the failure posture are all there or in the
+ * card already.
  */
+import type { MapTarget } from './mapClick'
+
+/** Where a layer is asked about: the clicked coordinate, its longitude wrapped, and the map's zoom. */
+export interface MapPoint {
+  lng: number
+  lat: number
+  zoom: number
+}
+
+/** Where a section's name links out, and what a screen reader hears for the glyph. */
+export interface SectionLink {
+  href: string
+  label: string
+}
+
 /** What one layer says at the clicked point. Every string is markup the reader has escaped. */
 export interface PointSection {
+  /**
+   * The target it is a reading of: the key its fold is kept under across
+   * every card, and what takes it off a card when that layer is switched off.
+   */
+  kind: MapTarget
   /** Which layer it is a reading of, as the Layers menu names it: `Rain radar`, `Snow depth`. */
   layer: string
-  /** What is there, as a name: `Moderate precipitation`, `Deep snow`. */
+  /** What is there, as a name: `Moderate precipitation`, `Deep snow`, a fire's name. */
   title: string
   /**
    * Every name this section can take, for one a card shows changing while it
@@ -30,6 +58,10 @@ export interface PointSection {
    * jump sideways when the name changes (#752).
    */
   titles?: readonly string[]
+  /** Where the name links out: NIFC's map at a fire, a closure order's page. The url is escaped by the reader. */
+  link?: SectionLink
+  /** A line in the warning amber under the name: a closure order's own type. */
+  warn?: string
   /** Where it comes from: `NEXRAD radar`. */
   source: string
   /** The values, each a `row`. */

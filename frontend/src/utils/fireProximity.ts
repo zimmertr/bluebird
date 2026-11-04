@@ -87,17 +87,6 @@ export function fireWarningText(w: FireWarning): string {
 }
 
 /**
- * The marker popup's fire line, shorter than the table's hover sentence above
- * so it keeps one line in the card (TJ, 2026-10-08). One form at every
- * distance, a point inside a perimeter included at 0.0 mi, and the number the
- * table's cell prints. The name stays as NIFC sends it, since title-casing
- * would mangle a dispatch code or a name like MCKINNEY.
- */
-export function firePopupText(w: FireWarning): string {
-  return `Near a wildfire (${w.name}): ${w.miles.toFixed(1)} mi`
-}
-
-/**
  * The two hover texts an N/A cell carries (TJ, PR #275 review). One N/A mark
  * covers two causes, and the tooltip is what tells them apart: the row sat
  * outside the dataset's coverage, or the whole check failed. The second is
@@ -162,15 +151,91 @@ function toLocalMiles(lng: number, lat: number, lng0: number, lat0: number): [nu
   return [x, y]
 }
 
-// Distance (miles) from the projected origin P(0,0) to segment A–B.
-function originToSegmentMiles(ax: number, ay: number, bx: number, by: number): number {
+// The point of segment A–B nearest the projected origin P(0,0), in the same
+// plane, and its distance in miles.
+function nearestOnSegment(ax: number, ay: number, bx: number, by: number): { x: number; y: number; miles: number } {
   const dx = bx - ax
   const dy = by - ay
   const lenSq = dx * dx + dy * dy
-  if (lenSq === 0) return Math.hypot(ax, ay)
-  let t = -(ax * dx + ay * dy) / lenSq
-  t = clamp(t, 0, 1)
-  return Math.hypot(ax + t * dx, ay + t * dy)
+  const t = lenSq === 0 ? 0 : clamp(-(ax * dx + ay * dy) / lenSq, 0, 1)
+  const x = ax + t * dx
+  const y = ay + t * dy
+  return { x, y, miles: Math.hypot(x, y) }
+}
+
+// Distance (miles) from the projected origin P(0,0) to segment A–B.
+function originToSegmentMiles(ax: number, ay: number, bx: number, by: number): number {
+  return nearestOnSegment(ax, ay, bx, by).miles
+}
+
+/** The point of a feature nearest a place, how far it is, and which way it lies. */
+export interface NearestPoint {
+  /** Miles from the place to the feature: 0 when the place is inside or on it. */
+  miles: number
+  /** The bearing from the place to that point, in degrees clockwise from north. */
+  bearing: number
+}
+
+// The point of a line nearest the projected origin, walking its segments.
+function nearestOnLine(lng: number, lat: number, line: Position[]): { x: number; y: number; miles: number } | null {
+  let best: { x: number; y: number; miles: number } | null = null
+  if (line.length === 1) {
+    const [x, y] = toLocalMiles(line[0][0], line[0][1], lng, lat)
+    return { x, y, miles: Math.hypot(x, y) }
+  }
+  for (let i = 0; i < line.length - 1; i++) {
+    const [ax, ay] = toLocalMiles(line[i][0], line[i][1], lng, lat)
+    const [bx, by] = toLocalMiles(line[i + 1][0], line[i + 1][1], lng, lat)
+    const near = nearestOnSegment(ax, ay, bx, by)
+    if (best === null || near.miles < best.miles) best = near
+  }
+  return best
+}
+
+/**
+ * The point of any geometry nearest (lat, lon), as the card's `Distance` row
+ * says it (#832): `3.2 mi NW` is how far the fire, the hotspot or the closed
+ * trail is and which way to look for it. A place inside a polygon's outer
+ * ring is at 0 miles with no bearing to give, which the row reads as "here".
+ * The bearing is from the place TO the feature, measured in the local plane
+ * the distance is, so the two agree on short spans. Null for an empty
+ * geometry.
+ */
+export function nearestPoint(lat: number, lon: number, geom: Geometry | null): NearestPoint | null {
+  if (!geom) return null
+  const lines: Position[][] = []
+  switch (geom.type) {
+    case 'Point':
+      lines.push([geom.coordinates])
+      break
+    case 'MultiPoint':
+      for (const p of geom.coordinates) lines.push([p])
+      break
+    case 'LineString':
+      lines.push(geom.coordinates)
+      break
+    case 'MultiLineString':
+      lines.push(...geom.coordinates)
+      break
+    case 'Polygon':
+    case 'MultiPolygon':
+      for (const rings of polygonsOf(geom)) {
+        if (rings.length > 0 && pointInRing(lon, lat, rings[0])) return { miles: 0, bearing: 0 }
+        lines.push(...rings)
+      }
+      break
+    default:
+      return null
+  }
+  let best: { x: number; y: number; miles: number } | null = null
+  for (const line of lines) {
+    const near = nearestOnLine(lon, lat, line)
+    if (near && (best === null || near.miles < best.miles)) best = near
+  }
+  if (best === null) return null
+  // atan2 of east over north: 0 is north, 90 east, as a compass reads.
+  const bearing = ((Math.atan2(best.x, best.y) * 180) / Math.PI + 360) % 360
+  return { miles: best.miles, bearing }
 }
 
 // Ray-casting point-in-ring test in lon/lat space. Exported for the closure

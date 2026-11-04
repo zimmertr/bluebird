@@ -137,13 +137,8 @@ export function mountFeatures(
     gridHeads: createGridHeads(controller),
     ground: createGroundReadings(terrain),
   })
-  mapPopups.registerSpot((at, anchor, sections, owner) => {
-    const spot = { kind: 'spot', lat: at.lat, lon: at.lng } as const
-    const card = cards.open({ ...spot, sections }, anchor, { owner })
-    return {
-      popup: card.popup,
-      setSections: (next) => card.update({ ...spot, sections: next }),
-    }
+  mapPopups.registerSpot((at) => {
+    cards.open({ kind: 'spot', lat: at.lat, lon: at.lng }, at)
   })
   const results = mountResultsLayer(map, { controller, popups: mapPopups, cards })
   const pois = mountPoiPopups(map, { popups: mapPopups, cards, landmarks })

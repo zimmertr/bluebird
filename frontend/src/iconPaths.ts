@@ -63,3 +63,39 @@ export function externalLinkMarkup(): string {
     `</svg>`
   )
 }
+
+/**
+ * The chevron that says "this opens" or "this folds": the results panels'
+ * collapse, every menu trigger's cue (`IconChevron`), and since #832 the fold
+ * on each section of a card on the map, which is markup handed to setHTML
+ * and so draws it from here, the way the link-out glyph is drawn. Each is the
+ * polyline's points, down for a thing that is open and up for one that is
+ * shut, as the results bar reads them.
+ */
+export const CHEVRON = {
+  viewBox: '0 0 24 24',
+  strokeWidth: 2,
+  linecap: 'round',
+  linejoin: 'round',
+  up: '18 15 12 9 6 15',
+  down: '6 9 12 15 18 9',
+} as const
+
+/**
+ * The chevron as standalone markup, at the `control` step of the `ICON` ramp,
+ * the 16px the results bar's collapse draws it at, for the same reason
+ * `EXTERNAL_LINK_PX` is a number: a string handed to setHTML is never a class
+ * list Tailwind sees. `styles.test.ts` pins it against the ramp.
+ */
+export const CHEVRON_PX = 16
+
+export function chevronMarkup(up: boolean): string {
+  const { viewBox, strokeWidth, linecap, linejoin } = CHEVRON
+  return (
+    `<svg viewBox="${viewBox}" fill="none" stroke="currentColor" ` +
+    `stroke-width="${strokeWidth}" stroke-linecap="${linecap}" stroke-linejoin="${linejoin}" ` +
+    `width="${CHEVRON_PX}" height="${CHEVRON_PX}" aria-hidden="true">` +
+    `<polyline points="${up ? CHEVRON.up : CHEVRON.down}" />` +
+    `</svg>`
+  )
+}

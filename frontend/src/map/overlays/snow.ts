@@ -78,10 +78,10 @@ export function mountSnow(map: maplibregl.Map, deps: { popups: MapPopups; tiles?
       if (!show) {
         if (map.getLayer(SNOW_LAYER_ID)) map.removeLayer(SNOW_LAYER_ID)
         if (map.getSource(SNOW_SOURCE_ID)) map.removeSource(SNOW_SOURCE_ID)
-        // A card about snow the map no longer draws goes with it, and so do
-        // the copies of the tiles it was read from.
-        deps.popups.closeAll('snow')
+        // The copies of the tiles the snow was read from go with it, and a
+        // section about snow the map no longer draws leaves its card.
         tiles.drop(SNOW_HELD_LAYER)
+        deps.popups.refreshPoint('snow')
         return
       }
       const beneath = snowBeneath((id) => Boolean(map.getLayer(id)))

@@ -53,15 +53,24 @@ export const MAP_TARGETS = [
 export type MapTarget = (typeof MAP_TARGETS)[number]
 
 /**
- * The targets a click reads at a point rather than finds under the cursor,
- * which `map/mapPopups.ts` asks after every shape has passed. Never while
- * the ring is drawn, where a click on scenery places a corner.
+ * The targets a card reads at its point rather than finds under the cursor
+ * (#832): the five hazard layers from the features they hold, and the two
+ * pictures from their tiles, which `map/mapPopups.ts` also asks for the
+ * cursor over bare map. In rank order, which is the order their sections
+ * stand on a card.
  */
-export const POINT_TARGETS: readonly MapTarget[] = ['radar', 'snow']
+export const POINT_TARGETS: readonly MapTarget[] = [
+  'fire-activity',
+  'closure-trail',
+  'fire',
+  'closure-area',
+  'smoke',
+  'radar',
+  'snow',
+]
 
-/** The point targets to ask, in rank order: none while drawing. */
-export function pointTargetsToAsk(drawing: boolean, live: readonly MapTarget[]): MapTarget[] {
-  if (drawing) return []
+/** The point targets to ask of those that are on, in rank order. */
+export function pointTargetsToAsk(live: readonly MapTarget[]): MapTarget[] {
   return MAP_TARGETS.filter((t) => POINT_TARGETS.includes(t) && live.includes(t))
 }
 

@@ -12,8 +12,6 @@ import PhoneFoot from './PhoneFoot'
 import type { Analysis } from '../hooks/useAnalyze'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
 import type { DrawMode } from '../hooks/useDrawMode'
-import type { FireProximity } from '../hooks/useFireProximity'
-import type { ClosureProximity } from '../hooks/useClosureProximity'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import type { PresentedReport } from '../hooks/usePresentedReport'
@@ -89,17 +87,13 @@ export interface MapStageProps {
   report: Pick<PresentedReport, 'results' | 'pending'>
   /** The columns a marker's popup lists, and the model label it falls back to. */
   tableView: Pick<TableView, 'tableColumns' | 'analysisModelLabel' | 'handleAggregateMove'>
-  /** Which destinations stand near an active wildfire. */
-  fire: Pick<FireProximity, 'warnings'>
-  /** Which destinations stand inside an active Forest Service area closure. */
-  closure: Pick<ClosureProximity, 'warnings'>
   /**
    * How far the phone sheet lifts the map's bottom chrome, the camera's bottom
    * padding, and the padding for the sheet a search is about to open.
    */
   layout: Pick<ResultsLayout, 'mapCornerLift' | 'sheetLiftPx' | 'cameraPadBottomPx' | 'sheetPadBottomPx' | 'mapPx'>
-  /** The run in flight, which the loading card reports and can cancel. */
-  analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'paceRemainingS' | 'cancel'>
+  /** The run in flight, which the loading card reports and can cancel, and when the report was analyzed, which a result card says. */
+  analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'paceRemainingS' | 'cancel' | 'analyzedAtMs'>
   /** The metric the markers are coloured on. */
   sortBy: SortBy
   /** Whether the window is one hour, which a popup's colours read as the table's do. */
@@ -160,8 +154,6 @@ export default function MapStage({
   timeline,
   report,
   tableView,
-  fire,
-  closure,
   layout,
   analysis,
   sortBy,
@@ -350,8 +342,7 @@ export default function MapStage({
           popupColumns={tableView.tableColumns}
           pointSample={pointSample}
           modelFallbackLabel={tableView.analysisModelLabel}
-          fireWarnings={fire.warnings}
-          closureWarnings={closure.warnings}
+          analyzedAtMs={analysis.analyzedAtMs}
           showWildfires={overlays.showWildfires}
           showAreaClosures={overlays.showAreaClosures}
           showTrailClosures={overlays.showTrailClosures}

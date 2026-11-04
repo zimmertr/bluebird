@@ -51,7 +51,7 @@ export const POPUP_PAN_MS = 300
 /** MapLibre's default tip: the triangle between the card and its marker. */
 const TIP_PX = 10
 /** Breath between the card, or its marker, and any edge it is fitted to. */
-const FIT_MARGIN_PX = 8
+export const FIT_MARGIN_PX = 8
 /** Half the square a marker needs around itself to read as the card's subject. */
 const MARKER_HALF_PX = 8
 

@@ -10,11 +10,11 @@
  * cursor over a target says it can be clicked, and every popup is made here
  * with the same options and put on the board. Every card is `openCard`, which
  * fits it to the free map, caps a body too tall to stand whole, picks the
- * side of its point it shows more of, and pans the map to it, for a fire, a
- * closure or a plume exactly as for a destination (#738); the one popup that
- * is not a card, the ring's remove-point button, is `openBare`. A popup never opens on
- * a hover: one opened under the cursor covers the destinations inside a fire
- * or a closure, and a touch screen has no hover to open it.
+ * side of its point it shows more of, and pans the map to it (#738); the one
+ * popup that is not a card, the ring's remove-point button, is `openBare`. A
+ * popup never opens on a hover: one opened under the cursor covers the
+ * destinations inside a fire or a closure, and a touch screen has no hover
+ * to open it.
  *
  * A click on bare map opens the card of the spot itself (#832, TJ
  * 2026-11-03): its coordinates, the ground under it, and a button that adds it
@@ -22,17 +22,21 @@
  * a reader finds it where they already click. While a card is open, a click
  * on bare map only closes it, so dismissing a card does not open another;
  * shift opens the spot's card beside the rest, as it does any card. The card
- * is `destinationCards.ts`'s, registered here with `registerSpot`.
+ * is `destinationCards.ts`'s, registered here with `registerSpot`, and a
+ * hazard's shape opens the same card at the click (`openSpot`), since what
+ * the shape says is a section of it.
  *
- * A picture rather than a shape, the rain radar or the snow depth (#737), is
- * a point target (`registerPoint`): it has no feature for a click to find, so
- * it says whether it painted at the point from the copy of its tile the app
- * keeps (`utils/heldTiles.ts`). That answers the cursor on every move, a
- * pointer over painted pixels as over a fire, and puts a section on the
- * spot's card for every picture painted there (`utils/pointReadout.ts`); a
- * value still on its way, the snow's from NOAA, fills its section when it
- * lands. The next click drops a reading whose card has not opened yet, and
- * closing a card drops what it was still waiting for.
+ * A layer with something to say at a point is a point target
+ * (`registerPoint`): the rain radar and the snow depth (#737), which say
+ * whether they painted there from the copy of their tile the app keeps
+ * (`utils/heldTiles.ts`), and the five hazard layers (#832), which answer
+ * from the features they hold (`utils/hazardSections.ts`). A picture's
+ * answer is also the cursor's on every move, a pointer over painted pixels as
+ * over a fire. Every card asks every point target that is on for its section
+ * at the card's point (`readPoint`, `pointKinds`), and hears through
+ * `onPointChange` when one's picture or features changed under it, so a
+ * fire that lands after a pan joins the open cards and a layer switched off
+ * leaves them; the card itself is `destinationCards.ts`'s.
  *
  * So a new layer with something to say registers a target and inherits all of
  * this. The linter's `map-popups-owned` check fails a `new Popup`, a DOM
@@ -45,8 +49,8 @@ import type * as maplibregl from 'maplibre-gl'
 import { mapCursor, pointTargetsToAsk, rankedTargets, type MapTarget } from '../utils/mapClick'
 import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody } from '../utils/popup/popupChrome'
 import { POPUP_FACE } from '../styles'
-import type { PointReading, PointSection } from '../utils/pointReadout'
-import { POPUP_PAN_MS, capHeight, placePopup, type Point, type PopupSide, type Rect } from '../utils/popup/popupFit'
+import type { MapPoint, PointReading } from '../utils/pointReadout'
+import { FIT_MARGIN_PX, POPUP_PAN_MS, capHeight, figureOf, placePopup, type Point, type PopupSide, type Rect } from '../utils/popup/popupFit'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
 
@@ -95,33 +99,9 @@ export interface MapPopupTarget {
   holdsCursor?: () => boolean
 }
 
-/** Where a point target is asked about: the clicked coordinate, and the map's zoom. */
-export interface MapPoint {
-  lng: number
-  lat: number
-  zoom: number
-}
+export type { MapPoint } from '../utils/pointReadout'
 
-/** A spot's card as the map holds it open, whose sections a later reading fills (#832). */
-export interface SpotCard {
-  popup: Popup
-  /** Draw these sections where the card stands. */
-  setSections(sections: readonly PointSection[]): void
-}
-
-/**
- * What opens a spot's card: at the clicked coordinate, anchored where the
- * reader clicked, with the pictures' sections and the kinds they came from,
- * so a picture switched off takes its card down.
- */
-export type SpotOpener = (
-  at: MapPoint,
-  anchor: maplibregl.LngLat,
-  sections: readonly PointSection[],
-  owner: readonly MapTarget[],
-) => SpotCard
-
-/** A picture on the map that answers a click by what it painted at the point (#737). */
+/** A layer on the map that answers a card by what it has at the card's point (#737, #832). */
 export interface MapPointTarget {
   target: MapTarget
   /** Whether the layer is on, so a layer switched off is never asked. */
@@ -129,23 +109,24 @@ export interface MapPointTarget {
   /**
    * Whether the layer painted at this point, read from the tile the map drew:
    * at once where that tile is ready to read, and once it is otherwise. Asked
-   * on every pointer move, so it asks nothing of anyone.
+   * on every pointer move, so it asks nothing of anyone. A hazard layer
+   * answers false: its shapes are its own targets, and a pointer ten miles
+   * from a fire is not over anything.
    */
   paints(at: MapPoint): boolean | Promise<boolean>
   /**
-   * The layer's reading at this point, or null where it painted nothing. A
-   * rejection is a failed reading. `signal` aborts when the next click makes
-   * the card stale before it opens, or when the card closes.
+   * The layer's reading at this point, or null where it has nothing there. A
+   * rejection is a failed reading. `signal` aborts when the card closes.
    */
   read(at: MapPoint, signal: AbortSignal): Promise<PointReading | null>
   /**
    * The layer's section for a card already open, read again because what the
    * layer shows under it changed: the radar's frame during playback (#748).
-   * It never closes the card, so a point the layer no longer paints answers
-   * with what it shows there rather than null. A layer whose picture does not
-   * change under an open card leaves it out.
+   * It never takes the section off, so a point the layer no longer paints
+   * answers with what it shows there rather than null. A layer whose answer
+   * is the same question twice leaves it out and is read again instead.
    */
-  refresh?(at: MapPoint, signal: AbortSignal): Promise<PointSection>
+  refresh?(at: MapPoint, signal: AbortSignal): Promise<PointReading>
 }
 
 /** What a card may set for itself; everything else is the same for every card. */
@@ -184,17 +165,43 @@ interface PlacedCard {
 
 export interface MapPopups {
   register(target: MapPopupTarget): void
-  /** Register a picture that is asked about a point rather than found under it. */
+  /** Register a layer that is asked about a point rather than found under it. */
   registerPoint(target: MapPointTarget): void
-  /** What a click on bare map opens (#832). */
-  registerSpot(open: SpotOpener): void
+  /** What a click on bare map opens (#832): the spot's card, at the click. */
+  registerSpot(open: (at: maplibregl.LngLat) => void): void
+  /**
+   * Open the spot's card here, as a click on bare map does: for a shape
+   * target whose thing is a section of that card, a fire's perimeter or a
+   * hotspot's star (#832).
+   */
+  openSpot(at: maplibregl.LngLatLike): void
+  /** The point targets that are on, in rank order: what every card asks about its point. */
+  pointKinds(): MapTarget[]
+  /**
+   * One layer's reading at a point, or null where it is off or has nothing
+   * there. `again` is for a card already open, which a picture that changes
+   * answers with what it shows there rather than null (`refresh`). A failed
+   * reading rejects; `signal` is the card's, which aborts when it closes.
+   */
+  readPoint(kind: MapTarget, at: maplibregl.LngLatLike, signal: AbortSignal, again?: boolean): Promise<PointReading | null>
+  /** Hear of a point target whose picture or features changed (`refreshPoint`), to read every open card again. */
+  onPointChange(listen: (kind: MapTarget) => void): void
   /**
    * A point target's picture changed without the reader doing anything, as
-   * the radar's does when the player moves to another frame (#748): every
-   * open card it is on reads its section again where the card stands, and the
-   * cursor is decided again where the mouse rests, since no move will come.
+   * the radar's does when the player moves to another frame (#748), or its
+   * features did, as a fire layer's do when a fetch lands or the layer goes
+   * off (#832): every open card reads that layer again where the card stands,
+   * and the cursor is decided again where the mouse rests, since no move will
+   * come.
    */
   refreshPoint(target: MapTarget): void
+  /**
+   * The height to cap a card's body at where it stands, for a card that grew
+   * after it opened, as one does when a layer's section lands on it (#832):
+   * null where the card still stands whole in the free map. The card is not
+   * moved for it, since it was placed where the reader saw it open.
+   */
+  bodyCap(popup: Popup): number | null
   /**
    * Open a card on the board, placed where it shows the most of itself
    * (#738): every card the map opens, a destination's, a fire's, a closure's
@@ -231,9 +238,12 @@ export function mountMapPopups(
   const { controller, board } = deps
   const targets: MapPopupTarget[] = []
   const points: MapPointTarget[] = []
-  // The point reading whose card has not opened yet, which the next click
-  // makes stale.
-  let reading: AbortController | null = null
+  const pointListeners: ((kind: MapTarget) => void)[] = []
+  // The least a body capped after its card grew may keep (#832): a couple of
+  // rows under the band, so a card near the map's edge still shows the name
+  // of the section that landed and scrolls to the rest, rather than a
+  // keyhole or a card hanging off the map.
+  const LEAST_BODY_PX = 48
   // The latest pointer move, so a cursor answer that needed a tile decoded
   // is dropped once the pointer has moved on.
   let moveSeq = 0
@@ -241,30 +251,20 @@ export function mountMapPopups(
   // when a picture changes under it without a move (#748); null once it has
   // left the map.
   let resting: { point: maplibregl.Point; dragging: boolean } | null = null
-  // Every point card open, with what it was read from, so a picture that
-  // changes under one can redraw its own section where the card stands
-  // (#748). `seq` counts each target's refreshes, so a slow answer cannot
-  // paint over a newer frame's.
-  type OpenPoint = {
-    lngLat: maplibregl.LngLat
-    kinds: MapTarget[]
-    sections: PointSection[]
-    card: SpotCard
-    signal: AbortSignal
-    seq: Map<MapTarget, number>
-  }
-  const openPoints = new Set<OpenPoint>()
 
+  // A coordinate however a caller spells it.
+  const lngLatOf = (at: maplibregl.LngLatLike): { lng: number; lat: number } =>
+    Array.isArray(at) ? { lng: at[0], lat: at[1] } : 'lon' in at ? { lng: at.lon, lat: at.lat } : at
   // A map scrolled past the antimeridian reports a longitude outside
   // -180..180, which no tile and no source knows.
-  const pointOf = (lngLat: maplibregl.LngLat): MapPoint => ({
+  const pointOf = (lngLat: { lng: number; lat: number }): MapPoint => ({
     lng: (((lngLat.lng + 180) % 360) + 360) % 360 - 180,
     lat: lngLat.lat,
     zoom: map.getZoom(),
   })
   const pointsOn = () => {
     const live = points.filter((p) => p.shown()).map((p) => p.target)
-    return pointTargetsToAsk(controller.inputs.drawing, live).map((kind) => points.find((p) => p.target === kind)!)
+    return pointTargetsToAsk(live).map((kind) => points.find((p) => p.target === kind)!)
   }
 
   // Every registered layer the map has drawn, asked together, because the
@@ -294,11 +294,9 @@ export function mountMapPopups(
     return { under, features }
   }
 
-  let openSpot: SpotOpener | null = null
+  let spotOpener: ((at: maplibregl.LngLat) => void) | null = null
 
   map.on('click', (e) => {
-    reading?.abort()
-    reading = null
     const { under, features } = targetsAt(e.point)
     const closed = isPinning(e) ? 0 : board.closeAll()
     const drawing = controller.inputs.drawing
@@ -311,51 +309,8 @@ export function mountMapPopups(
     }
     if (drawing) deps.addPoint([e.lngLat.lng, e.lngLat.lat])
     // A click that closed a card has done what the reader meant by it.
-    else if (closed === 0) void readPoint(e.lngLat)
+    else if (closed === 0) api.openSpot(e.lngLat)
   })
-
-  // The spot's card, with every picture that is on asked first. Each reads
-  // its own held tile, so the card opens as fast as a fire's, with every
-  // picture painted here on it in rank order; a reading that failed is left
-  // off and warned about. A value one of them is still asking for fills its
-  // section when it lands, for as long as the card is open: closing it aborts
-  // the ask.
-  async function readPoint(lngLat: maplibregl.LngLat) {
-    if (!openSpot) return
-    const asked = pointsOn()
-    const ac = new AbortController()
-    reading = ac
-    const at = pointOf(lngLat)
-    const answers = await Promise.all(
-      asked.map((p) =>
-        p.read(at, ac.signal).catch((err: unknown) => {
-          if (!ac.signal.aborted) console.warn(`The ${p.target} reading failed`, err)
-          return null
-        }),
-      ),
-    )
-    if (ac.signal.aborted || !openSpot) return
-    reading = null
-    const found = asked.flatMap((p, i) => (answers[i] ? [{ kind: p.target, reading: answers[i] }] : []))
-    const sections = found.map((f) => f.reading.section)
-    const kinds = found.map((f) => f.kind)
-    const card = openSpot(pointOf(lngLat), lngLat, [...sections], kinds)
-    const open: OpenPoint = { lngLat, kinds, sections, card, signal: ac.signal, seq: new Map() }
-    openPoints.add(open)
-    card.popup.on('close', () => {
-      ac.abort()
-      openPoints.delete(open)
-    })
-    found.forEach(({ reading: { later } }, i) => {
-      later
-        ?.then((section) => {
-          if (ac.signal.aborted) return
-          sections[i] = section
-          card.setSections([...sections])
-        })
-        .catch(() => {})
-    })
-  }
 
   // The cursor follows the same rule as the click, read on every move over
   // the map rather than on each layer's enter and leave: two overlapping
@@ -369,7 +324,8 @@ export function mountMapPopups(
   // Over no shape, the pictures are asked whether they painted here, which
   // reads the copy of their tile and asks nothing of anyone. A tile not yet
   // ready to read answers a moment later, and only if the pointer has not
-  // moved on since.
+  // moved on since. Never while the ring is drawn, where a click on scenery
+  // places a corner.
   map.on('mousemove', (e) => {
     const dragging = Boolean((e.originalEvent as MouseEvent | undefined)?.buttons)
     resting = { point: e.point, dragging }
@@ -387,9 +343,10 @@ export function mountMapPopups(
       canvas.style.cursor = ''
       return
     }
-    const cursor = mapCursor(controller.inputs.drawing, targetsAt(point).under)
+    const drawing = controller.inputs.drawing
+    const cursor = mapCursor(drawing, targetsAt(point).under)
     canvas.style.cursor = cursor
-    if (cursor !== '') return
+    if (cursor !== '' || drawing) return
     const live = pointsOn()
     if (live.length === 0) return
     const at = pointOf(lngLat)
@@ -403,6 +360,12 @@ export function mountMapPopups(
     void Promise.all(pending.map((a) => a.catch(() => false))).then((painted) => {
       if (seq === moveSeq && painted.includes(true)) canvas.style.cursor = 'pointer'
     })
+  }
+
+  // The part of the map a card can be seen in: above the results sheet.
+  const regionNow = (): Rect => {
+    const canvas = map.getCanvas()
+    return { left: 0, top: 0, right: canvas.clientWidth, bottom: canvas.clientHeight - controller.inputs.cameraPadBottomPx }
   }
 
   // Every popup, card or bare, is made here and put on the board.
@@ -445,31 +408,45 @@ export function mountMapPopups(
       points.push(target)
     },
     registerSpot(open) {
-      openSpot = open
+      spotOpener = open
+    },
+    openSpot(at) {
+      const { lng, lat } = lngLatOf(at)
+      spotOpener?.({ lng, lat } as maplibregl.LngLat)
+    },
+    pointKinds() {
+      return pointsOn().map((p) => p.target)
+    },
+    async readPoint(kind, at, signal, again = false) {
+      const target = points.find((p) => p.target === kind)
+      if (!target?.shown()) return null
+      const point = pointOf(lngLatOf(at))
+      return again && target.refresh ? target.refresh(point, signal) : target.read(point, signal)
+    },
+    onPointChange(listen) {
+      pointListeners.push(listen)
     },
     refreshPoint(kind) {
       if (resting && !resting.dragging) {
         const { x, y } = resting.point
         decideCursor(resting.point, map.unproject([x, y]), false)
       }
-      const target = points.find((p) => p.target === kind)
-      if (!target?.refresh) return
-      for (const open of openPoints) {
-        const i = open.kinds.indexOf(kind)
-        if (i < 0 || open.signal.aborted) continue
-        const seq = (open.seq.get(kind) ?? 0) + 1
-        open.seq.set(kind, seq)
-        target
-          .refresh(pointOf(open.lngLat), open.signal)
-          .then((section) => {
-            if (open.signal.aborted || open.seq.get(kind) !== seq) return
-            open.sections[i] = section
-            open.card.setSections([...open.sections])
-          })
-          .catch((err: unknown) => {
-            if (!open.signal.aborted) console.warn(`The ${kind} reading failed`, err)
-          })
-      }
+      for (const listen of pointListeners) listen(kind)
+    },
+    bodyCap(popup) {
+      const el = popup.getElement()
+      const body = el?.querySelector?.<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
+      // Optional: a test's stub popup has no place on the map.
+      const at = popup.getLngLat?.()
+      if (!el || !body || !at) return null
+      // The card as it stands: on the side it opened on, over the point it
+      // opened at, against the free map as it is now. What hangs past the
+      // edge, and the breath the fit keeps from it, comes off the body.
+      const anchor: PopupSide = popup.options?.anchor === 'bottom' ? 'bottom' : 'top'
+      const figure = figureOf(map.project(at), { width: el.offsetWidth, height: el.offsetHeight }, anchor)
+      const over = anchor === 'top' ? figure.bottom - regionNow().bottom : regionNow().top - figure.top
+      if (over + FIT_MARGIN_PX <= 0) return null
+      return Math.max(LEAST_BODY_PX, body.offsetHeight - over - FIT_MARGIN_PX)
     },
     openCard(at, html, { owner, result = false, markerAt, avoid = [], pan = true } = {}) {
       // Built hanging below its point, measured, and rebuilt above it only
@@ -486,14 +463,7 @@ export function mountMapPopups(
         return { width: el?.offsetWidth ?? 0, height: el?.offsetHeight ?? 0 }
       }
       let size = measure()
-      const canvas = map.getCanvas()
-      // The part of the map a card can be seen in: above the results sheet.
-      const region = {
-        left: 0,
-        top: 0,
-        right: canvas.clientWidth,
-        bottom: canvas.clientHeight - controller.inputs.cameraPadBottomPx,
-      }
+      const region = regionNow()
       const point = markerAt ?? map.project(at)
       const standing = obstacles(avoid)
       // The body's height under the cap: whatever the card must lose comes

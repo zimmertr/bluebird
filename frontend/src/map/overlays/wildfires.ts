@@ -1,6 +1,7 @@
 /**
- * The NIFC wildfire overlay: its source and layers, the popup a click on a
- * perimeter opens, and the viewport fetch that runs while the overlay is on.
+ * The NIFC wildfire overlay: its source and layers, the section a card
+ * carries for the fire within reach of its point, and the viewport fetch
+ * that runs while the overlay is on.
  *
  * One file owns what one toggle turns on and off, so the fetch's abort and the
  * fire's popups are torn down in the same place they are made. The layers are
@@ -16,11 +17,9 @@ import {
   WILDFIRE_FILL,
   WILDFIRE_FILL_OPACITY,
   fetchWildfires,
-  nifcFireUrl,
-  wildfirePopupHtml,
   type FireDetail,
-  type WildfireProps,
 } from '../../utils/wildfires'
+import { wildfireSectionAt } from '../../utils/hazardSections'
 import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
 import { isAbort } from '../../utils/abort'
@@ -44,16 +43,6 @@ export const WILDFIRE_FILL_LAYER = 'wildfire-fill'
 export function fireDetailFor(westDeg: number, eastDeg: number, widthPx: number): FireDetail {
   const tol = ((eastDeg - westDeg) / (widthPx || 1)) * 2
   return tol > COARSE_TOLERANCE_DEG ? 'coarse' : 'full'
-}
-
-/**
- * NIFC map link, centered where the cursor or click sits on the fire (which is
- * inside its perimeter). Zoom is clamped so a fire clicked from a zoomed-out
- * view still opens framed rather than tiny, then nudged one level closer so the
- * fire fills more of the NIFC map.
- */
-export function fireLinkAt(map: maplibregl.Map, at: { lng: number; lat: number }): string {
-  return nifcFireUrl(at.lng, at.lat, Math.max(map.getZoom(), 10) + 1)
 }
 
 export interface WildfireOverlay {
@@ -83,17 +72,24 @@ export function mountWildfires(
     paint: { 'line-color': WILDFIRE_EDGE, 'line-width': 1.5, 'line-opacity': 0.9 },
   })
 
-  // A click on a perimeter describes the fire, with the link to it on NIFC's
-  // map, the way a click on a marker describes the destination (TJ,
-  // 2026-10-08). Nothing opens on a hover, which would cover the destinations
-  // inside the fire, and the click stays on the map rather than leaving it.
+  // A click on a perimeter opens the spot's card there, whose fire section
+  // describes the fire with the link to it on NIFC's map (#832; a card of the
+  // fire's own until then, TJ 2026-10-08). Nothing opens on a hover, which
+  // would cover the destinations inside the fire. Every card asks the layer
+  // for the fire within reach of its point, from the perimeters held.
   deps.popups.register({
     target: 'fire',
     layers: [WILDFIRE_FILL_LAYER],
-    open: ({ feature, lngLat }) => {
-      deps.popups.openCard(lngLat, wildfirePopupHtml(feature.properties as WildfireProps, fireLinkAt(map, lngLat)), {
-        owner: 'fire',
-      })
+    open: ({ lngLat }) => deps.popups.openSpot(lngLat),
+  })
+  let held: FeatureCollection | null = null
+  deps.popups.registerPoint({
+    target: 'fire',
+    shown: () => showing,
+    paints: () => false,
+    read: async (at) => {
+      const section = held && wildfireSectionAt(held, at)
+      return section ? { section } : null
     },
   })
 
@@ -121,6 +117,9 @@ export function mountWildfires(
       const fc = await fetchWildfires(bbox, detail, ac.signal)
       if (ac.signal.aborted) return
       setSource(map, 'wildfires', fc)
+      held = fc
+      // A fire the pan brought in joins the open cards within its reach.
+      deps.popups.refreshPoint('fire')
       recovery.succeeded()
     } catch (err) {
       if (ac.signal.aborted || isAbort(err)) return
@@ -151,8 +150,9 @@ export function mountWildfires(
       }
       stopFetching()
       setSource(map, 'wildfires', emptyFC)
-      // A popup about a fire the map no longer draws goes with it.
-      deps.popups.closeAll('fire')
+      held = null
+      // A section about a fire the map no longer draws leaves its card.
+      deps.popups.refreshPoint('fire')
     },
     dispose() {
       stopFetching()

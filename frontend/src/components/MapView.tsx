@@ -15,7 +15,6 @@ import '../map.css'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { ColDef } from '../utils/tableColumns'
 import { FireWarning } from '../utils/fireProximity'
-import type { ClosureWarning } from '../utils/closureProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { anyPointInView, framePadding, pointsWithinView } from '../utils/mapFraming'
 import { type CameraView, initialCamera } from '../utils/mapView'
@@ -138,11 +137,9 @@ interface Props {
   pointSample: boolean
   // The model name a row falls back to while one model answered every row.
   modelFallbackLabel: string | null
-  // Fire-proximity warnings keyed by geoKey(lat,lon), mirroring the results
-  // table — a clicked point's popup surfaces the same ⚠️ when one applies.
-  fireWarnings: Map<string, FireWarning>
-  // The Closure column's warnings (#550), for the same popup's closure line.
-  closureWarnings: Map<string, ClosureWarning>
+  // When the report was analyzed, which a result card's forecast section
+  // says in its fine print (#832); null with no report.
+  analyzedAtMs: number | null
   showWildfires: boolean
   // The Forest Service closure orders (#550), one switch per layer: the closed
   // ground, and the closed trails, roads and sites. Read from the pod like
@@ -284,8 +281,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       popupColumns,
       pointSample,
       modelFallbackLabel,
-      fireWarnings,
-      closureWarnings,
+      analyzedAtMs,
       showWildfires,
       showAreaClosures,
       showTrailClosures,
@@ -380,8 +376,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       popupColumns,
       pointSample,
       sortBy,
-      fireWarnings,
-      closureWarnings,
+      analyzedAtMs,
       searchedPlaces,
       onAddPoi,
       onRemovePoi,
@@ -834,7 +829,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // inputs are this render's by now, because its effect is declared first.
     useEffect(() => {
       if (mapReady) featuresRef.current?.results.refreshPopups()
-    }, [results, sortBy, popupColumns, pointSample, modelId, times, modelFallbackLabel, fireWarnings, closureWarnings, mapReady])
+    }, [results, sortBy, popupColumns, pointSample, modelId, times, modelFallbackLabel, analyzedAtMs, mapReady])
 
     // The forecast field and its arrows, on the same contract as the markers
     // above: one redraw per scrub tick, from series the browser already holds.

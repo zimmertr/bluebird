@@ -76,7 +76,7 @@ export function mountRadar(
     shown: () => showing,
     paints: (at) => radarPaints(tiles, onScreen, at),
     read: (at) => readRadarAt(tiles, onScreen, at),
-    refresh: (at) => rereadRadarAt(tiles, onScreen, at),
+    refresh: async (at) => ({ section: await rereadRadarAt(tiles, onScreen, at) }),
   })
 
   // A frame waiting at opacity 0 loads no tiles, so where the view has moved
@@ -212,18 +212,19 @@ export function mountRadar(
 
   return {
     update({ show, index }) {
-      if (show && !showing) {
+      const was = showing
+      showing = show
+      if (show && !was) {
         addFrames()
         startWarmUp()
-      } else if (!show && showing) {
+      } else if (!show && was) {
         stopWarmUp()
         removeFrames()
-        // A card about echoes the map no longer draws goes with them, and
-        // so do the copies of the tiles they were read from.
-        deps.popups.closeAll('radar')
+        // The copies of the tiles the echoes were read from go with them,
+        // and a section about echoes the map no longer draws leaves its card.
         tiles.drop('radar-')
+        deps.popups.refreshPoint('radar')
       }
-      showing = show
       if (show) showFrame(index)
     },
     dispose() {

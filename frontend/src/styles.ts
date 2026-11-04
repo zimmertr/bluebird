@@ -1048,6 +1048,19 @@ const SQUARE_BUTTON =
 export const ICON_BUTTON = `px-1 text-ink-soft ${ACCENT.hoverText} transition-colors ${FOCUS_RING}`
 
 /**
+ * The fold on each section of a card on the map (#832): a chevron in a 24px
+ * box at the section's right edge, 32 under a finger, with the card's own
+ * corner radius for its focus ring. Its ink is the card's glyph ink rather
+ * than `ICON_BUTTON`'s, set in the markup (`cardSection` in
+ * `utils/popup/popupChrome.ts`), because a card is a string handed to
+ * MapLibre and its glyphs light under a pointer through `map.css`'s
+ * `data-popup-glyph`, the way the band's link-out does; so this role gives
+ * the box, the ring and the transition and names no colour. The `touch:`
+ * utilities are allowed here and nowhere a component spells one.
+ */
+export const CARD_FOLD = `flex h-6 w-6 shrink-0 items-center justify-center ${RADIUS.control} transition-colors ${FOCUS_RING} touch:h-8 touch:w-8`
+
+/**
  * A bare × with free room around it, the tutorial card's and the search
  * field's, and a 44px press on a coarse pointer: an invisible box 10px
  * either side of the 24 by 16 button and 14px above and below it, the way

@@ -17,8 +17,12 @@ interface Committed {
   universe: DestinationResult[] | null
   analyzed: AnalyzedView | null
   fireField: Point[] | null
+  // When the report committed, which a result card's forecast section says
+  // (#832). The commit's wall time rather than the fetch's: a re-analysis
+  // that reuses held forecasts still ran then.
+  analyzedAtMs: number | null
 }
-const NOTHING_COMMITTED: Committed = { response: null, universe: null, analyzed: null, fireField: null }
+const NOTHING_COMMITTED: Committed = { response: null, universe: null, analyzed: null, fireField: null, analyzedAtMs: null }
 // One frozen empty set, so a report with nothing pending hands every reader
 // the same value.
 const NO_PENDING: ReadonlySet<string> = new Set()
@@ -30,6 +34,7 @@ export function useAnalysisReport() {
   // SSE fallback, every path that commits a report also holds its field.
   const [universe, setUniverse] = useState<DestinationResult[] | null>(null)
   const [analyzed, setAnalyzed] = useState<AnalyzedView | null>(null)
+  const [analyzedAtMs, setAnalyzedAtMs] = useState<number | null>(null)
   // True between the first batch landing and the analysis finishing: the rows
   // on screen are a floor, not the report (#337, finding 2). The results bar
   // says "so far" while it holds.
@@ -88,7 +93,15 @@ export function useAnalysisReport() {
     setArriving(false)
     setAnalyzed(view)
     setPendingHeights(pending)
-    committedRef.current = { response: data, universe: fullField, analyzed: view, fireField: publishedRef.current }
+    const analyzedAt = Date.now()
+    setAnalyzedAtMs(analyzedAt)
+    committedRef.current = {
+      response: data,
+      universe: fullField,
+      analyzed: view,
+      fireField: publishedRef.current,
+      analyzedAtMs: analyzedAt,
+    }
     shownPartialRef.current = false
     // A fresh report, which is not the same event as a fresh row array: live
     // knobs rebuild the rows constantly. Surfaces that reset per report (the
@@ -167,6 +180,7 @@ export function useAnalysisReport() {
     setResponse(was.response)
     setUniverse(was.universe)
     setAnalyzed(was.analyzed)
+    setAnalyzedAtMs(was.analyzedAtMs)
     setArriving(false)
     setFireField(was.fireField)
     // The report put back is the one whose lookup `patch` may still land on,
@@ -183,6 +197,7 @@ export function useAnalysisReport() {
     setUniverse(null)
     setArriving(false)
     setAnalyzed(null)
+    setAnalyzedAtMs(null)
     setFireField(null)
     setPendingHeights(NO_PENDING)
   }
@@ -200,6 +215,7 @@ export function useAnalysisReport() {
     pendingHeights,
     universe,
     analyzed,
+    analyzedAtMs,
     arriving,
     analysisSeq,
     discardSeq,
