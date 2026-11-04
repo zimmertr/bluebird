@@ -81,6 +81,7 @@ import {
   CHART_PLOT_TOUCH,
   CHART_PANEL_BUTTON,
   CHART_PICKER,
+  CHART_PANEL_TITLE,
   CHART_CARD,
   CHART_GUTTER,
   MENU,
@@ -202,6 +203,7 @@ import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
 import { PHONE_PICKER_INSET_PX } from './utils/chart/chartPointer'
+import { TITLE_HEIGHT_PX } from './utils/chart/panelTitle'
 import resultsBarSource from './components/ResultsBar.tsx?raw'
 import welcomeSource from './components/WelcomeModal.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
@@ -3224,6 +3226,32 @@ describe('the chart picker row', () => {
     expect(words(CHART_PICKER.bar)).toEqual(expect.arrayContaining(['absolute', 'top-2', 'left-3', 'gap-2']))
     expect(2 * 4).toBe(PHONE_PICKER_INSET_PX)
     expect(words(CHART_PICKER.target)).toEqual(['ring-2', 'ring-accent'])
+  })
+
+  // A desk panel's title (#846; TJ 2026-11-03): the strong ink on the popup's
+  // band at the micro step, 15px tall, the height the chrome labels move
+  // down by in a titled panel; a grab cursor and the accent hover ink on every
+  // one but the first; the picker row's accent bar where a drag lands; and a ghost on the hover
+  // card's surface over everything, that no hit test finds.
+  it('names a desk panel in a quiet chip on the band, readable in both themes', () => {
+    expect(words(CHART_PANEL_TITLE.chip)).toEqual(
+      expect.arrayContaining([MICRO_SIZE, 'text-ink', 'bg-band', RADIUS.control, 'absolute', 'leading-none', 'py-0.5', 'select-none']),
+    )
+    // 11px at `leading-none` and 2px of padding above and below.
+    expect(11 + 2 * 2).toBe(TITLE_HEIGHT_PX)
+    const ink = token(CHART_PANEL_TITLE.chip, 'text')
+    const fill = token(CHART_PANEL_TITLE.chip, 'bg')
+    expect([ink, fill]).toEqual(['ink', 'band'])
+    // Text owes 4.5:1, dark then light (band is a mix, painted as the browser mixes it).
+    expect([ratio(dark(ink), dark(fill)), ratio(light(ink), light(fill))]).toEqual([10.05, 14.42])
+    // The handle's hover ink on the same fill, dark then light.
+    expect([ratio(dark('accent-ink'), dark(fill)), ratio(light('accent-ink'), light(fill))]).toEqual([5.69, 5.43])
+    expect(words(CHART_PANEL_TITLE.grab)).toEqual(['cursor-grab', 'touch-none', 'active:cursor-grabbing', ...words(ACCENT.hoverText)])
+    expect(token(CHART_PANEL_TITLE.drop, 'bg')).toBe(token(CHART_PICKER.drop, 'bg'))
+    expect(words(CHART_PANEL_TITLE.drop)).toEqual(expect.arrayContaining(['absolute', 'pointer-events-none']))
+    expect(words(CHART_PANEL_TITLE.ghost)).toEqual(
+      expect.arrayContaining([...words(CHART_CARD.card), 'pointer-events-none', 'fixed', LAYER.popover, 'origin-top-left']),
+    )
   })
 
   // The grid's gutters are its handles (#499): a cursor per axis, a 1px line
