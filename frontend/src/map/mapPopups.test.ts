@@ -7,20 +7,22 @@ import { POPUP_PAN_MS } from '../utils/popup/popupFit'
 // Its element and its point are whatever `dom` holds, so a test can stand a
 // card of a given size at a given place for `bodyCap`.
 const { made, dom } = vi.hoisted(() => ({
-  made: [] as { options: Record<string, unknown>; html: string; removed: boolean }[],
+  made: [] as { options: Record<string, unknown>; html: string; removed: boolean; at: unknown[] }[],
   dom: { element: undefined as unknown, lngLat: { lng: -121.5, lat: 47.5 } as { lng: number; lat: number } | undefined },
 }))
 vi.mock('maplibre-gl', () => ({
   Popup: class {
-    state: { options: Record<string, unknown>; html: string; removed: boolean }
+    state: { options: Record<string, unknown>; html: string; removed: boolean; at: unknown[] }
     options: Record<string, unknown>
     closers: (() => void)[] = []
     constructor(options: Record<string, unknown>) {
       this.options = options
-      this.state = { options, html: '', removed: false }
+      this.state = { options, html: '', removed: false, at: [] }
       made.push(this.state)
     }
-    setLngLat() {
+    // Every point it was set at, in order.
+    setLngLat(at: unknown) {
+      this.state.at.push(at)
       return this
     }
     getLngLat() {
@@ -431,6 +433,23 @@ describe('mountMapPopups openCard and openBare', () => {
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([
       ['panBy', [0, -placed.dy], { duration: POPUP_PAN_MS }],
     ])
+  })
+
+  // A table row's point can stand far off the map until the flight brings
+  // it in, and a card built there was laid out narrower than the one that
+  // landed, so the fit capped and placed the wrong card.
+  it('builds a card a flight will carry where its point will stand, then sets it on its point', () => {
+    const stub = stubMap({ canvasWidth: 800, canvasHeight: 900 })
+    const controller = createMapController(mapInputs())
+    const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint: vi.fn() })
+    made.length = 0
+    popups.openCard([-121.76, 46.85], '<p>card</p>', { owner: 'result', markerAt: { x: 400, y: 450 }, pan: false })
+    const card = made[made.length - 1]
+    // The stub reads screen pixels back as degrees, one to one.
+    expect(card.at[0]).toEqual({ lng: 400, lat: 450 })
+    expect(card.at[card.at.length - 1]).toEqual([-121.76, 46.85])
+    popups.openCard([-121.5, 47.5], '<p>card</p>', { owner: 'fire' })
+    expect(made[made.length - 1].at).toEqual([[-121.5, 47.5]])
   })
 
   it('hands the move back instead of panning when asked to', () => {
