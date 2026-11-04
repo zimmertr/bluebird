@@ -35,7 +35,7 @@ const AREA_NOTE_KM2 = 40_000
 // paste ever lands beneath it.
 const COORDINATES_PLACEHOLDER = '# Lat,Lon or Lat,Lon,Name\n46.8529,-121.7604,Mount Rainier'
 
-// The Preset list field's last option, which opens the box for the reader's
+// The Coordinate list field's last option, which opens the box for the reader's
 // own rows. Its value is a word no list's URL can be: every list's is a path
 // to a hashed asset.
 const CUSTOM_COORDINATES = 'custom'
@@ -101,7 +101,7 @@ interface Props {
   // Whether the preset list last picked arrived (#838): false on a pick that
   // lands, true on one that does not, which the Analyze button's list says.
   onPresetListFailed: (failed: boolean) => void
-  // A phone, where the Preset list field opens the one menu's sheet (record 0252).
+  // A phone, where the Coordinate list field opens the one menu's sheet (record 0252).
   phone?: boolean
 }
 
@@ -142,7 +142,7 @@ export default function DestinationsSection({
   const csvPasteRef = useRef(false)
   // The box stands only once something is in it or the reader asked for it
   // (#838, record 0263): most readers pick a preset and never need the box,
-  // its format line or its mono type, so at rest the Preset list field is the
+  // its format line or its mono type, so at rest the Coordinate list field is the
   // whole of Coordinate search (the maintainer, 2026-11-03). `customOpen` is
   // the asking: the Custom coordinates pick, or an edit, so the box does not
   // vanish under a reader who deletes every row by hand. A preset pick and
@@ -296,8 +296,8 @@ export default function DestinationsSection({
         </h3>
         <div ref={csvRowRef} className={`${DRAW_ROW.row}${boxShown ? ' mb-1.5' : ''}`}>
           <MenuSelect
-            label="Preset list"
-            placeholder="Preset list"
+            label="Coordinate list"
+            placeholder="Coordinate list"
             value={fieldValue}
             options={[
               ...PRESET_LISTS.map((list) => ({ value: list.url, label: list.name })),

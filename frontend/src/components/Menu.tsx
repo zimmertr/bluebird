@@ -139,7 +139,7 @@ interface MenuOption<V extends string> {
   label: string
   /**
    * A hairline over this option (`MENU.divider`), setting it and the ones
-   * after it apart from the ones before: the Preset list field's `Custom
+   * after it apart from the ones before: the Coordinate list field's `Custom
    * coordinates` under the lists (#838, record 0263).
    */
   divided?: boolean
@@ -160,7 +160,7 @@ interface MenuSelectProps<V extends string> {
   /** A phone: the list opens in a bottom sheet headed by `label`, as the model list does (record 0252). */
   sheet?: boolean
   /**
-   * What the field reads while `value` names no option: the Preset list
+   * What the field reads while `value` names no option: the Coordinate list
    * field under Coordinate search reads its own name while the box is shut
    * and empty (#838, record 0263). The field is named by its label and this, as by
    * its label and a value. A placeholder that is the label names the field
@@ -257,7 +257,7 @@ export function MenuSelect<V extends string>({
         // Centred, as the model picker centres its label: every field in the
         // panel's control column reads the same way. It was `text-left` until
         // 2026-11-03, which the aggregate's and the chart's fields never showed,
-        // each being sized to its longest label, and the Preset list field's
+        // each being sized to its longest label, and the Coordinate list field's
         // placeholder, then at the column's width, did (the maintainer).
         className={`${className} text-center`}
       >

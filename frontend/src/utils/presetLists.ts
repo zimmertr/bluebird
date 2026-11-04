@@ -1,6 +1,6 @@
 import { apiFetch } from './apiFetch'
 
-// The ready-made lists the Preset list field under Coordinate search puts in
+// The ready-made lists the Coordinate list field under Coordinate search puts in
 // the box (#838, record 0263). The directory is the list: every file in
 // `src/coordinate-lists/` is one entry, so adding or removing a file changes
 // the next build and nothing else. The file's name is the menu's string, so a
@@ -53,14 +53,14 @@ export async function fetchPresetList(list: PresetList): Promise<string | null> 
     held.set(list.url, text)
     return text
   } catch (err) {
-    console.warn('Preset list failed to load', err)
+    console.warn('Coordinate list failed to load', err)
     return null
   }
 }
 
 /**
  * The list the box holds, when it holds exactly one that arrived this session
- * (a trailing newline aside), else null. What the Preset list field reads.
+ * (a trailing newline aside), else null. What the Coordinate list field reads.
  * A share link restores the rows and not this, so a reloaded page's field
  * reads Custom coordinates over such a box until a list is picked again.
  */

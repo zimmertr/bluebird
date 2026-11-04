@@ -4717,9 +4717,9 @@ describe('the polygon row', () => {
   })
 
   // The Coordinate search row is the same grid (#838, record 0263): the
-  // Preset list field across two cells and Clear in the third, the two the
+  // Coordinate list field across two cells and Clear in the third, the two the
   // same height under either pointer.
-  it('stands the Preset list field as tall as the Clear beside it', () => {
+  it('stands the Coordinate list field as tall as the Clear beside it', () => {
     const px = (cls: string, prefix: string) =>
       Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-\\[(\\d+)px\\](?:\\s|$)`))![1])
     const LINE = 16

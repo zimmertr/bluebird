@@ -454,22 +454,22 @@ describe('MenuSelect', () => {
     expect(load()).toBeTruthy()
   })
 
-  // The Preset list field reads its own name at rest (record 0263): the name
+  // The Coordinate list field reads its own name at rest (record 0263): the name
   // is said once, not once as the label and again as the placeholder, and a
   // value that names an option is said after the label as before.
   it('names a field once while its placeholder is its label', () => {
     const props = {
-      label: 'Preset list',
-      placeholder: 'Preset list',
+      label: 'Coordinate list',
+      placeholder: 'Coordinate list',
       options: [{ value: 'bulgers', label: 'The Bulger List' }],
       onChange: () => {},
       className: 'w-14',
     }
     const { rerender } = render(<MenuSelect {...props} value="" />)
     const named = (name: string) => screen.getByRole('button', { name })
-    expect(named('Preset list').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(1)
+    expect(named('Coordinate list').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(1)
     rerender(<MenuSelect {...props} value="bulgers" />)
-    expect(named('Preset list The Bulger List').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
+    expect(named('Coordinate list The Bulger List').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
   })
 
   // An option can stand apart from the ones before it under a hairline
@@ -479,8 +479,8 @@ describe('MenuSelect', () => {
     const onChange = vi.fn()
     const { user } = render(
       <MenuSelect
-        label="Preset list"
-        placeholder="Preset list"
+        label="Coordinate list"
+        placeholder="Coordinate list"
         value=""
         options={[
           { value: 'bulgers', label: 'The Bulger List' },
@@ -490,7 +490,7 @@ describe('MenuSelect', () => {
         className="w-14"
       />,
     )
-    await user.click(screen.getByRole('button', { name: 'Preset list' }))
+    await user.click(screen.getByRole('button', { name: 'Coordinate list' }))
     expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['The Bulger List', 'Custom coordinates'])
     const rule = option('Custom coordinates').previousElementSibling as HTMLElement
     expect(rule.getAttribute('role')).toBeNull()

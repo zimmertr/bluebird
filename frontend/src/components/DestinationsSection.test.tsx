@@ -9,7 +9,7 @@ import type { DiscoveryType } from '../types'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
 // that enter and leave draw mode, the type set and the unnamed-peaks knob
-// that widens it, the Preset list field the coordinates box folds into, and
+// that widens it, the Coordinate list field the coordinates box folds into, and
 // the box, which frames a paste but never a keystroke.
 
 type Props = ComponentProps<typeof DestinationsSection>
@@ -48,10 +48,10 @@ const RING = { drawPointCount: 3, pointsNeeded: 0 } as const
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
 const noBox = () => screen.queryByRole('textbox', { name: /^Custom destination coordinates/ }) === null
-// The Preset list field, named once at rest, where it reads its own name, and
+// The Coordinate list field, named once at rest, where it reads its own name, and
 // by its name and what it reads otherwise.
 const field = (reads?: string) =>
-  screen.getByRole('button', { name: reads === undefined ? 'Preset list' : `Preset list ${reads}` })
+  screen.getByRole('button', { name: reads === undefined ? 'Coordinate list' : `Coordinate list ${reads}` })
 // The box stands once Custom coordinates is picked (record 0263).
 async function openBox(user: ReturnType<typeof render>['user']) {
   await user.click(field())
@@ -417,7 +417,7 @@ describe('DestinationsSection', () => {
   // the third. The box stands only once something is in it or Custom
   // coordinates was picked, and a preset pick replaces it at once, typed rows
   // included (#838, record 0263).
-  describe('the Preset list field', () => {
+  describe('the Coordinate list field', () => {
     afterEach(() => {
       vi.unstubAllGlobals()
       vi.restoreAllMocks()
@@ -428,7 +428,7 @@ describe('DestinationsSection', () => {
     const LIST = '46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'
     const arrives = () => vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: LIST })))
     const pickList = async (user: ReturnType<typeof render>['user']) => {
-      await user.click(screen.getByRole('button', { name: /^Preset list/ }))
+      await user.click(screen.getByRole('button', { name: /^Coordinate list/ }))
       await user.click(screen.getByRole('option', { name: PRESET_LISTS[0].name }))
     }
 

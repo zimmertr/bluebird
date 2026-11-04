@@ -1,6 +1,6 @@
 """Write a Bluebird Forecast frontend/src/coordinate-lists/*.csv from peaks<lid>.json + coords<lid>.json.
 
-The file is named for the list as the Preset list menu reads it: the app offers every
+The file is named for the list as the Coordinate list menu reads it: the app offers every
 file in that directory, named by its file name without .csv, so --name is the
 maintainer-approved menu string (e.g. --name 'The Bulger List').
 
@@ -24,7 +24,7 @@ lid, outdir = sys.argv[1], sys.argv[2]
 args = sys.argv[3:]
 
 if '--name' not in args or args.index('--name') + 1 >= len(args):
-    sys.exit("--name '<Menu name>' is required: the file's name is the string the Preset list menu shows.")
+    sys.exit("--name '<Menu name>' is required: the file's name is the string the Coordinate list menu shows.")
 name = args[args.index('--name') + 1].strip()
 if not name or '/' in name or name.endswith('.csv'):
     sys.exit(f'--name {name!r} must be the menu string alone: no slash, no .csv.')

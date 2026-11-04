@@ -745,7 +745,7 @@ export const BUTTON_ACCENT =
  * The Polygon row (#687): the mode button, Cancel and Clear, always the three,
  * a third of the panel each, so the row stands on the edges the coordinates
  * box above it does. The Coordinate search row shares it since #838: the
- * Preset list field across the first two cells and Clear in the third, on
+ * Coordinate list field across the first two cells and Clear in the third, on
  * the edge the Polygon row's Clear stands on (record 0263).
  *
  * The two button roles at a 4px inset rather than 12px, and nothing else
@@ -763,7 +763,7 @@ export const DRAW_ROW = {
   secondary: BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '),
   accent: BUTTON_ACCENT.replace(' px-3 ', ' px-1 '),
   /**
-   * The Preset list field (#838): what a `MenuSelect` adds to the field
+   * The Coordinate list field (#838): what a `MenuSelect` adds to the field
    * shape to stand in the first two cells. The trigger is the grid item
    * itself, so the span is its own. Two cells because one leaves 72px of
    * label beside the chevron at 12px and `The Bulger List` is 85px, so every
@@ -3317,7 +3317,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   groups of rows inside its card, which is a different job.
  * - `divider`: a hairline between two runs of options inside a `list`, in
  *   the foot's rule colour and pulled out to the card's sides as the foot's
- *   rule runs. `Custom coordinates` stands under one in the Preset list
+ *   rule runs. `Custom coordinates` stands under one in the Coordinate list
  *   field, apart from the lists (#838, record 0263). A rule rather than a
  *   `heading`: one option set apart names itself. Hidden from a screen
  *   reader, because a listbox holds options and nothing else.
