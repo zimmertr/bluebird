@@ -23,7 +23,7 @@ const MAC_WIDEST_LABEL_PX = 115.52
 // The widest number each column can print: a five-digit height in Min and
 // Avg, the cloud deck's ceiling bound in Max, and a window total. A stormy
 // window's snowfall can reach three digits of inches; a phone narrower than
-// 393px holds two (`compactGrid`), and a three-digit one scrolls there, which
+// 400px holds two (`compactGrid`), and a three-digit one scrolls there, which
 // TJ accepted for narrow phones.
 const WIDEST = { min: '10,600', max: '≥30,000', avg: '10,600' }
 

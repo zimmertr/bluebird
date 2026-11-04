@@ -701,12 +701,14 @@ export const GRID_RANKED_COLOR = 'var(--popup-ranked)'
  * Each band's inset a side: 5px, so a number as wide as `0.000` has visible
  * room inside its band, behind a 2px gutter (TJ, 2026-10-08; it was 3px,
  * which left the widest numbers touching the edges). A map too narrow for the
- * widest grid at 5px takes 2px instead (`compactGrid`): 3px until the card
+ * widest grid at 5px takes 1px instead (`compactGrid`): 3px until the card
  * took the app's face, whose wider labels a 360px phone could hold only by
- * giving back the 8px four bands' insets made (TJ, 2026-10-22).
+ * giving back the 8px four bands' insets made (TJ, 2026-10-22), and 2px
+ * until the row heads went to 600 (2026-11-04), whose 6.49px it could hold
+ * only by giving back 8px more.
  */
 export const GRID_INSET_PX = 5
-export const GRID_COMPACT_INSET_PX = 2
+export const GRID_COMPACT_INSET_PX = 1
 /**
  * The gap between a family's label and the first band: 8px (TJ, 2026-10-08),
  * or 6px on a compact grid, which is the 2px that lets a two-digit window
@@ -719,25 +721,26 @@ export const GRID_COMPACT_LABEL_GAP_PX = 6
  * The widest grid, in Chrome on macOS: `Precipitation (in/hr)` beside Min,
  * Max, Avg and Total at their widest numbers (`10,600` heights, `≥30,000`
  * under Max, and a three-digit total, `123.456`, which a stormy window's
- * snowfall can reach). 352.9px at full inset. A two-digit total, which a
- * winter window's rain often reaches, is 345.7px; the first measurement used
+ * snowfall can reach). 359.4px at full inset. A two-digit total, which a
+ * winter window's rain often reaches, is 352.2px; the first measurement used
  * `0.000` and undersized the card. The grid was measured at 344.6px on
- * 2026-10-08 in the card's own Helvetica, and the app's face sets the label
- * 8.32px wider (109.03px against 100.71px at 12px, 2026-10-22).
+ * 2026-10-08 in the card's own Helvetica, the app's face sets the label
+ * 8.32px wider (109.03px against 100.71px at 12px, 2026-10-22), and the
+ * row heads' 600 another 6.49px (115.52px, 2026-11-04).
  *
- * Compact, the same grid is 326.9px, and 319.7px with a two-digit total, which
+ * Compact, the same grid is 325.4px, and 318.2px with a two-digit total, which
  * is what a 360px phone's 320px of body holds. A change to the grid's
  * columns, insets or type re-measures these. `e2e/popupFit.spec.ts` holds the
  * built card to them with the Mac's wider fonts emulated.
  */
-export const WIDEST_GRID_PX = 353
+export const WIDEST_GRID_PX = 360
 /** The result card's body padding a side, `popupCard`'s 10px. */
 export const RESULT_CARD_PAD_PX = 10
 
 /**
  * Whether a result card on a map this wide takes the compact insets: when its
  * body is narrower than the widest grid at full inset. That is every map under
- * 393px, a 360px phone among them, where a wide grid would otherwise scroll
+ * 400px, a 360px phone among them, where a wide grid would otherwise scroll
  * sideways (TJ, 2026-10-08). The card's own width does not change.
  */
 export function compactGrid(canvasWidthPx: number): boolean {
@@ -839,9 +842,12 @@ export function uncapPopupBody(body: HTMLElement): void {
 export const POPUP_MAX_WIDTH_PX = 280
 
 /**
- * How wide a ranked destination's popup may get: 374px, or the map less 10px
+ * How wide a ranked destination's popup may get: 381px, or the map less 10px
  * a side where the map is narrower (TJ, 2026-10-08; 366px until the card took
- * the app's wider face, 2026-10-22).
+ * the app's wider face, 2026-10-22, and 374px until its grid's row heads went
+ * to 600). The last 7px are the bold heads' cost: `Precipitation (in/hr)`
+ * measured 115.52px at 600 against 109.03px at 400 (Chrome on macOS,
+ * 2026-11-04).
  *
  * Its grid is wider than any other popup's, `WIDEST_GRID_PX`, and the body
  * has the card less 10px a side. On a 360px phone the card is 340px, 94% of
@@ -852,7 +858,7 @@ export const POPUP_MAX_WIDTH_PX = 280
  * accepted for narrow phones. A desktop card shrinks to its grid, so the cap
  * is reached only by a card with the widest numbers.
  */
-export const RESULT_POPUP_MAX_WIDTH_PX = 374
+export const RESULT_POPUP_MAX_WIDTH_PX = 381
 
 /**
  * The narrowest any card on the map is, whatever the map's width, and the
