@@ -15,6 +15,8 @@
  * Pure, so the node project can pin it; the map module converts the pixels.
  */
 
+import { clamp } from '../numbers'
+
 export interface Rect {
   left: number
   top: number
@@ -206,7 +208,7 @@ export function bodyBounds(region: Rect): BodyBounds {
 
 /** A body height held between the bounds: what a reader's drag or a remembered size may set. */
 export function boundBody(px: number, { floor, ceiling }: BodyBounds): number {
-  return Math.min(ceiling, Math.max(floor, px))
+  return clamp(px, floor, ceiling)
 }
 
 /**
@@ -264,7 +266,7 @@ export function grownBodyCap(
   const bounds = bodyBounds(region)
   const top = Math.min(body, roof === null ? bounds.ceiling : boundBody(roof, bounds))
   const room = body - Math.max(0, over)
-  const cap = Math.max(Math.min(top, room), Math.min(bounds.floor, top))
+  const cap = clamp(room, Math.min(bounds.floor, top), top)
   return { cap: cap < body ? cap : null, pan: Math.max(0, cap - room) }
 }
 

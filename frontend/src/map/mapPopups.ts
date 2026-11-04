@@ -49,6 +49,7 @@ import type * as maplibregl from 'maplibre-gl'
 import { mapCursor, pointTargetsToAsk, rankedTargets, type MapTarget } from '../utils/mapClick'
 import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody, cardWidthRange, uncapPopupBody } from '../utils/popup/popupChrome'
 import { POPUP_FACE } from '../styles'
+import { clamp } from '../utils/numbers'
 import type { MapPoint, PointAnswer } from '../utils/pointReadout'
 import {
   FIT_MARGIN_PX,
@@ -432,7 +433,7 @@ export function mountMapPopups(
   // make the card that wide whatever its content.
   const sizeTo = (popup: Popup, width: number): number => {
     const { min, max } = cardWidthRange(map.getCanvas().clientWidth)
-    const px = Math.round(Math.min(max, Math.max(min, width)))
+    const px = Math.round(clamp(width, min, max))
     const content = popup.getElement()?.querySelector?.<HTMLElement>('.maplibregl-popup-content')
     if (content) content.style.width = `${px}px`
     popup.setMaxWidth(`${px}px`)
