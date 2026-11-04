@@ -5,7 +5,7 @@ import TimeSeriesChart from './TimeSeriesChart'
 import { CHART_METRICS, type ChartMetric, type ChartMetrics, extremeValue, moveMetric } from '../utils/chart/chartData'
 import { CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
 import { PHONE_PLOT_MARGIN, PLOT_MARGIN } from '../utils/chart/chartPointer'
-import { CHART_CARD, CHART_PANEL_TITLE, CHART_PICKER, DRAG } from '../styles'
+import { ACCENT, CHART_CARD, CHART_PANEL_TITLE, CHART_PICKER, DRAG } from '../styles'
 import { GHOST_SCALE, TITLED_TOP_LABEL_DY, ghostTransform, titleAt } from '../utils/chart/panelTitle'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
@@ -1172,11 +1172,15 @@ describe('TimeSeriesChart panel titles', () => {
     expect(texts(container)).toEqual(['wind', 'precip', 'aqi', 'temp'].map((k) => label(k as ChartMetric)))
   })
 
-  it('makes the first title a label and every other a handle', () => {
+  it('makes the first title a label and every other a handle that lights under the pointer', () => {
     const { container } = render(<TimeSeriesChart {...props({ metrics: FOUR })} />)
     const [first, ...rest] = titles(container)
     expect(first.className).not.toContain('cursor-grab')
-    for (const t of rest) expect(t.className).toContain(CHART_PANEL_TITLE.grab)
+    expect(first.className).not.toContain('hover:text-accent-ink')
+    for (const t of rest) {
+      expect(t.className).toContain(CHART_PANEL_TITLE.grab)
+      expect(t.className).toContain(ACCENT.hoverText)
+    }
   })
 
   // The chrome label moves, the title never does: a titled first panel's Now

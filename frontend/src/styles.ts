@@ -3948,10 +3948,14 @@ export const CHART_PICKER = {
  * the panels under it), and the accent bar the picker row's drag wears
  * (`drop`, sized by the drag) stands where it lands. The first title is a
  * label only, because the first slot is the ranking's (record 0255).
+ * Under the pointer a handle's words take the accent ink, as every control's
+ * label does (`ACCENT.hoverText`, record 0251), so the cursor is not the only
+ * cue that a title moves its panel (TJ 2026-11-03); the first title, being a
+ * label, keeps the label ink.
  */
 export const CHART_PANEL_TITLE = {
   chip: `${MICRO_SIZE} text-ink-soft bg-band ${RADIUS.control} absolute z-[2] whitespace-nowrap px-1.5 py-0.5 leading-none select-none`,
-  grab: 'cursor-grab touch-none active:cursor-grabbing',
+  grab: `cursor-grab touch-none active:cursor-grabbing ${ACCENT.hoverText}`,
   ghost: `${CHART_CARD.card} pointer-events-none fixed left-0 top-0 ${LAYER.popover} flex flex-col origin-top-left opacity-85`,
   drop: 'pointer-events-none absolute z-[2] bg-accent',
 } as const

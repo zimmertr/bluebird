@@ -3223,8 +3223,8 @@ describe('the chart picker row', () => {
 
   // A desk panel's title (#846; TJ 2026-11-03): the label ink on the popup's
   // band at the micro step, 15px tall, the height the chrome labels move
-  // down by in a titled panel; a grab cursor on every one but the first; the
-  // picker row's accent bar where a drag lands; and a ghost on the hover
+  // down by in a titled panel; a grab cursor and the accent hover ink on every
+  // one but the first; the picker row's accent bar where a drag lands; and a ghost on the hover
   // card's surface over everything, that no hit test finds.
   it('names a desk panel in a quiet chip on the band, readable in both themes', () => {
     expect(words(CHART_PANEL_TITLE.chip)).toEqual(
@@ -3237,7 +3237,9 @@ describe('the chart picker row', () => {
     expect([ink, fill]).toEqual(['ink-soft', 'band'])
     // Text owes 4.5:1, dark then light (band is a mix, painted as the browser mixes it).
     expect([ratio(dark(ink), dark(fill)), ratio(light(ink), light(fill))]).toEqual([4.71, 7.89])
-    expect(words(CHART_PANEL_TITLE.grab)).toEqual(['cursor-grab', 'touch-none', 'active:cursor-grabbing'])
+    // The handle's hover ink on the same fill, dark then light.
+    expect([ratio(dark('accent-ink'), dark(fill)), ratio(light('accent-ink'), light(fill))]).toEqual([5.69, 5.43])
+    expect(words(CHART_PANEL_TITLE.grab)).toEqual(['cursor-grab', 'touch-none', 'active:cursor-grabbing', ...words(ACCENT.hoverText)])
     expect(token(CHART_PANEL_TITLE.drop, 'bg')).toBe(token(CHART_PICKER.drop, 'bg'))
     expect(words(CHART_PANEL_TITLE.drop)).toEqual(expect.arrayContaining(['absolute', 'pointer-events-none']))
     expect(words(CHART_PANEL_TITLE.ghost)).toEqual(

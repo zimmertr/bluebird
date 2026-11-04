@@ -776,7 +776,9 @@ dragged, with a small three-dot grip at its middle on the panel's fill, and a 16
 `CHART_PANEL_TITLE` names each desk panel while two or more are drawn: the
 picker's option label in a 15px chip at the plot band's top left, the label
 ink on the popup's `band` token at the micro step (4.71:1 dark, 7.89:1
-light). Every title but the first takes a grab cursor; a drag carries a
+light). Every title but the first takes a grab cursor and lights its words
+in the accent ink under the pointer, as every control does
+(`ACCENT.hoverText`), at 5.69:1 dark and 5.43:1 light on the band; a drag carries a
 half-size ghost of the panel on the hover card's surface and stands the
 picker row's 2px accent bar where it lands. In a titled panel the Now,
 model-end and extreme labels move down under the chip
