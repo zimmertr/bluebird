@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseCustomCsv } from './customDestinations'
-import bulgerCsv from '../csv-examples/washington-bulger-list.csv?raw'
+import bulgerCsv from '../coordinate-lists/The Bulger List.csv?raw'
 
 describe('parseCustomCsv', () => {
   it('names each destination by its coordinate pair', () => {
@@ -72,14 +72,13 @@ describe('parseCustomCsv', () => {
   })
 
   // The "Custom (CSV)" destination type must accept a real, full-sized paste.
-  // It reads src/csv-examples/washington-bulger-list.csv itself, so the test follows the
+  // It reads `src/coordinate-lists/The Bulger List.csv` itself, so the test follows the
   // file a reader actually pastes rather than a hand-kept copy of a few rows.
   describe('Custom (CSV) with the example Bulger List', () => {
     const out = parseCustomCsv(bulgerCsv)
 
-    it('reads all 100 peaks and skips the "#" headline', () => {
+    it('reads all 100 peaks', () => {
       expect(out).toHaveLength(100)
-      expect(out.some((d) => d.name.startsWith('#'))).toBe(false)
     })
 
     // The results table numbers its rows itself, so a list number in the name

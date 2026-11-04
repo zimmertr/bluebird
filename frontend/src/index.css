@@ -27,7 +27,7 @@
 @source not "./**/*.test.tsx";
 /* Coordinate search's example lists are peak names in a CSV, and a name that
    happens to spell a utility would emit its CSS like any other word here. */
-@source not "./csv-examples";
+@source not "./coordinate-lists";
 
 /* Roomier tap targets belong to coarse pointers, not narrow windows. The
    controls panel is 320px wide at every breakpoint (max-w-xs below lg,

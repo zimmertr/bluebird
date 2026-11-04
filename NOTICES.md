@@ -108,7 +108,7 @@ these providers.
   government, and so in the public domain under 17 U.S.C. §105.
 
 - [Peakbagger.com](https://www.peakbagger.com/): the four peak lists Coordinate
-  search loads, in `frontend/src/csv-examples/`. Each list's membership, order
+  search loads, in `frontend/src/coordinate-lists/`. Each list's membership, order
   and coordinates come from its peakbagger.com list and peak pages; the lists
   themselves are the Bulger group's, The Mountaineers', Jeff Smoot's
   (*Climbing Washington's Mountains*) and the Alpine Lakes "Home Court" list's.

@@ -1,16 +1,24 @@
 import { apiFetch } from './apiFetch'
-import bulgers from '../csv-examples/washington-bulger-list.csv?url&no-inline'
-import rainier from '../csv-examples/mountaineers-100-peaks-at-mount-rainier-np.csv?url&no-inline'
-import smoot from '../csv-examples/smoots-climbing-washingtons-mountains-100-peaks.csv?url&no-inline'
-import homeCourt from '../csv-examples/alpine-lakes-home-court-top-100.csv?url&no-inline'
 
 // The ready-made lists the Example list field under Coordinate search puts in
-// the box (#838), each a hashed asset fetched on the pick that asks for it. A fetch
-// rather than a lazy `import()` for `usStatesLoad.ts`'s reason: a stale tab's
-// failed import reloads the page (`staleChunk.ts`), and a list is not worth a
-// reader's drawn ring. `?url&no-inline` because each list sits just under Vite's
-// 4 kB inline limit, which would put all four in the cold load's script as
-// data URLs.
+// the box (#838, record 0263). The directory is the list: every file in
+// `src/coordinate-lists/` is one entry, so adding or removing a file changes
+// the next build and nothing else. The file's name is the menu's string, so a
+// new file's name is a user-facing string the maintainer approves before it
+// lands, and the menu reads alphabetically because that is the only order a
+// directory can state.
+//
+// Each is a hashed asset fetched on the pick that asks for it. A fetch rather
+// than a lazy `import()` for `usStatesLoad.ts`'s reason: a stale tab's failed
+// import reloads the page (`staleChunk.ts`), and a list is not worth a
+// reader's drawn ring. `?url&no-inline` because each list sits just under
+// Vite's 4 kB inline limit, which would put every one of them in the cold
+// load's script as a data URL.
+const files = import.meta.glob('../coordinate-lists/*.csv', {
+  query: '?url&no-inline',
+  eager: true,
+  import: 'default',
+}) as Record<string, string>
 
 /**
  * The line the Analyze button's list carries while the last list asked for
@@ -24,12 +32,9 @@ export interface ExampleList {
   url: string
 }
 
-export const EXAMPLE_LISTS: readonly ExampleList[] = [
-  { name: 'The Bulger List', url: bulgers },
-  { name: 'Mountaineers 100 Peaks at Mount Rainier', url: rainier },
-  { name: "Smoot's 100 Peaks", url: smoot },
-  { name: 'Alpine Lakes Home Court Top 100', url: homeCourt },
-]
+export const EXAMPLE_LISTS: readonly ExampleList[] = Object.entries(files)
+  .map(([path, url]) => ({ name: path.slice(path.lastIndexOf('/') + 1, -'.csv'.length), url }))
+  .sort((a, b) => a.name.localeCompare(b.name))
 
 // Every list that has arrived this session, by URL, so the field can tell a
 // box that holds one from a box that holds the reader's own rows.
@@ -53,10 +58,9 @@ export async function fetchExampleList(list: ExampleList): Promise<string | null
 
 /**
  * The list the box holds, when it holds exactly one that arrived this session
- * (a trailing newline aside), else null. What the Example list field reads,
- * and what lets a pick replace the box without asking: a list is nothing the
- * reader typed. A share link restores the rows and not this, so a reloaded
- * page reads such a box as Custom until a list is picked again.
+ * (a trailing newline aside), else null. What the Example list field reads.
+ * A share link restores the rows and not this, so a reloaded page reads such
+ * a box as Custom until a list is picked again.
  */
 export function exampleListIn(box: string): ExampleList | null {
   const text = box.trimEnd()
