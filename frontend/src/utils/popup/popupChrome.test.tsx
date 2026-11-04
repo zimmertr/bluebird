@@ -314,6 +314,7 @@ describe('the card\'s button', () => {
     expect(add.textContent).toBe('Add')
     expect(add.getAttribute('type')).toBe('button')
     expect(add.getAttribute('data-card-action')).toBe('add')
+    cleanup()
     const remove = within(card(REMOVE)).getByRole('button', { name: 'Remove from analysis' })
     expect(remove.textContent).toBe('Remove')
   })
@@ -321,7 +322,10 @@ describe('the card\'s button', () => {
   // One role, so one width for both words: a press on Add that turns the
   // card's button into Remove moves nothing (TJ, 2026-11-04).
   it('wears one role, at one width, whichever word it says', () => {
-    const classes = [ADD, REMOVE].map((html) => mount(html).querySelector('button')!.getAttribute('class'))
+    const classes = [ADD, REMOVE].map((html) => {
+      cleanup()
+      return mount(html).querySelector('button')!.getAttribute('class')
+    })
     expect(classes).toEqual([CARD_ACTION, CARD_ACTION])
     expect(CARD_ACTION.split(' ')).toContain('w-16')
   })

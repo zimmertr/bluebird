@@ -69,6 +69,16 @@ for (const [name, width, height] of [
     // layer's word, outside the heading's text so a cut name never moves it.
     const heading = card.getByRole('button', { name: 'Fire activity', exact: true }).locator('..')
     await expect(heading).toContainText('⚠️Fire activity: Hotspot')
+    // Open before an analysis at a desk. On a phone every section but a
+    // forecast opens folded, a warning's too (TJ, 2026-11-04), and its
+    // chevron opens it.
+    const fold = card.getByRole('button', { name: 'Fire activity', exact: true })
+    if (width < 600) {
+      await expect(fold).toHaveAttribute('aria-expanded', 'false')
+      await expect(body.getByText('Detected', { exact: true })).toHaveCount(0)
+      await fold.click()
+    }
+    await expect(fold).toHaveAttribute('aria-expanded', 'true')
     for (const label of ['Detected', 'Satellite', 'Confidence', 'Fire power']) {
       await expect(body.getByText(label, { exact: true })).toBeVisible()
     }
@@ -78,9 +88,7 @@ for (const [name, width, height] of [
     await expect(body).toContainText('Nominal')
     await expect(body).toContainText('12 MW')
     await expect(body).toContainText('NASA FIRMS:')
-    // Open before an analysis, and folded to its name on its chevron.
-    const fold = card.getByRole('button', { name: 'Fire activity', exact: true })
-    await expect(fold).toHaveAttribute('aria-expanded', 'true')
+    // Folded to its name on its chevron.
     await fold.click()
     await expect(card.getByRole('button', { name: 'Fire activity', exact: true })).toHaveAttribute('aria-expanded', 'false')
     await expect(body.getByText('Fire activity: Hotspot', { exact: true })).toBeVisible()
