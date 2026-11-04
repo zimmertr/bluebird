@@ -4,6 +4,10 @@ import { render } from '../../testSupport/render'
 import { resultRow } from '../../testSupport/fixtures'
 import {
   CARD_FOLD_ATTR,
+  CARD_RESIZE_ATTR,
+  HEADER_ICON_COLOR,
+  POPUP_MIN_WIDTH_PX,
+  cardWidthRange,
   GRID_BAND_COLOR,
   GRID_COMPACT_INSET_PX,
   GRID_COMPACT_LABEL_GAP_PX,
@@ -43,8 +47,8 @@ import {
   monthDayTime,
 } from './popupChrome'
 import { AGGREGATE } from '../../metrics'
-import { CHEVRON } from '../../iconPaths'
-import { CARD_FOLD } from '../../styles'
+import { CHEVRON, GRIP, GRIP_PX } from '../../iconPaths'
+import { CARD_FOLD, CARD_RESIZE } from '../../styles'
 import { destinationPopupHtml } from '../destinationCard'
 import { WARNING_MARK } from '../fireProximity'
 import type { PointSection } from '../pointReadout'
@@ -344,6 +348,59 @@ describe('resultPopupWidth', () => {
     expect(resultPopupWidth(360)).toBe('340px')
     expect(resultPopupWidth(320)).toBe('300px')
     expect(resultPopupWidth(0)).toBe('180px')
+  })
+})
+
+// A reader's drag on the resize handle (TJ, 2026-11-03) runs from the floor
+// every card keeps to the map less 10px a side.
+describe('cardWidthRange', () => {
+  it('runs from the cards\' floor to the map less 10px a side', () => {
+    expect(POPUP_MIN_WIDTH_PX).toBe(180)
+    expect(cardWidthRange(1280)).toEqual({ min: 180, max: 1260 })
+    expect(cardWidthRange(360)).toEqual({ min: 180, max: 340 })
+    // A map too narrow for the floor still lets the card keep it.
+    expect(cardWidthRange(150)).toEqual({ min: 180, max: 180 })
+    expect(resultPopupWidth(360)).toBe(`${cardWidthRange(360).max}px`)
+  })
+})
+
+// Every card ends on its resize handle (TJ, 2026-11-03): a pointer-only grip
+// in the bottom-right corner, hidden from a screen reader and out of the tab
+// order, in the glyph grey that lights under a pointer.
+describe('the resize handle', () => {
+  const card = () => mount(popupCard({ title: 'Title', body: '<p>rows</p>', action: '<button type="button">Act</button>' }))
+
+  it('is the last thing in the card, standing in its corner', () => {
+    const popup = card()
+    const root = popup.firstElementChild as HTMLElement
+    expect(root.style.position).toBe('relative')
+    const handle = root.lastElementChild as HTMLElement
+    expect(handle.hasAttribute(CARD_RESIZE_ATTR)).toBe(true)
+    expect(popup.querySelectorAll(`[${CARD_RESIZE_ATTR}]`)).toHaveLength(1)
+    expect(handle.getAttribute('class')).toBe(CARD_RESIZE)
+  })
+
+  // A name would be a new string for a control the keyboard cannot work, and
+  // a keyboard reader has the body's scroll.
+  it('is hidden from a screen reader, named nothing, and never focused', () => {
+    const handle = card().querySelector<HTMLElement>(`[${CARD_RESIZE_ATTR}]`)!
+    expect(handle.tagName).toBe('SPAN')
+    expect(handle.getAttribute('aria-hidden')).toBe('true')
+    expect(handle.hasAttribute('aria-label')).toBe(false)
+    expect(handle.hasAttribute('tabindex')).toBe(false)
+    expect(handle.textContent).toBe('')
+  })
+
+  it('draws the grip in the glyph grey that takes the accent under a pointer', () => {
+    const handle = card().querySelector<HTMLElement>(`[${CARD_RESIZE_ATTR}]`)!
+    expect(handle.hasAttribute('data-popup-glyph')).toBe(true)
+    expect(handle.getAttribute('style')).toBe(`color:${HEADER_ICON_COLOR}`)
+    const svg = handle.querySelector('svg')!
+    expect(svg.getAttribute('aria-hidden')).toBe('true')
+    expect([...svg.querySelectorAll('line')].map((l) => ['x1', 'y1', 'x2', 'y2'].map((a) => Number(l.getAttribute(a))))).toEqual(
+      GRIP.lines.map(({ x1, y1, x2, y2 }) => [x1, y1, x2, y2]),
+    )
+    expect(svg.getAttribute('width')).toBe(String(GRIP_PX))
   })
 })
 

@@ -5,6 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // grid's heads, and fires `close` when removed, as MapLibre's does. Hoisted,
 // because `vi.mock` runs before the imports.
 type FoldButton = { key: string; press: () => void; focused: boolean }
+// The resize handle a write draws, which records the listeners a card arms
+// on it and the pointer it captures, so a test can drag it.
+type Handle = {
+  listeners: Record<string, ((e: unknown) => void)[]>
+  captured: number[]
+  fire: (type: string, e: Record<string, unknown>) => void
+}
 const { popups, outlines } = vi.hoisted(() => ({
   popups: [] as {
     html: string
@@ -17,7 +24,10 @@ const { popups, outlines } = vi.hoisted(() => ({
     // Each setHTML, with whether MapLibre would have moved focus for it.
     sets: { html: string; focus: unknown }[]
     gridArms: number
-    body: { scrollTop: number; style: Record<string, string>; classList: { add: () => void } }
+    body: { scrollTop: number; offsetHeight: number; style: Record<string, string>; classList: { add: () => void } }
+    content: { style: Record<string, string>; classList: { add: () => void } }
+    maxWidth?: string
+    handle: Handle | null
   }[],
   outlines: {
     held: null as import('../utils/usStates').UsStates | null,
@@ -53,7 +63,9 @@ vi.mock('maplibre-gl', () => ({
         folds: [],
         sets: [],
         gridArms: 0,
-        body: { scrollTop: 0, style: {}, classList: { add: () => {} } },
+        body: { scrollTop: 0, offsetHeight: 150, style: {}, classList: { add: () => {} } },
+        content: { style: {}, classList: { add: () => {} } },
+        handle: null,
       }
       popups.push(this.state)
     }
@@ -73,6 +85,19 @@ vi.mock('maplibre-gl', () => ({
         press: () => {},
         focused: false,
       }))
+      const handle: Handle = {
+        listeners: {},
+        captured: [],
+        fire: (type, e) => {
+          const event = { button: 0, preventDefault: () => {}, stopPropagation: () => {}, ...e }
+          for (const fn of [...(handle.listeners[type] ?? [])]) fn(event)
+        },
+      }
+      this.state.handle = html.includes('data-card-resize') ? handle : null
+      return this
+    }
+    setMaxWidth(maxWidth: string) {
+      this.state.maxWidth = maxWidth
       return this
     }
     addTo() {
@@ -95,8 +120,20 @@ vi.mock('maplibre-gl', () => ({
         offsetHeight: 200,
         setAttribute: (k: string, v: string) => (this.state.attrs[k] = v),
         querySelector: (selector: string) => {
-          if (selector === '.maplibregl-popup-content') return { classList: { add: () => {} } }
+          if (selector === '.maplibregl-popup-content') return this.state.content
           if (selector.includes('data-popup-body')) return this.state.body
+          if (selector.includes('data-card-resize')) {
+            const handle = this.state.handle
+            return handle
+              ? {
+                  addEventListener: (type: string, fn: (e: unknown) => void) =>
+                    (handle.listeners[type] = [...(handle.listeners[type] ?? []), fn]),
+                  removeEventListener: (type: string, fn: (e: unknown) => void) =>
+                    (handle.listeners[type] = (handle.listeners[type] ?? []).filter((f) => f !== fn)),
+                  setPointerCapture: (id: number) => handle.captured.push(id),
+                }
+              : null
+          }
           // One chevron, by the key in its selector, for the focus a fold keeps.
           if (selector.includes('data-card-fold')) {
             const button = this.state.folds.find((b) => selector.includes(`"${b.key}"`))
@@ -756,5 +793,74 @@ describe('sections', () => {
     await settle()
     expect(popups[0].html).toContain('Rain radar')
     expect(popups[0].body.style.maxHeight).toBeUndefined()
+  })
+
+  // The handle in a card's corner (TJ, 2026-11-03), on a 1280 by 900 map:
+  // widths from 180 to 1260, and a body between 225 and 675. The card stands
+  // centred on its point, so its width takes twice the pointer's travel.
+  const drag = (handle: NonNullable<(typeof popups)[number]['handle']>, dx: number, dy: number) => {
+    handle.fire('pointerdown', { pointerId: 1, clientX: 100, clientY: 100 })
+    handle.fire('pointermove', { pointerId: 1, clientX: 100 + dx, clientY: 100 + dy })
+    handle.fire('pointerup', { pointerId: 1 })
+  }
+
+  it('sizes the open card from its handle, between the bounds the map gives', () => {
+    const { cards } = setup()
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    const card = popups[0]
+    const handle = card.handle!
+    handle.fire('pointerdown', { pointerId: 1, clientX: 100, clientY: 100 })
+    expect(handle.captured).toEqual([1])
+    handle.fire('pointermove', { pointerId: 1, clientX: 140, clientY: 300 })
+    // 280 + 2 × 40, and 150 + 200.
+    expect([card.maxWidth, card.content.style.width, card.body.style.maxHeight]).toEqual(['360px', '360px', '350px'])
+    handle.fire('pointermove', { pointerId: 1, clientX: 5000, clientY: 5000 })
+    expect([card.maxWidth, card.body.style.maxHeight]).toEqual(['1260px', '675px'])
+    handle.fire('pointermove', { pointerId: 1, clientX: -5000, clientY: -5000 })
+    expect([card.maxWidth, card.body.style.maxHeight]).toEqual(['180px', '225px'])
+    // Another pointer's move is no part of this drag.
+    handle.fire('pointermove', { pointerId: 2, clientX: 140, clientY: 300 })
+    expect(card.maxWidth).toBe('180px')
+    handle.fire('pointermove', { pointerId: 1, clientX: 140, clientY: 300 })
+    handle.fire('pointerup', { pointerId: 1 })
+    handle.fire('pointermove', { pointerId: 1, clientX: 400, clientY: 400 })
+    expect([card.maxWidth, card.body.style.maxHeight]).toEqual(['360px', '350px'])
+    // A press of another button starts nothing.
+    handle.fire('pointerdown', { button: 2, pointerId: 3, clientX: 0, clientY: 0 })
+    expect(handle.captured).toEqual([1])
+  })
+
+  it('keeps the height a reader dragged through a redraw', async () => {
+    const { cards, board } = setup()
+    const cap = vi.spyOn(board, 'bodyCap')
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    drag(popups[0].handle!, 0, 200)
+    await settle()
+    expect(popups[0].html).toContain('Rain radar')
+    expect(popups[0].body.style.maxHeight).toBe('350px')
+    expect(cap).not.toHaveBeenCalled()
+  })
+
+  // The reader's choice follows them, as a fold does (TJ, 2026-11-03): every
+  // card opened after the drag opens at its width, and a later cap keeps
+  // under its height.
+  it('opens every card after it at the size it was dragged to, until the page is reloaded', async () => {
+    const { cards, board } = setup()
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    drag(popups[0].handle!, 40, 200)
+    board.closeAll()
+    const cap = vi.spyOn(board, 'bodyCap')
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude])
+    const next = popups[popups.length - 1]
+    expect([next.maxWidth, next.content.style.width]).toEqual(['360px', '360px'])
+    await settle()
+    expect(next.html).toContain('Rain radar')
+    expect(cap).toHaveBeenCalledWith(expect.anything(), 350)
+    // A mount is a page load: its cards open at the map's own width.
+    const { cards: fresh } = setup()
+    fresh.open(SPOT, [SPOT.lon, SPOT.lat])
+    expect(popups[popups.length - 1].maxWidth).toBeUndefined()
   })
 })

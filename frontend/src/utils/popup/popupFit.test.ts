@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { MIN_CAPPED_PX, capHeight, figureOf, fitPan, fitsWhole, placePopup, visibleArea, type Rect } from './popupFit'
+import {
+  BODY_CEILING_SHARE,
+  BODY_FLOOR_SHARE,
+  FIT_MARGIN_PX,
+  bodyBounds,
+  boundBody,
+  capHeight,
+  figureOf,
+  fitPan,
+  fitsWhole,
+  grownBodyCap,
+  openingBodyCap,
+  placePopup,
+  visibleArea,
+  type Rect,
+} from './popupFit'
 
 // A phone's map above a collapsed sheet, with the button column at its top
 // left; and a short desktop map, where a card can step sideways instead.
@@ -121,6 +136,9 @@ describe('the tutorial popup on a phone', () => {
 // layout above was measured with, and no placement kept it clear of both the
 // column and the tour card's keep-out.
 describe('capHeight', () => {
+  // The least card a cap may leave, here the 200px floor the fit kept until
+  // the floor became a share of the map (TJ, 2026-11-03).
+  const MIN = 200
   const REGION: Rect = { left: 0, top: 0, right: 360, bottom: 636 }
   const COLUMN: Rect = { left: 12, top: 12, right: 196, bottom: 128 }
   const KEEP_OUT: Rect = { left: 16, right: 344, top: 556, bottom: 724 }
@@ -128,14 +146,14 @@ describe('capHeight', () => {
   const TALL = { width: 280, height: 451 }
 
   it('caps nothing that already stands whole', () => {
-    expect(capHeight(MARKER, { width: 280, height: 401 }, REGION, [COLUMN, KEEP_OUT])).toBeNull()
-    expect(capHeight({ x: 300, y: 200 }, CARD, SHORT_DESKTOP, [DESKTOP_COLUMN])).toBeNull()
+    expect(capHeight(MARKER, { width: 280, height: 401 }, REGION, [COLUMN, KEEP_OUT], MIN)).toBeNull()
+    expect(capHeight({ x: 300, y: 200 }, CARD, SHORT_DESKTOP, [DESKTOP_COLUMN], MIN)).toBeNull()
   })
 
   it('finds the tallest card that stands whole between the column and the keep-out', () => {
     const obstacles = [COLUMN, KEEP_OUT]
     expect(fitsWhole(MARKER, TALL, REGION, obstacles)).toBe(false)
-    const cap = capHeight(MARKER, TALL, REGION, obstacles)!
+    const cap = capHeight(MARKER, TALL, REGION, obstacles, MIN)!
     expect(cap).toBeLessThan(TALL.height)
     expect(fitsWhole(MARKER, { width: 280, height: cap }, REGION, obstacles)).toBe(true)
     expect(fitsWhole(MARKER, { width: 280, height: cap + 1 }, REGION, obstacles)).toBe(false)
@@ -146,7 +164,118 @@ describe('capHeight', () => {
   })
 
   it('caps nothing when the room left would be a keyhole', () => {
-    const short: Rect = { left: 0, top: 0, right: 360, bottom: 128 + MIN_CAPPED_PX }
-    expect(capHeight(MARKER, TALL, short, [COLUMN])).toBeNull()
+    const short: Rect = { left: 0, top: 0, right: 360, bottom: 128 + MIN }
+    expect(capHeight(MARKER, TALL, short, [COLUMN], MIN)).toBeNull()
+  })
+})
+
+// A card's body stands between a floor and a ceiling of the visible map's
+// height (TJ, 2026-11-03): never more than three quarters of it, even where
+// the map has room, and never capped under a quarter.
+describe('bodyBounds', () => {
+  it('is a quarter and three quarters of the visible map, in whole pixels', () => {
+    expect([BODY_FLOOR_SHARE, BODY_CEILING_SHARE]).toEqual([0.25, 0.75])
+    expect(bodyBounds({ left: 0, top: 0, right: 1280, bottom: 1000 })).toEqual({ floor: 250, ceiling: 750 })
+    expect(bodyBounds({ left: 0, top: 0, right: 1280, bottom: 600 })).toEqual({ floor: 150, ceiling: 450 })
+    // The tutorial's phone, above its collapsed sheet.
+    expect(bodyBounds({ left: 0, top: 0, right: 360, bottom: 636 })).toEqual({ floor: 159, ceiling: 477 })
+    expect(bodyBounds({ left: 0, top: 0, right: 360, bottom: 0 })).toEqual({ floor: 0, ceiling: 0 })
+  })
+
+  it('holds a chosen height between them', () => {
+    const bounds = bodyBounds({ left: 0, top: 0, right: 1280, bottom: 600 })
+    expect([50, 300, 900].map((px) => boundBody(px, bounds))).toEqual([150, 300, 450])
+  })
+})
+
+describe('openingBodyCap', () => {
+  const DESK: Rect = { left: 0, top: 0, right: 1280, bottom: 1000 }
+
+  // An 800px card whose 760px body stands whole high on a 1000px map is
+  // still cut to three quarters of the map.
+  it('caps a body at the ceiling even where the map has room for all of it', () => {
+    const marker = { x: 640, y: 50 }
+    const size = { width: 280, height: 800 }
+    expect(fitsWhole(marker, size, DESK)).toBe(true)
+    expect(openingBodyCap(marker, size, 760, DESK)).toBe(750)
+  })
+
+  it('caps nothing that stands whole under the ceiling', () => {
+    expect(openingBodyCap({ x: 640, y: 50 }, { width: 280, height: 300 }, 260, DESK)).toBeNull()
+  })
+
+  // The tutorial's phone (above): the fit's cap of the whole card is 402px,
+  // whose 51px of header and foot leave the body 351, between the floor of
+  // 159 and the ceiling of 477.
+  it("takes the fit's cap where it lies between the bounds", () => {
+    const region: Rect = { left: 0, top: 0, right: 360, bottom: 636 }
+    const obstacles: Rect[] = [
+      { left: 12, top: 12, right: 196, bottom: 128 },
+      { left: 16, right: 344, top: 556, bottom: 724 },
+    ]
+    expect(openingBodyCap({ x: 180, y: 318 }, { width: 280, height: 451 }, 400, region, obstacles)).toBe(402 - 51)
+  })
+
+  // A 300px map has room for no card whose body keeps its 75px floor under
+  // 200px of header and foot: the body keeps the floor and the fit pans the
+  // card title first, rather than cutting it to a keyhole.
+  it('keeps the floor where the fit cannot give it, and the fit then pans the card title first', () => {
+    const short: Rect = { left: 0, top: 0, right: 1000, bottom: 300 }
+    const marker = { x: 500, y: 150 }
+    expect(openingBodyCap(marker, { width: 280, height: 600 }, 400, short)).toBe(75)
+    const capped = { width: 280, height: 200 + 75 }
+    const placed = placePopup(marker, capped, short)
+    expect(placed.dy).toBeLessThan(0)
+    expect(figureOf({ x: marker.x, y: marker.y + placed.dy }, capped, placed.anchor).top).toBe(FIT_MARGIN_PX)
+  })
+
+  it('caps nothing on a map with no visible height', () => {
+    expect(openingBodyCap({ x: 0, y: 0 }, { width: 280, height: 300 }, 260, { left: 0, top: 0, right: 360, bottom: 0 })).toBeNull()
+    expect(grownBodyCap(260, 300, { left: 0, top: 0, right: 360, bottom: 0 })).toEqual({ cap: null, pan: 0 })
+  })
+
+  it('never caps a body shorter than the floor', () => {
+    const short: Rect = { left: 0, top: 0, right: 1000, bottom: 300 }
+    expect(openingBodyCap({ x: 500, y: 150 }, { width: 280, height: 300 }, 60, short)).toBeNull()
+  })
+
+  // The height a reader dragged a card to stands in for the ceiling, held
+  // between the bounds of the map the card opens on.
+  it("caps a body at the reader's height, held between the bounds", () => {
+    const marker = { x: 640, y: 50 }
+    const size = { width: 280, height: 800 }
+    expect([400, 100, 900].map((roof) => openingBodyCap(marker, size, 760, DESK, [], roof))).toEqual([400, 250, 750])
+    expect(openingBodyCap(marker, { width: 280, height: 300 }, 260, DESK, [], 400)).toBeNull()
+  })
+})
+
+// A body that grew after its card opened, measured where the card stands on
+// a 600px map: a floor of 150 and a ceiling of 450.
+describe('grownBodyCap', () => {
+  const MAP: Rect = { left: 0, top: 0, right: 1280, bottom: 600 }
+
+  it('caps nothing that still stands whole under the ceiling', () => {
+    expect(grownBodyCap(180, -20, MAP)).toEqual({ cap: null, pan: 0 })
+  })
+
+  it('takes off the body what runs past the edge', () => {
+    expect(grownBodyCap(300, 138, MAP)).toEqual({ cap: 162, pan: 0 })
+  })
+
+  it('caps a body at the ceiling where it stands whole', () => {
+    expect(grownBodyCap(500, -10, MAP)).toEqual({ cap: 450, pan: 0 })
+  })
+
+  // 62px would fit; the body keeps its 150 and the map brings in the 88
+  // that runs past.
+  it('keeps the floor and pans in what runs past', () => {
+    expect(grownBodyCap(180, 118, MAP)).toEqual({ cap: 150, pan: 88 })
+    // A body under the floor keeps all of itself.
+    expect(grownBodyCap(100, 50, MAP)).toEqual({ cap: null, pan: 50 })
+  })
+
+  it("caps a body at the reader's height, held between the bounds", () => {
+    expect(grownBodyCap(300, 0, MAP, 200)).toEqual({ cap: 200, pan: 0 })
+    expect(grownBodyCap(300, 0, MAP, 50)).toEqual({ cap: 150, pan: 0 })
   })
 })

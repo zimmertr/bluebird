@@ -99,3 +99,41 @@ export function chevronMarkup(up: boolean): string {
     `</svg>`
   )
 }
+
+/**
+ * The grip on a card's resize handle (#832, TJ 2026-11-03): two strokes
+ * across the bottom-right corner, parallel to the card's rounded edge there,
+ * the mark a window's resizable corner has long carried. Markup only, since
+ * no React element draws it: the handle is part of a card handed to setHTML,
+ * and lives here beside the chevron so the popup draws no glyph of its own
+ * (`style-popup-glyph`).
+ */
+export const GRIP = {
+  viewBox: '0 0 24 24',
+  strokeWidth: 2,
+  linecap: 'round',
+  /** The long stroke, then the short one nearer the corner. */
+  lines: [
+    { x1: 21, y1: 11, x2: 11, y2: 21 },
+    { x1: 21, y1: 17, x2: 17, y2: 21 },
+  ],
+} as const
+
+/**
+ * The grip at the `chip` step of the `ICON` ramp: a mark inside a corner
+ * smaller than a control, at whose 12px the strokes run a whole pixel wide on
+ * whole pixels, as the chips' cross does. `styles.test.ts` pins it against
+ * the ramp.
+ */
+export const GRIP_PX = 12
+
+export function gripMarkup(): string {
+  const { viewBox, strokeWidth, linecap, lines } = GRIP
+  return (
+    `<svg viewBox="${viewBox}" fill="none" stroke="currentColor" ` +
+    `stroke-width="${strokeWidth}" stroke-linecap="${linecap}" ` +
+    `width="${GRIP_PX}" height="${GRIP_PX}" aria-hidden="true">` +
+    lines.map(({ x1, y1, x2, y2 }) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`).join('') +
+    `</svg>`
+  )
+}

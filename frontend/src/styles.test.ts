@@ -42,6 +42,7 @@ import {
   ICON_ACTION,
   ICON_BUTTON,
   CARD_FOLD,
+  CARD_RESIZE,
   NOTICE,
   NOTICE_DISMISS,
   NOTICE_DIVIDER,
@@ -139,7 +140,7 @@ import {
   YIELD_EMPTY,
 } from './styles'
 import * as STYLES from './styles'
-import { CHEVRON_PX, EXTERNAL_LINK_PX } from './iconPaths'
+import { CHEVRON_PX, EXTERNAL_LINK_PX, GRIP_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
@@ -1535,6 +1536,12 @@ describe('shared recipes', () => {
     expect(CHEVRON_PX).toBe(stepPx(ICON.control, 'h'))
   })
 
+  // The grip on a card's resize handle (TJ, 2026-11-03), which no React
+  // element draws, at the step of a mark smaller than a control.
+  it('draws the resize grip at the chip step', () => {
+    expect(GRIP_PX).toBe(stepPx(ICON.chip, 'h'))
+  })
+
   // Every floating box on the map is one surface: the search field and its
   // dropdown, the Controls button, both legends, the chart tooltip. The
   // legends used to run a darker fill and border, so the map carried two ideas
@@ -1809,6 +1816,19 @@ describe('tap targets', () => {
     expect(CARD_FOLD).toContain('h-6 w-6')
     expect(fold).toEqual(expect.arrayContaining(['touch:h-8', 'touch:w-8']))
     expect(fold.filter((w) => /^(?:[\w-]+:)*text-/.test(w))).toEqual([])
+  })
+
+  // The resize handle in a card's corner (TJ, 2026-11-03): a 16px box at a
+  // desk, a phone control's 32px under a finger (record 0223), no ring, since
+  // it is pointer-only and never focused, and no colour, for the fold's
+  // reason. `touch-none` keeps a finger's drag off the page's own scroll.
+  it("gives the resize handle a corner box, a phone control's size under a finger, and no colour", () => {
+    const grip = words(CARD_RESIZE)
+    expect(grip).toEqual(
+      expect.arrayContaining(['absolute', 'bottom-0', 'right-0', 'h-4', 'w-4', 'touch:h-8', 'touch:w-8', 'touch-none', 'cursor-nwse-resize']),
+    )
+    expect(CARD_RESIZE).not.toContain(FOCUS_RING)
+    expect(grip.filter((w) => /^(?:[\w-]+:)*text-/.test(w))).toEqual([])
   })
 
   // A drag handle is a strip: only the vertical axis is scarce, and 44px of
@@ -4205,6 +4225,14 @@ describe('the popup card', () => {
     expect(both(HEADER_ICON_COLOR, HEADER_BAND_COLOR)).toEqual([4.71, 7.05])
     expect(both('var(--popup-glyph-hover)', HEADER_BAND_COLOR)).toEqual([5.69, 4.85])
     expect(both('var(--popup-thumb)', GRID_BAND_COLOR)).toEqual([4.71, 3.36])
+  })
+
+  // The resize handle's grip rests on the card's own surface in the action's
+  // foot (TJ, 2026-11-03), in the glyph grey and in the accent under the
+  // pointer, and owes the 3:1 a graphic does. Measured 2026-11-04.
+  it('keeps the resize grip above the 3:1 a graphic owes on the card', () => {
+    expect(both(HEADER_ICON_COLOR, SURFACE)).toEqual([5.56, 8.34])
+    expect(both('var(--popup-glyph-hover)', SURFACE)).toEqual([6.71, 5.74])
   })
 
   // A warning section's heading (TJ, 2026-11-03): the amber over the band,

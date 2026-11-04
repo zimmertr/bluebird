@@ -23,8 +23,8 @@
 // the panel's `BUTTON_ACCENT` itself (`popupButton`). It lives in utils, like
 // the popup bodies that compose it, because a string module is unit-testable
 // without pulling maplibre-gl into a node test.
-import { chevronMarkup, externalLinkMarkup } from '../../iconPaths'
-import { BUTTON_ACCENT, CARD_FOLD } from '../../styles'
+import { chevronMarkup, externalLinkMarkup, gripMarkup } from '../../iconPaths'
+import { BUTTON_ACCENT, CARD_FOLD, CARD_RESIZE } from '../../styles'
 import { AGGREGATE, SEP } from '../../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
 import { clamp, isFiniteNumber } from '../numbers'
@@ -835,8 +835,29 @@ export const POPUP_MAX_WIDTH_PX = 280
  */
 export const RESULT_POPUP_MAX_WIDTH_PX = 374
 
+/**
+ * The narrowest any card on the map is, whatever the map's width, and the
+ * narrowest a reader's drag on the resize handle takes one (#832, TJ
+ * 2026-11-03): the facts line's coordinates and the action's button still
+ * stand on one line at it.
+ */
+export const POPUP_MIN_WIDTH_PX = 180
+
+/** What a ranked card leaves of a narrow map's width: 10px a side, so its edges never meet the map's. */
+const MAP_SIDES_PX = 20
+
 export function resultPopupWidth(canvasWidthPx: number): string {
-  return clamp(canvasWidthPx - 20, 180, RESULT_POPUP_MAX_WIDTH_PX) + 'px'
+  return clamp(canvasWidthPx - MAP_SIDES_PX, POPUP_MIN_WIDTH_PX, RESULT_POPUP_MAX_WIDTH_PX) + 'px'
+}
+
+/**
+ * How wide a reader may drag a card (TJ, 2026-11-03): from the floor every
+ * card keeps to the map less the 10px a side a ranked card leaves on a
+ * narrow map, which is wider than any card's own rule, since the reader asked
+ * for the room.
+ */
+export function cardWidthRange(canvasWidthPx: number): { min: number; max: number } {
+  return { min: POPUP_MIN_WIDTH_PX, max: Math.max(POPUP_MIN_WIDTH_PX, canvasWidthPx - MAP_SIDES_PX) }
 }
 
 /**
@@ -849,7 +870,7 @@ export function resultPopupWidth(canvasWidthPx: number): string {
  */
 export function popupWidth(canvasWidthPx: number): string {
   const share = Math.round(canvasWidthPx * 0.8)
-  return clamp(share, 180, POPUP_MAX_WIDTH_PX) + 'px'
+  return clamp(share, POPUP_MIN_WIDTH_PX, POPUP_MAX_WIDTH_PX) + 'px'
 }
 
 /**
@@ -933,12 +954,15 @@ export interface PopupCard {
  * line below it. The body is `border-box` because the scroll cap sets its
  * height from its measured outer height (`capPopupBody`), and it scrolls
  * sideways on a map narrower than its grid.
+ *
+ * Every card ends on its resize handle (`resizeHandle`), last in the markup
+ * so it stands over the action's foot in the card's bottom-right corner.
  */
 export function popupCard({ title, link = null, meta = '', body = '', action = '' }: PopupCard): string {
   const content = body
     ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px ${BODY_SIDE} 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
     : ''
-  return `<div style="${POPUP_LEADING}">
+  return `<div style="${POPUP_LEADING};position:relative">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
       <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}</div>
       ${meta}
@@ -951,8 +975,30 @@ export function popupCard({ title, link = null, meta = '', body = '', action = '
       action
         ? `<div style="padding:${SECTION_PAD_Y} 10px;border-top:${SECTION_EDGE}">${popupAction(action)}</div>`
         : ''
-    }
+    }${resizeHandle()}
   </div>`
+}
+
+/**
+ * The attribute the map finds a card's resize handle by (`map/destinationCards.ts`),
+ * which drags the card's width and its body's height (TJ, 2026-11-03).
+ */
+export const CARD_RESIZE_ATTR = 'data-card-resize'
+
+/**
+ * The handle in a card's bottom-right corner that a pointer or a finger
+ * drags to size the card (TJ, 2026-11-03): the diagonal grip from
+ * `iconPaths.ts` in the glyph grey the band's link-out and the folds rest in,
+ * taking the accent under a pointer through `data-popup-glyph` as they do,
+ * and its box `CARD_RESIZE` from `styles.ts`.
+ *
+ * It is pointer-only, so it is `aria-hidden` and carries no name: a name
+ * would be a new string for a control a keyboard cannot work, and a keyboard
+ * reader has the body's scroll for what a short card hides. It is a span
+ * rather than a button for the same reason, so Tab never lands on it.
+ */
+function resizeHandle(): string {
+  return `<span ${CARD_RESIZE_ATTR} data-popup-glyph aria-hidden="true" class="${CARD_RESIZE}" style="color:${HEADER_ICON_COLOR}">${gripMarkup()}</span>`
 }
 
 /**

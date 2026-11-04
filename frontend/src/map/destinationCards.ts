@@ -35,6 +35,12 @@
  *   section holds for that section on every card until the page is reloaded
  *   (TJ, 2026-11-03), so a reader who shut the smoke on one marker is not
  *   shown it open on the next;
+ * - **sized** by the handle in its bottom-right corner, with a pointer or a
+ *   finger (TJ, 2026-11-03): the drag sets the card's width and its body's
+ *   height between the bounds the map gives (`cardBounds`), and the size
+ *   holds for every card opened after it until the page is reloaded, by the
+ *   folds' rule, the reader's choice following them. A card opened at that
+ *   size is still fitted, capped and panned as any card is;
  * - **answered** by its one button: a row in the analysis leaves it as the
  *   table's × does, and a place outside it joins it as a search by name does.
  *
@@ -61,13 +67,14 @@ import type { Place } from '../utils/geocode'
 import { MAP_TARGETS, type MapTarget } from '../utils/mapClick'
 import type { ModelRow } from '../utils/model/modelCompare'
 import type { PointAnswer, PointReading, PointSection } from '../utils/pointReadout'
-import { CARD_FOLD_ATTR, POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popup/popupChrome'
+import { CARD_FOLD_ATTR, CARD_RESIZE_ATTR, POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popup/popupChrome'
+import { boundBody } from '../utils/popup/popupFit'
 import type { Point as ScreenPoint, Rect } from '../utils/popup/popupFit'
 import { loadUsStates, usStatesNow } from '../utils/usStatesLoad'
 import type { MapController } from './controller'
 import type { GridHeads } from './gridHeads'
 import type { GroundReadings } from './groundReadings'
-import type { MapPopups } from './mapPopups'
+import type { CardSize, MapPopups } from './mapPopups'
 
 /** Where a card opens, beyond its point. */
 export interface CardOpenOptions {
@@ -125,6 +132,8 @@ interface Card {
   seq: Map<MapTarget, number>
   /** Whether its cap waits for the map's move to end (`capWhenStill`). */
   capping: boolean
+  /** The body height the reader had chosen when it opened, which a later cap keeps under. */
+  roof: number | null
 }
 
 // What each kind of card is closed by, when a click elsewhere or an overlay
@@ -152,6 +161,9 @@ export function mountDestinationCards(
   // Each section the reader folded or opened by hand, by its key, for the
   // session: the default is the card's (`sectionOpen`) until they do.
   const folds = new Map<string, boolean>()
+  // The size the reader last dragged a card to, for the session: every card
+  // opened after it opens at it, as a fold holds for the next card.
+  let chosen: CardSize | null = null
 
   function viewOf(card: Card): CardView {
     const { subject: s } = card
@@ -201,6 +213,51 @@ export function mountDestinationCards(
       button.addEventListener('click', () => fold(card, button.getAttribute(CARD_FOLD_ATTR)!))
     })
     if (card.subject.kind === 'ranked') gridHeads.arm(card.popup)
+    const handle = el?.querySelector?.<HTMLElement>(`[${CARD_RESIZE_ATTR}]`)
+    handle?.addEventListener('pointerdown', (e) => resize(card, handle, e))
+  }
+
+  // A drag on the handle (TJ, 2026-11-03). MapLibre stands a card centred on
+  // its point, so the card grows on both sides and its width takes twice the
+  // pointer's travel, which keeps the handle under the pointer. The body
+  // takes the travel down, held between the map's floor and ceiling and
+  // capped as the drag goes, so it scrolls under its header where it is
+  // shorter than what it holds. The handle captures the pointer, so every
+  // move of a drag that leaves the card, or of a finger that leaves the
+  // handle, comes to it until the button or the finger lifts.
+  function resize(card: Card, handle: HTMLElement, e: PointerEvent) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    handle.setPointerCapture(e.pointerId)
+    const el = card.popup.getElement()
+    const width0 = el?.offsetWidth ?? 0
+    const body0 = bodyOf(card)?.offsetHeight ?? 0
+    const x0 = e.clientX
+    const y0 = e.clientY
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return
+      const width = popups.sizeCard(card.popup, width0 + 2 * (ev.clientX - x0))
+      // A card with no body, a spot with no layer on, sizes its width alone
+      // and leaves the height the reader chose on another card as it was.
+      const body = bodyOf(card)
+      let height = chosen?.body ?? null
+      if (body) {
+        height = Math.round(boundBody(body0 + ev.clientY - y0, popups.cardBounds().body))
+        card.capped = height
+        capPopupBody(body, height)
+      }
+      chosen = { width, body: height }
+    }
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', up)
+      handle.removeEventListener('pointercancel', up)
+    }
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', up)
+    handle.addEventListener('pointercancel', up)
   }
 
   // A chevron's press: the section folds or opens on every card, and the
@@ -264,7 +321,7 @@ export function mountDestinationCards(
     // table row's flight, and a cap measured there is a keyhole or nothing.
     if (body && card.capped === null) {
       if (map.isMoving()) capWhenStill(card)
-      else card.capped = popups.bodyCap(card.popup)
+      else card.capped = popups.bodyCap(card.popup, card.roof)
     }
     if (body && card.capped !== null) capPopupBody(body, card.capped)
     if (body) body.scrollTop = scrolled
@@ -278,7 +335,7 @@ export function mountDestinationCards(
       map.off('moveend', still)
       card.capping = false
       if (!cards.includes(card) || card.capped !== null) return
-      card.capped = popups.bodyCap(card.popup)
+      card.capped = popups.bodyCap(card.popup, card.roof)
       const body = bodyOf(card)
       if (body && card.capped !== null) capPopupBody(body, card.capped)
     }
@@ -387,6 +444,7 @@ export function mountDestinationCards(
         reading: new AbortController(),
         seq: new Map(),
         capping: false,
+        roof: chosen?.body ?? null,
       }
       // Every layer that is on, asked for what it has here before the card
       // is drawn, so each that answers at once is in the markup the fit
@@ -400,6 +458,7 @@ export function mountDestinationCards(
         markerAt,
         avoid,
         pan,
+        size: chosen,
       })
       card.popup = placed.popup
       card.capped = placed.capped

@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { POPUP_BODY_ATTR, POPUP_CARD_CLASS } from '../utils/popup/popupChrome'
-import { POPUP_PAN_MS } from '../utils/popup/popupFit'
+import { BODY_CEILING_SHARE, BODY_FLOOR_SHARE, FIT_MARGIN_PX, POPUP_PAN_MS, figureOf } from '../utils/popup/popupFit'
 
 // MapLibre's Popup needs a DOM. This one records the options it was made with
 // and whether it is open, and fires `close` when removed, as MapLibre's does.
 // Its element and its point are whatever `dom` holds, so a test can stand a
 // card of a given size at a given place for `bodyCap`.
 const { made, dom } = vi.hoisted(() => ({
-  made: [] as { options: Record<string, unknown>; html: string; removed: boolean }[],
+  made: [] as { options: Record<string, unknown>; html: string; removed: boolean; maxWidth?: string }[],
   dom: { element: undefined as unknown, lngLat: { lng: -121.5, lat: 47.5 } as { lng: number; lat: number } | undefined },
 }))
 vi.mock('maplibre-gl', () => ({
@@ -28,6 +28,10 @@ vi.mock('maplibre-gl', () => ({
     }
     setHTML(html: string) {
       this.state.html = html
+      return this
+    }
+    setMaxWidth(maxWidth: string) {
+      this.state.maxWidth = maxWidth
       return this
     }
     addTo() {
@@ -442,6 +446,100 @@ describe('mountMapPopups openCard and openBare', () => {
   })
 })
 
+// A card's body stands between a floor and a ceiling of the visible map
+// (TJ, 2026-11-03), from the moment it opens.
+describe('mountMapPopups openCard between the floor and the ceiling', () => {
+  // A card of `chrome` pixels of header and foot over a body that holds
+  // `natural` pixels, which a cap shortens as the browser's layout would,
+  // and the box MapLibre sizes.
+  function standCard(chrome: number, natural: number) {
+    const body = {
+      style: {} as Record<string, string>,
+      classList: { add: () => {} },
+      get offsetHeight() {
+        const cap = parseFloat(this.style.maxHeight)
+        return Number.isNaN(cap) ? natural : Math.min(natural, cap)
+      },
+    }
+    const content = { style: {} as Record<string, string>, classList: { add: () => {} } }
+    dom.element = {
+      offsetWidth: 280,
+      get offsetHeight() {
+        return chrome + body.offsetHeight
+      },
+      querySelector: (sel: string) =>
+        sel === `[${POPUP_BODY_ATTR}]` ? body : sel === '.maplibregl-popup-content' ? content : null,
+    }
+    return { body, content }
+  }
+  function mount(canvasWidth: number, canvasHeight: number, markerAt: { x: number; y: number }) {
+    made.length = 0
+    const stub = stubMap({ canvasWidth, canvasHeight, markerAt })
+    const controller = createMapController(mapInputs({ cameraPadBottomPx: 0 }))
+    const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint: vi.fn() })
+    return { stub, popups }
+  }
+
+  it('pins the two shares', () => {
+    expect([BODY_FLOOR_SHARE, BODY_CEILING_SHARE]).toEqual([0.25, 0.75])
+  })
+
+  // An 800px card stands whole high on a 1000px map; its body is cut to 750
+  // all the same, and the map does not move for it.
+  it('caps a body at three quarters of the map even where the map has room', () => {
+    const { stub, popups } = mount(1280, 1000, { x: 640, y: 50 })
+    const { body } = standCard(40, 760)
+    const placed = popups.openCard([0, 0], '<p>card</p>', { owner: 'result', result: true })
+    expect(placed.capped).toBe(750)
+    expect(body.style.maxHeight).toBe('750px')
+    expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+  })
+
+  // A 300px map: the body's floor is 75px, which 200px of header and foot
+  // cannot stand whole with. The body keeps it and the map pans the card
+  // title first, where the fit used to cut it to whatever stood.
+  it('keeps a quarter of the map and pans the card where the fit cannot give it', () => {
+    const { stub, popups } = mount(1000, 300, { x: 500, y: 150 })
+    const { body } = standCard(200, 400)
+    const placed = popups.openCard([0, 0], '<p>card</p>', { owner: 'result', result: true })
+    expect(placed.capped).toBe(75)
+    expect(body.style.maxHeight).toBe('75px')
+    expect(placed.dy).toBeLessThan(0)
+    expect(figureOf({ x: 500, y: 150 + placed.dy }, { width: 280, height: 275 }, 'top').top).toBe(FIT_MARGIN_PX)
+    expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([['panBy', [0, -placed.dy], { duration: POPUP_PAN_MS }]])
+  })
+
+  // A size the reader dragged a card to: its width, held to the map less
+  // 10px a side, and its body's height, held between the floor and ceiling.
+  it('opens a card at the size a reader chose, held to the bounds', () => {
+    const { popups } = mount(1280, 1000, { x: 640, y: 50 })
+    const { body, content } = standCard(40, 760)
+    const placed = popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 500, body: 300 } })
+    expect(made[0].maxWidth).toBe('500px')
+    expect(content.style.width).toBe('500px')
+    expect(placed.capped).toBe(300)
+    expect(body.style.maxHeight).toBe('300px')
+    standCard(40, 760)
+    const wide = popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 5000, body: 5000 } })
+    expect(made[1].maxWidth).toBe('1260px')
+    expect(wide.capped).toBe(750)
+    // A size with no height, from a card that had no body, keeps the ceiling.
+    standCard(40, 760)
+    expect(popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 100, body: null } }).capped).toBe(750)
+    expect(made[2].maxWidth).toBe('180px')
+  })
+
+  it('says the bounds a drag sizes a card between, and sizes one to them', () => {
+    const { popups } = mount(1280, 1000, { x: 640, y: 50 })
+    const { content } = standCard(40, 760)
+    expect(popups.cardBounds()).toEqual({ width: { min: 180, max: 1260 }, body: { floor: 250, ceiling: 750 } })
+    const popup = popups.openCard([0, 0], '<p>card</p>', { result: true }).popup
+    expect(popups.sizeCard(popup, 90)).toBe(180)
+    expect(content.style.width).toBe('180px')
+    expect(made[0].maxWidth).toBe('180px')
+  })
+})
+
 describe('mountMapPopups point target cursor', () => {
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
   const pointTarget = (target: MapTarget, paints: MapPointTarget['paints'], shown = () => true) => ({
@@ -640,10 +738,13 @@ describe('mountMapPopups point targets that change', () => {
 })
 
 // A card that grew after it opened, as one does when a layer's section lands
-// on it (#832), is capped where it stands rather than moved.
+// on it (#832), is capped where it stands, between a quarter and three
+// quarters of the visible map (TJ, 2026-11-03), and moved only where the
+// floor runs past the map's edge.
 describe('mountMapPopups bodyCap', () => {
   // A card of this height whose body is this tall, standing on this side of
-  // a marker at this height on a 600px map, the sheet taking `sheetPx` off it.
+  // a marker at this height on a 600px map, the sheet taking `sheetPx` off
+  // the canvas below it: a floor of 150 and a ceiling of 450.
   function card({ markerY, height, body, anchor = 'top', sheetPx = 0 }: { markerY: number; height: number; body: number; anchor?: 'top' | 'bottom'; sheetPx?: number }) {
     made.length = 0
     const stub = stubMap({ canvasWidth: 800, canvasHeight: 600 + sheetPx, markerAt: { x: 400, y: markerY } })
@@ -656,7 +757,8 @@ describe('mountMapPopups bodyCap', () => {
       offsetHeight: height,
       querySelector: (sel: string) => (sel === `[${POPUP_BODY_ATTR}]` ? bodyEl : null),
     }
-    return { popups, popup: new Popup({ anchor }) }
+    const pans = () => stub.calls.filter((c) => c[0] === 'panBy')
+    return { popups, popup: new Popup({ anchor }), pans }
   }
 
   it('caps nothing where the card has no element, no body or no point', () => {
@@ -672,15 +774,17 @@ describe('mountMapPopups bodyCap', () => {
   })
 
   it('caps nothing where the card still stands whole', () => {
-    const { popups, popup } = card({ markerY: 100, height: 200, body: 180 })
+    const { popups, popup, pans } = card({ markerY: 100, height: 200, body: 180 })
     expect(popups.bodyCap(popup)).toBeNull()
+    expect(pans()).toEqual([])
   })
 
-  // Hanging below its marker: the tip's 10px and the card's 200 end at 710,
-  // 110 under the sheet's edge at 600, and the fit's 8px breath comes off too.
+  // Hanging below its marker: the tip's 10px and the card's 320 end at 730,
+  // 130 under the sheet's edge at 600, and the fit's 8px breath comes off too.
   it('takes off the body what a card hanging below its point hangs past the sheet', () => {
-    const { popups, popup } = card({ markerY: 500, height: 200, body: 180, sheetPx: 300 })
-    expect(popups.bodyCap(popup)).toBe(180 - 110 - 8)
+    const { popups, popup, pans } = card({ markerY: 400, height: 320, body: 300, sheetPx: 300 })
+    expect(popups.bodyCap(popup)).toBe(300 - 130 - 8)
+    expect(pans()).toEqual([])
   })
 
   // Ending 4px short of the edge is inside the fit's breath, so it is capped.
@@ -689,16 +793,36 @@ describe('mountMapPopups bodyCap', () => {
     expect(popups.bodyCap(popup)).toBe(180 + 4 - 8)
   })
 
-  // Standing above its marker: the card's top is at 150 - 10 - 200 = -60.
+  // Standing above its marker: the card's top is at 250 - 10 - 320 = -80.
   it('takes off the body what a card standing above its point hangs past the top', () => {
-    const { popups, popup } = card({ markerY: 150, height: 200, body: 180, anchor: 'bottom' })
-    expect(popups.bodyCap(popup)).toBe(180 - 60 - 8)
+    const { popups, popup } = card({ markerY: 250, height: 320, body: 300, anchor: 'bottom' })
+    expect(popups.bodyCap(popup)).toBe(300 - 80 - 8)
   })
 
-  // A card near the edge keeps the name of the section that landed.
-  it('never caps a body under 48px', () => {
-    const { popups, popup } = card({ markerY: 500, height: 200, body: 100 })
-    expect(popups.bodyCap(popup)).toBe(48)
+  // Standing whole high on the map, a 500px body is cut to 450.
+  it('caps a body at three quarters of the map where it stands whole', () => {
+    const { popups, popup, pans } = card({ markerY: 20, height: 520, body: 500 })
+    expect(popups.bodyCap(popup)).toBe(450)
+    expect(pans()).toEqual([])
+  })
+
+  // 62px would fit below the point and 112 above it: the body keeps its 150
+  // and the map brings in what runs past, up for a card hanging below its
+  // point and down for one standing above.
+  it('never caps a body under a quarter of the map, and pans in what runs past', () => {
+    const below = card({ markerY: 500, height: 200, body: 180 })
+    expect(below.popups.bodyCap(below.popup)).toBe(150)
+    expect(below.pans()).toEqual([['panBy', [0, 88], { duration: POPUP_PAN_MS }]])
+    const above = card({ markerY: 150, height: 200, body: 180, anchor: 'bottom' })
+    expect(above.popups.bodyCap(above.popup)).toBe(150)
+    expect(above.pans()).toEqual([['panBy', [0, -38], { duration: POPUP_PAN_MS }]])
+  })
+
+  it("caps a body at the reader's height, held between the floor and the ceiling", () => {
+    const { popups, popup } = card({ markerY: 20, height: 520, body: 500 })
+    expect(popups.bodyCap(popup, 300)).toBe(300)
+    expect(popups.bodyCap(popup, 50)).toBe(150)
+    expect(popups.bodyCap(popup, 900)).toBe(450)
   })
 })
 

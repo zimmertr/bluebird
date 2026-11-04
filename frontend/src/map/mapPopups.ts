@@ -47,10 +47,22 @@
 import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import { mapCursor, pointTargetsToAsk, rankedTargets, type MapTarget } from '../utils/mapClick'
-import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody } from '../utils/popup/popupChrome'
+import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody, cardWidthRange } from '../utils/popup/popupChrome'
 import { POPUP_FACE } from '../styles'
 import type { MapPoint, PointAnswer } from '../utils/pointReadout'
-import { FIT_MARGIN_PX, POPUP_PAN_MS, capHeight, figureOf, placePopup, type Point, type PopupSide, type Rect } from '../utils/popup/popupFit'
+import {
+  FIT_MARGIN_PX,
+  POPUP_PAN_MS,
+  bodyBounds,
+  figureOf,
+  grownBodyCap,
+  openingBodyCap,
+  placePopup,
+  type BodyBounds,
+  type Point,
+  type PopupSide,
+  type Rect,
+} from '../utils/popup/popupFit'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
 
@@ -155,6 +167,22 @@ interface MapCardOptions {
    * as a table row's centring does.
    */
   pan?: boolean
+  /**
+   * The size a reader dragged a card to (TJ, 2026-11-03), which this card
+   * opens at: its width, held to the map's range, and its body's height,
+   * which stands in for the ceiling under the floor and ceiling of this map.
+   * The fit still places, caps and pans the card as it does any card.
+   */
+  size?: CardSize | null
+}
+
+/**
+ * A card's width and its body's height, as a reader's drag on its handle
+ * leaves them; no height where the reader has only sized a card with no body.
+ */
+export interface CardSize {
+  width: number
+  body: number | null
 }
 
 /** A card on the map, and the move its fit asked of the map. */
@@ -203,10 +231,26 @@ export interface MapPopups {
   /**
    * The height to cap a card's body at where it stands, for a card that grew
    * after it opened, as one does when a layer's section lands on it (#832):
-   * null where the card still stands whole in the free map. The card is not
-   * moved for it, since it was placed where the reader saw it open.
+   * null where the card still stands whole in the free map. What fits, under
+   * the ceiling or the reader's `roof` and never under the floor
+   * (`grownBodyCap`, TJ 2026-11-03); where the floor runs past the map's
+   * edge the map pans by what it runs past, as the fit pans a card that does
+   * not fit, and otherwise the card is not moved, since it was placed where
+   * the reader saw it open.
    */
-  bodyCap(popup: Popup): number | null
+  bodyCap(popup: Popup, roof?: number | null): number | null
+  /**
+   * The bounds a reader's drag sizes a card between on the map as it is now
+   * (TJ, 2026-11-03): its width (`cardWidthRange`) and its body's floor and
+   * ceiling (`bodyBounds` of the visible map).
+   */
+  cardBounds(): { width: { min: number; max: number }; body: BodyBounds }
+  /**
+   * Set a card's width, held to `cardBounds`, and say what it took. MapLibre
+   * stands a card on its point by a share of its own width, so the tip stays
+   * on the point as it changes; `setMaxWidth` runs the library's update.
+   */
+  sizeCard(popup: Popup, width: number): number
   /**
    * Open a card on the board, placed where it shows the most of itself
    * (#738): every card the map opens, a destination's, a fire's, a closure's
@@ -244,11 +288,6 @@ export function mountMapPopups(
   const targets: MapPopupTarget[] = []
   const points: MapPointTarget[] = []
   const pointListeners: ((kind: MapTarget) => void)[] = []
-  // The least a body capped after its card grew may keep (#832): a couple of
-  // rows under the band, so a card near the map's edge still shows the name
-  // of the section that landed and scrolls to the rest, rather than a
-  // keyhole or a card hanging off the map.
-  const LEAST_BODY_PX = 48
   // The latest pointer move, so a cursor answer that needed a tile decoded
   // is dropped once the pointer has moved on.
   let moveSeq = 0
@@ -370,10 +409,23 @@ export function mountMapPopups(
     })
   }
 
-  // The part of the map a card can be seen in: above the results sheet.
+  // The part of the map a card can be seen in: above the results sheet. Its
+  // height is what a card's body floor and ceiling are shares of.
   const regionNow = (): Rect => {
     const canvas = map.getCanvas()
     return { left: 0, top: 0, right: canvas.clientWidth, bottom: canvas.clientHeight - controller.inputs.cameraPadBottomPx }
+  }
+
+  // The card's box, which MapLibre sizes to its content up to the popup's
+  // max width: an explicit width on it and the same max width on the popup
+  // make the card that wide whatever its content.
+  const sizeTo = (popup: Popup, width: number): number => {
+    const { min, max } = cardWidthRange(map.getCanvas().clientWidth)
+    const px = Math.round(Math.min(max, Math.max(min, width)))
+    const content = popup.getElement()?.querySelector?.<HTMLElement>('.maplibregl-popup-content')
+    if (content) content.style.width = `${px}px`
+    popup.setMaxWidth(`${px}px`)
+    return px
   }
 
   // Every popup, card or bare, is made here and put on the board.
@@ -443,7 +495,7 @@ export function mountMapPopups(
       }
       for (const listen of pointListeners) listen(kind)
     },
-    bodyCap(popup) {
+    bodyCap(popup, roof = null) {
       const el = popup.getElement()
       const body = el?.querySelector?.<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
       // Optional: a test's stub popup has no place on the map.
@@ -453,42 +505,56 @@ export function mountMapPopups(
       // opened at, against the free map as it is now. What hangs past the
       // edge, and the breath the fit keeps from it, comes off the body.
       const anchor: PopupSide = popup.options?.anchor === 'bottom' ? 'bottom' : 'top'
+      const region = regionNow()
       const figure = figureOf(map.project(at), { width: el.offsetWidth, height: el.offsetHeight }, anchor)
-      const over = anchor === 'top' ? figure.bottom - regionNow().bottom : regionNow().top - figure.top
-      if (over + FIT_MARGIN_PX <= 0) return null
-      return Math.max(LEAST_BODY_PX, body.offsetHeight - over - FIT_MARGIN_PX)
+      const over = anchor === 'top' ? figure.bottom - region.bottom : region.top - figure.top
+      const { cap, pan } = grownBodyCap(body.offsetHeight, over + FIT_MARGIN_PX, region, roof)
+      // The floor ran past the edge: the map brings it in, the point moving
+      // up for a card hanging below it and down for one standing above.
+      if (pan > 0) map.panBy([0, anchor === 'top' ? pan : -pan], { duration: POPUP_PAN_MS })
+      return cap
     },
-    openCard(at, html, { owner, result = false, markerAt, avoid = [], pan = true } = {}) {
+    cardBounds() {
+      return { width: cardWidthRange(map.getCanvas().clientWidth), body: bodyBounds(regionNow()) }
+    },
+    sizeCard: sizeTo,
+    openCard(at, html, { owner, result = false, markerAt, avoid = [], pan = true, size = null } = {}) {
       // Built hanging below its point, measured, and rebuilt above it only
       // when the fit says so, all before a frame is drawn, because MapLibre
       // fixes a popup's side at construction and this is the one moment its
       // size is known. A card too tall to stand whole in the free map area
       // has its body capped first and scrolls (`capHeight`, TJ 2026-10-08),
-      // so the fit then places the card the reader will actually see.
-      const build = (anchor: PopupSide) =>
-        make(at, html, owner, { ...popupOptions(map, { result }), anchor, className: POPUP_CARD_CLASS })
+      // so the fit then places the card the reader will actually see; the
+      // cap keeps the body between a floor and a ceiling of the visible map
+      // (`openingBodyCap`, TJ 2026-11-03). A card a reader sized opens at
+      // that width before it is measured, so the fit measures the card the
+      // reader will see.
+      const build = (anchor: PopupSide) => {
+        const made = make(at, html, owner, { ...popupOptions(map, { result }), anchor, className: POPUP_CARD_CLASS })
+        if (size) sizeTo(made, size.width)
+        return made
+      }
       let popup = build('top')
       const measure = () => {
         const el = popup.getElement()
         return { width: el?.offsetWidth ?? 0, height: el?.offsetHeight ?? 0 }
       }
-      let size = measure()
+      let card = measure()
       const region = regionNow()
       const point = markerAt ?? map.project(at)
       const standing = obstacles(avoid)
       // The body's height under the cap: whatever the card must lose comes
       // off the body alone, so the title and the band under it stay in view.
-      const cap = capHeight(point, size, region, standing)
       const bodyOf = () => popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`) ?? null
-      const first = cap === null ? null : bodyOf()
-      const capped = cap === null || first === null ? null : first.offsetHeight - (size.height - cap)
+      const first = bodyOf()
+      const capped = first === null ? null : openingBodyCap(point, card, first.offsetHeight, region, standing, size?.body ?? null)
       const applyCap = () => {
         const body = capped === null ? null : bodyOf()
         if (body) capPopupBody(body, capped!)
       }
       applyCap()
-      if (capped !== null) size = measure()
-      const placed = placePopup(point, size, region, standing)
+      if (capped !== null) card = measure()
+      const placed = placePopup(point, card, region, standing)
       if (placed.anchor !== 'top') {
         popup.remove()
         popup = build('bottom')

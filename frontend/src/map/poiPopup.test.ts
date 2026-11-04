@@ -56,13 +56,14 @@ vi.mock('maplibre-gl', () => ({
     getElement() {
       return {
         // The library's content box, which takes the app's card (POPUP_FACE),
-        // and otherwise the one button a popup arms.
+        // and otherwise the one button a popup arms: its click alone, since
+        // the resize handle's pointer listeners land on the same object.
         querySelector: (selector: string) =>
           selector === '.maplibregl-popup-content'
             ? { classList: { add: () => {} } }
             : {
-                addEventListener: (_type: string, fn: () => void) => {
-                  this.state.press = fn
+                addEventListener: (type: string, fn: () => void) => {
+                  if (type === 'click') this.state.press = fn
                 },
               },
       }

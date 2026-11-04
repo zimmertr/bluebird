@@ -1075,6 +1075,20 @@ export const ICON_BUTTON = `px-1 text-ink-soft ${ACCENT.hoverText} transition-co
 export const CARD_FOLD = `flex h-6 w-6 shrink-0 items-center justify-center ${RADIUS.control} transition-colors ${FOCUS_RING} touch:h-8 touch:w-8`
 
 /**
+ * The resize handle in a card's bottom-right corner (#832, TJ 2026-11-03): a
+ * 16px box at a desk, its grip drawn in the corner 2px in from both edges,
+ * and the 32px of a phone's controls under a finger (record 0223), grown up
+ * and to the left so it never reaches past the card. It names no colour, for
+ * `CARD_FOLD`'s reason: its ink is the card's glyph grey, set in the markup
+ * (`popupCard` in `utils/popup/popupChrome.ts`), lit under a pointer through
+ * `map.css`'s `data-popup-glyph`. No focus ring, because it is pointer-only
+ * and never focused. `touch-none` keeps a finger's drag from scrolling or
+ * zooming the page under it.
+ */
+export const CARD_RESIZE =
+  'absolute bottom-0 right-0 flex h-4 w-4 items-end justify-end p-0.5 cursor-nwse-resize touch-none select-none transition-colors touch:h-8 touch:w-8'
+
+/**
  * A bare × with free room around it, the tutorial card's and the search
  * field's, and a 44px press on a coarse pointer: an invisible box 10px
  * either side of the 24 by 16 button and 14px above and below it, the way

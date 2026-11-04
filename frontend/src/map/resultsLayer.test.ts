@@ -9,7 +9,9 @@ type FakeBody = {
   style: { maxHeight?: string }
   classes: string[]
   classList: { add: (c: string) => void }
-  // The one listener a card arms, its remove button's.
+  // The card's remove button's click, the one listener a test here presses;
+  // the resize handle's pointer listeners, which this stub answers with the
+  // same object, are left unkept.
   addEventListener: (type: string, fn: () => void) => void
   press?: () => void
 }
@@ -41,7 +43,9 @@ vi.mock('maplibre-gl', () => ({
         style: {},
         classes,
         classList: { add: (c) => classes.push(c) },
-        addEventListener: (_type, fn) => (body.press = fn),
+        addEventListener: (type, fn) => {
+          if (type === 'click') body.press = fn
+        },
       }
       this.options = { ...options }
       this.state = { at: null, html: '', options, removed: false, attrs: {}, body, face: [], sets: [], gridArms: 0 }

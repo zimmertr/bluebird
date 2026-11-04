@@ -175,14 +175,98 @@ export function placePopup(marker: Point, size: Size, region: Rect, obstacles: r
 }
 
 /**
- * The least a capped card may keep, in pixels: the title band and a few lines
- * of the body under it. A shorter cap would leave a keyhole to scroll through,
- * and below it the title-first fit of the whole card serves a reader better.
- * It is the threshold the user named on 2026-10-08, "when resolution reaches a
- * certain small threshold": a card caps only when the free map area is too
- * short for it and still tall enough for this.
+ * The most of the visible map's height a card's body may take, even where the
+ * map has room for all of it (TJ, 2026-11-03): past this share a tall card
+ * scrolls under its header, so a card never fills a tall map and covers the
+ * markers around its own.
  */
-export const MIN_CAPPED_PX = 200
+export const BODY_CEILING_SHARE = 0.75
+
+/**
+ * The least of the visible map's height a capped body keeps (TJ, 2026-11-03),
+ * the ceiling's mirror, so a cap never leaves a keyhole to scroll through. It
+ * replaced two fixed numbers, a 200px card floor at open and a 48px body
+ * floor for a card that grew, with one share that follows the map's height.
+ * Where the fit cannot give a body this much where its card stands, the card
+ * keeps it and the map pans, as it does for any card that does not fit.
+ */
+export const BODY_FLOOR_SHARE = 0.25
+
+/** The heights a card's body stands between on a map whose visible part is `region`. */
+export interface BodyBounds {
+  floor: number
+  ceiling: number
+}
+
+/** The body's floor and ceiling, in whole pixels, for the visible map `region` (`regionNow` in `map/mapPopups.ts`). */
+export function bodyBounds(region: Rect): BodyBounds {
+  const height = Math.max(0, region.bottom - region.top)
+  return { floor: Math.floor(height * BODY_FLOOR_SHARE), ceiling: Math.floor(height * BODY_CEILING_SHARE) }
+}
+
+/** A body height held between the bounds: what a reader's drag or a remembered size may set. */
+export function boundBody(px: number, { floor, ceiling }: BodyBounds): number {
+  return Math.min(ceiling, Math.max(floor, px))
+}
+
+/**
+ * The height to cap a card's body at as it opens, or null where the body
+ * stands whole: the fit's cap (`capHeight`) under the ceiling, never under
+ * the floor. `size` is the whole card as built and `body` its body's height
+ * in it; `roof` is the body height a reader chose by dragging (`map/destinationCards.ts`),
+ * which stands in for the ceiling under it and is held between the bounds.
+ *
+ * A body the fit cannot give the floor where its card stands keeps the floor
+ * all the same, and `placePopup` then finds the card too tall to stand whole
+ * and pans the map title first, as it does for any card that does not fit.
+ * A body shorter than the floor is never capped, and pans the same way.
+ * Nor is any body on a map with no visible height, a sheet standing over all
+ * of it, where there is nothing to fit a card to and a ceiling of nothing
+ * would leave it a header.
+ */
+export function openingBodyCap(
+  marker: Point,
+  size: Size,
+  body: number,
+  region: Rect,
+  obstacles: readonly Rect[] = [],
+  roof: number | null = null,
+): number | null {
+  if (region.bottom <= region.top) return null
+  const bounds = bodyBounds(region)
+  const top = Math.min(body, roof === null ? bounds.ceiling : boundBody(roof, bounds))
+  const least = Math.min(bounds.floor, top)
+  const chrome = size.height - body
+  const sized = { width: size.width, height: chrome + top }
+  const fit = capHeight(marker, sized, region, obstacles, chrome + least)
+  const card = fit ?? (fitsWhole(marker, sized, region, obstacles) ? sized.height : chrome + least)
+  const cap = card - chrome
+  return cap < body ? cap : null
+}
+
+/**
+ * The cap for a body that grew after its card opened (#832), where the card
+ * stands: `body` is the body's height now and `over` how far the card runs
+ * past the visible map's edge on the side it hangs, the fit's breath
+ * included. The cap is what fits, under the ceiling (or the reader's `roof`)
+ * and never under the floor; `pan` is how far the card still runs past the
+ * edge at that cap, which the map moves to bring into view rather than
+ * cutting the body under the floor. Null where the body stands whole, or
+ * where the map has no visible height (`openingBodyCap`).
+ */
+export function grownBodyCap(
+  body: number,
+  over: number,
+  region: Rect,
+  roof: number | null = null,
+): { cap: number | null; pan: number } {
+  if (region.bottom <= region.top) return { cap: null, pan: 0 }
+  const bounds = bodyBounds(region)
+  const top = Math.min(body, roof === null ? bounds.ceiling : boundBody(roof, bounds))
+  const room = body - Math.max(0, over)
+  const cap = Math.max(Math.min(top, room), Math.min(bounds.floor, top))
+  return { cap: cap < body ? cap : null, pan: Math.max(0, cap - room) }
+}
 
 /** Does a card of this size, placed as well as it can be, show all of itself? */
 export function fitsWhole(marker: Point, size: Size, region: Rect, obstacles: readonly Rect[] = []): boolean {
@@ -195,7 +279,8 @@ export function fitsWhole(marker: Point, size: Size, region: Rect, obstacles: re
 /**
  * The height to cap a card at so that it stands whole in the free map area
  * (TJ, 2026-10-08), or null when it already does, or when no card of at least
- * `MIN_CAPPED_PX` would. The caller scrolls whatever the cap cuts off.
+ * `min` would; `openingBodyCap` hands it the card whose body stands at the
+ * floor. The caller scrolls whatever the cap cuts off.
  *
  * Found by bisection over whole pixels: a shorter card never fits worse than a
  * taller one of the same width, so the answer is one edge.
@@ -204,8 +289,8 @@ export function capHeight(
   marker: Point,
   size: Size,
   region: Rect,
-  obstacles: readonly Rect[] = [],
-  min = MIN_CAPPED_PX,
+  obstacles: readonly Rect[],
+  min: number,
 ): number | null {
   if (fitsWhole(marker, size, region, obstacles)) return null
   const at = (height: number) => fitsWhole(marker, { width: size.width, height }, region, obstacles)
