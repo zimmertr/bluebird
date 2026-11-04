@@ -692,6 +692,19 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     expect(content.style.width).toBe('180px')
     expect(made[0].maxWidth).toBe('180px')
   })
+
+  // A card keeps the width it opened at (TJ, 2026-11-04): its content box
+  // takes the width it stands at, and the popup keeps the ceiling it opened
+  // under, so a reader's later drag still reaches past it.
+  it('holds a card at the width it stands at, through its content box alone', () => {
+    const { popups } = mount(1280, 1000, { x: 640, y: 500 })
+    const { content } = standCard(40, 200)
+    const popup = popups.openCard([0, 0], '<p>card</p>', { owner: 'poi', result: true }).popup
+    popups.holdCard(popup)
+    expect(content.style.width).toBe('280px')
+    expect(made[0].maxWidth).toBeUndefined()
+    expect(made[0].options.maxWidth).toBe(`${RESULT_POPUP_MAX_WIDTH_PX}px`)
+  })
 })
 
 describe('mountMapPopups point target cursor', () => {

@@ -907,7 +907,8 @@ describe('sections', () => {
     // and their bodies under the app's cap.
     const { cards: fresh } = setup()
     fresh.open(SPOT, [SPOT.lon, SPOT.lat])
-    expect(popups[popups.length - 1].maxWidth).toBe('280px')
+    expect(popups[popups.length - 1].maxWidth).toBeUndefined()
+    expect(popups[popups.length - 1].content.style.width).toBe('280px')
     expect(popups[popups.length - 1].body.style.minHeight).toBeUndefined()
   })
 
@@ -926,11 +927,12 @@ describe('sections', () => {
     })()
     cards.open(SPOT, [SPOT.lon, SPOT.lat])
     const card = popups[0]
-    expect([card.maxWidth, card.content.style.width]).toEqual(['240px', '240px'])
+    // The content box alone: the popup keeps the ceiling it opened under.
+    expect([card.maxWidth, card.content.style.width]).toEqual([undefined, '240px'])
     land()
     await settle()
     expect(markupText(card.html)).toContain('Rate: 0.1 in/hr')
-    expect([card.maxWidth, card.content.style.width]).toEqual(['240px', '240px'])
+    expect([card.maxWidth, card.content.style.width]).toEqual([undefined, '240px'])
     board.closeAll()
     look.width = () => 300
     cards.open({ ...SPOT, lat: 47.5 }, [SPOT.lon, 47.5])

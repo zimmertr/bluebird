@@ -384,7 +384,7 @@ export function factsRow(
     elevation ? `<span style="${VALUE_FACE}">${escapeHtml(elevation)}</span>` : '',
     ground,
   ].filter(Boolean)
-  const line = (inner: string) => `<div style="${ONE_LINE}">${inner}</div>`
+  const line = (inner: string) => `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${inner}</div>`
   return `${line(coords)}${facts.length ? line(facts.join(FACTS_DOT)) : ''}`
 }
 
@@ -454,9 +454,15 @@ export function bodyLines(lines: readonly (string | null | undefined)[]): string
  * keeps it for a name. With none it is 3.5em, for a bar whose room something
  * else keeps, a name in `widestName`'s cell.
  */
+/**
+ * The attribute every pending bar wears, so a reader of the card, a browser
+ * test waiting for the values to land, finds a bar whatever its width.
+ */
+export const PENDING_ATTR = 'data-pending'
+
 export function pendingValue(widthCh?: number): string {
   const width = widthCh === undefined ? '3.5em' : `${widthCh}ch`
-  return `<span aria-hidden="true" style="display:inline-block;width:${width};height:0.8em;vertical-align:-0.05em;border-radius:2px;background:${RULE_COLOR}"></span>`
+  return `<span ${PENDING_ATTR} aria-hidden="true" style="display:inline-block;width:${width};height:0.8em;vertical-align:-0.05em;border-radius:2px;background:${RULE_COLOR}"></span>`
 }
 
 /**

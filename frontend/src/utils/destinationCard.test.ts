@@ -497,7 +497,7 @@ describe('a ranked card: links out', () => {
   // inside its href, so a substring search for them finds the wrong anchor.
   it('links the coordinates and leaves the elevation unlinked', () => {
     const html = rankedHtml({ ...linked, mapZoom: 13 })
-    const line = html.match(/(<div style="white-space:nowrap">.*?<\/div>)+/)![0]
+    const line = html.match(/(<div style="white-space:nowrap[^"]*">.*?<\/div>)+/)![0]
     const anchors = line.match(/<a [^>]*>/g) ?? []
     expect(anchors).toHaveLength(1)
     expect(anchors[0]).toContain('href="https://caltopo.com/map.html#ll=46.85173,-121.76040&amp;z=14"')
@@ -1126,7 +1126,7 @@ describe('what a subject is', () => {
  * deleting tags, so nothing here looks like a sanitizer to CodeQL.
  */
 function factsText(html: string): string {
-  return [...html.matchAll(/<div style="white-space:nowrap">(.*?)<\/div>/g)]
+  return [...html.matchAll(/<div style="white-space:nowrap[^"]*">(.*?)<\/div>/g)]
     .map(([, line]) =>
       [...`>${line}<`.matchAll(/>([^<]*)</g)].map((m) => (m[1] === '·' ? ' · ' : m[1])).join(''),
     )

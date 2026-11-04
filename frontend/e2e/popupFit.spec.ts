@@ -40,9 +40,9 @@ async function openMarkerCard(page: Page) {
 
 // The ground under the marker lands after the card opens and redraws it
 // (#832), which would undo the widening below: wait until no bar stands in
-// the card for it (`pendingValue` in popupChrome.ts).
+// the card for it (`pendingValue` in popupChrome.ts, whatever width it keeps).
 async function groundLanded(page: Page) {
-  await expect(page.locator('.maplibregl-popup span[aria-hidden="true"][style*="width:3.5em"]')).toHaveCount(0)
+  await expect(page.locator('.maplibregl-popup [data-pending]')).toHaveCount(0)
 }
 
 /** Make the fonts measure like the Mac's, and put the widest numbers in. */
@@ -78,6 +78,10 @@ async function widenToMac(page: Page, total: string) {
         el.style.letterSpacing = `${(monoPx * chars - el.getBoundingClientRect().width) / chars}px`
       }
       for (const el of body.querySelectorAll<HTMLElement>('th[scope="row"]')) el.style.letterSpacing = `${labelPad}px`
+      // A card keeps the width it opened at (TJ, 2026-11-04), and this one
+      // opened on the demonstration's numbers: the hold comes off, so the
+      // card measures as one that opened on the widest would, under its cap.
+      document.querySelector<HTMLElement>('.maplibregl-popup .maplibregl-popup-content')!.style.width = ''
     },
     { monoPx: MAC_MONO_CHAR_PX, label: MAC_WIDEST_LABEL, labelPx: MAC_WIDEST_LABEL_PX, widest: WIDEST, total },
   )

@@ -16,9 +16,10 @@ async function analyze(page: Page, phone: boolean) {
 
 // The ground under the marker lands after its card opens and redraws it
 // (#832), replacing every node in it: wait until no bar stands for it
-// (`pendingValue` in popupChrome.ts) before holding on to a link.
+// (`pendingValue` in popupChrome.ts, whatever width it keeps) before holding
+// on to a link.
 const groundLanded = (page: Page) =>
-  expect(page.locator('.maplibregl-popup span[aria-hidden="true"][style*="width:3.5em"]')).toHaveCount(0)
+  expect(page.locator('.maplibregl-popup [data-pending]')).toHaveCount(0)
 
 const look = (el: Locator) =>
   el.evaluate((node) => {

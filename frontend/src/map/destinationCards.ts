@@ -613,7 +613,7 @@ export function mountDestinationCards(
       // the snow's numbers, a section a layer answers a moment late, the
       // ground's slope. Not the reader's size: the next card opens at its own.
       // A card opened at the reader's width stands at it already.
-      if (!chosen && placed.size.width > 0) popups.sizeCard(placed.popup, placed.size.width)
+      if (!chosen) popups.holdCard(placed.popup)
       // A point given for where the card WILL stand is a flight to come.
       if (markerAt) land(card)
       // The tutorial's marker step frames a ranked card (#536).

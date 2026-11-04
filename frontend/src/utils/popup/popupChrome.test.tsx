@@ -629,6 +629,7 @@ describe('pendingValue', () => {
   it('is a bar in the rule colour, hidden from a screen reader, as wide as it is told in characters', () => {
     const bar = mount(pendingValue(8)).firstElementChild as HTMLElement
     expect(bar.getAttribute('aria-hidden')).toBe('true')
+    expect(bar.hasAttribute('data-pending')).toBe(true)
     expect(bar.getAttribute('style')).toContain('width:8ch;')
     expect(bar.textContent).toBe('')
     expect(pendingValue(22)).toContain('width:22ch;')

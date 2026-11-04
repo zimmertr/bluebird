@@ -269,6 +269,13 @@ export interface MapPopups {
    */
   sizeCard(popup: Popup, width: number): number
   /**
+   * Hold a card at the width it stands at now, its content box's alone, so
+   * nothing that lands in it later widens it and moves it on its point (TJ,
+   * 2026-11-04). The popup's ceiling stays the one it opened under, since
+   * the card is already no wider than that.
+   */
+  holdCard(popup: Popup): void
+  /**
    * Fit an open card again, as `openCard` fits a new one: its body measured
    * uncapped and capped between the floor and the ceiling, or stood at
    * `body`, the height a reader dragged it to, its side the one the fit picks, and the map panned by
@@ -466,7 +473,8 @@ export function mountMapPopups(
     const { min, max } = cardWidthRange(map.getCanvas().clientWidth)
     const px = Math.round(clamp(width, min, max))
     const content = popup.getElement()?.querySelector?.<HTMLElement>('.maplibregl-popup-content')
-    if (content) content.style.width = `${px}px`
+    // Optional: a test's stub content box has no style.
+    if (content?.style) content.style.width = `${px}px`
     popup.setMaxWidth(`${px}px`)
     return px
   }
@@ -582,6 +590,13 @@ export function mountMapPopups(
       return { width: cardWidthRange(map.getCanvas().clientWidth), body: dragBodyRange(regionNow(), chrome) }
     },
     sizeCard: sizeTo,
+    holdCard(popup) {
+      const el = popup.getElement()
+      const content = el?.querySelector?.<HTMLElement>('.maplibregl-popup-content')
+      // Optional: a test's stub popup has no DOM, or a content box with no style.
+      const width = content?.offsetWidth ?? el?.offsetWidth ?? 0
+      if (content?.style && width > 0) content.style.width = `${width}px`
+    },
     refit(popup, { body: chosen = null, avoid = [], markerAt, pan = true } = {}) {
       const el = popup.getElement()
       // Optional: a test's stub popup has no place on the map.

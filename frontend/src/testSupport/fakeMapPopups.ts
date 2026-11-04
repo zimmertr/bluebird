@@ -29,6 +29,7 @@ export function fakeMapPopups() {
     refit: () => null,
     cardBounds: () => ({ width: { min: 180, max: 780 }, body: { min: 48, max: 560 } }),
     sizeCard: (_popup: unknown, width: number) => width,
+    holdCard: () => {},
   } as unknown as MapPopups
   return { popups, points, closed, refreshed, spots }
 }
