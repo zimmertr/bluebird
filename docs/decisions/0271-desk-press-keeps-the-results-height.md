@@ -21,7 +21,7 @@ Record 0218 (2026-10-22) held the chart at one size in every mode at a desk. Cha
   - Floors and the map's floor still apply through `resolvePanelHeights`, so a room at a panel's floor can grow when Both needs two.
 - **The tutorial's Results and Chart cards switch the view the same way** (record 0267), since a step's view is the move a press makes.
 - **Not a press:** the automatic widening to Both when a report lands opens Both at its split, the opening heights until Both is left, as before. The chevron, a grip and a window's resize are not presses either.
-- **While a press's panes move, the results hold their height** (`roomHoldPx`), for `PANEL_MS`, and the panes move inside it, clipped. The opening pane is drawn at its end size from the press, as record 0202 has it, so the room it is handed overlaps the closing pane's until that has shut. The table's frame stands at the results' foot, so in a press to Both the gap between the panes closes from above as the chart's pane opens. The map does not move.
+- **While a press's panes move, the results hold their height** (`roomHoldPx`), for `ROOM_HOLD_MS`, twice the panes' `PANEL_MS`, since their move starts a frame or more after the press, and the panes move inside it, clipped. The opening pane is drawn at its end size from the press, as record 0202 has it, so the room it is handed overlaps the closing pane's until that has shut. The table's frame stands at the results' foot, so in a press to Both the gap between the panes closes from above as the chart's pane opens. The map does not move.
 - **Heights stay session state.** The stored mode means what it meant: the mode a press chose.
 - **A phone is unchanged.** Its sheet sizes its own panes.
 
@@ -31,7 +31,7 @@ Computed from the layout constants, not measured in a browser. At 1280x1000 Both
 
 `layout.test.ts` holds `deskRoomPx` and `splitBoth`. In `useResultsLayout.test.tsx`, "a desk's press on the segment" holds:
 - the room handed to each mode and split back, the measured legend out of the chart, and a moved room shared in Both's last split
-- the hold, for a press only, released after `PANEL_MS` and at once by the chevron
+- the hold, for a press only, released after `ROOM_HOLD_MS` and at once by the chevron
 - no change while folded, and a phone left alone
 
 In `frontend/e2e/panelMotion.spec.ts`, the browser suite's motion project, "the results keep one height through every press" reads the results' top in every frame of Both to Chart, Chart to Both, Both to Table and Table to Chart: one position throughout. It also holds that the chart is drawn taller in Chart and back at Both's size in Both. "A press on Both opens the chart pane at the panel speed, holding the map still" reads the map's foot in every frame.

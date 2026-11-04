@@ -47,6 +47,13 @@ const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 // chart is 401px at 1280x720 (720 less the legend less the drag's 280px map)
 // and 440px from 759px up.
 export const TALL_CHART_PX = 2 * DEFAULT_PANEL_HEIGHT
+// How long a press holds a desk's results at their height (#850): twice the
+// panes' own `PANEL_MS`, because their move starts a frame or more after the
+// press, and a hold let go at 300ms let the results stand 1.6px off for the
+// move's last two frames in CI (run 41884346607, 2026-11-04). A hold longer
+// than the move costs nothing: once the panes stand still, the height they
+// make is the height held.
+export const ROOM_HOLD_MS = 2 * PANEL_MS
 
 // Live viewport height, so the chart/table panel heights can be re-clamped when
 // the window resizes or a phone rotates — otherwise a stale height could let the
@@ -514,7 +521,7 @@ export function useResultsLayout({
       return
     }
     setRoomHoldPx(fromPx)
-    const release = window.setTimeout(() => setRoomHoldPx(null), PANEL_MS)
+    const release = window.setTimeout(() => setRoomHoldPx(null), ROOM_HOLD_MS)
     return () => window.clearTimeout(release)
   }, [resultsMode, isDesktop, resultsCollapsed])
   // Whether a phone's sheet covers the map's rows and its Analyze button,

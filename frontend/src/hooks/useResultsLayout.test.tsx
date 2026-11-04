@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { type ResultsLayoutInputs, TALL_CHART_PX, useResultsLayout } from './useResultsLayout'
+import { type ResultsLayoutInputs, ROOM_HOLD_MS, TALL_CHART_PX, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
 import {
   RESULTS_BAR_PX,
@@ -9,7 +9,6 @@ import {
   fullScreenMapFloorPx,
 } from '../utils/results/resultsSheet'
 import { SHEET_SNAP_PX } from '../utils/sheetDrag'
-import { PANEL_MS } from '../styles'
 
 // jsdom has no media queries, so the one the Both widening asks is answered
 // here: a desktop width unless a test says otherwise.
@@ -807,7 +806,7 @@ describe('useResultsLayout', () => {
         })
         act(() => result.current.chooseResultsMode('chart'))
         expect(result.current.roomHoldPx).toBe(492)
-        act(() => vi.advanceTimersByTime(PANEL_MS))
+        act(() => vi.advanceTimersByTime(ROOM_HOLD_MS))
         expect(result.current.roomHoldPx).toBeNull()
         act(() => result.current.chooseResultsMode('table'))
         expect(result.current.roomHoldPx).not.toBeNull()
