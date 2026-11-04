@@ -270,7 +270,64 @@ export function dragBodyRange(
   if (height === 0) return { min: content, max: content }
   const min = Math.min(content, bodyBounds(region).floor)
   const free = Math.floor(height - 2 * FIT_MARGIN_PX - MARKER_HALF_PX - TIP_PX - chrome)
-  return { min, max: Math.max(min, Math.min(free, Math.floor(room - chrome))) }
+  const most = Math.min(free, Math.floor(room - chrome))
+  return { min, max: Math.max(min, most) }
+}
+
+/**
+ * The size a reader's drag may take a card to, of the `size` it asks for,
+ * so the card stays clear of what stands over the map (TJ, 2026-11-04): a
+ * card dragged under the scale or the credits has its corner, and the handle
+ * in it, under them, and cannot be dragged back. Each of `obstacles` the
+ * card would reach, the fit's breath included, takes off the height or the
+ * width, whichever leaves the card more of what it asked for and no less
+ * than `least`; one the card cannot clear at `least`, as where it opened
+ * over it, is left alone. The caller leaves out what the card already
+ * stands over as the drag starts, so a drag never shrinks a card on its
+ * first move.
+ */
+export function clearSize(
+  marker: Point,
+  anchor: PopupSide,
+  size: Size,
+  least: Size,
+  obstacles: readonly Rect[],
+): Size {
+  let { width, height } = size
+  for (const o of obstacles) {
+    const reach = figureOf(marker, { width: width + 2 * FIT_MARGIN_PX, height: height + FIT_MARGIN_PX }, anchor)
+    if (overlap(reach, o) === 0) continue
+    const lower =
+      anchor === 'top' ? o.top - FIT_MARGIN_PX - (marker.y + TIP_PX) : marker.y - TIP_PX - (o.bottom + FIT_MARGIN_PX)
+    const narrower =
+      o.left > marker.x
+        ? 2 * (o.left - FIT_MARGIN_PX - marker.x)
+        : o.right < marker.x
+          ? 2 * (marker.x - o.right - FIT_MARGIN_PX)
+          : -1
+    const byHeight = lower >= least.height
+    const byWidth = narrower >= least.width
+    if (byHeight && (!byWidth || width * lower >= narrower * height)) height = Math.floor(lower)
+    else if (byWidth) width = Math.floor(narrower)
+  }
+  return { width, height }
+}
+
+/** How long after the map last took a wheel a wheel over a card is still that zoom's (`wheelIsTheMaps`). */
+export const WHEEL_GESTURE_MS = 400
+
+/**
+ * Whether a wheel over a card is the map's to zoom by (TJ, 2026-11-04). A
+ * card rides its point, so a zoom out draws it under the cursor, and the
+ * wheel then landed on the card and the zoom stopped dead. The map takes it
+ * while a zoom is under way, `sinceMapWheelMs` since the map's last wheel
+ * being inside `WHEEL_GESTURE_MS`; always for a pinch, which a browser sends
+ * as a wheel with Ctrl held and would otherwise zoom the page by; and
+ * wherever the card has nothing to scroll under the cursor. A wheel that
+ * starts on a body with more to show scrolls it.
+ */
+export function wheelIsTheMaps(wheel: { pinch: boolean; sinceMapWheelMs: number; scrolls: boolean }): boolean {
+  return wheel.pinch || wheel.sinceMapWheelMs < WHEEL_GESTURE_MS || !wheel.scrolls
 }
 
 /**

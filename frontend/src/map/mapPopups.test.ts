@@ -214,6 +214,25 @@ describe('mountMapPopups bare map', () => {
     expect(spots).toHaveLength(1)
   })
 
+  // A fire's perimeter, a closure and a plume cover the map for miles and
+  // open the spot's card as bare map does. Under one there was no bare map
+  // to dismiss a card on, so every click opened the next (TJ, 2026-11-04).
+  it('only closes the open cards on a click on ground while any is open', () => {
+    const { register, under, click, opened } = setup()
+    register('smoke', ['smoke-fill'], { ground: true })
+    under('smoke-fill')
+    click()
+    expect(opened).toHaveLength(1)
+    click()
+    expect(made.map((p) => p.removed)).toEqual([true])
+    expect(opened).toHaveLength(1)
+    click()
+    expect(opened).toHaveLength(2)
+    // Shift opens the next beside it, as it does any card.
+    click(true)
+    expect(opened).toHaveLength(3)
+  })
+
   it('opens the spot beside the open cards on a shift-click', () => {
     const { register, under, click, spots } = setup()
     register('fire', ['fire-fill'])
@@ -662,7 +681,7 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     const { popups } = mount(1280, 1000, { x: 640, y: 50 })
     const { content } = standCard(40, 760)
     const popup = popups.openCard([0, 0], '<p>card</p>', { result: true }).popup
-    expect(popups.cardBounds(popup)).toEqual({ width: { min: 280, max: 1260 }, body: { min: 250, max: 892 } })
+    expect(popups.cardBounds(popup)).toMatchObject({ width: { min: 280, max: 1260 }, body: { min: 250, max: 892 } })
     expect(popups.sizeCard(popup, 90)).toBe(280)
     expect(content.style.width).toBe('280px')
     expect(made[0].maxWidth).toBe('280px')
@@ -680,7 +699,7 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     const above = new Popup({ anchor: 'bottom' })
     // A card made here rather than opened has no opening width, so its least
     // is the 180px every card keeps.
-    expect(popups.cardBounds(above)).toEqual({ width: { min: 180, max: 344 }, body: { min: 250, max: 842 } })
+    expect(popups.cardBounds(above)).toMatchObject({ width: { min: 180, max: 344 }, body: { min: 250, max: 842 } })
     expect(popups.sizeCard(above, 2000)).toBe(344)
     expect(content.style.width).toBe('344px')
     // Hanging below the same point it has no room at all, and a drag holds

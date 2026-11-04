@@ -64,6 +64,7 @@ export function mountSmoke(
   deps.popups.register({
     target: 'smoke',
     layers: SMOKE_CLICK_ORDER,
+    ground: true,
     open: ({ lngLat }) => deps.popups.openSpot(lngLat),
   })
   let held: FeatureCollection | null = null

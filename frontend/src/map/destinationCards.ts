@@ -322,19 +322,24 @@ export function mountDestinationCards(
     const body0 = bodyOf(card)?.offsetHeight ?? 0
     // The body's range, read once: the card's header does not change under
     // the drag, and the room is the card's where it stands as the drag starts.
-    const range = popups.cardBounds(card.popup).body
+    const bounds = popups.cardBounds(card.popup, card.avoid)
     const x0 = e.clientX
     const y0 = e.clientY
     const move = (ev: PointerEvent) => {
       if (ev.pointerId !== e.pointerId) return
-      popups.sizeCard(card.popup, width0 + 2 * (ev.clientX - x0))
+      const width = clamp(width0 + 2 * (ev.clientX - x0), bounds.width.min, bounds.width.max)
+      const body = bodyOf(card)
+      const tall = body ? clamp(body0 + ev.clientY - y0, bounds.body.min, bounds.body.max) : 0
+      // Stopped short of the scale, the credits and whatever else stands
+      // over the map, where the handle would go under them (TJ, 2026-11-04).
+      const clear = bounds.clear(width, tall)
+      popups.sizeCard(card.popup, clear.width)
       // A card with no body, a spot with no layer on, sizes its width alone.
       // The ceiling is the app's default and bounds nothing here (TJ,
       // 2026-11-04): the body stands at the height asked for, down to the
       // floor or its own height and up to the room where the card stands.
-      const body = bodyOf(card)
       if (body) {
-        const height = Math.round(clamp(body0 + ev.clientY - y0, range.min, range.max))
+        const height = Math.round(clear.body)
         card.capped = height
         card.fixed = true
         fixPopupBody(body, height)

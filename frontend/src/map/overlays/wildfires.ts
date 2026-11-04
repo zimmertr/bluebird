@@ -81,6 +81,7 @@ export function mountWildfires(
   deps.popups.register({
     target: 'fire',
     layers: [WILDFIRE_FILL_LAYER],
+    ground: true,
     open: ({ lngLat }) => deps.popups.openSpot(lngLat),
   })
   let held: FeatureCollection | null = null

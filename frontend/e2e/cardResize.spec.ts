@@ -109,6 +109,18 @@ async function drag(page: Page, card: Locator, dx: number, dy: number) {
   return { grip, from }
 }
 
+// How many of the surfaces that stand over the map (`data-map-overlay`: the
+// rows, the legend, the scale and the credits) the card's box reaches under.
+async function overlaid(card: Locator): Promise<number> {
+  return card.evaluate((el) => {
+    const box = el.querySelector('.maplibregl-popup-content')!.getBoundingClientRect()
+    return [...document.querySelectorAll('[data-map-overlay]')]
+      .map((o) => o.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .filter((r) => r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top).length
+  })
+}
+
 test('a drag on a card’s corner sizes it, and the next card opens at its own size', async ({ page }) => {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
@@ -228,6 +240,29 @@ test('a card dragged far down and right stops at the map’s edge', async ({ pag
   expect(after.card.right).toBeLessThanOrEqual(after.map.right - 7)
   expect(after.card.top).toBeGreaterThanOrEqual(after.map.top + 7)
   expect(after.card.bottom).toBeLessThanOrEqual(after.map.bottom - 7)
+  // Nor under the scale, the credits or anything else that stands over the
+  // map, where its handle could not be reached again.
+  expect(await overlaid(card)).toBe(0)
+})
+
+// A wheel over a card zooms the map (TJ, 2026-11-04): a card rides its
+// point, so a zoom out draws it under the cursor, and the zoom stopped dead
+// on it. Over the card's header, which scrolls nothing, the scale changes.
+test('a wheel over a card zooms the map', async ({ page }) => {
+  await page.goto(`/?type=peak&poly=${RING}`)
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await page.getByRole('button', { name: 'Analyze' }).click()
+  await expectRanked(page)
+  await resultsOpened(page)
+
+  const card = await centredCard(page, DESTINATION_NAMES[0])
+  const scale = page.locator('.maplibregl-ctrl-scale').first()
+  const before = await scale.textContent()
+  const close = (await card.locator('.maplibregl-popup-close-button').boundingBox())!
+  await page.mouse.move(close.x - 60, close.y + close.height / 2)
+  await page.mouse.wheel(0, 600)
+  await expect.poll(() => scale.textContent()).not.toBe(before)
+  await expect(card).toBeVisible()
 })
 
 // A short card dragged down stands taller than what it holds, the card's
@@ -285,8 +320,10 @@ test.describe('at a short viewport', () => {
     await drag(page, card, 0, travel)
     const after = await measure(card)
     test.info().annotations.push({ type: 'capped card grown', description: JSON.stringify({ before, after }) })
-    expect(after.body.height).toBeGreaterThanOrEqual(before.body.height)
-    expect(Math.abs(after.body.height - Math.min(before.body.height + travel, before.room))).toBeLessThanOrEqual(2)
+    expect(after.body.height).toBeGreaterThanOrEqual(before.body.height - 1)
+    // Short of the room only where the scale or the credits stand in it.
+    expect(after.body.height).toBeLessThanOrEqual(Math.min(before.body.height + travel, before.room) + 2)
+    expect(await overlaid(card)).toBe(0)
     expect(after.card.bottom).toBeLessThanOrEqual(after.map.bottom - 7)
   })
 })

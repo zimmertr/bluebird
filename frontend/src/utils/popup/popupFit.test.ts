@@ -12,7 +12,10 @@ import {
   grownBodyCap,
   openingBodyCap,
   placePopup,
+  WHEEL_GESTURE_MS,
+  clearSize,
   standingRoom,
+  wheelIsTheMaps,
   visibleArea,
   type Rect,
 } from './popupFit'
@@ -242,6 +245,55 @@ describe('dragBodyRange', () => {
 // room it has is twice the distance to its nearer side less 8px of breath at
 // each edge, and the distance to the edge on its side less the tip's 10 and
 // the breath (TJ, 2026-11-04).
+// A 400 by 300 card hanging below a point at (640, 100) reaches down to 410.
+describe('clearSize', () => {
+  const MARKER = { x: 640, y: 100 }
+  const LEAST = { width: 280, height: 200 }
+
+  it('leaves a size that reaches nothing', () => {
+    const scale = { left: 8, top: 860, right: 120, bottom: 892 }
+    expect(clearSize(MARKER, 'top', { width: 400, height: 300 }, LEAST, [scale])).toEqual({ width: 400, height: 300 })
+  })
+
+  // The credits run under the card's right half from 700px down: the height
+  // stops 8px over them, 700 - 8 - 110.
+  it('stops the height short of what stands under the card', () => {
+    const credit = { left: 700, top: 700, right: 1272, bottom: 720 }
+    expect(clearSize(MARKER, 'top', { width: 400, height: 800 }, LEAST, [credit])).toEqual({ width: 400, height: 582 })
+  })
+
+  // A legend beside the card from x 900: the width stops 8px short of it on
+  // both sides of the point, 2 * (900 - 8 - 640), where the height would
+  // have to give up more.
+  it('stops the width short of what stands beside the card', () => {
+    const legend = { left: 900, top: 120, right: 1272, bottom: 900 }
+    expect(clearSize(MARKER, 'top', { width: 700, height: 300 }, LEAST, [legend])).toEqual({ width: 504, height: 300 })
+  })
+
+  it('clears what stands over a card standing above its point', () => {
+    const rows = { left: 0, top: 0, right: 1280, bottom: 60 }
+    const at = { x: 640, y: 800 }
+    expect(clearSize(at, 'bottom', { width: 400, height: 790 }, LEAST, [rows])).toEqual({ width: 400, height: 722 })
+  })
+
+  it('leaves alone what it cannot clear at its least', () => {
+    const over = { left: 600, top: 150, right: 700, bottom: 200 }
+    expect(clearSize(MARKER, 'top', { width: 400, height: 300 }, LEAST, [over])).toEqual({ width: 400, height: 300 })
+  })
+})
+
+describe('wheelIsTheMaps', () => {
+  it('hands the map a wheel during its zoom, a pinch, and one with nothing to scroll', () => {
+    expect(wheelIsTheMaps({ pinch: false, sinceMapWheelMs: 50, scrolls: true })).toBe(true)
+    expect(wheelIsTheMaps({ pinch: true, sinceMapWheelMs: 5000, scrolls: true })).toBe(true)
+    expect(wheelIsTheMaps({ pinch: false, sinceMapWheelMs: 5000, scrolls: false })).toBe(true)
+  })
+
+  it('leaves the card a wheel that starts on a body with more to show', () => {
+    expect(wheelIsTheMaps({ pinch: false, sinceMapWheelMs: WHEEL_GESTURE_MS, scrolls: true })).toBe(false)
+  })
+})
+
 describe('standingRoom', () => {
   const region: Rect = { left: 0, top: 0, right: 1280, bottom: 1000 }
 

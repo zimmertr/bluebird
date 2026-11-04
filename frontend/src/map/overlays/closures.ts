@@ -132,6 +132,7 @@ export function mountClosures(
   deps.popups.register({
     target,
     layers: clickable,
+    ground: true,
     ...(kind === 'trail' && { slopPx: CLOSURE_TRAIL_SLOP_PX }),
     open: ({ lngLat }) => deps.popups.openSpot(lngLat),
   })

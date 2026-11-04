@@ -63,12 +63,14 @@ import {
   FIT_MARGIN_PX,
   POPUP_PAN_MS,
   bodyBounds,
+  clearSize,
   dragBodyRange,
   figureOf,
   grownBodyCap,
   openingBodyCap,
   placePopup,
   standingRoom,
+  wheelIsTheMaps,
   type Point,
   type PopupSide,
   type Rect,
@@ -121,6 +123,15 @@ export interface MapPopupTarget {
    * the click falls to the next target under it, or to the bare map.
    */
   open(hit: MapTargetHit): boolean | void
+  /**
+   * Whether the target is ground rather than a thing: a fire's perimeter, a
+   * closure, a plume, each of which covers the map for miles and opens the
+   * spot's card at the click as bare map does. A click on one while a card
+   * is open only closes the card, as a click on bare map does (TJ,
+   * 2026-11-04): under a plume there was no bare map left to dismiss a card
+   * on, and every click opened the next one.
+   */
+  ground?: boolean
   /**
    * True while the target's own gesture owns the cursor, as a ring handle's
    * drag does, so a pointer move does not reset the cursor under the reader's
@@ -256,7 +267,20 @@ export interface MapPopups {
    * `standingRoom`, TJ 2026-11-04), so no drag takes it past the map's edge.
    * The ceiling bounds only a cap the app chooses, never the reader's drag.
    */
-  cardBounds(popup: Popup): { width: { min: number; max: number }; body: { min: number; max: number } }
+  cardBounds(
+    popup: Popup,
+    avoid?: readonly Rect[],
+  ): {
+    width: { min: number; max: number }
+    body: { min: number; max: number }
+    /**
+     * The width and body height a drag may take of the ones it asks for, so
+     * the card stays clear of what stands over the map, the scale and the
+     * credits among it, and of `avoid` (`clearSize`), whatever it did not
+     * already stand over when the bounds were read.
+     */
+    clear(width: number, body: number): { width: number; body: number }
+  }
   /**
    * Set a card's width, held to `cardBounds`' width, and say what it took. MapLibre
    * stands a card on its point by a share of its own width, so the tip stays
@@ -383,7 +407,8 @@ export function mountMapPopups(
     const { under, features } = targetsAt(e.point)
     const closed = isPinning(e) ? 0 : board.closeAll()
     const drawing = controller.inputs.drawing
-    const ranked = rankedTargets(drawing, under)
+    const grounds = closed > 0 ? targets.filter((t) => t.ground).map((t) => t.target) : []
+    const ranked = rankedTargets(drawing, under).filter((kind) => !grounds.includes(kind))
     const open = () => {
       for (const kind of ranked) {
         const target = targets.find((t) => t.target === kind)!
@@ -484,7 +509,7 @@ export function mountMapPopups(
   const widthRange = (popup: Popup) => {
     const range = cardWidthRange(map.getCanvas().clientWidth, opened.get(popup) ?? 0)
     const room = roomOf(popup)
-    return room ? { min: range.min, max: Math.max(range.min, Math.min(range.max, room.width)) } : range
+    return room ? { min: range.min, max: Math.max(range.min, clamp(room.width, 0, range.max)) } : range
   }
 
   // The card's box, which MapLibre sizes to its content up to the popup's
@@ -500,6 +525,36 @@ export function mountMapPopups(
     return px
   }
 
+  // A wheel over a card that is the map's is handed to it (`wheelIsTheMaps`
+  // in `utils/popup/popupFit.ts`): a card stands outside the box MapLibre
+  // listens for the wheel on, so the same wheel is sent there, where the map
+  // zooms about the cursor as it does for any other.
+  let mapWheelAt = Number.NEGATIVE_INFINITY
+  map.on('wheel', (e) => {
+    mapWheelAt = e.originalEvent?.timeStamp ?? mapWheelAt
+  })
+  const wheelOver = (e: WheelEvent) => {
+    const body = (e.target as Element | null)?.closest?.<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
+    const scrolls = body != null && body.scrollHeight > body.clientHeight
+    if (!wheelIsTheMaps({ pinch: e.ctrlKey, sinceMapWheelMs: e.timeStamp - mapWheelAt, scrolls })) return
+    e.preventDefault()
+    e.stopPropagation()
+    map.getCanvasContainer().dispatchEvent(
+      new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        deltaX: e.deltaX,
+        deltaY: e.deltaY,
+        deltaMode: e.deltaMode,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        metaKey: e.metaKey,
+      }),
+    )
+  }
+
   // Every popup, card or bare, is made here and put on the board.
   const make = (
     at: maplibregl.LngLatLike,
@@ -510,6 +565,8 @@ export function mountMapPopups(
     const popup = new Popup({ ...options, closeOnClick: false }).setLngLat(at).setHTML(html).addTo(map)
     // The app's card on the box the library built (record 0222).
     popup.getElement()?.querySelector('.maplibregl-popup-content')?.classList.add(...POPUP_FACE.split(' '))
+    // Optional: a test's stub element takes no listeners.
+    popup.getElement()?.addEventListener?.('wheel', wheelOver, { passive: false })
     board.track(popup, owner)
     return popup
   }
@@ -611,12 +668,32 @@ export function mountMapPopups(
       if (pan > 0) map.panBy([0, anchor === 'top' ? pan : -pan], { duration: POPUP_PAN_MS }, CARD_FIT_MOVE)
       return cap
     },
-    cardBounds(popup) {
+    cardBounds(popup, avoid = []) {
       const el = popup.getElement()
       const body = el?.querySelector?.<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
       const chrome = (el?.offsetHeight ?? 0) - (body?.offsetHeight ?? 0)
       const content = body ? bodyContentHeight(body) : 0
-      return { width: widthRange(popup), body: dragBodyRange(regionNow(), chrome, content, roomOf(popup)?.height) }
+      const width = widthRange(popup)
+      const range = dragBodyRange(regionNow(), chrome, content, roomOf(popup)?.height)
+      // Optional: a test's stub popup has no place on the map.
+      const at = popup.getLngLat?.()
+      if (!el || !at) return { width, body: range, clear: (w, b) => ({ width: w, body: b }) }
+      const marker = map.project(at)
+      const anchor: PopupSide = popup.options?.anchor === 'bottom' ? 'bottom' : 'top'
+      // What the card stands over already is not the drag's to clear.
+      const stands = figureOf(marker, { width: el.offsetWidth, height: el.offsetHeight }, anchor)
+      const ahead = obstacles(avoid).filter(
+        (o) => !(o.left < stands.right && o.right > stands.left && o.top < stands.bottom && o.bottom > stands.top),
+      )
+      const least = { width: width.min, height: chrome + range.min }
+      return {
+        width,
+        body: range,
+        clear(w, b) {
+          const size = clearSize(marker, anchor, { width: w, height: chrome + b }, least, ahead)
+          return { width: size.width, body: size.height - chrome }
+        },
+      }
     },
     sizeCard: sizeTo,
     holdCard(popup) {
