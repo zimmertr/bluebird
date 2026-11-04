@@ -2227,8 +2227,9 @@ function PinnedCard({
     // Whatever moves a row or the body's bottom: the size, the sort, the rows,
     // the columns, where it stands, and the count itself, whose foot takes room.
   }, [fits, size, sort, lines, metrics, at, pin.t, times])
-  // After every render rather than on a list, since the flag is a ref: the
-  // render that follows the reset is the first with the pinned size drawn.
+  // On the size, which the reset puts back, so the render that follows it is
+  // the first with the pinned size drawn; the flag keeps every other change
+  // of size, a drag's, from moving the card.
   useLayoutEffect(() => {
     const el = ref.current
     if (!resettled.current || !el || !at) return
@@ -2238,7 +2239,7 @@ function PinnedCard({
     const x = clamp(at.x, a.x, Math.max(a.x, a.x + a.w - w))
     const y = clamp(at.y, a.y, Math.max(a.y, a.y + a.h - h))
     if (x !== at.x || y !== at.y) setAt({ x, y })
-  })
+  }, [size, at, a.x, a.y, a.w, a.h])
   const index = times.indexOf(pin.t)
   if (index < 0) return null
   const hour = fmtTooltipTime(pin.t)
