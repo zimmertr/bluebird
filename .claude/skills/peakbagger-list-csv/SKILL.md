@@ -6,7 +6,7 @@ description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast 
 # Peakbagger list → Bluebird Forecast CSV
 
 Turns a peakbagger.com list (`list.aspx?lid=<N>`) into `frontend/src/coordinate-lists/<Menu name>.csv`,
-matching `frontend/src/coordinate-lists/The Bulger List.csv`. One CSV row per peak in the list — no
+matching `frontend/src/coordinate-lists/The Bulger List.csv`. One CSV row per peak in the list: no
 sampling, no truncation.
 
 **The file name is the menu's string.** The Example list field offers every file in that directory,
@@ -117,7 +117,7 @@ python3 <SKILL_DIR>/scripts/build_csv.py <lid> /path/to/repo/frontend/src/coordi
 
 `--name` is required: the maintainer-approved name as the menu will read it, which becomes
 `<Menu name>.csv`. Quote it in single quotes (zsh, and names carry spaces and apostrophes). The file
-is rows only. It **refuses to write** if any peak lacks coordinates — a partial file is never
+is rows only. It **refuses to write** if any peak lacks coordinates, because a partial file is never
 acceptable, so report the gap instead of working around the guard.
 
 ### 4. Verify before reporting
@@ -130,7 +130,7 @@ python3 <SKILL_DIR>/scripts/verify_csv.py <lid> '/path/to/repo/frontend/src/coor
 Exits non-zero and lists every problem. It cross-checks each row's **name against
 `peaks<lid>.json`** (not just the file's shape), so a coordinate bound to the wrong peak or a
 dropped row is caught, and uses the list page's own elevations to check that the rows run highest
-to lowest — plus no comment line, row-count, 6-decimal formatting, duplicate coordinate pairs, and
+to lowest, plus no comment line, row-count, 6-decimal formatting, duplicate coordinate pairs, and
 the optional bounding box. The CSV itself carries no elevation to check.
 
 Then spot-check two or three peaks against their peak pages by eye. Sanity anchor: Mount

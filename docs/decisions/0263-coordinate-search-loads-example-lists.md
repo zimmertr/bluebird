@@ -9,7 +9,7 @@
 
 ## Context
 
-The Coordinate search box shows the format and one Mount Rainier row as its placeholder. The repository carried four whole lists in that format under `csv-examples/` at its root, and the app offered none of them: `.dockerignore` left the folder out of the image, and the only pointer was a sentence in `USAGE.md`. A reader in the panel had one row to go on. The maintainer expects dozens of lists in time.
+The Coordinate search box shows the format and one Mount Rainier row as its placeholder. The repository carried four whole lists in that format in a folder at its root, and the app offered none of them: `.dockerignore` left the folder out of the image, and the only pointer was a sentence in `USAGE.md`. A reader in the panel had one row to go on. The maintainer expects dozens of lists in time.
 
 ## Decision
 
@@ -34,7 +34,7 @@ Mockups of the eleven placements tried first: https://claude.ai/artifact/ESvNXx2
 
 ## Alternatives rejected
 
-- **`Examples` linking to `csv-examples/` on GitHub**, right-aligned on the subheading's line (the issue's option A): the PR's first version, approved 2026-10-30. The maintainer preferred the lists loading in the app on 2026-10-31; a link sends a hiker to a code site to copy a file by hand.
+- **`Examples` linking to the lists' folder on GitHub**, right-aligned on the subheading's line (the issue's option A): the PR's first version, approved 2026-10-30. The maintainer preferred the lists loading in the app on 2026-10-31; a link sends a hiker to a code site to copy a file by hand.
 - **A question mark beside the subheading opening a note with the lists as bullets** (option I2 on the mockups): built on 2026-10-31 and sent back on 2026-11-03 as short-sighted, because bullets will not hold dozens of lists. It also needed two lint exceptions, to `style-menu-trigger` and `style-panel-messages`, which the menu does not.
 - **A `Load a list` select on the subheading's line**: built on 2026-11-03 and sent back the same day as out of place. It showed an instruction where every neighbour shows a value, and stood beside one of three parallel headings, none of which carries a control.
 - **A labelled `Example list` row at `CONTROL_W`, asking in a dialog before replacing typed rows**: built on 2026-11-03 and sent back the same day. The maintainer wants no popups; the pick itself is the confirmation.
