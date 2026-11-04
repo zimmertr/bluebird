@@ -209,7 +209,8 @@ describe('the chart cards under the tour', () => {
     expect(pins).toHaveLength(2)
     expect(pins[0]).toBeGreaterThan(0)
     expect(pins[1]).toBeLessThan(hours - 1)
-    expect(pins[1] - pins[0]).toBeGreaterThanOrEqual((hours - 1) / 2)
+    // Half the window apart, to the hour: 24 and 71 of the demonstration's 96.
+    expect(pins[1] - pins[0]).toBeGreaterThanOrEqual(Math.floor((hours - 1) / 2))
     for (const a of ['results', 'chart', 'chart-panels', 'chart-layout', 'marker']) expect(seen.get(a)!.chartTour.pins, a).toEqual([])
     act(() => result.current.end())
     expect(result.current.chartTour).toEqual({ metrics: null, layoutOpen: false, pins: null })
