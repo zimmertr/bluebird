@@ -1176,7 +1176,7 @@ describe('TimeSeriesChart panel titles', () => {
     const { container } = render(<TimeSeriesChart {...props({ metrics: FOUR })} />)
     const [first, ...rest] = titles(container)
     expect(first.className).not.toContain('cursor-grab')
-    expect(first.className).not.toContain('hover:text-accent-ink')
+    expect(first.className).not.toContain(ACCENT.hoverText)
     for (const t of rest) {
       expect(t.className).toContain(CHART_PANEL_TITLE.grab)
       expect(t.className).toContain(ACCENT.hoverText)
