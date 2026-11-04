@@ -1042,6 +1042,11 @@ describe('TimeSeriesChart with more than one metric', () => {
     vi.useFakeTimers({ toFake: ['Date', 'performance'] })
     vi.setSystemTime(T0 + 30 * 24 * HOUR)
     const { container } = render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange: () => {} })} />)
+    // The panels' area laid out, so the pinned height is a length jsdom
+    // keeps: over an unmeasured area it is negative, which jsdom drops.
+    const root = container.firstElementChild as HTMLElement
+    placeAt(root, { left: 0, top: 0, width: 800, height: 400 })
+    placeAt(root.children[1], { left: 0, top: 40, width: 800, height: 360 })
     placePlot(container, 360)
     act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))
     const card = pinnedCard()
@@ -1050,6 +1055,7 @@ describe('TimeSeriesChart with more than one metric', () => {
     const box = () => ({ width: card.style.width, height: card.style.height, fitsContent: card.classList.contains('w-max') })
     const pinnedAt = box()
     expect(pinnedAt.fitsContent).toBe(true)
+    expect(pinnedAt.height).not.toBe('')
     const size = (dx: number, dy: number) => {
       fireEvent.pointerDown(corner, { clientX: 300, clientY: 300 })
       fireEvent.pointerMove(document, { clientX: 300 + dx, clientY: 300 + dy })
@@ -1059,6 +1065,7 @@ describe('TimeSeriesChart with more than one metric', () => {
     const sized = box()
     expect(sized.fitsContent).toBe(false)
     expect(sized.width).not.toBe('')
+    expect(sized.height).not.toBe(pinnedAt.height)
     vi.advanceTimersByTime(1000)
     size(60, 60)
     expect(box().width).not.toBe('')
