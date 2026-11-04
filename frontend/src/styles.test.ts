@@ -4149,11 +4149,13 @@ describe('the popup card', () => {
     expect(ratios[1]).toEqual([8.34, 7.89, 7.47])
   })
 
-  // The fine print steps back, under AA for the reason `FINE_COLOR` gives.
-  it('steps the fine print back', () => {
+  // The fine print is the label's ink, so it clears AA on the card and on
+  // the band in both themes, where the faint ink it wore until #832 read
+  // 3.07:1 and 2.6:1 on the dark ones.
+  it('keeps the fine print above AA on the card and the band', () => {
     expect([SURFACE, HEADER_BAND_COLOR].map((on) => both(FINE_COLOR, on))).toEqual([
-      [3.07, 4.32],
-      [2.6, 4.09],
+      [5.56, 8.34],
+      [4.71, 7.89],
     ])
   })
 

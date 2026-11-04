@@ -158,9 +158,12 @@ describe('mountRadar click reading', () => {
     stub.fire('sourcedata', undefined, { sourceId: radarLayerId(radarOffsets()[3]), tile: {} })
     stub.fire('sourcedata', undefined, { sourceId: onScreen })
     expect(refreshed).toHaveLength(asked + 1)
+    // Hiding the layer reads the cards once, to take its section off them,
+    // and a tile that lands after that reads nothing.
     radar.update({ show: false, index: 2 })
+    expect(refreshed).toHaveLength(asked + 2)
     stub.fire('sourcedata', undefined, { sourceId: onScreen, tile: {} })
-    expect(refreshed).toHaveLength(asked + 1)
+    expect(refreshed).toHaveLength(asked + 2)
   })
 
   it('reads an open card again from the frame now on screen', async () => {

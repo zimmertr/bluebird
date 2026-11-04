@@ -193,10 +193,12 @@ const ONE_LINE = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
 
 /**
  * The colour of the one line that qualifies a card rather than adding to it:
- * an overlay popup's "last updated" date, set small and italic in the
- * panel's faint ink, a step back from its label. It measures 3.07:1 on the
- * dark card, under AA for text, and 4.32:1 on the light one; raising the dark
- * one is a colour decision for the maintainer rather than a move.
+ * a section's source and date, set small and italic in the label's ink,
+ * stepped back from the values by its size and slant alone. It was the
+ * panel's faint ink, 3.07:1 on the dark card, while the only card that wore
+ * it was an overlay's; since every card ends on one (#832) it is read on the
+ * ranked card too, where the browser suite's axe holds it to AA at 4.5:1,
+ * and the label ink clears that on both cards in both themes.
  */
 export const FINE_COLOR = 'var(--popup-fine)'
 

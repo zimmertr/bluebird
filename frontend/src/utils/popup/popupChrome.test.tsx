@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { within } from '@testing-library/react'
+import { cleanup, within } from '@testing-library/react'
 import { render } from '../../testSupport/render'
 import { resultRow } from '../../testSupport/fixtures'
 import {
@@ -447,8 +447,11 @@ describe('dateOfMs', () => {
 // page, the fold's chevron, and the body only while it is open. Mounted the
 // way MapLibre mounts it, so the structure is read off the DOM a reader gets.
 describe('cardSection', () => {
-  const section = (over: Partial<Parameters<typeof cardSection>[0]> = {}) =>
-    mount(
+  // A test mounts a second section to compare against the first, so the
+  // first is taken down before, or the popup is found twice.
+  const section = (over: Partial<Parameters<typeof cardSection>[0]> = {}) => {
+    cleanup()
+    return mount(
       cardSection({
         key: 'fire',
         heading: 'Active wildfires: Bolt Creek',
@@ -458,6 +461,7 @@ describe('cardSection', () => {
         ...over,
       }),
     )
+  }
   const fold = (popup: HTMLElement) => popup.querySelector(`[${CARD_FOLD_ATTR}]`) as HTMLButtonElement
 
   it('opens on its heading, on one line', () => {

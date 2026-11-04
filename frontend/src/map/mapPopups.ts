@@ -256,9 +256,12 @@ export function mountMapPopups(
   const lngLatOf = (at: maplibregl.LngLatLike): { lng: number; lat: number } =>
     Array.isArray(at) ? { lng: at[0], lat: at[1] } : 'lon' in at ? { lng: at.lon, lat: at.lat } : at
   // A map scrolled past the antimeridian reports a longitude outside
-  // -180..180, which no tile and no source knows.
+  // -180..180, which no tile and no source knows. One inside it is kept as
+  // given: the wrap's arithmetic moves the last digits of a longitude it
+  // does not need to move.
+  const wrap = (lng: number) => (lng < -180 || lng > 180 ? (((lng + 180) % 360) + 360) % 360 - 180 : lng)
   const pointOf = (lngLat: { lng: number; lat: number }): MapPoint => ({
-    lng: (((lngLat.lng + 180) % 360) + 360) % 360 - 180,
+    lng: wrap(lngLat.lng),
     lat: lngLat.lat,
     zoom: map.getZoom(),
   })

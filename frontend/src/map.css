@@ -59,7 +59,7 @@
   --popup-rule: var(--ui-frame);
   --popup-shadow: var(--scroll-shade);
   --popup-label: var(--ui-ink-soft);
-  --popup-fine: var(--ui-ink-faint);
+  --popup-fine: var(--ui-ink-soft);
   --popup-warn: var(--ui-warn);
   --popup-glyph: var(--ui-ink-soft);
   --popup-glyph-hover: var(--ui-accent-ink);

@@ -458,11 +458,12 @@ values (#365):
 A colour in one of those channels is measured against the surface it actually
 lands on, which for a popup is the card's own surface in each theme rather
 than the panel; `popupChrome.ts` records each light measurement beside its
-value, including the ones that sit under AA as shipped (`FINE_COLOR`,
-`WARNING_COLOR`), which #365 named without recolouring. On the dark card the
-warning clears AA and the fine print still does not, by the same step back.
-A third, the overlays' sky-400 link, left with the overlays' own shell in
-#738.
+value, including the ones that sat under AA as shipped (`FINE_COLOR`,
+`WARNING_COLOR`), which #365 named without recolouring. The warning became
+the table's amber in #786 and the fine print the label's ink in #832, when
+every card came to end on one and the browser suite's axe read it on the
+ranked card at 3.07:1. A third, the overlays' sky-400 link, left with the
+overlays' own shell in #738.
 
 ### Two enforcers, split by what they know
 
