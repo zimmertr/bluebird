@@ -119,6 +119,9 @@ describe('radarSection', () => {
     expect(section.source).toBe(RADAR_SOURCE)
     expect(section.rows.map(markupText)).toEqual(['Rate: ~0.37 in/h', 'Reflectivity: 38.5 dBZ'])
     expect(section.when).toBe('now')
+    // Rain is weather rather than a reason to stay away: the plain band, and
+    // folded on a ranked card (#832).
+    expect(section.warning).toBeUndefined()
   })
 
   // Inclusive: an echo at the cap reads the cap's rate, so it is a floor too.

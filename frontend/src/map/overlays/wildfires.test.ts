@@ -49,7 +49,7 @@ vi.mock('../../utils/wildfires', async (importOriginal) => ({
 
 import type { Feature, FeatureCollection } from 'geojson'
 import { FIRE_REFETCH_DEBOUNCE_MS, WILDFIRE_FILL_LAYER, fireDetailFor, mountWildfires } from './wildfires'
-import { COARSE_TOLERANCE_DEG, WILDFIRE_ROW_LABEL } from '../../utils/wildfires'
+import { COARSE_TOLERANCE_DEG, WILDFIRE_SECTION_LABEL } from '../../utils/wildfires'
 import { wildfireSectionAt } from '../../utils/hazardSections'
 import { fakeMapPopups } from '../../testSupport/fakeMapPopups'
 import { mountTestPopups } from '../../testSupport/mapPopups'
@@ -240,7 +240,7 @@ describe('mountWildfires point target', () => {
     await vi.waitFor(() => expect(refreshed).toEqual(['fire']))
     const reading = await target.read(INSIDE, signal())
     expect(reading).toEqual({ section: wildfireSectionAt(HELD, INSIDE) })
-    expect(reading?.section).toMatchObject({ kind: 'fire', layer: WILDFIRE_ROW_LABEL })
+    expect(reading?.section).toMatchObject({ kind: 'fire', layer: WILDFIRE_SECTION_LABEL, warning: true })
     expect(reading?.section.title).toContain('Alpha')
     expect(await target.read(FAR, signal())).toBeNull()
   })

@@ -52,7 +52,12 @@ export interface PointSection {
    * every card, and what takes it off a card when that layer is switched off.
    */
   kind: MapTarget
-  /** Which layer it is a reading of, as the Layers menu names it: `Rain radar`, `Snow depth`. */
+  /**
+   * Which layer it is a reading of, in the word its heading opens on: the
+   * Layers menu's row (`Rain radar`, `Snow depth`), in the singular where
+   * the row is plural (`Active wildfire`, `Area closure`). It also names the
+   * section's fold for a screen reader.
+   */
   layer: string
   /** What is there, as a name: `Moderate precipitation`, `Deep snow`, a fire's name. */
   title: string
@@ -66,6 +71,15 @@ export interface PointSection {
   link?: SectionLink
   /** A line in the warning amber under the name: a closure order's own type. */
   warn?: string
+  /**
+   * Whether the section is a warning: a wildfire or a hotspot within reach,
+   * or a closure the point is in or beside (`hazardSections.ts`). Its heading
+   * stands on the amber band with the warning mark, and it opens on a ranked
+   * card, where every other layer folds (TJ, 2026-11-03). Smoke, the radar
+   * and the snow describe the weather rather than a reason to stay away, so
+   * they are not.
+   */
+  warning?: boolean
   /** Where it comes from: `NEXRAD radar`. */
   source: string
   /** The values, each a `row`. */

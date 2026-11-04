@@ -26,6 +26,7 @@ import {
   pendingValue,
   popupButton,
   row as valueRow,
+  sectionHeading,
   updatedAt,
   updatedLine,
   warningLine,
@@ -42,9 +43,12 @@ import {
   HEADER_EDGE_COLOR,
   LABEL_COLOR,
   SECTION_EDGE,
+  SECTION_GAP,
   SECTION_PAD_Y,
+  WARNING_BAND_COLOR,
   WARNING_COLOR,
 } from './popup/popupChrome'
+import { WARNING_MARK } from './fireProximity'
 import { SLOPE_BANDS } from './slopeAngle'
 import { ELEVATION_COL, MODEL_COL, displayedColumns } from './tableColumns'
 import { resultRow, series } from '../testSupport/fixtures'
@@ -95,10 +99,11 @@ const base = { rank: 1, row, columns: WINDOW_COLS }
 
 // What three layers say at a point (#832), as the readers hand them over:
 // every string already escaped, a fire's name linked out, a closure's type
-// in the warning amber.
+// in the warning amber, and both a warning, which the radar is not.
 const FIRE: PointSection = {
   kind: 'fire',
-  layer: 'Active wildfires',
+  layer: 'Active wildfire',
+  warning: true,
   title: 'Bolt Creek',
   link: { href: 'https://data-nifc.opendata.arcgis.com/explore?location=47.80000,-121.30000,10', label: 'View on NIFC map' },
   source: 'NIFC',
@@ -107,7 +112,8 @@ const FIRE: PointSection = {
 }
 const CLOSURE: PointSection = {
   kind: 'closure-area',
-  layer: 'Area closures',
+  layer: 'Area closure',
+  warning: true,
   title: 'Probe Fire Closure',
   warn: 'Safety Closure',
   source: 'US Forest Service',
@@ -172,18 +178,17 @@ describe('a ranked card: remove', () => {
     expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(CARD_ACTION_ATTR))
   })
 
-  // A part of its own (#696): ruled off from the sections by the edge a
-  // later section wears, with that section's padding, on the narrow map's
-  // compact grid and the full one alike.
-  it("rules the remove off like a later section, at both widths", () => {
+  // A part of its own (#696): ruled off from the sections by the header's
+  // edge, on the narrow map's compact grid and the full one alike. It is the
+  // one rule under the band, since the sections part on their own bands
+  // (TJ, 2026-11-03).
+  it('rules the remove off from the sections, at both widths', () => {
     for (const compact of [false, true]) {
       const html = rankedHtml({ ...base, compact, removable: true, sections: [FIRE] })
-      const later = html.match(/<div style="margin:(\d+px) -10px 0;padding:(\d+px) 10px 0;border-top:([^"]+)">/)!
       const action = html.match(new RegExp(`<div style="padding:(\\d+px) 10px;border-top:([^"]+)"><div style="display:flex;justify-content:center"><button ${CARD_ACTION_ATTR}`))!
-      expect(action[2]).toBe(later[3])
       expect(action[2]).toBe(SECTION_EDGE)
-      expect([later[1], later[2]]).toEqual([SECTION_PAD_Y, SECTION_PAD_Y])
       expect(action[1]).toBe(SECTION_PAD_Y)
+      expect(html.match(/border-top:/g)).toHaveLength(1)
     }
     // No remove, no rule under the grid.
     expect(rankedHtml({ ...base })).not.toContain('border-top:')
@@ -383,7 +388,10 @@ describe('a ranked card: ranked number and insets', () => {
   it('bolds the ranked number and colours its family as the table does', () => {
     const columns = displayedColumns(false, 'wind_max_mph')
     const html = rankedHtml({ ...base, columns, rankedBy: 'wind_max_mph' })
-    const bold = [...html.matchAll(/<span style="[^"]*font-weight:600[^"]*">([^<]*)<\/span>/g)].map((m) => m[1])
+    // Read in the grid: the section heading over it sets its layer's word at
+    // the same weight.
+    const grid = html.slice(html.indexOf('<table'))
+    const bold = [...grid.matchAll(/<span style="[^"]*font-weight:600[^"]*">([^<]*)<\/span>/g)].map((m) => m[1])
     expect(bold).toEqual(['41.8'])
     const tinted = [...html.matchAll(new RegExp(`<td ${POPUP_TINT_ATTR} style="[^"]*;background:([^;]+);--tint-dark:([^;]+);--tint-light:([^;]+);`, 'g'))]
     // The grid's column order, which follows the table's (record 0257).
@@ -785,18 +793,21 @@ describe("a spot card's sections", () => {
   // echo` is a reading of (TJ, 2026-11-03).
   it("opens a section on its layer's name and its reading, its values under it, and its source and time at its foot", () => {
     const html = spotHtml(48.79012, -121.83211, [rain])
-    expect(html).toContain('>Rain radar: Light precipitation</div>')
+    expect(html).toContain(`>${sectionHeading('Rain radar', 'Light precipitation')}</div>`)
     expect(html).toContain(updatedLine('10 min ago', 'NEXRAD radar'))
     expect(body(html)).toMatch(/Rain radar: Light precipitation Rate: ~0.02 in\/h Reflectivity: 16.5 dBZ NEXRAD radar: 10 min ago/)
   })
 
-  // Both pictures under one click, each section on its own name and ruled
-  // off from the one above it, so the rain's values cannot be read as the
-  // snow's (TJ, 2026-10-16).
-  it('rules each later section off from the one above it', () => {
+  // Both pictures under one click, each section on its own heading's band
+  // and a gap of the card's surface above every one after the first, so the
+  // rain's values cannot be read as the snow's (TJ, 2026-10-16, 2026-11-03).
+  it('parts each later section from the one above it', () => {
+    const gap = new RegExp(`<div style="margin-top:${SECTION_GAP}">`, 'g')
     const html = spotHtml(48.79012, -121.83211, [rain, snow])
     expect(body(html)).toMatch(/Rain radar: Light precipitation .* NEXRAD radar: 10 min ago .*Snow depth: Very deep snow .* NOAA snow analysis: Oct 16, 2026, 5:00 AM/)
-    expect(html.split(`border-top:${SECTION_EDGE}`).length - spotHtml(48.79012, -121.83211, [rain]).split(`border-top:${SECTION_EDGE}`).length).toBe(1)
+    expect(html.match(gap)).toHaveLength(1)
+    expect(spotHtml(48.79012, -121.83211, [rain]).match(gap)).toBeNull()
+    expect(html).not.toContain('border-top:')
   })
 
   // A section that holds a failure has no time to give.
@@ -817,7 +828,7 @@ describe("a spot card's sections", () => {
   it('sizes a heading that can change to the widest of its names', () => {
     const NAMES = ['Light precipitation', 'Very heavy precipitation', 'No radar echo']
     const html = spotHtml(48.79012, -121.83211, [{ ...rain, titles: NAMES }])
-    expect(html).toContain(`>Rain radar: ${widestName('Light precipitation', NAMES)}</div>`)
+    expect(html).toContain(`>${sectionHeading('Rain radar', widestName('Light precipitation', NAMES))}</div>`)
     expect(spotHtml(48.79012, -121.83211, [rain])).not.toContain('inline-grid')
   })
 })
@@ -829,31 +840,43 @@ describe("a card's sections", () => {
   const at = { name: 'Camp Muir', latitude: 46.83545, longitude: -121.73231, source: 'csv' } as const
   const pendingWith = (sections: readonly PointSection[], view: CardView = {}) =>
     pendingHtml({ pending: at, sections, ...view })
-  const heading = (text: string) => `>${text}</div>`
+  const heading = (layer: string, name?: string) => `>${sectionHeading(layer, name)}</div>`
   const foldOf = (html: string, key: string) =>
     html.match(new RegExp(`<button type="button" ${CARD_FOLD_ATTR}="${key}"[^>]*aria-expanded="(true|false)"[^>]*>`))?.[1]
-  const LATER = /<div style="margin:\d+px -10px 0;padding:\d+px 10px 0;border-top:[^"]+">/g
+  const LATER = new RegExp(`<div style="margin-top:${SECTION_GAP}">`, 'g')
 
-  it("opens each section on its layer's name and its own, in the order given", () => {
+  it("opens each section on its layer's word and its own name, in the order given", () => {
     const html = pendingWith([FIRE, CLOSURE, RADAR])
-    const starts = ['Active wildfires: Bolt Creek', 'Area closures: Probe Fire Closure', 'Rain radar: Light precipitation'].map(
-      (h) => html.indexOf(heading(h)),
+    const starts = [heading('Active wildfire', 'Bolt Creek'), heading('Area closure', 'Probe Fire Closure'), heading('Rain radar', 'Light precipitation')].map(
+      (h) => html.indexOf(h),
     )
     expect(starts.every((i) => i > html.indexOf(POPUP_BODY_ATTR))).toBe(true)
     expect(starts).toEqual([...starts].sort((a, b) => a - b))
   })
 
   // So one layer's values cannot be read as the next one's.
-  it('rules off every section after the first', () => {
+  it('parts every section after the first by a gap, and rules none off', () => {
     expect(pendingWith([FIRE]).match(LATER)).toBeNull()
     expect(pendingWith([FIRE, CLOSURE, RADAR]).match(LATER)).toHaveLength(2)
+    expect(pendingWith([FIRE, CLOSURE, RADAR])).not.toContain('border-top:')
+  })
+
+  // A fire and a closure are warnings: the amber band and the table's own
+  // mark before the layer's word. The radar is weather, on the plain band.
+  it('stands a warning on the amber band behind the warning mark, and nothing else', () => {
+    const html = pendingWith([FIRE, CLOSURE, RADAR])
+    expect(html.match(new RegExp(`background:${escapeRegExp(WARNING_BAND_COLOR)}`, 'g'))).toHaveLength(2)
+    expect(html.split(WARNING_MARK)).toHaveLength(3)
+    const radar = pendingWith([RADAR])
+    expect(radar).not.toContain(WARNING_BAND_COLOR)
+    expect(radar).not.toContain(WARNING_MARK)
   })
 
   it("sets a closure's type in the warning amber under its name, above its rows", () => {
     const html = pendingWith([CLOSURE])
     expect(html).toContain(warningLine('Safety Closure', null))
     expect(html).toContain(`color:${WARNING_COLOR}`)
-    expect(html.indexOf(heading('Area closures: Probe Fire Closure'))).toBeLessThan(html.indexOf('Safety Closure'))
+    expect(html.indexOf(heading('Area closure', 'Probe Fire Closure'))).toBeLessThan(html.indexOf('Safety Closure'))
     expect(html.indexOf('Safety Closure')).toBeLessThan(html.indexOf('Columbia River Gorge NSA'))
   })
 
@@ -887,24 +910,30 @@ describe("a card's sections", () => {
     }
   })
 
-  it('folds the layers on a ranked card and opens its forecast', () => {
-    const html = rankedHtml({ ...base, sections: [FIRE, RADAR] })
-    expect([foldOf(html, 'fire'), foldOf(html, 'radar'), foldOf(html, FORECAST_SECTION)]).toEqual(['false', 'false', 'true'])
-    expect(html).toContain(heading('Active wildfires: Bolt Creek'))
-    expect(html).not.toContain('3.2 mi NW')
-    expect(html).not.toContain('NIFC: Jul 17')
+  // A ranked card opens its forecast and every warning, and folds the rest
+  // (TJ, 2026-11-03): a fire at the point is worth reading before the grid.
+  it('opens the forecast and the warnings on a ranked card, and folds the rest', () => {
+    const html = rankedHtml({ ...base, sections: [FIRE, CLOSURE, RADAR] })
+    expect([FIRE, CLOSURE, RADAR].map((s) => foldOf(html, s.kind))).toEqual(['true', 'true', 'false'])
+    expect(foldOf(html, FORECAST_SECTION)).toBe('true')
+    expect(html).toContain(heading('Active wildfire', 'Bolt Creek'))
+    expect(html).toContain('3.2 mi NW')
+    expect(html).toContain('NIFC: Jul 17')
+    expect(html).not.toContain('~0.02 in/h')
     expect(html).toContain('<table')
   })
 
   // A fold the reader made holds on every card, whichever way it went.
   it("takes the reader's own fold over the default", () => {
     const folds = new Map([
-      ['fire', true],
+      ['fire', false],
+      ['radar', true],
       [FORECAST_SECTION, false],
     ])
     const ranked = rankedHtml({ ...base, sections: [FIRE, RADAR], folds })
-    expect([foldOf(ranked, 'fire'), foldOf(ranked, 'radar'), foldOf(ranked, FORECAST_SECTION)]).toEqual(['true', 'false', 'false'])
-    expect(ranked).toContain('3.2 mi NW')
+    expect([foldOf(ranked, 'fire'), foldOf(ranked, 'radar'), foldOf(ranked, FORECAST_SECTION)]).toEqual(['false', 'true', 'false'])
+    expect(ranked).not.toContain('3.2 mi NW')
+    expect(ranked).toContain('~0.02 in/h')
     expect(ranked).not.toContain('<table')
     const pending = pendingWith([FIRE, RADAR], { folds: new Map([['radar', false]]) })
     expect([foldOf(pending, 'fire'), foldOf(pending, 'radar')]).toEqual(['true', 'false'])
@@ -915,7 +944,7 @@ describe("a card's sections", () => {
   // first and the forecast last, ruled off from them.
   it("puts a ranked card's forecast after its layers", () => {
     const html = rankedHtml({ ...base, sections: [FIRE] })
-    expect(html.indexOf(heading('Active wildfires: Bolt Creek'))).toBeLessThan(html.indexOf(heading('Forecast')))
+    expect(html.indexOf(heading('Active wildfire', 'Bolt Creek'))).toBeLessThan(html.indexOf(heading('Forecast')))
     expect(html.indexOf(heading('Forecast'))).toBeLessThan(html.indexOf('<table'))
     expect(html.match(LATER)).toHaveLength(1)
   })
@@ -924,12 +953,12 @@ describe("a card's sections", () => {
 // The forecast section (#832): the model the numbers came from in its name,
 // the grid, and when the report was analyzed in the fine print.
 describe("a ranked card's forecast section", () => {
-  const heading = (text: string) => `>${text}</div>`
+  const heading = (layer: string, name?: string) => `>${sectionHeading(layer, name)}</div>`
 
   it("names a comparison row's own model, or the one model that answered every row", () => {
     const compared = { ...row, modelId: 'ecmwf_ifs025', modelLabel: 'ECMWF IFS' } as ModelRow
-    expect(rankedHtml({ ...base, row: compared, modelFallbackLabel: 'GFS Seamless' })).toContain(heading('Forecast: ECMWF IFS'))
-    expect(rankedHtml({ ...base, modelFallbackLabel: 'GFS Seamless' })).toContain(heading('Forecast: GFS Seamless'))
+    expect(rankedHtml({ ...base, row: compared, modelFallbackLabel: 'GFS Seamless' })).toContain(heading('Forecast', 'ECMWF IFS'))
+    expect(rankedHtml({ ...base, modelFallbackLabel: 'GFS Seamless' })).toContain(heading('Forecast', 'GFS Seamless'))
   })
 
   // A comparison shows the Model column, whose label used to stand on the
@@ -941,7 +970,7 @@ describe("a ranked card's forecast section", () => {
     const columns = [...WINDOW_COLS, MODEL_COL]
     const html = rankedHtml({ ...base, row: compared, columns })
     expect(html.slice(0, html.indexOf(POPUP_BODY_ATTR))).not.toContain('ECMWF IFS')
-    expect(html).toContain(heading('Forecast: ECMWF IFS'))
+    expect(html).toContain(heading('Forecast', 'ECMWF IFS'))
     const bare = rankedHtml({ ...base, row: compared, columns: [MODEL_COL] })
     expect(bare).toContain('<div>ECMWF IFS</div>')
     expect(bare).not.toContain('Forecast')
@@ -982,7 +1011,7 @@ describe("a ranked card's forecast section", () => {
 
   it('stands the layers alone without a column', () => {
     const html = rankedHtml({ rank: 1, row, sections: [FIRE] })
-    expect(html).toContain(heading('Active wildfires: Bolt Creek'))
+    expect(html).toContain(heading('Active wildfire', 'Bolt Creek'))
     expect(html).not.toContain(heading('Forecast'))
   })
 })
@@ -995,15 +1024,16 @@ describe('sectionOpen', () => {
     { kind: 'spot', lat: 48.8, lon: -121.8 },
   ] as const
 
-  it('opens only the forecast on a ranked card', () => {
+  it('opens the forecast and every warning on a ranked card, and nothing else', () => {
     expect(sectionOpen(ranked, FORECAST_SECTION)).toBe(true)
-    expect(sectionOpen(ranked, 'fire')).toBe(false)
-    expect(sectionOpen(ranked, 'radar')).toBe(false)
+    for (const key of ['fire', 'fire-activity', 'closure-area', 'closure-trail']) expect(sectionOpen(ranked, key, undefined, true)).toBe(true)
+    for (const key of ['smoke', 'radar', 'snow']) expect(sectionOpen(ranked, key)).toBe(false)
+    expect(sectionOpen(ranked, 'radar', undefined, false)).toBe(false)
   })
 
-  it('opens every section on every other card', () => {
+  it('opens every section on every other card, warning or not', () => {
     for (const subject of others) {
-      expect(sectionOpen(subject, 'fire')).toBe(true)
+      expect(sectionOpen(subject, 'fire', undefined, true)).toBe(true)
       expect(sectionOpen(subject, 'snow')).toBe(true)
     }
   })
@@ -1015,6 +1045,8 @@ describe('sectionOpen', () => {
       ['radar', false],
     ])
     expect(sectionOpen(ranked, 'fire', folds)).toBe(true)
+    // A fold the reader made shuts a warning as it shuts anything else.
+    expect(sectionOpen(ranked, 'closure-area', new Map([['closure-area', false]]), true)).toBe(false)
     expect(sectionOpen(ranked, FORECAST_SECTION, folds)).toBe(false)
     expect(sectionOpen(ranked, 'smoke', folds)).toBe(false)
     expect(sectionOpen(others[2], 'radar', folds)).toBe(false)

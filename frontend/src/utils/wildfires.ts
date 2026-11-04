@@ -175,8 +175,15 @@ export function formatAcres(acres: number | null | undefined): string {
   return `${grouped(Math.round(acres))} acres`
 }
 
-/** The Layers menu's row for the perimeters, which the legend and a card's section open on. */
+/** The Layers menu's row for the perimeters, which the legend names too. */
 export const WILDFIRE_ROW_LABEL = 'Active wildfires'
+
+/**
+ * What a card's section opens on for one fire, `Active wildfire: Bolt Creek`:
+ * the row's word in the singular, since a section names the one fire at the
+ * point where the menu and the legend name the layer (TJ, 2026-11-03).
+ */
+export const WILDFIRE_SECTION_LABEL = 'Active wildfire'
 
 /** What a card names NIFC as, in a fire section's fine print beside the survey's date. */
 export const NIFC_SOURCE = 'NIFC'

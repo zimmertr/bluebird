@@ -347,7 +347,7 @@ describe('mountFireActivity point target', () => {
     await vi.waitFor(() => expect(refreshed).toEqual(['fire-activity']))
     const reading = await target.read(AT, signal())
     expect(reading).toEqual({ section: hotspotSectionAt(DETECTIONS as unknown as FireActivityResponse, AT, START) })
-    expect(reading?.section).toMatchObject({ kind: 'fire-activity', layer: FIRE_ACTIVITY_ROW_LABEL })
+    expect(reading?.section).toMatchObject({ kind: 'fire-activity', layer: FIRE_ACTIVITY_ROW_LABEL, warning: true })
     expect(await target.read(FAR, signal())).toBeNull()
   })
 

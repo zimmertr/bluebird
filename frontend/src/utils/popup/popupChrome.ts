@@ -1,6 +1,6 @@
 // The shared chrome of every map popup: the card (`popupCard`), its header
-// band with the title, link-out glyph and facts line, and the notices, body
-// and action sections below it.
+// band with the title, link-out glyph and facts line, and the sections and
+// the action below it.
 //
 // Every popup that describes a thing wears it: a ranked result, a clicked
 // basemap feature, a fire, a closure and a smoke plume (#738). They had
@@ -28,6 +28,7 @@ import { BUTTON_ACCENT, CARD_FOLD } from '../../styles'
 import { AGGREGATE, SEP } from '../../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
 import { clamp, isFiniteNumber } from '../numbers'
+import { WARNING_MARK } from '../fireProximity'
 import { coordinateLabel } from '../points'
 import { utcDayKey } from '../calendar/calendarDates'
 
@@ -55,7 +56,8 @@ const POPUP_FINE_SIZE = 'font-size:11px'
 /**
  * The card's one bold, the app's: 600, the weight its headings and the
  * table's heads take (record 0222). The title, the grid's heads, a section's
- * name and the ranked value wear it; a `<strong>` alone would draw 700.
+ * layer word, a row's key and the ranked value wear it; a `<strong>` alone
+ * would draw 700.
  */
 const BOLD = 'font-weight:600'
 
@@ -65,17 +67,15 @@ const BOLD = 'font-weight:600'
  * the same numbers look the same in both places, and a column of them lines up
  * on the decimal.
  *
- * It is not the whole of the label/value split. The face alone was too quiet
- * to read as a split (TJ, 2026-09-14), so the two halves separate on two axes:
- * the value keeps this face, and the LABEL steps back in colour. `LABEL_COLOR`
- * below is where that second axis is measured, and why it is colour rather
- * than a second weight.
+ * It is not the whole of the key/value split. The face alone was too quiet
+ * to read as a split (TJ, 2026-09-14), so a section's row parts its halves
+ * on colour and weight as well (`row`), and the grid's row heads step back
+ * in colour (`LABEL_COLOR`).
  *
- * Weight is not the free axis it looks like. The popup carries exactly one
- * <strong>, on the title, and that is the whole of its emphasis: a bold inside
- * a row marks a favourite row rather than a kind of text, which is what two
- * VALUES wearing one by no rule at all — precipitation's total and the AQI
- * average, singled out since the original implementation — read as.
+ * No value is bold but the ranked one: a bold value marks a favourite row
+ * rather than a kind of text, which is what two VALUES wearing one by no rule
+ * at all — precipitation's total and the AQI average, singled out since the
+ * original implementation — read as.
  *
  * The stack is spelled out rather than left to a bare `monospace` keyword
  * because this markup is handed to MapLibre's setHTML.
@@ -83,7 +83,14 @@ const BOLD = 'font-weight:600'
 const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'
 
 /**
- * One "label: value" line.
+ * One "key: value" line in a section: the key semibold in the ink, the value
+ * regular in the label's grey and the values' face (TJ, 2026-11-03, the
+ * design lab's mockup 1). The key names what the line is about and the value
+ * is what a reader reads off it, so the key leads; a grey key over a dark
+ * value read as inverted. Weight joins colour and face here, where the old
+ * split was colour alone (`LABEL_COLOR` says why): a key that differs from its
+ * value on three axes still reads apart in a face whose weights come in
+ * pairs.
  *
  * Every stat gets its own. Wind and temperature used to share a line separated
  * by a "·" — the only line carrying two metrics, and the only one long enough
@@ -92,16 +99,21 @@ const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monos
  *
  * `href` links the VALUE rather than the whole line, which is where the table
  * puts its link too: the label names the metric and the number is the thing
- * that has somewhere to go (TJ, 2026-09-14).
+ * that has somewhere to go (TJ, 2026-09-14). The link takes the value's grey,
+ * as every card link takes the colour of its text.
  */
 export function row(label: string, value: string, href?: string | null): string {
-  const shown = `<span style="${VALUE_FACE}">${value}</span>`
-  return `<div>${rowLabel(label)}: ${href ? popupLink(href, shown) : shown}</div>`
+  const shown = `<span style="${VALUE_FACE};${LABEL_COLOR}">${value}</span>`
+  return `<div>${rowKey(label)}: ${href ? popupLink(href, shown) : shown}</div>`
 }
 
+/** The card's ink: its title, a section's heading and a row's key. */
+export const INK_COLOR = 'color:var(--popup-ink)'
+
 /**
- * The colour a row's label takes, so it reads as a label rather than as the
- * first half of the value (TJ, 2026-09-14).
+ * The colour the grid's row heads and the facts under a title take, so they
+ * read as labels rather than as the first half of the value (TJ, 2026-09-14),
+ * and the colour of a section row's value, whose key is the ink (`row`).
  *
  * **Colour rather than weight, and that is a measurement rather than a taste.**
  * The obvious answer was a lighter weight than the title's 600. It does not
@@ -117,20 +129,21 @@ export function row(label: string, value: string, href?: string | null): string 
  * the light one (pinned in `styles.test.ts`), so it recedes without becoming
  * hard to read.
  *
- * A row's label and value therefore never go bold. The bold in a card is the
- * title's, and each section's name (`cardSection`).
+ * The grid's row heads therefore never go bold: a weight there would be the
+ * one axis the label leaned on. A section's row is the exception, which
+ * steps on all three (`row`).
  */
 export const LABEL_COLOR = 'color:var(--popup-label)'
 
 /**
- * A row's label.
+ * A row's key.
  *
  * The colon stays outside it: it is punctuation joining the two halves rather
- * than part of the name, and it reads better light between a weighted label
+ * than part of the name, and it reads better light between a weighted key
  * and a mono value than swept into either.
  */
-function rowLabel(label: string): string {
-  return `<span style="${LABEL_COLOR}">${label}</span>`
+function rowKey(label: string): string {
+  return `<span style="${INK_COLOR};${BOLD}">${label}</span>`
 }
 
 /**
@@ -431,14 +444,19 @@ export function pendingValue(): string {
  */
 export const CARD_FOLD_ATTR = 'data-card-fold'
 
-/** What a section of a card is made of; the name alone is required. */
+/** What a section of a card is made of; the layer alone is required. */
 export interface CardSection {
   /** The key its fold is kept under: a layer's target, or `forecast`. */
   key: string
-  /** The name it opens on, `Active wildfires: Bolt Creek`, as markup the caller escaped. */
-  heading: string
-  /** What the fold button is named for a screen reader: the layer, as the heading starts. Escaped by the caller. */
-  label: string
+  /**
+   * The layer's word its heading opens on, `Active wildfire`, which also
+   * names the fold for a screen reader. Markup the caller escaped.
+   */
+  layer: string
+  /** What is there, after the layer and a colon: `Bolt Creek`. Markup the caller escaped; none for a heading that is the layer alone. */
+  name?: string
+  /** Whether it is a warning (`PointSection.warning`): the amber band and the warning mark. */
+  warning?: boolean
   /** Where the name links out, and what a screen reader hears for the glyph. */
   link?: { href: string; label: string } | null
   /** Whether its body shows. */
@@ -448,28 +466,95 @@ export interface CardSection {
 }
 
 /**
+ * A section's heading text: the layer's word and its colon semibold, the
+ * name after it regular, both in the ink (TJ, 2026-11-03), so the eye finds
+ * which layer spoke before what it said. Exported for the tests that find a
+ * heading in a card's markup. Both parts are markup the caller escaped.
+ */
+export function sectionHeading(layer: string, name?: string): string {
+  return name ? `<span style="${BOLD}">${layer}:</span> ${name}` : `<span style="${BOLD}">${layer}</span>`
+}
+
+/**
  * One section of a card, where a card describes several things at one point
  * (#737, #832): the rain radar and the snow depth, a wildfire within reach, a
- * closure, and a ranked row's forecast. Each opens on its name, bold because
- * it names the section rather than being one more row in it (the band's
- * title still outranks it on size), cut to one line with an ellipsis as the
- * band's title is, with the link out beside it where the thing has a page,
- * and the fold's chevron at the section's right edge (TJ, 2026-11-03): down
- * while the body shows, up while it is folded, as the results bar's reads.
+ * closure, and a ranked row's forecast.
+ *
+ * Its heading is a row on the band fill, the header band's own, run from the
+ * card's edge to its edge with the rows' 10px inset inside it (TJ,
+ * 2026-11-03, the design lab's mockup 1): the fills part one section from the
+ * next, where a hairline ruled them off before and read as one more line of
+ * the grid. The heading keeps one line and cuts the name with an ellipsis, as
+ * the band's title does, with the link out beside it where the thing has a
+ * page and the fold's chevron at the right edge: down while the body shows,
+ * up while it is folded, as the results bar's reads. The band is at least
+ * 24px tall, the fold's box at a desk, and grows to the 32px box under a
+ * finger, so the fold never overhangs its band.
+ *
+ * A warning section (`warning`) lays the amber over the band
+ * (`WARNING_BAND_COLOR`) and stands the warning mark the results table's
+ * Wildfire and Closure columns open on before the layer's word, in a slot of
+ * its own width, so a name cut short never moves it. The mark is text, as
+ * the table's is, which a screen reader names itself.
+ *
  * The button is named for the layer and says whether it is open through
- * `aria-expanded`, so a screen reader hears "Active wildfires, expanded"
+ * `aria-expanded`, so a screen reader hears "Active wildfire, expanded"
  * rather than a word of the app's own; it wears the glyph ink the band's
  * link-out does and lights the same way under a pointer (`map.css`,
  * `data-popup-glyph`), and `CARD_FOLD` in `styles.ts` gives it its box and
- * its focus ring. A folded section is its name and nothing under it. Every
- * string is markup the caller escaped.
+ * its focus ring. A folded section is its heading and nothing under it.
  */
-export function cardSection({ key, heading, label, link = null, open, body }: CardSection): string {
-  const name = `<div style="${BOLD};flex:1;min-width:0;${ONE_LINE}">${heading}</div>`
+export function cardSection({ key, layer, name, warning = false, link = null, open, body }: CardSection): string {
+  const fill = warning ? WARNING_BAND_COLOR : SECTION_BAND_COLOR
+  const mark = warning ? `<span style="${WARNING_SLOT}">${WARNING_MARK}</span>` : ''
+  const text = `<div style="flex:1;min-width:0;${INK_COLOR};${ONE_LINE}">${sectionHeading(layer, name)}</div>`
   const fold =
     `<button type="button" ${CARD_FOLD_ATTR}="${key}" data-popup-glyph class="${CARD_FOLD}" ` +
-    `aria-expanded="${open}" aria-label="${label}" style="color:${HEADER_ICON_COLOR}">${chevronMarkup(!open)}</button>`
-  return `<div style="display:flex;align-items:center;gap:6px">${name}${link ? linkIcon(link) : ''}${fold}</div>${open ? body : ''}`
+    `aria-expanded="${open}" aria-label="${layer}" style="color:${HEADER_ICON_COLOR}">${chevronMarkup(!open)}</button>`
+  const heading =
+    `<div style="display:flex;align-items:center;gap:6px;min-height:24px;margin:0 -${BODY_SIDE};padding:0 ${BODY_SIDE};background:${fill}">` +
+    `${mark}${text}${link ? linkIcon(link) : ''}${fold}</div>`
+  return `${heading}${open ? `<div style="padding-top:${SECTION_BODY_GAP}">${body}</div>` : ''}`
+}
+
+/**
+ * The fill under a section's heading: the header band's, so a heading reads
+ * as the card's own furniture. It is the only band below the header; the
+ * grid's columns are the same fill as narrow strips.
+ */
+export const SECTION_BAND_COLOR = 'var(--popup-band)'
+
+/**
+ * A warning section's heading fill: the table's warning amber laid over the
+ * band, 15% in dark and 30% in light (`--popup-warn-band` in `map.css`).
+ * Every ink on it is pinned in `styles.test.ts`.
+ */
+export const WARNING_BAND_COLOR = 'var(--popup-warn-band)'
+
+/**
+ * The warning mark's slot: one and a half of its ems wide and centred, the
+ * design lab's measure, so the layer's word stands at one place on every
+ * warning heading whatever the name after it does.
+ */
+const WARNING_SLOT = 'flex:none;width:1.5em;text-align:center;line-height:1'
+
+/** The body's sides, which a heading runs through to reach the card's edges. */
+const BODY_SIDE = '10px'
+
+/** Between a section's heading and the body under it. */
+const SECTION_BODY_GAP = '4px'
+
+/** Between one section and the next: the card's surface, which the two bands stand apart on. */
+export const SECTION_GAP = '8px'
+
+/**
+ * A card's sections, one under the next with `SECTION_GAP` of the card's
+ * surface between them, which with each heading's band is what parts them.
+ * Inside the body rather than a part of `popupCard` after it, so a capped
+ * card scrolls them together. Each is markup from `cardSection`.
+ */
+export function cardSections(sections: readonly string[]): string {
+  return sections.map((inner, i) => (i === 0 ? inner : `<div style="margin-top:${SECTION_GAP}">${inner}</div>`)).join('')
 }
 
 /**
@@ -489,17 +574,6 @@ export function widestName(shown: string, every: readonly string[]): string {
     .filter((name) => name !== shown)
     .map((name) => `<span aria-hidden="true" style="${cell};visibility:hidden">${name}</span>`)
   return `<span style="display:inline-grid"><span style="${cell}">${shown}</span>${others.join('')}</span>`
-}
-
-/**
- * A second part of a card's body, ruled off from the part above it by the
- * edge the card's own sections wear, run from edge to edge through the body's
- * 10px sides. Inside the body rather than a section of `popupCard` after it,
- * so a capped card scrolls the two together. The text is markup the caller
- * escaped.
- */
-export function bodySection(inner: string): string {
-  return `<div style="margin:${SECTION_PAD_Y} -10px 0;padding:${SECTION_PAD_Y} 10px 0;border-top:${SECTION_EDGE}">${inner}</div>`
 }
 
 /**
@@ -581,11 +655,13 @@ export function metricGrid(
  * No column is painted with it since the card took the results table's rows
  * (TJ 2026-10-30); it stays the ground the measurements below are taken on.
  *
- * The shade behind each column, halfway from the panel to its raised step:
- * the label and the ink its numbers take both stay well above AA's 4.5 on it.
- * It stands 1.18:1 off the dark card and 1.06:1 off the light one, which is
- * enough to read as a band and no more: the heads and the alignment carry the
- * columns, and the shade only groups them. Pinned in `styles.test.ts`.
+ * The shade behind each column, the card's band: halfway from the panel to
+ * its raised step in dark, and from the raised step to its hover in light,
+ * where the dark theme's half step read 1.06:1 and all but vanished (TJ,
+ * 2026-11-03). The label and the ink its numbers take both stay well above
+ * AA's 4.5 on it. It stands 1.18:1 off the card in both themes, which is
+ * enough to read as a band and no more: the heads and the alignment carry
+ * the columns, and the shade only groups them. Pinned in `styles.test.ts`.
  */
 export const GRID_BAND_COLOR = 'var(--popup-band)'
 /** The gutter between bands is the card's own surface, which `map.css` paints. */
@@ -600,11 +676,12 @@ export const GRID_GUTTER_COLOR = 'var(--popup-surface)'
 export const GRID_LINE_COLOR = 'var(--popup-line)'
 
 /**
- * The ranked number's cell, the panel's raised step: one half step past the
- * column's band, with no hue, so the card's only colour is its links (TJ,
- * 2026-10-08, option H, over a sky-100 cell). It stands 1.2:1 off the column
- * on the dark card and 1.06:1 on the light one, so the number's bold carries
- * most of the mark. Pinned in `styles.test.ts`.
+ * The ranked number's cell, one half step past the column's band: the
+ * raised step in dark and its hover in light, with no hue, so the card's
+ * only colour is its links (TJ, 2026-10-08, option H, over a sky-100 cell).
+ * It stands 1.2:1 off the column on the dark card and 1.06:1 on the light
+ * one, so the number's bold carries most of the mark. Pinned in
+ * `styles.test.ts`.
  */
 export const GRID_RANKED_COLOR = 'var(--popup-ranked)'
 
@@ -814,7 +891,7 @@ export interface PopupCard {
   link?: PopupCardLink | null
   /** The lines under the title on the band, usually `metaBand([...])`. */
   meta?: string
-  /** The details: the card's sections (`cardSection`), each ruled off from the last. */
+  /** The details: the card's sections (`cardSections` of `cardSection`), each on its own band. */
   body?: string
   /** One button, in a section of its own under the body. */
   action?: string
@@ -859,7 +936,7 @@ export interface PopupCard {
  */
 export function popupCard({ title, link = null, meta = '', body = '', action = '' }: PopupCard): string {
   const content = body
-    ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
+    ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px ${BODY_SIDE} 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
     : ''
   return `<div style="${POPUP_LEADING}">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
@@ -868,9 +945,9 @@ export function popupCard({ title, link = null, meta = '', body = '', action = '
     </div>${content}${
       // Under the body rather than in it, so a card whose numbers the scroll
       // cap shortened keeps its action in view the way it keeps its name. A
-      // section of its own, ruled off from the body by the edge and padding
-      // the card's sections wear (#696, TJ 2026-10-14): without the rule the
-      // button read as one more row of the grid.
+      // part of its own, ruled off from the body by the header's edge (#696,
+      // TJ 2026-10-14): without the rule the button read as one more row of
+      // the grid.
       action
         ? `<div style="padding:${SECTION_PAD_Y} 10px;border-top:${SECTION_EDGE}">${popupAction(action)}</div>`
         : ''
@@ -915,11 +992,11 @@ export const HEADER_EDGE_COLOR = 'var(--popup-line)'
 const HEADER_SHADOW_COLOR = 'var(--popup-shadow)'
 
 /**
- * The edge and the padding a card's parts wear below the header: each section
- * after the first (`bodySection`) and the action under them (#696). One
- * spelling, so the card's ruled-off parts cannot drift apart. The edge is the
- * header's own, which is what lets a part read as part of the card rather
- * than as a second card.
+ * The edge and the padding the action's foot wears under the sections (#696).
+ * The edge is the header's own, which is what lets the foot read as part of
+ * the card rather than as a second card. It is the one ruled part below the
+ * header: the sections part on their headings' bands (`cardSection`, TJ
+ * 2026-11-03), where each after the first wore this edge before.
  */
 export const SECTION_EDGE = `1px solid ${HEADER_EDGE_COLOR}`
 export const SECTION_PAD_Y = '8px'
