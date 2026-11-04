@@ -1,6 +1,6 @@
 # 0034. On a phone the results are a sheet standing on the map
 
-- Status: Accepted. Amended by 0135 (a searched place is framed for the sheet it is about to open, a sheet holding only pending rows shows the table alone, and a full sheet stops 88px under the chip row).
+- Status: Accepted. Amended by 0135 (a searched place is framed for the sheet it is about to open, a sheet holding only pending rows shows the table alone, and a full sheet stops 88px under the chip row). Amended by 0259 (a drag let go near the top of the screen takes the sheet to full screen).
 - Date: 2026-09-14 (git: the merge of #335)
 - Decider: TJ (git: author and merger of #335)
 - Issues and PRs: #249, #335, #422, #430, #454, #459

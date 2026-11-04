@@ -33,6 +33,8 @@ interface MapRowsProps {
   layers: ReactNode
   /** The Legend chip and its key (`MapLegend`). */
   legend: ReactNode
+  /** A full-screen results sheet stands over the rows (#837), which are out of reach until it comes down. */
+  covered?: boolean
 }
 
 /**
@@ -69,6 +71,7 @@ export default function MapRows({
   controlsSummary,
   layers,
   legend,
+  covered = false,
 }: MapRowsProps) {
   const summaryId = useId()
   const [searching, setSearching] = useState(false)
@@ -82,7 +85,7 @@ export default function MapRows({
   return (
     // A popup keeps clear of the rows (`resultsLayer.ts` finds every
     // `data-map-overlay`), which stand over the top of every map.
-    <div data-map-overlay="" className={`${MAP_ROWS.stack} ${LAYER.mapControls}`}>
+    <div data-map-overlay="" className={`${MAP_ROWS.stack} ${LAYER.mapControls}`} inert={covered}>
       <div className={MAP_ROWS.row}>
         <div className={searching ? MAP_ROWS.pillWide : MAP_ROWS.pill}>
           <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} onExpandedChange={setSearching} />
