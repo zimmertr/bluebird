@@ -247,6 +247,53 @@ test('walks the twelve cards from the footer link and puts the app back', async 
   await expect(page.locator('[data-tour="chart-layout-menu"]')).toHaveCount(0)
 })
 
+// The results' view segment, each button by the mode it shows.
+const SEGMENT = { table: 'Show table only', chart: 'Show chart only', both: 'Show both chart and table' } as const
+type Mode = keyof typeof SEGMENT
+
+async function expectMode(page: Page, mode: Mode) {
+  for (const [m, name] of Object.entries(SEGMENT)) {
+    await expect(page.getByRole('button', { name }).first()).toHaveAttribute('aria-pressed', m === mode ? 'true' : 'false')
+  }
+}
+
+// The mode a press stored, under `VIEW_KEY` in `src/utils/viewPrefs.ts`.
+const storedMode = (page: Page) =>
+  page.evaluate(() => (JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}') as { modeChosen?: string }).modeChosen)
+
+// #850: at a desk the Results and Chart cards switch the view as a phone's
+// do, Both included, and store nothing (record 0150): the table alone on
+// Results, the chart alone on Chart and the three cards after it, and the
+// chart kept after the tour with the reader's Both still the stored press.
+test('at a desk the Results and Chart cards switch a pressed Both to their view and store nothing', async ({ page }) => {
+  await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
+  await expect(resultRows(page)).toHaveCount(5)
+  await page.getByRole('button', { name: SEGMENT.both }).first().click()
+  await expectMode(page, 'both')
+  expect(await storedMode(page)).toBe('both')
+
+  await page.getByRole('link', { name: 'Tutorial' }).click()
+  await expect(heading(page)).toHaveText(STEPS[0].title)
+  for (const step of STEPS.slice(1)) {
+    await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText(step.title)
+    if (step.anchor === 'results') await expectMode(page, 'table')
+    if (['chart', 'chart-panels', 'chart-layout', 'chart-pins'].includes(step.anchor)) await expectMode(page, 'chart')
+    if (step.anchor === 'chart-panels') await expectFourPanels(page)
+    if (step.anchor === 'chart-pins') {
+      await expectTwoPinnedCards(page)
+      break
+    }
+  }
+
+  await page.keyboard.press('Escape')
+  await expect(card(page)).toHaveCount(0)
+  await expectMode(page, 'chart')
+  expect(await storedMode(page)).toBe('both')
+})
+
 test('the browser\'s Back leaves the tour the way it leaves a page', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()

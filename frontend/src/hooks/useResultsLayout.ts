@@ -35,7 +35,12 @@ const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 // The chart the tutorial's Panels, Panel layout and Pinned hours cards hold
 // at a desk (#850): two resting panels' height, where four panels in 1 over 3
 // stand well over their 72px floors, and two pinned cards, one over the
-// other, each hold all five of the demonstration's rows.
+// other, each hold all five of the demonstration's rows. At rest a desk's
+// Chart keeps the table's floor free under it (#795), so on a 1280x720
+// window the chart is 166px (720 less that 120 less the docked map's 434):
+// less its picker row of about 30px, 1 over 3 has two rows of about 64px
+// against their 72px floors and draws none.
+// Held, it is 320px there and 380px on a 780px laptop.
 export const TALL_CHART_PX = 2 * DEFAULT_PANEL_HEIGHT
 
 // Live viewport height, so the chart/table panel heights can be re-clamped when
@@ -85,8 +90,9 @@ export interface ResultsLayoutInputs {
   /**
    * The view the tutorial's Results or Chart step shows (#696): the sheet
    * opens to it before the step's spotlight reads it, the reverse of a row
-   * tap's collapse, and is left there when the step ends. On a phone it also
-   * comes back to its resting height; a desk keeps Both, which shows either.
+   * tap's collapse, and is left there when the step ends. A desk switches to
+   * it from Both too, as a phone does, and keeps its heights (#850); a phone
+   * also comes back to its resting height.
    */
   restView?: SinglePanel | null
   /**
@@ -100,8 +106,9 @@ export interface ResultsLayoutInputs {
    * Hold a desk's chart at `TALL_CHART_PX`, or as tall as a reader's own drag
    * could make it where the window is shorter, for as long as this is true,
    * and give it back to the height it had after (#850). The tutorial's three
-   * chart cards after Chart set it: at rest on a laptop the chart is the
-   * panels' 120px floor, under the four panels' own floors.
+   * chart cards after Chart set it: at rest on a window under 736px tall the
+   * four panels' rows fall under their own floors and none is drawn, and on
+   * a 780px laptop the two pinned cards would stand 83px tall.
    */
   tallOverride?: boolean
   /**
@@ -194,19 +201,19 @@ export function useResultsLayout({
   // in and the tour's spotlight, which measures before every paint, never
   // frames the bar first. Sets the state the chevron, a drag and the segment
   // set, without persisting the mode: the tour chose it, the reader did not.
+  // A desk leaves Both for the step's view as a phone does (#850): in Both
+  // the Chart card said to switch to the chart with the table still under
+  // it. A desk's heights stay the reader's, since its panels cover no map.
   useLayoutEffect(() => {
     if (restView === null) return
     setResultsCollapsed(false)
     lastPanelRef.current = restView
-    if (isDesktop) {
-      setModePref((mode) => (mode === 'both' ? mode : restView))
-      return
-    }
+    setModePref(restView)
+    if (isDesktop) return
     setHeightsChosen(false)
     setFullScreen(false)
     setTableHeight(DEFAULT_TABLE_HEIGHT)
     setChartHeight(DEFAULT_CHART_HEIGHT)
-    setModePref(restView)
   }, [restView, isDesktop])
   // The results' own height as rendered, which on a phone is how much map the
   // sheet covers. Observed rather than derived because everything anchored to

@@ -499,18 +499,31 @@ describe('useResultsLayout', () => {
     })
   })
 
-  it('opens the docked results on a desk to the view, keeping Both', () => {
+  // #850: a desk's Results and Chart steps switch the view as a phone's do,
+  // Both included, at the heights the reader had, and store nothing, so the
+  // view stays after the step and a press is still what a later visit opens.
+  it("switches a desk's docked results to the step's view from Both, storing nothing", () => {
+    const desk = { ...DESKTOP, response: {}, analysisSeq: 1 }
     const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
-      initialProps: DESKTOP,
+      initialProps: desk,
     })
-    act(() => result.current.chooseResultsMode('chart'))
+    act(() => result.current.chooseResultsMode('both'))
+    const bothChart = result.current.chartPanelPx
     act(() => result.current.toggleCollapsed())
-    rerender({ ...DESKTOP, restView: 'table' })
+    rerender({ ...desk, restView: 'table' })
     expect(result.current.resultsCollapsed).toBe(false)
     expect(result.current.resultsMode).toBe('table')
-    act(() => result.current.chooseResultsMode('both'))
-    rerender({ ...DESKTOP, restView: 'chart' })
-    expect(result.current.resultsMode).toBe('both')
+    expect(readViewPrefs().modeChosen).toBe('both')
+    rerender({ ...desk, restView: 'chart' })
+    expect(result.current.resultsMode).toBe('chart')
+    // Chart stands at the height Both gave it (#795).
+    expect(result.current.chartPanelPx).toBe(bothChart)
+    expect(readViewPrefs().modeChosen).toBe('both')
+    rerender({ ...desk, restView: null })
+    expect(result.current.resultsMode).toBe('chart')
+    expect(readViewPrefs().modeChosen).toBe('both')
+    const later = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: readViewPrefs().modeChosen }))
+    expect(later.result.current.resultsMode).toBe('both')
   })
 
   it('puts a dragged panel back on a double press', () => {
