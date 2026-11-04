@@ -3,7 +3,6 @@ import { act, renderHook } from '@testing-library/react'
 import { type ResultsLayoutInputs, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
 import {
-  DEFAULT_PANEL_HEIGHT,
   RESULTS_BAR_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
@@ -383,24 +382,33 @@ describe('useResultsLayout', () => {
     // there.
     it('resets the table alone from the divider in Both', () => {
       const { result } = phone({ modeChosen: 'both' })
+      const rest = { chart: result.current.chartPanelPx, table: result.current.tablePanelPx }
       drag(result, 'chartGrip', 100)
       drag(result, 'tableGrip', -60)
       const chart = result.current.chartPanelPx
-      expect(result.current.tablePanelPx).not.toBe(DEFAULT_PANEL_HEIGHT)
+      expect(result.current.tablePanelPx).not.toBe(rest.table)
       act(() => result.current.tableGrip.onReset())
-      expect(result.current.tablePanelPx).toBe(DEFAULT_PANEL_HEIGHT)
+      expect(result.current.tablePanelPx).toBe(rest.table)
       expect(result.current.chartPanelPx).toBe(chart)
+      // The map grip's double press puts the chart back alone the same way,
+      // and the table keeps the height it has.
+      drag(result, 'tableGrip', 40)
+      const table = result.current.tablePanelPx
+      act(() => result.current.chartGrip.onReset())
+      expect(result.current.chartPanelPx).toBe(rest.chart)
+      expect(result.current.tablePanelPx).toBe(table)
+      drag(result, 'chartGrip', 100)
       // At full screen the top cannot move, so the chart takes the
       // difference and the sheet stays full.
       drag(result, 'chartGrip', 2000)
       expect(result.current.overMapRows).toBe(true)
       const sum = result.current.chartPanelPx + result.current.tablePanelPx
       drag(result, 'tableGrip', -100)
-      expect(result.current.tablePanelPx).toBe(DEFAULT_PANEL_HEIGHT - 100)
+      expect(result.current.tablePanelPx).toBe(table - 100)
       act(() => result.current.tableGrip.onReset())
       expect(result.current.overMapRows).toBe(true)
-      expect(result.current.tablePanelPx).toBe(DEFAULT_PANEL_HEIGHT)
-      expect(result.current.chartPanelPx).toBe(sum - DEFAULT_PANEL_HEIGHT)
+      expect(result.current.tablePanelPx).toBe(rest.table)
+      expect(result.current.chartPanelPx).toBe(sum - rest.table)
     })
 
     it("gives way to the tutorial's rest", () => {

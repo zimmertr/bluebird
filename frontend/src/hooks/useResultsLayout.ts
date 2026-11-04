@@ -338,16 +338,42 @@ export function useResultsLayout({
   // changes the chart's size, under a short column or after a long drag. The
   // map keeps whatever of that room the legend leaves.
   const chartAsBoth = isDesktop && resultsMode === 'chart'
+  // The floor the sheet rests on before any drag, which is the one a double
+  // press puts a panel back under.
+  const restFloorPx = isDesktop
+    ? dockedMapFloorPx(chartAsBoth ? 2 : gripCount, barMeasuredPx ?? undefined)
+    : heldFull
+      ? dragFloorPx
+      : restingMapFloorPx(gripCount)
+  // A map grip's drag runs on the full-screen floor for its length; the
+  // divider's does not, since it trades a fixed sum, and giving it that floor
+  // at the press let both panels grow to their stored heights under a
+  // finger that had not moved (the maintainer, 2026-11-03).
   const mapFloorPx = isDesktop
     ? heightsChosen
       ? undefined
-      : dockedMapFloorPx(chartAsBoth ? 2 : gripCount, barMeasuredPx ?? undefined)
-    : atFullScreen || isDragging
+      : restFloorPx
+    : atFullScreen || sheetDrag !== null
       ? fullFloorPx
-      : heightsChosen || heldFull
+      : heightsChosen
         ? dragFloorPx
-        : restingMapFloorPx(gripCount)
+        : restFloorPx
   const tableRoomPx = chartAsBoth && chartShowing ? PANEL_FLOOR_PX : 0
+  const panelOptions = {
+    chartShown: chartShowing,
+    tableShown: tableShowing && showTable,
+    availPx: usableH - tableRoomPx,
+  }
+  // The pair's heights at first load: what a double press on either grip in
+  // Both puts its own panel back to, the other keeping its height, so a
+  // press before any drag changes nothing and a reset after one moves one
+  // panel (the maintainer, 2026-11-03). The stored defaults are above a
+  // short phone's rest clamp, so the default is the clamped pair, not the
+  // stored number.
+  const restPx = resolvePanelHeights(DEFAULT_CHART_HEIGHT, DEFAULT_TABLE_HEIGHT, {
+    ...panelOptions,
+    mapMinPx: restFloorPx,
+  })
   // At full screen every panel asks for the whole screen, except Both's
   // chart, which keeps the reader's share so the table fills the rest. A
   // table under a phone's drag asks for the most the drag can reach; a chart
@@ -356,12 +382,7 @@ export function useResultsLayout({
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     sheetDrag?.panel === 'chart' || !(heldFull || (atFullScreen && resultsMode !== 'both')) ? chartHeight : usableH,
     sheetDrag?.panel === 'table' ? sheetDrag.ceilPx : heldFull || atFullScreen ? usableH : tableHeight,
-    {
-      chartShown: chartShowing,
-      tableShown: tableShowing && showTable,
-      availPx: usableH - tableRoomPx,
-      mapMinPx: mapFloorPx,
-    },
+    { ...panelOptions, mapMinPx: mapFloorPx },
   )
   // What the map│chart grip may not drag the chart over: the table while it
   // is rendered, which is the one thing that differs between Both and
@@ -569,7 +590,16 @@ export function useResultsLayout({
   }, [sheetDrag])
   const chartGrip: GripHandlers = {
     onReset: () => {
-      if (resultsMode === 'both') setTableHeight(tablePanelPx)
+      // In Both a double press puts the chart back alone, at its first-load
+      // height, and the table keeps its own (the maintainer, 2026-11-03: it
+      // put both back); the sheet's top moves by the difference, out of full
+      // screen if it stood there.
+      if (resultsMode === 'both') {
+        setChartHeight(restPx.chart)
+        setTableHeight(tablePanelPx)
+        setFullScreen(false)
+        return
+      }
       setChartHeight(DEFAULT_CHART_HEIGHT)
       // "Put it back" includes the resting height a phone
       // sheet opens at, which a drag had handed over, and a phone's Chart
@@ -612,19 +642,21 @@ export function useResultsLayout({
   // against the map exactly as the chart grip above does.
   const tableGrip: GripHandlers = {
     onReset: () => {
-      setTableHeight(DEFAULT_TABLE_HEIGHT)
       // In Both the grip is the divider, and a double press puts the table
-      // back alone (the maintainer, 2026-11-03: it reset both): the chart
-      // keeps its height and the sheet's top moves by the difference. At
-      // full screen the top cannot move, so the chart takes the difference
-      // and the sheet stays full. Alone, the grip is the map's, and the
-      // sheet goes back to its rest with the table.
+      // back alone, at its first-load height (the maintainer, 2026-11-03: it
+      // reset both, and then to a stored height a short phone never shows):
+      // the chart keeps its height and the sheet's top moves by the
+      // difference. At full screen the top cannot move, so the chart takes
+      // the difference and the sheet stays full. Alone, the grip is the
+      // map's, and the sheet goes back to its rest with the table.
       if (resultsMode === 'both') {
+        setTableHeight(restPx.table)
         setChartHeight(
-          fullScreen ? Math.max(PANEL_FLOOR_PX, chartPanelPx + tablePanelPx - DEFAULT_TABLE_HEIGHT) : chartPanelPx,
+          fullScreen ? Math.max(PANEL_FLOOR_PX, chartPanelPx + tablePanelPx - restPx.table) : chartPanelPx,
         )
         return
       }
+      setTableHeight(DEFAULT_TABLE_HEIGHT)
       setHeightsChosen(false)
       setFullScreen(false)
     },
