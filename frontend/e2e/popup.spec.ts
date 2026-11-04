@@ -66,7 +66,8 @@ test('an open popup marks whichever number the panel ranks by', async ({ page })
   // Which family and which column the bold number stands in.
   const marked = () =>
     popup.evaluate((el) => {
-      const bold = [...el.querySelectorAll<HTMLElement>('[data-popup-body] span')].filter(
+      // In a grid cell: a section's key and a row's key are semibold too.
+      const bold = [...el.querySelectorAll<HTMLElement>('[data-popup-body] td span')].filter(
         (s) => s.style.fontWeight === '600',
       )
       return bold.map((s) => {

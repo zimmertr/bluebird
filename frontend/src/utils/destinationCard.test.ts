@@ -807,7 +807,8 @@ describe("a spot card's sections", () => {
     expect(body(html)).toMatch(/Rain radar: Light precipitation .* NEXRAD radar: 10 min ago .*Snow depth: Very deep snow .* NOAA snow analysis: Oct 16, 2026, 5:00 AM/)
     expect(html.match(gap)).toHaveLength(1)
     expect(spotHtml(48.79012, -121.83211, [rain]).match(gap)).toBeNull()
-    expect(html).not.toContain('border-top:')
+    // The one rule left is the action foot's, under the body.
+    expect(html.match(/border-top:/g)).toHaveLength(1)
   })
 
   // A section that holds a failure has no time to give.
@@ -858,7 +859,8 @@ describe("a card's sections", () => {
   it('parts every section after the first by a gap, and rules none off', () => {
     expect(pendingWith([FIRE]).match(LATER)).toBeNull()
     expect(pendingWith([FIRE, CLOSURE, RADAR]).match(LATER)).toHaveLength(2)
-    expect(pendingWith([FIRE, CLOSURE, RADAR])).not.toContain('border-top:')
+    // The one rule left is the action foot's, under the body.
+    expect(pendingWith([FIRE, CLOSURE, RADAR]).match(/border-top:/g)).toHaveLength(1)
   })
 
   // A fire and a closure are warnings: the amber band and the table's own
