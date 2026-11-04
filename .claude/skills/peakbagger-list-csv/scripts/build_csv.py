@@ -1,6 +1,10 @@
-"""Write a Bluebird Forecast frontend/src/csv-examples/*.csv from peaks<lid>.json + coords<lid>.json.
+"""Write a Bluebird Forecast frontend/src/coordinate-lists/*.csv from peaks<lid>.json + coords<lid>.json.
 
-Row format mirrors frontend/src/csv-examples/washington-bulger-list.csv:
+The file is named for the list as the Example list menu reads it: the app offers every
+file in that directory, named by its file name without .csv, so --name is the
+maintainer-approved menu string (e.g. --name 'The Bulger List').
+
+Rows only, no headline, in the format every list there uses:
     Lat, Lon, Name
 ordered as the list page presents them (normally highest -> lowest).
 
@@ -12,17 +16,18 @@ fills the Elevation column itself (issue #207), so printing the list page's figu
 would only be a second number to disagree with the one on screen.
 
 Usage:
-  python3 build_csv.py <lid> <outdir> [--headline "# ..."] [--out name.csv]
+  python3 build_csv.py <lid> <outdir> --name '<Menu name>'
 """
 import json, os, sys
 
 lid, outdir = sys.argv[1], sys.argv[2]
 args = sys.argv[3:]
 
-
-def opt(flag):
-    return args[args.index(flag) + 1] if flag in args else None
-
+if '--name' not in args or args.index('--name') + 1 >= len(args):
+    sys.exit("--name '<Menu name>' is required: the file's name is the string the Example list menu shows.")
+name = args[args.index('--name') + 1].strip()
+if not name or '/' in name or name.endswith('.csv'):
+    sys.exit(f'--name {name!r} must be the menu string alone: no slash, no .csv.')
 
 meta = json.load(open(f'peaks{lid}.json'))
 peaks = meta['peaks']
@@ -34,10 +39,9 @@ if missing:
              + '\n  '.join(f'{p["name"]} (pid={p["pid"]})' for p in missing)
              + '\nRe-run fetch_coords.py, or resolve them by hand. Never guess a coordinate.')
 
-outfile = os.path.join(outdir, opt('--out') or f'{meta["slug"]}.csv')
-headline = opt('--headline') or f'# {meta["title"]} — ordered highest to lowest.'
+outfile = os.path.join(outdir, f'{name}.csv')
 
-lines = [headline]
+lines = []
 for p in peaks:
     lat, lon = coords[str(p['pid'])]
     lines.append(f'{lat:.6f}, {lon:.6f}, {p["name"]}')
