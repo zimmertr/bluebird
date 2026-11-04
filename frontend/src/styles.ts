@@ -3941,9 +3941,11 @@ export const CHART_PICKER = {
  * so a reader need not match the picker row to the panels by position. The
  * words are the picker's own option label. A chip rather than bare type, so a
  * line running under the letters never crosses them: the popup's `band`
- * fill, the label ink (`ink-soft`, the chart's axis colour) and the micro
- * step, quiet because the pickers above are the controls and this only
- * names. `leading-none` and `py-0.5` stand it 15px tall, the room the Now and
+ * fill, the strong ink (`ink`) and the micro step, quiet in size because the
+ * pickers above are the controls and this only names. It wore the label ink
+ * (`ink-soft`, the chart's axis colour) until TJ's review of #847 on
+ * 2026-11-03 picked the lab's strong ink instead. `leading-none` and
+ * `py-0.5` stand it 15px tall, the room the Now and
  * extreme labels move down by in a titled panel (`TITLE_HEIGHT_PX`,
  * `utils/chart/panelTitle.ts`). Its ink on the fill is pinned in both themes
  * in `styles.test.ts`. z 2, over the plot and under the hover card (z 3).
@@ -3961,7 +3963,7 @@ export const CHART_PICKER = {
  * label, keeps the label ink.
  */
 export const CHART_PANEL_TITLE = {
-  chip: `${MICRO_SIZE} text-ink-soft bg-band ${RADIUS.control} absolute z-[2] whitespace-nowrap px-1.5 py-0.5 leading-none select-none`,
+  chip: `${MICRO_SIZE} text-ink bg-band ${RADIUS.control} absolute z-[2] whitespace-nowrap px-1.5 py-0.5 leading-none select-none`,
   grab: `cursor-grab touch-none active:cursor-grabbing ${ACCENT.hoverText}`,
   ghost: `${CHART_CARD.card} pointer-events-none fixed left-0 top-0 ${LAYER.popover} flex flex-col origin-top-left opacity-85`,
   drop: 'pointer-events-none absolute z-[2] bg-accent',

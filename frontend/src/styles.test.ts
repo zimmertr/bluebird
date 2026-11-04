@@ -3228,22 +3228,22 @@ describe('the chart picker row', () => {
     expect(words(CHART_PICKER.target)).toEqual(['ring-2', 'ring-accent'])
   })
 
-  // A desk panel's title (#846; TJ 2026-11-03): the label ink on the popup's
+  // A desk panel's title (#846; TJ 2026-11-03): the strong ink on the popup's
   // band at the micro step, 15px tall, the height the chrome labels move
   // down by in a titled panel; a grab cursor and the accent hover ink on every
   // one but the first; the picker row's accent bar where a drag lands; and a ghost on the hover
   // card's surface over everything, that no hit test finds.
   it('names a desk panel in a quiet chip on the band, readable in both themes', () => {
     expect(words(CHART_PANEL_TITLE.chip)).toEqual(
-      expect.arrayContaining([MICRO_SIZE, 'text-ink-soft', 'bg-band', RADIUS.control, 'absolute', 'leading-none', 'py-0.5', 'select-none']),
+      expect.arrayContaining([MICRO_SIZE, 'text-ink', 'bg-band', RADIUS.control, 'absolute', 'leading-none', 'py-0.5', 'select-none']),
     )
     // 11px at `leading-none` and 2px of padding above and below.
     expect(11 + 2 * 2).toBe(TITLE_HEIGHT_PX)
     const ink = token(CHART_PANEL_TITLE.chip, 'text')
     const fill = token(CHART_PANEL_TITLE.chip, 'bg')
-    expect([ink, fill]).toEqual(['ink-soft', 'band'])
+    expect([ink, fill]).toEqual(['ink', 'band'])
     // Text owes 4.5:1, dark then light (band is a mix, painted as the browser mixes it).
-    expect([ratio(dark(ink), dark(fill)), ratio(light(ink), light(fill))]).toEqual([4.71, 7.89])
+    expect([ratio(dark(ink), dark(fill)), ratio(light(ink), light(fill))]).toEqual([10.05, 14.42])
     // The handle's hover ink on the same fill, dark then light.
     expect([ratio(dark('accent-ink'), dark(fill)), ratio(light('accent-ink'), light(fill))]).toEqual([5.69, 5.43])
     expect(words(CHART_PANEL_TITLE.grab)).toEqual(['cursor-grab', 'touch-none', 'active:cursor-grabbing', ...words(ACCENT.hoverText)])

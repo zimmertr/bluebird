@@ -774,8 +774,8 @@ divider, and a quiet glyph with its focus ring inside. Its twin on the left end 
 three or four panels: a 1px `edge` line, 3:1 or better on the panel, that turns accent on hover and while
 dragged, with a small three-dot grip at its middle on the panel's fill, and a 16px crossing that shows a dot, both rimmed in `edge` and one level quieter than the sheet's raised grip.
 `CHART_PANEL_TITLE` names each desk panel while two or more are drawn: the
-picker's option label in a 15px chip at the plot band's top left, the label
-ink on the popup's `band` token at the micro step (4.71:1 dark, 7.89:1
+picker's option label in a 15px chip at the plot band's top left, the strong
+`ink` on the popup's `band` token at the micro step (10.05:1 dark, 14.42:1
 light). Every title but the first takes a grab cursor and lights its words
 in the accent ink under the pointer, as every control does
 (`ACCENT.hoverText`), at 5.69:1 dark and 5.43:1 light on the band; a drag carries a
