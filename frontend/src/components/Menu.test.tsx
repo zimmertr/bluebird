@@ -423,9 +423,82 @@ describe('MenuSelect', () => {
   it('is a field named by its label and the value it shows', () => {
     render(<Select />)
     expect(field().getAttribute('aria-haspopup')).toBe('listbox')
-    expect(field().className).toBe(`${MENU_TRIGGER.field} w-14 text-left`)
+    expect(field().className).toBe(`${MENU_TRIGGER.field} w-14 text-center`)
     const name = field().getAttribute('aria-labelledby')!.split(' ').map((id) => document.getElementById(id)!.textContent)
     expect(name).toEqual(['Wind aggregate', 'Max'])
+  })
+
+  // A field whose value names no option (record 0263): it reads its
+  // placeholder, named by its label and that word as by its label and a
+  // value, no row is current, and a pick of the same row twice fires twice.
+  it('reads its placeholder while no option is current, and fires on every pick', async () => {
+    const onChange = vi.fn()
+    const { user } = render(
+      <MenuSelect
+        label="Peak list"
+        placeholder="Pick one"
+        value=""
+        options={[{ value: 'bulgers', label: 'The Bulger List' }]}
+        onChange={onChange}
+        className="w-14"
+      />,
+    )
+    const load = () => screen.getByRole('button', { name: 'Peak list Pick one' })
+    expect(load()).toBeTruthy()
+    await user.click(load())
+    expect(option('The Bulger List').getAttribute('aria-selected')).toBe('false')
+    await user.click(option('The Bulger List'))
+    await user.click(load())
+    await user.click(option('The Bulger List'))
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(load()).toBeTruthy()
+  })
+
+  // The Coordinate list field reads its own name at rest (record 0263): the name
+  // is said once, not once as the label and again as the placeholder, and a
+  // value that names an option is said after the label as before.
+  it('names a field once while its placeholder is its label', () => {
+    const props = {
+      label: 'Coordinate list',
+      placeholder: 'Coordinate list',
+      options: [{ value: 'bulgers', label: 'The Bulger List' }],
+      onChange: () => {},
+      className: 'w-14',
+    }
+    const { rerender } = render(<MenuSelect {...props} value="" />)
+    const named = (name: string) => screen.getByRole('button', { name })
+    expect(named('Coordinate list').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(1)
+    rerender(<MenuSelect {...props} value="bulgers" />)
+    expect(named('Coordinate list The Bulger List').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
+  })
+
+  // An option can stand apart from the ones before it under a hairline
+  // (#838, record 0263): the rule is no option, hidden from a screen reader,
+  // and the arrow keys walk from the row above it to the row below.
+  it('sets a divided option apart with a hairline the keyboard walks past', async () => {
+    const onChange = vi.fn()
+    const { user } = render(
+      <MenuSelect
+        label="Coordinate list"
+        placeholder="Coordinate list"
+        value=""
+        options={[
+          { value: 'bulgers', label: 'The Bulger List' },
+          { value: 'custom', label: 'Custom coordinates', divided: true },
+        ]}
+        onChange={onChange}
+        className="w-14"
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Coordinate list' }))
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['The Bulger List', 'Custom coordinates'])
+    const rule = option('Custom coordinates').previousElementSibling as HTMLElement
+    expect(rule.getAttribute('role')).toBeNull()
+    expect(rule.getAttribute('aria-hidden')).toBe('true')
+    expect(rule.className).toBe(MENU.divider)
+    expect(option('The Bulger List').previousElementSibling).toBeNull()
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('custom')
   })
 
   it('opens the one menu, the current value set semibold and no check mark', async () => {

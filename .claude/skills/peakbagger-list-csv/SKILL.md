@@ -1,22 +1,25 @@
 ---
 name: peakbagger-list-csv
-description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast csv-examples/*.csv files for the "Custom (CSV)" destination type. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list CSV (e.g. "create CSV list", "add the Bulgers/Home Court/Smoot list").
+description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast frontend/src/coordinate-lists/*.csv files, the lists the Coordinate list field under Coordinate search offers. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list CSV (e.g. "create CSV list", "add the Bulgers/Home Court/Smoot list").
 ---
 
 # Peakbagger list → Bluebird Forecast CSV
 
-Turns a peakbagger.com list (`list.aspx?lid=<N>`) into `csv-examples/<list-slug>.csv`, matching
-`csv-examples/washington-bulger-list.csv`. One CSV row per peak in the list — no sampling, no
-truncation.
+Turns a peakbagger.com list (`list.aspx?lid=<N>`) into `frontend/src/coordinate-lists/<Menu name>.csv`,
+matching `frontend/src/coordinate-lists/The Bulger List.csv`. One CSV row per peak in the list: no
+sampling, no truncation.
 
-**Row format** (mirrors `csv-examples/washington-bulger-list.csv` exactly):
+**The file name is the menu's string.** The Coordinate list field offers every file in that directory,
+named by its file name without `.csv`, alphabetically, so the name you give the file is a user-facing
+string. Agree it with the maintainer before building; the files already there show the style.
+
+**Row format** (mirrors `frontend/src/coordinate-lists/The Bulger List.csv` exactly):
 
 ```
-# <List Title> — ordered highest to lowest.
 46.851731, -121.760395, Mount Rainier
 ```
 
-One comment line (the list's title) and nothing else, no source or format notes, then
+Rows only: no headline, no comment line, no source or format notes, just
 `Lat, Lon, Name` in the list's own order. The name carries **no** list number: Bluebird
 Forecast ranks the rows and numbers them itself, so a `23.` prefix shows up as
 `1 23. Foobar Mountain` in the results table. It carries **no** elevation either: Bluebird
@@ -53,8 +56,8 @@ cd <scratchpad>
 python3 <SKILL_DIR>/scripts/fetch_list.py 5005 5045 21307
 ```
 
-Writes `peaks<lid>.json` per list and prints the peak count, title, derived filename slug, and
-whether the list is elevation-descending. **Sanity-check the count against the list's own
+Writes `peaks<lid>.json` per list and prints the peak count, title, and whether the list is
+elevation-descending. **Sanity-check the count against the list's own
 name** ("Top 100" should yield 100). If it doesn't match, the markup changed — inspect the HTML
 before going further rather than shipping a short list.
 
@@ -109,28 +112,37 @@ its `lid`, the target output path, the plausible lat/lon box for the region, an 
 ### 3. Build the CSV
 
 ```bash
-python3 <SKILL_DIR>/scripts/build_csv.py <lid> /path/to/repo/csv-examples
+python3 <SKILL_DIR>/scripts/build_csv.py <lid> /path/to/repo/frontend/src/coordinate-lists --name '<Menu name>'
 ```
 
-Derives the filename and the headline from the list title. Override with `--out name.csv` and
-`--headline '# ...'`. It **refuses to write** if any peak lacks coordinates — a partial file is
-never acceptable, so report the gap instead of working around the guard.
+`--name` is required: the maintainer-approved name as the menu will read it, which becomes
+`<Menu name>.csv`. Quote it in single quotes (zsh, and names carry spaces and apostrophes). The file
+is rows only. It **refuses to write** if any peak lacks coordinates, because a partial file is never
+acceptable, so report the gap instead of working around the guard.
 
 ### 4. Verify before reporting
 
 ```bash
-python3 <SKILL_DIR>/scripts/verify_csv.py <lid> /path/to/csv-examples/<slug>.csv \
+python3 <SKILL_DIR>/scripts/verify_csv.py <lid> '/path/to/repo/frontend/src/coordinate-lists/<Menu name>.csv' \
   --bbox 45.5 49.1 -124.8 -116.9      # Washington State; adjust per region
 ```
 
 Exits non-zero and lists every problem. It cross-checks each row's **name against
 `peaks<lid>.json`** (not just the file's shape), so a coordinate bound to the wrong peak or a
 dropped row is caught, and uses the list page's own elevations to check that the rows run highest
-to lowest — plus row-count, 6-decimal formatting, duplicate coordinate pairs, and the optional
-bounding box. The CSV itself carries no elevation to check.
+to lowest, plus no comment line, row-count, 6-decimal formatting, duplicate coordinate pairs, and
+the optional bounding box. The CSV itself carries no elevation to check.
 
 Then spot-check two or three peaks against their peak pages by eye. Sanity anchor: Mount
 Rainier is `46.851731, -121.760395`.
+
+### 5. Offer it in the app
+
+Nothing to edit. The Coordinate list field under Coordinate search offers every file in
+`frontend/src/coordinate-lists/` on the next build (#838, record 0263): `presetLists.ts` globs the
+directory, and `presetLists.test.ts` holds every file there to rows only, each of which parses. The
+file's name is what the menu shows, a user-facing string, so it is approved by the maintainer before
+the file lands (step 3). Credit the list's source in `NOTICES.md` beside the others.
 
 ## Conventions and gotchas
 
@@ -167,9 +179,9 @@ Rainier is `46.851731, -121.760395`.
 
 ## Files
 
-- `scripts/fetch_list.py` — list page → `peaks<lid>.json` (title, slug, ordered peaks)
+- `scripts/fetch_list.py` — list page → `peaks<lid>.json` (title, ordered peaks)
 - `scripts/fetch_coords.py` — peak pages → `coords<lid>.json` (cached, resumable, throttle-aware)
-- `scripts/build_csv.py` — both JSONs → `csv-examples/<slug>.csv` (refuses on missing coords)
+- `scripts/build_csv.py` — both JSONs → `frontend/src/coordinate-lists/<Menu name>.csv`, rows only (refuses on missing coords)
 - `scripts/verify_csv.py` — cross-checks the CSV against `peaks<lid>.json`; non-zero on problems
 
 All four are stdlib-only (they shell out to `curl`), so they need no venv and no `pip install`.
