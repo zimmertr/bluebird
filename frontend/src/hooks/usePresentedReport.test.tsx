@@ -98,6 +98,26 @@ describe('usePresentedReport', () => {
     expect(result.current.detailSort).toEqual({ key: 'precip_total_in', dir: 'asc' })
   })
 
+  // The tutorial's demonstration ranks by its own knobs (#850), whatever the
+  // reader set, and the reader's header sort waits under it for the tour's end.
+  it("ranks the demonstration by its own knobs and keeps the reader's header sort", () => {
+    let demoKnobs: PresentationKnobs | null = null
+    const tight: PresentationKnobs = { ...KNOBS, limit: 1 }
+    const { result, rerender } = renderHook(() => usePresentedReport(inputs({ liveKnobs: tight, demoKnobs })))
+    act(() => result.current.sortDetail('name', 'desc'))
+    expect(result.current.tableSort).toEqual({ key: 'name', desc: true })
+    demoKnobs = { sortBy: 'precip_total_in', sortDesc: true, limit: 200, constraints: NO_CONSTRAINTS }
+    rerender()
+    expect(names(result.current.results)).toEqual(['Mount Adams', 'Mount Baker', 'Mount Rainier'])
+    expect(result.current.rowCount).toBe('3 of 3')
+    expect(result.current.detailSort).toEqual({ key: 'precip_total_in', dir: 'desc' })
+    expect(result.current.tableSort).toEqual({ key: 'name', desc: true })
+    demoKnobs = null
+    rerender()
+    expect(names(result.current.results)).toEqual(['Mount Rainier'])
+    expect(result.current.detailSort).toEqual({ key: 'name', dir: 'desc' })
+  })
+
   it('lists a named place as pending until an analysis covers it', () => {
     const places = [place()]
     const before = renderHook(() => usePresentedReport(inputs({ places, analyzed: null, coverage: null })))

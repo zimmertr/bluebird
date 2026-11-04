@@ -60,6 +60,8 @@ interface ResultsSheetView {
     | 'sheetRef'
     | 'sheetRaised'
     | 'barRef'
+    | 'legendRef'
+    | 'roomHoldPx'
     | 'resultsCollapsed'
     | 'toggleCollapsed'
     | 'resultsMode'
@@ -110,6 +112,7 @@ interface ResultsSheetView {
  */
 export default function ResultsSheet({
   chartTooltipIndex = null,
+  chartTour,
   resultsView,
   showResults,
   isDesktop,
@@ -203,11 +206,15 @@ export default function ResultsSheet({
         <div
           ref={sheetRef}
           data-tour="results"
+          style={isDesktop && layout.roomHoldPx !== null ? { height: `${layout.roomHoldPx}px` } : undefined}
           className={
             isDesktop
               ? // On a layer of its own while a desk's panel moves (record 0216).
                 'flex flex-shrink-0 flex-col bg-panel' +
-                (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '')
+                (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '') +
+                // A press's panes move inside the height the results stood
+                // at, so the map holds still (#850).
+                (layout.roomHoldPx !== null ? ' overflow-hidden' : '')
               : // The sheet's surface runs under a phone's home indicator and
                 // its grip and header stand above it (record 0145). Never
                 // taller than the map: at full screen (#837) its panels are
@@ -258,6 +265,7 @@ export default function ResultsSheet({
               layout={layout}
               charts={charts}
               chartTooltipIndex={chartTooltipIndex}
+              chartTour={chartTour}
               tableView={tableView}
               report={report}
               pending={pending}

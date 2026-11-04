@@ -97,7 +97,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `MOTION` | Movement that answers an action and stops under a reduced-motion setting, at two speeds (#714): `menu` at 150ms for a menu or a card, a fade and a 4px slide from its trigger's side and back, with a closed card kept for its exit by `useExit`, and at 300ms `slide` for the phone's Controls sheet, `push` for the desk panel and `pane` for a results pane on a press or the collapse chevron, each naming the one property it moves. `progress` is the analysis card's bar (#687). `PANEL_MS` is the slower speed in numbers, for script that waits out a move. The tutorial wears no transition: at a desk its light and card glide in script (`glide` in `tour/place.ts`), and on a phone it cuts from card to card and stands every transition in the app down while it runs (`data-touring="cut"`, record [0214](decisions/0214-phone-tour-cuts-desk-tour-glides.md)) |
 | `DESK_PANEL` | The controls panel at a desk: a 360px column in the row beside the map, which stays in the row while shut and gives its width back through its left margin (`shut`), so the map's edge moves with the panel's (#714) |
 | `RESULTS_PANE` | A results pane at a desk, the chart or the table with its grip: a one-row grid frame, `1fr` open and `0fr` shut, around a body mounted at the press at the height it will stand at and kept, inert, while the pane is shut (#786), held to the results bar (`top`, the chart) or to the column's foot (`foot`, the table) (#714) |
-| `CHART_LEGEND` | The chart-only legend: one chip per charted line, two rows of chips at most, then it scrolls. At a desk it is a results pane of its own between the chart's and the table's, held to the foot, so Chart to Both shuts it as the table opens; on a phone it stands in the chart's box. Its tallest strip fits inside the table's floor, which a desk's Chart keeps free under the chart (#795) |
+| `CHART_LEGEND` | The chart-only legend: one chip per charted line, two rows of chips at most, then it scrolls. At a desk it is a results pane of its own between the chart's and the table's, held to the foot, so Chart to Both shuts it as the table opens; on a phone it stands in the chart's box. Its tallest strip fits inside the table's floor, which a desk's Chart keeps free under the chart (#795). Since #850 it stands inside the room a press hands the chart, measured |
 | `LAYOUT_HOLD` | What keeps one size while a desk's layout moves (#714): the map's box at the window's width or height, centred on its column, which clips it (`clip`); the table's box at the window's width and the chart at the width it had while the panel moves. `rest` is the map's box the rest of the time. `layer` puts what moves with the panel on a layer of its own while it moves: the panel, the map's column, the results and each pane's body (#786) |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself. 16px square around a 10px letter, the one size under the type floor (`GLYPH_SIZE`, private to `styles.ts`), which the strip's numerals in `SWATCH_RAMP_TICK` share |
@@ -953,6 +953,13 @@ Both shuts it as the table opens, and Chart sizes the chart the way Both does,
 keeping the table's floor free under it for the legend. No press between them
 draws the chart again (#795).
 Record: [0218](decisions/0218-chart-legend-is-a-pane.md)
+
+Since #850 a press keeps the results' height instead, and the chart is drawn
+again at its new size: the mode pressed takes the room the panes stood in,
+Chart's measured legend inside it, and Both splits it back the way it last
+split it. While the panes move, the results hold that height and the panes
+move inside it, so the map stands still.
+Record: [0271](decisions/0271-desk-press-keeps-the-results-height.md)
 
 ### Control width
 

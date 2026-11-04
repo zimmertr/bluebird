@@ -3,7 +3,7 @@ import { act, fireEvent, screen } from '@testing-library/react'
 import Tour from './Tour'
 import { GLIDE_FRAME_MS, GLIDE_MS, spotlight, spotPad, spotRadius } from './place'
 import { placeAt, render } from '../testSupport/render'
-import { anchorSelector, TOUR_ATTR, TOUR_STEPS } from '../utils/tourSteps'
+import { anchorSelector, TOUR_ATTR, TOUR_STEPS, type TourStep } from '../utils/tourSteps'
 
 // The overlay itself, rendered (#536). `Tour.test.ts` keeps the source checks
 // jsdom cannot make (no call scrolls an ancestor, which needs a page that
@@ -236,6 +236,28 @@ describe('Tour', () => {
     })
     panel.remove()
     expect(behaviors).toEqual(['smooth', 'instant'])
+  })
+
+  // The Panels card lights the chart's picker row and stands clear of the
+  // panels under it, as if its light framed them too (#850).
+  it('stands the card clear of what a step keeps it off', () => {
+    frames()
+    const row = anchor('row-under-test', { left: 0, top: 500, width: 1024, height: 30 }, '0px')
+    const panels = anchor('panels-under-test', { left: 0, top: 500, width: 1024, height: 260 }, '0px')
+    const step: TourStep = { anchor: 'row-under-test', spot: 'control', title: 'Row', text: 'A row.', place: 'map' }
+    const cardTop = (steps: readonly TourStep[]) => {
+      const { container, unmount } = render(<Tour steps={steps} index={0} onNext={vi.fn()} onPrev={vi.fn()} onEnd={vi.fn()} />)
+      const top = parseFloat((container.querySelector('[data-tour-card]') as HTMLElement).style.top)
+      unmount()
+      return top
+    }
+    const alone = cardTop([step])
+    const clear = cardTop([{ ...step, keepClear: 'panels-under-test' }])
+    row.remove()
+    panels.remove()
+    // Below the row on its own, over the panels; above both when kept clear.
+    expect(alone).toBeGreaterThan(500)
+    expect(clear).toBeLessThan(500)
   })
 
   // The root's attribute hides every scroll shadow while a tour runs (#696).

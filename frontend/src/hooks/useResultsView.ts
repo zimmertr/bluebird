@@ -18,10 +18,14 @@ export interface ResultsViewInputs {
   restView?: SinglePanel | null
   /** Hold a phone's sheet at its full stop (`useResultsLayout`'s `fullOverride`). */
   fullOverride?: boolean
+  /** Hold a desk's results at one taller room (`useResultsLayout`'s `tallResults`). */
+  tallResults?: boolean
   /** Whether a report is on screen. */
   showResults: boolean
   /** The committed response, null before the first analysis. */
   response: AnalyzeResponse | null
+  /** The reader's own, where `response` is the tutorial's demonstration (`useResultsLayout`'s `ownResponse`). */
+  ownResponse?: AnalyzeResponse | null
   /** The displayed rows. */
   results: DestinationResult[]
   /** The named destinations no analysis has covered yet. */
@@ -79,8 +83,10 @@ export function useResultsView({
   collapsedOverride = null,
   restView = null,
   fullOverride = false,
+  tallResults = false,
   showResults,
   response,
+  ownResponse = response,
   results,
   pending,
   detailSort,
@@ -120,10 +126,12 @@ export function useResultsView({
     safeBottomPx,
     showTable,
     response,
+    ownResponse,
     analysisSeq,
     collapsedOverride,
     restView,
     fullOverride,
+    tallResults,
   })
 
   // ── The comparison chart (#232) ───────────────────────────────────────────
