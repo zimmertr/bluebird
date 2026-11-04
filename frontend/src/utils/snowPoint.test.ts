@@ -26,6 +26,7 @@ import { fakeResponse, snowIdentify } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'
 import { updatedAt } from './popup/popupChrome'
 import type { GlacierCheck } from './glacierCell'
+import type { PointReading } from './pointReadout'
 
 // The ArcGIS error the service sometimes answers with a 200 (2026-10-16).
 const SERVICE_ERROR = {
@@ -324,6 +325,17 @@ describe('readSnowAt', () => {
     )
     expect(await reading?.later).toEqual(failedSnowSection(GLACIER_TITLE))
     warn.mockRestore()
+  })
+
+  // The tile under a pointer is decoded on its way to the click, so the
+  // card's first paint carries the snow's band (#832).
+  it('names the snow at once once the tile is decoded', async () => {
+    const tiles = held(bandColor(98))
+    expect(readSnowAt(tiles, AT, signal(), async () => READING, OFF_GLACIER)).toBeInstanceOf(Promise)
+    await tiles.pixel(SNOW_HELD_LAYER, AT.lng, AT.lat, snowTileZoom(AT.zoom))
+    const now = readSnowAt(tiles, AT, signal(), async () => READING, OFF_GLACIER)
+    expect(now).not.toBeInstanceOf(Promise)
+    expect((now as PointReading | null)?.section).toEqual(pendingSnowSection('Very deep snow', false))
   })
 
   it('reads nothing where the field painted nothing, and asks NOAA nothing', async () => {

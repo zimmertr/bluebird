@@ -57,6 +57,11 @@ export interface StubMapOptions {
   bounds?: { west: number; south: number; east: number; north: number }
   /** Whether a source reports its tiles loaded. Everything is, by default. */
   sourceLoaded?: (id: string) => boolean
+  /**
+   * Whether the camera is in the air, as under a flight, until the test
+   * fires `moveend`. At rest by default.
+   */
+  moving?: () => boolean
 }
 
 export function stubMap(opts: StubMapOptions = {}) {
@@ -190,6 +195,7 @@ export function stubMap(opts: StubMapOptions = {}) {
       getNorth: () => b.north,
     }),
     isSourceLoaded: (id: string) => opts.sourceLoaded?.(id) ?? true,
+    isMoving: () => opts.moving?.() ?? false,
     triggerRepaint: () => calls.push(['triggerRepaint']),
     refreshTiles: (id: string) => calls.push(['refreshTiles', id]),
     setStyle: (style: unknown, o?: unknown) => calls.push(['setStyle', style, o]),

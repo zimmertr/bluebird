@@ -24,6 +24,7 @@ import {
   readRadarAt,
 } from './radarPoint'
 import { heldTiles } from './heldTiles'
+import type { PointReading } from './pointReadout'
 import { storeHolding } from '../testSupport/heldTiles'
 import { markupText } from '../testSupport/markupText'
 
@@ -215,6 +216,18 @@ describe('readRadarAt', () => {
     expect(reading?.section.title).toBe('Moderate precipitation')
     expect(reading?.section.when).toBe('30 min ago')
     expect(reading?.later).toBeUndefined()
+  })
+
+  // The tile under a pointer is decoded on its way to the click, so the
+  // card's first paint carries the radar (#832).
+  it('answers at once once the tile is decoded', async () => {
+    const tiles = held(30)
+    const first = readRadarAt(tiles, 30, AT)
+    expect(first).toBeInstanceOf(Promise)
+    expect((await first)?.section.title).toBe('Moderate precipitation')
+    const now = readRadarAt(tiles, 30, AT)
+    expect(now).not.toBeInstanceOf(Promise)
+    expect((now as PointReading | null)?.section.title).toBe('Moderate precipitation')
   })
 
   it('reads nothing where the frame painted nothing', async () => {

@@ -49,7 +49,7 @@ import type * as maplibregl from 'maplibre-gl'
 import { mapCursor, pointTargetsToAsk, rankedTargets, type MapTarget } from '../utils/mapClick'
 import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody } from '../utils/popup/popupChrome'
 import { POPUP_FACE } from '../styles'
-import type { MapPoint, PointReading } from '../utils/pointReadout'
+import type { MapPoint, PointAnswer } from '../utils/pointReadout'
 import { FIT_MARGIN_PX, POPUP_PAN_MS, capHeight, figureOf, placePopup, type Point, type PopupSide, type Rect } from '../utils/popup/popupFit'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
@@ -115,18 +115,22 @@ export interface MapPointTarget {
    */
   paints(at: MapPoint): boolean | Promise<boolean>
   /**
-   * The layer's reading at this point, or null where it has nothing there. A
-   * rejection is a failed reading. `signal` aborts when the card closes.
+   * The layer's reading at this point, or null where it has nothing there:
+   * at once wherever the layer holds what it needs, which is what puts its
+   * section in the card's first paint (#832). A throw or a rejection is a
+   * failed reading. `signal` aborts when the card closes.
    */
-  read(at: MapPoint, signal: AbortSignal): Promise<PointReading | null>
+  read(at: MapPoint, signal: AbortSignal): PointAnswer
   /**
-   * The layer's section for a card already open, read again because what the
-   * layer shows under it changed: the radar's frame during playback (#748).
-   * It never takes the section off, so a point the layer no longer paints
-   * answers with what it shows there rather than null. A layer whose answer
-   * is the same question twice leaves it out and is read again instead.
+   * The layer's section for a card that already carries one, read again
+   * because what the layer shows under it changed: the radar's frame during
+   * playback (#748), whose answer at a point it no longer paints is what it
+   * shows there rather than null, or the snow's tiles arriving, whose answer
+   * is the reading the card already has rather than NOAA asked again. A layer
+   * whose answer is the same question twice leaves it out and is read again
+   * instead, as is every layer for a card that carries none of its section.
    */
-  refresh?(at: MapPoint, signal: AbortSignal): Promise<PointReading>
+  refresh?(at: MapPoint, signal: AbortSignal): PointAnswer
 }
 
 /** What a card may set for itself; everything else is the same for every card. */
@@ -179,11 +183,12 @@ export interface MapPopups {
   pointKinds(): MapTarget[]
   /**
    * One layer's reading at a point, or null where it is off or has nothing
-   * there. `again` is for a card already open, which a picture that changes
-   * answers with what it shows there rather than null (`refresh`). A failed
-   * reading rejects; `signal` is the card's, which aborts when it closes.
+   * there: at once where the layer can answer at once (`PointAnswer`).
+   * `again` is for a card that already carries the layer's section, which a
+   * picture that changes answers through its `refresh`. A failed reading
+   * throws or rejects; `signal` is the card's, which aborts when it closes.
    */
-  readPoint(kind: MapTarget, at: maplibregl.LngLatLike, signal: AbortSignal, again?: boolean): Promise<PointReading | null>
+  readPoint(kind: MapTarget, at: maplibregl.LngLatLike, signal: AbortSignal, again?: boolean): PointAnswer
   /** Hear of a point target whose picture or features changed (`refreshPoint`), to read every open card again. */
   onPointChange(listen: (kind: MapTarget) => void): void
   /**
@@ -422,7 +427,7 @@ export function mountMapPopups(
     pointKinds() {
       return pointsOn().map((p) => p.target)
     },
-    async readPoint(kind, at, signal, again = false) {
+    readPoint(kind, at, signal, again = false) {
       const target = points.find((p) => p.target === kind)
       if (!target?.shown()) return null
       const point = pointOf(lngLatOf(at))

@@ -70,7 +70,7 @@ export function mountSmoke(
     target: 'smoke',
     shown: () => showing,
     paints: () => false,
-    read: async (at) => {
+    read: (at) => {
       const section = held && smokeSectionAt(held, at)
       return section ? { section } : null
     },

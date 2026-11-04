@@ -89,6 +89,20 @@ export interface PointReading {
 }
 
 /**
+ * A layer's reading at a point, or null where it has nothing there: at once
+ * where it holds what it needs, as a hazard layer always does and a picture
+ * does once its tile is decoded, and as a promise otherwise. At once is what
+ * puts a section in a card's first paint, where the card is fitted whole,
+ * rather than landing on it a moment later (#832).
+ */
+export type PointAnswer = PointReading | null | Promise<PointReading | null>
+
+/** `f` of a value now, or of a promised one once it settles, staying synchronous where the value is. */
+export function whenReady<T, U>(value: T | Promise<T>, f: (value: T) => U): U | Promise<U> {
+  return value instanceof Promise ? value.then(f) : f(value)
+}
+
+/**
  * The one door the two pictures reach their hosts through: the radar's and
  * the snow's tiles (`map/heldTileProtocol.ts`) and the snow's `identify`.
  * Neither host is this app's API, so `apiFetch`'s translation of an

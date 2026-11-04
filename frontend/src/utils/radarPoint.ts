@@ -24,8 +24,8 @@
  * rate on the card is an estimate from the reflectivity alone
  * ({@link rainRateInPerHour}), and `docs/DATA.md` says what it cannot know.
  */
-import type { HeldTiles, Rgba } from './heldTiles'
-import { inBounds, type PointReading, type PointSection } from './pointReadout'
+import { heldPixel, type HeldTiles, type Rgba } from './heldTiles'
+import { inBounds, whenReady, type PointAnswer, type PointSection } from './pointReadout'
 import { ageAgo, escapeHtml, row } from './popup/popupChrome'
 import { RADAR_EXTENTS, RADAR_ROW_LABEL } from './radar'
 import { clamp } from './numbers'
@@ -274,24 +274,26 @@ export function radarPaints(
 /**
  * The radar's reading at a point on the frame on screen, or null where that
  * frame painted nothing. Every value is in the pixel, so nothing is asked of
- * anyone and the reading is whole at once.
+ * anyone and the reading is whole at once: synchronous where the tile is
+ * decoded, as the one under a pointer is by the time it clicks.
  */
-export async function readRadarAt(
+export function readRadarAt(
   tiles: HeldTiles,
   offsetMin: number,
   { lng, lat, zoom }: { lng: number; lat: number; zoom: number },
-): Promise<PointReading | null> {
-  const dbz = await heldDbz(tiles, offsetMin, { lng, lat, zoom })
-  return dbz === null ? null : { section: radarSection(dbz, offsetMin) }
+): PointAnswer {
+  return whenReady(heldDbz(tiles, offsetMin, { lng, lat, zoom }), (dbz) =>
+    dbz === null ? null : { section: radarSection(dbz, offsetMin) },
+  )
 }
 
 /**
- * The radar's section at a point for a card already open, read again when the
- * frame on screen changes (#748), and again as each of that frame's tiles
- * arrives (#752). A frame that painted nothing there, or whose tiles have not
- * arrived, answers the no-echo section rather than closing the card: the map
- * shows no echo at the point either, so that is what the card says until a
- * tile says otherwise.
+ * The radar's section at a point for a card that already carries one, read
+ * again when the frame on screen changes (#748), and again as each of that
+ * frame's tiles arrives (#752). A frame that painted nothing there, or whose
+ * tiles have not arrived, answers the no-echo section rather than taking the
+ * section off: the map shows no echo at the point either, so that is what the
+ * card says until a tile says otherwise.
  */
 export async function rereadRadarAt(
   tiles: HeldTiles,
@@ -303,11 +305,11 @@ export async function rereadRadarAt(
 }
 
 /** The reflectivity one frame painted at a point, or null where it painted nothing. */
-async function heldDbz(
+function heldDbz(
   tiles: HeldTiles,
   offsetMin: number,
   { lng, lat, zoom }: { lng: number; lat: number; zoom: number },
-): Promise<number | null> {
+): number | null | Promise<number | null> {
   if (!RADAR_EXTENTS.some((box) => inBounds(lng, lat, box))) return null
-  return dbzOfHeld(await tiles.pixel(radarHeldLayer(offsetMin), lng, lat, radarTileZoom(zoom)))
+  return whenReady(heldPixel(tiles, radarHeldLayer(offsetMin), lng, lat, radarTileZoom(zoom)), dbzOfHeld)
 }

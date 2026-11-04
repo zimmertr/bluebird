@@ -138,7 +138,7 @@ export function mountClosures(
     target,
     shown: () => showing,
     paints: () => false,
-    read: async (at) => {
+    read: (at) => {
       const section = held && closureSectionAt(held, kind, at)
       return section ? { section } : null
     },

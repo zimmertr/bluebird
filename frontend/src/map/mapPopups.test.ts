@@ -590,6 +590,15 @@ describe('mountMapPopups point targets', () => {
     expect(snow.read).toHaveBeenCalledTimes(1)
   })
 
+  // A hazard answers from the features it holds, so its section is in the
+  // card's first paint rather than a frame after it (#832).
+  it('answers at once for a layer that answers at once', () => {
+    const { popups } = setup()
+    point(popups, 'fire', { read: () => whole('fire', 'Bolt Creek') })
+    expect(popups.readPoint('fire', [-121.5, 47.5], signal())).toEqual(whole('fire', 'Bolt Creek'))
+    expect(popups.readPoint('smoke', [-121.5, 47.5], signal())).toBeNull()
+  })
+
   // The card warns and carries on without it.
   it('hands a failed reading back as a rejection', async () => {
     const { popups } = setup()

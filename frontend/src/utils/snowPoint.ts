@@ -38,8 +38,8 @@
  *   shape is asked once more before the card says it failed. Once rather than
  *   on a schedule, because the reader's next click is the next attempt.
  */
-import type { HeldTiles, Rgba } from './heldTiles'
-import { inBounds, layerFetch, type PointReading, type PointSection } from './pointReadout'
+import { heldPixel, type HeldTiles, type Rgba } from './heldTiles'
+import { inBounds, layerFetch, whenReady, type PointAnswer, type PointSection } from './pointReadout'
 import { escapeHtml, pendingValue, row, updatedAt } from './popup/popupChrome'
 import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_ROW_LABEL, SNOW_SERVICE_URL } from './snowDepth'
 import { GLACIERS, type GlacierCheck } from './glacierCell'
@@ -266,31 +266,34 @@ export async function fetchSnowAt(lng: number, lat: number, signal: AbortSignal)
 
 /**
  * The snow's reading at a point, or null where the field painted nothing:
- * named at once from the held tile, its values asked of NOAA for `later`,
- * which settles to the failure line if NOAA cannot answer and rejects only
- * when `signal` says the card is gone.
+ * named from the held tile, at once where it is decoded and once it is
+ * otherwise, its values asked of NOAA for `later`, which settles to the
+ * failure line if NOAA cannot answer and rejects only when `signal` says the
+ * reading is no longer wanted.
  */
-export async function readSnowAt(
+export function readSnowAt(
   tiles: HeldTiles,
   { lng, lat, zoom }: { lng: number; lat: number; zoom: number },
   signal: AbortSignal,
   fetchReading: typeof fetchSnowAt = fetchSnowAt,
   glaciers: GlacierCheck = GLACIERS,
-): Promise<PointReading | null> {
+): PointAnswer {
   if (!inBounds(lng, lat, SNOW_BOUNDS)) return null
-  const word = snowWordOfPixel(await tiles.pixel(SNOW_HELD_LAYER, lng, lat, snowTileZoom(zoom)))
-  if (word === null) return null
-  // A cell whose glacier tiles are in hand is named at once; one whose are
-  // not opens with a bar for its name and takes it with its numbers.
-  const known = glaciers.now(lng, lat)
-  const onGlacier = known ?? glaciers.ask(lng, lat, signal).catch(() => false)
-  const later = Promise.all([fetchReading(lng, lat, signal), onGlacier]).then(
-    ([reading, glacier]) => snowSection(word, reading, glacier),
-    async (err: unknown) => {
-      if (signal.aborted) throw err
-      console.warn('The snow reading failed', err)
-      return failedSnowSection((await onGlacier) ? GLACIER_TITLE : word)
-    },
-  )
-  return { section: pendingSnowSection(word, known), later }
+  return whenReady(heldPixel(tiles, SNOW_HELD_LAYER, lng, lat, snowTileZoom(zoom)), (pixel) => {
+    const word = snowWordOfPixel(pixel)
+    if (word === null) return null
+    // A cell whose glacier tiles are in hand is named at once; one whose are
+    // not opens with a bar for its name and takes it with its numbers.
+    const known = glaciers.now(lng, lat)
+    const onGlacier = known ?? glaciers.ask(lng, lat, signal).catch(() => false)
+    const later = Promise.all([fetchReading(lng, lat, signal), onGlacier]).then(
+      ([reading, glacier]) => snowSection(word, reading, glacier),
+      async (err: unknown) => {
+        if (signal.aborted) throw err
+        console.warn('The snow reading failed', err)
+        return failedSnowSection((await onGlacier) ? GLACIER_TITLE : word)
+      },
+    )
+    return { section: pendingSnowSection(word, known), later }
+  })
 }

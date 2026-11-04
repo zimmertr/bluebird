@@ -87,7 +87,7 @@ export function mountWildfires(
     target: 'fire',
     shown: () => showing,
     paints: () => false,
-    read: async (at) => {
+    read: (at) => {
       const section = held && wildfireSectionAt(held, at)
       return section ? { section } : null
     },

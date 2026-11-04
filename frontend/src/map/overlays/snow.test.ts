@@ -1,7 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { SNOW_OPACITY, mountSnow, snowBeneath } from './snow'
 import { SNOW_HELD_URL, SNOW_LAYER_ID, SNOW_SOURCE_ID, SNOW_TILE_SIZE } from '../../utils/snowDepth'
-import { SNOW_HELD_LAYER, snowTileZoom } from '../../utils/snowPoint'
+import {
+  SNOW_HELD_LAYER,
+  failedSnowSection,
+  pendingSnowSection,
+  snowSection,
+  snowTileZoom,
+} from '../../utils/snowPoint'
+import type { PointReading } from '../../utils/pointReadout'
 import { storeHolding } from '../../testSupport/heldTiles'
 import { fakeMapPopups } from '../../testSupport/fakeMapPopups'
 import { stubMap } from '../../testSupport/stubMap'
@@ -100,5 +107,69 @@ describe('mountSnow click reading', () => {
     snow.update({ show: true })
     snow.update({ show: false })
     expect(await points[0].paints(AT)).toBe(false)
+  })
+})
+
+// A card open when the field came on read nothing there, and read the snow
+// again only when the field went off, so its section never came (#832).
+describe('mountSnow and the open cards', () => {
+  const AT = { lng: -121.76, lat: 46.85, zoom: 11 }
+  const signal = () => new AbortController().signal
+
+  it('asks the open cards to read it again as each of its tiles arrives', () => {
+    const stub = stubMap({ layers: [SMOKE_FIRST] })
+    const { popups, refreshed } = fakeMapPopups()
+    const snow = mountSnow(stub.map, { popups })
+    stub.fire('sourcedata', undefined, { sourceId: SNOW_SOURCE_ID, tile: {} })
+    expect(refreshed).toEqual([])
+    snow.update({ show: true })
+    stub.fire('sourcedata', undefined, { sourceId: SNOW_SOURCE_ID, tile: {} })
+    expect(refreshed).toEqual(['snow'])
+    // Another source's tile, or the source's own news with no tile in it.
+    stub.fire('sourcedata', undefined, { sourceId: 'radar-0', tile: {} })
+    stub.fire('sourcedata', undefined, { sourceId: SNOW_SOURCE_ID })
+    expect(refreshed).toEqual(['snow'])
+  })
+
+  // Each arriving tile reads every open card again; NOAA is asked once a
+  // point, and a card keeps the numbers it shows rather than a row of bars.
+  it('answers a point it has read with that reading, settled, and asks NOAA once', async () => {
+    const final = snowSection('Deep snow', { depthIn: 40, sweIn: 12, validMs: Date.UTC(2026, 10, 3, 13) })
+    const readAt = vi.fn(() => ({ section: pendingSnowSection('Deep snow', false), later: Promise.resolve(final) }))
+    const { popups, points } = fakeMapPopups()
+    const snow = mountSnow(stubMap({ layers: [SMOKE_FIRST] }).map, { popups, readAt })
+    snow.update({ show: true })
+    const first = points[0].read(AT, signal()) as PointReading
+    await first.later
+    expect(points[0].refresh!(AT, signal())).toEqual({ section: final })
+    expect(points[0].read(AT, signal())).toEqual({ section: final })
+    expect(readAt).toHaveBeenCalledTimes(1)
+    // Switched off and on, the field is a new picture, asked again.
+    snow.update({ show: false })
+    snow.update({ show: true })
+    points[0].read(AT, signal())
+    expect(readAt).toHaveBeenCalledTimes(2)
+  })
+
+  // The reader's next click is the next attempt; a tile arriving is not one.
+  it('asks NOAA again for a failed point on a new card, and not as tiles arrive', async () => {
+    const failed = failedSnowSection('Deep snow')
+    const readAt = vi.fn(() => ({ section: pendingSnowSection('Deep snow', false), later: Promise.resolve(failed) }))
+    const { popups, points } = fakeMapPopups()
+    mountSnow(stubMap({ layers: [SMOKE_FIRST] }).map, { popups, readAt }).update({ show: true })
+    await (points[0].read(AT, signal()) as PointReading).later
+    expect(points[0].refresh!(AT, signal())).toEqual({ section: failed })
+    expect(readAt).toHaveBeenCalledTimes(1)
+    points[0].read(AT, signal())
+    expect(readAt).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps nothing where the field painted nothing', () => {
+    const readAt = vi.fn(() => null)
+    const { popups, points } = fakeMapPopups()
+    mountSnow(stubMap({ layers: [SMOKE_FIRST] }).map, { popups, readAt }).update({ show: true })
+    expect(points[0].read(AT, signal())).toBeNull()
+    expect(points[0].refresh!(AT, signal())).toBeNull()
+    expect(readAt).toHaveBeenCalledTimes(2)
   })
 })

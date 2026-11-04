@@ -121,7 +121,7 @@ export function mountFireActivity(
     target: 'fire-activity',
     shown: () => showing,
     paints: () => false,
-    read: async (at) => {
+    read: (at) => {
       const section = held && hotspotSectionAt(held, at, now())
       return section ? { section } : null
     },

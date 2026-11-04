@@ -167,8 +167,12 @@ function fakeGround() {
   return { ground, land, at: () => state }
 }
 
-function setup({ searchedPlaces = [] as Place[], ground = undefined as GroundReadings | undefined } = {}) {
-  const stub = stubMap({ canvasWidth: 1280, canvasHeight: 900, zoom: MAP_ZOOM })
+function setup({
+  searchedPlaces = [] as Place[],
+  ground = undefined as GroundReadings | undefined,
+  moving = undefined as (() => boolean) | undefined,
+} = {}) {
+  const stub = stubMap({ canvasWidth: 1280, canvasHeight: 900, zoom: MAP_ZOOM, moving })
   const inputs = mapInputs({
     results: [ADAMS, RAINIER],
     searchedPlaces,
@@ -430,7 +434,7 @@ describe('sections', () => {
   function layer(
     board: ReturnType<typeof setup>['board'],
     kind: PointSection['kind'],
-    read: (signal: AbortSignal) => Promise<PointReading | null>,
+    read: (signal: AbortSignal) => PointReading | null | Promise<PointReading | null>,
     { shown = () => true, refresh }: { shown?: () => boolean; refresh?: () => Promise<PointReading> } = {},
   ) {
     const spy = vi.fn((_at: MapPoint, signal: AbortSignal) => read(signal))
@@ -653,6 +657,80 @@ describe('sections', () => {
     expect(popups[0].body.style.maxHeight).toBe('120px')
     expect(cap).toHaveBeenCalledTimes(1)
     expect(popups[0].sets.length).toBeGreaterThan(2)
+  })
+
+  // A section that answers at once is in the markup the fit measured, so the
+  // card is placed whole and nothing pops in under the reader (TJ,
+  // 2026-11-03). Asked after the card opened, every section landed a frame
+  // later on a card fitted without it.
+  it("draws every section that answers at once in the card's first paint", () => {
+    const { cards, board } = setup()
+    layer(board, 'fire', () => ({ section: section('fire', 'Wildfires', 'Bolt Creek') }))
+    layer(board, 'snow', () => ({ section: SNOW }))
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    const card = popups[popups.length - 1]
+    expect(card.sets).toHaveLength(1)
+    expect(card.sets[0].html).toContain('Wildfires: Bolt Creek')
+    expect(card.sets[0].html).toContain('Snow depth: Deep snow')
+  })
+
+  // Two clicks on one table row open one card.
+  it('opens the same card twice on the same point', () => {
+    const { cards, board } = setup()
+    layer(board, 'fire', () => ({ section: section('fire', 'Wildfires', 'Bolt Creek') }))
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude], { pan: false })
+    board.closeAll()
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude], { pan: false })
+    expect(popups[popups.length - 1].sets[0].html).toBe(popups[0].sets[0].html)
+  })
+
+  // A table row's card rides its flight, and its point is anywhere along the
+  // way until the flight lands: a cap measured mid-flight left the body at its
+  // floor, or nothing at all on a card that then grew past the map's top.
+  it('caps a card that grew in the air where the move leaves it', async () => {
+    let moving = true
+    const { cards, board, stub } = setup({ moving: () => moving })
+    const cap = vi.spyOn(board, 'bodyCap').mockReturnValue(140)
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    cards.open(SPOT, [SPOT.lon, SPOT.lat], { pan: false })
+    await settle()
+    expect(popups[0].html).toContain('Rain radar')
+    expect(cap).not.toHaveBeenCalled()
+    expect(popups[0].body.style.maxHeight).toBeUndefined()
+    moving = false
+    stub.fire('moveend')
+    expect(cap).toHaveBeenCalledTimes(1)
+    expect(popups[0].body.style.maxHeight).toBe('140px')
+    // Its own listener goes with the move it waited for.
+    stub.fire('moveend')
+    expect(cap).toHaveBeenCalledTimes(1)
+  })
+
+  // The radar answers a frame with no echo under a card that had one with
+  // the no-echo line (#748), and a dry point with nothing at all. A card that
+  // carried no radar is asked as an opening one is, so a card open while the
+  // radar came on says what one opened after it does.
+  it("reads a layer through its refresh only on a card that carries the layer's section", async () => {
+    const { cards, board } = setup()
+    let wet = false
+    const radar = layer(board, 'radar', async () => (wet ? { section: RAIN } : null), {
+      refresh: async () => ({ section: section('radar', 'Rain radar', 'No echo') }),
+    })
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    await settle()
+    board.refreshPoint('radar')
+    await settle()
+    expect(radar.refresh).not.toHaveBeenCalled()
+    expect(radar.read).toHaveBeenCalledTimes(2)
+    expect(popups[0].html).not.toContain('Rain radar')
+    wet = true
+    board.refreshPoint('radar')
+    await settle()
+    expect(popups[0].html).toContain('Rain radar: Light precipitation')
+    board.refreshPoint('radar')
+    await settle()
+    expect(radar.refresh).toHaveBeenCalledTimes(1)
+    expect(popups[0].html).toContain('Rain radar: No echo')
   })
 
   it('caps nothing where the card still stands whole', async () => {
