@@ -134,6 +134,17 @@ interface Card {
   capping: boolean
   /** The body height the reader had chosen when it opened, which a later cap keeps under. */
   roof: number | null
+  /**
+   * Where a card opened ahead of a table row's flight stands in its one
+   * re-fit (TJ, 2026-11-04): `flying` until the flight lands, `landed` from
+   * then until the re-fit or the map's next move, and null for every other
+   * card and once the re-fit is spent.
+   */
+  landing: 'flying' | 'landed' | null
+  /** Whether its markup changed during the flight, so it re-fits as it lands. */
+  grew: boolean
+  /** What else it was fitted around, which its re-fit is fitted around too. */
+  avoid: readonly Rect[]
 }
 
 // What each kind of card is closed by, when a click elsewhere or an overlay
@@ -230,6 +241,8 @@ export function mountDestinationCards(
     e.preventDefault()
     e.stopPropagation()
     handle.setPointerCapture(e.pointerId)
+    // The reader sizes the card now, so no re-fit undoes it.
+    card.landing = null
     const el = card.popup.getElement()
     const width0 = el?.offsetWidth ?? 0
     const body0 = bodyOf(card)?.offsetHeight ?? 0
@@ -301,8 +314,11 @@ export function mountDestinationCards(
 
   // The card's markup as it stands, where it changed. A redraw that answers
   // something other than a press on the card leaves focus where it is:
-  // MapLibre moves focus into a popup whenever its content is set.
-  function write(card: Card, keepFocus = true) {
+  // MapLibre moves focus into a popup whenever its content is set. `grown`
+  // says what the map reads at the point landed, a layer's section or the
+  // ground, which is what a table row's card re-fits for; a fold or a press
+  // is the reader's and moves nothing.
+  function write(card: Card, keepFocus = true, grown = false) {
     if (!cards.includes(card)) return
     const html = htmlOf(card)
     if (html === card.html) return
@@ -319,12 +335,48 @@ export function mountDestinationCards(
     // capped where it stands; one capped already keeps its cap. While the
     // map moves, the point is somewhere along the way, as it is under a
     // table row's flight, and a cap measured there is a keyhole or nothing.
-    if (body && card.capped === null) {
+    // A table row's card that grows in its flight or after it lands is
+    // fitted again once instead (`land`).
+    if (card.landing === 'flying') card.grew ||= grown
+    else if (card.landing === 'landed' && grown) refit(card)
+    else if (body && card.capped === null) {
       if (map.isMoving()) capWhenStill(card)
       else card.capped = popups.bodyCap(card.popup, card.roof)
     }
     if (body && card.capped !== null) capPopupBody(body, card.capped)
     if (body) body.scrollTop = scrolled
+  }
+
+  // A table row's card opens before its flight, and the layers that fetch
+  // for the view the flight lands on (the hazards, the snow's tiles) answer
+  // only once it has: their sections join the card after the fit placed it
+  // (TJ, 2026-11-04). So the card fits again once, as it lands where it grew
+  // in the air, or at the first growth after, and the map's next move ends
+  // the wait, the card's place being the reader's from then on.
+  function land(card: Card) {
+    card.landing = 'flying'
+    const landed = () => {
+      map.off('moveend', landed)
+      if (!cards.includes(card) || card.landing !== 'flying') return
+      if (card.grew) {
+        refit(card)
+        return
+      }
+      card.landing = 'landed'
+      const moved = () => {
+        map.off('movestart', moved)
+        if (card.landing === 'landed') card.landing = null
+      }
+      map.on('movestart', moved)
+    }
+    map.on('moveend', landed)
+  }
+
+  // The one re-fit: the body measured afresh between the floor and the
+  // ceiling, the side and the pan the fit asks for, as `openCard` does.
+  function refit(card: Card) {
+    card.landing = null
+    card.capped = popups.refit(card.popup, { roof: card.roof, avoid: card.avoid })
   }
 
   // The cap a card that grew in the air takes where the move set it down.
@@ -361,12 +413,12 @@ export function mountDestinationCards(
       if (stale()) return
       if (reading === null) card.sections.delete(kind)
       else card.sections.set(kind, reading.section)
-      write(card)
+      write(card, true, true)
       reading?.later
         ?.then((section) => {
           if (stale()) return
           card.sections.set(kind, section)
-          write(card)
+          write(card, true, true)
         })
         .catch(() => {})
     }
@@ -399,10 +451,10 @@ export function mountDestinationCards(
     return now ? { kind: 'ranked', row: now, rank: shown.indexOf(now) + 1 } : { kind: 'ranked', row, rank: '' }
   }
 
-  function refresh() {
+  function refresh(grown = false) {
     for (const card of cards) {
       if (card.subject.kind === 'ranked') card.subject = rerank(card.subject.row)
-      write(card)
+      write(card, true, grown)
     }
   }
 
@@ -419,8 +471,8 @@ export function mountDestinationCards(
     return null
   }
 
-  ground?.onRead(refresh)
-  gridHeads.onResize(refresh)
+  ground?.onRead(() => refresh(true))
+  gridHeads.onResize(() => refresh())
   // A layer whose picture or features changed is read again by every card,
   // which takes its section off where it now has nothing or is off. Only a
   // card that carries the layer's section is asked through its `refresh`;
@@ -445,6 +497,9 @@ export function mountDestinationCards(
         seq: new Map(),
         capping: false,
         roof: chosen?.body ?? null,
+        landing: null,
+        grew: false,
+        avoid: avoid ?? [],
       }
       // Every layer that is on, asked for what it has here before the card
       // is drawn, so each that answers at once is in the markup the fit
@@ -462,6 +517,8 @@ export function mountDestinationCards(
       })
       card.popup = placed.popup
       card.capped = placed.capped
+      // A point given for where the card WILL stand is a flight to come.
+      if (markerAt) land(card)
       // The tutorial's marker step frames a ranked card (#536).
       if (subject.kind === 'ranked') placed.popup.getElement()?.setAttribute('data-tour', 'marker')
       cards.push(card)
@@ -479,7 +536,7 @@ export function mountDestinationCards(
       }
       return { popup: placed.popup, dx: placed.dx, dy: placed.dy }
     },
-    refresh,
+    refresh: () => refresh(),
     hasOpenRanked({ latitude, longitude }) {
       return cards.some(
         (c) => c.subject.kind === 'ranked' && c.subject.row.latitude === latitude && c.subject.row.longitude === longitude,

@@ -47,7 +47,7 @@
 import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import { mapCursor, pointTargetsToAsk, rankedTargets, type MapTarget } from '../utils/mapClick'
-import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody, cardWidthRange } from '../utils/popup/popupChrome'
+import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody, cardWidthRange, uncapPopupBody } from '../utils/popup/popupChrome'
 import { POPUP_FACE } from '../styles'
 import type { MapPoint, PointAnswer } from '../utils/pointReadout'
 import {
@@ -251,6 +251,17 @@ export interface MapPopups {
    * on the point as it changes; `setMaxWidth` runs the library's update.
    */
   sizeCard(popup: Popup, width: number): number
+  /**
+   * Fit an open card again where its point now stands, as `openCard` fits a
+   * new one: its body measured uncapped and capped between the floor and the
+   * ceiling (or under the reader's `roof`), its side the one the fit picks,
+   * and the map panned by the fit's move. For a table row's card whose
+   * sections joined during or after its flight, once it lands (TJ,
+   * 2026-11-04), so a card that grew stands whole rather than hanging off an
+   * edge or keeping a cap measured on the shorter card. Says the body's cap,
+   * or null.
+   */
+  refit(popup: Popup, options?: { roof?: number | null; avoid?: readonly Rect[] }): number | null
   /**
    * Open a card on the board, placed where it shows the most of itself
    * (#738): every card the map opens, a destination's, a fire's, a closure's
@@ -518,6 +529,30 @@ export function mountMapPopups(
       return { width: cardWidthRange(map.getCanvas().clientWidth), body: bodyBounds(regionNow()) }
     },
     sizeCard: sizeTo,
+    refit(popup, { roof = null, avoid = [] } = {}) {
+      const el = popup.getElement()
+      // Optional: a test's stub popup has no place on the map.
+      const at = popup.getLngLat?.()
+      if (!el || !at) return null
+      const body = el.querySelector?.<HTMLElement>(`[${POPUP_BODY_ATTR}]`) ?? null
+      if (body) uncapPopupBody(body)
+      const region = regionNow()
+      const point = map.project(at)
+      const standing = obstacles(avoid)
+      const measure = () => ({ width: el.offsetWidth, height: el.offsetHeight })
+      const capped = body ? openingBodyCap(point, measure(), body.offsetHeight, region, standing, roof) : null
+      if (body && capped !== null) capPopupBody(body, capped)
+      const placed = placePopup(point, measure(), region, standing)
+      // MapLibre reads a popup's side on every update, so the card turns in
+      // place and keeps its listeners and its place on the board, where a
+      // new card would be a second one for the reader to lose.
+      if (popup.options && popup.options.anchor !== placed.anchor) {
+        popup.options.anchor = placed.anchor
+        popup.setLngLat(at)
+      }
+      if (placed.dx !== 0 || placed.dy !== 0) map.panBy([-placed.dx || 0, -placed.dy || 0], { duration: POPUP_PAN_MS })
+      return capped
+    },
     openCard(at, html, { owner, result = false, markerAt, avoid = [], pan = true, size = null } = {}) {
       // Built hanging below its point, measured, and rebuilt above it only
       // when the fit says so, all before a frame is drawn, because MapLibre

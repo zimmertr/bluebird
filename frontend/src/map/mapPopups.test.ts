@@ -12,7 +12,7 @@ const { made, dom } = vi.hoisted(() => ({
 }))
 vi.mock('maplibre-gl', () => ({
   Popup: class {
-    state: { options: Record<string, unknown>; html: string; removed: boolean }
+    state: { options: Record<string, unknown>; html: string; removed: boolean; maxWidth?: string }
     options: Record<string, unknown>
     closers: (() => void)[] = []
     constructor(options: Record<string, unknown>) {
@@ -455,7 +455,7 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
   function standCard(chrome: number, natural: number) {
     const body = {
       style: {} as Record<string, string>,
-      classList: { add: () => {} },
+      classList: { add: () => {}, remove: () => {} },
       get offsetHeight() {
         const cap = parseFloat(this.style.maxHeight)
         return Number.isNaN(cap) ? natural : Math.min(natural, cap)
@@ -527,6 +527,31 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     standCard(40, 760)
     expect(popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 100, body: null } }).capped).toBe(750)
     expect(made[2].maxWidth).toBe('180px')
+  })
+
+  // A table row's card whose sections joined during or after its flight is
+  // fitted again where it landed (TJ, 2026-11-04): measured uncapped, capped
+  // between the bounds, turned to the side the fit picks, and panned.
+  it('fits an open card again where it stands: uncapped, capped, turned and panned', () => {
+    const below = mount(1280, 1000, { x: 640, y: 500 })
+    const { body } = standCard(40, 760)
+    // A cap measured on the shorter card, which the re-fit must not keep.
+    body.style.maxHeight = '100px'
+    const hanging = new Popup({ anchor: 'top' })
+    expect(below.popups.refit(hanging)).toBe(750)
+    expect(body.style.maxHeight).toBe('750px')
+    // 500 + 10 + 790 runs 308 past the map less its breath: the point rises.
+    expect(below.stub.calls.filter((c) => c[0] === 'panBy')).toEqual([['panBy', [0, 308], { duration: POPUP_PAN_MS }]])
+    expect(hanging.options.anchor).toBe('top')
+
+    // Standing above a point near the map's top, the card turns to hang
+    // below it, where it stands whole, and the map stays.
+    const above = mount(1280, 1000, { x: 640, y: 100 })
+    standCard(40, 760)
+    const turned = new Popup({ anchor: 'bottom' })
+    expect(above.popups.refit(turned, { roof: 400 })).toBe(400)
+    expect(turned.options.anchor).toBe('top')
+    expect(above.stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
   })
 
   it('says the bounds a drag sizes a card between, and sizes one to them', () => {

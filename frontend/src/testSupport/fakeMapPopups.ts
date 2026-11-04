@@ -26,6 +26,7 @@ export function fakeMapPopups() {
     openBare: vi.fn(),
     closeAll: (owner?: MapTarget) => closed.push(owner),
     bodyCap: () => null,
+    refit: () => null,
     cardBounds: () => ({ width: { min: 180, max: 780 }, body: { floor: 150, ceiling: 450 } }),
     sizeCard: (_popup: unknown, width: number) => width,
   } as unknown as MapPopups

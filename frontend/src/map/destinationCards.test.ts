@@ -24,7 +24,7 @@ const { popups, outlines } = vi.hoisted(() => ({
     // Each setHTML, with whether MapLibre would have moved focus for it.
     sets: { html: string; focus: unknown }[]
     gridArms: number
-    body: { scrollTop: number; offsetHeight: number; style: Record<string, string>; classList: { add: () => void } }
+    body: { scrollTop: number; offsetHeight: number; style: Record<string, string>; classList: { add: () => void; remove: () => void } }
     content: { style: Record<string, string>; classList: { add: () => void } }
     maxWidth?: string
     handle: Handle | null
@@ -63,7 +63,7 @@ vi.mock('maplibre-gl', () => ({
         folds: [],
         sets: [],
         gridArms: 0,
-        body: { scrollTop: 0, offsetHeight: 150, style: {}, classList: { add: () => {} } },
+        body: { scrollTop: 0, offsetHeight: 150, style: {}, classList: { add: () => {}, remove: () => {} } },
         content: { style: {}, classList: { add: () => {} } },
         handle: null,
       }
@@ -862,5 +862,93 @@ describe('sections', () => {
     const { cards: fresh } = setup()
     fresh.open(SPOT, [SPOT.lon, SPOT.lat])
     expect(popups[popups.length - 1].maxWidth).toBeUndefined()
+  })
+
+  // A table row's card opens before its flight, and the layers that fetch
+  // for the view it lands on answer only after it has (TJ, 2026-11-04): the
+  // card fits again once, as it lands where its sections joined in the air,
+  // or at the first that joins after, and never again.
+  describe('a card opened ahead of a flight', () => {
+    // A layer whose answer the test hands over when it chooses.
+    function later(board: ReturnType<typeof setup>['board'], kind: PointSection['kind'], answer: PointSection) {
+      let land: () => void = () => {}
+      layer(board, kind, () => new Promise<PointReading>((resolve) => (land = () => resolve({ section: answer }))))
+      return () => land()
+    }
+    const ROW = { kind: 'ranked', row: RAINIER, rank: 2 } as const
+    const AT: [number, number] = [RAINIER.longitude, RAINIER.latitude]
+
+    it('re-fits once, after it lands, when sections join it there', async () => {
+      let moving = true
+      const { cards, board, stub } = setup({ moving: () => moving })
+      const fit = vi.spyOn(board, 'refit').mockReturnValue(300)
+      const cap = vi.spyOn(board, 'bodyCap')
+      const fire = later(board, 'fire', section('fire', 'Active wildfire', 'Bolt Creek'))
+      const snow = later(board, 'snow', SNOW)
+      cards.open(ROW, AT, { markerAt: { x: 640, y: 450 }, pan: false })
+      moving = false
+      stub.fire('moveend')
+      // Nothing joined in the air, so the landing alone moves nothing.
+      expect(fit).not.toHaveBeenCalled()
+      fire()
+      await settle()
+      expect(markupText(popups[0].html)).toContain('Active wildfire: Bolt Creek')
+      expect(fit).toHaveBeenCalledTimes(1)
+      expect(fit).toHaveBeenCalledWith(expect.anything(), { roof: null, avoid: [] })
+      expect(popups[0].body.style.maxHeight).toBe('300px')
+      // One re-fit: the next section keeps the cap the re-fit set.
+      snow()
+      await settle()
+      expect(markupText(popups[0].html)).toContain('Snow depth: Deep snow')
+      expect(fit).toHaveBeenCalledTimes(1)
+      expect(cap).not.toHaveBeenCalled()
+      expect(popups[0].body.style.maxHeight).toBe('300px')
+    })
+
+    it('re-fits as it lands where sections joined in the air, and once', async () => {
+      let moving = true
+      const { cards, board, stub } = setup({ moving: () => moving })
+      const fit = vi.spyOn(board, 'refit').mockReturnValue(null)
+      const cap = vi.spyOn(board, 'bodyCap')
+      const radar = later(board, 'radar', RAIN)
+      cards.open(ROW, AT, { markerAt: { x: 640, y: 450 }, pan: false })
+      radar()
+      await settle()
+      expect(popups[0].html).toContain('Rain radar')
+      expect([fit.mock.calls.length, cap.mock.calls.length]).toEqual([0, 0])
+      moving = false
+      stub.fire('moveend')
+      expect(fit).toHaveBeenCalledTimes(1)
+      stub.fire('moveend')
+      expect(fit).toHaveBeenCalledTimes(1)
+    })
+
+    // The reader's own move ends the wait: the card's place is theirs.
+    it('leaves a card that grew after the next move to the cap where it stands', async () => {
+      const { cards, board, stub } = setup()
+      const fit = vi.spyOn(board, 'refit')
+      const cap = vi.spyOn(board, 'bodyCap').mockReturnValue(null)
+      const radar = later(board, 'radar', RAIN)
+      cards.open(ROW, AT, { markerAt: { x: 640, y: 450 }, pan: false })
+      stub.fire('moveend')
+      stub.fire('movestart')
+      radar()
+      await settle()
+      expect(popups[0].html).toContain('Rain radar')
+      expect(fit).not.toHaveBeenCalled()
+      expect(cap).toHaveBeenCalledTimes(1)
+    })
+
+    // A card clicked on the map has no flight to wait for.
+    it('never re-fits a card opened where it stands', async () => {
+      const { cards, board } = setup()
+      const fit = vi.spyOn(board, 'refit')
+      const radar = later(board, 'radar', RAIN)
+      cards.open(ROW, AT)
+      radar()
+      await settle()
+      expect(popups[0].html).toContain('Rain radar')
+      expect(fit).not.toHaveBeenCalled()
+    })
   })
 })

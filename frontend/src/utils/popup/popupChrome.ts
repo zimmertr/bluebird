@@ -796,6 +796,12 @@ export function capPopupBody(body: HTMLElement, maxHeightPx: number): void {
   body.style.maxHeight = `${Math.floor(maxHeightPx)}px`
 }
 
+/** Take a body's cap off, so it measures at its own height again for a fresh fit (`refit` in `map/mapPopups.ts`). */
+export function uncapPopupBody(body: HTMLElement): void {
+  body.classList.remove(POPUP_SCROLL_CLASS)
+  body.style.maxHeight = ''
+}
+
 /**
  * How wide a popup may get.
  *
