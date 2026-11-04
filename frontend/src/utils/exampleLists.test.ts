@@ -1,4 +1,3 @@
-import { readdirSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EXAMPLE_LISTS, exampleListIn, fetchExampleList, forgetExampleLists } from './exampleLists'
 import { parseCustomCsv } from './customDestinations'
@@ -12,7 +11,15 @@ const csvs = import.meta.glob('../coordinate-lists/*.csv', {
   eager: true,
   import: 'default',
 }) as Record<string, string>
-const files = readdirSync(new URL('../coordinate-lists/', import.meta.url)).filter((f) => f.endsWith('.csv'))
+// Every file the directory holds, whatever its ending, globbed apart from the
+// module's own glob so the menu is checked against the directory rather than
+// against itself.
+const everyFile = import.meta.glob('../coordinate-lists/*', {
+  query: '?raw',
+  eager: true,
+  import: 'default',
+}) as Record<string, string>
+const baseName = (path: string): string => path.slice(path.lastIndexOf('/') + 1)
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -24,8 +31,12 @@ describe('EXAMPLE_LISTS', () => {
   // The directory is the list (record 0263): the menu offers every file in
   // it, by its name, alphabetically.
   it('offers every file in the directory by its name, alphabetically', () => {
-    const names = files.map((f) => f.slice(0, -'.csv'.length)).sort((a, b) => a.localeCompare(b))
-    expect(names.length).toBeGreaterThan(0)
+    const files = Object.keys(everyFile).map(baseName)
+    expect(files.length).toBeGreaterThan(0)
+    for (const file of files) expect(file.endsWith('.csv'), file).toBe(true)
+    const names = files
+      .map((file: string) => file.slice(0, -'.csv'.length))
+      .sort((a: string, b: string) => a.localeCompare(b))
     expect(EXAMPLE_LISTS.map((l) => l.name)).toEqual(names)
     expect(Object.keys(csvs)).toHaveLength(files.length)
   })
@@ -33,7 +44,7 @@ describe('EXAMPLE_LISTS', () => {
   // The name lives in the file name, so a file carries rows and nothing else.
   it('carries no comment line in any list', () => {
     for (const [path, csv] of Object.entries(csvs)) {
-      expect(csv.split('\n').filter((line) => line.startsWith('#')), path).toEqual([])
+      expect(csv.split('\n').filter((line: string) => line.startsWith('#')), path).toEqual([])
     }
   })
 
@@ -41,7 +52,7 @@ describe('EXAMPLE_LISTS', () => {
   // skipped would be a peak the list promises and the analysis never sees.
   it('parses every row of every list to a place', () => {
     for (const [path, csv] of Object.entries(csvs)) {
-      const rows = csv.split('\n').filter((line) => line.trim() !== '')
+      const rows = csv.split('\n').filter((line: string) => line.trim() !== '')
       expect(rows.length, path).toBeGreaterThan(0)
       expect(parseCustomCsv(csv), path).toHaveLength(rows.length)
     }
