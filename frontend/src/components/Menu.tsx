@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react'
+import { Fragment, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import type { PopoverBox } from '../utils/listbox'
 import { nextActiveIndex, optionDomId } from '../utils/listbox'
@@ -137,6 +137,12 @@ export function MenuButton({ shape, open, chevron = true, chevronClassName, clas
 interface MenuOption<V extends string> {
   value: V
   label: string
+  /**
+   * A hairline over this option (`MENU.divider`), setting it and the ones
+   * after it apart from the ones before: the Preset list field's `Custom
+   * coordinates` under the lists (#838, record 0263).
+   */
+  divided?: boolean
 }
 
 interface MenuSelectProps<V extends string> {
@@ -155,8 +161,8 @@ interface MenuSelectProps<V extends string> {
   sheet?: boolean
   /**
    * What the field reads while `value` names no option: the Preset list
-   * field under Coordinate search reads its own name until a list is in the
-   * box (#838, record 0263). The field is named by its label and this, as by
+   * field under Coordinate search reads its own name while the box is shut
+   * and empty (#838, record 0263). The field is named by its label and this, as by
    * its label and a value. A placeholder that is the label names the field
    * once, or a screen reader would hear the name twice.
    */
@@ -279,19 +285,21 @@ export function MenuSelect<V extends string>({
             className={`${MENU.list} focus:outline-none`}
           >
             {options.map((option, i) => (
-              <div
-                key={option.value}
-                id={optionDomId(listId, option.value)}
-                role="option"
-                aria-selected={option.value === value}
-                onPointerEnter={() => setActive(i)}
-                onClick={() => pick(i)}
-                className={`${MENU.option} ${i === active ? MENU.active : ''} ${
-                  option.value === value ? MENU.current : ''
-                }`}
-              >
-                {option.label}
-              </div>
+              <Fragment key={option.value}>
+                {option.divided && <div aria-hidden="true" className={MENU.divider} />}
+                <div
+                  id={optionDomId(listId, option.value)}
+                  role="option"
+                  aria-selected={option.value === value}
+                  onPointerEnter={() => setActive(i)}
+                  onClick={() => pick(i)}
+                  className={`${MENU.option} ${i === active ? MENU.active : ''} ${
+                    option.value === value ? MENU.current : ''
+                  }`}
+                >
+                  {option.label}
+                </div>
+              </Fragment>
             ))}
           </div>
         </Menu>

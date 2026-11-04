@@ -623,6 +623,11 @@ describe('every component', () => {
     for (const use of uses) expect(use).toMatch(/\bborder-[trbl]\b/)
     // The menu's foot draws its own inside the design system now.
     expect(MENU.foot).toMatch(/\bborder-[trbl]\b/)
+    // So does the rule between two runs of a menu's options (#838), pulled
+    // out to the card's sides as far as the list stands in from them.
+    expect(MENU.divider).toMatch(/\bborder-t\b/)
+    expect(MENU.divider).toContain(SURFACE_DIVIDER)
+    expect(stepPx(MENU.divider, '-mx')).toBe(stepPx(MENU.list, 'px'))
   })
 
   // L6 used to fail any `title=` outright. Tooltips are now an approved LIST

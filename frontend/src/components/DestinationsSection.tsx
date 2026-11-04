@@ -1,20 +1,20 @@
-import { useId, useLayoutEffect, useRef } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { CustomDestination, DiscoveryType } from '../types'
 import {
   CHOICE_INPUT,
   CHOICE_ROW,
   DISABLED,
   DRAW_ROW,
-  FIELD,
   STATUS,
   TEXT,
 } from '../styles'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
-import { parseCustomCsv } from '../utils/customDestinations'
+import { parseCustomCsv, unreadLines } from '../utils/customDestinations'
 import { PRESET_LISTS, presetListIn, fetchPresetList } from '../utils/presetLists'
 import { MenuSelect } from './Menu'
+import CoordinateBox from './CoordinateBox'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
 import DrawReadout from './DrawReadout'
@@ -29,10 +29,21 @@ const AREA_NOTE_KM2 = 40_000
 
 // The coordinates box's placeholder: the format, then one row that follows
 // it, two lines for a box two rows tall so a reader sees that several rows go
-// in (the maintainer, 2026-10-13). The format is written as a "#" comment
-// because parseCustomCsv skips those, so it stays valid input if a paste ever
-// lands beneath it.
+// in (the maintainer, 2026-10-13). It stands in the box the Custom coordinates
+// pick opens, where the reader is about to type. The format is written as a
+// "#" comment because parseCustomCsv skips those, so it stays valid input if a
+// paste ever lands beneath it.
 const COORDINATES_PLACEHOLDER = '# Lat,Lon or Lat,Lon,Name\n46.8529,-121.7604,Mount Rainier'
+
+// The Preset list field's last option, which opens the box for the reader's
+// own rows. Its value is a word no list's URL can be: every list's is a path
+// to a hashed asset.
+const CUSTOM_COORDINATES = 'custom'
+
+// What the caption under the box adds while a line of it reads as no row
+// (record 0265): the gutter flags those lines and is hidden from a screen
+// reader, so the count in words is what tells one.
+const unreadTail = (lines: number) => (lines === 0 ? '' : `, ${lines} line${lines === 1 ? '' : 's'} not read`)
 
 // The Polygon row's first button, by what pressing it would do.
 const MODE_LABEL = { draw: 'Draw polygon', edit: 'Edit polygon', done: 'Done' } as const
@@ -129,27 +140,73 @@ export default function DestinationsSection({
   // true exactly when a change came from a paste — including a paste that
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
-  // A list picked from the Preset list field (#838, record 0263) replaces
-  // whatever the box holds, typed rows included, with nothing asked: the pick
-  // is the press that means it (the maintainer, 2026-11-03). The list frames
-  // the map as a paste does, since it arrives whole rather than typed. The
-  // keyboard stays where it was: a box that took it scrolled to its end and
-  // hid a line of the two it shows, so a click into the box is what places
-  // the cursor (the maintainer, 2026-11-03).
+  // The box stands only once something is in it or the reader asked for it
+  // (#838, record 0263): most readers pick a preset and never need the box,
+  // its format line or its mono type, so at rest the Preset list field is the
+  // whole of Coordinate search (the maintainer, 2026-11-03). `customOpen` is
+  // the asking: the Custom coordinates pick, or an edit, so the box does not
+  // vanish under a reader who deletes every row by hand. A preset pick and
+  // Clear put it back.
+  const [customOpen, setCustomOpen] = useState(false)
   const csvBoxRef = useRef<HTMLTextAreaElement>(null)
+  const csvRowRef = useRef<HTMLDivElement>(null)
   const csvHeadingId = useId()
   const csvClearId = useId()
   const csvBlank = customCsv.trim() === ''
+  const boxShown = !csvBlank || customOpen
+  // The field reads the list's name while the box is exactly that list, its
+  // own name while the box is shut, and Custom coordinates over anything else:
+  // rows typed, pasted or restored from a share link, or an open blank box.
+  const heldList = presetListIn(customCsv)
+  const fieldValue = heldList ? heldList.url : boxShown ? CUSTOM_COORDINATES : ''
+  const unread = csvBlank ? 0 : unreadLines(customCsv).filter(Boolean).length
+  // A list picked from the field replaces whatever the box holds, typed rows
+  // included, with nothing asked: the pick is the press that means it (the
+  // maintainer, 2026-11-03). The list frames the map as a paste does, since
+  // it arrives whole rather than typed. The keyboard stays where it was: a
+  // box that took it scrolled to its end and hid a line of the two it shows,
+  // so a click into the box is what places the cursor (the maintainer,
+  // 2026-11-03).
   const loadList = async (url: string) => {
     const list = PRESET_LISTS.find((l) => l.url === url)
     if (!list) return
     const text = await fetchPresetList(list)
     onPresetListFailed(text === null)
     if (text === null) return
+    setCustomOpen(false)
     setCustomCsv(text)
     const points = parseCustomCsv(text)
     if (points.length > 0) onCsvPasted(points)
   }
+  // Custom coordinates is the one pick that moves the keyboard: the reader
+  // just asked to type. A preset in the box goes, since the reader asked for
+  // rows of their own; their own rows stay. The box mounts in the commit the
+  // pick causes, so the keyboard moves once it is drawn, after the menu's
+  // card or a phone's sheet has given it back to the field.
+  const focusBoxRef = useRef(false)
+  const openCustom = () => {
+    if (heldList) setCustomCsv('')
+    setCustomOpen(true)
+    focusBoxRef.current = true
+  }
+  useLayoutEffect(() => {
+    if (!focusBoxRef.current || !csvBoxRef.current) return
+    focusBoxRef.current = false
+    csvBoxRef.current.focus()
+  })
+  // Clear shuts the box and greys itself in one press, so a keyboard on it
+  // would land on the body: the row's first live control, the field, takes
+  // it, as the Polygon row's first live button takes its row's (#576). Only
+  // when the focus was orphaned, so a press that focused nothing, as
+  // Safari's does, moves nothing. Keyed on the box going rather than run on
+  // the first draw, which orphans nothing of this row's.
+  const boxWasShownRef = useRef(boxShown)
+  useLayoutEffect(() => {
+    if (boxWasShownRef.current && !boxShown) {
+      for (const button of csvRowRef.current?.querySelectorAll('button') ?? []) takeOrphanedFocus(button)
+    }
+    boxWasShownRef.current = boxShown
+  }, [boxShown])
   // The row's three buttons never unmount; a press that greys the one it
   // landed on (Draw polygon turning into a Done that waits for three points,
   // Cancel leaving the mode, Clear emptying the ring) would park the keyboard
@@ -215,16 +272,19 @@ export default function DestinationsSection({
 
       {/* Coordinate search: second, under Map search, so the Polygon
           block's buttons and boxes come last (#687, record 0137). A list you
-          bring to the map rather than a gesture on it. Two rows tall at
-          rest, so a reader sees that several rows go in, with the format and
-          one row that follows it as the placeholder. No helper line; the
-          format states itself. The row under the subheading is the Polygon
-          row's grid (#838, record 0263): the one menu over the ready-made
-          lists across two cells, reading its own name until a list is in the
-          box and that list's name while it is, so the field names what it
-          offers at rest and what the box holds once a list is in it (the
-          maintainer, 2026-11-03), and Clear in the third,
-          on the edge the Polygon row's Clear stands on. Two cells because a
+          bring to the map rather than a gesture on it. The row under the
+          subheading is the Polygon row's grid (#838, record 0263): the one
+          menu across two cells and Clear in the third, on the edge the
+          Polygon row's Clear stands on. The menu holds every preset list and,
+          set apart under a rule, Custom coordinates, which opens the box for
+          the reader's own rows. The box folds into the menu (mockup M1, the
+          maintainer, 2026-11-03): most readers pick a preset and never need
+          the box, its format line or its mono type, so it stands only once
+          something is in it or Custom coordinates was picked. M2 opened it
+          for custom rows alone and hid a preset's, which lost trimming a
+          list to the peaks a reader wants. Two rows tall when it stands, with
+          the format and one row that follows it as the placeholder; no
+          helper line, since the format states itself. Two cells because a
           third leaves 72px of label beside the chevron, and every list's
           name is wider than that. A menu rather than the lists written out,
           because the lists will outgrow a note (the maintainer, 2026-11-03).
@@ -234,58 +294,61 @@ export default function DestinationsSection({
         <h3 id={csvHeadingId} className={`${TEXT.subheading} mb-1.5`}>
           Coordinate search
         </h3>
-        <div className={`${DRAW_ROW.row} mb-1.5`}>
+        <div ref={csvRowRef} className={`${DRAW_ROW.row}${boxShown ? ' mb-1.5' : ''}`}>
           <MenuSelect
             label="Preset list"
             placeholder="Preset list"
-            value={presetListIn(customCsv)?.url ?? ''}
-            options={PRESET_LISTS.map((list) => ({ value: list.url, label: list.name }))}
-            onChange={(url) => void loadList(url)}
+            value={fieldValue}
+            options={[
+              ...PRESET_LISTS.map((list) => ({ value: list.url, label: list.name })),
+              { value: CUSTOM_COORDINATES, label: 'Custom coordinates', divided: true },
+            ]}
+            onChange={(value) => (value === CUSTOM_COORDINATES ? openCustom() : void loadList(value))}
             sheet={phone}
             className={DRAW_ROW.field}
           />
-          {/* What emptying the box by hand does, and nothing more. The press
-              greys the button it landed on, so a keyboard on it would land
-              on the body; the box takes it, as the Polygon row's first live
-              button takes its row's (#576). Only when the button held it,
-              so a press that focused nothing, as Safari's does, moves
-              nothing. */}
+          {/* Empties the box and shuts it, so the field reads its own name
+              again; greyed while the box is shut. */}
           <button
             id={csvClearId}
             aria-labelledby={`${csvClearId} ${csvHeadingId}`}
-            onClick={(e) => {
+            onClick={() => {
               setCustomCsv('')
-              if (document.activeElement === e.currentTarget) csvBoxRef.current?.focus()
+              setCustomOpen(false)
             }}
-            disabled={csvBlank}
+            disabled={!boxShown}
             className={`${DRAW_ROW.secondary} ${DISABLED}`}
           >
             Clear
           </button>
         </div>
-        <textarea
-          ref={csvBoxRef}
-          aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
-          value={customCsv}
-          onKeyDown={() => (csvPasteRef.current = false)}
-          onPaste={() => (csvPasteRef.current = true)}
-          onChange={(e) => {
-            const wasPaste = csvPasteRef.current
-            csvPasteRef.current = false
-            setCustomCsv(e.target.value)
-            if (wasPaste) {
-              const points = parseCustomCsv(e.target.value)
-              if (points.length > 0) onCsvPasted(points)
-            }
-          }}
-          placeholder={COORDINATES_PLACEHOLDER}
-          rows={2}
-          className={`${FIELD} w-full p-2 font-mono resize-y`}
-        />
-        {!csvBlank && (
-          <p className={`${TEXT.helper} mt-1`}>
-            {parsedCount} destination{parsedCount !== 1 ? 's' : ''} parsed
-          </p>
+        {boxShown && (
+          <>
+            <CoordinateBox
+              ref={csvBoxRef}
+              aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
+              value={customCsv}
+              onKeyDown={() => (csvPasteRef.current = false)}
+              onPaste={() => (csvPasteRef.current = true)}
+              onChange={(e) => {
+                const wasPaste = csvPasteRef.current
+                csvPasteRef.current = false
+                setCustomOpen(true)
+                setCustomCsv(e.target.value)
+                if (wasPaste) {
+                  const points = parseCustomCsv(e.target.value)
+                  if (points.length > 0) onCsvPasted(points)
+                }
+              }}
+              placeholder={COORDINATES_PLACEHOLDER}
+              rows={2}
+            />
+            {!csvBlank && (
+              <p className={`${TEXT.helper} mt-1`}>
+                {parsedCount} destination{parsedCount !== 1 ? 's' : ''} parsed{unreadTail(unread)}
+              </p>
+            )}
+          </>
         )}
       </div>
 

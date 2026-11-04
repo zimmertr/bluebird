@@ -472,6 +472,35 @@ describe('MenuSelect', () => {
     expect(named('Preset list The Bulger List').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
   })
 
+  // An option can stand apart from the ones before it under a hairline
+  // (#838, record 0263): the rule is no option, hidden from a screen reader,
+  // and the arrow keys walk from the row above it to the row below.
+  it('sets a divided option apart with a hairline the keyboard walks past', async () => {
+    const onChange = vi.fn()
+    const { user } = render(
+      <MenuSelect
+        label="Preset list"
+        placeholder="Preset list"
+        value=""
+        options={[
+          { value: 'bulgers', label: 'The Bulger List' },
+          { value: 'custom', label: 'Custom coordinates', divided: true },
+        ]}
+        onChange={onChange}
+        className="w-14"
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Preset list' }))
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['The Bulger List', 'Custom coordinates'])
+    const rule = option('Custom coordinates').previousElementSibling as HTMLElement
+    expect(rule.getAttribute('role')).toBeNull()
+    expect(rule.getAttribute('aria-hidden')).toBe('true')
+    expect(rule.className).toBe(MENU.divider)
+    expect(option('The Bulger List').previousElementSibling).toBeNull()
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('custom')
+  })
+
   it('opens the one menu, the current value set semibold and no check mark', async () => {
     const { user } = render(<Select />)
     await user.click(field())

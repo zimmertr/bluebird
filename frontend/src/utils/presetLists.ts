@@ -62,7 +62,7 @@ export async function fetchPresetList(list: PresetList): Promise<string | null> 
  * The list the box holds, when it holds exactly one that arrived this session
  * (a trailing newline aside), else null. What the Preset list field reads.
  * A share link restores the rows and not this, so a reloaded page's field
- * reads its own name over such a box until a list is picked again.
+ * reads Custom coordinates over such a box until a list is picked again.
  */
 export function presetListIn(box: string): PresetList | null {
   const text = box.trimEnd()

@@ -9,8 +9,8 @@ import type { DiscoveryType } from '../types'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
 // that enter and leave draw mode, the type set and the unnamed-peaks knob
-// that widens it, and the coordinates box that frames a paste but never a
-// keystroke.
+// that widens it, the Preset list field the coordinates box folds into, and
+// the box, which frames a paste but never a keystroke.
 
 type Props = ComponentProps<typeof DestinationsSection>
 
@@ -47,6 +47,16 @@ function props(over: Partial<Props> = {}): Props {
 const RING = { drawPointCount: 3, pointsNeeded: 0 } as const
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
+const noBox = () => screen.queryByRole('textbox', { name: /^Custom destination coordinates/ }) === null
+// The Preset list field, named once at rest, where it reads its own name, and
+// by its name and what it reads otherwise.
+const field = (reads?: string) =>
+  screen.getByRole('button', { name: reads === undefined ? 'Preset list' : `Preset list ${reads}` })
+// The box stands once Custom coordinates is picked (record 0263).
+async function openBox(user: ReturnType<typeof render>['user']) {
+  await user.click(field())
+  await user.click(screen.getByRole('option', { name: 'Custom coordinates' }))
+}
 // The Polygon block's buttons, in order, apart from the box above it.
 const polygonBlock = () => screen.getByRole('heading', { name: 'Polygon search' }).parentElement!
 const polygonButtons = () =>
@@ -335,6 +345,7 @@ describe('DestinationsSection', () => {
       const onCsvPasted = vi.fn()
       const setCustomCsv = vi.fn()
       const { user } = render(<DestinationsSection {...props({ onCsvPasted, setCustomCsv })} />)
+      await openBox(user)
       await user.click(coordinates())
       await user.paste('46.8529,-121.7604,Mount Rainier')
       expect(setCustomCsv).toHaveBeenLastCalledWith('46.8529,-121.7604,Mount Rainier')
@@ -342,10 +353,11 @@ describe('DestinationsSection', () => {
       expect(onCsvPasted.mock.calls[0][0]).toHaveLength(1)
     })
 
-    it('never moves the camera for typing', () => {
+    it('never moves the camera for typing', async () => {
       const onCsvPasted = vi.fn()
       const setCustomCsv = vi.fn()
-      render(<DestinationsSection {...props({ onCsvPasted, setCustomCsv })} />)
+      const { user } = render(<DestinationsSection {...props({ onCsvPasted, setCustomCsv })} />)
+      await openBox(user)
       fireEvent.keyDown(coordinates())
       fireEvent.change(coordinates(), { target: { value: '46.8529,-121.7604' } })
       expect(setCustomCsv).toHaveBeenCalledWith('46.8529,-121.7604')
@@ -354,17 +366,35 @@ describe('DestinationsSection', () => {
 
     it('counts what the box parses to once it holds text', () => {
       const { rerender } = render(<DestinationsSection {...props()} />)
-      expect(screen.queryByText(/parsed$/)).toBeNull()
+      expect(screen.queryByText(/parsed/)).toBeNull()
       rerender(<DestinationsSection {...props({ customCsv: '1,2\n3,4', parsedCount: 2 })} />)
       expect(screen.getByText('2 destinations parsed')).toBeTruthy()
       rerender(<DestinationsSection {...props({ customCsv: '1,2', parsedCount: 1 })} />)
       expect(screen.getByText('1 destination parsed')).toBeTruthy()
     })
 
-    // Two rows tall at rest, so a reader sees that several rows go in, with
-    // the format and one row that follows it as the placeholder.
-    it('stands two rows tall with the format and one example row', () => {
-      render(<DestinationsSection {...props()} />)
+    // The gutter flags the lines the parse drops and is hidden from a
+    // screen reader, so the caption says how many in words (record 0265).
+    it('adds the lines it could not read to the count', () => {
+      const { rerender } = render(
+        <DestinationsSection {...props({ customCsv: '1,2\nMount Baker\n3,4', parsedCount: 2 })} />,
+      )
+      expect(screen.getByText('2 destinations parsed, 1 line not read')).toBeTruthy()
+      rerender(<DestinationsSection {...props({ customCsv: '1,2\nnope\n95,0', parsedCount: 1 })} />)
+      expect(screen.getByText('1 destination parsed, 2 lines not read')).toBeTruthy()
+    })
+
+    it('adds nothing to the count while every line reads, comments and blanks included', () => {
+      render(<DestinationsSection {...props({ customCsv: '# mine\n1,2\n\n3,4', parsedCount: 2 })} />)
+      expect(screen.getByText('2 destinations parsed')).toBeTruthy()
+      expect(screen.queryByText(/not read/)).toBeNull()
+    })
+
+    // Two rows tall when it stands, so a reader sees that several rows go
+    // in, with the format and one row that follows it as the placeholder.
+    it('stands two rows tall with the format and one example row', async () => {
+      const { user } = render(<DestinationsSection {...props()} />)
+      await openBox(user)
       expect(coordinates().getAttribute('rows')).toBe('2')
       expect(coordinates().getAttribute('placeholder')).toBe(
         '# Lat,Lon or Lat,Lon,Name\n46.8529,-121.7604,Mount Rainier',
@@ -383,29 +413,66 @@ describe('DestinationsSection', () => {
   })
 
   // The row under the subheading is the Polygon row's grid: the one menu
-  // over the preset lists across two cells and Clear in the third. A pick
-  // replaces the box at once, typed rows included (#838, record 0263).
+  // over the preset lists and Custom coordinates across two cells and Clear in
+  // the third. The box stands only once something is in it or Custom
+  // coordinates was picked, and a preset pick replaces it at once, typed rows
+  // included (#838, record 0263).
   describe('the Preset list field', () => {
     afterEach(() => {
       vi.unstubAllGlobals()
       vi.restoreAllMocks()
       forgetPresetLists()
     })
-    // Named once at rest, where it reads its own name, and by its name and
-    // the list's once a list is in the box.
-    const field = (list?: string) =>
-      screen.getByRole('button', { name: list === undefined ? 'Preset list' : `Preset list ${list}` })
     // Named with the subheading, since the Polygon row's Clear reads the same word.
     const clear = () => screen.getByRole('button', { name: 'Clear Coordinate search' }) as HTMLButtonElement
     const LIST = '46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'
     const arrives = () => vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: LIST })))
+    const pickList = async (user: ReturnType<typeof render>['user']) => {
+      await user.click(screen.getByRole('button', { name: /^Preset list/ }))
+      await user.click(screen.getByRole('option', { name: PRESET_LISTS[0].name }))
+    }
 
-    it('reads its own name over an empty box and over typed rows, and lists every preset', async () => {
-      const { user, rerender } = render(<DestinationsSection {...props()} />)
+    it('reads its own name over a shut box and lists every preset, then Custom coordinates apart', async () => {
+      const { user } = render(<DestinationsSection {...props()} />)
       expect(field().getAttribute('aria-haspopup')).toBe('listbox')
-      rerender(<DestinationsSection {...props({ customCsv: '1,2,Mine' })} />)
+      expect(noBox()).toBe(true)
+      expect(screen.queryByText(/parsed/)).toBeNull()
       await user.click(field())
-      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(PRESET_LISTS.map((l) => l.name))
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+        ...PRESET_LISTS.map((l) => l.name),
+        'Custom coordinates',
+      ])
+      expect(screen.getByRole('option', { name: 'Custom coordinates' }).previousElementSibling!.getAttribute('aria-hidden')).toBe(
+        'true',
+      )
+    })
+
+    // The row stands alone at rest, with nothing under it to clear.
+    it('drops the row\'s gap while nothing stands under it', () => {
+      const { rerender } = render(<DestinationsSection {...props()} />)
+      const row = () => clear().parentElement!
+      expect(row().className).not.toMatch(/(^|\s)mb-1\.5(\s|$)/)
+      rerender(<DestinationsSection {...props({ customCsv: '1,2' })} />)
+      expect(row().className).toMatch(/(^|\s)mb-1\.5(\s|$)/)
+    })
+
+    it('opens an empty box on Custom coordinates, reads it, and hands the box the keyboard', async () => {
+      const setCustomCsv = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ setCustomCsv })} />)
+      await openBox(user)
+      expect(document.activeElement).toBe(coordinates())
+      expect(field('Custom coordinates')).toBeTruthy()
+      expect(clear().disabled).toBe(false)
+      // Nothing was in the box, so nothing is emptied.
+      expect(setCustomCsv).not.toHaveBeenCalled()
+      expect(screen.queryByText(/parsed/)).toBeNull()
+    })
+
+    // A share link restores the rows and not which list they came from.
+    it('reads Custom coordinates over rows of the reader\'s own or a share link\'s', () => {
+      render(<DestinationsSection {...props({ customCsv: '1,2,Mine', parsedCount: 1 })} />)
+      expect(coordinates()).toBeTruthy()
+      expect(field('Custom coordinates')).toBeTruthy()
     })
 
     it('fills an empty box, frames the rows, says the list arrived and leaves the keyboard where it was', async () => {
@@ -416,16 +483,15 @@ describe('DestinationsSection', () => {
       const { user, rerender } = render(
         <DestinationsSection {...props({ setCustomCsv, onCsvPasted, onPresetListFailed })} />,
       )
-      await user.click(field())
-      await user.click(screen.getByRole('option', { name: PRESET_LISTS[0].name }))
+      await pickList(user)
       await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
       expect(onCsvPasted.mock.calls[0][0].map((d: { name: string }) => d.name)).toEqual(['Mount Rainier', 'Mount Baker'])
       expect(onPresetListFailed).toHaveBeenCalledWith(false)
-      // A box that took the keyboard scrolled to its end and hid a line.
-      expect(document.activeElement).not.toBe(coordinates())
-      // The box now holds the list, so the field names it.
+      // The box now holds the list, so it stands and the field names the list.
       rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv, onCsvPasted, onPresetListFailed })} />)
       expect(field(PRESET_LISTS[0].name)).toBeTruthy()
+      // A box that took the keyboard scrolled to its end and hid a line.
+      expect(document.activeElement).not.toBe(coordinates())
     })
 
     // The pick is the press: nothing asks first, over the reader's own rows
@@ -435,16 +501,60 @@ describe('DestinationsSection', () => {
       const setCustomCsv = vi.fn()
       const onCsvPasted = vi.fn()
       const { user } = render(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv, onCsvPasted })} />)
-      await user.click(field())
-      await user.click(screen.getByRole('option', { name: PRESET_LISTS[0].name }))
+      await pickList(user)
       await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
       expect(setCustomCsv).toHaveBeenCalledOnce()
       expect(onCsvPasted).toHaveBeenCalledOnce()
       expect(screen.queryByRole('dialog')).toBeNull()
     })
 
-    // Clear is what deleting every character by hand does, and nothing more.
-    it('clears the box with Clear, which greys over a blank box', async () => {
+    // Custom coordinates asks for rows of the reader's own, so a preset in
+    // the box goes; the reader's own rows would stay, and read Custom
+    // coordinates already.
+    it('empties a preset out of the box on Custom coordinates', async () => {
+      arrives()
+      const setCustomCsv = vi.fn()
+      const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv })} />)
+      await pickList(user)
+      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
+      rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv })} />)
+      await user.click(field(PRESET_LISTS[0].name))
+      await user.click(screen.getByRole('option', { name: 'Custom coordinates' }))
+      expect(setCustomCsv).toHaveBeenLastCalledWith('')
+      rerender(<DestinationsSection {...props({ customCsv: '', setCustomCsv })} />)
+      expect(field('Custom coordinates')).toBeTruthy()
+      expect(document.activeElement).toBe(coordinates())
+    })
+
+    // A preset pick shuts what Custom coordinates opened: emptied again, the
+    // box goes and the field reads its own name.
+    it('shuts the box a preset was picked over once the box is empty again', async () => {
+      arrives()
+      const setCustomCsv = vi.fn()
+      const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv })} />)
+      await openBox(user)
+      await pickList(user)
+      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
+      rerender(<DestinationsSection {...props({ customCsv: '', setCustomCsv })} />)
+      expect(noBox()).toBe(true)
+      expect(field()).toBeTruthy()
+    })
+
+    // An edit keeps the box open, so a reader who deletes every row by hand
+    // keeps the box they are typing in.
+    it('keeps the box open under a reader who deletes every row', () => {
+      const setCustomCsv = vi.fn()
+      const { rerender } = render(<DestinationsSection {...props({ customCsv: '1,2', setCustomCsv })} />)
+      fireEvent.keyDown(coordinates())
+      fireEvent.change(coordinates(), { target: { value: '' } })
+      expect(setCustomCsv).toHaveBeenLastCalledWith('')
+      rerender(<DestinationsSection {...props({ customCsv: '', setCustomCsv })} />)
+      expect(coordinates()).toBeTruthy()
+      expect(field('Custom coordinates')).toBeTruthy()
+    })
+
+    // Clear empties the box and shuts it, and greys while it is shut.
+    it('clears and shuts the box with Clear, and hands the keyboard to the field', async () => {
       const setCustomCsv = vi.fn()
       const onCsvPasted = vi.fn()
       const onPresetListFailed = vi.fn()
@@ -457,10 +567,21 @@ describe('DestinationsSection', () => {
       expect(onCsvPasted).not.toHaveBeenCalled()
       expect(onPresetListFailed).not.toHaveBeenCalled()
       rerender(<DestinationsSection {...props({ customCsv: '', setCustomCsv })} />)
+      expect(noBox()).toBe(true)
+      expect(clear().disabled).toBe(true)
+      // The press greyed the button it landed on and took the box away, so
+      // the row's first live control takes the keyboard (#576).
+      expect(document.activeElement).toBe(field())
+    })
+
+    it('shuts a box Custom coordinates opened with Clear, though it held nothing', async () => {
+      const { user } = render(<DestinationsSection {...props()} />)
+      await openBox(user)
+      await user.click(clear())
+      expect(noBox()).toBe(true)
       expect(field()).toBeTruthy()
       expect(clear().disabled).toBe(true)
-      // The press greyed the button it landed on, so the box takes the keyboard (#576).
-      expect(document.activeElement).toBe(coordinates())
+      expect(document.activeElement).toBe(field())
     })
 
     // A stale tab asks for an old build's name and gets a 404: the box stays
@@ -471,10 +592,10 @@ describe('DestinationsSection', () => {
       const setCustomCsv = vi.fn()
       const onPresetListFailed = vi.fn()
       const { user } = render(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv, onPresetListFailed })} />)
-      await user.click(field())
-      await user.click(screen.getByRole('option', { name: PRESET_LISTS[0].name }))
+      await pickList(user)
       await waitFor(() => expect(onPresetListFailed).toHaveBeenCalledWith(true))
       expect(setCustomCsv).not.toHaveBeenCalled()
+      expect(coordinates()).toBeTruthy()
     })
   })
 

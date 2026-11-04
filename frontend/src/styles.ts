@@ -3315,6 +3315,12 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   No card repeats its own name over its rows: it stands under the
  *   trigger that names it (record 0222). The model picker's overlines name
  *   groups of rows inside its card, which is a different job.
+ * - `divider`: a hairline between two runs of options inside a `list`, in
+ *   the foot's rule colour and pulled out to the card's sides as the foot's
+ *   rule runs. `Custom coordinates` stands under one in the Preset list
+ *   field, apart from the lists (#838, record 0263). A rule rather than a
+ *   `heading`: one option set apart names itself. Hidden from a screen
+ *   reader, because a listbox holds options and nothing else.
  * - `list`: the scrolling list, 4px in from the card's sides and 6px from its
  *   top and bottom, so a row's words stand 10px from the edge and the first
  *   one 8px down, where the Layers menu's `px-2.5 py-2` stands its own.
@@ -3357,6 +3363,7 @@ export const MENU = {
   current: 'font-semibold',
   heading: `${TEXT.caption} font-semibold`,
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
+  divider: `-mx-1 my-1 border-t ${SURFACE_DIVIDER}`,
 } as const
 
 /**
