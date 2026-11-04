@@ -74,7 +74,7 @@ const Held = memo(
 
 export interface ResultsPanelsProps {
   /** The panels shown, their heights, and their grips (`useResultsLayout`). */
-  layout: Pick<ResultsLayout, 'resultsMode' | 'chartGrip' | 'chartPanelPx' | 'tableGrip' | 'tablePanelPx'>
+  layout: Pick<ResultsLayout, 'resultsMode' | 'chartGrip' | 'chartPanelPx' | 'chartPaneRef' | 'tableGrip' | 'tablePanelPx'>
   /** The charted set and the comparison (`useChartCompare`). */
   charts: Pick<ChartCompare, 'chart' | 'chartMetrics' | 'compare' | 'rowChartColor' | 'shared'>
   /** An hour the chart's tooltip stands on without a mouse (the tutorial, #536). */
@@ -177,7 +177,7 @@ export default function ResultsPanels({
   onFocusResult,
   onFocusPending,
 }: ResultsPanelsProps) {
-  const { resultsMode, chartGrip, chartPanelPx, tableGrip, tablePanelPx } = layout
+  const { resultsMode, chartGrip, chartPanelPx, chartPaneRef, tableGrip, tablePanelPx } = layout
   const tableScrollRef = useRef<HTMLDivElement>(null)
   // Each pane's frame and body: shown by the mode and the chevron, mounted at
   // the press at the height the mode pressed gives it, and at a desk kept
@@ -300,6 +300,9 @@ export default function ResultsPanels({
                 onDragEnd={chartGrip.onDragEnd}
               />
               <div
+                // A phone's drag on the grip above sizes this box per move,
+                // straight on the element (#837), and the chart follows it.
+                ref={chartPaneRef}
                 className={`flex min-h-0 flex-shrink-0 flex-col ${layer}`}
                 style={{ height: `${chartPane.px}px` }}
               >

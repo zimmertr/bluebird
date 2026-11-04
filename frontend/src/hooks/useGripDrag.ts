@@ -56,7 +56,18 @@ export function useGripDrag(handlers: GripDragHandlers) {
     const at = e.timeStamp
     const previous = lastPressRef.current
     lastPressRef.current = at
+    // A touch's end is cancelled, on a press and a double press alike
+    // (#837): Firefox for Android synthesizes a tap's click, and a double
+    // tap's dblclick, on whatever stands under the finger when it lifts, hit
+    // tested anew, and a double press that put the sheet back moved it out
+    // from under the finger and left the map there, which zoomed. A
+    // cancelled touchend is what tells a browser to synthesize no mouse
+    // event for the touch, and the pointer events the drag reads are sent
+    // before it. Chromium aims the click at the element the touch began on,
+    // so it never showed there.
+    if (e.pointerType === 'touch') cancelTouchEnd()
     if (at - previous < DOUBLE_PRESS_MS) {
+      e.preventDefault()
       latest.current.onReset()
       return
     }
@@ -97,4 +108,18 @@ export function useGripDrag(handlers: GripDragHandlers) {
     document.addEventListener('pointerup', onUp)
     document.addEventListener('pointercancel', onUp)
   }
+}
+
+/** Cancels the next touch's end on the document, or stands down if the touch is cancelled first. */
+function cancelTouchEnd() {
+  const cancel = (ev: TouchEvent) => {
+    ev.preventDefault()
+    off()
+  }
+  const off = () => {
+    document.removeEventListener('touchend', cancel)
+    document.removeEventListener('touchcancel', off)
+  }
+  document.addEventListener('touchend', cancel, { passive: false })
+  document.addEventListener('touchcancel', off)
 }

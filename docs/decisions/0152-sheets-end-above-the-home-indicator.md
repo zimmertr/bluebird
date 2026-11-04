@@ -1,6 +1,6 @@
 # 0152. Nothing a finger presses stands in a phone's home indicator band, a scrolled sheet's last row included
 
-- Status: Accepted. Supersedes [0145](0145-safe-area-bottom.md)
+- Status: Accepted. Supersedes [0145](0145-safe-area-bottom.md). Amended by 0262 (Android runs without `viewport-fit=cover`)
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696, 2026-10-14, after seeing a sheet with the band and one without drawn side by side (mockup B)
 - Issues and PRs: #336, #696, #708
