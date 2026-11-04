@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { markupText } from '../../testSupport/markupText'
 import { SLOPE_BANDS } from '../slopeAngle'
-import { slopeFact } from './groundFact'
+import { SLOPE_FACT_CH, slopeFact } from './groundFact'
 import { colorSwatch, pendingValue } from './popupChrome'
 
 const read = (degrees: number, aspect: number | null) =>
@@ -26,8 +26,14 @@ describe('slopeFact', () => {
     expect(markupText(read(0, null))).toBe('0°')
   })
 
+  // The bar keeps the widest slope's room, its two-letter way down and the
+  // swatch's two, so the slope lands on a held card without cutting.
+  it('stands its bar as wide as the widest slope it can say', () => {
+    expect(SLOPE_FACT_CH).toBeGreaterThanOrEqual(markupText(read(89.9, 315)).length + 2)
+  })
+
   it('stands a bar while it reads, and says nothing where there is no ground', () => {
-    expect(slopeFact({ kind: 'pending' })).toBe(pendingValue())
+    expect(slopeFact({ kind: 'pending' })).toBe(pendingValue(SLOPE_FACT_CH))
     expect(slopeFact({ kind: 'none' })).toBe('')
     expect(slopeFact(undefined)).toBe('')
   })

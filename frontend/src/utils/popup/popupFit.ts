@@ -219,17 +219,37 @@ export function bodyBounds(region: Rect): BodyBounds {
   return { floor: Math.floor(height * BODY_FLOOR_SHARE), ceiling: Math.floor(height * BODY_CEILING_SHARE) }
 }
 
-/** A body height held between the bounds: what a reader's drag or a remembered size may set. */
-export function boundBody(px: number, { floor, ceiling }: BodyBounds): number {
-  return clamp(px, floor, ceiling)
+/**
+ * The least a reader's drag leaves a card's body (TJ, 2026-11-04): its own
+ * padding, 8px above and 16 below, and one section heading's 24px band, so
+ * a body dragged short still shows the heading it scrolls from. The floor
+ * and the ceiling bound only the cap a card opens with and a later automatic
+ * cap; a reader who drags asks for a size, and gets it between this and the
+ * free map's height (`dragBodyRange`).
+ */
+export const DRAG_BODY_MIN_PX = 48
+
+/**
+ * The heights a reader's drag, or the height a drag left for the next card,
+ * stands a body between on the visible map `region`, for a card whose header
+ * and tip are `chrome` tall: from `DRAG_BODY_MIN_PX` to the free map's
+ * height, which is the region less the fit's breath at both edges, the
+ * marker's half square and the tip, less the header. Past the content's own
+ * height the body stands taller than what it holds, with the card's surface
+ * under its last section (TJ, 2026-11-04).
+ */
+export function dragBodyRange(region: Rect, chrome: number): { min: number; max: number } {
+  const height = Math.max(0, region.bottom - region.top)
+  const free = Math.floor(height - 2 * FIT_MARGIN_PX - MARKER_HALF_PX - TIP_PX - chrome)
+  return { min: DRAG_BODY_MIN_PX, max: Math.max(DRAG_BODY_MIN_PX, free) }
 }
 
 /**
  * The height to cap a card's body at as it opens, or null where the body
  * stands whole: the fit's cap (`capHeight`) under the ceiling, never under
  * the floor. `size` is the whole card as built and `body` its body's height
- * in it; `roof` is the body height a reader chose by dragging (`map/destinationCards.ts`),
- * which stands in for the ceiling under it and is held between the bounds.
+ * in it. A card opened at the height a reader dragged to is not capped here:
+ * its body stands at that height (`openCard` in `map/mapPopups.ts`).
  *
  * A body the fit cannot give the floor where its card stands keeps the floor
  * all the same, and `placePopup` then finds the card too tall to stand whole
@@ -245,11 +265,10 @@ export function openingBodyCap(
   body: number,
   region: Rect,
   obstacles: readonly Rect[] = [],
-  roof: number | null = null,
 ): number | null {
   if (region.bottom <= region.top) return null
   const bounds = bodyBounds(region)
-  const top = Math.min(body, roof === null ? bounds.ceiling : boundBody(roof, bounds))
+  const top = Math.min(body, bounds.ceiling)
   const least = Math.min(bounds.floor, top)
   const chrome = size.height - body
   const sized = { width: size.width, height: chrome + top }
@@ -263,21 +282,17 @@ export function openingBodyCap(
  * The cap for a body that grew after its card opened (#832), where the card
  * stands: `body` is the body's height now and `over` how far the card runs
  * past the visible map's edge on the side it hangs, the fit's breath
- * included. The cap is what fits, under the ceiling (or the reader's `roof`)
- * and never under the floor; `pan` is how far the card still runs past the
- * edge at that cap, which the map moves to bring into view rather than
- * cutting the body under the floor. Null where the body stands whole, or
- * where the map has no visible height (`openingBodyCap`).
+ * included. The cap is what fits, under the ceiling and never under the
+ * floor; `pan` is how far the card still runs past the edge at that cap,
+ * which the map moves to bring into view rather than cutting the body under
+ * the floor. Null where the body stands whole, or where the map has no
+ * visible height (`openingBodyCap`). A card at a reader's height never grows
+ * and is never asked.
  */
-export function grownBodyCap(
-  body: number,
-  over: number,
-  region: Rect,
-  roof: number | null = null,
-): { cap: number | null; pan: number } {
+export function grownBodyCap(body: number, over: number, region: Rect): { cap: number | null; pan: number } {
   if (region.bottom <= region.top) return { cap: null, pan: 0 }
   const bounds = bodyBounds(region)
-  const top = Math.min(body, roof === null ? bounds.ceiling : boundBody(roof, bounds))
+  const top = Math.min(body, bounds.ceiling)
   const room = body - Math.max(0, over)
   const cap = clamp(room, Math.min(bounds.floor, top), top)
   return { cap: cap < body ? cap : null, pan: Math.max(0, cap - room) }

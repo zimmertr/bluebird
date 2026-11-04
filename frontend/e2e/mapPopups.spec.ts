@@ -128,14 +128,15 @@ test('a fire opens the spot’s card on a click and never on a hover, and a mark
   await expect(popups).toHaveCount(0)
 
   // The marker inside the fire takes the click. Its card carries the fire as
-  // a section open over the forecast, since a fire at a destination is a
-  // warning (TJ, 2026-11-03), on the amber band behind the table's mark.
+  // a section over the forecast, folded to its heading since an analysis
+  // exists (TJ, 2026-11-04), on the amber band behind the table's mark, a
+  // fire at a destination being a warning.
   await page.mouse.click(marker.x, marker.y)
   await expect(card).toHaveCount(1)
   await expect(card).toContainText(DESTINATION_NAMES[0])
   await expect(popups).toHaveCount(1)
   await expect(card.getByText('Active wildfire: Probe Fire', { exact: true })).toBeVisible()
-  await expect(card.getByRole('button', { name: 'Active wildfire', exact: true })).toHaveAttribute('aria-expanded', 'true')
+  await expect(card.getByRole('button', { name: 'Active wildfire', exact: true })).toHaveAttribute('aria-expanded', 'false')
   await expect(card.getByRole('button', { name: 'Forecast', exact: true })).toHaveAttribute('aria-expanded', 'true')
   const heading = card.getByRole('button', { name: 'Active wildfire', exact: true }).locator('..')
   await expect(heading).toContainText('⚠️')
@@ -146,14 +147,14 @@ test('a fire opens the spot’s card on a click and never on a hover, and a mark
   expect(await fill('Active wildfire')).not.toBe(await fill('Forecast'))
 
   // The fire around it opens the spot's card in place of the marker's, titled
-  // with the clicked coordinates, its fire section open and linked to NIFC,
-  // and no tab opens.
+  // with the clicked coordinates, its fire section folded as on every card
+  // after an analysis and linked to NIFC from its heading, and no tab opens.
   await page.mouse.click(bare.x, bare.y)
   await expect(card).toHaveCount(0)
   await expect(popups).toHaveCount(1)
   await expect(popups.locator('strong').first()).toHaveText(/^-?\d+\.\d{5}, -?\d+\.\d{5}$/)
   await expect(popups.getByText('Active wildfire: Probe Fire', { exact: true })).toBeVisible()
-  await expect(popups.getByRole('button', { name: 'Active wildfire', exact: true })).toHaveAttribute('aria-expanded', 'true')
+  await expect(popups.getByRole('button', { name: 'Active wildfire', exact: true })).toHaveAttribute('aria-expanded', 'false')
   await expect(popups.getByRole('link', { name: /NIFC/ })).toBeVisible()
   expect(tabs).toEqual([])
 })
@@ -232,11 +233,11 @@ test.describe('on a phone', () => {
     await expect
       .poll(() => popups.locator('[data-card-fold]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label'))))
       .toEqual(['Trail closure', 'Area closure'])
-    // On a phone every section but a forecast opens folded, warnings too
-    // (TJ, 2026-11-04): the headings name what is at the point.
+    // Before an analysis every section opens, on a phone as at a desk (TJ,
+    // 2026-11-04).
     expect(await popups.locator('[data-card-fold]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-expanded')))).toEqual([
-      'false',
-      'false',
+      'true',
+      'true',
     ])
   })
 

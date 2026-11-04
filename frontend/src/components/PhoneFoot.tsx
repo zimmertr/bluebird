@@ -91,6 +91,11 @@ export default function PhoneFoot({
   return (
     <>
       <div
+        // A card keeps clear of the button and its badge, as it does of the
+        // rows and the player (`map/mapPopups.ts` finds every
+        // `data-map-overlay`), so a card a tap opens never hangs its foot
+        // behind the one Analyze a phone has.
+        data-map-overlay=""
         className={MAP_FAB_SLOT}
         // A drag on the results sheet moves the button with it, as a
         // transform (`--sheet-shift`, #837); a full-screen sheet covers it,

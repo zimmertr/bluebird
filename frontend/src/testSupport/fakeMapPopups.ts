@@ -27,7 +27,7 @@ export function fakeMapPopups() {
     closeAll: (owner?: MapTarget) => closed.push(owner),
     bodyCap: () => null,
     refit: () => null,
-    cardBounds: () => ({ width: { min: 180, max: 780 }, body: { floor: 150, ceiling: 450 } }),
+    cardBounds: () => ({ width: { min: 180, max: 780 }, body: { min: 48, max: 560 } }),
     sizeCard: (_popup: unknown, width: number) => width,
   } as unknown as MapPopups
   return { popups, points, closed, refreshed, spots }

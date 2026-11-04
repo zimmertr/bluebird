@@ -1836,15 +1836,29 @@ describe('tap targets', () => {
   })
 
   // The body ends the card since its button moved to the title row (TJ,
-  // 2026-11-04), so it keeps the handle's height clear at its end, at a desk
-  // and under a finger: the handle stands under the last section rather
-  // than over a folded heading's chevron, which the card button lab drew
-  // 4px into it.
-  it("ends a card's body on the resize handle's height", () => {
+  // 2026-11-04), and its end is the grip's own 16px box at both pointer
+  // sizes: at a desk the handle stands under the last section, and under a
+  // finger its 32px box rises 16px over the body's last corner, where a
+  // 32px end read as an empty section under a folded heading.
+  it("ends a card's body on the grip's 16px at both pointer sizes", () => {
     const end = words(CARD_BODY_END)
     const grip = words(CARD_RESIZE)
-    expect(end).toEqual(['pb-4', 'touch:pb-8'])
+    expect(end).toEqual(['pb-4'])
     expect(grip).toEqual(expect.arrayContaining(['h-4', 'touch:h-8']))
+  })
+
+  // A card's button stands 8px off the × at both pointer sizes (TJ,
+  // 2026-11-04), the results bar's `gap-2` between its groups: the lane less
+  // the ×'s width and its 6px inset, plus the slot's `--popup-action-clear`.
+  it("stands a card's button 8px off the × at a desk and under a finger", () => {
+    const rem = (block: string, name: string) => Number(block.match(new RegExp(`--${name}: (-?[\\d.]+)rem;`))![1]) * 16
+    const desk = mapCss.match(/\n\.maplibregl-popup \{([^}]*--popup-close-lane[^}]*)\}/)![1]
+    const touch = mapCss.match(/@media \(hover: none\) \{\s*\.maplibregl-popup \{([^}]*)\}/)![1]
+    const close = mapCss.match(/\n\.maplibregl-popup-close-button \{[^}]*?right: ([\d.]+)rem;[^}]*?width: ([\d.]+)rem;/)!
+    const touchWidth = Number(mapCss.match(/@media \(hover: none\) \{\s*\.maplibregl-popup-close-button \{\s*width: ([\d.]+)rem;/)![1]) * 16
+    const inset = Number(close[1]) * 16
+    const gap = (block: string, width: number) => rem(block, 'popup-close-lane') - width - inset + rem(block, 'popup-action-clear')
+    expect([gap(desk, Number(close[2]) * 16), gap(touch, touchWidth)]).toEqual([8, 8])
   })
 
   // The card's title row, its button and the × that MapLibre draws stand at

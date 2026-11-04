@@ -62,6 +62,12 @@ export interface StubMapOptions {
    * fires `moveend`. At rest by default.
    */
   moving?: () => boolean
+  /**
+   * The boxes the container's document finds marked `data-map-overlay`, in
+   * the viewport's pixels: what stands over the map, the rows, the player or
+   * a phone's Analyze button. None by default, and no document.
+   */
+  overlays?: { left: number; top: number; right: number; bottom: number }[]
 }
 
 export function stubMap(opts: StubMapOptions = {}) {
@@ -86,7 +92,8 @@ export function stubMap(opts: StubMapOptions = {}) {
   }
   // The container stands at the viewport's origin and belongs to no
   // document, so a module that looks around it for what stands over the
-  // map finds nothing.
+  // map finds nothing, unless the test stands `overlays` there.
+  const overlays = opts.overlays
   const container = {
     getBoundingClientRect: () => ({
       left: 0,
@@ -94,7 +101,9 @@ export function stubMap(opts: StubMapOptions = {}) {
       right: canvas.clientWidth,
       bottom: canvas.clientHeight,
     }),
-    ownerDocument: null,
+    ownerDocument: overlays
+      ? { querySelectorAll: () => overlays.map((r) => ({ getBoundingClientRect: () => r })) }
+      : null,
   }
   const dragPan = { enabled: true, disable: () => (dragPan.enabled = false), enable: () => (dragPan.enabled = true) }
   const b = opts.bounds ?? { west: -122, south: 47, east: -121, north: 48 }

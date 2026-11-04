@@ -10,6 +10,14 @@ import { colorSwatch, factValue, pendingValue } from './popupChrome'
 export type GroundState = { kind: 'pending' } | { kind: 'read'; reading: GroundReading } | { kind: 'none' }
 
 /**
+ * The slope's bar while its tile is read, as wide as the widest slope fact,
+ * `89° NW` and its swatch: six characters and two for the swatch, so the
+ * slope lands in the room the bar kept rather than past a card that holds
+ * its width (TJ, 2026-11-04).
+ */
+export const SLOPE_FACT_CH = 8
+
+/**
  * The slope as a card's facts say it: its band's swatch, the angle, and the
  * way the ground falls, as `[swatch] 33° NW`. The angle is the whole degree
  * under it, so the number and the swatch agree at a band's edge, where each
@@ -21,7 +29,7 @@ export type GroundState = { kind: 'pending' } | { kind: 'read'; reading: GroundR
  */
 export function slopeFact(ground: GroundState | undefined): string {
   if (!ground || ground.kind === 'none') return ''
-  if (ground.kind === 'pending') return pendingValue()
+  if (ground.kind === 'pending') return pendingValue(SLOPE_FACT_CH)
   const { degrees, aspect } = ground.reading
   const angle = Math.floor(degrees)
   const band = bandOf(angle)

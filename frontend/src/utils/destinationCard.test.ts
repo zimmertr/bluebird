@@ -8,6 +8,7 @@ import {
   CARD_ACTION_ATTR,
   type CardView,
   FORECAST_SECTION,
+  SPOT_GROUND_CH,
   cardAction,
   destinationPopupHtml,
   sectionOpen,
@@ -763,7 +764,7 @@ describe("a spot card's ground", () => {
   })
 
   it('stands a bar while it reads, and says nothing where there is no ground', () => {
-    expect(spotHtml(48.79012, -121.83211, [], { ground: { kind: 'pending' } })).toContain(pendingValue())
+    expect(spotHtml(48.79012, -121.83211, [], { ground: { kind: 'pending' } })).toContain(pendingValue(SPOT_GROUND_CH))
     expect(spotHtml(48.79012, -121.83211, [], { ground: { kind: 'none' } })).toBe(spotHtml(48.79012, -121.83211, []))
   })
 })
@@ -915,15 +916,15 @@ describe("a card's sections", () => {
     }
   })
 
-  // A ranked card opens its forecast and every warning, and folds the rest
-  // (TJ, 2026-11-03): a fire at the point is worth reading before the grid.
-  it('opens the forecast and the warnings on a ranked card, and folds the rest', () => {
-    const html = rankedHtml({ ...base, sections: [FIRE, CLOSURE, RADAR] })
-    expect([FIRE, CLOSURE, RADAR].map((s) => foldOf(html, s.kind))).toEqual(['true', 'true', 'false'])
+  // Once an analysis exists a card opens on its forecast alone, and folds
+  // every layer to its heading, a warning's too (TJ, 2026-11-04): the heading
+  // still names the fire, on its amber band.
+  it('opens only the forecast once an analysis exists, and folds every layer, warnings included', () => {
+    const html = rankedHtml({ ...base, sections: [FIRE, CLOSURE, RADAR], analyzedAtMs: Date.UTC(2026, 10, 3, 21, 36) })
+    expect([FIRE, CLOSURE, RADAR].map((s) => foldOf(html, s.kind))).toEqual(['false', 'false', 'false'])
     expect(foldOf(html, FORECAST_SECTION)).toBe('true')
     expect(html).toContain(heading('Active wildfire', 'Bolt Creek'))
-    expect(html).toContain('3.2 mi NW')
-    expect(html).toContain('NIFC: Jul 17')
+    expect(html).not.toContain('3.2 mi NW')
     expect(html).not.toContain('~0.02 in/h')
     expect(html).toContain('<table')
   })
@@ -1022,25 +1023,18 @@ describe("a ranked card's forecast section", () => {
 })
 
 describe('sectionOpen', () => {
-  const ranked = { kind: 'ranked', row, rank: 1 } as const
-  const others = [
-    { kind: 'pending', pending: { name: 'Camp Muir', latitude: 46.8, longitude: -121.7, source: 'csv' } },
-    { kind: 'label', poi: RAINIER },
-    { kind: 'spot', lat: 48.8, lon: -121.8 },
-  ] as const
+  const LAYERS = ['fire', 'fire-activity', 'closure-area', 'closure-trail', 'smoke', 'radar', 'snow']
 
-  it('opens the forecast and every warning on a ranked card, and nothing else', () => {
-    expect(sectionOpen(ranked, FORECAST_SECTION)).toBe(true)
-    for (const key of ['fire', 'fire-activity', 'closure-area', 'closure-trail']) expect(sectionOpen(ranked, key, undefined, true)).toBe(true)
-    for (const key of ['smoke', 'radar', 'snow']) expect(sectionOpen(ranked, key)).toBe(false)
-    expect(sectionOpen(ranked, 'radar', undefined, false)).toBe(false)
+  // Before an analysis a card opens whole (TJ, 2026-11-04).
+  it('opens every section before an analysis', () => {
+    for (const key of [...LAYERS, FORECAST_SECTION]) expect(sectionOpen(key, undefined, false)).toBe(true)
   })
 
-  it('opens every section on every other card, warning or not', () => {
-    for (const subject of others) {
-      expect(sectionOpen(subject, 'fire', undefined, true)).toBe(true)
-      expect(sectionOpen(subject, 'snow')).toBe(true)
-    }
+  // After one, the forecast alone, whatever the card and whatever the layer,
+  // a warning folded with the rest.
+  it('opens only the forecast once an analysis exists', () => {
+    expect(sectionOpen(FORECAST_SECTION, undefined, true)).toBe(true)
+    for (const key of LAYERS) expect(sectionOpen(key, undefined, true)).toBe(false)
   })
 
   it("lets the reader's choice win either way, and only for the section it names", () => {
@@ -1049,44 +1043,27 @@ describe('sectionOpen', () => {
       [FORECAST_SECTION, false],
       ['radar', false],
     ])
-    expect(sectionOpen(ranked, 'fire', folds)).toBe(true)
-    // A fold the reader made shuts a warning as it shuts anything else.
-    expect(sectionOpen(ranked, 'closure-area', new Map([['closure-area', false]]), true)).toBe(false)
-    expect(sectionOpen(ranked, FORECAST_SECTION, folds)).toBe(false)
-    expect(sectionOpen(ranked, 'smoke', folds)).toBe(false)
-    expect(sectionOpen(others[2], 'radar', folds)).toBe(false)
-    expect(sectionOpen(others[2], 'snow', folds)).toBe(true)
+    expect(sectionOpen('fire', folds, true)).toBe(true)
+    expect(sectionOpen(FORECAST_SECTION, folds, true)).toBe(false)
+    expect(sectionOpen('smoke', folds, true)).toBe(false)
+    expect(sectionOpen('radar', folds, false)).toBe(false)
+    expect(sectionOpen('snow', folds, false)).toBe(true)
   })
 
-  // On a phone every section but the forecast opens folded, on every card,
-  // before and after an analysis, a warning's too (TJ, 2026-11-04).
-  it('folds every section but the forecast on a phone, warnings included', () => {
-    expect(sectionOpen(ranked, FORECAST_SECTION, undefined, false, true)).toBe(true)
-    for (const subject of [ranked, ...others]) {
-      for (const key of ['fire', 'fire-activity', 'closure-area', 'closure-trail']) expect(sectionOpen(subject, key, undefined, true, true)).toBe(false)
-      for (const key of ['smoke', 'radar', 'snow']) expect(sectionOpen(subject, key, undefined, false, true)).toBe(false)
-    }
-  })
-
-  it("lets the reader's choice win on a phone too", () => {
-    const folds = new Map([
-      ['fire', true],
-      [FORECAST_SECTION, false],
-    ])
-    expect(sectionOpen(others[1], 'fire', folds, true, true)).toBe(true)
-    expect(sectionOpen(ranked, FORECAST_SECTION, folds, false, true)).toBe(false)
-    expect(sectionOpen(ranked, 'smoke', folds, false, true)).toBe(false)
-  })
-
-  // The card draws what `sectionOpen` says: a phone's label card stands its
-  // fire folded to its heading, and a phone's ranked card its forecast open.
-  it('draws a phone card with only its forecast open', () => {
-    const label = destinationPopupHtml({ kind: 'label', poi: RAINIER }, { sections: [FIRE], phone: true })
-    expect(label).toMatch(new RegExp(`${CARD_FOLD_ATTR}="fire"[^>]*aria-expanded="false"`))
-    expect(destinationPopupHtml({ kind: 'label', poi: RAINIER }, { sections: [FIRE] })).toContain('aria-expanded="true"')
+  // The card draws what `sectionOpen` says, read off the analysis's time: a
+  // label card stands its fire open before an analysis and folded after one,
+  // and a ranked card its forecast open.
+  it('draws a card whole before an analysis and on its forecast after one', () => {
+    const analyzedAtMs = Date.UTC(2026, 10, 3, 21, 36)
+    expect(destinationPopupHtml({ kind: 'label', poi: RAINIER }, { sections: [FIRE] })).toMatch(
+      new RegExp(`${CARD_FOLD_ATTR}="fire"[^>]*aria-expanded="true"`),
+    )
+    expect(destinationPopupHtml({ kind: 'label', poi: RAINIER }, { sections: [FIRE], analyzedAtMs })).toMatch(
+      new RegExp(`${CARD_FOLD_ATTR}="fire"[^>]*aria-expanded="false"`),
+    )
     const html = destinationPopupHtml(
       { kind: 'ranked', row, rank: 1 },
-      { columns: displayedColumns(false, 'aqi_avg'), sections: [FIRE], phone: true },
+      { columns: displayedColumns(false, 'aqi_avg'), sections: [FIRE], analyzedAtMs },
     )
     expect(html).toMatch(new RegExp(`${CARD_FOLD_ATTR}="${FORECAST_SECTION}"[^>]*aria-expanded="true"`))
     expect(html).toMatch(new RegExp(`${CARD_FOLD_ATTR}="fire"[^>]*aria-expanded="false"`))

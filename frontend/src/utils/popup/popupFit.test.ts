@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   BODY_CEILING_SHARE,
   BODY_FLOOR_SHARE,
+  DRAG_BODY_MIN_PX,
   FIT_MARGIN_PX,
   bodyBounds,
-  boundBody,
   capHeight,
+  dragBodyRange,
   figureOf,
   fitPan,
   fitsWhole,
@@ -197,9 +198,19 @@ describe('bodyBounds', () => {
     expect(bodyBounds({ left: 0, top: 0, right: 360, bottom: 0 })).toEqual({ floor: 0, ceiling: 0 })
   })
 
-  it('holds a chosen height between them', () => {
-    const bounds = bodyBounds({ left: 0, top: 0, right: 1280, bottom: 600 })
-    expect([50, 300, 900].map((px) => boundBody(px, bounds))).toEqual([150, 300, 450])
+})
+
+// A reader's drag is bounded by neither share (TJ, 2026-11-04): from a
+// heading's worth of body to the free map's height, the region less the
+// fit's 8px at each edge, the marker's 8 and the tip's 10, less the header.
+describe('dragBodyRange', () => {
+  it('runs from a heading to the free map, past the ceiling and under the floor', () => {
+    expect(DRAG_BODY_MIN_PX).toBe(48)
+    // 1000 - 34 - 60: well past the 750 ceiling, and down to 48 under the 250 floor.
+    expect(dragBodyRange({ left: 0, top: 0, right: 1280, bottom: 1000 }, 60)).toEqual({ min: 48, max: 906 })
+    // A header taller than the map leaves the least, never less.
+    expect(dragBodyRange({ left: 0, top: 0, right: 360, bottom: 120 }, 200)).toEqual({ min: 48, max: 48 })
+    expect(dragBodyRange({ left: 0, top: 0, right: 360, bottom: 0 }, 60)).toEqual({ min: 48, max: 48 })
   })
 })
 
@@ -253,15 +264,6 @@ describe('openingBodyCap', () => {
     const short: Rect = { left: 0, top: 0, right: 1000, bottom: 300 }
     expect(openingBodyCap({ x: 500, y: 150 }, { width: 280, height: 300 }, 60, short)).toBeNull()
   })
-
-  // The height a reader dragged a card to stands in for the ceiling, held
-  // between the bounds of the map the card opens on.
-  it("caps a body at the reader's height, held between the bounds", () => {
-    const marker = { x: 640, y: 50 }
-    const size = { width: 280, height: 800 }
-    expect([400, 100, 900].map((roof) => openingBodyCap(marker, size, 760, DESK, [], roof))).toEqual([400, 250, 750])
-    expect(openingBodyCap(marker, { width: 280, height: 300 }, 260, DESK, [], 400)).toBeNull()
-  })
 })
 
 // A body that grew after its card opened, measured where the card stands on
@@ -287,10 +289,5 @@ describe('grownBodyCap', () => {
     expect(grownBodyCap(180, 118, MAP)).toEqual({ cap: 150, pan: 88 })
     // A body under the floor keeps all of itself.
     expect(grownBodyCap(100, 50, MAP)).toEqual({ cap: null, pan: 50 })
-  })
-
-  it("caps a body at the reader's height, held between the bounds", () => {
-    expect(grownBodyCap(300, 0, MAP, 200)).toEqual({ cap: 200, pan: 0 })
-    expect(grownBodyCap(300, 0, MAP, 50)).toEqual({ cap: 150, pan: 0 })
   })
 })

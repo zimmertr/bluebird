@@ -36,12 +36,20 @@
  *   section holds for that section on every card until the page is reloaded
  *   (TJ, 2026-11-03), so a reader who shut the smoke on one marker is not
  *   shown it open on the next;
+ * - **held** at the width it opened at (TJ, 2026-11-04): MapLibre centres a
+ *   card on its point, so a card that widened when a value landed would
+ *   move both its edges and its × under the reader. The card stands at the width
+ *   the fit measured, which is its first paint's, and a line that lands
+ *   wider is cut with its ellipsis or wraps;
  * - **sized** by the handle in its bottom-right corner, with a pointer or a
  *   finger (TJ, 2026-11-03): the drag sets the card's width and its body's
- *   height between the bounds the map gives (`cardBounds`), and the size
- *   holds for every card opened after it until the page is reloaded, by the
- *   folds' rule, the reader's choice following them. A card opened at that
- *   size is still fitted, capped and panned as any card is;
+ *   height between the bounds the map gives (`cardBounds`): the height from
+ *   a heading's worth to the free map's, shorter than its content to scroll
+ *   or taller to leave the card's surface under it (TJ, 2026-11-04). The
+ *   size holds for every card opened after it until the page is reloaded,
+ *   by the folds' rule, the reader's choice following them. A card opened at
+ *   that size is still fitted and panned as any card is, its body at the
+ *   reader's height rather than under the app's cap;
  * - **answered** by its one button: a row in the analysis leaves it as the
  *   table's × does, and a place outside it joins it as a search by name does.
  *
@@ -68,8 +76,15 @@ import type { Place } from '../utils/geocode'
 import { MAP_TARGETS, type MapTarget } from '../utils/mapClick'
 import type { ModelRow } from '../utils/model/modelCompare'
 import type { PointAnswer, PointReading, PointSection } from '../utils/pointReadout'
-import { CARD_FOLD_ATTR, CARD_RESIZE_ATTR, POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popup/popupChrome'
-import { boundBody } from '../utils/popup/popupFit'
+import {
+  CARD_FOLD_ATTR,
+  CARD_RESIZE_ATTR,
+  POPUP_BODY_ATTR,
+  capPopupBody,
+  compactGrid,
+  fixPopupBody,
+} from '../utils/popup/popupChrome'
+import { clamp } from '../utils/numbers'
 import type { Point as ScreenPoint, Rect } from '../utils/popup/popupFit'
 import { loadUsStates, usStatesNow } from '../utils/usStatesLoad'
 import type { MapController } from './controller'
@@ -151,8 +166,12 @@ interface Card {
   seq: Map<MapTarget, number>
   /** Whether its cap waits for the map's move to end (`capWhenStill`). */
   capping: boolean
-  /** The body height the reader had chosen when it opened, which a later cap keeps under. */
-  roof: number | null
+  /**
+   * Whether its body stands at a height the reader dragged to (`fixPopupBody`),
+   * on this card or on one before it, rather than under a cap the app chose:
+   * such a body is never capped again, since it holds what the reader asked.
+   */
+  fixed: boolean
   /**
    * Where a card opened ahead of a table row's flight stands in its one
    * re-fit (TJ, 2026-11-04): `flying` until the flight lands, `landed` from
@@ -221,7 +240,9 @@ export function mountDestinationCards(
       // In the map's rank, whatever order the layers answered in.
       sections: MAP_TARGETS.filter((kind) => card.sections.has(kind)).map((kind) => card.sections.get(kind)!),
       folds,
-      phone: controller.inputs.phone,
+      // Whether an analysis exists, which folds every section but the
+      // forecast (`sectionOpen`), and the forecast's fine print.
+      analyzedAtMs: controller.inputs.analyzedAtMs,
     }
     if (s.kind !== 'ranked') return shared
     const live = controller.inputs
@@ -239,7 +260,6 @@ export function mountDestinationCards(
       compact: compactGrid(map.getCanvas().clientWidth),
       widths: gridHeads.widths(),
       removable: true,
-      analyzedAtMs: live.analyzedAtMs,
     }
   }
 
@@ -279,6 +299,9 @@ export function mountDestinationCards(
     const el = card.popup.getElement()
     const width0 = el?.offsetWidth ?? 0
     const body0 = bodyOf(card)?.offsetHeight ?? 0
+    // The body's range, read once: the card's header does not change under
+    // the drag, and the free map's height is the map's as the drag starts.
+    const range = popups.cardBounds(card.popup).body
     const x0 = e.clientX
     const y0 = e.clientY
     const move = (ev: PointerEvent) => {
@@ -286,12 +309,15 @@ export function mountDestinationCards(
       const width = popups.sizeCard(card.popup, width0 + 2 * (ev.clientX - x0))
       // A card with no body, a spot with no layer on, sizes its width alone
       // and leaves the height the reader chose on another card as it was.
+      // The floor and the ceiling are the app's default and bound nothing
+      // here (TJ, 2026-11-04): the body stands at the height asked for.
       const body = bodyOf(card)
       let height = chosen?.body ?? null
       if (body) {
-        height = Math.round(boundBody(body0 + ev.clientY - y0, popups.cardBounds().body))
+        height = Math.round(clamp(body0 + ev.clientY - y0, range.min, range.max))
         card.capped = height
-        capPopupBody(body, height)
+        card.fixed = true
+        fixPopupBody(body, height)
       }
       chosen = { width, body: height }
     }
@@ -308,10 +334,9 @@ export function mountDestinationCards(
 
   // A chevron's press: the section folds or opens on every card, and the
   // chevron pressed keeps the reader's focus, in its new markup. The flip is
-  // of what the card showed, a phone's default included.
+  // of what the card showed, the default included.
   function fold(card: Card, key: string) {
-    const warning = card.sections.get(key as MapTarget)?.warning
-    folds.set(key, !sectionOpen(card.subject, key, folds, warning, controller.inputs.phone))
+    folds.set(key, !sectionOpen(key, folds, controller.inputs.analyzedAtMs != null))
     for (const c of cards) write(c)
     card.popup.getElement()?.querySelector?.<HTMLButtonElement>(`[${CARD_FOLD_ATTR}="${key}"]`)?.focus?.()
   }
@@ -383,9 +408,9 @@ export function mountDestinationCards(
       if (grown && resized(card)) refit(card)
     } else if (body && card.capped === null) {
       if (map.isMoving()) capWhenStill(card)
-      else card.capped = popups.bodyCap(card.popup, card.roof)
+      else card.capped = popups.bodyCap(card.popup)
     }
-    if (body && card.capped !== null) capPopupBody(body, card.capped)
+    if (body && card.capped !== null) (card.fixed ? fixPopupBody : capPopupBody)(body, card.capped)
     if (body) body.scrollTop = scrolled
   }
 
@@ -436,7 +461,7 @@ export function mountDestinationCards(
   // ceiling, the side and the pan the fit asks for, as `openCard` does.
   function refit(card: Card) {
     card.landing = null
-    card.capped = popups.refit(card.popup, { roof: card.roof, avoid: card.avoid })?.capped ?? null
+    card.capped = popups.refit(card.popup, { body: card.fixed ? card.capped : null, avoid: card.avoid })?.capped ?? null
   }
 
   // The cap a card that grew in the air takes where the move set it down.
@@ -447,7 +472,7 @@ export function mountDestinationCards(
       map.off('moveend', still)
       card.capping = false
       if (!cards.includes(card) || card.capped !== null) return
-      card.capped = popups.bodyCap(card.popup, card.roof)
+      card.capped = popups.bodyCap(card.popup)
       const body = bodyOf(card)
       if (body && card.capped !== null) capPopupBody(body, card.capped)
     }
@@ -556,7 +581,7 @@ export function mountDestinationCards(
         reading: new AbortController(),
         seq: new Map(),
         capping: false,
-        roof: chosen?.body ?? null,
+        fixed: chosen?.body != null,
         landing: null,
         grew: false,
         avoid: avoid ?? [],
@@ -580,7 +605,15 @@ export function mountDestinationCards(
       })
       card.popup = placed.popup
       card.capped = placed.capped
+      // A card with no body has no height to hold, whatever the reader chose.
+      card.fixed = card.fixed && placed.capped !== null
       card.fitted = placed.size
+      // Held at the width the fit measured, its first paint's, so nothing
+      // that lands later widens it and moves it on its point (TJ, 2026-11-04):
+      // the snow's numbers, a section a layer answers a moment late, the
+      // ground's slope. Not the reader's size: the next card opens at its own.
+      // A card opened at the reader's width stands at it already.
+      if (!chosen && placed.size.width > 0) popups.sizeCard(placed.popup, placed.size.width)
       // A point given for where the card WILL stand is a flight to come.
       if (markerAt) land(card)
       // The tutorial's marker step frames a ranked card (#536).
@@ -616,7 +649,12 @@ export function mountDestinationCards(
       // be: a resize can change how the grid is laid out.
       write(card)
       if (avoid) card.avoid = avoid
-      const fit = popups.refit(card.popup, { roof: card.roof, avoid: card.avoid, markerAt, pan: false })
+      const fit = popups.refit(card.popup, {
+        body: card.fixed ? card.capped : null,
+        avoid: card.avoid,
+        markerAt,
+        pan: false,
+      })
       if (!fit) return undefined
       card.capped = fit.capped
       card.fitted = fit.size

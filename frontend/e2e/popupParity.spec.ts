@@ -86,8 +86,9 @@ for (const theme of ['dark', 'light'] as const) {
 
     // The button looks the way the same class list does in the panel, at rest
     // and under the pointer. It stands in the title row, after the name and
-    // left of the ×, as tall as the × and centred on it, with at least 8px
-    // between the two (TJ, 2026-11-04). Polled for the pan, as above.
+    // left of the ×, as tall as the × and centred on it, 8px from it, the
+    // gap under a finger too (TJ, 2026-11-04; `styles.test.ts` holds the
+    // touch sum). Polled for the pan, as above.
     const button = popup.getByRole('button', { name: 'Remove from analysis' })
     await expect(button).toHaveText('Remove')
     const place = () =>
@@ -103,7 +104,7 @@ for (const theme of ['dark', 'light'] as const) {
         }
       })
     await expect.poll(place).toMatchObject({ height: true, centred: true, afterTitle: true })
-    expect((await place()).gap).toBeGreaterThanOrEqual(8)
+    expect((await place()).gap).toBe(8)
     const className = await button.getAttribute('class')
     expect(className).toBeTruthy()
     await page.mouse.move(0, 0)

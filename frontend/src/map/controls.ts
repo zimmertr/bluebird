@@ -180,6 +180,12 @@ export function placeControl(
 ): void {
   const element = control._container
   if (!element) return
+  // A control in its library corner is something a card keeps clear of, as
+  // a phone's scale and its (i) are on the Analyze button's row; one in a
+  // slot is inside a surface that is marked already (`MapRows`, `MapCorner`),
+  // and marking it too would count its box twice in the fit, which takes
+  // what it avoids as disjoint (`visibleArea` in `utils/popup/popupFit.ts`).
+  element.toggleAttribute('data-map-overlay', !slot)
   const home = slot ?? map.getContainer().querySelector(`.maplibregl-ctrl-${corner}`)
   if (!home || element.parentElement === home) return
   if (first && !slot) home.prepend(element)

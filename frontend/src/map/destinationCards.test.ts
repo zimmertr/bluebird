@@ -34,9 +34,9 @@ const { popups, outlines, look } = vi.hoisted(() => ({
     load: null as null | ((states: import('../utils/usStates').UsStates) => void),
     calls: 0,
   },
-  // How tall a card stands for its markup, for a test whose sections change
-  // its size; 200px whatever it holds otherwise.
-  look: { height: null as null | ((html: string) => number) },
+  // How tall and how wide a card stands for its markup, for a test whose
+  // sections change its size; 200 by 280 whatever it holds otherwise.
+  look: { height: null as null | ((html: string) => number), width: null as null | ((html: string) => number) },
 }))
 vi.mock('../utils/usStatesLoad', () => ({
   usStatesNow: () => outlines.held,
@@ -119,7 +119,7 @@ vi.mock('maplibre-gl', () => ({
     }
     getElement() {
       return {
-        offsetWidth: 280,
+        offsetWidth: look.width?.(this.state.html) ?? 280,
         offsetHeight: look.height?.(this.state.html) ?? 200,
         setAttribute: (k: string, v: string) => (this.state.attrs[k] = v),
         querySelector: (selector: string) => {
@@ -193,6 +193,7 @@ beforeEach(() => {
   outlines.load = null
   outlines.calls = 0
   look.height = null
+  look.width = null
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -664,48 +665,43 @@ describe('sections', () => {
     expect(popups[1].folds.find((b) => b.key === 'radar')!.focused).toBe(true)
   })
 
-  // A ranked card opens on its forecast with the layers folded under it.
-  it("folds a ranked card's layers and opens its forecast by default", async () => {
+  // Before an analysis every section opens, on every card (TJ, 2026-11-04):
+  // a card is what the reader asks the map about the point.
+  it('opens every section on every card before an analysis', async () => {
     const { cards, board, controller } = setup()
-    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'aqi_avg') })
-    layer(board, 'radar', async () => ({ section: RAIN }))
-    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [0, 0])
-    await settle()
-    expect(expanded(popups[0].html, 'radar')).toBe('false')
-    expect(expanded(popups[0].html, 'forecast')).toBe('true')
-    expect(popups[0].html.indexOf('Rain radar')).toBeLessThan(popups[0].html.indexOf('data-card-fold="forecast"'))
-  })
-
-  // A warning stands open on a ranked card beside the forecast (TJ,
-  // 2026-11-03), and its chevron folds it at the first press: the press
-  // reads the default the card drew, warning and all.
-  it("opens a ranked card's warnings by default, and folds one at the first press", async () => {
-    const { cards, board, controller } = setup()
-    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'aqi_avg') })
-    layer(board, 'fire', async () => ({ section: { ...section('fire', 'Active wildfire', 'Bolt Creek'), warning: true } }))
-    layer(board, 'radar', async () => ({ section: RAIN }))
-    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [0, 0])
-    await settle()
-    expect(['fire', 'radar', 'forecast'].map((key) => expanded(popups[0].html, key))).toEqual(['true', 'false', 'true'])
-    popups[0].folds.find((b) => b.key === 'fire')!.press()
-    expect(expanded(popups[0].html, 'fire')).toBe('false')
-  })
-
-  // On a phone every section but the forecast opens folded, on every card,
-  // warnings too (TJ, 2026-11-04), read off the controller's `phone`; the
-  // first press opens what the phone folded, and that fold holds.
-  it('folds every section but the forecast on a phone, and opens one at the first press', async () => {
-    const { cards, board, controller } = setup()
-    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'aqi_avg'), phone: true })
+    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'aqi_avg'), analyzedAtMs: null })
     layer(board, 'fire', async () => ({ section: { ...section('fire', 'Active wildfire', 'Bolt Creek'), warning: true } }))
     layer(board, 'radar', async () => ({ section: RAIN }))
     cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [0, 0])
     cards.open({ kind: 'label', poi: PEAK }, [PEAK.lon, PEAK.lat], { pan: false })
     await settle()
+    expect(['fire', 'radar', 'forecast'].map((key) => expanded(popups[0].html, key))).toEqual(['true', 'true', 'true'])
+    expect(['fire', 'radar'].map((key) => expanded(popups[1].html, key))).toEqual(['true', 'true'])
+    expect(popups[0].html.indexOf('Rain radar')).toBeLessThan(popups[0].html.indexOf('data-card-fold="forecast"'))
+  })
+
+  // Once an analysis exists, every card opens on its forecast alone, a
+  // pending, label or spot card as a ranked one, a warning folded with the
+  // rest (TJ, 2026-11-04). The first press opens what the default folded,
+  // and that fold holds on every card.
+  it('folds every section but the forecast on every card once an analysis exists, and opens one at the first press', async () => {
+    const { cards, board, controller } = setup()
+    const analyzedAtMs = Date.UTC(2026, 10, 3, 21, 36)
+    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'aqi_avg'), analyzedAtMs })
+    layer(board, 'fire', async () => ({ section: { ...section('fire', 'Active wildfire', 'Bolt Creek'), warning: true } }))
+    layer(board, 'radar', async () => ({ section: RAIN }))
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [0, 0])
+    cards.open({ kind: 'label', poi: PEAK }, [PEAK.lon, PEAK.lat], { pan: false })
+    cards.open(SPOT, [SPOT.lon, SPOT.lat], { pan: false })
+    await settle()
     expect(['fire', 'radar', 'forecast'].map((key) => expanded(popups[0].html, key))).toEqual(['false', 'false', 'true'])
-    expect(['fire', 'radar'].map((key) => expanded(popups[1].html, key))).toEqual(['false', 'false'])
-    popups[1].folds.find((b) => b.key === 'radar')!.press()
-    expect(popups.map((p) => expanded(p.html, 'radar'))).toEqual(['true', 'true'])
+    for (const card of [popups[1], popups[2]]) {
+      expect(['fire', 'radar'].map((key) => expanded(card.html, key))).toEqual(['false', 'false'])
+    }
+    // Folded, a warning still stands on its amber band with its mark.
+    expect(popups[1].html).toContain('var(--popup-warn-band)')
+    popups[1].folds.find((b) => b.key === 'fire')!.press()
+    expect(popups.map((p) => expanded(p.html, 'fire'))).toEqual(['true', 'true', 'true'])
   })
 
   // The button stands in the title row now (TJ, 2026-11-04), and the press
@@ -838,8 +834,11 @@ describe('sections', () => {
   })
 
   // The handle in a card's corner (TJ, 2026-11-03), on a 1280 by 900 map:
-  // widths from 180 to 1260, and a body between 225 and 675. The card stands
-  // centred on its point, so its width takes twice the pointer's travel.
+  // widths from 180 to 1260, and a body from a heading's 48px to the free
+  // map's 816, 900 less the fit's 34 and the card's 50 of header (TJ,
+  // 2026-11-04), past the 675 ceiling and under the 225 floor the app caps
+  // by. The card stands centred on its point, so its width takes twice the
+  // pointer's travel.
   const drag = (handle: NonNullable<(typeof popups)[number]['handle']>, dx: number, dy: number) => {
     handle.fire('pointerdown', { pointerId: 1, clientX: 100, clientY: 100 })
     handle.fire('pointermove', { pointerId: 1, clientX: 100 + dx, clientY: 100 + dy })
@@ -854,12 +853,14 @@ describe('sections', () => {
     handle.fire('pointerdown', { pointerId: 1, clientX: 100, clientY: 100 })
     expect(handle.captured).toEqual([1])
     handle.fire('pointermove', { pointerId: 1, clientX: 140, clientY: 300 })
-    // 280 + 2 × 40, and 150 + 200.
+    // 280 + 2 × 40, and 150 + 200, the body standing at that height
+    // whatever it holds, so a short card grows as a long one shrinks.
     expect([card.maxWidth, card.content.style.width, card.body.style.maxHeight]).toEqual(['360px', '360px', '350px'])
+    expect(card.body.style.minHeight).toBe('350px')
     handle.fire('pointermove', { pointerId: 1, clientX: 5000, clientY: 5000 })
-    expect([card.maxWidth, card.body.style.maxHeight]).toEqual(['1260px', '675px'])
+    expect([card.maxWidth, card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['1260px', '816px', '816px'])
     handle.fire('pointermove', { pointerId: 1, clientX: -5000, clientY: -5000 })
-    expect([card.maxWidth, card.body.style.maxHeight]).toEqual(['180px', '225px'])
+    expect([card.maxWidth, card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['180px', '48px', '48px'])
     // Another pointer's move is no part of this drag.
     handle.fire('pointermove', { pointerId: 2, clientX: 140, clientY: 300 })
     expect(card.maxWidth).toBe('180px')
@@ -880,13 +881,13 @@ describe('sections', () => {
     drag(popups[0].handle!, 0, 200)
     await settle()
     expect(popups[0].html).toContain('Rain radar')
-    expect(popups[0].body.style.maxHeight).toBe('350px')
+    expect([popups[0].body.style.maxHeight, popups[0].body.style.minHeight]).toEqual(['350px', '350px'])
     expect(cap).not.toHaveBeenCalled()
   })
 
   // The reader's choice follows them, as a fold does (TJ, 2026-11-03): every
-  // card opened after the drag opens at its width, and a later cap keeps
-  // under its height.
+  // card opened after the drag opens at its width, its body standing at the
+  // height dragged to, which no later cap touches (TJ, 2026-11-04).
   it('opens every card after it at the size it was dragged to, until the page is reloaded', async () => {
     const { cards, board } = setup()
     cards.open(SPOT, [SPOT.lon, SPOT.lat])
@@ -897,13 +898,43 @@ describe('sections', () => {
     cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude])
     const next = popups[popups.length - 1]
     expect([next.maxWidth, next.content.style.width]).toEqual(['360px', '360px'])
+    expect([next.body.style.maxHeight, next.body.style.minHeight]).toEqual(['350px', '350px'])
     await settle()
     expect(next.html).toContain('Rain radar')
-    expect(cap).toHaveBeenCalledWith(expect.anything(), 350)
-    // A mount is a page load: its cards open at the map's own width.
+    expect(cap).not.toHaveBeenCalled()
+    expect([next.body.style.maxHeight, next.body.style.minHeight]).toEqual(['350px', '350px'])
+    // A mount is a page load: its cards open at their own width, held there,
+    // and their bodies under the app's cap.
     const { cards: fresh } = setup()
     fresh.open(SPOT, [SPOT.lon, SPOT.lat])
-    expect(popups[popups.length - 1].maxWidth).toBeUndefined()
+    expect(popups[popups.length - 1].maxWidth).toBe('280px')
+    expect(popups[popups.length - 1].body.style.minHeight).toBeUndefined()
+  })
+
+  // A card keeps the width it opened at (TJ, 2026-11-04): MapLibre centres a
+  // card on its point, so a card that widened when the snow's numbers landed
+  // moved both its edges. The width the fit measured is set on it at once,
+  // and a write that would draw it wider leaves it there. The hold is not the
+  // reader's size, so the next card opens at its own width.
+  it("holds a card at the width of its first paint through a later write, and not the next card's", async () => {
+    const { cards, board } = setup()
+    look.width = (html) => (html.includes('Rate: 0.1 in/hr') ? 320 : 240)
+    const land = (() => {
+      let answer: () => void = () => {}
+      layer(board, 'radar', () => new Promise<PointReading>((resolve) => (answer = () => resolve({ section: RAIN }))))
+      return () => answer()
+    })()
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    const card = popups[0]
+    expect([card.maxWidth, card.content.style.width]).toEqual(['240px', '240px'])
+    land()
+    await settle()
+    expect(markupText(card.html)).toContain('Rate: 0.1 in/hr')
+    expect([card.maxWidth, card.content.style.width]).toEqual(['240px', '240px'])
+    board.closeAll()
+    look.width = () => 300
+    cards.open({ ...SPOT, lat: 47.5 }, [SPOT.lon, 47.5])
+    expect(popups[popups.length - 1].content.style.width).toBe('300px')
   })
 
   // A table row's card opens before its flight, and the layers that fetch
@@ -942,7 +973,7 @@ describe('sections', () => {
       await settle()
       expect(markupText(popups[0].html)).toContain('Active wildfire: Bolt Creek')
       expect(fit).toHaveBeenCalledTimes(1)
-      expect(fit).toHaveBeenCalledWith(expect.anything(), { roof: null, avoid: [] })
+      expect(fit).toHaveBeenCalledWith(expect.anything(), { body: null, avoid: [] })
       expect(popups[0].body.style.maxHeight).toBe('300px')
       // One re-fit: the next section keeps the cap the re-fit set.
       snow()
@@ -1020,7 +1051,7 @@ describe('sections', () => {
       await settle()
       expect(steer).toHaveBeenCalledTimes(1)
       expect(moves).toEqual([{ dx: 0, dy: 64 }])
-      expect(fit).toHaveBeenCalledWith(expect.anything(), { roof: null, avoid: [], markerAt: MARKER, pan: false })
+      expect(fit).toHaveBeenCalledWith(expect.anything(), { body: null, avoid: [], markerAt: MARKER, pan: false })
       // The stopped flight's `moveend` was not the card's landing, and the
       // steered flight's lands it as it was placed.
       stub.fire('moveend')

@@ -52,10 +52,6 @@ export interface MapInputs {
   // where no sheet is up: a click that opens a card goes through it, so the
   // card is fitted to the map the lowered sheet leaves (TJ, 2026-11-04).
   lowerSheetFirst: (then: () => void) => void
-  // Whether the map is a phone's, the results sheet's own test
-  // (`useIsDesktop`): a card there opens with every section but the forecast
-  // folded (TJ, 2026-11-04).
-  phone: boolean
 }
 
 export interface MapController {

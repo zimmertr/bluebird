@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   SNOW_FAILED,
   SNOW_HELD_LAYER,
+  SNOW_INCHES_CH,
   SNOW_SOURCE,
+  SNOW_TITLES,
+  SNOW_WHEN_CH,
+  SNOW_WIDEST_IN,
   failedSnowSection,
   fetchSnowAt,
   formatInches,
@@ -206,6 +210,37 @@ describe('the snow sections', () => {
     const section = snowSection('Very deep snow', READING, true)
     expect(section.title).toBe(GLACIER_TITLE)
     expect(section.rows.map(markupText)).toEqual(['Depth: 151 in', 'Snow water equivalent: 83 in'])
+  })
+
+  // A card keeps the width it opened at (TJ, 2026-11-04): every name the
+  // section can take stands in one cell, the radar's way (record 0168), and
+  // each bar is as wide as the widest value its row can print.
+  it('stands at the widest of its names whatever it shows, on every shape of the section', () => {
+    const words = [0, 9.8, 39, 98, 197].map(snowWord)
+    expect(SNOW_TITLES).toEqual([...new Set(words)].reverse().concat(GLACIER_TITLE))
+    for (const section of [
+      pendingSnowSection('Deep snow', undefined),
+      pendingSnowSection('Deep snow', false),
+      snowSection('Deep snow', READING),
+      failedSnowSection('Deep snow'),
+    ]) {
+      expect(section.titles).toBe(SNOW_TITLES)
+    }
+  })
+
+  it('stands each bar as wide as the widest value it waits for', () => {
+    // Rainier's summit, the deepest cell measured (2026-10-16), fits with room.
+    for (const inches of [2.8, 13, 834, 2936, SNOW_WIDEST_IN]) {
+      expect(formatInches(inches).length).toBeLessThanOrEqual(SNOW_INCHES_CH)
+    }
+    expect(SNOW_INCHES_CH).toBe('9,999 in'.length)
+    // The longest date the fine print writes, two-digit day and hour.
+    for (const ms of [new Date(2026, 10, 30, 0, 0).getTime(), new Date(2026, 8, 30, 11, 59).getTime()]) {
+      expect(updatedAt(ms)!.length).toBeLessThanOrEqual(SNOW_WHEN_CH)
+    }
+    const pending = pendingSnowSection('Deep snow', false)
+    expect(pending.rows.every((r) => r.includes(`width:${SNOW_INCHES_CH}ch`))).toBe(true)
+    expect(pending.when).toContain(`width:${SNOW_WHEN_CH}ch`)
   })
 
   it('says NOAA failed in place of the values, keeping its name', () => {

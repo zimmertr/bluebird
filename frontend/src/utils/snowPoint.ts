@@ -205,19 +205,48 @@ export const GLACIER_TITLE = 'Glacier'
 const NO_VALUE = UNAVAILABLE
 
 /**
+ * Every name a snow section can take, each depth's word and the glacier's,
+ * so a card stands at the widest of them whichever it shows (record 0168's
+ * rule, the radar's): a card that opened on a bar for its name, or on one
+ * word, keeps its width when NOAA's answer names it (TJ, 2026-11-04).
+ */
+export const SNOW_TITLES: readonly string[] = [...SNOW_WORDS.map((w) => w.word), GLACIER_TITLE].map(escapeHtml)
+
+/**
+ * The widest depth a row's bar stands for: four digits grouped, `9,999 in`.
+ * The deepest cell measured is Rainier's summit at 74.58 m, 2,936 in
+ * (2026-10-16), so this holds three times that, and the water equivalent is
+ * always the shallower of the two.
+ */
+export const SNOW_WIDEST_IN = 9_999
+
+/** The width of a depth or a water equivalent's bar, in the mono face's characters. */
+export const SNOW_INCHES_CH = formatInches(SNOW_WIDEST_IN).length
+
+/**
+ * The width of the fine print's bar for when the analysis is valid: the
+ * longest date and time `updatedAt` writes in English, `Nov 30, 2026,
+ * 12:00 AM`, 22 characters, in a ch of the fine print's own face. A longer
+ * locale's date wraps under the card's held width (`map/destinationCards.ts`).
+ */
+export const SNOW_WHEN_CH = 22
+
+/**
  * The snow's section the moment it is clicked: its name, and a bar for each
- * value on its way. A cell not yet known to be on a glacier or off one wears
- * a bar for its name too, rather than a depth word that a glacier would
- * replace a moment later (TJ, 2026-10-16, #748).
+ * value on its way, each as wide as the widest value it can take, so NOAA's
+ * answer lands in the room the bars kept. A cell not yet known to be on a
+ * glacier or off one wears a bar for its name too, rather than a depth word
+ * that a glacier would replace a moment later (TJ, 2026-10-16, #748).
  */
 export function pendingSnowSection(word: string, glacier: boolean | undefined): PointSection {
   return {
     title: glacier === undefined ? pendingValue() : escapeHtml(glacier ? GLACIER_TITLE : word),
+    titles: SNOW_TITLES,
     source: escapeHtml(SNOW_SOURCE),
     kind: 'snow',
     layer: escapeHtml(SNOW_ROW_LABEL),
-    rows: [row('Depth', pendingValue()), row('Snow water equivalent', pendingValue())],
-    when: pendingValue(),
+    rows: [row('Depth', pendingValue(SNOW_INCHES_CH)), row('Snow water equivalent', pendingValue(SNOW_INCHES_CH))],
+    when: pendingValue(SNOW_WHEN_CH),
   }
 }
 
@@ -231,6 +260,7 @@ export function snowSection(word: string, reading: SnowReading, glacier = false)
   const valid = updatedAt(reading.validMs)
   return {
     title: escapeHtml(glacier ? GLACIER_TITLE : word),
+    titles: SNOW_TITLES,
     source: escapeHtml(SNOW_SOURCE),
     kind: 'snow',
     layer: escapeHtml(SNOW_ROW_LABEL),
@@ -248,6 +278,7 @@ export function failedSnowSection(word: string): PointSection {
     kind: 'snow',
     layer: escapeHtml(SNOW_ROW_LABEL),
     title: escapeHtml(word),
+    titles: SNOW_TITLES,
     source: escapeHtml(SNOW_SOURCE),
     rows: [escapeHtml(SNOW_FAILED)],
   }

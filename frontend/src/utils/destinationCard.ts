@@ -47,7 +47,7 @@ import type { ModelRow } from './model/modelCompare'
 import { roundTo } from './numbers'
 import type { PointSection } from './pointReadout'
 import { coordinateLabel } from './points'
-import { type GroundState, slopeFact } from './popup/groundFact'
+import { type GroundState, SLOPE_FACT_CH, slopeFact } from './popup/groundFact'
 import {
   bodyLines,
   cardButton,
@@ -116,9 +116,11 @@ export interface CardView {
   sections?: readonly PointSection[]
   /** Each section the reader folded or opened by hand, by its key, which overrides the default. */
   folds?: ReadonlyMap<string, boolean>
-  /** Whether the map is a phone's, where every section but the forecast opens folded (`sectionOpen`). */
-  phone?: boolean
-  /** When the report was analyzed, which the forecast section's fine print says. */
+  /**
+   * When the report was analyzed, which the forecast section's fine print
+   * says, and null before an analysis: whether one exists is what folds every
+   * card's sections but the forecast (`sectionOpen`).
+   */
   analyzedAtMs?: number | null
   /** The model the numbers came from and the report's hours, for the Windy links. */
   modelId?: string | null
@@ -291,29 +293,18 @@ const FORECAST_HEADING = 'Forecast'
 
 /**
  * Whether a section shows its body: the reader's own choice for that section
- * where they made one, and otherwise open on every card before an analysis,
- * and on a ranked card open for the forecast and for every warning (a fire,
- * a hotspot or a closure at the point) with the rest folded to their names
- * (TJ, 2026-11-03). The grid is what a marker is clicked for, and a reason
- * to stay away is worth reading before it.
- *
- * On a phone every section but the forecast opens folded, on every card,
- * before and after an analysis, a warning's too (TJ, 2026-11-04), so a card
- * on a phone's small map opens as its headings and the forecast; a folded
- * heading still names what is at the point, a warning's mark with it. The
- * reader's own fold still wins.
+ * where they made one, and otherwise every section open until an analysis
+ * has been run, and once one has, the forecast alone, on every card, a
+ * ranked, pending, label or spot card alike, at a desk and on a phone, a
+ * warning folded with the rest (TJ, 2026-11-04). Before an analysis a card is
+ * what the reader asks the map about the point, so it opens whole; after
+ * one, the forecast is what a card is opened for, and a folded heading still
+ * names what is at the point, a warning on its amber band with its mark.
  */
-export function sectionOpen(
-  s: CardSubject,
-  key: string,
-  folds?: ReadonlyMap<string, boolean>,
-  warning = false,
-  phone = false,
-): boolean {
+export function sectionOpen(key: string, folds: ReadonlyMap<string, boolean> | undefined, analyzed: boolean): boolean {
   const chosen = folds?.get(key)
   if (chosen !== undefined) return chosen
-  if (phone) return key === FORECAST_SECTION
-  return s.kind !== 'ranked' || key === FORECAST_SECTION || warning
+  return !analyzed || key === FORECAST_SECTION
 }
 
 /**
@@ -350,7 +341,7 @@ function forecastSection(s: Extract<CardSubject, { kind: 'ranked' }>, view: Card
     key: FORECAST_SECTION,
     layer: FORECAST_HEADING,
     ...(model ? { name: escapeHtml(model) } : {}),
-    open: sectionOpen(s, FORECAST_SECTION, view.folds, false, view.phone),
+    open: sectionOpen(FORECAST_SECTION, view.folds, view.analyzedAtMs != null),
     body: grid + (analyzed ? bodyLines([updatedLine(escapeHtml(analyzed), ANALYZED)]) : ''),
   })
 }
@@ -359,12 +350,19 @@ function forecastSection(s: Extract<CardSubject, { kind: 'ranked' }>, view: Card
 const ANALYZED = 'Analyzed'
 
 /**
+ * The bar a spot's ground stands as while its tile is read: the widest
+ * height, `29,032 ft`, the dot between the two facts and the widest slope,
+ * so the line lands in the room it kept on a card that holds its width.
+ */
+export const SPOT_GROUND_CH = '29,032 ft'.length + 3 + SLOPE_FACT_CH
+
+/**
  * A spot's ground: the tile's height in feet, then the slope, since a bare
  * point has no height of its own recorded.
  */
 function spotGround(ground: GroundState | undefined): string {
   if (!ground || ground.kind === 'none') return ''
-  if (ground.kind === 'pending') return factsLine([pendingValue()])
+  if (ground.kind === 'pending') return factsLine([pendingValue(SPOT_GROUND_CH)])
   const feet = Math.round(ground.reading.elevationM * FEET_PER_METER)
   return factsLine([factValue(escapeHtml(elevationFact(feet))), slopeFact(ground)])
 }
@@ -379,7 +377,7 @@ function spotGround(ground: GroundState | undefined): string {
  * open, the radar's during playback, stands at the width of its widest so
  * the card does not jump (#752).
  */
-function layerSection(s: CardSubject, section: PointSection, view: CardView): string {
+function layerSection(section: PointSection, view: CardView): string {
   const name = section.titles ? widestName(section.title, section.titles) : section.title
   return cardSection({
     key: section.kind,
@@ -387,7 +385,7 @@ function layerSection(s: CardSubject, section: PointSection, view: CardView): st
     name,
     warning: section.warning,
     link: section.link,
-    open: sectionOpen(s, section.kind, view.folds, section.warning, view.phone),
+    open: sectionOpen(section.kind, view.folds, view.analyzedAtMs != null),
     body: bodyLines([
       section.warn === undefined ? null : warningLine(section.warn, null),
       ...section.rows,
@@ -416,7 +414,7 @@ export function destinationPopupHtml(s: CardSubject, view: CardView = {}): strin
           meta: metaBand([spotGround(view.ground)]),
         }
       : placeHeader(s, view, forecast === null)
-  const sections = [...(view.sections ?? []).map((section) => layerSection(s, section, view)), forecast].filter(
+  const sections = [...(view.sections ?? []).map((section) => layerSection(section, view)), forecast].filter(
     (part): part is string => part !== null,
   )
   // The button stands in the title row whatever is under the band (TJ,

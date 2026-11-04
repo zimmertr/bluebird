@@ -391,7 +391,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       maxPolygonPoints,
       onTerrainChange,
       lowerSheetFirst,
-      phone: !isDesktop,
     }
     const [controller] = useState(() => createMapController(inputs))
     // Declared before every other effect so it runs first in a commit, and any

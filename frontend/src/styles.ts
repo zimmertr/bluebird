@@ -1078,7 +1078,9 @@ export const CARD_FOLD = `flex h-6 w-6 shrink-0 items-center justify-center ${RA
  * The resize handle in a card's bottom-right corner (#832, TJ 2026-11-03): a
  * 16px box at a desk, its grip drawn in the corner 2px in from both edges,
  * and the 32px of a phone's controls under a finger (record 0223), grown up
- * and to the left so it never reaches past the card. It names no colour, for
+ * and to the left so it never reaches past the card: over the body's last
+ * corner by 16px each way, since the body ends on the grip's 16px alone
+ * (`CARD_BODY_END`, TJ 2026-11-04). It names no colour, for
  * `CARD_FOLD`'s reason: its ink is the card's glyph grey, set in the markup
  * (`popupCard` in `utils/popup/popupChrome.ts`), lit under a pointer through
  * `map.css`'s `data-popup-glyph`. No focus ring, because it is pointer-only
@@ -1090,13 +1092,18 @@ export const CARD_RESIZE =
 
 /**
  * The bottom of a card's body, which ends the card since its action moved to
- * the title row (TJ, 2026-11-04): as tall as `CARD_RESIZE`'s box, at a desk
- * and under a finger, so the handle in the corner stands below the last
- * section rather than over a folded heading's chevron or a grid's last
- * number. Its own role so the two heights are spelled side by side and
- * `styles.test.ts` holds them equal.
+ * the title row (TJ, 2026-11-04): the grip's own 16px box, at a desk and
+ * under a finger, so at a desk the handle in the corner stands below the
+ * last section rather than over a folded heading's chevron or a grid's last
+ * number. Under a finger `CARD_RESIZE`'s 32px box rises 16px over the
+ * body's last corner, the grip staying in the card's corner, since a 32px end
+ * reads as an empty section under a folded heading. The chevron on the last
+ * heading loses its box's bottom 16px across its right 22px to the handle
+ * there (the box runs 10px past the chevron's, to the card's edge), and
+ * keeps the rest. Its own role so the two heights are spelled side by side
+ * and `styles.test.ts` holds them.
  */
-export const CARD_BODY_END = 'pb-4 touch:pb-8'
+export const CARD_BODY_END = 'pb-4'
 
 /**
  * A card's title row, at least as tall as the × MapLibre stands in its corner

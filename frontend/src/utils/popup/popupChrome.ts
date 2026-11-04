@@ -357,7 +357,10 @@ export function metaBand(lines: string[]): string {
  * Neither line wraps. A latitude and a longitude are one value in two halves,
  * and breaking between them leaves a bare negative number on its own line
  * looking like a third figure; each stays at the popup's own size, since a
- * line that shrank to fit would read as an afterthought.
+ * line that shrank to fit would read as an afterthought. A line wider than
+ * the card ends in an ellipsis, as the title does: a card keeps the width it
+ * opened at (`map/destinationCards.ts`), so a slope that lands after it
+ * opened is cut rather than running past its edge.
  *
  * `href` is where the pair links to: CalTopo, centred on the point (#712, TJ
  * 2026-10-14). The coordinates are the one fact on a card that names a place,
@@ -381,7 +384,7 @@ export function factsRow(
     elevation ? `<span style="${VALUE_FACE}">${escapeHtml(elevation)}</span>` : '',
     ground,
   ].filter(Boolean)
-  const line = (inner: string) => `<div style="white-space:nowrap">${inner}</div>`
+  const line = (inner: string) => `<div style="${ONE_LINE}">${inner}</div>`
   return `${line(coords)}${facts.length ? line(facts.join(FACTS_DOT)) : ''}`
 }
 
@@ -443,9 +446,17 @@ export function bodyLines(lines: readonly (string | null | undefined)[]): string
  * still, since a shimmer would move under a reader who has asked for less
  * motion. Hidden from a screen reader, which hears the label alone until the
  * number lands.
+ *
+ * `widthCh` is the widest value the bar stands for, in characters: a `ch` of
+ * the face the bar stands in, which in a row is the values' mono face, where
+ * a ch is exactly one character. A bar as wide as the widest answer keeps the
+ * card from widening when the answer lands (TJ, 2026-11-04), as `widestName`
+ * keeps it for a name. With none it is 3.5em, for a bar whose room something
+ * else keeps, a name in `widestName`'s cell.
  */
-export function pendingValue(): string {
-  return `<span aria-hidden="true" style="display:inline-block;width:3.5em;height:0.8em;vertical-align:-0.05em;border-radius:2px;background:${RULE_COLOR}"></span>`
+export function pendingValue(widthCh?: number): string {
+  const width = widthCh === undefined ? '3.5em' : `${widthCh}ch`
+  return `<span aria-hidden="true" style="display:inline-block;width:${width};height:0.8em;vertical-align:-0.05em;border-radius:2px;background:${RULE_COLOR}"></span>`
 }
 
 /**
@@ -822,10 +833,23 @@ export function capPopupBody(body: HTMLElement, maxHeightPx: number): void {
   body.style.maxHeight = `${Math.floor(maxHeightPx)}px`
 }
 
-/** Take a body's cap off, so it measures at its own height again for a fresh fit (`refit` in `map/mapPopups.ts`). */
+/**
+ * Stand a popup's body at the height a reader dragged it to (TJ,
+ * 2026-11-04): as tall as that whatever it holds, scrolling what is taller
+ * and leaving the card's surface under its last section where it holds
+ * less, so a drag can make a short card taller as well as a long one
+ * shorter. A cap alone (`capPopupBody`) can only take height away.
+ */
+export function fixPopupBody(body: HTMLElement, heightPx: number): void {
+  capPopupBody(body, heightPx)
+  body.style.minHeight = `${Math.floor(heightPx)}px`
+}
+
+/** Take a body's cap or its fixed height off, so it measures at its own height again for a fresh fit (`refit` in `map/mapPopups.ts`). */
 export function uncapPopupBody(body: HTMLElement): void {
   body.classList.remove(POPUP_SCROLL_CLASS)
   body.style.maxHeight = ''
+  body.style.minHeight = ''
 }
 
 /**
@@ -1001,7 +1025,8 @@ export interface PopupCard {
  * height (`CARD_TITLE_ROW`) and starts at the ×'s inset, so the title, the
  * button and the × share a centre line, and the title gives its end to its
  * ellipsis before the button gives anything. `ACTION_CLEAR` keeps the button
- * 8px off the × at a desk, so `Remove` and × read as two controls.
+ * 8px off the ×, at a desk and under a finger, so `Remove` and × read as two
+ * controls.
  *
  * A card is as wide as its widest line (TJ, 2026-11-04): MapLibre's popup is
  * shrink-to-fit under the `maxWidth` its opener gives it (the ranked cap,
@@ -1010,10 +1035,13 @@ export interface PopupCard {
  * the floor, on the card's root, so a short spot never shrinks under it.
  *
  * Every card ends on its resize handle (`resizeHandle`), last in the markup
- * so it stands in the card's bottom-right corner: under the body's end, which
- * keeps the handle's height clear (`CARD_BODY_END`) so it never stands over a
- * folded heading's chevron or a grid's last number, or on the band's end on
- * a card with no body, where the close lane keeps the facts clear of it.
+ * so it stands in the card's bottom-right corner: at a desk under the body's
+ * end, which keeps the grip's 16px clear (`CARD_BODY_END`) so it never
+ * stands over a folded heading's chevron or a grid's last number, and under
+ * a finger with its 32px box over the body's last corner, the last heading's
+ * chevron giving up its box's bottom-right corner to it (TJ, 2026-11-04); or
+ * on the band's end on a card with no body, where the close lane keeps the
+ * facts clear of it.
  */
 export function popupCard({ title, link = null, meta = '', body = '', action = '' }: PopupCard): string {
   const content = body
@@ -1036,11 +1064,13 @@ export function popupCard({ title, link = null, meta = '', body = '', action = '
 const CLOSE_INSET = '0.375rem'
 
 /**
- * Between the card's button and the close lane. The lane is the ×'s width,
- * its inset and 4px of air, so 4px more stands the button 8px off the × at a
- * desk, where under a finger the lane's wider air leaves 20px.
+ * Between the card's button and the close lane: `map.css`'s
+ * `--popup-action-clear`, 4px at a desk and -8px under a finger, so the
+ * button stands 8px off the × at both pointer sizes (TJ, 2026-11-04), where
+ * the touch lane's wider air alone would leave 20px. The fallback is the
+ * desk's, for a card read outside a popup.
  */
-const ACTION_CLEAR = '4px'
+const ACTION_CLEAR = 'var(--popup-action-clear, 4px)'
 
 /**
  * The attribute the map finds a card's resize handle by (`map/destinationCards.ts`),

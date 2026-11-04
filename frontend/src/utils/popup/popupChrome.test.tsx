@@ -46,6 +46,7 @@ import {
   widestName,
   ageAgo,
   monthDayTime,
+  pendingValue,
 } from './popupChrome'
 import { AGGREGATE } from '../../metrics'
 import { CHEVRON, GRIP, GRIP_PX } from '../../iconPaths'
@@ -338,9 +339,12 @@ describe('the card\'s button', () => {
     expect(titleRow.firstElementChild!.tagName).toBe('STRONG')
     expect(titleRow.lastElementChild).toBe(slot)
     expect(titleRow.querySelector('a[data-popup-glyph]')!.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // Pushed to the row's end, and 4px short of the close lane, which with
-    // the lane's own 4px of air stands it 8px off the × at a desk.
-    expect(slot.getAttribute('style')).toBe('display:flex;flex:none;margin-left:auto;margin-right:4px')
+    // Pushed to the row's end, and as far off the close lane as map.css's
+    // `--popup-action-clear` says, which stands it 8px off the × at a desk
+    // and under a finger alike (TJ, 2026-11-04).
+    expect(slot.getAttribute('style')).toBe(
+      'display:flex;flex:none;margin-left:auto;margin-right:var(--popup-action-clear, 4px)',
+    )
   })
 
   // The body ends the card, so no foot follows it: only the handle does.
@@ -505,14 +509,30 @@ describe('the resize handle', () => {
     expect(handle.getAttribute('class')).toBe(CARD_RESIZE)
   })
 
-  // With no foot under it, the body ends the card, so it keeps the handle's
-  // height clear at its end: the handle stands under the last section, not
-  // over a folded heading's chevron or a grid's last number (TJ, 2026-11-04).
-  it('stands under the body\'s end, which keeps its height clear', () => {
+  // With no foot under it, the body ends the card, its end the grip's own
+  // 16px at both pointer sizes (TJ, 2026-11-04): a desk's handle stands
+  // under the last section, and a finger's 32px box rises over the body's
+  // last corner rather than leaving a blank strip under a folded heading.
+  it('stands under the body\'s end, which keeps the grip\'s height clear', () => {
     const body = card().querySelector<HTMLElement>('[data-popup-body]')!
     expect(body.getAttribute('class')).toBe(CARD_BODY_END)
     expect(body.style.paddingBottom).toBe('')
     expect(body.style.paddingTop).toBe('8px')
+  })
+
+  // A sibling of the body pinned to the card's bottom-right corner, so the
+  // grip stays in the corner as its box grows up and to the left under a
+  // finger, over the body rather than inside its scroll, where it would
+  // move with the rows.
+  it("pins its box to the card's corner, outside the body's scroll", () => {
+    const popup = card()
+    const root = popup.firstElementChild as HTMLElement
+    const body = popup.querySelector<HTMLElement>('[data-popup-body]')!
+    const handle = popup.querySelector<HTMLElement>(`[${CARD_RESIZE_ATTR}]`)!
+    expect(handle.parentElement).toBe(root)
+    expect(body.contains(handle)).toBe(false)
+    expect(handle.previousElementSibling).toBe(body)
+    expect(CARD_RESIZE.split(' ')).toEqual(expect.arrayContaining(['absolute', 'bottom-0', 'right-0', 'items-end', 'justify-end']))
   })
 
   // A name would be a new string for a control the keyboard cannot work, and
@@ -600,6 +620,23 @@ describe('the updated line', () => {
     expect(updatedAt(undefined)).toBeNull()
     expect(updatedAt(Number.NaN)).toBeNull()
     expect(updatedAt(9e15)).toBeNull()
+  })
+})
+
+// A value on its way stands as a bar as wide as the widest answer it can
+// take (TJ, 2026-11-04), so the card does not widen when the answer lands.
+describe('pendingValue', () => {
+  it('is a bar in the rule colour, hidden from a screen reader, as wide as it is told in characters', () => {
+    const bar = mount(pendingValue(8)).firstElementChild as HTMLElement
+    expect(bar.getAttribute('aria-hidden')).toBe('true')
+    expect(bar.getAttribute('style')).toContain('width:8ch;')
+    expect(bar.textContent).toBe('')
+    expect(pendingValue(22)).toContain('width:22ch;')
+  })
+
+  // A bar whose room something else keeps, a name in `widestName`'s cell.
+  it('is 3.5em with no width given', () => {
+    expect(pendingValue()).toContain('width:3.5em;')
   })
 })
 
