@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { SNOW_OPACITY, mountSnow, snowBeneath } from './snow'
+import { SNOW_OPACITY, mountSnow } from './snow'
 import { SNOW_HELD_URL, SNOW_LAYER_ID, SNOW_SOURCE_ID, SNOW_TILE_SIZE } from '../../utils/snowDepth'
 import {
   SNOW_HELD_LAYER,
@@ -16,20 +16,6 @@ import { stubMap } from '../../testSupport/stubMap'
 const SMOKE_FIRST = 'smoke-fill-Light'
 const RADAR_OLDEST = 'radar-50'
 
-describe('snowBeneath', () => {
-  it('goes under the radar loop when the loop is up', () => {
-    expect(snowBeneath((id) => [RADAR_OLDEST, SMOKE_FIRST].includes(id))).toBe(RADAR_OLDEST)
-  })
-
-  it('goes under the smoke fills otherwise, where the loop would go', () => {
-    expect(snowBeneath((id) => id === SMOKE_FIRST)).toBe(SMOKE_FIRST)
-  })
-
-  it('goes on top when neither is there', () => {
-    expect(snowBeneath(() => false)).toBeUndefined()
-  })
-})
-
 describe('mountSnow', () => {
   it('adds nothing until it is switched on', () => {
     const stub = stubMap({ layers: [SMOKE_FIRST] })
@@ -37,6 +23,8 @@ describe('mountSnow', () => {
     expect(stub.stack).toEqual([SMOKE_FIRST])
   })
 
+  // Its slot in `layerOrder.ts`: under the loop when the loop is up, and
+  // under the smoke where the loop would go when it is not.
   it('sits under the radar whichever is switched on first', () => {
     const stub = stubMap({ layers: ['forecast-grid-fill', RADAR_OLDEST, SMOKE_FIRST] })
     mountSnow(stub.map, { popups: fakeMapPopups().popups }).update({ show: true })

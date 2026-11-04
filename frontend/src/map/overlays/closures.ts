@@ -13,6 +13,7 @@
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
+import { addLayerAt } from '../layerOrder'
 import { FIRE_REFETCH_DEBOUNCE_MS, fireDetailFor } from './wildfires'
 import { CLOSURE_COLOR, CLOSURE_EDGE, fetchClosures, type ClosureKind } from '../../utils/closures'
 import { closureSectionAt } from '../../utils/hazardSections'
@@ -112,13 +113,14 @@ export function mountClosures(
   // `online` is where the browser's `online` is heard; the window when absent.
   deps: { popups: MapPopups; online?: EventTarget | null },
 ): ClosureOverlay {
-  // Added right after the fire overlay, so a closure is drawn over the fire
-  // that caused it and under the drawing UI and the result markers. Data is
-  // populated on demand by `update`; the layers render nothing until then.
+  // The closed ground under the fire perimeters and the closed trails over
+  // them, both under the drawing UI and the result markers (`layerOrder.ts`).
+  // Data is populated on demand by `update`; the layers render nothing until
+  // then.
   const source = CLOSURE_SOURCES[kind]
   map.addSource(source, { type: 'geojson', data: emptyFC as FeatureCollection })
   const { specs, clickable } = layersFor(kind, source)
-  for (const spec of specs) map.addLayer(spec)
+  for (const spec of specs) addLayerAt(map, spec)
 
   // A click on a closure opens the spot's card there, whose closure section
   // describes the order (#832; a card of the order's own until then, TJ

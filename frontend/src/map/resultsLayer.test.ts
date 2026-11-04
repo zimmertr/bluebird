@@ -193,17 +193,19 @@ const pendingPopupHtml = ({ pending, ...view }: { pending: PendingDestination } 
   destinationPopupHtml({ kind: 'pending', pending }, view)
 
 describe('mountResultsLayer', () => {
-  it('adds the markers and then the pending dots, arrows hidden', () => {
+  // The pending dots go on after the markers and land under them, so a
+  // ranked name wins a collision with a dot's (record 0268).
+  it('stacks the pending dots under the markers, arrows hidden', () => {
     const { stub } = setup()
     expect(stub.stack).toEqual([
+      'pending-destinations-halo',
+      'pending-destinations-circles',
+      'pending-destinations-labels',
       'results-halo',
       RESULT_MARKER_LAYER,
       'results-wind',
       'results-rank',
       'results-labels',
-      'pending-destinations-halo',
-      'pending-destinations-circles',
-      'pending-destinations-labels',
     ])
     expect(stub.layout['results-wind'].visibility).toBe('none')
   })

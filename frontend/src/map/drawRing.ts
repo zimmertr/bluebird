@@ -14,6 +14,7 @@ import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import type { GeoPolygon } from '../types'
 import { emptyFC, setSource } from './basemap'
+import { addLayerAt } from './layerOrder'
 import type { MapController } from './controller'
 import type { MapPopups } from './mapPopups'
 import {
@@ -68,14 +69,14 @@ export function mountDrawRing(
     type: 'geojson',
     data: (ring.current.length > 0 ? makeDrawData(ring.current) : emptyFC) as FeatureCollection,
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'draw-fill',
     type: 'fill',
     source: 'draw',
     filter: ['==', ['get', 'kind'], 'polygon'],
     paint: { 'fill-color': DRAW_COLOR, 'fill-opacity': DRAW_FILL_OPACITY },
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'draw-line',
     type: 'line',
     source: 'draw',
@@ -93,7 +94,7 @@ export function mountDrawRing(
   const handleVisibility = {
     visibility: deps.controller.inputs.drawing ? 'visible' : 'none',
   } as const
-  map.addLayer({
+  addLayerAt(map, {
     id: 'draw-midpoints',
     type: 'circle',
     source: 'draw',
@@ -101,7 +102,7 @@ export function mountDrawRing(
     layout: handleVisibility,
     paint: MIDPOINT_HANDLE_PAINT,
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'draw-vertices',
     type: 'circle',
     source: 'draw',

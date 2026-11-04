@@ -3,15 +3,16 @@
  * outline, the section a card carries for the plume over its point, and the
  * fetch that runs while the overlay is on.
  *
- * The layers are added once, when the map loads, first of the three polygon
- * overlays: under the fire perimeters and over the radar tiles, which insert
- * themselves beneath the first fill here. That chain is the one the data
+ * The layers are added once, when the map loads, lowest of the three polygon
+ * overlays: under the closures and the fire perimeters and over the radar
+ * tiles (`layerOrder.ts`). That chain is the one the data
  * implies: rain is a measurement of the sky, smoke is a shape drawn over the
  * ground, and a fire is the thing you are steering away from.
  */
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
+import { addLayerAt } from '../layerOrder'
 import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
 import { SMOKE_CLICK_ORDER, SMOKE_DENSITIES, SMOKE_EDGE, SMOKE_FILL, SMOKE_OPACITY, fetchSmoke, smokeLayerId } from '../../utils/smoke'
@@ -36,7 +37,7 @@ export function mountSmoke(
   // way each density is also its own click target and its own legend row.
   map.addSource('smoke', { type: 'geojson', data: emptyFC as FeatureCollection })
   for (const density of SMOKE_DENSITIES) {
-    map.addLayer({
+    addLayerAt(map, {
       id: smokeLayerId(density),
       type: 'fill',
       source: 'smoke',
@@ -48,7 +49,7 @@ export function mountSmoke(
   // it is faint. Deliberately not per density: the outline says "here is a
   // boundary", and three weights of it would be a second encoding competing
   // with the fills.
-  map.addLayer({
+  addLayerAt(map, {
     id: 'smoke-outline',
     type: 'line',
     source: 'smoke',

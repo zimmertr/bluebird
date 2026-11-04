@@ -23,9 +23,8 @@
 import type * as maplibregl from 'maplibre-gl'
 import type { HeldTiles } from '../../utils/heldTiles'
 import { SNOW_TILES } from '../heldTileProtocol'
+import { addLayerAt } from '../layerOrder'
 import type { MapPopups } from '../mapPopups'
-import { RADAR_OLDEST_MIN, radarLayerId } from '../../utils/radar'
-import { SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
 import {
   SNOW_BOUNDS,
   SNOW_HELD_URL,
@@ -50,21 +49,6 @@ import { SNOW_HELD_LAYER, readSnowAt, snowPaints, snowTileZoom } from '../../uti
  * and a summit label off the map underneath.
  */
 export const SNOW_OPACITY = 0.55
-
-/**
- * The layer the field goes beneath.
- *
- * UNDER the radar, which is the one place in the chain it can be: snow is the
- * ground state and rain is what is happening over it. The insertion point says
- * that whichever order the two are switched on: beneath the loop's oldest frame
- * where the loop is already up, and beneath the smoke fills otherwise, which is
- * where the loop itself inserts and therefore leaves room above this.
- */
-export function snowBeneath(hasLayer: (id: string) => boolean): string | undefined {
-  const underRadar = radarLayerId(RADAR_OLDEST_MIN)
-  const beneath = hasLayer(underRadar) ? underRadar : smokeLayerId(SMOKE_DENSITIES[0])
-  return hasLayer(beneath) ? beneath : undefined
-}
 
 export interface SnowOverlay {
   update(next: { show: boolean }): void
@@ -148,7 +132,6 @@ export function mountSnow(
         deps.popups.refreshPoint('snow')
         return
       }
-      const beneath = snowBeneath((id) => Boolean(map.getLayer(id)))
       if (!map.getSource(SNOW_SOURCE_ID)) {
         map.addSource(SNOW_SOURCE_ID, {
           type: 'raster',
@@ -169,15 +152,15 @@ export function mountSnow(
         })
       }
       if (!map.getLayer(SNOW_LAYER_ID)) {
-        map.addLayer(
-          {
-            id: SNOW_LAYER_ID,
-            type: 'raster',
-            source: SNOW_SOURCE_ID,
-            paint: { 'raster-opacity': SNOW_OPACITY },
-          },
-          beneath,
-        )
+        // UNDER the radar, which is the one place in the chain it can be: snow
+        // is the ground state and rain is what is happening over it. Its slot
+        // in `layerOrder.ts` keeps it there whichever is switched on first.
+        addLayerAt(map, {
+          id: SNOW_LAYER_ID,
+          type: 'raster',
+          source: SNOW_SOURCE_ID,
+          paint: { 'raster-opacity': SNOW_OPACITY },
+        })
       }
     },
   }

@@ -11,6 +11,7 @@
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
+import { addLayerAt } from '../layerOrder'
 import {
   COARSE_TOLERANCE_DEG,
   WILDFIRE_EDGE,
@@ -55,17 +56,17 @@ export function mountWildfires(
   // `online` is where the browser's `online` is heard; the window when absent.
   deps: { popups: MapPopups; online?: EventTarget | null },
 ): WildfireOverlay {
-  // Added before draw/results so the red perimeters sit beneath the drawing UI
-  // and result markers. Data is populated on demand by `update`; the layers
-  // render nothing until then.
+  // Over the closed areas and under the closed trails, the drawing UI and the
+  // result markers (`layerOrder.ts`). Data is populated on demand by `update`;
+  // the layers render nothing until then.
   map.addSource('wildfires', { type: 'geojson', data: emptyFC as FeatureCollection })
-  map.addLayer({
+  addLayerAt(map, {
     id: WILDFIRE_FILL_LAYER,
     type: 'fill',
     source: 'wildfires',
     paint: { 'fill-color': WILDFIRE_FILL, 'fill-opacity': WILDFIRE_FILL_OPACITY },
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'wildfire-outline',
     type: 'line',
     source: 'wildfires',

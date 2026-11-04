@@ -123,7 +123,14 @@ export function stubMap(opts: StubMapOptions = {}) {
       stack.splice(stack.indexOf(id), 1)
       calls.push(['removeLayer', id])
     },
-    getLayer: (id: string) => (stack.includes(id) ? { id } : undefined),
+    // A layer as MapLibre holds one, as far as `map/layerOrder.ts` reads it to
+    // place the next. An id from `layers` brings no spec, and has its id alone.
+    getLayer: (id: string) => {
+      if (!stack.includes(id)) return undefined
+      const spec: Record<string, unknown> = opts.styleLayers?.find((l) => l.id === id) ?? specs[id] ?? {}
+      return { id, type: spec.type, source: spec.source, sourceLayer: spec['source-layer'] }
+    },
+    getLayersOrder: () => [...stack],
     addSource: (id: string, spec: unknown) => {
       const source: StubSource = {
         setData: (data) => {

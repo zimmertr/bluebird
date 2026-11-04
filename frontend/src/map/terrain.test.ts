@@ -52,7 +52,7 @@ import { FEET_PER_METER } from '../utils/basemapPoi'
 import { stubMap } from '../testSupport/stubMap'
 
 // The style as `enhanceBasemap` leaves it: Liberty's ground, the app's trails
-// line under the first label, and the label.
+// line under the first label, and the labels.
 const STYLE_LAYERS = [
   { id: 'background', type: 'background' },
   { id: 'water', type: 'fill' },
@@ -95,7 +95,15 @@ describe('mountTerrain', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(load).not.toHaveBeenCalled()
     expect(stub.calls).toEqual([])
-    expect(stub.stack).toEqual([...STYLE_LAYERS.map((l) => l.id), CREDIT_LAYER])
+    expect(stub.stack).toEqual([
+      'background',
+      'water',
+      'road_minor',
+      CREDIT_LAYER,
+      'ofm-trails',
+      'road_one_way_arrow',
+      'label_city',
+    ])
   })
 
   // The relief goes in the first time it is asked for, as Terrarium: read as
@@ -117,9 +125,9 @@ describe('mountTerrain', () => {
     })
   })
 
-  // Under the trails, the peaks and every label: the first `ofm-` layer or
-  // the first symbol, whichever comes first.
-  it('puts the relief under the first ofm- layer and the first label', async () => {
+  // Over the basemap's ground and roads and under the trails, the peaks and
+  // every label (`layerOrder.ts`).
+  it('puts the relief over the roads and under the trails and every label', async () => {
     const { stub, terrain } = setup()
     terrain.update({ ...OFF, relief: true })
     await vi.waitFor(() => expect(stub.stack).toContain(RELIEF_LAYER))
@@ -127,11 +135,11 @@ describe('mountTerrain', () => {
       'background',
       'water',
       'road_minor',
+      CREDIT_LAYER,
       RELIEF_LAYER,
       'ofm-trails',
       'road_one_way_arrow',
       'label_city',
-      CREDIT_LAYER,
     ])
   })
 
@@ -150,8 +158,9 @@ describe('mountTerrain', () => {
     expect(stub.calls.some((c) => c[0] === 'removeLayer' || c[0] === 'removeSource')).toBe(false)
   })
 
-  // The contours: two line layers and their labels, under the labels and over
-  // the relief whichever is switched on first.
+  // The contours: two line layers over the relief and under the trails
+  // whichever is switched on first, and their heights over the trails and
+  // under the basemap's labels.
   it('stacks the contours over the relief and under the labels, either order', async () => {
     for (const order of [['relief', 'contours'], ['contours', 'relief']] as const) {
       const { stub, terrain } = setup()
@@ -161,13 +170,14 @@ describe('mountTerrain', () => {
         terrain.update(want)
         await vi.waitFor(() => expect(stub.stack).toContain(key === 'relief' ? RELIEF_LAYER : CONTOUR_LAYER))
       }
-      expect(stub.stack.slice(3, 9)).toEqual([
+      expect(stub.stack.slice(4, 11)).toEqual([
         RELIEF_LAYER,
         CONTOUR_CASING_LAYER,
         CONTOUR_LAYER,
         CONTOUR_INDEX_LAYER,
-        CONTOUR_LABEL_LAYER,
         'ofm-trails',
+        CONTOUR_LABEL_LAYER,
+        'road_one_way_arrow',
       ])
     }
   })
@@ -407,9 +417,9 @@ describe('the slope angle shading', () => {
         const id = { relief: RELIEF_LAYER, slope: SLOPE_LAYER, contours: CONTOUR_LAYER }[key]
         await vi.waitFor(() => expect(stub.stack).toContain(id))
       }
-      expect([order, stub.stack.slice(3, 10)]).toEqual([
+      expect([order, stub.stack.slice(4, 11)]).toEqual([
         order,
-        [RELIEF_LAYER, SLOPE_LAYER, CONTOUR_CASING_LAYER, CONTOUR_LAYER, CONTOUR_INDEX_LAYER, CONTOUR_LABEL_LAYER, 'ofm-trails'],
+        [RELIEF_LAYER, SLOPE_LAYER, CONTOUR_CASING_LAYER, CONTOUR_LAYER, CONTOUR_INDEX_LAYER, 'ofm-trails', CONTOUR_LABEL_LAYER],
       ])
       terrain.update(OFF)
       expect(visibility(stub, SLOPE_LAYER)).not.toBe('none')

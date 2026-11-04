@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { IMAGERY_EOX, IMAGERY_USGS, basemapGround, fadedOpacity, groundAbove, imageryBeneath, mountImagery } from './imagery'
+import { IMAGERY_EOX, IMAGERY_USGS, fadedOpacity, groundAbove, mountImagery } from './imagery'
+import { basemapGround } from '../layerOrder'
 import { EOX_IMAGERY_TILES, USGS_IMAGERY_TILES } from '../../utils/terrainSources'
 import { stubMap } from '../../testSupport/stubMap'
 import { TRAIL_CASING_LAYER } from '../basemap'
@@ -72,22 +73,9 @@ describe('basemapGround', () => {
   })
 })
 
-describe('imageryBeneath', () => {
-  // Over the last ground layer under the first road: the park outline and the
-  // river lines among the fills go under the photos, the runways stay over.
-  it('names the layer over Liberty\'s last ground fill under its first road', () => {
-    expect(imageryBeneath(liberty)).toBe('aeroway_runway')
-    const at = liberty.findIndex((l) => l.id === 'aeroway_runway')
-    expect(liberty.slice(at).findIndex((l) => l.type === 'symbol' || l['source-layer'] === 'transportation')).toBeGreaterThan(0)
-  })
-
-  it('stays under the first layer that is not the basemap\'s, and names the top past the ground alone', () => {
-    expect(imageryBeneath([{ id: 'background', type: 'background' }, { id: 'ofm-trails', type: 'line', source: 'trails' }])).toBe('ofm-trails')
-    expect(imageryBeneath([{ id: 'background', type: 'background' }, { id: 'road_label', type: 'symbol' }])).toBe('road_label')
-    expect(imageryBeneath([{ id: 'background', type: 'background' }])).toBeUndefined()
-    expect(imageryBeneath([])).toBeUndefined()
-  })
-
+// Where the photos go among Liberty's layers is their slot in `layerOrder.ts`,
+// whose tests pin it.
+describe('groundAbove', () => {
   it('leaves the buildings over it, since Liberty draws them over its roads', () => {
     expect(groundAbove(liberty).map((l) => l.id)).toEqual(ABOVE)
   })
