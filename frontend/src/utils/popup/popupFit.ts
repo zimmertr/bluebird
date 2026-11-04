@@ -204,6 +204,7 @@ export const BODY_CEILING_SHARE = 0.75
  * floor for a card that grew, with one share that follows the map's height.
  * Where the fit cannot give a body this much where its card stands, the card
  * keeps it and the map pans, as it does for any card that does not fit.
+ * It is also the least a reader's drag leaves a body (`dragBodyRange`).
  */
 export const BODY_FLOOR_SHARE = 0.25
 
@@ -220,28 +221,30 @@ export function bodyBounds(region: Rect): BodyBounds {
 }
 
 /**
- * The least a reader's drag leaves a card's body (TJ, 2026-11-04): its own
- * padding, 8px above and 16 below, and one section heading's 24px band, so
- * a body dragged short still shows the heading it scrolls from. The floor
- * and the ceiling bound only the cap a card opens with and a later automatic
- * cap; a reader who drags asks for a size, and gets it between this and the
- * free map's height (`dragBodyRange`).
- */
-export const DRAG_BODY_MIN_PX = 48
-
-/**
  * The heights a reader's drag, or the height a drag left for the next card,
  * stands a body between on the visible map `region`, for a card whose header
- * and tip are `chrome` tall: from `DRAG_BODY_MIN_PX` to the free map's
- * height, which is the region less the fit's breath at both edges, the
- * marker's half square and the tip, less the header. Past the content's own
- * height the body stands taller than what it holds, with the card's surface
- * under its last section (TJ, 2026-11-04).
+ * and tip are `chrome` tall and whose body holds `content` of its own.
+ *
+ * The least is the floor the app caps a body by (`bodyBounds`, TJ
+ * 2026-11-04), since a body much shorter cuts its rows mid-line and is no
+ * size to read a card at. A body that holds less than the floor stops at its
+ * own height instead, since under it there is nothing to scroll into. The most is the free map's
+ * height, the region less the fit's breath at both edges, the marker's half
+ * square and the tip, less the header; past the content's own height the
+ * body stands taller than what it holds, with the card's surface under its
+ * last section. The ceiling bounds only the app's cap: a reader who asks for
+ * more of the map gets it.
+ *
+ * A map with no visible height, a sheet standing over all of it, has
+ * nothing to size a body to, so the body stands at its content, as
+ * `openingBodyCap` leaves it whole.
  */
-export function dragBodyRange(region: Rect, chrome: number): { min: number; max: number } {
+export function dragBodyRange(region: Rect, chrome: number, content: number): { min: number; max: number } {
   const height = Math.max(0, region.bottom - region.top)
+  if (height === 0) return { min: content, max: content }
+  const min = Math.min(content, bodyBounds(region).floor)
   const free = Math.floor(height - 2 * FIT_MARGIN_PX - MARKER_HALF_PX - TIP_PX - chrome)
-  return { min: DRAG_BODY_MIN_PX, max: Math.max(DRAG_BODY_MIN_PX, free) }
+  return { min, max: Math.max(min, free) }
 }
 
 /**

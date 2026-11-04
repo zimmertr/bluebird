@@ -50,6 +50,7 @@ import { mapCursor, pointTargetsToAsk, rankedTargets, type MapTarget } from '../
 import {
   POPUP_BODY_ATTR,
   POPUP_CARD_CLASS,
+  bodyContentHeight,
   capPopupBody,
   cardWidthRange,
   fixPopupBody,
@@ -256,14 +257,15 @@ export interface MapPopups {
   bodyCap(popup: Popup): number | null
   /**
    * The bounds a reader's drag sizes this card between on the map as it is
-   * now: its width (`cardWidthRange`, TJ 2026-11-03) and its body's height,
-   * from the drag's least to the free map's height less the card's header
-   * (`dragBodyRange`, TJ 2026-11-04). The floor and the ceiling bound only a
-   * cap the app chooses, never the reader's drag.
+   * now: its width from the width it opened at to the map's less 20px
+   * (`cardWidthRange`), and its body's height from the floor, or the
+   * body's own height where it holds less, to the free map's height less the
+   * card's header (`dragBodyRange`, TJ 2026-11-04). The ceiling bounds only
+   * a cap the app chooses, never the reader's drag.
    */
   cardBounds(popup: Popup): { width: { min: number; max: number }; body: { min: number; max: number } }
   /**
-   * Set a card's width, held to `cardBounds`, and say what it took. MapLibre
+   * Set a card's width, held to `cardBounds`' width, and say what it took. MapLibre
    * stands a card on its point by a share of its own width, so the tip stays
    * on the point as it changes; `setMaxWidth` runs the library's update.
    */
@@ -272,7 +274,8 @@ export interface MapPopups {
    * Hold a card at the width it stands at now, its content box's alone, so
    * nothing that lands in it later widens it and moves it on its point (TJ,
    * 2026-11-04). The popup's ceiling stays the one it opened under, since
-   * the card is already no wider than that.
+   * the card is already no wider than that. The width held is the least a
+   * reader's drag takes the card to (`cardBounds`).
    */
   holdCard(popup: Popup): void
   /**
@@ -466,11 +469,23 @@ export function mountMapPopups(
     return { left: 0, top: 0, right: canvas.clientWidth, bottom: canvas.clientHeight - controller.inputs.cameraPadBottomPx }
   }
 
+  // The width each card opened at, its content box as MapLibre first drew
+  // it, which is what the card's own lines ask for: a reader's drag stops at
+  // it, and a width a drag on a narrower card left never narrows it (TJ,
+  // 2026-11-04).
+  const opened = new WeakMap<Popup, number>()
+  const contentWidth = (popup: Popup): number => {
+    const el = popup.getElement()
+    // Optional: a test's stub popup has no DOM, or a content box it does not measure.
+    return el?.querySelector?.<HTMLElement>('.maplibregl-popup-content')?.offsetWidth ?? el?.offsetWidth ?? 0
+  }
+  const widthRange = (popup: Popup) => cardWidthRange(map.getCanvas().clientWidth, opened.get(popup) ?? 0)
+
   // The card's box, which MapLibre sizes to its content up to the popup's
   // max width: an explicit width on it and the same max width on the popup
   // make the card that wide whatever its content.
   const sizeTo = (popup: Popup, width: number): number => {
-    const { min, max } = cardWidthRange(map.getCanvas().clientWidth)
+    const { min, max } = widthRange(popup)
     const px = Math.round(clamp(width, min, max))
     const content = popup.getElement()?.querySelector?.<HTMLElement>('.maplibregl-popup-content')
     // Optional: a test's stub content box has no style.
@@ -523,7 +538,7 @@ export function mountMapPopups(
   const standBody = (popup: Popup, body: HTMLElement, px: number): number => {
     const el = popup.getElement()
     const chrome = (el?.offsetHeight ?? 0) - body.offsetHeight
-    const { min, max } = dragBodyRange(regionNow(), chrome)
+    const { min, max } = dragBodyRange(regionNow(), chrome, bodyContentHeight(body))
     const height = Math.round(clamp(px, min, max))
     fixPopupBody(body, height)
     return height
@@ -587,15 +602,18 @@ export function mountMapPopups(
       const el = popup.getElement()
       const body = el?.querySelector?.<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
       const chrome = (el?.offsetHeight ?? 0) - (body?.offsetHeight ?? 0)
-      return { width: cardWidthRange(map.getCanvas().clientWidth), body: dragBodyRange(regionNow(), chrome) }
+      const content = body ? bodyContentHeight(body) : 0
+      return { width: widthRange(popup), body: dragBodyRange(regionNow(), chrome, content) }
     },
     sizeCard: sizeTo,
     holdCard(popup) {
-      const el = popup.getElement()
-      const content = el?.querySelector?.<HTMLElement>('.maplibregl-popup-content')
-      // Optional: a test's stub popup has no DOM, or a content box with no style.
-      const width = content?.offsetWidth ?? el?.offsetWidth ?? 0
+      const content = popup.getElement()?.querySelector?.<HTMLElement>('.maplibregl-popup-content')
+      const width = contentWidth(popup)
+      // Optional: a test's stub content box has no style.
       if (content?.style && width > 0) content.style.width = `${width}px`
+      // Measured again here, under the cap: a scrolling body's bar can widen
+      // the card past what it measured uncapped.
+      if (width > 0) opened.set(popup, width)
     },
     refit(popup, { body: chosen = null, avoid = [], markerAt, pan = true } = {}) {
       const el = popup.getElement()
@@ -637,10 +655,14 @@ export function mountMapPopups(
       // so the fit then places the card the reader will actually see; the
       // cap keeps the body between a floor and a ceiling of the visible map
       // (`openingBodyCap`, TJ 2026-11-03). A card a reader sized opens at
-      // that width, and its body at that height, before it is measured, so
-      // the fit measures the card the reader will see.
+      // that width, or its own where its lines ask for more, and its body at
+      // that height, before it is measured, so the fit measures the card the
+      // reader will see.
       const build = (anchor: PopupSide) => {
         const made = make(at, html, owner, { ...popupOptions(map, { result }), anchor, className: POPUP_CARD_CLASS })
+        // Measured before the reader's width is set, so a card whose lines
+        // ask for more than that width opens at its own (TJ, 2026-11-04).
+        opened.set(made, contentWidth(made))
         if (size) sizeTo(made, size.width)
         return made
       }

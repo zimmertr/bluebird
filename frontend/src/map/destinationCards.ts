@@ -43,13 +43,17 @@
  *   wider is cut with its ellipsis or wraps;
  * - **sized** by the handle in its bottom-right corner, with a pointer or a
  *   finger (TJ, 2026-11-03): the drag sets the card's width and its body's
- *   height between the bounds the map gives (`cardBounds`): the height from
- *   a heading's worth to the free map's, shorter than its content to scroll
- *   or taller to leave the card's surface under it (TJ, 2026-11-04). The
- *   size holds for every card opened after it until the page is reloaded,
- *   by the folds' rule, the reader's choice following them. A card opened at
- *   that size is still fitted and panned as any card is, its body at the
- *   reader's height rather than under the app's cap;
+ *   height between the bounds the map gives (`cardBounds`, TJ 2026-11-04):
+ *   the width from the one it opened at, so no drag cuts the lines the card
+ *   asked that width for, and the height from the quarter of the map the
+ *   app's cap keeps, or the body's own height where it holds less, to the
+ *   free map's, shorter than its content to scroll or taller to leave the
+ *   card's surface under it. The size holds for every card opened after it
+ *   until the page is reloaded, by the folds' rule, the reader's choice
+ *   following them; a card whose lines ask for more than the width chosen
+ *   opens at its own. A card opened at that size is still fitted and panned
+ *   as any card is, its body at the reader's height rather than under the
+ *   app's cap;
  * - **answered** by its one button: a row in the analysis leaves it as the
  *   table's × does, and a place outside it joins it as a search by name does.
  *
@@ -284,8 +288,8 @@ export function mountDestinationCards(
   // A drag on the handle (TJ, 2026-11-03). MapLibre stands a card centred on
   // its point, so the card grows on both sides and its width takes twice the
   // pointer's travel, which keeps the handle under the pointer. The body
-  // takes the travel down, held between the map's floor and ceiling and
-  // capped as the drag goes, so it scrolls under its header where it is
+  // takes the travel down, held to the range the map gives it, and stands at
+  // that height as the drag goes, so it scrolls under its header where it is
   // shorter than what it holds. The handle captures the pointer, so every
   // move of a drag that leaves the card, or of a finger that leaves the
   // handle, comes to it until the button or the finger lifts.
@@ -309,8 +313,9 @@ export function mountDestinationCards(
       const width = popups.sizeCard(card.popup, width0 + 2 * (ev.clientX - x0))
       // A card with no body, a spot with no layer on, sizes its width alone
       // and leaves the height the reader chose on another card as it was.
-      // The floor and the ceiling are the app's default and bound nothing
-      // here (TJ, 2026-11-04): the body stands at the height asked for.
+      // The ceiling is the app's default and bounds nothing here (TJ,
+      // 2026-11-04): the body stands at the height asked for, down to the
+      // floor or its own height.
       const body = bodyOf(card)
       let height = chosen?.body ?? null
       if (body) {

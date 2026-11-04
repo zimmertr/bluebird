@@ -596,19 +596,20 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([['panBy', [0, -placed.dy], { duration: POPUP_PAN_MS }]])
   })
 
-  // A size the reader dragged a card to: its width, held to the map less
-  // 10px a side, and its body's height, which the body stands at whatever it
-  // holds (TJ, 2026-11-04), from a heading's 48px to the free map's height:
-  // 1000 less 8 at each edge, the marker's 8, the tip's 10 and the 40 of
-  // header, 926. Neither the floor nor the ceiling bounds it.
+  // A size the reader dragged a card to: its width, held between the card's
+  // opening width and the map less 10px a side, and its body's height, which
+  // the body stands at whatever it holds (TJ, 2026-11-04), from the floor, a
+  // quarter of the 1000px map, to the free map's height: 1000 less 8 at each
+  // edge, the marker's 8, the tip's 10 and the 40 of header, 926. The
+  // ceiling does not bound it.
   it('opens a card at the size a reader chose, held to the bounds', () => {
     const { popups } = mount(1280, 1000, { x: 640, y: 50 })
     const { body, content } = standCard(40, 760)
-    const placed = popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 500, body: 100 } })
+    const placed = popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 500, body: 300 } })
     expect(made[0].maxWidth).toBe('500px')
     expect(content.style.width).toBe('500px')
-    expect(placed.capped).toBe(100)
-    expect([body.style.maxHeight, body.style.minHeight]).toEqual(['100px', '100px'])
+    expect(placed.capped).toBe(300)
+    expect([body.style.maxHeight, body.style.minHeight]).toEqual(['300px', '300px'])
     standCard(40, 760)
     const wide = popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 5000, body: 5000 } })
     expect(made[1].maxWidth).toBe('1260px')
@@ -617,12 +618,14 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     const short = standCard(40, 120)
     expect(popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 300, body: 400 } }).capped).toBe(400)
     expect(short.body.offsetHeight).toBe(400)
+    // A height under the floor opens at the floor.
     standCard(40, 760)
-    expect(popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 300, body: 10 } }).capped).toBe(48)
-    // A size with no height, from a card that had no body, keeps the ceiling.
+    expect(popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 300, body: 10 } }).capped).toBe(250)
+    // A size with no height, from a card that had no body, keeps the ceiling,
+    // and a width under the card's own opens at its own.
     standCard(40, 760)
     expect(popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 100, body: null } }).capped).toBe(750)
-    expect(made[4].maxWidth).toBe('180px')
+    expect(made[4].maxWidth).toBe('280px')
   })
 
   // A table row's card whose sections joined during or after its flight is
@@ -680,17 +683,44 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     expect(resultPopupWidth(360)).toBe('340px')
   })
 
-  // A drag's height runs from a heading's worth to the free map's, 1000 less
-  // the fit's breath, the marker, the tip and this card's 40 of header, past
-  // the ceiling the card opened under (TJ, 2026-11-04).
+  // A drag's width runs from the card's opening width, what its lines ask
+  // for, to the map less 20px, and its height from the floor, a quarter of
+  // the 1000px map, to the free map's, 1000 less the fit's breath, the
+  // marker, the tip and this card's 40 of header, past the ceiling the card
+  // opened under (TJ, 2026-11-04).
   it('says the bounds a drag sizes a card between, and sizes one to them', () => {
     const { popups } = mount(1280, 1000, { x: 640, y: 50 })
     const { content } = standCard(40, 760)
     const popup = popups.openCard([0, 0], '<p>card</p>', { result: true }).popup
-    expect(popups.cardBounds(popup)).toEqual({ width: { min: 180, max: 1260 }, body: { min: 48, max: 926 } })
-    expect(popups.sizeCard(popup, 90)).toBe(180)
-    expect(content.style.width).toBe('180px')
-    expect(made[0].maxWidth).toBe('180px')
+    expect(popups.cardBounds(popup)).toEqual({ width: { min: 280, max: 1260 }, body: { min: 250, max: 926 } })
+    expect(popups.sizeCard(popup, 90)).toBe(280)
+    expect(content.style.width).toBe('280px')
+    expect(made[0].maxWidth).toBe('280px')
+    expect(popups.sizeCard(popup, 400)).toBe(400)
+  })
+
+  // A body that holds less than the floor has nothing to scroll into under
+  // it, so a drag stops at its own height, measured under the height it
+  // stands at, which it keeps.
+  it('stops a short body at its own height', () => {
+    const { popups } = mount(1280, 1000, { x: 640, y: 50 })
+    const { body } = standCard(40, 120)
+    const popup = popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 280, body: 400 } }).popup
+    expect(body.style.minHeight).toBe('400px')
+    expect(popups.cardBounds(popup).body).toEqual({ min: 120, max: 926 })
+    expect([body.style.maxHeight, body.style.minHeight]).toEqual(['400px', '400px'])
+  })
+
+  // A width a reader left on a narrower card is no narrower than this one's
+  // lines: it opens at its own, and at the reader's where that is wider.
+  it("opens a card at the reader's width or its own, whichever is wider", () => {
+    const { popups } = mount(1280, 1000, { x: 640, y: 500 })
+    const { content } = standCard(40, 200)
+    popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 200, body: null } })
+    expect([content.style.width, made[0].maxWidth]).toEqual(['280px', '280px'])
+    const wide = standCard(40, 200)
+    popups.openCard([0, 0], '<p>card</p>', { result: true, size: { width: 400, body: null } })
+    expect([wide.content.style.width, made[made.length - 1].maxWidth]).toEqual(['400px', '400px'])
   })
 
   // A card keeps the width it opened at (TJ, 2026-11-04): its content box

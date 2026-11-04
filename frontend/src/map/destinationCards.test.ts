@@ -834,10 +834,11 @@ describe('sections', () => {
   })
 
   // The handle in a card's corner (TJ, 2026-11-03), on a 1280 by 900 map:
-  // widths from 180 to 1260, and a body from a heading's 48px to the free
-  // map's 816, 900 less the fit's 34 and the card's 50 of header (TJ,
-  // 2026-11-04), past the 675 ceiling and under the 225 floor the app caps
-  // by. The card stands centred on its point, so its width takes twice the
+  // widths from the card's opening width, 280 here, to 1260, and a body from
+  // the 225 floor the app caps by, or the body's own height where it holds
+  // less, as the stub's 150 does, to the free map's 816, 900 less the fit's
+  // 34 and the card's 50 of header, past the 675 ceiling (TJ, 2026-11-04).
+  // The card stands centred on its point, so its width takes twice the
   // pointer's travel.
   const drag = (handle: NonNullable<(typeof popups)[number]['handle']>, dx: number, dy: number) => {
     handle.fire('pointerdown', { pointerId: 1, clientX: 100, clientY: 100 })
@@ -860,10 +861,10 @@ describe('sections', () => {
     handle.fire('pointermove', { pointerId: 1, clientX: 5000, clientY: 5000 })
     expect([card.maxWidth, card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['1260px', '816px', '816px'])
     handle.fire('pointermove', { pointerId: 1, clientX: -5000, clientY: -5000 })
-    expect([card.maxWidth, card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['180px', '48px', '48px'])
+    expect([card.maxWidth, card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['280px', '150px', '150px'])
     // Another pointer's move is no part of this drag.
     handle.fire('pointermove', { pointerId: 2, clientX: 140, clientY: 300 })
-    expect(card.maxWidth).toBe('180px')
+    expect(card.maxWidth).toBe('280px')
     handle.fire('pointermove', { pointerId: 1, clientX: 140, clientY: 300 })
     handle.fire('pointerup', { pointerId: 1 })
     handle.fire('pointermove', { pointerId: 1, clientX: 400, clientY: 400 })
@@ -871,6 +872,64 @@ describe('sections', () => {
     // A press of another button starts nothing.
     handle.fire('pointerdown', { button: 2, pointerId: 3, clientX: 0, clientY: 0 })
     expect(handle.captured).toEqual([1])
+  })
+
+  // The maintainer dragged a card down to both of the old floors and got a
+  // 180px card with its title, coordinates and heading cut and a 48px body
+  // cut mid-row (TJ, 2026-11-04). A drag now stops at the width the card
+  // opened at, and at the floor.
+  it('stops a drag at the width the card opened at', () => {
+    const { cards } = setup()
+    look.width = () => 320
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude])
+    const card = popups[0]
+    drag(card.handle!, -40, 0)
+    expect([card.maxWidth, card.content.style.width]).toEqual(['320px', '320px'])
+    drag(card.handle!, -5000, 0)
+    expect(card.maxWidth).toBe('320px')
+  })
+
+  it('stops a drag at the floor, a quarter of the map', () => {
+    const { cards } = setup()
+    // 400px of body under 50 of header, past the 225 floor.
+    look.height = () => 450
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude])
+    const card = popups[0]
+    card.body.offsetHeight = 400
+    drag(card.handle!, 0, -100)
+    expect([card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['300px', '300px'])
+    drag(card.handle!, 0, -5000)
+    expect([card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['225px', '225px'])
+  })
+
+  it('never shrinks a short card under what it holds', () => {
+    const { cards } = setup()
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    const card = popups[0]
+    // The stub's 150px body is under the 225 floor: it has nothing to scroll into.
+    drag(card.handle!, 0, -5000)
+    expect([card.body.style.maxHeight, card.body.style.minHeight]).toEqual(['150px', '150px'])
+  })
+
+  // The width a reader left on a narrow card follows them, but a card whose
+  // lines ask for more opens at its own rather than cut to it.
+  it('never narrows a wider card to a width chosen on a narrower one', () => {
+    const { cards, board } = setup()
+    look.width = () => 240
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    drag(popups[0].handle!, 0, 0)
+    expect(popups[0].maxWidth).toBe('240px')
+    board.closeAll()
+    look.width = () => 320
+    cards.open({ kind: 'ranked', row: RAINIER, rank: 2 }, [RAINIER.longitude, RAINIER.latitude])
+    const next = popups[popups.length - 1]
+    expect([next.maxWidth, next.content.style.width]).toEqual(['320px', '320px'])
+    // And one narrower than the width chosen opens at the reader's.
+    drag(next.handle!, 40, 0)
+    board.closeAll()
+    look.width = () => 240
+    cards.open(SPOT, [SPOT.lon, SPOT.lat])
+    expect(popups[popups.length - 1].maxWidth).toBe('400px')
   })
 
   it('keeps the height a reader dragged through a redraw', async () => {

@@ -859,6 +859,25 @@ export function uncapPopupBody(body: HTMLElement): void {
 }
 
 /**
+ * The height a body's sections take of their own, read under whatever cap or
+ * fixed height it stands at and put back before anything paints: a drag's
+ * least is that height where it is under the floor (`dragBodyRange` in
+ * `popupFit.ts`), and a body standing at a reader's height measures that
+ * height rather than what it holds.
+ */
+export function bodyContentHeight(body: HTMLElement): number {
+  const { maxHeight, minHeight } = body.style
+  // Optional: a test's stub body has a bare class list and a style of no keys.
+  const scrolls = body.classList.contains?.(POPUP_SCROLL_CLASS) ?? false
+  uncapPopupBody(body)
+  const height = body.offsetHeight
+  if (scrolls) body.classList.add(POPUP_SCROLL_CLASS)
+  body.style.maxHeight = maxHeight ?? ''
+  body.style.minHeight = minHeight ?? ''
+  return height
+}
+
+/**
  * How wide a popup may get.
  *
  * Width is still set by the coordinate row — the longest line either popup can
@@ -906,10 +925,11 @@ export const POPUP_MAX_WIDTH_PX = 280
 export const RESULT_POPUP_MAX_WIDTH_PX = 381
 
 /**
- * The narrowest any card on the map is, whatever the map's width, and the
- * narrowest a reader's drag on the resize handle takes one (#832, TJ
+ * The narrowest any card on the map is, whatever the map's width (#832, TJ
  * 2026-11-03): the facts line's coordinates still stand on one line at it,
- * and the title row keeps its button and the start of the name.
+ * and the title row keeps its button and the start of the name. A reader's
+ * drag stops at the card's own opening width instead (`cardWidthRange`),
+ * which is this only for a card whose lines ask for less.
  */
 export const POPUP_MIN_WIDTH_PX = 180
 
@@ -921,13 +941,17 @@ export function resultPopupWidth(canvasWidthPx: number): string {
 }
 
 /**
- * How wide a reader may drag a card (TJ, 2026-11-03): from the floor every
- * card keeps to the map less the 10px a side a ranked card leaves on a
- * narrow map, which is wider than any card's own rule, since the reader asked
- * for the room.
+ * How wide a reader may drag a card (TJ, 2026-11-03): from `openedPx`, the
+ * width the card opened at, to the map less the 10px a side a ranked card
+ * leaves on a narrow map, which is wider than any card's own rule, since the
+ * reader asked for the room. The opening width is what the card's own lines
+ * ask for, its title, its coordinates and its sections' headings, so a drag
+ * under it only cut them (TJ, 2026-11-04). `POPUP_MIN_WIDTH_PX` is the least
+ * for a card measured at nothing, which the card's root already keeps.
  */
-export function cardWidthRange(canvasWidthPx: number): { min: number; max: number } {
-  return { min: POPUP_MIN_WIDTH_PX, max: Math.max(POPUP_MIN_WIDTH_PX, canvasWidthPx - MAP_SIDES_PX) }
+export function cardWidthRange(canvasWidthPx: number, openedPx: number): { min: number; max: number } {
+  const min = Math.max(POPUP_MIN_WIDTH_PX, Math.round(openedPx))
+  return { min, max: Math.max(min, canvasWidthPx - MAP_SIDES_PX) }
 }
 
 /**

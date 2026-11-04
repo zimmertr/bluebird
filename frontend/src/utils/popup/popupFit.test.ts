@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   BODY_CEILING_SHARE,
   BODY_FLOOR_SHARE,
-  DRAG_BODY_MIN_PX,
   FIT_MARGIN_PX,
   bodyBounds,
   capHeight,
@@ -200,17 +199,31 @@ describe('bodyBounds', () => {
 
 })
 
-// A reader's drag is bounded by neither share (TJ, 2026-11-04): from a
-// heading's worth of body to the free map's height, the region less the
-// fit's 8px at each edge, the marker's 8 and the tip's 10, less the header.
+// A reader's drag runs from the floor the app caps a body by, a quarter of
+// the visible map, to the free map's height: the region less the fit's 8px
+// at each edge, the marker's 8 and the tip's 10, less the header (TJ,
+// 2026-11-04). A body that holds less than the floor stops at its own height.
 describe('dragBodyRange', () => {
-  it('runs from a heading to the free map, past the ceiling and under the floor', () => {
-    expect(DRAG_BODY_MIN_PX).toBe(48)
-    // 1000 - 34 - 60: well past the 750 ceiling, and down to 48 under the 250 floor.
-    expect(dragBodyRange({ left: 0, top: 0, right: 1280, bottom: 1000 }, 60)).toEqual({ min: 48, max: 906 })
-    // A header taller than the map leaves the least, never less.
-    expect(dragBodyRange({ left: 0, top: 0, right: 360, bottom: 120 }, 200)).toEqual({ min: 48, max: 48 })
-    expect(dragBodyRange({ left: 0, top: 0, right: 360, bottom: 0 }, 60)).toEqual({ min: 48, max: 48 })
+  it('runs from the floor to the free map, past the ceiling', () => {
+    // 1000 - 34 - 60: well past the 750 ceiling, and down to the 250 floor.
+    expect(dragBodyRange({ left: 0, top: 0, right: 1280, bottom: 1000 }, 60, 700)).toEqual({ min: 250, max: 906 })
+    // A desk's 600px map: 150 to 600 - 34 - 60.
+    expect(dragBodyRange({ left: 0, top: 0, right: 1280, bottom: 600 }, 60, 700)).toEqual({ min: 150, max: 506 })
+    // The tutorial's phone above its collapsed sheet: 159 to 636 - 34 - 80.
+    expect(dragBodyRange({ left: 0, top: 0, right: 360, bottom: 636 }, 80, 400)).toEqual({ min: 159, max: 522 })
+  })
+
+  it('stops a body that holds less than the floor at its own height', () => {
+    expect(dragBodyRange({ left: 0, top: 0, right: 1280, bottom: 1000 }, 60, 120)).toEqual({ min: 120, max: 906 })
+    // Exactly the floor is the floor.
+    expect(dragBodyRange({ left: 0, top: 0, right: 1280, bottom: 1000 }, 60, 250)).toEqual({ min: 250, max: 906 })
+  })
+
+  it('never runs its most under its least', () => {
+    // A header taller than the free map leaves the floor alone: 30 of a 120px map.
+    expect(dragBodyRange({ left: 0, top: 0, right: 360, bottom: 120 }, 200, 400)).toEqual({ min: 30, max: 30 })
+    // A map with no visible height stands the body at its content.
+    expect(dragBodyRange({ left: 0, top: 0, right: 360, bottom: 0 }, 60, 400)).toEqual({ min: 400, max: 400 })
   })
 })
 

@@ -5,11 +5,12 @@ import { test, expect, expectRanked, DESTINATION_NAMES, FIRE_DETECTION } from '.
 // 2026-11-03, record 0270). The unit suites pin the bounds and the drag's
 // arithmetic against stubs; this drags the built card's handle with a real
 // pointer and checks that the card grew, stands on its point, and that the
-// next card opens at the size the drag left; and that the height is the
-// reader's (TJ, 2026-11-04): a ranked card dragged up stands at a heading's
-// worth and scrolls, a short card dragged down stands taller than what it
-// holds, and neither stops at the quarter or the three quarters of the map
-// the app caps a card by, only at the free map's height. At a desk only: a
+// next card opens at the size the drag left; and that the drag's bounds are
+// the reader's (TJ, 2026-11-04): a ranked card dragged far up and left stops
+// at the width it opened at and a quarter of the map, its lines whole, and a
+// short card dragged down stands taller than what it holds, past the three
+// quarters of the map the app caps a card by, up to the free map's height.
+// At a desk only: a
 // finger's drag is the same pointer events, and the phone's 32px box is the
 // role's, which `styles.test.ts` pins.
 
@@ -55,10 +56,12 @@ async function resultsOpened(page: Page) {
 
 // The card's box (MapLibre's content box, which the tip stands outside), its
 // body, its tip and the map's canvas, in the page's pixels; whether the body
-// scrolls, and how much of it its sections fill; and the free map's height
-// a drag stands a body at most (`dragBodyRange` in utils/popup/popupFit.ts):
-// the canvas, a desk's visible map, less the fit's 8px at each edge, the
-// marker's 8 and the tip's 10, less the card's header and tip.
+// scrolls, and how much of it its sections fill; the text of every line the
+// card cuts with its ellipsis, and whether its title is one; and the two
+// heights a drag stands a body between (`dragBodyRange` in
+// utils/popup/popupFit.ts): a quarter of the canvas, a desk's visible map,
+// and the free map, the canvas less the fit's 8px at each edge, the marker's
+// 8 and the tip's 10, less the card's header and tip.
 async function measure(card: Locator) {
   return card.evaluate((el) => {
     const box = (e: Element | null) => {
@@ -68,6 +71,8 @@ async function measure(card: Locator) {
     const body = el.querySelector<HTMLElement>('[data-popup-body]')!
     const canvas = document.querySelector<HTMLElement>('.maplibregl-canvas')!
     const last = body.lastElementChild!.getBoundingClientRect()
+    const isCut = (e: Element) => getComputedStyle(e).textOverflow === 'ellipsis' && e.scrollWidth > e.clientWidth + 1
+    const title = el.querySelector('.maplibregl-popup-content strong')!
     return {
       card: box(el.querySelector('.maplibregl-popup-content')),
       body: box(body),
@@ -75,6 +80,9 @@ async function measure(card: Locator) {
       map: box(canvas),
       scrolls: body.scrollHeight > body.clientHeight + 1,
       emptyBelow: body.getBoundingClientRect().bottom - last.bottom,
+      cut: [...el.querySelectorAll('*')].filter(isCut).map((e) => e.textContent),
+      titleCut: isCut(title),
+      floor: Math.floor(canvas.clientHeight / 4),
       freeMap: canvas.clientHeight - 34 - ((el as HTMLElement).offsetHeight - body.offsetHeight),
     }
   })
@@ -119,8 +127,9 @@ test('a drag on a card’s corner sizes it, and the next card opens at that size
   expect(after.card.width).toBeGreaterThan(before.card.width + 100)
   // Within a pixel: MapLibre rounds a popup's place to whole pixels.
   expect(Math.abs(after.tip.left + after.tip.width / 2 - (before.tip.left + before.tip.width / 2))).toBeLessThanOrEqual(1)
-  // The body takes the pointer's travel up, whatever cap it opened under.
-  expect(Math.abs(after.body.height - (before.body.height - 30))).toBeLessThanOrEqual(1)
+  // The body takes the pointer's travel up, whatever cap it opened under,
+  // down to the quarter of the map a drag stops at.
+  expect(Math.abs(after.body.height - Math.max(before.body.height - 30, after.floor))).toBeLessThanOrEqual(1)
 
   // The next card opens at the width and the height the drag left.
   await card.locator('.maplibregl-popup-close-button').click()
@@ -129,10 +138,12 @@ test('a drag on a card’s corner sizes it, and the next card opens at that size
   expect(Math.abs(next.body.height - Math.min(after.body.height, next.freeMap))).toBeLessThanOrEqual(1)
 })
 
-// Dragged up past a heading's worth, the body stands at 48px, its padding
-// and one heading, and scrolls the forecast under it: the quarter of the map
-// the app never caps under does not hold a reader's drag.
-test('a ranked card dragged up stands at a heading’s height and scrolls', async ({ page }) => {
+// Dragged far up and left, a ranked card stops at the width it opened at,
+// which is what its own lines asked for, and its body at a quarter of the
+// map, scrolling the forecast under it: the maintainer's drag to the old
+// floors left a 180px card with its title, coordinates and heading cut and a
+// 48px body cut mid-row (TJ, 2026-11-04).
+test('a ranked card dragged far up and left stops at its opening width and a quarter of the map', async ({ page }) => {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
@@ -142,13 +153,16 @@ test('a ranked card dragged up stands at a heading’s height and scrolls', asyn
   const card = await centredCard(page, DESTINATION_NAMES[0])
   const before = await measure(card)
   const grip = (await card.locator('[data-card-resize]').boundingBox())!
-  // To the top of the page, far past the body's own height.
-  await drag(page, card, 0, 5 - (grip.y + grip.height / 2))
+  // To the page's top left corner, far past the card's own size.
+  await drag(page, card, 5 - (grip.x + grip.width / 2), 5 - (grip.y + grip.height / 2))
   const after = await measure(card)
   test.info().annotations.push({ type: 'card shrunk', description: JSON.stringify({ before, after }) })
-  expect(Math.abs(after.body.height - 48)).toBeLessThanOrEqual(1)
-  expect(after.body.height).toBeLessThan(after.map.height * 0.25)
+  expect(Math.abs(after.card.width - before.card.width)).toBeLessThanOrEqual(1)
+  expect(Math.abs(after.body.height - after.floor)).toBeLessThanOrEqual(1)
   expect(after.scrolls).toBe(true)
+  // Nothing the card showed whole is cut, the title least of all.
+  expect(after.titleCut).toBe(false)
+  expect(after.cut).toEqual(before.cut)
 })
 
 // A short card dragged down stands taller than what it holds, the card's

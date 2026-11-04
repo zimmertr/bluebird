@@ -7,7 +7,9 @@ import {
   CARD_RESIZE_ATTR,
   HEADER_ICON_COLOR,
   POPUP_MIN_WIDTH_PX,
+  bodyContentHeight,
   cardWidthRange,
+  fixPopupBody,
   GRID_BAND_COLOR,
   GRID_COMPACT_INSET_PX,
   GRID_COMPACT_LABEL_GAP_PX,
@@ -480,16 +482,22 @@ describe('resultPopupWidth', () => {
   })
 })
 
-// A reader's drag on the resize handle (TJ, 2026-11-03) runs from the floor
-// every card keeps to the map less 10px a side.
+// A reader's drag on the resize handle (TJ, 2026-11-03) runs from the width
+// the card opened at, what its own lines ask for (TJ, 2026-11-04), to the
+// map less 10px a side.
 describe('cardWidthRange', () => {
-  it('runs from the cards\' floor to the map less 10px a side', () => {
+  it('runs from the opening width to the map less 10px a side', () => {
+    expect(cardWidthRange(1280, 312)).toEqual({ min: 312, max: 1260 })
+    expect(cardWidthRange(360, 340)).toEqual({ min: 340, max: 340 })
+    expect(cardWidthRange(360, 240.4)).toEqual({ min: 240, max: 340 })
+    expect(resultPopupWidth(360)).toBe(`${cardWidthRange(360, 200).max}px`)
+  })
+
+  it("keeps the cards' floor for a card measured at less", () => {
     expect(POPUP_MIN_WIDTH_PX).toBe(180)
-    expect(cardWidthRange(1280)).toEqual({ min: 180, max: 1260 })
-    expect(cardWidthRange(360)).toEqual({ min: 180, max: 340 })
+    expect(cardWidthRange(1280, 0)).toEqual({ min: 180, max: 1260 })
     // A map too narrow for the floor still lets the card keep it.
-    expect(cardWidthRange(150)).toEqual({ min: 180, max: 180 })
-    expect(resultPopupWidth(360)).toBe(`${cardWidthRange(360).max}px`)
+    expect(cardWidthRange(150, 0)).toEqual({ min: 180, max: 180 })
   })
 })
 
@@ -869,5 +877,34 @@ describe('sizing a popup to the map it opens on', () => {
 
   it('never collapses to unreadable, however narrow the canvas', () => {
     expect(Number(popupWidth(0).replace('px', ''))).toBeGreaterThanOrEqual(180)
+  })
+})
+
+// A drag's least is a short body's own height (TJ, 2026-11-04), read under the
+// height a reader stood it at and put back, so the card does not move. jsdom
+// lays nothing out, so the body's height here follows its two heights as a
+// browser's would for 120px of sections.
+describe('bodyContentHeight', () => {
+  it('reads what a body holds under the height it stands at, and leaves that height', () => {
+    const body = document.createElement('div')
+    Object.defineProperty(body, 'offsetHeight', {
+      get: () => {
+        const cap = parseFloat(body.style.maxHeight)
+        const least = parseFloat(body.style.minHeight)
+        const capped = Number.isNaN(cap) ? 120 : Math.min(120, cap)
+        return Number.isNaN(least) ? capped : Math.max(capped, least)
+      },
+    })
+    fixPopupBody(body, 300)
+    const classes = body.className
+    expect(body.offsetHeight).toBe(300)
+    expect(bodyContentHeight(body)).toBe(120)
+    expect([body.style.maxHeight, body.style.minHeight, body.className]).toEqual(['300px', '300px', classes])
+    expect(classes).not.toBe('')
+    // A body standing whole reads its height and keeps no height at all.
+    const whole = document.createElement('div')
+    Object.defineProperty(whole, 'offsetHeight', { get: () => 80 })
+    expect(bodyContentHeight(whole)).toBe(80)
+    expect([whole.style.maxHeight, whole.style.minHeight, whole.className]).toEqual(['', '', ''])
   })
 })
