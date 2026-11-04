@@ -38,9 +38,10 @@ describe('enhanceBasemap', () => {
     { id: 'water_name_point_label', type: 'symbol' },
   ]
 
-  // The order the layers go on in is the order they draw in, and every one of
-  // them goes under the style's first label so names stay on top of lines and
-  // fills. Each clickable label goes on with its halo directly below it.
+  // Each goes in at its slot in `layerOrder.ts`, which here is under the
+  // style's first label for all of them: the trails with the lines, and the
+  // clickable labels under the style's own. Each clickable label goes on with
+  // its halo directly below it.
   it('adds its layers in one fixed order beneath the first label', () => {
     const { map, calls } = stubMap({ styleLayers })
     enhanceBasemap(map)

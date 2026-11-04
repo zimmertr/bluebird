@@ -1,25 +1,15 @@
 /**
- * Every feature on the map, mounted in the order its layers stack, lowest
- * first, when the map loads.
+ * Every feature on the map, mounted when the map loads.
  *
- * Lowest of all, the satellite imagery, which adds nothing until it is
- * switched on and then goes over the style's ground and under its first road,
- * symbol or layer of anybody else's (#799, record 0250). The basemap patch goes under the
- * style's own labels, and the trailhead and crag markers over it, still under
- * those labels. Above the style: the
- * forecast grid, which is the ground everything else is read against, then
- * smoke, then the fire perimeters, then the closures over the fires that
- * caused them (the closed ground under the closed trails, so a trail reads on
- * top of the area it crosses), then the satellite fire detections, points
- * over every area they fall in (#799), then the drawn ring, so a marker is
- * never under the outline of the area it was found in, then the markers and
- * the pending dots. The radar loop and the snow field are created when they
- * are switched on, beneath the first smoke fill, so the chain comes out grid,
- * snow, radar, smoke, fire, closures, detections, draw, results. The basemap
- * POI popups add no layers and go last. The ground (`terrain.ts`, #799) adds
- * one empty layer on load, which carries Mapterhorn's credit (#832): its
- * relief and contours go in the first time they are switched on, under the
- * basemap patch and the style's labels.
+ * Where each layer stands is not the mount order's: every module adds its
+ * layers through `layerOrder.ts`, which puts each in its slot whenever it goes
+ * on, so the radar and the snow, created when they are switched on, still land
+ * under the smoke, and the stack comes out the same whatever mounts first
+ * (record 0268). The satellite imagery and the ground (`terrain.ts`, #799) add
+ * nothing until switched on, but for the one empty layer that carries
+ * Mapterhorn's credit (#832). The trailhead and crag markers mount after the
+ * basemap patch, which registers the icons they name. The basemap POI popups
+ * add no layers and go last.
  *
  * The map's popups mount first of all (`map/mapPopups.ts`): every feature that
  * opens a popup registers itself there as it mounts, and the one click that

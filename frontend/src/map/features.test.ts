@@ -11,6 +11,7 @@ import { createPopupBoard } from './popups'
 import { CREDIT_LAYER } from './terrain'
 import { RESULT_MARKER_LAYER } from './resultsLayer'
 import { POI_LAYERS } from '../utils/basemapPoi'
+import { radarLayerId, radarOffsets } from '../utils/radar'
 import { stubMap } from '../testSupport/stubMap'
 
 // The node project has no DOM. A canvas with no 2D context is what a browser
@@ -44,55 +45,74 @@ function setup(drawing = false) {
 }
 
 describe('mountFeatures', () => {
-  // The order the layers go on in is the order they draw in, so this is the
-  // whole stack in one list: the basemap patch and the trailhead and crag
-  // markers over it under the style's labels, then the grid, smoke, fire,
-  // closures, detections, ring, markers and pending dots above the style.
+  // Every layer goes in at its slot in `layerOrder.ts`, whatever order the
+  // features mount in, so this is the whole stack in one list: the ground, the
+  // trails, the overlays, every name, then the ring, the pending dots and the
+  // markers. This style's `water` names no source of Liberty's, so it stands
+  // over where the imagery would go, with the roads.
   it('stacks every feature, lowest first', () => {
     const { stub } = setup()
     expect(stub.stack).toEqual([
       'background',
       'water',
+      // The empty layer carrying Mapterhorn's credit, from the map's load (#832).
+      CREDIT_LAYER,
       'ofm-trails-casing',
       'ofm-trails',
+      'forecast-grid-fill',
+      'smoke-fill-Light',
+      'smoke-fill-Medium',
+      'smoke-fill-Heavy',
+      'smoke-outline',
+      'closure-area-fill',
+      'closure-area-outline',
+      'wildfire-fill',
+      'wildfire-outline',
+      'closure-trail-line',
+      'closure-trail-site',
+      'forecast-grid-wind',
+      'fire-activity-points',
       'ofm-peaks-glow',
       'ofm-peaks',
       'ofm-lakes-glow',
       'ofm-lakes',
       'ofm-lakes-line-glow',
       'ofm-lakes-line',
+      'road_label',
       'landmark-trailheads-glow',
       'landmark-trailheads',
       'landmark-crags-glow',
       'landmark-crags',
-      'road_label',
-      // The empty layer carrying Mapterhorn's credit, from the map's load (#832).
-      CREDIT_LAYER,
-      'forecast-grid-fill',
-      'forecast-grid-wind',
-      'smoke-fill-Light',
-      'smoke-fill-Medium',
-      'smoke-fill-Heavy',
-      'smoke-outline',
-      'wildfire-fill',
-      'wildfire-outline',
-      'closure-area-fill',
-      'closure-area-outline',
-      'closure-trail-line',
-      'closure-trail-site',
-      'fire-activity-points',
       'draw-fill',
       'draw-line',
       'draw-midpoints',
       'draw-vertices',
+      'pending-destinations-halo',
+      'pending-destinations-circles',
+      'pending-destinations-labels',
       'results-halo',
       RESULT_MARKER_LAYER,
       'results-wind',
       'results-rank',
       'results-labels',
-      'pending-destinations-halo',
-      'pending-destinations-circles',
-      'pending-destinations-labels',
+    ])
+  })
+
+  // The radar and the snow go on when they are switched on, last of all, and
+  // still land in their slots: under the smoke and over the grid, the snow
+  // under the rain whichever comes first (record 0268).
+  it('puts the radar and the snow in their slots when they are switched on', () => {
+    const { stub, features } = setup()
+    features.radar.update({ show: true, index: 0 })
+    // The warm-up's timer, which this test has no use for.
+    features.radar.dispose()
+    features.snow.update({ show: true })
+    const at = stub.stack.indexOf('forecast-grid-fill')
+    expect(stub.stack.slice(at, at + 9)).toEqual([
+      'forecast-grid-fill',
+      'snow-depth-fill',
+      ...radarOffsets().map(radarLayerId),
+      'smoke-fill-Light',
     ])
   })
 

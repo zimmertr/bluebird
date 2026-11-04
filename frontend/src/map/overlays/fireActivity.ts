@@ -7,7 +7,8 @@
  * One file owns what one switch turns on and off, so the fetch's abort, the
  * timer and the cards are torn down in the same place they are made. The layer is added
  * once, when the map loads, over the fire perimeters and the closures and
- * under the drawn ring and the result markers (`features.ts`): a detection is
+ * under every name on the map, the drawn ring and the result markers
+ * (`layerOrder.ts`): a detection is
  * a point, and a point over an area it falls in reads where an area over the
  * point would tint it. `update` only fills and empties it.
  *
@@ -26,6 +27,7 @@
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
+import { addLayerAt } from '../layerOrder'
 import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
 import { FIRE_REFETCH_DEBOUNCE_MS } from './wildfires'
@@ -84,7 +86,7 @@ export function mountFireActivity(
   if (!map.hasImage(FIRE_STAR_IMAGE)) {
     map.addImage(FIRE_STAR_IMAGE, starburstSdf(), { sdf: true, pixelRatio: FIRE_STAR_PIXEL_RATIO })
   }
-  map.addLayer({
+  addLayerAt(map, {
     id: FIRE_ACTIVITY_LAYER,
     type: 'symbol',
     source: FIRE_ACTIVITY_SOURCE,

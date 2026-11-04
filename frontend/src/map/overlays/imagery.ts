@@ -13,7 +13,8 @@
  * everything a photo cannot say (record 0250): directly above the last of
  * Liberty's ground layers (`basemapGround`) that stands under its first road,
  * symbol or layer of somebody else's, so the roads, the trails, every label
- * and the app's own `ofm-*` layers stay on top. The ground under it is left
+ * and every layer the app adds stay on top. That place is the imagery's slot
+ * in `layerOrder.ts`, which owns where Liberty's ground ends. The ground under it is left
  * as it is, because it is what shows through as the level falls: at 1 the
  * photos hide it, at 0 Liberty shows whole. Liberty draws its buildings over
  * its roads, where the imagery cannot go under them without going over the
@@ -33,6 +34,7 @@
 import type * as maplibregl from 'maplibre-gl'
 import { EOX_IMAGERY_TILES, USGS_IMAGERY_TILES } from '../../utils/terrainSources'
 import { TRAIL_CASING_LAYER } from '../basemap'
+import { addLayerAt, basemapGround, imageryIndex, type FadeProperty, type StyleLayerRef } from '../layerOrder'
 import { overlayRecovery } from './recovery'
 
 export const IMAGERY_EOX = 'imagery-eox'
@@ -85,80 +87,6 @@ const USGS_ATTRIBUTION =
   '<a href="https://www.usgs.gov/programs/national-geospatial-program/national-map" target="_blank" rel="noopener noreferrer">USGS</a>'
 const EOX_ATTRIBUTION =
   '<a href="https://cloudless.eox.at" target="_blank" rel="noopener noreferrer">EOX Sentinel-2 cloudless</a>'
-
-/** Liberty's two sources: its vector tiles and its Natural Earth relief. */
-const BASEMAP_VECTOR = 'openmaptiles'
-const BASEMAP_RELIEF = 'ne2_shaded'
-
-/** The paint property that sets each kind of basemap ground layer's opacity. */
-type FadeProperty = 'background-opacity' | 'raster-opacity' | 'fill-opacity' | 'fill-extrusion-opacity' | 'line-opacity'
-
-/** A layer as `map.getStyle()` lists it, as far as `basemapGround` reads it. */
-export interface StyleLayerRef {
-  id: string
-  type: string
-  source?: unknown
-  'source-layer'?: string
-}
-
-/**
- * The opacity property of this basemap layer if it is ground the imagery
- * covers, or null where it is not.
- *
- * The ground is what a photo shows for itself: the background, the Natural
- * Earth relief, every vector fill but the road areas (land cover, land use,
- * parks, water, aeroways), the buildings in 2D and 3D, and the river lines.
- * What is not is everything a photo cannot say: roads, paths, rail,
- * boundaries, park outlines and every symbol. A layer on a source that is not
- * Liberty's (the app's overlays, the contours) is never ground.
- */
-export function basemapGround(layer: StyleLayerRef): FadeProperty | null {
-  if (layer.type === 'background') return 'background-opacity'
-  if (layer.source === BASEMAP_RELIEF && layer.type === 'raster') return 'raster-opacity'
-  if (layer.source !== BASEMAP_VECTOR) return null
-  const sourceLayer = layer['source-layer']
-  if (layer.type === 'fill' && sourceLayer !== 'transportation') return 'fill-opacity'
-  if (layer.type === 'fill-extrusion') return 'fill-extrusion-opacity'
-  if (layer.type === 'line' && sourceLayer === 'waterway') return 'line-opacity'
-  return null
-}
-
-/**
- * The first layer the imagery must stay under: a road (anything on the
- * `transportation` source layer), a symbol, or a layer on a source that is
- * not the basemap's, the app's own and the ground's alike.
- */
-function covers(layer: StyleLayerRef): boolean {
-  if (layer.type === 'background') return false
-  if (layer.type === 'symbol') return true
-  if (layer.source !== BASEMAP_VECTOR && layer.source !== BASEMAP_RELIEF) return true
-  return layer['source-layer'] === 'transportation'
-}
-
-/**
- * Where the imagery goes in the stack, as the index of the layer it goes
- * beneath: directly above the last ground layer under the first layer it
- * must stay under. In Liberty that is over `aeroway_fill` and under
- * `aeroway_runway`, the park outlines and the river lines among the ground
- * going under it with the fills they stand between.
- */
-function imageryIndex(layers: readonly StyleLayerRef[]): number {
-  const end = layers.findIndex(covers)
-  const under = end < 0 ? layers : layers.slice(0, end)
-  let last = -1
-  under.forEach((layer, i) => {
-    if (basemapGround(layer) !== null) last = i
-  })
-  return last + 1
-}
-
-/**
- * The layer the imagery goes beneath (see `imageryIndex`), or undefined for
- * the top of a style with nothing over its ground.
- */
-export function imageryBeneath(layers: readonly StyleLayerRef[]): string | undefined {
-  return layers[imageryIndex(layers)]?.id
-}
 
 /**
  * The ground layers that stand above the imagery, which it cannot cover and
@@ -213,7 +141,6 @@ export function mountImagery(map: maplibregl.Map, deps: { online?: EventTarget |
 
   function add() {
     const layers = map.getStyle().layers as StyleLayerRef[]
-    const beneath = imageryBeneath(layers)
     above = groundAbove(layers).map((layer) => {
       const property = basemapGround(layer)!
       return { id: layer.id, property, value: map.getPaintProperty(layer.id, property) }
@@ -238,25 +165,22 @@ export function mountImagery(map: maplibregl.Map, deps: { online?: EventTarget |
         attribution: USGS_ATTRIBUTION,
       })
     }
-    // EOX first, then USGS before the same layer, so USGS lands over EOX.
-    // Both at the one level: where USGS answers it covers EOX whatever the
-    // level, and where it does not EOX shows through.
+    // EOX first, then USGS at the top of the same slot, so USGS lands over
+    // EOX. Both at the one level: where USGS answers it covers EOX whatever
+    // the level, and where it does not EOX shows through.
     if (!map.getLayer(IMAGERY_EOX)) {
-      map.addLayer({ id: IMAGERY_EOX, type: 'raster', source: IMAGERY_EOX, paint: { 'raster-opacity': level } }, beneath)
+      addLayerAt(map, { id: IMAGERY_EOX, type: 'raster', source: IMAGERY_EOX, paint: { 'raster-opacity': level } })
     }
     if (!map.getLayer(IMAGERY_USGS)) {
       // The layer's own floor too, so the map corner credits USGS only where
       // its photos can draw.
-      map.addLayer(
-        {
-          id: IMAGERY_USGS,
-          type: 'raster',
-          source: IMAGERY_USGS,
-          minzoom: USGS_MIN_ZOOM,
-          paint: { 'raster-opacity': level },
-        },
-        beneath,
-      )
+      addLayerAt(map, {
+        id: IMAGERY_USGS,
+        type: 'raster',
+        source: IMAGERY_USGS,
+        minzoom: USGS_MIN_ZOOM,
+        paint: { 'raster-opacity': level },
+      })
     }
   }
 

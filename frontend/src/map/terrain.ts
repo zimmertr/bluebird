@@ -30,6 +30,7 @@ import type * as maplibregl from 'maplibre-gl'
 import { FEET_PER_METER } from '../utils/basemapPoi'
 import { OPACITY_DEFAULT, opacityOf, overDefault } from '../utils/baseMapOpacity'
 import { DEM_MAXZOOM, DEM_TILES, MAPTERHORN_HREF } from '../utils/terrainSources'
+import { addLayerAt } from './layerOrder'
 import { CAMERA_MS } from './mapStyles'
 import { DEM_FILL_TILES, SLOPE_MAXZOOM, SLOPE_PAINT, SLOPE_TILES, serveSlopeTiles, type DemGrids } from './slope'
 
@@ -384,13 +385,7 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
     data: { type: 'FeatureCollection', features: [] },
     attribution: MAPTERHORN_ATTRIBUTION,
   })
-  map.addLayer({ id: CREDIT_LAYER, type: 'circle', source: CREDIT_SOURCE })
-
-  // Under the style's first label and every `ofm-` layer the app adds
-  // (`enhanceBasemap` puts its trails and labels there), so the trails, the
-  // peaks and the place names stay on top of the ground.
-  const beneathLabels = () =>
-    map.getStyle().layers?.find((l) => l.type === 'symbol' || l.id.startsWith('ofm-'))?.id
+  addLayerAt(map, { id: CREDIT_LAYER, type: 'circle', source: CREDIT_SOURCE })
 
   // The relief's and the 3D terrain's elevation, to the slope's zoom through
   // the filled scheme (`utils/demFill.ts`): a raster-dem tile that failed
@@ -418,13 +413,10 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
   function relief() {
     if (map.getLayer(RELIEF_LAYER)) return show([RELIEF_LAYER], true)
     demSource(DEM_SOURCE)
-    // Under the slope shading and the contours where they are drawn, so a
-    // band or a line is never shaded over.
-    const beneath = [SLOPE_LAYER, CONTOUR_CASING_LAYER].find((id) => map.getLayer(id)) ?? beneathLabels()
-    map.addLayer(
-      { id: RELIEF_LAYER, type: 'hillshade', source: DEM_SOURCE, paint: reliefPaint(level.relief) },
-      beneath,
-    )
+    // Under the slope shading and the contours whichever is switched on
+    // first, so a band or a line is never shaded over, and under the trails,
+    // the peaks and the place names (`layerOrder.ts`).
+    addLayerAt(map, { id: RELIEF_LAYER, type: 'hillshade', source: DEM_SOURCE, paint: reliefPaint(level.relief) })
   }
 
   // The lines' ink for the ground under them at the row's level, their edge
@@ -470,33 +462,28 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
         attribution: MAPTERHORN_ATTRIBUTION,
       })
     }
-    // Over the relief, which is already beneath this point when it is drawn.
-    const beneath = beneathLabels()
+    // The lines over the relief and the slope and under the trails, and the
+    // heights with the basemap's labels, under the peaks and the place names
+    // (`layerOrder.ts`).
     const lines = { source: CONTOUR_SOURCE, 'source-layer': 'contours', minzoom: CONTOUR_MINZOOM }
     // Added hidden: `ink` shows it while the imagery is on.
-    map.addLayer(
-      { id: CONTOUR_CASING_LAYER, type: 'line', ...lines, layout: { visibility: 'none' }, paint: CONTOUR_CASING_PAINT },
-      beneath,
-    )
-    map.addLayer(
-      { id: CONTOUR_LAYER, type: 'line', ...lines, filter: ['==', ['get', 'level'], 0], paint: CONTOUR_PAINT },
-      beneath,
-    )
-    map.addLayer(
-      { id: CONTOUR_INDEX_LAYER, type: 'line', ...lines, filter: IS_INDEX, paint: CONTOUR_INDEX_PAINT },
-      beneath,
-    )
-    map.addLayer(
-      {
-        id: CONTOUR_LABEL_LAYER,
-        type: 'symbol',
-        ...lines,
-        filter: IS_INDEX,
-        layout: CONTOUR_LABEL_LAYOUT,
-        paint: CONTOUR_LABEL_PAINT,
-      },
-      beneath,
-    )
+    addLayerAt(map, {
+      id: CONTOUR_CASING_LAYER,
+      type: 'line',
+      ...lines,
+      layout: { visibility: 'none' },
+      paint: CONTOUR_CASING_PAINT,
+    })
+    addLayerAt(map, { id: CONTOUR_LAYER, type: 'line', ...lines, filter: ['==', ['get', 'level'], 0], paint: CONTOUR_PAINT })
+    addLayerAt(map, { id: CONTOUR_INDEX_LAYER, type: 'line', ...lines, filter: IS_INDEX, paint: CONTOUR_INDEX_PAINT })
+    addLayerAt(map, {
+      id: CONTOUR_LABEL_LAYER,
+      type: 'symbol',
+      ...lines,
+      filter: IS_INDEX,
+      layout: CONTOUR_LABEL_LAYOUT,
+      paint: CONTOUR_LABEL_PAINT,
+    })
   }
 
   // Over the relief and under the contours: the bands read over the shading
@@ -515,11 +502,12 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
         attribution: MAPTERHORN_ATTRIBUTION,
       })
     }
-    const beneath = map.getLayer(CONTOUR_CASING_LAYER) ? CONTOUR_CASING_LAYER : beneathLabels()
-    map.addLayer(
-      { id: SLOPE_LAYER, type: 'raster', source: SLOPE_SOURCE, paint: { ...SLOPE_PAINT, 'raster-opacity': level.slope } },
-      beneath,
-    )
+    addLayerAt(map, {
+      id: SLOPE_LAYER,
+      type: 'raster',
+      source: SLOPE_SOURCE,
+      paint: { ...SLOPE_PAINT, 'raster-opacity': level.slope },
+    })
   }
 
   function stand(on: boolean) {

@@ -65,20 +65,21 @@ afterEach(() => {
 })
 
 describe('mountLandmarks', () => {
-  // Over the basemap's own clickable labels and under the style's, each
+  // Over every label of the basemap's, its clickable ones and the style's
+  // own, so a marker wins a collision with any of them (record 0268), each
   // label with its glow directly beneath it.
-  it('stacks the two layers over the basemap patch, under the style\'s labels', () => {
+  it('stacks the two layers over every label of the basemap\'s', () => {
     const { stub } = setup()
     expect(stub.stack).toEqual([
       'background',
       'ofm-trails',
       'ofm-peaks-glow',
       'ofm-peaks',
+      'road_label',
       'landmark-trailheads-glow',
       'landmark-trailheads',
       'landmark-crags-glow',
       'landmark-crags',
-      'road_label',
     ])
     expect(stub.calls.find((c) => c[0] === 'addSource')?.[1]).toBe(LANDMARK_SOURCE)
   })

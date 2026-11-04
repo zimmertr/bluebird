@@ -76,8 +76,7 @@ const closure = (over = {}, layer = CLOSURE_AREA_FILL_LAYER) => ({
   properties: closureFeature(over).properties as Record<string, unknown>,
 })
 
-// Mounted beside the fire overlay, as `mountFeatures` does, and over a draw
-// layer standing in for everything above it.
+// Mounted after the fire overlay, as `mountFeatures` does.
 function setup(kind: ClosureKind = 'area', online: EventTarget | null = null) {
   const stub = stubMap({ canvasWidth: 1000, zoom: 8 })
   const { popups, click } = mountTestPopups(stub)
@@ -101,18 +100,20 @@ afterEach(() => {
 })
 
 describe('mountClosures', () => {
-  it('stacks the area fill under its outline, over the fires', () => {
+  // Under the fires though it is mounted after them (record 0268).
+  it('stacks the area fill under its outline, under the fires', () => {
     const { stub } = setup('area')
-    expect(stub.stack).toEqual([WILDFIRE_FILL_LAYER, 'wildfire-outline', CLOSURE_AREA_FILL_LAYER, 'closure-area-outline'])
+    expect(stub.stack).toEqual([CLOSURE_AREA_FILL_LAYER, 'closure-area-outline', WILDFIRE_FILL_LAYER, 'wildfire-outline'])
     expect(stub.paint[CLOSURE_AREA_FILL_LAYER]).toEqual({ 'fill-color': '#c026d3', 'fill-opacity': 0.2 })
     expect(fetchClosures).not.toHaveBeenCalled()
   })
 
   // One source carries both geometries; each layer filters to its own, so a
   // closed trailhead reaches the dots and a closed trail the dashed line.
-  it('draws the trail kind as a dashed line under a dot per site', () => {
+  // Over the fires, where the area kind is under them (record 0268).
+  it('draws the trail kind as a dashed line under a dot per site, over the fires', () => {
     const { stub } = setup('trail')
-    expect(stub.stack.slice(-2)).toEqual([CLOSURE_TRAIL_LINE_LAYER, CLOSURE_TRAIL_SITE_LAYER])
+    expect(stub.stack).toEqual([WILDFIRE_FILL_LAYER, 'wildfire-outline', CLOSURE_TRAIL_LINE_LAYER, CLOSURE_TRAIL_SITE_LAYER])
     const added = stub.calls.filter((c) => c[0] === 'addSource').map((c) => c[1])
     expect(added).toContain(CLOSURE_SOURCES.trail)
     expect(stub.paint[CLOSURE_TRAIL_LINE_LAYER]['line-dasharray']).toEqual([2, 1.5])

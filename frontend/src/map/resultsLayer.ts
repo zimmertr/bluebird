@@ -5,8 +5,9 @@
  * `destinationCards.ts`, which draws every card on the map (#832).
  *
  * The layers are added once, when the map loads, above the drawn ring, so a
- * marker is never under the outline of the area it was found in. The pending
- * dots go on last, above the markers.
+ * marker is never under the outline of the area it was found in, and the
+ * pending dots under the markers, so a ranked name wins a collision with a
+ * dot's (`layerOrder.ts`).
  */
 import type * as maplibregl from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
@@ -18,6 +19,7 @@ import { featureRow, pendingFC } from '../utils/mapFeatures'
 import type { Point as ScreenPoint, Rect } from '../utils/popup/popupFit'
 import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeatures'
 import { emptyFC, setSource } from './basemap'
+import { addLayerAt } from './layerOrder'
 import type { MapController } from './controller'
 import type { DestinationCards } from './destinationCards'
 import type { MapPopups, MapTargetHit } from './mapPopups'
@@ -159,8 +161,8 @@ export function mountResultsLayer(
 
   // Each dot's dark outer ring, under it, so its edge reads on a light ground
   // as the white stroke does on a dark one (`MARKER_HALO_PAINT`, #799).
-  map.addLayer({ id: 'results-halo', type: 'circle', source: 'results', paint: MARKER_HALO_PAINT })
-  map.addLayer({
+  addLayerAt(map, { id: 'results-halo', type: 'circle', source: 'results', paint: MARKER_HALO_PAINT })
+  addLayerAt(map, {
     id: RESULT_MARKER_LAYER,
     type: 'circle',
     source: 'results',
@@ -173,7 +175,7 @@ export function mountResultsLayer(
   // the SSE fallback never fetches it — draw nothing rather than draw
   // north. (The icon itself is registered by the forecast grid overlay,
   // which is mounted first and so is the first to name it.)
-  map.addLayer({
+  addLayerAt(map, {
     id: 'results-wind',
     type: 'symbol',
     source: 'results',
@@ -190,14 +192,14 @@ export function mountResultsLayer(
       visibility: 'none',
     },
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'results-rank',
     type: 'symbol',
     source: 'results',
     layout: { 'text-field': ['get', 'rank'], ...RANK_LAYOUT },
     paint: RANK_PAINT,
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'results-labels',
     type: 'symbol',
     source: 'results',
@@ -216,19 +218,19 @@ export function mountResultsLayer(
     type: 'geojson',
     data: emptyFC as FeatureCollection,
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'pending-destinations-halo',
     type: 'circle',
     source: 'pending-destinations',
     paint: MARKER_HALO_PAINT,
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: PENDING_MARKER_LAYER,
     type: 'circle',
     source: 'pending-destinations',
     paint: { ...MARKER_PAINT, 'circle-color': PENDING_COLOR },
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'pending-destinations-labels',
     type: 'symbol',
     source: 'pending-destinations',

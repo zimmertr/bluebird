@@ -7,8 +7,9 @@
  * its types only, which is what lets a node test load this file: nothing here
  * constructs a map, it is handed one.
  *
- * Layer insertion order is load-bearing, and `enhanceBasemap` owns the part of
- * it that sits under the style's own labels. `basemap.test.ts` pins that order.
+ * Every layer `enhanceBasemap` adds goes in through `layerOrder.ts`, the
+ * trails with the ground under every overlay and the clickable labels under
+ * the style's own. `basemap.test.ts` pins that order.
  */
 import type * as maplibregl from 'maplibre-gl'
 import type { ExpressionSpecification, FilterSpecification, SymbolLayerSpecification } from 'maplibre-gl'
@@ -18,6 +19,7 @@ import type { FeatureCollection } from 'geojson'
 import { LAKE_CLASS, PLACE_CLASSES, PLACE_LAYERS } from '../utils/basemapPoi'
 import { polygonsOf } from '../utils/drawGeometry'
 import { widestPole } from '../utils/polylabel'
+import { addLayerAt } from './layerOrder'
 
 // OpenFreeMap's Liberty style. `coldLoad.test.ts` reads this line to check the
 // entry document warms the same host.
@@ -372,10 +374,6 @@ export const TRAIL_CASING_LAYER = 'ofm-trails-casing'
 export const TRAIL_CASING_COLOR = '#f8f4f0'
 
 export function enhanceBasemap(map: maplibregl.Map) {
-  // Slot our additions just beneath the style's first text layer so labels
-  // (including the ones we add) stay on top of lines and fills.
-  const firstSymbolId = map.getStyle().layers?.find((l) => l.type === 'symbol')?.id
-
   // Registered before any layer names it; MapLibre draws nothing for an
   // unknown icon and only warns.
   const glow = makeGlowImage()
@@ -395,39 +393,33 @@ export function enhanceBasemap(map: maplibregl.Map) {
   // Trails: OSM class=path/track. Liberty only draws these from z14, too late
   // for orienting while drawing a polygon — show them from z11 in a trail hue.
   // The casing goes on first, so it draws directly under the trail.
-  map.addLayer(
-    {
-      id: TRAIL_CASING_LAYER,
-      type: 'line',
-      source: 'openmaptiles',
-      'source-layer': 'transportation',
-      minzoom: TRAIL_MINZOOM,
-      filter: TRAIL_FILTER,
-      layout: { visibility: 'none' },
-      paint: {
-        'line-color': TRAIL_CASING_COLOR,
-        'line-width': ['interpolate', ['exponential', 1.2], ['zoom'], 11, 2.6, 16, 4.5, 20, 8],
-      },
+  addLayerAt(map, {
+    id: TRAIL_CASING_LAYER,
+    type: 'line',
+    source: 'openmaptiles',
+    'source-layer': 'transportation',
+    minzoom: TRAIL_MINZOOM,
+    filter: TRAIL_FILTER,
+    layout: { visibility: 'none' },
+    paint: {
+      'line-color': TRAIL_CASING_COLOR,
+      'line-width': ['interpolate', ['exponential', 1.2], ['zoom'], 11, 2.6, 16, 4.5, 20, 8],
     },
-    firstSymbolId,
-  )
-  map.addLayer(
-    {
-      id: TRAIL_LAYER,
-      type: 'line',
-      source: 'openmaptiles',
-      'source-layer': 'transportation',
-      minzoom: TRAIL_MINZOOM,
-      filter: TRAIL_FILTER,
-      paint: {
-        'line-color': TRAIL_COLOR,
-        'line-dasharray': [2, 1.5],
-        'line-width': ['interpolate', ['exponential', 1.2], ['zoom'], 11, 0.6, 16, 2.5, 20, 6],
-        'line-opacity': TRAIL_OPACITY,
-      },
+  })
+  addLayerAt(map, {
+    id: TRAIL_LAYER,
+    type: 'line',
+    source: 'openmaptiles',
+    'source-layer': 'transportation',
+    minzoom: TRAIL_MINZOOM,
+    filter: TRAIL_FILTER,
+    paint: {
+      'line-color': TRAIL_COLOR,
+      'line-dasharray': [2, 1.5],
+      'line-width': ['interpolate', ['exponential', 1.2], ['zoom'], 11, 0.6, 16, 2.5, 20, 6],
+      'line-opacity': TRAIL_OPACITY,
     },
-    firstSymbolId,
-  )
+  })
 
   // Peaks: icon + name + elevation (feet). Sorted by OSM prominence rank so the
   // notable summits win label collisions. icon-allow-overlap keeps every marker
@@ -539,11 +531,11 @@ export function enhanceBasemap(map: maplibregl.Map) {
   ]
 
   // Each label goes on with its halo underneath it: the glow is added first so
-  // it lands below, and both use the same `before` so the pair stays together
-  // beneath the style's own symbols.
+  // it lands below, and both go in at the top of their slot, under the style's
+  // own labels.
   for (const layer of poiLayers) {
-    map.addLayer(glowTwin(layer), firstSymbolId)
-    map.addLayer(layer, firstSymbolId)
+    addLayerAt(map, glowTwin(layer))
+    addLayerAt(map, layer)
   }
 
   // The style's own place labels (#710) are clicked where the style draws
@@ -560,6 +552,9 @@ export function enhanceBasemap(map: maplibregl.Map) {
     const filter = spec.filter
       ? (['all', spec.filter, settlements] as FilterSpecification)
       : settlements
+    // Directly beneath its label rather than through `layerOrder.ts`: the
+    // glow belongs to one of the style's own labels, and `layerOrder.ts`
+    // sorts it with them as the style's.
     map.addLayer({ ...glowTwin(spec), filter }, id)
     const marker = townMarker(spec)
     if (marker) {
