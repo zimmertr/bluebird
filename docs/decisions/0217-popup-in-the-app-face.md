@@ -1,6 +1,6 @@
 # 0217. A popup is set in the app's face
 
-- Status: Accepted. Amends [0123](0123-popup-grid-and-scroll-cap.md) (the marker card's cap is 374px and a compact band's inset 2px) and [0215](0215-popup-is-the-panel.md) (the face was the one part of the card still its own).
+- Status: Accepted. Amends [0123](0123-popup-grid-and-scroll-cap.md) (the marker card's cap is 374px and a compact band's inset 2px) and [0215](0215-popup-is-the-panel.md) (the face was the one part of the card still its own); amended by [0266](0266-every-card-is-a-stack-of-foldable-layer-sections.md) (the cap is 381px and a compact band's inset 1px, for the grid's bold row heads).
 - Date: 2026-10-22
 - Decider: the maintainer (TJ), on the review of PR #789: of the options put to him, "Use the app's face", and for the width it costs, "Cap 374, phone bands 2px".
 - Issues and PRs: #786, #789

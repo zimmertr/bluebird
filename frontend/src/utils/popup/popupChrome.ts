@@ -55,9 +55,9 @@ const POPUP_FINE_SIZE = 'font-size:11px'
 
 /**
  * The card's one bold, the app's: 600, the weight its headings and the
- * table's heads take (record 0222). The title, the grid's heads, a section's
- * layer word, a row's key and the ranked value wear it; a `<strong>` alone
- * would draw 700.
+ * table's heads take (record 0222). The title, the grid's heads and row
+ * heads, a section's layer word, a row's key and the ranked value wear it; a
+ * `<strong>` alone would draw 700.
  */
 const BOLD = 'font-weight:600'
 
@@ -69,8 +69,8 @@ const BOLD = 'font-weight:600'
  *
  * It is not the whole of the key/value split. The face alone was too quiet
  * to read as a split (TJ, 2026-09-14), so a section's row parts its halves
- * on colour and weight as well (`row`), and the grid's row heads step back
- * in colour (`LABEL_COLOR`).
+ * on colour and weight as well (`row`), and the grid parts its heads from
+ * its values the same way (`metricGrid`).
  *
  * No value is bold but the ranked one: a bold value marks a favourite row
  * rather than a kind of text, which is what two VALUES wearing one by no rule
@@ -107,13 +107,14 @@ export function row(label: string, value: string, href?: string | null): string 
   return `<div>${rowKey(label)}: ${href ? popupLink(href, shown) : shown}</div>`
 }
 
-/** The card's ink: its title, a section's heading and a row's key. */
+/** The card's ink: its title, a section's heading, a row's key and the grid's heads. */
 export const INK_COLOR = 'color:var(--popup-ink)'
 
 /**
- * The colour the grid's row heads and the facts under a title take, so they
- * read as labels rather than as the first half of the value (TJ, 2026-09-14),
- * and the colour of a section row's value, whose key is the ink (`row`).
+ * The colour the facts under a title take, so they read as labels rather
+ * than as the first half of the value (TJ, 2026-09-14), and the colour of a
+ * value whose key is the ink: a section row's (`row`) and a grid cell's
+ * (`metricGrid`).
  *
  * **Colour rather than weight, and that is a measurement rather than a taste.**
  * The obvious answer was a lighter weight than the title's 600. It does not
@@ -129,9 +130,9 @@ export const INK_COLOR = 'color:var(--popup-ink)'
  * the light one (pinned in `styles.test.ts`), so it recedes without becoming
  * hard to read.
  *
- * The grid's row heads therefore never go bold: a weight there would be the
- * one axis the label leaned on. A section's row is the exception, which
- * steps on all three (`row`).
+ * A key and its value step on all three axes, weight and face as well as
+ * colour (`row`, `metricGrid`), so the split holds in a face whose weights
+ * come in pairs.
  */
 export const LABEL_COLOR = 'color:var(--popup-label)'
 
@@ -603,7 +604,13 @@ export function widestName(shown: string, every: readonly string[]): string {
  * marker under it do. The ranked number itself is bold, which is how the
  * card says why its destination stands where it does (TJ, 2026-10-08): the
  * table says it with the arrow on its column's head, and the card has none.
- * A ranked number with no colour falls back to `GRID_RANKED_COLOR`. `compact` narrows every band's inset and the
+ * A ranked number with no colour falls back to `GRID_RANKED_COLOR`, in the
+ * ink, since the label grey reads 3.94:1 on that cell in dark.
+ *
+ * Key and value part as a section's row does (TJ, 2026-11-04): every head,
+ * the families down the side and the aggregates across the top, is the ink
+ * at 600, and every value the label grey at 400 in the mono face, where a
+ * grey head over a value in the ink read as inverted. `compact` narrows every band's inset and the
  * label's gap to fit a map too narrow for the widest grid at full inset
  * (`compactGrid`).
  */
@@ -614,17 +621,20 @@ export function metricGrid(
   const band = gridBand(compact ? GRID_COMPACT_INSET_PX : GRID_INSET_PX)
   const labelLoose = gridLabel(compact ? GRID_COMPACT_LABEL_GAP_PX : GRID_LABEL_GAP_PX)
   const label = `${labelLoose};white-space:nowrap`
-  const headStyle = `text-align:right;${BOLD};vertical-align:bottom;white-space:nowrap;${band};${GRID_HEAD_RULE};color:var(--popup-ink)`
-  const valueStyle = `text-align:right;white-space:nowrap;vertical-align:bottom;${band}`
+  const headStyle = `text-align:right;${BOLD};vertical-align:bottom;white-space:nowrap;${band};${GRID_HEAD_RULE};${INK_COLOR}`
+  // On the cell rather than the number, so a link and its underline, which
+  // inherit, take the grey too.
+  const valueStyle = `text-align:right;white-space:nowrap;vertical-align:bottom;${band};${LABEL_COLOR}`
   const value = (c: PopupGridCell, line: string, span = '') =>
     `<td${span}${c.tint ? ` ${POPUP_TINT_ATTR}` : ''} style="${valueStyle}${shade(c)}${line}">${cell(c)}</td>`
   // The ranked family's colour where its scale gives one, the table's own;
-  // the slate step marks the ranked number only where it has none.
+  // the slate step marks the ranked number only where it has none. Each
+  // follows the grey in the cell's style, so its colour wins.
   const shade = (c: PopupGridCell) =>
     c.tint
       ? `;background:${c.tint.fill};--tint-dark:${c.tint.ink.dark};--tint-light:${c.tint.ink.light};color:var(--popup-tint)`
       : c.ranked
-        ? `;background:${GRID_RANKED_COLOR}`
+        ? `;background:${GRID_RANKED_COLOR};${INK_COLOR}`
         : ''
   const cell = (c: PopupGridCell) => {
     const shown = `<span style="${VALUE_FACE}${c.ranked ? `;${BOLD}` : ''}">${c.text}</span>`
@@ -661,7 +671,8 @@ export function metricGrid(
  * 2026-11-03). The label and the ink its numbers take both stay well above
  * AA's 4.5 on it. It stands 1.18:1 off the card in both themes, which is
  * enough to read as a band and no more: the heads and the alignment carry
- * the columns, and the shade only groups them. Pinned in `styles.test.ts`.
+ * the columns, and the shade only groups them. The grey a value takes reads
+ * 4.71:1 on it in dark. Pinned in `styles.test.ts`.
  */
 export const GRID_BAND_COLOR = 'var(--popup-band)'
 /** The gutter between bands is the card's own surface, which `map.css` paints. */
@@ -680,8 +691,9 @@ export const GRID_LINE_COLOR = 'var(--popup-line)'
  * raised step in dark and its hover in light, with no hue, so the card's
  * only colour is its links (TJ, 2026-10-08, option H, over a sky-100 cell).
  * It stands 1.2:1 off the column on the dark card and 1.06:1 on the light
- * one, so the number's bold carries most of the mark. Pinned in
- * `styles.test.ts`.
+ * one, so the number's bold carries most of the mark. Its number keeps the
+ * ink rather than the values' grey, which reads 3.94:1 here in dark, under
+ * AA's 4.5. Pinned in `styles.test.ts`.
  */
 export const GRID_RANKED_COLOR = 'var(--popup-ranked)'
 
@@ -689,12 +701,14 @@ export const GRID_RANKED_COLOR = 'var(--popup-ranked)'
  * Each band's inset a side: 5px, so a number as wide as `0.000` has visible
  * room inside its band, behind a 2px gutter (TJ, 2026-10-08; it was 3px,
  * which left the widest numbers touching the edges). A map too narrow for the
- * widest grid at 5px takes 2px instead (`compactGrid`): 3px until the card
+ * widest grid at 5px takes 1px instead (`compactGrid`): 3px until the card
  * took the app's face, whose wider labels a 360px phone could hold only by
- * giving back the 8px four bands' insets made (TJ, 2026-10-22).
+ * giving back the 8px four bands' insets made (TJ, 2026-10-22), and 2px
+ * until the row heads went to 600 (2026-11-04), whose 6.49px it could hold
+ * only by giving back 8px more.
  */
 export const GRID_INSET_PX = 5
-export const GRID_COMPACT_INSET_PX = 2
+export const GRID_COMPACT_INSET_PX = 1
 /**
  * The gap between a family's label and the first band: 8px (TJ, 2026-10-08),
  * or 6px on a compact grid, which is the 2px that lets a two-digit window
@@ -707,25 +721,26 @@ export const GRID_COMPACT_LABEL_GAP_PX = 6
  * The widest grid, in Chrome on macOS: `Precipitation (in/hr)` beside Min,
  * Max, Avg and Total at their widest numbers (`10,600` heights, `≥30,000`
  * under Max, and a three-digit total, `123.456`, which a stormy window's
- * snowfall can reach). 352.9px at full inset. A two-digit total, which a
- * winter window's rain often reaches, is 345.7px; the first measurement used
+ * snowfall can reach). 359.4px at full inset. A two-digit total, which a
+ * winter window's rain often reaches, is 352.2px; the first measurement used
  * `0.000` and undersized the card. The grid was measured at 344.6px on
- * 2026-10-08 in the card's own Helvetica, and the app's face sets the label
- * 8.32px wider (109.03px against 100.71px at 12px, 2026-10-22).
+ * 2026-10-08 in the card's own Helvetica, the app's face sets the label
+ * 8.32px wider (109.03px against 100.71px at 12px, 2026-10-22), and the
+ * row heads' 600 another 6.49px (115.52px, 2026-11-04).
  *
- * Compact, the same grid is 326.9px, and 319.7px with a two-digit total, which
+ * Compact, the same grid is 325.4px, and 318.2px with a two-digit total, which
  * is what a 360px phone's 320px of body holds. A change to the grid's
  * columns, insets or type re-measures these. `e2e/popupFit.spec.ts` holds the
  * built card to them with the Mac's wider fonts emulated.
  */
-export const WIDEST_GRID_PX = 353
+export const WIDEST_GRID_PX = 360
 /** The result card's body padding a side, `popupCard`'s 10px. */
 export const RESULT_CARD_PAD_PX = 10
 
 /**
  * Whether a result card on a map this wide takes the compact insets: when its
  * body is narrower than the widest grid at full inset. That is every map under
- * 393px, a 360px phone among them, where a wide grid would otherwise scroll
+ * 400px, a 360px phone among them, where a wide grid would otherwise scroll
  * sideways (TJ, 2026-10-08). The card's own width does not change.
  */
 export function compactGrid(canvasWidthPx: number): boolean {
@@ -736,12 +751,13 @@ export function compactGrid(canvasWidthPx: number): boolean {
 // 2026-10-08), while the
 // numbers stay right-aligned so a column lines up on its last digit, the way a
 // table of figures does.
-// A label keeps 8px clear of the first band. On a phone the card is wider
+// A label keeps 8px clear of the first band, in the ink at 600 as every
+// head is (`metricGrid`). On a phone the card is wider
 // than its grid and the table spreads the spare room into this column; on a
 // desktop the card shrinks to the grid, and without it the longest label sat
 // against the band (TJ, 2026-10-08).
 const gridLabel = (gapPx: number) =>
-  `text-align:left;font-weight:normal;padding:1px ${gapPx}px 1px 0;vertical-align:bottom;${LABEL_COLOR}`
+  `text-align:left;${BOLD};padding:1px ${gapPx}px 1px 0;vertical-align:bottom;${INK_COLOR}`
 // No band behind a column (TJ 2026-10-30): the card's rows are the results
 // table's, a hairline between each and a tint under the pointer (`map.css`),
 // and its heads the table's, right over the digits they name.
@@ -826,9 +842,12 @@ export function uncapPopupBody(body: HTMLElement): void {
 export const POPUP_MAX_WIDTH_PX = 280
 
 /**
- * How wide a ranked destination's popup may get: 374px, or the map less 10px
+ * How wide a ranked destination's popup may get: 381px, or the map less 10px
  * a side where the map is narrower (TJ, 2026-10-08; 366px until the card took
- * the app's wider face, 2026-10-22).
+ * the app's wider face, 2026-10-22, and 374px until its grid's row heads went
+ * to 600). The last 7px are the bold heads' cost: `Precipitation (in/hr)`
+ * measured 115.52px at 600 against 109.03px at 400 (Chrome on macOS,
+ * 2026-11-04).
  *
  * Its grid is wider than any other popup's, `WIDEST_GRID_PX`, and the body
  * has the card less 10px a side. On a 360px phone the card is 340px, 94% of
@@ -839,7 +858,7 @@ export const POPUP_MAX_WIDTH_PX = 280
  * accepted for narrow phones. A desktop card shrinks to its grid, so the cap
  * is reached only by a card with the widest numbers.
  */
-export const RESULT_POPUP_MAX_WIDTH_PX = 374
+export const RESULT_POPUP_MAX_WIDTH_PX = 381
 
 /**
  * The narrowest any card on the map is, whatever the map's width, and the
