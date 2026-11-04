@@ -15,11 +15,14 @@ import {
   DEFAULT_PANEL_HEIGHT,
   dockedMapFloorPx,
   draggedMapFloorPx,
+  fullScreenMapFloorPx,
+  fabShiftPx,
   mapCornerLiftPx,
   restingLiftPx,
   restingMapFloorPx,
   resolveSheetLift,
   sheetHeightPx,
+  sheetTopRelease,
 } from '../utils/results/resultsSheet'
 import { type ResultsMode, writeViewPrefs } from '../utils/viewPrefs'
 
@@ -186,6 +189,7 @@ export function useResultsLayout({
       return
     }
     setHeightsChosen(false)
+    setFullScreen(false)
     setTableHeight(DEFAULT_TABLE_HEIGHT)
     setChartHeight(DEFAULT_CHART_HEIGHT)
     setModePref(restView)
@@ -219,6 +223,28 @@ export function useResultsLayout({
   // because the rest stop is the table's and leaves the plot a 68px band at
   // 390x844; a drag is the reader's and wins until Chart is left.
   const [chartDragged, setChartDragged] = useState(false)
+  // Whether a phone's sheet covers the whole map (#837): a drag let go near
+  // the top puts it there, and the next drag on its map grip or a double
+  // press takes it back. Held as a state rather than a height, so a rotation
+  // or a mode switch keeps it whole. A desk never sets it.
+  const [fullScreen, setFullScreen] = useState(false)
+  // A phone's drag on a map grip while it lasts (#837): no render per move,
+  // and nothing on screen changes at the press (record 0259). A Table is
+  // drawn at the most the drag can reach and moved under the finger by a
+  // transform, which looks the same as a table of the dragged height, since
+  // the screen's edge cuts the rows either way. A Chart cannot be: a plot
+  // drawn tall reads as a stretched plot, and in Both it pushed the table off
+  // the screen (the maintainer, 2026-11-03), so a chart's panel takes its
+  // height per move straight on the element, and the chart follows its box.
+  // The release commits one height. State for the two renders that begin and
+  // end it, a ref for the moves between.
+  const [sheetDrag, setSheetDrag] = useState<SheetDrag | null>(null)
+  const sheetDragRef = useRef<SheetDrag | null>(null)
+  // The map's column, whose foot (the Analyze button, the player, the scale
+  // and the credit) a drag moves with the sheet through `--sheet-shift`.
+  const stageRef = useRef<HTMLDivElement>(null)
+  // The chart panel's box, which a chart drag sizes per move.
+  const chartPaneRef = useRef<HTMLDivElement>(null)
 
   // A desktop-width window widens to Both when an analysis lands, so the first
   // report arrives with its chart — unless the user has ever explicitly picked
@@ -281,11 +307,11 @@ export function useResultsLayout({
   const gripCount = resultsCollapsed ? 0 : resultsMode === 'both' ? 2 : 1
   // On a phone the results stand ON the map rather than beside it, so the floor
   // the panels leave is not "some map" but "enough map for the legend stack to
-  // sit above the sheet" (#249). Two of them, and the sheet is never taller
-  // than the looser one allows: the resting reserve holds the whole legend
-  // stack and lasts until the reader takes a grip, and the drag floor holds
-  // however far they pull — it keeps the band the timeline needs to stay clear
-  // of the map's button column, which is where the bar landed before the cap.
+  // sit above the sheet" (#249). Two of them, and a sheet at rest is never
+  // taller than the looser one allows: the resting reserve holds the whole
+  // legend stack and lasts until the reader takes a grip, and the cap holds
+  // wherever a drag is let go short of full screen (#837). It keeps the rows
+  // and the Analyze button's strip, and the player's room while it is on.
   // Desktop takes the same split, from the same three constants. A docked
   // panel covers nothing, so there is no sheet to hold up — but its bar and
   // grips come out of the map's own column, so the resting floor counts them
@@ -294,6 +320,10 @@ export function useResultsLayout({
   // a reader who pulls the panels up has chosen a shorter map, and the stack
   // scrolls rather than the drag stopping short.
   const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount, playerOn)
+  // Past that cap a drag on a phone runs on to the top of the map (#837), and
+  // its release decides whether the sheet stays there (`sheetTopRelease`).
+  const fullFloorPx = isDesktop ? undefined : fullScreenMapFloorPx(gripCount)
+  const atFullScreen = !isDesktop && fullScreen
   // Leaving Chart forgets its drag, so the next pick lifts it again.
   if (resultsMode !== 'chart' && chartDragged) setChartDragged(false)
   // A phone's Chart alone at its full stop: the drag cap with every panel
@@ -308,29 +338,65 @@ export function useResultsLayout({
   // changes the chart's size, under a short column or after a long drag. The
   // map keeps whatever of that room the legend leaves.
   const chartAsBoth = isDesktop && resultsMode === 'chart'
+  // The floor the sheet rests on before any drag, which is the one a double
+  // press puts a panel back under.
+  const restFloorPx = isDesktop
+    ? dockedMapFloorPx(chartAsBoth ? 2 : gripCount, barMeasuredPx ?? undefined)
+    : heldFull
+      ? dragFloorPx
+      : restingMapFloorPx(gripCount)
+  // A map grip's drag runs on the full-screen floor for its length; the
+  // divider's does not, since it trades a fixed sum, and giving it that floor
+  // at the press let both panels grow to their stored heights under a
+  // finger that had not moved (the maintainer, 2026-11-03).
   const mapFloorPx = isDesktop
     ? heightsChosen
       ? undefined
-      : dockedMapFloorPx(chartAsBoth ? 2 : gripCount, barMeasuredPx ?? undefined)
-    : heightsChosen || heldFull
-      ? dragFloorPx
-      : restingMapFloorPx(gripCount)
+      : restFloorPx
+    : atFullScreen || sheetDrag !== null
+      ? fullFloorPx
+      : heightsChosen
+        ? dragFloorPx
+        : restFloorPx
   const tableRoomPx = chartAsBoth && chartShowing ? PANEL_FLOOR_PX : 0
+  const panelOptions = {
+    chartShown: chartShowing,
+    tableShown: tableShowing && showTable,
+    availPx: usableH - tableRoomPx,
+  }
+  // The pair's heights at first load: what a double press on either grip in
+  // Both puts its own panel back to, the other keeping its height, so a
+  // press before any drag changes nothing and a reset after one moves one
+  // panel (the maintainer, 2026-11-03). The stored defaults are above a
+  // short phone's rest clamp, so the default is the clamped pair, not the
+  // stored number.
+  const restPx = resolvePanelHeights(DEFAULT_CHART_HEIGHT, DEFAULT_TABLE_HEIGHT, {
+    ...panelOptions,
+    mapMinPx: restFloorPx,
+  })
+  // At full screen every panel asks for the whole screen, except Both's
+  // chart, which keeps the reader's share so the table fills the rest. A
+  // table under a phone's drag asks for the most the drag can reach; a chart
+  // keeps the height it began at, and the layout effect below puts the
+  // drag's own on its box after any render that lands mid-drag.
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
-    heldFull ? usableH : chartHeight,
-    heldFull ? usableH : tableHeight,
-    {
-      chartShown: chartShowing,
-      tableShown: tableShowing && showTable,
-      availPx: usableH - tableRoomPx,
-      mapMinPx: mapFloorPx,
-    },
+    sheetDrag?.panel === 'chart' || !(heldFull || (atFullScreen && resultsMode !== 'both')) ? chartHeight : usableH,
+    sheetDrag?.panel === 'table' ? sheetDrag.ceilPx : heldFull || atFullScreen ? usableH : tableHeight,
+    { ...panelOptions, mapMinPx: mapFloorPx },
   )
   // What the map│chart grip may not drag the chart over: the table while it
   // is rendered, which is the one thing that differs between Both and
   // chart-only mode, and at a desk in Chart the table's floor, which the
   // legend stands in.
   const chartReservedPx = (resultsMode === 'both' ? tablePanelPx : 0) + tableRoomPx + reservedPx
+  // Whether a phone's sheet covers the map's rows and its Analyze button,
+  // which is full screen (#837): they stay where they are under it and are
+  // taken out of reach (`inert`), since no finger can reach them.
+  const overMapRows = showTable && !resultsCollapsed && atFullScreen
+  // Whether the sheet stands over the map's controls (`LAYER.sheetRaised`):
+  // at full screen, and for a whole drag, so it slides over them on its way
+  // up rather than under them.
+  const sheetRaised = showTable && (sheetDrag !== null || overMapRows)
   // The results' real height, which is what the map's bottom chrome rides.
   //
   // Two paths, because the height moves for two different kinds of reason.
@@ -348,6 +414,14 @@ export function useResultsLayout({
   // catch. The same-value guard below is what stops the update chain.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
+    // A render that lands mid-drag has written the chart's starting height
+    // back; the drag's own goes on before the paint, and the sheet's height
+    // waits for the release, since the lift holds where the drag began.
+    const drag = sheetDragRef.current
+    if (drag) {
+      placeSheetDrag(drag, dragUp.current, sheetRef.current, stageRef.current, chartPaneRef.current)
+      return
+    }
     const el = sheetRef.current
     const next = !el || isDesktop ? null : el.getBoundingClientRect().height
     setSheetMeasuredPx((prev) => (prev === next ? prev : next))
@@ -378,6 +452,9 @@ export function useResultsLayout({
     const el = sheetRef.current
     if (!el) return
     const observer = new ResizeObserver((entries) => {
+      // A chart drag grows the sheet every move; its lift holds until the
+      // release, whose render measures it.
+      if (sheetDragRef.current) return
       const entry = entries[0]
       // The BORDER box: the sheet's own top border is part of what covers the
       // map, and `contentRect` leaves it out.
@@ -399,17 +476,22 @@ export function useResultsLayout({
   // header and a grip, and a guess 20px out is 20px of gap the reader can see
   // under the player. The estimate is what the first frame gets, before the
   // observer above has reported.
-  const sheetLiftPx = resolveSheetLift({
-    docked: isDesktop || !showTable,
-    measuredPx: sheetMeasuredPx,
-    estimatePx:
-      sheetHeightPx({
-        collapsed: resultsCollapsed,
-        gripCount,
-        panelsPx: chartPanelPx + tablePanelPx,
-      }) + footPx,
-    footPx,
-  })
+  //
+  // A drag holds the lift it began at: the sheet is drawn at its most while
+  // it lasts, and the foot follows the finger through `--sheet-shift`.
+  const sheetLiftPx = sheetDrag
+    ? sheetDrag.liftPx
+    : resolveSheetLift({
+        docked: isDesktop || !showTable,
+        measuredPx: sheetMeasuredPx,
+        estimatePx:
+          sheetHeightPx({
+            collapsed: resultsCollapsed,
+            gripCount,
+            panelsPx: chartPanelPx + tablePanelPx,
+          }) + footPx,
+        footPx,
+      })
   // Both of the library's bottom corners ride the same lift as the app's own
   // chrome, at every width: the scale bar bottom-left and the attribution
   // bottom-right sit in the band between the forecast player and the top of the
@@ -450,49 +532,156 @@ export function useResultsLayout({
   // drag measured from the height of the render before it added every move
   // to the last: 86px down a lifted Chart took the sheet to its floor (#696).
   const dragFrom = useRef({ chart: 0, table: 0 })
+  // The last distance a drag reported, which its release is decided from.
+  const dragUp = useRef(0)
+  // The map's whole height on a phone, which the Analyze button and the
+  // player above it measure their room against (#696): the viewport less the
+  // preview banner, since the sheet stands over the map rather than beside it.
+  const mapPx = viewportH - bannerPx
+  // A phone's drag on a map grip begins (#837): the sheet is drawn at the
+  // most the drag can reach, the full-screen ceiling, from the next render.
+  const beginSheetDrag = (panel: SheetDrag['panel'], fromPx: number, otherPx: number) => {
+    if (isDesktop || fullFloorPx === undefined) return
+    const drag: SheetDrag = {
+      panel,
+      fromPx,
+      otherPx,
+      floorPx: fullFloorPx,
+      ceilPx: clampPanelHeight(0, Infinity, otherPx, window.innerHeight, fullFloorPx),
+      liftPx: sheetLiftPx,
+      mapPx,
+    }
+    sheetDragRef.current = drag
+    setSheetDrag(drag)
+  }
+  // And ends: the panel takes the height the drag left it, and the release
+  // decides whether it stays there, goes to full screen, or falls back to
+  // the cap (`sheetTopRelease`).
+  const endSheetDrag = () => {
+    const drag = sheetDragRef.current
+    sheetDragRef.current = null
+    setSheetDrag(null)
+    if (!drag) return
+    const setHeight = drag.panel === 'chart' ? setChartHeight : setTableHeight
+    const panelPx = dragPanelPx(drag, dragUp.current)
+    const capPx = clampPanelHeight(0, Infinity, drag.otherPx, window.innerHeight, dragFloorPx)
+    const release = sheetTopRelease(panelPx, capPx, drag.ceilPx)
+    const px = release === 'cap' ? capPx : panelPx
+    // The chart's box takes the committed height here, not only from the
+    // render: React rewrites the style only when its own last value moved,
+    // and a drag let go where it began leaves that value where it was while
+    // the element still wears the last move's.
+    if (drag.panel === 'chart') chartPaneRef.current?.style.setProperty('height', `${px}px`)
+    setHeight(px)
+    if (release === 'full') setFullScreen(true)
+  }
+  // The drag's placement goes on in the layout effect above, in the commit
+  // that begins it; this one clears it in the commit that draws the sheet at
+  // its new height, so no frame shows either without it. A table's sheet is
+  // promised a transform for the drag's length.
+  useLayoutEffect(() => {
+    if (sheetDrag) {
+      if (sheetDrag.panel === 'table') sheetRef.current?.style.setProperty('will-change', 'transform')
+      return
+    }
+    sheetRef.current?.style.removeProperty('transform')
+    sheetRef.current?.style.removeProperty('will-change')
+    stageRef.current?.style.removeProperty('--sheet-shift')
+  }, [sheetDrag])
   const chartGrip: GripHandlers = {
     onReset: () => {
-      if (resultsMode === 'both') setTableHeight(tablePanelPx)
+      // In Both a double press puts the chart back alone, at its first-load
+      // height, and the table keeps its own (the maintainer, 2026-11-03: it
+      // put both back); the sheet's top moves by the difference, out of full
+      // screen if it stood there.
+      if (resultsMode === 'both') {
+        setChartHeight(restPx.chart)
+        setTableHeight(tablePanelPx)
+        setFullScreen(false)
+        return
+      }
       setChartHeight(DEFAULT_CHART_HEIGHT)
       // "Put it back" includes the resting height a phone
       // sheet opens at, which a drag had handed over, and a phone's Chart
       // rests at its full stop.
       setHeightsChosen(false)
       setChartDragged(false)
+      setFullScreen(false)
     },
     onDragStart: () => {
       dragFrom.current = { chart: chartPanelPx, table: tablePanelPx }
+      dragUp.current = 0
       setIsDragging(true)
       setHeightsChosen(true)
+      setFullScreen(false)
       if (resultsMode === 'both') setTableHeight(tablePanelPx)
-      // A drag on a lifted Chart starts from where it stands and is the
-      // reader's from then on.
-      if (chartLifted) {
-        setChartDragged(true)
-        setChartHeight(chartPanelPx)
-      }
+      // A drag starts from where the chart stands, which full screen and a
+      // lifted Chart both put somewhere its height does not say, and a drag
+      // on a lifted Chart is the reader's from then on.
+      setChartHeight(chartPanelPx)
+      if (chartLifted) setChartDragged(true)
+      beginSheetDrag('chart', chartPanelPx, chartReservedPx)
     },
-    onDrag: (up) =>
+    onDrag: (up) => {
+      dragUp.current = up
+      if (sheetDragRef.current) {
+        placeSheetDrag(sheetDragRef.current, up, sheetRef.current, stageRef.current, chartPaneRef.current)
+        return
+      }
       setChartHeight(
         clampPanelHeight(dragFrom.current.chart, up, chartReservedPx, window.innerHeight, dragFloorPx),
-      ),
-    onDragEnd: () => setIsDragging(false),
+      )
+    },
+    onDragEnd: () => {
+      setIsDragging(false)
+      endSheetDrag()
+    },
   }
   // In Both mode this grip is the chart│table divider and preserves the pair's
   // sum; alone, there is no chart to trade with, so it resizes the table
   // against the map exactly as the chart grip above does.
   const tableGrip: GripHandlers = {
     onReset: () => {
-      if (resultsMode === 'both') setChartHeight(chartPanelPx)
+      // In Both the grip is the divider, and a double press puts the table
+      // back alone, at its first-load height (the maintainer, 2026-11-03: it
+      // reset both, and then to a stored height a short phone never shows):
+      // the chart keeps its height and the sheet's top moves by the
+      // difference. At full screen the top cannot move, so the chart takes
+      // the difference and the sheet stays full. Alone, the grip is the
+      // map's, and the sheet goes back to its rest with the table.
+      if (resultsMode === 'both') {
+        setTableHeight(restPx.table)
+        setChartHeight(
+          fullScreen ? Math.max(PANEL_FLOOR_PX, chartPanelPx + tablePanelPx - restPx.table) : chartPanelPx,
+        )
+        return
+      }
       setTableHeight(DEFAULT_TABLE_HEIGHT)
       setHeightsChosen(false)
+      setFullScreen(false)
     },
     onDragStart: () => {
       dragFrom.current = { chart: chartPanelPx, table: tablePanelPx }
+      dragUp.current = 0
       setIsDragging(true)
+      // The divider in Both trades the pair's height and leaves the sheet's
+      // top where it is, full screen included, so it leaves the floor alone
+      // too: calling the heights chosen here switched a resting sheet to the
+      // drag cap at the press, and both panels grew to their stored heights
+      // before the finger moved (the maintainer, 2026-11-03). Alone, the
+      // grip is the map's.
+      if (resultsMode === 'both') return
       setHeightsChosen(true)
+      setFullScreen(false)
+      setTableHeight(tablePanelPx)
+      beginSheetDrag('table', tablePanelPx, reservedPx)
     },
     onDrag: (up) => {
+      dragUp.current = up
+      if (sheetDragRef.current) {
+        placeSheetDrag(sheetDragRef.current, up, sheetRef.current, stageRef.current, chartPaneRef.current)
+        return
+      }
       if (resultsMode === 'both') {
         const next = splitChartTable(dragFrom.current.chart, dragFrom.current.table, up)
         setChartHeight(next.chart)
@@ -501,17 +690,17 @@ export function useResultsLayout({
       }
       setTableHeight(clampPanelHeight(dragFrom.current.table, up, reservedPx, window.innerHeight, dragFloorPx))
     },
-    onDragEnd: () => setIsDragging(false),
+    onDragEnd: () => {
+      setIsDragging(false)
+      endSheetDrag()
+    },
   }
-
-  // The map's whole height on a phone, which the Analyze button and the
-  // player above it measure their room against (#696): the viewport less the
-  // preview banner, since the sheet stands over the map rather than beside it.
-  const mapPx = viewportH - bannerPx
 
   return {
     sheetRef,
     barRef,
+    stageRef,
+    chartPaneRef,
     isDragging,
     resultsCollapsed,
     toggleCollapsed,
@@ -523,6 +712,8 @@ export function useResultsLayout({
     chartPanelPx,
     tablePanelPx,
     sheetLiftPx,
+    overMapRows,
+    sheetRaised,
     mapCornerLift,
     cameraPadBottomPx,
     sheetPadBottomPx,
@@ -530,6 +721,49 @@ export function useResultsLayout({
     chartGrip,
     tableGrip,
   }
+}
+
+/** A phone's drag on a results sheet's map grip (#837). */
+interface SheetDrag {
+  /** The panel the grip moves. */
+  panel: 'chart' | 'table'
+  /** Its height when the drag began. */
+  fromPx: number
+  /** The room the clamp leaves the rest: the other panel, the banner and the foot's band. */
+  otherPx: number
+  /** The map floor the drag runs to, full screen's. */
+  floorPx: number
+  /** The most the panel can have: what a table is drawn at while the drag lasts, and where a chart's growth stops. */
+  ceilPx: number
+  /** The lift the map's foot stood on when the drag began. */
+  liftPx: number
+  /** The map's height, which the Analyze button's highest place is measured from. */
+  mapPx: number
+}
+
+/** The dragged panel's height `up` pixels into a drag. */
+function dragPanelPx(drag: SheetDrag, up: number): number {
+  return clampPanelHeight(drag.fromPx, up, drag.otherPx, window.innerHeight, drag.floorPx)
+}
+
+/**
+ * One move of a phone's sheet drag, with no render (#837). A table's sheet,
+ * drawn at its most, is moved down by what the panel has not yet reached; a
+ * chart's box takes the panel's height, and the chart redraws to its box.
+ * Either way the map's foot is moved by what the Analyze button would,
+ * through `--sheet-shift` on the map's column.
+ */
+function placeSheetDrag(
+  drag: SheetDrag,
+  up: number,
+  sheet: HTMLElement | null,
+  stage: HTMLElement | null,
+  chartPane: HTMLElement | null,
+) {
+  const panelPx = dragPanelPx(drag, up)
+  if (drag.panel === 'table') sheet?.style.setProperty('transform', `translateY(${drag.ceilPx - panelPx}px)`)
+  else chartPane?.style.setProperty('height', `${panelPx}px`)
+  stage?.style.setProperty('--sheet-shift', `${fabShiftPx(drag.liftPx, panelPx - drag.fromPx, drag.mapPx)}px`)
 }
 
 /** An element's height once it is laid out; null for none, or for 0, which is no layout yet (and jsdom's every box). */

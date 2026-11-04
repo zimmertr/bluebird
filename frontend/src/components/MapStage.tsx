@@ -97,7 +97,10 @@ export interface MapStageProps {
    * How far the phone sheet lifts the map's bottom chrome, the camera's bottom
    * padding, and the padding for the sheet a search is about to open.
    */
-  layout: Pick<ResultsLayout, 'mapCornerLift' | 'sheetLiftPx' | 'cameraPadBottomPx' | 'sheetPadBottomPx' | 'mapPx'>
+  layout: Pick<
+    ResultsLayout,
+    'mapCornerLift' | 'sheetLiftPx' | 'overMapRows' | 'stageRef' | 'cameraPadBottomPx' | 'sheetPadBottomPx' | 'mapPx'
+  >
   /** The run in flight, which the loading card reports and can cancel. */
   analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'paceRemainingS' | 'cancel'>
   /** The metric the markers are coloured on. */
@@ -259,7 +262,8 @@ export default function MapStage({
   // A phone's Analyze button rides the results sheet (record 0135), and the
   // player stands on the button rather than on the sheet, stepping off while
   // a sheet dragged high leaves it no room. The Controls sheet moves none of
-  // them: it opens over them, modal (record 0207).
+  // them: it opens over them, modal (record 0207). A full-screen sheet
+  // stands over all of them (#837).
   const footLift = layout.sheetLiftPx
   const fabBottom = fabBottomPx(footLift, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
@@ -310,6 +314,8 @@ export default function MapStage({
     // map area keeps the whole column, so the canvas runs on behind the
     // sheet and its ResizeObserver sees no change on a drag.
     <div
+      // The column a drag on a phone's sheet moves the foot of (#837).
+      ref={layout.stageRef}
       // On a phone the library's stack, the compass alone there, starts under
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${
@@ -402,6 +408,7 @@ export default function MapStage({
         controlsSummary={controlsSummary}
         layers={layers}
         legend={legendChip}
+        covered={layout.overMapRows}
       />
       {/* A desk's map buttons, credit line and scale, in the map's
           bottom-right corner (record 0174). */}
@@ -416,6 +423,7 @@ export default function MapStage({
           word={actionWord}
           onAnalyze={onAnalyze}
           messages={messages}
+          covered={layout.overMapRows}
         />
       )}
       {/* The timeline, present exactly while something spans time: radar

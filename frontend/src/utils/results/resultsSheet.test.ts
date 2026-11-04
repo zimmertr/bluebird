@@ -23,6 +23,9 @@ import {
   TRANSPORT_HEIGHT_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
+  fullScreenMapFloorPx,
+  sheetTopRelease,
+  fabShiftPx,
   controlsFullPx,
   controlsSheetPx,
   fabBottomPx,
@@ -44,6 +47,7 @@ import {
   sheetHeightPx,
   transportBottomPx,
 } from './resultsSheet'
+import { SHEET_SNAP_PX } from '../sheetDrag'
 // `?raw` reads the sources as text, so the offsets the anchors here mirror can be
 // asserted without a DOM. The classes quoted below are already in the bundle
 // because styles.ts spells them; quoting one that is NOT would emit its CSS,
@@ -316,6 +320,46 @@ describe('the drag cap', () => {
     const fab = fabBottomPx(capped, VIEWPORT)
     expect(fab).toBe(capped + FAB_INSET_PX)
     expect(VIEWPORT - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
+  })
+})
+
+// Full screen (#837): past the cap a drag runs on to the map's top, and the
+// release decides whether the sheet stays there.
+describe('full screen', () => {
+  // The sheet's chrome is the whole floor, so the sheet is the map's height.
+  it.each([1, 2])('leaves no map under a sheet with %i grips', (gripCount) => {
+    const availPx = 757
+    const panelsPx = availPx - fullScreenMapFloorPx(gripCount)
+    expect(sheetHeightPx({ collapsed: false, gripCount, panelsPx })).toBe(availPx)
+  })
+
+  it('goes full within the snap of the top, falls back to the cap above it, and holds below it', () => {
+    const cap = 400
+    const full = 576
+    expect(sheetTopRelease(full, cap, full)).toBe('full')
+    expect(sheetTopRelease(full - SHEET_SNAP_PX, cap, full)).toBe('full')
+    expect(sheetTopRelease(full - SHEET_SNAP_PX - 1, cap, full)).toBe('cap')
+    expect(sheetTopRelease(cap + 1, cap, full)).toBe('cap')
+    expect(sheetTopRelease(cap, cap, full)).toBe('hold')
+    expect(sheetTopRelease(120, cap, full)).toBe('hold')
+  })
+
+  // A drag moves the map's foot by what the button would move, as a
+  // transform: with the sheet, and no higher than one inset under the rows.
+  it('moves the foot with the sheet, up to the button\'s highest place', () => {
+    const mapPx = 740
+    expect(fabShiftPx(200, 0, mapPx)).toBe(0)
+    expect(fabShiftPx(200, 100, mapPx)).toBe(-100)
+    expect(fabShiftPx(200, -50, mapPx)).toBe(50)
+    const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
+    expect(fabShiftPx(200, 2000, mapPx)).toBe(fabBottomPx(200, mapPx) - highest)
+  })
+
+  // The band between the cap and the top is the rows and the button's strip,
+  // wider than the snap, so a release short of the top lands on the cap.
+  it('is farther above the cap than the snap reaches', () => {
+    expect(draggedMapFloorPx(1) - fullScreenMapFloorPx(1)).toBe(DRAGGED_MAP_PX)
+    expect(DRAGGED_MAP_PX).toBeGreaterThan(SHEET_SNAP_PX)
   })
 })
 
