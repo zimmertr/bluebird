@@ -24,6 +24,8 @@ export interface ResultsViewInputs {
   showResults: boolean
   /** The committed response, null before the first analysis. */
   response: AnalyzeResponse | null
+  /** The reader's own, where `response` is the tutorial's demonstration (`useResultsLayout`'s `ownResponse`). */
+  ownResponse?: AnalyzeResponse | null
   /** The displayed rows. */
   results: DestinationResult[]
   /** The named destinations no analysis has covered yet. */
@@ -84,6 +86,7 @@ export function useResultsView({
   tallOverride = false,
   showResults,
   response,
+  ownResponse = response,
   results,
   pending,
   detailSort,
@@ -123,6 +126,7 @@ export function useResultsView({
     safeBottomPx,
     showTable,
     response,
+    ownResponse,
     analysisSeq,
     collapsedOverride,
     restView,

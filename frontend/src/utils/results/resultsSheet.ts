@@ -209,7 +209,7 @@ export const RESULTS_BAR_PX = 36
  * One drag grip as the docked panel draws it (`h-2`). The sheet's grips are
  * floored at 24 by `TAP.grip`, and this is the same control on a pointer.
  */
-const DOCKED_GRIP_PX = 8
+export const DOCKED_GRIP_PX = 8
 
 /**
  * The map floor the panel clamp takes where the results are DOCKED below the

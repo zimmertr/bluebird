@@ -316,9 +316,8 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     sheetFull: showingChart || step?.reveal === 'panels',
     /**
      * The Panels card and the two after it hold a desk's chart taller than
-     * it rests (#850): at rest on a window under 736px tall four panels fall
-     * under their own floors and are not drawn, and on a 780px laptop two
-     * pinned cards one over the other would stand 83px tall each.
+     * it rests (#850): a reader who never analyzed reaches them with a 181px
+     * chart, where four panels fall under their own floors and are not drawn.
      */
     chartTall: showingPanels,
     /** The chart's readout stands on this hour while the demonstration is up, or follows the reader. */

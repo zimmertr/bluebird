@@ -261,19 +261,14 @@ async function expectMode(page: Page, mode: Mode) {
 const storedMode = (page: Page) =>
   page.evaluate(() => (JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}') as { modeChosen?: string }).modeChosen)
 
-// #850: at a desk the Results and Chart cards switch the view as a phone's
-// do, Both included, and store nothing (record 0150): the table alone on
-// Results, the chart alone on Chart and the three cards after it, and the
-// chart kept after the tour with the reader's Both still the stored press.
-test('at a desk the Results and Chart cards switch a pressed Both to their view and store nothing', async ({ page }) => {
-  await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
-  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
-  await expect(resultRows(page)).toHaveCount(5)
-  await page.getByRole('button', { name: SEGMENT.both }).first().click()
-  await expectMode(page, 'both')
-  expect(await storedMode(page)).toBe('both')
-
+// Walks a desk's tour from the footer link to Pinned hours and out by
+// Escape, reading the segment on every results card (#850): the table alone
+// on Results from the first arrival, the chart alone on Chart and the three
+// cards after it. The first arrival at Results is the one that matters: the
+// demonstration landing there used to widen the view to Both by itself (the
+// maintainer, 2026-11-04: "Card 7 is still showing both the chart and table?
+// Not just the table.").
+async function walkDeskViews(page: Page) {
   await page.getByRole('link', { name: 'Tutorial' }).click()
   await expect(heading(page)).toHaveText(STEPS[0].title)
   for (const step of STEPS.slice(1)) {
@@ -287,9 +282,35 @@ test('at a desk the Results and Chart cards switch a pressed Both to their view 
       break
     }
   }
-
   await page.keyboard.press('Escape')
   await expect(card(page)).toHaveCount(0)
+}
+
+// A reader who never analyzed, the common case: the results go with the
+// demonstration, nothing is stored (record 0150), and the first report opens
+// in the chart the tour left open.
+test('at a desk a reader who never analyzed sees the table on Results and the chart after', async ({ page }) => {
+  await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await walkDeskViews(page)
+  expect(await storedMode(page)).toBeUndefined()
+  await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
+  await expectMode(page, 'chart')
+})
+
+// #850: at a desk the Results and Chart cards switch the view as a phone's
+// do, Both included, and store nothing (record 0150): over a report whose
+// reader pressed Both, the chart stays open after the tour with Both still
+// the stored press.
+test('at a desk the Results and Chart cards switch a pressed Both to their view and store nothing', async ({ page }) => {
+  await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
+  await expect(resultRows(page)).toHaveCount(5)
+  await page.getByRole('button', { name: SEGMENT.both }).first().click()
+  await expectMode(page, 'both')
+  expect(await storedMode(page)).toBe('both')
+  await walkDeskViews(page)
   await expectMode(page, 'chart')
   expect(await storedMode(page)).toBe('both')
 })

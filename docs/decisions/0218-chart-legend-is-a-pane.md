@@ -1,6 +1,6 @@
 # 0218. At a desk the chart's legend is a pane of its own, and the chart keeps one size in every mode
 
-- Status: Accepted. Amends [0216](0216-desk-moves-paint-less.md): the chart-only legend is no longer held through a pane move.
+- Status: Accepted. Amends [0216](0216-desk-moves-paint-less.md): the chart-only legend is no longer held through a pane move. Superseded in part by [0271](0271-desk-press-keeps-the-results-height.md): its second Decision bullet, Chart sizing the chart the way Both does.
 - Date: 2026-10-22
 - Decider: the maintainer (TJ), on PR #789, of three options mocked up on the real build: "Lets try #1 first".
 - Issues and PRs: #795

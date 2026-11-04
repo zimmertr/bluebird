@@ -667,6 +667,8 @@ export default function App() {
     fullOverride: tour.sheetFull,
     tallOverride: tour.chartTall,
     response: shownResponse,
+    // The Both widening reads the reader's own report, never the tour's (#850).
+    ownResponse: response,
     results,
     pending,
     detailSort,

@@ -5,14 +5,17 @@ import {
   bothFits,
   bothOpensWithRoom,
   clampPanelHeight,
+  deskRoomPx,
   heldResultsMode,
   panelOf,
   resolvePanelHeights,
   resolveResultsMode,
+  splitBoth,
   splitChartTable,
 } from '../utils/layout'
 import {
   DEFAULT_PANEL_HEIGHT,
+  DOCKED_GRIP_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
   fullScreenMapFloorPx,
@@ -25,6 +28,7 @@ import {
   sheetTopRelease,
 } from '../utils/results/resultsSheet'
 import { type ResultsMode, writeViewPrefs } from '../utils/viewPrefs'
+import { PANEL_MS } from '../styles'
 
 // Opening heights for the two docked panels, and where a double-click on a
 // resizer puts them back. A drag is easy to overshoot and there was no way
@@ -35,12 +39,13 @@ const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 // The chart the tutorial's Panels, Panel layout and Pinned hours cards hold
 // at a desk (#850): two resting panels' height, where four panels in 1 over 3
 // stand well over their 72px floors, and two pinned cards, one over the
-// other, each hold all five of the demonstration's rows. At rest a desk's
-// Chart keeps the table's floor free under it (#795), so on a 1280x720
-// window the chart is 166px (720 less that 120 less the docked map's 434):
-// less its picker row of about 30px, 1 over 3 has two rows of about 64px
-// against their 72px floors and draws none.
-// Held, it is 320px there and 380px on a 780px laptop.
+// other, each hold all five of the demonstration's rows. A reader who never
+// analyzed reaches the Chart card from the Results card's 220px table, and
+// the chart takes that room less its legend (one 39px row of chips over the
+// demonstration), 181px: less its picker row of about 30px, 1 over 3 has
+// two rows of about 71px against their 72px floors and draws none. Held, the
+// chart is 401px at 1280x720 (720 less the legend less the drag's 280px map)
+// and 440px from 759px up.
 export const TALL_CHART_PX = 2 * DEFAULT_PANEL_HEIGHT
 
 // Live viewport height, so the chart/table panel heights can be re-clamped when
@@ -80,6 +85,12 @@ export interface ResultsLayoutInputs {
    * holds only pending rows, which a phone shows as the table alone (#696).
    */
   response: unknown
+  /**
+   * The reader's own report, which the Both widening reads: `response` while
+   * the tutorial runs is its demonstration, and the demonstration arriving
+   * or leaving is no analysis landing (#850). `response` when not given.
+   */
+  ownResponse?: unknown
   analysisSeq: number
   /**
    * Collapse the sheet to its bar regardless of the chevron, or null to leave
@@ -91,8 +102,8 @@ export interface ResultsLayoutInputs {
    * The view the tutorial's Results or Chart step shows (#696): the sheet
    * opens to it before the step's spotlight reads it, the reverse of a row
    * tap's collapse, and is left there when the step ends. A desk switches to
-   * it from Both too, as a phone does, and keeps its heights (#850); a phone
-   * also comes back to its resting height.
+   * it from Both too, as a phone does, the way a press does, keeping the
+   * results' height (#850); a phone also comes back to its resting height.
    */
   restView?: SinglePanel | null
   /**
@@ -103,12 +114,12 @@ export interface ResultsLayoutInputs {
    */
   fullOverride?: boolean
   /**
-   * Hold a desk's chart at `TALL_CHART_PX`, or as tall as a reader's own drag
-   * could make it where the window is shorter, for as long as this is true,
+   * Hold a desk's chart at `TALL_CHART_PX` at least, or as tall as a
+   * reader's own drag could make it where the window is shorter, for as long as this is true,
    * and give it back to the height it had after (#850). The tutorial's three
-   * chart cards after Chart set it: at rest on a window under 736px tall the
-   * four panels' rows fall under their own floors and none is drawn, and on
-   * a 780px laptop the two pinned cards would stand 83px tall.
+   * chart cards after Chart set it: a chart already taller keeps its height,
+   * and the 181px chart a reader who never analyzed reaches them with draws
+   * none of the four panels.
    */
   tallOverride?: boolean
   /**
@@ -142,6 +153,7 @@ export function useResultsLayout({
   bannerPx,
   showTable,
   response,
+  ownResponse = response,
   analysisSeq,
   collapsedOverride = null,
   restView = null,
@@ -182,14 +194,57 @@ export function useResultsLayout({
   // the pending-only hold below (`heldResultsMode`): a stored mode is a habit
   // the hold may set aside for a moment, and a press is an answer it may not.
   const pressedRef = useRef(false)
+  // A desk's press on the segment keeps the results' height (#850; the
+  // maintainer, 2026-11-04: "Everywhere"): the mode pressed takes the room
+  // the panes stood in, its legend's included in Chart, and Both splits it
+  // back the way it last split it. Read from what the last commit laid out
+  // (`shownRef`), so the press handler can stay one function for the bar.
+  const shownRef = useRef<{
+    desk: boolean
+    collapsed: boolean
+    mode: ResultsMode
+    chart: number
+    table: number
+    legend: number
+  } | null>(null)
+  // Both's split when it was last left, which a press back to Both shares
+  // the room in. The opening heights until then.
+  const bothSplitRef = useRef({ chart: DEFAULT_CHART_HEIGHT, table: DEFAULT_TABLE_HEIGHT })
+  // The room a press handed a desk's Chart, the chart and its legend
+  // together, so the legend's own height, measured once it is laid out,
+  // comes out of the chart rather than the map. Null when Chart's height is
+  // the reader's own: a grip, a double press, or no press yet.
+  const [chartRoomPx, setChartRoomPx] = useState<number | null>(null)
+  // Set by a press that kept the room, for the commit its mode lands in,
+  // which holds the results at the height they stood at when it came, read
+  // off the element at the press, before anything moves.
+  const roomKeptRef = useRef(false)
+  const roomHoldFromRef = useRef<number | null>(null)
+  const keepRoom = useCallback((to: ResultsMode) => {
+    const shown = shownRef.current
+    if (!shown || !shown.desk || shown.collapsed || shown.mode === to) return
+    const room = deskRoomPx(shown.mode, shown, DOCKED_GRIP_PX)
+    if (shown.mode === 'both') bothSplitRef.current = { chart: shown.chart, table: shown.table }
+    if (to === 'both') {
+      const split = splitBoth(room, bothSplitRef.current, DOCKED_GRIP_PX)
+      setChartHeight(split.chart)
+      setTableHeight(split.table)
+    } else if (to === 'table') {
+      setTableHeight(room)
+    }
+    setChartRoomPx(to === 'chart' ? room : null)
+    roomHoldFromRef.current = laidOutHeight(sheetRef.current)
+    roomKeptRef.current = true
+  }, [])
   // An intentional press on the segment: sticks for the session and persists.
   const chooseResultsMode = useCallback((mode: ResultsMode) => {
+    keepRoom(mode)
     pressedRef.current = true
     modeChosenRef.current = true
     lastPanelRef.current = panelOf(mode) ?? lastPanelRef.current
     setModePref(mode)
     writeViewPrefs({ modeChosen: mode })
-  }, [])
+  }, [keepRoom])
   // Chevron to collapse/expand the entire results area.
   const [collapsedChoice, setResultsCollapsed] = useState(false)
   const toggleCollapsed = useCallback(() => setResultsCollapsed((c) => !c), [])
@@ -203,18 +258,19 @@ export function useResultsLayout({
   // set, without persisting the mode: the tour chose it, the reader did not.
   // A desk leaves Both for the step's view as a phone does (#850): in Both
   // the Chart card said to switch to the chart with the table still under
-  // it. A desk's heights stay the reader's, since its panels cover no map.
+  // it. At a desk it is a press's move, keeping the room the panes stand in.
   useLayoutEffect(() => {
     if (restView === null) return
     setResultsCollapsed(false)
     lastPanelRef.current = restView
+    if (isDesktop) keepRoom(restView)
     setModePref(restView)
     if (isDesktop) return
     setHeightsChosen(false)
     setFullScreen(false)
     setTableHeight(DEFAULT_TABLE_HEIGHT)
     setChartHeight(DEFAULT_CHART_HEIGHT)
-  }, [restView, isDesktop])
+  }, [restView, isDesktop, keepRoom])
   // The results' own height as rendered, which on a phone is how much map the
   // sheet covers. Observed rather than derived because everything anchored to
   // the map's bottom edge measures from this one number, and a derivation has
@@ -231,6 +287,19 @@ export function useResultsLayout({
   // phone, where the sheet is measured whole, and before the bar is laid out.
   const [barMeasuredPx, setBarMeasuredPx] = useState<number | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
+  // A desk's chart legend as laid out (#850), which comes out of the room a
+  // press hands Chart: its chips wrap to one row or two by the names and the
+  // width, so nothing can derive it. Measured on the strip, whose height
+  // holds while its pane's frame opens round it. `null` until it is laid out.
+  const [legendMeasuredPx, setLegendMeasuredPx] = useState<number | null>(null)
+  const legendRef = useRef<HTMLDivElement>(null)
+  // The results' height while a press's panes move at a desk (#850): the
+  // height they stood at before it, which the panes move inside, clipped, so
+  // the map holds still. Null at rest, when the panes decide the height, and
+  // while the chevron moves them. The opening pane is drawn at its end size
+  // from the press, so the room it is handed overlaps the closing one's
+  // until that has shut.
+  const [roomHoldPx, setRoomHoldPx] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   // Whether the reader has set a panel height themselves. It only matters on a
   // phone, where the results are a sheet standing on the map (#249): until they
@@ -277,17 +346,31 @@ export function useResultsLayout({
   // The first rows widen it as they arrive, before any commit, so a first run
   // that does not commit narrows it back: the screen it returns to is the
   // pre-analysis one (#560).
+  //
+  // It reads the reader's own report, never the tutorial's demonstration
+  // (#850): the demonstration arriving at the Results card counted as a
+  // report landing and put Both back over the card's table, in the commit
+  // after the card had opened it (the maintainer, 2026-11-04: "Card 7 is
+  // still showing both the chart and table? Not just the table."), and its
+  // leaving would have undone the chart the tour leaves open. Not a press,
+  // so Both opens at the split it last had, the opening heights until then,
+  // rather than in the room the panes stand in.
   useEffect(() => {
     if (modeChosenRef.current) return
-    if (response === null) {
+    if (ownResponse === null) {
       if (analysisSeq === 0) setModePref('table')
       return
     }
     if (!window.matchMedia('(min-width: 1024px)').matches) return
     const barPx = laidOutHeight(barRef.current) ?? undefined
     if (!bothOpensWithRoom(window.innerHeight - bannerPx, DEFAULT_PANEL_HEIGHT, dockedMapFloorPx(2, barPx))) return
+    if (shownRef.current?.mode !== 'both') {
+      setChartHeight(bothSplitRef.current.chart)
+      setTableHeight(bothSplitRef.current.table)
+      setChartRoomPx(null)
+    }
     setModePref('both')
-  }, [response, analysisSeq, bannerPx])
+  }, [ownResponse, analysisSeq, bannerPx])
 
   // Applied panel heights, re-derived every render from the desired (state)
   // heights and the live viewport. Chart-priority: enabling the chart shrinks an
@@ -353,16 +436,16 @@ export function useResultsLayout({
   const chartLifted = !isDesktop && resultsMode === 'chart' && !chartDragged
   // The tutorial's Chart step holds it there whatever the reader did before.
   const heldFull = !isDesktop && (fullOverride || chartLifted)
-  // At a desk the chart stands at the height Both gives it, in Chart too
-  // (#795): Chart keeps the table's floor and its grip free under the chart,
-  // and the legend opens inside that room, so no press between Chart and Both
-  // changes the chart's size, under a short column or after a long drag. The
-  // map keeps whatever of that room the legend leaves.
-  const chartAsBoth = isDesktop && resultsMode === 'chart'
+  // At a desk Chart's legend is a pane of its own under the chart (#795),
+  // inside the room the chart was handed (#850): the panel budget leaves it
+  // out, so the map keeps its floor, and a press's room leaves it out of the
+  // chart, so the results keep their height.
+  const deskChart = isDesktop && resultsMode === 'chart'
+  const legendPx = deskChart && chartShowing ? legendMeasuredPx ?? 0 : 0
   // The floor the sheet rests on before any drag, which is the one a double
   // press puts a panel back under.
   const restFloorPx = isDesktop
-    ? dockedMapFloorPx(chartAsBoth ? 2 : gripCount, barMeasuredPx ?? undefined)
+    ? dockedMapFloorPx(gripCount, barMeasuredPx ?? undefined)
     : heldFull
       ? dragFloorPx
       : restingMapFloorPx(gripCount)
@@ -379,12 +462,14 @@ export function useResultsLayout({
       : heightsChosen
         ? dragFloorPx
         : restFloorPx
-  const tableRoomPx = chartAsBoth && chartShowing ? PANEL_FLOOR_PX : 0
   const panelOptions = {
     chartShown: chartShowing,
     tableShown: tableShowing && showTable,
-    availPx: usableH - tableRoomPx,
+    availPx: usableH - legendPx,
   }
+  // The chart a desk's Chart asks for: the room a press handed it less the
+  // legend, or the reader's own height.
+  const chartWantPx = deskChart && chartRoomPx !== null ? chartRoomPx - legendPx : chartHeight
   // The pair's heights at first load: what a double press on either grip in
   // Both puts its own panel back to, the other keeping its height, so a
   // press before any drag changes nothing and a reset after one moves one
@@ -400,24 +485,38 @@ export function useResultsLayout({
   // table under a phone's drag asks for the most the drag can reach; a chart
   // keeps the height it began at, and the layout effect below puts the
   // drag's own on its box after any render that lands mid-drag.
-  // The tutorial's tall chart at a desk (#850) asks the map only for the
-  // floor a reader's own drag keeps (`resolvePanelHeights`' default), and
-  // writes no height, so the reader's comes back when the tour moves on.
+  // The tutorial's tall chart at a desk (#850) is at least `TALL_CHART_PX`,
+  // asks the map only for the floor a reader's own drag keeps
+  // (`resolvePanelHeights`' default), and writes no height, so the reader's
+  // comes back when the tour moves on.
   const heldTall = isDesktop && tallOverride
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     heldTall
-      ? TALL_CHART_PX
+      ? Math.max(chartWantPx, TALL_CHART_PX)
       : sheetDrag?.panel === 'chart' || !(heldFull || (atFullScreen && resultsMode !== 'both'))
-        ? chartHeight
+        ? chartWantPx
         : usableH,
     sheetDrag?.panel === 'table' ? sheetDrag.ceilPx : heldFull || atFullScreen ? usableH : tableHeight,
     { ...panelOptions, mapMinPx: heldTall ? undefined : mapFloorPx },
   )
   // What the map│chart grip may not drag the chart over: the table while it
   // is rendered, which is the one thing that differs between Both and
-  // chart-only mode, and at a desk in Chart the table's floor, which the
-  // legend stands in.
-  const chartReservedPx = (resultsMode === 'both' ? tablePanelPx : 0) + tableRoomPx + reservedPx
+  // chart-only mode, and at a desk in Chart the legend under it.
+  const chartReservedPx = (resultsMode === 'both' ? tablePanelPx : 0) + legendPx + reservedPx
+  // A press that kept the room holds the results at their height until its
+  // panes have moved; a mode that changed by itself, or the chevron, lets go.
+  useLayoutEffect(() => {
+    const kept = roomKeptRef.current
+    roomKeptRef.current = false
+    const fromPx = roomHoldFromRef.current
+    if (!kept || !isDesktop || resultsCollapsed || fromPx === null) {
+      setRoomHoldPx(null)
+      return
+    }
+    setRoomHoldPx(fromPx)
+    const release = window.setTimeout(() => setRoomHoldPx(null), PANEL_MS)
+    return () => window.clearTimeout(release)
+  }, [resultsMode, isDesktop, resultsCollapsed])
   // Whether a phone's sheet covers the map's rows and its Analyze button,
   // which is full screen (#837): they stay where they are under it and are
   // taken out of reach (`inert`), since no finger can reach them.
@@ -443,6 +542,15 @@ export function useResultsLayout({
   // catch. The same-value guard below is what stops the update chain.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
+    // What a desk's next press keeps the room from (#850).
+    shownRef.current = {
+      desk: isDesktop,
+      collapsed: resultsCollapsed,
+      mode: resultsMode,
+      chart: chartPanelPx,
+      table: tablePanelPx,
+      legend: legendPx,
+    }
     // A render that lands mid-drag has written the chart's starting height
     // back; the drag's own goes on before the paint, and the sheet's height
     // waits for the release, since the lift holds where the drag began.
@@ -459,6 +567,10 @@ export function useResultsLayout({
     // own width, so this settles at once too.
     const bar = isDesktop ? laidOutHeight(barRef.current) : null
     setBarMeasuredPx((prev) => (prev === bar ? prev : bar))
+    // And Chart's legend at a desk: its chips change with the rows, which
+    // re-render the app too, and the chart's height does not move them.
+    const legend = isDesktop ? laidOutHeight(legendRef.current) : null
+    setLegendMeasuredPx((prev) => (prev === legend ? prev : legend))
   })
 
   // And the second path: a resize that no render caused. On a phone that is a
@@ -630,6 +742,7 @@ export function useResultsLayout({
         return
       }
       setChartHeight(DEFAULT_CHART_HEIGHT)
+      setChartRoomPx(null)
       // "Put it back" includes the resting height a phone
       // sheet opens at, which a drag had handed over, and a phone's Chart
       // rests at its full stop.
@@ -646,8 +759,10 @@ export function useResultsLayout({
       if (resultsMode === 'both') setTableHeight(tablePanelPx)
       // A drag starts from where the chart stands, which full screen and a
       // lifted Chart both put somewhere its height does not say, and a drag
-      // on a lifted Chart is the reader's from then on.
+      // on a lifted Chart is the reader's from then on, as is one on a desk's
+      // Chart after a press handed it a room (#850).
       setChartHeight(chartPanelPx)
+      setChartRoomPx(null)
       if (chartLifted) setChartDragged(true)
       beginSheetDrag('chart', chartPanelPx, chartReservedPx)
     },
@@ -728,6 +843,8 @@ export function useResultsLayout({
   return {
     sheetRef,
     barRef,
+    legendRef,
+    roomHoldPx,
     stageRef,
     chartPaneRef,
     isDragging,
