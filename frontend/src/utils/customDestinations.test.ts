@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCustomCsv } from './customDestinations'
+import { parseCustomCsv, unreadLines } from './customDestinations'
 import bulgerCsv from '../coordinate-lists/The Bulger List.csv?raw'
 
 describe('parseCustomCsv', () => {
@@ -87,5 +87,30 @@ describe('parseCustomCsv', () => {
       expect(out[0].name).toBe('Mount Rainier')
       expect(out.filter((d) => /^\d+\.\s/.test(d.name))).toEqual([])
     })
+  })
+})
+
+// The coordinates box's gutter flags the lines the parse drops (record 0265),
+// and the flag and the parse read one function, so each line the parse keeps
+// or skips on purpose is unflagged and every other is flagged.
+describe('unreadLines', () => {
+  it('flags a line the parse drops, and no blank, comment or good line', () => {
+    const csv = ['# header', '', '46.85, -121.76, Rainier', 'foo,bar', '   ', '46.85', '95.5,-121.1', '47,-120'].join('\n')
+    expect(unreadLines(csv)).toEqual([false, false, false, true, false, true, true, false])
+  })
+
+  it('answers one line for a blank box', () => {
+    expect(unreadLines('')).toEqual([false])
+  })
+
+  it('agrees with the parse on every line it keeps', () => {
+    const csv = '46.85,-121.76\nnope\n48.11,-121.11,Glacier Peak\n'
+    const kept = csv.split('\n').filter((_, i) => !unreadLines(csv)[i])
+    expect(parseCustomCsv(kept.join('\n'))).toEqual(parseCustomCsv(csv))
+    expect(unreadLines(csv).filter(Boolean)).toHaveLength(1)
+  })
+
+  it('flags no line of a preset list', () => {
+    expect(unreadLines(bulgerCsv).some(Boolean)).toBe(false)
   })
 })

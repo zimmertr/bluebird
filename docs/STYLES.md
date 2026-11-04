@@ -407,7 +407,7 @@ button against the panel's in a browser. Record: [0163](decisions/0163-popups-fo
 | No unsafe error message patterns | `checks/data.js` | `open-meteo-copy` bans `failed: ${...}` and the retired phrases; `open-meteo-throw-tail` holds every thrown Open-Meteo message to the standing tail |
 | Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
-| Every message is in the one list the Analyze button opens | `checks/styles.js` | A notice is a `NOTICE` role, only `MessageList`'s `MessageBox` wears one and the list stands on the one menu (`style-message-list`, `style-notice-once`); the one live region is `MessageRegion` beside the badge (`style-live-region`, `style-panel-no-status`); both Analyze buttons wear the badge, the region and the list, and a blocker greys the button with `aria-disabled` rather than `disabled` (`style-analyze-badge`); the polygon block is the one bare `STATUS` use outside the list, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
+| Every message is in the one list the Analyze button opens | `checks/styles.js` | A notice is a `NOTICE` role, only `MessageList`'s `MessageBox` wears one and the list stands on the one menu (`style-message-list`, `style-notice-once`); the one live region is `MessageRegion` beside the badge (`style-live-region`, `style-panel-no-status`); both Analyze buttons wear the badge, the region and the list, and a blocker greys the button with `aria-disabled` rather than `disabled` (`style-analyze-badge`); the polygon block is the one bare `STATUS` use outside the list, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render; the coordinates box's gutter flags a dropped line through `COORD_BOX.flagged`, once, with no bare `STATUS`, box or live region in `CoordinateBox.tsx` (`style-coord-gutter`) |
 | A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`, `MapLegend.tsx` and `ColumnsPicker.tsx` matches a `SR_ONLY` element |
 | A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
 | The Layers rows stand in three groups | `styles.test.ts` | The headings read Base map, Hazards and Forecast, the thirteen row labels stand in the order the maintainer chose, one Shift order runs across the groups, and `MENU.heading` is the caption step in semibold at its measured ratios |
@@ -1090,6 +1090,11 @@ the point count is `DrawReadout`, which the panel and the phone's draw bar both
 render, so `style-draw-readout` pins its four states there and the panel keeps
 two.
 Record: [0208](decisions/0208-analyze-button-counts-the-messages.md)
+The coordinates box's gutter is the second bare `STATUS`, for the same reason:
+it numbers a line the parse drops in the error ink, through `COORD_BOX.flagged`,
+and the caption under the box says how many in words. `style-coord-gutter` pins
+it to one use in `CoordinateBox.tsx`.
+Record: [0265](decisions/0265-coordinate-box-numbers-and-flags-its-lines.md)
 
 ### No raw exceptions or status
 

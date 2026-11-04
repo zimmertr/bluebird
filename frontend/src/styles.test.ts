@@ -111,6 +111,7 @@ import {
   MAP_PILL,
   MAP_PILL_FIELD,
   CHIP_CARD_W,
+  COORD_BOX,
   MAP_ROWS,
   SEARCH_LIST,
   MICRO_SIZE,
@@ -4731,6 +4732,68 @@ describe('the polygon row', () => {
     expect(DRAW_ROW.field).toMatch(/(^|\s)col-span-2(\s|$)/)
     expect(destinationsSource).toContain('className={DRAW_ROW.field}')
     expect(destinationsSource.match(/className=\{DRAW_ROW\.row\}|\$\{DRAW_ROW\.row\}/g)).toHaveLength(2)
+  })
+})
+
+// The coordinates box (#838, record 0265): the field's look on a frame
+// around a numbered gutter and the textarea, the gutter on the textarea's
+// type, and a dropped line flagged in the error ink.
+describe('the coordinates box', () => {
+  const source = sources['./components/CoordinateBox.tsx']
+
+  it("wears the field's look on its frame, with the field's focus edge on what is inside", () => {
+    for (const w of words(FIELD).filter((w) => !/^(focus|placeholder|touch)/.test(w))) expect(words(COORD_BOX.frame)).toContain(w)
+    expect(token(COORD_BOX.frame, 'focus-within:border')).toBe(token(FIELD, 'focus:border'))
+    expect(words(COORD_BOX.area)).toContain('focus:outline-none')
+    expect(COORD_BOX.area).not.toMatch(/(^|\s)border(-|\s|$)/)
+    expect(token(COORD_BOX.area, 'placeholder')).toBe(token(FIELD, 'placeholder'))
+    expect(COORD_BOX.frame).toContain('grid-cols-[auto_minmax(0,1fr)]')
+  })
+
+  // One line of the box is one number: the two columns share the type, the
+  // textarea wraps nothing, and the first number stands as far down as the
+  // first line.
+  it('stands each number on its line', () => {
+    expect(sizes(COORD_BOX.gutter)).toEqual(sizes(TEXT.control))
+    expect(sizes(COORD_BOX.area)).toEqual([])
+    for (const recipe of [COORD_BOX.gutter, COORD_BOX.area]) expect(words(recipe)).toContain('font-mono')
+    expect(stepPx(COORD_BOX.gutter, 'pt')).toBe(stepPx(COORD_BOX.area, 'p'))
+    expect(words(COORD_BOX.area)).toEqual(expect.arrayContaining(['whitespace-pre', 'overflow-x-auto', 'resize-y']))
+    expect(source).toContain('wrap="off"')
+    // The grid row is the textarea's height alone, which the gutter fills.
+    expect(words(COORD_BOX.gutter)).toEqual(expect.arrayContaining(['h-0', 'min-h-full', 'overflow-hidden', 'select-none']))
+    // Room under the last number for a textarea whose scroll bar takes height.
+    expect(stepPx(COORD_BOX.gutter, 'pb')).toBeGreaterThanOrEqual(stepPx(COORD_BOX.area, 'p') + 17)
+    expect(COORD_BOX.gutter).toContain(`border-r ${SURFACE_DIVIDER}`)
+    expect(source).toContain('aria-hidden="true"')
+  })
+
+  // The numbers are read, so they owe 4.5:1 on the field in both themes:
+  // the caption's ink reads 6.78:1 on the dark field and 9.36:1 on the light
+  // one, where the faint ink reads 3.74:1 on the dark (measured 2026-11-03).
+  it('numbers the lines in an ink that reads on the field', () => {
+    const MEASURED = { dark: 6.78, light: 9.36, faint: 3.74 }
+    const ink = token(COORD_BOX.gutter, 'text')
+    expect(ink).toBe(token(TEXT.caption, 'text'))
+    expect(ratio(dark(ink), dark('recessed'))).toBe(MEASURED.dark)
+    expect(ratio(light(ink), light('recessed'))).toBe(MEASURED.light)
+    expect(ratio(dark('ink-faint'), dark('recessed'))).toBe(MEASURED.faint)
+    expect(Math.min(MEASURED.dark, MEASURED.light)).toBeGreaterThanOrEqual(4.5)
+    expect(MEASURED.faint).toBeLessThan(4.5)
+  })
+
+  // A dropped line's number in the error ink, with a dot in the same ink
+  // placed out of the flow, so a flag never widens the gutter: 6.17:1 on the
+  // dark field and 9.35:1 on the light (measured 2026-11-03).
+  it('flags a dropped line in the error ink with a dot that takes no room', () => {
+    const MEASURED = { dark: 6.17, light: 9.35 }
+    expect(COORD_BOX.flagged).toContain(STATUS.error)
+    const ink = token(COORD_BOX.flagged, 'text')
+    expect(ratio(dark(ink), dark('recessed'))).toBe(MEASURED.dark)
+    expect(ratio(light(ink), light('recessed'))).toBe(MEASURED.light)
+    expect(Math.min(MEASURED.dark, MEASURED.light)).toBeGreaterThanOrEqual(4.5)
+    expect(words(COORD_BOX.flagged)).toEqual(expect.arrayContaining(['relative', 'before:absolute', 'before:bg-current']))
+    expect(words(COORD_BOX.line)).toContain('block')
   })
 })
 
