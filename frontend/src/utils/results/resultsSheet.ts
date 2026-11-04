@@ -246,7 +246,7 @@ export function dockedMapFloorPx(gripCount: number, barPx: number = RESULTS_BAR_
  * One number for both, because they are two halves of one answer and an 8px
  * difference between them read as a mistake. The value is what Both mode can
  * spend on a 1000px-tall window: 1000 less the docked map floor
- * (`dockedMapFloorPx`, 541 with two grips) is 459, and two panels of 220 fit
+ * (`dockedMapFloorPx`, 434 with two grips) is 566, and two panels of 220 fit
  * inside it with the map a few pixels clear of its floor. They were 288 and
  * 280, chosen before the legend stack had a number, and at those heights the
  * bottom of the stack sat under the results bar on exactly this window.
