@@ -17,6 +17,7 @@
 // at both widths and is answered from the same constants.
 
 import { resolvePanelHeights } from '../layout'
+import { SHEET_SNAP_PX } from '../sheetDrag'
 
 /** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
 export const MAP_ROWS_PX = 88
@@ -270,6 +271,37 @@ export function draggedMapFloorPx(gripCount: number, playerOn = false): number {
 }
 
 /**
+ * The map a phone's results sheet leaves at full screen (#837): none. The
+ * sheet's chrome is the whole floor, so its panels take every pixel of the
+ * map and the sheet's top edge is the map's. A drag on the grip is the one
+ * way there: the sheet opens at rest, a phone's Chart lifts to the cap
+ * (`draggedMapFloorPx`, record 0155) and the tutorial holds the same, so full
+ * screen is never a default.
+ */
+export function fullScreenMapFloorPx(gripCount: number): number {
+  return sheetChromePx(gripCount)
+}
+
+/** Where a phone's results sheet goes when a drag on its map grip is let go. */
+export type SheetTopRelease = 'full' | 'cap' | 'hold'
+
+/**
+ * Where a drag on a phone's results sheet comes to rest (#837), from the
+ * dragged panel's height when the finger lets go (`panelPx`), the most it may
+ * have under the cap (`capPx`) and the most at full screen (`fullPx`).
+ *
+ * Within `SHEET_SNAP_PX` of full screen it goes there, the menu sheets' snap.
+ * Above the cap but short of that it falls back to the cap, because between
+ * the two the map's rows and its Analyze button would stand over the sheet's
+ * bar. Anywhere lower holds where it was let go, as it always has.
+ */
+export function sheetTopRelease(panelPx: number, capPx: number, fullPx: number): SheetTopRelease {
+  if (fullPx - panelPx <= SHEET_SNAP_PX) return 'full'
+  if (panelPx > capPx) return 'cap'
+  return 'hold'
+}
+
+/**
  * The map floor the panel clamp takes on a phone before the reader has set a
  * height of their own. It is not "some map" but "enough map for the legend
  * stack to sit above the sheet", and it is bigger than the docked floor because
@@ -448,6 +480,18 @@ export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
 export function fabBottomPx(liftPx: number, mapPx: number): number {
   const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
   return Math.min(liftPx + FAB_INSET_PX, highest)
+}
+
+/**
+ * How far a drag on a phone's results sheet moves the Analyze button, down
+ * positive (#837): from where it stood on the lift the drag began at to
+ * where it would stand with the sheet `risePx` higher. The drag moves the
+ * button, the player on it and the scale and credit beside it by this, as a
+ * transform, so a move renders nothing (record 0259); the release renders the
+ * new lift, which puts them all where this said.
+ */
+export function fabShiftPx(liftPx: number, risePx: number, mapPx: number): number {
+  return fabBottomPx(liftPx, mapPx) - fabBottomPx(liftPx + risePx, mapPx)
 }
 
 /**

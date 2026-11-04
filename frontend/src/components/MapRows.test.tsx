@@ -135,6 +135,20 @@ describe('MapRows', () => {
 // A desk's rows are the phone's (#714): the panel is docked beside the map
 // with its own Close, so the summary chip stands only while it is shut, as
 // the one way back to it from the map.
+describe('MapRows under a full-screen sheet', () => {
+  // A full-screen results sheet stands over the rows (#837): they stay where
+  // they are, mounted so the map keeps its slots, and out of reach.
+  it('goes out of reach while covered, and keeps its slots', () => {
+    const onLocateSlot = vi.fn()
+    const { container, rerender } = render(rows({ onLocateSlot }))
+    const stack = container.firstElementChild as HTMLElement
+    expect(stack.hasAttribute('inert')).toBe(false)
+    rerender(rows({ onLocateSlot, covered: true }))
+    expect(stack.hasAttribute('inert')).toBe(true)
+    expect(onLocateSlot).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('MapRows at a desk', () => {
   it('offers the summary chip only while the panel is shut, and it opens the panel', () => {
     const onOpenControls = vi.fn()
