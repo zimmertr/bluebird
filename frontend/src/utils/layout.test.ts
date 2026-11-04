@@ -3,10 +3,12 @@ import {
   bothFits,
   bothOpensWithRoom,
   clampPanelHeight,
+  deskRoomPx,
   heldResultsMode,
   panelOf,
   resolvePanelHeights,
   resolveResultsMode,
+  splitBoth,
   splitChartTable,
 } from './layout'
 import { dockedMapFloorPx, draggedMapFloorPx } from './results/resultsSheet'
@@ -290,5 +292,32 @@ describe('chart│table resize integration', () => {
     expect(after.chart).toBe(188) // 288 − 100
     expect(after.table).toBe(332) // unchanged — the map absorbed the drag
     expect(AVAIL - after.chart - after.table).toBe(380) // map grew 280 → 380
+  })
+})
+
+// A desk's press keeps the results' height (#850): the room each mode's
+// panes stand in, and Both's split of a room handed back to it.
+describe('deskRoomPx', () => {
+  it('counts the divider in Both and the legend in Chart', () => {
+    const shown = { chart: 220, table: 200, legend: 39 }
+    expect(deskRoomPx('both', shown, 8)).toBe(428)
+    expect(deskRoomPx('chart', shown, 8)).toBe(259)
+    expect(deskRoomPx('table', shown, 8)).toBe(200)
+  })
+})
+
+describe('splitBoth', () => {
+  it('gives the same room back in the split Both had', () => {
+    expect(splitBoth(428, { chart: 220, table: 200 }, 8)).toEqual({ chart: 220, table: 200 })
+  })
+
+  it('shares a room that moved in that ratio, the divider first', () => {
+    expect(splitBoth(608, { chart: 200, table: 400 }, 8)).toEqual({ chart: 200, table: 400 })
+    expect(splitBoth(308, { chart: 220, table: 220 }, 8)).toEqual({ chart: 150, table: 150 })
+    expect(splitBoth(309, { chart: 100, table: 200 }, 8)).toEqual({ chart: 100, table: 201 })
+  })
+
+  it('halves a room when no split has any height', () => {
+    expect(splitBoth(208, { chart: 0, table: 0 }, 8)).toEqual({ chart: 100, table: 100 })
   })
 })

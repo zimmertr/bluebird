@@ -8,6 +8,7 @@ import {
   Y_AXIS_WIDTH_PX,
   fingerReading,
   hourIndexAt,
+  hourX,
   MIN_PANEL_BAND_PX,
   panelFloorPx,
   plotBand,
@@ -56,6 +57,23 @@ describe('hourIndexAt', () => {
   it('reads nothing on an empty grid or a box with no band', () => {
     expect(hourIndexAt(100, 360, [])).toBeNull()
     expect(hourIndexAt(10, 40, TIMES)).toBeNull()
+  })
+})
+
+// The tutorial's pinned cards stand at an hour's pixel (#850).
+describe('hourX', () => {
+  const band = plotBand(360, 200)
+
+  it('is the pixel each hour stands at, which reads that hour back', () => {
+    for (let i = 0; i < TIMES.length; i++) {
+      expect(hourX(360, TIMES, i)).toBeCloseTo(band.left + (i * band.width) / 6)
+      expect(hourIndexAt(hourX(360, TIMES, i), 360, TIMES)).toBe(i)
+    }
+  })
+
+  it('stands at the band\'s left edge for one stamp or an hour off the grid', () => {
+    expect(hourX(360, TIMES.slice(0, 1), 0)).toBe(band.left)
+    expect(hourX(360, TIMES, TIMES.length)).toBe(band.left)
   })
 })
 

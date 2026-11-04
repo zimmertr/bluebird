@@ -104,6 +104,9 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, cut = false 
   // where the step opened one there (a phone's Layers sheet): the band a
   // sheet-mode card stands in, between the two, rather than over either.
   const [opened, setOpened] = useState<{ own: Box; floor: number } | null>(null)
+  // What the card keeps off besides the light (`keepClear`, #850): the four
+  // chart panels under the Panels card's picker row.
+  const [clear, setClear] = useState<Box | null>(null)
   const [cardSize, setCardSize] = useState({ width: 320, height: 160 })
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight })
   // The move to this step: what stood on the screen when the step changed,
@@ -159,6 +162,8 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, cut = false 
     setOpened((prev) =>
       prev && next && sameBox(prev.own, next.own) && prev.floor === next.floor ? prev : next,
     )
+    const keep = step.keepClear ? boxOf(step.keepClear) : null
+    setClear((prev) => (sameBox(prev, keep) ? prev : keep))
     const card = cardRef.current?.getBoundingClientRect()
     if (card) {
       setCardSize((prev) =>
@@ -173,7 +178,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, cut = false 
         : { width: window.innerWidth, height: window.innerHeight },
     )
     return box
-  }, [step.anchor, step.frames, step.spot, step.under])
+  }, [step.anchor, step.frames, step.spot, step.under, step.keepClear])
 
   // Before every paint: a render that changed a shape is placed by the new
   // shape, not the old one. Converges because a pass that changes nothing
@@ -312,7 +317,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, cut = false 
   const pad = spotPad(step.spot, targetRadius)
   const light = target ? spotlight(target, pad) : null
   const sheet = cardMode(viewport.width) === 'sheet'
-  if (light && !sheet) lastAt.current = placeCard(light, cardSize, viewport)
+  if (light && !sheet) lastAt.current = placeCard(unionBox([light, clear]) ?? light, cardSize, viewport)
   // A new step glides from what is on the screen, or stands at once where
   // the tour cuts or the reader asked for less motion.
   if (move.index !== index) {

@@ -61,7 +61,7 @@ const onFocusPending = () => {}
 const removeResult = () => {}
 
 function layout(resultsMode: 'table' | 'chart' | 'both') {
-  return { resultsMode, chartGrip: GRIP, chartPanelPx: 200, chartPaneRef: { current: null }, tableGrip: GRIP, tablePanelPx: 300 }
+  return { resultsMode, chartGrip: GRIP, chartPanelPx: 200, chartPaneRef: { current: null }, legendRef: { current: null }, tableGrip: GRIP, tablePanelPx: 300 }
 }
 const BOTH = layout('both')
 const NO_SHARED: ReadonlySet<string> = new Set()
@@ -215,6 +215,37 @@ describe('ResultsPanels', () => {
     for (const key of Object.keys(tableBefore)) {
       expect(Object.is(tableAfter[key], tableBefore[key]), `table ${key}`).toBe(true)
     }
+  })
+})
+
+// Over the tutorial's demonstration (#850) the chart draws the tour's own
+// list in place of the reader's, in the count's own layout, one identity
+// across the cards, and the reader's own list and layout back after.
+describe("the tutorial's chart cards", () => {
+  const ONE = ['temp'] as const
+  const FOUR = ['temp', 'freeze', 'snowfall', 'precip'] as const
+  const ranked = (metrics: Parameters<typeof chartMetricsOf>[0]) => ({
+    ...CHARTS_QUIET,
+    chartMetrics: chartMetricsOf(metrics, { layout: 'row' }),
+  })
+
+  it("draws the tour's panels in place of the reader's, and the reader's back after", async () => {
+    seen.chart.length = 0
+    const charts = ranked(['aqi', 'wind'])
+    const { rerender } = render(<ResultsPanels {...props({ charts })} chartTour={{ metrics: ONE, layoutOpen: false, pins: [] }} />)
+    await screen.findByTestId('chart')
+    expect(last(seen.chart).metrics).toBe(ONE)
+    expect(last(seen.chart).layout).toBeNull()
+    rerender(<ResultsPanels {...props({ charts })} chartTour={{ metrics: FOUR, layoutOpen: false, pins: [] }} />)
+    expect(last(seen.chart).metrics).toBe(FOUR)
+    // The next card hands the memoized chart the same list.
+    rerender(<ResultsPanels {...props({ charts })} chartTour={{ metrics: FOUR, layoutOpen: true, pins: [] }} />)
+    expect(last(seen.chart).metrics).toBe(FOUR)
+    expect(last(seen.chart).layoutMenuOpen).toBe(true)
+    // And the tour gone, the reader's own list and layout.
+    rerender(<ResultsPanels {...props({ charts })} />)
+    expect(last(seen.chart).metrics).toBe(charts.chartMetrics.metrics)
+    expect(last(seen.chart).layout).toBe('row')
   })
 })
 

@@ -15,6 +15,7 @@ import messageListSource from '../components/MessageList.tsx?raw'
 import layersPopoverSource from '../components/LayersPopover.tsx?raw'
 import resultsSheetSource from '../components/ResultsSheet.tsx?raw'
 import timeSeriesChartSource from '../components/TimeSeriesChart.tsx?raw'
+import chartLayoutButtonSource from '../components/ChartLayoutButton.tsx?raw'
 import destinationCardsSource from '../map/destinationCards.ts?raw'
 import welcomeSource from '../components/WelcomeModal.tsx?raw'
 import backendMain from '../../../backend/app/main.py?raw'
@@ -33,6 +34,7 @@ const SOURCES: Record<string, string> = {
   'LayersPopover.tsx': layersPopoverSource,
   'ResultsSheet.tsx': resultsSheetSource,
   'TimeSeriesChart.tsx': timeSeriesChartSource,
+  'ChartLayoutButton.tsx': chartLayoutButtonSource,
   // The marker step frames a ranked card, which this module opens (#832).
   'destinationCards.ts': destinationCardsSource,
   'WelcomeModal.tsx': welcomeSource,
@@ -46,8 +48,8 @@ const occurrences = (anchor: string): string[] =>
   })
 
 describe('the tutorial steps', () => {
-  it('has nine steps, each with a distinct anchor', () => {
-    expect(TOUR_STEPS).toHaveLength(9)
+  it('has twelve steps, each with a distinct anchor', () => {
+    expect(TOUR_STEPS).toHaveLength(12)
     expect(new Set(TOUR_STEPS.map((s) => s.anchor)).size).toBe(TOUR_STEPS.length)
   })
 
@@ -62,7 +64,32 @@ describe('the tutorial steps', () => {
       }
       expect(occurrences(step.anchor), step.anchor).toHaveLength(1)
       for (const frame of step.frames ?? []) expect(occurrences(frame), frame).toHaveLength(1)
+      if (step.keepClear) expect(occurrences(step.keepClear), step.keepClear).toHaveLength(1)
     }
+  })
+
+  // The three chart cards after Chart mark the chart's own sources (#850):
+  // the row with the +, the layout button and its menu, and the pinned
+  // cards' layer.
+  it('marks the chart cards on the chart and its layout button', () => {
+    expect(occurrences('chart-panels')).toEqual(['TimeSeriesChart.tsx'])
+    expect(occurrences('chart-pins')).toEqual(['TimeSeriesChart.tsx'])
+    expect(occurrences('chart-layout')).toEqual(['ChartLayoutButton.tsx'])
+    expect(occurrences('chart-layout-menu')).toEqual(['ChartLayoutButton.tsx'])
+  })
+
+  it('frames the layout menu with its button, and keeps the card off the panels', () => {
+    const at = (anchor: string) => TOUR_STEPS.find((s) => s.anchor === anchor)!
+    expect(at('chart-layout').frames).toEqual(['chart-layout-menu'])
+    expect(at('chart-panels').keepClear).toBe('chart')
+    expect(at('chart-layout').keepClear).toBe('chart')
+    expect(TOUR_STEPS.filter((s) => s.keepClear).map((s) => s.anchor)).toEqual(['chart-panels', 'chart-layout'])
+  })
+
+  // A phone stacks its panels and pins nothing, so two of the three are a
+  // desk's alone (#850), and the tour leaves them out on a phone.
+  it('marks the layout and pins cards as a desk\'s alone', () => {
+    expect(TOUR_STEPS.filter((s) => s.deskOnly).map((s) => s.anchor)).toEqual(['chart-layout', 'chart-pins'])
   })
 
   it('lights only what shows of the popup above the results sheet', () => {
@@ -89,7 +116,20 @@ describe('the tutorial steps', () => {
 
   it('walks the panel top to bottom, then the map, then the results', () => {
     const anchors = TOUR_STEPS.map((s) => s.anchor)
-    expect(anchors).toEqual(['destinations', 'forecast', 'metrics', 'analyze', 'messages', 'layers', 'results', 'chart', 'marker'])
+    expect(anchors).toEqual([
+      'destinations',
+      'forecast',
+      'metrics',
+      'analyze',
+      'messages',
+      'layers',
+      'results',
+      'chart',
+      'chart-panels',
+      'chart-layout',
+      'chart-pins',
+      'marker',
+    ])
     expect(TOUR_STEPS[0].text).toMatch(/^Provide a list of destinations to compare by .*, or drawing a polygon/)
   })
 
@@ -104,11 +144,14 @@ describe('the tutorial steps', () => {
       layers: 'control',
       results: 'box',
       chart: 'box',
+      'chart-panels': 'control',
+      'chart-layout': 'control',
+      'chart-pins': 'box',
       marker: 'control',
     })
   })
 
-  it('names the five steps that bring their own target on screen', () => {
+  it('names the eight steps that bring their own target on screen', () => {
     const reveals = Object.fromEntries(TOUR_STEPS.map((s) => [s.anchor, s.reveal]))
     expect(reveals).toEqual({
       destinations: undefined,
@@ -119,6 +162,9 @@ describe('the tutorial steps', () => {
       layers: 'layers',
       results: 'results',
       chart: 'chart',
+      'chart-panels': 'panels',
+      'chart-layout': 'layout',
+      'chart-pins': 'pins',
       marker: 'marker',
     })
   })
@@ -143,6 +189,19 @@ describe('the tutorial steps', () => {
     const chart = TOUR_STEPS.find((s) => s.anchor === 'chart')!
     expect(chart.title).toBe('Chart')
     expect(chart.text).toBe("Switch to the chart to compare every destination's forecast hour by hour. Select an hour to read every value at that moment.")
+  })
+
+  // The three chart cards' words, approved by the maintainer 2026-11-03
+  // (#850), between Chart and Markers in the order a reader meets them.
+  it('carries the Panels, Panel layout and Pinned hours cards as approved', () => {
+    const i = TOUR_STEPS.findIndex((s) => s.anchor === 'chart')
+    expect(TOUR_STEPS.slice(i + 1, i + 4).map((s) => [s.title, s.text])).toEqual([
+      ['Panels', 'Add a panel to chart another metric, up to four. Each one reads the same hours, so the metrics line up for comparison.'],
+      ['Panel layout', 'Pick a layout to arrange the panels. Drag the gap between two panels to resize them, or double-press it to even them out.'],
+      ['Pinned hours', 'Select an hour to pin its reading as a card you can move, size and sort. Pin more hours to compare them side by side.'],
+    ])
+    expect(TOUR_STEPS[i + 4].anchor).toBe('marker')
+    for (const step of TOUR_STEPS.slice(i + 1, i + 4)) expect(step.place).toBe('map')
   })
 
   it('names a selector from the anchor attribute', () => {

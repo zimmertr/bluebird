@@ -177,3 +177,31 @@ export function splitChartTable(
   const d = clamp(dragUpPx, -maxDown, maxUp)
   return { chart: chartStart - d, table: tableStart + d }
 }
+
+// The room a desk's results stand in below the map's grip (#850): the chart,
+// the divider and the table in Both, the chart and its legend in Chart, the
+// table in Table. A press on the segment hands that room to the mode pressed,
+// so the results keep their height and the map does not move (the
+// maintainer, 2026-11-04: "Yes, area keeps its height").
+export function deskRoomPx(
+  mode: ResultsMode,
+  { chart, table, legend }: { chart: number; table: number; legend: number },
+  dividerPx: number,
+): number {
+  return mode === 'both' ? chart + dividerPx + table : mode === 'chart' ? chart + legend : table
+}
+
+// Both's two heights in a room handed back to it (#850): split the way Both
+// last split it, so Both to Chart and back is where the reader left it, and
+// the room less the divider shared in that ratio when the room has moved.
+// `resolvePanelHeights` applies the floors after.
+export function splitBoth(
+  roomPx: number,
+  last: { chart: number; table: number },
+  dividerPx: number,
+): { chart: number; table: number } {
+  const inner = Math.max(0, roomPx - dividerPx)
+  const sum = last.chart + last.table
+  const chart = Math.round(sum > 0 ? (inner * last.chart) / sum : inner / 2)
+  return { chart, table: inner - chart }
+}

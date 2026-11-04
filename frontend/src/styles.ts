@@ -2992,13 +2992,12 @@ export const RESULTS_PANE = {
  * The chart-only legend: one chip per charted line, under the plot in Chart
  * alone. At a desk it is a results pane of its own between the chart's and
  * the table's, held to the foot like the table, so Chart to Both shuts it
- * while the table opens and the chart keeps one size in every mode (#795).
- * On a phone it stands in the chart's box, where panes change at once.
+ * while the table opens (#795), and it stands inside the room a press hands
+ * the chart, measured, so the results keep their height (#850). On a phone
+ * it stands in the chart's box, where panes change at once.
  *
  * Two rows of 26px chips and the 6px gap between them, 58px, then it
- * scrolls. With its padding and its edge it stands 71px at most, which fits
- * inside the table's floor (`PANEL_FLOOR_PX`), the room a desk keeps free
- * under the chart in Chart, so the legend never takes the map's floor.
+ * scrolls. With its padding and its edge it stands 71px at most.
  */
 export const CHART_LEGEND = {
   strip: 'flex-shrink-0 border-t border-frame bg-page/50 px-3 py-1.5',

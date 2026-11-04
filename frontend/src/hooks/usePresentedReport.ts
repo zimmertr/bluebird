@@ -33,8 +33,18 @@ export interface PresentedReportInputs {
   arriving: boolean
   /** The panel's live presentation knobs, which re-present the held field. */
   liveKnobs: PresentationKnobs
-  /** The ranking the report is shown under: the panel's, once a field is held. */
+  /**
+   * The panel's ranking, which a header sort follows and drops on a change.
+   * The reader's even while the tutorial's demonstration is shown, so the
+   * tour neither drops the reader's header sort nor writes its own.
+   */
   view: { sortBy: SortBy; sortDesc: boolean }
+  /**
+   * The demonstration's own knobs while the tutorial shows it, or null (#850):
+   * its ranking, its cap and no bounds, in place of the panel's live knobs,
+   * so its twenty rows read in its order whatever the reader set.
+   */
+  demoKnobs?: PresentationKnobs | null
   pointSample: boolean
   /** Every ×-removed key, for the report, which is a snapshot of one analysis. */
   removedKeys: ReadonlySet<string>
@@ -72,6 +82,7 @@ export function usePresentedReport({
   arriving,
   liveKnobs,
   view,
+  demoKnobs = null,
   pointSample,
   removedKeys,
   activeRemovedKeys,
@@ -119,9 +130,10 @@ export function usePresentedReport({
   // Rows returned without an osm_id (a refresh's custom echo) are re-tagged from
   // the remembered discovery identities by coordinate; genuine custom-CSV rows
   // simply have no match and pass through unchanged.
+  const knobs = demoKnobs ?? liveKnobs
   const presented = useMemo(
-    () => presentResults(universe, liveKnobs, removedKeys),
-    [universe, liveKnobs, removedKeys],
+    () => presentResults(universe, knobs, removedKeys),
+    [universe, knobs, removedKeys],
   )
   const results = useMemo(
     () =>
@@ -293,10 +305,17 @@ export function usePresentedReport({
     return 'No destinations found. Try a larger area.'
   }, [response, results.length, presented.eligible, presented.excluded, removedKeys, arriving])
 
+  // The table over the demonstration reads in the demonstration's ranking,
+  // and the reader's header sort waits under it for the tour's end (#850).
+  const shownDetailSort = useMemo<{ key: SortKey; dir: SortDir }>(
+    () => (demoKnobs ? { key: demoKnobs.sortBy, dir: demoKnobs.sortDesc ? 'desc' : 'asc' } : detailSort),
+    [demoKnobs, detailSort],
+  )
+
   return {
     results,
     windowTitle,
-    detailSort,
+    detailSort: shownDetailSort,
     sortDetail,
     tableSort,
     pending,

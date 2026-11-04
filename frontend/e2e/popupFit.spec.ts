@@ -31,8 +31,11 @@ async function openMarkerCard(page: Page) {
   await page.goto('/tutorial')
   const heading = page.locator('[data-tour-card]').getByRole('heading')
   await expect(heading).toHaveText('Destinations')
-  // Eight cards before Markers, the Messages card among them.
-  for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight')
+  // Markers is the last card: eleven before it at a desk, nine on a phone,
+  // under the 1024px desk width, where the Panel layout and Pinned hours
+  // cards are left out (#850).
+  const before = (page.viewportSize()?.width ?? 1280) < 1024 ? 9 : 11
+  for (let i = 0; i < before; i++) await page.keyboard.press('ArrowRight')
   await expect(heading).toHaveText('Markers')
   await expect(page.locator('.maplibregl-popup [data-popup-body] table')).toBeVisible()
   await groundLanded(page)

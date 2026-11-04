@@ -4857,8 +4857,8 @@ describe('the panel frame', () => {
 
   // The chart-only legend's tallest strip (#795): two rows of 26px chips and
   // their 6px gap, its padding above and below, and its 1px edge. At a desk
-  // it opens in the table's floor, which Chart keeps free under the chart, so
-  // it must fit there or the map loses its floor to it.
+  // it stands inside the room a press hands Chart (#850), which a table at
+  // its floor hands over at the least, so it must fit there.
   it('fits the chart legend\'s tallest strip in the table\'s floor', () => {
     const strip = CHART_LEGEND.strip.split(' ')
     const chips = CHART_LEGEND.chips.split(' ')

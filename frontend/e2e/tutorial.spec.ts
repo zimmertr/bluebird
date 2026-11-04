@@ -16,8 +16,14 @@ const STEPS = [
   { title: 'Layers', anchor: 'layers' },
   { title: 'Results', anchor: 'results' },
   { title: 'Chart', anchor: 'chart' },
+  { title: 'Panels', anchor: 'chart-panels' },
+  { title: 'Panel layout', anchor: 'chart-layout' },
+  { title: 'Pinned hours', anchor: 'chart-pins' },
   { title: 'Markers', anchor: 'marker' },
 ]
+// A phone stacks its panels, has no Panel layout button and pins nothing, so
+// its tour leaves those two cards out (#850).
+const PHONE_STEPS = STEPS.filter((s) => s.anchor !== 'chart-layout' && s.anchor !== 'chart-pins')
 
 interface Box {
   left: number
@@ -127,17 +133,24 @@ async function expectPopupClear(page: Page) {
   }).toPass({ timeout: 5_000 })
 }
 
+// The demonstration's window, `DEMO_HOURS` in `src/tour/demoReport.ts`: four
+// whole days, hour by hour (#850). Its middle hour, which `useTour` stands
+// the readout on, falls half an hour short of the plot's centre.
+const DEMO_HOURS = 96
+const MIDDLE_HOUR = Math.floor((DEMO_HOURS - 1) / 2)
+
 // The Chart card shows the readout a finger resting mid-window shows: the
-// cursor's line on the middle of the demonstration's thirteen hours, with a
-// dot on every destination's line (#696; record 0153), drawn on the hover
-// canvas since the lines moved there (record 0256).
+// cursor's line on the demonstration's middle hour, with a dot on every
+// destination's line (#696; record 0153), drawn on the hover canvas since the
+// lines moved there (record 0256).
 async function expectReadoutMidWindow(page: Page) {
   const chart = '[data-tour="chart"]'
   await expect(page.locator(`${chart} .recharts-tooltip-cursor`)).toBeAttached()
   await expect(async () => {
     const grid = (await box(page, `${chart} .recharts-cartesian-grid`))!
     const cursor = (await box(page, `${chart} .recharts-tooltip-cursor`))!
-    expect(Math.abs((cursor.left + cursor.right) / 2 - (grid.left + grid.right) / 2)).toBeLessThan(2)
+    const at = grid.left + ((grid.right - grid.left) * MIDDLE_HOUR) / (DEMO_HOURS - 1)
+    expect(Math.abs((cursor.left + cursor.right) / 2 - at)).toBeLessThan(2)
     const dotted = await page.locator(`${chart} canvas`).nth(1).evaluate((c: HTMLCanvasElement) => {
       const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data
       let n = 0
@@ -148,7 +161,54 @@ async function expectReadoutMidWindow(page: Page) {
   }).toPass({ timeout: 5_000 })
 }
 
-test('walks the nine cards from the footer link and puts the app back', async ({ page }) => {
+// The Panels card and the two after it draw four panels over the
+// demonstration (#850): four boxes, each with its lines' and its dots'
+// canvases, so none fell under its floor and went undrawn, and the four the
+// tour names.
+async function expectFourPanels(page: Page) {
+  await expect(page.locator('[data-tour="chart"] [data-chart-box]')).toHaveCount(4)
+  await expect(page.locator('[data-tour="chart"] canvas')).toHaveCount(8)
+  // The demonstration's own four, whatever the reader's chart held (#850).
+  for (const noun of ['Temperature', 'Freezing level', 'Snowfall', 'Precipitation']) {
+    await expect(page.locator('[data-tour="chart"]')).toContainText(noun)
+  }
+}
+
+// The demonstration's panels never reach the address bar (#850).
+async function expectNoChartInUrl(page: Page) {
+  expect(new URL(page.url()).searchParams.has('chart')).toBe(false)
+  expect(new URL(page.url()).searchParams.has('layout')).toBe(false)
+}
+
+// The Pinned hours card's two cards (#850): inside the chart, apart, and
+// placed rather than standing at the chart's corner, which is where a card
+// placed before the plot had a size would stand.
+async function expectTwoPinnedCards(page: Page) {
+  const cards = page.locator('[data-tour="chart-pins"] > div')
+  await expect(cards).toHaveCount(2)
+  await expect(cards.getByRole('button', { name: /^Unpin / })).toHaveCount(2)
+  await expect(async () => {
+    const chart = (await box(page, '[data-tour="chart"]'))!
+    const [a, b] = await cards.evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect()
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, shown: getComputedStyle(el).visibility === 'visible' }
+      }),
+    )
+    for (const c of [a, b]) {
+      expect(c.shown).toBe(true)
+      expect(c.left).toBeGreaterThanOrEqual(chart.left)
+      expect(c.right).toBeLessThanOrEqual(chart.right + 1)
+      expect(c.top).toBeGreaterThan(chart.top)
+      expect(c.bottom).toBeLessThanOrEqual(chart.bottom + 1)
+    }
+    // One at the panels' head, one at their foot.
+    expect(overlaps(a, b)).toBe(false)
+    expect(b.top).toBeGreaterThanOrEqual(a.bottom)
+  }).toPass({ timeout: 5_000 })
+}
+
+test('walks the twelve cards from the footer link and puts the app back', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const before = await page.evaluate(() => history.length)
@@ -172,17 +232,123 @@ test('walks the nine cards from the footer link and puts the app back', async ({
     }
     if (step.anchor === 'layers') await expect(page.getByRole('group', { name: 'Messages' })).toHaveCount(0)
     if (step.anchor === 'layers') await expect(page.locator('[data-tour="layers-menu"]')).toBeVisible()
-    if (step.anchor === 'results') await expect(resultRows(page)).toHaveCount(5)
+    // Twenty summits, one per line colour (#850).
+    if (step.anchor === 'results') await expect(resultRows(page)).toHaveCount(20)
     if (step.anchor === 'chart') await expectReadoutMidWindow(page)
+    if (step.anchor === 'chart-panels') await expectFourPanels(page)
+    if (step.anchor === 'chart-layout') {
+      await expectFourPanels(page)
+      await expect(page.locator('[data-tour="chart-layout-menu"]')).toBeVisible()
+      await expectSpotlightOn(page, 'chart-layout-menu')
+    }
+    if (step.anchor === 'chart-pins') {
+      await expect(page.locator('[data-tour="chart-layout-menu"]')).toHaveCount(0)
+      await expectTwoPinnedCards(page)
+    }
     if (step.anchor === 'marker') await expectPopupClear(page)
+    await expectNoChartInUrl(page)
     await card(page).getByRole('button', { name: i === STEPS.length - 1 ? 'Done' : 'Next' }).click()
   }
 
   await expect(card(page)).toHaveCount(0)
   await expect(page).not.toHaveURL(/\/tutorial/)
-  // The demonstration leaves with the tour.
+  // The demonstration leaves with the tour, its pinned cards and held menu
+  // with it (#850).
   await expect(page.locator('[data-tour="marker"]')).toHaveCount(0)
   await expect(resultRows(page)).toHaveCount(0)
+  await expect(page.locator('[data-tour="chart-pins"]')).toHaveCount(0)
+  await expect(page.locator('[data-tour="chart-layout-menu"]')).toHaveCount(0)
+})
+
+// The results' view segment, each button by the mode it shows.
+const SEGMENT = { table: 'Show table only', chart: 'Show chart only', both: 'Show both chart and table' } as const
+type Mode = keyof typeof SEGMENT
+
+async function expectMode(page: Page, mode: Mode) {
+  for (const [m, name] of Object.entries(SEGMENT)) {
+    await expect(page.getByRole('button', { name }).first()).toHaveAttribute('aria-pressed', m === mode ? 'true' : 'false')
+  }
+}
+
+// The mode a press stored, under `VIEW_KEY` in `src/utils/viewPrefs.ts`.
+const storedMode = (page: Page) =>
+  page.evaluate(() => (JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}') as { modeChosen?: string }).modeChosen)
+
+// The results' top edge, once a move has stopped moving it: two reads a
+// little apart that agree.
+const resultsTop = (page: Page) =>
+  page.locator('[data-tour="results"]').evaluate((el) => el.getBoundingClientRect().top)
+async function settledTop(page: Page): Promise<number> {
+  let top = NaN
+  await expect(async () => {
+    const a = await resultsTop(page)
+    await page.waitForTimeout(150)
+    top = await resultsTop(page)
+    expect(Math.abs(top - a)).toBeLessThan(0.5)
+  }).toPass({ timeout: 5_000 })
+  return top
+}
+
+// Walks a desk's tour from the footer link to Pinned hours and out by
+// Escape, reading the segment on every results card (#850): the table alone
+// on Results from the first arrival, the chart alone on Chart and the three
+// cards after it. The first arrival at Results is the one that matters: the
+// demonstration landing there used to widen the view to Both by itself (the
+// maintainer, 2026-11-04: "Card 7 is still showing both the chart and table?
+// Not just the table."). The results stand at one height through the five
+// cards, so their top edge does not move (the maintainer, 2026-11-04: "I
+// want tutorial steps 7 and 8 to have the same results area vertical size
+// as 9, 10, and 11.").
+async function walkDeskViews(page: Page) {
+  await page.getByRole('link', { name: 'Tutorial' }).click()
+  await expect(heading(page)).toHaveText(STEPS[0].title)
+  let top: number | null = null
+  for (const step of STEPS.slice(1)) {
+    await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText(step.title)
+    if (step.anchor === 'results') {
+      await expectMode(page, 'table')
+      top = await settledTop(page)
+    }
+    if (top !== null) expect(Math.abs((await settledTop(page)) - top), step.title).toBeLessThan(1)
+    if (['chart', 'chart-panels', 'chart-layout', 'chart-pins'].includes(step.anchor)) await expectMode(page, 'chart')
+    if (step.anchor === 'chart-panels') await expectFourPanels(page)
+    if (step.anchor === 'chart-pins') {
+      await expectTwoPinnedCards(page)
+      break
+    }
+  }
+  await page.keyboard.press('Escape')
+  await expect(card(page)).toHaveCount(0)
+}
+
+// A reader who never analyzed, the common case: the results go with the
+// demonstration, nothing is stored (record 0150), and the first report opens
+// in the chart the tour left open.
+test('at a desk a reader who never analyzed sees the table on Results and the chart after', async ({ page }) => {
+  await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await walkDeskViews(page)
+  expect(await storedMode(page)).toBeUndefined()
+  await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
+  await expectMode(page, 'chart')
+})
+
+// #850: at a desk the Results and Chart cards switch the view as a phone's
+// do, Both included, and store nothing (record 0150): over a report whose
+// reader pressed Both, the chart stays open after the tour with Both still
+// the stored press.
+test('at a desk the Results and Chart cards switch a pressed Both to their view and store nothing', async ({ page }) => {
+  await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
+  await expect(resultRows(page)).toHaveCount(5)
+  await page.getByRole('button', { name: SEGMENT.both }).first().click()
+  await expectMode(page, 'both')
+  expect(await storedMode(page)).toBe('both')
+  await walkDeskViews(page)
+  await expectMode(page, 'chart')
+  expect(await storedMode(page)).toBe('both')
 })
 
 test('the browser\'s Back leaves the tour the way it leaves a page', async ({ page }) => {
@@ -207,14 +373,16 @@ test('a link to /tutorial opens the tour on a phone, and the keys walk it', asyn
   const slide = () => drawer.evaluate((el) => getComputedStyle(el).transitionProperty)
   expect(await slide()).toBe('none')
 
-  for (let i = 0; i < STEPS.length - 1; i++) await page.keyboard.press('ArrowRight')
+  for (let i = 0; i < PHONE_STEPS.length - 1; i++) await page.keyboard.press('ArrowRight')
   await expect(heading(page)).toHaveText('Markers')
+  await expect(card(page)).toContainText(`${PHONE_STEPS.length} of ${PHONE_STEPS.length}`)
   await expectPopupClear(page)
 
   await page.keyboard.press('Backspace')
-  await expect(heading(page)).toHaveText('Chart')
+  await expect(heading(page)).toHaveText('Panels')
+  await expectSpotlightOn(page, 'chart-panels')
   await page.keyboard.press('ArrowLeft')
-  await expect(heading(page)).toHaveText('Results')
+  await expect(heading(page)).toHaveText('Chart')
 
   await page.keyboard.press('Escape')
   await expect(card(page)).toHaveCount(0)
@@ -300,10 +468,19 @@ test.describe('on a phone with a report', () => {
     await page.keyboard.press('ArrowRight')
     await expect(heading(page)).toHaveText('Chart')
     await expectReadoutMidWindow(page)
+    // The Panels card stacks four panels in the sheet at its full stop, and
+    // a phone's tour goes from it to Markers (#850).
+    await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText('Panels')
+    await expectFourPanels(page)
+    await expectSpotlightOn(page, 'chart-panels')
+    await expectNoChartInUrl(page)
     await page.keyboard.press('ArrowRight')
     await expect(heading(page)).toHaveText('Markers')
     // Back to the Chart card, which opens the sheet the marker card
     // collapsed, and the tour ended there.
+    await page.keyboard.press('Backspace')
+    await expect(heading(page)).toHaveText('Panels')
     await page.keyboard.press('Backspace')
     await expect(heading(page)).toHaveText('Chart')
     await expectReadoutMidWindow(page)
@@ -313,7 +490,8 @@ test.describe('on a phone with a report', () => {
     // no readout over them, and Active wildfires off again.
     await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
     // The lines and the hover dots are the panel's two canvases (record 0256):
-    // the lines drawn, the dots canvas blank.
+    // the lines drawn, the dots canvas blank. One panel, the reader's own,
+    // where the Panels card stood four (#850).
     await expect(page.locator('[data-tour="chart"] canvas')).toHaveCount(2)
     await expect(page.locator('[data-tour="chart"] .recharts-tooltip-cursor')).toHaveCount(0)
     const inked = (i: number) =>
