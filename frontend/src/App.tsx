@@ -665,7 +665,7 @@ export default function App() {
     collapsedOverride: tour.sheetCollapsed,
     restView: tour.sheetView,
     fullOverride: tour.sheetFull,
-    tallOverride: tour.chartTall,
+    tallResults: tour.resultsTall,
     response: shownResponse,
     // The Both widening reads the reader's own report, never the tour's (#850).
     ownResponse: response,

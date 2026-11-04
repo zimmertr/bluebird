@@ -261,20 +261,43 @@ async function expectMode(page: Page, mode: Mode) {
 const storedMode = (page: Page) =>
   page.evaluate(() => (JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}') as { modeChosen?: string }).modeChosen)
 
+// The results' top edge, once a move has stopped moving it: two reads a
+// little apart that agree.
+const resultsTop = (page: Page) =>
+  page.locator('[data-tour="results"]').evaluate((el) => el.getBoundingClientRect().top)
+async function settledTop(page: Page): Promise<number> {
+  let top = NaN
+  await expect(async () => {
+    const a = await resultsTop(page)
+    await page.waitForTimeout(150)
+    top = await resultsTop(page)
+    expect(Math.abs(top - a)).toBeLessThan(0.5)
+  }).toPass({ timeout: 5_000 })
+  return top
+}
+
 // Walks a desk's tour from the footer link to Pinned hours and out by
 // Escape, reading the segment on every results card (#850): the table alone
 // on Results from the first arrival, the chart alone on Chart and the three
 // cards after it. The first arrival at Results is the one that matters: the
 // demonstration landing there used to widen the view to Both by itself (the
 // maintainer, 2026-11-04: "Card 7 is still showing both the chart and table?
-// Not just the table.").
+// Not just the table."). The results stand at one height through the five
+// cards, so their top edge does not move (the maintainer, 2026-11-04: "I
+// want tutorial steps 7 and 8 to have the same results area vertical size
+// as 9, 10, and 11.").
 async function walkDeskViews(page: Page) {
   await page.getByRole('link', { name: 'Tutorial' }).click()
   await expect(heading(page)).toHaveText(STEPS[0].title)
+  let top: number | null = null
   for (const step of STEPS.slice(1)) {
     await page.keyboard.press('ArrowRight')
     await expect(heading(page)).toHaveText(step.title)
-    if (step.anchor === 'results') await expectMode(page, 'table')
+    if (step.anchor === 'results') {
+      await expectMode(page, 'table')
+      top = await settledTop(page)
+    }
+    if (top !== null) expect(Math.abs((await settledTop(page)) - top), step.title).toBeLessThan(1)
     if (['chart', 'chart-panels', 'chart-layout', 'chart-pins'].includes(step.anchor)) await expectMode(page, 'chart')
     if (step.anchor === 'chart-panels') await expectFourPanels(page)
     if (step.anchor === 'chart-pins') {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { type ResultsLayoutInputs, ROOM_HOLD_MS, TALL_CHART_PX, useResultsLayout } from './useResultsLayout'
+import { type ResultsLayoutInputs, ROOM_HOLD_MS, TALL_RESULTS_PX, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
 import {
   RESULTS_BAR_PX,
@@ -455,15 +455,15 @@ describe('useResultsLayout', () => {
     })
   })
 
-  // The tutorial's three chart cards after Chart hold a desk's chart at least
-  // as tall as `TALL_CHART_PX` (#850), up to the floor a reader's own drag
-  // keeps the map at, and give the reader's height back after.
-  describe("a desk's chart under the tutorial's chart cards", () => {
+  // The tutorial's Results card through Pinned hours hold a desk's results at
+  // one room, at least `TALL_RESULTS_PX` (#850), up to the floor a reader's
+  // own drag keeps the map at, and give the reader's heights back after.
+  describe("a desk's results under the tutorial's results cards", () => {
     // The map a reader's drag leaves, `resolvePanelHeights`' default.
     const DRAG_MAP_PX = 280
     it.each([
       ['a short desk', 700, 700 - DRAG_MAP_PX],
-      ['a tall desk', 1200, TALL_CHART_PX],
+      ['a tall desk', 1200, TALL_RESULTS_PX],
     ])('stands taller on %s, and goes back after', (_, height, tall) => {
       setViewport(height)
       const desk = { ...DESKTOP, modeChosen: 'chart' as const, response: {} }
@@ -471,10 +471,10 @@ describe('useResultsLayout', () => {
         initialProps: desk,
       })
       const rest = result.current.chartPanelPx
-      rerender({ ...desk, tallOverride: true })
+      rerender({ ...desk, tallResults: true })
       expect(result.current.chartPanelPx).toBe(tall)
       expect(result.current.chartPanelPx).toBeGreaterThan(rest)
-      rerender({ ...desk, tallOverride: false })
+      rerender({ ...desk, tallResults: false })
       expect(result.current.chartPanelPx).toBe(rest)
     })
 
@@ -490,8 +490,8 @@ describe('useResultsLayout', () => {
       act(() => result.current.tableGrip.onDragEnd())
       act(() => result.current.chooseResultsMode('chart'))
       const room = result.current.chartPanelPx
-      expect(room).toBeGreaterThan(TALL_CHART_PX)
-      rerender({ ...desk, tallOverride: true })
+      expect(room).toBeGreaterThan(TALL_RESULTS_PX)
+      rerender({ ...desk, tallResults: true })
       expect(result.current.chartPanelPx).toBe(room)
     })
 
@@ -502,8 +502,39 @@ describe('useResultsLayout', () => {
         initialProps: PHONE,
       })
       const before = result.current.chartPanelPx
-      rerender({ ...PHONE, tallOverride: true })
+      rerender({ ...PHONE, tallResults: true })
       expect(result.current.chartPanelPx).toBe(before)
+    })
+
+    // The maintainer, 2026-11-04: "I want tutorial steps 7 and 8 to have the
+    // same results area vertical size as 9, 10, and 11." The room is worked
+    // out once, from the reader's Both at 1280x720 (166, the divider and
+    // 120, so 294), and stands at 440: the table alone on Results, the chart
+    // and its legend after, and the reader's own room back at the end.
+    it('stands the table, then the chart and its legend, in one room, and gives the reader theirs back', () => {
+      setViewport(720)
+      const desk = { ...DESKTOP, modeChosen: 'both' as const, response: {} }
+      const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+        initialProps: desk,
+      })
+      expect([result.current.chartPanelPx, result.current.tablePanelPx]).toEqual([166, 120])
+      const strip = document.createElement('div')
+      strip.getBoundingClientRect = () => ({ height: 40 }) as DOMRect
+      act(() => {
+        result.current.legendRef.current = strip
+      })
+      rerender({ ...desk, restView: 'table', tallResults: true })
+      expect(result.current.resultsMode).toBe('table')
+      expect(result.current.tablePanelPx).toBe(TALL_RESULTS_PX)
+      rerender({ ...desk, restView: 'chart', tallResults: true })
+      expect(result.current.resultsMode).toBe('chart')
+      expect(result.current.chartPanelPx + 40).toBe(TALL_RESULTS_PX)
+      rerender({ ...desk, restView: null, tallResults: true })
+      expect(result.current.chartPanelPx + 40).toBe(TALL_RESULTS_PX)
+      // The reader's own room, the 294 their Both stood in, less the legend.
+      rerender({ ...desk, restView: null, tallResults: false })
+      expect(result.current.chartPanelPx).toBe(294 - 40)
+      expect(readViewPrefs().modeChosen).toBeNull()
     })
   })
 

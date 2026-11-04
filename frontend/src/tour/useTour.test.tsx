@@ -180,16 +180,18 @@ describe('the chart cards under the tour', () => {
 
   // Which four is `ResultsPanels`' to say, from the chart's own first slot
   // (its suite holds that); the tour says on which cards.
-  it('asks for the four panels and the taller chart on the three cards alone', async () => {
+  it('asks for the four panels on the three cards alone', async () => {
     const { seen } = await walk()
-    for (const a of ['chart-panels', 'chart-layout', 'chart-pins']) {
-      expect(seen.get(a)!.chartTour.panels, a).toBe(true)
-      expect(seen.get(a)!.chartTall, a).toBe(true)
-    }
-    for (const a of ['results', 'chart', 'marker']) {
-      expect(seen.get(a)!.chartTour.panels, a).toBe(false)
-      expect(seen.get(a)!.chartTall, a).toBe(false)
-    }
+    for (const a of ['chart-panels', 'chart-layout', 'chart-pins']) expect(seen.get(a)!.chartTour.panels, a).toBe(true)
+    for (const a of ['results', 'chart', 'marker']) expect(seen.get(a)!.chartTour.panels, a).toBe(false)
+  })
+
+  // One room from the Results card through Pinned hours (#850), and none on
+  // the marker card, which folds the results, or before Results.
+  it('holds the results tall from the Results card through Pinned hours', async () => {
+    const { seen } = await walk()
+    const tall = [...seen].filter(([, s]) => s.resultsTall).map(([a]) => a)
+    expect(tall).toEqual(['results', 'chart', 'chart-panels', 'chart-layout', 'chart-pins'])
   })
 
   it('holds the layout menu open for its card alone', async () => {
