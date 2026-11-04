@@ -4203,17 +4203,24 @@ describe('the popup card', () => {
 
   it('reads every text above AA on each surface it lands on', () => {
     // A link takes the colour of the text around it (#740), so the ink is the
-    // title's and every grid number's, linked or not.
+    // title's, every head's and the ranked number's on its own cell, linked
+    // or not.
     for (const theme of ['dark', 'light'] as const) {
       expect([SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, theme))).toEqual(
         theme === 'dark' ? [11.86, 10.05, 8.4] : [15.25, 12.88, 12.17],
       )
-      // Labels and the coordinates beside them. Neither stands on the ranked
-      // cell, which holds a number alone.
-      expect([SURFACE, GRID_BAND_COLOR].map((on) => measure(LABEL_COLOR, on, theme))).toEqual(
-        theme === 'dark' ? [5.56, 4.71] : [8.34, 7.05],
+      // The facts, the coordinates and every grid value (TJ, 2026-11-04),
+      // on the card, the band and a grid row under the pointer (`map.css`,
+      // the raised step at 30%). Measured 2026-11-04.
+      const hovered = mixOver(paint('var(--ui-raised)', theme), paint(SURFACE, theme), 0.3)
+      expect([...[SURFACE, GRID_BAND_COLOR].map((on) => measure(LABEL_COLOR, on, theme)), ratio(paint(LABEL_COLOR, theme), hovered)]).toEqual(
+        theme === 'dark' ? [5.56, 4.71, 5.05] : [8.34, 7.05, 8.05],
       )
     }
+    expect(mapCss).toMatch(/\.maplibregl-popup tr:hover > :not\(\[data-tint\]\) \{\s*background: color-mix\(in srgb, var\(--ui-raised\) 30%, transparent\);/)
+    // The grey falls under AA on the ranked cell in dark, which is why a
+    // ranked number with no scale colour keeps the ink (`metricGrid`).
+    expect(both(LABEL_COLOR, GRID_RANKED_COLOR)).toEqual([3.94, 6.66])
     // A safety warning in the table's own amber, which clears AA in both
     // themes where the popup's copy, amber-500, read 2.15:1 on white.
     expect(both(WARNING_COLOR, SURFACE)).toEqual([10.1, 6.31])

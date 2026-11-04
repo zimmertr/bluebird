@@ -164,8 +164,8 @@ describe('the popup grid', () => {
   })
 
   // A link reads in the colour of the text around it, as the table's numbers
-  // do (TJ, 2026-10-16, #740): a grid number in the card's ink, the
-  // coordinates in the facts line's grey. Its underline is `map.css`'s, on
+  // do (TJ, 2026-10-16, #740): a grid number in its cell's grey, the
+  // coordinates in the facts line's. Its underline is `map.css`'s, on
   // the attribute, which answers a hover and a touch screen (#786).
   it('marks a link in the colour of the text around it, for the stylesheet to underline', () => {
     const html = metricGrid({
@@ -173,7 +173,7 @@ describe('the popup grid', () => {
       rows: [{ kind: 'aggregates', label: 'Wind (mph)', cells: [{ text: '3.2', href: 'https://example.com', ranked: false }] }],
     })
     const link = mount(html).querySelector('td a')!
-    expect(link.closest('td')!.getAttribute('style')).not.toMatch(/(^|;)color:/)
+    expect(link.closest('td')!.getAttribute('style')).toContain(LABEL_COLOR)
     expect(link.hasAttribute('data-popup-link')).toBe(true)
     expect(link.getAttribute('style')).toBe('color:inherit;')
     const facts = metaBand([factsRow('Peak', null, 47.5, -121.7, 'https://example.com')])
@@ -224,6 +224,46 @@ describe('the popup grid', () => {
     expect(cells[0].querySelector('span')!.getAttribute('style')).not.toContain('font-weight:600')
     expect(cells[1].getAttribute('style')).toContain(`background:${GRID_RANKED_COLOR}`)
     expect(cells[1].querySelector('span')!.getAttribute('style')).toContain('font-weight:600')
+    // The values' grey reads 3.94:1 on the ranked cell in dark, so its
+    // number keeps the ink, set after the grey so it wins.
+    expect(cells[0].getAttribute('style')!.endsWith(LABEL_COLOR)).toBe(true)
+    expect(cells[1].getAttribute('style')!.endsWith(`background:${GRID_RANKED_COLOR};${INK_COLOR}`)).toBe(true)
+  })
+
+  // Key and value part as a section's row does (TJ, 2026-11-04): every head
+  // the ink at 600, every value the label grey at 400 in the mono face.
+  it('sets its heads in the ink at 600 and its values in the grey', () => {
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum, AGGREGATE.maximum],
+      rows: [
+        {
+          kind: 'aggregates',
+          label: 'Wind (mph)',
+          cells: [
+            { text: '3.2', href: null, ranked: false },
+            { text: '41.8', href: 'https://example.com', ranked: false },
+          ],
+        },
+        { kind: 'value', label: 'Cloud deck (ft)', cell: { text: '≥30,000', href: null, ranked: false } },
+      ],
+    })
+    const table = mount(html)
+    const heads = table.querySelectorAll('th')
+    expect(heads).toHaveLength(4)
+    for (const th of heads) {
+      const style = th.getAttribute('style')!
+      expect(style).toContain(INK_COLOR)
+      expect(style).toContain('font-weight:600')
+      expect(style).not.toContain(LABEL_COLOR)
+    }
+    const cells = table.querySelectorAll('td[style*="text-align:right"]')
+    expect(cells).toHaveLength(3)
+    for (const td of cells) {
+      expect(td.getAttribute('style')).toContain(LABEL_COLOR)
+      const number = td.querySelector('span')!.getAttribute('style')!
+      expect(number).toContain('font-family:ui-monospace')
+      expect(number).not.toMatch(/font-weight|(^|;)color:/)
+    }
   })
 
   it('narrows every band and the label gap when asked', () => {

@@ -42,6 +42,7 @@ import {
   GRID_RANKED_COLOR,
   HEADER_BAND_COLOR,
   HEADER_EDGE_COLOR,
+  INK_COLOR,
   LABEL_COLOR,
   SECTION_EDGE,
   SECTION_GAP,
@@ -341,10 +342,11 @@ describe('a ranked card: identity band', () => {
   })
 })
 
-// The label/value split is carried on two axes since TJ's 2026-09-14 call: the
-// label is stepped back in colour and the value is monospace.
+// The label/value split is carried on three axes since TJ's 2026-11-04 call,
+// as a section row's is: the label the ink at 600, the value monospace at 400
+// in the label's grey.
 describe('a ranked card: type', () => {
-  it('sets values in a monospace face and labels in a stepped-back colour', () => {
+  it('sets values in a monospace face in the grey and labels in the ink', () => {
     const html = rankedHtml({ ...base })
     const values = html.match(/<span style="font-family:ui-monospace[^"]*">[^<]*<\/span>/g) ?? []
     // Twenty-three metric values, the elevation and the coordinates.
@@ -354,7 +356,9 @@ describe('a ranked card: type', () => {
     for (const value of values) {
       expect(value.replace(/^<span style="[^"]*">/, '')).not.toContain(':')
     }
-    expect(html).toMatch(new RegExp(`<th scope="row" style="[^"]*${escapeRegExp(LABEL_COLOR)}[^"]*">${NOUN.temp} \\(°F\\)</th>`))
+    expect(html).toMatch(new RegExp(`<th scope="row" style="[^"]*${escapeRegExp(INK_COLOR)}[^"]*">${NOUN.temp} \\(°F\\)</th>`))
+    const temp = html.match(new RegExp(`<th scope="row"[^>]*>${NOUN.temp} \\(°F\\)</th>(.*?)</tr>`))![1]
+    for (const td of temp.match(/<td [^>]*style="[^"]*"/g) ?? []) expect(td).toContain(LABEL_COLOR)
   })
 
   // The popup's only bold is its title. Precip-total and AQI-avg wore
@@ -366,15 +370,15 @@ describe('a ranked card: type', () => {
     expect(html.indexOf('<strong')).toBeLessThan(html.indexOf('Mount Rainier'))
   })
 
-  // Colour rather than weight for a label, because a weight step does not
-  // read alike in every face. See LABEL_COLOR for the measurement. The column
-  // heads are the one exception: bold, a size under the title, so they read
-  // as the grid's heads rather than as one more label (TJ, 2026-10-08).
-  it('keeps every label regular and only the column heads bold', () => {
+  // Every head is a key, the ink at 600, as a section row's key is (TJ,
+  // 2026-11-04): the families down the side and the aggregates across the
+  // top alike.
+  it('sets every head in the ink at 600', () => {
     const html = rankedHtml({ ...base })
     const rowHeads = html.match(/<th scope="row" style="[^"]*"/g) ?? []
     expect(rowHeads.length).toBeGreaterThan(0)
-    for (const th of rowHeads) expect(th).toContain('font-weight:normal')
+    for (const th of rowHeads) expect(th).toContain(INK_COLOR)
+    for (const th of rowHeads) expect(th).toContain('font-weight:600')
     const colHeads = html.match(/<th scope="col" [^>]*?style="[^"]*"/g) ?? []
     expect(colHeads).toHaveLength(4)
     for (const th of colHeads) expect(th).toContain('font-weight:600')

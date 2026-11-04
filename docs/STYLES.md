@@ -378,9 +378,13 @@ heading stands on the band, edge to edge: the layer's word and its colon
 semibold, the name regular, both in the ink, `Active wildfire: Bolt Creek`.
 Its rows set the key semibold in the ink and the value regular in the label
 grey's mono, and a gap of the card's surface parts one section from the next
-(record [0266](decisions/0266-every-card-is-a-stack-of-foldable-layer-sections.md)). A link in a
+(record [0266](decisions/0266-every-card-is-a-stack-of-foldable-layer-sections.md)). The forecast
+grid splits the same way: its heads semibold in the ink, its values regular
+in the label grey's mono, but for the ranked family, which wears its scale's
+inks, and a ranked number with no scale colour, which keeps the ink on its
+cell, where the grey reads 3.94:1 in dark. A link in a
 card is in the colour of the text around it, the way the results table's are:
-a grid number in the ink, the coordinates in the facts line's grey. It
+a grid number in its cell's colour, the coordinates in the facts line's grey. It
 underlines on hover and keyboard focus at a desk, and on a touch screen it
 wears a thin underline at rest in the label grey (`[data-popup-link]` in
 `map.css`), as the table's links do (`LINK_QUIET`, record [0212](decisions/0212-links-underline-on-hover-and-touch.md)).

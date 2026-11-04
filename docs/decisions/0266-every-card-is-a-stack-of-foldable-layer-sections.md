@@ -66,3 +66,5 @@ The Layers menu's row names are spelled once each beside their layer (`WILDFIRE_
 The browser suite expects the spot's card from a click on a star, a fire or a closure, with the layer's section in it and the mark before a warning's heading, a marker's card with its fire open on a band apart from the forecast's (`fireActivity.spec.ts`, `mapPopups.spec.ts`), and reads the band's link-out glyph and the forecast's fold apart, the fold's heading on the header's band (`linkLook.spec.ts`).
 
 The chart's hover card and panel title chip keep `--ui-band`, so in light they stand on the paler band the card left.
+
+The forecast grid took the rows' split on 2026-11-04 (the maintainer): every head at 600 in the ink and every value at 400 in the label grey's mono, 4.71:1 and 7.05:1 on the band, but for the ranked family's tinted cells and a ranked number on `GRID_RANKED_COLOR`, which keeps the ink because the grey reads 3.94:1 there in dark.
