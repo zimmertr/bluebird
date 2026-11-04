@@ -465,16 +465,8 @@ export function mountMapPopups(
       // size is known. A card too tall to stand whole in the free map area
       // has its body capped first and scrolls (`capHeight`, TJ 2026-10-08),
       // so the fit then places the card the reader will actually see.
-      //
-      // A card a flight will carry is built and measured where its point
-      // will stand, then set on its point before a frame is drawn: built
-      // where the point stands now, which for a table row can be far off the
-      // map, the browser laid it out at a narrower width (198 px for a card
-      // 374 px wide where it landed, measured 2026-11-03), so the fit capped
-      // and placed a card the reader never saw.
-      const builtAt = markerAt ? map.unproject([markerAt.x, markerAt.y]) : at
       const build = (anchor: PopupSide) =>
-        make(builtAt, html, owner, { ...popupOptions(map, { result }), anchor, className: POPUP_CARD_CLASS })
+        make(at, html, owner, { ...popupOptions(map, { result }), anchor, className: POPUP_CARD_CLASS })
       let popup = build('top')
       const measure = () => {
         const el = popup.getElement()
@@ -502,7 +494,6 @@ export function mountMapPopups(
         popup = build('bottom')
         applyCap()
       }
-      if (markerAt) popup.setLngLat(at)
       // The map comes to the card rather than the card unfurling wherever its
       // point rested (TJ, 2026-09-29): a pan of what the fit asked for, with
       // the point riding along under the tip. `panBy` moves the camera, so
