@@ -5,7 +5,6 @@ import { useTour } from './useTour'
 import { sheetKeepOut, SPOTLIGHT_PAD } from './place'
 import { placeAt } from '../testSupport/render'
 import { TOUR_ATTR, TOUR_STEPS, TUTORIAL_PATH } from '../utils/tourSteps'
-import { addMetric, metricsFor } from '../utils/chart/chartData'
 
 // The tour's state, driven through the hook. The browser suite walks the
 // whole tour end to end; these pin what it leaves behind.
@@ -179,21 +178,16 @@ describe('the chart cards under the tour', () => {
     return { result, seen }
   }
 
-  it('draws the ranked metric and what three presses of the + add, on the three cards alone', async () => {
-    const { result, seen } = await walk()
-    const demo = result.current.demo!
-    let four = metricsFor(demo.analyzed.sortBy)
-    for (let i = 0; i < 3; i++) four = addMetric(four)
-    expect(four).toHaveLength(4)
-    expect(four[0]).toBe('aqi')
+  // Which four is `ResultsPanels`' to say, from the chart's own first slot
+  // (its suite holds that); the tour says on which cards.
+  it('asks for the four panels and the taller chart on the three cards alone', async () => {
+    const { seen } = await walk()
     for (const a of ['chart-panels', 'chart-layout', 'chart-pins']) {
-      expect(seen.get(a)!.chartTour.metrics, a).toEqual(four)
+      expect(seen.get(a)!.chartTour.panels, a).toBe(true)
       expect(seen.get(a)!.chartTall, a).toBe(true)
     }
-    // One list for the three cards, so the memoized chart is handed one value.
-    expect(seen.get('chart-layout')!.chartTour.metrics).toBe(seen.get('chart-panels')!.chartTour.metrics)
     for (const a of ['results', 'chart', 'marker']) {
-      expect(seen.get(a)!.chartTour.metrics, a).toBeNull()
+      expect(seen.get(a)!.chartTour.panels, a).toBe(false)
       expect(seen.get(a)!.chartTall, a).toBe(false)
     }
   })
@@ -213,7 +207,7 @@ describe('the chart cards under the tour', () => {
     expect(pins[1] - pins[0]).toBeGreaterThanOrEqual((hours - 1) / 2)
     for (const a of ['results', 'chart', 'chart-panels', 'chart-layout', 'marker']) expect(seen.get(a)!.chartTour.pins, a).toEqual([])
     act(() => result.current.end())
-    expect(result.current.chartTour).toEqual({ metrics: null, layoutOpen: false, pins: null })
+    expect(result.current.chartTour).toEqual({ panels: false, layoutOpen: false, pins: null })
   })
 })
 

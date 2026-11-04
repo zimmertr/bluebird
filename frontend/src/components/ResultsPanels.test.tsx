@@ -218,6 +218,44 @@ describe('ResultsPanels', () => {
   })
 })
 
+// The tutorial's Panels card and the two after it (#850) hand the chart four
+// panels that extend the one the Chart card showed: the reader's own first
+// slot, then what three presses of the + add to it, in the count's own
+// layout, one list across the three cards, and the reader's own back after.
+describe("the tutorial's chart cards", () => {
+  const TOUR = { panels: true, layoutOpen: false, pins: [] }
+  const LAYOUT_TOUR = { panels: true, layoutOpen: true, pins: [] }
+  const ranked = (metrics: Parameters<typeof chartMetricsOf>[0]) => ({
+    ...CHARTS_QUIET,
+    chartMetrics: chartMetricsOf(metrics, { layout: 'row' }),
+  })
+
+  it('starts the four from the first slot the chart shows', async () => {
+    seen.chart.length = 0
+    const charts = ranked(['wind', 'temp'])
+    const { rerender } = render(<ResultsPanels {...props({ charts })} chartTour={TOUR} />)
+    await screen.findByTestId('chart')
+    expect(last(seen.chart).metrics).toEqual(['wind', 'aqi', 'cloud_deck', 'freeze'])
+    expect(last(seen.chart).layout).toBeNull()
+    const four = last(seen.chart).metrics
+    // The next card hands the memoized chart the same list.
+    rerender(<ResultsPanels {...props({ charts })} chartTour={LAYOUT_TOUR} />)
+    expect(last(seen.chart).metrics).toBe(four)
+    expect(last(seen.chart).layoutMenuOpen).toBe(true)
+    // And the tour gone, the reader's own list and layout.
+    rerender(<ResultsPanels {...props({ charts })} />)
+    expect(last(seen.chart).metrics).toBe(charts.chartMetrics.metrics)
+    expect(last(seen.chart).layout).toBe('row')
+  })
+
+  it('draws air quality and the three after it under the default ranking', async () => {
+    seen.chart.length = 0
+    render(<ResultsPanels {...props({ charts: ranked(['aqi']) })} chartTour={TOUR} />)
+    await screen.findByTestId('chart')
+    expect(last(seen.chart).metrics).toEqual(['aqi', 'cloud_deck', 'freeze', 'precip'])
+  })
+})
+
 // The frame a pane's body stands in: the body's box, then the frame.
 const frameOf = (body: HTMLElement) => body.closest('[class*="grid-rows-"]') as HTMLElement
 

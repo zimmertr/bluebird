@@ -4,7 +4,6 @@ import { anchorSelector, stepLayout, TOUR_STEPS, TUTORIAL_PATH, type TourStep } 
 import type { DemoReport } from './demoReport'
 import { loadTimeSeriesChart } from '../components/ResultsPanels'
 import { cardMode, sheetKeepOut, SPOTLIGHT_PAD } from './place'
-import { addMetric, type ChartMetrics, metricsFor } from '../utils/chart/chartData'
 
 interface Args {
   isDesktop: boolean
@@ -20,20 +19,22 @@ interface Args {
 }
 
 /**
- * What the tour hands the chart while the demonstration stands in (#850): the
- * metrics it draws in place of the reader's, whether a desk's Panel layout
+ * What the tour hands the chart while the demonstration stands in (#850):
+ * whether it draws the Panels card's four panels in place of the reader's
+ * (built in `ResultsPanels` from the first slot the chart already shows, so
+ * the card extends the Chart card's panel), whether a desk's Panel layout
  * menu is held open, and the hour indexes it stands pinned cards on. `pins`
  * is null outside the demonstration, when the chart's pins are the reader's
  * own, and an array through it, so the reader's own pins stand aside until it
  * is null again rather than being dropped with the hours they named.
  */
 export interface ChartTour {
-  metrics: ChartMetrics | null
+  panels: boolean
   layoutOpen: boolean
   pins: readonly number[] | null
 }
 
-const NO_CHART_TOUR: ChartTour = { metrics: null, layoutOpen: false, pins: null }
+const NO_CHART_TOUR: ChartTour = { panels: false, layoutOpen: false, pins: null }
 const NO_PINS: readonly number[] = []
 
 /** The nearest ancestor that scrolls: the panel's column, for the sections inside it. */
@@ -228,16 +229,6 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
   // pinned cards, a third card about the same hours (#850).
   const readsMiddle = showingResults && step?.reveal !== 'layout' && step?.reveal !== 'pins'
 
-  // The four panels the Panels card and the two after it draw (#850): the
-  // demonstration's ranked metric and what three presses of the + add to
-  // it, so the set is the one a reader would get. One list per report, so
-  // the memoized chart is handed one identity for the three cards.
-  const demoMetrics = useMemo(() => {
-    if (demo === null) return null
-    let list = metricsFor(demo.analyzed.sortBy)
-    for (let i = 0; i < 3; i++) list = addMetric(list)
-    return list
-  }, [demo])
   // Two hours a quarter of the window in from either end, so the two cards
   // stand beside lines far apart; the chart stands one at the plot's head
   // and one at its foot, so neither covers the other (`TimeSeriesChart`).
@@ -252,11 +243,11 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
       demo === null
         ? NO_CHART_TOUR
         : {
-            metrics: showingPanels ? demoMetrics : null,
+            panels: showingPanels,
             layoutOpen,
             pins: pinsUp ? demoPins : NO_PINS,
           },
-    [demo, showingPanels, demoMetrics, layoutOpen, pinsUp, demoPins],
+    [demo, showingPanels, layoutOpen, pinsUp, demoPins],
   )
 
   // The marker step cuts to the first demonstration row and opens its popup,
