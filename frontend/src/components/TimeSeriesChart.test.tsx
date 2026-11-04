@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import { CHART_METRICS, type ChartMetric, type ChartMetrics, extremeValue, moveMetric } from '../utils/chart/chartData'
 import { CHROME, CROWDED_PAST, LINE_DRAW } from '../utils/chart/chartColors'
-import { PHONE_PLOT_MARGIN, PLOT_MARGIN } from '../utils/chart/chartPointer'
+import { CARD_CURSOR_OFFSET_PX, PHONE_PLOT_MARGIN, PLOT_MARGIN, hourX } from '../utils/chart/chartPointer'
 import { ACCENT, CHART_CARD, CHART_PANEL_TITLE, CHART_PICKER, DRAG } from '../styles'
 import { GHOST_SCALE, TITLED_TOP_LABEL_DY, ghostTransform, titleAt } from '../utils/chart/panelTitle'
 import { placeAt, render } from '../testSupport/render'
@@ -1054,6 +1054,107 @@ describe('TimeSeriesChart with more than one metric', () => {
   it("offers a phone's two panels a +", () => {
     render(<TimeSeriesChart {...props({ ...TWO, phone: true })} />)
     expect((screen.getByRole('button', { name: 'Add a panel' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  // The tutorial's Panels card lights the row that holds the + at either
+  // width (#850): a desk's picker row, a phone's first panel's heading.
+  it('marks the row holding the + for the tutorial at either width', () => {
+    const { unmount } = render(<TimeSeriesChart {...props(FOUR)} />)
+    const desk = screen.getByRole('button', { name: 'Add a panel' }).parentElement!
+    expect(desk.dataset.tour).toBe('chart-panels')
+    expect(desk.querySelectorAll('[data-picker-slot]')).toHaveLength(4)
+    unmount()
+    render(<TimeSeriesChart {...props({ ...FOUR, phone: true })} />)
+    const phone = screen.getByRole('button', { name: 'Add a panel' }).parentElement!
+    expect(phone.dataset.tour).toBe('chart-panels')
+    expect(phone.className).toBe(CHART_PICKER.bar)
+  })
+
+  it('holds the Panel layout menu open for the tutorial', () => {
+    render(<TimeSeriesChart {...props({ ...FOUR, onLayout: () => {}, layoutMenuOpen: true })} />)
+    expect(screen.getByRole('group', { name: 'Panel layout' }).dataset.tour).toBe('chart-layout-menu')
+  })
+
+  // The tutorial's Pinned hours card (#850): a card on each hour it names,
+  // the first at the panels' head and the second at their foot so neither
+  // covers the other, gone when the card moves on, and the reader's own pins
+  // set aside under the demonstration and back after it.
+  describe("the tutorial's pinned hours", () => {
+    const OTHER = TIMES.map((t) => t + 100 * 24 * HOUR)
+    const cards = (container: HTMLElement) =>
+      Array.from(container.querySelectorAll<HTMLElement>('[data-tour="chart-pins"] > div'))
+    const unpins = () => screen.queryAllByRole('button', { name: /^Unpin / })
+    // Lays the root, the panels' area and the first panel out, then hands
+    // the chart the tour's pins, as the tour does a card after the chart.
+    function pinned(hours: readonly number[] | null, over: Partial<Props> = {}) {
+      const base = { ...FOUR, layout: null, onPlayheadChange: () => {}, ...over }
+      const view = render(<TimeSeriesChart {...props(base)} />)
+      const root = view.container.firstElementChild as HTMLElement
+      placeAt(root, { left: 0, top: 0, width: 800, height: 400 })
+      placeAt(root.children[1], { left: 0, top: 40, width: 800, height: 360 })
+      placeAt(root.querySelector('[data-chart-box]')!, { left: 0, top: 40, width: 800, height: 176 })
+      view.rerender(<TimeSeriesChart {...props({ ...base, tourPins: hours })} />)
+      return { ...view, base }
+    }
+
+    it('stands a card on each hour, one at the head and one at the foot', () => {
+      // A card is as tall as its style says, which jsdom does not lay out.
+      height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+        return parseFloat(this.style.height) || 0
+      })
+      const { container } = pinned([11, 35])
+      const [head, foot] = cards(container)
+      expect(cards(container)).toHaveLength(2)
+      expect(unpins()).toHaveLength(2)
+      const top = (el: HTMLElement) => parseFloat(el.style.top)
+      const tall = (el: HTMLElement) => parseFloat(el.style.height)
+      // Inside the area, which starts 40px down the chart.
+      expect(top(head)).toBeGreaterThanOrEqual(40)
+      expect(top(foot)).toBeGreaterThanOrEqual(top(head) + tall(head))
+      expect(top(foot) + tall(foot)).toBeLessThanOrEqual(400)
+      // Each beside its own hour's line, as a click there stands its card:
+      // right of it in the plot's left half, left of it in the right half
+      // (jsdom lays the cards out no wider than nothing).
+      expect(parseFloat(head.style.left)).toBeCloseTo(hourX(800, TIMES, 11) + CARD_CURSOR_OFFSET_PX)
+      expect(parseFloat(foot.style.left)).toBeCloseTo(hourX(800, TIMES, 35) - CARD_CURSOR_OFFSET_PX)
+    })
+
+    it('lets the cards go when the tour moves on, and when it ends', () => {
+      const { container, rerender, base } = pinned([11, 35])
+      rerender(<TimeSeriesChart {...props({ ...base, tourPins: [] })} />)
+      expect(cards(container)).toHaveLength(0)
+      rerender(<TimeSeriesChart {...props({ ...base, tourPins: [11, 35] })} />)
+      expect(cards(container)).toHaveLength(2)
+      rerender(<TimeSeriesChart {...props({ ...base, tourPins: null })} />)
+      expect(cards(container)).toHaveLength(0)
+      expect(unpins()).toHaveLength(0)
+    })
+
+    it("sets the reader's own pins aside under the demonstration, Escape included, and gives them back", () => {
+      const { container, rerender, base } = pinned(null)
+      act(() => chart.charts[chart.charts.length - 1].onClick!({ activeLabel: TIMES[2] }, { clientX: 100 }))
+      expect(unpins()).toHaveLength(1)
+      const own = unpins()[0].getAttribute('aria-label')
+      // The demonstration's grid and none of its cards: the reader's card waits.
+      rerender(<TimeSeriesChart {...props({ ...base, times: OTHER, tourPins: [] })} />)
+      expect(unpins()).toHaveLength(0)
+      fireEvent.keyDown(document, { key: 'Escape' })
+      rerender(<TimeSeriesChart {...props({ ...base, times: OTHER, tourPins: [11, 35] })} />)
+      expect(unpins()).toHaveLength(2)
+      expect(unpins().map((b) => b.getAttribute('aria-label'))).not.toContain(own)
+      rerender(<TimeSeriesChart {...props({ ...base, tourPins: null })} />)
+      expect(cards(container)).toHaveLength(0)
+      expect(unpins().map((b) => b.getAttribute('aria-label'))).toEqual([own])
+    })
+
+    it('still drops the pins of a report a new one replaces', () => {
+      const { rerender, base } = pinned(null)
+      act(() => chart.charts[chart.charts.length - 1].onClick!({ activeLabel: TIMES[2] }, { clientX: 100 }))
+      expect(unpins()).toHaveLength(1)
+      rerender(<TimeSeriesChart {...props({ ...base, times: OTHER })} />)
+      rerender(<TimeSeriesChart {...props({ ...base })} />)
+      expect(unpins()).toHaveLength(0)
+    })
   })
 })
 

@@ -1,6 +1,6 @@
 # 0153. The tutorial shows the chart's readout on an hour, and a phone's Layers card switches a layer on
 
-- Status: Accepted. Amends [0066](0066-tutorial-points-and-never-acts.md) and [0150](0150-tour-opens-the-results-at-rest.md)
+- Status: Accepted. Amends [0066](0066-tutorial-points-and-never-acts.md) and [0150](0150-tour-opens-the-results-at-rest.md). Amended by [0267](0267-tour-shows-chart-panels-layouts-and-pins.md) (three chart cards after this one)
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696, 2026-10-14; the Chart card's words approved the same day
 - Issues and PRs: #696, #708, #536, #336

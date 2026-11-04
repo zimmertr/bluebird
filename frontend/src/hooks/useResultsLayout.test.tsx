@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { type ResultsLayoutInputs, useResultsLayout } from './useResultsLayout'
+import { type ResultsLayoutInputs, TALL_CHART_PX, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
 import {
   RESULTS_BAR_PX,
@@ -425,6 +425,41 @@ describe('useResultsLayout', () => {
       const { result } = renderHook(() => useResultsLayout(DESKTOP))
       drag(result, 'tableGrip', 2000)
       expect(result.current.overMapRows).toBe(false)
+    })
+  })
+
+  // The tutorial's three chart cards after Chart hold a desk's chart taller
+  // than it rests (#850), up to the floor a reader's own drag keeps the map
+  // at, and give the reader's height back after.
+  describe("a desk's chart under the tutorial's chart cards", () => {
+    // The map a reader's drag leaves, `resolvePanelHeights`' default.
+    const DRAG_MAP_PX = 280
+    it.each([
+      ['a laptop', 780, 780 - PANEL_FLOOR_PX - DRAG_MAP_PX],
+      ['a tall desk', 1200, TALL_CHART_PX],
+    ])('stands taller on %s, and goes back after', (_, height, tall) => {
+      setViewport(height)
+      const desk = { ...DESKTOP, modeChosen: 'chart' as const, response: {} }
+      const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+        initialProps: desk,
+      })
+      const rest = result.current.chartPanelPx
+      rerender({ ...desk, tallOverride: true })
+      expect(result.current.chartPanelPx).toBe(tall)
+      expect(result.current.chartPanelPx).toBeGreaterThan(rest)
+      rerender({ ...desk, tallOverride: false })
+      expect(result.current.chartPanelPx).toBe(rest)
+    })
+
+    it('leaves a phone alone, whose Panels card holds the full stop instead', () => {
+      setDesktopQuery(false)
+      const PHONE = { ...DESKTOP, isDesktop: false, modeChosen: 'chart' as const, response: {} }
+      const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+        initialProps: PHONE,
+      })
+      const before = result.current.chartPanelPx
+      rerender({ ...PHONE, tallOverride: true })
+      expect(result.current.chartPanelPx).toBe(before)
     })
   })
 
