@@ -1306,7 +1306,7 @@ flowchart LR
   preset is used, whose throttling is a simulation and therefore reproducible to
   the millisecond. It reports as `Lighthouse Budgets` and is a required check
   (#375, 2026-10-06), which is what closes the one path around it: a
-  Dependabot patch bump arms auto-merge, and GitHub completes that on `main`'s
+  Dependabot patch or minor bump arms auto-merge, and GitHub completes that on `main`'s
   required checks alone, so before this a bump that crossed a budget could
   merge and release with the job red. It became required only after its
   spread was measured, and the measurement is in the comment at the top of
@@ -1407,7 +1407,7 @@ flowchart LR
 
 Two loops keep shipped artifacts current with nobody initiating a change: a
 weekly re-scan of the released image, and Dependabot dependency PRs with patch
-auto-merge. Both funnel into Path 1, so the [prod
+and minor auto-merge. Both funnel into Path 1, so the [prod
 canary](#inside-the-prod-canary-argo-rollouts) still gates everything they
 produce. The next two sections give the details.
 
@@ -1509,16 +1509,16 @@ The type generator's package ignores TypeScript **major** bumps: it is pinned to
 is why it is a package apart from the app in the first place. The linter's
 package ignores them for the same reason, one major later: typescript-eslint
 throws on TypeScript 7 rather than degrading, so that package stays on 6. `dependabot-auto-merge.yml` enables **squash
-auto-merge for patch (bugfix) bumps only** — GitHub completes the merge once
-`main`'s required checks pass; **minor and major bumps wait for manual review**.
+auto-merge for patch and minor bumps** — GitHub completes the merge once
+`main`'s required checks pass; **major bumps wait for manual review**. Record: [0273](decisions/0273-dependabot-minor-updates-merge-themselves.md)
 When it arms auto-merge it also posts a marker-guarded comment on the PR saying
 so (and how to stop it), so the self-merge is visible from the PR page rather
 than something to infer from the merge timeline.
 
-Three things narrow what an auto-merged patch can bring with it (#633):
+Three things narrow what an auto-merged update can bring with it (#633):
 
 - **Every npm and pip entry waits seven days** after a release before proposing
-  it (`cooldown: default-days: 7` in `.github/dependabot.yml`). A patch
+  it (`cooldown: default-days: 7` in `.github/dependabot.yml`). A patch or minor
   auto-merges as soon as the required checks pass and a merge to `main`
   deploys, so before the cooldown a release published the day before the
   weekly run was live the same morning (vite 8.3.1, #556: opened 06:48, merged
@@ -1546,13 +1546,15 @@ Three things narrow what an auto-merged patch can bring with it (#633):
   set in front of the alerts. Regenerating the lock by hand is `make
   lock-backend` ([DEVELOPMENT.md](DEVELOPMENT.md#the-backends-dependency-lock)).
 
-In practice only `pip`/`npm` patches auto-merge. Every GitHub Action is pinned
+In practice what auto-merges is `pip`/`npm` patches and minors, and `docker` minors. Every GitHub Action is pinned
 to a commit SHA with its exact version in a comment (#632), so Dependabot
-raises action patch bumps too, and the job arms auto-merge on them; they still
+raises action patch and minor bumps too, and the job arms auto-merge on them; they still
 wait for a person, for the `Workflows` reason below. The Dockerfile's base
 images are pinned as `tag@digest`, with the tags floating at the minor
-(`python:3.15-alpine`, `node:26-alpine`): a new minor or major is a runtime
-bump that waits for review, and a rebuild of the image under the same tag
+(`python:3.15-alpine`, `node:26-alpine`): a new major is a runtime bump that
+waits for review, a new minor (`python:3.16-alpine`) should come as
+`semver-minor` and merge itself once the checks pass (record 0273; not yet
+seen on a base image here), and a rebuild of the image under the same tag
 arrives as a digest PR. The fill's `debian:trixie-slim` and the test
 database's `postgres:18-trixie` are pinned the same way (#760). The test database's PostGIS package names its major (`postgresql-18-postgis-3`), so a major bump of that tag moves the package in the same PR. A Node major bump also fails `Backend Tests` until the
 same PR moves `.node-version` to match, which is what keeps CI on the image's
@@ -1560,14 +1562,14 @@ runtime. Base-OS *patch* fixes no longer arrive unannounced at the next build:
 they come as that digest PR. The merge PAT is intentionally scoped to Contents +
 Pull requests (not `Workflows`), so a workflow-file edit is not something it can
 land on its own, and every action bump waits for a person even though the job
-arms auto-merge on its patches.
+arms auto-merge on its patches and minors.
 
 The merge step runs with a PAT (`AUTO_MERGE_PAT`, stored as a **Dependabot**
 secret — Actions secrets are empty in Dependabot-triggered runs), *not* the
 default `GITHUB_TOKEN`. That's deliberate: a `GITHUB_TOKEN`-driven merge would be
 suppressed by GitHub's recursion guard and never fire `release.yml`'s `on: push`,
-so the patch would land on `main` but never ship. With the PAT, an auto-merged
-patch deploys through Path 1 like any other merge — the prod canary still gates
+so the update would land on `main` but never ship. With the PAT, an auto-merged
+update deploys through Path 1 like any other merge — the prod canary still gates
 the rollout.
 
 The same trap applies to Path 1 step 6's auto-merged `appVersion` bump, which is
