@@ -287,3 +287,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0272](0272-shared-create-issue-skill.md) | The create-issue skill is shared from zimmertr/ai-config, and this repo's reader, gates, constraints and areas live in CLAUDE.md | 2026-11-05 | Accepted | Root: Filing issues |
 | [0273](0273-dependabot-minor-updates-merge-themselves.md) | Dependabot's minor updates merge themselves, as its patch updates do | 2026-11-05 | Accepted | `CICD.md`: Dependabot auto-merge |
 | [0274](0274-records-in-architectural-decision-records.md) | Decision records live in `docs/architectural-decision-records/`, the name every new project uses | 2026-11-05 | Accepted | Root: Rules for every change |
+| [0275](0275-eslint-tools-override-minimatch-to-11.md) | The ESLint tools override minimatch to 11, ahead of the packages that use it | 2026-11-05 | Accepted | `CICD.md`: the frontend job's ESLint step |

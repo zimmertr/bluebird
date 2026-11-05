@@ -1246,7 +1246,11 @@ flowchart LR
 - `pr.yml`'s frontend job then runs **ESLint** (`npm run lint`), after the
   typecheck and before Vitest. It is `frontend/tools/eslint`, a second package
   apart for a sharper version of the same reason: typescript-eslint refuses
-  TypeScript 7 outright, so the linter carries its own TypeScript 6. The rules
+  TypeScript 7 outright, so the linter carries its own TypeScript 6. Its
+  `package.json` overrides `minimatch` to `^11.0.1`, ahead of the `^10` that
+  ESLint and typescript-eslint still ask for, because only 11 fixes
+  GHSA-g3hv-75wg-m249; `test_dependency_lock.py` fails once they catch up and
+  the override can go. Record: [0275](architectural-decision-records/0275-eslint-tools-override-minimatch-to-11.md) The rules
   are typescript-eslint recommended, `react-hooks/rules-of-hooks` and
   `react-hooks/exhaustive-deps` as errors, and the syntactic class and metric
   bans that used to be regular expressions inside `styles.test.ts` and
