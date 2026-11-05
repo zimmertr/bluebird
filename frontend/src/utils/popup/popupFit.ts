@@ -286,7 +286,10 @@ export function dragBodyRange(
  * the two together reach, at the card's corner, takes off whichever leaves
  * the card more. Never under `least`; one the card cannot clear at `least`
  * is left alone. The caller leaves out what the card already stands over as
- * the drag starts, so a drag never shrinks a card on its first move.
+ * the drag starts, so a drag never shrinks a card on its first move. Every
+ * size here is the popup's whole box, its tip included, as the caller
+ * measures it, so the tip is not added again: counted twice, it stopped a
+ * drag 18px over the scale rather than 8.
  */
 export function clearSize(
   marker: Point,
@@ -297,13 +300,14 @@ export function clearSize(
   obstacles: readonly Rect[],
 ): Size {
   let { width, height } = size
-  const reach = (w: number, h: number) => figureOf(marker, { width: w + 2 * FIT_MARGIN_PX, height: h + FIT_MARGIN_PX }, anchor)
+  const reach = (w: number, h: number) =>
+    figureOf(marker, { width: w + 2 * FIT_MARGIN_PX, height: h + FIT_MARGIN_PX }, anchor, 0)
   for (const o of obstacles) {
     if (overlap(reach(width, height), o) === 0) continue
     const wide = overlap(reach(width, Math.min(height, start.height)), o) > 0
     const tall = overlap(reach(Math.min(width, start.width), height), o) > 0
     const lower =
-      anchor === 'top' ? o.top - FIT_MARGIN_PX - (marker.y + TIP_PX) : marker.y - TIP_PX - (o.bottom + FIT_MARGIN_PX)
+      anchor === 'top' ? o.top - FIT_MARGIN_PX - marker.y : marker.y - (o.bottom + FIT_MARGIN_PX)
     const narrower =
       o.left > marker.x
         ? 2 * (o.left - FIT_MARGIN_PX - marker.x)
