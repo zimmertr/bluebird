@@ -142,12 +142,15 @@ export interface CardView {
 // card all carry the coordinate the reader saw.
 const round5 = (v: number) => roundTo(v, 5)
 
+/** The kind a spot is once added (`spotPlace`), whose word its facts wear. */
+const SPOT_KIND = 'coordinates'
+
 /** A clicked spot as the destination `Add to analysis` registers. */
 export function spotPlace(lat: number, lon: number): Place {
   const at = { lat: round5(lat), lon: round5(lon) }
   // The kind a pasted coordinate gets in the search box, so the two ways of
   // naming a bare point make one kind of destination.
-  return { label: coordinateLabel(at.lat, at.lon), description: '', kind: 'coordinates', ...at }
+  return { label: coordinateLabel(at.lat, at.lon), description: '', kind: SPOT_KIND, ...at }
 }
 
 /** The point a card stands on. */
@@ -242,7 +245,7 @@ function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView, 
         meta: metaBand([
           modelOnBand && identity.model ? `<div>${escapeHtml(identity.model)}</div>` : '',
           spot
-            ? pointFacts(r.latitude, r.longitude, r.elevation_ft == null ? GROUND : elevation, view)
+            ? pointFacts(identity.type, r.latitude, r.longitude, r.elevation_ft == null ? GROUND : elevation, view)
             : factsRow(identity.type, elevation, r.latitude, r.longitude, caltopoUrl(r.latitude, r.longitude, view.mapZoom), ground),
         ]),
       }
@@ -256,7 +259,9 @@ function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView, 
         return {
           title: escapeHtml(p.name),
           link: spotLink(p.latitude, p.longitude),
-          meta: metaBand([pointFacts(p.latitude, p.longitude, p.elevation_ft != null ? elevationFact(p.elevation_ft) : GROUND, view)]),
+          meta: metaBand([
+            pointFacts(String(TYPE_COL.format!(subjectType(s)!)), p.latitude, p.longitude, p.elevation_ft != null ? elevationFact(p.elevation_ft) : GROUND, view),
+          ]),
         }
       }
       return {
@@ -359,18 +364,25 @@ const GROUND = Symbol('ground')
 /**
  * The lines under a point's title, a spot's or a destination's named by its
  * coordinates, laid out as every card's are (TJ, 2026-11-04): the pair,
- * opening CalTopo, though the title says it too, then `Coordinates`, the
- * Type column's word for such a row, its height and the slope. A spot
+ * opening CalTopo, though the title says it too, then `type`, the word the
+ * Type column says for the row (`Coordinates` for a spot, which is what one
+ * becomes once added), its height and the slope. A spot
  * before an analysis and the same point after it say the same three lines:
  * a point with no height of its own takes the ground's, which a spot's card
  * read from the tile and an analyzed one left out. `elevation` is the
  * height as the facts say it, null where the reader's columns leave it out,
  * or `GROUND`.
  */
-function pointFacts(lat: number, lon: number, elevation: string | null | typeof GROUND, view: CardView): string {
+function pointFacts(
+  type: string | null,
+  lat: number,
+  lon: number,
+  elevation: string | null | typeof GROUND,
+  view: CardView,
+): string {
   const pair = factsRow(null, null, lat, lon, caltopoUrl(lat, lon, view.mapZoom))
   const ground = view.ground
-  const word = escapeHtml(String(TYPE_COL.format!('custom')))
+  const word = type ? escapeHtml(type) : ''
   if (elevation !== GROUND) return pair + factsLine([word, elevation ? factValue(escapeHtml(elevation)) : '', slopeFact(ground)])
   if (!ground || ground.kind === 'none') return pair + factsLine([word])
   if (ground.kind === 'pending') return pair + factsLine([word, pendingValue(SPOT_GROUND_CH)])
@@ -423,7 +435,7 @@ export function destinationPopupHtml(s: CardSubject, view: CardView = {}): strin
       ? {
           title: escapeHtml(coordinateLabel(at.lat, at.lon)),
           link: { href: caltopoUrl(at.lat, at.lon, view.mapZoom), label: 'Open in CalTopo' },
-          meta: metaBand([pointFacts(at.lat, at.lon, GROUND, view)]),
+          meta: metaBand([pointFacts(String(TYPE_COL.format!(SPOT_KIND)), at.lat, at.lon, GROUND, view)]),
         }
       : placeHeader(s, view, forecast === null)
   const sections = [...(view.sections ?? []).map((section) => layerSection(section, view)), forecast].filter(

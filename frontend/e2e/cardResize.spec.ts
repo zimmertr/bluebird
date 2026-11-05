@@ -88,6 +88,16 @@ async function measure(card: Locator) {
       // The nearest surface over the map (`data-map-overlay`) beside the
       // card, across from its left or right side within its height, and how
       // far off: a drag that widens the card stops 8px short of it.
+      // The same for a surface under the card, across from its foot within
+      // its width.
+      under: (() => {
+        const card = el.querySelector('.maplibregl-popup-content')!.getBoundingClientRect()
+        const gaps = [...document.querySelectorAll('[data-map-overlay]')]
+          .map((o) => o.getBoundingClientRect())
+          .filter((r) => r.width > 0 && r.height > 0 && r.left < card.right + 8 && r.right > card.left - 8 && r.top >= card.bottom)
+          .map((r) => r.top - card.bottom)
+        return gaps.length ? Math.min(...gaps) : null
+      })(),
       beside: (() => {
         const card = el.querySelector('.maplibregl-popup-content')!.getBoundingClientRect()
         const gaps = [...document.querySelectorAll('[data-map-overlay]')]
@@ -338,10 +348,18 @@ test('a short card dragged down stands taller than what it holds', async ({ page
   await drag(page, card, 0, 150)
   const after = await measure(card)
   test.info().annotations.push({ type: 'card grown', description: JSON.stringify({ before, after }) })
-  expect(Math.abs(after.body.height - Math.min(before.body.height + 150, before.room))).toBeLessThanOrEqual(2)
+  // Up to the room where it stands, or 8px over a surface over the map
+  // under it, the scale or the credits, where its handle would be out of
+  // reach (TJ, 2026-11-04).
+  const note = JSON.stringify({ before: before.body, after: after.body, room: before.room, under: after.under })
+  const most = Math.min(before.body.height + 150, before.room)
+  expect(after.body.height, note).toBeLessThanOrEqual(most + 2)
+  if (after.body.height < most - 2) expect(Math.abs((after.under ?? 0) - 8), note).toBeLessThanOrEqual(2)
+  expect(after.body.height, note).toBeGreaterThan(before.body.height + 60)
+  expect(await overlaid(card)).toBe(0)
   expect(after.scrolls).toBe(false)
   // The surface the drag added stands under the last section.
-  expect(after.emptyBelow).toBeGreaterThan(before.emptyBelow + Math.min(140, before.room - before.body.height - 10))
+  expect(after.emptyBelow).toBeGreaterThan(before.emptyBelow + (after.body.height - before.body.height) - 10)
 })
 
 // On a short map a ranked card opens capped, and a drag down opens its body
