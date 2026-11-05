@@ -68,7 +68,7 @@ selectors and the classifier live in one module,
 `backend/app/services/osm/rules.py`, which the fill, the daily update and the
 Overpass query all read, so a deployment without the table, or with one still
 filling, asks Overpass for exactly what the table would hold. Record:
-[0176](decisions/0176-places-from-the-planet-and-daily-changes.md)
+[0176](architectural-decision-records/0176-places-from-the-planet-and-daily-changes.md)
 
 Three things differ from asking Overpass:
 
@@ -92,14 +92,14 @@ Three things differ from asking Overpass:
   whole ring. Measured over Washington's extract on 2026-10-18, 105 same-named
   trailhead pairs stood within 300 m, 70 of them a node beside its lot, and
   the next nearest were 342 m apart; lakes, peaks and crags added 40, 5 and 4
-  pairs. Record: [0177](decisions/0177-one-place-per-kind-and-name-within-300-m.md)
+  pairs. Record: [0177](architectural-decision-records/0177-one-place-per-kind-and-name-within-300-m.md)
 
 A lake is `natural=water` with `water=lake`, in the app as through the API.
 Until #760 the app read a ring's lakes from the basemap's tiles, which carry
 tarns, ponds and reservoirs under the one class `lake`, so it found every
 named water body; it now finds the lakes alone. A lake with no `ele` tag shows
 the terrain height in its Elevation cell, marked
-([record 0116](decisions/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
+([record 0116](architectural-decision-records/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
 A trailhead is `highway=trailhead`, or a named parking lot whose name says it
 is one, because much of the US maps the lot and never adds the node: in a box
 around Issaquah on 2026-10-17, 2 of 14 named trailhead features carried the
@@ -116,7 +116,7 @@ tagged `leisure`, `building`, `shop`, `club`, `amenity` or `tourism`, which in
 Washington were 40 climbing gyms and attractions, and none of them takes a
 bare `sport=climbing`, which is often a single route. Over Washington's
 extract on 2026-10-18 they added 37 crags to the 188, a fifth more. Record:
-[0178](decisions/0178-crag-rule-widened.md) Climbers tag
+[0178](architectural-decision-records/0178-crag-rule-widened.md) Climbers tag
 every route `sport=climbing` too: measured 2026-10-15 over 47.0 to 48.0 N,
 121.8 to 120.8 W, 183 named features carried it, of which 82 were crags, 22
 areas and 4 boulders, and 67 routes and 5 route bottoms would each have been a
@@ -130,7 +130,7 @@ Overpass puts it. One made only of other areas (Leavenworth, Snoqualmie Pass,
 the Inner Walls at Index; 27 in Washington) gets no position from Overpass at
 all, so the table places it at the centre of the areas it holds, following the
 nesting down; on the Overpass path such an area is still missing. Record:
-[0179](decisions/0179-relations-stand-at-their-own-points.md) The basemap's
+[0179](architectural-decision-records/0179-relations-stand-at-their-own-points.md) The basemap's
 tiles cannot stand in for the query: they carry `sport=climbing` points with
 no `climbing=` subtype, and crags mapped as relations are missing, so in the
 zoom-14 tile over Index, measured 2026-10-15, 33 of OSM's 36 named routes
@@ -140,7 +140,7 @@ typed Crag: 6 of the 104 in that box share a name with a peak. None of the 104 i
 plain near-ground values the way a lake or trailhead with no elevation does.
 And coverage follows where climbers have mapped: the well-known areas are
 there, and an obscure crag may not be
-([record 0159](decisions/0159-crags-destination-type.md)).
+([record 0159](architectural-decision-records/0159-crags-destination-type.md)).
 
 OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
 name and a point and nothing else, so the server matches each one to a mapped
@@ -166,7 +166,7 @@ column:
   Elevation column shows that height with a dagger and one note under the
   table saying it is estimated from the terrain, because that height is the
   model's ground, not the peak's
-  ([record 0116](decisions/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
+  ([record 0116](architectural-decision-records/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
 - **The number is OSM's, not your guidebook's.** Where the two disagree, the
   column shows what OSM says, which is the same figure a polygon search shows
   for that peak. Agreement between the two ways of asking is the point;
@@ -241,7 +241,7 @@ the shapes at their old points for the next. Two other options were declined:
 fetching nothing, which leaves a redrawn lake at its old centre until the next
 fill, and keeping a copy of every point on the planet, about 4 GB by estimate
 and a second dataset to keep in step. Record:
-[0185](decisions/0185-redrawn-shapes-from-overpass-by-id.md)
+[0185](architectural-decision-records/0185-redrawn-shapes-from-overpass-by-id.md)
 
 ## Open-Meteo
 
@@ -316,7 +316,7 @@ temperature 0.7 to 1.3 °C (1.3 to 2.3 °F) cold. Fetching the real heights
 would add five variables to every request and raise its weight factor from
 1.5 to 2.0. Two caveats. This is still
 a model's free-air wind, not a gust or a summit anemometer (the app carries no
-gust, [0124](decisions/0124-no-wind-gust.md)), and local
+gust, [0124](architectural-decision-records/0124-no-wind-gust.md)), and local
 funneling can exceed it. And the map's forecast-grid overlay adjusts each
 sample — wind and temperature alike — to the terrain height Open-Meteo resolves
 for that coordinate (its ~90 m elevation model, reported on every response)
@@ -794,7 +794,7 @@ and a repeat of the same search is answered without asking Nominatim again,
 from whichever pod it lands on while the database is up. With the database
 the server spaces its calls 1.2 s apart in one queue for all its pods; without
 it each pod keeps 10 s between its own, so ten pods still stay under the policy
-(#760, [record 0181](decisions/0181-shared-limits-and-nominatim-intervals.md)). A
+(#760, [record 0181](architectural-decision-records/0181-shared-limits-and-nominatim-intervals.md)). A
 search that has not finished in ten seconds, or that comes back as something
 other than Nominatim's JSON, is reported as a failed search rather than left
 waiting.
@@ -829,10 +829,10 @@ mapped as a relation is missing. So the map draws both as markers of its own
 from zoom 11, read from the server's copy of OpenStreetMap
 (`GET /api/landmarks`), and a clicked crag is a crag, with the type and link a
 polygon search gives it. The tiles' own climbing labels, which
-[record 0157](decisions/0157-places-and-climbing-labels-are-selectable.md)
+[record 0157](architectural-decision-records/0157-places-and-climbing-labels-are-selectable.md)
 made selectable, are no longer drawn. A deployment without the database draws
 no trailhead or crag markers. Record:
-[0180](decisions/0180-trailhead-and-crag-markers-from-the-places-table.md)
+[0180](architectural-decision-records/0180-trailhead-and-crag-markers-from-the-places-table.md)
 
 If the style document cannot be fetched, the map stays blank and an error under
 Analyze says the map could not load. The page asks for the style again each
@@ -877,7 +877,7 @@ to its neighbours east and west and north and south, over the ground between
 them at that latitude. A pixel on a tile's edge reads its neighbours from the
 next tile, so a band does not break along tile boundaries. It is painted in
 CalTopo's bands, the avalanche world's, from 27 degrees up (record
-[0248](decisions/0248-slope-angle-from-the-shared-elevation.md)). Zoomed in
+[0248](architectural-decision-records/0248-slope-angle-from-the-shared-elevation.md)). Zoomed in
 past 12, it reads the finest tile Mapterhorn has, to zoom 16: lidar where a
 US survey has it, as around Issaquah, 10 m-class elsewhere in the United
 States, finer in the Alps, and the 30 m fill everywhere else. Where a
@@ -907,7 +907,7 @@ degrees at the median of 14, and lakes read flat or nearly so, since the model
 flattens water.
 The map's corner credits Mapterhorn from the moment it loads, since any card
 may read it (record
-[0253](decisions/0253-slope-on-every-card-and-the-spot-card.md)).
+[0253](architectural-decision-records/0253-slope-on-every-card-and-the-spot-card.md)).
 
 **Imagery is two sources, one picture.** Over the United States and its
 territories it is USGS's NAIP aerial photography, to zoom 16, in the public
@@ -933,10 +933,10 @@ maintainer chose the short names on 2026-10-28 to keep the corner to one line.
 The two draw as one layer at the row's opacity, EOX everywhere with USGS over
 it, both over Liberty's land and water fills and under its roads, trails and
 labels and under the relief and the contours (record
-[0250](decisions/0250-layers-palette-and-base-map-opacity.md)). Liberty's
+[0250](architectural-decision-records/0250-layers-palette-and-base-map-opacity.md)). Liberty's
 buildings, which it draws over its roads, fade by the same level instead. The
 trails wear a light casing over it, because their brown reads 1.69:1 on a
-forest (record [0243](decisions/0243-map-reads-on-a-dark-ground.md)), and from
+forest (record [0243](architectural-decision-records/0243-map-reads-on-a-dark-ground.md)), and from
 50% up the contour lines turn light on a thin dark edge, because their brown
 reads 1.25:1 there. USGS draws from zoom 13 up, and only over a box from American Samoa to
 the Arctic and the Aleutians to the Virgin Islands. Both limits are its cache's, measured 2026-10-27:
@@ -995,7 +995,7 @@ answer for no answer. **That tolerance ends at 24 hours.** A copy older than a
 day is a picture of a different day, so past it the server answers as it does
 before its first fetch: the overlay draws nothing and the fire check reports
 itself unavailable. The same limit applies to smoke and closures below
-([record 0077](decisions/0077-snapshot-max-stale-24h.md)). The overlay does not
+([record 0077](architectural-decision-records/0077-snapshot-max-stale-24h.md)). The overlay does not
 show the copy's age before that point.
 
 A fire's section on a card dates the perimeter: its small print, **NIFC:** and
@@ -1075,7 +1075,7 @@ VIIRS feed ends on 2026-11-02, so the layer reads two VIIRS satellites, not
 three. The geostationary GOES detections are left out: they are 2 km
 pixels every few minutes, a different picture. See
 [API.md](API.md#fire-detections) for the route, and
-[record 0246](decisions/0246-fire-activity-from-firms-files.md) for why it is
+[record 0246](architectural-decision-records/0246-fire-activity-from-firms-files.md) for why it is
 built this way.
 
 ## Smoke

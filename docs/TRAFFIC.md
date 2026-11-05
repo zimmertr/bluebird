@@ -95,7 +95,7 @@ read-only preview, and for any call the database does not answer within
 R replicas the effective ceiling is about R times the configured number, and
 that slop is accepted (the goal is a bound, not precision). The discovery slot
 and the in-flight caps stay per pod either way. Record:
-[0181](decisions/0181-shared-limits-and-nominatim-intervals.md) All knobs are env vars, documented in the
+[0181](architectural-decision-records/0181-shared-limits-and-nominatim-intervals.md) All knobs are env vars, documented in the
 [CONFIGURATION.md table](CONFIGURATION.md#configuration); the per-client
 buckets are also published to clients by `GET /api/capabilities`, under
 `limits.rate`.
@@ -132,7 +132,7 @@ flow starve real analyses. The browser also spends it ahead of Analyze: where
 its kinds have been still for 1.5 s, one count at a time and never two within
 2 s, which is the bucket's refill interval, so a reader reshaping a ring cannot
 drain the token the analysis then needs (#803, record
-[0235](decisions/0235-count-the-ring-and-price-the-spend-before-analyze.md)).
+[0235](architectural-decision-records/0235-count-the-ring-and-price-the-spend-before-analyze.md)).
 The analysis takes the counted field rather than asking again. On `overpass` it
 counts nothing.
 
@@ -140,7 +140,7 @@ A bucket bounds how often an address starts a request, not how much of an
 upstream budget it holds while the request runs, so two buckets are
 sized against the budget behind them rather than against the request's own
 cost ([#627](https://github.com/zimmertr/bluebird/issues/627), record
-[0103](decisions/0103-ipv6-by-64-and-one-discovery-per-address.md)):
+[0103](architectural-decision-records/0103-ipv6-by-64-and-one-discovery-per-address.md)):
 
 - **Geocode** sits in front of the Nominatim gate, which every visitor shares
   and which sheds a search booked more than 5 s out. The bucket's
@@ -230,7 +230,7 @@ not mint fresh buckets), else the socket peer. That address is then counted by i
 than as text: an IPv6 address is keyed on its /64, an IPv4 address written in
 IPv6's mapped form on its IPv4 address, and every spelling of one address is
 one key ([#627](https://github.com/zimmertr/bluebird/issues/627), record
-[0103](decisions/0103-ipv6-by-64-and-one-discovery-per-address.md)). The zone
+[0103](architectural-decision-records/0103-ipv6-by-64-and-one-discovery-per-address.md)). The zone
 serves IPv6, so an IPv6 visitor's whole address reaches the pod, and every
 IPv6 client holds at least a /64 it can pick addresses from at will: a key per
 address handed it a fresh, full bucket per request. A /64 groups a household,
@@ -361,7 +361,7 @@ access-log line. The innermost layer in `backend/app/main.py` now answers it
 first, as the API's `internal` error with the failure's own text kept in the
 log, and it leaves through every layer like any other error
 ([#631](https://github.com/zimmertr/bluebird/issues/631), record
-[0107](decisions/0107-unhandled-exception-answered-innermost.md)). The one
+[0107](architectural-decision-records/0107-unhandled-exception-answered-innermost.md)). The one
 answer still outside them is a failure inside one of those layers itself,
 which Starlette answers with a plain-text `500` and no headers. The app owns them
 rather than the mesh because the interesting one is a list of the hosts the
@@ -420,7 +420,7 @@ A browser cannot be told to forget a `max-age` it has already read. That is why
 the value is six months and not the two years a preload list asks for, why no
 subdomain is covered, and why the pod is not a second voice on the same claim:
 a second source makes a wrong value harder to withdraw. Decision record
-[0084](decisions/0084-hsts-at-the-edge-six-months.md) has the reasoning. A
+[0084](architectural-decision-records/0084-hsts-at-the-edge-six-months.md) has the reasoning. A
 self-hosted instance that terminates its own TLS sets the header at whatever
 terminates it, for the same reason. The zone's TLS floor, DNS records and WAF
 state sit beside these settings, and are recorded under "Zone TLS, DNS and
@@ -547,7 +547,7 @@ event Vite raises on that failure and reloads the page once, so the tab picks
 up the new document; the URL carries the inputs, so the reload loses only what
 the URL does not. A session reloads at most once per build, so a build whose
 own chunk is missing falls through to the error screen rather than reloading
-forever. Record: [0087](decisions/0087-stale-tab-reloads-once.md)
+forever. Record: [0087](architectural-decision-records/0087-stale-tab-reloads-once.md)
 
 The middleware sets the header only where the response has none, so a route
 keeps a value of its own. `GET /api/capabilities` is the one route that takes
@@ -642,8 +642,8 @@ upstream while the database answers. A new deployment answers each overlay's
 no row exists, each pod downloads the three files itself, about 28 MB, and
 holds them for an hour before it reads the row again, so a PR preview, which
 reads production's row and writes none, fetches FIRMS once an hour per pod
-until production has written one. Record: [0182](decisions/0182-shared-snapshots.md),
-[0246](decisions/0246-fire-activity-from-firms-files.md)
+until production has written one. Record: [0182](architectural-decision-records/0182-shared-snapshots.md),
+[0246](architectural-decision-records/0246-fire-activity-from-firms-files.md)
 
 The two overlays added in
 [#121](https://github.com/zimmertr/bluebird/issues/121) split on that same

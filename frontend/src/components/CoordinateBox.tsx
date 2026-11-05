@@ -25,7 +25,7 @@ interface Props {
 /**
  * The coordinates box under Coordinate search: the textarea and a gutter that
  * numbers its lines, flagging each line the parse drops (#838, record
- * [0265](../../../docs/decisions/0265-coordinate-box-numbers-and-flags-its-lines.md)).
+ * [0265](../../../docs/architectural-decision-records/0265-coordinate-box-numbers-and-flags-its-lines.md)).
  *
  * The gutter is a column of numbers beside the textarea rather than an
  * editor, for the cold load's sake (`COORD_BOX`). Wrapping is off, so one line

@@ -71,5 +71,5 @@ description: Add a new destination type (the OSM feature kinds Bluebird Forecast
   elevation) and where its link goes; `docs/ARCHITECTURE.md` and the root `CLAUDE.md`'s
   Architecture step 2 describe discovery; and the nested `CLAUDE.md` bullets for each
   file above.
-- **Add a decision record** under [`docs/decisions/`](../../../docs/decisions/README.md)
+- **Add a decision record** under [`docs/architectural-decision-records/`](../../../docs/architectural-decision-records/README.md)
   saying why this type, and link it from Architecture step 2 in the root `CLAUDE.md`.
