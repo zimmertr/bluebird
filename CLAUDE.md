@@ -201,4 +201,9 @@ The end-to-end checklist is the `add-destination-type` skill (`.claude/skills/ad
 
 ## Filing issues
 
-Never file an issue unasked; confirm first. The format (a summary and six sections), the writing rules, and the label rules (exactly one of P1/P2/P3 plus areas and a type; `PM` is never yours to add) are the `create-issue` skill (`.claude/skills/create-issue/SKILL.md`), which carries the section skeleton itself.
+Never file an issue unasked; confirm first. The format (a summary and six sections), the writing rules, and the label rules (exactly one of P1/P2/P3 plus areas and a type; `PM` is never yours to add) are the `create-issue` skill, which carries the section skeleton itself. The skill is shared across the maintainer's repos from [zimmertr/ai-config](https://github.com/zimmertr/ai-config) and linked into `~/.claude/skills`; it reads the four things below from this section. Record: [0272](docs/architectural-decision-records/0272-shared-create-issue-skill.md)
+
+- **The reader**: a hiker who does not read code.
+- **The gates**: both test suites pass inside Docker; regenerate `backend/openapi.json` on contract changes; regenerate the weather vectors on aggregation changes; update the owning `docs/` page in the same PR.
+- **The constraints**: tests run only inside Docker; `metrics.ts` and `styles.ts` are the only sources for metric names and styles; new user-facing text needs the maintainer's approval before it ships.
+- **The areas**: `frontend`, `backend`, `ci`, `kubernetes`, `security`, `compliance`, `ux`, `infra`, `data-sources`, `docker`.

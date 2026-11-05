@@ -13,8 +13,8 @@ Every ``npm ci`` passes ``--ignore-scripts``: the app's lockfile holds two
 packages with an install script, ``fsevents`` (macOS only) and
 ``@scarf/scarf`` (install telemetry), and none that needs one on Linux.
 
-Every npm and pip Dependabot entry carries a cooldown, because a patch bump
-auto-merges and a merge to main deploys.
+Every npm and pip Dependabot entry carries a cooldown, because a patch or minor
+bump auto-merges and a merge to main deploys.
 """
 
 from __future__ import annotations

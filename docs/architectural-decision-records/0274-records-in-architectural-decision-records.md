@@ -18,7 +18,7 @@ The folder is `docs/architectural-decision-records/`. Nothing inside it changes:
 ## Evidence
 
 - 2026-11-05: 28 files carried the old path. After the move, every relative Markdown link into the folder was resolved from its own file: 796 links, all resolving, except one that was already broken on main (below).
-- Three links were already broken on main. Two are fixed here: `frontend/src/components/CLAUDE.md` linked `0243-chart-metrics-as-panels.md`, which is record 0255, and `frontend/src/utils/chart/CLAUDE.md` linked 0256 one directory short. The third, `0187-fill-heartbeat-and-pool-check.md` in `backend/CLAUDE.md`, names a record that doesn't exist (0187 is the coverage record) and is left for the maintainer.
+- Three links were already broken on main, and all three are fixed here. `frontend/src/components/CLAUDE.md` linked `0243-chart-metrics-as-panels.md`, which is record 0255, and `frontend/src/utils/chart/CLAUDE.md` linked 0256 one directory short. The third, `0187-fill-heartbeat-and-pool-check.md` in `backend/CLAUDE.md`, named a record that doesn't exist (0187 is the coverage record), and the maintainer had it deleted (2026-11-05: "Delete it then").
 - No code, test, workflow or build file reads the path; every mention is a link or a comment.
 
 ## Alternatives rejected
