@@ -216,13 +216,10 @@ function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView, 
   const ground = slopeFact(view.ground)
   const facts = (type: string | null, elevationFt: number | null | undefined, lat: number, lon: number) =>
     factsRow(type, elevationFt != null ? elevationFact(elevationFt) : null, lat, lon, caltopoUrl(lat, lon, view.mapZoom), ground)
-  // A destination named by its coordinates would say the pair twice, as its
-  // name and as its first fact (TJ, 2026-11-03). Its header is the spot's:
-  // the pair as the title, opening CalTopo, and the facts under it without
-  // the pair.
+  // A destination named by its coordinates has the spot's header: the pair
+  // as the title, opening CalTopo, the pair again under it and the facts
+  // (`pointFacts`), so every card stands on the same three lines.
   const spotLink = (lat: number, lon: number) => ({ href: caltopoUrl(lat, lon, view.mapZoom), label: 'Open in CalTopo' })
-  const spotFacts = (type: string | null, elevation: string | null) =>
-    factsLine([type ? escapeHtml(type) : '', elevation ? factValue(escapeHtml(elevation)) : '', ground])
   switch (s.kind) {
     case 'ranked': {
       const r = s.row
@@ -245,7 +242,7 @@ function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView, 
         meta: metaBand([
           modelOnBand && identity.model ? `<div>${escapeHtml(identity.model)}</div>` : '',
           spot
-            ? spotFacts(identity.type, elevation)
+            ? pointFacts(r.latitude, r.longitude, r.elevation_ft == null ? GROUND : elevation, view)
             : factsRow(identity.type, elevation, r.latitude, r.longitude, caltopoUrl(r.latitude, r.longitude, view.mapZoom), ground),
         ]),
       }
@@ -259,7 +256,7 @@ function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView, 
         return {
           title: escapeHtml(p.name),
           link: spotLink(p.latitude, p.longitude),
-          meta: metaBand([spotFacts(type, p.elevation_ft != null ? elevationFact(p.elevation_ft) : null)]),
+          meta: metaBand([pointFacts(p.latitude, p.longitude, p.elevation_ft != null ? elevationFact(p.elevation_ft) : GROUND, view)]),
         }
       }
       return {
@@ -356,15 +353,29 @@ const ANALYZED = 'Analyzed'
  */
 export const SPOT_GROUND_CH = '29,032 ft'.length + 3 + SLOPE_FACT_CH
 
+/** Where a point's height is the ground's, read from the terrain tile, since the point has none recorded. */
+const GROUND = Symbol('ground')
+
 /**
- * A spot's ground: the tile's height in feet, then the slope, since a bare
- * point has no height of its own recorded.
+ * The lines under a point's title, a spot's or a destination's named by its
+ * coordinates, laid out as every card's are (TJ, 2026-11-04): the pair,
+ * opening CalTopo, though the title says it too, then `Coordinates`, the
+ * Type column's word for such a row, its height and the slope. A spot
+ * before an analysis and the same point after it say the same three lines:
+ * a point with no height of its own takes the ground's, which a spot's card
+ * read from the tile and an analyzed one left out. `elevation` is the
+ * height as the facts say it, null where the reader's columns leave it out,
+ * or `GROUND`.
  */
-function spotGround(ground: GroundState | undefined): string {
-  if (!ground || ground.kind === 'none') return ''
-  if (ground.kind === 'pending') return factsLine([pendingValue(SPOT_GROUND_CH)])
+function pointFacts(lat: number, lon: number, elevation: string | null | typeof GROUND, view: CardView): string {
+  const pair = factsRow(null, null, lat, lon, caltopoUrl(lat, lon, view.mapZoom))
+  const ground = view.ground
+  const word = escapeHtml(String(TYPE_COL.format!('custom')))
+  if (elevation !== GROUND) return pair + factsLine([word, elevation ? factValue(escapeHtml(elevation)) : '', slopeFact(ground)])
+  if (!ground || ground.kind === 'none') return pair + factsLine([word])
+  if (ground.kind === 'pending') return pair + factsLine([word, pendingValue(SPOT_GROUND_CH)])
   const feet = Math.round(ground.reading.elevationM * FEET_PER_METER)
-  return factsLine([factValue(escapeHtml(elevationFact(feet))), slopeFact(ground)])
+  return pair + factsLine([word, factValue(escapeHtml(elevationFact(feet))), slopeFact(ground)])
 }
 
 /**
@@ -396,8 +407,9 @@ function layerSection(section: PointSection, view: CardView): string {
 
 /**
  * The card for a subject as the map sees it now. A spot's title is the pair,
- * and its link-out glyph opens CalTopo there (`Open in CalTopo`), since the
- * title already says what the facts' pair would (TJ, 2026-10-30). Under the
+ * and its link-out glyph opens CalTopo there (`Open in CalTopo`, TJ
+ * 2026-10-30), with the pair again under it as every card has (`pointFacts`,
+ * TJ 2026-11-04). Under the
  * band, the layers' sections in the map's rank and then the forecast's, each
  * heading on a band of its own (`cardSections`).
  */
@@ -411,7 +423,7 @@ export function destinationPopupHtml(s: CardSubject, view: CardView = {}): strin
       ? {
           title: escapeHtml(coordinateLabel(at.lat, at.lon)),
           link: { href: caltopoUrl(at.lat, at.lon, view.mapZoom), label: 'Open in CalTopo' },
-          meta: metaBand([spotGround(view.ground)]),
+          meta: metaBand([pointFacts(at.lat, at.lon, GROUND, view)]),
         }
       : placeHeader(s, view, forecast === null)
   const sections = [...(view.sections ?? []).map((section) => layerSection(section, view)), forecast].filter(

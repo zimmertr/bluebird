@@ -556,20 +556,30 @@ describe('a pending card', () => {
     expect(html).not.toContain(POPUP_BODY_ATTR)
   })
 
-  // A pasted or clicked spot is named by its pair, which stood as the title
-  // and again as the first fact (TJ, 2026-11-03): once, as the spot card's.
-  it('says a coordinate-named destination\'s pair once, as the title, opening CalTopo', () => {
+  // A pasted or clicked spot is named by its pair, and its card stands on
+  // the three lines every card does (TJ, 2026-11-04): the pair as the title,
+  // opening CalTopo, the pair again, then `Coordinates`, the height and the
+  // slope, the height the ground's where the point has none of its own.
+  it('stands a coordinate-named destination on three lines, the pair twice, opening CalTopo', () => {
     const ground = { kind: 'read', reading: { elevationM: 1800, degrees: 14.2, aspect: 45 } } as const
     const spot = { name: '48.07030, -121.07337', latitude: 48.0703, longitude: -121.07337, kind: 'coordinates' }
     for (const html of [
       pendingHtml({ pending: { ...spot, source: 'search' }, ground }),
       rankedHtml({ rank: 1, row: resultRow({ ...spot, type: 'coordinates', elevation_ft: null }), ground, columns: WINDOW_COLS }),
     ]) {
-      expect(html.split('48.07030, -121.07337')).toHaveLength(2)
+      expect(markupText(html).split('48.07030, -121.07337')).toHaveLength(3)
       expect(html).toContain('aria-label="Open in CalTopo"')
       expect(html).toContain('href="https://caltopo.com/map.html#ll=48.07030,-121.07337"')
-      expect(markupText(html)).toMatch(/Coordinates\s*·\s*14° NE/)
+      expect(markupText(html)).toMatch(/Coordinates\s*·\s*5,906 ft\s*·\s*14° NE/)
     }
+  })
+
+  // A height of its own wins over the ground's.
+  it("says a coordinate-named destination's own height where it has one", () => {
+    const ground = { kind: 'read', reading: { elevationM: 1800, degrees: 14.2, aspect: 45 } } as const
+    const spot = { name: '48.07030, -121.07337', latitude: 48.0703, longitude: -121.07337, kind: 'coordinates' }
+    const html = pendingHtml({ pending: { ...spot, source: 'search', elevation_ft: 6100 }, ground })
+    expect(markupText(html)).toMatch(/Coordinates\s*·\s*6,100 ft\s*·\s*14° NE/)
   })
 
   it('escapes the name', () => {
@@ -717,9 +727,12 @@ describe('a label card', () => {
 // A click on bare map (#832, TJ 2026-11-03): the spot's own card.
 describe('a spot card', () => {
   // The title is the pair, and its glyph opens CalTopo there (TJ, 2026-10-30).
+  // The pair as the title and again under it, then the Type column's word
+  // for a point, as on every card (TJ, 2026-11-04).
   it('titles the card with the coordinates and links them to CalTopo', () => {
     const html = spotHtml(48.79012, -121.83211, [], { mapZoom: 13 })
-    expect(markupText(html)).toContain('48.79012, -121.83211')
+    expect(markupText(html).split('48.79012, -121.83211')).toHaveLength(3)
+    expect(markupText(html)).toContain('Coordinates')
     expect(html).toContain(`href="${escapeHtml(caltopoUrl(48.79012, -121.83211, 13))}"`)
     expect(html).toContain('aria-label="Open in CalTopo"')
   })
@@ -746,7 +759,7 @@ describe("a spot card's ground", () => {
 
   it('says the height, the slope in its band and the way it faces', () => {
     const html = read(38.7, 40)
-    expect(markupText(html)).toMatch(/8,412 ft\s*·\s*38° NE/)
+    expect(markupText(html)).toMatch(/Coordinates\s*·\s*8,412 ft\s*·\s*38° NE/)
     expect(html).toContain(colorSwatch(SLOPE_BANDS[3].color))
   })
 

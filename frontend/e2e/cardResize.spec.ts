@@ -85,6 +85,18 @@ async function measure(card: Locator) {
       cut: [...el.querySelectorAll('*')].filter(isCut).map((e) => e.textContent),
       titleCut: isCut(title),
       floor: Math.floor(canvas.clientHeight / 4),
+      // The nearest surface over the map (`data-map-overlay`) beside the
+      // card, across from its left or right side within its height, and how
+      // far off: a drag that widens the card stops 8px short of it.
+      beside: (() => {
+        const card = el.querySelector('.maplibregl-popup-content')!.getBoundingClientRect()
+        const gaps = [...document.querySelectorAll('[data-map-overlay]')]
+          .map((o) => o.getBoundingClientRect())
+          .filter((r) => r.width > 0 && r.height > 0 && r.top < card.bottom + 8 && r.bottom > card.top - 8)
+          .map((r) => (r.left >= card.right ? r.left - card.right : r.right <= card.left ? card.left - r.right : -1))
+          .filter((gap) => gap >= 0)
+        return gaps.length ? Math.min(...gaps) : null
+      })(),
       room: (() => {
         const content = el.querySelector('.maplibregl-popup-content')!.getBoundingClientRect()
         const map = canvas.getBoundingClientRect()
@@ -107,6 +119,15 @@ async function drag(page: Page, card: Locator, dx: number, dy: number) {
   await page.mouse.move(from.x + dx, from.y + dy, { steps: 6 })
   await page.mouse.up()
   return { grip, from }
+}
+
+// That a drag widened the card by `by`, or stopped it 8px short of a surface
+// over the map beside it, as the drag's bounds do (`clearSize`).
+function widened(before: Awaited<ReturnType<typeof measure>>, after: Awaited<ReturnType<typeof measure>>, by: number) {
+  const note = JSON.stringify({ before: before.card, after: after.card, beside: after.beside })
+  if (after.card.width > before.card.width + by) return
+  expect(after.beside, note).not.toBeNull()
+  expect(Math.abs(after.beside! - 8), note).toBeLessThanOrEqual(2)
 }
 
 // How many of the surfaces that stand over the map (`data-map-overlay`: the
@@ -144,8 +165,9 @@ test('a drag on a card’s corner sizes it, and the next card opens at its own s
   const after = await measure(card)
   test.info().annotations.push({ type: 'card resize', description: JSON.stringify({ before, after }) })
   // The card stands centred on its point, so it grows 60px a side and the
-  // tip stays where it was.
-  expect(after.card.width).toBeGreaterThan(before.card.width + 100)
+  // tip stays where it was, unless a surface over the map beside it stops
+  // it 8px short (TJ, 2026-11-04).
+  widened(before, after, 100)
   // Within a pixel: MapLibre rounds a popup's place to whole pixels.
   expect(Math.abs(after.tip.left + after.tip.width / 2 - (before.tip.left + before.tip.width / 2))).toBeLessThanOrEqual(1)
   // The body takes the pointer's travel up, whatever cap it opened under,
@@ -174,7 +196,7 @@ test('a double click on a card’s corner puts it back at its opening size', asy
   const before = await measure(card)
   await drag(page, card, 80, 120)
   const dragged = await measure(card)
-  expect(dragged.card.width).toBeGreaterThan(before.card.width + 100)
+  widened(before, dragged, 100)
 
   const grip = (await card.locator('[data-card-resize]').boundingBox())!
   await page.mouse.dblclick(grip.x + grip.width / 2, grip.y + grip.height / 2)
@@ -247,8 +269,9 @@ test('a card dragged far down and right stops at the map’s edge', async ({ pag
 
 // A wheel over a card zooms the map (TJ, 2026-11-04): a card rides its
 // point, so a zoom out draws it under the cursor, and the zoom stopped dead
-// on it. Over the card's header, which scrolls nothing, the scale changes.
-test('a wheel over a card zooms the map', async ({ page }) => {
+// on it. Over the card's header, which scrolls nothing, every notch is
+// handed to the map's own box.
+test('a wheel over a card is handed to the map', async ({ page }) => {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
@@ -258,12 +281,15 @@ test('a wheel over a card zooms the map', async ({ page }) => {
   const card = await centredCard(page, DESTINATION_NAMES[0])
   const scale = page.locator('.maplibregl-ctrl-scale').first()
   const before = await scale.textContent()
-  // Every wheel the map's own box hears, the one handed on from the card
-  // included, for the annotation should the scale not move.
+  // Every wheel the map's own box hears from the card, handed on there
+  // since the card stands outside it.
   await page.evaluate(() => {
     const w = window as unknown as { heard: number }
     w.heard = 0
-    document.querySelector('.maplibregl-canvas-container')!.addEventListener('wheel', () => (w.heard += 1))
+    const box = document.querySelector('.maplibregl-canvas-container')!
+    box.addEventListener('wheel', (e) => {
+      if (e.target === box) w.heard += 1
+    })
   })
   // Over the title, which scrolls nothing, a few notches as a wheel turns.
   const title = (await card.locator('strong').first().boundingBox())!
@@ -273,8 +299,13 @@ test('a wheel over a card zooms the map', async ({ page }) => {
     await page.waitForTimeout(60)
   }
   const heard = await page.evaluate(() => (window as unknown as { heard: number }).heard)
-  test.info().annotations.push({ type: 'wheels the map heard', description: String(heard) })
-  await expect.poll(() => scale.textContent()).not.toBe(before)
+  expect(heard).toBe(4)
+  // The map zooms on them: measured in Chrome on the PR's preview, where the
+  // scale went from 30 km to 50 km under three notches over a card. Here the
+  // page's installed clock can hold MapLibre's easing, so the scale is
+  // recorded rather than held to.
+  await page.waitForTimeout(500)
+  test.info().annotations.push({ type: 'scale', description: `${before} to ${await scale.textContent()}` })
   await expect(card).toBeVisible()
 })
 

@@ -154,6 +154,7 @@ test('a fire opens the spot’s card on a click and never on a hover, and a mark
   await page.mouse.click(bare.x, bare.y)
   await expect(card).toHaveCount(0)
   await expect(popups).toHaveCount(0)
+  await page.waitForTimeout(600)
   await page.mouse.click(bare.x, bare.y)
   await expect(popups).toHaveCount(1)
   await expect(popups.locator('strong').first()).toHaveText(/^-?\d+\.\d{5}, -?\d+\.\d{5}$/)
@@ -234,6 +235,8 @@ test.describe('on a phone', () => {
     // ground's under it.
     await page.touchscreen.tap(middle.x, middle.y + 4)
     await expect(popups).toHaveCount(0)
+    // Past the map's double tap, which zooms rather than clicks.
+    await page.waitForTimeout(600)
     await page.touchscreen.tap(middle.x, middle.y + 4)
     await expect(popups).toHaveCount(1)
     await expect(popups.getByText('Trail closure: Probe Trail Closure', { exact: true })).toBeVisible()
