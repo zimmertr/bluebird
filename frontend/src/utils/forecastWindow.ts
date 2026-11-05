@@ -125,7 +125,7 @@ export function archiveBoundaryMs(
 /**
  * Where the browser joins a spanning window's two fetches: the first hour of
  * the reader's LOCAL day that the boundary instant falls in (#579, the
- * maintainer, 2026-10-01). Record: docs/decisions/0072.
+ * maintainer, 2026-10-01). Record: docs/architectural-decision-records/0072.
  *
  * The boundary itself stays a UTC midnight, on both sides, because the backend
  * has no reader's zone and classifies by it. Splitting AT it put the seam in

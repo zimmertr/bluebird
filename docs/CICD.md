@@ -173,7 +173,7 @@ the newest release (#632).
    the repository's Actions cache is already over its limit, so every release
    installs Debian's packages as they stand that day. The chart runs the fill
    at its `appVersion`, so every release needs one. Record:
-   [0184](decisions/0184-planet-fill-cronjob-and-image.md)
+   [0184](architectural-decision-records/0184-planet-fill-cronjob-and-image.md)
 3. **Scan Pushed Image** — Trivy, once per image and platform
    (`zimmertr/bluebird` and `zimmertr/bluebird-fill`, each on `linux/amd64`
    and `linux/arm64`), against each image's digest from step 2, with the
@@ -688,7 +688,7 @@ Until #787 this step ran a full analysis on the free Open-Meteo quota, which
 the cluster shares with every browser on the home network. On a busy day the
 pod answered `429` and the release aborted. A release still cannot ship while
 discovery cannot answer from the table or from Overpass, but an Open-Meteo
-outage no longer holds one. Record: [0230](decisions/0230-release-gate-calls-no-third-party.md)
+outage no longer holds one. Record: [0230](architectural-decision-records/0230-release-gate-calls-no-third-party.md)
 
 Both gates hit the canary Service in-cluster rather than the public hostname,
 which is why the controller needs no route back in through the gateway. The
@@ -810,7 +810,7 @@ The pipeline is also the only supported way to deploy. An image built by hand
 reports `dev` from `/api/version` unless it is given the build args of Path 1,
 step 2, so the canary's `version-check` refuses it; and it carries one
 architecture and no SBOM or provenance. Decision record
-[0083](decisions/0083-fix-forward-no-hand-deploy.md) has the reasoning. A
+[0083](architectural-decision-records/0083-fix-forward-no-hand-deploy.md) has the reasoning. A
 release run that fails before its image reaches the cluster is a different
 problem, with its own recovery: [Finishing a failed release](#finishing-a-failed-release).
 
@@ -1383,7 +1383,7 @@ flowchart LR
   own memory. The maintainer accepted this on one condition (2026-10-18): only
   while that database holds nothing but public data the fill can rebuild. If
   it ever holds anything else, previews must stop reading it. Record:
-  [0183](decisions/0183-previews-read-production-read-only.md)
+  [0183](architectural-decision-records/0183-previews-read-production-read-only.md)
 - **A preview lives for as long as its PR carries `create pr container`.** It
   has no age limit. The maintainer ends one by removing the label or closing the
   PR; the generator then stops templating `bluebird-pr-<N>` on its next poll, the
@@ -1391,7 +1391,7 @@ flowchart LR
   it deployed. A push to an owner's PR re-adds the label through
   `pr-preview.yml`, so a preview whose label was removed comes back with the next
   commit, or by adding the label by hand. Previews keep `LOG_LEVEL=TRACE`.
-  Record: [0110](decisions/0110-previews-live-while-labelled.md)
+  Record: [0110](architectural-decision-records/0110-previews-live-while-labelled.md)
 - **Previews run in their own namespace, `bluebird-pr-system`**, after
   Kubernetes-Manifests#1391; until it merges they run in `bluebird-system`
   beside production. The namespace is created by `root-appprojects` from
@@ -1401,7 +1401,7 @@ flowchart LR
   VirtualService, Service and Deployment are rendered into it by the chart,
   which takes every namespace from the release; previews serve plain HTTP on
   their LAN hostnames, so no certificate is involved.
-  Record: [0110](decisions/0110-previews-live-while-labelled.md)
+  Record: [0110](architectural-decision-records/0110-previews-live-while-labelled.md)
 
 ## Unattended maintenance
 
@@ -1489,7 +1489,7 @@ Alpine published into that gap stayed out of every release until someone ran
 1.3.2-r1 already in Alpine's index and the base the newest published (alert
 39, CVE-2026-85091, 2026-10-14). **The remedy is the next merge to `main`**:
 its release rebuilds the layer and ships the fix, and nothing needs clearing.
-Record: [0197](decisions/0197-apk-upgrade-on-every-build.md)
+Record: [0197](architectural-decision-records/0197-apk-upgrade-on-every-build.md)
 
 This job scans a published image rather than a checkout, so its `actions/checkout`
 step exists purely to read `trivy.yaml`. That is deliberate: without the PR gate's
@@ -1510,7 +1510,7 @@ is why it is a package apart from the app in the first place. The linter's
 package ignores them for the same reason, one major later: typescript-eslint
 throws on TypeScript 7 rather than degrading, so that package stays on 6. `dependabot-auto-merge.yml` enables **squash
 auto-merge for patch and minor bumps** — GitHub completes the merge once
-`main`'s required checks pass; **major bumps wait for manual review**. Record: [0273](decisions/0273-dependabot-minor-updates-merge-themselves.md)
+`main`'s required checks pass; **major bumps wait for manual review**. Record: [0273](architectural-decision-records/0273-dependabot-minor-updates-merge-themselves.md)
 When it arms auto-merge it also posts a marker-guarded comment on the PR saying
 so (and how to stop it), so the self-merge is visible from the PR page rather
 than something to infer from the merge timeline.
@@ -1624,7 +1624,7 @@ costs](#what-a-stable-chart-bump-costs).
 
   The body never counts: a `BREAKING CHANGE:` footer, or a body line that
   starts `fix!:`, changes nothing, so a major is always the title's `!`
-  ([0080](decisions/0080-major-from-the-title-only.md)). A title that starts
+  ([0080](architectural-decision-records/0080-major-from-the-title-only.md)). A title that starts
   `BREAKING CHANGE:` names no type, so it is not read, and the PR Title check
   refuses it. GitVersion matches without regard to case. A `!` anywhere else
   in the title (`fix: stop the crash!`) is not a major. Dependabot's
@@ -1654,7 +1654,7 @@ costs](#what-a-stable-chart-bump-costs).
   and the automatic PR that follows the app's 1.0.0 then releases chart 1.0.1.
   Do not put the `!` on the automatic PR either: auto-merge is armed the
   moment it opens, so retitling it races its own merge. The engine runs behind
-  this order are in [0080](decisions/0080-major-from-the-title-only.md).
+  this order are in [0080](architectural-decision-records/0080-major-from-the-title-only.md).
 - **Release guards** in both release pipelines make a re-run finish a release
   rather than repeat it: each piece (image or chart, git tag, GitHub release) is
   made only when missing, and a run whose version has all three is a no-op. See

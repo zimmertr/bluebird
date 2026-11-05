@@ -20,7 +20,7 @@
  * roads, rail, buildings and boundaries. A symbol among the ground (Liberty's
  * one-way arrows, between its roads and its bridges) is ground: sorting it
  * with the labels would put every overlay under the bridges drawn after it.
- * Record: docs/decisions/0269-one-map-layer-order.md
+ * Record: docs/architectural-decision-records/0269-one-map-layer-order.md
  */
 import type * as maplibregl from 'maplibre-gl'
 import { LAKE_LAYERS } from '../utils/basemapPoi'

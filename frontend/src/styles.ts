@@ -3217,7 +3217,7 @@ export const FIELD =
 
 /**
  * The coordinates box under Coordinate search (#838, record
- * [0265](../../docs/decisions/0265-coordinate-box-numbers-and-flags-its-lines.md)):
+ * [0265](../../docs/architectural-decision-records/0265-coordinate-box-numbers-and-flags-its-lines.md)):
  * a field whose lines are numbered in a gutter, with each line the parse
  * drops flagged there.
  *
