@@ -597,11 +597,14 @@ export function mountMapPopups(
   }
 
   // The height a reader's drag left, held to the range this map gives the
-  // card's body, set on it, and said.
+  // card's body, set on it, and said. Held to the whole free map rather than
+  // the room on the side the card stood on: a re-fit picks the side after
+  // this, and the room on the old side of a point near the map's top would
+  // shrink a card that turns to hang below it, where it has room to spare.
   const standBody = (popup: Popup, body: HTMLElement, px: number): number => {
     const el = popup.getElement()
     const chrome = (el?.offsetHeight ?? 0) - body.offsetHeight
-    const { min, max } = dragBodyRange(regionNow(), chrome, bodyContentHeight(body), roomOf(popup)?.height)
+    const { min, max } = dragBodyRange(regionNow(), chrome, bodyContentHeight(body))
     const height = Math.round(clamp(px, min, max))
     fixPopupBody(body, height)
     return height

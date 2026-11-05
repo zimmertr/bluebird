@@ -219,8 +219,8 @@ describe('mountMapPopups bare map', () => {
   // to dismiss a card on, so every click opened the next (TJ, 2026-11-04).
   it('only closes the open cards on a click on ground while any is open', () => {
     const { register, under, click, opened } = setup()
-    register('smoke', ['smoke-fill'], { ground: true })
-    under('smoke-fill')
+    register('smoke', ['heavy'], { ground: true })
+    under('heavy')
     click()
     expect(opened).toHaveLength(1)
     click()
