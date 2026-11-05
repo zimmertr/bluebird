@@ -138,8 +138,6 @@ const OVERLAYS = {
 } as unknown as MapStageProps['overlays']
 const REPORT: MapStageProps['report'] = { results: [ROW], pending: [] }
 const TABLE_VIEW = { tableColumns: [], analysisModelLabel: 'GFS' } as unknown as MapStageProps['tableView']
-const FIRE = { warnings: new Map() } as unknown as MapStageProps['fire']
-const CLOSURE = { warnings: new Map() } as unknown as MapStageProps['closure']
 const LAYOUT: MapStageProps['layout'] = {
   mapCornerLift: 12,
   sheetLiftPx: 0,
@@ -155,6 +153,7 @@ const ANALYSIS: MapStageProps['analysis'] = {
   progress: null,
   paceRemainingS: null,
   cancel: NOOP,
+  analyzedAtMs: Date.parse('2026-11-03T21:36:00Z'),
 }
 const DRAW: MapStageProps['drawMode'] = {
   drawing: false,
@@ -168,6 +167,7 @@ const MESSAGES = panelMessages()
 const MAP_REF = createRef<MapViewHandle>()
 const URL_SYNC: MapStageProps['urlSync'] = { reportView: NOOP }
 const ON_BASEMAP_FAILED = (_failed: boolean) => {}
+const LOWER_SHEET_FIRST = (then: () => void) => then()
 
 function props(over: Partial<MapStageProps> = {}): MapStageProps {
   return {
@@ -184,8 +184,6 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     timeline: TIMELINE,
     report: REPORT,
     tableView: TABLE_VIEW,
-    fire: FIRE,
-    closure: CLOSURE,
     layout: LAYOUT,
     analysis: ANALYSIS,
     sortBy: DEFAULT_FAMILY_KEY.temp,
@@ -198,6 +196,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     restoredView: null,
     onBasemapFailed: ON_BASEMAP_FAILED,
     maxPolygonPoints: MAX_POLYGON_POINTS,
+    lowerSheetFirst: LOWER_SHEET_FIRST,
     onOpenControls: NOOP,
     controlsSummary: 'Current · NOAA GFS',
     messages: MESSAGES,
@@ -239,8 +238,7 @@ describe('MapStage', () => {
     expect(got.onDrawUpdate).toBe(DRAW.handleDrawUpdate)
     expect(got.searchedPlaces).toBe(INPUTS.places)
     expect(got.popupColumns).toBe(TABLE_VIEW.tableColumns)
-    expect(got.fireWarnings).toBe(FIRE.warnings)
-    expect(got.closureWarnings).toBe(CLOSURE.warnings)
+    expect(got.analyzedAtMs).toBe(ANALYSIS.analyzedAtMs)
     expect(got.gridSpec).toBe(GRID.grid.spec)
     expect(got.gridCells).toBe(GRID.grid.cells)
     expect(got.showWildfires).toBe(true)
@@ -254,6 +252,9 @@ describe('MapStage', () => {
     expect(got.cameraPadBottomPx).toBe(40)
     expect(got.modelId).toBe('gfs_seamless')
     expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)
+    // A tap on the map that opens a card lowers a phone's sheet through the
+    // results view's own callback (TJ, 2026-11-04).
+    expect(got.lowerSheetFirst).toBe(LOWER_SHEET_FIRST)
   })
 
   // The chip row holds Legend and Layers at both widths (#714, record 0174),

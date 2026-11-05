@@ -3,8 +3,9 @@ import type { Locator, Page } from '@playwright/test'
 
 // Every map popup opens on a click, never on a hover, and the smaller target
 // under a click takes it (TJ, 2026-10-08, record 0125): a destination inside
-// a fire opens its own card, a click on the fire around it describes the fire
-// rather than leaving for NIFC, and a cursor resting on the fire opens nothing.
+// a fire opens its own card, a click on the fire around it opens the spot's
+// card there with the fire in a section of its own rather than leaving for
+// NIFC (#832, record 0266), and a cursor resting on the fire opens nothing.
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
@@ -84,7 +85,7 @@ async function resultsOpened(page: Page) {
 const onMap = (page: Page, at: { x: number; y: number }) =>
   page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.classList.contains('maplibregl-canvas') ?? false, at)
 
-test('a fire opens its popup on a click and never on a hover, and a marker inside it takes its own click', async ({
+test('a fire opens the spot’s card on a click and never on a hover, and a marker inside it takes its own click', async ({
   page,
   context,
 }) => {
@@ -126,24 +127,48 @@ test('a fire opens its popup on a click and never on a hover, and a marker insid
   await page.waitForTimeout(800)
   await expect(popups).toHaveCount(0)
 
-  // The marker inside the fire takes the click.
+  // The marker inside the fire takes the click. Its card carries the fire as
+  // a section over the forecast, folded to its heading since an analysis
+  // exists (TJ, 2026-11-04), on the amber band behind the table's mark, a
+  // fire at a destination being a warning.
   await page.mouse.click(marker.x, marker.y)
   await expect(card).toHaveCount(1)
   await expect(card).toContainText(DESTINATION_NAMES[0])
   await expect(popups).toHaveCount(1)
+  await expect(card.getByText('Active wildfire: Probe Fire', { exact: true })).toBeVisible()
+  await expect(card.getByRole('button', { name: 'Active wildfire', exact: true })).toHaveAttribute('aria-expanded', 'false')
+  await expect(card.getByRole('button', { name: 'Forecast', exact: true })).toHaveAttribute('aria-expanded', 'true')
+  const heading = card.getByRole('button', { name: 'Active wildfire', exact: true }).locator('..')
+  await expect(heading).toContainText('⚠️')
+  // The warning band is the amber laid over the plain band the forecast's
+  // heading wears, so the two differ.
+  const fill = (button: string) =>
+    card.getByRole('button', { name: button, exact: true }).locator('..').evaluate((el) => getComputedStyle(el).backgroundColor)
+  expect(await fill('Active wildfire')).not.toBe(await fill('Forecast'))
 
-  // The fire around it describes the fire, in place of the card, and no tab opens.
+  // A click on the fire around it closes the marker's card and opens nothing,
+  // as a click on bare map does (TJ, 2026-11-04). The next opens the spot's
+  // card, titled with the clicked coordinates, its fire section folded as on
+  // every card after an analysis and linked to NIFC from its heading, and no
+  // tab opens.
   await page.mouse.click(bare.x, bare.y)
   await expect(card).toHaveCount(0)
+  await expect(popups).toHaveCount(0)
+  await page.waitForTimeout(600)
+  await page.mouse.click(bare.x, bare.y)
   await expect(popups).toHaveCount(1)
-  await expect(popups).toContainText('Probe Fire')
+  await expect(popups.locator('strong').first()).toHaveText(/^-?\d+\.\d{5}, -?\d+\.\d{5}$/)
+  await expect(popups.getByText('Active wildfire: Probe Fire', { exact: true })).toBeVisible()
+  await expect(popups.getByRole('button', { name: 'Active wildfire', exact: true })).toHaveAttribute('aria-expanded', 'false')
   await expect(popups.getByRole('link', { name: /NIFC/ })).toBeVisible()
   expect(tabs).toEqual([])
 })
 
 // A phone has no hover, so a closure's popup opened on nothing there until a
-// tap opened it. A closed trail outranks the closed ground it crosses, and
-// answers a tap a few pixels off its line.
+// tap opened it. A tap on a closure opens the spot's card there, with a
+// section for each closure that reaches it (#832, record 0266): the closed
+// trail first, the closed ground it crosses after. A closed trail answers a
+// tap a few pixels off its line.
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
@@ -182,7 +207,7 @@ test.describe('on a phone', () => {
     },
   ])
 
-  test('a tap opens a closure’s popup, the trail’s within a few pixels of its line', async ({ page }) => {
+  test('a tap opens the spot’s card with each closure’s section, the trail’s tap within a few pixels of its line', async ({ page }) => {
     await page.route('**/api/closures**', (r) => {
       const kind = new URL(r.request().url()).searchParams.get('kind')
       return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(kind === 'trail' ? TRAIL : AREA) })
@@ -201,18 +226,36 @@ test.describe('on a phone', () => {
     // once both layers have drawn, which nothing on the page announces.
     await expect(async () => {
       await page.touchscreen.tap(middle.x, middle.y + 120)
-      await expect(popups).toContainText('Probe Area Closure', { timeout: 1_500 })
+      await expect(popups.getByText('Area closure: Probe Area Closure', { exact: true })).toBeVisible({ timeout: 1_500 })
     }).toPass({ timeout: 20_000 })
 
-    // Four pixels off the 2.5px line: the trail, in place of the area.
+    // Four pixels off the 2.5px line: the first tap closes the open card, as
+    // a tap on any ground does (TJ, 2026-11-04), and the next opens a new one
+    // at the tap, the trail's section first in the map's rank and the
+    // ground's under it.
+    await page.touchscreen.tap(middle.x, middle.y + 4)
+    await expect(popups).toHaveCount(0)
+    // Past the map's double tap, which zooms rather than clicks.
+    await page.waitForTimeout(600)
     await page.touchscreen.tap(middle.x, middle.y + 4)
     await expect(popups).toHaveCount(1)
-    await expect(popups).toContainText('Probe Trail Closure')
+    await expect(popups.getByText('Trail closure: Probe Trail Closure', { exact: true })).toBeVisible()
+    await expect(popups.getByText('Area closure: Probe Area Closure', { exact: true })).toBeVisible()
+    await expect
+      .poll(() => popups.locator('[data-card-fold]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label'))))
+      .toEqual(['Trail closure', 'Area closure'])
+    // Before an analysis every section opens, on a phone as at a desk (TJ,
+    // 2026-11-04).
+    expect(await popups.locator('[data-card-fold]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-expanded')))).toEqual([
+      'true',
+      'true',
+    ])
   })
 
   // A card is placed as every card is (#738): a tap just under the chip rows
   // would have stood a closure's card over them, where only a destination's
-  // card used to be fitted, so its name opened under the search pill.
+  // card used to be fitted, so its name opened under the search pill. The
+  // card a tap on a closure opens is the spot's since #832.
   test('a closure card tapped under the search pill stands clear of every button over the map', async ({ page }) => {
     await page.route('**/api/closures**', (r) => {
       const kind = new URL(r.request().url()).searchParams.get('kind')

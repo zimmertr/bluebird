@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import { DOUBLE_PRESS_MS, useGripDrag } from './useGripDrag'
+import { DOUBLE_PRESS_MS } from '../utils/doublePress'
+import { useGripDrag } from './useGripDrag'
 
 // A press on a grip, as the handler sees it: a touch or a mouse, at a time.
 function press(at: number, pointerType = 'touch') {

@@ -43,12 +43,25 @@
 
    Each value is the app's `--ui-*` token for the part it is, declared once
    on the root, where the light theme redefines the tokens, so a card is the
-   panel every popover stands on, its header band and grid columns halfway
-   between that and the raised step, its ranked cell the raised step, its
-   inks, rules, warning amber and header shade the panel's. A value here
-   that is not a token would be a second palette beside the app's, free to
-   drift from it, so `styles.test.ts` fails one, and a light block that says
-   more than the scheme, and measures every pair in both themes. */
+   panel every popover stands on, its header band, section headings and grid
+   columns halfway between that and the raised step, its ranked cell the
+   raised step, its inks, rules, warning amber and header shade the panel's.
+   A value here that is not a token would be a second palette beside the
+   app's, free to drift from it, so `styles.test.ts` fails one, and measures
+   every pair in both themes.
+
+   The light block says three things besides the scheme, and the test holds
+   it to them. The light band halfway between the panel and the raised step,
+   as `--ui-band` paints it for the chart's heads, read 1.06:1 on the light
+   card and all but vanished (TJ, 2026-11-03), where the dark one reads
+   1.18:1. So the light card's band is halfway between the raised step and
+   its hover, a step further, which reads the dark band's 1.18:1 on the
+   light panel, and the ranked cell moves a step too, to the hover, so it
+   stays one step darker than its column. A warning section's heading is
+   the amber over the band: 15% in dark, where the grey glyphs on it read
+   3.3:1 and 20% would take them under 3:1 (2.94:1), and 30% in light,
+   where the amber is a dark brown, the pair the maintainer chose in the
+   design lab (TJ, 2026-11-03). */
 :root {
   --popup-scheme: dark;
   --popup-surface: var(--ui-panel);
@@ -59,8 +72,9 @@
   --popup-rule: var(--ui-frame);
   --popup-shadow: var(--scroll-shade);
   --popup-label: var(--ui-ink-soft);
-  --popup-fine: var(--ui-ink-faint);
+  --popup-fine: var(--ui-ink-soft);
   --popup-warn: var(--ui-warn);
+  --popup-warn-band: color-mix(in srgb, var(--ui-warn) 15%, var(--popup-band));
   --popup-glyph: var(--ui-ink-soft);
   --popup-glyph-hover: var(--ui-accent-ink);
   --popup-thumb: var(--ui-edge-lifted);
@@ -69,9 +83,13 @@
   --popup-close-fill: var(--ui-raised);
   --popup-close-edge: var(--ui-frame);
   --popup-edge: var(--ui-edge);
+  --popup-swatch-edge: var(--ui-swatch-edge);
 }
 :root[data-theme="light"] {
   --popup-scheme: light;
+  --popup-band: color-mix(in oklab, var(--ui-raised-hover) 50%, var(--ui-raised));
+  --popup-ranked: var(--ui-raised-hover);
+  --popup-warn-band: color-mix(in srgb, var(--ui-warn) 30%, var(--popup-band));
 }
 
 /* A ranked family's grid cell carries the table's ink for both themes
@@ -543,14 +561,24 @@
    for it or a long title runs underneath. The lane is the button's width, its
    0.375rem inset and 0.25rem of air, one variable for every popup (record
    0125), wider on a touch screen, where the button is 2.75rem square and
-   reaches past the title's line. */
+   reaches past the title's line.
+
+   A card's button stands 8px off the × at both pointer sizes, the gap the
+   results bar keeps between its groups (`gap-2`), so `Remove` and the ×
+   read as two controls and stand as near as two controls do anywhere else
+   (TJ, 2026-11-04). `--popup-action-clear` is what the button's slot adds to
+   the lane's air to get there: 4px over the desk's 4, and 8px back out of
+   the touch lane's 16 (54 less the 32px × and its 6px inset), which leaves
+   the ×'s 8px press rim meeting the button's edge rather than over it. */
 .maplibregl-popup {
   --popup-close-lane: 2rem;
+  --popup-action-clear: 0.25rem;
 }
 
 @media (hover: none) {
   .maplibregl-popup {
     --popup-close-lane: 3.375rem;
+    --popup-action-clear: -0.5rem;
   }
 }
 

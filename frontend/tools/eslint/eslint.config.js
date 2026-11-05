@@ -153,7 +153,7 @@ const METRIC_SURFACES_ELSEWHERE = [
   // reason.
   'src/utils/panelMessages.ts',
   'src/utils/popup/popupRows.ts',
-  'src/utils/resultPopup.ts',
+  'src/utils/destinationCard.ts',
   // A downloaded file is read in a spreadsheet, where nothing around it says
   // which app wrote the header.
   'src/utils/results/resultsCsv.ts',

@@ -54,7 +54,9 @@ test('the results sheet goes full screen dragged to the top, and comes back down
   await expect.poll(async () => (await sheet.boundingBox())!.y).toBeLessThan(3)
   await expect.poll(() => onTop(controls)).toBe('sheet')
   await expect.poll(() => onTop(fab)).toBe('sheet')
-  await expect(page.locator('[data-map-overlay][inert]')).toHaveCount(1)
+  // The rows and the Analyze button's slot, both surfaces a card keeps
+  // clear of.
+  await expect(page.locator('[data-map-overlay][inert]')).toHaveCount(2)
 
   // Back down to the middle: it holds there, and they come back.
   await dragTo(page, await grip(), 420)

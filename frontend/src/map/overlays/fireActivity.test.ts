@@ -57,9 +57,12 @@ import {
   FIRE_ACTIVITY_MINZOOM,
   FIRE_ACTIVITY_RECOLOR_MS,
   FIRE_ACTIVITY_SORT_KEY,
+  FIRE_ACTIVITY_ROW_LABEL,
   FIRE_ACTIVITY_STROKE,
-  hotspotPopupHtml,
 } from '../../utils/fireActivity'
+import { hotspotSectionAt } from '../../utils/hazardSections'
+import type { FireActivityResponse } from '../../types'
+import { fakeMapPopups } from '../../testSupport/fakeMapPopups'
 import { mountTestPopups } from '../../testSupport/mapPopups'
 import { stubMap } from '../../testSupport/stubMap'
 
@@ -101,8 +104,15 @@ let clock = START
 function setup(zoom = 8) {
   const stub = stubMap({ zoom })
   const { popups: mapPopups, click } = mountTestPopups(stub)
+  // Where the spot's card was asked to open, and a card there; the real card
+  // is `destinationCards.ts`'s.
+  const spots: { lng: number; lat: number }[] = []
+  mapPopups.registerSpot((at) => {
+    spots.push(at)
+    mapPopups.openCard(at, 'Spot', {})
+  })
   const layer = mountFireActivity(stub.map, { popups: mapPopups, online: null, now: () => clock })
-  return { stub, layer, click }
+  return { stub, layer, click, spots }
 }
 
 // A star under a click, as MapLibre hands one over: its point and the
@@ -252,14 +262,21 @@ describe('mountFireActivity', () => {
   })
 
   // Every other thing on the map opens a card on a click, and a star does too
-  // (the maintainer, 2026-10-29), on the star rather than where the click
-  // landed, its age read at the click.
-  it('opens the star’s card on a click, at the star', () => {
-    const { click } = setup()
+  // (the maintainer, 2026-10-29): the spot's card on the star rather than
+  // where the click landed (#832), so two clicks on one star open one card in
+  // one place.
+  it('opens the spot’s card on a click, at the star', () => {
+    const { click, spots } = setup()
     click([star(0)], { lngLat: { lng: -121.49, lat: 47.51 } })
+    expect(spots).toEqual([{ lng: -121.5, lat: 47.5 }])
     expect(popups).toHaveLength(1)
-    expect(popups[0].at).toEqual([-121.5, 47.5])
-    expect(popups[0].html).toBe(hotspotPopupHtml({ properties: DETECTIONS.features[0].properties }, START))
+    expect(popups[0].at).toEqual({ lng: -121.5, lat: 47.5 })
+  })
+
+  it('opens the spot at the click for a star with no point to stand on', () => {
+    const { click, spots } = setup()
+    click([{ ...star(0), geometry: { type: 'LineString', coordinates: [] } }], { lngLat: { lng: -121.49, lat: 47.51 } })
+    expect(spots).toEqual([{ lng: -121.49, lat: 47.51 }])
   })
 
   it('pins a second card on a Shift-click and replaces both on a plain one', () => {
@@ -271,13 +288,15 @@ describe('mountFireActivity', () => {
     expect(popups.map((p) => p.removed)).toEqual([true, true, false])
   })
 
-  it('takes the stars’ cards down when switched off', () => {
-    const { layer, click } = setup()
+  // A section about a star the map no longer draws leaves its card; the card
+  // stays for whatever else it says.
+  it('asks the open cards to read it again when switched off', () => {
+    const { popups: mapPopups, closed, refreshed } = fakeMapPopups()
+    const layer = mountFireActivity(stubMap({ zoom: 8 }).map, { popups: mapPopups, online: null, now: () => clock })
     layer.update({ show: true })
-    click([star(0)])
-    click([star(1)], { shiftKey: true })
     layer.update({ show: false })
-    expect(popups.map((p) => p.removed)).toEqual([true, true])
+    expect(refreshed).toEqual(['fire-activity'])
+    expect(closed).toEqual([])
   })
 
   it('shows the pointer over a star', () => {
@@ -293,5 +312,62 @@ describe('mountFireActivity', () => {
     const signal = fetchFireActivity.mock.calls[0][1] as AbortSignal
     layer.update({ show: false })
     expect(signal.aborted).toBe(true)
+  })
+})
+
+// Every card asks the layer for the hotspot within reach of its point, from
+// the detections it holds (#832), its age read on the overlay's own clock.
+describe('mountFireActivity point target', () => {
+  const AT = { lng: -121.5, lat: 47.5, zoom: 8 }
+  // About 120 miles east, far past the ten a hotspot reaches.
+  const FAR = { lng: -119, lat: 47.5, zoom: 8 }
+  const signal = () => new AbortController().signal
+
+  function mounted() {
+    const fake = fakeMapPopups()
+    const layer = mountFireActivity(stubMap({ zoom: 8 }).map, { popups: fake.popups, online: null, now: () => clock })
+    return { layer, ...fake, target: fake.points[0] }
+  }
+
+  it('is on while the layer is, and paints nothing for the cursor', () => {
+    const { layer, points, target } = mounted()
+    expect(points.map((p) => p.target)).toEqual(['fire-activity'])
+    expect(target.shown()).toBe(false)
+    layer.update({ show: true })
+    expect(target.shown()).toBe(true)
+    expect(target.paints(AT)).toBe(false)
+    layer.update({ show: false })
+    expect(target.shown()).toBe(false)
+  })
+
+  it('tells the open cards when the detections land, and describes the hotspot within reach', async () => {
+    const { layer, target, refreshed } = mounted()
+    expect(await target.read(AT, signal())).toBeNull()
+    layer.update({ show: true })
+    await vi.waitFor(() => expect(refreshed).toEqual(['fire-activity']))
+    const reading = await target.read(AT, signal())
+    expect(reading).toEqual({ section: hotspotSectionAt(DETECTIONS as unknown as FireActivityResponse, AT, START) })
+    expect(reading?.section).toMatchObject({ kind: 'fire-activity', layer: FIRE_ACTIVITY_ROW_LABEL, warning: true })
+    expect(await target.read(FAR, signal())).toBeNull()
+  })
+
+  // The `Detected` row says how long ago by the clock the bands read.
+  it('reads the detection’s age on its own clock at the ask', async () => {
+    const { layer, target, refreshed } = mounted()
+    layer.update({ show: true })
+    await vi.waitFor(() => expect(refreshed).toEqual(['fire-activity']))
+    clock = START + 2 * HOUR
+    const later = await target.read(AT, signal())
+    expect(later).toEqual({ section: hotspotSectionAt(DETECTIONS as unknown as FireActivityResponse, AT, START + 2 * HOUR) })
+    expect(later).not.toEqual({ section: hotspotSectionAt(DETECTIONS as unknown as FireActivityResponse, AT, START) })
+  })
+
+  it('answers nothing once switched off', async () => {
+    const { layer, target, refreshed } = mounted()
+    layer.update({ show: true })
+    await vi.waitFor(() => expect(refreshed).toEqual(['fire-activity']))
+    layer.update({ show: false })
+    expect(refreshed).toEqual(['fire-activity', 'fire-activity'])
+    expect(await target.read(AT, signal())).toBeNull()
   })
 })

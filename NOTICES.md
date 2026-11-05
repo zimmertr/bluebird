@@ -36,8 +36,9 @@ services the data comes from, and the software bundled into the shipped image.
 - [OpenFreeMap](https://openfreemap.org): serves the basemap's vector tiles,
   which are drawn from OpenStreetMap data in the OpenMapTiles schema, and
   which the app also reads for the glaciers the snow card names. The map
-  corner credits OpenFreeMap, OpenMapTiles, and OpenStreetMap
-  through the attribution the tile metadata declares.
+  corner credits the three as `OpenFreeMap | © OpenMapTiles | © OpenStreetMap
+  contributors`, each in the words its licence asks for, which the app
+  rewrites the style's one run-together credit into as the style loads.
 - [Mapterhorn](https://mapterhorn.com/attribution): elevation tiles for the
   optional contours, shaded relief and 3D terrain. The data is licensed per
   source, mostly under CC BY 4.0 or in the US public domain, with Copernicus

@@ -56,13 +56,14 @@ vi.mock('maplibre-gl', () => ({
     getElement() {
       return {
         // The library's content box, which takes the app's card (POPUP_FACE),
-        // and otherwise the one button a popup arms.
+        // and otherwise the one button a popup arms: its click alone, since
+        // the resize handle's pointer listeners land on the same object.
         querySelector: (selector: string) =>
           selector === '.maplibregl-popup-content'
             ? { classList: { add: () => {} } }
             : {
-                addEventListener: (_type: string, fn: () => void) => {
-                  this.state.press = fn
+                addEventListener: (type: string, fn: () => void) => {
+                  if (type === 'click') this.state.press = fn
                 },
               },
       }
@@ -71,12 +72,16 @@ vi.mock('maplibre-gl', () => ({
 }))
 
 import { mountPoiPopups } from './poiPopup'
+import type { GroundReadings } from './groundReadings'
+import type { GroundState } from '../utils/popup/groundFact'
 import { createMapController } from './controller'
 import { mapInputs } from '../testSupport/fixtures'
 import { RESULT_MARKER_LAYER } from './resultsLayer'
 import { mountTestPopups } from '../testSupport/mapPopups'
-import { POI_LAYERS, poiFromFeature, poiToPlace } from '../utils/basemapPoi'
-import { poiPopupHtml } from '../utils/poiPopup'
+import { type BasemapPoi, POI_LAYERS, poiFromFeature, poiToPlace } from '../utils/basemapPoi'
+import { type CardView, destinationPopupHtml } from '../utils/destinationCard'
+import { mountDestinationCards } from './destinationCards'
+import { createGridHeads } from './gridHeads'
 import type { Place } from '../utils/geocode'
 import { stubMap } from '../testSupport/stubMap'
 import stateOutlines from '../utils/usStateOutlines.json'
@@ -103,6 +108,7 @@ function setup({
   searchedPlaces = [] as Place[],
   glow = true,
   landmarks = undefined as { pointOf: (osmId: string) => [number, number] | null } | undefined,
+  ground = undefined as GroundReadings | undefined,
 } = {}) {
   const stub = stubMap({
     zoom: MAP_ZOOM,
@@ -111,7 +117,8 @@ function setup({
   const inputs = mapInputs({ drawing, searchedPlaces, onAddPoi: vi.fn(), onRemovePoi: vi.fn(), onRemoveResult: vi.fn() })
   const controller = createMapController(inputs)
   const { popups: mapPopups, click } = mountTestPopups(stub, controller)
-  const pois = mountPoiPopups(stub.map, { controller, popups: mapPopups, landmarks })
+  const cards = mountDestinationCards(stub.map, { controller, popups: mapPopups, gridHeads: createGridHeads(controller), ground })
+  const pois = mountPoiPopups(stub.map, { popups: mapPopups, cards, landmarks })
   // A click on the summit, with whatever else is drawn there under it.
   const peakClick = (shiftKey = false, also: { layer: { id: string } }[] = []) =>
     click([{ layer: { id: PEAK_LAYER }, geometry: { type: 'Point', coordinates: SUMMIT }, properties: PEAK_PROPS }, ...also], {
@@ -123,6 +130,10 @@ function setup({
 
 // The map's zoom when a card is drawn, which its CalTopo link carries (#712).
 const MAP_ZOOM = 13
+
+// A label's card as the map draws it (`destinationCards.ts`).
+const poiPopupHtml = (poi: BasemapPoi, added: boolean, view: CardView = {}) =>
+  destinationPopupHtml({ kind: 'label', poi }, { mapZoom: MAP_ZOOM, added, ...view })
 
 describe('mountPoiPopups', () => {
   // The click and the cursor are the map's popup system's (`map/mapPopups.ts`).
@@ -139,23 +150,23 @@ describe('mountPoiPopups', () => {
     const { inputs, peakClick } = setup()
     peakClick()
     expect(popups).toHaveLength(1)
-    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false, MAP_ZOOM))
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false))
 
     vi.runAllTimers()
     popups[0].press()
     expect(inputs.onAddPoi).toHaveBeenCalledWith(poiToPlace(PEAK))
-    expect(popups[0].html).toBe(poiPopupHtml(PEAK, true, MAP_ZOOM))
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, true))
 
     vi.runAllTimers()
     popups[0].press()
     expect(inputs.onRemovePoi).toHaveBeenCalledWith(PEAK.lat, PEAK.lon)
-    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false, MAP_ZOOM))
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false))
   })
 
   it('knows a peak the session already holds', () => {
     const { peakClick } = setup({ searchedPlaces: [poiToPlace(PEAK)] })
     peakClick()
-    expect(popups[0].html).toBe(poiPopupHtml(PEAK, true, MAP_ZOOM))
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, true))
   })
 
   // While drawing a label is scenery.
@@ -188,7 +199,7 @@ describe('mountPoiPopups', () => {
       })
     placeClick('label_town', town)
     expect(popups).toHaveLength(1)
-    expect(popups[0].html).toBe(poiPopupHtml(poiFromFeature('label_town', town, NORTH_BEND)!, false, MAP_ZOOM))
+    expect(popups[0].html).toBe(poiPopupHtml(poiFromFeature('label_town', town, NORTH_BEND)!, false))
     placeClick('label_other', { name: 'Capitol Hill', class: 'suburb' })
     expect(popups).toHaveLength(1)
   })
@@ -204,7 +215,7 @@ describe('mountPoiPopups', () => {
     })
     const poi = poiFromFeature('landmark-trailheads', props, MAILBOX)!
     expect(popups).toHaveLength(1)
-    expect(popups[0].html).toBe(poiPopupHtml(poi, false, MAP_ZOOM))
+    expect(popups[0].html).toBe(poiPopupHtml(poi, false))
     expect(popups[0].html).toContain('openstreetmap.org/node/4578891234')
     vi.runAllTimers()
     popups[0].press()
@@ -222,7 +233,7 @@ describe('mountPoiPopups', () => {
     click([{ layer: { id: 'landmark-crags' }, geometry: { type: 'Point', coordinates: DRAWN }, properties: props }], {
       lngLat: { lng: DRAWN[0], lat: DRAWN[1] },
     })
-    expect(popups[0].html).toBe(poiPopupHtml(poiFromFeature('landmark-crags', props, EXACT)!, false, MAP_ZOOM))
+    expect(popups[0].html).toBe(poiPopupHtml(poiFromFeature('landmark-crags', props, EXACT)!, false))
     vi.runAllTimers()
     popups[0].press()
     expect(inputs.onAddPoi).toHaveBeenCalledWith(expect.objectContaining({ lon: EXACT[0], lat: EXACT[1] }))
@@ -230,7 +241,7 @@ describe('mountPoiPopups', () => {
     click([{ layer: { id: 'landmark-crags' }, geometry: { type: 'Point', coordinates: DRAWN }, properties: { ...props, osm_id: 'way/9' } }], {
       lngLat: { lng: DRAWN[0], lat: DRAWN[1] },
     })
-    expect(popups[1].html).toBe(poiPopupHtml(poiFromFeature('landmark-crags', { ...props, osm_id: 'way/9' }, DRAWN)!, false, MAP_ZOOM))
+    expect(popups[1].html).toBe(poiPopupHtml(poiFromFeature('landmark-crags', { ...props, osm_id: 'way/9' }, DRAWN)!, false))
   })
 
   // A crag's search names its state from outlines the markers asked for when
@@ -261,6 +272,19 @@ describe('mountPoiPopups', () => {
     expect(popups.map((p) => p.removed)).toEqual([false, false])
     peakClick()
     expect(popups.map((p) => p.removed)).toEqual([true, true, false])
+  })
+
+  // The ground under the place lands after the card opens (#832).
+  it('draws the slope when its read lands', () => {
+    let state: GroundState = { kind: 'pending' }
+    const redraws: (() => void)[] = []
+    const ground: GroundReadings = { at: () => state, onRead: (r) => redraws.push(r) }
+    const { peakClick } = setup({ ground })
+    peakClick()
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false, { ground: state }))
+    state = { kind: 'read', reading: { elevationM: 2198, degrees: 33.1, aspect: 315 } }
+    for (const redraw of redraws) redraw()
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false, { ground: state }))
   })
 
   it('lights every glow while the panel points at them, and skips a missing one', () => {

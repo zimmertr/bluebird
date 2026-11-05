@@ -10,20 +10,20 @@ import { test, expect } from './fixtures'
 // The container's fonts are not the Mac's, so the test first makes them
 // measure like it: each number takes the letter-spacing that brings it to the
 // Mac's 7.225px a character, and the row labels take the one that brings
-// `Precipitation (in/hr)` to its 109.03px in the app's face (Chrome on macOS,
-// 12px, measured 2026-10-22). Per number rather than per face, because the container's
+// `Precipitation (in/hr)` to its 115.52px in the app's face at the heads'
+// 600 (Chrome on macOS, 12px, measured 2026-11-04; 109.03px at 400). Per number rather than per face, because the container's
 // monospace has no `≥` and draws it from a wider fallback, where the Mac's
 // draws it at one character's width. Without this the container's narrower
 // monospace would pass a grid that scrolls on a Mac.
 
 const MAC_MONO_CHAR_PX = 7.225
 const MAC_WIDEST_LABEL = 'Precipitation (in/hr)'
-const MAC_WIDEST_LABEL_PX = 109.03
+const MAC_WIDEST_LABEL_PX = 115.52
 
 // The widest number each column can print: a five-digit height in Min and
 // Avg, the cloud deck's ceiling bound in Max, and a window total. A stormy
 // window's snowfall can reach three digits of inches; a phone narrower than
-// 393px holds two (`compactGrid`), and a three-digit one scrolls there, which
+// 400px holds two (`compactGrid`), and a three-digit one scrolls there, which
 // TJ accepted for narrow phones.
 const WIDEST = { min: '10,600', max: '≥30,000', avg: '10,600' }
 
@@ -38,6 +38,14 @@ async function openMarkerCard(page: Page) {
   for (let i = 0; i < before; i++) await page.keyboard.press('ArrowRight')
   await expect(heading).toHaveText('Markers')
   await expect(page.locator('.maplibregl-popup [data-popup-body] table')).toBeVisible()
+  await groundLanded(page)
+}
+
+// The ground under the marker lands after the card opens and redraws it
+// (#832), which would undo the widening below: wait until no bar stands in
+// the card for it (`pendingValue` in popupChrome.ts, whatever width it keeps).
+async function groundLanded(page: Page) {
+  await expect(page.locator('.maplibregl-popup [data-pending]')).toHaveCount(0)
 }
 
 /** Make the fonts measure like the Mac's, and put the widest numbers in. */
@@ -54,7 +62,8 @@ async function widenToMac(page: Page, total: string) {
         span.remove()
         return w
       }
-      const labelPad = (labelPx - probe(label, '')) / label.length
+      // At the row head's own weight, which the probe would not inherit.
+      const labelPad = (labelPx - probe(label, 'font-weight:600')) / label.length
       for (const tr of body.querySelectorAll('tr')) {
         const cells = [...tr.querySelectorAll('td')]
         if (!tr.querySelector('th[scope="row"]') || cells.length !== 4) continue
@@ -72,6 +81,10 @@ async function widenToMac(page: Page, total: string) {
         el.style.letterSpacing = `${(monoPx * chars - el.getBoundingClientRect().width) / chars}px`
       }
       for (const el of body.querySelectorAll<HTMLElement>('th[scope="row"]')) el.style.letterSpacing = `${labelPad}px`
+      // A card keeps the width it opened at (TJ, 2026-11-04), and this one
+      // opened on the demonstration's numbers: the hold comes off, so the
+      // card measures as one that opened on the widest would, under its cap.
+      document.querySelector<HTMLElement>('.maplibregl-popup .maplibregl-popup-content')!.style.width = ''
     },
     { monoPx: MAC_MONO_CHAR_PX, label: MAC_WIDEST_LABEL, labelPx: MAC_WIDEST_LABEL_PX, widest: WIDEST, total },
   )
@@ -119,7 +132,9 @@ test.describe('on a desktop', () => {
   test('the widest grid fits the card, with a three-digit total', async ({ page }) => {
     await openMarkerCard(page)
     // The demonstration report is ranked, and the card marks that one number.
-    await expect(page.locator('[data-popup-body] span[style*="font-weight:600"]')).toHaveCount(1)
+    // The one semibold span in a grid cell: a section's key and a row's key are
+    // semibold spans too, outside the grid.
+    await expect(page.locator('[data-popup-body] td span[style*="font-weight:600"]')).toHaveCount(1)
     await widenToMac(page, '123.456')
     await expectFits(page)
   })

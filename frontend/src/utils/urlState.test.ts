@@ -782,6 +782,15 @@ describe('pins encoded once', () => {
     expect(decodeState(reencoded)?.pins).toEqual([tiger, second])
   })
 
+  // A label's comma that reached the link unescaped is the label's, never a
+  // field of its own: a dropped spot came back named `48.56248` (TJ,
+  // 2026-11-04).
+  it('keeps a label whole whose comma arrived unescaped', () => {
+    const pins = decodeState('pins=-121.23742,48.56248,coordinates,,,48.56248,+-121.23742')?.pins
+    expect(pins).toHaveLength(1)
+    expect(pins?.[0]).toMatchObject({ lat: 48.56248, lon: -121.23742, kind: 'coordinates', label: '48.56248, -121.23742' })
+  })
+
   // Links from before carried each field encoded twice. They need not restore
   // exactly (decision 1), but they must not throw, and the fallback above
   // still finds the pin at its coordinates.

@@ -1,8 +1,9 @@
 /**
  * The clickable map labels (the peaks, lakes, places, trailheads and crags
- * `utils/basemapPoi.ts` lists): the popup a click opens, the button in it that
- * adds the place as a destination or takes it back out, and the glow that
- * lights them all while the panel points at them.
+ * `utils/basemapPoi.ts` lists): which place a click on one names, and the glow
+ * that lights them all while the panel points at them. The card it opens, and
+ * the button in it that adds the place as a destination or takes it back
+ * out, are every card's (`destinationCards.ts`, #832).
  *
  * The map already holds these features, the tile labels from the
  * OpenMapTiles source and the trailheads and crags from the pod
@@ -20,23 +21,12 @@ import type * as maplibregl from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
 import type { Point } from 'geojson'
-import {
-  BasemapPoi,
-  isPoiFeature,
-  LAKE_LAYERS,
-  POI_LAYERS,
-  poiFromFeature,
-  poiToPlace,
-  samePoi,
-} from '../utils/basemapPoi'
-import { placeType } from '../utils/geocode'
-import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
-import { loadUsStates, usStatesNow } from '../utils/usStatesLoad'
+import { isPoiFeature, LAKE_LAYERS, POI_LAYERS, poiFromFeature } from '../utils/basemapPoi'
+import { landmarkKindOf } from '../utils/landmarks'
 import { lakeAnchor } from './basemap'
-import type { MapController } from './controller'
+import type { DestinationCards } from './destinationCards'
 import type { LandmarkLayer } from './landmarks'
 import type { MapPopups } from './mapPopups'
-import { landmarkKindOf } from '../utils/landmarks'
 
 export interface PoiPopups {
   /** Light every clickable label, or put them back. */
@@ -46,63 +36,14 @@ export interface PoiPopups {
 export function mountPoiPopups(
   map: maplibregl.Map,
   deps: {
-    controller: MapController
     popups: MapPopups
+    /** Every card on the map, which a label's click opens. */
+    cards: DestinationCards
     /** The marker layer, asked for a clicked trailhead's or crag's exact point. */
     landmarks?: Pick<LandmarkLayer, 'pointOf'>
   },
 ): PoiPopups {
-  const { controller, popups, landmarks } = deps
-
-  function openPoiPopup(poi: BasemapPoi) {
-    // Which registered place this POI is, or null. Held in the closure
-    // rather than re-read from the controller after each click: that
-    // only catches up on React's next render, and the button has to
-    // flip on the click that caused it.
-    let registered = controller.inputs.searchedPlaces.find((p) => samePoi(poi, p)) ?? null
-    const html = () => poiPopupHtml(poi, registered !== null, map.getZoom(), usStatesNow())
-
-    // The result card's width (#712), the rule the facts line was measured
-    // against, and the fit every card gets (`openCard`, #738), built with its
-    // markup so the fit measures the card the reader will see.
-    const { popup } = popups.openCard([poi.lon, poi.lat], html(), { owner: 'poi', result: true })
-
-    // setHTML replaces the content element's children, so the button is a
-    // new node every time and its listener has to be re-armed. The timeout
-    // lets MapLibre attach the markup first, matching the remove-point popup
-    // in `map/drawRing.ts`.
-    function arm() {
-      setTimeout(() => {
-        popup
-          .getElement()
-          ?.querySelector<HTMLButtonElement>(`[${POI_ACTION_ATTR}]`)
-          ?.addEventListener('click', () => {
-            if (registered) {
-              controller.inputs.onRemovePoi(registered.lat, registered.lon)
-              registered = null
-            } else {
-              const place = poiToPlace(poi)
-              controller.inputs.onAddPoi(place)
-              registered = place
-            }
-            popup.setHTML(html())
-            arm()
-          })
-      }, 0)
-    }
-    arm()
-
-    // A crag's search names its state once the outlines are held. The
-    // markers asked for them when the crag came into view, so this waits
-    // only on a card opened before they landed.
-    if (placeType(poi.kind) === 'crag' && usStatesNow() === null) {
-      void loadUsStates().then((states) => {
-        if (!states || !popup.isOpen()) return
-        popup.setHTML(html())
-        arm()
-      })
-    }
-  }
+  const { popups, cards, landmarks } = deps
 
   // A label under a ranked marker, a draw handle or anything else that
   // outranks it is the rank's call (`utils/mapClick.ts`), and in draw mode
@@ -137,7 +78,7 @@ export function mountPoiPopups(
             : drawn
       const poi = poiFromFeature(layer, feature.properties, anchor)
       if (!poi) return false
-      openPoiPopup(poi)
+      cards.open({ kind: 'label', poi }, [poi.lon, poi.lat])
     },
   })
 

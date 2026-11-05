@@ -1,13 +1,14 @@
 /**
  * The satellite fire detections (#799): their source and starburst layer, the
- * card a click on a star opens, the viewport fetch that runs while the layer
- * is on, and the minute timer that moves each detection into its next age
- * band.
+ * section a card carries for the hotspot within reach of its point, the
+ * viewport fetch that runs while the layer is on, and the minute timer that
+ * moves each detection into its next age band.
  *
  * One file owns what one switch turns on and off, so the fetch's abort, the
  * timer and the cards are torn down in the same place they are made. The layer is added
  * once, when the map loads, over the fire perimeters and the closures and
- * under the drawn ring and the result markers (`features.ts`): a detection is
+ * under every name on the map, the drawn ring and the result markers
+ * (`layerOrder.ts`): a detection is
  * a point, and a point over an area it falls in reads where an area over the
  * point would tint it. `update` only fills and empties it.
  *
@@ -17,14 +18,16 @@
  * three bands. Overlap is allowed, so a cluster stays a cluster, and the stars
  * take no room from the map's labels.
  *
- * A click on a star opens its card (`hotspotPopupHtml`), the way a click on a
- * perimeter or a marker opens theirs (the maintainer, 2026-10-29), through
- * the map's one click (`map/mapPopups.ts`), which also gives the star its
- * pointer and Shift its pin.
+ * A click on a star opens the spot's card at the star, with the hotspot's
+ * section on it (`hotspotSectionAt`), the way a click on a perimeter or a
+ * marker opens a card (the maintainer, 2026-10-29; one card for every click,
+ * #832), through the map's one click (`map/mapPopups.ts`), which also gives
+ * the star its pointer and Shift its pin.
  */
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
+import { addLayerAt } from '../layerOrder'
 import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
 import { FIRE_REFETCH_DEBOUNCE_MS } from './wildfires'
@@ -38,10 +41,10 @@ import {
   FIRE_ACTIVITY_STROKE,
   FIRE_STAR_PIXEL_RATIO,
   fetchFireActivity,
-  hotspotPopupHtml,
   starburstSdf,
   withAgeBands,
 } from '../../utils/fireActivity'
+import { hotspotSectionAt } from '../../utils/hazardSections'
 import type { FireActivityResponse } from '../../types'
 import type { BBox } from '../../utils/wildfires'
 import { isAbort } from '../../utils/abort'
@@ -83,7 +86,7 @@ export function mountFireActivity(
   if (!map.hasImage(FIRE_STAR_IMAGE)) {
     map.addImage(FIRE_STAR_IMAGE, starburstSdf(), { sdf: true, pixelRatio: FIRE_STAR_PIXEL_RATIO })
   }
-  map.addLayer({
+  addLayerAt(map, {
     id: FIRE_ACTIVITY_LAYER,
     type: 'symbol',
     source: FIRE_ACTIVITY_SOURCE,
@@ -106,14 +109,23 @@ export function mountFireActivity(
   })
 
   // The card opens on the star rather than where the click landed, so two
-  // clicks on one star open one card in one place. Its age is read at the
-  // click and stays as it was while the card is open.
+  // clicks on one star open one card in one place. Every card asks the layer
+  // for the hotspot within reach of its point, from the detections held; its
+  // age is read at the ask and stays as it was while the card is open.
   deps.popups.register({
     target: 'fire-activity',
     layers: [FIRE_ACTIVITY_LAYER],
     open: ({ feature, lngLat }) => {
-      const at = feature.geometry.type === 'Point' ? (feature.geometry.coordinates as [number, number]) : lngLat
-      deps.popups.openCard(at, hotspotPopupHtml(feature, now()), { owner: 'fire-activity' })
+      deps.popups.openSpot(feature.geometry.type === 'Point' ? (feature.geometry.coordinates as [number, number]) : lngLat)
+    },
+  })
+  deps.popups.registerPoint({
+    target: 'fire-activity',
+    shown: () => showing,
+    paints: () => false,
+    read: (at) => {
+      const section = held && hotspotSectionAt(held, at, now())
+      return section ? { section } : null
     },
   })
 
@@ -152,6 +164,8 @@ export function mountFireActivity(
       held = fc
       drawnBands = null
       draw()
+      // A detection the pan brought in joins the open cards within its reach.
+      deps.popups.refreshPoint('fire-activity')
       recovery.succeeded()
     } catch (err) {
       if (ac.signal.aborted || isAbort(err)) return
@@ -189,8 +203,8 @@ export function mountFireActivity(
       held = null
       drawnBands = null
       setSource(map, FIRE_ACTIVITY_SOURCE, emptyFC)
-      // A card about a star the map no longer draws goes with it.
-      deps.popups.closeAll('fire-activity')
+      // A section about a star the map no longer draws leaves its card.
+      deps.popups.refreshPoint('fire-activity')
     },
     dispose() {
       stop()

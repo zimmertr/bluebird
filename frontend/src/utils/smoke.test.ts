@@ -1,14 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeResponse } from '../testSupport/fixtures'
-import { markupText } from '../testSupport/markupText'
 import {
   SMOKE_DENSITIES,
   SMOKE_EXTENT,
   SMOKE_OPACITY,
   densityOf,
   fetchSmoke,
-  formatObserved,
-  smokePopupHtml,
+  observedSpan,
   smokeSwatch,
 } from './smoke'
 import type { OverlayFailure } from './apiFetch'
@@ -103,77 +101,43 @@ describe('the density ramp', () => {
   })
 })
 
-describe('formatObserved', () => {
+// Bare, since the card's fine print names the source before it (#832).
+describe('observedSpan', () => {
   const morning = Date.parse('2026-08-04T11:00:00')
   const afternoon = Date.parse('2026-08-04T14:00:00')
 
   it('states a same-day window as two times', () => {
-    const line = formatObserved(morning, afternoon)
-    expect(line).toMatch(/^Observed: .+ to .+$/)
+    const line = observedSpan(morning, afternoon)
+    expect(line).toMatch(/^.+ to .+$/)
+    expect(line).not.toContain('Observed')
     // The date is redundant on both sides of a three-hour window.
     expect(line).not.toMatch(/Aug/)
   })
 
   it('dates BOTH ends when a window straddles midnight', () => {
-    const line = formatObserved(Date.parse('2026-08-04T23:00:00'), Date.parse('2026-08-05T02:00:00'))
+    const line = observedSpan(Date.parse('2026-08-04T23:00:00'), Date.parse('2026-08-05T02:00:00'))
     expect((line ?? '').match(/Aug/g)).toHaveLength(2)
   })
 
   it('states a single stamp when HMS gave no end', () => {
-    expect(formatObserved(morning, null)).toMatch(/^Observed: /)
+    const line = observedSpan(morning, null)
+    expect(line).not.toBeNull()
+    expect(line).not.toContain(' to ')
+    expect(line).not.toContain('Observed')
   })
 
   it('omits the line rather than inventing one when the stamp is missing', () => {
-    expect(formatObserved(null, afternoon)).toBeNull()
-    expect(formatObserved(undefined, undefined)).toBeNull()
-    expect(formatObserved(Number.NaN, afternoon)).toBeNull()
+    expect(observedSpan(null, afternoon)).toBeNull()
+    expect(observedSpan(undefined, undefined)).toBeNull()
+    expect(observedSpan(Number.NaN, afternoon)).toBeNull()
     // Finite, and still past the range a Date can hold.
-    expect(formatObserved(1e20, null)).toBeNull()
+    expect(observedSpan(1e20, null)).toBeNull()
   })
 
   // Read like a missing end, so the line never says `Invalid Date`.
   it('states the start alone when the end is past the range a Date can hold', () => {
-    expect(formatObserved(afternoon, 9e15)).toBe(formatObserved(afternoon, null))
-    expect(formatObserved(afternoon, 1e20)).toBe(formatObserved(afternoon, null))
-  })
-})
-
-describe('smokePopupHtml', () => {
-  it('titles the card with the density', () => {
-    expect(smokePopupHtml({ density: 'Heavy' })).toContain('Heavy smoke')
-  })
-
-  // The band names the satellite and no kind word, since the title already
-  // says smoke (#738, TJ 2026-10-16).
-  it('puts the satellite alone on the facts line, with no emoji', () => {
-    const html = smokePopupHtml({ density: 'Light', satellite: 'GOES-WEST' })
-    expect(html).toContain('GOES-WEST')
-    expect(markupText(html)).not.toMatch(/Smoke\s*·/)
-    expect(html).not.toContain('🌫️')
-    expect(html).not.toContain('Traced from')
-  })
-
-  it('drops the satellite rather than leaving a bare dot, and links nowhere', () => {
-    const html = smokePopupHtml({ density: 'Light', satellite: '' })
-    expect(html).not.toContain('·')
-    expect(html).not.toContain('<a ')
-    expect(html).not.toContain('data-popup-body')
-  })
-
-  it('escapes provider text on its way to setHTML', () => {
-    const html = smokePopupHtml({ density: 'Light', satellite: '<img src=x onerror=1>' })
-    expect(html).not.toContain('<img')
-    expect(html).toContain('&lt;img')
-  })
-
-  it('carries the observed window as the one dated line', () => {
-    const html = smokePopupHtml({
-      density: 'Medium',
-      observed_start: Date.parse('2026-08-04T11:00:00'),
-      observed_end: Date.parse('2026-08-04T14:00:00'),
-    })
-    expect(html).toContain('Observed:')
-    expect(html).toContain('font-style:italic')
+    expect(observedSpan(afternoon, 9e15)).toBe(observedSpan(afternoon, null))
+    expect(observedSpan(afternoon, 1e20)).toBe(observedSpan(afternoon, null))
   })
 })
 

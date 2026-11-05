@@ -372,6 +372,9 @@ LINK_ONLY_HOSTS = {
     "www.mountainproject.com",
     "www.nifc.gov",
     "www.nohrsc.noaa.gov",
+    # The credit link the basemap's rewritten attribution carries to the map
+    # corner (record 0262); the tiles come from tiles.openfreemap.org.
+    "www.openmaptiles.org",
     "www.openstreetmap.org",
     "www.ospo.noaa.gov",
     "www.peakbagger.com",

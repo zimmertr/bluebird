@@ -57,6 +57,17 @@ export interface StubMapOptions {
   bounds?: { west: number; south: number; east: number; north: number }
   /** Whether a source reports its tiles loaded. Everything is, by default. */
   sourceLoaded?: (id: string) => boolean
+  /**
+   * Whether the camera is in the air, as under a flight, until the test
+   * fires `moveend`. At rest by default.
+   */
+  moving?: () => boolean
+  /**
+   * The boxes the container's document finds marked `data-map-overlay`, in
+   * the viewport's pixels: what stands over the map, the rows, the player or
+   * a phone's Analyze button. None by default, and no document.
+   */
+  overlays?: { left: number; top: number; right: number; bottom: number }[]
 }
 
 export function stubMap(opts: StubMapOptions = {}) {
@@ -81,7 +92,8 @@ export function stubMap(opts: StubMapOptions = {}) {
   }
   // The container stands at the viewport's origin and belongs to no
   // document, so a module that looks around it for what stands over the
-  // map finds nothing.
+  // map finds nothing, unless the test stands `overlays` there.
+  const overlays = opts.overlays
   const container = {
     getBoundingClientRect: () => ({
       left: 0,
@@ -89,7 +101,9 @@ export function stubMap(opts: StubMapOptions = {}) {
       right: canvas.clientWidth,
       bottom: canvas.clientHeight,
     }),
-    ownerDocument: null,
+    ownerDocument: overlays
+      ? { querySelectorAll: () => overlays.map((r) => ({ getBoundingClientRect: () => r })) }
+      : null,
   }
   const dragPan = { enabled: true, disable: () => (dragPan.enabled = false), enable: () => (dragPan.enabled = true) }
   const b = opts.bounds ?? { west: -122, south: 47, east: -121, north: 48 }
@@ -118,7 +132,14 @@ export function stubMap(opts: StubMapOptions = {}) {
       stack.splice(stack.indexOf(id), 1)
       calls.push(['removeLayer', id])
     },
-    getLayer: (id: string) => (stack.includes(id) ? { id } : undefined),
+    // A layer as MapLibre holds one, as far as `map/layerOrder.ts` reads it to
+    // place the next. An id from `layers` brings no spec, and has its id alone.
+    getLayer: (id: string) => {
+      if (!stack.includes(id)) return undefined
+      const spec: Record<string, unknown> = opts.styleLayers?.find((l) => l.id === id) ?? specs[id] ?? {}
+      return { id, type: spec.type, source: spec.source, sourceLayer: spec['source-layer'] }
+    },
+    getLayersOrder: () => [...stack],
     addSource: (id: string, spec: unknown) => {
       const source: StubSource = {
         setData: (data) => {
@@ -190,6 +211,7 @@ export function stubMap(opts: StubMapOptions = {}) {
       getNorth: () => b.north,
     }),
     isSourceLoaded: (id: string) => opts.sourceLoaded?.(id) ?? true,
+    isMoving: () => opts.moving?.() ?? false,
     triggerRepaint: () => calls.push(['triggerRepaint']),
     refreshTiles: (id: string) => calls.push(['refreshTiles', id]),
     setStyle: (style: unknown, o?: unknown) => calls.push(['setStyle', style, o]),

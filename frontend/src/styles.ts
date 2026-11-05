@@ -1062,6 +1062,84 @@ const SQUARE_BUTTON =
 export const ICON_BUTTON = `px-1 text-ink-soft ${ACCENT.hoverText} transition-colors ${FOCUS_RING}`
 
 /**
+ * The fold on each section of a card on the map (#832): a chevron in a 24px
+ * box at the section's right edge, 32 under a finger, with the card's own
+ * corner radius for its focus ring. Its ink is the card's glyph ink rather
+ * than `ICON_BUTTON`'s, set in the markup (`cardSection` in
+ * `utils/popup/popupChrome.ts`), because a card is a string handed to
+ * MapLibre and its glyphs light under a pointer through `map.css`'s
+ * `data-popup-glyph`, the way the band's link-out does; so this role gives
+ * the box, the ring and the transition and names no colour. The `touch:`
+ * utilities are allowed here and nowhere a component spells one.
+ */
+export const CARD_FOLD = `flex h-6 w-6 shrink-0 items-center justify-center ${RADIUS.control} transition-colors ${FOCUS_RING} touch:h-8 touch:w-8`
+
+/**
+ * The resize handle in a card's bottom-right corner (#832, TJ 2026-11-03): a
+ * 16px box at a desk, its grip drawn in the corner 2px in from both edges,
+ * and the 32px of a phone's controls under a finger (record 0223), grown up
+ * and to the left so it never reaches past the card: over the body's last
+ * corner by 16px each way, since the body ends on the grip's 16px alone
+ * (`CARD_BODY_END`, TJ 2026-11-04). It names no colour, for
+ * `CARD_FOLD`'s reason: its ink is the card's glyph grey, set in the markup
+ * (`popupCard` in `utils/popup/popupChrome.ts`), lit under a pointer through
+ * `map.css`'s `data-popup-glyph`. No focus ring, because it is pointer-only
+ * and never focused. `touch-none` keeps a finger's drag from scrolling or
+ * zooming the page under it.
+ */
+export const CARD_RESIZE =
+  'absolute bottom-0 right-0 flex h-4 w-4 items-end justify-end p-0.5 cursor-nwse-resize touch-none select-none transition-colors touch:h-8 touch:w-8'
+
+/**
+ * The bottom of a card's body, which ends the card since its action moved to
+ * the title row (TJ, 2026-11-04): the grip's own 16px box, at a desk and
+ * under a finger, so at a desk the handle in the corner stands below the
+ * last section rather than over a folded heading's chevron or a grid's last
+ * number. Under a finger `CARD_RESIZE`'s 32px box rises 16px over the
+ * body's last corner, the grip staying in the card's corner, since a 32px end
+ * reads as an empty section under a folded heading. The chevron on the last
+ * heading loses its box's bottom 16px across its right 22px to the handle
+ * there (the box runs 10px past the chevron's, to the card's edge), and
+ * keeps the rest. Its own role so the two heights are spelled side by side
+ * and `styles.test.ts` holds them.
+ */
+export const CARD_BODY_END = 'pb-4'
+
+/**
+ * A card's title row, at least as tall as the × MapLibre stands in its corner
+ * (`map.css`: 1.375rem at a desk, 2rem under a finger), so the title, the
+ * card's one button and the × share a centre line (TJ, 2026-11-04). The band
+ * starts the row at the ×'s own 0.375rem inset for the same reason.
+ */
+export const CARD_TITLE_ROW = 'min-h-5.5 touch:min-h-8'
+
+/**
+ * A card's one action, `Add` or `Remove`, in its title row left of the ×
+ * (TJ, 2026-11-04, the card button lab's treatment 6), where it was a foot of
+ * its own under the body. `BUTTON_ACCENT`'s look, its fill, label, type,
+ * corners, hover and ring, at the ×'s height rather than the panel button's
+ * 28px, so the row does not grow at a desk; 32px under a finger, every phone
+ * control's (record 0223).
+ *
+ * One width for both words: `Remove`'s, measured, with 8px a side and the
+ * edge (`w-16`, 64px; `styles.test.ts` holds it to the word). A press on
+ * `Add` turns the card pending and its button into `Remove`, and two widths
+ * would move the title's ellipsis under the reader's pointer (TJ,
+ * 2026-11-04: no flapping between sizes).
+ *
+ * The 1px edge is the accent ink, because the fill alone reads 2.72:1 off
+ * the dark header band it stands on, under the 3:1 a control's boundary
+ * owes (light passes at 3.43:1; measured 2026-11-04); the accent ink reads
+ * 5.69:1 and 4.85:1 on that band, the ratios the band's link-out glyph
+ * lights to. Spelled here
+ * rather than composed from `BUTTON_ACCENT`, whose padding and tap target
+ * would race these by stylesheet order.
+ */
+export const CARD_ACTION =
+  `flex h-5.5 w-16 shrink-0 items-center justify-center whitespace-nowrap border border-accent-ink px-2 text-xs ` +
+  `${RADIUS.control} transition-colors ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING} touch:h-8`
+
+/**
  * A bare × with free room around it, the tutorial card's and the search
  * field's, and a 44px press on a coarse pointer: an invisible box 10px
  * either side of the 24 by 16 button and 14px above and below it, the way
@@ -1839,8 +1917,12 @@ export const MAP_CORNER = {
   // `leading-5` is the library's own 20px line, which the map's container
   // gives its controls and the corner, outside it, does not: without it the
   // scale shrank to 17px from the 22px box record 0162 holds it to.
+  // The box takes its own presses, where the column above it yields them:
+  // it is one floating banner to a reader, and a press on its padding or in
+  // the gap beside the scale dragged the map while the text beside it could
+  // be selected (TJ, 2026-11-03).
   credit:
-    'map-corner flex items-center gap-2.5 py-0.5 pl-2.5 pr-2 leading-5 ' +
+    'map-corner pointer-events-auto flex items-center gap-2.5 py-0.5 pl-2.5 pr-2 leading-5 ' +
     'bg-floating/95 border-t border-l border-edge rounded-tl-lg backdrop-blur-sm',
   slot: 'contents',
   scale: 'flex w-27.5 justify-end',

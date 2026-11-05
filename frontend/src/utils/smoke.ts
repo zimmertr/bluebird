@@ -20,10 +20,16 @@
 // answer means "not covered", not "clear".
 import type { FeatureCollection } from 'geojson'
 import { apiFetch, overlayFeatures } from './apiFetch'
-import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, monthDayTime, popupCard } from './popup/popupChrome'
+import { dateOfMs, monthDayTime } from './popup/popupChrome'
 import { hexToRgb } from './colors'
 
 const SMOKE_URL = '/api/smoke'
+
+/** The Layers menu's row for the plumes, which the legend and a card's section open on. */
+export const SMOKE_ROW_LABEL = 'Smoke'
+
+/** What a card names HMS as, in a smoke section's fine print beside the window it was traced over. */
+export const HMS_SOURCE = 'NOAA HMS'
 
 /** NOAA's own page for the product, for the legend credit. */
 export const HMS_HREF = 'https://www.ospo.noaa.gov/Products/land/hms.html'
@@ -167,54 +173,33 @@ export function densityOf(props: SmokeProps): SmokeDensity {
 }
 
 /**
- * The window a plume was traced over, as one line, or null to omit it.
+ * The window a plume was traced over, as one span, or null to omit it.
  *
  * Times only when both ends land on the same local day, which is nearly always
  * — a pass covers a few hours — because repeating the date on both sides of a
  * three-hour window is noise. A window that does straddle midnight locally
  * gets the date back on both ends rather than on one, so neither end is the odd
- * one out.
+ * one out. Bare, since the card's fine print names the source before it:
+ * `NOAA HMS: 10:00 AM to 1:00 PM`.
  *
  * Kept locale-tolerant (falls back to omitting the line) so it never throws
  * inside markup handed to setHTML.
  */
-export function formatObserved(
+export function observedSpan(
   startMs: number | null | undefined,
   endMs: number | null | undefined,
 ): string | null {
   const start = dateOfMs(startMs)
   if (start === null) return null
-  // An end that names no instant is no end, so the line states the start alone.
+  // An end that names no instant is no end, so the span states the start alone.
   const end = dateOfMs(endMs)
   try {
     const sameDay = end !== null && start.toDateString() === end.toDateString()
     const time = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    if (end === null) return `Observed: ${monthDayTime(start)}`
-    if (sameDay) return `Observed: ${time(start)} to ${time(end)}`
-    return `Observed: ${monthDayTime(start)} to ${monthDayTime(end)}`
+    if (end === null) return monthDayTime(start)
+    if (sameDay) return `${time(start)} to ${time(end)}`
+    return `${monthDayTime(start)} to ${monthDayTime(end)}`
   } catch {
     return null
   }
-}
-
-/**
- * Popup markup for a clicked or tapped smoke plume, on the card every popup
- * wears (`popupCard`, #738).
- *
- * Shorter than the fire's and deliberately so: HMS carries the density, the
- * satellite, and the window, and there is no per-plume page anywhere to link
- * to, so the title has no glyph. The band says what it is, `{density} smoke`
- * with the satellite under it and no kind word, since the title already says
- * smoke (TJ, 2026-10-16); the body is the observed window alone,
- * small and italic for the reason the fire's revision date is: it qualifies
- * everything above it rather than being another fact in the list.
- */
-export function smokePopupHtml(props: SmokeProps): string {
-  const observed = formatObserved(props.observed_start, props.observed_end)
-  const satellite = (props.satellite ?? '').trim()
-  return popupCard({
-    title: `${densityOf(props)} smoke`,
-    meta: metaBand([satellite ? factsLine([escapeHtml(satellite)]) : '']),
-    body: bodyLines([observed ? fineprint(escapeHtml(observed)) : null]),
-  })
 }

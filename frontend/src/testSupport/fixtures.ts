@@ -534,8 +534,7 @@ export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
     popupColumns: [],
     pointSample: false,
     sortBy: 'aqi_avg',
-    fireWarnings: new Map(),
-    closureWarnings: new Map(),
+    analyzedAtMs: null,
     searchedPlaces: [],
     onAddPoi: () => {},
     onRemovePoi: () => {},
@@ -545,6 +544,7 @@ export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
     onCameraMove: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,
     onTerrainChange: () => {},
+    lowerSheetFirst: (then) => then(),
     ...over,
   }
 }

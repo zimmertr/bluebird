@@ -7,8 +7,9 @@
  * fetching the moment a rendered layer names it, so leaving the frames in place
  * would download radar tiles for everyone who never asked for any.
  *
- * Inserted before the first smoke fill, which puts the whole loop under every
- * polygon overlay and under the draw, result and label layers above them.
+ * Its slot in `layerOrder.ts` is over the snow and under the smoke, so the
+ * whole loop goes under every polygon overlay and every name on the map,
+ * whenever it is switched on.
  *
  * The frames load through the app's own scheme (`../heldTileProtocol.ts`),
  * which keeps a copy of every tile, so an echo answers the pointer and a
@@ -19,10 +20,10 @@
 import type * as maplibregl from 'maplibre-gl'
 import type { HeldTiles } from '../../utils/heldTiles'
 import { RADAR_TILES } from '../heldTileProtocol'
+import { addLayerAt } from '../layerOrder'
 import type { MapPopups } from '../mapPopups'
 import { radarHeldUrl, radarLayerId, radarOffsets } from '../../utils/radar'
 import { radarPaints, readRadarAt, rereadRadarAt } from '../../utils/radarPoint'
-import { SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
 import { clampIndex } from '../../utils/timeline'
 
 /**
@@ -76,7 +77,7 @@ export function mountRadar(
     shown: () => showing,
     paints: (at) => radarPaints(tiles, onScreen, at),
     read: (at) => readRadarAt(tiles, onScreen, at),
-    refresh: (at) => rereadRadarAt(tiles, onScreen, at),
+    refresh: async (at) => ({ section: await rereadRadarAt(tiles, onScreen, at) }),
   })
 
   // A frame waiting at opacity 0 loads no tiles, so where the view has moved
@@ -89,7 +90,6 @@ export function mountRadar(
   })
 
   function addFrames() {
-    const beneath = smokeLayerId(SMOKE_DENSITIES[0])
     for (const offset of radarOffsets()) {
       const id = radarLayerId(offset)
       if (map.getSource(id)) continue
@@ -104,29 +104,27 @@ export function mountRadar(
         // second copy is the expensive one: it pushed that control onto a
         // second line on a phone, straight under the timeline.
       })
-      map.addLayer(
-        {
-          id,
-          type: 'raster',
-          source: id,
-          layout: {
-            // Every frame but the one on screen starts unrendered, and an
-            // unrendered raster layer fetches no tiles, so toggling the loop on
-            // costs one frame's tiles rather than twelve. The other eleven are
-            // armed a moment later by the warm-up below, which is what makes
-            // playback smooth rather than a slideshow of half-loaded frames.
-            visibility: 'none',
-          },
-          paint: {
-            'raster-opacity': RADAR_OPACITY,
-            // A frame change is an opacity flip between two layers, so the
-            // library's own cross-fade would fight it and leave both frames
-            // half-drawn for a moment, at 500 ms a frame.
-            'raster-fade-duration': 0,
-          },
+      // Each frame at the top of its slot, so the oldest is lowest.
+      addLayerAt(map, {
+        id,
+        type: 'raster',
+        source: id,
+        layout: {
+          // Every frame but the one on screen starts unrendered, and an
+          // unrendered raster layer fetches no tiles, so toggling the loop on
+          // costs one frame's tiles rather than twelve. The other eleven are
+          // armed a moment later by the warm-up below, which is what makes
+          // playback smooth rather than a slideshow of half-loaded frames.
+          visibility: 'none',
         },
-        map.getLayer(beneath) ? beneath : undefined,
-      )
+        paint: {
+          'raster-opacity': RADAR_OPACITY,
+          // A frame change is an opacity flip between two layers, so the
+          // library's own cross-fade would fight it and leave both frames
+          // half-drawn for a moment, at 500 ms a frame.
+          'raster-fade-duration': 0,
+        },
+      })
     }
   }
 
@@ -212,18 +210,19 @@ export function mountRadar(
 
   return {
     update({ show, index }) {
-      if (show && !showing) {
+      const was = showing
+      showing = show
+      if (show && !was) {
         addFrames()
         startWarmUp()
-      } else if (!show && showing) {
+      } else if (!show && was) {
         stopWarmUp()
         removeFrames()
-        // A card about echoes the map no longer draws goes with them, and
-        // so do the copies of the tiles they were read from.
-        deps.popups.closeAll('radar')
+        // The copies of the tiles the echoes were read from go with them,
+        // and a section about echoes the map no longer draws leaves its card.
         tiles.drop('radar-')
+        deps.popups.refreshPoint('radar')
       }
-      showing = show
       if (show) showFrame(index)
     },
     dispose() {

@@ -49,10 +49,10 @@ interface Props {
   // (it is in the Columns picker), and a dash there would say the row came
   // from nowhere.
   modelFallbackLabel?: string | null
-  // Center the map on a destination that has no forecast yet. Separate from
-  // `onFocusResult` because there is no result to pass: a pending row is a
-  // coordinate and a name, and the popup the ranked version opens is built
-  // from numbers this row does not have.
+  // Center the map on a destination that has no forecast yet and open its
+  // dot's card (#832). Separate from `onFocusResult` because there is no
+  // result to pass: a pending row is a coordinate and a name, and the card
+  // the ranked version opens is built from numbers this row does not have.
   onFocusPending?: (at: { latitude: number; longitude: number }) => void
   // Which forecast model the rows came from, so a metric cell can ask Windy
   // for the same one. A compared row carries its own and wins over this.
@@ -88,9 +88,8 @@ interface Props {
   // before Analyze runs, so every input has feedback, then a ring's found
   // destinations until their forecasts land or a failed run leaves them (#782).
   pending?: PendingDestination[]
-  // Called for a searched place only. A CSV row's truth is the textarea text
-  // and a found row's is the ring, so each is removed by editing that, not by
-  // an × here.
+  // A pending row's ×, on every row whatever named it (#832): the removal a
+  // ranked row's × records, so the Removed list can restore it.
   onRemovePending?: (d: PendingDestination) => void
   // The × that replaces a row's rank number on hover — removes the destination
   // from the current report (and, for a searched place, deregisters it).

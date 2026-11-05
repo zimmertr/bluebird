@@ -1,12 +1,12 @@
 import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
+import { cancelTouchEnd, DOUBLE_PRESS_MS } from '../utils/doublePress'
 import { type DragSample, releaseVelocity } from '../utils/sheetDrag'
 
-// How close two presses must be to count as a double press. The browser's own
-// dblclick never arrives on a grip: the drag begins on pointerdown and
-// preventDefault plus the drag overlay stop the pair of clicks ever resolving,
-// so the gesture is recognised here instead. 350ms is a shade over the usual
-// system threshold, which is the right way to miss.
-export const DOUBLE_PRESS_MS = 350
+// A grip times its own double press (`utils/doublePress.ts`): the browser's
+// dblclick never arrives on one, the drag beginning on pointerdown and
+// preventDefault plus the drag overlay stopping the pair of clicks resolving.
+// Time alone decides it here, with no slop, since a grip's bar runs the width
+// of its panel and a phone sheet's title row answers a press anywhere on it.
 
 // The pointer's raw updates where the browser sends them (#499): Chromium
 // fires `pointerrawupdate` as each movement arrives rather than once a frame,
@@ -108,18 +108,4 @@ export function useGripDrag(handlers: GripDragHandlers) {
     document.addEventListener('pointerup', onUp)
     document.addEventListener('pointercancel', onUp)
   }
-}
-
-/** Cancels the next touch's end on the document, or stands down if the touch is cancelled first. */
-function cancelTouchEnd() {
-  const cancel = (ev: TouchEvent) => {
-    ev.preventDefault()
-    off()
-  }
-  const off = () => {
-    document.removeEventListener('touchend', cancel)
-    document.removeEventListener('touchcancel', off)
-  }
-  document.addEventListener('touchend', cancel, { passive: false })
-  document.addEventListener('touchcancel', off)
 }

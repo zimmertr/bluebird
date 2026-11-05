@@ -1,13 +1,14 @@
 /**
  * The analysis on the map: the ranked markers, their wind arrows, rank digits
- * and labels, the pending dots for destinations not yet ranked, and the
- * forecast popup a marker or a table row opens.
+ * and labels, and the pending dots for destinations not yet ranked. A click on
+ * a marker or a dot, or on a row's name in the table, opens its card through
+ * `destinationCards.ts`, which draws every card on the map (#832).
  *
  * The layers are added once, when the map loads, above the drawn ring, so a
- * marker is never under the outline of the area it was found in. The pending
- * dots go on last, above the markers.
+ * marker is never under the outline of the area it was found in, and the
+ * pending dots under the markers, so a ranked name wins a collision with a
+ * dot's (`layerOrder.ts`).
  */
-import type { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
@@ -15,22 +16,12 @@ import type { FeatureCollection, Point } from 'geojson'
 import type { DestinationResult, SortBy } from '../types'
 import type { PendingDestination } from '../utils/customList'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
-import type { ModelRow } from '../utils/model/modelCompare'
-import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
-import { GRID_AGG_ATTR, GRID_EDGE_ATTR } from '../utils/popup/popupChrome'
-import { DRAG_THRESHOLD_PX, ghostLeft, travel } from '../utils/columnDrag'
-import { clamp } from '../utils/numbers'
-import { AGGREGATE } from '../metrics'
-import { DRAG } from '../styles'
-
-// The narrowest and widest a reader may drag a card's grid column: a
-// three-digit value, and about half a phone's card.
-const GRID_COL_MIN_PX = 36
-const GRID_COL_MAX_PX = 160
+import type { Point as ScreenPoint, Rect } from '../utils/popup/popupFit'
 import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeatures'
-import { usStatesNow } from '../utils/usStatesLoad'
 import { emptyFC, setSource } from './basemap'
+import { addLayerAt } from './layerOrder'
 import type { MapController } from './controller'
+import type { DestinationCards } from './destinationCards'
 import type { MapPopups, MapTargetHit } from './mapPopups'
 import {
   MARKER_LABEL_LAYOUT,
@@ -43,11 +34,11 @@ import {
   WIND_ARROW_FILL,
   WIND_ARROW_OUTLINE,
 } from './mapStyles'
-import type { Point as ScreenPoint, Rect } from '../utils/popup/popupFit'
-import { POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popup/popupChrome'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'
+/** The pending dots, which a click asks about by name while no ring is drawn (#832). */
+export const PENDING_MARKER_LAYER = 'pending-destinations-circles'
 
 /**
  * The wind arrow drawn beside a result marker during playback (#121).
@@ -115,10 +106,6 @@ export interface ResultsLayer {
   /** Draw a dot for each custom destination not in the displayed analysis. */
   setPending(pending: PendingDestination[]): void
   /**
-   * Open the forecast popup on a row, for a click on its rank in the table.
-   * The camera move is the component's; this is only the popup.
-   */
-  /**
    * Open a result's popup and say how far the map must move for it to show
    * as much of itself as it can (`popupFit.ts`). `markerAt` is where the
    * marker WILL stand, in the map container's pixels, for a caller that is
@@ -126,14 +113,19 @@ export interface ResultsLayer {
    * read. `avoid` is what else stands over the map, as viewport rects, on
    * top of the button column the layer finds for itself. The answer is the
    * move for the caller to make, because a table click folds it into a
-   * flight and a marker click pans by it.
+   * flight and a marker click pans by it. `steer` is asked when the card
+   * changes size while that flight is in the air (`CardOpenOptions.steer`).
    */
-  openPopup(result: DestinationResult, options?: { markerAt?: ScreenPoint; avoid?: readonly Rect[] }): PopupPlacement
+  openPopup(
+    result: DestinationResult,
+    options?: { markerAt?: ScreenPoint; avoid?: readonly Rect[]; steer?: () => void },
+  ): PopupPlacement
   /**
-   * Redraw every open result card from the inputs as they stand: its rank,
-   * the number it marks as ranked, and the columns it shows. The component
-   * calls it when the ranking, the displayed rows or the columns change, and
-   * never on a playback tick, which changes none of a card's numbers.
+   * Redraw every open card from the inputs as they stand: a ranked card's
+   * rank, the number it marks as ranked, and the columns it shows. The
+   * component calls it when the ranking, the displayed rows or the columns
+   * change, and never on a playback tick, which changes none of a card's
+   * numbers.
    */
   refreshPopups(): void
   /**
@@ -144,6 +136,24 @@ export interface ResultsLayer {
    * on another marker opens its card without stopping the flight.
    */
   hasOpenCard(at: { latitude: number; longitude: number }): boolean
+  /**
+   * Open the card of the pending dot at this point, for a click on its name in
+   * the table, and say how far the map must move for it, as `openPopup` does.
+   * Nothing where no dot stands there.
+   */
+  openPending(
+    at: { latitude: number; longitude: number },
+    options?: { markerAt?: ScreenPoint; steer?: () => void },
+  ): PopupPlacement | undefined
+  /**
+   * Fit the card a table row opened on this point again, for a flight sent
+   * again (`map/centring.ts`), and say the move, as `openPopup` does.
+   * Nothing where that card no longer stands.
+   */
+  placeAgain(
+    at: { latitude: number; longitude: number },
+    options: { markerAt: ScreenPoint; avoid?: readonly Rect[] },
+  ): PopupPlacement | undefined
 }
 
 /** How far the marker, and its popup with it, should move across the screen. */
@@ -152,22 +162,23 @@ interface PopupPlacement {
   dy: number
 }
 
-
 export function mountResultsLayer(
   map: maplibregl.Map,
   deps: {
     controller: MapController
     popups: MapPopups
+    /** Every card on the map, which a marker's or a dot's click opens. */
+    cards: DestinationCards
   },
 ): ResultsLayer {
-  const { controller, popups } = deps
+  const { controller, popups, cards } = deps
 
   map.addSource('results', { type: 'geojson', data: emptyFC as FeatureCollection })
 
   // Each dot's dark outer ring, under it, so its edge reads on a light ground
   // as the white stroke does on a dark one (`MARKER_HALO_PAINT`, #799).
-  map.addLayer({ id: 'results-halo', type: 'circle', source: 'results', paint: MARKER_HALO_PAINT })
-  map.addLayer({
+  addLayerAt(map, { id: 'results-halo', type: 'circle', source: 'results', paint: MARKER_HALO_PAINT })
+  addLayerAt(map, {
     id: RESULT_MARKER_LAYER,
     type: 'circle',
     source: 'results',
@@ -180,7 +191,7 @@ export function mountResultsLayer(
   // the SSE fallback never fetches it — draw nothing rather than draw
   // north. (The icon itself is registered by the forecast grid overlay,
   // which is mounted first and so is the first to name it.)
-  map.addLayer({
+  addLayerAt(map, {
     id: 'results-wind',
     type: 'symbol',
     source: 'results',
@@ -197,14 +208,14 @@ export function mountResultsLayer(
       visibility: 'none',
     },
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'results-rank',
     type: 'symbol',
     source: 'results',
     layout: { 'text-field': ['get', 'rank'], ...RANK_LAYOUT },
     paint: RANK_PAINT,
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'results-labels',
     type: 'symbol',
     source: 'results',
@@ -215,27 +226,27 @@ export function mountResultsLayer(
   // ── Pending destinations ───────────────────────────────────────
   // A pasted CSV row or searched place not yet in the displayed analysis, or
   // a destination a ring's search found whose forecast has not landed (#782):
-  // a neutral dot (`PENDING_COLOR`) so the point never vanishes, no forecast
-  // popup yet. Not a click target, on purpose — a pending
-  // dot must never swallow a polygon click while you draw around a
-  // just-added spot; it starts blocking (opening a popup) once it ranks in.
+  // a neutral dot (`PENDING_COLOR`) so the point never vanishes. A click
+  // opens its card, which has no forecast yet (#832), and only while no ring
+  // is drawn: a pending dot must never swallow a polygon click while you draw
+  // around a just-added spot (`DRAW_TARGETS` in `utils/mapClick.ts`).
   map.addSource('pending-destinations', {
     type: 'geojson',
     data: emptyFC as FeatureCollection,
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'pending-destinations-halo',
     type: 'circle',
     source: 'pending-destinations',
     paint: MARKER_HALO_PAINT,
   })
-  map.addLayer({
-    id: 'pending-destinations-circles',
+  addLayerAt(map, {
+    id: PENDING_MARKER_LAYER,
     type: 'circle',
     source: 'pending-destinations',
     paint: { ...MARKER_PAINT, 'circle-color': PENDING_COLOR },
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'pending-destinations-labels',
     type: 'symbol',
     source: 'pending-destinations',
@@ -262,181 +273,23 @@ export function mountResultsLayer(
     // are the fallback for the case the match cannot happen — they carry no
     // aggregates, so those columns draw the dash a missing value draws
     // anywhere else rather than a number nobody fetched.
-    // The card pans the map to fit it, as every card does (`openCard`).
-    openFitted(anchor, row ?? featureRow(p, lat, lon), p.rank, { pan: true })
+    cards.open({ kind: 'ranked', row: row ?? featureRow(p, lat, lon), rank: p.rank }, anchor)
   }
-
-  // A card's markup from the inputs as they stand. One function for the first
-  // open and every redraw, so a redrawn card cannot differ from a fresh one.
-  // Read from the row's own coordinates, which are the exact ones a marker
-  // carries, so the warnings match on them.
-  const cardHtml = (row: DestinationResult, rank: number | string) => {
-    const live = controller.inputs
-    return resultPopupHtml({
-      rank,
-      row,
-      columns: live.popupColumns,
-      warning: controller.fireWarningAt(row.latitude, row.longitude),
-      closure: controller.closureWarningAt(row.latitude, row.longitude),
-      // A per-model row names its own model; a single-model report has one
-      // for every row. Same rule as the table's cells.
-      modelId: (row as ModelRow).modelId ?? live.modelId,
-      times: row.series_times ?? live.times,
-      modelFallbackLabel: live.modelFallbackLabel,
-      rankedBy: live.sortBy,
-      pointSample: live.pointSample,
-      compact: compactGrid(map.getCanvas().clientWidth),
-      widths: gridWidths,
-      mapZoom: map.getZoom(),
-      removable: true,
-      // The table's crag rows asked for them, so by the time a crag's card
-      // opens they are held, and a redraw picks them up if not.
-      usStates: usStatesNow(),
-    })
-  }
-
-  // The grid's column widths a reader dragged, shared by every result card
-  // and kept for the session (TJ 2026-10-30).
-  let gridWidths: Readonly<Record<string, number>> = {}
-
-  // A grid head carried onto another moves the table's columns, which the
-  // card's columns follow; its edge sizes the column on every card. Re-armed
-  // after every write of the markup, as the remove is.
-  const armGrid = (card: { popup: Popup }) => {
-    const el = card.popup.getElement()
-    // Optional, as the remove's lookup is: a test's stub popup has no DOM.
-    el?.querySelectorAll?.<HTMLElement>(`th[${GRID_AGG_ATTR}]`).forEach((th) => {
-      const agg = th.getAttribute(GRID_AGG_ATTR)!
-      th.querySelector<HTMLElement>(`[${GRID_EDGE_ATTR}]`)?.addEventListener('pointerdown', (e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        const w0 = th.getBoundingClientRect().width
-        const x0 = e.clientX
-        const move = (ev: PointerEvent) => {
-          const w = Math.round(clamp(w0 + ev.clientX - x0, GRID_COL_MIN_PX, GRID_COL_MAX_PX))
-          gridWidths = { ...gridWidths, [agg]: w }
-          th.style.width = `${w}px`
-          th.style.minWidth = `${w}px`
-        }
-        const up = () => {
-          window.removeEventListener('pointermove', move)
-          window.removeEventListener('pointerup', up)
-          refreshCards()
-        }
-        window.addEventListener('pointermove', move)
-        window.addEventListener('pointerup', up)
-      })
-      if (agg === AGGREGATE.total) return
-      th.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0) return
-        const x0 = e.clientX
-        const y0 = e.clientY
-        let ghost: HTMLElement | null = null
-        const over = (ev: PointerEvent) =>
-          document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>(`th[${GRID_AGG_ATTR}]`)?.getAttribute(GRID_AGG_ATTR)
-        const move = (ev: PointerEvent) => {
-          if (!ghost && travel(ev.clientX - x0, ev.clientY - y0) < DRAG_THRESHOLD_PX) return
-          if (!ghost) {
-            ghost = document.createElement('div')
-            ghost.className = DRAG.ghost
-            ghost.textContent = agg
-            document.body.appendChild(ghost)
-          }
-          ghost.style.left = `${ghostLeft(ev.clientX, window.innerWidth)}px`
-          ghost.style.top = `${ev.clientY - 10}px`
-        }
-        const up = (ev: PointerEvent) => {
-          window.removeEventListener('pointermove', move)
-          window.removeEventListener('pointerup', up)
-          if (!ghost) return
-          ghost.remove()
-          const to = over(ev)
-          if (to && to !== agg && to !== AGGREGATE.total) controller.inputs.onMoveAggregate(agg, to)
-        }
-        window.addEventListener('pointermove', move)
-        window.addEventListener('pointerup', up)
-      })
-    })
-  }
-
-  // The card's remove does what the row's × does and takes the card with it,
-  // since the row it describes leaves the report. Re-armed after every write
-  // of the markup, which replaces the button. Reads the card's row at the
-  // press, so a card a new ranking moved onto another row removes that row.
-  const armRemove = (card: { popup: Popup; row: DestinationResult }) => {
-    card.popup
-      .getElement()
-      ?.querySelector<HTMLButtonElement>(`[${RESULT_ACTION_ATTR}="remove"]`)
-      ?.addEventListener('click', () => {
-        controller.inputs.onRemoveResult(card.row)
-        card.popup.remove()
-      })
-  }
-
-  // The result cards standing on the map, with what redraws each: the row it
-  // was opened on, the markup it shows, and the height its body was capped
-  // to, which a redraw must keep because new markup arrives uncapped.
-  type OpenCard = { popup: Popup; row: DestinationResult; html: string; capped: number | null }
-  let cards: OpenCard[] = []
-
-  // Open a result's card through `openCard`, which fits, caps and places it
-  // the way it does every card on the map; this adds what only a result card
-  // has: the tutorial's mark, the remove button and a place among the cards
-  // `refreshPopups` redraws.
-  const openFitted = (
-    at: [number, number],
-    subject: DestinationResult,
-    rank: number | string,
-    { markerAt, avoid, pan = false }: { markerAt?: ScreenPoint; avoid?: readonly Rect[]; pan?: boolean },
-  ): PopupPlacement => {
-    const html = cardHtml(subject, rank)
-    const { popup, dx, dy, capped } = popups.openCard(at, html, { owner: 'result', result: true, markerAt, avoid, pan })
-    // The tutorial's marker step frames this popup (#536).
-    popup.getElement()?.setAttribute('data-tour', 'marker')
-    const card: OpenCard = { popup, row: subject, html, capped }
-    armRemove(card)
-    armGrid(card)
-    cards.push(card)
-    popup.on('close', () => {
-      cards = cards.filter((c) => c !== card)
-    })
-    return { dx, dy }
-  }
-
-  // Redraw every open card from the inputs as they stand: `refreshPopups`,
-  // and a column a reader sized on one card, which every card then wears.
-  function refreshCards() {
-    for (const card of cards) {
-      const shown = controller.inputs.results
-      const model = (card.row as ModelRow).modelId
-      const row = shown.includes(card.row)
-        ? card.row
-        : (shown.find(
-            (r) =>
-              r.latitude === card.row.latitude &&
-              r.longitude === card.row.longitude &&
-              (r as ModelRow).modelId === model,
-          ) ?? null)
-      const html = cardHtml(row ?? card.row, row ? shown.indexOf(row) + 1 : '')
-      if (html === card.html) continue
-      const old = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
-      const scrolled = old?.scrollTop ?? 0
-      // MapLibre moves focus into a popup whenever its content is set. A
-      // redraw answers a change made in the panel, so focus stays there.
-      const focus = card.popup.options.focusAfterOpen
-      card.popup.options.focusAfterOpen = false
-      card.popup.setHTML(html)
-      card.popup.options.focusAfterOpen = focus
-      card.html = html
-      if (row) card.row = row
-      armRemove(card)
-      const body = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
-      if (body && card.capped !== null) capPopupBody(body, card.capped)
-      if (body) body.scrollTop = scrolled
-    }
-  }
-
   popups.register({ target: 'result', layers: [RESULT_MARKER_LAYER], open: openResultPopup })
+
+  // The dots as last drawn, which a click finds its destination among.
+  let pendingNow: PendingDestination[] = []
+  const pendingAt = (lat: number, lon: number) => pendingNow.find((d) => d.latitude === lat && d.longitude === lon)
+  popups.register({
+    target: 'pending',
+    layers: [PENDING_MARKER_LAYER],
+    open: ({ feature: f }) => {
+      const p = f.properties
+      const d = p ? pendingAt(p.lat as number, p.lon as number) : undefined
+      if (!d) return false
+      cards.open({ kind: 'pending', pending: d }, (f.geometry as Point).coordinates as [number, number])
+    },
+  })
 
   let arrows = false
   return {
@@ -450,34 +303,40 @@ export function mountResultsLayer(
       }
     },
     setPending(pending) {
+      pendingNow = pending
       setSource(map, 'pending-destinations', pendingFC(pending))
     },
-    openPopup(result, options = {}) {
+    // The caller flies the map for a table click, folding the card's fit
+    // into the flight, so neither of these pans by it.
+    openPending(at, { markerAt, steer } = {}) {
+      const d = pendingAt(at.latitude, at.longitude)
+      if (!d) return undefined
+      popups.closeAll()
+      const { dx, dy } = cards.open({ kind: 'pending', pending: d }, [d.longitude, d.latitude], {
+        markerAt,
+        pan: false,
+        steer,
+      })
+      return { dx, dy }
+    },
+    openPopup(result, { markerAt, avoid, steer } = {}) {
       popups.closeAll()
       // Rank is the analyzed order the markers are labelled with, so the popup
       // matches the marker it lands on. A table row is a copy stamped with
       // that rank (#579), so it is not among the map's rows and the stamp is
       // the answer; a row handed over without one is looked up.
       const stamped = (result as { rank?: number }).rank
-      return openFitted(
-        [result.longitude, result.latitude],
-        result,
-        stamped ?? controller.inputs.results.indexOf(result) + 1,
-        options,
-      )
+      const rank = stamped ?? controller.inputs.results.indexOf(result) + 1
+      const { dx, dy } = cards.open({ kind: 'ranked', row: result, rank }, [result.longitude, result.latitude], {
+        markerAt,
+        avoid,
+        pan: false,
+        steer,
+      })
+      return { dx, dy }
     },
-    // A card follows the report the way the table does (TJ, 2026-10-08):
-    // a new ranking moves its mark and its rank, and a column the reader
-    // hides leaves it. Each card finds its row again in the displayed rows:
-    // the same row where it is still there, else the row at its coordinates
-    // from the same model, since a comparison stands one row per model on
-    // each destination and a card must not swap models. A row the new presentation
-    // no longer displays keeps the numbers it was opened on and loses its
-    // rank, the way a searched destination's card has none, rather than
-    // closing under the reader.
-    hasOpenCard({ latitude, longitude }) {
-      return cards.some((card) => card.row.latitude === latitude && card.row.longitude === longitude)
-    },
-    refreshPopups: () => refreshCards(),
+    placeAgain: (at, options) => cards.place(at, options),
+    hasOpenCard: (at) => cards.hasOpenRanked(at),
+    refreshPopups: () => cards.refresh(),
   }
 }

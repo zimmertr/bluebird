@@ -29,18 +29,18 @@ import BottomSheet from './BottomSheet'
 import { IconFireAge } from './icons'
 import { MenuButton } from './Menu'
 import { writeViewPrefs } from '../utils/viewPrefs'
-import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
-import { FIRMS_HREF, fireActivityLegendChips } from '../utils/fireActivity'
+import { CLOSURE_ROW_LABELS, USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
+import { FIRE_ACTIVITY_ROW_LABEL, FIRMS_HREF, fireActivityLegendChips } from '../utils/fireActivity'
 import { GRID_STYLE_NAMES } from '../utils/forecastGrid/forecastGridLegend'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
-import { IEM_HREF, radarSwatchCss } from '../utils/radar'
+import { IEM_HREF, RADAR_ROW_LABEL, radarSwatchCss } from '../utils/radar'
 import { legendMaxCss } from '../utils/results/resultsSheet'
-import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from '../utils/smoke'
+import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, SMOKE_ROW_LABEL, smokeSwatch } from '../utils/smoke'
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../utils/snowDepth'
 import { SLOPE_BANDS, slopeRampCss, slopeTicks } from '../utils/slopeAngle'
 import { MAPTERHORN_HREF } from '../utils/terrainSources'
-import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
+import { NIFC_HREF, WILDFIRE_ROW_LABEL, wildfireSwatch } from '../utils/wildfires'
 
 // Every name the grid style's button can say, which its word is held to the widest of.
 const GRID_STYLE_WORD_LIST = Object.values(GRID_STYLE_NAMES)
@@ -293,7 +293,7 @@ export function legendSections(
     ...(showWildfires
       ? [
           {
-            label: 'Active wildfires',
+            label: WILDFIRE_ROW_LABEL,
             credit: { href: NIFC_HREF, name: 'NIFC' },
             swatch: (
               <span
@@ -313,7 +313,7 @@ export function legendSections(
     ...(showFireActivity
       ? [
           {
-            label: 'Fire activity',
+            label: FIRE_ACTIVITY_ROW_LABEL,
             credit: { href: FIRMS_HREF, name: 'FIRMS' },
             swatch: (
               <span className="flex flex-shrink-0 gap-0.5">
@@ -340,7 +340,7 @@ export function legendSections(
     ...(showSmoke
       ? [
           {
-            label: 'Smoke',
+            label: SMOKE_ROW_LABEL,
             credit: { href: HMS_HREF, name: 'NOAA' },
             // One lettered chip per density rather than three
             // rows. Opacity is the whole encoding here, so the
@@ -386,7 +386,7 @@ export function legendSections(
     ...(showAreaClosures
       ? [
           {
-            label: 'Area closures',
+            label: CLOSURE_ROW_LABELS.area,
             credit: { href: USFS_HREF, name: 'USFS' },
             swatch: (
               <span
@@ -400,7 +400,7 @@ export function legendSections(
     ...(showTrailClosures
       ? [
           {
-            label: 'Trail closures',
+            label: CLOSURE_ROW_LABELS.trail,
             credit: { href: USFS_HREF, name: 'USFS' },
             swatch: <span className={SWATCH_LINE} style={closureTrailSwatch()} />,
           },
@@ -409,7 +409,7 @@ export function legendSections(
     ...(showRadar
       ? [
           {
-            label: 'Rain radar',
+            label: RADAR_ROW_LABEL,
             credit: { href: IEM_HREF, name: 'IEM' },
             // A gradient rather than banded swatches: NEXRAD's
             // own reflectivity ramp is continuous, and a legend

@@ -9,7 +9,9 @@ type FakeBody = {
   style: { maxHeight?: string }
   classes: string[]
   classList: { add: (c: string) => void }
-  // The one listener a card arms, its remove button's.
+  // The card's remove button's click, the one listener a test here presses;
+  // the resize handle's pointer listeners, which this stub answers with the
+  // same object, are left unkept.
   addEventListener: (type: string, fn: () => void) => void
   press?: () => void
 }
@@ -25,6 +27,8 @@ const { popups } = vi.hoisted(() => ({
     face: string[]
     // Each setHTML, with whether MapLibre would have moved focus for it.
     sets: { html: string; focus: unknown }[]
+    // How many times the grid's heads were looked for, which is each arming.
+    gridArms: number
   }[],
 }))
 vi.mock('maplibre-gl', () => ({
@@ -39,10 +43,12 @@ vi.mock('maplibre-gl', () => ({
         style: {},
         classes,
         classList: { add: (c) => classes.push(c) },
-        addEventListener: (_type, fn) => (body.press = fn),
+        addEventListener: (type, fn) => {
+          if (type === 'click') body.press = fn
+        },
       }
       this.options = { ...options }
-      this.state = { at: null, html: '', options, removed: false, attrs: {}, body, face: [], sets: [] }
+      this.state = { at: null, html: '', options, removed: false, attrs: {}, body, face: [], sets: [], gridArms: 0 }
       popups.push(this.state)
     }
     setLngLat(at: unknown) {
@@ -77,6 +83,12 @@ vi.mock('maplibre-gl', () => ({
           selector === '.maplibregl-popup-content'
             ? { classList: { add: (...cs: string[]) => this.state.face.push(...cs) } }
             : body,
+        // The grid's heads (`th[...]`, which `gridHeads.ts` arms), or the
+        // sections' chevrons, which a test here never presses.
+        querySelectorAll: (selector: string) => {
+          if (!selector.includes('data-card-fold')) this.state.gridArms++
+          return []
+        },
       }
     }
     on(_type: string, fn: () => void) {
@@ -90,18 +102,22 @@ vi.mock('maplibre-gl', () => ({
   },
 }))
 
-import { makeArrowImage, mountResultsLayer, RESULT_MARKER_LAYER } from './resultsLayer'
+import { makeArrowImage, mountResultsLayer, PENDING_MARKER_LAYER, RESULT_MARKER_LAYER } from './resultsLayer'
+import type { GroundReadings } from './groundReadings'
+import type { PendingDestination } from '../utils/customList'
+import type { GroundState } from '../utils/popup/groundFact'
 import { POPUP_PAN_MS } from '../utils/popup/popupFit'
 import { createMapController, type MapInputs } from './controller'
 import { mountTestPopups } from '../testSupport/mapPopups'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
-import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
+import { CARD_ACTION_ATTR, type CardView, destinationPopupHtml } from '../utils/destinationCard'
+import { pendingAsResult } from '../utils/customList'
+import { mountDestinationCards } from './destinationCards'
+import { createGridHeads } from './gridHeads'
 import { POPUP_TINT_ATTR } from '../utils/popup/popupChrome'
 import { displayedColumns } from '../utils/tableColumns'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
-import { closureWarning, mapInputs, resultRow } from '../testSupport/fixtures'
-import { closurePopupText } from '../utils/closureProximity'
-import { geoKey } from '../utils/points'
+import { mapInputs, resultRow } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
 import { MARKER_HALO_PAINT, MARKER_LABEL_PAINT, MARKER_PAINT, PENDING_COLOR } from './mapStyles'
 import { POPUP_FACE } from '../styles'
@@ -129,7 +145,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }, canvasWidth = MAP_W) {
+function setup(
+  results = [ADAMS, RAINIER],
+  markerAt?: { x: number; y: number },
+  canvasWidth = MAP_W,
+  ground?: GroundReadings,
+) {
   const stub = stubMap({ canvasWidth, canvasHeight: MAP_H, markerAt, zoom: MAP_ZOOM })
   const inputs = mapInputs({
     results,
@@ -140,7 +161,8 @@ function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }, 
   })
   const controller = createMapController(inputs)
   const { popups: board, click } = mountTestPopups(stub, controller)
-  const layer = mountResultsLayer(stub.map, { controller, popups: board })
+  const cards = mountDestinationCards(stub.map, { controller, popups: board, gridHeads: createGridHeads(controller), ground })
+  const layer = mountResultsLayer(stub.map, { controller, popups: board, cards })
   // A click on a marker: the rendered feature, whose properties carry the
   // exact coordinates the row is matched on.
   const clickMarker = (row: typeof ADAMS, rank: number, shiftKey = false) =>
@@ -154,24 +176,40 @@ function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }, 
       ],
       { shiftKey },
     )
-  return { stub, layer, controller, board, clickMarker }
+  const clickPending = (d: PendingDestination) =>
+    click([
+      {
+        layer: { id: PENDING_MARKER_LAYER },
+        geometry: { type: 'Point', coordinates: [d.longitude, d.latitude] },
+        properties: { name: d.name, lat: d.latitude, lon: d.longitude },
+      },
+    ])
+  return { stub, layer, controller, board, clickMarker, clickPending }
 }
 
 // The map's zoom when a card is drawn, which its CalTopo link carries (#712).
 const MAP_ZOOM = 13
 
+// A ranked card and a pending card as the map draws them (`destinationCards.ts`).
+const resultPopupHtml = ({ rank, row, ...view }: { rank: number | string; row: typeof ADAMS } & CardView) =>
+  destinationPopupHtml({ kind: 'ranked', row, rank }, view)
+const pendingPopupHtml = ({ pending, ...view }: { pending: PendingDestination } & CardView) =>
+  destinationPopupHtml({ kind: 'pending', pending }, view)
+
 describe('mountResultsLayer', () => {
-  it('adds the markers and then the pending dots, arrows hidden', () => {
+  // The pending dots go on after the markers and land under them, so a
+  // ranked name wins a collision with a dot's (record 0268).
+  it('stacks the pending dots under the markers, arrows hidden', () => {
     const { stub } = setup()
     expect(stub.stack).toEqual([
+      'pending-destinations-halo',
+      'pending-destinations-circles',
+      'pending-destinations-labels',
       'results-halo',
       RESULT_MARKER_LAYER,
       'results-wind',
       'results-rank',
       'results-labels',
-      'pending-destinations-halo',
-      'pending-destinations-circles',
-      'pending-destinations-labels',
     ])
     expect(stub.layout['results-wind'].visibility).toBe('none')
   })
@@ -230,7 +268,7 @@ describe('mountResultsLayer', () => {
         rank: 2,
         row: RAINIER,
         columns: live.popupColumns,
-        warning: null,
+        added: false,
         modelId: live.modelId,
         times: live.times,
         modelFallbackLabel: null,
@@ -259,7 +297,7 @@ describe('mountResultsLayer', () => {
         rank: 5,
         row: featureRow(props, ghost.latitude, ghost.longitude),
         columns: live.popupColumns,
-        warning: null,
+        added: false,
         modelId: live.modelId,
         times: live.times,
         modelFallbackLabel: null,
@@ -271,19 +309,6 @@ describe('mountResultsLayer', () => {
     )
     expect(popups[0].html).toContain('—')
     for (const name of [ADAMS.name, RAINIER.name]) expect(popups[0].html).not.toContain(name)
-  })
-
-  // The popup's closure line reads the same map the table's Closure column
-  // does, keyed on the marker's exact coordinates (#550).
-  it('names the closure a clicked destination stands inside', () => {
-    const { controller, clickMarker } = setup()
-    const closure = closureWarning()
-    controller.update({
-      ...controller.inputs,
-      closureWarnings: new Map([[geoKey(RAINIER.latitude, RAINIER.longitude), closure]]),
-    })
-    clickMarker(RAINIER, 2)
-    expect(popups[0].html).toContain(closurePopupText(closure))
   })
 
   // The card marks the number the report ranks by, read from the inputs at
@@ -298,7 +323,7 @@ describe('mountResultsLayer', () => {
         rank: 2,
         row: RAINIER,
         columns: live.popupColumns,
-        warning: null,
+        added: false,
         modelId: live.modelId,
         times: live.times,
         modelFallbackLabel: null,
@@ -318,7 +343,7 @@ describe('mountResultsLayer', () => {
   it('removes the row from its card, and closes the card', () => {
     const { controller, clickMarker } = setup()
     clickMarker(RAINIER, 2)
-    expect(popups[0].html).toContain(`${RESULT_ACTION_ATTR}="remove"`)
+    expect(popups[0].html).toContain(`${CARD_ACTION_ATTR}="remove"`)
     popups[0].body.press!()
     expect(controller.inputs.onRemoveResult).toHaveBeenCalledWith(RAINIER)
     expect(popups[0].removed).toBe(true)
@@ -354,7 +379,7 @@ describe('mountResultsLayer', () => {
         rank: 2,
         row: RAINIER,
         columns: live.popupColumns,
-        warning: null,
+        added: false,
         modelId: live.modelId,
         times: live.times,
         modelFallbackLabel: null,
@@ -494,6 +519,82 @@ describe('mountResultsLayer', () => {
 
 // An open card follows the report the way the table does (TJ, 2026-10-08):
 // a new ranking moves its mark and its rank without the card being reopened.
+// A pending dot opens a card of what is known before its forecast (#832).
+describe('pending cards', () => {
+  const MUIR: PendingDestination = { name: 'Camp Muir', latitude: 46.83545, longitude: -121.73231, source: 'search' }
+
+  // The card's remove is the pending row's × (TJ, 2026-11-03): a removal, as
+  // a ranked row's, whatever named the destination.
+  it("opens a pending dot's card, whose remove records the row's removal", () => {
+    const { layer, controller, clickPending } = setup()
+    layer.setPending([MUIR])
+    clickPending(MUIR)
+    expect(popups).toHaveLength(1)
+    expect(popups[0].html).toBe(pendingPopupHtml({ pending: MUIR, mapZoom: MAP_ZOOM, usStates: null, added: false }))
+    popups[0].body.press!()
+    expect(controller.inputs.onRemoveResult).toHaveBeenCalledWith(pendingAsResult(MUIR))
+    expect(controller.inputs.onRemovePoi).not.toHaveBeenCalled()
+    expect(popups[0].removed).toBe(true)
+  })
+
+  it('opens nothing for a dot it does not hold', () => {
+    const { clickPending } = setup()
+    clickPending(MUIR)
+    expect(popups).toHaveLength(0)
+  })
+
+  // A pending row's name opens its dot's card, as a ranked row's opens its
+  // marker's (TJ, 2026-10-31).
+  it("opens a pending row's card for the table, and nothing where no dot stands", () => {
+    const { layer } = setup()
+    layer.setPending([MUIR])
+    expect(layer.openPending({ latitude: 1, longitude: 2 })).toBeUndefined()
+    expect(layer.openPending({ latitude: MUIR.latitude, longitude: MUIR.longitude })).toEqual({
+      dx: expect.any(Number),
+      dy: expect.any(Number),
+    })
+    expect(popups).toHaveLength(1)
+    expect(popups[0].html).toContain('Camp Muir')
+  })
+})
+
+// The ground under each card's point lands after the card opens (#832).
+describe('the ground on a card', () => {
+  function fakeGround() {
+    let state: GroundState = { kind: 'pending' }
+    const redraws: (() => void)[] = []
+    const ground: GroundReadings = { at: () => state, onRead: (redraw) => redraws.push(redraw) }
+    const land = (next: GroundState) => {
+      state = next
+      for (const redraw of redraws) redraw()
+    }
+    return { ground, land }
+  }
+  const READ: GroundState = { kind: 'read', reading: { elevationM: 4391, degrees: 12.3, aspect: 90 } }
+
+  it('draws the slope when it lands, arming the grid again', () => {
+    const { ground, land } = fakeGround()
+    const { clickMarker } = setup(undefined, undefined, undefined, ground)
+    clickMarker(RAINIER, 2)
+    const armed = popups[0].gridArms
+    land(READ)
+    expect(popups[0].html).toContain('12°')
+    const sets = popups[0].sets
+    expect(sets[sets.length - 1].focus).toBe(false)
+    expect(popups[0].gridArms).toBe(armed + 1)
+  })
+
+  it("draws it on a pending dot's card too", () => {
+    const { ground, land } = fakeGround()
+    const { layer, clickPending } = setup(undefined, undefined, undefined, ground)
+    const muir: PendingDestination = { name: 'Camp Muir', latitude: 46.83545, longitude: -121.73231, source: 'csv' }
+    layer.setPending([muir])
+    clickPending(muir)
+    land(READ)
+    expect(popups[0].html).toContain('12°')
+  })
+})
+
 describe('refreshPopups', () => {
   const COLS = displayedColumns(false, 'aqi_avg')
   const cardFor = (live: MapInputs, row: typeof ADAMS, rank: number | string, sortBy = live.sortBy) =>
@@ -501,7 +602,7 @@ describe('refreshPopups', () => {
       rank,
       row,
       columns: live.popupColumns,
-      warning: null,
+      added: false,
       modelId: live.modelId,
       times: live.times,
       modelFallbackLabel: null,

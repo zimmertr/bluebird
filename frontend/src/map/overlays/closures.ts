@@ -13,15 +13,10 @@
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
+import { addLayerAt } from '../layerOrder'
 import { FIRE_REFETCH_DEBOUNCE_MS, fireDetailFor } from './wildfires'
-import {
-  CLOSURE_COLOR,
-  CLOSURE_EDGE,
-  closurePopupHtml,
-  fetchClosures,
-  type ClosureKind,
-  type ClosureProps,
-} from '../../utils/closures'
+import { CLOSURE_COLOR, CLOSURE_EDGE, fetchClosures, type ClosureKind } from '../../utils/closures'
+import { closureSectionAt } from '../../utils/hazardSections'
 import { viewBoxOf } from '../../utils/viewBox'
 import { MARKER_STROKE } from '../mapStyles'
 import type { MapPopups } from '../mapPopups'
@@ -118,26 +113,37 @@ export function mountClosures(
   // `online` is where the browser's `online` is heard; the window when absent.
   deps: { popups: MapPopups; online?: EventTarget | null },
 ): ClosureOverlay {
-  // Added right after the fire overlay, so a closure is drawn over the fire
-  // that caused it and under the drawing UI and the result markers. Data is
-  // populated on demand by `update`; the layers render nothing until then.
+  // The closed ground under the fire perimeters and the closed trails over
+  // them, both under the drawing UI and the result markers (`layerOrder.ts`).
+  // Data is populated on demand by `update`; the layers render nothing until
+  // then.
   const source = CLOSURE_SOURCES[kind]
   map.addSource(source, { type: 'geojson', data: emptyFC as FeatureCollection })
   const { specs, clickable } = layersFor(kind, source)
-  for (const spec of specs) map.addLayer(spec)
+  for (const spec of specs) addLayerAt(map, spec)
 
-  // A click on a closure describes the order, the way a click on a marker
-  // describes the destination (TJ, 2026-10-08); nothing opens on a hover,
-  // which would cover the destinations inside the closure. A closed trail is
-  // a 2.5px line, so it answers a click within a few pixels of it: a finger
-  // rarely lands exactly on it.
+  // A click on a closure opens the spot's card there, whose closure section
+  // describes the order (#832; a card of the order's own until then, TJ
+  // 2026-10-08); nothing opens on a hover, which would cover the destinations
+  // inside the closure. A closed trail is a 2.5px line, so it answers a click
+  // within a few pixels of it: a finger rarely lands exactly on it. Every
+  // card asks the layer for the order at its point, from the closures held.
   const target = kind === 'area' ? 'closure-area' : 'closure-trail'
   deps.popups.register({
     target,
     layers: clickable,
+    ground: true,
     ...(kind === 'trail' && { slopPx: CLOSURE_TRAIL_SLOP_PX }),
-    open: ({ feature, lngLat }) => {
-      deps.popups.openCard(lngLat, closurePopupHtml(feature.properties as ClosureProps, kind), { owner: target })
+    open: ({ lngLat }) => deps.popups.openSpot(lngLat),
+  })
+  let held: FeatureCollection | null = null
+  deps.popups.registerPoint({
+    target,
+    shown: () => showing,
+    paints: () => false,
+    read: (at) => {
+      const section = held && closureSectionAt(held, kind, at)
+      return section ? { section } : null
     },
   })
 
@@ -166,6 +172,9 @@ export function mountClosures(
       const fc = await fetchClosures(bbox, kind, detail, ac.signal)
       if (ac.signal.aborted) return
       setSource(map, source, fc)
+      held = fc
+      // An order the pan brought in joins the open cards it reaches.
+      deps.popups.refreshPoint(target)
       recovery.succeeded()
     } catch (err) {
       if (ac.signal.aborted || isAbort(err)) return
@@ -196,8 +205,9 @@ export function mountClosures(
       }
       stopFetching()
       setSource(map, source, emptyFC)
-      // A popup about a closure the map no longer draws goes with it.
-      deps.popups.closeAll(target)
+      held = null
+      // A section about a closure the map no longer draws leaves its card.
+      deps.popups.refreshPoint(target)
     },
     dispose() {
       stopFetching()

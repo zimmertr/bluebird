@@ -113,6 +113,21 @@ describe('the report\'s stamp', () => {
     expect(reuses()[1]).not.toBeNull()
     expect(result.current.analyzed?.asOfMs).toBe(T0 + 3_000)
   })
+
+  // A ranked card's forecast section says when the report committed (#832).
+  it('hands on when each report committed, keeps it through a failure, and drops it on a reset', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    expect(result.current.analyzedAtMs).toBeNull()
+    await analyzeAt(result, T0)
+    expect(result.current.analyzedAtMs).toBe(T0)
+    await analyzeAt(result, T0 + 3_000)
+    expect(result.current.analyzedAtMs).toBe(T0 + 3_000)
+    ranked.mockRejectedValueOnce(new Error('Broken.'))
+    await analyzeAt(result, T0 + MIN)
+    expect(result.current.analyzedAtMs).toBe(T0 + 3_000)
+    act(() => result.current.reset())
+    expect(result.current.analyzedAtMs).toBeNull()
+  })
 })
 
 describe('one analysis', () => {

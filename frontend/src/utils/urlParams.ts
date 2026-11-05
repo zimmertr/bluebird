@@ -238,8 +238,8 @@ function encodePins(places: Place[]): string {
 // raw split then finds one field and no pin. When it finds none, the list is
 // read again with those two escapes taken as delimiters. Only those two, so a
 // `+` or a `%` in a label is still decoded once. A label's own comma then
-// splits it and that pin drops, which is the cost for a link that was
-// re-encoded on the way.
+// splits it, and since the label is the last field, every field past the
+// fifth is joined back into it (`decodePinList`).
 function decodePins(raw: string): Place[] {
   const pins = decodePinList(raw)
   return pins.length > 0 ? pins : decodePinList(raw.replace(/%2C/gi, ',').replace(/%3B/gi, ';'))
@@ -250,7 +250,13 @@ function decodePinList(raw: string): Place[] {
   for (const entry of raw.split(';')) {
     const parts = entry.split(',').map(unescapeQueryText)
     if (parts.length < 6 || parts.some((f) => f === null)) continue
-    const [lonStr, latStr, kind, elevStr, osmId, label] = parts as string[]
+    // The label is last, so every field past the fifth is the label's: a
+    // comma in it that reached the link unescaped, as a pasted or re-encoded
+    // link can carry, cut the label at the comma and dropped the rest, and a
+    // dropped spot's `48.56248, -121.23742` came back named `48.56248`
+    // (TJ, 2026-11-04).
+    const [lonStr, latStr, kind, elevStr, osmId] = parts as string[]
+    const label = (parts as string[]).slice(5).join(',')
     const lon = Number(lonStr)
     const lat = Number(latStr)
     if (!onGlobe(lat, lon)) continue

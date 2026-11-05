@@ -52,6 +52,18 @@ afterEach(() => {
 })
 
 describe('PhoneFoot', () => {
+  // A card a tap opens keeps clear of the button and its badge, as it does
+  // of the rows and the player (TJ, 2026-11-04): the fit finds every
+  // `data-map-overlay` at the click. The slot carries the mark, so the badge
+  // at its corner is inside the box the card avoids.
+  it('is a surface a card keeps clear of, the badge with it', () => {
+    render(foot({ messages: panelMessages({ messages: MESSAGES, count: 2 }) }))
+    const slot = button().parentElement!
+    expect(slot.hasAttribute('data-map-overlay')).toBe(true)
+    expect(slot.contains(badge())).toBe(true)
+    expect(document.querySelectorAll('[data-map-overlay]')).toHaveLength(1)
+  })
+
   it('is lit while the gate is open, and runs the panel\'s command', () => {
     const onAnalyze = vi.fn()
     render(foot({ onAnalyze }))

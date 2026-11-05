@@ -378,16 +378,18 @@ export const APP = [
         message: 'Hand useTableView pointSample, which reads the analyzed report.',
       },
       {
-        // The row focus is `useRowFocus`'s (record 0143), which wraps it in
-        // useCallback where it holds the effect useResultsView may not.
-        selector: 'VariableDeclarator[id.name=/^on(RemovePending|FocusPending)$/] > CallExpression[callee.name="useCallback"]',
-        count: 2,
-        message: 'Wrap the two table callbacks in useCallback.',
+        selector: 'VariableDeclarator[id.name="onRemovePending"] > CallExpression[callee.name="useCallback"]',
+        count: 1,
+        message: 'Wrap onRemovePending in useCallback.',
       },
       {
-        selector: 'VariableDeclarator[id.name="onFocusResult"] > CallExpression[callee.name="useRowFocus"]',
-        count: 1,
-        message: 'Take onFocusResult from useRowFocus.',
+        // The row focus is `useRowFocus`'s (record 0143), which wraps both
+        // in useCallback where it holds the effect useResultsView may not:
+        // on a phone each lowers the sheet before it opens a card.
+        selector:
+          'VariableDeclarator[init.callee.name="useRowFocus"] > ObjectPattern > Property[key.name=/^on(FocusResult|FocusPending)$/]',
+        count: 2,
+        message: 'Take onFocusResult and onFocusPending from useRowFocus.',
       },
     ],
   },

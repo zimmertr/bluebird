@@ -14,8 +14,6 @@ maplibregl.setWorkerUrl(maplibreWorkerUrl)
 import '../map.css'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { ColDef } from '../utils/tableColumns'
-import { FireWarning } from '../utils/fireProximity'
-import type { ClosureWarning } from '../utils/closureProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { anyPointInView, framePadding, pointsWithinView } from '../utils/mapFraming'
 import { type CameraView, initialCamera } from '../utils/mapView'
@@ -32,6 +30,7 @@ import { addAttribution, addControls, placeControl, type CornerSlots, type MapCo
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { watchView } from '../map/viewWatch'
 import { watchBasemap } from '../map/basemapWatch'
+import { BASEMAP_STYLE_OPTIONS } from '../utils/basemapCredit'
 import { createPopupBoard } from '../map/popups'
 import { createCentring } from '../map/centring'
 import { CAMERA_MS, FIT_PADDING_PX, PLACE_PADDING_PX } from '../map/mapStyles'
@@ -88,10 +87,9 @@ export interface MapViewHandle {
   // flies. The tutorial's marker step passes both; a click on a table row
   // passes neither (#536).
   focusResult: (result: DestinationResult, options?: { instant?: boolean; avoid?: readonly ViewportRect[] }) => void
-  // The same camera move for a destination with no forecast yet, and nothing
-  // else: no popup, because the one `focusResult` opens is a forecast card and
-  // this destination has no forecast. Clicking the dot still says what is
-  // known about it (TJ, 2026-09-14).
+  // The same camera move for a destination with no forecast yet, opening the
+  // card its dot opens (#832, TJ 2026-10-31), where `focusResult` opens a
+  // marker's.
   focusPoint: (at: { latitude: number; longitude: number }) => void
   /** Close every popup and move nothing: the tutorial leaving its marker step (#536), and a committed report (#577). */
   closePopups: () => void
@@ -138,11 +136,9 @@ interface Props {
   pointSample: boolean
   // The model name a row falls back to while one model answered every row.
   modelFallbackLabel: string | null
-  // Fire-proximity warnings keyed by geoKey(lat,lon), mirroring the results
-  // table — a clicked point's popup surfaces the same ⚠️ when one applies.
-  fireWarnings: Map<string, FireWarning>
-  // The Closure column's warnings (#550), for the same popup's closure line.
-  closureWarnings: Map<string, ClosureWarning>
+  // When the report was analyzed, which a result card's forecast section
+  // says in its fine print (#832); null with no report.
+  analyzedAtMs: number | null
   showWildfires: boolean
   // The Forest Service closure orders (#550), one switch per layer: the closed
   // ground, and the closed trails, roads and sites. Read from the pod like
@@ -239,6 +235,10 @@ interface Props {
   // The most positions a ring may carry (`limits.max_polygon_points`): the draw
   // tool places no point past it (#619).
   maxPolygonPoints: number
+  // Lowers a phone's results sheet and then does what it is handed, at once
+  // where there is no sheet up (`useRowFocus`): a tap that opens a card goes
+  // through it, so the card has the map to stand on (TJ, 2026-11-04).
+  lowerSheetFirst: (then: () => void) => void
   // The round slot at the right of a phone's search pill, which the locate
   // button stands in (#696), or null at a desk and before the rows mount. A
   // DOM node held in state, so it is one identity for as long as the slot is
@@ -284,8 +284,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       popupColumns,
       pointSample,
       modelFallbackLabel,
-      fireWarnings,
-      closureWarnings,
+      analyzedAtMs,
       showWildfires,
       showAreaClosures,
       showTrailClosures,
@@ -316,6 +315,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onCameraMove,
       onBasemapFailed,
       maxPolygonPoints,
+      lowerSheetFirst,
       locateSlot,
       compassSlot,
       terrainSlot,
@@ -380,8 +380,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       popupColumns,
       pointSample,
       sortBy,
-      fireWarnings,
-      closureWarnings,
+      analyzedAtMs,
       searchedPlaces,
       onAddPoi,
       onRemovePoi,
@@ -391,6 +390,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onCameraMove,
       maxPolygonPoints,
       onTerrainChange,
+      lowerSheetFirst,
     }
     const [controller] = useState(() => createMapController(inputs))
     // Declared before every other effect so it runs first in a commit, and any
@@ -572,18 +572,27 @@ const MapView = forwardRef<MapViewHandle, Props>(
       focusPoint(at: { latitude: number; longitude: number }) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        // Through the centring, as `focusResult` below.
-        centring.fly(map, CAMERA_MS.focus, (duration) =>
+        // Through the centring, as `focusResult` below, whose card the dot's
+        // rides the flight the same way.
+        centring.fly(map, CAMERA_MS.focus, (duration, again) => {
+          const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
+          const canvas = map.getCanvas()
+          const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
+          const results = featuresRef.current?.results
+          const placed = again
+            ? results?.placeAgain(at, { markerAt })
+            : results?.openPending(at, { markerAt, steer: () => centring.reaim() })
+          if (!again && !placed) popups.closeAll()
+          const { dx, dy } = placed ?? { dx: 0, dy: 0 }
           map.flyTo({
             center: [at.longitude, at.latitude],
             zoom: Math.max(map.getZoom(), 10),
             duration,
             // The offset `focusResult` explains below: a padding handed to flyTo
             // is interpolated onto the transform and stays there.
-            offset: [0, -controller.inputs.cameraPadBottomPx / 2],
-          }),
-        )
-        popups.closeAll()
+            offset: [dx, -cameraPadBottomPx / 2 + dy],
+          })
+        })
       },
       closePopups() {
         popups.closeAll()
@@ -619,12 +628,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // The popup opens first, against the point the marker is flying
           // to, and rides the flight; what it asks for joins the offset, so
           // one camera move lands marker and card together. A flight sent
-          // again places the card again only while it stands: one closed
+          // again, by a resize or by the card changing size in the air
+          // (`steer`), places the card again only while it stands: one closed
           // since, by its own button or by the next report, stays closed, and
           // the marker flies alone.
-          const reopen = !again || (results?.hasOpenCard(result) ?? false)
           const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
-          const { dx, dy } = (reopen ? results?.openPopup(result, { markerAt, avoid }) : undefined) ?? { dx: 0, dy: 0 }
+          const placed = again
+            ? results?.hasOpenCard(result)
+              ? results.placeAgain(result, { markerAt, avoid })
+              : undefined
+            : results?.openPopup(result, { markerAt, avoid, steer: () => centring.reaim() })
+          const { dx, dy } = placed ?? { dx: 0, dy: 0 }
           map.flyTo({
             center: [result.longitude, result.latitude],
             zoom: Math.max(map.getZoom(), 10),
@@ -677,7 +691,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const opening = initialCamera(restoredView)
       const map = new maplibregl.Map({
         container: containerRef.current,
-        style: STYLE,
         center: [opening.lng, opening.lat],
         zoom: opening.zoom,
         // The library adds its own attribution unless told not to, and the
@@ -696,6 +709,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
       controlsRef.current = addControls(map, { onTerrainChange: (on) => controller.inputs.onTerrainChange(on) })
       // Before `load`: a style that fails never gets there.
       const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
+      // The style is asked for here and not by the constructor, because the
+      // rewrite of the basemap's credit (`utils/basemapCredit.ts`) is an
+      // option `setStyle` takes and the constructor does not; the watch above
+      // is registered first, so a style that fails is heard.
+      map.setStyle(STYLE, BASEMAP_STYLE_OPTIONS)
 
       // A polygon, custom CSV list or searched places restored from the URL
       // take precedence over the default framing, and a link's own camera over
@@ -824,7 +842,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // inputs are this render's by now, because its effect is declared first.
     useEffect(() => {
       if (mapReady) featuresRef.current?.results.refreshPopups()
-    }, [results, sortBy, popupColumns, pointSample, modelId, times, modelFallbackLabel, fireWarnings, closureWarnings, mapReady])
+    }, [results, sortBy, popupColumns, pointSample, modelId, times, modelFallbackLabel, analyzedAtMs, mapReady])
 
     // The forecast field and its arrows, on the same contract as the markers
     // above: one redraw per scrub tick, from series the browser already holds.

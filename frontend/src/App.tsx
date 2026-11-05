@@ -707,7 +707,7 @@ export default function App() {
     fire,
     closure,
     mapRef,
-    removePlace,
+    removeResult: removals.removeResult,
   })
   const { layout, tableView } = resultsView
   // Which edge of a desk's layout is moving, so the map and the results
@@ -814,8 +814,6 @@ export default function App() {
           timeline={timeline}
           report={report}
           tableView={tableView}
-          fire={fire}
-          closure={closure}
           layout={layout}
           analysis={analysis}
           sortBy={view.sortBy}
@@ -838,6 +836,7 @@ export default function App() {
           restoredView={restoredView}
           onBasemapFailed={setBasemapFailed}
           maxPolygonPoints={caps.maxPolygonPoints}
+          lowerSheetFirst={resultsView.lowerSheetFirst}
         />
 
         <ResultsSheet

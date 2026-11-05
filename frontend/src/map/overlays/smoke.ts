@@ -1,30 +1,22 @@
 /**
  * The NOAA HMS smoke overlay: its source, the three density fills and the
- * outline, the popup a click on a plume opens, and the fetch that runs while
- * the overlay is on.
+ * outline, the section a card carries for the plume over its point, and the
+ * fetch that runs while the overlay is on.
  *
- * The layers are added once, when the map loads, first of the three polygon
- * overlays: under the fire perimeters and over the radar tiles, which insert
- * themselves beneath the first fill here. That chain is the one the data
+ * The layers are added once, when the map loads, lowest of the three polygon
+ * overlays: under the closures and the fire perimeters and over the radar
+ * tiles (`layerOrder.ts`). That chain is the one the data
  * implies: rain is a measurement of the sky, smoke is a shape drawn over the
  * ground, and a fire is the thing you are steering away from.
  */
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
+import { addLayerAt } from '../layerOrder'
 import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
-import {
-  SMOKE_CLICK_ORDER,
-  SMOKE_DENSITIES,
-  SMOKE_EDGE,
-  SMOKE_FILL,
-  SMOKE_OPACITY,
-  fetchSmoke,
-  smokeLayerId,
-  smokePopupHtml,
-  type SmokeProps,
-} from '../../utils/smoke'
+import { SMOKE_CLICK_ORDER, SMOKE_DENSITIES, SMOKE_EDGE, SMOKE_FILL, SMOKE_OPACITY, fetchSmoke, smokeLayerId } from '../../utils/smoke'
+import { smokeSectionAt } from '../../utils/hazardSections'
 import { isAbort } from '../../utils/abort'
 
 export interface SmokeOverlay {
@@ -45,7 +37,7 @@ export function mountSmoke(
   // way each density is also its own click target and its own legend row.
   map.addSource('smoke', { type: 'geojson', data: emptyFC as FeatureCollection })
   for (const density of SMOKE_DENSITIES) {
-    map.addLayer({
+    addLayerAt(map, {
       id: smokeLayerId(density),
       type: 'fill',
       source: 'smoke',
@@ -57,21 +49,32 @@ export function mountSmoke(
   // it is faint. Deliberately not per density: the outline says "here is a
   // boundary", and three weights of it would be a second encoding competing
   // with the fills.
-  map.addLayer({
+  addLayerAt(map, {
     id: 'smoke-outline',
     type: 'line',
     source: 'smoke',
     paint: { 'line-color': SMOKE_EDGE, 'line-width': 1, 'line-opacity': 0.7 },
   })
 
-  // A click on a plume describes it. HMS nests its plumes, so a click in the
-  // interesting place lands on three at once, and the layers are listed
-  // heaviest first because the reader means the densest.
+  // A click on a plume opens the spot's card there, whose smoke section
+  // describes it (#832). HMS nests its plumes, so a click in the interesting
+  // place lands on three at once, and the layers are listed heaviest first
+  // because the reader means the densest. Every card asks the layer for the
+  // plume over its point, from the analysis held.
   deps.popups.register({
     target: 'smoke',
     layers: SMOKE_CLICK_ORDER,
-    open: ({ feature, lngLat }) => {
-      deps.popups.openCard(lngLat, smokePopupHtml(feature.properties as SmokeProps), { owner: 'smoke' })
+    ground: true,
+    open: ({ lngLat }) => deps.popups.openSpot(lngLat),
+  })
+  let held: FeatureCollection | null = null
+  deps.popups.registerPoint({
+    target: 'smoke',
+    shown: () => showing,
+    paints: () => false,
+    read: (at) => {
+      const section = held && smokeSectionAt(held, at)
+      return section ? { section } : null
     },
   })
 
@@ -93,6 +96,9 @@ export function mountSmoke(
       .then((fc) => {
         if (ac.signal.aborted) return
         setSource(map, 'smoke', fc)
+        held = fc
+        // A plume the analysis drew joins the open cards under it.
+        deps.popups.refreshPoint('smoke')
         recovery.succeeded()
       })
       .catch((err) => {
@@ -111,8 +117,9 @@ export function mountSmoke(
         abort = null
         recovery.stop()
         setSource(map, 'smoke', emptyFC)
-        // A popup about a plume the map no longer draws goes with it.
-        deps.popups.closeAll('smoke')
+        held = null
+        // A section about a plume the map no longer draws leaves its card.
+        deps.popups.refreshPoint('smoke')
         return
       }
       load()

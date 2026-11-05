@@ -63,3 +63,77 @@ export function externalLinkMarkup(): string {
     `</svg>`
   )
 }
+
+/**
+ * The chevron that says "this opens" or "this folds": the results panels'
+ * collapse, every menu trigger's cue (`IconChevron`), and since #832 the fold
+ * on each section of a card on the map, which is markup handed to setHTML
+ * and so draws it from here, the way the link-out glyph is drawn. Each is the
+ * polyline's points, down for a thing that is open and up for one that is
+ * shut, as the results bar reads them.
+ */
+export const CHEVRON = {
+  viewBox: '0 0 24 24',
+  strokeWidth: 2,
+  linecap: 'round',
+  linejoin: 'round',
+  up: '18 15 12 9 6 15',
+  down: '6 9 12 15 18 9',
+} as const
+
+/**
+ * The chevron as standalone markup, at the `control` step of the `ICON` ramp,
+ * the 16px the results bar's collapse draws it at, for the same reason
+ * `EXTERNAL_LINK_PX` is a number: a string handed to setHTML is never a class
+ * list Tailwind sees. `styles.test.ts` pins it against the ramp.
+ */
+export const CHEVRON_PX = 16
+
+export function chevronMarkup(up: boolean): string {
+  const { viewBox, strokeWidth, linecap, linejoin } = CHEVRON
+  return (
+    `<svg viewBox="${viewBox}" fill="none" stroke="currentColor" ` +
+    `stroke-width="${strokeWidth}" stroke-linecap="${linecap}" stroke-linejoin="${linejoin}" ` +
+    `width="${CHEVRON_PX}" height="${CHEVRON_PX}" aria-hidden="true">` +
+    `<polyline points="${up ? CHEVRON.up : CHEVRON.down}" />` +
+    `</svg>`
+  )
+}
+
+/**
+ * The grip on a card's resize handle (#832, TJ 2026-11-03): two strokes
+ * across the bottom-right corner, parallel to the card's rounded edge there,
+ * the mark a window's resizable corner has long carried. Markup only, since
+ * no React element draws it: the handle is part of a card handed to setHTML,
+ * and lives here beside the chevron so the popup draws no glyph of its own
+ * (`style-popup-glyph`).
+ */
+export const GRIP = {
+  viewBox: '0 0 24 24',
+  strokeWidth: 2,
+  linecap: 'round',
+  /** The long stroke, then the short one nearer the corner. */
+  lines: [
+    { x1: 21, y1: 11, x2: 11, y2: 21 },
+    { x1: 21, y1: 17, x2: 17, y2: 21 },
+  ],
+} as const
+
+/**
+ * The grip at the `chip` step of the `ICON` ramp: a mark inside a corner
+ * smaller than a control, at whose 12px the strokes run a whole pixel wide on
+ * whole pixels, as the chips' cross does. `styles.test.ts` pins it against
+ * the ramp.
+ */
+export const GRIP_PX = 12
+
+export function gripMarkup(): string {
+  const { viewBox, strokeWidth, linecap, lines } = GRIP
+  return (
+    `<svg viewBox="${viewBox}" fill="none" stroke="currentColor" ` +
+    `stroke-width="${strokeWidth}" stroke-linecap="${linecap}" ` +
+    `width="${GRIP_PX}" height="${GRIP_PX}" aria-hidden="true">` +
+    lines.map(({ x1, y1, x2, y2 }) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`).join('') +
+    `</svg>`
+  )
+}

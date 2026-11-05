@@ -3,7 +3,6 @@ import type { Feature, Point } from 'geojson'
 import type { FireActivityResponse, FireDetectionProps } from '../types'
 import { contrast } from '../testSupport/contrast'
 import { fakeResponse } from '../testSupport/fixtures'
-import { markupText } from '../testSupport/markupText'
 import {
   AGE_BANDS,
   AGE_BAND_WORDS,
@@ -21,7 +20,6 @@ import {
   fireActivityLegendChips,
   starburst,
   fireActivityQueryUrl,
-  hotspotPopupHtml,
   hotspotRows,
   withAgeBands,
 } from './fireActivity'
@@ -323,17 +321,5 @@ describe('hotspotRows', () => {
     expect(rows({ ...viirs, frp: undefined })).not.toHaveProperty('Fire power')
     expect(rows({ ...viirs, frp: Number.NaN })).not.toHaveProperty('Fire power')
     expect(Object.keys(rows({ ...viirs, confidence: '' }))).toEqual(['Detected', 'Satellite', 'Fire power'])
-  })
-
-  it('draws the card titled Hotspot with each line’s label and value', () => {
-    const html = hotspotPopupHtml({ properties: viirs }, NOW)
-    expect(html).toMatch(/<strong[^>]*>Hotspot<\/strong>/)
-    const body = html.slice(html.indexOf('data-popup-body'))
-    expect(markupText(body.slice(body.indexOf('>') + 1)).trim()).toBe(
-      `Detected: ${monthDayTime(new Date(seen))} (3h ago)` +
-        'Satellite: NOAA-20 VIIRS' +
-        'Confidence: Nominal' +
-        'Fire power: 4.3 MW',
-    )
   })
 })

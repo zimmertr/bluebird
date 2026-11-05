@@ -14,6 +14,13 @@ async function analyze(page: Page, phone: boolean) {
   await expectRanked(page)
 }
 
+// The ground under the marker lands after its card opens and redraws it
+// (#832), replacing every node in it: wait until no bar stands for it
+// (`pendingValue` in popupChrome.ts, whatever width it keeps) before holding
+// on to a link.
+const groundLanded = (page: Page) =>
+  expect(page.locator('.maplibregl-popup [data-pending]')).toHaveCount(0)
+
 const look = (el: Locator) =>
   el.evaluate((node) => {
     const style = getComputedStyle(node)
@@ -45,10 +52,12 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
   await expect.poll(async () => (await look(name)).line).toBe('underline')
 
   // The popup the row opens says it the same way, and its link-out glyph
-  // rests in a grey and takes the accent under the pointer.
+  // rests in a grey and takes the accent under the pointer, as its forecast
+  // section's fold does (#832).
   await row.locator('td').nth(3).click()
   const popup = page.locator('.maplibregl-popup')
   await expect(popup).toHaveCount(1)
+  await groundLanded(page)
   const link = popup.locator('[data-popup-link]').first()
   expect((await look(link)).line).toBe('none')
   // Hovered again on each try: the map pans to fit a popup it has just
@@ -57,14 +66,25 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
     await link.hover()
     expect((await look(link)).line).toBe('underline')
   }).toPass({ timeout: 5_000 })
-  const glyph = popup.locator('[data-popup-glyph]')
+  // The band's glyph is the first; the fold is a button that wears the same.
+  const glyph = popup.locator('a[data-popup-glyph]').first()
+  const fold = popup.getByRole('button', { name: 'Forecast', exact: true })
+  await expect(fold).toHaveAttribute('data-popup-glyph', '')
+  // The forecast's heading stands on the band the header wears (TJ,
+  // 2026-11-03), and its fold rests in the same grey there.
+  const backdrop = (el: Locator) => el.evaluate((node) => getComputedStyle(node).backgroundColor)
+  expect(await backdrop(fold.locator('..'))).toBe(await backdrop(popup.locator('.maplibregl-popup-content > div > div').first()))
   await page.mouse.move(0, 0)
-  expect((await look(glyph)).color).toBe(await paint(page, 'var(--popup-label)'))
+  const grey = await paint(page, 'var(--popup-label)')
+  expect((await look(glyph)).color).toBe(grey)
+  await expect.poll(async () => (await look(fold)).color).toBe(grey)
   const accent = await paint(page, 'var(--popup-glyph-hover)')
-  await expect(async () => {
-    await glyph.hover()
-    expect((await look(glyph)).color).toBe(accent)
-  }).toPass({ timeout: 5_000 })
+  for (const el of [glyph, fold]) {
+    await expect(async () => {
+      await el.hover()
+      expect((await look(el)).color).toBe(accent)
+    }).toPass({ timeout: 5_000 })
+  }
 })
 
 test.describe('on a phone', () => {
@@ -76,6 +96,7 @@ test.describe('on a phone', () => {
     const name = row.getByRole('button', { name: /^Center map on / })
     expect(await look(name)).toMatchObject({ line: 'underline', decoration: await paint(page, 'var(--ui-ink-soft)') })
     await (await typeCell(page, row)).tap()
+    await groundLanded(page)
     const link = page.locator('.maplibregl-popup [data-popup-link]').first()
     await expect(link).toBeAttached()
     expect(await look(link)).toMatchObject({ line: 'underline', decoration: await paint(page, 'var(--popup-label)') })

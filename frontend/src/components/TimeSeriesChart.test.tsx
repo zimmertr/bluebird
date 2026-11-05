@@ -8,6 +8,7 @@ import { CARD_CURSOR_OFFSET_PX, PHONE_PLOT_MARGIN, PLOT_MARGIN, hourX } from '..
 import { ACCENT, CHART_CARD, CHART_PANEL_TITLE, CHART_PICKER, DRAG } from '../styles'
 import { GHOST_SCALE, TITLED_TOP_LABEL_DY, ghostTransform, titleAt } from '../utils/chart/panelTitle'
 import { placeAt, render } from '../testSupport/render'
+import { DOUBLE_PRESS_MS } from '../utils/doublePress'
 import { resultRow, series } from '../testSupport/fixtures'
 
 // jsdom lays nothing out, so Recharts' ResponsiveContainer measures zero and
@@ -1029,6 +1030,52 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(sorted.querySelector(`.${CHART_CARD.sortArrow.split(' ')[0]}`)).not.toBeNull()
     const row = pinnedCard().querySelector('[data-pin-row]')!
     expect(row.className).not.toMatch(/border-t/)
+  })
+
+  // A double press on a pinned card's corner puts the card back at the size
+  // it was pinned at, the hover card's (TJ, 2026-11-04, record 0270), and
+  // starts no drag; a press long after the last is a drag of its own.
+  it("puts a pinned card back at its pinned size on a double press of its corner", () => {
+    // The corner times its presses by each event's timeStamp, which jsdom
+    // stamps from the clock, so the clock is the test's.
+    vi.useRealTimers()
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    vi.setSystemTime(T0 + 30 * 24 * HOUR)
+    const { container } = render(<TimeSeriesChart {...props({ ...TWO, onPlayheadChange: () => {} })} />)
+    // The panels' area laid out, so the pinned height is a length jsdom
+    // keeps: over an unmeasured area it is negative, which jsdom drops.
+    const root = container.firstElementChild as HTMLElement
+    placeAt(root, { left: 0, top: 0, width: 800, height: 400 })
+    placeAt(root.children[1], { left: 0, top: 40, width: 800, height: 360 })
+    placePlot(container, 360)
+    act(() => chart.onClick!({ activeLabel: TIMES[2] }, { clientX: 100, shiftKey: false }))
+    const card = pinnedCard()
+    const corner = card.lastElementChild as HTMLElement
+    expect(corner.className).toBe(CHART_CARD.corner)
+    const box = () => ({ width: card.style.width, height: card.style.height, fitsContent: card.classList.contains('w-max') })
+    const pinnedAt = box()
+    expect(pinnedAt.fitsContent).toBe(true)
+    expect(pinnedAt.height).not.toBe('')
+    const size = (dx: number, dy: number) => {
+      fireEvent.pointerDown(corner, { clientX: 300, clientY: 300 })
+      fireEvent.pointerMove(document, { clientX: 300 + dx, clientY: 300 + dy })
+      fireEvent.pointerUp(document, { clientX: 300 + dx, clientY: 300 + dy })
+    }
+    size(40, 30)
+    const sized = box()
+    expect(sized.fitsContent).toBe(false)
+    expect(sized.width).not.toBe('')
+    expect(sized.height).not.toBe(pinnedAt.height)
+    vi.advanceTimersByTime(1000)
+    size(60, 60)
+    expect(box().width).not.toBe('')
+    expect(box().fitsContent).toBe(false)
+    vi.advanceTimersByTime(DOUBLE_PRESS_MS - 100)
+    fireEvent.pointerDown(corner, { clientX: 304, clientY: 302 })
+    // A move after the second press sizes nothing: it started no drag.
+    fireEvent.pointerMove(document, { clientX: 500, clientY: 500 })
+    fireEvent.pointerUp(document, { clientX: 500, clientY: 500 })
+    expect(box()).toEqual(pinnedAt)
   })
 
   it('greys the + at four on a desk', () => {

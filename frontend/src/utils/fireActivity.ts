@@ -17,7 +17,7 @@ import type { Feature, FeatureCollection, Point } from 'geojson'
 import type { FireActivityResponse, FireDetectionProps } from '../types'
 import { apiFetch, overlayFeatures } from './apiFetch'
 import { clamp, grouped, isFiniteNumber, roundTo } from './numbers'
-import { escapeHtml, monthDayTime, popupCard, row } from './popup/popupChrome'
+import { monthDayTime } from './popup/popupChrome'
 import type { BBox } from './wildfires'
 
 const FIRE_ACTIVITY_URL = '/api/fire-activity'
@@ -29,6 +29,12 @@ const FIRE_ACTIVITY_URL = '/api/fire-activity'
  * the module that owns the data.
  */
 export const FIRMS_HREF = 'https://earthdata.nasa.gov/firms'
+
+/** The Layers menu's row for the detections, which the legend and a card's section open on. */
+export const FIRE_ACTIVITY_ROW_LABEL = 'Fire activity'
+
+/** What a card names FIRMS as, in a hotspot section's fine print beside when the app fetched the detections. */
+export const FIRMS_SOURCE = 'NASA FIRMS'
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -327,11 +333,12 @@ export function fireActivityLegendChips(): FireActivityLegendChip[] {
 }
 
 /**
- * The card a click on a star opens (#799; the maintainer, 2026-10-29: every
- * other thing on the map opens one). Its title and its four labels are the
+ * What a detection's section is named (#799; the maintainer, 2026-10-29: a
+ * click on a star opens a card like every other thing on the map, and since
+ * #832 a section of the place's card). Its name and its four labels are the
  * approved copy, word for word; the values are the feed's.
  */
-const HOTSPOT_TITLE = 'Hotspot'
+export const HOTSPOT_TITLE = 'Hotspot'
 
 /** One line of the card: an approved label and the detection's value for it. */
 export interface HotspotRow {
@@ -444,17 +451,4 @@ export function hotspotRows(
     ['Fire power', firePowerOf(p.frp)],
   ]
   return rows.flatMap(([label, value]) => (value === null ? [] : [{ label, value }]))
-}
-
-/** The card itself, on the card every popup wears (`popupCard`). */
-export function hotspotPopupHtml(
-  feature: { properties?: Partial<Record<keyof FireDetectionProps, unknown>> | null },
-  nowMs: number,
-): string {
-  return popupCard({
-    title: HOTSPOT_TITLE,
-    body: hotspotRows(feature, nowMs)
-      .map(({ label, value }) => row(label, escapeHtml(value)))
-      .join(''),
-  })
 }

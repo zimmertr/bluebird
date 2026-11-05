@@ -239,17 +239,22 @@ describe('addAttribution', () => {
 // library corner each was added in, the compass first in the top right.
 describe('placeControl', () => {
   // No DOM in this project, so the boxes are the few members the move reads:
-  // where a control stands, and an append and a prepend that move it.
+  // where a control stands, an append and a prepend that move it, and the
+  // attributes it wears.
   type Box = {
     parentElement: Box | null
     children: Box[]
+    attrs: Set<string>
     appendChild: (child: Box) => void
     prepend: (child: Box) => void
+    toggleAttribute: (name: string, on: boolean) => void
   }
   const box = (): Box => {
     const b: Box = {
       parentElement: null,
       children: [],
+      attrs: new Set(),
+      toggleAttribute: (name, on) => void (on ? b.attrs.add(name) : b.attrs.delete(name)),
       appendChild: (child) => {
         child.parentElement?.children.splice(child.parentElement.children.indexOf(child), 1)
         child.parentElement = b
@@ -308,6 +313,24 @@ describe('placeControl', () => {
     placeControl(map, control(scaleEl), null, { corner: 'bottom-left' })
     expect(scaleEl.parentElement).toBe(bottomLeft)
     expect(selectors).toEqual(['.maplibregl-ctrl-bottom-left'])
+  })
+
+  // A card keeps clear of a control in its library corner, a phone's scale
+  // and (i) (TJ, 2026-11-04), and not of one in a slot, whose surface is
+  // marked already: a box counted twice would be taken off a card's view
+  // twice.
+  it('marks a control a card keeps clear of only while it stands in its library corner', () => {
+    const bottomLeft = box()
+    const slot = box()
+    const creditEl = box()
+    bottomLeft.appendChild(creditEl)
+    const map = mapWith({ '.maplibregl-ctrl-bottom-left': bottomLeft }, [])
+    placeControl(map, control(creditEl), null, { corner: 'bottom-left' })
+    expect(creditEl.attrs.has('data-map-overlay')).toBe(true)
+    placeControl(map, control(creditEl), slot as unknown as HTMLElement, { corner: 'bottom-left' })
+    expect(creditEl.attrs.has('data-map-overlay')).toBe(false)
+    placeControl(map, control(creditEl), null, { corner: 'bottom-left' })
+    expect(creditEl.attrs.has('data-map-overlay')).toBe(true)
   })
 })
 

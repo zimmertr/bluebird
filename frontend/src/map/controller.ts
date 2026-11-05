@@ -12,10 +12,7 @@
  * handler is registered is the stale closure this object exists to prevent.
  */
 import type { DestinationResult, SortBy } from '../types'
-import type { ClosureWarning } from '../utils/closureProximity'
-import type { FireWarning } from '../utils/fireProximity'
 import type { Place } from '../utils/geocode'
-import { geoKey } from '../utils/points'
 import type { CameraView } from '../utils/mapView'
 import type { ColDef } from '../utils/tableColumns'
 
@@ -32,8 +29,9 @@ export interface MapInputs {
   // Whether the window is one hour, which a result popup's colours read as
   // the table's do.
   pointSample: boolean
-  fireWarnings: Map<string, FireWarning>
-  closureWarnings: Map<string, ClosureWarning>
+  // When the report was analyzed, which a result card's forecast section
+  // says in its fine print (#832); null with no report.
+  analyzedAtMs: number | null
   searchedPlaces: Place[]
   onAddPoi: (place: Place) => void
   onRemovePoi: (latitude: number, longitude: number) => void
@@ -50,6 +48,10 @@ export interface MapInputs {
   // The 3D button's press, asking for the terrain on or off (#799). The
   // switch is the overlays', so the button, the link and the map agree.
   onTerrainChange: (on: boolean) => void
+  // Lowers a phone's results sheet and then does what it is handed, at once
+  // where no sheet is up: a click that opens a card goes through it, so the
+  // card is fitted to the map the lowered sheet leaves (TJ, 2026-11-04).
+  lowerSheetFirst: (then: () => void) => void
 }
 
 export interface MapController {
@@ -62,10 +64,6 @@ export interface MapController {
    * the last update cannot pair a popup with the wrong row.
    */
   resultAt(latitude: number, longitude: number): DestinationResult | null
-  /** The fire warning for a destination at these coordinates, if any. */
-  fireWarningAt(latitude: number, longitude: number): FireWarning | null
-  /** The active area closure a destination at these coordinates stands inside, if any. */
-  closureWarningAt(latitude: number, longitude: number): ClosureWarning | null
 }
 
 export function createMapController(initial: MapInputs): MapController {
@@ -81,12 +79,6 @@ export function createMapController(initial: MapInputs): MapController {
     },
     resultAt(latitude, longitude) {
       return inputs.results.find((r) => r.latitude === latitude && r.longitude === longitude) ?? null
-    },
-    fireWarningAt(latitude, longitude) {
-      return inputs.fireWarnings.get(geoKey(latitude, longitude)) ?? null
-    },
-    closureWarningAt(latitude, longitude) {
-      return inputs.closureWarnings.get(geoKey(latitude, longitude)) ?? null
     },
   }
 }

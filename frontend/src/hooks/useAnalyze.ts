@@ -278,6 +278,8 @@ export function useAnalyze(
     dropFound,
     placeHeld,
     analyzed: report.analyzed,
+    // When the report committed, for a result card's forecast section (#832).
+    analyzedAtMs: report.analyzedAtMs,
     analysisSeq: report.analysisSeq,
     // Moves when a run that showed partial rows is put back (#560).
     discardSeq: report.discardSeq,

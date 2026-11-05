@@ -51,14 +51,14 @@ describe('featureRow', () => {
 })
 
 describe('pendingFC', () => {
-  it('places each pending destination in GeoJSON order, with its name', () => {
+  it('places each pending destination in GeoJSON order, with its name and exact point', () => {
     const fc = pendingFC([
       { name: 'Ingalls', latitude: 47.43, longitude: -120.94, source: 'csv' },
       { name: 'Stuart', latitude: 47.47, longitude: -120.9, source: 'search' },
     ])
     expect(fc.features).toHaveLength(2)
     expect(fc.features[0].geometry).toEqual({ type: 'Point', coordinates: [-120.94, 47.43] })
-    expect(fc.features[0].properties).toEqual({ name: 'Ingalls' })
+    expect(fc.features[0].properties).toEqual({ name: 'Ingalls', lat: 47.43, lon: -120.94 })
   })
 
   it('answers an empty collection for nothing pending', () => {

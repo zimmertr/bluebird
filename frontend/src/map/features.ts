@@ -1,24 +1,15 @@
 /**
- * Every feature on the map, mounted in the order its layers stack, lowest
- * first, when the map loads.
+ * Every feature on the map, mounted when the map loads.
  *
- * Lowest of all, the satellite imagery, which adds nothing until it is
- * switched on and then goes over the style's ground and under its first road,
- * symbol or layer of anybody else's (#799, record 0250). The basemap patch goes under the
- * style's own labels, and the trailhead and crag markers over it, still under
- * those labels. Above the style: the
- * forecast grid, which is the ground everything else is read against, then
- * smoke, then the fire perimeters, then the closures over the fires that
- * caused them (the closed ground under the closed trails, so a trail reads on
- * top of the area it crosses), then the satellite fire detections, points
- * over every area they fall in (#799), then the drawn ring, so a marker is
- * never under the outline of the area it was found in, then the markers and
- * the pending dots. The radar loop and the snow field are created when they
- * are switched on, beneath the first smoke fill, so the chain comes out grid,
- * snow, radar, smoke, fire, closures, detections, draw, results. The basemap
- * POI popups add no layers and go last. The ground (`terrain.ts`, #799) adds
- * nothing on load either: its relief and contours go in the first time they
- * are switched on, under the basemap patch and the style's labels.
+ * Where each layer stands is not the mount order's: every module adds its
+ * layers through `layerOrder.ts`, which puts each in its slot whenever it goes
+ * on, so the radar and the snow, created when they are switched on, still land
+ * under the smoke, and the stack comes out the same whatever mounts first
+ * (record 0268). The satellite imagery and the ground (`terrain.ts`, #799) add
+ * nothing until switched on, but for the one empty layer that carries
+ * Mapterhorn's credit (#832). The trailhead and crag markers mount after the
+ * basemap patch, which registers the icons they name. The basemap POI popups
+ * add no layers and go last.
  *
  * The map's popups mount first of all (`map/mapPopups.ts`): every feature that
  * opens a popup registers itself there as it mounts, and the one click that
@@ -34,6 +25,9 @@ import { enhanceBasemap } from './basemap'
 import { mountCamera } from './camera'
 import type { MapController } from './controller'
 import { mountDrawRing, type DrawRing } from './drawRing'
+import { mountDestinationCards } from './destinationCards'
+import { createGridHeads } from './gridHeads'
+import { createGroundReadings } from './groundReadings'
 import { serveHeldTiles } from './heldTileProtocol'
 import { mountLandmarks, type LandmarkLayer } from './landmarks'
 import { mountMapPopups } from './mapPopups'
@@ -123,8 +117,21 @@ export function mountFeatures(
     onPolygonChange: deps.onPolygonChange,
     onDrawUpdate: deps.onDrawUpdate,
   })
-  const results = mountResultsLayer(map, { controller, popups: mapPopups })
-  const pois = mountPoiPopups(map, { controller, popups: mapPopups, landmarks })
+  // Every card that describes a place, with one reading of the ground per
+  // point off the terrain rows' one elevation source (#832). A click on a
+  // marker, a dot or a label opens one through the layer that draws it, and a
+  // click on bare map through the map's own.
+  const cards = mountDestinationCards(map, {
+    controller,
+    popups: mapPopups,
+    gridHeads: createGridHeads(controller),
+    ground: createGroundReadings(terrain),
+  })
+  mapPopups.registerSpot((at) => {
+    cards.open({ kind: 'spot', lat: at.lat, lon: at.lng }, at)
+  })
+  const results = mountResultsLayer(map, { controller, popups: mapPopups, cards })
+  const pois = mountPoiPopups(map, { popups: mapPopups, cards, landmarks })
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })

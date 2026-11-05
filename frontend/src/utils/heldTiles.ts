@@ -198,3 +198,20 @@ export function heldTiles({
     },
   }
 }
+
+/**
+ * The pixel drawn at a point: at once where its tile is decoded, and once it
+ * is otherwise. A card reads through this rather than `pixel`, so the tile
+ * the pointer has already decoded on its way to the click answers in the
+ * card's first paint instead of a frame after it (#832).
+ */
+export function heldPixel(
+  tiles: HeldTiles,
+  layer: string,
+  lng: number,
+  lat: number,
+  tileZoom: number,
+): Rgba | null | Promise<Rgba | null> {
+  const now = tiles.pixelNow(layer, lng, lat, tileZoom)
+  return now === 'pending' ? tiles.pixel(layer, lng, lat, tileZoom) : now
+}

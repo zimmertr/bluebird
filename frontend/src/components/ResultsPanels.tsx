@@ -151,7 +151,7 @@ export interface ResultsPanelsProps {
   /** The model the report was analyzed under. */
   modelId: string
   /** A pending row's remove button, and a row's press that centres the map on it. */
-  onRemovePending: (d: { latitude: number; longitude: number }) => void
+  onRemovePending: (d: PendingDestination) => void
   onFocusResult: (row: DestinationResult) => void
   onFocusPending: (at: { latitude: number; longitude: number }) => void
 }
