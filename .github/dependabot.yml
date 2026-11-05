@@ -1,7 +1,7 @@
 version: 2
 updates:
   # Every npm and pip entry waits seven days after a release before proposing
-  # it (#633). A patch bump auto-merges and a merge to main deploys, so without
+  # it (#633). A patch or minor bump auto-merges and a merge to main deploys, so without
   # the wait a release published the day before the weekly run is live the same
   # morning; the npm worms of 2025 were pulled within hours to days. Security
   # updates do not wait: GitHub documents cooldown as version updates only.

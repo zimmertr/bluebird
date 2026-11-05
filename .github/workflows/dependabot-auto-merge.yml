@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   auto-merge:
-    name: Auto-merge patch updates
+    name: Auto-merge patch and minor updates
     runs-on: ubuntu-latest
     if: ${{ github.actor == 'dependabot[bot]' }}
     steps:
@@ -23,11 +23,11 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Patch == bugfix. Enable auto-merge (squash — the only merge type this
-      # repo allows); GitHub completes the merge once main's required checks
-      # pass. Minor/major PRs fall through untouched and wait for review.
-      - name: Enable auto-merge for patch updates
-        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' }}
+      # Patch and minor updates (record 0273). Enable auto-merge (squash — the
+      # only merge type this repo allows); GitHub completes the merge once main's
+      # required checks pass. Major PRs fall through untouched and wait for review.
+      - name: Enable auto-merge for patch and minor updates
+        if: ${{ contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type) }}
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -37,7 +37,7 @@ jobs:
       # of something to infer after the fact. Marker-guarded: Dependabot
       # rebases re-trigger this job, and re-runs must not stack duplicates.
       - name: Comment that auto-merge is armed
-        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' }}
+        if: ${{ contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type) }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
@@ -51,7 +51,7 @@ jobs:
             "$MARKER" \
             "### 🤖 Auto-merge armed" \
             "" \
-            "This is a patch-level (bugfix) update, so it merges itself once the required checks pass, then releases and deploys through the normal pipeline. Minor and major bumps wait for human review instead." \
+            "This is a patch- or minor-level update, so it merges itself once the required checks pass, then releases and deploys through the normal pipeline. Major bumps wait for human review instead." \
             "" \
             "To stop it, run \`gh pr merge --disable-auto\` on this PR or simply close it.")
           gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -f body="$BODY" >/dev/null
