@@ -1078,8 +1078,16 @@ export function popupCard({ title, link = null, meta = '', body = '', action = '
     ? `<div ${POPUP_BODY_ATTR} class="${CARD_BODY_END}" style="${POPUP_BODY_SIZE};padding-top:8px;padding-left:${BODY_SIDE};padding-right:${BODY_SIDE};box-sizing:border-box;overflow-x:auto">${body}</div>`
     : ''
   const button = action ? `<span style="display:flex;flex:none;margin-left:auto;margin-right:${ACTION_CLEAR}">${action}</span>` : ''
+  // A band with a body under it ends on a rule and a shadow, its bottom
+  // corners square against the body. A card with no body is its band alone,
+  // rounded at every corner as the card is, with nothing under it to rule
+  // off: square corners and an edge there read as a foot hanging off the
+  // card (TJ, 2026-11-04).
+  const end = body
+    ? `border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0`
+    : 'border-radius:8px'
   return `<div style="${POPUP_LEADING};position:relative;min-width:${POPUP_MIN_WIDTH_PX}px">
-    <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0;padding:${CLOSE_INSET} var(--popup-close-lane, 2rem) 8px 10px">
+    <div style="background:${HEADER_BAND_COLOR};${end};padding:${CLOSE_INSET} var(--popup-close-lane, 2rem) 8px 10px">
       <div class="${CARD_TITLE_ROW}" style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}${button}</div>
       ${meta}
     </div>${content}${resizeHandle()}

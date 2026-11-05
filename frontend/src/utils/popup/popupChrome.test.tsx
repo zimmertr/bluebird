@@ -302,6 +302,21 @@ describe('the header band', () => {
     expect(mount(html).querySelector('strong')!.parentElement!.getAttribute('class')).toBe(CARD_TITLE_ROW)
     expect(html).not.toContain('<hr')
   })
+
+  // A card with no body is its band alone: rounded at every corner, with no
+  // rule or shadow under it, which read as a square foot hanging off the
+  // card (TJ, 2026-11-04). Over a body it ends square on its rule.
+  it('rounds every corner and draws no rule where nothing stands under it', () => {
+    const band = (body: string) => mount(popupCard({ title: 'Title', body })).querySelector('strong')!.parentElement!.parentElement!
+    const bare = band('').getAttribute('style')!
+    expect(bare).toContain('border-radius:8px;')
+    expect(bare).not.toContain('border-bottom')
+    expect(bare).not.toContain('box-shadow')
+    cleanup()
+    const over = band('<p>rows</p>').getAttribute('style')!
+    expect(over).toContain('border-radius:8px 8px 0 0')
+    expect(over).toContain('border-bottom:1px solid')
+  })
 })
 
 // The card's one action stands in its title row, left of the ×, where it had

@@ -146,11 +146,15 @@ test('a fire opens the spot’s card on a click and never on a hover, and a mark
     card.getByRole('button', { name: button, exact: true }).locator('..').evaluate((el) => getComputedStyle(el).backgroundColor)
   expect(await fill('Active wildfire')).not.toBe(await fill('Forecast'))
 
-  // The fire around it opens the spot's card in place of the marker's, titled
-  // with the clicked coordinates, its fire section folded as on every card
-  // after an analysis and linked to NIFC from its heading, and no tab opens.
+  // A click on the fire around it closes the marker's card and opens nothing,
+  // as a click on bare map does (TJ, 2026-11-04). The next opens the spot's
+  // card, titled with the clicked coordinates, its fire section folded as on
+  // every card after an analysis and linked to NIFC from its heading, and no
+  // tab opens.
   await page.mouse.click(bare.x, bare.y)
   await expect(card).toHaveCount(0)
+  await expect(popups).toHaveCount(0)
+  await page.mouse.click(bare.x, bare.y)
   await expect(popups).toHaveCount(1)
   await expect(popups.locator('strong').first()).toHaveText(/^-?\d+\.\d{5}, -?\d+\.\d{5}$/)
   await expect(popups.getByText('Active wildfire: Probe Fire', { exact: true })).toBeVisible()
@@ -224,8 +228,12 @@ test.describe('on a phone', () => {
       await expect(popups.getByText('Area closure: Probe Area Closure', { exact: true })).toBeVisible({ timeout: 1_500 })
     }).toPass({ timeout: 20_000 })
 
-    // Four pixels off the 2.5px line: a new card at the tap, the trail's
-    // section first in the map's rank and the ground's under it.
+    // Four pixels off the 2.5px line: the first tap closes the open card, as
+    // a tap on any ground does (TJ, 2026-11-04), and the next opens a new one
+    // at the tap, the trail's section first in the map's rank and the
+    // ground's under it.
+    await page.touchscreen.tap(middle.x, middle.y + 4)
+    await expect(popups).toHaveCount(0)
     await page.touchscreen.tap(middle.x, middle.y + 4)
     await expect(popups).toHaveCount(1)
     await expect(popups.getByText('Trail closure: Probe Trail Closure', { exact: true })).toBeVisible()

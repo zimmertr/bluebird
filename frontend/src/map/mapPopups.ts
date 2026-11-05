@@ -693,7 +693,8 @@ export function mountMapPopups(
         width,
         body: range,
         clear(w, b) {
-          const size = clearSize(marker, anchor, { width: w, height: chrome + b }, least, ahead)
+          const start = { width: el.offsetWidth, height: el.offsetHeight }
+          const size = clearSize(marker, anchor, start, { width: w, height: chrome + b }, least, ahead)
           return { width: size.width, body: size.height - chrome }
         },
       }

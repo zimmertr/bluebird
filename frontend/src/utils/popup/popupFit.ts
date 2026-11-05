@@ -279,24 +279,29 @@ export function dragBodyRange(
  * so the card stays clear of what stands over the map (TJ, 2026-11-04): a
  * card dragged under the scale or the credits has its corner, and the handle
  * in it, under them, and cannot be dragged back. Each of `obstacles` the
- * card would reach, the fit's breath included, takes off the height or the
- * width, whichever leaves the card more of what it asked for and no less
- * than `least`; one the card cannot clear at `least`, as where it opened
- * over it, is left alone. The caller leaves out what the card already
- * stands over as the drag starts, so a drag never shrinks a card on its
- * first move.
+ * card would reach, the fit's breath included, stops the side the drag
+ * pushed into it: the width where widening alone from `start` reaches it, as
+ * a legend beside the card, the height where growing taller alone does, as
+ * the scale under it, so widening a card never makes it shorter. One only
+ * the two together reach, at the card's corner, takes off whichever leaves
+ * the card more. Never under `least`; one the card cannot clear at `least`
+ * is left alone. The caller leaves out what the card already stands over as
+ * the drag starts, so a drag never shrinks a card on its first move.
  */
 export function clearSize(
   marker: Point,
   anchor: PopupSide,
+  start: Size,
   size: Size,
   least: Size,
   obstacles: readonly Rect[],
 ): Size {
   let { width, height } = size
+  const reach = (w: number, h: number) => figureOf(marker, { width: w + 2 * FIT_MARGIN_PX, height: h + FIT_MARGIN_PX }, anchor)
   for (const o of obstacles) {
-    const reach = figureOf(marker, { width: width + 2 * FIT_MARGIN_PX, height: height + FIT_MARGIN_PX }, anchor)
-    if (overlap(reach, o) === 0) continue
+    if (overlap(reach(width, height), o) === 0) continue
+    const wide = overlap(reach(width, Math.min(height, start.height)), o) > 0
+    const tall = overlap(reach(Math.min(width, start.width), height), o) > 0
     const lower =
       anchor === 'top' ? o.top - FIT_MARGIN_PX - (marker.y + TIP_PX) : marker.y - TIP_PX - (o.bottom + FIT_MARGIN_PX)
     const narrower =
@@ -307,6 +312,9 @@ export function clearSize(
           : -1
     const byHeight = lower >= least.height
     const byWidth = narrower >= least.width
+    if (wide && byWidth) width = Math.floor(narrower)
+    if (tall && byHeight) height = Math.floor(lower)
+    if (wide || tall) continue
     if (byHeight && (!byWidth || width * lower >= narrower * height)) height = Math.floor(lower)
     else if (byWidth) width = Math.floor(narrower)
   }

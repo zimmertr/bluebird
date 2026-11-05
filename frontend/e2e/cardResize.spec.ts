@@ -258,9 +258,22 @@ test('a wheel over a card zooms the map', async ({ page }) => {
   const card = await centredCard(page, DESTINATION_NAMES[0])
   const scale = page.locator('.maplibregl-ctrl-scale').first()
   const before = await scale.textContent()
-  const close = (await card.locator('.maplibregl-popup-close-button').boundingBox())!
-  await page.mouse.move(close.x - 60, close.y + close.height / 2)
-  await page.mouse.wheel(0, 600)
+  // Every wheel the map's own box hears, the one handed on from the card
+  // included, for the annotation should the scale not move.
+  await page.evaluate(() => {
+    const w = window as unknown as { heard: number }
+    w.heard = 0
+    document.querySelector('.maplibregl-canvas-container')!.addEventListener('wheel', () => (w.heard += 1))
+  })
+  // Over the title, which scrolls nothing, a few notches as a wheel turns.
+  const title = (await card.locator('strong').first().boundingBox())!
+  await page.mouse.move(title.x + 10, title.y + title.height / 2)
+  for (let i = 0; i < 4; i += 1) {
+    await page.mouse.wheel(0, 100)
+    await page.waitForTimeout(60)
+  }
+  const heard = await page.evaluate(() => (window as unknown as { heard: number }).heard)
+  test.info().annotations.push({ type: 'wheels the map heard', description: String(heard) })
   await expect.poll(() => scale.textContent()).not.toBe(before)
   await expect(card).toBeVisible()
 })

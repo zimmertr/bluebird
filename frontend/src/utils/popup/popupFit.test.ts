@@ -249,17 +249,18 @@ describe('dragBodyRange', () => {
 describe('clearSize', () => {
   const MARKER = { x: 640, y: 100 }
   const LEAST = { width: 280, height: 200 }
+  const START = { width: 400, height: 300 }
 
   it('leaves a size that reaches nothing', () => {
     const scale = { left: 8, top: 860, right: 120, bottom: 892 }
-    expect(clearSize(MARKER, 'top', { width: 400, height: 300 }, LEAST, [scale])).toEqual({ width: 400, height: 300 })
+    expect(clearSize(MARKER, 'top', START, { width: 400, height: 300 }, LEAST, [scale])).toEqual({ width: 400, height: 300 })
   })
 
   // The credits run under the card's right half from 700px down: the height
   // stops 8px over them, 700 - 8 - 110.
   it('stops the height short of what stands under the card', () => {
     const credit = { left: 700, top: 700, right: 1272, bottom: 720 }
-    expect(clearSize(MARKER, 'top', { width: 400, height: 800 }, LEAST, [credit])).toEqual({ width: 400, height: 582 })
+    expect(clearSize(MARKER, 'top', START, { width: 400, height: 800 }, LEAST, [credit])).toEqual({ width: 400, height: 582 })
   })
 
   // A legend beside the card from x 900: the width stops 8px short of it on
@@ -267,18 +268,35 @@ describe('clearSize', () => {
   // have to give up more.
   it('stops the width short of what stands beside the card', () => {
     const legend = { left: 900, top: 120, right: 1272, bottom: 900 }
-    expect(clearSize(MARKER, 'top', { width: 700, height: 300 }, LEAST, [legend])).toEqual({ width: 504, height: 300 })
+    expect(clearSize(MARKER, 'top', START, { width: 700, height: 300 }, LEAST, [legend])).toEqual({ width: 504, height: 300 })
+  })
+
+  // Widening alone runs into the legend, so the width stops and the height
+  // the drag asked for stands, though giving up height would keep more.
+  it('stops the side the drag pushed into, never the other', () => {
+    const legend = { left: 900, top: 120, right: 1272, bottom: 900 }
+    expect(clearSize(MARKER, 'top', START, { width: 900, height: 320 }, LEAST, [legend])).toEqual({ width: 504, height: 320 })
+  })
+
+  // Credits off the card's corner, which neither widening alone nor growing
+  // taller alone reaches: the side that leaves more of the card comes off,
+  // the width at 424 for a tall card and the height at 382 for a wide one.
+  it('takes the cheaper side off for what only its corner reaches', () => {
+    const corner = { left: 860, top: 500, right: 1272, bottom: 520 }
+    expect(clearSize(MARKER, 'top', START, { width: 500, height: 300 }, LEAST, [corner])).toEqual({ width: 500, height: 300 })
+    expect(clearSize(MARKER, 'top', START, { width: 500, height: 600 }, LEAST, [corner])).toEqual({ width: 424, height: 600 })
+    expect(clearSize(MARKER, 'top', START, { width: 700, height: 600 }, LEAST, [corner])).toEqual({ width: 700, height: 382 })
   })
 
   it('clears what stands over a card standing above its point', () => {
     const rows = { left: 0, top: 0, right: 1280, bottom: 60 }
     const at = { x: 640, y: 800 }
-    expect(clearSize(at, 'bottom', { width: 400, height: 790 }, LEAST, [rows])).toEqual({ width: 400, height: 722 })
+    expect(clearSize(at, 'bottom', START, { width: 400, height: 790 }, LEAST, [rows])).toEqual({ width: 400, height: 722 })
   })
 
   it('leaves alone what it cannot clear at its least', () => {
     const over = { left: 600, top: 150, right: 700, bottom: 200 }
-    expect(clearSize(MARKER, 'top', { width: 400, height: 300 }, LEAST, [over])).toEqual({ width: 400, height: 300 })
+    expect(clearSize(MARKER, 'top', START, { width: 400, height: 300 }, LEAST, [over])).toEqual({ width: 400, height: 300 })
   })
 })
 
