@@ -14,7 +14,7 @@ three repositories and the supporting services that automate the path.
 | System | Role |
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image, plus a second image for the planet fill that builds the shared cache's places table (`fill/`, #760). |
-| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set. That flag only labels the version on Artifact Hub; the `ignore` entry in `artifacthub-repo.yml` is what keeps PR builds off the listing, so Artifact Hub never offers one as the default version. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Lint & render` that walk does block a PR, because it reads the chart alone. Its `pr-title.yml` is the same `PR Title` check as this repo's. |
+| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set. That flag only labels the version on Artifact Hub; the `ignore` entry in `artifacthub-repo.yml` is what keeps PR builds off the listing, so Artifact Hub never offers one as the default version. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Lint & render` that walk does block a PR, because it reads the chart alone. Its `pr-title.yml` is its own copy of the `PR Title` check, until it moves onto yggdrasil's modules as this repo did (zimmertr/yggdrasil#7). |
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` and `Validate Terraform` checks. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-fill` (the planet fill, released beside each app image at the same version), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
@@ -177,8 +177,9 @@ the newest release (#632).
 3. **Scan Pushed Image** — Trivy, once per image and platform
    (`zimmertr/bluebird` and `zimmertr/bluebird-fill`, each on `linux/amd64`
    and `linux/arm64`), against each image's digest from step 2, with the
-   same `trivy.yaml` and `.github/actions/trivy-crit-high` as the PR gate and
-   the weekly scan. It fails on a fixable Critical/High finding. Steps 4, 5
+   same `trivy.yaml` as the PR gate and the weekly scan, and the same
+   `.github/actions/trivy-crit-high` as the weekly scan. It fails on a fixable
+   Critical/High finding. Steps 4, 5
    and 6 all need it, so production, the chart's default image and the GitHub
    release move only onto a scanned digest. See
    [The release scan](#the-release-scan).
@@ -343,8 +344,11 @@ before production moves (#634):
   digest names the multi-platform index; `TRIVY_PLATFORM` picks the half each
   leg reads, and without it both platforms would read amd64.
 - **One definition of a failure.** The same `trivy-action` pin,
-  `ignore-unfixed`, `trivy.yaml` and `.github/actions/trivy-crit-high` as the
-  PR gate and the weekly scan, so the three judge an image alike.
+  `ignore-unfixed` and `trivy.yaml` as the PR gate and the weekly scan, and
+  the same `.github/actions/trivy-crit-high` as the weekly scan, so the three
+  judge an image alike. The PR gate counts with Trivy's own `severity` and
+  `exit-code` inputs (yggdrasil's docker-build module), which refuse the same
+  fixable Critical/High findings.
 - **No credential.** Both images are public, so the job does not log in to
   Docker Hub and holds nothing a scanner could read. `zimmertr/bluebird-fill`
   has to be made public by hand on Docker Hub, or its two legs cannot pull it.
@@ -1054,12 +1058,14 @@ cache keys, which fed straight into the budget problem below. The trade is that
 a branch pushed with no pull request open gets no checks until one is opened.
 Every check branch protection requires is a `pull_request` check anyway.
 
-Branch protection requires nine contexts: `Python Lint`, `Docker Build`,
-`Frontend Typecheck & Tests`, `Backend Tests`, `Browser Smoke & Axe`,
-`PR Title`, `Lighthouse Budgets`, `Database Tests` and `Planet Fill` (read from
-the branch protection API on 2026-10-27; `Lighthouse Budgets` joined on
-2026-10-06 under #375, after 54 passes and 0 failures over its first 60 PR
-runs). **A job here cannot be renamed or deleted on its own**: branch
+Branch protection requires nine contexts: `Python Lint`,
+`Docker Build / Docker Build`, `Frontend Typecheck & Tests`, `Backend Tests`,
+`Browser Smoke & Axe`, `PR Title / PR Title`, `Lighthouse Budgets`,
+`Database Tests` and `Planet Fill` (read from the branch protection API on
+2026-10-27; `Lighthouse Budgets` joined on 2026-10-06 under #375, after 54
+passes and 0 failures over its first 60 PR runs). The two with a ` / ` call
+a yggdrasil module, and GitHub names such a check `<this job> / <module job>`
+(record 0276). **A job here cannot be renamed or deleted on its own**: branch
 protection matches the name exactly, and a name it requires that no longer
 reports strands every open pull request. That is also why `Browser Smoke & Axe`
 splits its suite into two invocations rather than a matrix, which would report
@@ -1193,7 +1199,7 @@ flowchart LR
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
         checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, mypy, pytest, OpenAPI + API-type drift,<br/>database tests against PostGIS, planet fill build + suite + Trivy,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets, browser smoke + axe"]
-        title["pr-title.yml<br/>PR Title: GitVersion reads the title<br/>(also on a title edit)"]
+        title["pr-title.yml<br/>PR Title: yggdrasil's pr-title module checks the type<br/>(also on a title edit)"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -1261,22 +1267,22 @@ flowchart LR
   the fixtures and fails unless each ban reports its own violation and nothing
   else, and each per-file check reports every message it carries: a selector
   that matches nothing otherwise reads as a clean tree.
-- `pr.yml`'s docker-build job loads the amd64 image into the runner and scans it
+- `pr.yml`'s docker-build job calls yggdrasil's **docker-build** module, which
+  lints the Dockerfile, builds the amd64 image into the runner and scans it
   with **Trivy** (`ignore-unfixed`: Debian/Alpine no-fix CVEs never gate). The
-  report lands in the job step summary and as a **sticky PR comment** (matched by
-  a hidden `<!-- bluebird-image-scan -->` marker, not `--edit-last`, so it can't
-  clobber the preview-URL comment). The job fails only on **fixable
-  Critical/High** findings. File-level exclusions live in **`trivy.yaml`** at the
-  repo root, read by this job, by `release.yml`'s scan of the pushed image and
-  by `image-scan.yml` below, so the gate that admits an image and the gates
-  that check it later cannot disagree. Each
-  entry there carries its reasoning; today the only one is pip's vendored-source
-  SBOM, which Trivy would otherwise read as installed inventory. What counts as
-  a Critical/High is one composite action, **`.github/actions/trivy-crit-high`**,
-  called by this job, by `release.yml` and by `image-scan.yml`: two workflows once spelled the
-  same `jq` filter, so a filter corrected in one could keep admitting images in
-  the other. The same job then runs the image and **smoke tests** what only a
-  built image can show: the build arguments reach `/api/version`, Swagger UI is
+  report lands in the job step summary and as a **sticky PR comment** (matched
+  by its `image-scan` header, so it can't clobber the preview-URL comment).
+  The job fails only on **fixable Critical/High** findings. File-level
+  exclusions live in **`trivy.yaml`** at the repo root, read by the module, by
+  `release.yml`'s scan of the pushed image and by `image-scan.yml` below, so
+  the gate that admits an image and the gates that check it later cannot
+  disagree. Each entry there carries its reasoning; today the only one is
+  pip's vendored-source SBOM, which Trivy would otherwise read as installed
+  inventory. `release.yml` and `image-scan.yml` count a Critical/High with
+  one composite action, **`.github/actions/trivy-crit-high`**, so a filter
+  corrected in one can't keep admitting images in the other. This repo passes
+  the module its build arguments, the Actions layer cache, and the **smoke
+  test**, which runs the image and checks what only a built image can show: the build arguments reach `/api/version`, Swagger UI is
   served from the image, and the license notices ship (#571):
   `/third-party-licenses.txt` and `/swagger-ui/swagger-ui-bundle.js.LICENSE.txt`
   answer, the first names every direct dependency in `frontend/package.json`
@@ -1341,18 +1347,16 @@ flowchart LR
   `mcr.microsoft.com/playwright` image is for local runs only
   (`docs/DEVELOPMENT.md`): on a runner it was measured at a 29 s pull against
   1 s to install Chromium alone ([The pull request path](#the-pull-request-path)).
-- `pr-title.yml`'s **PR Title** job fails a PR whose title none of
-  `GitVersion.yml`'s three patterns reads, since that title becomes the squash
+- `pr-title.yml`'s **PR Title** job calls yggdrasil's **pr-title** module,
+  which fails a PR whose title doesn't start with one of the ten types
+  `GitVersion.yml`'s three patterns name, since that title becomes the squash
   commit's and decides the release. It runs on `opened`, `edited`, `reopened`
   and `synchronize`, so fixing the title fixes the check without a push, and it
   is a workflow apart from `pr.yml` so a title edit does not restart the whole
-  suite. The patterns are read from `GitVersion.yml` by
-  `.github/scripts/check_pr_title.py`, never copied, and
-  `backend/tests/test_release_titles.py` holds them to the table the engine was
-  run on. It needs no secret, so fork and Dependabot PRs run it the same way.
-  Each run notes the bump the merge will release, and a major as a warning.
-  It is a required check in this repository (read from the branch protection
-  API on 2026-10-06); adding it is a manual step in each repository's settings.
+  suite. It needs no secret, so fork and Dependabot PRs run it the same way.
+  It checks the type only: it no longer names the bump the merge will release
+  or warns on a major (record 0276). It is a required check, as
+  `PR Title / PR Title`.
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
   never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`,
@@ -1467,9 +1471,10 @@ job is the later check: CVEs disclosed after that scan, on the amd64 half.
 - **Always:** SARIF upload → code-scanning alerts in the repo **Security tab**.
 - **Gate:** the job fails — triggering GitHub's workflow-failure email — only
   when a **fixable Critical/High** vulnerability exists, i.e. only when there
-  is something to do. It re-scans as JSON and counts through the same
-  **`.github/actions/trivy-crit-high`** the PR gate uses, so the two gates
-  judge an image by one definition. Expected remediation: merge the open
+  is something to do. It re-scans as JSON and counts through
+  **`.github/actions/trivy-crit-high`**, as the release scan does. The PR gate
+  refuses the same fixable Critical/High findings through Trivy's own
+  `severity` and `exit-code` inputs. Expected remediation: merge the open
   Dependabot base-image PR (below), which cuts a patch release on the fresh
   base and rolls it out through Path 1.
 
@@ -1506,8 +1511,9 @@ the Hub dashboard; the cron's failure email is the push-based signal.
 ## Dependabot auto-merge
 
 Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend`,
-`/frontend/tools/api-types` and `/frontend/tools/eslint`, `github-actions`, and
-`docker` base images in `/`, `/fill` and `/backend/tests/db`).
+`/frontend/tools/api-types` and `/frontend/tools/eslint`, and `docker` base
+images in `/`, `/fill` and `/backend/tests/db`), and daily ones for
+`github-actions`.
 The type generator's package ignores TypeScript **major** bumps: it is pinned to
 5 because `openapi-typescript` loads the compiler API and peers on `^5.x`, which
 is why it is a package apart from the app in the first place. The linter's
@@ -1529,8 +1535,10 @@ Three things narrow what an auto-merged update can bring with it (#633):
   06:51 on 2026-10-01). The npm worms of 2025 were pulled within hours to a few
   days of publication. The wait applies to version updates only: GitHub
   documents that Dependabot's **security** updates do not wait for it, so a
-  fix for a published advisory still arrives at once. The `github-actions` and
-  `docker` entries carry no cooldown here.
+  fix for a published advisory still arrives at once. The `github-actions`
+  entry runs daily and waits three days, so a yggdrasil module release
+  arrives three days after it ships (yggdrasil's record 0023). The `docker`
+  entry carries no cooldown.
 - **No `npm ci` runs install scripts.** The image build, both `npm ci` steps in
   `pr.yml`, the two tool-package installs in `frontend/package.json` and the
   `Makefile` all pass `--ignore-scripts`. The app's lockfile holds two packages

@@ -17,8 +17,8 @@ branches:
 # matches still releases a patch through the branch's default increment, but
 # the title check refuses it, so every prefix in use must be named here.
 #
-# That check, .github/scripts/check_pr_title.py, reads these three lines and
-# fails a PR whose title none of them matches. Keep each pattern on one line.
+# That check is yggdrasil's pr-title module (pr-title.yml), whose list of types
+# is the same ten named here. A type added here must be added there too.
 major-version-bump-message: '^(feat|fix|perf|refactor|chore|docs|style|test|ci|build)(\([^)\r\n]+\))?!:'
 minor-version-bump-message: '^feat(\([^)\r\n]+\))?:'
 patch-version-bump-message: '^(fix|perf|refactor|chore|docs|style|test|ci|build)(\([^)\r\n]+\))?:'
