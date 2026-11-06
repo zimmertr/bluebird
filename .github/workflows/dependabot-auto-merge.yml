@@ -1,57 +1,24 @@
 name: Dependabot auto-merge
 
-# Runs on every PR; the job no-ops for non-Dependabot actors.
+# Patch and minor Dependabot version updates (record 0273) merge themselves
+# once main's required checks pass, then release and deploy like any other
+# merge. Majors, and digest-only base image updates, wait for review.
+# yggdrasil's auto-merge module, which also posts a comment saying so. Decision
+# record 0277.
+#
+# The merge is armed with AUTO_MERGE_PAT (a Dependabot secret, since a run
+# Dependabot starts cannot read Actions secrets), because a merge driven by the
+# default GITHUB_TOKEN would NOT trigger release.yml's `on: push` (GitHub's
+# recursion guard), leaving the patch merged but undeployed.
 on: pull_request
 
-# GITHUB_TOKEN reads Dependabot metadata and writes the explanatory comment.
-# The privileged merge is done with AUTO_MERGE_PAT (below) on purpose: a merge
-# driven by the default GITHUB_TOKEN would NOT trigger release.yml's `on: push`
-# (GitHub's recursion guard), leaving the patch merged but undeployed.
-permissions:
-  contents: read
-  pull-requests: write
+permissions: {}
 
 jobs:
   auto-merge:
-    name: Auto-merge patch and minor updates
-    runs-on: ubuntu-latest
-    if: ${{ github.actor == 'dependabot[bot]' }}
-    steps:
-      - name: Fetch Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      # Patch and minor updates (record 0273). Enable auto-merge (squash — the
-      # only merge type this repo allows); GitHub completes the merge once main's
-      # required checks pass. Major PRs fall through untouched and wait for review.
-      - name: Enable auto-merge for patch and minor updates
-        if: ${{ contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type) }}
-        run: gh pr merge --auto --squash "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.AUTO_MERGE_PAT }}
-
-      # Say so on the PR, so the self-merge is legible from the PR page instead
-      # of something to infer after the fact. Marker-guarded: Dependabot
-      # rebases re-trigger this job, and re-runs must not stack duplicates.
-      - name: Comment that auto-merge is armed
-        if: ${{ contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type) }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          MARKER='<!-- bluebird-auto-merge -->'
-          if gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
-              --jq '.[].body' | grep -qF "$MARKER"; then
-            exit 0
-          fi
-          BODY=$(printf '%s\n' \
-            "$MARKER" \
-            "### 🤖 Auto-merge armed" \
-            "" \
-            "This is a patch- or minor-level update, so it merges itself once the required checks pass, then releases and deploys through the normal pipeline. Major bumps wait for human review instead." \
-            "" \
-            "To stop it, run \`gh pr merge --disable-auto\` on this PR or simply close it.")
-          gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -f body="$BODY" >/dev/null
+    name: Dependabot auto-merge
+    uses: zimmertr/yggdrasil/.github/workflows/auto-merge.yml@4e5afc95d7f3ba6c99d18e245fd3cf726c72fb63 # v0.8.1
+    permissions:
+      pull-requests: write # the comment
+    secrets:
+      merge-token: ${{ secrets.AUTO_MERGE_PAT }}
