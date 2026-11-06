@@ -41,7 +41,7 @@ jobs:
           # Exact, not '6.x': the version this computes is pasted into tags,
           # branch names and commit messages, so the engine that computes it
           # moves only through a reviewed change. Not seen by Dependabot; bump
-          # it by hand, and test_release_titles.py names the same version.
+          # it by hand.
           versionSpec: '6.8.2'
       - id: gitversion
         uses: gittools/actions/gitversion/execute@7417b1089e2c7de93510f1901d656ddf60bb024f # v4.7.0
