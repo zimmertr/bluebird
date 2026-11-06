@@ -458,9 +458,9 @@ sets `persist-credentials: false` except the one that pushes a tag (the
 chart's `publish`; this repo's release makes its tag through the API).
 GitHub refuses an action not pinned to a full commit SHA (the repository's
 "require actions to be pinned" setting), and yggdrasil's lint module fails a
-pasted expression through zizmor (the `Lint / zizmor` check).
-`backend/tests/test_base_image_digest.py` fails a base image without a digest,
-the one check no maintained linter made here on 2026-11-06 (record 0279).
+pasted expression through zizmor (the `Lint / zizmor` check), and a base
+image without a digest through Semgrep (the `Lint / semgrep` check, record
+0279).
 
 **What the maintainer still owes (#632).** These are repository settings and
 credentials, which no pull request can make:

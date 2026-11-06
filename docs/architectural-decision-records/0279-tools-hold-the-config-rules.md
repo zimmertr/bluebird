@@ -4,7 +4,7 @@
 - Date: 2026-11-06
 - Decider: the maintainer (TJ), 2026-11-06, in zimmertr/yggdrasil#6: "We shouldn't be rolling our own scripts when open source tools and frameworks exist and are community maintained to solve these problems." and, on the plan, "Makes sense to me."
 - Issues and PRs: zimmertr/yggdrasil#6 (step 4.4), zimmertr/yggdrasil#38, this PR
-- Cited in code as: `.github/workflows/lint.yml`, `.github/workflows/pr.yml`, `frontend/.npmrc`, `backend/tests/test_base_image_digest.py`
+- Cited in code as: `.github/workflows/lint.yml`, `.github/workflows/pr.yml`, `frontend/.npmrc`
 - Guide: [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md), the dependency lock and install-script rules; [`docs/CICD.md`](../CICD.md), What keeps it in
 
 ## Context
@@ -23,7 +23,7 @@ The rules stand. What holds each one changes:
 | The dev lock holds the runtime lock's versions | pip-compile, through `requirements-dev.in`'s `-c requirements.txt` |
 | Every locked package is hashed | The image's `pip install --require-hashes`, which Docker Build runs on every PR |
 | No `npm ci` runs an install script | An `.npmrc` with `ignore-scripts=true` in each package folder under `frontend/` |
-| The base images carry a digest | `test_base_image_digest.py`, the one check no tool makes |
+| The base images carry a digest | yggdrasil's lint module: Semgrep's registry rule `dockerfile-source-not-pinned` |
 
 These go with no replacement: the test that the image installs with `--require-hashes`, the Dependabot cooldown test, the two npm override tests and the `apk upgrade` layer tests. Each guarded a few lines of config that a reviewer sees change, and `pyyaml` leaves the dev lock with the last test that read YAML.
 
@@ -32,7 +32,7 @@ These go with no replacement: the test that the image installs with `--require-h
 - 2026-11-06: `make lock-backend` reproduced the locks Dependabot last wrote (#853) byte for byte, so the diff check doesn't fight Dependabot's recompiles.
 - 2026-11-06: in `node:26-alpine`, `npm config get ignore-scripts` read `true` in `frontend/`, `frontend/e2e` and through `npm --prefix tools/eslint`, and `false` in a folder with no `.npmrc`. No package here has a pre- or post-script, which `ignore-scripts` would also skip.
 - 2026-11-06: zizmor 1.32.0 (pedantic, offline) found seven issues in the workflows, all fixed here; `pr-preview.yml`'s `pull_request_target` is silenced inline with its reason, the job's same-repo `if:`.
-- 2026-11-06: hadolint, Trivy 0.69.1 and Checkov 3 don't check a base image for a digest, and frizbee 0.1.11's `--error` exited 0 after rewriting an unpinned image, so the digest test stays.
+- 2026-11-06: hadolint, Trivy 0.69.1 and Checkov 3 don't check a base image for a digest, and frizbee 0.1.11's `--error` exited 0 after rewriting an unpinned image. Semgrep 1.140.0's registry rule `dockerfile-source-not-pinned` does: it failed `FROM python:3.15-alpine`, and passed this repo's `Dockerfile` and `fill/Dockerfile`. It skips test folders, so `backend/tests/db/Dockerfile` goes unchecked, as it did before.
 
 ## Alternatives rejected
 
@@ -44,4 +44,4 @@ These go with no replacement: the test that the image installs with `--require-h
 
 - An npm override that is no longer needed stays until someone notices; `npm ci` still fails if the lock leaves it.
 - A Dependabot entry without a cooldown, or an `apk upgrade` moved above the build arguments, is caught in review, or by the release scan when a fixable Critical or High results.
-- `Lint / actionlint` and `Lint / zizmor` join the required checks.
+- `Lint / actionlint`, `Lint / zizmor` and `Lint / semgrep` join the required checks.
