@@ -289,3 +289,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0274](0274-records-in-architectural-decision-records.md) | Decision records live in `docs/architectural-decision-records/`, the name every new project uses | 2026-11-05 | Accepted | Root: Rules for every change |
 | [0275](0275-eslint-tools-override-minimatch-to-11.md) | The ESLint tools override minimatch to 11, ahead of the packages that use it | 2026-11-05 | Accepted | `CICD.md`: the frontend job's ESLint step |
 | [0276](0276-pr-checks-run-on-yggdrasils-modules.md) | The PR title check and Docker Build run on yggdrasil's modules | 2026-11-06 | Accepted | `CICD.md`: the `pr.yml` and `pr-title.yml` summaries |
+| [0277](0277-auto-merge-and-weekly-scan-on-yggdrasils-modules.md) | The Dependabot auto-merge and the weekly image scan run on yggdrasil's modules | 2026-11-06 | Accepted | `CICD.md`: Dependabot auto-merge, Scheduled image scan |

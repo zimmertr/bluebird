@@ -177,9 +177,8 @@ the newest release (#632).
 3. **Scan Pushed Image** — Trivy, once per image and platform
    (`zimmertr/bluebird` and `zimmertr/bluebird-fill`, each on `linux/amd64`
    and `linux/arm64`), against each image's digest from step 2, with the
-   same `trivy.yaml` as the PR gate and the weekly scan, and the same
-   `.github/actions/trivy-crit-high` as the weekly scan. It fails on a fixable
-   Critical/High finding. Steps 4, 5
+   same `trivy.yaml` as the PR gate and the weekly scan. It fails on a fixable
+   Critical/High finding, counted by `.github/actions/trivy-crit-high`. Steps 4, 5
    and 6 all need it, so production, the chart's default image and the GitHub
    release move only onto a scanned digest. See
    [The release scan](#the-release-scan).
@@ -344,11 +343,11 @@ before production moves (#634):
   digest names the multi-platform index; `TRIVY_PLATFORM` picks the half each
   leg reads, and without it both platforms would read amd64.
 - **One definition of a failure.** The same `trivy-action` pin,
-  `ignore-unfixed` and `trivy.yaml` as the PR gate and the weekly scan, and
-  the same `.github/actions/trivy-crit-high` as the weekly scan, so the three
-  judge an image alike. The PR gate counts with Trivy's own `severity` and
-  `exit-code` inputs (yggdrasil's docker-build module), which refuse the same
-  fixable Critical/High findings.
+  `ignore-unfixed` and `trivy.yaml` as the PR gate and the weekly scan, so the
+  three judge an image alike. This scan counts with
+  `.github/actions/trivy-crit-high`; the other two, yggdrasil's modules,
+  refuse the same fixable Critical/High findings through Trivy's own
+  `severity` and `exit-code` inputs.
 - **No credential.** Both images are public, so the job does not log in to
   Docker Hub and holds nothing a scanner could read. `zimmertr/bluebird-fill`
   has to be made public by hand on Docker Hub, or its two legs cannot pull it.
@@ -1278,9 +1277,7 @@ flowchart LR
   the gate that admits an image and the gates that check it later cannot
   disagree. Each entry there carries its reasoning; today the only one is
   pip's vendored-source SBOM, which Trivy would otherwise read as installed
-  inventory. `release.yml` and `image-scan.yml` count a Critical/High with
-  one composite action, **`.github/actions/trivy-crit-high`**, so a filter
-  corrected in one can't keep admitting images in the other. This repo passes
+  inventory. This repo passes
   the module its build arguments, the Actions layer cache, and the **smoke
   test**, which runs the image and checks what only a built image can show: the build arguments reach `/api/version`, Swagger UI is
   served from the image, and the license notices ship (#571):
@@ -1455,8 +1452,9 @@ flowchart LR
 
 PR-time scanning gates what gets *published*, but CVEs are disclosed after
 images ship. The released image rots while nothing rebuilds it.
-`image-scan.yml` (weekly cron + `workflow_dispatch`) re-scans the **latest
-released** `zimmertr/bluebird:<semver>` with Trivy, and since #760
+`image-scan.yml` (weekly cron + `workflow_dispatch`) calls yggdrasil's
+**image-scan** module, which re-scans the **latest released**
+`zimmertr/bluebird:<semver>` with Trivy, and since #760
 `zimmertr/bluebird-fill:<semver>` beside it, one matrix leg each with
 `fail-fast: false`. The app's alerts keep the `trivy-released-image` category,
 so their history holds, and the fill's land under `trivy-released-fill-image`.
@@ -1471,10 +1469,9 @@ job is the later check: CVEs disclosed after that scan, on the amd64 half.
 - **Always:** SARIF upload → code-scanning alerts in the repo **Security tab**.
 - **Gate:** the job fails — triggering GitHub's workflow-failure email — only
   when a **fixable Critical/High** vulnerability exists, i.e. only when there
-  is something to do. It re-scans as JSON and counts through
-  **`.github/actions/trivy-crit-high`**, as the release scan does. The PR gate
-  refuses the same fixable Critical/High findings through Trivy's own
-  `severity` and `exit-code` inputs. Expected remediation: merge the open
+  is something to do. It refuses through Trivy's own `severity` and
+  `exit-code` inputs, as the PR gate does, and the failure names each image's
+  remedy from `image-scan.yml`. Expected remediation: merge the open
   Dependabot base-image PR (below), which cuts a patch release on the fresh
   base and rolls it out through Path 1.
 
@@ -1518,12 +1515,12 @@ The type generator's package ignores TypeScript **major** bumps: it is pinned to
 5 because `openapi-typescript` loads the compiler API and peers on `^5.x`, which
 is why it is a package apart from the app in the first place. The linter's
 package ignores them for the same reason, one major later: typescript-eslint
-throws on TypeScript 7 rather than degrading, so that package stays on 6. `dependabot-auto-merge.yml` enables **squash
+throws on TypeScript 7 rather than degrading, so that package stays on 6. `dependabot-auto-merge.yml` calls yggdrasil's **auto-merge** module, which enables **squash
 auto-merge for patch and minor bumps** — GitHub completes the merge once
 `main`'s required checks pass; **major bumps wait for manual review**. Record: [0273](architectural-decision-records/0273-dependabot-minor-updates-merge-themselves.md)
-When it arms auto-merge it also posts a marker-guarded comment on the PR saying
-so (and how to stop it), so the self-merge is visible from the PR page rather
-than something to infer from the merge timeline.
+When it arms auto-merge it also posts one comment on the PR saying so (and how
+to stop it), so the self-merge is visible from the PR page rather than
+something to infer from the merge timeline.
 
 Three things narrow what an auto-merged update can bring with it (#633):
 
