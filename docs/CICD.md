@@ -456,9 +456,10 @@ versions for the same reason. A value from the event or a step output reaches
 a `run:` script through `env:`, never pasted into it. Every `actions/checkout`
 sets `persist-credentials: false` except the one that pushes a tag (the
 chart's `publish`; this repo's release makes its tag through the API).
-`backend/tests/test_workflow_pins.py` fails an unpinned action, a pasted
-expression, a `release.yml` that runs on anything but a push to `main`, or a
-base image without a digest in this repository.
+GitHub refuses an action not pinned to a full commit SHA (the repository's
+"require actions to be pinned" setting). `backend/tests/test_workflow_pins.py`
+fails a pasted expression or a base image without a digest, the two checks no
+maintained linter made here on 2026-11-06 (record 0278).
 
 **What the maintainer still owes (#632).** These are repository settings and
 credentials, which no pull request can make:

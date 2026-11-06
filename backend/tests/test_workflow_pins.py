@@ -1,18 +1,17 @@
-"""What the release pipeline runs is fixed by commit, and only main releases.
+"""No expression is pasted into a script, and the base images are pinned by digest.
 
-A tag is a pointer its owner can move, so an action named by tag runs whatever
-that tag names on the day of the run, inside a job that may hold a write token
-or `GH_PAT`. A full commit SHA cannot move; the version beside it in a comment
-is what Dependabot reads to propose the next pin. The same holds for the base
-images: a digest is the image, a tag is whatever was pushed last (#632).
-
-`release.yml` runs on a push to main and nothing else. A `workflow_dispatch`
-from any other branch would build that branch, push its image and open the
-bump into Kubernetes-Manifests.
+Only the two checks no maintained tool makes here yet. GitHub's "require
+actions to be pinned to a full-length commit SHA" setting refuses an action
+named by tag. zizmor's template-injection audit flags a pasted expression, and
+the expression test goes when this repo runs yggdrasil's lint module
+(zimmertr/yggdrasil#7). No linter checked for a base image digest on
+2026-11-06: not hadolint, Trivy 0.69.1 or Checkov 3.
 
 A `${{ }}` expression inside a `run:` script is pasted into the shell before
 the shell parses it, so a value carrying `$(...)` would run. Values reach a
 script through `env:` instead.
+
+A digest is the image, a tag is whatever was pushed last (#632).
 """
 
 from __future__ import annotations
@@ -20,64 +19,23 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
 import yaml
 
 REPO = Path(__file__).parents[2]
-GITHUB = REPO / ".github"
-
-# owner/repo[/path]@<40 hex> # <version>
-PINNED = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40} # v?\d+\.\d+\.\d+$")
 
 
-@pytest.fixture(scope="module")
-def files() -> list[Path]:
-    found = sorted([*GITHUB.glob("workflows/*.yml"), *GITHUB.glob("actions/*/action.yml")])
-    # A moved directory or a broken glob would otherwise pass every check
-    # below with nothing checked.
-    assert found, f"no workflow or action files under {GITHUB}"
-    return found
-
-
-def _uses_lines(path: Path) -> list[str]:
-    # The raw line rather than the parsed value: the version comment is part of
-    # the pin, and a YAML parser drops comments.
-    return [
-        m.group(1).strip()
-        for m in re.finditer(r"^\s*(?:-\s*)?uses:\s*(.+)$", path.read_text(), re.MULTILINE)
-    ]
-
-
-def _steps(doc: dict) -> list[dict]:
-    if "jobs" in doc:
-        return [s for job in doc["jobs"].values() for s in job.get("steps", [])]
-    return doc.get("runs", {}).get("steps", [])
-
-
-def test_every_action_is_pinned_to_a_commit(files):
-    loose = [
-        f"{p.relative_to(REPO)}: {ref}"
-        for p in files
-        for ref in _uses_lines(p)
-        if not ref.startswith("./") and not PINNED.match(ref)
-    ]
-    assert loose == []
-
-
-def test_no_expression_is_pasted_into_a_script(files):
+def test_no_expression_is_pasted_into_a_script():
+    files = sorted((REPO / ".github" / "workflows").glob("*.yml"))
+    # A moved directory or a broken glob would otherwise pass with nothing checked.
+    assert files
     pasted = [
         f"{p.relative_to(REPO)}: {step.get('name') or step['run'].splitlines()[0]}"
         for p in files
-        for step in _steps(yaml.safe_load(p.read_text()))
+        for job in yaml.safe_load(p.read_text())["jobs"].values()
+        for step in job.get("steps", [])
         if "${{" in step.get("run", "")
     ]
     assert pasted == []
-
-
-def test_the_release_runs_on_pushes_to_main_only():
-    doc = yaml.safe_load((GITHUB / "workflows" / "release.yml").read_text())
-    # PyYAML reads the bare key `on` as the boolean True.
-    assert doc.get("on", doc.get(True)) == {"push": {"branches": ["main"]}}
 
 
 def test_the_base_images_are_pinned_by_digest():

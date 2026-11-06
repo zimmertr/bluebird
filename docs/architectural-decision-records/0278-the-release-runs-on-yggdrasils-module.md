@@ -4,7 +4,7 @@
 - Date: 2026-11-06
 - Decider: the maintainer (TJ), 2026-11-06, in zimmertr/yggdrasil#6: "Sounds good to me, lets begin", then "Yes! Delete Delete Delete!" on step 4.2, and turning on immutable tags for `zimmertr/bluebird-fill` the same day
 - Issues and PRs: zimmertr/yggdrasil#6 (step 4.3), this PR
-- Cited in code as: `.github/workflows/release.yml`, `backend/tests/test_workflow_pins.py`
+- Cited in code as: `.github/workflows/release.yml`
 - Guide: [`docs/CICD.md`](../CICD.md), Path 1, Finishing a failed release, The release scan
 
 ## Context
@@ -19,7 +19,8 @@ The last of three PRs moving this repo onto zimmertr/yggdrasil's modules, after 
 - The tag is a lightweight one, made with the GitHub release by one `gh release create --target`.
 - Both bumps run after the release and use `GH_PAT`: the image's `newTag` in Kubernetes-Manifests on `chore/bluebird-image`, and `appVersion` in bluebird-helm on `chore/bump-appversion`, titled `chore(release): bump chart appVersion to <version>`.
 - A failed release is finished with "Re-run failed jobs". An old release is never re-run after a newer one shipped.
-- `GitVersion.yml`, `trivy.yaml` and `.github/actions/trivy-crit-high` are deleted, along with the release half of `backend/tests/test_release_scan.py`; its preview check moves to `test_pr_preview.py`. The modules read yggdrasil's defaults.
+- `GitVersion.yml`, `trivy.yaml`, `.github/actions/trivy-crit-high` and `backend/tests/test_release_scan.py` are deleted. The modules read yggdrasil's defaults.
+- `backend/tests/test_workflow_pins.py` keeps only the checks no maintained tool makes here yet: no `${{ }}` pasted into a `run:` script, and the base images pinned by digest. Its SHA pin check goes, because the repository's "require actions to be pinned to a full-length commit SHA" setting is on; so does its main-only check of `release.yml`'s trigger (TJ, 2026-11-06).
 
 ## Evidence
 
@@ -27,6 +28,8 @@ The last of three PRs moving this repo onto zimmertr/yggdrasil's modules, after 
 - 2026-11-06: this repo's `trivy.yaml` and yggdrasil's default hold the same one rule, which skips pip's vendored SBOM. `Planet Fill` no longer passes a scan config: the fill image installs no pip.
 - 2026-11-06: the module's `yq` edit, run in Docker on copies of both files, changed only `appVersion` in `Chart.yaml`, keeping its quotes. In the kustomization it set `newTag` and also re-indented the file, once, out of the layout kustomize wrote: Kubernetes-Manifests lints no layout, and bluebird-helm's `sed` on the same file matches any indentation.
 - 2026-11-06: Docker Hub reports immutable tags on for `zimmertr/bluebird-fill`, rule `.*`.
+- 2026-11-06: zizmor 1.16.0's pedantic audits flag even `${{ github.sha }}` in a `run:` block, so yggdrasil's lint module (zimmertr/yggdrasil#7) can replace the expression check. Trivy 0.69.1 and Checkov 3, run on a Dockerfile whose base had a tag and no digest, flagged only its missing `HEALTHCHECK`, and hadolint's rules stop at "tag the version".
+- 2026-11-06: `zimmertr/bluebird-pr` has immutable tags on, so a preview build that pushed a tag twice would fail loudly. The test that held `pr-preview.yml` to asking first was dropped for that reason (TJ, 2026-11-06).
 
 ## Alternatives rejected
 
