@@ -208,10 +208,11 @@ jobs:
             -e TEST_DATABASE_URL=postgresql://postgres:test@fill-db/postgres bluebird:fill-test
 
       # The same gate Docker Build applies to the app's image (yggdrasil's
-      # docker-build module), with the same trivy.yaml, so the release scan of
-      # the pushed fill image holds no surprise. No PR comment: the app's
-      # sticky comment is the one place people look, and this job's summary
-      # carries the table when it fails.
+      # docker-build module), so the release scan of the pushed fill image
+      # holds no surprise. No scan settings: the one rule in yggdrasil's
+      # default skips pip's vendored SBOM, and this image installs no pip. No
+      # PR comment: the app's sticky comment is the one place people look,
+      # and this job's summary carries the table when it fails.
       - name: Fail on fixable Critical or High vulnerabilities (Trivy)
         id: scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -221,7 +222,6 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: '1'
-          trivy-config: trivy.yaml
       - name: Report the findings
         if: failure() && steps.scan.outcome == 'failure'
         run: cat trivy.txt >> "$GITHUB_STEP_SUMMARY"
@@ -231,8 +231,8 @@ jobs:
   # and a refusal on any fixable Critical or High. amd64-only on purpose: this
   # gate proves the Dockerfile assembles; the release workflow builds the arm64
   # half (emulated builds would roughly double this job for no extra signal).
-  # File-level exclusions still come from this repo's trivy.yaml, which the
-  # module reads when it exists. Decision record 0276.
+  # The scan settings are yggdrasil's default trivy.yaml. Decision records
+  # 0276 and 0278.
   docker-build:
     # Branch protection requires `Docker Build / Docker Build` (this job's
     # name, then the module's); renaming either strands PRs on a phantom

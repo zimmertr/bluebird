@@ -1,6 +1,6 @@
 # 0105. Production moves only onto a scanned digest
 
-- Status: Accepted
+- Status: Superseded in part by 0278
 - Date: 2026-10-06
 - Decider: the maintainer (TJ), through the 2026-10-06 security fix pass that chose option A for #634: a scan job in `release.yml` between `Build & Push` and the two bump jobs, both platforms, through the existing `trivy-crit-high` action. On review of the PR the same day, the maintainer also put `Create GitHub Release` behind the scan.
 - Issues and PRs: #634, #595

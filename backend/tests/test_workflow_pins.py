@@ -6,13 +6,13 @@ or `GH_PAT`. A full commit SHA cannot move; the version beside it in a comment
 is what Dependabot reads to propose the next pin. The same holds for the base
 images: a digest is the image, a tag is whatever was pushed last (#632).
 
-`release.yml` also accepts `workflow_dispatch`, and a dispatch from any other
-branch would build that branch, push its image and open the bump into
-Kubernetes-Manifests, so every job carries a ref check.
+`release.yml` runs on a push to main and nothing else. A `workflow_dispatch`
+from any other branch would build that branch, push its image and open the
+bump into Kubernetes-Manifests.
 
 A `${{ }}` expression inside a `run:` script is pasted into the shell before
 the shell parses it, so a value carrying `$(...)` would run. Values reach a
-script through `env:` instead, the way the PR title already does.
+script through `env:` instead.
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ GITHUB = REPO / ".github"
 
 # owner/repo[/path]@<40 hex> # <version>
 PINNED = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40} # v?\d+\.\d+\.\d+$")
-MAIN_ONLY = "github.ref == 'refs/heads/main'"
 
 
 @pytest.fixture(scope="module")
@@ -75,11 +74,10 @@ def test_no_expression_is_pasted_into_a_script(files):
     assert pasted == []
 
 
-def test_every_release_job_runs_on_main_only():
-    path = GITHUB / "workflows" / "release.yml"
-    jobs = yaml.safe_load(path.read_text())["jobs"]
-    ungated = [name for name, job in jobs.items() if MAIN_ONLY not in str(job.get("if", ""))]
-    assert ungated == []
+def test_the_release_runs_on_pushes_to_main_only():
+    doc = yaml.safe_load((GITHUB / "workflows" / "release.yml").read_text())
+    # PyYAML reads the bare key `on` as the boolean True.
+    assert doc.get("on", doc.get(True)) == {"push": {"branches": ["main"]}}
 
 
 def test_the_base_images_are_pinned_by_digest():

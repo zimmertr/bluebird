@@ -1,10 +1,10 @@
 name: PR Title
 
 # The PR title becomes the squash commit's title, and that line alone decides
-# the release bump (GitVersion.yml). This refuses a title the pipeline cannot
-# read, before the merge rather than after the release. yggdrasil's pr-title
-# module, which allows the same types as GitVersion.yml's three patterns.
-# Decision record 0276.
+# the release bump (yggdrasil's default GitVersion.yml). This refuses a title
+# the pipeline cannot read, before the merge rather than after the release.
+# yggdrasil's pr-title module, which allows the same types as the release
+# module's GitVersion rules. Decision records 0276 and 0278.
 #
 # A workflow of its own rather than a job in pr.yml, because it has to run when
 # only the title changes (`edited`), and an edit must not restart pr.yml's whole
