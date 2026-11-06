@@ -457,9 +457,10 @@ a `run:` script through `env:`, never pasted into it. Every `actions/checkout`
 sets `persist-credentials: false` except the one that pushes a tag (the
 chart's `publish`; this repo's release makes its tag through the API).
 GitHub refuses an action not pinned to a full commit SHA (the repository's
-"require actions to be pinned" setting). `backend/tests/test_workflow_pins.py`
-fails a pasted expression or a base image without a digest, the two checks no
-maintained linter made here on 2026-11-06 (record 0278).
+"require actions to be pinned" setting), and yggdrasil's lint module fails a
+pasted expression through zizmor (the `Lint / zizmor` check).
+`backend/tests/test_base_image_digest.py` fails a base image without a digest,
+the one check no maintained linter made here on 2026-11-06 (record 0279).
 
 **What the maintainer still owes (#632).** These are repository settings and
 credentials, which no pull request can make:
@@ -1220,8 +1221,8 @@ flowchart LR
   TypeScript 7 outright, so the linter carries its own TypeScript 6. Its
   `package.json` overrides `minimatch` to `^11.0.1`, ahead of the `^10` that
   ESLint and typescript-eslint still ask for, because only 11 fixes
-  GHSA-g3hv-75wg-m249; `test_dependency_lock.py` fails once they catch up and
-  the override can go. Record: [0275](architectural-decision-records/0275-eslint-tools-override-minimatch-to-11.md) The rules
+  GHSA-g3hv-75wg-m249; it can go once they catch up, and `npm ci` fails if
+  the lock ever leaves the override. Record: [0275](architectural-decision-records/0275-eslint-tools-override-minimatch-to-11.md) The rules
   are typescript-eslint recommended, `react-hooks/rules-of-hooks` and
   `react-hooks/exhaustive-deps` as errors, and the syntactic class and metric
   bans that used to be regular expressions inside `styles.test.ts` and

@@ -1,6 +1,6 @@
 # 0099. The backend installs from a hashed pip-compile lock, no `npm ci` runs install scripts, and npm and pip updates wait seven days
 
-- Status: Accepted
+- Status: Superseded in part by 0279
 - Date: 2026-10-06
 - Decider: the fix for #633, taking the issue's recommended option A with its recommended seven days; git is the source. The cooldown length and the issue's option B (a person on build-chain bumps) are the maintainer's to revisit.
 - Issues and PRs: #633, #595

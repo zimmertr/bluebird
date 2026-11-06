@@ -1,6 +1,6 @@
 # 0100. Every action is pinned to a commit, the base images to a digest, and only `main` releases
 
-- Status: Accepted
+- Status: Superseded in part by 0278 and 0279
 - Date: 2026-10-06
 - Decider: the maintainer (TJ), through the 2026-10-06 security fix pass that assigned #632's pinning, gating and `env:` steps (recommendation A, its mechanical half)
 - Issues and PRs: #632, #595, bluebird-helm#301

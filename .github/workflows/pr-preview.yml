@@ -5,8 +5,9 @@ on:
   # runs get Dependabot's separate (empty) secret store and cannot log in to
   # Docker Hub. _target runs use the base repo's Actions secrets and always
   # take the workflow definition from main, so a PR branch cannot alter this
-  # pipeline to leak them.
-  pull_request_target:
+  # pipeline to leak them. zizmor's dangerous-triggers audit is silenced for
+  # that reason: the job's `if:` below runs it for same-repo PRs only.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [opened, synchronize, reopened]
 
 # One build per PR; newer commits supersede in-flight builds.
@@ -14,14 +15,15 @@ concurrency:
   group: pr-preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  pull-requests: write
+permissions: {}
 
 jobs:
   preview:
     name: Build & push preview image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # the "create pr container" label and the preview-URL comment
     # HARD GATE — same-repo PRs only. Under pull_request_target this run holds
     # real secrets even when the PR comes from a fork, so this condition is the
     # only thing keeping strangers from pushing images or spinning up preview
