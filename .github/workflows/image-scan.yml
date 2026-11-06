@@ -5,7 +5,8 @@ name: Scheduled Image Scan
 # re-checks each image at the latest release on a clock, sends the findings to
 # the Security tab, and fails (and GitHub emails) only when a fixable
 # Critical/High exists, i.e. only when there is something to do. yggdrasil's
-# image-scan module, reading this repo's trivy.yaml. Decision record 0277.
+# image-scan module, with its default scan settings. Decision records 0277
+# and 0278.
 on:
   schedule:
     - cron: '17 14 * * 1' # Mondays 14:17 UTC, off the top of the hour, when GitHub sheds cron load
