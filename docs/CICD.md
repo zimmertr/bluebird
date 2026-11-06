@@ -14,10 +14,9 @@ three repositories and the supporting services that automate the path.
 | System | Role |
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image, plus a second image for the planet fill that builds the shared cache's places table (`fill/`, #760). |
-| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set. That flag only labels the version on Artifact Hub; the `ignore` entry in `artifacthub-repo.yml` is what keeps PR builds off the listing, so Artifact Hub never offers one as the default version. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Lint & render` that walk does block a PR, because it reads the chart alone. Its `pr-title.yml` is its own copy of the `PR Title` check, until it moves onto yggdrasil's modules as this repo did (zimmertr/yggdrasil#7). |
+| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact to Docker Hub only (not listed on Artifact Hub, bluebird-helm record 0003). Its `pr.yml` runs `Lint & render`; a PR publishes no chart. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Lint & render` that walk does block a PR, because it reads the chart alone. Like this repo, it runs yggdrasil's `pr-title`, `lint`, `auto-merge` and `release` modules (zimmertr/yggdrasil#7). |
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` and `Validate Terraform` checks. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-fill` (the planet fill, released beside each app image at the same version), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
-| **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
 | **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`; since #760 the CloudNativePG operator (an app of its own, in `postgres-system`), the PostgreSQL it runs for the app in `bluebird-system`, and the planet fill's CronJob. |
 
 Everything consumes the chart **OCI-natively** (kustomize `helmCharts` and an
@@ -46,7 +45,7 @@ flowchart TD
     end
 
     subgraph KM["GitHub: zimmertr/Kubernetes-Manifests"]
-        kmCheck["pr.yml — Validate manifests + Validate Terraform<br/>required checks: YAML parse<br/>+ kustomize build of affected apps<br/>+ terraform/cloudflare tests"]
+        kmCheck["pr.yml: Validate manifests + Validate Terraform<br/>required checks: Argo CD renders<br/>the affected apps (argocd-diff-preview)<br/>+ terraform/cloudflare tests"]
         kmImagePR["PR: chore/bluebird-image<br/>(self-merging)"]
         kmStablePR["PR: chore/bluebird-stable-chart<br/>(self-merging)"]
         kmPreviewPR["PR: chore/bluebird-preview-chart<br/>(self-merging)"]
@@ -59,8 +58,6 @@ flowchart TD
         dhFill["zimmertr/bluebird-fill:SemVer"]
         dhChart["OCI chart<br/>zimmertr/bluebird-helm"]
     end
-
-    ah["Artifact Hub"]
 
     subgraph CL["Cluster"]
         argocd["Argo CD"]
@@ -85,8 +82,6 @@ flowchart TD
     helmMain --> helmRel
     ghRelease -.->|appVersion from releases/latest| helmRel
     helmRel -->|helm push| dhChart
-    helmRel -->|then, in a separate job, ORAS push to the artifacthub.io tag<br/>when artifacthub-repo.yml changed; never blocks the release| dhChart
-    dhChart --> ah
     helmRel -->|open/update PR: chart version| kmStablePR
     helmRel -->|open/update PR: targetRevision| kmPreviewPR
 
@@ -195,43 +190,41 @@ the newest release (#632). Record:
    write on both repos, which also need `allow_auto_merge` on: a merge made
    with `GITHUB_TOKEN` would not start `bluebird-helm`'s release.
 
-**Path 2 — Chart release** (`bluebird-helm/release.yml`, on merge to `main`
-touching `charts/**`, `artifacthub-repo.yml`, or the workflow itself, or a
-manual dispatch, which the same ref check confines to `main`):
+**Path 2: Chart release** (`bluebird-helm/release.yml`, on merge to `main`
+touching `charts/**` or the workflow itself, or a manual dispatch, which the
+same ref check confines to `main`). It calls yggdrasil's **release** module
+like Path 1, then pushes the chart and opens the bumps itself: the module's own
+deploy bumps run straight after its release, before a chart could be pushed
+(bluebird-helm record 0001).
 
-1. GitVersion computes the **chart** SemVer from the same title patterns.
-   **Release guard:** a chart release is three pieces (the OCI chart, checked
-   with `helm show chart oci://…`, the git tag and the GitHub release). The job
-   skips only when all three exist, and otherwise makes only what is missing.
-   The chart carries no commit, so it is not checked against this commit; a
-   tag that names another commit still stops the run.
-2. Resolves `appVersion` **at package time** from `bluebird`'s `releases/latest`
-   (the value committed to `Chart.yaml` is only a local-render fallback — the
-   resolver is the source of truth).
-3. `helm package --version <chartver> --app-version <appver>` and `helm push`
-   to the OCI repo, when the chart is missing; then the tag and the GitHub
-   release, each when missing, marked Latest unless a newer chart release is.
-4. Then, in a separate job, when the merge changed `artifacthub-repo.yml` (or
-   on a manual run), pushes it with ORAS to the OCI repo's `artifacthub.io`
-   tag; a failure there never blocks the release.
-5. **bump-manifests** moves `Kubernetes-Manifests` onto the new chart via two
-   PRs, one per consumer:
+1. **Release** (the module): GitVersion computes the **chart** SemVer from the
+   same title patterns, and the module makes the git tag and the GitHub
+   release. A merge whose version is already tagged releases nothing.
+2. **Publish OCI chart**, for the tag on this commit: resolves `appVersion`
+   **at package time** from `bluebird`'s `releases/latest` (the value committed
+   to `Chart.yaml` is only a local-render fallback; the resolver is the source
+   of truth), then `helm package --version <chartver> --app-version <appver>`
+   and `helm push` to the OCI repo. A chart already there (checked with
+   `helm show chart oci://…`) is not pushed again, so a re-run finishes a
+   failed release.
+3. **bump-manifests** moves `Kubernetes-Manifests` onto the new chart via two
+   PRs, one per consumer, made the way the module makes its deploy bumps (`yq`
+   sets the value, `peter-evans/create-pull-request` opens or advances the PR):
    - preview: `chore/bluebird-preview-chart` sets `targetRevision: <chartver>`
      in `public/bluebird-pr/applicationset.yml` (the ephemeral per-PR envs).
-     Always **self-merging** — nothing it touches reaches prod.
-   - stable: `chore/bluebird-stable-chart` sets `helmCharts[0].version:
-     <chartver>` in `public/bluebird/kustomization.yml` (prod, triggers the
-     canary rollout). Also **self-merging**.
+     Always **self-merging**; nothing it touches reaches prod.
+   - stable: `chore/bluebird-stable-chart` sets the `bluebird-helm` chart's
+     `version: <chartver>` in `public/bluebird/kustomization.yml` (prod,
+     triggers the canary rollout). Also **self-merging**.
 
-   Neither PR moves when a newer chart release exists, so a re-run that
-   finishes an old chart release never moves prod or the previews back onto it.
+   Chart releases run one at a time, so only a manual re-run of an old one
+   could move prod or the previews back onto it; release again instead.
 
    They are separate branches rather than one PR touching both files so a
    preview bump is never blocked behind a prod change, and either can be closed
    independently. The chart release workflow is `concurrency`-serialized
-   (`group: chart-release`): both branches are force-pushed, so two concurrent
-   runs would clobber each other and leave the surviving PR pinned to whichever
-   version pushed last.
+   (`group: chart-release`), so two quick merges can't race for one version or
+   on the bump branches.
 
    The fixed branch matters: version-suffixed branch names were the norm here
    until they stranded 6 open PRs across three chart releases while prod stayed
@@ -478,13 +471,13 @@ credentials, which no pull request can make:
    token limited to those two repositories with the same two permissions and
    an expiry, stored as a `release` environment secret.
 3. Move `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` into the same environment
-   (the preview and prerelease jobs still need Docker Hub, so those keep a
-   repository secret or get an environment of their own), and delete the
+   (the preview job still needs Docker Hub, so it keeps a repository secret
+   or gets an environment of its own), and delete the
    repository-level `GH_PAT`.
 4. Give the jobs that use them `environment: release`: here, through the
    release module, whose `environment` input today covers only `Tag and
-   Release` (zimmertr/yggdrasil#12); `publish`, `artifacthub-metadata` and
-   `bump-manifests` in `bluebird-helm`. A job
+   Release` (zimmertr/yggdrasil#12); `chart` and
+   `bump-manifests` in `bluebird-helm`, beside its own call of the module. A job
    that names an environment it cannot deploy to fails rather than running
    without it, which is the point of the branch policy.
 5. Turn on "Require actions to be pinned to a full-length commit SHA" in each
@@ -1613,9 +1606,8 @@ costs](#what-a-stable-chart-bump-costs).
   in the title (`fix: stop the crash!`) is not a major. Dependabot's
   `build(deps):` and the release bot's `chore(release):` titles are patches.
   A title no pattern reads still releases a patch, which is why the `PR Title`
-  check exists. The patterns live in yggdrasil's default `GitVersion.yml`;
-  `bluebird-helm` keeps an identical copy until it moves onto yggdrasil's
-  modules (zimmertr/yggdrasil#7).
+  check exists. The patterns live in yggdrasil's default `GitVersion.yml`,
+  which `bluebird-helm`'s release uses too.
 - **Cutting 1.0.0: the app first, then the chart.** The chart goes to 1.0
   with the app (TJ, 2026-10-01), and neither major happens by itself: each
   repository needs a merged PR whose title carries `!`. Merge in this order:
@@ -1627,7 +1619,7 @@ costs](#what-a-stable-chart-bump-costs).
      the app's 1.0.0. It merges itself; let it, and let that chart release
      finish.
   2. Then a chart PR of your own with `!` in its title, for example `chore!:
-     ...`. It must change a file under `charts/**` (or `artifacthub-repo.yml`),
+     ...`. It must change a file under `charts/**`,
      because the chart release workflow fires only on those paths, and it
      should not touch the `appVersion` line the automatic PR edits. Merging it
      releases chart **1.0.0**, and the package-time resolver gives it the app's
@@ -1641,6 +1633,6 @@ costs](#what-a-stable-chart-bump-costs).
   this order are in [0080](architectural-decision-records/0080-major-from-the-title-only.md).
 - **Finishing a release.** In this repo, "Re-run failed jobs" finishes a
   failed release, and an old release is never re-run after a newer one
-  shipped. `bluebird-helm`'s release still makes each piece (chart, git tag,
-  GitHub release) only when missing, so any re-run there finishes it. See
+  shipped. `bluebird-helm`'s release skips a tag or chart that already exists,
+  so a re-run there finishes it too. See
   [Finishing a failed release](#finishing-a-failed-release).
