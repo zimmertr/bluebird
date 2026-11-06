@@ -90,6 +90,14 @@ jobs:
       # fill/ruff.toml extends backend/ruff.toml, for the Python the fill
       # image runs rather than the app's.
       - run: ruff check backend/ fill/
+      # The locks are pip-compile's output for the .in files (#633): every
+      # package pinned and hashed, and the dev lock held to the runtime one by
+      # its `-c requirements.txt`. Recompiling keeps every pin already locked,
+      # so a diff means an .in file moved without its lock. Dependabot's own
+      # recompiles come out the same (record 0279).
+      - name: The Python locks match their .in files
+        run: make lock-backend
+      - run: git diff --exit-code backend/requirements.txt backend/requirements-dev.txt
 
   # Run the backend unit suite: pure logic (aggregation, validation, sorting,
   # error mapping) plus route behavior with the upstream APIs stubbed.

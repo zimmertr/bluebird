@@ -15,6 +15,11 @@ on:
   pull_request:
     types: [closed]
 
+# One run per closed PR; a close, reopen and close again needs only the last.
+concurrency:
+  group: cache-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

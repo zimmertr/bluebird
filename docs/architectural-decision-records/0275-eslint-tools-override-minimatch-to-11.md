@@ -1,6 +1,6 @@
 # 0275. The ESLint tools override minimatch to 11, ahead of the packages that use it
 
-- Status: Accepted
+- Status: Superseded in part by 0279
 - Date: 2026-11-05
 - Decider: the maintainer (TJ), 2026-11-05, on Dependabot alert 30: "Yes, troubleshoot and raise a PR"
 - Issues and PRs: this PR, Dependabot alert 30 (GHSA-g3hv-75wg-m249, CVE-2026-118764)

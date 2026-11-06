@@ -1,0 +1,23 @@
+name: Lint
+
+# yggdrasil's lint module: actionlint and zizmor's pedantic audits over the
+# workflows, actions and dependabot.yml, and Semgrep's rule that every
+# Dockerfile FROM carries a digest. It replaces this repo's own tests of those
+# rules. Decision record 0279.
+#
+# Branch protection requires `Lint / actionlint`, `Lint / zizmor` and
+# `Lint / semgrep` (this job's name, then the module's); renaming either
+# strands PRs on a check that never reports.
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  lint:
+    name: Lint
+    uses: zimmertr/yggdrasil/.github/workflows/lint.yml@6a7466256fbdbe76831e59b852ca0655e228e95f # v0.9.0
+    permissions:
+      contents: read

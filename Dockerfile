@@ -16,10 +16,10 @@
 # image under an unchanged tag is rebuilt.
 FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS frontend-builder
 WORKDIR /app/frontend
-COPY frontend/package.json frontend/package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
 # Cache mount keeps npm's download cache out of the layer but warm across
 # builds, so a lockfile change re-downloads only what actually changed.
-# --ignore-scripts because no package here needs its install script on Linux
+# --ignore-scripts, and the same in .npmrc, because no package here needs its install script on Linux
 # (#633): the lockfile's two are fsevents, macOS only, and @scarf/scarf, which
 # only reports the install to scarf.sh. esbuild and the other native tools ship
 # their binaries as optional dependencies, so the build needs no script either.

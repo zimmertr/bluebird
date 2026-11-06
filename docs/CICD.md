@@ -457,9 +457,10 @@ a `run:` script through `env:`, never pasted into it. Every `actions/checkout`
 sets `persist-credentials: false` except the one that pushes a tag (the
 chart's `publish`; this repo's release makes its tag through the API).
 GitHub refuses an action not pinned to a full commit SHA (the repository's
-"require actions to be pinned" setting). `backend/tests/test_workflow_pins.py`
-fails a pasted expression or a base image without a digest, the two checks no
-maintained linter made here on 2026-11-06 (record 0278).
+"require actions to be pinned" setting), and yggdrasil's lint module fails a
+pasted expression through zizmor (the `Lint / zizmor` check), and a base
+image without a digest through Semgrep (the `Lint / semgrep` check, record
+0279).
 
 **What the maintainer still owes (#632).** These are repository settings and
 credentials, which no pull request can make:
@@ -1165,6 +1166,7 @@ flowchart LR
         pr["PR opened / updated"]
         checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, mypy, pytest, OpenAPI + API-type drift,<br/>database tests against PostGIS, planet fill build + suite + Trivy,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets, browser smoke + axe"]
         title["pr-title.yml<br/>PR Title: yggdrasil's pr-title module checks the type<br/>(also on a title edit)"]
+        lint["lint.yml<br/>yggdrasil's lint module: actionlint, zizmor,<br/>Semgrep's base-image digest rule"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -1181,6 +1183,7 @@ flowchart LR
     dev -->|open / push| pr
     pr --> checks
     pr --> title
+    pr --> lint
     pr --> preview
     preview -->|build + push| dhpr
     preview -->|owner PR only| label
@@ -1220,8 +1223,8 @@ flowchart LR
   TypeScript 7 outright, so the linter carries its own TypeScript 6. Its
   `package.json` overrides `minimatch` to `^11.0.1`, ahead of the `^10` that
   ESLint and typescript-eslint still ask for, because only 11 fixes
-  GHSA-g3hv-75wg-m249; `test_dependency_lock.py` fails once they catch up and
-  the override can go. Record: [0275](architectural-decision-records/0275-eslint-tools-override-minimatch-to-11.md) The rules
+  GHSA-g3hv-75wg-m249; it can go once they catch up, and `npm ci` fails if
+  the lock ever leaves the override. Record: [0275](architectural-decision-records/0275-eslint-tools-override-minimatch-to-11.md) The rules
   are typescript-eslint recommended, `react-hooks/rules-of-hooks` and
   `react-hooks/exhaustive-deps` as errors, and the syntactic class and metric
   bans that used to be regular expressions inside `styles.test.ts` and
@@ -1320,6 +1323,11 @@ flowchart LR
   It checks the type only: it no longer names the bump the merge will release
   or warns on a major (record 0276). It is a required check, as
   `PR Title / PR Title`.
+- `lint.yml`'s **Lint** job calls yggdrasil's **lint** module: actionlint and
+  zizmor's pedantic audits over the workflows and `dependabot.yml`, and
+  Semgrep's rule that every Dockerfile `FROM` carries a digest. They are
+  required checks, as `Lint / actionlint`, `Lint / zizmor` and
+  `Lint / semgrep` (record 0279).
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
   never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`,

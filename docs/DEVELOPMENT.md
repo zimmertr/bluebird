@@ -113,13 +113,13 @@ Six things that shape follows from:
   `fill/ruff.toml` extends those rules for the Python the fill image runs,
   Debian's 3.13, so a fix ruff suggests never needs syntax that image cannot
   parse.
-- **Every `npm ci` passes `--ignore-scripts`**, here, in CI and in the image
-  build (#633). No package in the four lockfiles needs its install script on
-  Linux: the app's has two, `fsevents` (macOS only) and `@scarf/scarf`, which
-  only reports the install to scarf.sh, and esbuild and the other native tools
-  ship their binaries as optional dependencies. `test_dependency_lock.py` fails
-  an `npm ci` without the flag in the `Dockerfile`, the `Makefile`, a workflow
-  or `frontend/package.json`.
+- **No `npm ci` runs install scripts**, here, in CI and in the image build
+  (#633). No package in the lockfiles needs its install script on Linux: the
+  app's has two, `fsevents` (macOS only) and `@scarf/scarf`, which only reports
+  the install to scarf.sh, and esbuild and the other native tools ship their
+  binaries as optional dependencies. Every package folder under `frontend/`
+  carries an `.npmrc` with `ignore-scripts=true`, which npm applies to any
+  install there, and the existing calls pass `--ignore-scripts` too.
 
 ### The shared cache's tests
 
@@ -198,10 +198,11 @@ keeps every pin the locks already hold; to move one indirect package, add
 `--upgrade-package NAME` to both `pip-compile` commands in the target. The
 version of pip-tools is the one Dependabot runs, because Dependabot rewrites
 the same two files from their `.in` files and its header must read the same
-way. `backend/tests/test_dependency_lock.py` fails when a pin in a `.in` file
-is missing from its lock or locked at another version, when the dev lock
-differs from the runtime lock on a package they share, and when a locked
-package has no hash.
+way. `Python Lint` runs the same target and fails on any diff, so a pin in a
+`.in` file that its lock doesn't hold fails the PR. pip-compile holds the dev
+lock to the runtime one through `requirements-dev.in`'s `-c requirements.txt`,
+and the image's `pip install --require-hashes` refuses a package without a
+hash.
 
 ### Where a source check lives
 
