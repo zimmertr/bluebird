@@ -14,7 +14,7 @@
 # digest says which build of it, so a rebuild cannot pull a different image
 # than the one last reviewed. Dependabot moves both, and opens a PR when the
 # image under an unchanged tag is rebuilt.
-FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # Cache mount keeps npm's download cache out of the layer but warm across
@@ -30,7 +30,7 @@ RUN npm run build
 # Stage 2: Python backend serving built frontend as static files.
 # Alpine over slim: Debian's base layer ships dozens of no-fix CVEs (perl-base,
 # libc6, …) that scanners flag forever; musl's ~10-package base scans clean.
-FROM python:3.15-alpine@sha256:2699b90f4d562a22e2dd076c82f964032f64814204bff36d271a54ba4cc2c7e2
+FROM python:3.15-alpine@sha256:20a82dbc2783112ddb91d1534603f802d222a3e63e593cd002eb2ac534e70211
 
 LABEL org.opencontainers.image.title="Bluebird Forecast" \
       org.opencontainers.image.description="Map-based weather window finder for hikers and mountaineers" \

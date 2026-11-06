@@ -15,10 +15,16 @@ packages with an install script, ``fsevents`` (macOS only) and
 
 Every npm and pip Dependabot entry carries a cooldown, because a patch or minor
 bump auto-merges and a merge to main deploys.
+
+An npm ``overrides`` entry lifts a package past what its parents ask for, to
+reach a fix they haven't taken yet (record 0275). The lock must hold a version
+inside the override, and the override goes once every parent asks for that
+major itself.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -132,3 +138,64 @@ def test_every_npm_and_pip_update_waits_a_cooldown():
     assert len(entries) >= 2
     waiting = {entry["directory"]: entry.get("cooldown", {}).get("default-days", 0) for entry in entries}
     assert {directory: days for directory, days in waiting.items() if days <= 0} == {}
+
+
+
+def _caret_major(spec: str) -> int | None:
+    match = re.fullmatch(r"\^(\d+)\.\d+\.\d+", spec)
+    return int(match.group(1)) if match else None
+
+
+def _version(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in text.split("-", 1)[0].split("."))
+
+
+def _overrides() -> list:
+    """One param per npm override: (package directory, name, spec, lock packages)."""
+    found = []
+    locks = [REPO / "frontend" / "package-lock.json", *sorted((REPO / "frontend").glob("*/package-lock.json"))]
+    locks += sorted((REPO / "frontend" / "tools").glob("*/package-lock.json"))
+    for lock in locks:
+        if "node_modules" in lock.parts:
+            continue
+        directory = str(lock.parent.relative_to(REPO))
+        packages = json.loads(lock.read_text())["packages"]
+        for name, spec in json.loads((lock.parent / "package.json").read_text()).get("overrides", {}).items():
+            found.append(pytest.param(directory, name, spec, packages, id=f"{directory}:{name}"))
+    return found
+
+
+OVERRIDES = _overrides()
+
+
+def test_the_eslint_tools_override_minimatch():
+    # The one override when this was written. A glob that stopped finding it
+    # would otherwise leave the two tests below checking nothing.
+    assert ("frontend/tools/eslint", "minimatch", "^11.0.1") in [param.values[:3] for param in OVERRIDES]
+
+
+@pytest.mark.parametrize("directory, name, spec, packages", OVERRIDES)
+def test_the_lock_holds_a_version_inside_each_override(directory, name, spec, packages):
+    major = _caret_major(spec)
+    assert major is not None, f"{directory}: write the override for {name} as ^X.Y.Z, not {spec!r}"
+    locked = [entry["version"] for path, entry in packages.items() if path.endswith(f"node_modules/{name}")]
+    assert locked, f"{directory}: the lock holds no {name}; drop its override"
+    floor = _version(spec[1:])
+    outside = [version for version in locked if _version(version)[0] != major or _version(version) < floor]
+    assert outside == [], f"{directory}: the lock holds {name} {outside}, outside the override {spec}"
+
+
+@pytest.mark.parametrize("directory, name, spec, packages", OVERRIDES)
+def test_each_override_is_still_needed(directory, name, spec, packages):
+    major = _caret_major(spec)
+    asks = {
+        path: entry[section][name]
+        for path, entry in packages.items()
+        for section in ("dependencies", "peerDependencies", "optionalDependencies")
+        if name in entry.get(section, {})
+    }
+    behind = {path: ask for path, ask in asks.items() if _caret_major(ask) != major}
+    assert behind, (
+        f"{directory}: every package that needs {name} now asks for ^{major} itself ({asks}). "
+        "Drop the override from package.json, relock, and mark record 0275 superseded."
+    )
