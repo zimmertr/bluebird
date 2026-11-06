@@ -1166,6 +1166,7 @@ flowchart LR
         pr["PR opened / updated"]
         checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, mypy, pytest, OpenAPI + API-type drift,<br/>database tests against PostGIS, planet fill build + suite + Trivy,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets, browser smoke + axe"]
         title["pr-title.yml<br/>PR Title: yggdrasil's pr-title module checks the type<br/>(also on a title edit)"]
+        lint["lint.yml<br/>yggdrasil's lint module: actionlint, zizmor,<br/>Semgrep's base-image digest rule"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -1182,6 +1183,7 @@ flowchart LR
     dev -->|open / push| pr
     pr --> checks
     pr --> title
+    pr --> lint
     pr --> preview
     preview -->|build + push| dhpr
     preview -->|owner PR only| label
@@ -1321,6 +1323,11 @@ flowchart LR
   It checks the type only: it no longer names the bump the merge will release
   or warns on a major (record 0276). It is a required check, as
   `PR Title / PR Title`.
+- `lint.yml`'s **Lint** job calls yggdrasil's **lint** module: actionlint and
+  zizmor's pedantic audits over the workflows and `dependabot.yml`, and
+  Semgrep's rule that every Dockerfile `FROM` carries a digest. They are
+  required checks, as `Lint / actionlint`, `Lint / zizmor` and
+  `Lint / semgrep` (record 0279).
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
   never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`,
