@@ -27,7 +27,7 @@ permissions: {}
 jobs:
   release:
     name: Release
-    uses: zimmertr/yggdrasil/.github/workflows/release.yml@4e5afc95d7f3ba6c99d18e245fd3cf726c72fb63 # v0.8.1
+    uses: zimmertr/yggdrasil/.github/workflows/release.yml@95c4f710c3600dba170ed579c0beabab507011b9 # v0.9.2
     permissions:
       contents: write # the tag and release
     with:
