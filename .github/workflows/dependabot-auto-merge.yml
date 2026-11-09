@@ -17,7 +17,7 @@ permissions: {}
 jobs:
   auto-merge:
     name: Dependabot auto-merge
-    uses: zimmertr/yggdrasil/.github/workflows/auto-merge.yml@4e5afc95d7f3ba6c99d18e245fd3cf726c72fb63 # v0.8.1
+    uses: zimmertr/yggdrasil/.github/workflows/auto-merge.yml@95c4f710c3600dba170ed579c0beabab507011b9 # v0.9.2
     permissions:
       pull-requests: write # the comment
     secrets:
