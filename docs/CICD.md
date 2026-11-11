@@ -15,7 +15,7 @@ three repositories and the supporting services that automate the path.
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image, plus a second image for the planet fill that builds the shared cache's places table (`fill/`, #760). |
 | **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact to Docker Hub only (not listed on Artifact Hub, bluebird-helm record 0003). Its `pr.yml` runs `Lint & render`; a PR publishes no chart. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Lint & render` that walk does block a PR, because it reads the chart alone. Like this repo, it runs yggdrasil's `pr-title`, `lint`, `auto-merge` and `release` modules (zimmertr/yggdrasil#7). |
-| **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` and `Validate Terraform` checks. |
+| **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-fill` (the planet fill, released beside each app image at the same version), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`; since #760 the CloudNativePG operator (an app of its own, in `postgres-system`), the PostgreSQL it runs for the app in `bluebird-system`, and the planet fill's CronJob. |
 
@@ -45,7 +45,7 @@ flowchart TD
     end
 
     subgraph KM["GitHub: zimmertr/Kubernetes-Manifests"]
-        kmCheck["pr.yml: Validate manifests + Validate Terraform<br/>required checks: Argo CD renders<br/>the affected apps (argocd-diff-preview)<br/>+ terraform/cloudflare tests"]
+        kmCheck["pr.yml: Validate manifests<br/>required check: Argo CD renders<br/>the affected apps (argocd-diff-preview)"]
         kmImagePR["PR: chore/bluebird-image<br/>(self-merging)"]
         kmStablePR["PR: chore/bluebird-stable-chart<br/>(self-merging)"]
         kmPreviewPR["PR: chore/bluebird-preview-chart<br/>(self-merging)"]
@@ -357,9 +357,8 @@ the diff is the actual edit rather than a version string; the
 ### Writes into Kubernetes-Manifests
 
 `Kubernetes-Manifests/main` **forbids direct commits**. All three automated
-writes above go through a PR, and what they wait on is the two required
-checks in that repo's `pr.yml`. The one that matters here is
-**`Validate manifests`**, which:
+writes above go through a PR, and what they wait on is the required
+check in that repo's `pr.yml`, **`Validate manifests`**, which:
 
 1. YAML-parses every changed `.yml`/`.yaml`. This is the failure mode the bump
    jobs can actually cause — the two chart bumps rewrite version lines with
@@ -376,15 +375,9 @@ checks in that repo's `pr.yml`. The one that matters here is
    `pr.yml` itself adds `public/bluebird` to its own render list, so a tool bump
    cannot pass green on an empty target list.
 
-The other, **`Validate Terraform`**, formats, validates and tests
-`terraform/cloudflare/` (the tunnel and the DNS records the public hostnames
-ride, Kubernetes-Manifests#1465). It has no path filter, so every PR waits on it
-too, the three bump PRs included, though none of them touches Terraform. It
-takes about half a minute.
-
 A fourth writer into that repo is not one of these jobs: Renovate
 (`.github/renovate.json`) auto-merges minor and patch updates after a seven-day
-release age, gated on the same two checks. It does not touch
+release age, gated on the same check. It does not touch
 the `zimmertr/bluebird` image tag or the `bluebird-helm` chart version: both
 are disabled there (Kubernetes-Manifests#1363), because the release jobs above
 are their only writers, and a higher tag that appeared in Docker Hub without
