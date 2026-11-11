@@ -383,6 +383,9 @@ describe('a storage that will not answer', () => {
         modelColumn: null,
         columnOrder: null,
         legendOpen: null,
+        chartLayout: null,
+        showPlayer: null,
+        baseOpacity: null,
       })
       expect(() => writeViewPrefs({ modeChosen: 'both' })).not.toThrow()
       expect(() => setWelcomed()).not.toThrow()
