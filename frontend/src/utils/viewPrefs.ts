@@ -1,7 +1,8 @@
 // The reading posture this browser remembers: which panels the results area
-// opens with, which columns the table carries, in which order, whether a
-// desk's legend is folded, whether the welcome modal has been seen, and which
-// theme it reads in.
+// opens with, which columns the table carries, in which order, how a desk
+// arranges the chart's panels, whether the forecast player shows, how faded
+// each base map draws, whether a desk's legend is folded, whether the welcome
+// modal has been seen, and which theme it reads in.
 //
 // One module rather than the six inline reads App.tsx used to carry, because
 // every one of them re-parsed the same stored object behind its own try/catch
@@ -17,6 +18,8 @@
 // inside each try, never in a guard before it: where site data is blocked,
 // reading `localStorage` throws, `typeof localStorage` included.
 import { FAMILY_KEYS } from '../metrics'
+import { BASE_LAYERS, type BaseLayer, type BaseOpacity, DEFAULT_BASE_OPACITY, clampOpacity } from './baseMapOpacity'
+import { type ChartLayout, isChartLayout } from './chart/chartLayout'
 import { CLOSURE_KEY, WILDFIRE_KEY } from './tableColumns'
 
 // Exported for the privacy page's test, which holds the page's account of what
@@ -68,6 +71,9 @@ interface StoredView {
   modelColumn?: boolean
   columnOrder?: string[]
   legendOpen?: boolean
+  chartLayout?: string
+  showPlayer?: boolean
+  baseOpacity?: Partial<Record<string, number>>
 }
 
 export interface ViewPrefs {
@@ -81,6 +87,12 @@ export interface ViewPrefs {
   columnOrder: readonly string[] | null
   /** Whether a desk's legend card was last left open, or null while nobody has folded it (#696). */
   legendOpen: boolean | null
+  /** The arrangement picked from the chart's Panel layout menu, or null for the panel count's own (#864). */
+  chartLayout: ChartLayout | null
+  /** The forecast player's switch as the reader left it, or null for the device's default (#864). */
+  showPlayer: boolean | null
+  /** The four base-map layers' opacity levels, or null while every slider is where it starts (#864). */
+  baseOpacity: BaseOpacity | null
 }
 
 function readStored(): StoredView {
@@ -147,6 +159,21 @@ function storedColumns(stored: StoredView): Set<string> | null {
 }
 
 /**
+ * The four opacity levels, each held to a whole percent from 0 to 100 and a
+ * missing or unreadable one read as the default, or null when none is stored.
+ */
+function storedOpacity(stored: StoredView): BaseOpacity | null {
+  const levels = stored.baseOpacity
+  if (typeof levels !== 'object' || levels === null) return null
+  const out: Record<BaseLayer, number> = { ...DEFAULT_BASE_OPACITY }
+  for (const layer of BASE_LAYERS) {
+    const level = levels[layer]
+    if (typeof level === 'number' && Number.isFinite(level)) out[layer] = clampOpacity(level)
+  }
+  return out
+}
+
+/**
  * Every stored preference, in one parse. Call it once per mount and read the
  * fields off the result: a second call is a second parse of the same string.
  */
@@ -161,6 +188,9 @@ export function readViewPrefs(): ViewPrefs {
     modelColumn: typeof stored.modelColumn === 'boolean' ? stored.modelColumn : null,
     columnOrder: Array.isArray(stored.columnOrder) ? stored.columnOrder : null,
     legendOpen: typeof stored.legendOpen === 'boolean' ? stored.legendOpen : null,
+    chartLayout: typeof stored.chartLayout === 'string' && isChartLayout(stored.chartLayout) ? stored.chartLayout : null,
+    showPlayer: typeof stored.showPlayer === 'boolean' ? stored.showPlayer : null,
+    baseOpacity: storedOpacity(stored),
   }
 }
 
@@ -180,6 +210,9 @@ export function writeViewPrefs(patch: Partial<ViewPrefs>): void {
     if ('modeChosen' in patch) stored.modeChosen = patch.modeChosen ?? undefined
     if ('modelColumn' in patch) stored.modelColumn = patch.modelColumn ?? undefined
     if ('legendOpen' in patch) stored.legendOpen = patch.legendOpen ?? undefined
+    if ('chartLayout' in patch) stored.chartLayout = patch.chartLayout ?? undefined
+    if ('showPlayer' in patch) stored.showPlayer = patch.showPlayer ?? undefined
+    if ('baseOpacity' in patch) stored.baseOpacity = patch.baseOpacity ? { ...patch.baseOpacity } : undefined
     if ('columnOrder' in patch) {
       stored.columnOrder = patch.columnOrder ? [...patch.columnOrder] : undefined
     }

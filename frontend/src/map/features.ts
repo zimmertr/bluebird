@@ -74,6 +74,8 @@ export function mountFeatures(
     ring: { current: [number, number][] }
     onPolygonChange: (polygon: GeoPolygon | null) => void
     onDrawUpdate: (count: number) => void
+    /** The map opened on a camera a share link named, which the 3D terrain keeps the pitch of (#864). */
+    linkCamera?: boolean
   },
 ): MapFeatures {
   const { controller, popups } = deps
@@ -100,7 +102,7 @@ export function mountFeatures(
   const landmarks = mountLandmarks(map, {})
   // Adds nothing until a switch asks: no elevation tile and no contour code
   // on the cold load.
-  const terrain = mountTerrain(map)
+  const terrain = mountTerrain(map, { linkCamera: deps.linkCamera })
   const grid = mountForecastGrid(map)
   const smoke = mountSmoke(map, { popups: mapPopups })
   const wildfires = mountWildfires(map, { popups: mapPopups })
