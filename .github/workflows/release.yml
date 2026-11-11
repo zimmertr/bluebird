@@ -47,8 +47,8 @@ jobs:
           "platforms": "linux/amd64,linux/arm64"}]
       # The fixed branches keep one open bump PR each across releases. The
       # chart bump's `chore(release):` title is what makes bluebird-helm
-      # release a patch, and it runs after the GitHub release because
-      # bluebird-helm's own release reads appVersion from this repo's Latest.
+      # release a patch, and that release ships the appVersion this bump wrote
+      # to its Chart.yaml (bluebird-helm record 0005).
       # The Kustomization's images entry is named for the image the chart
       # renders, and pins the digest beside the tag, so production runs the
       # bytes the scan read (record 0280).
