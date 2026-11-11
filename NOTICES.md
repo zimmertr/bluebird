@@ -129,7 +129,7 @@ licenses change close to never. The exact versions inside any release are in
 that file, and in the SBOM attestation on its image:
 
 ```bash
-docker buildx imagetools inspect zimmertr/bluebird:<version> --format '{{ json .SBOM }}'
+docker buildx imagetools inspect ghcr.io/zimmertr/bluebird:<version> --format '{{ json .SBOM }}'
 ```
 
 <!-- backend/tests/test_notices.py holds the two tables below to
@@ -184,7 +184,7 @@ docker build -t bluebird-forecast:local .
 docker run --rm bluebird-forecast:local cat static/third-party-licenses.txt
 ```
 
-The planet fill is a second image, `zimmertr/bluebird-fill` (#760). Its
+The planet fill is a second image, `ghcr.io/zimmertr/bluebird-fill` (#760). Its
 software is Debian's own packages on `trixie-slim`, each with its license text
 in the image at `/usr/share/doc/<package>/copyright`, so it carries no
 `third-party-licenses.txt`. The release attaches an SBOM to this image too:

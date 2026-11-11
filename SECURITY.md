@@ -4,7 +4,7 @@
 
 Bluebird Forecast is a rolling-release web application. The only supported version is the
 latest release, which is what runs at [bluebirdforecast.com](https://bluebirdforecast.com)
-and is published as the newest `zimmertr/bluebird` tag on Docker Hub. Older image
+and is published as the newest `ghcr.io/zimmertr/bluebird` tag on GHCR. Older image
 tags remain pullable but do not receive security fixes, and production never
 returns to one: a fix ships as the next release.
 

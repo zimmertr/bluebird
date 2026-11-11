@@ -41,7 +41,7 @@ RUN apt-get update \
 RUN useradd --system --uid 10001 --user-group --no-create-home --home-dir /nonexistent \
         --shell /usr/sbin/nologin bluebirdforecast
 WORKDIR /app
-# The image is published on Docker Hub, so the license travels with it.
+# The image is published on GHCR, so the license travels with it.
 COPY LICENSE ./LICENSE
 COPY backend/app/services/osm/rules.py fill/fill.py ./
 USER 10001:10001
