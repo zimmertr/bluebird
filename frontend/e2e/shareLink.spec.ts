@@ -223,3 +223,16 @@ test('a 3D link opens at the pitch its camera names, flat included', async ({ pa
   await page.waitForTimeout(1_000)
   await holdsPastDebounce(page, () => new URL(page.url()).searchParams.get('view'), view)
 })
+
+// A ready-made list rides the link by name (#864). Its rows are not in the
+// link, so the page fetches them once it opens: the field reads the list's
+// name, the box holds its rows, and the address bar goes on naming the list
+// rather than writing the rows out.
+test('a link that names a ready-made list opens with the list in the box', async ({ page }) => {
+  await page.goto('/?list=wa-bulger-list')
+  await expect(page.getByRole('button', { name: 'Coordinate list The Bulger List' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: /^Custom destination coordinates/ })).toHaveValue(/Mount Rainier/)
+  const search = () => new URL(page.url()).searchParams
+  await holdsPastDebounce(page, () => search().get('list'), 'wa-bulger-list')
+  expect(search().has('customz')).toBe(false)
+})
