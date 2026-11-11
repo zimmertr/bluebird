@@ -14,9 +14,9 @@ three repositories and the supporting services that automate the path.
 | System | Role |
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image, plus a second image for the planet fill that builds the shared cache's places table (`fill/`, #760). |
-| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact to Docker Hub only (not listed on Artifact Hub, bluebird-helm record 0003). Its `pr.yml` runs `Lint & render`; a PR publishes no chart. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Lint & render` that walk does block a PR, because it reads the chart alone. Like this repo, it runs yggdrasil's `pr-title`, `lint`, `auto-merge` and `release` modules (zimmertr/yggdrasil#7). |
+| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact to GHCR only (not listed on Artifact Hub, bluebird-helm record 0003). Its `pr.yml` runs `Lint & render`; a PR publishes no chart. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Lint & render` that walk does block a PR, because it reads the chart alone. Like this repo, it runs yggdrasil's `pr-title`, `lint`, `auto-merge` and `release` modules (zimmertr/yggdrasil#7). |
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
-| **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-fill` (the planet fill, released beside each app image at the same version), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
+| **GHCR** | `ghcr.io/zimmertr/bluebird` (release images), `ghcr.io/zimmertr/bluebird-fill` (the planet fill, released beside each app image at the same version), `ghcr.io/zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://ghcr.io/zimmertr/bluebird-helm`. Every push uses the job's own `GITHUB_TOKEN`. Docker Hub keeps what was pushed there before 2026-11-11, because older chart versions name it (record 0280). |
 | **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`; since #760 the CloudNativePG operator (an app of its own, in `postgres-system`), the PostgreSQL it runs for the app in `bluebird-system`, and the planet fill's CronJob. |
 
 Everything consumes the chart **OCI-natively** (kustomize `helmCharts` and an
@@ -53,9 +53,9 @@ flowchart TD
         kmPreview["public/bluebird-pr<br/>applicationset.yml"]
     end
 
-    subgraph DH["Docker Hub"]
-        dhImage["zimmertr/bluebird:SemVer"]
-        dhFill["zimmertr/bluebird-fill:SemVer"]
+    subgraph DH["GHCR"]
+        dhImage["ghcr.io/zimmertr/bluebird:SemVer"]
+        dhFill["ghcr.io/zimmertr/bluebird-fill:SemVer"]
         dhChart["OCI chart<br/>zimmertr/bluebird-helm"]
     end
 
@@ -118,11 +118,12 @@ the newest release (#632). Record:
 2. **Build & Push**: one job per image. Each builds a **multi-arch manifest
    (`linux/amd64` + `linux/arm64`, arm64 via QEMU)** with SBOM + provenance
    attestations (the attestation manifests appear as "unknown/unknown" rows
-   in Docker Hub's UI) and pushes it to Docker Hub as `<image>:<semver>`.
+   in a registry's tag list) and pushes it to GHCR as
+   `ghcr.io/<image>:<semver>`, with the job's own `GITHUB_TOKEN`.
    Capped at `timeout-minutes: 30`: because releases serialize, a job hung on
    a registry timeout would otherwise dam every queued release for up to
-   GitHub's 6-hour default. Docker Hub's immutable tags refuse a second push
-   of the same version, so a re-run of a pushed image fails here; see
+   GitHub's 6-hour default. GHCR takes a second push of the same version, so
+   a re-run of a pushed image builds it again under the same tag; see
    [Finishing a failed release](#finishing-a-failed-release).
 
    Only the *backend* halves of the image are built per architecture. The
@@ -150,14 +151,14 @@ the newest release (#632). Record:
    The fill (#760) is built beside the app rather than after it, as
    `Build & Push (zimmertr/bluebird-fill)`: the same multi-arch build with
    SBOM and provenance, from `fill/Dockerfile`, pushed as
-   `zimmertr/bluebird-fill:<semver>`. It keeps no layer cache: the image is
+   `ghcr.io/zimmertr/bluebird-fill:<semver>`. It keeps no layer cache: the image is
    one `apt-get install`, and the repository's Actions cache is already over
    its limit, so every release installs Debian's packages as they stand that
    day. The chart runs the fill at its `appVersion`, so every release needs
    one. Record:
    [0184](architectural-decision-records/0184-planet-fill-cronjob-and-image.md)
 3. **Scan Pushed Image** — Trivy, once per image and platform
-   (`zimmertr/bluebird` and `zimmertr/bluebird-fill`, each on `linux/amd64`
+   (`ghcr.io/zimmertr/bluebird` and `ghcr.io/zimmertr/bluebird-fill`, each on `linux/amd64`
    and `linux/arm64`), against each image's version tag, with the same scan
    settings as the PR gate and the weekly scan. It fails on a fixable
    Critical/High finding. Steps 4, 5 and 6 all need it, so production, the
@@ -169,8 +170,9 @@ the newest release (#632). Record:
    **Latest**, which the chart's `appVersion` resolver reads.
 5. **Deploy Bump (zimmertr/Kubernetes-Manifests)**: after step 4, a
    **self-merging PR** on the fixed `chore/bluebird-image` branch sets the
-   `zimmertr/bluebird` image's `newTag: <semver>` in
-   `public/bluebird/kustomization.yml`. Once its required checks go green it
+   `ghcr.io/zimmertr/bluebird` image's `newTag: <semver>` and its `digest` in
+   `public/bluebird/kustomization.yml`. The digest is the one the tag names
+   once the scan has passed, so production runs the bytes the scan read. Once its required checks go green it
    squash-merges itself, Argo CD auto-syncs, and the new image rolls to prod. No
    human step. See [Writes into Kubernetes-Manifests](#writes-into-kubernetes-manifests)
    for why every write is shaped this way.
@@ -251,14 +253,14 @@ in [Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
 ### Finishing a failed release
 
 A release that fails part way leaves some of its pieces published, and the
-images and the tag are immutable, so nothing is deleted or pushed again. A
+tag is immutable, so nothing is deleted or pushed again. A
 chart release in `bluebird-helm` recovers by re-running its `release.yml`,
 which makes only what is missing.
 
 1. **Re-run failed jobs**, never "Re-run all jobs", on the failed
    `release.yml` run. A job that already pushed its image succeeded and is
-   kept; "Re-run all jobs" would push that image again, and Docker Hub's
-   immutable tags refuse it. This is the whole recovery when the failure was
+   kept; "Re-run all jobs" would build and push that image again, over the
+   bytes the scan read. This is the whole recovery when the failure was
    transient. A scan that failed on a finding is not transient; see
    [The release scan](#the-release-scan).
 2. **Never re-run an old release after a newer one shipped.** Its bump PRs
@@ -268,7 +270,10 @@ which makes only what is missing.
    rest by hand:
    `gh release create v<semver> --repo zimmertr/bluebird --title v<semver>
    --generate-notes --target <commit>`, then a PR in `Kubernetes-Manifests`
-   setting `images.newTag: <semver>` in `public/bluebird/kustomization.yml`,
+   setting the `ghcr.io/zimmertr/bluebird` entry's `newTag: <semver>` and
+   `digest` (from `docker buildx imagetools inspect
+   ghcr.io/zimmertr/bluebird:<semver> --format '{{.Manifest.Digest}}'`) in
+   `public/bluebird/kustomization.yml`,
    and a PR in `bluebird-helm` setting `appVersion: "<semver>"` in
    `charts/bluebird/Chart.yaml`, titled `chore(release): bump chart appVersion
    to <semver>`.
@@ -289,12 +294,11 @@ transitive set resolve when the image is built; and the release adds
 only, up to a week later. So `Scan Pushed Image` scans the release's own push
 before production moves (#634):
 
-- **By version tag.** The image ref is `<image>:<semver>`. Docker Hub's
-  immutable tags fix a tag to the bytes first pushed under it, so the bytes
-  scanned are the bytes pushed. Both `zimmertr/bluebird` and
-  `zimmertr/bluebird-fill` have immutable tags on (yggdrasil's record 0024;
-  the fill's was turned on 2026-11-06). This replaces the scan by digest of
-  record 0105.
+- **By version tag.** The image ref is `ghcr.io/<image>:<semver>`. GHCR has
+  no immutable tags, so production's bump pins the digest the tag names after
+  the scan, and the cluster runs those bytes even if the tag is later moved
+  (record 0280, yggdrasil's record 0052). The fill runs at the chart's
+  `appVersion` tag, unpinned.
 - **Once per image and platform.** A matrix over the two images and
   `linux/amd64` and `linux/arm64`, with `fail-fast: false` so all four legs
   report; each reports as `Scan Pushed Image (<image>, <platform>)`. The tag
@@ -304,8 +308,8 @@ before production moves (#634):
   `ignore-unfixed`, scan settings and fixable Critical/High gate as the PR
   gate and the weekly scan, so the three judge an image alike.
 - **No credential.** Both images are public, so the job does not log in to
-  Docker Hub and holds nothing a scanner could read. `zimmertr/bluebird-fill`
-  has to be made public by hand on Docker Hub, or its two legs cannot pull it.
+  GHCR and holds nothing a scanner could read. A package this public
+  repository pushes first starts public.
 
 `Tag and Release` and both `Deploy Bump` jobs need the scan. A scan that
 fails therefore leaves production and the chart's default image on the
@@ -343,8 +347,8 @@ job merged is the first measurement.
   never touches prod.
 
 The planet fill has no knob of its own. The chart runs
-`zimmertr/bluebird-fill` at its `appVersion`, and the Kustomization's
-`images` entry names `zimmertr/bluebird` alone, so the fill reaches production
+`ghcr.io/zimmertr/bluebird-fill` at its `appVersion`, and the Kustomization's
+`images` entry names `ghcr.io/zimmertr/bluebird` alone, so the fill reaches production
 with Path 1 step 6's bump and the chart release that follows, a step behind
 the app's image.
 
@@ -378,9 +382,9 @@ check in that repo's `pr.yml`, **`Validate manifests`**, which:
 A fourth writer into that repo is not one of these jobs: Renovate
 (`.github/renovate.json`) auto-merges minor and patch updates after a seven-day
 release age, gated on the same check. It does not touch
-the `zimmertr/bluebird` image tag or the `bluebird-helm` chart version: both
+the `ghcr.io/zimmertr/bluebird` image tag or the `bluebird-helm` chart version: both
 are disabled there (Kubernetes-Manifests#1363), because the release jobs above
-are their only writers, and a higher tag that appeared in Docker Hub without
+are their only writers, and a higher tag that appeared in GHCR without
 passing this repo's checks must not reach production by being newer.
 
 Three constraints hold this together, and breaking any one of them silently
@@ -463,10 +467,7 @@ credentials, which no pull request can make:
    commits stop carrying the owner's identity. Acceptable: a fine-grained
    token limited to those two repositories with the same two permissions and
    an expiry, stored as a `release` environment secret.
-3. Move `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` into the same environment
-   (the preview job still needs Docker Hub, so it keeps a repository secret
-   or gets an environment of its own), and delete the
-   repository-level `GH_PAT`.
+3. Delete the repository-level `GH_PAT`.
 4. Give the jobs that use them `environment: release`: here, through the
    release module, whose `environment` input today covers only `Tag and
    Release` (zimmertr/yggdrasil#12); `chart` and
@@ -489,7 +490,7 @@ applied to *object* metadata, while the Rollout's pod template uses
 that wins. The pod template is unchanged, so merging such a bump triggers no
 canary at all. Since #760 one object does move: the planet fill's CronJob,
 whose image follows `.Chart.AppVersion` because `images:` names
-`zimmertr/bluebird` alone. That is how a release's fill reaches production,
+`ghcr.io/zimmertr/bluebird` alone. That is how a release's fill reaches production,
 and it starts no canary either, since the CronJob is not the Rollout's pod
 template.
 
@@ -749,11 +750,10 @@ none is supported. Three facts make it the only rule that holds here:
   `chore/bluebird-image` fresh from `Kubernetes-Manifests/main` on every
   release and sets `newTag` to that release, so a hand pin to an older tag
   lasts only until the next merge, and nothing warns when it is overwritten.
-- **A version cannot be withdrawn.** Docker Hub tag immutability is on for
-  every tag of `zimmertr/bluebird` and `zimmertr/bluebird-fill` (rule `.*`), and this repository has GitHub
-  immutable releases on. A bad image, its `v<version>` tag and its GitHub
-  release stay public for good, so the next version is the only one that can
-  carry the fix.
+- **A version cannot be withdrawn.** This repository has GitHub immutable
+  releases on, so a bad release's `v<version>` tag and its GitHub release
+  stay public for good, and the next version is the only one that can carry
+  the fix.
 - **The cluster follows git.** `Kubernetes-Manifests/main` takes no direct
   commit, and the `bluebird` Application runs `selfHeal`, which puts back
   anything changed on the live objects, a `kubectl argo rollouts undo`
@@ -1158,7 +1158,7 @@ flowchart LR
         comment["sticky preview-URL comment"]
     end
 
-    dhpr["Docker Hub<br/>zimmertr/bluebird-pr:pr-N-headsha"]
+    dhpr["GHCR<br/>ghcr.io/zimmertr/bluebird-pr:pr-N-headsha"]
 
     subgraph CL["Cluster"]
         appset["ApplicationSet bluebird-pr<br/>pullRequest generator"]
@@ -1316,18 +1316,16 @@ flowchart LR
   `Lint / semgrep` (record 0279).
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
-  never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`,
-  and skips the build when that tag is already in Docker Hub: a re-run or a
+  never execute with secrets. It builds `ghcr.io/zimmertr/bluebird-pr:pr-<N>-<head_sha>`,
+  pushes it with the job's own `GITHUB_TOKEN`, and skips the build when that
+  tag is already in GHCR: a re-run or a
   reopen on the same head commit asks for the same tag, and the image already
   there is from the same source.
-- **Preview tags should be immutable, and that is a Docker Hub setting, not a
-  workflow.** `zimmertr/bluebird` and the chart repository have immutable
-  tags on (rule `.*`); `zimmertr/bluebird-pr` did not when #634 was filed. Without it, anyone
-  holding the Docker Hub token can replace the image behind a live preview's
-  tag, and a preview's image reaches the same cluster as production. Turning it on
-  is the maintainer's step (Docker Hub, `zimmertr/bluebird-pr`, Settings,
-  immutable tags with the rule `.*`); the existing-tag skip above is what keeps
-  a re-run from failing once it is on.
+- **Preview tags can be replaced.** GHCR has no immutable tags, so a token
+  that can write `ghcr.io/zimmertr/bluebird-pr` can replace the image behind
+  a live preview's tag, and a preview's image reaches the same cluster as
+  production. No such token is stored: the push uses the job's own
+  `GITHUB_TOKEN`, which ends with the run (record 0280).
 - For the owner's own PRs it applies the **`create pr container`** label and posts
   a sticky comment with the preview URL. Other authors (e.g. Dependabot) still
   build an image but get no label, so no preview pod spins up.
@@ -1380,7 +1378,7 @@ produce. The next two sections give the details.
 flowchart LR
     subgraph SCAN["Weekly image re-scan"]
         cron["image-scan.yml<br/>cron, Trivy"]
-        released["Docker Hub<br/>latest released images"]
+        released["GHCR<br/>latest released images"]
         sarif["Security tab<br/>SARIF alerts"]
         email["failure email<br/>fixable Crit/High only"]
     end
@@ -1414,8 +1412,8 @@ PR-time scanning gates what gets *published*, but CVEs are disclosed after
 images ship. The released image rots while nothing rebuilds it.
 `image-scan.yml` (weekly cron + `workflow_dispatch`) calls yggdrasil's
 **image-scan** module, which re-scans the **latest released**
-`zimmertr/bluebird:<semver>` with Trivy, and since #760
-`zimmertr/bluebird-fill:<semver>` beside it, one matrix leg each with
+`ghcr.io/zimmertr/bluebird:<semver>` with Trivy, and since #760
+`ghcr.io/zimmertr/bluebird-fill:<semver>` beside it, one matrix leg each with
 `fail-fast: false`. The app's alerts keep the `trivy-released-image` category,
 so their history holds, and the fill's land under `trivy-released-fill-image`.
 For the fill, the remedy is the Dependabot base-image PR for
@@ -1461,9 +1459,6 @@ This job scans a published image rather than a checkout, and reads the same
 scan settings as the PR gate, yggdrasil's default `trivy.yaml`. That is
 deliberate: without the PR gate's exclusions, an image could pass `pr.yml`
 and then fail here on findings that gate had already ruled out.
-
-Docker Hub's Scout insights cover the same registry-side rot but only update
-the Hub dashboard; the cron's failure email is the push-based signal.
 
 ## Dependabot auto-merge
 
@@ -1552,7 +1547,7 @@ the chart unpublished.
 sequenceDiagram
     actor Dev as Developer / TJ
     participant BB as bluebird
-    participant DH as Docker Hub
+    participant DH as GHCR
     participant KM as Kubernetes-Manifests
     participant HELM as bluebird-helm
     participant ARGO as Argo CD
@@ -1605,7 +1600,7 @@ costs](#what-a-stable-chart-bump-costs).
   with the app (TJ, 2026-10-01), and neither major happens by itself: each
   repository needs a merged PR whose title carries `!`. Merge in this order:
 
-  1. The app PR with `!` in its title. It releases `zimmertr/bluebird:1.0.0`,
+  1. The app PR with `!` in its title. It releases `ghcr.io/zimmertr/bluebird:1.0.0`,
      and Path 1 step 6 opens the automatic chart PR, titled `chore(release):
      bump chart appVersion to 1.0.0`. That title has no `!`, so by itself it
      releases a chart **patch** (for example 0.15.22) whose default image is

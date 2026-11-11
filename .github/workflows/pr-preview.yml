@@ -2,10 +2,9 @@ name: PR Preview Image
 
 on:
   # pull_request_target (not pull_request): dependabot-triggered pull_request
-  # runs get Dependabot's separate (empty) secret store and cannot log in to
-  # Docker Hub. _target runs use the base repo's Actions secrets and always
-  # take the workflow definition from main, so a PR branch cannot alter this
-  # pipeline to leak them. zizmor's dangerous-triggers audit is silenced for
+  # runs get a read-only GITHUB_TOKEN and cannot push to GHCR. _target runs
+  # get the token the job asks for and always take the workflow definition
+  # from main, so a PR branch cannot alter this pipeline to misuse it. zizmor's dangerous-triggers audit is silenced for
   # that reason: the job's `if:` below runs it for same-repo PRs only.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [opened, synchronize, reopened]
@@ -23,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write # the preview image, pushed to ghcr.io/zimmertr/bluebird-pr
       pull-requests: write # the "create pr container" label and the preview-URL comment
     # HARD GATE — same-repo PRs only. Under pull_request_target this run holds
     # real secrets even when the PR comes from a fork, so this condition is the
@@ -31,7 +31,7 @@ jobs:
     # Docker build below.
     if: github.event.pull_request.head.repo.full_name == github.repository
     env:
-      IMAGE: zimmertr/bluebird-pr
+      IMAGE: ghcr.io/zimmertr/bluebird-pr
       # Must match the Argo CD generator: pr-{{ .number }}-{{ .head_sha }}
       TAG: pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
     steps:
@@ -63,13 +63,14 @@ jobs:
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
       # The tag names the head commit, so a re-run or a reopen on the same
       # commit asks for a tag that is already there, from the same source.
-      # Docker Hub's immutable tags refuse a second push of it (a rebuild is
-      # a new digest: the build stamp differs), which would fail the preview;
-      # the image already pushed is the one Argo CD should run.
+      # A rebuild would be a new digest (the build stamp differs) under the
+      # same tag, so skip it: the image already pushed is the one Argo CD
+      # should run.
       - name: Check whether the tag is already pushed
         id: image
         run: |
