@@ -3434,13 +3434,17 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   needed.
  * - `description`: the sentence under a row's name that says what the row
  *   is: a model's summary in the model list, a list's description in the
- *   Coordinate list field's menu. The helper's italic at the caption size
- *   in every menu, so a sentence never reads as a second name (record
+ *   Coordinate list field's menu. Italic at the 11px step in the caption's
+ *   soft ink, in every menu, so a sentence never reads as a second name: the
+ *   maintainer chose it in a lab over upright type and over a recessed, a
+ *   tinted and a ruled ground (record
  *   [0283](../../docs/architectural-decision-records/0283-a-menu-rows-description-is-italic.md)).
- *   Each menu's own row role composes it (`MODEL_ROW.description`,
- *   `MENU_BROWSE.description`), `styles.test.ts` holds each of them to it,
- *   and the linter's `style-menu-description` check fails either menu file
- *   that sets a sentence in anything else. Read and never pressed.
+ *   A step under the name's 12px, which the floor allows a line that is read
+ *   and never pressed (record 0131), and 5.56:1 on the dark card, 8.91:1 on
+ *   the light. Each menu's own row role composes it
+ *   (`MODEL_ROW.description`, `MENU_BROWSE.description`), `styles.test.ts`
+ *   holds each of them to it, and the linter's `style-menu-description`
+ *   check fails either menu file that sets a sentence in anything else.
  */
 export const MENU = {
   card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
@@ -3452,7 +3456,7 @@ export const MENU = {
   hover: 'hover:bg-raised',
   current: 'font-semibold',
   heading: `${TEXT.caption} font-semibold`,
-  description: TEXT.helper,
+  description: `${MICRO_SIZE} italic text-ink-soft`,
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
   divider: `-mx-1 my-1 border-t ${SURFACE_DIVIDER}`,
 } as const
