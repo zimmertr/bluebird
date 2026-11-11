@@ -77,7 +77,7 @@ Every `npm ci` passes `--ignore-scripts`,
 and Renovate waits seven days after a release before proposing it (#633).
 Record: [0099](docs/architectural-decision-records/0099-locked-installs-no-install-scripts.md)
 Dependency updates are Renovate's, under zimmertr/yggdrasil's shared preset,
-and everything below a major merges itself. Record: [0284](docs/architectural-decision-records/0284-renovate-under-yggdrasils-preset.md)
+and everything below a major merges itself, except a Python minor. Record: [0284](docs/architectural-decision-records/0284-renovate-under-yggdrasils-preset.md)
 
 Three targets measure rather than check, and CI runs none of them. `make coverage-frontend`
 and `make coverage-backend` print line and branch coverage per module with no floor,
