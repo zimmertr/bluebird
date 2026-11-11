@@ -901,8 +901,8 @@ export const APP = [
     require: [
       { selector: EFFECT, count: 2, message: 'useUrlSync.ts runs its two effects through useEffect.' },
       {
-        selector: `${EFFECT} > ArrayExpression[elements.length=36][elements.35.name="sync"]`,
-        message: 'Key the sync effect on all 36 inputs it reads, sync last.',
+        selector: `${EFFECT} > ArrayExpression[elements.length=34][elements.33.name="sync"]`,
+        message: 'Key the sync effect on all 34 inputs it reads, sync last.',
       },
       { selector: keyedOnlyOn('writeUrl'), message: 'Flush on unmount in an effect keyed on writeUrl alone.' },
       { selector: 'ReturnStatement Property[key.name="writeUrl"]', message: 'Return the writer.' },

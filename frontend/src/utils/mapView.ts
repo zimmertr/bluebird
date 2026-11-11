@@ -70,7 +70,7 @@ export function decodeView(raw: string): CameraView | null {
   const [lng, lat, zoom, bearing = 0, pitch = 0] = parts.map(Number)
   if (![lng, lat, zoom, bearing, pitch].every(Number.isFinite)) return null
   if (lng < -180 || lng > 180 || Math.abs(lat) > MAX_LAT || zoom < 0 || zoom > MAX_ZOOM) return null
-  if (Math.abs(bearing) > 180 || pitch < 0 || pitch > MAX_PITCH) return null
+  if (bearing < -180 || bearing > 180 || pitch < 0 || pitch > MAX_PITCH) return null
   return { lng, lat, zoom, bearing, pitch }
 }
 

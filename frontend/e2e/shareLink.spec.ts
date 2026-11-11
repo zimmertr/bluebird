@@ -128,7 +128,7 @@ test('a link reopens at its camera, with its removals and its table order', asyn
     await route.fallback()
   })
   await page.goto(
-    `/?type=peak&mode=days&d1=${d1}&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&fires=1` +
+    `/?type=peak&mode=days&d1=${d1}&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&wildfires=1` +
       `&removed=-121.792,47.4375&tsort=name&tdesc=1&view=${view}&analyze=1`,
   )
   const [west, south, east, north] = new URL((await fires).url()).searchParams.get('bbox')!.split(',').map(Number)
@@ -197,5 +197,29 @@ test('a link that carries a camera alone keeps it', async ({ page }) => {
   const view = '-121.75,47.45,10.25'
   await page.goto(`/?view=${view}`)
   await waitForMapLoad(page)
+  await holdsPastDebounce(page, () => new URL(page.url()).searchParams.get('view'), view)
+})
+
+// The camera's angle rides the link (#864). The map reports the camera it
+// opened on, and the writer puts that report in the address bar, so a map
+// that opened north-up and flat would rewrite this link to three fields.
+test('a link reopens at its bearing and its pitch', async ({ page }) => {
+  const view = '-121.75,47.45,10.25,-32,45'
+  await page.goto(`/?view=${view}`)
+  await waitForMapLoad(page)
+  await holdsPastDebounce(page, () => new URL(page.url()).searchParams.get('view'), view)
+  // The compass idles only on a north-up, flat map.
+  await expect(page.locator('.maplibregl-ctrl-compass')).toBeEnabled()
+})
+
+// The 3D button tilts a flat map so the press does something, and a link's
+// own pitch wins over that tilt: a 3D view shared from straight above opens
+// from straight above. Held past the tilt's own ease as well as the debounce.
+test('a 3D link opens at the pitch its camera names, flat included', async ({ page }) => {
+  const view = '-121.75,47.45,10.25'
+  await page.goto(`/?terrain=1&view=${view}`)
+  await waitForMapLoad(page)
+  await expect(page.getByRole('button', { name: '3D terrain' })).toHaveAttribute('aria-pressed', 'true')
+  await page.waitForTimeout(1_000)
   await holdsPastDebounce(page, () => new URL(page.url()).searchParams.get('view'), view)
 })

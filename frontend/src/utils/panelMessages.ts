@@ -76,7 +76,7 @@ const LINK_LOST: Record<LinkDrop, string> = {
 }
 const LINK_LOST_ORDER: readonly LinkDrop[] = ['ring', 'list', 'model']
 // Approved by the maintainer on #864 (2026-11-04).
-export const LIST_TOO_LONG_NOTE = 'This list is too long to share in a link.'
+const LIST_TOO_LONG_NOTE = 'This list is too long to share in a link.'
 // --- end #803 ---
 
 // What each Analyze blocker reads as. A function rather than a record because

@@ -73,7 +73,9 @@ export default function PrivacyPage() {
             things and sends none of them anywhere. Your browser's local storage keeps whether you
             dismissed the welcome dialog, whether you chose the light theme, which coordinate lists
             you starred, and how you laid out the results and the map: which views are open, which
-            columns show and in what order, and whether the map's legend is folded.
+            columns show and in what order, how the chart's panels are arranged, whether the
+            forecast player shows, how faded each base map is, and whether the map's legend is
+            folded.
             Session storage, which ends when you close the
             tab, keeps the forecasts fetched in the last 15 minutes so a reload does not fetch them
             again, and the version of the app that last reloaded itself after an update.
@@ -112,7 +114,7 @@ export default function PrivacyPage() {
         <ContactBody />
       </Section>
 
-      <p className={`${PROSE.note} mt-6`}>Last updated 10 November 2026.</p>
+      <p className={`${PROSE.note} mt-6`}>Last updated 11 November 2026.</p>
     </PageShell>
   )
 }

@@ -1,17 +1,23 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { StrictMode } from 'react'
 import { act, renderHook } from '@testing-library/react'
 import { useChartMetrics } from './useChartMetrics'
 import type { ChartMetrics } from '../utils/chart/chartData'
 import type { SortBy } from '../types'
+import type { ChartLayout } from '../utils/chart/chartLayout'
+import { readViewPrefs } from '../utils/viewPrefs'
 
 // `.tsx` for the DOM project: renderHook needs a document to mount into.
-function setup(restored: ChartMetrics | undefined, sortBy: SortBy) {
-  return renderHook(({ sort }: { sort: SortBy }) => useChartMetrics(restored, sort), {
+function setup(restored: ChartMetrics | undefined, sortBy: SortBy, storedLayout: ChartLayout | null = null) {
+  return renderHook(({ sort }: { sort: SortBy }) => useChartMetrics(restored, sort, storedLayout), {
     initialProps: { sort: sortBy },
     wrapper: StrictMode,
   })
 }
+
+afterEach(() => {
+  localStorage.clear()
+})
 
 describe('useChartMetrics', () => {
   it('opens on the ranking with one panel', () => {
@@ -53,5 +59,21 @@ describe('useChartMetrics', () => {
     expect(result.current.add).toBe(add)
     expect(result.current.remove).toBe(remove)
     expect(result.current.move).toBe(move)
+  })
+
+  // The arrangement is this browser's habit (#864): it opens on what the
+  // browser kept, never on a link, and a pick is kept for the next visit.
+  it('opens on the layout this browser kept, and keeps a new pick', () => {
+    const { result } = setup(undefined, 'precip_total_in', '2x2')
+    expect(result.current.layout).toBe('2x2')
+    act(() => result.current.setLayout('row'))
+    expect(result.current.layout).toBe('row')
+    expect(readViewPrefs().chartLayout).toBe('row')
+  })
+
+  it('keeps nothing while nobody has picked a layout', () => {
+    const { result } = setup(undefined, 'precip_total_in')
+    expect(result.current.layout).toBeNull()
+    expect(readViewPrefs().chartLayout).toBeNull()
   })
 })

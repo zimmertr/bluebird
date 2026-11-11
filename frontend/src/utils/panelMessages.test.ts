@@ -328,6 +328,34 @@ describe('panelMessages', () => {
     })
   })
 
+  // #864: a pasted list the link leaves out, said before the link is sent.
+  describe('the long-list line', () => {
+    it('says a pasted list is too long for a link, as an info line', () => {
+      expect(only({ listTooLong: true })).toEqual({
+        key: 'link:list-too-long',
+        text: 'This list is too long to share in a link.',
+        severity: 'info',
+      })
+      expect(keys({ listTooLong: false })).toEqual([])
+      expect(keys({})).toEqual([])
+    })
+
+    // With what the link lost, before the window's lines and the blockers.
+    it('stands with the lines about the link', () => {
+      expect(keys({ listTooLong: true, linkLost: ['ring'], source: 'archive', blockers: ['destinations'] })).toEqual([
+        'link:ring',
+        'link:list-too-long',
+        'window:archive-model',
+        'blocker:destinations',
+      ])
+    })
+
+    // The reader did nothing the list should open for: the badge counts it.
+    it('does not open the list', () => {
+      expect(LIST_OPENING_KEYS.has('link:list-too-long')).toBe(false)
+    })
+  })
+
   // #834: the lines whose arrival opens the list are the two checks and the
   // basemap, by the keys this module gives them, and nothing else.
   describe('the lines that open the list', () => {

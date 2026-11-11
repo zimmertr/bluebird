@@ -34,7 +34,7 @@ async function probe(page: Page): Promise<Probe> {
 
 test('a click under the desk legend card reaches the map', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 720 })
-  await page.goto('/?fires=1')
+  await page.goto('/?wildfires=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Draw polygon' }).click()
   // The panel slides away rather than vanishing, so the point is read once
@@ -60,7 +60,7 @@ test('a click under the desk legend card reaches the map', async ({ page }, test
 // there is the map's.
 test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is the map\'s', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 })
-  await page.goto('/?fires=1')
+  await page.goto('/?wildfires=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const legend = page.getByRole('button', { name: 'Legend', exact: true })
   await expect(legend).toBeEnabled()
@@ -91,7 +91,7 @@ test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is th
 // the player on for radar takes no height from the card.
 test('the desk legend card scrolls when its sections outgrow the map', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 220 })
-  await page.goto('/?fires=1&radar=1&smoke=1&snow=1')
+  await page.goto('/?wildfires=1&radar=1&smoke=1&snowdepth=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const label = page.getByText('Active wildfires').first()
   await expect(label).toBeVisible()
@@ -120,7 +120,7 @@ for (const [width, side] of [
 ] as const) {
   test(`the desk legend card clears the player only where the bar reaches under it, ${side} map`, async ({ page }) => {
     await page.setViewportSize({ width, height: 720 })
-    await page.goto('/?fires=1&radar=1')
+    await page.goto('/?wildfires=1&radar=1')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Play the timeline' })).toBeVisible()
     const label = page.getByText('Active wildfires').first()

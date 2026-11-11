@@ -177,7 +177,6 @@ async function expectFourPanels(page: Page) {
 // The demonstration's panels never reach the address bar (#850).
 async function expectNoChartInUrl(page: Page) {
   expect(new URL(page.url()).searchParams.has('chart')).toBe(false)
-  expect(new URL(page.url()).searchParams.has('layout')).toBe(false)
 }
 
 // The Pinned hours card's two cards (#850): inside the chart, apart, and

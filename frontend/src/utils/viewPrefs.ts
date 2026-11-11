@@ -20,6 +20,7 @@
 import { FAMILY_KEYS } from '../metrics'
 import { BASE_LAYERS, type BaseLayer, type BaseOpacity, DEFAULT_BASE_OPACITY, clampOpacity } from './baseMapOpacity'
 import { type ChartLayout, isChartLayout } from './chart/chartLayout'
+import { isFiniteNumber } from './numbers'
 import { CLOSURE_KEY, WILDFIRE_KEY } from './tableColumns'
 
 // Exported for the privacy page's test, which holds the page's account of what
@@ -168,7 +169,7 @@ function storedOpacity(stored: StoredView): BaseOpacity | null {
   const out: Record<BaseLayer, number> = { ...DEFAULT_BASE_OPACITY }
   for (const layer of BASE_LAYERS) {
     const level = levels[layer]
-    if (typeof level === 'number' && Number.isFinite(level)) out[layer] = clampOpacity(level)
+    if (isFiniteNumber(level)) out[layer] = clampOpacity(level)
   }
   return out
 }

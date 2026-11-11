@@ -5,7 +5,7 @@ import { mapInputs } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
 
 function setup() {
-  const stub = stubMap({ center: { lng: -121.5, lat: 47.25 }, zoom: 9.5 })
+  const stub = stubMap({ center: { lng: -121.5, lat: 47.25 }, zoom: 9.5, bearing: -32, pitch: 45 })
   const onCameraMove = vi.fn()
   mountCamera(stub.map, { controller: createMapController(mapInputs({ onCameraMove })) })
   return { stub, onCameraMove }
@@ -16,7 +16,11 @@ describe('mountCamera', () => {
   // no listener: the camera it left is reported once, as the app's move.
   it('reports the camera it mounts on, as an app move', () => {
     const { onCameraMove } = setup()
-    expect(onCameraMove).toHaveBeenCalledExactlyOnceWith({ lng: -121.5, lat: 47.25, zoom: 9.5 }, false)
+    // The angle with the place (#864), so a link opens facing where it faced.
+    expect(onCameraMove).toHaveBeenCalledExactlyOnceWith(
+      { lng: -121.5, lat: 47.25, zoom: 9.5, bearing: -32, pitch: 45 },
+      false,
+    )
   })
 
   it('reports each settled move, and says whether the reader made it', () => {

@@ -19,7 +19,6 @@ import {
   classifyWindow,
 } from './calendar/calendar'
 import { GeoPolygon } from '../types'
-import { DEFAULT_BASE_OPACITY } from './baseMapOpacity'
 import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'
 import { MAX_ANALYZE_DESTINATIONS, NO_CONSTRAINTS } from './clientAnalyze'
 import { urlNeedsSync } from './urlSync'
@@ -85,6 +84,7 @@ const base: ShareableState = {
   constraints: NO_CONSTRAINTS,
   limit: 10,
   customCsv: '',
+  presetList: null,
   showWildfires: false,
   showAreaClosures: false,
   showTrailClosures: false,
@@ -96,10 +96,8 @@ const base: ShareableState = {
   showRelief: false,
   showSlope: false,
   showSatellite: false,
-  baseOpacity: DEFAULT_BASE_OPACITY,
   showTerrain: false,
   showFireActivity: false,
-  showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
   includeUnnamedPeaks: false,
@@ -107,7 +105,6 @@ const base: ShareableState = {
   removed: [],
   tableSort: null,
   chart: metricsFor(DEFAULT_SORT),
-  chartLayout: null,
   view: null,
 }
 
@@ -128,6 +125,7 @@ const pristine: ShareableState = {
   constraints: NO_CONSTRAINTS,
   limit: 200,
   customCsv: '',
+  presetList: null,
   showWildfires: false,
   showAreaClosures: false,
   showTrailClosures: false,
@@ -139,10 +137,8 @@ const pristine: ShareableState = {
   showRelief: false,
   showSlope: false,
   showSatellite: false,
-  baseOpacity: DEFAULT_BASE_OPACITY,
   showTerrain: false,
   showFireActivity: false,
-  showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
   includeUnnamedPeaks: false,
@@ -150,7 +146,6 @@ const pristine: ShareableState = {
   removed: [],
   tableSort: null,
   chart: metricsFor(DEFAULT_SORT),
-  chartLayout: null,
   view: null,
 }
 
@@ -243,7 +238,7 @@ describe('encodeState / decodeState round-trip', () => {
     const out = roundTrip({ ...base, showWildfires: true })
     expect(out!.showWildfires).toBe(true)
     // Off is the default and stays out of the URL entirely.
-    expect(encodeState(base, DEFAULT_MODEL)).not.toContain('fires')
+    expect(encodeState(base, DEFAULT_MODEL)).not.toContain('wildfires')
     expect(roundTrip(base)!.showWildfires).toBeUndefined()
   })
 
@@ -297,7 +292,7 @@ describe('encodeState / decodeState round-trip', () => {
     const out = roundTrip({ ...base, showFireActivity: true })
     expect(out!.showFireActivity).toBe(true)
     expect(new URLSearchParams(encodeState(base, DEFAULT_MODEL)).get('fireactivity')).toBeNull()
-    expect(decodeState('?fires=1')).toEqual({ showWildfires: true })
+    expect(decodeState('?wildfires=1')).toEqual({ showWildfires: true })
   })
 
   // The slope angle shading (#799): one flag, written as `1` while on, beside
@@ -313,36 +308,8 @@ describe('encodeState / decodeState round-trip', () => {
   })
 
   it('opens a link written before the terrain layers with all four off', () => {
-    const out = decodeState('?fires=1&radar=1&snow=1')
+    const out = decodeState('?wildfires=1&radar=1&snowdepth=1')
     expect(out).toEqual({ showWildfires: true, showRadar: true, showSnow: true })
-  })
-
-  it('writes the forecast player only once the reader has decided', () => {
-    // The default is the DEVICE's — on at a desktop width, off on a phone — so
-    // `null` is "not decided" and writes nothing at all. A link that spelled
-    // the default out would stop meaning what it said the moment that default
-    // moved, which is the opposite of what `model` is always written for: there
-    // the app's default is the thing that must not leak into a shared link.
-    expect(encodeState(base, DEFAULT_MODEL)).not.toContain('player')
-    expect(roundTrip(base)!.showPlayer).toBeUndefined()
-    // A decision is written in BOTH directions, because either can be the one
-    // the device would not have chosen.
-    expect(encodeState({ ...base, showPlayer: true }, DEFAULT_MODEL)).toContain('player=1')
-    expect(encodeState({ ...base, showPlayer: false }, DEFAULT_MODEL)).toContain('player=0')
-    expect(roundTrip({ ...base, showPlayer: true })!.showPlayer).toBe(true)
-    expect(roundTrip({ ...base, showPlayer: false })!.showPlayer).toBe(false)
-  })
-
-  it('gives a player-only session a URL, and reads both values of the param', () => {
-    // Switching the bar on is the whole of what some links say, so a pristine
-    // session that has touched nothing else still deserves one.
-    expect(encodeState({ ...pristine, showPlayer: true }, DEFAULT_MODEL)).toContain('player=1')
-    expect(encodeState({ ...pristine, showPlayer: false }, DEFAULT_MODEL)).toContain('player=0')
-    // Hand-editable like every other flag, and anything it cannot read is left
-    // to the device default rather than guessed at.
-    expect(decodeState('?player=1')).toEqual({ showPlayer: true })
-    expect(decodeState('?player=0')).toEqual({ showPlayer: false })
-    expect(decodeState('?player=yes')).toBeNull()
   })
 
   it('carries the grid style in the same param as the toggle', () => {
@@ -396,46 +363,12 @@ describe('encodeState / decodeState round-trip', () => {
     expect(decodeState('?reach=50')).toBeNull()
   })
 
-  // The four Base map levels (record 0250): one param a layer, named for its
-  // flag and the word, a whole percent, written only while the row is on and
-  // the level is off the default, so every link written before the sliders
-  // still reads as it did.
-  it('carries a base-map level only while its row is on and the level moved', () => {
-    const levels = { satellite: 80, topo: 30, relief: 100, slope: 0 }
-    const on = { ...base, showSatellite: true, showContours: true, showRelief: true, showSlope: true }
-    const query = encodeState({ ...on, baseOpacity: levels }, DEFAULT_MODEL)
-    expect(query).toContain('topo=1&topoopacity=30&relief=1&reliefopacity=100&slope=1&slopeopacity=0')
-    expect(query).toContain('satellite=1&satelliteopacity=80')
-    expect(roundTrip({ ...on, baseOpacity: levels })!.baseOpacity).toEqual(levels)
-    // The default writes nothing, and a row that is off carries no level.
-    expect(encodeState(on, DEFAULT_MODEL)).not.toContain('opacity')
-    expect(encodeState({ ...base, baseOpacity: levels }, DEFAULT_MODEL)).not.toContain('opacity')
-    // One level moved leaves the other three at the default on the way back.
-    expect(roundTrip({ ...on, baseOpacity: { ...DEFAULT_BASE_OPACITY, slope: 70 } })!.baseOpacity).toEqual({
-      ...DEFAULT_BASE_OPACITY,
-      slope: 70,
-    })
-  })
-
-  it('holds a hand-edited level to 0 to 100, and reads none beside a row that is off', () => {
-    expect(decodeState('?satellite=1&satelliteopacity=250')!.baseOpacity!.satellite).toBe(100)
-    expect(decodeState('?satellite=1&satelliteopacity=-5')!.baseOpacity!.satellite).toBe(0)
-    expect(decodeState('?satellite=1&satelliteopacity=62.4')!.baseOpacity!.satellite).toBe(62)
-    expect(decodeState('?satellite=1&satelliteopacity=junk')!.baseOpacity).toBeUndefined()
-    expect(decodeState('?satellite=1&satelliteopacity=')!.baseOpacity).toBeUndefined()
-    // A level for a layer the link leaves off is a state the menu cannot write.
-    expect(decodeState('?slopeopacity=80')).toBeNull()
-    expect(decodeState('?topo=1&slopeopacity=80')!.baseOpacity).toBeUndefined()
-    // An old link with the flags alone opens at the defaults.
-    expect(decodeState('?satellite=1&slope=1')!.baseOpacity).toBeUndefined()
-  })
-
   it('gives an overlay-only session a URL of its own', () => {
     // The overlays are the one kind of state with no analysis behind it, so a
     // pristine session that has only switched a layer on still deserves a link.
     expect(encodeState({ ...pristine, showSmoke: true }, DEFAULT_MODEL)).toContain('smoke=1')
     expect(encodeState({ ...pristine, showRadar: true }, DEFAULT_MODEL)).toContain('radar=1')
-    expect(encodeState({ ...pristine, showSnow: true }, DEFAULT_MODEL)).toContain('snow=1')
+    expect(encodeState({ ...pristine, showSnow: true }, DEFAULT_MODEL)).toContain('snowdepth=1')
     expect(encodeState({ ...pristine, showAreaClosures: true }, DEFAULT_MODEL)).toContain('closedareas=1')
     expect(encodeState({ ...pristine, showTrailClosures: true }, DEFAULT_MODEL)).toContain('closedtrails=1')
     expect(encodeState({ ...pristine, showContours: true }, DEFAULT_MODEL)).toContain('topo=1')
@@ -450,16 +383,16 @@ describe('encodeState / decodeState round-trip', () => {
   })
 
   it('keeps every overlay param hand-editable', () => {
-    // Same convention as `fires`: a flag anyone can flip in the address bar,
+    // Same convention as `wildfires`: a flag anyone can flip in the address bar,
     // never an opaque blob (#210).
-    expect(decodeState('?radar=1&smoke=1&snow=1&grid=smooth')).toEqual({
+    expect(decodeState('?radar=1&smoke=1&snowdepth=1&grid=smooth')).toEqual({
       showRadar: true,
       showSmoke: true,
       showSnow: true,
       showGrid: true,
       gridStyle: 'smooth',
     })
-    expect(decodeState('?radar=0&smoke=yes&snow=true&grid=on')).toBeNull()
+    expect(decodeState('?radar=0&smoke=yes&snowdepth=true&grid=on')).toBeNull()
     expect(decodeState('?closedareas=1&closedtrails=1')).toEqual({
       showAreaClosures: true,
       showTrailClosures: true,
@@ -568,7 +501,7 @@ describe('encodeState gate — what triggers a URL update', () => {
 
   it('syncs when the wildfire overlay is enabled', () => {
     expect(encodeState({ ...pristine, showWildfires: true }, DEFAULT_MODEL)).not.toBe('')
-    expect(new URLSearchParams(encodeState({ ...pristine, showWildfires: true }, DEFAULT_MODEL)).get('fires')).toBe(
+    expect(new URLSearchParams(encodeState({ ...pristine, showWildfires: true }, DEFAULT_MODEL)).get('wildfires')).toBe(
       '1',
     )
   })
@@ -616,13 +549,23 @@ describe('encodeState', () => {
 
   // Snowfall's row has a dropdown like precipitation's (#678), so a choice
   // off its default rides the link under the family's own name, which is
-  // not the snow overlay's `snow`.
+  // not the snow depth overlay's `snowdepth`.
   it('writes the snowfall row\'s aggregate under its own name', () => {
     const rowKeys = { ...DEFAULT_FAMILY_KEY, snowfall: 'snowfall_max_in_hr' as const }
     const qs = encodeState({ ...base, sortBy: 'precip_total_in', rowKeys }, DEFAULT_MODEL)
     expect(new URLSearchParams(qs).get('snowfall')).toBe('max')
-    expect(new URLSearchParams(qs).get('snow')).toBeNull()
+    expect(new URLSearchParams(qs).get('snowdepth')).toBeNull()
     expect(decodeState(`?${qs}`)?.rowKeys?.snowfall).toBe('snowfall_max_in_hr')
+  })
+
+  // The cloud deck's aggregate rides `clouddeck`, spelled like its bounds
+  // `minclouddeck` and `maxclouddeck` (#864). The family keeps its name.
+  it('writes the cloud deck row\'s aggregate with no underscore', () => {
+    const rowKeys = { ...DEFAULT_FAMILY_KEY, cloud_deck: 'cloud_deck_max_ft' as const }
+    const qs = encodeState({ ...base, sortBy: 'precip_total_in', rowKeys }, DEFAULT_MODEL)
+    expect(new URLSearchParams(qs).get('clouddeck')).toBe('max')
+    expect(qs).not.toContain('cloud_deck')
+    expect(decodeState(`?${qs}`)?.rowKeys?.cloud_deck).toBe('cloud_deck_max_ft')
   })
 
   it('leaves a bound out of the decode when the link carries none', () => {
@@ -1723,7 +1666,7 @@ describe('the run-on-open param', () => {
 // Decision 4 of #292: the link carries the camera, the removed rows and the
 // table's header sort.
 describe('the camera, the removals and the table order in a link', () => {
-  const view = { lng: -121.7601, lat: 46.8529, zoom: 10.5 }
+  const view = { lng: -121.7601, lat: 46.8529, zoom: 10.5, bearing: 0, pitch: 0 }
 
   it('round-trips all three', () => {
     const state: ShareableState = {
@@ -1784,6 +1727,15 @@ describe('the camera, the removals and the table order in a link', () => {
   it('carries the current camera in a link that exists for another reason', () => {
     const qs = encodeState({ ...base, view }, DEFAULT_MODEL)
     expect(new URLSearchParams(qs).get('view')).toBe('-121.7601,46.8529,10.5')
+  })
+
+  // The angle a view was shared at (#864): a rotated or tilted map writes
+  // both angles after the zoom, and a link opens on them.
+  it('round-trips a rotated, tilted camera', () => {
+    const turned = { ...view, bearing: -32, pitch: 45 }
+    const qs = encodeState({ ...base, view: turned }, DEFAULT_MODEL)
+    expect(new URLSearchParams(qs).get('view')).toBe('-121.7601,46.8529,10.5,-32,45')
+    expect(decodeState(qs)!.view).toEqual(turned)
   })
 
   it('drops what it cannot read, and keeps the rest', () => {
