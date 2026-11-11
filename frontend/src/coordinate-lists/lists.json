@@ -14,6 +14,81 @@
   ],
   "lists": [
     {
+      "id": "us-state-high-points",
+      "name": "US State High Points",
+      "description": "The highest point of each of the fifty states.",
+      "region": "Nationwide",
+      "file": "us-state-high-points.csv",
+      "peaks": 50,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12003",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12003"
+      },
+      "credit": "The highest point of each state",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "lower-48-ultras",
+      "name": "Lower 48 Ultras",
+      "description": "The 57 peaks in the lower 48 states with at least 1,500 m of prominence.",
+      "region": "Nationwide",
+      "file": "lower-48-ultras.csv",
+      "peaks": 57,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "4904",
+        "url": "https://www.peakbagger.com/list.aspx?lid=4904"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "lower-48-top-100-prominence",
+      "name": "Lower 48 Top 100 by Prominence",
+      "description": "The hundred most prominent peaks in the lower 48 states.",
+      "region": "Nationwide",
+      "file": "lower-48-top-100-prominence.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "41204",
+        "url": "https://www.peakbagger.com/list.aspx?lid=41204"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "us-national-park-high-points",
+      "name": "US National Park High Points",
+      "description": "The highest point of each US national park.",
+      "region": "Nationwide",
+      "file": "us-national-park-high-points.csv",
+      "peaks": 63,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "1821",
+        "url": "https://www.peakbagger.com/list.aspx?lid=1821"
+      },
+      "credit": "The highest point of each national park",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "us-14ers",
+      "name": "US 14ers",
+      "description": "Every US summit of 14,000 ft or more with 300 ft of prominence.",
+      "region": "Nationwide",
+      "file": "us-14ers.csv",
+      "peaks": 92,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21200",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21200"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
       "id": "wa-bulger-list",
       "name": "The Bulger List",
       "description": "Washington's hundred highest peaks as the Bulger climbing group chose them in the 1970s.",
@@ -72,66 +147,6 @@
       },
       "credit": "Jeff Howbert",
       "crawled": "2026-07-24"
-    },
-    {
-      "id": "us-state-high-points",
-      "name": "US State High Points",
-      "description": "The highest point of each of the fifty states.",
-      "region": "Nationwide",
-      "file": "us-state-high-points.csv",
-      "peaks": 50,
-      "source": {
-        "site": "peakbagger.com",
-        "listId": "12003",
-        "url": "https://www.peakbagger.com/list.aspx?lid=12003"
-      },
-      "credit": "The highest point of each state",
-      "crawled": "2026-11-11"
-    },
-    {
-      "id": "lower-48-ultras",
-      "name": "Lower 48 Ultras",
-      "description": "The 57 peaks in the lower 48 states with at least 1,500 m of prominence.",
-      "region": "Nationwide",
-      "file": "lower-48-ultras.csv",
-      "peaks": 57,
-      "source": {
-        "site": "peakbagger.com",
-        "listId": "4904",
-        "url": "https://www.peakbagger.com/list.aspx?lid=4904"
-      },
-      "credit": "Prominence, as Peakbagger.com ranks it",
-      "crawled": "2026-11-11"
-    },
-    {
-      "id": "lower-48-top-100-prominence",
-      "name": "Lower 48 Top 100 by Prominence",
-      "description": "The hundred most prominent peaks in the lower 48 states.",
-      "region": "Nationwide",
-      "file": "lower-48-top-100-prominence.csv",
-      "peaks": 100,
-      "source": {
-        "site": "peakbagger.com",
-        "listId": "41204",
-        "url": "https://www.peakbagger.com/list.aspx?lid=41204"
-      },
-      "credit": "Prominence, as Peakbagger.com ranks it",
-      "crawled": "2026-11-11"
-    },
-    {
-      "id": "us-14ers",
-      "name": "US 14ers",
-      "description": "Every US summit of 14,000 ft or more with 300 ft of prominence.",
-      "region": "Nationwide",
-      "file": "us-14ers.csv",
-      "peaks": 92,
-      "source": {
-        "site": "peakbagger.com",
-        "listId": "21200",
-        "url": "https://www.peakbagger.com/list.aspx?lid=21200"
-      },
-      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
-      "crawled": "2026-11-11"
     },
     {
       "id": "wa-snoqualmie-peak-pin",
@@ -194,6 +209,21 @@
       "crawled": "2026-11-11"
     },
     {
+      "id": "wa-p2k",
+      "name": "Washington P2K",
+      "description": "Every Washington summit with 2,000 ft or more of prominence.",
+      "region": "Washington",
+      "file": "wa-p2k.csv",
+      "peaks": 146,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "41307",
+        "url": "https://www.peakbagger.com/list.aspx?lid=41307"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-11"
+    },
+    {
       "id": "wa-top-100",
       "name": "Washington Top 100",
       "description": "Washington's hundred highest summits with 400 ft of prominence.",
@@ -249,6 +279,36 @@
         "site": "peakbagger.com",
         "listId": "213031",
         "url": "https://www.peakbagger.com/list.aspx?lid=213031"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-bakers-dozen",
+      "name": "Baker's Dozen",
+      "description": "The Mountaineers' eighteen mostly technical climbs.",
+      "region": "Washington",
+      "file": "wa-bakers-dozen.csv",
+      "peaks": 18,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5036",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5036"
+      },
+      "credit": "The Mountaineers",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-mid-state-milers",
+      "name": "Mid-State Milers",
+      "description": "Mile-high summits with 400 ft of prominence in King and Kittitas counties and Chelan County south of US 2.",
+      "region": "Washington",
+      "file": "wa-mid-state-milers.csv",
+      "peaks": 215,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21309",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21309"
       },
       "credit": "Elevation and prominence, as Peakbagger.com ranks them",
       "crawled": "2026-11-11"
@@ -314,6 +374,21 @@
       "crawled": "2026-11-11"
     },
     {
+      "id": "or-top-100",
+      "name": "Oregon Top 100",
+      "description": "Oregon's hundred highest summits with 500 ft of prominence.",
+      "region": "Oregon and the Cascades",
+      "file": "or-top-100.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21316",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21316"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
       "id": "or-9000ers",
       "name": "Oregon 9000ers",
       "description": "Oregon summits of 9,000 ft or more with 500 ft of prominence.",
@@ -354,6 +429,21 @@
         "site": "peakbagger.com",
         "listId": "21342",
         "url": "https://www.peakbagger.com/list.aspx?lid=21342"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "id-11ers",
+      "name": "Idaho 11ers",
+      "description": "Idaho summits of 11,000 ft or more.",
+      "region": "Northern Rockies",
+      "file": "id-11ers.csv",
+      "peaks": 124,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21330",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21330"
       },
       "credit": "Elevation and prominence, as Peakbagger.com ranks them",
       "crawled": "2026-11-11"
@@ -494,6 +584,21 @@
       "crawled": "2026-11-11"
     },
     {
+      "id": "ca-nifty-ninety",
+      "name": "Bay Area Nifty Ninety",
+      "description": "The Sierra Club San Francisco Bay Chapter's ninety Bay Area peaks.",
+      "region": "California",
+      "file": "ca-nifty-ninety.csv",
+      "peaks": 90,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5059",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5059"
+      },
+      "credit": "The Sierra Club's San Francisco Bay Chapter",
+      "crawled": "2026-11-11"
+    },
+    {
       "id": "ca-county-high-points",
       "name": "California County High Points",
       "description": "The highest point of each of California's 58 counties: 56 summits, since some top two counties.",
@@ -554,6 +659,21 @@
       "crawled": "2026-11-11"
     },
     {
+      "id": "ca-13ers",
+      "name": "California 13ers",
+      "description": "California summits of 13,000 ft or more.",
+      "region": "California",
+      "file": "ca-13ers.csv",
+      "peaks": 154,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21321",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21321"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
       "id": "co-14ers-ranked",
       "name": "Colorado 14ers",
       "description": "Every Colorado summit of 14,000 ft or more with 300 ft of prominence.",
@@ -581,6 +701,36 @@
         "url": "https://www.peakbagger.com/list.aspx?lid=50080"
       },
       "credit": "14ers.com",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "co-13ers",
+      "name": "Colorado 13ers",
+      "description": "Every Colorado summit of 13,000 ft or more with 300 ft of prominence.",
+      "region": "Colorado",
+      "file": "co-13ers.csv",
+      "peaks": 629,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21364",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21364"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "co-centennials",
+      "name": "Colorado Centennials",
+      "description": "Colorado's hundred highest ranked summits, with the ties at the cutoff.",
+      "region": "Colorado",
+      "file": "co-centennials.csv",
+      "peaks": 106,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21363",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21363"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
       "crawled": "2026-11-11"
     },
     {
@@ -854,6 +1004,21 @@
       "crawled": "2026-11-11"
     },
     {
+      "id": "nh-52-with-a-view",
+      "name": "New Hampshire 52 With a View",
+      "description": "52 New Hampshire peaks under 4,000 ft chosen for their views by the Over the Hill Hikers.",
+      "region": "Northeast",
+      "file": "nh-52-with-a-view.csv",
+      "peaks": 52,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5170",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5170"
+      },
+      "credit": "The Over the Hill Hikers",
+      "crawled": "2026-11-11"
+    },
+    {
       "id": "ne-115",
       "name": "Northeast 115",
       "description": "The Northeast's 4,000-ft summits.",
@@ -954,36 +1119,6 @@
         "site": "peakbagger.com",
         "listId": "21457",
         "url": "https://www.peakbagger.com/list.aspx?lid=21457"
-      },
-      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
-      "crawled": "2026-11-11"
-    },
-    {
-      "id": "us-national-park-high-points",
-      "name": "US National Park High Points",
-      "description": "The highest point of each US national park.",
-      "region": "Nationwide",
-      "file": "us-national-park-high-points.csv",
-      "peaks": 63,
-      "source": {
-        "site": "peakbagger.com",
-        "listId": "1821",
-        "url": "https://www.peakbagger.com/list.aspx?lid=1821"
-      },
-      "credit": "The highest point of each national park",
-      "crawled": "2026-11-11"
-    },
-    {
-      "id": "or-top-100",
-      "name": "Oregon Top 100",
-      "description": "Oregon's hundred highest summits with 500 ft of prominence.",
-      "region": "Oregon and the Cascades",
-      "file": "or-top-100.csv",
-      "peaks": 100,
-      "source": {
-        "site": "peakbagger.com",
-        "listId": "21316",
-        "url": "https://www.peakbagger.com/list.aspx?lid=21316"
       },
       "credit": "Elevation and prominence, as Peakbagger.com ranks them",
       "crawled": "2026-11-11"
