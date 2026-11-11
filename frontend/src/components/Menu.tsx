@@ -438,9 +438,10 @@ export function MenuBrowse({
     rows[moved].focus()
   }
 
-  // The space between a name and its count is for a screen reader alone: the
-  // two are flex items, so it draws nothing, and without it the row is named
-  // `The Bulger List100 peaks`.
+  // The spaces between a name, its count and the count's hidden noun are text
+  // nodes of their own, for a screen reader alone: they draw nothing between
+  // flex items or at a line's end, and a row's name is computed from its text
+  // nodes, which without them reads `The Bulger List100peaks`.
   const row = (item: BrowseItem, searching: boolean) => {
     const isStarred = starred.includes(item.id)
     const isDescribed = searching || described === item.id
@@ -466,8 +467,8 @@ export function MenuBrowse({
           >
             <span className="min-w-0 flex-1 truncate">{item.name}</span>{' '}
             <span className={MENU_BROWSE.count}>
-              {item.count}
-              <span className={SR_ONLY}> {item.count === 1 ? 'peak' : 'peaks'}</span>
+              {item.count}{' '}
+              <span className={SR_ONLY}>{item.count === 1 ? 'peak' : 'peaks'}</span>
             </span>
           </button>
           {!searching && (
@@ -595,8 +596,8 @@ export function MenuBrowse({
                         <IconFold open={isOpen} className={MENU_BROWSE.fold} />
                         <span className="min-w-0 flex-1 truncate">{group.name}</span>{' '}
                         <span className={MENU_BROWSE.count}>
-                          {rows.length}
-                          <span className={SR_ONLY}> {rows.length === 1 ? 'list' : 'lists'}</span>
+                          {rows.length}{' '}
+                          <span className={SR_ONLY}>{rows.length === 1 ? 'list' : 'lists'}</span>
                         </span>
                       </button>
                       {isOpen && (
