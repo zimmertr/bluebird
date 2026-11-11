@@ -214,6 +214,21 @@ export function nextToolbarIndex(current: number, key: string, count: number): n
 }
 
 /**
+ * Whether a search finds a row: every word typed is somewhere in the row's
+ * words, whatever the case. Words rather than the phrase, so `utah 13` finds
+ * `Utah 13ers` and `rainier mountaineers` finds the list that says both the
+ * other way round. An empty search finds every row.
+ */
+export function matchesSearch(words: string, query: string): boolean {
+  const hay = words.toLowerCase()
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => hay.includes(word))
+}
+
+/**
  * The DOM id of one option, built from the option's own identity.
  *
  * `aria-activedescendant` is a promise that an id resolves to the highlighted

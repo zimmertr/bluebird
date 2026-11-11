@@ -32,6 +32,13 @@ export const WELCOME_KEY = 'bluebird_forecast_welcomed'
  */
 export const THEME_KEY = 'bluebird_forecast_theme'
 
+/**
+ * The coordinate lists this browser starred (#848), under a key of its own:
+ * a pick from a menu rather than a layout of the screen, and written from the
+ * Coordinate list field alone.
+ */
+export const STARRED_LISTS_KEY = 'bluebird_forecast_starred_lists'
+
 /** The two themes. Dark is the default, whatever the OS prefers (#706). */
 export type Theme = 'dark' | 'light'
 
@@ -239,5 +246,33 @@ export function writeTheme(theme: Theme): void {
     else localStorage.removeItem(THEME_KEY)
   } catch {
     // A storage that refuses keeps the theme for this visit only.
+  }
+}
+
+/**
+ * The ids of the coordinate lists this browser starred (#848), in the order
+ * they were starred. Empty when none is, when the storage refuses, or when
+ * the key holds something no build wrote. An id the manifest no longer names
+ * is the caller's to drop: this module does not know the lists.
+ */
+export function readStarredLists(): string[] {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(STARRED_LISTS_KEY) ?? '[]')
+    return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Record the starred lists. None removes the key rather than storing an empty
+ * list, so a browser that unstarred everything keeps nothing.
+ */
+export function writeStarredLists(ids: readonly string[]): void {
+  try {
+    if (ids.length > 0) localStorage.setItem(STARRED_LISTS_KEY, JSON.stringify(ids))
+    else localStorage.removeItem(STARRED_LISTS_KEY)
+  } catch {
+    // A storage that refuses keeps the stars for this visit only.
   }
 }

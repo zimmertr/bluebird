@@ -136,7 +136,7 @@ test('render cost of an overlay toggle, a keystroke and the live knobs at 946 de
   // The box stands once Custom coordinates is picked from the Coordinate list
   // field (record 0263).
   await page.getByRole('button', { name: 'Coordinate list', exact: true }).click()
-  await page.getByRole('option', { name: 'Custom coordinates' }).click()
+  await page.getByRole('button', { name: 'Custom coordinates', exact: true }).click()
   const box = page.getByRole('textbox', { name: /Custom destination coordinates/ })
   await box.evaluate((el) => el.setAttribute('data-probe', 'keystroke'))
   // A partial line that never parses, so every keystroke re-derives the

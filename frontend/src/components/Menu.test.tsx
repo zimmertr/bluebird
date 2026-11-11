@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, screen } from '@testing-library/react'
-import Menu, { MenuButton, MenuSelect } from './Menu'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import Menu, { MenuBrowse, MenuButton, MenuSelect, type BrowseGroup, type BrowseItem } from './Menu'
 import { usePopover } from '../hooks/usePopover'
 import { placeAt, render, type Box } from '../testSupport/render'
-import { ACCENT, MENU, MENU_CHEVRON, MENU_TRIGGER, SURFACE_CHIP_CARD } from '../styles'
+import { ACCENT, MENU, MENU_BROWSE, MENU_CHEVRON, MENU_TRIGGER, SURFACE_CHIP_CARD } from '../styles'
 import { CHIP_MENU_GAP_PX } from '../utils/results/resultsSheet'
 
 // The one menu every desk control opens (#714; record 0201): `usePopover`
@@ -428,79 +428,6 @@ describe('MenuSelect', () => {
     expect(name).toEqual(['Wind aggregate', 'Max'])
   })
 
-  // A field whose value names no option (record 0263): it reads its
-  // placeholder, named by its label and that word as by its label and a
-  // value, no row is current, and a pick of the same row twice fires twice.
-  it('reads its placeholder while no option is current, and fires on every pick', async () => {
-    const onChange = vi.fn()
-    const { user } = render(
-      <MenuSelect
-        label="Peak list"
-        placeholder="Pick one"
-        value=""
-        options={[{ value: 'bulgers', label: 'The Bulger List' }]}
-        onChange={onChange}
-        className="w-14"
-      />,
-    )
-    const load = () => screen.getByRole('button', { name: 'Peak list Pick one' })
-    expect(load()).toBeTruthy()
-    await user.click(load())
-    expect(option('The Bulger List').getAttribute('aria-selected')).toBe('false')
-    await user.click(option('The Bulger List'))
-    await user.click(load())
-    await user.click(option('The Bulger List'))
-    expect(onChange).toHaveBeenCalledTimes(2)
-    expect(load()).toBeTruthy()
-  })
-
-  // The Coordinate list field reads its own name at rest (record 0263): the name
-  // is said once, not once as the label and again as the placeholder, and a
-  // value that names an option is said after the label as before.
-  it('names a field once while its placeholder is its label', () => {
-    const props = {
-      label: 'Coordinate list',
-      placeholder: 'Coordinate list',
-      options: [{ value: 'bulgers', label: 'The Bulger List' }],
-      onChange: () => {},
-      className: 'w-14',
-    }
-    const { rerender } = render(<MenuSelect {...props} value="" />)
-    const named = (name: string) => screen.getByRole('button', { name })
-    expect(named('Coordinate list').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(1)
-    rerender(<MenuSelect {...props} value="bulgers" />)
-    expect(named('Coordinate list The Bulger List').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
-  })
-
-  // An option can stand apart from the ones before it under a hairline
-  // (#838, record 0263): the rule is no option, hidden from a screen reader,
-  // and the arrow keys walk from the row above it to the row below.
-  it('sets a divided option apart with a hairline the keyboard walks past', async () => {
-    const onChange = vi.fn()
-    const { user } = render(
-      <MenuSelect
-        label="Coordinate list"
-        placeholder="Coordinate list"
-        value=""
-        options={[
-          { value: 'bulgers', label: 'The Bulger List' },
-          { value: 'custom', label: 'Custom coordinates', divided: true },
-        ]}
-        onChange={onChange}
-        className="w-14"
-      />,
-    )
-    await user.click(screen.getByRole('button', { name: 'Coordinate list' }))
-    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['The Bulger List', 'Custom coordinates'])
-    const rule = option('Custom coordinates').previousElementSibling as HTMLElement
-    expect(rule.getAttribute('role')).toBeNull()
-    expect(rule.getAttribute('aria-hidden')).toBe('true')
-    expect(rule.className).toBe(MENU.divider)
-    expect(option('The Bulger List').previousElementSibling).toBeNull()
-    await user.keyboard('{ArrowDown}{Enter}')
-    expect(onChange).toHaveBeenCalledExactlyOnceWith('custom')
-  })
-
   it('opens the one menu, the current value set semibold and no check mark', async () => {
     const { user } = render(<Select />)
     await user.click(field())
@@ -591,5 +518,320 @@ describe('MenuSelect', () => {
     await user.click(option('Max'))
     expect(onChange).not.toHaveBeenCalled()
     expect(list()).toBeNull()
+  })
+})
+
+// The menu a reader searches and browses (#848, record 0281): the Coordinate
+// list field's, with its lists under regions.
+describe('MenuBrowse', () => {
+  const GROUPS: readonly BrowseGroup[] = [
+    { name: 'Washington', words: [] },
+    { name: 'Northern Rockies', words: ['Idaho', 'Montana', 'Wyoming'] },
+    // A group with no row is never shown.
+    { name: 'Alaska', words: [] },
+  ]
+  const ITEMS: readonly BrowseItem[] = [
+    { id: 'wa-bulger-list', name: 'The Bulger List', description: 'The Bulger hundred.', group: 'Washington', count: 100 },
+    { id: 'wa-top-100', name: 'Washington Top 100', description: 'The hundred highest.', group: 'Washington', count: 100 },
+    { id: 'wy-13ers', name: 'Wyoming 13ers', description: 'Every Wyoming 13er.', group: 'Northern Rockies', count: 35 },
+    { id: 'id-one', name: 'Lone Peak List', description: 'One peak.', group: 'Northern Rockies', count: 1 },
+  ]
+  const OTHER = { value: ':custom', label: 'Custom coordinates' }
+
+  function Browse({
+    initial = '',
+    onChange = () => {},
+    sheet = false,
+    stars = [],
+  }: {
+    initial?: string
+    onChange?: (v: string) => void
+    sheet?: boolean
+    stars?: readonly string[]
+  }) {
+    const [value, setValue] = useState(initial)
+    const [starred, setStarred] = useState<readonly string[]>(stars)
+    const rowRef = useRef<HTMLDivElement>(null)
+    return (
+      <div ref={rowRef}>
+        <MenuBrowse
+          label="Coordinate list"
+          placeholder="Coordinate list"
+          value={value}
+          items={ITEMS}
+          groups={GROUPS}
+          other={OTHER}
+          onChange={(v) => {
+            setValue(v)
+            onChange(v)
+          }}
+          starred={starred}
+          onToggleStar={(id) => setStarred((held) => (held.includes(id) ? held.filter((x) => x !== id) : [...held, id]))}
+          widthRef={rowRef}
+          sheet={sheet}
+          className="w-40"
+        />
+        <button>Elsewhere</button>
+      </div>
+    )
+  }
+
+  const field = (reads?: string) =>
+    screen.getByRole('button', { name: reads === undefined ? 'Coordinate list' : `Coordinate list ${reads}` })
+  const search = () => screen.getByRole('textbox', { name: 'Search lists' })
+  const region = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name} \\d+ lists?$`) })
+  const pick = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name} \\d+ peaks?$`) })
+  const noPick = (name: string) => screen.queryByRole('button', { name: new RegExp(`^${name} \\d+ peaks?$`) }) === null
+  const star = (name: string) => screen.getByRole('button', { name: `Star ${name}` })
+  const about = (name: string) => screen.getByRole('button', { name: `About ${name}` })
+
+  // The field says its name once at rest, where its placeholder is its label,
+  // and its name and what it holds after a pick.
+  it('is a field named once at rest, and by its name and its pick after one', async () => {
+    const { user } = render(<Browse />)
+    expect(field().getAttribute('aria-haspopup')).toBe('dialog')
+    expect(field().className).toBe(`${MENU_TRIGGER.field} w-40 text-center`)
+    expect(field().getAttribute('aria-labelledby')!.split(' ')).toHaveLength(1)
+    await user.click(field())
+    await user.click(region('Washington'))
+    await user.click(pick('The Bulger List'))
+    expect(field('The Bulger List').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
+  })
+
+  it('opens on the search box with every group that holds a row, each shut and counted', async () => {
+    const { user } = render(<Browse />)
+    await user.click(field())
+    expect(document.activeElement).toBe(search())
+    expect(search().getAttribute('placeholder')).toBe('Search lists')
+    expect(region('Washington').getAttribute('aria-expanded')).toBe('false')
+    expect(region('Washington').textContent).toBe('Washington 2 lists')
+    expect(region('Northern Rockies').textContent).toBe('Northern Rockies 2 lists')
+    expect(screen.queryByRole('button', { name: /^Alaska/ })).toBeNull()
+    expect(noPick('The Bulger List')).toBe(true)
+    // No Starred group until something is starred.
+    expect(screen.queryByText('Starred')).toBeNull()
+  })
+
+  it('opens one group at a time, in place, each row ending in its count', async () => {
+    const { user } = render(<Browse />)
+    await user.click(field())
+    await user.click(region('Washington'))
+    expect(region('Washington').getAttribute('aria-expanded')).toBe('true')
+    const rows = screen.getByRole('group', { name: 'Washington' })
+    expect(region('Washington').getAttribute('aria-controls')).toBe(rows.id)
+    expect(rows.className).toBe(MENU_BROWSE.nest)
+    expect(pick('The Bulger List').textContent).toBe('The Bulger List 100 peaks')
+    await user.click(region('Northern Rockies'))
+    expect(region('Washington').getAttribute('aria-expanded')).toBe('false')
+    expect(noPick('The Bulger List')).toBe(true)
+    // One peak is a peak.
+    expect(pick('Lone Peak List').textContent).toBe('Lone Peak List 1 peak')
+    await user.click(region('Northern Rockies'))
+    expect(noPick('Wyoming 13ers')).toBe(true)
+  })
+
+  it('picks a row, closes, and opens next on the picked row\'s group with the row current', async () => {
+    const onChange = vi.fn()
+    const { user } = render(<Browse onChange={onChange} />)
+    await user.click(field())
+    await user.click(region('Northern Rockies'))
+    await user.click(pick('Wyoming 13ers'))
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('wy-13ers')
+    expect(screen.queryByRole('textbox', { name: 'Search lists' })).toBeNull()
+    await user.click(field('Wyoming 13ers'))
+    expect(region('Northern Rockies').getAttribute('aria-expanded')).toBe('true')
+    expect(pick('Wyoming 13ers').getAttribute('aria-current')).toBe('true')
+    expect(pick('Wyoming 13ers').className).toContain(MENU.current)
+    expect(pick('Lone Peak List').getAttribute('aria-current')).toBeNull()
+    // The row already held is not picked again.
+    await user.click(pick('Wyoming 13ers'))
+    expect(onChange).toHaveBeenCalledOnce()
+  })
+
+  // The four Washington lists, before the rest arrive: a lone heading over
+  // rows a reader would have to open every time.
+  it('opens the only group there is', async () => {
+    const { user } = render(
+      <MenuBrowse
+        label="Coordinate list"
+        placeholder="Coordinate list"
+        value=""
+        items={ITEMS.filter((item) => item.group === 'Washington')}
+        groups={GROUPS}
+        other={OTHER}
+        onChange={() => {}}
+        starred={[]}
+        onToggleStar={() => {}}
+        widthRef={{ current: null }}
+        className="w-40"
+      />,
+    )
+    await user.click(field())
+    expect(region('Washington').getAttribute('aria-expanded')).toBe('true')
+    expect(pick('The Bulger List')).toBeTruthy()
+  })
+
+  it('ends in the other row under a hairline, and picks it', async () => {
+    const onChange = vi.fn()
+    const { user } = render(<Browse onChange={onChange} />)
+    await user.click(field())
+    const other = screen.getByRole('button', { name: 'Custom coordinates' })
+    expect(other.className).toBe(`${MENU_BROWSE.other} `)
+    const rule = other.previousElementSibling as HTMLElement
+    expect(rule.getAttribute('aria-hidden')).toBe('true')
+    expect(rule.className).toBe(MENU.divider)
+    await user.click(other)
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(':custom')
+    expect(field('Custom coordinates')).toBeTruthy()
+    await user.click(field('Custom coordinates'))
+    expect(screen.getByRole('button', { name: 'Custom coordinates' }).getAttribute('aria-current')).toBe('true')
+  })
+
+  it('stars a row without closing, and shows the starred rows first under Starred', async () => {
+    const { user } = render(<Browse />)
+    await user.click(field())
+    await user.click(region('Washington'))
+    expect(star('Washington Top 100').getAttribute('aria-pressed')).toBe('false')
+    expect(star('Washington Top 100').className).toBe(`${MENU_BROWSE.mark} ${MENU_BROWSE.markOff}`)
+    await user.click(star('Washington Top 100'))
+    // Still open, and the row now stands twice: under Starred and in its group.
+    const starredGroup = screen.getByRole('group', { name: 'Starred' })
+    expect(within(starredGroup).getByRole('button', { name: /^Washington Top 100 100 peaks$/ })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Star Washington Top 100' })).toHaveLength(2)
+    for (const button of screen.getAllByRole('button', { name: 'Star Washington Top 100' })) {
+      expect(button.getAttribute('aria-pressed')).toBe('true')
+      expect(button.className).toBe(`${MENU_BROWSE.mark} ${MENU_BROWSE.markOn}`)
+    }
+    expect((starredGroup.nextElementSibling as HTMLElement).className).toBe(MENU.divider)
+    // Unstarring the last one takes the group away.
+    await user.click(within(starredGroup).getByRole('button', { name: 'Star Washington Top 100' }))
+    expect(screen.queryByRole('group', { name: 'Starred' })).toBeNull()
+  })
+
+  it('shows the starred rows in the order they were starred', async () => {
+    const { user } = render(<Browse stars={['wy-13ers', 'wa-bulger-list']} />)
+    await user.click(field())
+    const starredGroup = screen.getByRole('group', { name: 'Starred' })
+    expect(
+      within(starredGroup)
+        .getAllByRole('button', { name: /peaks?$/ })
+        .map((b) => b.textContent),
+    ).toEqual(['Wyoming 13ers 35 peaks', 'The Bulger List 100 peaks'])
+  })
+
+  it('opens a row\'s description under it from its info button, one at a time', async () => {
+    const { user } = render(<Browse />)
+    await user.click(field())
+    await user.click(region('Washington'))
+    expect(about('The Bulger List').getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('The Bulger hundred.')).toBeNull()
+    await user.click(about('The Bulger List'))
+    expect(about('The Bulger List').getAttribute('aria-expanded')).toBe('true')
+    const description = screen.getByText('The Bulger hundred.')
+    expect(about('The Bulger List').getAttribute('aria-controls')).toBe(description.id)
+    expect(description.className).toBe(MENU_BROWSE.description)
+    await user.click(about('Washington Top 100'))
+    expect(screen.queryByText('The Bulger hundred.')).toBeNull()
+    expect(screen.getByText('The hundred highest.')).toBeTruthy()
+    await user.click(about('Washington Top 100'))
+    expect(screen.queryByText('The hundred highest.')).toBeNull()
+    // None of it closed the card.
+    expect(search()).toBeTruthy()
+  })
+
+  it('searches names, headings and a group\'s other words, and shows each match with its description', async () => {
+    const { user } = render(<Browse stars={['wa-bulger-list']} />)
+    await user.click(field())
+    await user.type(search(), 'top')
+    // The matches stand in for Starred, the groups and the other row.
+    expect(screen.queryByRole('group', { name: 'Starred' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /\d+ lists?$/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Custom coordinates' })).toBeNull()
+    const found = screen.getByRole('group', { name: 'Washington' })
+    expect(within(found).getByText('Washington').className).toBe(MENU_BROWSE.heading)
+    expect(pick('Washington Top 100')).toBeTruthy()
+    expect(noPick('The Bulger List')).toBe(true)
+    expect(screen.getByText('The hundred highest.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'About Washington Top 100' })).toBeNull()
+    // A heading finds its rows, and so does a state the heading does not name.
+    await user.clear(search())
+    await user.type(search(), 'washington')
+    expect(pick('The Bulger List')).toBeTruthy()
+    expect(pick('Washington Top 100')).toBeTruthy()
+    await user.clear(search())
+    await user.type(search(), 'montana')
+    expect(pick('Wyoming 13ers')).toBeTruthy()
+    expect(pick('Lone Peak List')).toBeTruthy()
+    expect(noPick('The Bulger List')).toBe(true)
+    // Every word, in any order and any case.
+    await user.clear(search())
+    await user.type(search(), '13ERS wyo')
+    expect(pick('Wyoming 13ers')).toBeTruthy()
+    expect(noPick('Lone Peak List')).toBe(true)
+  })
+
+  it('says so when a search finds nothing, and comes back when the box is emptied', async () => {
+    const { user } = render(<Browse />)
+    await user.click(field())
+    await user.type(search(), 'everest')
+    expect(screen.getByRole('status').textContent).toBe('Nothing found.')
+    await user.clear(search())
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(region('Washington')).toBeTruthy()
+  })
+
+  it('forgets the last search, group and description when it opens again', async () => {
+    const { user } = render(<Browse />)
+    await user.click(field())
+    await user.type(search(), 'bulger')
+    await user.keyboard('{Escape}')
+    await user.click(field())
+    expect((search() as HTMLInputElement).value).toBe('')
+    expect(region('Washington').getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('walks the rows a press picks or opens with the arrow keys, from the search box and back', async () => {
+    const { user } = render(<Browse />)
+    await user.click(field())
+    await user.click(region('Washington'))
+    search().focus()
+    await user.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(region('Washington'))
+    await user.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(pick('The Bulger List'))
+    await user.keyboard('{End}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Custom coordinates' }))
+    await user.keyboard('{Home}')
+    expect(document.activeElement).toBe(region('Washington'))
+    await user.keyboard('{ArrowUp}')
+    expect(document.activeElement).toBe(search())
+    // A star is reached by Tab, never by the arrows, and the arrows leave it be.
+    star('The Bulger List').focus()
+    await user.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(star('The Bulger List'))
+  })
+
+  it('opens from the field with the arrow keys, and closes on Escape with the keyboard back on the field', async () => {
+    const { user } = render(<Browse />)
+    field().focus()
+    await user.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(search())
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Search lists' })).toBeNull())
+    expect(document.activeElement).toBe(field())
+  })
+
+  // A phone: the same rows in a sheet headed by the field's name, and the
+  // keyboard stays down until the reader taps the search box.
+  it('opens in a sheet on a phone, with the search box unfocused', async () => {
+    const { user } = render(<Browse sheet />)
+    await user.click(field())
+    const dialog = screen.getByRole('dialog', { name: 'Coordinate list' })
+    expect(within(dialog).getByRole('textbox', { name: 'Search lists' })).toBeTruthy()
+    expect(document.activeElement).not.toBe(search())
+    await user.click(region('Washington'))
+    await user.click(pick('The Bulger List'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(field('The Bulger List')).toBeTruthy()
   })
 })

@@ -2,11 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FAMILY_KEYS } from '../metrics'
 import { CLOSURE_KEY, WILDFIRE_KEY } from './tableColumns'
 import {
+  STARRED_LISTS_KEY,
   THEME_KEY,
   hasWelcomed,
+  readStarredLists,
   readTheme,
   readViewPrefs,
   setWelcomed,
+  writeStarredLists,
   writeTheme,
   writeViewPrefs,
 } from './viewPrefs'
@@ -383,5 +386,60 @@ describe('the theme (#706)', () => {
     })
     expect(readTheme()).toBe('dark')
     expect(() => writeTheme('dark')).not.toThrow()
+  })
+})
+
+describe('the starred coordinate lists (#848)', () => {
+  it('keeps them under a key of their own', () => {
+    expect(STARRED_LISTS_KEY).toBe('bluebird_forecast_starred_lists')
+  })
+
+  it('reads none when nothing is stored', () => {
+    vi.stubGlobal('localStorage', fakeStorage())
+    expect(readStarredLists()).toEqual([])
+  })
+
+  it('reads the ids in the order they were starred', () => {
+    vi.stubGlobal('localStorage', fakeStorage({ [STARRED_LISTS_KEY]: '["wy-13ers","wa-bulger-list"]' }))
+    expect(readStarredLists()).toEqual(['wy-13ers', 'wa-bulger-list'])
+  })
+
+  // A value no build wrote: not JSON, not a list, or a list holding something
+  // that is no id.
+  it('reads none, or only the ids, from a value no build wrote', () => {
+    vi.stubGlobal('localStorage', fakeStorage({ [STARRED_LISTS_KEY]: 'not json' }))
+    expect(readStarredLists()).toEqual([])
+    vi.stubGlobal('localStorage', fakeStorage({ [STARRED_LISTS_KEY]: '{"a":1}' }))
+    expect(readStarredLists()).toEqual([])
+    vi.stubGlobal('localStorage', fakeStorage({ [STARRED_LISTS_KEY]: '["wa-bulger-list",7,null]' }))
+    expect(readStarredLists()).toEqual(['wa-bulger-list'])
+  })
+
+  it('stores the ids and forgets the key when none is left, leaving the view object alone', () => {
+    const storage = withStored({ legendOpen: true })
+    writeStarredLists(['wa-bulger-list', 'wy-13ers'])
+    expect(JSON.parse(storage.getItem(STARRED_LISTS_KEY)!)).toEqual(['wa-bulger-list', 'wy-13ers'])
+    writeStarredLists([])
+    expect(storage.getItem(STARRED_LISTS_KEY)).toBeNull()
+    expect(stored(storage)).toEqual({ legendOpen: true })
+  })
+
+  it('answers none and does not throw when there is no storage, or it refuses', () => {
+    vi.stubGlobal('localStorage', undefined)
+    expect(readStarredLists()).toEqual([])
+    expect(() => writeStarredLists(['wa-bulger-list'])).not.toThrow()
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('denied')
+      },
+      setItem: () => {
+        throw new Error('denied')
+      },
+      removeItem: () => {
+        throw new Error('denied')
+      },
+    })
+    expect(readStarredLists()).toEqual([])
+    expect(() => writeStarredLists([])).not.toThrow()
   })
 })

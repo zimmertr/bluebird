@@ -3478,6 +3478,67 @@ export const MENU_GROUP = {
 } as const
 
 /**
+ * A menu a reader searches and browses, where `MenuSelect`'s short list is
+ * one they scan (#848, record
+ * [0281](../../docs/architectural-decision-records/0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md)):
+ * the Coordinate list field's, which holds dozens of lists under ten regions.
+ * A search box on top, then the starred lists, then each region as a heading
+ * that opens in place, on the one card at a desk and in a sheet on a phone.
+ *
+ * - `top`: the strip the search box stands in, over a hairline, so the box
+ *   stays put while the rows scroll under it.
+ * - `input`: the search box, the panel's field at the Coordinate list field's
+ *   own inset, so it stands 28px at a desk and 32 under a finger.
+ * - `heading`: `MENU.heading` at a row's inset, over the starred rows and
+ *   over each region's matches in a search. Read and never pressed.
+ * - `region`: a region's heading, which is pressed: a row at the control
+ *   type in semibold, the fold mark before its name and its list count at
+ *   its end. Semibold in the full ink rather than `MENU.heading`'s soft one,
+ *   because a soft heading reads as a label and this one is a button.
+ * - `fold`: the fold mark's ink, the faint step every bare glyph takes.
+ * - `count`: a region's list count and a list's peak count, in the caption's
+ *   ink and tabular figures so a column of them lines up. 12px, never the
+ *   micro step: each stands inside a row that is pressed (record 0131).
+ * - `nest`: a region's rows, 8px in from its heading.
+ * - `row`: one list: its star, its name and count, and its info button. The
+ *   raised fill follows the pointer over the whole row, since a press on the
+ *   name or the count picks it.
+ * - `pick`: the name and the count, the press that picks the list. The name
+ *   takes the room left and cuts off with an ellipsis; the description says
+ *   the rest.
+ * - `mark`: the star and the info button, each a 14px glyph in a box as tall
+ *   as its row and 22px wide, 32 under a finger: two more targets beside the
+ *   name, so they take a phone control's 32 rather than a lone button's 44
+ *   (record 0223).
+ * - `markOff` and `markOn`: the faint glyph that lights in the accent under
+ *   the pointer, and the accent ink a starred list's star and an open info
+ *   button hold. Two roles rather than one colour over another, because two
+ *   colour utilities on one element resolve by stylesheet order.
+ * - `description`: what a list is, under its row: the micro step, wrapping,
+ *   and set in under the name, clear of the star's 22px. Read, never pressed.
+ * - `empty`: the line a search with no match leaves.
+ * - `other`: the one row that is not a list, `Custom coordinates`, under the
+ *   rule (`MENU.divider`).
+ */
+export const MENU_BROWSE = {
+  top: `border-b ${SURFACE_DIVIDER} p-2`,
+  input: `${FIELD} w-full px-2 py-[5px]`,
+  heading: `${MENU.heading} px-1.5 pt-1 pb-0.5`,
+  region: `${TEXT.control} ${TAP.row} ${MENU_ROW} ${MENU.hover} ${FOCUS_RING_INSET} w-full cursor-pointer gap-1.5 text-left font-semibold`,
+  fold: 'flex-shrink-0 text-ink-faint',
+  count: `${TEXT.caption} flex-shrink-0 tabular-nums`,
+  nest: 'pl-2',
+  row: `${TAP.row} rounded ${MENU.hover}`,
+  pick: `${TEXT.control} ${FOCUS_RING_INSET} flex min-w-0 flex-1 cursor-pointer items-center gap-2 self-stretch py-0.5 pr-1.5 text-left`,
+  mark: `${FOCUS_RING_INSET} flex flex-shrink-0 cursor-pointer items-center justify-center self-stretch rounded px-1 touch:min-w-8 transition-colors`,
+  markOff: ICON_ACTION,
+  markOn: ACCENT.text,
+  description: `${TEXT.micro} whitespace-normal pb-1 pl-[22px] pr-1.5`,
+  empty: `${TEXT.caption} px-1.5 py-3`,
+  other: `${MENU.option} ${MENU.hover} ${FOCUS_RING_INSET} w-full text-left`,
+} as const
+
+/**
  * A row of the Layers menu (record 0250): the menu's checkbox, the layer's
  * name, and on the four Base map rows an opacity slider at the right. At a
  * desk and on a phone's sheet alike. The record built the row with an eye in
