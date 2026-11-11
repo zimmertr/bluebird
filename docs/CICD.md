@@ -1501,7 +1501,10 @@ Three things narrow what an auto-merged update can bring with it (#633):
   bumps the pin in the `.in` file and recompiles both locks with the command
   in each lock's header, on the pip-tools version `make lock-backend` pins
   (`requirements-dev.txt` is
-  the same lock plus the test tools), and the dependency graph reads
+  the same lock plus the test tools). The manager's `lockFileMaintenance` is
+  off: it would open a "Refresh pip-compile outputs" PR that moves every
+  indirect pin to its newest release at once, with no seven-day wait. The
+  dependency graph reads
   `requirements.txt`, which is what puts Starlette and the rest of the indirect
   set in front of the alerts. Regenerating the lock by hand is `make
   lock-backend` ([DEVELOPMENT.md](DEVELOPMENT.md#the-backends-dependency-lock)).
