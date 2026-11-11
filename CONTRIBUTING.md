@@ -1,6 +1,6 @@
 # Contributing
 
-Bluebird Forecast has one maintainer. For a large change, an issue first is a good idea: it lets the approach get discussed before you build it.
+Thanks for your interest in contributing to Bluebird Forecast. For a large change, please open an issue first, so the approach is agreed before you put time into it.
 
 If you send a change:
 
