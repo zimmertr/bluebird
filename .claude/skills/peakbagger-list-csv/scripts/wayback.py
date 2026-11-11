@@ -45,10 +45,6 @@ class Wayback:
         self.requests = 0
 
     def _once(self, path):
-        wait = self.last + self.pace - time.monotonic()
-        if wait > 0:
-            time.sleep(wait)
-        self.last = time.monotonic()
         self.requests += 1
         if self.conn is None:
             self.conn = http.client.HTTPSConnection(HOST, timeout=60)
@@ -69,6 +65,11 @@ class Wayback:
         """
         wait = 5
         for _ in range(8):
+            # The pace is per page, not per request: a redirect to the capture follows at once.
+            pause = self.last + self.pace - time.monotonic()
+            if pause > 0:
+                time.sleep(pause)
+            self.last = time.monotonic()
             try:
                 for _ in range(5):
                     response, body = self._once(path)

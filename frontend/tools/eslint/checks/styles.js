@@ -297,6 +297,28 @@ export const STYLES = [
     ],
   },
   {
+    // The sentence under a row's name is MENU.description in every menu
+    // (record 0283): the model list's summaries and the Coordinate list
+    // menu's descriptions wear it through their own row roles, which
+    // styles.test.ts holds to it. A menu file that reaches for the helper's
+    // type itself is where the two would part again.
+    name: 'style-menu-description',
+    files: ['src/components/Menu.tsx', 'src/components/ModelPicker.tsx'],
+    require: [
+      {
+        selector: `${role('MENU_BROWSE')}[property.name="description"], ${role('MODEL_ROW')}[property.name="description"]`,
+        count: 1,
+        message: "A menu sets a row's sentence in its row role's description, once.",
+      },
+    ],
+    ban: [
+      {
+        selector: `${role('TEXT')}[property.name="helper"]`,
+        message: "Set a menu row's sentence in the row role's description, never in TEXT.helper spelled again.",
+      },
+    ],
+  },
+  {
     // The placement is wired from a hook, so the files a second caller could
     // hide in are wider than the components.
     name: 'style-one-placement',

@@ -3432,6 +3432,15 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   and its size does not. 12px is the size the lab drew it at; the 11px
  *   step would be allowed, since nothing presses a heading, and was not
  *   needed.
+ * - `description`: the sentence under a row's name that says what the row
+ *   is: a model's summary in the model list, a list's description in the
+ *   Coordinate list field's menu. The helper's italic at the caption size
+ *   in every menu, so a sentence never reads as a second name (record
+ *   [0283](../../docs/architectural-decision-records/0283-a-menu-rows-description-is-italic.md)).
+ *   Each menu's own row role composes it (`MODEL_ROW.description`,
+ *   `MENU_BROWSE.description`), `styles.test.ts` holds each of them to it,
+ *   and the linter's `style-menu-description` check fails either menu file
+ *   that sets a sentence in anything else. Read and never pressed.
  */
 export const MENU = {
   card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
@@ -3443,6 +3452,7 @@ export const MENU = {
   hover: 'hover:bg-raised',
   current: 'font-semibold',
   heading: `${TEXT.caption} font-semibold`,
+  description: TEXT.helper,
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
   divider: `-mx-1 my-1 border-t ${SURFACE_DIVIDER}`,
 } as const
@@ -3514,8 +3524,9 @@ export const MENU_GROUP = {
  *   the pointer, and the accent ink a starred list's star and an open info
  *   button hold. Two roles rather than one colour over another, because two
  *   colour utilities on one element resolve by stylesheet order.
- * - `description`: what a list is, under its row: the micro step, wrapping,
- *   and set in under the name, clear of the star's 22px. Read, never pressed.
+ * - `description`: what a list is, under its row: the one italic every
+ *   menu sets a row's sentence in (`MENU.description`), wrapping, and set in
+ *   under the name, clear of the star's 22px. Read, never pressed.
  * - `empty`: the line a search with no match leaves.
  * - `other`: the one row that is not a list, `Custom coordinates`, under the
  *   rule (`MENU.divider`).
@@ -3533,7 +3544,7 @@ export const MENU_BROWSE = {
   mark: `${FOCUS_RING_INSET} flex flex-shrink-0 cursor-pointer items-center justify-center self-stretch rounded px-1 touch:min-w-8 transition-colors`,
   markOff: ICON_ACTION,
   markOn: ACCENT.text,
-  description: `${TEXT.micro} whitespace-normal pb-1 pl-[22px] pr-1.5`,
+  description: `${MENU.description} whitespace-normal pb-1 pl-[22px] pr-1.5`,
   empty: `${TEXT.caption} px-1.5 py-3`,
   other: `${MENU.option} ${MENU.hover} ${FOCUS_RING_INSET} w-full text-left`,
 } as const
@@ -3588,7 +3599,8 @@ export const LAYER_ROW = {
  * two, and eight of them with nothing between read as one paragraph, most of
  * all on a phone. Every name is semibold (`name`), so each row starts on its
  * box and its name; the ranking model is the one under the Ranking chip, its
- * tick fixed.
+ * tick fixed. The sentence under a name is `description`, the italic every
+ * menu sets one in (`MENU.description`).
  *
  * The raised fill follows a mouse (`MENU.hover`) and the keyboard (`keys`,
  * while the list shows its focus ring), never a finger. The list's cursor
@@ -3601,6 +3613,7 @@ export const MODEL_ROW = {
   row: `flex items-start gap-2 border-t first:border-t-0 ${SURFACE_DIVIDER} px-1.5 py-2 ${MENU.hover}`,
   keys: 'group-focus-visible/list:bg-raised',
   name: TEXT.subheading,
+  description: MENU.description,
 } as const
 
 /**

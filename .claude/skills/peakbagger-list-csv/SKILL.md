@@ -1,193 +1,186 @@
 ---
 name: peakbagger-list-csv
-description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast frontend/src/coordinate-lists/*.csv files, the lists the Coordinate list field under Coordinate search offers. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list CSV (e.g. "create CSV list", "add the Bulgers/Home Court/Smoot list").
+description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast's coordinate lists, a frontend/src/coordinate-lists/<id>.csv and an entry in lists.json each, the lists the Coordinate list field under Coordinate search offers. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list (e.g. "add the Bulgers/Home Court/Smoot list").
 ---
 
-# Peakbagger list → Bluebird Forecast CSV
+# Peakbagger list → Bluebird Forecast coordinate list
 
-> **Stale since #848's first PR, and not yet reworked.** The lists are now described by
-> `frontend/src/coordinate-lists/lists.json` (record 0281): each CSV is named by its list's id, a
-> slug such as `wa-bulger-list.csv`, and the menu reads names from the manifest. This skill still
-> writes a file named as the menu reads it and no manifest entry, which fails
-> `presetLists.test.ts`. Do not crawl with it until #848's second PR reworks it.
+Turns a peakbagger.com list (`list.aspx?lid=<N>`) into two things under
+`frontend/src/coordinate-lists/`: `<id>.csv`, one row per peak of the list, and the list's entry
+in the manifest `lists.json` (record 0281). One process does all of it, `scripts/crawl.py`.
 
-Turns a peakbagger.com list (`list.aspx?lid=<N>`) into `frontend/src/coordinate-lists/<Menu name>.csv`,
-matching `frontend/src/coordinate-lists/wa-bulger-list.csv`. One CSV row per peak in the list: no
-sampling, no truncation.
+**A list's words are the maintainer's.** Its `name` is the menu's string, in title case (record
+0282). Its `description` is one or two sentences. Its `id` is a slug that never changes once
+shipped, because a share link names a list by it. Its `region` is one of the manifest's `regions`.
+Show the maintainer the exact name, description, slug and region, and get a yes, before you crawl.
+A new region heading is a string to approve too.
 
-**The file name is the menu's string.** The Coordinate list field offers every file in that directory,
-named by its file name without `.csv`, alphabetically, so the name you give the file is a user-facing
-string. Agree it with the maintainer before building; the files already there show the style.
-
-**Row format** (mirrors `frontend/src/coordinate-lists/wa-bulger-list.csv` exactly):
+**Row format** (every CSV there matches it exactly):
 
 ```
 46.851731, -121.760395, Mount Rainier
 ```
 
-Rows only: no headline, no comment line, no source or format notes, just
-`Lat, Lon, Name` in the list's own order. The name carries **no** list number: Bluebird
-Forecast ranks the rows and numbers them itself, so a `23.` prefix shows up as
-`1 23. Foobar Mountain` in the results table. It carries **no** elevation either: Bluebird
-Forecast matches each coordinate to its OSM peak and fills the Elevation column itself (issue #207),
-so a figure here would only be a second number to disagree with the one on screen.
+Rows only: no headline, no comment line, just `Lat, Lon, Name` in the list page's own order. The
+name carries **no** list number, because Bluebird Forecast ranks the rows and numbers them itself.
+It carries **no** elevation either: the app reads each summit's elevation from OpenStreetMap (issue
+#207), so a figure here would only be a second number to disagree with the one on screen.
 
 ## The one thing that makes this hard
 
-**peakbagger.com is behind Cloudflare's "Just a moment…" JS challenge.** WebFetch and plain
-curl both get a 403 — do not waste turns trying them, and do not try to defeat the challenge.
+**peakbagger.com is behind Cloudflare's "Just a moment…" JavaScript challenge.** WebFetch and plain
+curl both get a 403. Do not spend turns on them, and do not try to defeat the challenge.
 
-Fetch through the **Wayback Machine** instead, which serves the same static data:
+The crawl reads the **Wayback Machine** instead, which holds the same static pages:
 
 ```
 https://web.archive.org/web/2025id_/https://www.peakbagger.com/peak.aspx?pid=2296
 ```
 
-- The `id_` modifier returns the **original bytes** rather than Wayback's rewritten HTML.
-- Those bytes are **gzip-compressed** — always pass `curl --compressed`.
-- A bare year (`2025id_`) redirects to the nearest snapshot, so you never need to look up an
-  exact timestamp. Follow redirects with `-L`.
-- Avoid `archive.org/wayback/available` — it rate-limits aggressively (429) and is unnecessary.
+- The `id_` modifier returns the captured bytes rather than Wayback's rewritten HTML.
+- A bare year redirects to the newest capture, so no timestamp is looked up for most pages.
+- The archive also holds challenge pages and refusals. When the newest capture is no use, the crawl
+  asks Wayback's index (`/cdx/search/cdx`) once for that page's good captures and tries those.
 
-The bundled scripts already do all of this. Use them rather than re-deriving it.
+`scripts/wayback.py` does all of this over one kept-alive connection, a page a second. Use it
+rather than re-deriving it.
+
+**Run one crawl at a time, and never split one across subagents.** Wayback throttles per address:
+one stream holds its pace, and three at once ran about thirty times slower (measured on 300 peaks).
 
 ## Procedure
 
-Work in a scratchpad directory (not the repo). `SKILL_DIR` below is this skill's folder.
+Work in a scratchpad directory, never in the repo. `SKILL_DIR` is this skill's folder.
 
-### 1. Parse the list pages
+### 1. Write the spec
+
+`spec.json` is a JSON array with one object per list:
+
+```json
+[
+  {
+    "lid": "5035",
+    "id": "wa-snoqualmie-peak-pin",
+    "name": "Snoqualmie Peak Pin",
+    "description": "The Mountaineers' twenty peaks around Snoqualmie Pass, a pin since the 1910s.",
+    "region": "Washington",
+    "credit": "The Mountaineers",
+    "expect": 20,
+    "bbox": [45.5, 49.1, -124.9, -116.9]
+  }
+]
+```
+
+- `lid`: the number in the list's URL.
+- `id`, `name`, `description`, `region`: the approved words.
+- `credit`: who chose the peaks, a club or an author, or the rule that picks them. It goes into
+  `lists.json`, and `NOTICES.md` credits the same people.
+- `expect` (optional): how many peaks the list should hold. Give it whenever the name or the
+  description states a count. A roster of another size fails the list instead of shipping it.
+- `bbox` (optional): `[lat min, lat max, lon min, lon max]`, a box every peak must fall in.
+- `roster` (optional): a roster read live, for a list the archive holds out of date (below).
+
+The lists go into the manifest in the spec's order, after the lists already there, and the menu
+shows a region's lists in the manifest's order. So order the spec the way the menu should read.
+
+### 2. Crawl
 
 ```bash
 cd <scratchpad>
-python3 <SKILL_DIR>/scripts/fetch_list.py 5005 5045 21307
+python3 <SKILL_DIR>/scripts/crawl.py spec.json --repo /path/to/repo
 ```
 
-Writes `peaks<lid>.json` per list and prints the peak count, title, and whether the list is
-elevation-descending. **Sanity-check the count against the list's own
-name** ("Top 100" should yield 100). If it doesn't match, the markup changed — inspect the HTML
-before going further rather than shipping a short list.
+Run it **in the background through the harness's `run_in_background`** and wait for it to finish.
+Do not poll its log. Allow three or four seconds a peak: Wayback's own response time is most of it
+(measured 2026-11-11). It prints one summary and exits non-zero when any list was not written.
 
-### 2. Fetch coordinates — ONE serial crawl, all lists in a single process
+For each list it reads the list page, reads every peak's coordinates, writes the CSV, writes the
+manifest entry with `peaks`, `source` and today's date as `crawled`, and checks the result against
+the roster. A list with any problem writes nothing and is named in the summary with the reason.
 
-This is the slow part: one Wayback request per peak.
+What it saves on the way:
 
-> **Do not parallelise this. Measured on a 300-peak run: one serial stream sustains ~1
-> peak/sec; three concurrent crawls collapsed to ~2 peaks/MINUTE — roughly 30x slower.**
-> Wayback rate-limits per IP, so splitting the work across subagents makes it dramatically
-> worse, not better. Fanning out one-subagent-per-list is the obvious move here and it is
-> wrong.
+- A peak on several lists is read once.
+- A peak already in a shipped CSV is read from that CSV, not from the archive.
+- Everything fetched is kept in the working directory (`lists/`, `coords.json`), so a rerun asks
+  the archive only for what is missing. When Wayback keeps refusing a page the crawl stops and
+  says so. Wait a while and run the same command again.
 
-Pass every lid to a single process:
+### 3. Read the summary
 
-```bash
-python3 <SKILL_DIR>/scripts/fetch_coords.py 5005 5045 21307 --rounds 3
+- **`the roster holds N peaks and the spec expects M`**: the list changed, or the archive's copy is
+  old. Read the list page (a stale roster, below) before touching `expect`.
+- **`no coordinates in the archive for <peak>`**: the archive holds no good capture of that peak's
+  page. Report it. **Never guess, approximate or recall a coordinate**: every value comes from that
+  peak's own page.
+- **Many peaks missing at once** is a parser bug, not a thin archive. Stop and read one page by
+  hand before running again: check that it answers 200 and contains `WGS84`.
+
+Then spot-check two or three rows against their peak pages by eye. Mount Rainier is
+`46.851731, -121.760395`.
+
+### 4. Finish the change
+
+- Credit each new list in `NOTICES.md`, beside the others.
+- `presetLists.test.ts` holds the manifest to the CSVs in CI: the schema, unique ids, one CSV per
+  entry and one entry per CSV, and each `peaks` against its file's rows. Push and read the checks.
+
+## A stale roster
+
+The archive's copy of a list page can be years old, and a list that is recomputed (an elevation or
+prominence list after a new survey) has moved since. `expect` catches it. Read today's roster in
+the maintainer's Chrome, which passes the challenge as a person's browser does, and run this on the
+list page:
+
+```js
+[...document.querySelectorAll('tr')].map((tr) => {
+  if (!tr.children.length || !/^\s*[\d.]+\s*$/.test(tr.children[0].textContent)) return null
+  const a = tr.querySelector('a[href*="peak.aspx?pid="]')
+  return a ? new URL(a.href).searchParams.get('pid') + '|' + a.textContent.trim().replace(/\s+/g, ' ') : null
+}).filter(Boolean).join('\n')
 ```
 
-At ~1s/peak, 300 peaks takes ~5–10 minutes. Run it **backgrounded via the harness's
-`run_in_background`** (not a shell `&`, which gets denied) and poll the log, or foreground it
-with a ≥600000 ms timeout. Wait for `ALL DONE` / the per-list `RESULT lid=…: N/100 resolved`.
-
-The script caches each resolved page under `pages/<pid>.html` and checkpoints
-`coords<lid>.json` every 20 peaks, so it is **idempotent and resumable** — re-running only
-retries what's missing, and killing it mid-flight loses nothing. It distinguishes a throttled
-response (`000`/`429`/`503` → back off and retry the *same* URL) from a genuine miss (`404` →
-try the next snapshot year), which is what keeps a rate-limit from being misrecorded as a
-missing peak. Rerun until every list reports `N/N`.
-
-For anything still failing after the rounds, probe that pid by hand with another snapshot year
-or the non-www host:
-
-```bash
-curl -s -L --compressed "https://web.archive.org/web/2022id_/https://peakbagger.com/peak.aspx?pid=<PID>" \
-  | grep -oE '[-0-9.]+, [-0-9.]+ \(Dec Deg\)'
-```
-
-(Match on `(Dec Deg)` itself, not on the `<td>` that opens the cell — see the ordering gotcha
-below, which the obvious grep gets wrong.)
-
-Add a manual find to `coords<lid>.json` as `"<pid>": [lat, lon]`. **Never guess, approximate,
-or recall a coordinate from memory** — every value must come from that peak's own page.
-
-**Where subagents *do* help:** the crawl is I/O-bound and serial, so it doesn't parallelise —
-but the per-list **verification and CSV build** (steps 3–4) is independent per list and safe to
-fan out to Haiku subagents once coordinates are in hand. Give each one the scratchpad path,
-its `lid`, the target output path, the plausible lat/lon box for the region, an explicit
-**"never invent a coordinate"** instruction, and a heads-up about any known list quirks
-(duplicate peak names, a famous peak legitimately absent) so they don't "fix" them.
-
-### 3. Build the CSV
-
-```bash
-python3 <SKILL_DIR>/scripts/build_csv.py <lid> /path/to/repo/frontend/src/coordinate-lists --name '<Menu name>'
-```
-
-`--name` is required: the maintainer-approved name as the menu will read it, which becomes
-`<Menu name>.csv`. Quote it in single quotes (zsh, and names carry spaces and apostrophes). The file
-is rows only. It **refuses to write** if any peak lacks coordinates, because a partial file is never
-acceptable, so report the gap instead of working around the guard.
-
-### 4. Verify before reporting
-
-```bash
-python3 <SKILL_DIR>/scripts/verify_csv.py <lid> '/path/to/repo/frontend/src/coordinate-lists/<Menu name>.csv' \
-  --bbox 45.5 49.1 -124.8 -116.9      # Washington State; adjust per region
-```
-
-Exits non-zero and lists every problem. It cross-checks each row's **name against
-`peaks<lid>.json`** (not just the file's shape), so a coordinate bound to the wrong peak or a
-dropped row is caught, and uses the list page's own elevations to check that the rows run highest
-to lowest, plus no comment line, row-count, 6-decimal formatting, duplicate coordinate pairs, and
-the optional bounding box. The CSV itself carries no elevation to check.
-
-Then spot-check two or three peaks against their peak pages by eye. Sanity anchor: Mount
-Rainier is `46.851731, -121.760395`.
-
-### 5. Offer it in the app
-
-Nothing to edit. The Coordinate list field under Coordinate search offers every file in
-`frontend/src/coordinate-lists/` on the next build (#838, record 0263): `presetLists.ts` globs the
-directory, and `presetLists.test.ts` holds every file there to rows only, each of which parses. The
-file's name is what the menu shows, a user-facing string, so it is approved by the maintainer before
-the file lands (step 3). Credit the list's source in `NOTICES.md` beside the others.
+Save the result beside the spec as `roster<lid>.json`, `{"title": "...", "peaks": [{"pid": "2382",
+"name": "Mount Hood"}, ...]}`, and name the file in the list's `roster`. The peaks' coordinates
+still come from the archive's peak pages.
 
 ## Conventions and gotchas
 
-- **The WGS84 cell has two orderings.** Peak pages list the same point in several notations and
-  are inconsistent about which comes first — some lead with decimal degrees, others with DMS:
+- **A row counts when its first cell is a rank.** An elevation list also prints the summits that
+  miss its prominence rule, with an empty first cell, and they are not on the list (Colorado 13ers:
+  629 ranked of 879 rows). A state or county list carries one plain cell, the state or the county,
+  between the rank and the peak, and only the first peak link in a row is the row's peak.
+  `fetch_list.parse_list` holds all three rules.
+- **A summit on a list twice is one row.** One summit tops two counties on most county lists, and
+  the roster keeps its first row (Washington: 39 counties, 38 summits).
+- **The WGS84 cell has two orderings.** Peak pages give the same point in several notations and
+  are not consistent about which comes first:
 
   ```html
   <td>46.851731, -121.760395 (Dec Deg)<br/>46&deg 51' 6'' N, ...     <!-- Mount Rainier -->
   <td>48&deg 31' 25'' N, ...<br/>48.523611, -120.816193 (Dec Deg)    <!-- Black Peak -->
   ```
 
-  A regex anchoring the decimals to the cell opening matches only the first form and silently
-  drops every DMS-first peak — they look like missing snapshots, not a parser bug. Always grab
-  the whole cell, then find the pair tagged `(Dec Deg)` inside it. `fetch_coords.parse_coords()`
-  does this; test any change against one page of each form.
-- **A high FAILED rate means a parser bug, not a missing archive.** If more than a couple of
-  peaks fail, stop and probe one by hand before burning retry rounds — check whether the page
-  actually returns 200 and contains `WGS84`. That is how the ordering bug above was caught.
-
-- **Order by row position, not peakbagger's rank column.** That column contains ties and gaps
-  on some lists; `seq` in `peaks<lid>.json` is already the row position. Neither number goes
-  into the name.
-- **Elevation commas are the list page's, not the CSV's.** `peaks<lid>.json` stores `elev` as the
-  page's string (`14,406`); `verify_csv.py` strips the commas to check the ordering. The CSV carries
-  no elevation at all.
-- **Duplicate peak names are real.** Lists legitimately contain two "Granite Mountain" or two
-  "Red Mountain" at different elevations and pids. Their coordinates tell them apart (Bluebird
-  Forecast keys a row by its coordinate, not its name); do not dedupe or rename them.
-- **A famous peak may be absent.** List 5045 ("100 Peaks at Mount Rainier N.P.") genuinely does
-  not include Mount Rainier. Verify against the source before "correcting" an omission.
-- **Commas in names are safe.** Bluebird Forecast's Custom (CSV) parser splits on the first two commas
-  only, so everything after them is the name.
-- Coordinates are stable across snapshot years — any snapshot is as good as another.
+  A pattern anchored to the cell's opening matches only the first form and silently drops every
+  page of the second, which then look like missing captures. `fetch_coords.parse_coords` takes the
+  whole cell and finds the pair tagged `(Dec Deg)` inside it. Test any change against one page of
+  each form.
+- **Rows keep the page's order**, whatever it is: by elevation, by rank, or as a club numbers them.
+  Neither number goes into the name.
+- **Two peaks of one name are real.** A list can hold two "Granite Mountain" at different
+  coordinates. Do not dedupe or rename them: the app keys a row by its coordinate.
+- **A famous peak may be absent.** List 5045 ("100 Peaks at Mount Rainier N.P.") does not include
+  Mount Rainier. Check the source before "correcting" an omission.
+- **Commas in names are safe.** The app's parser splits on the first two commas only.
+- Coordinates do not change between captures, so any good capture serves.
 
 ## Files
 
-- `scripts/fetch_list.py` — list page → `peaks<lid>.json` (title, ordered peaks)
-- `scripts/fetch_coords.py` — peak pages → `coords<lid>.json` (cached, resumable, throttle-aware)
-- `scripts/build_csv.py` — both JSONs → `frontend/src/coordinate-lists/<Menu name>.csv`, rows only (refuses on missing coords)
-- `scripts/verify_csv.py` — cross-checks the CSV against `peaks<lid>.json`; non-zero on problems
+- `scripts/crawl.py`: the one command. Spec in, CSVs and manifest entries out, one summary.
+- `scripts/wayback.py`: the one paced connection to the archive, its retries and its index lookup.
+- `scripts/fetch_list.py`: a list page, or a roster read live, into the list's peaks in order.
+- `scripts/fetch_coords.py`: a peak page into its WGS84 coordinates.
+- `scripts/build_csv.py`: the CSV's rows, and the manifest's entry and layout.
+- `scripts/verify_csv.py`: a written list checked against its roster and its entry.
 
-All four are stdlib-only (they shell out to `curl`), so they need no venv and no `pip install`.
+All six use the standard library alone, so they need no virtual environment and no install.

@@ -342,11 +342,6 @@ export default function DestinationsSection({
             Clear
           </button>
         </div>
-        {/* What the loaded list is, between the field that names it and the
-            rows it put in the box (#848): the manifest's sentence, in the
-            helper's italic. Only while the box is exactly that list, so a
-            reader who edits a row is no longer told the box is the list. */}
-        {heldList && <p className={`${TEXT.helper} mb-1.5`}>{heldList.description}</p>}
         {boxShown && (
           <>
             <CoordinateBox

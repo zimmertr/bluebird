@@ -6,7 +6,6 @@ import { render } from '../testSupport/render'
 import { fakeResponse } from '../testSupport/fixtures'
 import { PRESET_LISTS, PRESET_REGIONS, forgetPresetLists } from '../utils/presetLists'
 import { STARRED_LISTS_KEY } from '../utils/viewPrefs'
-import { TEXT } from '../styles'
 import type { DiscoveryType } from '../types'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
@@ -518,21 +517,17 @@ describe('DestinationsSection', () => {
       expect(document.activeElement).not.toBe(coordinates())
     })
 
-    // What the loaded list is, between the field that names it and its rows
-    // (#848): the manifest's sentence, only while the box is exactly the list.
-    it('says what the loaded list is under the field, until a row is edited', async () => {
+    // A list's description is the menu's, behind its row's info button and
+    // under a search result (record 0283). The panel repeats it nowhere: the
+    // field names the list and the box holds its rows.
+    it('says what the loaded list is in the menu alone, never under the field', async () => {
       arrives()
       const setCustomCsv = vi.fn()
       const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv })} />)
-      expect(screen.queryByText(PRESET_LISTS[0].description)).toBeNull()
       await pickList(user)
       await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
       rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv })} />)
-      const caption = screen.getByText(PRESET_LISTS[0].description)
-      expect(caption.className).toBe(`${TEXT.helper} mb-1.5`)
-      // Between the row and the box.
-      expect(caption.previousElementSibling).toBe(clear().parentElement)
-      rerender(<DestinationsSection {...props({ customCsv: `${LIST}\n1,2,Mine`, setCustomCsv })} />)
+      expect(field(PRESET_LISTS[0].name)).toBeTruthy()
       expect(screen.queryByText(PRESET_LISTS[0].description)).toBeNull()
     })
 
