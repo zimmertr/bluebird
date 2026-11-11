@@ -165,6 +165,11 @@ still come from the archive's peak pages.
   page of the second, which then look like missing captures. `fetch_coords.parse_coords` takes the
   whole cell and finds the pair tagged `(Dec Deg)` inside it. Test any change against one page of
   each form.
+- **A capture can be another peak's page.** Wayback files a capture of `peak.aspx?pid%3D3155`, with
+  its `=` escaped, under pid 3155, and peakbagger answered that URL with Mount Rainier. The crawl
+  takes a capture only when the pid its page links most often is the pid it asked for
+  (`fetch_coords.page_pid`). An Oregon row that landed on Rainier's coordinate found this
+  (2026-11-11); the list's `bbox` caught it, and nothing else would have.
 - **Rows keep the page's order**, whatever it is: by elevation, by rank, or as a club numbers them.
   Neither number goes into the name.
 - **Two peaks of one name are real.** A list can hold two "Granite Mountain" at different

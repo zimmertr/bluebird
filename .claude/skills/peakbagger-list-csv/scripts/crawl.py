@@ -122,7 +122,10 @@ def main():
                     wanted.append(peak['pid'])
         print(f'{len(wanted)} peak pages to read', flush=True)
         for done, pid in enumerate(wanted, 1):
-            text, _ = archive.snapshot(f'peak.aspx?pid={pid}', lambda body: fetch_coords.parse_coords(body) is not None)
+            text, _ = archive.snapshot(
+                f'peak.aspx?pid={pid}',
+                lambda body, pid=pid: fetch_coords.page_pid(body) == pid and fetch_coords.parse_coords(body) is not None,
+            )
             if text is not None:
                 coords[pid] = fetch_coords.parse_coords(text)
             if done % 25 == 0 or done == len(wanted):

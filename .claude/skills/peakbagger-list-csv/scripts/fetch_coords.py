@@ -1,4 +1,5 @@
 """Read a peak's WGS84 coordinates out of its peakbagger page."""
+import collections
 import re
 
 # The WGS84 cell lists the same point in several notations, and peakbagger is NOT consistent
@@ -9,6 +10,20 @@ import re
 # Anchoring the decimals to the cell's opening silently drops every DMS-first page.
 WGS_CELL = re.compile(r'Latitude/Longitude \(WGS84\)</td>\s*<td>(.*?)</td>', re.I | re.S)
 DEC_DEG = re.compile(r'(-?\d+\.\d+),\s*(-?\d+\.\d+)\s*\(Dec Deg\)', re.I)
+
+
+# A capture can be a different peak's page: Wayback holds a capture of
+# `peak.aspx?pid%3D3155`, an escaped `=`, under pid 3155's URL, and peakbagger answered
+# it with Mount Rainier (found 2026-11-11, when an Oregon list row landed on Rainier).
+# A peak page links its own pid more often than any other (Lookout Mountain's: 3155
+# seven times, the next pid once), so the most frequent `pid=` on the page names it.
+PID_LINK = re.compile(r'pid=(-?\d+)', re.I)
+
+
+def page_pid(body):
+    """Return the pid a peak page is about, or None."""
+    counts = collections.Counter(PID_LINK.findall(body)).most_common(1)
+    return counts[0][0] if counts else None
 
 
 def parse_coords(body):
