@@ -7,8 +7,12 @@
 | [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | Hourly precipitation, 2 m temperature and 10 m wind for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles, and the glaciers the snow card names | Free | None |
+| [Mapterhorn](https://mapterhorn.com/attribution) | Elevation tiles for the contours, shaded relief and 3D terrain, worldwide | Free | None |
+| [USGS The National Map](https://www.usgs.gov/programs/national-geospatial-program/national-map) | Aerial imagery for the satellite layer, United States and its territories | Free (public domain) | None |
+| [EOX Sentinel-2 cloudless](https://s2maps.eu) | Aerial imagery for the satellite layer everywhere USGS has none | Free (non-commercial) | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
+| [NASA FIRMS](https://earthdata.nasa.gov/firms) | Satellite fire detections from VIIRS and MODIS, worldwide, the last 48 hours | Free (public files, no quota) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
 | [US Forest Service](https://www.fs.usda.gov/) | Closure orders: closed areas in Regions 3, 4 and 6 (Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington), and closed trails, roads and sites in Region 6 alone | Free (public domain; quota shared across all consumers) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
@@ -64,7 +68,7 @@ selectors and the classifier live in one module,
 `backend/app/services/osm/rules.py`, which the fill, the daily update and the
 Overpass query all read, so a deployment without the table, or with one still
 filling, asks Overpass for exactly what the table would hold. Record:
-[0176](decisions/0176-places-from-the-planet-and-daily-changes.md)
+[0176](architectural-decision-records/0176-places-from-the-planet-and-daily-changes.md)
 
 Three things differ from asking Overpass:
 
@@ -88,14 +92,14 @@ Three things differ from asking Overpass:
   whole ring. Measured over Washington's extract on 2026-10-18, 105 same-named
   trailhead pairs stood within 300 m, 70 of them a node beside its lot, and
   the next nearest were 342 m apart; lakes, peaks and crags added 40, 5 and 4
-  pairs. Record: [0177](decisions/0177-one-place-per-kind-and-name-within-300-m.md)
+  pairs. Record: [0177](architectural-decision-records/0177-one-place-per-kind-and-name-within-300-m.md)
 
 A lake is `natural=water` with `water=lake`, in the app as through the API.
 Until #760 the app read a ring's lakes from the basemap's tiles, which carry
 tarns, ponds and reservoirs under the one class `lake`, so it found every
 named water body; it now finds the lakes alone. A lake with no `ele` tag shows
 the terrain height in its Elevation cell, marked
-([record 0116](decisions/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
+([record 0116](architectural-decision-records/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
 A trailhead is `highway=trailhead`, or a named parking lot whose name says it
 is one, because much of the US maps the lot and never adds the node: in a box
 around Issaquah on 2026-10-17, 2 of 14 named trailhead features carried the
@@ -112,7 +116,7 @@ tagged `leisure`, `building`, `shop`, `club`, `amenity` or `tourism`, which in
 Washington were 40 climbing gyms and attractions, and none of them takes a
 bare `sport=climbing`, which is often a single route. Over Washington's
 extract on 2026-10-18 they added 37 crags to the 188, a fifth more. Record:
-[0178](decisions/0178-crag-rule-widened.md) Climbers tag
+[0178](architectural-decision-records/0178-crag-rule-widened.md) Climbers tag
 every route `sport=climbing` too: measured 2026-10-15 over 47.0 to 48.0 N,
 121.8 to 120.8 W, 183 named features carried it, of which 82 were crags, 22
 areas and 4 boulders, and 67 routes and 5 route bottoms would each have been a
@@ -126,7 +130,7 @@ Overpass puts it. One made only of other areas (Leavenworth, Snoqualmie Pass,
 the Inner Walls at Index; 27 in Washington) gets no position from Overpass at
 all, so the table places it at the centre of the areas it holds, following the
 nesting down; on the Overpass path such an area is still missing. Record:
-[0179](decisions/0179-relations-stand-at-their-own-points.md) The basemap's
+[0179](architectural-decision-records/0179-relations-stand-at-their-own-points.md) The basemap's
 tiles cannot stand in for the query: they carry `sport=climbing` points with
 no `climbing=` subtype, and crags mapped as relations are missing, so in the
 zoom-14 tile over Index, measured 2026-10-15, 33 of OSM's 36 named routes
@@ -136,7 +140,7 @@ typed Crag: 6 of the 104 in that box share a name with a peak. None of the 104 i
 plain near-ground values the way a lake or trailhead with no elevation does.
 And coverage follows where climbers have mapped: the well-known areas are
 there, and an obscure crag may not be
-([record 0159](decisions/0159-crags-destination-type.md)).
+([record 0159](architectural-decision-records/0159-crags-destination-type.md)).
 
 OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
 name and a point and nothing else, so the server matches each one to a mapped
@@ -162,7 +166,7 @@ column:
   Elevation column shows that height with a dagger and one note under the
   table saying it is estimated from the terrain, because that height is the
   model's ground, not the peak's
-  ([record 0116](decisions/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
+  ([record 0116](architectural-decision-records/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
 - **The number is OSM's, not your guidebook's.** Where the two disagree, the
   column shows what OSM says, which is the same figure a polygon search shows
   for that peak. Agreement between the two ways of asking is the point;
@@ -237,7 +241,7 @@ the shapes at their old points for the next. Two other options were declined:
 fetching nothing, which leaves a redrawn lake at its old centre until the next
 fill, and keeping a copy of every point on the planet, about 4 GB by estimate
 and a second dataset to keep in step. Record:
-[0185](decisions/0185-redrawn-shapes-from-overpass-by-id.md)
+[0185](architectural-decision-records/0185-redrawn-shapes-from-overpass-by-id.md)
 
 ## Open-Meteo
 
@@ -312,7 +316,7 @@ temperature 0.7 to 1.3 °C (1.3 to 2.3 °F) cold. Fetching the real heights
 would add five variables to every request and raise its weight factor from
 1.5 to 2.0. Two caveats. This is still
 a model's free-air wind, not a gust or a summit anemometer (the app carries no
-gust, [0124](decisions/0124-no-wind-gust.md)), and local
+gust, [0124](architectural-decision-records/0124-no-wind-gust.md)), and local
 funneling can exceed it. And the map's forecast-grid overlay adjusts each
 sample — wind and temperature alike — to the terrain height Open-Meteo resolves
 for that coordinate (its ~90 m elevation model, reported on every response)
@@ -790,7 +794,7 @@ and a repeat of the same search is answered without asking Nominatim again,
 from whichever pod it lands on while the database is up. With the database
 the server spaces its calls 1.2 s apart in one queue for all its pods; without
 it each pod keeps 10 s between its own, so ten pods still stay under the policy
-(#760, [record 0181](decisions/0181-shared-limits-and-nominatim-intervals.md)). A
+(#760, [record 0181](architectural-decision-records/0181-shared-limits-and-nominatim-intervals.md)). A
 search that has not finished in ten seconds, or that comes back as something
 other than Nominatim's JSON, is reported as a failed search rather than left
 waiting.
@@ -801,10 +805,13 @@ The basemap is OpenFreeMap's vector tiles, fetched straight from
 `tiles.openfreemap.org` by your browser: the style document, its TileJSON, the
 tiles, the glyphs and the sprites all resolve to that one host, which is the
 only basemap origin the page's Content-Security-Policy allows. OpenFreeMap
-publishes no quota and asks for nothing but the OpenStreetMap credit, which
-arrives through the tile server's own TileJSON and is drawn in the map's corner
-control rather than by the app. The tiles carry OpenStreetMap data under the
-ODbL, which is why that credit links to OpenStreetMap's copyright page.
+publishes no quota and asks for nothing but a credit. Its style declares one
+for its one source, `OpenFreeMap © OpenMapTiles Data from OpenStreetMap`,
+which the app rewrites as the style loads into three credits parted the way
+the map's corner parts every other, `OpenFreeMap | © OpenMapTiles | ©
+OpenStreetMap contributors`, each in the words its licence asks for. The tiles
+carry OpenStreetMap data under the ODbL, which is why that credit links to
+OpenStreetMap's copyright page.
 
 Until #760 the same tiles were also what a drawn area's peaks and lakes were
 searched from, and the first source of a pasted coordinate's elevation. The
@@ -822,16 +829,138 @@ mapped as a relation is missing. So the map draws both as markers of its own
 from zoom 11, read from the server's copy of OpenStreetMap
 (`GET /api/landmarks`), and a clicked crag is a crag, with the type and link a
 polygon search gives it. The tiles' own climbing labels, which
-[record 0157](decisions/0157-places-and-climbing-labels-are-selectable.md)
+[record 0157](architectural-decision-records/0157-places-and-climbing-labels-are-selectable.md)
 made selectable, are no longer drawn. A deployment without the database draws
 no trailhead or crag markers. Record:
-[0180](decisions/0180-trailhead-and-crag-markers-from-the-places-table.md)
+[0180](architectural-decision-records/0180-trailhead-and-crag-markers-from-the-places-table.md)
 
 If the style document cannot be fetched, the map stays blank and an error under
 Analyze says the map could not load. The page asks for the style again each
 time the browser reports it is back online, and the error clears once the
 style arrives. Only the style counts: a tile, glyph or sprite that fails leaves
 a gap in a map that otherwise drew, and says nothing.
+
+### Elevation and imagery
+
+The Topographic, Shaded relief, Slope angle and Satellite rows, and the 3D
+terrain, read tiles the browser fetches itself from three more keyless hosts
+(#799). None of the five asks for anything until it is switched on, or,
+for the elevation, until a card reads the ground under its point (#832).
+
+**Elevation is Mapterhorn's**, one model behind the contours, the relief, the
+slope angle and the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere,
+with finer national surveys stitched in where a country publishes one. 30 m is
+enough for a ridge and a valley, and too coarse for a
+gully or a cliff band. Past the zoom a region's survey reaches, a tile answers
+404. The contours ask for nothing past zoom 12, which the 30 m fill holds over
+all land, and stretch those tiles further in. The relief, the 3D terrain and
+the slope angle read finer tiles where they exist, to zoom 16, and where a
+finer tile is missing they stretch the finest one that is, smoothly, so a
+survey's edge leaves no hole. Open ocean has
+no tile at any zoom. The data is licensed per source, mostly CC BY 4.0 and US public domain,
+and Mapterhorn asks for one credit, `© Mapterhorn`, linked to its attribution
+page. Its privacy policy says it keeps each request's IP address, referrer and
+user agent for up to 30 days.
+
+**The contours are traced in your browser** from those same tiles, by
+maplibre-contour, and converted to feet. A line is where the model puts that
+height, so it can stand a little off a mapped trail or a lake shore, and its
+height is the model's, not a surveyed point's. A cell is 30 m across at its
+coarsest and holds one height, so a summit narrower than that can top out
+under the elevation its OpenStreetMap label carries, and the highest line round
+it can read one interval short. Use the label for the summit and the lines for
+the shape of the ground around it.
+
+**The slope angle is worked out in your browser** from the tiles the relief
+and the contours already fetched. Each pixel's slope is the height difference
+to its neighbours east and west and north and south, over the ground between
+them at that latitude. A pixel on a tile's edge reads its neighbours from the
+next tile, so a band does not break along tile boundaries. It is painted in
+CalTopo's bands, the avalanche world's, from 27 degrees up (record
+[0248](architectural-decision-records/0248-slope-angle-from-the-shared-elevation.md)). Zoomed in
+past 12, it reads the finest tile Mapterhorn has, to zoom 16: lidar where a
+US survey has it, as around Issaquah, 10 m-class elsewhere in the United
+States, finer in the Alps, and the 30 m fill everywhere else. Where a
+finer tile is missing it falls back a zoom at a time to 12 and remembers the
+miss, so it asks once. It inherits the model's limits: a slope is measured
+over two pixels, about 13 m over Rainier from the US survey, 7 m over the
+Alps, and 26 m from the 30 m fill at Rainier's latitude, twice that at each
+zoom out. A cliff band or a gully narrower than that is averaged with the
+ground beside it and reads gentler than it is. Past zoom 16 the shading is
+stretched, not worked out again. It is a planning picture, not a measurement
+of the slope you will stand on.
+
+**A card reads one pixel of the same tiles** (#832): a ranked marker's, a
+clicked label's, a neutral dot's and a clicked spot's. It reads the slope
+worked out as above, and the way the slope faces, from the finest tile
+Mapterhorn has under the point, whatever the map's zoom. So a card can name a
+steeper band than the shading shows under the pointer when you are zoomed out,
+because the shading there is painted from a coarser tile. The elevation on a
+destination's card stays OpenStreetMap's; only a spot clicked on bare map, which
+has none, shows the tile's height. A destination's point is OpenStreetMap's
+too, and a summit's sits where the ground turns over. Measured on 2026-10-31
+at 36 summits around Mount Rainier, reading the point and eight points 15 m
+from it: 27 read at least 15 degrees steeper somewhere within those 15 m than
+at the point, and 32 faced opposite ways (Whitman Crest reads 4° N at its
+point and 17° to 51°, NE or SW, around it). Trailheads swing less, by 18
+degrees at the median of 14, and lakes read flat or nearly so, since the model
+flattens water.
+The map's corner credits Mapterhorn from the moment it loads, since any card
+may read it (record
+[0253](architectural-decision-records/0253-slope-on-every-card-and-the-spot-card.md)).
+
+**Imagery is two sources, one picture.** Over the United States and its
+territories it is USGS's NAIP aerial photography, to zoom 16, in the public
+domain. NAIP is flown in summer with the leaves out, in the 2017 to 2021
+seasons, so it shows no snow you could plan on and nothing that has changed
+since. Everywhere else it is EOX's Sentinel-2 cloudless mosaic,
+one cloud-free picture of the year at 10 m per pixel. Its tiles stop adding
+detail at zoom 14: a zoom 15 tile differs from its zoom 14 parent, stretched,
+by 1.7 to 3.2 points of 255 on average, where a zoom 14 tile differs from its
+own parent by 8.7 to 12.6 (measured 2026-10-27 over a forest, a town and a
+range in Washington, British Columbia and the Alps). So the map asks EOX for
+nothing past 14 and stretches what it has. The 2025 mosaic is under
+CC BY-NC-SA 4.0, as every vintage from 2018 on is, so it is free for
+noncommercial use only. Neither is a recent pass: each is a still of the
+ground as it was, not of the conditions on it.
+
+While the layer is on, the map's corner credits the two by short name, `USGS`
+and `EOX Sentinel-2 cloudless`, each linked to its provider. The full line each
+asks for is in [NOTICES.md](../NOTICES.md), and the data sources list names
+and links both. EOX's own wording asks for its full line in the map; the
+maintainer chose the short names on 2026-10-28 to keep the corner to one line.
+
+The two draw as one layer at the row's opacity, EOX everywhere with USGS over
+it, both over Liberty's land and water fills and under its roads, trails and
+labels and under the relief and the contours (record
+[0250](architectural-decision-records/0250-layers-palette-and-base-map-opacity.md)). Liberty's
+buildings, which it draws over its roads, fade by the same level instead. The
+trails wear a light casing over it, because their brown reads 1.69:1 on a
+forest (record [0243](architectural-decision-records/0243-map-reads-on-a-dark-ground.md)), and from
+50% up the contour lines turn light on a thin dark edge, because their brown
+reads 1.25:1 there. USGS draws from zoom 13 up, and only over a box from American Samoa to
+the Arctic and the Aleutians to the Virgin Islands. Both limits are its cache's, measured 2026-10-27:
+
+- **Below zoom 13 it fills the land outside its coverage with white.** Zooms 9
+  to 12 answer opaque white JPEGs over British Columbia, Ontario and Sonora,
+  which would paint over EOX. Zoom 8 and under are a coarse world mosaic, not
+  NAIP. From zoom 13 the edge of its coverage is a transparent PNG and beyond
+  it a 404, which MapLibre leaves empty, so EOX shows through. Below 13 EOX
+  alone draws everywhere, which costs nothing: a screen pixel there is already
+  coarser than EOX's 10 m. The seam where USGS stops shows as a straight tile
+  edge where the two pictures' colours differ.
+- **Outside the box every tile is a 404**, about 30 a screen over the Alps,
+  each one logged in the browser's console. Its service metadata states the
+  whole world as its extent, so the box is drawn from where tiles were found
+  instead. Guam, the Northern Marianas and the western Aleutians have USGS
+  photos too, but lie past the antimeridian, where one box cannot reach them
+  without the whole Pacific, so they get EOX's.
+
+A tile host that fails, rather than answering 404, is asked again each time
+the browser reports it is back online, as the pod's overlays are. A tile
+failure carries no `Retry-After` to wait out and, like a failed basemap tile,
+says nothing on screen: the roads and labels still draw, and over the United
+States so does the other picture.
 
 ## Wildfires
 
@@ -866,11 +995,11 @@ answer for no answer. **That tolerance ends at 24 hours.** A copy older than a
 day is a picture of a different day, so past it the server answers as it does
 before its first fetch: the overlay draws nothing and the fire check reports
 itself unavailable. The same limit applies to smoke and closures below
-([record 0077](decisions/0077-snapshot-max-stale-24h.md)). The overlay does not
+([record 0077](architectural-decision-records/0077-snapshot-max-stale-24h.md)). The overlay does not
 show the copy's age before that point.
 
-A fire's popup dates the perimeter: **Updated** is when NIFC last
-surveyed that incident, which is a fact about the fire and not about Bluebird Forecast.
+A fire's section on a card dates the perimeter: its small print, **NIFC:** and
+a date, is when NIFC last surveyed that incident, which is a fact about the fire and not about Bluebird Forecast.
 It routinely runs days old on a fire that is burning right now, which is normal
 for a surveyed product and not a sign of stale data on this end. If you are
 calling the API directly, the response also carries `fetched_at`, saying how
@@ -905,6 +1034,50 @@ lag, so read them as where a fire has been mapped, not where it is burning right
 now. For decisions about an active incident, use
 [InciWeb](https://inciweb.wildfire.gov) and the responsible agency.
 
+## Fire activity
+
+The optional fire activity layer draws the satellite fire detections NASA's
+**Fire Information for Resource Management System** (FIRMS) publishes. A
+detection is one pixel that was hot when a satellite passed: 375 m across for
+the VIIRS instruments on NOAA-20 and NOAA-21, 1 km for the MODIS instruments on
+Terra and Aqua. It says something was burning there at that moment. It is not
+a fire's outline (the wildfire perimeters above are that): a large fire shows
+as a cluster of pixels along its active edge, not as its burned area.
+
+**It is about 3 hours behind the pass.** FIRMS publishes a detection about 3
+hours after the satellite saw it, and each satellite passes a given place about
+twice a day. So the newest starburst can be hours old, and a fire that started since
+the last pass is not on the map. A star's section on a card ends with when the
+app last fetched the detections, **NASA FIRMS:** and a time, which says how
+current the copy is and not when the satellite saw it; that is the
+**Detected** row above it.
+
+**False alarms happen.** Anything hot enough looks like fire from orbit: gas
+flares, industrial roofs, volcanoes, and sun glint off water or metal. FIRMS
+grades each detection's confidence, and the layer drops nothing for it, so a
+lone star over a refinery is probably the refinery.
+
+**Cloud and smoke hide fire.** A pass under cloud sees nothing below it, so an
+empty map means no detection, not no fire.
+
+**Colour is age.** A star is red under 12 hours old, orange from 12 to 24 hours
+and yellow from 24 to 48, measured against your own clock, so it changes colour
+while the map is open. Nothing older than 48 hours is drawn. The layer draws
+nothing below zoom 5, where a view can hold a continent's fires.
+
+FIRMS's files carry no CORS header, so the browser cannot read them. Bluebird
+Forecast's server fetches the three global 48-hour files (NOAA-20, NOAA-21 and
+MODIS, 27.7 MB together on 2026-10-27) every hour, FIRMS's own cadence (one pod
+for all of them while the database is up), and answers the map's view from
+that copy. A copy is served through a failed refresh for up to 24 hours, like the
+perimeters; past that the layer is empty until FIRMS answers again. Suomi NPP's
+VIIRS feed ends on 2026-11-02, so the layer reads two VIIRS satellites, not
+three. The geostationary GOES detections are left out: they are 2 km
+pixels every few minutes, a different picture. See
+[API.md](API.md#fire-detections) for the route, and
+[record 0246](architectural-decision-records/0246-fire-activity-from-firms-files.md) for why it is
+built this way.
+
 ## Smoke
 
 The optional smoke overlay comes from NOAA's **Hazard Mapping System**, and the
@@ -916,7 +1089,7 @@ morning Eastern.
 That has three consequences worth reading the layer with.
 
 **It is observation, with a lag.** A plume states the window of imagery it was
-traced from, which the popup shows, and that window can be hours behind now.
+traced from, which a card's smoke section ends with, and that window can be hours behind now.
 There is nothing here to animate, and the map timeline does not claim it.
 
 **It is a column of air, not the ground.** A satellite sees smoke from above, so
@@ -1046,21 +1219,23 @@ text can be wrong both ways, so read the order itself.
 status, a start date and an end date. The status is maintained by hand at the forest offices,
 and Bluebird Forecast shows every order the Forest Service marks active, whatever its
 dates say. So an active order can carry an end date that is already past.
-That is why a closure's card labels its dates **Effective** rather than
-Active: they are the span the order states, not a claim that it stands today.
+That is why a closure's section states its dates bare, **US Forest Service:**
+and the two dates, and never calls the order active:
+they are the span the order states, not a claim that it stands today.
 Measured 2026-09-30: the Eagle Creek area closure on the Mt. Hood National
 Forest ended 2026-07-07 by its own date and was still listed as active. A
 date filter here would hide an order the Forest Service still stands behind,
 which is the worse mistake. Read the order itself for the details.
 
-**A closure's card gives the order's type, in the region's own words.**
-Regions 3 and 4 file a type with every order, and the card shows it as filed,
+**A closure's section gives the order's type, in the region's own words.**
+Regions 3 and 4 file a type with every order, and the section shows it as filed
+in amber under the order's name,
 such as `Safety Closure`. That type is the forest's label and not a finding,
 for the reason under **Regions 3 and 4 publish every standing order** above.
 Region 6's feed is fire closures alone and names the fire (measured 2026-10-16:
 12 of 13 active areas, 891 of 901 lines and 172 of 172 sites), but the order's
 own name already says it, as in `Little Giant Fire Closure`, so a Region 6
-card has no line.
+section has no line.
 
 **The link is often missing.** Each order can carry a link to its page on
 `fs.usda.gov`, and most trail segments do not: 629 of the first 1,000 lines
@@ -1249,8 +1424,9 @@ far above the top band's 787 in, while a point on the Winthrop Glacier holds
 why a glaciated summit paints the top band in September. The depth over
 permanent snow and ice is not a number to plan on.
 
-**A click where the layer paints snow asks NOAA for the analysis there** (#737)
-and shows the depth, the snow water equivalent and the time the analysis is
+**A card opened where the layer paints snow asks NOAA for the analysis there**
+(#737), whether a click on the snow opened it or a marker, a label or a dot
+standing on the snow did (#832), and its snow section shows the depth, the snow water equivalent and the time the analysis is
 valid for, in your own time zone. The card opens at once, named for the band
 the map painted under the click, which the app reads off its own copy of the
 tile: NOAA's renders use exactly the legend's colours, so the pixel names the
@@ -1292,8 +1468,8 @@ describes, because the service resamples to the pixel that box implies: the
 same Rainier summit read 52.13 m asked about with a continent and 74.58 m asked
 about with a hundredth of a degree, and the 68.62 m above is the September
 figure. The card asks with a hundredth of a degree, a pixel well inside one cell
-of the 1 km grid, so it reads the cell under the click. A card opens only where
-the map shows snow, because the painted pixel decides rather than the number:
+of the 1 km grid, so it reads the cell under the click. A card carries a snow
+section only where the map shows snow, because the painted pixel decides rather than the number:
 0.02 m (0.8 in) came back unpainted although the legend starts at 0.39 in. Each
 click is one request of about 0.8 s. The service sometimes answers an error
 inside a 200, so that one shape of failure is asked once more; if NOAA still

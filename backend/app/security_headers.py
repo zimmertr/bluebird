@@ -8,10 +8,12 @@ code that defines it and inside a suite that can read that code:
 when a host appears there that this module has not classified.
 
 Every host below was measured from the source on 2026-09-16, not remembered.
-Overpass, Nominatim, NIFC and NOAA's HMS smoke files are absent on purpose:
-those are fetched by the pod, so the browser only ever talks to this origin for
+Overpass, Nominatim, NIFC, NASA FIRMS's fire detection files and NOAA's HMS
+smoke files are absent on purpose: those are fetched by the pod, so the browser only ever talks to this origin for
 them. NOAA's snow map service is the one NOAA host that IS here, because that
-one renders per tile and the browser asks it directly (#446).
+one renders per tile and the browser asks it directly (#446). The three ground
+layer hosts joined on 2026-10-27 (#799), each a raster tile server the browser
+asks directly.
 """
 
 from __future__ import annotations
@@ -46,6 +48,15 @@ BROWSER_FETCH_ORIGINS = (
     # frontend/src/utils/snowDepth.ts: the NOHRSC snow analysis, rendered per
     # tile by NOAA's own map service (#446).
     "https://mapservices.weather.noaa.gov",
+    # frontend/src/utils/terrainSources.ts: Mapterhorn's elevation tiles,
+    # behind the contours, the shaded relief and the 3D terrain (#799).
+    "https://tiles.mapterhorn.com",
+    # frontend/src/utils/terrainSources.ts: USGS's aerial imagery of the
+    # United States, for the satellite layer (#799).
+    "https://basemap.nationalmap.gov",
+    # frontend/src/utils/terrainSources.ts: EOX's Sentinel-2 cloudless mosaic,
+    # the satellite layer everywhere USGS has no tile (#799).
+    "https://tiles.maps.eox.at",
 )
 
 # The subset of the above that also serves raster images. MapLibre fetches
@@ -56,6 +67,9 @@ BROWSER_IMAGE_ORIGINS = (
     "https://tiles.openfreemap.org",
     "https://mesonet.agron.iastate.edu",
     "https://mapservices.weather.noaa.gov",
+    "https://tiles.mapterhorn.com",
+    "https://basemap.nationalmap.gov",
+    "https://tiles.maps.eox.at",
 )
 
 

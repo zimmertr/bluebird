@@ -41,7 +41,7 @@ import mapStageSource from './components/MapStage.tsx?raw'
 import resultsBarSource from './components/ResultsBar.tsx?raw'
 import chartDataSource from './utils/chart/chartData.ts?raw'
 import colorsSource from './utils/colors.ts?raw'
-import resultPopupSource from './utils/resultPopup.ts?raw'
+import destinationCardSource from './utils/destinationCard.ts?raw'
 import popupRowsSource from './utils/popup/popupRows.ts?raw'
 import resultsCsvSource from './utils/results/resultsCsv.ts?raw'
 import tableColumnsSource from './utils/tableColumns.ts?raw'
@@ -379,7 +379,7 @@ const CONSUMERS: [string, string][] = [
   ['ResultsBar.tsx', resultsBarSource],
   ['chartData.ts', chartDataSource],
   ['colors.ts', colorsSource],
-  ['resultPopup.ts', resultPopupSource],
+  ['destinationCard.ts', destinationCardSource],
   // The popup's derivation, which composes a group's heading from the
   // vocabulary the way the columns compose a header (#370).
   ['popupRows.ts', popupRowsSource],

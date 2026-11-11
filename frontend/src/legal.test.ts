@@ -28,6 +28,7 @@ import forecastStore from './utils/forecastStore.ts?raw'
 import { THEME_KEY, VIEW_KEY, WELCOME_KEY } from './utils/viewPrefs'
 import viewPrefs from './utils/viewPrefs.ts?raw'
 import { CHUNK_RELOAD_KEY } from './staleChunk'
+import { WILDFIRE_ROW_LABEL } from './utils/wildfires'
 import mainEntry from './main.tsx?raw'
 import mapView from './utils/mapView.ts?raw'
 import mapControls from './map/controls.ts?raw'
@@ -174,8 +175,12 @@ describe('the provider credits', () => {
   // The label is matched as the legend renders it, sentence case included: the
   // capitalised spelling this used to look for survived only in a comment
   // beside the row, so the credit itself could have gone without failing.
+  // Since #832 the legend reads the name off the layer's module, which a
+  // card's section opens on too, so the row is found by the constant and the
+  // constant is held to the words.
   it('keep NIFC on the map beside the fire overlay', () => {
-    expect(mapLegend).toMatch(/Active wildfire/)
+    expect(mapLegend).toMatch(/label: WILDFIRE_ROW_LABEL,/)
+    expect(WILDFIRE_ROW_LABEL).toBe('Active wildfires')
     // The href is `NIFC_HREF` in `wildfires.ts` since #454, beside the other
     // three overlays' credits in the module that owns each one's data — so
     // what is checked here is that the map's own section still carries it and
@@ -347,7 +352,7 @@ describe('the privacy copy, held to the code', () => {
   )
 
   it('dates the policy to the change that last corrected it', () => {
-    expect(privacyPage).toMatch(/Last updated 18 October 2026\./)
+    expect(privacyPage).toMatch(/Last updated 27 October 2026\./)
   })
 
   // The page names each key by what it keeps, and says how many there are.
@@ -406,6 +411,9 @@ describe('the privacy copy, held to the code', () => {
       ['openfreemap.org', 'OpenFreeMap'],
       ['mesonet.agron.iastate.edu', 'Iowa Environmental Mesonet'],
       ['mapservices.weather.noaa.gov', 'NOAA NOHRSC'],
+      ['tiles.mapterhorn.com', 'Mapterhorn'],
+      ['basemap.nationalmap.gov', 'USGS The National Map'],
+      ['tiles.maps.eox.at', 'EOX IT Services'],
     ]
     const expected = new Set<string>()
     for (const host of hosts) {

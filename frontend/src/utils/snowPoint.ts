@@ -38,10 +38,10 @@
  *   shape is asked once more before the card says it failed. Once rather than
  *   on a schedule, because the reader's next click is the next attempt.
  */
-import type { HeldTiles, Rgba } from './heldTiles'
-import { inBounds, layerFetch, type PointReading, type PointSection } from './pointReadout'
-import { escapeHtml, pendingValue, row, updatedAt, updatedLine } from './popup/popupChrome'
-import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_SERVICE_URL } from './snowDepth'
+import { heldPixel, type HeldTiles, type Rgba } from './heldTiles'
+import { inBounds, layerFetch, whenReady, type PointAnswer, type PointSection } from './pointReadout'
+import { escapeHtml, pendingValue, row, updatedAt } from './popup/popupChrome'
+import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_ROW_LABEL, SNOW_SERVICE_URL } from './snowDepth'
 import { GLACIERS, type GlacierCheck } from './glacierCell'
 import { clamp, grouped } from './numbers'
 import { hexToRgb } from './colors'
@@ -183,7 +183,7 @@ export function formatInches(inches: number): string {
   return inches < 10 ? `${inches.toFixed(1)} in` : `${grouped(Math.round(inches))} in`
 }
 
-/** What the card names the snow analysis as, on its band. */
+/** What the card names the snow analysis as, in its section's fine print. */
 export const SNOW_SOURCE = 'NOAA snow analysis'
 
 /** The line the body carries when NOAA could not answer (TJ, 2026-10-16). */
@@ -205,16 +205,48 @@ export const GLACIER_TITLE = 'Glacier'
 const NO_VALUE = UNAVAILABLE
 
 /**
+ * Every name a snow section can take, each depth's word and the glacier's,
+ * so a card stands at the widest of them whichever it shows (record 0168's
+ * rule, the radar's): a card that opened on a bar for its name, or on one
+ * word, keeps its width when NOAA's answer names it (TJ, 2026-11-04).
+ */
+export const SNOW_TITLES: readonly string[] = [...SNOW_WORDS.map((w) => w.word), GLACIER_TITLE].map(escapeHtml)
+
+/**
+ * The widest depth a row's bar stands for: four digits grouped, `9,999 in`.
+ * The deepest cell measured is Rainier's summit at 74.58 m, 2,936 in
+ * (2026-10-16), so this holds three times that, and the water equivalent is
+ * always the shallower of the two.
+ */
+export const SNOW_WIDEST_IN = 9_999
+
+/** The width of a depth or a water equivalent's bar, in the mono face's characters. */
+export const SNOW_INCHES_CH = formatInches(SNOW_WIDEST_IN).length
+
+/**
+ * The width of the fine print's bar for when the analysis is valid: the
+ * longest date and time `updatedAt` writes in English, `Nov 30, 2026,
+ * 12:00 AM`, 22 characters, in a ch of the fine print's own face. A longer
+ * locale's date wraps under the card's held width (`map/destinationCards.ts`).
+ */
+export const SNOW_WHEN_CH = 22
+
+/**
  * The snow's section the moment it is clicked: its name, and a bar for each
- * value on its way. A cell not yet known to be on a glacier or off one wears
- * a bar for its name too, rather than a depth word that a glacier would
- * replace a moment later (TJ, 2026-10-16, #748).
+ * value on its way, each as wide as the widest value it can take, so NOAA's
+ * answer lands in the room the bars kept. A cell not yet known to be on a
+ * glacier or off one wears a bar for its name too, rather than a depth word
+ * that a glacier would replace a moment later (TJ, 2026-10-16, #748).
  */
 export function pendingSnowSection(word: string, glacier: boolean | undefined): PointSection {
   return {
     title: glacier === undefined ? pendingValue() : escapeHtml(glacier ? GLACIER_TITLE : word),
+    titles: SNOW_TITLES,
     source: escapeHtml(SNOW_SOURCE),
-    rows: [row('Depth', pendingValue()), row('Snow water equivalent', pendingValue()), updatedLine(pendingValue())],
+    kind: 'snow',
+    layer: escapeHtml(SNOW_ROW_LABEL),
+    rows: [row('Depth', pendingValue(SNOW_INCHES_CH)), row('Snow water equivalent', pendingValue(SNOW_INCHES_CH))],
+    when: pendingValue(SNOW_WHEN_CH),
   }
 }
 
@@ -228,18 +260,28 @@ export function snowSection(word: string, reading: SnowReading, glacier = false)
   const valid = updatedAt(reading.validMs)
   return {
     title: escapeHtml(glacier ? GLACIER_TITLE : word),
+    titles: SNOW_TITLES,
     source: escapeHtml(SNOW_SOURCE),
+    kind: 'snow',
+    layer: escapeHtml(SNOW_ROW_LABEL),
     rows: [
       row('Depth', inches(reading.depthIn)),
       row('Snow water equivalent', inches(reading.sweIn)),
-      updatedLine(valid === null ? NO_VALUE : escapeHtml(valid)),
     ],
+    when: valid === null ? NO_VALUE : escapeHtml(valid),
   }
 }
 
 /** The snow's section when NOAA could not answer: its name kept, and the failure in place of the values. */
 export function failedSnowSection(word: string): PointSection {
-  return { title: escapeHtml(word), source: escapeHtml(SNOW_SOURCE), rows: [escapeHtml(SNOW_FAILED)] }
+  return {
+    kind: 'snow',
+    layer: escapeHtml(SNOW_ROW_LABEL),
+    title: escapeHtml(word),
+    titles: SNOW_TITLES,
+    source: escapeHtml(SNOW_SOURCE),
+    rows: [escapeHtml(SNOW_FAILED)],
+  }
 }
 
 /** Ask NOAA for the analysis at a point, once more after an error inside a 200. */
@@ -255,31 +297,34 @@ export async function fetchSnowAt(lng: number, lat: number, signal: AbortSignal)
 
 /**
  * The snow's reading at a point, or null where the field painted nothing:
- * named at once from the held tile, its values asked of NOAA for `later`,
- * which settles to the failure line if NOAA cannot answer and rejects only
- * when `signal` says the card is gone.
+ * named from the held tile, at once where it is decoded and once it is
+ * otherwise, its values asked of NOAA for `later`, which settles to the
+ * failure line if NOAA cannot answer and rejects only when `signal` says the
+ * reading is no longer wanted.
  */
-export async function readSnowAt(
+export function readSnowAt(
   tiles: HeldTiles,
   { lng, lat, zoom }: { lng: number; lat: number; zoom: number },
   signal: AbortSignal,
   fetchReading: typeof fetchSnowAt = fetchSnowAt,
   glaciers: GlacierCheck = GLACIERS,
-): Promise<PointReading | null> {
+): PointAnswer {
   if (!inBounds(lng, lat, SNOW_BOUNDS)) return null
-  const word = snowWordOfPixel(await tiles.pixel(SNOW_HELD_LAYER, lng, lat, snowTileZoom(zoom)))
-  if (word === null) return null
-  // A cell whose glacier tiles are in hand is named at once; one whose are
-  // not opens with a bar for its name and takes it with its numbers.
-  const known = glaciers.now(lng, lat)
-  const onGlacier = known ?? glaciers.ask(lng, lat, signal).catch(() => false)
-  const later = Promise.all([fetchReading(lng, lat, signal), onGlacier]).then(
-    ([reading, glacier]) => snowSection(word, reading, glacier),
-    async (err: unknown) => {
-      if (signal.aborted) throw err
-      console.warn('The snow reading failed', err)
-      return failedSnowSection((await onGlacier) ? GLACIER_TITLE : word)
-    },
-  )
-  return { section: pendingSnowSection(word, known), later }
+  return whenReady(heldPixel(tiles, SNOW_HELD_LAYER, lng, lat, snowTileZoom(zoom)), (pixel) => {
+    const word = snowWordOfPixel(pixel)
+    if (word === null) return null
+    // A cell whose glacier tiles are in hand is named at once; one whose are
+    // not opens with a bar for its name and takes it with its numbers.
+    const known = glaciers.now(lng, lat)
+    const onGlacier = known ?? glaciers.ask(lng, lat, signal).catch(() => false)
+    const later = Promise.all([fetchReading(lng, lat, signal), onGlacier]).then(
+      ([reading, glacier]) => snowSection(word, reading, glacier),
+      async (err: unknown) => {
+        if (signal.aborted) throw err
+        console.warn('The snow reading failed', err)
+        return failedSnowSection((await onGlacier) ? GLACIER_TITLE : word)
+      },
+    )
+    return { section: pendingSnowSection(word, known), later }
+  })
 }

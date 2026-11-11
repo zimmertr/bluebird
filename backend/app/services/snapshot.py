@@ -143,12 +143,23 @@ class Shared[T]:
     snapshot into plain JSON values and ``decode`` turns them back into an
     equal snapshot; ``format`` is bumped whenever that shape changes, so a pod
     of another release refuses the row instead of misreading it.
+
+    ``fetch_when_absent`` is what a reader does while no row has been written
+    at all. Off, it answers the 503 and leaves the upstream to the pod that
+    holds the refresh, which is right for a source production already writes.
+    On, it fetches for itself and holds the answer as a pod with no database
+    does, until a row appears: the fire detections' (#799), whose row does not
+    exist until the release that adds them runs its first refresh, and which a
+    PR preview, reading production's database with a login that cannot write
+    (record 0183), would otherwise answer with a 503 for as long as it runs. A
+    row older than `MAX_STALE_S` is still the 503 either way.
     """
 
     source: str
     format: int
     encode: Callable[[T], dict[str, Any]]
     decode: Callable[[dict[str, Any]], T]
+    fetch_when_absent: bool = False
 
     def pack(self, snapshot: T) -> bytes:
         """The row's body: the encoded snapshot in a versioned envelope, gzipped."""
@@ -321,8 +332,8 @@ class SnapshotCache[T]:
         if self._shared is not None and db.available():
             try:
                 async with asyncio.timeout(SHARED_READ_DEADLINE_S):
-                    await self._read_shared(self._shared)
-                return
+                    if await self._read_shared(self._shared):
+                        return
             except (db.DatabaseUnavailable, SharedSnapshotUnreadable, TimeoutError) as exc:
                 log.warning(
                     "%s: the shared cache cannot answer (%s); fetching upstream",
@@ -332,8 +343,11 @@ class SnapshotCache[T]:
                 self._row_stamp = None
         await self._fetch_locked()
 
-    async def _read_shared(self, shared: Shared[T]) -> None:
+    async def _read_shared(self, shared: Shared[T]) -> bool:
         """Serve the shared row: the same object while it is unchanged, a new one when not.
+
+        False when there is no row and the source fetches for itself while
+        there is none (`Shared.fetch_when_absent`), which the caller does next.
 
         The row's age comes from the database's own clock (`now() -
         fetched_at`), so it is the age of the fetch rather than of this pod's
@@ -352,6 +366,10 @@ class SnapshotCache[T]:
                 )
             ).fetchone()
         now = self._clock()
+        if row is None and shared.fetch_when_absent:
+            log.info("%s: the shared cache has no snapshot yet; fetching upstream for this pod", self._label)
+            self._row_stamp = None
+            return False
         self._fresh_until = now + SHARED_POLL_S
         if row is None or row[1] > self._max_stale_s:
             # Nothing a reader may serve. This pod does not fetch for itself:
@@ -364,7 +382,7 @@ class SnapshotCache[T]:
                 self._label,
                 "none written yet" if row is None else f"the newest is {row[1] / 3600:.0f} h old",
             )
-            return
+            return True
         stamp, age_s, body = row
         if body is not None:
             # Decoded off the event loop: the national perimeters are about
@@ -375,6 +393,7 @@ class SnapshotCache[T]:
             log.info("%s snapshot read from the shared cache: %s", self._label, self._describe(snapshot))
         self._fetched_at = now - age_s
         self._last_error = None
+        return True
 
     async def _shared_missing(self, shared: Shared[T]) -> SharedSnapshotMissing:
         """Why there is nothing to serve, in the refreshing pod's words when it has any."""

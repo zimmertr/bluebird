@@ -18,9 +18,8 @@
 // order says, and nothing here decides whether a closure is still in force.
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, overlayFeatures } from './apiFetch'
-import { bodyLines, dateOfMs, escapeHtml, factsLine, fineprint, metaBand, popupCard, warningLine } from './popup/popupChrome'
-import { type BBox, type FireDetail, formatAcres } from './wildfires'
-import { isFiniteNumber } from './numbers'
+import { dateOfMs } from './popup/popupChrome'
+import type { BBox, FireDetail } from './wildfires'
 import { utcDayKey } from './calendar/calendarDates'
 import { hexToRgb } from './colors'
 
@@ -150,8 +149,14 @@ export function closureName(props: ClosureProps): string {
   return text(props.ClosureOrderName) || text(props.ClosureOrderNumber) || 'Closure'
 }
 
-/** Epoch ms as a medium date, or null. Timezone-tolerant like `updatedAt`, so it never throws. */
-function closureDate(ms: number | null | undefined): string | null {
+/**
+ * Epoch ms as a medium date, or null, for the span an order states. Both ends
+ * of the span or neither go on the card: one date alone would read as a span
+ * the order never stated, an open end as "closed forever" or a missing start
+ * as "closed since always". Timezone-tolerant like `updatedAt`, so it never
+ * throws.
+ */
+export function closureDate(ms: number | null | undefined): string | null {
   const d = dateOfMs(ms)
   if (d === null) return null
   try {
@@ -162,31 +167,11 @@ function closureDate(ms: number | null | undefined): string | null {
 }
 
 /**
- * `Effective: {start} to {end}`, or null to omit the line.
- *
- * `Effective` rather than `Active` because the line states the order's own
- * span, not a claim about today: Region 6 keeps some orders `Active` past
- * their end date, and `Active: … to Oct 1` on Oct 16 would contradict itself
- * (TJ, 2026-10-16).
- *
- * Both or neither: one date alone would read as a span the order never stated,
- * an open end as "closed forever" or a missing start as "closed since always".
- */
-export function formatClosureDates(
-  start: number | null | undefined,
-  end: number | null | undefined,
-): string | null {
-  const from = closureDate(start)
-  const to = closureDate(end)
-  return from && to ? `Effective: ${from} to ${to}` : null
-}
-
-/**
  * The order's own page, when it has one worth linking. Only an http(s) URL
  * passes: the value is the service's free text, and `escapeHtml` keeps it
  * inside the attribute without stopping a `javascript:` link from running.
- * Exported for the results table's Closure column and the marker popup's
- * closure line (closureProximity.ts), which link the same order.
+ * Exported for the results table's Closure column and a card's closure
+ * section (hazardSections.ts), which link the same order.
  */
 export function closureUrl(props: ClosureProps): string | null {
   const url = text(props.ClosureURLlink)
@@ -207,42 +192,21 @@ export function closureReason(props: ClosureProps): string | null {
   return text(props.ClosureType) || null
 }
 
-/** What a screen reader hears for the title's link: the text link it replaced (#738). */
-const CLOSURE_LINK_LABEL = 'View closure order'
+/** What a screen reader hears for an order's link out: the text link it replaced (#738). */
+export const CLOSURE_LINK_LABEL = 'View closure order'
 
-/** What a closure's facts line calls it: the Layers menu's row, singular. */
-const CLOSURE_KIND: Record<ClosureKind, string> = {
-  area: 'Area closure',
-  trail: 'Trail closure',
+/** The Layers menu's row for each kind, which the legend names too. */
+export const CLOSURE_ROW_LABELS: Record<ClosureKind, string> = {
+  area: 'Area closures',
+  trail: 'Trail closures',
 }
 
 /**
- * Popup markup for a clicked or tapped closure, on the card every popup wears
- * (`popupCard`, #738).
- *
- * The band says what it is: the order's name, linked to the order's own page
- * through the title's glyph when it has one, and the kind under it with the
- * figure that identifies it, an area's acres or a trail's route. The notice
- * is the order's type where the region files one (`closureReason`), the one
- * thing the card's name does not already say. The body is whose forest, then
- * for how long in the fine print a fire's `Updated:` and a plume's
- * `Observed:` wear, so the three cards end on the same line. Every line but the name is omitted when the
- * service left it empty, rather than filled with a word the order does not
- * say.
+ * What a card's section opens on for one order of each kind, `Area closure:
+ * Probe Fire Closure`: the row's word in the singular, since a section names
+ * the one order at the point (TJ, 2026-11-03).
  */
-export function closurePopupHtml(props: ClosureProps, kind: ClosureKind): string {
-  const forest = text(props.ForestUnit)
-  const route = [text(props.RouteName), text(props.RouteNum)].filter(Boolean).join(' ')
-  const acres = isFiniteNumber(props.GIS_Acres) ? formatAcres(props.GIS_Acres) : ''
-  const figure = kind === 'area' ? acres : route
-  const dates = formatClosureDates(props.ClosureStartDate, props.ClosureEndDate)
-  const reason = closureReason(props)
-  const order = closureUrl(props)
-  return popupCard({
-    title: escapeHtml(closureName(props)),
-    link: order ? { href: order, label: CLOSURE_LINK_LABEL } : null,
-    meta: metaBand([factsLine([CLOSURE_KIND[kind], figure ? escapeHtml(figure) : null])]),
-    warnings: reason ? [warningLine(escapeHtml(reason), null)] : [],
-    body: bodyLines([forest ? escapeHtml(forest) : null, dates ? fineprint(escapeHtml(dates)) : null]),
-  })
+export const CLOSURE_SECTION_LABELS: Record<ClosureKind, string> = {
+  area: 'Area closure',
+  trail: 'Trail closure',
 }

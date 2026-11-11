@@ -52,6 +52,18 @@ afterEach(() => {
 })
 
 describe('PhoneFoot', () => {
+  // A card a tap opens keeps clear of the button and its badge, as it does
+  // of the rows and the player (TJ, 2026-11-04): the fit finds every
+  // `data-map-overlay` at the click. The slot carries the mark, so the badge
+  // at its corner is inside the box the card avoids.
+  it('is a surface a card keeps clear of, the badge with it', () => {
+    render(foot({ messages: panelMessages({ messages: MESSAGES, count: 2 }) }))
+    const slot = button().parentElement!
+    expect(slot.hasAttribute('data-map-overlay')).toBe(true)
+    expect(slot.contains(badge())).toBe(true)
+    expect(document.querySelectorAll('[data-map-overlay]')).toHaveLength(1)
+  })
+
   it('is lit while the gate is open, and runs the panel\'s command', () => {
     const onAnalyze = vi.fn()
     render(foot({ onAnalyze }))
@@ -63,6 +75,20 @@ describe('PhoneFoot', () => {
     expect(button().dataset.tour).toBe('analyze')
     fireEvent.click(button())
     expect(onAnalyze).toHaveBeenCalledOnce()
+  })
+
+  // A full-screen results sheet stands over the button (#837): it stays
+  // where it is and is out of reach until the sheet comes down. A drag on
+  // the sheet moves it by `--sheet-shift`, as a transform.
+  it('goes out of reach under a full-screen sheet, and rides a drag by transform', () => {
+    const { rerender } = render(foot())
+    const slot = () => button().parentElement!
+    expect(slot().hasAttribute('inert')).toBe(false)
+    expect(slot().style.transform).toBe('translateY(var(--sheet-shift, 0px))')
+    rerender(foot({ covered: true }))
+    expect(slot().hasAttribute('inert')).toBe(true)
+    rerender(foot({ covered: false }))
+    expect(slot().hasAttribute('inert')).toBe(false)
   })
 
   it('disables while busy, and reads the word it is handed', () => {
@@ -167,6 +193,21 @@ describe('PhoneFoot', () => {
     rerender(foot({ messages: panelMessages({ messages: [...MESSAGES], failureSeq: 1 }) }))
     expect(screen.queryByRole('dialog')).toBeNull()
     rerender(foot({ messages: panelMessages({ messages: MESSAGES, failureSeq: 2 }) }))
+    expect(screen.getByRole('dialog', { name: 'Messages' })).toBeTruthy()
+  })
+
+  // #834: a check or the basemap failing opens the sheet as a failure does,
+  // and the sheet takes the keyboard, being modal (the maintainer, 2026-10-30).
+  it('opens the sheet for a check or basemap failure, once each', () => {
+    const { rerender } = render(foot({ messages: panelMessages({ messages: MESSAGES }) }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    rerender(foot({ messages: panelMessages({ messages: MESSAGES, openingSeq: 1 }) }))
+    const sheet = screen.getByRole('dialog', { name: 'Messages' })
+    expect(sheet.contains(document.activeElement)).toBe(true)
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }))
+    rerender(foot({ messages: panelMessages({ messages: [...MESSAGES], openingSeq: 1 }) }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    rerender(foot({ messages: panelMessages({ messages: MESSAGES, openingSeq: 2 }) }))
     expect(screen.getByRole('dialog', { name: 'Messages' })).toBeTruthy()
   })
 

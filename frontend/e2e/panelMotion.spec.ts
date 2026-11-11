@@ -143,7 +143,10 @@ test('under a reduced-motion setting the panel moves at once', async ({ page }) 
 const shutChart = (page: Page) => page.locator('[data-tour="results"] [inert] .recharts-wrapper')
 const shutTable = (page: Page) => page.locator('[data-tour="results"] [inert] [data-results-table]')
 
-test('a press on Both opens the chart pane at the panel speed, holding the map to the results', async ({ page }) => {
+// A press keeps the results' height (#850; the maintainer, 2026-11-04: "Yes,
+// area keeps its height"), so the panes move inside it and the map holds
+// still in every frame, on the results' top.
+test('a press on Both opens the chart pane at the panel speed, holding the map still', async ({ page }) => {
   // Read once the press to Table has finished moving: the chart's pane is
   // inert from the press, so its shut body says nothing about where the map
   // stands.
@@ -152,18 +155,18 @@ test('a press on Both opens the chart pane at the panel speed, holding the map t
   const mapBottom = () => page.locator('main > div').first().evaluate((el) => el.getBoundingClientRect().bottom)
   const before = await mapBottom()
 
-  const opening = await framesAfter(page, 'button[aria-label="Show both chart and table"]', 900)
-  // The map's foot stands on the results' top in every frame, and the map
-  // shrank over several frames rather than in one.
-  for (const f of opening) expect(Math.abs(f.mapBottom - f.resultsTop)).toBeLessThan(1)
-  const heights = [...new Set(opening.map((f) => Math.round(f.mapBottom)))]
-  expect(heights.length).toBeGreaterThan(1)
+  const opening = await paneFramesAfter(page, 'Show both chart and table', 900)
+  for (const f of opening) {
+    expect(Math.abs(f.mapBottom - f.resultsTop)).toBeLessThan(1)
+    expect(Math.abs(f.mapBottom - before)).toBeLessThan(1)
+  }
+  // The chart's pane opened over more than one frame.
+  expect(partOpen(opening, 'chartFrame')).toBeGreaterThan(0)
 
-  const closing = await framesAfter(page, 'button[aria-label="Show table only"]', 900)
-  for (const f of closing) expect(Math.abs(f.mapBottom - f.resultsTop)).toBeLessThan(1)
-  expect([...new Set(closing.map((f) => Math.round(f.mapBottom)))].length).toBeGreaterThan(1)
-  // Back where it started, with the chart kept, inert, behind its shut pane.
-  expect(closing[closing.length - 1].mapBottom).toBeCloseTo(before, 0)
+  const closing = await paneFramesAfter(page, 'Show table only', 900)
+  for (const f of closing) expect(Math.abs(f.mapBottom - before)).toBeLessThan(1)
+  expect(partOpen(closing, 'chartFrame')).toBeGreaterThan(0)
+  // The chart kept, inert, behind its shut pane.
   await expect(shutChart(page)).toHaveCount(1)
 })
 
@@ -293,43 +296,50 @@ test('an opening pane\'s chart is mounted and drawn at its end size in every mov
   for (const f of opening) expect(f.table).toBe(true)
 })
 
-// The chart stands at one size in every mode (#795). Its legend is a pane of
-// its own under it, which opens as the table's frame shuts and shuts as it
-// opens, so no press draws the chart again, in any frame or after: TJ found
-// the legend popping in and out once each move had ended "disjointed and
-// chaotic" (2026-10-22). A closing chart keeps the size it was drawn at.
-test('the chart keeps one size through every press, and its legend moves with the table', async ({ page }) => {
+// The results keep one height through every press (#850; the maintainer,
+// 2026-11-04: "Can we also make sure that when we switch to Chart-only the
+// vertical size of the results area doesn't change?"), which reverses the
+// chart's one size in every mode (#795): the chart grows into the table's
+// room with its legend under it, and Both splits the room back. The legend
+// is a pane of its own, which opens as the table's frame shuts and shuts as
+// it opens.
+test('the results keep one height through every press, and the chart grows into the table\'s room', async ({ page }) => {
   await analyzedAt(page, 'Show both chart and table')
+  const top = await page.locator('[data-tour="results"]').evaluate((el) => el.getBoundingClientRect().top)
   const size = await page
     .locator('[data-tour="results"] .recharts-surface')
     .evaluate((el) => `${el.getAttribute('width')}x${el.getAttribute('height')}`)
-  const drawn = (frames: { chartSize: string | null }[]) => frames.flatMap((f) => (f.chartSize ? [f.chartSize] : []))
+  const heightOf = (drawn: string | null) => Number(drawn!.split('x')[1])
   const end = <T,>(frames: T[]) => frames[frames.length - 1]
+  const held = (frames: { resultsTop: number }[]) => {
+    for (const f of frames) expect(Math.abs(f.resultsTop - top)).toBeLessThan(1)
+  }
 
   const toChart = await paneFramesAfter(page, 'Show chart only', 900)
-  expect(distinct([size, ...drawn(toChart)])).toBe(1)
-  for (const f of toChart) expect(Math.abs(f.mapBottom - f.resultsTop)).toBeLessThan(1)
+  held(toChart)
   expect(partOpen(toChart, 'legendFrame')).toBeGreaterThan(0)
   expect(partOpen(toChart, 'tableFrame')).toBeGreaterThan(0)
   expect(end(toChart).legendFrame).toBeGreaterThan(0)
   expect(end(toChart).tableFrame).toBe(0)
+  const chartSize = end(toChart).chartSize
+  expect(heightOf(chartSize)).toBeGreaterThan(heightOf(size))
 
   const toBoth = await paneFramesAfter(page, 'Show both chart and table', 900)
-  expect(distinct([size, ...drawn(toBoth)])).toBe(1)
+  held(toBoth)
   expect(partOpen(toBoth, 'legendFrame')).toBeGreaterThan(0)
   expect(end(toBoth).legendFrame).toBe(0)
   expect(end(toBoth).tableFrame).toBeGreaterThan(0)
+  // Split back the way Both stood.
+  expect(end(toBoth).chartSize).toBe(size)
 
-  // Table to Chart opens the chart at the size it stood at, and the legend
-  // under it as the table's frame shuts.
-  await paneFramesAfter(page, 'Show table only', 900)
-  const tableToChart = await paneFramesAfter(page, 'Show chart only', 900)
-  expect(distinct([size, ...drawn(tableToChart)])).toBe(1)
-  expect(partOpen(tableToChart, 'legendFrame')).toBeGreaterThan(0)
-
+  // Table to Chart hands the chart the same room the table had.
   const toTable = await paneFramesAfter(page, 'Show table only', 900)
-  expect(distinct([size, ...drawn(toTable)])).toBe(1)
+  held(toTable)
   expect(partOpen(toTable, 'chartFrame')).toBeGreaterThan(0)
   expect(blankFrames(toTable)).toBe(0)
   await expect(shutChart(page)).toHaveCount(1)
+  const tableToChart = await paneFramesAfter(page, 'Show chart only', 900)
+  held(tableToChart)
+  expect(partOpen(tableToChart, 'legendFrame')).toBeGreaterThan(0)
+  expect(end(tableToChart).chartSize).toBe(chartSize)
 })

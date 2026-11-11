@@ -1,6 +1,7 @@
 import { NOUN } from '../metrics'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
 import { BASEMAP_FAILED_NOTE } from './basemapFailure'
+import { PRESET_LIST_FAILED_NOTE } from './presetLists'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import type { CommitReason } from './present'
 import type { AnalyzeBlocker } from './analyzeGate'
@@ -40,6 +41,21 @@ const COMMIT_CUE: Record<CommitReason, string> = {
 export const AQI_NOTE_KEY = 'aqi:none'
 // The partial line's (#803, D5), its own condition beside the one above.
 export const AQI_PARTIAL_KEY = 'aqi:partial'
+
+/**
+ * The lines whose arrival opens the list (#834; the maintainer, 2026-10-30):
+ * a check or the basemap failing, which no change of the reader's caused and
+ * which they would not think to look for, the way a failed run is opened for
+ * (record 0233). Every other line draws the eye to the badge and no further:
+ * a blocker or a cue answers a change the reader just made, and opening the
+ * list for one would put a card over the control under their hand.
+ */
+export const LIST_OPENING_KEYS: ReadonlySet<string> = new Set([
+  'fire:unavailable',
+  'closure:unavailable',
+  'map:style',
+  'list:failed',
+])
 
 // One sentence for the AQI warning over a report and for the blocker that
 // stops a ranking on air quality the window has none of (#803), so the two
@@ -170,6 +186,8 @@ export interface PanelMessageInputs {
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
+  /** The preset list last picked beside Coordinate search did not arrive (#838). */
+  presetListFailed: boolean
   // What the link carried and could not restore (`useLinkDrops`, #803). Absent
   // reads as nothing lost.
   linkLost?: readonly LinkDrop[]
@@ -366,6 +384,13 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     // on its condition like every derived line, and gone once the style loads.
     ...(p.basemapFailed
       ? [{ key: 'map:style', text: BASEMAP_FAILED_NOTE, severity: 'error' as const }]
+      : []),
+    // A list picked beside Coordinate search that did not arrive (#838; record
+    // 0263): the reader asked for rows and the box stayed as it was, so the
+    // line opens the list the way the map's does. Gone when the next pick
+    // lands.
+    ...(p.presetListFailed
+      ? [{ key: 'list:failed', text: PRESET_LIST_FAILED_NOTE, severity: 'error' as const }]
       : []),
     ...(aqiNoteActive
       ? [

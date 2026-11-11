@@ -13,7 +13,7 @@ const ADAMS = resultRow({ name: 'Mount Adams', latitude: 46.2, longitude: -121.4
 const HOOD = resultRow({ name: 'Mount Hood', latitude: 45.37, longitude: -121.7 })
 
 function setup(results: DestinationResult[]) {
-  return renderHook((rows: DestinationResult[]) => useChartSelection(rows, 'aqi_max'), {
+  return renderHook((rows: DestinationResult[]) => useChartSelection(rows), {
     initialProps: results,
   })
 }

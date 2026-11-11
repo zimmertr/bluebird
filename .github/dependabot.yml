@@ -1,7 +1,7 @@
 version: 2
 updates:
   # Every npm and pip entry waits seven days after a release before proposing
-  # it (#633). A patch bump auto-merges and a merge to main deploys, so without
+  # it (#633). A patch or minor bump auto-merges and a merge to main deploys, so without
   # the wait a release published the day before the weekly run is live the same
   # morning; the npm worms of 2025 were pulled within hours to days. Security
   # updates do not wait: GitHub documents cooldown as version updates only.
@@ -90,11 +90,16 @@ updates:
   # Every action is pinned to a commit SHA with its version in a comment
   # (#632). Dependabot reads that comment, proposes the next release, and
   # rewrites the SHA and the comment together, so a pin moves only by PR.
+  # Daily, with a three-day wait, so a yggdrasil module release reaches this
+  # repo three days after it ships rather than up to ten (yggdrasil's record
+  # 0023, which asks the same of every repo that calls its modules).
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: daily
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
 
   # Base image bumps (python/node in the Dockerfile). Both are pinned as
   # tag@digest, so a rebuild of the image under the same tag arrives here as

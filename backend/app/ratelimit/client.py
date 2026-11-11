@@ -77,6 +77,12 @@ RATE_LIMIT_SMOKE_BURST = env_int("RATE_LIMIT_SMOKE_BURST", 30)
 # times (issue #550).
 RATE_LIMIT_CLOSURES_PER_MINUTE = env_int("RATE_LIMIT_CLOSURES_PER_MINUTE", 90)
 RATE_LIMIT_CLOSURES_BURST = env_int("RATE_LIMIT_CLOSURES_BURST", 30)
+# Fire detections are the same kind of request again, a filter over a snapshot
+# this pod already holds, refetched on every pan. Their own bucket so a reader
+# with the perimeters and the detections both on does not spend one budget
+# twice (#799).
+RATE_LIMIT_FIRE_ACTIVITY_PER_MINUTE = env_int("RATE_LIMIT_FIRE_ACTIVITY_PER_MINUTE", 90)
+RATE_LIMIT_FIRE_ACTIVITY_BURST = env_int("RATE_LIMIT_FIRE_ACTIVITY_BURST", 30)
 # The trailhead and crag markers refetch on every pan from zoom 11 up, so they
 # are as loose as the overlays. Their own bucket because they are always on: a
 # reader panning with every overlay lit must not spend the fire layer's budget
@@ -415,6 +421,9 @@ CLOSURES_LIMITER = RateLimiter(
 LANDMARKS_LIMITER = RateLimiter(
     RATE_LIMIT_LANDMARKS_PER_MINUTE, RATE_LIMIT_LANDMARKS_BURST, name="landmarks"
 )
+FIRE_ACTIVITY_LIMITER = RateLimiter(
+    RATE_LIMIT_FIRE_ACTIVITY_PER_MINUTE, RATE_LIMIT_FIRE_ACTIVITY_BURST, name="fire_activity"
+)
 DESTINATIONS_IN_FLIGHT = InFlightLimiter(
     DISCOVERY_IN_FLIGHT_PER_CLIENT, name="destinations_in_flight"
 )
@@ -515,3 +524,8 @@ async def closures_rate_limit(request: Request) -> None:
 async def landmarks_rate_limit(request: Request) -> None:
     """Route dependency: the map markers' bucket, independent of the overlays."""
     await _throttle(LANDMARKS_LIMITER, request)
+
+
+async def fire_activity_rate_limit(request: Request) -> None:
+    """Route dependency: the fire detection bucket, independent of the perimeters."""
+    await _throttle(FIRE_ACTIVITY_LIMITER, request)

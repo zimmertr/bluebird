@@ -113,13 +113,13 @@ Six things that shape follows from:
   `fill/ruff.toml` extends those rules for the Python the fill image runs,
   Debian's 3.13, so a fix ruff suggests never needs syntax that image cannot
   parse.
-- **Every `npm ci` passes `--ignore-scripts`**, here, in CI and in the image
-  build (#633). No package in the four lockfiles needs its install script on
-  Linux: the app's has two, `fsevents` (macOS only) and `@scarf/scarf`, which
-  only reports the install to scarf.sh, and esbuild and the other native tools
-  ship their binaries as optional dependencies. `test_dependency_lock.py` fails
-  an `npm ci` without the flag in the `Dockerfile`, the `Makefile`, a workflow
-  or `frontend/package.json`.
+- **No `npm ci` runs install scripts**, here, in CI and in the image build
+  (#633). No package in the lockfiles needs its install script on Linux: the
+  app's has two, `fsevents` (macOS only) and `@scarf/scarf`, which only reports
+  the install to scarf.sh, and esbuild and the other native tools ship their
+  binaries as optional dependencies. Every package folder under `frontend/`
+  carries an `.npmrc` with `ignore-scripts=true`, which npm applies to any
+  install there, and the existing calls pass `--ignore-scripts` too.
 
 ### The shared cache's tests
 
@@ -198,10 +198,11 @@ keeps every pin the locks already hold; to move one indirect package, add
 `--upgrade-package NAME` to both `pip-compile` commands in the target. The
 version of pip-tools is the one Dependabot runs, because Dependabot rewrites
 the same two files from their `.in` files and its header must read the same
-way. `backend/tests/test_dependency_lock.py` fails when a pin in a `.in` file
-is missing from its lock or locked at another version, when the dev lock
-differs from the runtime lock on a package they share, and when a locked
-package has no hash.
+way. `Python Lint` runs the same target and fails on any diff, so a pin in a
+`.in` file that its lock doesn't hold fails the PR. pip-compile holds the dev
+lock to the runtime one through `requirements-dev.in`'s `-c requirements.txt`,
+and the image's `pip install --require-hashes` refuses a package without a
+hash.
 
 ### Where a source check lives
 
@@ -254,7 +255,7 @@ The per-file checks, by module:
 | `checks/styles.js` | `style-map-chrome`, `style-map-wrapper`, `style-map-legend-chip`, `style-map-rows`, `style-map-layers-chip`, `style-results-bar`, `style-app-micro`, `style-legend-ramp`, `style-layer-rows`, `style-search-box`, `style-chart-metric`, `style-axis-item`, `style-rank-cell` | The map's rows and chips, the results bar, the legend strip, the Layers rows, the search box, the chart select and the rank cell wear their roles |
 | `checks/styles.js` | `value-hex`, `value-inline-style`, `map-paint-named` | A colour, a popup's type size and an app layer's paint number are written only in their owners: `colors.ts`, `chartColors.ts`, `popupChrome.ts`, `map/mapStyles.ts` and each overlay's pure module |
 | `checks/styles.js` | `style-menu-unfurls`, `style-popup-card`, `style-no-os-theme` | Every menu unfurls out of its control as one card; every popup is `popupCard`'s card; nothing paints by the operating system's theme under the app's own switch |
-| `checks/styles.js` | `style-metrics-table`, `style-panel-messages`, `style-message-list`, `style-notice-once`, `style-live-region`, `style-analyze-badge`, `style-panel-no-status`, `style-draw-counter`, `style-draw-readout`, `style-model-picker-quiet`, `style-window-messages`, `style-popup-glyph` | The Metrics grid's boxes and buttons; every message is in the one list the Analyze button's badge opens, with one live region beside the badge and a blocked button greyed rather than disabled; the draw counter is the one bare `STATUS` outside it, its point count in `DrawReadout`; the popup draws no glyph |
+| `checks/styles.js` | `style-metrics-table`, `style-panel-messages`, `style-message-list`, `style-notice-once`, `style-live-region`, `style-analyze-badge`, `style-panel-no-status`, `style-draw-counter`, `style-draw-readout`, `style-coord-gutter`, `style-model-picker-quiet`, `style-window-messages`, `style-popup-glyph` | The Metrics grid's boxes and buttons; every message is in the one list the Analyze button's badge opens, with one live region beside the badge and a blocked button greyed rather than disabled; the draw counter is the one bare `STATUS` outside it, its point count in `DrawReadout`, beside the coordinates box's flag, which rides `COORD_BOX.flagged`; the popup draws no glyph |
 
 The text tests that stay, and why:
 
@@ -383,6 +384,14 @@ to stop, how many places it stood in between, the longest wait between two
 frames, and the main thread's work by kind from Chrome's trace, where `Paint`
 is the number a layer saves. `CPU_SLOWDOWN` works here too, and shows what a
 loaded machine sees.
+
+And it drags a chart panel by its title (`frontend/e2e/perf/panelDrag.spec.ts`,
+#846): four panels in 1 over 3 over 200 lines and 15 days, dark, the last
+panel's title to over the second in 30 moves, three times. It prints a
+`panel drag` line with the main thread per move, the React commits, box
+measures and layout passes during the moves (an `idle` run of the same frames
+with nothing moving gives the page's own rate), and the release's time to the
+new order on screen with its longest task.
 
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model

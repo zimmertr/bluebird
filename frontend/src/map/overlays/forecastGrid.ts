@@ -5,14 +5,16 @@
  *
  * Everything that decides what the field looks like is `utils/forecastGrid/forecastGrid.ts`,
  * which is pure and tested; this file is the part that needs a map and a
- * canvas. The layers are added once, when the map loads, lowest of every
- * overlay, because the field is the ground the rain, smoke, fire and markers
- * are all read against.
+ * canvas. The layers are added once, when the map loads, the field lowest of
+ * every overlay, because it is the ground the rain, smoke, fire and markers
+ * are all read against, and its arrows over the fires and closures, as every
+ * point over the areas it falls in (`layerOrder.ts`).
  */
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import type { SortBy } from '../../types'
 import { emptyFC, setSource } from '../basemap'
+import { addLayerAt } from '../layerOrder'
 import { WIND_ARROW_IMAGE, makeArrowImage } from '../resultsLayer'
 import { windArrowsShowing } from '../../utils/resultFeatures'
 import {
@@ -133,7 +135,7 @@ export function mountForecastGrid(map: maplibregl.Map): ForecastGridOverlay {
   // `linear` blends between them. So the whole style switch is a paint
   // property, with no second layer to keep in step and no stacking order to
   // re-establish on a change.
-  map.addLayer({
+  addLayerAt(map, {
     id: 'forecast-grid-fill',
     type: 'raster',
     source: 'forecast-grid',
@@ -156,7 +158,7 @@ export function mountForecastGrid(map: maplibregl.Map): ForecastGridOverlay {
     type: 'geojson',
     data: emptyFC as FeatureCollection,
   })
-  map.addLayer({
+  addLayerAt(map, {
     id: 'forecast-grid-wind',
     type: 'symbol',
     source: 'forecast-grid-arrows',

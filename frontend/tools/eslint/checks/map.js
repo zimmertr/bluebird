@@ -264,6 +264,8 @@ export const MAP = [
     'updateResults',
   ]),
   declaresOnly('map-poi-declares', 'src/map/poiPopup.ts', ['mountPoiPopups']),
+  declaresOnly('map-cards-declares', 'src/map/destinationCards.ts', ['mountDestinationCards']),
+  declaresOnly('map-grid-heads-declares', 'src/map/gridHeads.ts', ['createGridHeads']),
   declaresOnly('map-popups-declares', 'src/map/popups.ts', ['createPopupBoard', 'isPinning', 'popupOptions']),
   {
     // What map/basemap.ts must say about the clickable peaks and lakes. The

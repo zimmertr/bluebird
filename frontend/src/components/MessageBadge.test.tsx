@@ -34,6 +34,20 @@ describe('MessageBadge', () => {
     expect(one.getAttribute('aria-expanded')).toBe('true')
   })
 
+  // #834: a message arriving moves the badge once. The two spellings take
+  // turns, because a new animation name is what plays it again on the same
+  // element, and the element (and a keyboard on it) stays.
+  it('moves once per arrival, alternating the two spellings on one element', () => {
+    const { rerender } = render(<MessageBadge count={1} worst="warn" open={false} onPress={() => {}} />)
+    const badge = screen.getByRole('button', { name: '1 message' })
+    expect(badge.className).toBe(`${MESSAGE_BADGE.base} ${MESSAGE_BADGE.warn}`)
+    rerender(<MessageBadge count={2} worst="warn" open={false} onPress={() => {}} arrivalSeq={1} />)
+    expect(badge.className).toBe(`${MESSAGE_BADGE.base} ${MESSAGE_BADGE.warn} ${MESSAGE_BADGE.arrivalOdd}`)
+    rerender(<MessageBadge count={3} worst="error" open={false} onPress={() => {}} arrivalSeq={2} />)
+    expect(screen.getByRole('button', { name: '3 messages' })).toBe(badge)
+    expect(badge.className).toBe(`${MESSAGE_BADGE.base} ${MESSAGE_BADGE.error} ${MESSAGE_BADGE.arrivalEven}`)
+  })
+
   it('names one message in the singular and the rest in the plural', () => {
     expect(messagesLabel(1)).toBe('1 message')
     expect(messagesLabel(2)).toBe('2 messages')

@@ -30,6 +30,8 @@ import type {
   DestinationsResponse,
   DiscoveredDestination,
   DiscoveryType,
+  FireActivityResponse,
+  FireDetectionProps,
   HourlySeries,
   RefusalFields,
   SortBy,
@@ -302,6 +304,22 @@ export type LandmarkEnvelopeIsReadable = Assert<
   >
 >
 
+// The satellite fire detections (#799). The schema types every property, so
+// the hand-written props are held to it in the direction the data travels,
+// and so is the envelope `fetchFireActivity` reads before it draws.
+export type FireDetectionPropsAreReadable = Assert<
+  Extends<Schema['FireDetectionProperties'], FireDetectionProps>
+>
+export type FireActivityEnvelopeIsReadable = Assert<
+  Extends<
+    Pick<Schema['FireActivityCollection'], 'type' | 'fetched_at'>,
+    Required<Pick<FireActivityResponse, 'type' | 'fetched_at'>>
+  >
+>
+export type FireDetectionGeometryIsAPoint = Assert<
+  Extends<Schema['FireDetection']['geometry']['type'], FireActivityResponse['features'][number]['geometry']['type']>
+>
+
 // ---------------------------------------------------------------------------
 // Every schema is accounted for. A model added to the backend fails this until
 // it is either asserted above or listed as unmirrored with a reason, which is
@@ -327,6 +345,9 @@ type Mirrored =
   | 'DestinationsResponse'
   | 'DiscoveredDestination'
   | 'ErrorResponse'
+  | 'FireActivityCollection'
+  | 'FireDetection'
+  | 'FireDetectionProperties'
   | 'ForecastModel'
   | 'ForecastModelInfo'
   | 'GeoPolygon'
@@ -349,6 +370,9 @@ type Unmirrored =
   // Published so an API caller can pace itself. The browser reads the
   // response, not the ceiling.
   | 'RateLimits'
+  // A GeoJSON Point, which the generated `geojson` types already spell; the
+  // detection's geometry type is asserted above.
+  | 'FirePoint'
   // Both overlays are drawn straight from GeoJSON, and the schema declares the
   // feature bag free-form, so there is nothing here to hold a property name
   // against. The exceptions are the fire and closure coverage members,

@@ -4,18 +4,15 @@ import {
   CLOSURE_EDGE,
   USFS_HREF,
   closureAreaSwatch,
+  closureDate,
   closureName,
-  closurePopupHtml,
   closureQueryUrl,
   closureReason,
   closureTrailSwatch,
   fetchClosures,
-  formatClosureDates,
 } from './closures'
-import { fineprint } from './popup/popupChrome'
 import { isRateLimited } from './wildfires'
 import { closureFeature, fakeResponse } from '../testSupport/fixtures'
-import { markupText } from '../testSupport/markupText'
 
 const props = (over = {}) => closureFeature(over).properties
 const START = Date.UTC(2026, 7, 1, 12)
@@ -79,112 +76,15 @@ describe('closureName', () => {
   })
 })
 
-describe('formatClosureDates', () => {
-  it('states the span only when both ends exist', () => {
-    expect(formatClosureDates(START, END)).toBe(`Effective: ${medium(START)} to ${medium(END)}`)
-    expect(formatClosureDates(START, null)).toBeNull()
-    expect(formatClosureDates(undefined, END)).toBeNull()
-    expect(formatClosureDates(Number.NaN, END)).toBeNull()
-  })
-})
-
-const textOf = markupText
-// The body starts at its attribute; the band and the notices stand above it.
-const bodyOf = (html: string) => html.slice(html.indexOf('data-popup-body'))
-const bandOf = (html: string) => html.slice(0, html.indexOf('data-popup-body'))
-
-describe('closurePopupHtml', () => {
-  // The band says what it is, the notice why, the body whose and how long
-  // (#738), and the title's glyph links the order.
-  it('names the order and its kind on the band and the forest and dates in the body', () => {
-    const html = closurePopupHtml(props(), 'trail')
-    expect(textOf(bandOf(html))).toContain('Probe Fire Closure')
-    expect(textOf(bandOf(html))).toContain('Trail closure·Eagle Creek 440')
-    expect(textOf(bodyOf(html))).toContain('Columbia River Gorge NSA')
-    expect(textOf(bodyOf(html))).toContain(`Effective: ${medium(START)} to ${medium(END)}`)
-    expect(html).not.toContain('🚫')
-  })
-
-  it('links the order from the title glyph', () => {
-    const html = closurePopupHtml(props(), 'trail')
-    expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
-    expect(html).toContain('target="_blank" rel="noopener noreferrer"')
-    expect(textOf(html)).not.toContain('View closure order')
-    expect(html).toContain('aria-label="View closure order"')
-  })
-
-  // The span ends the body in the fire card's fine print, so the three
-  // overlay cards end on the same line.
-  it('sets the dates last, and smaller and italic than the forest', () => {
-    const html = closurePopupHtml(props(), 'area')
-    const dates = `Effective: ${medium(START)} to ${medium(END)}`
-    expect(html.indexOf(dates)).toBeGreaterThan(html.indexOf('Columbia River Gorge NSA'))
-    expect(html).toContain(fineprint(dates))
-    const forest = html.slice(html.lastIndexOf('<', html.indexOf('Columbia River Gorge NSA')))
-    expect(forest.slice(0, forest.indexOf('Columbia'))).not.toContain('italic')
-  })
-
-  it('gives an area its acres where the route would stand, and only an area', () => {
-    expect(textOf(closurePopupHtml(props({ GIS_Acres: 4210.4 }), 'area'))).toContain('Area closure·4,210 acres')
-    expect(textOf(closurePopupHtml(props({ GIS_Acres: null }), 'area'))).not.toContain('Area closure·')
-    expect(textOf(closurePopupHtml(props({ GIS_Acres: 4210 }), 'trail'))).not.toContain('acres')
-  })
-
-  it('leaves out every line the order does not carry', () => {
-    const html = closurePopupHtml(
-      props({
-        ForestUnit: null,
-        RouteName: null,
-        RouteNum: null,
-        ClosureEndDate: null,
-        ClosureURLlink: null,
-        FireName: null,
-      }),
-      'trail',
-    )
-    expect(html).not.toContain('data-popup-body')
-    expect(html).not.toContain('<a ')
-    expect(html).not.toContain('⚠️')
-    expect(textOf(html)).toContain('Trail closure')
-    expect(textOf(html)).not.toContain('Trail closure·')
-  })
-
-  it('joins whichever half of the route exists', () => {
-    expect(textOf(closurePopupHtml(props({ RouteName: null }), 'trail'))).toContain('Trail closure·440')
-    const named = textOf(closurePopupHtml(props({ RouteNum: null }), 'trail'))
-    expect(named).toContain('Trail closure·Eagle Creek')
-    expect(named).not.toContain('440')
-  })
-
-  // The notice is the order's own type, where the region files one. A fire
-  // closure's fire is already in its name, so it carries none (TJ, 2026-10-16).
-  it('puts the order type in the notice section, above the body, and nothing for a fire', () => {
-    const typed = closurePopupHtml(props({ FireName: null, ClosureType: ' Safety Closure ' }), 'area')
-    expect(textOf(typed)).toContain('Safety Closure')
-    expect(typed.indexOf('Safety Closure')).toBeLessThan(typed.indexOf('data-popup-body'))
-    expect(typed).toContain('⚠️')
-    expect(textOf(typed)).not.toContain('Closed for')
-    const fire = closurePopupHtml(props({ FireName: 'Little Giant Fire', ClosureType: null }), 'trail')
-    expect(fire).not.toContain('⚠️')
-    expect(fire).not.toContain('Little Giant')
-  })
-
-  it('escapes every value it prints', () => {
-    const html = closurePopupHtml(
-      props({ ClosureOrderName: '<img src=x>', ForestUnit: 'A & B', RouteName: '"q"', ClosureType: '<b>' }),
-      'trail',
-    )
-    expect(html).toContain('&lt;img src=x&gt;')
-    expect(html).toContain('A &amp; B')
-    expect(html).toContain('&quot;q&quot;')
-    expect(html).toContain('&lt;b&gt;')
-    expect(html).not.toContain('<img')
-    expect(html).not.toContain('<b>')
-  })
-
-  // The link is the service's free text, and only a web address is a link.
-  it('links nothing but an http(s) address', () => {
-    expect(closurePopupHtml(props({ ClosureURLlink: 'javascript:alert(1)' }), 'area')).not.toContain('<a ')
+// One end of an order's span (#832): the card states the span only when
+// both ends have one, so a stamp that names no instant must read as none.
+describe('closureDate', () => {
+  it('is a medium date for a stamp, and null for none', () => {
+    expect(closureDate(START)).toBe(medium(START))
+    expect(closureDate(END)).toBe(medium(END))
+    expect(closureDate(null)).toBeNull()
+    expect(closureDate(undefined)).toBeNull()
+    expect(closureDate(Number.NaN)).toBeNull()
   })
 })
 

@@ -6,6 +6,7 @@ import type { MapViewHandle } from '../components/MapView'
 import type { AnalyzeResponse } from '../types'
 import {
   analyzedSnapshot,
+  chartMetricsOf,
   closureWarning,
   fireWarning,
   forecastModel,
@@ -79,6 +80,7 @@ function inputs(over: Partial<ResultsViewInputs> = {}): ResultsViewInputs {
     pointSample: true,
     analyzed: REPORT,
     models: MODELS,
+    chartMetrics: chartMetricsOf(),
     forecastModel: 'gfs_seamless',
     comparedModels: NO_MODELS,
     times: TIMES,
@@ -86,7 +88,7 @@ function inputs(over: Partial<ResultsViewInputs> = {}): ResultsViewInputs {
     fire: FIRE,
     closure: CLOSURE,
     mapRef: createRef<MapViewHandle>(),
-    removePlace: () => {},
+    removeResult: () => {},
     ...over,
   }
 }
@@ -137,8 +139,8 @@ describe('useResultsView', () => {
   // for as long as what they close over does.
   it('keeps the table callbacks stable across renders', () => {
     const mapRef = createRef<MapViewHandle>()
-    const removePlace = () => {}
-    const { result, rerender } = renderHook(() => useResultsView(inputs({ mapRef, removePlace })))
+    const removeResult = () => {}
+    const { result, rerender } = renderHook(() => useResultsView(inputs({ mapRef, removeResult })))
     const first = result.current
     rerender()
     expect(result.current.onRemovePending).toBe(first.onRemovePending)
@@ -146,14 +148,18 @@ describe('useResultsView', () => {
     expect(result.current.onFocusPending).toBe(first.onFocusPending)
   })
 
-  it('removes a pending destination and flies the map to a row', () => {
-    const removePlace = vi.fn()
+  // Whatever named it, a pending row leaves as a removal, the ranked row's ×
+  // (#832), so the Removed list can bring it back.
+  it('removes a pending destination of any source and flies the map to a row', () => {
+    const removeResult = vi.fn()
     const focusResult = vi.fn()
     const focusPoint = vi.fn()
     const mapRef = { current: { focusResult, focusPoint } as unknown as MapViewHandle }
-    const { result } = renderHook(() => useResultsView(inputs({ mapRef, removePlace })))
-    result.current.onRemovePending({ latitude: 47.5, longitude: -121.5 })
-    expect(removePlace).toHaveBeenCalledWith(47.5, -121.5)
+    const { result } = renderHook(() => useResultsView(inputs({ mapRef, removeResult })))
+    result.current.onRemovePending(pendingDestination({ source: 'csv', name: 'Pasted', latitude: 47.5, longitude: -121.5 }))
+    expect(removeResult).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Pasted', type: 'custom', latitude: 47.5, longitude: -121.5 }),
+    )
     result.current.onFocusResult(ROW)
     expect(focusResult).toHaveBeenCalledWith(ROW)
     result.current.onFocusPending({ latitude: 1, longitude: 2 })

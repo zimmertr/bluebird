@@ -91,6 +91,16 @@ describe('useGridLayer', () => {
     expect(last()).toMatchObject({ reachFrac: 0.8, displayReachFrac: 0.8 })
   })
 
+  // A double-click puts the coverage back where it starts.
+  it('resets the coverage to its start', () => {
+    const { result } = renderHook(() => useGridLayer(inputs()))
+    act(() => result.current.setGridReachDraft(0.8))
+    act(() => result.current.commitGridReach())
+    act(() => result.current.resetGridReach())
+    expect(result.current.gridReachDraft).toBeNull()
+    expect(last()).toMatchObject({ reachFrac: GRID_REACH_DEFAULT_FRAC, displayReachFrac: GRID_REACH_DEFAULT_FRAC })
+  })
+
   // An archive report names no model to sample at (#123). The reader's
   // preference survives; the layer is out of play.
   it('keeps the layer out of play over an archive report, and off when unchecked', () => {

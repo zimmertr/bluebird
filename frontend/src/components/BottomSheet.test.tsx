@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import BottomSheet, { type KeptSheet } from './BottomSheet'
-import { DOUBLE_PRESS_MS } from '../hooks/useGripDrag'
+import { DOUBLE_PRESS_MS } from '../utils/doublePress'
 import { SHEET_SNAP_PX } from '../utils/sheetDrag'
 import { render } from '../testSupport/render'
 

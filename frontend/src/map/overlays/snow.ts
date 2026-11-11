@@ -12,13 +12,19 @@
  * click on it opens a card at once, named from the pixel, while NOAA is asked
  * for the numbers (`utils/snowPoint.ts`, #737): a point target, since a
  * raster layer has no feature for a click to find.
+ *
+ * A card open when the field comes on, or over ground whose tile had not
+ * arrived when it opened, has nothing to read until the tile does, so the
+ * open cards read the snow again as each of its tiles arrives, as they do
+ * the radar's (#832). What a point answered is kept while the field is on,
+ * so those reads, and a second click on the same place, show the reading the
+ * card already had rather than asking NOAA again behind a row of bars.
  */
 import type * as maplibregl from 'maplibre-gl'
 import type { HeldTiles } from '../../utils/heldTiles'
 import { SNOW_TILES } from '../heldTileProtocol'
+import { addLayerAt } from '../layerOrder'
 import type { MapPopups } from '../mapPopups'
-import { RADAR_OLDEST_MIN, radarLayerId } from '../../utils/radar'
-import { SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
 import {
   SNOW_BOUNDS,
   SNOW_HELD_URL,
@@ -27,7 +33,8 @@ import {
   SNOW_SOURCE_ID,
   SNOW_TILE_SIZE,
 } from '../../utils/snowDepth'
-import { SNOW_HELD_LAYER, readSnowAt, snowPaints } from '../../utils/snowPoint'
+import { whenReady, type MapPoint, type PointAnswer, type PointReading } from '../../utils/pointReadout'
+import { SNOW_HELD_LAYER, readSnowAt, snowPaints, snowTileZoom } from '../../utils/snowPoint'
 
 /**
  * How solid the snow depth field is drawn.
@@ -43,33 +50,71 @@ import { SNOW_HELD_LAYER, readSnowAt, snowPaints } from '../../utils/snowPoint'
  */
 export const SNOW_OPACITY = 0.55
 
-/**
- * The layer the field goes beneath.
- *
- * UNDER the radar, which is the one place in the chain it can be: snow is the
- * ground state and rain is what is happening over it. The insertion point says
- * that whichever order the two are switched on: beneath the loop's oldest frame
- * where the loop is already up, and beneath the smoke fills otherwise, which is
- * where the loop itself inserts and therefore leaves room above this.
- */
-export function snowBeneath(hasLayer: (id: string) => boolean): string | undefined {
-  const underRadar = radarLayerId(RADAR_OLDEST_MIN)
-  const beneath = hasLayer(underRadar) ? underRadar : smokeLayerId(SMOKE_DENSITIES[0])
-  return hasLayer(beneath) ? beneath : undefined
-}
-
 export interface SnowOverlay {
   update(next: { show: boolean }): void
 }
 
-export function mountSnow(map: maplibregl.Map, deps: { popups: MapPopups; tiles?: HeldTiles }): SnowOverlay {
+/** How many points' readings the field keeps while it is on, oldest dropped first. */
+const KEPT_READINGS = 64
+
+export function mountSnow(
+  map: maplibregl.Map,
+  deps: {
+    popups: MapPopups
+    tiles?: HeldTiles
+    /** How a point is read, `readSnowAt` by default; a test's stand-in asks NOAA nothing. */
+    readAt?: (tiles: HeldTiles, at: MapPoint, signal: AbortSignal) => PointAnswer
+  },
+): SnowOverlay {
   const tiles = deps.tiles ?? SNOW_TILES
+  const readAt = deps.readAt ?? readSnowAt
   let showing = false
+  // Each point's reading while the field is on, and whether NOAA failed it.
+  // NOAA is asked under the field's own signal rather than a card's, because
+  // one answer serves every card on the point, and a card that closes does
+  // not take it from the next one. Switching the field off aborts them.
+  const kept = new Map<string, { reading: PointReading; failed: boolean }>()
+  let asking = new AbortController()
+  const keyOf = (at: MapPoint) => `${at.lng},${at.lat},${snowTileZoom(at.zoom)}`
+
+  function keep(key: string, reading: PointReading | null): PointReading | null {
+    if (reading === null) return null
+    const entry = { reading, failed: false }
+    kept.set(key, entry)
+    while (kept.size > KEPT_READINGS) kept.delete(kept.keys().next().value!)
+    reading.later?.then(
+      (section) => {
+        if (kept.get(key) !== entry) return
+        // A failed section carries no time (`failedSnowSection`).
+        kept.set(key, { reading: { section }, failed: section.when === undefined })
+      },
+      () => {
+        if (kept.get(key) === entry) kept.delete(key)
+      },
+    )
+    return reading
+  }
+
+  // A fresh ask (a card opening) tries NOAA again where it failed, since
+  // the reader's next click is the next attempt (`snowPoint.ts`); a card
+  // read again as tiles arrive keeps the failure it already shows, so a
+  // failing NOAA is not asked once a tile.
+  function readKept(at: MapPoint, fresh: boolean): PointAnswer {
+    const key = keyOf(at)
+    const held = kept.get(key)
+    if (held && !(fresh && held.failed)) return held.reading
+    return whenReady(readAt(tiles, at, asking.signal), (reading) => keep(key, reading))
+  }
+
   deps.popups.registerPoint({
     target: 'snow',
     shown: () => showing,
     paints: (at) => snowPaints(tiles, at),
-    read: (at, signal) => readSnowAt(tiles, at, signal),
+    read: (at) => readKept(at, true),
+    refresh: (at) => readKept(at, false),
+  })
+  map.on('sourcedata', (event: maplibregl.MapSourceDataEvent) => {
+    if (showing && event.tile && event.sourceId === SNOW_SOURCE_ID) deps.popups.refreshPoint('snow')
   })
   return {
     update({ show }) {
@@ -78,13 +123,15 @@ export function mountSnow(map: maplibregl.Map, deps: { popups: MapPopups; tiles?
       if (!show) {
         if (map.getLayer(SNOW_LAYER_ID)) map.removeLayer(SNOW_LAYER_ID)
         if (map.getSource(SNOW_SOURCE_ID)) map.removeSource(SNOW_SOURCE_ID)
-        // A card about snow the map no longer draws goes with it, and so do
-        // the copies of the tiles it was read from.
-        deps.popups.closeAll('snow')
+        // The copies of the tiles the snow was read from go with it, and a
+        // section about snow the map no longer draws leaves its card.
         tiles.drop(SNOW_HELD_LAYER)
+        asking.abort()
+        asking = new AbortController()
+        kept.clear()
+        deps.popups.refreshPoint('snow')
         return
       }
-      const beneath = snowBeneath((id) => Boolean(map.getLayer(id)))
       if (!map.getSource(SNOW_SOURCE_ID)) {
         map.addSource(SNOW_SOURCE_ID, {
           type: 'raster',
@@ -105,15 +152,15 @@ export function mountSnow(map: maplibregl.Map, deps: { popups: MapPopups; tiles?
         })
       }
       if (!map.getLayer(SNOW_LAYER_ID)) {
-        map.addLayer(
-          {
-            id: SNOW_LAYER_ID,
-            type: 'raster',
-            source: SNOW_SOURCE_ID,
-            paint: { 'raster-opacity': SNOW_OPACITY },
-          },
-          beneath,
-        )
+        // UNDER the radar, which is the one place in the chain it can be: snow
+        // is the ground state and rain is what is happening over it. Its slot
+        // in `layerOrder.ts` keeps it there whichever is switched on first.
+        addLayerAt(map, {
+          id: SNOW_LAYER_ID,
+          type: 'raster',
+          source: SNOW_SOURCE_ID,
+          paint: { 'raster-opacity': SNOW_OPACITY },
+        })
       }
     },
   }

@@ -6,16 +6,20 @@
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { DEFAULT_FAMILY_KEY, MetricFamily, RANKED_FAMILIES } from '../metrics'
 import { Constraints, hasConstraints } from './constraints'
+import { type BaseOpacity } from './baseMapOpacity'
 import { type GridStyle } from './forecastGrid/forecastGrid'
 import { ForecastSelection } from './calendar/calendar'
 import { Place } from './geocode'
 import { type CameraView } from './mapView'
 import { type SortKey } from './tableColumns'
+import type { ChartMetrics } from './chart/chartData'
+import type { ChartLayout } from './chart/chartLayout'
 import {
   DEFAULT_LIMIT,
   DEFAULT_SORT,
   type LinkDrop,
   URL_PARAMS,
+  chartDiffers,
   decodeSelection,
   escapeQueryText,
   hasCustomCsv,
@@ -67,7 +71,7 @@ export interface ShareableState {
   constraints: Constraints
   limit: number
   customCsv: string
-  // The seven live map overlays. Persisted so a shared link reproduces the
+  // The twelve live map overlays. Persisted so a shared link reproduces the
   // picture, and deliberately not part of the analysis request: an overlay is
   // drawn beside the ranking, never fed into it. That holds for the forecast
   // grid too, even though it is the one whose toggle costs upstream calls —
@@ -79,6 +83,24 @@ export interface ShareableState {
   showSmoke: boolean
   showSnow: boolean
   showGrid: boolean
+  // The terrain and imagery layers (#799): the Topographic row's contours,
+  // shaded relief and the aerial imagery.
+  showContours: boolean
+  showRelief: boolean
+  // The slope angle shading (#799), from the same elevation as the relief.
+  showSlope: boolean
+  showSatellite: boolean
+  // The four Base map rows' opacity levels (record 0250), whole percents.
+  // Each rides its own param named for the layer's flag and the word
+  // (`satelliteopacity=80`), written only while its row is on and off the
+  // default, so a link opened before the sliders existed draws as it did.
+  baseOpacity: BaseOpacity
+  // The satellite fire detections (#799).
+  showFireActivity: boolean
+  // Whether the map stands the ground up in 3D (#799). Not an overlay, since
+  // it changes how the whole map is seen, but it rides the link for their
+  // reason: a shared picture of a ridge in 3D should open in 3D.
+  showTerrain: boolean
   // Which of the grid's two drawings. Rides the SAME param as the toggle
   // (`grid=blocks`, `grid=smooth`) rather than taking a second one: it is one
   // control's state, and two params for it would let a link say the layer is
@@ -109,6 +131,13 @@ export interface ShareableState {
   // The link carries it because the order on screen is part of what a shared
   // report says; `usePresentedReport` owns when it is set.
   tableSort: { key: SortKey; desc: boolean } | null
+  // The chart's metric slots (#499), one to four, first panel first.
+  // Written only when there is more than one or the first is not the
+  // ranking's family, because a chart that follows the ranking is a fresh one.
+  chart: ChartMetrics
+  // How a desk arranges the chart's panels (#499), or null for the panel
+  // count's own. Written only when it is not that count's default.
+  chartLayout: ChartLayout | null
   // The map camera, or null before the map has reported one. It is written
   // only in a link that exists: an app move never makes a link by itself, and
   // a reader's own move does through `EncodeOptions.cameraMoved`.
@@ -181,6 +210,12 @@ export function encodeState(
     state.showSmoke ||
     state.showSnow ||
     state.showGrid ||
+    state.showContours ||
+    state.showRelief ||
+    state.showSlope ||
+    state.showSatellite ||
+    state.showFireActivity ||
+    state.showTerrain ||
     state.showPlayer !== null ||
     state.selection.kind !== 'now' ||
     state.forecastModel !== defaultForecastModel ||
@@ -190,6 +225,9 @@ export function encodeState(
     state.compareModels.length > 0 ||
     state.removed.length > 0 ||
     state.tableSort !== null ||
+    // A second panel, or a primary moved off the ranking, is the reader's own
+    // choice of what the chart shows (#499).
+    chartDiffers(state) ||
     // TJ's rule (2026-09-24): a pan or a zoom alone makes a link. Only the
     // reader's own move counts, or the opening camera of a fresh session would
     // write one before anyone touched the map.

@@ -90,6 +90,14 @@ jobs:
       # fill/ruff.toml extends backend/ruff.toml, for the Python the fill
       # image runs rather than the app's.
       - run: ruff check backend/ fill/
+      # The locks are pip-compile's output for the .in files (#633): every
+      # package pinned and hashed, and the dev lock held to the runtime one by
+      # its `-c requirements.txt`. Recompiling keeps every pin already locked,
+      # so a diff means an .in file moved without its lock. Dependabot's own
+      # recompiles come out the same (record 0279).
+      - name: The Python locks match their .in files
+        run: make lock-backend
+      - run: git diff --exit-code backend/requirements.txt backend/requirements-dev.txt
 
   # Run the backend unit suite: pure logic (aggregation, validation, sorting,
   # error mapping) plus route behavior with the upstream APIs stubbed.
@@ -207,235 +215,115 @@ jobs:
           docker run --rm --network fill-net \
             -e TEST_DATABASE_URL=postgresql://postgres:test@fill-db/postgres bluebird:fill-test
 
-      # The same gate Docker Build applies to the app's image, with the same
-      # trivy.yaml, so the release scan of the pushed fill image holds no
-      # surprise. No PR comment: the app's sticky comment is the one place
-      # people look, and this job's summary carries the table when it fails.
-      - name: Scan image (Trivy)
+      # The same gate Docker Build applies to the app's image (yggdrasil's
+      # docker-build module), so the release scan of the pushed fill image
+      # holds no surprise. No scan settings: the one rule in yggdrasil's
+      # default skips pip's vendored SBOM, and this image installs no pip. No
+      # PR comment: the app's sticky comment is the one place people look,
+      # and this job's summary carries the table when it fails.
+      - name: Fail on fixable Critical or High vulnerabilities (Trivy)
+        id: scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: bluebird:fill
-          format: json
-          output: trivy.json
+          output: trivy.txt
+          severity: CRITICAL,HIGH
           ignore-unfixed: true
-          trivy-config: trivy.yaml
+          exit-code: '1'
+      - name: Report the findings
+        if: failure() && steps.scan.outcome == 'failure'
+        run: cat trivy.txt >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Count Critical/High vulnerabilities
-        id: crit
-        uses: ./.github/actions/trivy-crit-high
-        with:
-          report: trivy.json
-
-      - name: Fail on fixable Critical/High vulnerabilities
-        env:
-          CRIT_HIGH: ${{ steps.crit.outputs.count }}
-        run: |
-          if [ "$CRIT_HIGH" -gt 0 ]; then
-            trivy convert --format table trivy.json >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in the fill image. See the job summary."
-            exit 1
-          fi
-
-  # Validate the Dockerfile builds end-to-end without pushing the image, then
-  # scan the result for vulnerabilities. amd64-only on purpose: this gate
-  # proves the Dockerfile assembles; the release workflow builds the arm64
+  # yggdrasil's docker-build module: hadolint, the linux/amd64 image built but
+  # not pushed, a Trivy scan with a sticky PR comment, the smoke test below,
+  # and a refusal on any fixable Critical or High. amd64-only on purpose: this
+  # gate proves the Dockerfile assembles; the release workflow builds the arm64
   # half (emulated builds would roughly double this job for no extra signal).
+  # The scan settings are yggdrasil's default trivy.yaml. Decision records
+  # 0276 and 0278.
   docker-build:
-    # Branch protection requires a check named exactly "Docker Build" — renaming
-    # this job strands PRs on a phantom "Expected" check that never reports.
+    # Branch protection requires `Docker Build / Docker Build` (this job's
+    # name, then the module's); renaming either strands PRs on a phantom
+    # "Expected" check that never reports.
     name: Docker Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    uses: zimmertr/yggdrasil/.github/workflows/docker-build.yml@d8443185af7a5e3b4b197b8ee167533d79c816c5 # v0.14.0
     permissions:
       contents: read
-      pull-requests: write  # Sticky scan-result comment on PRs
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Lint Dockerfile
-        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
-        with:
-          dockerfile: Dockerfile
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          platforms: linux/amd64
-          push: false
-          # Load into the runner's docker daemon so Trivy can scan it, and the
-          # smoke test below can actually run it
-          load: true
-          tags: bluebird:pr-scan
-          # A sentinel rather than a real version: the smoke test asserts this
-          # exact string comes back from /api/version, which is what proves the
-          # ARG -> ENV -> endpoint chain survived a Dockerfile edit.
-          build-args: |
-            APP_VERSION=0.0.0-ci
-            APP_COMMIT=${{ github.sha }}
-            APP_BUILT_AT=1970-01-01T00:00:00Z
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
+      pull-requests: write # the sticky scan comment
+    with:
+      cache: true
       # The browser and Lighthouse jobs load this image rather than build it
       # again (the Lighthouse job's comment has the measurement).
-      - name: Save the image for the browser and Lighthouse jobs
-        run: docker save bluebird:pr-scan -o /tmp/bluebird-image.tar
-      - name: Upload the image
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: bluebird-image
-          path: /tmp/bluebird-image.tar
-          retention-days: 1
-          # The image's layers are already compressed, so a higher level buys
-          # bytes slowly.
-          compression-level: 1
-
-      # ignore-unfixed everywhere: Debian/Alpine ship CVEs upstream has not
-      # patched; flagging those would perma-red the pipeline over vulns nobody
-      # can act on. JSON once, then jq/`trivy convert` derive the human table,
-      # the PR comment, and the gate from the same scan. File-level exclusions
-      # live in trivy.yaml, shared with image-scan.yml so this gate and the
-      # weekly re-scan judge an image the same way.
-      - name: Scan image (Trivy)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: bluebird:pr-scan
-          format: json
-          output: trivy.json
-          ignore-unfixed: true
-          trivy-config: trivy.yaml
-
-      - name: Count Critical/High vulnerabilities
-        id: crit
-        uses: ./.github/actions/trivy-crit-high
-        with:
-          report: trivy.json
-
-      - name: Render scan report
-        env:
-          PR_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          CRIT_HIGH: ${{ steps.crit.outputs.count }}
-        run: |
-          TOTAL=$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy.json)
-          {
-            echo "<!-- bluebird-image-scan -->"
-            echo "### 🛡️ Image vulnerability scan"
-            echo ""
-            echo "Trivy scan of this PR's image at \`${PR_SHA}\` (linux/amd64, fixable vulnerabilities only)."
-            echo ""
-            if [ "$TOTAL" -eq 0 ]; then
-              echo "✅ **No fixable vulnerabilities.**"
-            else
-              echo "⚠️ **${TOTAL} fixable vulnerabilities (${CRIT_HIGH} Critical/High; Critical/High fail this check).**"
-              echo ""
-              echo "<details><summary>Full report</summary>"
-              echo ""
-              echo '```text'
-              trivy convert --format table trivy.json
-              echo '```'
-              echo ""
-              echo "</details>"
-            fi
-            echo ""
-            echo "<hr>"
-            echo ""
-            echo "_Updated for each push; unfixable OS CVEs are excluded._"
-          } > scan-comment.md
-          cat scan-comment.md >> "$GITHUB_STEP_SUMMARY"
-
-      # Sticky like the preview-URL comment, but matched by the hidden marker
-      # instead of `--edit-last` — both comments come from github-actions[bot],
-      # so editing "the last one" would clobber whichever posted more recently.
-      # Skipped for Dependabot: its pull_request runs get a read-only token,
-      # so the step summary above is the only surface there.
-      - name: Comment scan result (sticky, rewrites on each push)
-        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          CID=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
-            --jq '.[] | select(.body | startswith("<!-- bluebird-image-scan -->")) | .id' | head -n1)
-          if [ -n "$CID" ]; then
-            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${CID}" -F body=@scan-comment.md >/dev/null
-          else
-            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@scan-comment.md >/dev/null
-          fi
-
+      upload-image: true
+      # A sentinel rather than a real version: the smoke test asserts this
+      # exact string comes back from /api/version, which is what proves the
+      # ARG -> ENV -> endpoint chain survived a Dockerfile edit.
+      build-args: |
+        APP_VERSION=0.0.0-ci
+        APP_COMMIT=${{ github.sha }}
+        APP_BUILT_AT=1970-01-01T00:00:00Z
       # Assertions that only hold against a built image, so pytest structurally
       # cannot make them. The big one is the self-hosted Swagger UI: /docs falls
       # back to a CDN whenever `static/swagger-ui` is absent, and in a source
       # checkout it always is. Without this, retargeting the Dockerfile's COPY
       # would silently restore the third-party script surface that a strict CSP
       # (#132) depends on being gone, with every other check still green.
-      - name: Smoke test the built image
-        run: |
-          docker run -d --rm --name smoke -p 8000:8000 bluebird:pr-scan
-          for _ in $(seq 1 30); do
-            curl -fsS localhost:8000/healthz >/dev/null 2>&1 && break
-            sleep 1
-          done
+      smoke-test: |
+        docker run -d --rm --name smoke -p 8000:8000 "$IMAGE"
+        for _ in $(seq 1 30); do
+          curl -fsS localhost:8000/healthz >/dev/null 2>&1 && break
+          sleep 1
+        done
 
-          fail=0
-          check() {  # label, actual, expected
-            if [ "$2" = "$3" ]; then
-              echo "  ok    $1"
-            else
-              echo "  FAIL  $1 (want '$3', got '$2')"
-              fail=1
-            fi
-          }
-
-          check "build args reach /api/version" \
-            "$(curl -fsS localhost:8000/api/version | jq -r .version)" "0.0.0-ci"
-          check "the same version fills openapi info.version" \
-            "$(curl -fsS localhost:8000/openapi.json | jq -r .info.version)" "0.0.0-ci"
-          check "Swagger UI is served from the image" \
-            "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/swagger-ui/swagger-ui-bundle.js)" "200"
-          check "/docs references no third-party host" \
-            "$(curl -fsS localhost:8000/docs | grep -cE 'jsdelivr|googleapis|tiangolo' || true)" "0"
-          check "/redoc is gone" \
-            "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/redoc)" "404"
-          check "an unknown /api path answers as the API, not the SPA" \
-            "$(curl -s -o /dev/null -w '%{content_type}' localhost:8000/api/nope)" "application/json"
-          check "the SPA is still served at /" \
-            "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/)" "200"
-
-          # The license notices (#571). The build writes the file from what it
-          # actually bundled and installed, and fails on a package with no
-          # text; these say the result ships, is served, and names every
-          # direct dependency, so a build that silently skipped either half
-          # cannot pass. The repo's own LICENSE ships in the image, unserved.
-          check "the bundle's own notice is served beside it" \
-            "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/swagger-ui/swagger-ui-bundle.js.LICENSE.txt)" "200"
-          check "the third-party license file is served as text" \
-            "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' localhost:8000/third-party-licenses.txt)" "200 text/plain; charset=utf-8"
-          curl -fsS localhost:8000/third-party-licenses.txt > notices.txt || true
-          unlisted=""
-          for name in $(jq -r '.dependencies | keys[]' frontend/package.json) \
-                      $(sed -E '/^[[:space:]]*(#|-|$)/d; s/[][<>=!~ ].*//' backend/requirements.in); do
-            # Python names compare the way pip does: case, `-`, `_` and `.` alike.
-            pattern="^$(printf '%s' "$name" | sed -E 's/[-_.]+/[-_.]+/g') [^ ]+$"
-            grep -qiE "$pattern" notices.txt || unlisted="$unlisted $name"
-          done
-          check "the license file names every direct dependency" "$unlisted" ""
-          check "the image carries the repository's LICENSE" \
-            "$(docker exec smoke head -1 /app/LICENSE)" "# PolyForm Noncommercial License 1.0.0"
-
-          docker stop smoke >/dev/null 2>&1 || true
-          [ "$fail" -eq 0 ] || echo "::error::The built image failed its smoke test. See the failures above."
-          exit $fail
-
-      # The actual gate, after the comment so a red run still explains itself
-      - name: Fail on fixable Critical/High vulnerabilities
-        env:
-          CRIT_HIGH: ${{ steps.crit.outputs.count }}
-        run: |
-          if [ "$CRIT_HIGH" -gt 0 ]; then
-            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in the image. See the scan report above."
-            exit 1
+        fail=0
+        check() {  # label, actual, expected
+          if [ "$2" = "$3" ]; then
+            echo "  ok    $1"
+          else
+            echo "  FAIL  $1 (want '$3', got '$2')"
+            fail=1
           fi
+        }
+
+        check "build args reach /api/version" \
+          "$(curl -fsS localhost:8000/api/version | jq -r .version)" "0.0.0-ci"
+        check "the same version fills openapi info.version" \
+          "$(curl -fsS localhost:8000/openapi.json | jq -r .info.version)" "0.0.0-ci"
+        check "Swagger UI is served from the image" \
+          "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/swagger-ui/swagger-ui-bundle.js)" "200"
+        check "/docs references no third-party host" \
+          "$(curl -fsS localhost:8000/docs | grep -cE 'jsdelivr|googleapis|tiangolo' || true)" "0"
+        check "/redoc is gone" \
+          "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/redoc)" "404"
+        check "an unknown /api path answers as the API, not the SPA" \
+          "$(curl -s -o /dev/null -w '%{content_type}' localhost:8000/api/nope)" "application/json"
+        check "the SPA is still served at /" \
+          "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/)" "200"
+
+        # The license notices (#571). The build writes the file from what it
+        # actually bundled and installed, and fails on a package with no
+        # text; these say the result ships, is served, and names every
+        # direct dependency, so a build that silently skipped either half
+        # cannot pass. The repo's own LICENSE ships in the image, unserved.
+        check "the bundle's own notice is served beside it" \
+          "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/swagger-ui/swagger-ui-bundle.js.LICENSE.txt)" "200"
+        check "the third-party license file is served as text" \
+          "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' localhost:8000/third-party-licenses.txt)" "200 text/plain; charset=utf-8"
+        curl -fsS localhost:8000/third-party-licenses.txt > notices.txt || true
+        unlisted=""
+        for name in $(jq -r '.dependencies | keys[]' frontend/package.json) \
+                    $(sed -E '/^[[:space:]]*(#|-|$)/d; s/[][<>=!~ ].*//' backend/requirements.in); do
+          # Python names compare the way pip does: case, `-`, `_` and `.` alike.
+          pattern="^$(printf '%s' "$name" | sed -E 's/[-_.]+/[-_.]+/g') [^ ]+$"
+          grep -qiE "$pattern" notices.txt || unlisted="$unlisted $name"
+        done
+        check "the license file names every direct dependency" "$unlisted" ""
+        check "the image carries the repository's LICENSE" \
+          "$(docker exec smoke head -1 /app/LICENSE)" "# PolyForm Noncommercial License 1.0.0"
+
+        docker stop smoke >/dev/null 2>&1 || true
+        [ "$fail" -eq 0 ] || echo "::error::The built image failed its smoke test. See the failures above."
+        exit $fail
 
   # The cold-load gate (issue #337). Separate from Docker Build because that
   # job's name is branch-protected and because a red Lighthouse run should say

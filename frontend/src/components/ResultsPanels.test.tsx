@@ -3,7 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import ResultsPanels from './ResultsPanels'
 import { render } from '../testSupport/render'
-import { resultRow } from '../testSupport/fixtures'
+import { chartMetricsOf, resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { LAYOUT_HOLD, MOTION, RESULTS_PANE } from '../styles'
 
@@ -33,8 +33,6 @@ const ROW = resultRow()
 const SHOWN = [{ id: 'icon_seamless', label: 'DWD ICON' }]
 const CHART = {
   selectedRows: [ROW],
-  metric: 'temp',
-  setMetric: NOOP,
   colorFor: NOOP,
   toggle: NOOP,
   isSelected: () => true,
@@ -51,6 +49,7 @@ const TABLE_VIEW = {
   partialNote: null,
   legend: [],
   handleColumnMove: NOOP,
+  handleAggregateMove: NOOP,
 }
 const REPORT = { detailSort: { key: 'name', dir: 'asc' }, sortDetail: NOOP, emptyReason: null }
 const FIRE = { status: 'ready', warnings: new Map(), uncovered: new Set() }
@@ -62,12 +61,13 @@ const onFocusPending = () => {}
 const removeResult = () => {}
 
 function layout(resultsMode: 'table' | 'chart' | 'both') {
-  return { resultsMode, chartGrip: GRIP, chartPanelPx: 200, tableGrip: GRIP, tablePanelPx: 300 }
+  return { resultsMode, chartGrip: GRIP, chartPanelPx: 200, chartPaneRef: { current: null }, legendRef: { current: null }, tableGrip: GRIP, tablePanelPx: 300 }
 }
 const BOTH = layout('both')
 const NO_SHARED: ReadonlySet<string> = new Set()
-const CHARTS_QUIET = { chart: CHART, compare: QUIET, rowChartColor: NOOP, shared: NO_SHARED }
-const CHARTS_COMPARING = { chart: CHART, compare: COMPARING, rowChartColor: NOOP, shared: NO_SHARED }
+const CHART_PAIR = chartMetricsOf()
+const CHARTS_QUIET = { chart: CHART, chartMetrics: CHART_PAIR, compare: QUIET, rowChartColor: NOOP, shared: NO_SHARED }
+const CHARTS_COMPARING = { chart: CHART, chartMetrics: CHART_PAIR, compare: COMPARING, rowChartColor: NOOP, shared: NO_SHARED }
 
 function props(
   over: {
@@ -92,7 +92,7 @@ function props(
     removeResult,
     sortBy: DEFAULT_FAMILY_KEY.temp,
     sortDesc: over.sortDesc ?? false,
-    chartTitled: false,
+    chartPhone: false,
     pointSample: false,
     forecastTimes: TIMES,
     playbackIndex: null,
@@ -215,6 +215,37 @@ describe('ResultsPanels', () => {
     for (const key of Object.keys(tableBefore)) {
       expect(Object.is(tableAfter[key], tableBefore[key]), `table ${key}`).toBe(true)
     }
+  })
+})
+
+// Over the tutorial's demonstration (#850) the chart draws the tour's own
+// list in place of the reader's, in the count's own layout, one identity
+// across the cards, and the reader's own list and layout back after.
+describe("the tutorial's chart cards", () => {
+  const ONE = ['temp'] as const
+  const FOUR = ['temp', 'freeze', 'snowfall', 'precip'] as const
+  const ranked = (metrics: Parameters<typeof chartMetricsOf>[0]) => ({
+    ...CHARTS_QUIET,
+    chartMetrics: chartMetricsOf(metrics, { layout: 'row' }),
+  })
+
+  it("draws the tour's panels in place of the reader's, and the reader's back after", async () => {
+    seen.chart.length = 0
+    const charts = ranked(['aqi', 'wind'])
+    const { rerender } = render(<ResultsPanels {...props({ charts })} chartTour={{ metrics: ONE, layoutOpen: false, pins: [] }} />)
+    await screen.findByTestId('chart')
+    expect(last(seen.chart).metrics).toBe(ONE)
+    expect(last(seen.chart).layout).toBeNull()
+    rerender(<ResultsPanels {...props({ charts })} chartTour={{ metrics: FOUR, layoutOpen: false, pins: [] }} />)
+    expect(last(seen.chart).metrics).toBe(FOUR)
+    // The next card hands the memoized chart the same list.
+    rerender(<ResultsPanels {...props({ charts })} chartTour={{ metrics: FOUR, layoutOpen: true, pins: [] }} />)
+    expect(last(seen.chart).metrics).toBe(FOUR)
+    expect(last(seen.chart).layoutMenuOpen).toBe(true)
+    // And the tour gone, the reader's own list and layout.
+    rerender(<ResultsPanels {...props({ charts })} />)
+    expect(last(seen.chart).metrics).toBe(charts.chartMetrics.metrics)
+    expect(last(seen.chart).layout).toBe('row')
   })
 })
 

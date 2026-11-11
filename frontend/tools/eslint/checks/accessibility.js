@@ -158,8 +158,8 @@ export const ACCESSIBILITY = [
     // reaches. Every aria-describedby must have its hidden text to point at,
     // and the results header's sort hint is held to the same pairing. So are
     // the table's N/A reasons and its Windy sentence, the calendar's Hours
-    // note, the smoke legend's density words and the Columns picker's ranked
-    // boxes (#575, #576).
+    // note, the smoke legend's density words, the fire legend's age words and
+    // the Columns picker's ranked boxes (#575, #576).
     name: 'disabled-reason-twin',
     files: [
       'src/components/LayersPopover.tsx',

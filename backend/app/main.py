@@ -39,6 +39,7 @@ from app.routes.capabilities import router as capabilities_router
 from app.routes.closures import router as closures_router
 from app.routes.config import router as config_router
 from app.routes.destinations import router as destinations_router
+from app.routes.fire_activity import router as fire_activity_router
 from app.routes.geocode import router as geocode_router
 from app.routes.landmarks import router as landmarks_router
 from app.routes.notfound import EDGE_PATH_PHRASE, not_found_body
@@ -177,6 +178,15 @@ _TAGS = [
             "instance's snapshot rather than proxied per request, because the "
             "upstream quota is NIFC's and shared with every other consumer of "
             "the public dataset."
+        ),
+    },
+    {
+        "name": "fire activity",
+        "description": (
+            "Hot pixels the VIIRS and MODIS satellites flagged in the last 48 "
+            "hours, worldwide, cached from NASA FIRMS's files every hour. A "
+            "detection is where something was burning when a satellite passed, "
+            "not a fire's outline."
         ),
     },
     {
@@ -450,6 +460,7 @@ app.include_router(wildfires_router, prefix="/api")
 app.include_router(smoke_router, prefix="/api")
 app.include_router(closures_router, prefix="/api")
 app.include_router(landmarks_router, prefix="/api")
+app.include_router(fire_activity_router, prefix="/api")
 # Must stay last of the /api routers: it matches every path under the prefix, so
 # anything registered after it would be unreachable.
 app.include_router(notfound_router, prefix="/api")

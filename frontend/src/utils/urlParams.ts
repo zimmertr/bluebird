@@ -25,6 +25,9 @@ import { isSortKey } from './tableColumns'
 import { parseCustomCsv } from './customDestinations'
 import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
+import { MAX_CHART_PANELS, isChartMetric, metricForSort } from './chart/chartData'
+import { defaultLayout, isChartLayout, layoutFor } from './chart/chartLayout'
+import { type BaseLayer, DEFAULT_BASE_OPACITY, OPACITY_DEFAULT, clampOpacity } from './baseMapOpacity'
 
 /**
  * One query parameter.
@@ -140,6 +143,15 @@ const PLACE_KIND = /^[\p{L}\p{N} ]*$/u
 // A link's coordinates, at the precision it writes them.
 const round = (n: number): number => roundTo(n, POLY_PRECISION)
 
+/**
+ * Whether the chart shows something other than a fresh session's (#499):
+ * more than one panel, or a first panel the reader moved off the ranking's
+ * family.
+ */
+export function chartDiffers(state: ShareableState): boolean {
+  return state.chart.length > 1 || state.chart[0] !== metricForSort(state.sortBy)
+}
+
 /** Whether the state holds a ring worth writing: three corners at least. */
 export function hasPolygon(state: ShareableState): boolean {
   return state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
@@ -226,8 +238,8 @@ function encodePins(places: Place[]): string {
 // raw split then finds one field and no pin. When it finds none, the list is
 // read again with those two escapes taken as delimiters. Only those two, so a
 // `+` or a `%` in a label is still decoded once. A label's own comma then
-// splits it and that pin drops, which is the cost for a link that was
-// re-encoded on the way.
+// splits it, and since the label is the last field, every field past the
+// fifth is joined back into it (`decodePinList`).
 function decodePins(raw: string): Place[] {
   const pins = decodePinList(raw)
   return pins.length > 0 ? pins : decodePinList(raw.replace(/%2C/gi, ',').replace(/%3B/gi, ';'))
@@ -238,7 +250,13 @@ function decodePinList(raw: string): Place[] {
   for (const entry of raw.split(';')) {
     const parts = entry.split(',').map(unescapeQueryText)
     if (parts.length < 6 || parts.some((f) => f === null)) continue
-    const [lonStr, latStr, kind, elevStr, osmId, label] = parts as string[]
+    // The label is last, so every field past the fifth is the label's: a
+    // comma in it that reached the link unescaped, as a pasted or re-encoded
+    // link can carry, cut the label at the comma and dropped the rest, and a
+    // dropped spot's `48.56248, -121.23742` came back named `48.56248`
+    // (TJ, 2026-11-04).
+    const [lonStr, latStr, kind, elevStr, osmId] = parts as string[]
+    const label = (parts as string[]).slice(5).join(',')
     const lon = Number(lonStr)
     const lat = Number(latStr)
     if (!onGlobe(lat, lon)) continue
@@ -268,6 +286,12 @@ function flag(
     | 'showRadar'
     | 'showSmoke'
     | 'showSnow'
+    | 'showContours'
+    | 'showRelief'
+    | 'showSlope'
+    | 'showSatellite'
+    | 'showTerrain'
+    | 'showFireActivity'
     | 'includeUnnamedPeaks',
 ): ParamCodec {
   return {
@@ -275,6 +299,29 @@ function flag(
     encode: (state) => (state[field] ? '1' : null),
     decode: (raw, out) => {
       if (raw === '1') out[field] = true
+    },
+  }
+}
+
+// A base-map row's opacity (record 0250): the layer's link flag and the word,
+// `slopeopacity=70`, a whole percent. Written only while its row is on AND the
+// level is not the default, so a link stays as short as what was changed and
+// cannot carry a level for a layer it leaves off. Read only beside its flag,
+// which is why each row sits under it, and held to 0 to 100 rather than
+// trusted, since the param is hand-editable. An empty value is no level.
+function opacityRow(
+  layer: BaseLayer,
+  field: 'showContours' | 'showRelief' | 'showSlope' | 'showSatellite',
+): ParamCodec {
+  return {
+    key: `${layer}opacity`,
+    encode: (state) =>
+      state[field] && state.baseOpacity[layer] !== OPACITY_DEFAULT ? String(state.baseOpacity[layer]) : null,
+    decode: (raw, out) => {
+      if (out[field] !== true || raw.trim() === '') return
+      const level = Number(raw)
+      if (!Number.isFinite(level)) return
+      out.baseOpacity = { ...DEFAULT_BASE_OPACITY, ...out.baseOpacity, [layer]: clampOpacity(level) }
     },
   }
 }
@@ -459,6 +506,33 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       if (unique.length > 0) out.compareModels = unique
     },
   },
+  // The chart's metrics (#499): every panel's, first panel first, comma
+  // joined, `chart=precip,temp,wind,aqi`, and `chart=temp` for one panel.
+  // Written only when it differs from the chart a fresh session draws. Read
+  // tolerantly: an unknown name is dropped, a repeat is dropped, and a name
+  // past the fourth is ignored, since the chart has four slots.
+  {
+    key: 'chart',
+    encode: (state) => (chartDiffers(state) ? state.chart.join(',') : null),
+    decode: (raw, out) => {
+      const names = raw.split(',').filter(isChartMetric)
+      const unique = names.filter((m, i) => names.indexOf(m) === i)
+      if (unique.length > 0) out.chart = unique.slice(0, MAX_CHART_PANELS)
+    },
+  },
+  // How a desk arranges the chart's panels (#499): `layout=row`, `column`,
+  // `2x2`, `2-1`, `1-2`, `1-3` or `1-2-1`. Written only when it is not the
+  // panel count's own; an unknown value parses to nothing.
+  {
+    key: 'layout',
+    encode: (state) =>
+      state.chartLayout !== null && layoutFor(state.chartLayout, state.chart.length) !== defaultLayout(state.chart.length)
+        ? state.chartLayout
+        : null,
+    decode: (raw, out) => {
+      if (isChartLayout(raw)) out.chartLayout = raw
+    },
+  },
   // The window's five keys are read together by `decodeSelection`, because
   // what `h1` means depends on `mode` and `d1`.
   //
@@ -571,6 +645,16 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   flag('radar', 'showRadar'),
   flag('smoke', 'showSmoke'),
   flag('snow', 'showSnow'),
+  flag('topo', 'showContours'),
+  opacityRow('topo', 'showContours'),
+  flag('relief', 'showRelief'),
+  opacityRow('relief', 'showRelief'),
+  flag('slope', 'showSlope'),
+  opacityRow('slope', 'showSlope'),
+  flag('satellite', 'showSatellite'),
+  opacityRow('satellite', 'showSatellite'),
+  flag('terrain', 'showTerrain'),
+  flag('fireactivity', 'showFireActivity'),
   // The value names the style rather than being a bare `1`, which keeps the
   // link hand-editable and self-describing: `grid=smooth` says what it will
   // draw. One param rather than two, because a layer that is off has no style
@@ -706,6 +790,13 @@ export const FIELD_PARAMS = {
   showRadar: ['radar'],
   showSmoke: ['smoke'],
   showSnow: ['snow'],
+  showContours: ['topo'],
+  showRelief: ['relief'],
+  showSlope: ['slope'],
+  showSatellite: ['satellite'],
+  baseOpacity: ['topoopacity', 'reliefopacity', 'slopeopacity', 'satelliteopacity'],
+  showTerrain: ['terrain'],
+  showFireActivity: ['fireactivity'],
   showGrid: ['grid'],
   // The style rides the toggle's own param rather than one of its own.
   gridStyle: ['grid'],
@@ -714,6 +805,8 @@ export const FIELD_PARAMS = {
   pins: ['pins'],
   removed: ['removed'],
   tableSort: ['tsort', 'tdesc'],
+  chart: ['chart'],
+  chartLayout: ['layout'],
   view: ['view'],
 } satisfies Record<keyof ShareableState, readonly [string, ...string[]]>
 

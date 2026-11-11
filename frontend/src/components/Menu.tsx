@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react'
+import { Fragment, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import type { PopoverBox } from '../utils/listbox'
 import { nextActiveIndex, optionDomId } from '../utils/listbox'
@@ -51,10 +51,11 @@ interface Props {
  * linter's `style-own-menu` check fails a second `position: 'fixed'` or a
  * second copy of the card anywhere under `components/`.
  *
- * On a phone the panel's two field menus, the model list and the calendar,
- * stand in a bottom sheet instead (`sheet`), as every phone menu does (record
- * 0136). The choice is made here rather than at each caller so that the rows
- * are written once, inside the one menu, for both.
+ * On a phone every field menu, the model list, the calendar, the chart's
+ * metric and the aggregates, stands in a bottom sheet instead (`sheet`), as
+ * every phone menu does (records 0136 and 0252). The choice is made here
+ * rather than at each caller so that the rows are written once, inside the
+ * one menu, for both.
  */
 export default function Menu({ box, popoverRef, closing, sheet, children }: Props) {
   // The rows as one block of the sheet, so its rules fall around the menu
@@ -111,10 +112,12 @@ interface MenuButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
 }
 
 /**
- * A control that opens a menu, in one of the three shapes, with the chevron
- * and the hover and open states every trigger shares (`MENU_TRIGGER`,
- * `MENU_CHEVRON`). The shape is the one thing a call site picks; whatever it
- * adds in `className` is layout and width, never a look.
+ * A control that opens a menu or a sheet, in one of the three shapes, with
+ * the chevron and every state a trigger has (`MENU_TRIGGER`, `MENU_CHEVRON`,
+ * record 0251). The shape is the one thing a call site picks; whatever it adds
+ * in `className` is layout and width, never a colour or a state, which the
+ * linter's `style-trigger-no-look` fails. Every button with `aria-expanded` in
+ * the app is one of these but the message badge (`style-menu-trigger`).
  */
 export function MenuButton({ shape, open, chevron = true, chevronClassName, className, children, ref, ...rest }: MenuButtonProps) {
   return (
@@ -136,6 +139,12 @@ interface MenuOption<V extends string> {
   label: string
   /** Out of play, as a metric the window cannot answer is (#803): drawn, and not picked. */
   disabled?: boolean
+  /**
+   * A hairline over this option (`MENU.divider`), setting it and the ones
+   * after it apart from the ones before: the Coordinate list field's `Custom
+   * coordinates` under the lists (#838, record 0263).
+   */
+  divided?: boolean
 }
 
 interface MenuSelectProps<V extends string> {
@@ -147,19 +156,31 @@ interface MenuSelectProps<V extends string> {
   onChange: (value: V) => void
   /** The field's width and insets, from the role its call site already wore. */
   className: string
+  /** A field of its own, or the left segment of a group that wears the field's look (#499). */
+  shape?: 'field' | 'segment'
   /** Out of play, as a Metrics row the window cannot answer is (#803): the field takes no press. */
   disabled?: boolean
-  /** What the field reads while it holds no value (#498, the Metrics section's `Add a bound`). */
+  /** A phone: the list opens in a bottom sheet headed by `label`, as the model list does (record 0252). */
+  sheet?: boolean
+  /**
+   * What the field reads while `value` names no option: the Coordinate list
+   * field under Coordinate search reads its own name while the box is shut
+   * and empty (#838, record 0263). The field is named by its label and this, as by
+   * its label and a value. A placeholder that is the label names the field
+   * once, or a screen reader would hear the name twice.
+   */
   placeholder?: string
 }
 
 /**
  * A choice of one value from a short list, as the one menu rather than a
  * native select (record 0201): the chart's metric and the Metrics table's
- * aggregates at a desk. A native select opens the platform's own list, which
- * no stylesheet reaches, so at a desk it was the one menu that looked and
- * behaved like nothing else in the app. A phone keeps the native select,
- * whose picker rises from the bottom like every phone menu (record 0149).
+ * aggregates. A native select opens the platform's own list, which no
+ * stylesheet reaches, so at a desk it was the one menu that looked and
+ * behaved like nothing else in the app. A phone kept the native select until
+ * 2026-10-30, whose field was then a second control drawn to look like this
+ * one and lit its edge where this did not; it opens the one menu's sheet now,
+ * as the model list does (record 0252).
  *
  * The WAI-ARIA listbox pattern, as the model list wears it: the field is a
  * button that opens a `listbox`, the list takes the keyboard when it opens
@@ -176,15 +197,24 @@ export function MenuSelect<V extends string>({
   onChange,
   className,
   disabled = false,
+  shape = 'field',
+  sheet = false,
   placeholder,
 }: MenuSelectProps<V>) {
   const [open, setOpen] = useState(false)
-  const heldIndex = options.findIndex((o) => o.value === value)
-  const selectedIndex = Math.max(heldIndex, 0)
+  const found = options.findIndex((o) => o.value === value)
+  const selectedIndex = Math.max(found, 0)
+  const showsPlaceholder = placeholder !== undefined && found < 0
   const [active, setActive] = useState(selectedIndex)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const { popoverRef, box, closing } = usePopover({ open, onOpenChange: setOpen, triggerRef, initialFocusRef: listRef })
+  // Closed to the hook on a phone, whose sheet places and dismisses itself.
+  const { popoverRef, box, closing } = usePopover({
+    open: open && !sheet,
+    onOpenChange: setOpen,
+    triggerRef,
+    initialFocusRef: listRef,
+  })
   const listId = useId()
   const nameId = useId()
   const valueId = useId()
@@ -217,10 +247,10 @@ export function MenuSelect<V extends string>({
     <>
       <MenuButton
         ref={triggerRef}
-        shape="field"
+        shape={shape}
         open={open}
-        aria-haspopup="listbox"
-        aria-labelledby={`${nameId} ${valueId}`}
+        aria-haspopup={sheet ? 'dialog' : 'listbox'}
+        aria-labelledby={showsPlaceholder && placeholder === label ? nameId : `${nameId} ${valueId}`}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={(e) => {
@@ -229,23 +259,27 @@ export function MenuSelect<V extends string>({
             openList()
           }
         }}
-        className={`${className} text-left`}
+        // Centred, as the model picker centres its label: every field in the
+        // panel's control column reads the same way. It was `text-left` until
+        // 2026-11-03, which the aggregate's and the chart's fields never showed,
+        // each being sized to its longest label, and the Coordinate list field's
+        // placeholder, then at the column's width, did (the maintainer).
+        className={`${className} text-center`}
       >
         <span id={nameId} className={SR_ONLY}>
           {label}
         </span>
-        {heldIndex < 0 && placeholder !== undefined ? (
-          <span id={valueId} className={`block min-w-0 truncate ${MENU.placeholder}`}>
-            {placeholder}
-          </span>
-        ) : (
-          <span id={valueId} className="block min-w-0 truncate">
-            {options[selectedIndex]?.label ?? value}
-          </span>
-        )}
+        <span id={valueId} className="block min-w-0 truncate">
+          {showsPlaceholder ? placeholder : (options[selectedIndex]?.label ?? value)}
+        </span>
       </MenuButton>
-      {box && (
-        <Menu box={box} popoverRef={popoverRef} closing={closing}>
+      {(box || (sheet && open)) && (
+        <Menu
+          box={box}
+          popoverRef={popoverRef}
+          closing={closing}
+          sheet={sheet ? { heading: label, onClose: () => setOpen(false) } : undefined}
+        >
           <div
             ref={listRef}
             role="listbox"
@@ -256,20 +290,22 @@ export function MenuSelect<V extends string>({
             className={`${MENU.list} focus:outline-none`}
           >
             {options.map((option, i) => (
-              <div
-                key={option.value}
-                id={optionDomId(listId, option.value)}
-                role="option"
-                aria-selected={option.value === value}
-                aria-disabled={option.disabled || undefined}
-                onPointerEnter={() => setActive(i)}
-                onClick={() => pick(i)}
-                className={`${MENU.option} ${i === active ? MENU.active : ''} ${
-                  option.value === value ? MENU.current : ''
-                } ${option.disabled ? MENU.unavailable : ''}`}
-              >
-                {option.label}
-              </div>
+              <Fragment key={option.value}>
+                {option.divided && <div aria-hidden="true" className={MENU.divider} />}
+                <div
+                  id={optionDomId(listId, option.value)}
+                  role="option"
+                  aria-selected={option.value === value}
+                  aria-disabled={option.disabled || undefined}
+                  onPointerEnter={() => setActive(i)}
+                  onClick={() => pick(i)}
+                  className={`${MENU.option} ${i === active ? MENU.active : ''} ${
+                    option.value === value ? MENU.current : ''
+                  } ${option.disabled ? MENU.unavailable : ''}`}
+                >
+                  {option.label}
+                </div>
+              </Fragment>
             ))}
           </div>
         </Menu>

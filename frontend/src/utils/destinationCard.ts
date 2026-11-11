@@ -1,0 +1,447 @@
+/**
+ * The one card every place on the map opens (#832, TJ 2026-11-03): a ranked
+ * marker, a pending dot, a clicked label, and a click on bare map. They used
+ * to be four builders in three files, each with its own header, its own
+ * button attribute and its own idea of what a place is; one subject type and
+ * one builder means the four say a place the same way and offer the same way
+ * in and out.
+ *
+ * What differs between them is what is known, not how it is drawn:
+ *
+ * - a **ranked** row has a forecast, so it carries the grid (#370) in a
+ *   section of its own, and its remove does what the table's × does (#696);
+ * - a **pending** destination has no forecast yet, so no such section, and
+ *   its remove is the same × (TJ, 2026-11-03);
+ * - a **label** is a feature the map draws, which `Add to analysis` registers
+ *   the way a search by name does (#119, #712);
+ * - a **spot** is a coordinate no label names: the pair is its title and the
+ *   ground its facts, since a click on bare map is how the layers are asked
+ *   about a point (#737).
+ *
+ * Every header is the result card's band: the name and its link out, then the
+ * coordinates alone, then the type, the elevation and the slope (TJ,
+ * 2026-10-31). A spot has no name, kind or recorded height, so its title is
+ * the pair and its facts are the tile's height and the slope.
+ *
+ * Under the band, every card is the same stack of sections (TJ, 2026-11-03):
+ * one for each layer that is on and has something at the point, in the rank
+ * the map reads them in (`mapClick.ts`), and last the forecast on a ranked
+ * card, because the hazards are what a reader weighs the forecast against.
+ * Each section is its name, its rows and its fine print, and each folds on
+ * its chevron: before an analysis every section stands open, and on a ranked
+ * card only the forecast does, the hazards folded to their names, since the
+ * grid is what the marker was clicked for; on a phone every card opens with
+ * only the forecast open (TJ, 2026-11-04). A fold the reader makes holds on
+ * every card for the session (`map/destinationCards.ts` keeps the choices).
+ * The sections used to be the overlays' own cards, one per shape, so a click
+ * on a hotspot said nothing about the rain under it; now a hotspot over snow
+ * in a closed area under rain is one card of four sections.
+ */
+import type { DestinationResult, SortBy } from '../types'
+import { type BasemapPoi, FEET_PER_METER, poiToPlace } from './basemapPoi'
+import { caltopoUrl } from './caltopoUrl'
+import type { PendingDestination } from './customList'
+import { destinationLinkLabel, destinationUrl } from './destinationUrl'
+import { type Place, placeType } from './geocode'
+import type { ModelRow } from './model/modelCompare'
+import { roundTo } from './numbers'
+import type { PointSection } from './pointReadout'
+import { coordinateLabel } from './points'
+import { type GroundState, SLOPE_FACT_CH, slopeFact } from './popup/groundFact'
+import {
+  bodyLines,
+  cardButton,
+  cardSection,
+  cardSections,
+  escapeHtml,
+  factValue,
+  factsLine,
+  factsRow,
+  metaBand,
+  metricGrid,
+  pendingValue,
+  popupCard,
+  updatedAt,
+  updatedLine,
+  warningLine,
+  widestName,
+} from './popup/popupChrome'
+import { elevationFact, popupGrid, popupGroups, popupIdentity } from './popup/popupRows'
+import { pendingLinkRow } from './results/resultsCells'
+import { type ColDef, TYPE_COL } from './tableColumns'
+import type { UsStates } from './usStates'
+
+/** What a card describes. */
+export type CardSubject =
+  | { kind: 'ranked'; row: DestinationResult; rank: number | string }
+  | { kind: 'pending'; pending: PendingDestination }
+  | { kind: 'label'; poi: BasemapPoi }
+  | { kind: 'spot'; lat: number; lon: number }
+
+/**
+ * The attribute the map finds a card's one button by, with the action in its
+ * value, so the handler reads the intent off the element rather than
+ * inferring it from which selector matched.
+ */
+export const CARD_ACTION_ATTR = 'data-card-action'
+export type CardAction = 'add' | 'remove'
+
+/**
+ * What the card's button says, beside the × in its title row (TJ,
+ * 2026-11-04): a word, since beside a card's name the object is the place
+ * the card is about. The button's name for a screen reader is the whole
+ * phrase (`CARD_ACTION_LABEL`), which hears the button apart from the title.
+ */
+const CARD_ACTION_WORD: Record<CardAction, string> = { add: 'Add', remove: 'Remove' }
+const CARD_ACTION_LABEL: Record<CardAction, string> = { add: 'Add to analysis', remove: 'Remove from analysis' }
+
+/** What the map knows when it draws a card, every part optional. */
+export interface CardView {
+  /** The map's zoom, which the coordinates' CalTopo link carries (#712). */
+  mapZoom?: number
+  /** The state outlines a crag's search names its state by, when held. */
+  usStates?: UsStates | null
+  /** The ground under the point, as far as its read has got (#832). */
+  ground?: GroundState
+  /** Whether a label or a spot is already a destination, which turns its add into a remove. */
+  added?: boolean
+  /** Whether a ranked card offers its remove (#696); a card built with no map has none. */
+  removable?: boolean
+  /** The results table's columns, which a ranked card's grid follows (#370). */
+  columns?: readonly ColDef[]
+  /**
+   * What the layers say at the point (#832), in the rank the map reads them
+   * in; a card built with no map has none.
+   */
+  sections?: readonly PointSection[]
+  /** Each section the reader folded or opened by hand, by its key, which overrides the default. */
+  folds?: ReadonlyMap<string, boolean>
+  /**
+   * When the report was analyzed, which the forecast section's fine print
+   * says, and null before an analysis: whether one exists is what folds every
+   * card's sections but the forecast (`sectionOpen`).
+   */
+  analyzedAtMs?: number | null
+  /** The model the numbers came from and the report's hours, for the Windy links. */
+  modelId?: string | null
+  times?: readonly number[]
+  /** The model a row falls back to while one model answered every row. */
+  modelFallbackLabel?: string | null
+  /** The key the report ranks by, whose number the grid marks. */
+  rankedBy?: SortBy | null
+  /** Whether the window is one hour, which the ranked family's colours read. */
+  pointSample?: boolean
+  /** The grid's narrow insets, for a map too narrow for the widest grid (`compactGrid`). */
+  compact?: boolean
+  /** Each grid column's width a reader dragged (TJ 2026-10-30). */
+  widths?: Readonly<Record<string, number>>
+}
+
+// Five decimals, about a metre, the precision a spot's title shows. A spot is
+// rounded before it becomes a destination so the row, its share link and the
+// card all carry the coordinate the reader saw.
+const round5 = (v: number) => roundTo(v, 5)
+
+/** The kind a spot is once added (`spotPlace`), whose word its facts wear. */
+const SPOT_KIND = 'coordinates'
+
+/** A clicked spot as the destination `Add to analysis` registers. */
+export function spotPlace(lat: number, lon: number): Place {
+  const at = { lat: round5(lat), lon: round5(lon) }
+  // The kind a pasted coordinate gets in the search box, so the two ways of
+  // naming a bare point make one kind of destination.
+  return { label: coordinateLabel(at.lat, at.lon), description: '', kind: SPOT_KIND, ...at }
+}
+
+/** The point a card stands on. */
+export function subjectPoint(s: CardSubject): { lat: number; lon: number } {
+  switch (s.kind) {
+    case 'ranked':
+      return { lat: s.row.latitude, lon: s.row.longitude }
+    case 'pending':
+      return { lat: s.pending.latitude, lon: s.pending.longitude }
+    case 'label':
+      return { lat: s.poi.lat, lon: s.poi.lon }
+    case 'spot':
+      return { lat: round5(s.lat), lon: round5(s.lon) }
+  }
+}
+
+/** What `Add to analysis` registers for a label or a spot; a ranked or pending row is in already. */
+export function subjectPlace(s: CardSubject): Place | null {
+  if (s.kind === 'label') return poiToPlace(s.poi)
+  if (s.kind === 'spot') return spotPlace(s.lat, s.lon)
+  return null
+}
+
+/** The row type a subject is, or will be once it ranks; a spot has none until it is added. */
+export function subjectType(s: CardSubject): string | null {
+  switch (s.kind) {
+    case 'ranked':
+      return s.row.type
+    case 'pending':
+      // A found row's kind is its row type already, and a searched place's
+      // is `placeType`'s. A pasted coordinate has none, so it is `custom`.
+      return placeType(s.pending.kind ?? '')
+    case 'label':
+      // So OSM's `volcano` reads `Peak`.
+      return placeType(s.poi.kind)
+    case 'spot':
+      return null
+  }
+}
+
+/** The card's one button: a row in the analysis offers its way out, a place outside it its way in. */
+export function cardAction(s: CardSubject, view: CardView): CardAction | null {
+  if (s.kind === 'ranked') return view.removable ? 'remove' : null
+  if (s.kind === 'pending') return 'remove'
+  return view.added ? 'remove' : 'add'
+}
+
+/** The type in the word the Type column uses for it, or null where a reader would have no word for it. */
+function typeWord(rowType: string): string | null {
+  return rowType === 'custom' ? null : String(TYPE_COL.format!(rowType))
+}
+
+/** Whether a destination is named by its own coordinates: a pasted pair, or a spot the map added. */
+function spotNamed(name: string, lat: number, lon: number): boolean {
+  return name === coordinateLabel(lat, lon)
+}
+
+/**
+ * The name, its link out, and the facts under it, for every subject but a
+ * spot. `modelOnBand` keeps a comparison row's model line on the band only
+ * while no forecast section names the model under it, so a card never says
+ * the model twice.
+ */
+function placeHeader(s: Exclude<CardSubject, { kind: 'spot' }>, view: CardView, modelOnBand = true) {
+  const states = view.usStates ?? null
+  const ground = slopeFact(view.ground)
+  const facts = (type: string | null, elevationFt: number | null | undefined, lat: number, lon: number) =>
+    factsRow(type, elevationFt != null ? elevationFact(elevationFt) : null, lat, lon, caltopoUrl(lat, lon, view.mapZoom), ground)
+  // A destination named by its coordinates has the spot's header: the pair
+  // as the title, opening CalTopo, the pair again under it and the facts
+  // (`pointFacts`), so every card stands on the same three lines.
+  const spotLink = (lat: number, lon: number) => ({ href: caltopoUrl(lat, lon, view.mapZoom), label: 'Open in CalTopo' })
+  switch (s.kind) {
+    case 'ranked': {
+      const r = s.row
+      // The model a comparison names takes a line of its own above the facts,
+      // because a model's name can be as long as the rest of the line.
+      const identity = popupIdentity(r, view.columns ?? [], view.modelFallbackLabel)
+      const elevation = identity.elevation
+      const spot = spotNamed(r.name, r.latitude, r.longitude)
+      return {
+        title: `${s.rank ? `#${escapeHtml(String(s.rank))} ` : ''}${escapeHtml(r.name)}`,
+        link: spot
+          ? spotLink(r.latitude, r.longitude)
+          : {
+              href: destinationUrl(
+                { name: r.name, type: r.type, latitude: r.latitude, longitude: r.longitude, osm_id: r.osm_id ?? null },
+                states,
+              ),
+              label: destinationLinkLabel(r.type),
+            },
+        meta: metaBand([
+          modelOnBand && identity.model ? `<div>${escapeHtml(identity.model)}</div>` : '',
+          spot
+            ? pointFacts(identity.type, r.latitude, r.longitude, r.elevation_ft == null ? GROUND : elevation, view)
+            : factsRow(identity.type, elevation, r.latitude, r.longitude, caltopoUrl(r.latitude, r.longitude, view.mapZoom), ground),
+        ]),
+      }
+    }
+    case 'pending': {
+      // The word the Type column will use once the destination ranks.
+      const p = s.pending
+      const link = pendingLinkRow(p)
+      const type = typeWord(subjectType(s)!)
+      if (spotNamed(p.name, p.latitude, p.longitude)) {
+        return {
+          title: escapeHtml(p.name),
+          link: spotLink(p.latitude, p.longitude),
+          meta: metaBand([
+            pointFacts(String(TYPE_COL.format!(subjectType(s)!)), p.latitude, p.longitude, p.elevation_ft != null ? elevationFact(p.elevation_ft) : GROUND, view),
+          ]),
+        }
+      }
+      return {
+        title: escapeHtml(p.name),
+        link: { href: destinationUrl(link, states), label: destinationLinkLabel(link.type) },
+        meta: metaBand([facts(type, p.elevation_ft, p.latitude, p.longitude)]),
+      }
+    }
+    case 'label': {
+      // The kind in the word the Type column will use for the place once it is
+      // analyzed. A trailhead or crag marker brings its OSM id, so it links to
+      // that object (#734). The name is OSM's, so it is third-party text on
+      // its way to setHTML.
+      const p = s.poi
+      const type = subjectType(s)!
+      const href = destinationUrl({ name: p.name, type, latitude: p.lat, longitude: p.lon, osm_id: p.osmId ?? null }, states)
+      return {
+        title: escapeHtml(p.name),
+        link: { href, label: destinationLinkLabel(type) },
+        meta: metaBand([facts(typeWord(type), p.elevationFt, p.lat, p.lon)]),
+      }
+    }
+  }
+}
+
+/** The key the forecast section's fold is kept under, beside the layers' targets. */
+export const FORECAST_SECTION = 'forecast'
+
+/** What the forecast section is named without a model to name: an archive report's, whose numbers no model produced. */
+const FORECAST_HEADING = 'Forecast'
+
+/**
+ * Whether a section shows its body: the reader's own choice for that section
+ * where they made one, and otherwise every section open until an analysis
+ * has been run, and once one has, the forecast alone, on every card, a
+ * ranked, pending, label or spot card alike, at a desk and on a phone, a
+ * warning folded with the rest (TJ, 2026-11-04). Before an analysis a card is
+ * what the reader asks the map about the point, so it opens whole; after
+ * one, the forecast is what a card is opened for, and a folded heading still
+ * names what is at the point, a warning on its amber band with its mark.
+ */
+export function sectionOpen(key: string, folds: ReadonlyMap<string, boolean> | undefined, analyzed: boolean): boolean {
+  const chosen = folds?.get(key)
+  if (chosen !== undefined) return chosen
+  return !analyzed || key === FORECAST_SECTION
+}
+
+/**
+ * A ranked row's measurements as one grid, a row per family and a column per
+ * aggregate (TJ, 2026-10-08), every value from the COLUMNS the table is
+ * showing rather than a list spelled here (#370; `popupRows.ts` owns the
+ * derivation), or '' with no column to show.
+ */
+function rankedGrid(row: DestinationResult, view: CardView): string {
+  const grid = popupGrid(
+    popupGroups(row, view.columns ?? [], {
+      modelId: view.modelId,
+      times: view.times,
+      rankedBy: view.rankedBy,
+      pointSample: view.pointSample,
+    }),
+  )
+  return grid.rows.length ? metricGrid(grid, { compact: view.compact, widths: view.widths }) : ''
+}
+
+/**
+ * A ranked row's forecast as the card's last section: `Forecast: GFS
+ * Seamless`, the model the numbers came from (a comparison row's own, or the
+ * one model that answered every row), the grid, and when the report was
+ * analyzed in the fine print, `Analyzed: Nov 3, 2026, 1:36 PM` (TJ,
+ * 2026-11-03). Nothing with no column to show.
+ */
+function forecastSection(s: Extract<CardSubject, { kind: 'ranked' }>, view: CardView): string | null {
+  const grid = rankedGrid(s.row, view)
+  if (!grid) return null
+  const model = (s.row as ModelRow).modelLabel ?? view.modelFallbackLabel ?? null
+  const analyzed = updatedAt(view.analyzedAtMs)
+  return cardSection({
+    key: FORECAST_SECTION,
+    layer: FORECAST_HEADING,
+    ...(model ? { name: escapeHtml(model) } : {}),
+    open: sectionOpen(FORECAST_SECTION, view.folds, view.analyzedAtMs != null),
+    body: grid + (analyzed ? bodyLines([updatedLine(escapeHtml(analyzed), ANALYZED)]) : ''),
+  })
+}
+
+/** What the forecast section's fine print calls the report's time. */
+const ANALYZED = 'Analyzed'
+
+/**
+ * The bar a spot's ground stands as while its tile is read: the widest
+ * height, `29,032 ft`, the dot between the two facts and the widest slope,
+ * so the line lands in the room it kept on a card that holds its width.
+ */
+export const SPOT_GROUND_CH = '29,032 ft'.length + 3 + SLOPE_FACT_CH
+
+/** Where a point's height is the ground's, read from the terrain tile, since the point has none recorded. */
+const GROUND = Symbol('ground')
+
+/**
+ * The lines under a point's title, a spot's or a destination's named by its
+ * coordinates, laid out as every card's are (TJ, 2026-11-04): the pair,
+ * opening CalTopo, though the title says it too, then `type`, the word the
+ * Type column says for the row (`Coordinates` for a spot, which is what one
+ * becomes once added), its height and the slope. A spot
+ * before an analysis and the same point after it say the same three lines:
+ * a point with no height of its own takes the ground's, which a spot's card
+ * read from the tile and an analyzed one left out. `elevation` is the
+ * height as the facts say it, null where the reader's columns leave it out,
+ * or `GROUND`.
+ */
+function pointFacts(
+  type: string | null,
+  lat: number,
+  lon: number,
+  elevation: string | null | typeof GROUND,
+  view: CardView,
+): string {
+  const pair = factsRow(null, null, lat, lon, caltopoUrl(lat, lon, view.mapZoom))
+  const ground = view.ground
+  const word = type ? escapeHtml(type) : ''
+  if (elevation !== GROUND) return pair + factsLine([word, elevation ? factValue(escapeHtml(elevation)) : '', slopeFact(ground)])
+  if (!ground || ground.kind === 'none') return pair + factsLine([word])
+  if (ground.kind === 'pending') return pair + factsLine([word, pendingValue(SPOT_GROUND_CH)])
+  const feet = Math.round(ground.reading.elevationM * FEET_PER_METER)
+  return pair + factsLine([word, factValue(escapeHtml(elevationFact(feet))), slopeFact(ground)])
+}
+
+/**
+ * What the layers say at the point (#737, #832), each a section opening on
+ * the layer's name and its reading, `Rain radar: Moderate precipitation`, so
+ * a reader knows which layer said it (TJ, 2026-11-03), the order's type in
+ * the warning amber under a closure's name, its values under that, and where
+ * and when it was measured in the fine print at its foot: `NEXRAD radar: 10
+ * min ago` (layout C1). A reading's name that changes while the card is
+ * open, the radar's during playback, stands at the width of its widest so
+ * the card does not jump (#752).
+ */
+function layerSection(section: PointSection, view: CardView): string {
+  const name = section.titles ? widestName(section.title, section.titles) : section.title
+  return cardSection({
+    key: section.kind,
+    layer: section.layer,
+    name,
+    warning: section.warning,
+    link: section.link,
+    open: sectionOpen(section.kind, view.folds, view.analyzedAtMs != null),
+    body: bodyLines([
+      section.warn === undefined ? null : warningLine(section.warn, null),
+      ...section.rows,
+      section.when === undefined ? null : updatedLine(section.when, section.source),
+    ]),
+  })
+}
+
+/**
+ * The card for a subject as the map sees it now. A spot's title is the pair,
+ * and its link-out glyph opens CalTopo there (`Open in CalTopo`, TJ
+ * 2026-10-30), with the pair again under it as every card has (`pointFacts`,
+ * TJ 2026-11-04). Under the
+ * band, the layers' sections in the map's rank and then the forecast's, each
+ * heading on a band of its own (`cardSections`).
+ */
+export function destinationPopupHtml(s: CardSubject, view: CardView = {}): string {
+  const action = cardAction(s, view)
+  const button = action ? cardButton(`${CARD_ACTION_ATTR}="${action}"`, CARD_ACTION_WORD[action], CARD_ACTION_LABEL[action]) : ''
+  const at = subjectPoint(s)
+  const forecast = s.kind === 'ranked' ? forecastSection(s, view) : null
+  const header =
+    s.kind === 'spot'
+      ? {
+          title: escapeHtml(coordinateLabel(at.lat, at.lon)),
+          link: { href: caltopoUrl(at.lat, at.lon, view.mapZoom), label: 'Open in CalTopo' },
+          meta: metaBand([pointFacts(String(TYPE_COL.format!(SPOT_KIND)), at.lat, at.lon, GROUND, view)]),
+        }
+      : placeHeader(s, view, forecast === null)
+  const sections = [...(view.sections ?? []).map((section) => layerSection(section, view)), forecast].filter(
+    (part): part is string => part !== null,
+  )
+  // The button stands in the title row whatever is under the band (TJ,
+  // 2026-11-04), so a card with no section is its band alone.
+  return popupCard({ ...header, body: cardSections(sections), action: button })
+}

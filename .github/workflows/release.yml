@@ -1,14 +1,19 @@
 name: Release
 
+# Every merge to main releases through yggdrasil's release module. GitVersion
+# reads the bump from the squash commit's title; both images are built for
+# linux/amd64 and linux/arm64, pushed under that version and scanned on each
+# platform; the commit is tagged and released only when every scan passes;
+# then two self-merging PRs point Kubernetes-Manifests and bluebird-helm at
+# the release. Decision record 0278.
+#
+# A release that fails part way is finished with "Re-run failed jobs", never
+# "Re-run all jobs": the pushed images are immutable, so pushing them again
+# fails. Don't re-run an old release after a newer one shipped: its bump PRs
+# would point production back at the older version. Release again instead.
 on:
   push:
-    branches:
-      - main
-  # Manual triggering from the Actions tab, from main only: every job below
-  # checks the ref, because a dispatch from another branch would otherwise
-  # build that branch, push its image, and open the production bump with it
-  # (GitVersion gives a branch a prerelease version that sorts above main's).
-  workflow_dispatch:
+    branches: [main]
 
 # Serialize releases so concurrent runs don't race on the manifest update
 # (last-write-wins once pinned the deployed tag to the lower version). Keep
@@ -17,538 +22,46 @@ concurrency:
   group: release
   cancel-in-progress: false
 
-# Least-privilege default; jobs that write to the repo override this at the job level
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
-  # Calculate the next SemVer using GitVersion (the squash commit's title drives
-  # the increment) and skip the release when that version is already out.
-  determine-version:
-    name: Determine Version
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    outputs:
-      semVer: ${{ steps.gitversion.outputs.semVer }}
-      released: ${{ steps.published.outputs.released }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0  # GitVersion needs the full history to calculate the version
-          persist-credentials: false
-      - uses: gittools/actions/gitversion/setup@7417b1089e2c7de93510f1901d656ddf60bb024f # v4.7.0
-        with:
-          # Exact, not '6.x': the version this computes is pasted into tags,
-          # branch names and commit messages, so the engine that computes it
-          # moves only through a reviewed change. Not seen by Dependabot; bump
-          # it by hand, and test_release_titles.py names the same version.
-          versionSpec: '6.8.2'
-      - id: gitversion
-        uses: gittools/actions/gitversion/execute@7417b1089e2c7de93510f1901d656ddf60bb024f # v4.7.0
-      # A release is three things made in order: the image, the git tag, the
-      # GitHub release. Only when all three exist is there nothing left to do.
-      # A guard on the image alone cannot finish a run that died between the
-      # push and the tag: a re-run sees the image and skips everything, and the
-      # version stays an image with no tag or release (v0.16.0 and v0.16.1,
-      # 2026-07-21, whose tag pushes were refused). Each job below makes its own
-      # piece only when that piece is missing, so a re-run finishes the release.
-      - name: Check what this version has already published
-        id: published
-        env:
-          SEMVER: ${{ steps.gitversion.outputs.semVer }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          have() { if "$@" >/dev/null 2>&1; then echo true; else echo false; fi; }
-          IMAGE=$(have docker manifest inspect "zimmertr/bluebird:${SEMVER}")
-          TAG=$(have git ls-remote --exit-code origin "refs/tags/v${SEMVER}")
-          RELEASE=$(have gh release view "v${SEMVER}" --repo "$GITHUB_REPOSITORY")
-          echo "${SEMVER}: image=${IMAGE} tag=${TAG} release=${RELEASE}"
-          if [ "${IMAGE}${TAG}${RELEASE}" = truetruetrue ]; then
-            echo "released=true" >> "$GITHUB_OUTPUT"
-            echo "v${SEMVER} is already released; skipping."
-          else
-            echo "released=false" >> "$GITHUB_OUTPUT"
-          fi
-
-  # Build the Docker image and push it to Docker Hub, then tag the commit in git.
-  # Either half is skipped when it already exists, so a re-run after a failed
-  # tag pushes the tag without trying to push the immutable image again.
-  build-and-push:
-    name: Build & Push
-    runs-on: ubuntu-latest
-    needs: determine-version
-    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
-    # Releases serialize on one concurrency group, so a hung registry push here
-    # dams every queued release until GitHub's 6h default kills the job (it
-    # blocked deploys for 2.5h on 2026-07-25). Normal multi-arch builds take
-    # ~10 minutes; 30 is generous headroom for a cold cache.
-    timeout-minutes: 30
+  release:
+    name: Release
+    uses: zimmertr/yggdrasil/.github/workflows/release.yml@d8443185af7a5e3b4b197b8ee167533d79c816c5 # v0.14.0
     permissions:
-      contents: write  # Required to push the git tag
-    # The index digest of what is in the registry, for the scan job: the
-    # build's own answer, or on a re-run that skipped the build, the registry's
-    # answer for the image this job checked was built from this commit.
-    outputs:
-      digest: ${{ steps.build.outputs.digest || steps.image.outputs.digest }}
-    steps:
-      # The one checkout that keeps its token in .git/config, because the
-      # tag step below pushes with it. Every other checkout drops it.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # QEMU provides the arm64 emulation for the multi-platform build below
-      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      # Asked here, not read from Determine Version: "Re-run failed jobs" keeps
-      # that job's outputs from the first attempt, which predate the push.
-      # An image that exists must have been built from this commit, or the tag
-      # below would name source the image does not hold. Mainline gives every
-      # commit its own version, so a mismatch is never a re-run and is stopped.
-      - name: Check whether the image is already pushed
-        id: image
-        env:
-          IMAGE: zimmertr/bluebird:${{ needs.determine-version.outputs.semVer }}
-        run: |
-          if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          REV=$(docker buildx imagetools inspect "$IMAGE" \
-            --format '{{ index (index .Image "linux/amd64").Config.Labels "org.opencontainers.image.revision" }}')
-          if [ "$REV" != "$GITHUB_SHA" ]; then
-            echo "::error::${IMAGE} was built from ${REV:-an unknown commit}, not ${GITHUB_SHA}. See docs/CICD.md, Finishing a failed release."
-            exit 1
-          fi
-          echo "exists=true" >> "$GITHUB_OUTPUT"
-          echo "digest=$(docker buildx imagetools inspect "$IMAGE" --format '{{ .Manifest.Digest }}')" >> "$GITHUB_OUTPUT"
-          echo "${IMAGE} is already pushed from this commit; skipping the build."
-      # GitHub exposes no build-start timestamp, and github.event.repository
-      # .updated_at is the last push, not this build. Stamp it ourselves so
-      # GET /api/version reports when the image was actually produced.
-      - id: stamp
-        if: steps.image.outputs.exists == 'false'
-        run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-      - id: build
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        if: steps.image.outputs.exists == 'false'
-        with:
-          context: .
-          # amd64 for the cluster, arm64 for Apple Silicon / Graviton pulls
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: zimmertr/bluebird:${{ needs.determine-version.outputs.semVer }}
-          # Baked into the image so the running service can answer
-          # GET /api/version, and so OpenAPI's info.version is the real release
-          # rather than a hardcoded placeholder.
-          build-args: |
-            APP_VERSION=${{ needs.determine-version.outputs.semVer }}
-            APP_COMMIT=${{ github.sha }}
-            APP_BUILT_AT=${{ steps.stamp.outputs.built_at }}
-          # Version/revision vary per release, so they're stamped here rather
-          # than baked into the Dockerfile's static labels.
-          labels: |
-            org.opencontainers.image.version=${{ needs.determine-version.outputs.semVer }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          # Supply-chain attestations. These publish as extra manifests, which
-          # Docker Hub's UI lists as "unknown/unknown" platform rows — cosmetic.
-          provenance: mode=max
-          sbom: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      # A tag that already names this commit is a re-run's, and is left alone.
-      # One that names another commit is refused rather than moved: the
-      # repository's immutable releases would refuse the move anyway.
-      - name: Tag Release Commit
-        env:
-          TAG: v${{ needs.determine-version.outputs.semVer }}
-        run: |
-          # The peeled line (^{}) is the commit an annotated tag points at; a
-          # lightweight tag has only the plain line, which is the commit itself.
-          REFS=$(git ls-remote origin "refs/tags/${TAG}" "refs/tags/${TAG}^{}")
-          AT=$(printf '%s\n' "$REFS" | awk '$2 ~ /\^\{\}$/ {print $1; exit}')
-          [ -n "$AT" ] || AT=$(printf '%s\n' "$REFS" | awk 'NF {print $1; exit}')
-          if [ -n "$AT" ]; then
-            if [ "$AT" != "$GITHUB_SHA" ]; then
-              echo "::error::${TAG} already names ${AT}, not ${GITHUB_SHA}."
-              exit 1
-            fi
-            echo "${TAG} already names this commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release ${TAG}"
-          git push origin "$TAG"
-
-  # The planet fill's image (#760), zimmertr/bluebird-fill, at the app's
-  # version: the chart runs the fill at its appVersion, so every release needs
-  # one. Its own job so it builds beside the app's image rather than after it,
-  # and shaped like Build & Push, the re-run check included, except that the
-  # git tag stays Build & Push's alone.
-  #
-  # No layer cache: one apt install, and the repository's GitHub Actions cache
-  # is already over its limit with the app's layers. So every release installs
-  # Debian's packages as they stand that day, the way the app's `apk upgrade`
-  # layer does.
-  build-and-push-fill:
-    name: Build & Push Fill
-    runs-on: ubuntu-latest
-    needs: determine-version
-    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
-    timeout-minutes: 30
-    outputs:
-      digest: ${{ steps.build.outputs.digest || steps.image.outputs.digest }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      # The same check as Build & Push's: an image already under this version
-      # must have been built from this commit, or a re-run skips the build.
-      - name: Check whether the image is already pushed
-        id: image
-        env:
-          IMAGE: zimmertr/bluebird-fill:${{ needs.determine-version.outputs.semVer }}
-        run: |
-          if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          REV=$(docker buildx imagetools inspect "$IMAGE" \
-            --format '{{ index (index .Image "linux/amd64").Config.Labels "org.opencontainers.image.revision" }}')
-          if [ "$REV" != "$GITHUB_SHA" ]; then
-            echo "::error::${IMAGE} was built from ${REV:-an unknown commit}, not ${GITHUB_SHA}. See docs/CICD.md, Finishing a failed release."
-            exit 1
-          fi
-          echo "exists=true" >> "$GITHUB_OUTPUT"
-          echo "digest=$(docker buildx imagetools inspect "$IMAGE" --format '{{ .Manifest.Digest }}')" >> "$GITHUB_OUTPUT"
-          echo "${IMAGE} is already pushed from this commit; skipping the build."
-      - id: build
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        if: steps.image.outputs.exists == 'false'
-        with:
-          context: .
-          file: fill/Dockerfile
-          # The same two platforms as the app: amd64 for the cluster, arm64 for
-          # Apple Silicon and Graviton.
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: zimmertr/bluebird-fill:${{ needs.determine-version.outputs.semVer }}
-          labels: |
-            org.opencontainers.image.version=${{ needs.determine-version.outputs.semVer }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          provenance: mode=max
-          sbom: true
-
-  # Scan what Build & Push put in the registry before anything moves onto it.
-  # The PR gate scanned an amd64 image built from the PR branch; this image is
-  # built again from the squash commit, which non-strict branch protection lets
-  # be a combination no PR built, and its arm64 half was never scanned at all.
-  #
-  # By digest, so the bytes scanned are the bytes pushed, and once per
-  # platform: the digest names the multi-platform index, and Trivy reads only
-  # the half TRIVY_PLATFORM names. No Docker Hub login, because the image is
-  # public and this job then holds no credential for Trivy's code to see.
-  #
-  # Every later job needs this one, so a failed scan holds production and the
-  # chart's default image on the previous release, and makes no GitHub
-  # release: bluebird-helm reads the chart's default image from Latest, so a
-  # release here would carry the failed version into the next chart. The
-  # image and the tag stay published, as with any failure after the push: the
-  # fix is the next release (docs/CICD.md, The release scan).
-  #
-  # The fill image (#760) is scanned the same way and holds the release the
-  # same way, since the chart runs it at the same version.
-  scan:
-    name: Scan Pushed Image (${{ matrix.image }}, ${{ matrix.platform }})
-    runs-on: ubuntu-latest
-    needs: [determine-version, build-and-push, build-and-push-fill]
-    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
-    # Releases serialize; a hung Trivy download must not dam the queue.
-    timeout-minutes: 15
-    strategy:
-      # Report every image and platform even when one fails, so one fix covers all.
-      fail-fast: false
-      matrix:
-        image: [bluebird, bluebird-fill]
-        platform: [linux/amd64, linux/arm64]
-        # Each image's digest from the job that pushed it, so the scanned bytes
-        # are the pushed bytes.
-        include:
-          - image: bluebird
-            digest: ${{ needs.build-and-push.outputs.digest }}
-          - image: bluebird-fill
-            digest: ${{ needs.build-and-push-fill.outputs.digest }}
-    steps:
-      # Only for trivy.yaml: the same exclusions the PR gate and the weekly
-      # scan apply, so the three gates judge an image the same way.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Scan image (Trivy)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        env:
-          TRIVY_PLATFORM: ${{ matrix.platform }}
-        with:
-          image-ref: zimmertr/${{ matrix.image }}@${{ matrix.digest }}
-          format: json
-          output: trivy.json
-          ignore-unfixed: true
-          trivy-config: trivy.yaml
-
-      - name: Count Critical/High vulnerabilities
-        id: crit
-        uses: ./.github/actions/trivy-crit-high
-        with:
-          report: trivy.json
-
-      - name: Fail on fixable Critical/High vulnerabilities
-        env:
-          CRIT_HIGH: ${{ steps.crit.outputs.count }}
-          SEMVER: ${{ needs.determine-version.outputs.semVer }}
-          PLATFORM: ${{ matrix.platform }}
-          IMAGE: zimmertr/${{ matrix.image }}
-        run: |
-          if [ "$CRIT_HIGH" -gt 0 ]; then
-            trivy convert --format table trivy.json >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in ${IMAGE}:${SEMVER} (${PLATFORM}). Production stays on the previous release. See docs/CICD.md, The release scan."
-            exit 1
-          fi
-          echo "No fixable Critical/High vulnerabilities in ${IMAGE}:${SEMVER} (${PLATFORM})." >> "$GITHUB_STEP_SUMMARY"
-
-  # Create a GitHub Release with auto-generated release notes from merged PR titles.
-  #
-  # The gh CLI rather than an action, because a re-run needs two things from
-  # it: to ask first whether the release exists (with immutable releases on, an
-  # existing one cannot be edited, only skipped), and --verify-tag, which
-  # refuses to run when the tag is missing where the API would instead create a
-  # lightweight tag at the head of main, which may not be this commit.
-  create-release:
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    needs: [determine-version, build-and-push, scan]
-    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
-    permissions:
-      contents: write
-    steps:
-      - name: Create the release unless it exists
-        env:
-          TAG: v${{ needs.determine-version.outputs.semVer }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "${TAG} already has a release."
-            exit 0
-          fi
-          # A release finished late, behind a newer one, must not take
-          # "Latest" from it. Same test as the two bump jobs below.
-          LATEST=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName 2>/dev/null || true)
-          LATEST_FLAG=--latest
-          if [ -n "$LATEST" ] && [ "$(printf '%s\n%s\n' "${LATEST#v}" "${TAG#v}" | sort -V | tail -1)" != "${TAG#v}" ]; then
-            LATEST_FLAG=--latest=false
-          fi
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag "$LATEST_FLAG"
-
-  # Update the image tag in Kubernetes-Manifests so Argo CD rolls out the new version.
-  #
-  # This lands through a self-merging PR rather than a direct push: Kubernetes-Manifests
-  # forbids direct commits to main, and its "Validate manifests" check gives auto-merge
-  # something to wait on. That check YAML-parses the changed files and renders the
-  # affected kustomization; the render pulls the chart but no image, so a tag that does
-  # not exist passes it and fails later, when the canary pod cannot pull it.
-  #
-  # Dependabot-style fixed branch: force-pushed every release and edited in place, so
-  # rapid releases collapse into one up-to-date PR rather than a pile of stale ones.
-  #
-  # GH_PAT must have contents + pull-requests write on zimmertr/Kubernetes-Manifests.
-  #
-  # Deliberately does NOT wait on create-release: the only things this job needs
-  # are the pushed image and its passing scan, and the release notes it links to are a URL
-  # that resolves by the time anyone opens the PR. Waiting on it put a measured
-  # 15 s of release-note generation in front of every production deploy (issue
-  # #368).
-  update-manifests:
-    name: Update Kubernetes Manifests
-    runs-on: ubuntu-latest
-    needs: [determine-version, build-and-push, scan]
-    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
-    steps:
-      # The upstream release binary, checked against its published SHA-256,
-      # rather than a setup action: any action in this job could rewrite the
-      # next step through $GITHUB_PATH or $GITHUB_ENV, and the next step holds
-      # GH_PAT. Neither value is seen by Dependabot; to move them, take both
-      # from the release's checksums.txt in the same change.
-      - name: Install kustomize
-        env:
-          KUSTOMIZE_VERSION: 5.4.3
-          KUSTOMIZE_SHA256: 3669470b454d865c8184d6bce78df05e977c9aea31c30df3c669317d43bcc7a7
-        run: |
-          TARBALL="kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL -o "$RUNNER_TEMP/$TARBALL" \
-            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/${TARBALL}"
-          echo "${KUSTOMIZE_SHA256}  $RUNNER_TEMP/$TARBALL" | sha256sum --check --strict
-          mkdir -p "$RUNNER_TEMP/bin"
-          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP/bin" kustomize
-          # Ahead of the runner image's own kustomize on PATH.
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/bin/kustomize" version
-
-      - name: Open or update the image bump PR
-        env:
-          SEMVER: ${{ needs.determine-version.outputs.semVer }}
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          APP_REPO: ${{ github.repository }}
-          SERVER_URL: ${{ github.server_url }}
-        run: |
-          # A re-run that finishes an older release after a newer one shipped
-          # must not move prod back onto the older image.
-          LATEST=$(gh release view --repo "$APP_REPO" --json tagName -q .tagName 2>/dev/null || true)
-          if [ -n "$LATEST" ] && [ "$(printf '%s\n%s\n' "${LATEST#v}" "$SEMVER" | sort -V | tail -1)" != "$SEMVER" ]; then
-            echo "::notice::${LATEST} is newer than ${SEMVER}; leaving the manifests alone."
-            exit 0
-          fi
-          BR="chore/bluebird-image"
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/zimmertr/Kubernetes-Manifests.git" k8s-manifests
-          cd k8s-manifests
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Fresh off main every time, so the branch is always exactly one commit
-          # carrying the newest tag, never a stack of prior bumps.
-          git checkout -B "$BR" origin/main
-          (cd public/bluebird && kustomize edit set image "zimmertr/bluebird=zimmertr/bluebird:${SEMVER}")
-          if git diff --quiet; then
-            echo "Manifests already at ${SEMVER} — nothing to bump."
-            exit 0
-          fi
-          git commit -am "chore: bump bluebird image to ${SEMVER}"
-          git push -f origin "$BR"
-
-          TITLE="chore: bump bluebird image to ${SEMVER}"
-          BODY="Automated by the bluebird ${SEMVER} release. Rolls the stable app onto the freshly published \`zimmertr/bluebird:${SEMVER}\` (triggers the canary rollout).
-
-          - Release: ${SERVER_URL}/${APP_REPO}/releases/tag/v${SEMVER}"
-          PR_NUM="$(gh pr list --head "$BR" --state open --json number -q '.[0].number')"
-          if [ -n "$PR_NUM" ]; then
-            # The force-push already advanced the branch. Refresh title and body
-            # too: both name the version, so a PR carried across several releases
-            # would otherwise advertise a superseded one.
-            gh pr edit "$PR_NUM" --title "$TITLE" --body "$BODY"
-            echo "Advanced existing PR #${PR_NUM} to ${SEMVER}."
-          else
-            gh pr create --base main --head "$BR" --title "$TITLE" --body "$BODY"
-          fi
-
-          # Re-arm unconditionally: GitHub disables auto-merge whenever the head
-          # branch is force-pushed, and this job force-pushes on every release.
-          # The || fallback covers the window where the required checks have already
-          # gone green, which makes the PR "clean" and rejects --auto outright.
-          gh pr merge --auto --squash "$BR" || gh pr merge --squash "$BR"
-
-  # Land a commit on bluebird-helm bumping the chart's default image tag
-  # (Chart.yaml appVersion) to this release. A chart release only fires on a
-  # commit under charts/**, so without this the published chart's default keeps
-  # pointing at whatever bluebird release was latest the last time the chart repo
-  # happened to change. The chart pipeline's own package-time resolver is the
-  # correctness backstop if newer app releases land before this one lands.
-  #
-  # This goes through a self-merging PR, like update-manifests above, because
-  # bluebird-helm/main requires a pull request (with no approving review) and
-  # a required "Lint & render" check. GitHub enforces both on direct pushes, and
-  # that check only triggers on pull_request, so a push could never satisfy it. Arming auto-merge
-  # gets the same hands-off result while keeping helm lint as a gate.
-  #
-  # Dependabot-style: a fixed branch is force-pushed each release and only one
-  # open PR is ever kept, so rapid releases collapse into a single up-to-date PR
-  # rather than a pile. GH_PAT must additionally carry contents + pull-requests
-  # write on zimmertr/bluebird-helm (it already has them on Kubernetes-Manifests).
-  #
-  # Unlike update-manifests, this one really does wait on create-release:
-  # bluebird-helm's own release workflow resolves appVersion at package time
-  # from `repos/zimmertr/bluebird/releases/latest`, so opening this PR before
-  # the release exists races the resolver onto the PREVIOUS version.
-  bump-chart-appversion:
-    name: Bump Helm Chart appVersion
-    runs-on: ubuntu-latest
-    needs: [determine-version, build-and-push, create-release, scan]
-    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
-    steps:
-      - name: Open or update the appVersion bump PR
-        env:
-          SEMVER: ${{ needs.determine-version.outputs.semVer }}
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          # Provenance for the generated PR body — the app repo, the merge commit
-          # that triggered this release, and the base GitHub URL.
-          APP_REPO: ${{ github.repository }}
-          APP_SHA: ${{ github.sha }}
-          SERVER_URL: ${{ github.server_url }}
-        run: |
-          # A re-run that finishes an older release after a newer one shipped
-          # must not move the chart's default image back onto the older one.
-          LATEST=$(gh release view --repo "$APP_REPO" --json tagName -q .tagName 2>/dev/null || true)
-          if [ -n "$LATEST" ] && [ "$(printf '%s\n%s\n' "${LATEST#v}" "$SEMVER" | sort -V | tail -1)" != "$SEMVER" ]; then
-            echo "::notice::${LATEST} is newer than ${SEMVER}; leaving the chart alone."
-            exit 0
-          fi
-          BR="chore/bump-appversion"
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/zimmertr/bluebird-helm.git" helm
-          cd helm
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Fresh single commit off main every time, so the branch is always the
-          # newest appVersion and never a stack of prior bumps.
-          git checkout -b "$BR"
-          sed -i -E "s|^appVersion:.*|appVersion: \"${SEMVER}\"|" charts/bluebird/Chart.yaml
-          if git diff --quiet; then
-            echo "Chart appVersion is already ${SEMVER} — nothing to bump."
-            exit 0
-          fi
-          git commit -am "chore(release): bump chart appVersion to ${SEMVER}"
-          git push -f origin "$BR"
-
-          # Link the chart bump back to the app release that produced it: the
-          # GitHub release, the merge commit, and (best-effort) the PR that merged.
-          RELEASE_URL="${SERVER_URL}/${APP_REPO}/releases/tag/v${SEMVER}"
-          COMMIT_URL="${SERVER_URL}/${APP_REPO}/commit/${APP_SHA}"
-          PR_URL="$(gh api "repos/${APP_REPO}/commits/${APP_SHA}/pulls" -q '.[0].html_url' 2>/dev/null || true)"
-
-          # printf (not a YAML multi-line string) keeps the block's indentation out
-          # of the rendered markdown; \` is a literal backtick inside the quotes.
-          BODY="$(printf '%s\n\n%s\n- Release: %s\n- Commit: %s' \
-            "Automated by the bluebird app release pipeline. Points the chart's default image tag (\`appVersion\`) at the freshly published \`zimmertr/bluebird:${SEMVER}\`. Merging republishes the chart with the new default." \
-            "Produced by the app version this points at:" \
-            "$RELEASE_URL" "$COMMIT_URL")"
-          [ -n "$PR_URL" ] && BODY="$(printf '%s\n- Pull request: %s' "$BODY" "$PR_URL")"
-
-          TITLE="chore(release): bump chart appVersion to ${SEMVER}"
-          PR_NUM="$(gh pr list --head "$BR" --state open --json number -q '.[0].number')"
-          if [ -n "$PR_NUM" ]; then
-            # The force-push already refreshed the branch; refresh the description
-            # too so its links track the newest release, not the superseded one.
-            gh pr edit "$PR_NUM" --title "$TITLE" --body "$BODY"
-            echo "Updated existing PR #${PR_NUM} in place."
-          else
-            gh pr create --base main --head "$BR" --title "$TITLE" --body "$BODY"
-          fi
-
-          # Arm auto-merge so the bump lands without a human. Unconditional on
-          # purpose: GitHub disables auto-merge whenever the head branch is
-          # force-pushed, and this job force-pushes $BR on every release, so the
-          # update-in-place path above must re-arm rather than assume it stuck.
-          #
-          # Squash because that's the only merge type bluebird-helm allows, and
-          # its GitVersion reads the squash commit message ("chore(release):" →
-          # patch bump on the chart).
-          #
-          # GH_TOKEN here is GH_PAT, which is load-bearing: a merge driven by a
-          # GITHUB_TOKEN would not fire bluebird-helm/release.yml's `on: push`
-          # (GitHub's recursion guard), leaving the bump merged but the chart
-          # never republished. Same trap documented in dependabot-auto-merge.yml.
-          gh pr merge --auto --squash "$BR"
+      contents: write # the tag and release
+    with:
+      # amd64 for the cluster, arm64 for Apple Silicon and Graviton pulls. The
+      # planet fill (#760) is released beside the app at the same version,
+      # because the chart runs it at its appVersion. It keeps no layer cache:
+      # one apt install, and the Actions cache is already over its limit, so
+      # every release takes Debian's packages as they stand that day.
+      images: >-
+        [{"image": "zimmertr/bluebird",
+          "platforms": "linux/amd64,linux/arm64",
+          "cache": true},
+         {"image": "zimmertr/bluebird-fill",
+          "file": "fill/Dockerfile",
+          "platforms": "linux/amd64,linux/arm64"}]
+      # The fixed branches keep one open bump PR each across releases. The
+      # chart bump's `chore(release):` title is what makes bluebird-helm
+      # release a patch, and it runs after the GitHub release because
+      # bluebird-helm's own release reads appVersion from this repo's Latest.
+      deploys: >-
+        [{"repo": "zimmertr/Kubernetes-Manifests",
+          "file": "public/bluebird/kustomization.yml",
+          "set": "(.images[] | select(.name == \"zimmertr/bluebird\")).newTag",
+          "branch": "chore/bluebird-image",
+          "title": "chore: bump bluebird image"},
+         {"repo": "zimmertr/bluebird-helm",
+          "file": "charts/bluebird/Chart.yaml",
+          "set": ".appVersion",
+          "branch": "chore/bump-appversion",
+          "title": "chore(release): bump chart appVersion"}]
+    secrets:
+      dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Contents and pull-requests write on Kubernetes-Manifests and
+      # bluebird-helm. A PAT, not GITHUB_TOKEN, because a merge made with
+      # GITHUB_TOKEN would not start bluebird-helm's release.
+      deploy-token: ${{ secrets.GH_PAT }}

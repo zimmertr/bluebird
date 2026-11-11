@@ -267,6 +267,7 @@ meant to prevent.
 | `GET /api/version` | Which build is running: version, commit, build time. |
 | `GET /api/geocode` | Place lookup by name, proxied to Nominatim. |
 | `GET /api/wildfires` | Active US wildfire perimeters in a bounding box, cached from NIFC. |
+| `GET /api/fire-activity` | Satellite fire detections from the last 48 hours in a bounding box, worldwide, cached from NASA FIRMS. |
 | `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
 | `GET /api/closures` | Forest Service closure orders in a bounding box: closed areas in Regions 3, 4 and 6, or closed trails, roads and sites in Region 6 (Oregon and Washington). |
 | `GET /api/landmarks` | Named trailheads and crags in a bounding box, from the deployment's own copy of OpenStreetMap. |
@@ -422,6 +423,63 @@ MultiPolygon, with Alaska split at the antimeridian so no ring wraps 180°.
 Test your query area against it before reading an empty `features` array as
 an all-clear — that test is exactly what the app does with it. Static per
 release. See [DATA.md](DATA.md#wildfires).
+
+### Fire detections
+
+`GET /api/fire-activity` returns the hot pixels the VIIRS instruments on
+NOAA-20 and NOAA-21 and the MODIS instruments on Terra and Aqua flagged in the
+48 hours before the last fetch, inside a bounding box, anywhere in the world:
+
+```bash
+curl -s "https://bluebirdforecast.com/api/fire-activity?bbox=-117,45.5,-116,46.5"
+```
+
+```json
+{
+  "type": "FeatureCollection",
+  "fetched_at": 1793155943000,
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-116.47974, 46.09978] },
+      "properties": {
+        "acquired": "2026-10-25T10:13:00Z",
+        "instrument": "VIIRS",
+        "satellite": "N20",
+        "confidence": "nominal",
+        "frp": 2.33
+      }
+    }
+  ]
+}
+```
+
+`bbox` is `west,south,east,north` in decimal degrees, edges included. A west
+greater than its east is a box across the antimeridian.
+
+A detection is one pixel, 375 m across for VIIRS and 1 km for MODIS, that was
+hot when the satellite passed. It is not a fire's outline: the perimeters
+above are. `acquired` is when the satellite saw it, in ISO 8601 UTC to the
+minute, rather than an age, because an age is wrong a minute later. FIRMS
+publishes a detection about 3 hours after the pass. `satellite` is FIRMS's own
+code: `N20` or `N21` for VIIRS, `T` (Terra) or `A` (Aqua) for MODIS.
+`confidence` is FIRMS's too, and differs by instrument: `low`, `nominal` or
+`high` for VIIRS, and a number from `0` to `100`, as text, for MODIS. Nothing
+is dropped for its confidence. `frp` is the fire radiative power in megawatts,
+or null when FIRMS gave none.
+
+The browser cannot ask FIRMS itself: its files carry no CORS header. A
+deployment fetches the three global files every 60 minutes, FIRMS's own
+cadence, and serves a box's slice to everyone. The caching contract is the
+perimeters': one snapshot per deployment (per instance without its database),
+served **past its refresh deadline** when FIRMS is unreachable for up to 24
+hours, and a `503` when no fetch has completed yet or the copy is older than
+that. Read `fetched_at`: every detection was acquired within 48 hours of it.
+
+A box over a busy burning season can hold tens of thousands of detections, and
+the whole world about 200,000, some 40 MB of JSON before compression. Ask for
+the area you will look at. The route is new in 1.x and additive under the
+promise below. See [DATA.md](DATA.md#fire-activity).
 
 ### Smoke plumes
 
@@ -1083,8 +1141,8 @@ models with each one's reach and whether it blends two grids (under
 `forecast_models`), how far ahead air quality reaches
 (`limits.aqi_forecast_days`), the header an Open-Meteo key travels in
 (`api_key_header`), the per-address request pacing behind `429` responses
-(under `limits.rate`), where the three snapshot layers' data has meaning
-(under `coverage`: `wildfires`, `area_closures` and `trail_closures`, each a
+(under `limits.rate`), where the three snapshot layers with an edge have
+meaning (under `coverage`: `wildfires`, `area_closures` and `trail_closures`, each a
 GeoJSON MultiPolygon, the same outlines that ride every `/api/wildfires` and
 `/api/closures` response, so a client can tell before it fetches a layer
 whether its view is somewhere the layer could draw anything), and the data
@@ -1210,7 +1268,7 @@ A request sent with `"elevation_lookup": false` made no lookup, so its flag is
 | `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |
 | `413` | `validation` | The request body is larger than `limits.max_request_bytes`. It is refused before it is read, whether it declares a `Content-Length` or arrives chunked: `"Request body is too large. Maximum is {limits.max_request_bytes} bytes."`, the number written with thousands separators. |
 | `422` | `validation`, or absent | Request validation failed. Polygon too large, a ring with more points than `limits.max_polygon_points`, a list longer than the maximum the schema states, `limit` out of range, a window outside the servable horizon, a minimum above its maximum, or a field the request body does not declare. |
-| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the quota the analysis was spending mid-analysis: the deployment's own, or your key's when the request carries `X-Open-Meteo-Key`. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke, closures and landmarks each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. Each is the whole deployment's while its database is up. An IPv6 address counts by its /64. Discovery also runs one at a time per address, whether `POST /api/destinations` or either analyze route asks for it: a second waits for the first and gets this `429` if it waits too long. On the analyze routes only the discovery waits, not the forecast fetch after it. |
+| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the quota the analysis was spending mid-analysis: the deployment's own, or your key's when the request carries `X-Open-Meteo-Key`. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, fire activity, smoke, closures and landmarks each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. Each is the whole deployment's while its database is up. An IPv6 address counts by its /64. Discovery also runs one at a time per address, whether `POST /api/destinations` or either analyze route asks for it: a second waits for the first and gets this `429` if it waits too long. On the analyze routes only the discovery waits, not the forecast fetch after it. |
 | `500` | `internal` | The service failed in a way none of the other statuses describes. The body has the same `{detail, error}` shape as every other error and never carries the failure's own text. On the stream the same failure arrives as a terminal `error` event. |
 | `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
 | `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or no fetch from NIFC, NOAA or the Forest Service has completed (or none in 24 hours), or, from `GET /api/landmarks`, the instance has no copy of OpenStreetMap to answer from. Transient by nature; `Retry-After` says when a retry is worthwhile. |
@@ -1268,7 +1326,7 @@ the outcome, so a retry loop will spin forever.
 | `upstream_rate_limited` | `429` | `true` | Open-Meteo rate-limited the quota the analysis was spending mid-analysis: the deployment's, or your key's on a keyed request. |
 | `upstream_unavailable` | `502` | `true` | An upstream failed or could not be reached. |
 | `busy` | `503` | `true` | An in-flight upstream budget stayed saturated, so the request was shed. |
-| `snapshot_unavailable` | `503` | `true` | No fetch of the wildfire, smoke or closure snapshot has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve; or, from `GET /api/landmarks`, the instance has no copy of OpenStreetMap: no database, or a first fill not finished. |
+| `snapshot_unavailable` | `503` | `true` | No fetch of the wildfire, fire activity, smoke or closure snapshot has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve; or, from `GET /api/landmarks`, the instance has no copy of OpenStreetMap: no database, or a first fill not finished. |
 | `internal` | `500` | `true` | An unexpected failure in the server: an exception no route turned into one of the codes above, or one that ended an SSE analysis, where it arrives on the `error` event. |
 
 Pydantic's `422` is the one exception, and deliberately: its `detail` is a list

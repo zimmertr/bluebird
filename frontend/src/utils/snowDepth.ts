@@ -256,6 +256,9 @@ export function snowTicks(): RampTick[] {
  */
 export const SNOW_LABEL = 'Snow depth (in)'
 
+/** The Layers menu row's name, which a spot card's snow section opens on too, `Snow depth: Deep snow` (#832). */
+export const SNOW_ROW_LABEL = 'Snow depth'
+
 /** A boundary to one significant figure: 3.9 in reads 4, 39 reads 40. */
 function roundedInches(inches: number): string {
   const decade = 10 ** Math.floor(Math.log10(inches))

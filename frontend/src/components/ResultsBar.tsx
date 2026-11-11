@@ -196,7 +196,6 @@ export default function ResultsBar({
           chevron={!sheet}
           onClick={onToggleRemoved}
           disabled={removedCount === 0}
-          className={DISABLED}
           aria-label={`Removed (${removedCount})`}
         >
           <IconRestore className="flex-shrink-0" />
@@ -214,7 +213,7 @@ export default function ResultsBar({
           onClick={onDownloadCsv}
           disabled={!canDownload}
           aria-label="Download CSV"
-          className={`${ACTION_ITEM} ${DISABLED}`}
+          className={ACTION_ITEM}
         >
           <IconDownload className="flex-shrink-0" />
           <span className={BAR_LABEL}>Download CSV</span>

@@ -35,18 +35,46 @@ export const DRAW_COLOR = '#38bdf8'
  */
 export const PENDING_COLOR = '#3b82f6'
 
-/** The white stroke every marker and handle wears so it reads on any basemap. */
-export const MARKER_STROKE = '#fff'
+/** The white stroke every marker and handle wears, its edge on a dark ground. */
+export const MARKER_STROKE = '#ffffff'
+
+const MARKER_RADIUS = 10
+const MARKER_STROKE_WIDTH = 2
 
 /**
  * A ranked result and a pending destination are one kind of dot, and the
  * colour is the only thing that differs between them.
  */
 export const MARKER_PAINT: Omit<CircleLayerSpecification['paint'], 'circle-color'> = {
-  'circle-radius': 10,
-  'circle-stroke-width': 2,
+  'circle-radius': MARKER_RADIUS,
+  'circle-stroke-width': MARKER_STROKE_WIDTH,
   'circle-stroke-color': MARKER_STROKE,
   'circle-opacity': 0.9,
+}
+
+/**
+ * The dark ring outside every marker's white stroke, its edge on a light
+ * ground (#799). Tailwind `slate-900` as v4 computes it, the label halo's ink.
+ *
+ * One stroke cannot read on both grounds the map now has. White clears 9.51:1
+ * on a forest under the satellite imagery (#3a4a33) and 1.19:1 on a snowfield
+ * (#e8ecef), and it was already 1.09:1 on Liberty's own ground (#f8f4f0), where
+ * the marker's edge was its fill alone. This ring clears 15.01:1 on the snow
+ * and 16.29:1 on Liberty, where the white is lost, and the white clears 17.83:1
+ * against the ring, so on any ground one of the two stands 3:1 or more off it
+ * (WCAG 1.4.11). Measured 2026-10-27; `styles.test.ts` holds the numbers.
+ *
+ * A circle of its own beneath the marker, because a circle layer has one
+ * stroke: no fill, and a stroke starting where the white one ends, which
+ * MapLibre draws outside the radius. 1px is enough at those ratios and keeps
+ * the dot the size it was.
+ */
+export const MARKER_HALO = '#0f172b'
+export const MARKER_HALO_PAINT: CircleLayerSpecification['paint'] = {
+  'circle-radius': MARKER_RADIUS + MARKER_STROKE_WIDTH,
+  'circle-opacity': 0,
+  'circle-stroke-width': 1,
+  'circle-stroke-color': MARKER_HALO,
 }
 
 /** The rank digit drawn inside a result marker. */
@@ -69,7 +97,7 @@ export const MARKER_LABEL_LAYOUT: Omit<SymbolLayerSpecification['layout'], 'text
 }
 export const MARKER_LABEL_PAINT: SymbolLayerSpecification['paint'] = {
   'text-color': '#f8fafc',
-  'text-halo-color': '#0f172b',
+  'text-halo-color': MARKER_HALO,
   'text-halo-width': 1.5,
 }
 

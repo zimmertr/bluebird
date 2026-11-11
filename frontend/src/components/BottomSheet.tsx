@@ -2,7 +2,7 @@ import { useId, useState, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialog } from '../hooks/useDialog'
 import { useSheetDrag } from '../hooks/useSheetDrag'
-import { BOTTOM_SHEET, CONTROLS_SHEET } from '../styles'
+import { BOTTOM_SHEET, CONTROLS_SHEET, SHEET_ASIDE } from '../styles'
 
 /**
  * The Controls sheet's terms (`AppDrawer`, record 0207): a sheet that is
@@ -53,6 +53,12 @@ interface Props {
   tourAnchor?: string
   /** The Controls sheet, which never unmounts (`KeptSheet`); a menu sheet leaves it out. */
   kept?: KeptSheet
+  /**
+   * The sheet steps aside for the map under it (record 0250): the dim lifts
+   * and the card goes, all but the rows that wear `SHEET_ASIDE.keep`.
+   * The Layers sheet, while a finger drags one of its opacity sliders.
+   */
+  aside?: boolean
 }
 
 /**
@@ -78,7 +84,7 @@ interface Props {
  * opened from inside it (`CONTROLS_SHEET`). And its height is its caller's,
  * because `MapStage` stands the band on its edge.
  */
-export default function BottomSheet({ heading, onClose, children, outside, tourAnchor, kept }: Props) {
+export default function BottomSheet({ heading, onClose, children, outside, tourAnchor, kept, aside = false }: Props) {
   const headingId = useId()
   const open = kept ? kept.open : true
   const panelRef = useDialog(onClose, open && (kept ? !kept.tourRuns : tourAnchor === undefined))
@@ -109,7 +115,7 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
           use. */}
       {open && (
         <div className={kept ? CONTROLS_SHEET.scrim : BOTTOM_SHEET.scrim} onClick={onClose} aria-hidden="true">
-          <div className={BOTTOM_SHEET.dim} />
+          <div className={`${BOTTOM_SHEET.dim}${aside ? ` ${SHEET_ASIDE.dim}` : ''}`} />
         </div>
       )}
       <div
@@ -119,7 +125,11 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
         aria-labelledby={headingId}
         tabIndex={-1}
         inert={!open}
-        className={kept ? `${CONTROLS_SHEET.card} ${open ? '' : CONTROLS_SHEET.shut}` : BOTTOM_SHEET.card}
+        className={
+          kept
+            ? `${CONTROLS_SHEET.card} ${open ? '' : CONTROLS_SHEET.shut}`
+            : `${BOTTOM_SHEET.card}${aside ? ` ${SHEET_ASIDE.card}` : ''}`
+        }
         style={kept ? { height: kept.heightPx } : heldPx === null ? undefined : { height: heldPx }}
         data-tour={tourAnchor}
       >

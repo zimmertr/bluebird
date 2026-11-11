@@ -26,7 +26,7 @@ interface ResultsSheetProps
     | 'onFocusResult'
     | 'onFocusPending'
     // Read off `isDesktop` here (#696, record 0202).
-    | 'chartTitled'
+    | 'chartPhone'
     | 'panesMove'
     // Read off the layout's collapse here (record 0202).
     | 'collapsed'
@@ -58,7 +58,10 @@ interface ResultsSheetView {
   layout: Pick<
     ResultsLayout,
     | 'sheetRef'
+    | 'sheetRaised'
     | 'barRef'
+    | 'legendRef'
+    | 'roomHoldPx'
     | 'resultsCollapsed'
     | 'toggleCollapsed'
     | 'resultsMode'
@@ -66,6 +69,7 @@ interface ResultsSheetView {
     | 'bothHasRoom'
     | 'chartGrip'
     | 'chartPanelPx'
+    | 'chartPaneRef'
     | 'tableGrip'
     | 'tablePanelPx'
   >
@@ -73,6 +77,7 @@ interface ResultsSheetView {
   charts: Pick<
     ChartCompare,
     | 'chart'
+    | 'chartMetrics'
     | 'compare'
     | 'rowChartColor'
     | 'shared'
@@ -107,6 +112,7 @@ interface ResultsSheetView {
  */
 export default function ResultsSheet({
   chartTooltipIndex = null,
+  chartTour,
   resultsView,
   showResults,
   isDesktop,
@@ -200,16 +206,24 @@ export default function ResultsSheet({
         <div
           ref={sheetRef}
           data-tour="results"
-          // How far up a phone chart's readout may rise (#696; TimeSeriesChart).
-          data-readout-room=""
+          style={isDesktop && layout.roomHoldPx !== null ? { height: `${layout.roomHoldPx}px` } : undefined}
           className={
             isDesktop
               ? // On a layer of its own while a desk's panel moves (record 0216).
                 'flex flex-shrink-0 flex-col bg-panel' +
-                (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '')
+                (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '') +
+                // A press's panes move inside the height the results stood
+                // at, so the map holds still (#850).
+                (layout.roomHoldPx !== null ? ' overflow-hidden' : '')
               : // The sheet's surface runs under a phone's home indicator and
-                // its grip and header stand above it (record 0145).
-                `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${LAYER.sheet}`
+                // its grip and header stand above it (record 0145). Never
+                // taller than the map: at full screen (#837) its panels are
+                // sized from the header's estimate, and a header taller than
+                // that clips the table's foot rather than lifting the bar off
+                // the top of the screen.
+                `absolute inset-x-0 bottom-0 max-h-full flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${
+                  layout.sheetRaised ? LAYER.sheetRaised : LAYER.sheet
+                }`
           }
         >
           <ResultsBar
@@ -251,13 +265,14 @@ export default function ResultsSheet({
               layout={layout}
               charts={charts}
               chartTooltipIndex={chartTooltipIndex}
+              chartTour={chartTour}
               tableView={tableView}
               report={report}
               pending={pending}
               removeResult={removeResult}
               sortBy={sortBy}
               sortDesc={sortDesc}
-              chartTitled={!isDesktop}
+              chartPhone={!isDesktop}
               panesMove={isDesktop}
               collapsed={resultsCollapsed}
               layoutMotion={layoutMotion}

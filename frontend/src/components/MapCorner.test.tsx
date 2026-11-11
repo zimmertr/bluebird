@@ -13,8 +13,9 @@ describe('MapCorner', () => {
     expect(onSlots).toHaveBeenCalledOnce()
     const slots = onSlots.mock.calls[0][0]!
     const [stack, credit] = container.querySelectorAll('[data-map-overlay]')
-    // The compass on top, the locate button, then the zoom pair (TJ, 2026-10-20).
-    expect([...stack.children]).toEqual([slots.compass, slots.locate, slots.zoom])
+    // The compass on top, the 3D button under it (#799), the locate button,
+    // then the zoom pair (TJ, 2026-10-20).
+    expect([...stack.children]).toEqual([slots.compass, slots.terrain, slots.locate, slots.zoom])
     // The credits, then the scale at the line's end.
     expect([...credit.children]).toEqual([slots.credit, slots.scale])
     unmount()

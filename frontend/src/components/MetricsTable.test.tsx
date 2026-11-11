@@ -1,13 +1,13 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, screen } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import MetricsTable from './MetricsTable'
 import { AGGREGATE, DEFAULT_FAMILY_KEY, FAMILY_KEYS, NOUN, RANKED_FAMILIES, windowAggregate } from '../metrics'
 import { NO_CONSTRAINTS } from '../utils/clientAnalyze'
 import { DEFAULT_LIMIT } from '../utils/urlState'
 import { render } from '../testSupport/render'
 
-// The ranking and the bounds in one table (#498; record 0251): Metric,
+// The ranking and the bounds in one table (#498; record 0281): Metric,
 // Aggregate, Order, Max results and the Bound adder, then a row for each
 // metric with a bound set or just added, and Clear filters only when there is
 // something to clear. Every control here reports to App and nothing needs an
@@ -71,11 +71,17 @@ describe('MetricsTable', () => {
       expect(setSortBy).toHaveBeenCalledWith('wind_max_mph')
     })
 
-    it('is the native select on a phone', () => {
+    // A phone opens the same menu as a bottom sheet (record 0252).
+    it('opens as a sheet on a phone', async () => {
       const setSortBy = vi.fn()
-      render(<MetricsTable {...props({ setSortBy, phone: true })} />)
-      fireEvent.change(screen.getByRole('combobox', { name: 'Metric' }), { target: { value: 'temp' } })
+      const { user } = render(<MetricsTable {...props({ setSortBy, phone: true })} />)
+      expect(screen.queryAllByRole('combobox')).toEqual([])
+      expect(field('Metric').getAttribute('aria-haspopup')).toBe('dialog')
+      await user.click(field('Metric'))
+      const sheet = screen.getByRole('dialog', { name: 'Metric' })
+      await user.click(within(sheet).getByRole('option', { name: NOUN.temp }))
       expect(setSortBy).toHaveBeenCalledWith(DEFAULT_FAMILY_KEY.temp)
+      expect(screen.queryByRole('dialog')).toBeNull()
     })
   })
 
@@ -92,20 +98,10 @@ describe('MetricsTable', () => {
       expect(document.activeElement).toBe(aggregate)
     })
 
-    it('is the native select on a phone', () => {
-      const setSortBy = vi.fn()
-      render(<MetricsTable {...props({ setSortBy, sortBy: DEFAULT_FAMILY_KEY.temp, phone: true })} />)
-      const other = FAMILY_KEYS.temp.find((k) => k !== DEFAULT_FAMILY_KEY.temp)!
-      fireEvent.change(screen.getByRole('combobox', { name: 'Aggregate' }), { target: { value: other } })
-      expect(setSortBy).toHaveBeenCalledWith(other)
-    })
-
     it('hides for a single-hour window', () => {
       render(<MetricsTable {...props({ pointSample: true })} />)
       expect(screen.queryByRole('button', { name: /^Aggregate / })).toBeNull()
       expect(screen.queryByText('Aggregate')).toBeNull()
-      render(<MetricsTable {...props({ pointSample: true, phone: true })} />)
-      expect(screen.queryByRole('combobox', { name: 'Aggregate' })).toBeNull()
     })
   })
 
@@ -136,6 +132,17 @@ describe('MetricsTable', () => {
       expect(field('Bound').textContent).toContain('Add a bound')
     })
 
+    // On a phone the adder is the same menu's sheet (record 0252), and the
+    // row it adds outlives the sheet handing the keyboard back.
+    it('adds a row from the Bound sheet on a phone', async () => {
+      const { user } = render(<MetricsTable {...props({ phone: true })} />)
+      await user.click(field('Bound'))
+      const sheet = screen.getByRole('dialog', { name: 'Bound' })
+      await user.click(within(sheet).getByRole('option', { name: NOUN.wind }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(boundRows()).toEqual(['wind'])
+    })
+
     it('offers only the metrics not already drawn', async () => {
       const { user } = render(<MetricsTable {...props({ constraints: { ...NO_CONSTRAINTS, maxWindMph: 20 } })} />)
       await user.click(field('Bound'))
@@ -153,14 +160,15 @@ describe('MetricsTable', () => {
       expect(boundRows()).toEqual([])
     })
 
-    it('swaps an empty added row for the next one added', () => {
-      render(<MetricsTable {...props({ phone: true })} />)
-      const adder = screen.getByRole('combobox', { name: 'Bound' })
-      fireEvent.change(adder, { target: { value: 'temp' } })
+    it('swaps an empty added row for the next one added', async () => {
+      const { user } = render(<MetricsTable {...props()} />)
+      await user.click(field('Bound'))
+      await user.click(screen.getByRole('option', { name: NOUN.temp }))
       expect(boundRows()).toEqual(['temp'])
-      expect(document.activeElement).toBe(box('temp', AGGREGATE.minimum))
-      fireEvent.change(adder, { target: { value: 'wind' } })
+      await user.click(field('Bound'))
+      await user.click(screen.getByRole('option', { name: NOUN.wind }))
       expect(boundRows()).toEqual(['wind'])
+      expect(document.activeElement).toBe(box('wind', AGGREGATE.minimum))
     })
 
     it('sets a bound from its box and clears it from an empty one', () => {
@@ -254,15 +262,6 @@ describe('MetricsTable', () => {
       }
       expect(setSortBy).not.toHaveBeenCalled()
       expect(boundRows()).toEqual([])
-    })
-
-    it('is a disabled option in the native selects on a phone', () => {
-      render(<MetricsTable {...props({ unanswered: ARCHIVE, phone: true })} />)
-      for (const label of ['Metric', 'Bound']) {
-        const select = screen.getByRole('combobox', { name: label })
-        const option = [...select.querySelectorAll('option')].find((o) => o.value === 'cloud_deck')!
-        expect(option.disabled).toBe(true)
-      }
     })
 
     // The ranking the reader set before the window moved stays shown; the

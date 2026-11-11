@@ -17,9 +17,10 @@
 // at both widths and is answered from the same constants.
 
 import { resolvePanelHeights } from '../layout'
+import { SHEET_SNAP_PX } from '../sheetDrag'
 
 /** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
-export const MAP_ROWS_PX = 92
+export const MAP_ROWS_PX = 88
 
 /**
  * The top a phone's resting sheet reserves map below: the inset the legend
@@ -53,7 +54,7 @@ export const FAB_GAP_PX = 8
  * metric key and a section per layer that is on. Measured in Chrome 2026-09-17
  * with every layer on, the forecast grid drawn and a freezing-level ranking
  * held. The same number at both widths, because the card is one fixed width
- * (`MAP_MENU_W`) and a legend row is read rather than operated, so no part of
+ * (`CHIP_CARD_W.key`) and a legend row is read rather than operated, so no part of
  * it takes a coarse pointer's target.
  *
  * It has been 245, then 265, then 313 as bands and layers joined — a six-band
@@ -66,6 +67,18 @@ export const FAB_GAP_PX = 8
  * line plus its label whatever its band count, so the six-band key that cost
  * 20px here in September costs nothing now; what still moves this number is
  * another layer, or a section growing a line.
+ *
+ * Re-measured 2026-10-29 in the built image at 1440 wide, the card at its
+ * 224px, a freezing-level ranking held and the forecast grid drawn: the same
+ * five sections as in September still measure 182, the two closure sections
+ * (#550) make it 222, and every layer on since #799, fire activity and slope
+ * angle among them, makes it 294. The ground layers (relief, contours,
+ * imagery) key nothing. The number stays at 182 all the same. Past it the
+ * card scrolls inside the map's height (`legendMaxCss`), so no key is lost,
+ * while every pixel here is a pixel the results lose at rest: 112 more would
+ * ask a desk window 112px taller before Both mode opens, and would lower a
+ * phone's resting sheet by as much, on a phone whose legend is a sheet of
+ * its own and stands nowhere on the map (#696).
  */
 export const LEGEND_STACK_PX = 182
 
@@ -196,7 +209,7 @@ export const RESULTS_BAR_PX = 36
  * One drag grip as the docked panel draws it (`h-2`). The sheet's grips are
  * floored at 24 by `TAP.grip`, and this is the same control on a pointer.
  */
-const DOCKED_GRIP_PX = 8
+export const DOCKED_GRIP_PX = 8
 
 /**
  * The map floor the panel clamp takes where the results are DOCKED below the
@@ -233,7 +246,7 @@ export function dockedMapFloorPx(gripCount: number, barPx: number = RESULTS_BAR_
  * One number for both, because they are two halves of one answer and an 8px
  * difference between them read as a mistake. The value is what Both mode can
  * spend on a 1000px-tall window: 1000 less the docked map floor
- * (`dockedMapFloorPx`, 541 with two grips) is 459, and two panels of 220 fit
+ * (`dockedMapFloorPx`, 434 with two grips) is 566, and two panels of 220 fit
  * inside it with the map a few pixels clear of its floor. They were 288 and
  * 280, chosen before the legend stack had a number, and at those heights the
  * bottom of the stack sat under the results bar on exactly this window.
@@ -255,6 +268,37 @@ export function sheetChromePx(gripCount: number): number {
  */
 export function draggedMapFloorPx(gripCount: number, playerOn = false): number {
   return DRAGGED_MAP_PX + (playerOn ? PLAYER_ROOM_PX : 0) + sheetChromePx(gripCount)
+}
+
+/**
+ * The map a phone's results sheet leaves at full screen (#837): none. The
+ * sheet's chrome is the whole floor, so its panels take every pixel of the
+ * map and the sheet's top edge is the map's. A drag on the grip is the one
+ * way there: the sheet opens at rest, a phone's Chart lifts to the cap
+ * (`draggedMapFloorPx`, record 0155) and the tutorial holds the same, so full
+ * screen is never a default.
+ */
+export function fullScreenMapFloorPx(gripCount: number): number {
+  return sheetChromePx(gripCount)
+}
+
+/** Where a phone's results sheet goes when a drag on its map grip is let go. */
+export type SheetTopRelease = 'full' | 'cap' | 'hold'
+
+/**
+ * Where a drag on a phone's results sheet comes to rest (#837), from the
+ * dragged panel's height when the finger lets go (`panelPx`), the most it may
+ * have under the cap (`capPx`) and the most at full screen (`fullPx`).
+ *
+ * Within `SHEET_SNAP_PX` of full screen it goes there, the menu sheets' snap.
+ * Above the cap but short of that it falls back to the cap, because between
+ * the two the map's rows and its Analyze button would stand over the sheet's
+ * bar. Anywhere lower holds where it was let go, as it always has.
+ */
+export function sheetTopRelease(panelPx: number, capPx: number, fullPx: number): SheetTopRelease {
+  if (fullPx - panelPx <= SHEET_SNAP_PX) return 'full'
+  if (panelPx > capPx) return 'cap'
+  return 'hold'
 }
 
 /**
@@ -377,15 +421,50 @@ export function legendBottomPx(liftPx: number, timelineShown: boolean): number {
  */
 export const CHIP_MENU_GAP_PX = 4
 
+/** The map's edge inset (`MAP_EDGE.publish`'s 0.75rem), which the legend card stands in from the left. */
+export const MAP_EDGE_INSET_PX = 12
+
+/** A desk's legend card's width (`CHIP_CARD_W.key`, `w-56`). */
+export const LEGEND_CARD_W_PX = 224
+
+/**
+ * The player's width on any map wide enough to matter here: the 23rem of
+ * `TimelineTransport`'s `w-[min(23rem,calc(100%-4rem))]`. The `100% - 4rem`
+ * arm only wins under 432px of map, where the bar meets the card anyway.
+ */
+export const TRANSPORT_W_PX = 368
+
+/**
+ * The narrowest map on which the centred player cannot reach under a desk's
+ * legend card, so the card need not stop above it. The bar's left edge is
+ * half the map less half the bar; the card's right edge is the inset plus its
+ * width, and the two keep one more inset between them so they never stand
+ * closer than either stands to the map's edge. 864px.
+ */
+export const LEGEND_BESIDE_TRANSPORT_PX = 2 * (2 * MAP_EDGE_INSET_PX + LEGEND_CARD_W_PX) + TRANSPORT_W_PX
+
 /**
  * The tallest a desk's legend card may be (#714): the map below the rows and
  * the gap under its chip, less the floor `legendBottomPx` keeps. A CSS length,
  * because the card hangs from its chip inside the rows and cannot see the
  * map's height; the map wrapper is a size container (`MAP_EDGE.publish`), so
  * `100cqh` is it. Past this the card scrolls inside itself.
+ *
+ * With the player on screen the card clears its band only where the two
+ * would meet: on a map narrower than `LEGEND_BESIDE_TRANSPORT_PX`. Wider, the
+ * bar stands clear to the card's right and the card keeps the plain gap, as
+ * it does with no player at all. The map's width is `100cqw` off the same
+ * container, and the clamp is a step on it: under the line the product is
+ * past the band's extra height within a thousandth of a pixel, and from the
+ * line up it is negative and clamps to nothing. A step in CSS because the
+ * card cannot see the map's width any more than its height, and a container
+ * query would want the line spelled as a literal class Tailwind can scan.
  */
 export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
-  return `calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + legendBottomPx(liftPx, timelineShown)}px)`
+  const base = MAP_ROWS_PX + CHIP_MENU_GAP_PX + legendBottomPx(liftPx, false)
+  if (!timelineShown) return `calc(100cqh - ${base}px)`
+  const extra = legendBottomPx(liftPx, true) - legendBottomPx(liftPx, false)
+  return `calc(100cqh - ${base}px - clamp(0px, (${LEGEND_BESIDE_TRANSPORT_PX}px - 100cqw) * 1000, ${extra}px))`
 }
 
 /**
@@ -401,6 +480,18 @@ export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
 export function fabBottomPx(liftPx: number, mapPx: number): number {
   const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
   return Math.min(liftPx + FAB_INSET_PX, highest)
+}
+
+/**
+ * How far a drag on a phone's results sheet moves the Analyze button, down
+ * positive (#837): from where it stood on the lift the drag began at to
+ * where it would stand with the sheet `risePx` higher. The drag moves the
+ * button, the player on it and the scale and credit beside it by this, as a
+ * transform, so a move renders nothing (record 0259); the release renders the
+ * new lift, which puts them all where this said.
+ */
+export function fabShiftPx(liftPx: number, risePx: number, mapPx: number): number {
+  return fabBottomPx(liftPx, mapPx) - fabBottomPx(liftPx + risePx, mapPx)
 }
 
 /**

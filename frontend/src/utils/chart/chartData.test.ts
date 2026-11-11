@@ -15,6 +15,15 @@ import {
   nowWithinGrid,
   tracksCursor,
   buildChartData,
+  MAX_CHART_PANELS,
+  addMetric,
+  cardCells,
+  isChartMetric,
+  metricsFor,
+  pickMetric,
+  removeMetric,
+  moveMetric,
+  type ChartMetrics,
   candidateSetKey,
   chartKey,
   computeYDomain,
@@ -23,6 +32,7 @@ import {
   extremeLabelPosition,
   extremeValue,
   formatMetricValue,
+  formatTooltipValue,
   metricForSort,
   nearestKey,
   pixelToTime,
@@ -204,7 +214,7 @@ describe('extremeLabel', () => {
   it('prints the value with its unit', () => {
     expect(extremeLabel(75.4, 'wind')).toBe('75.4 mph')
     expect(extremeLabel(0, 'temp')).toBe('0.0 °F')
-    expect(extremeLabel(8398.95, 'freeze')).toBe('8399 ft')
+    expect(extremeLabel(8398.95, 'freeze')).toBe('8,399 ft')
     expect(extremeLabel(0.04, 'precip')).toBe('0.040 in/hr')
   })
 
@@ -215,7 +225,7 @@ describe('extremeLabel', () => {
   // The hover box prints a cloud deck at the top of its walk as a bound, and
   // the line's label says what the hover box says.
   it('prints a cloud deck at its ceiling as the bound the hover box shows', () => {
-    expect(extremeLabel(30_066, 'cloud_deck')).toBe('≥30000 ft')
+    expect(extremeLabel(30_066, 'cloud_deck')).toBe('≥30,000 ft')
   })
 })
 
@@ -477,6 +487,14 @@ describe('axisTimeLabel', () => {
     expect(axisTimeLabel(t, 24 * HOURS)).toMatch(/^Tue\b.*\d/)
   })
 
+  // One formatter is kept per face; it must print what a fresh one would.
+  it('prints what toLocaleString prints, in both faces', () => {
+    expect(axisTimeLabel(t, 24 * HOURS)).toBe(new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric' }))
+    expect(axisTimeLabel(t, 16 * 24 * HOURS)).toBe(
+      new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric' }),
+    )
+  })
+
   it('swaps the weekday for the date once the span passes two days', () => {
     expect(axisTimeLabel(t, 16 * 24 * HOURS)).toContain('Jul')
     expect(axisTimeLabel(t, 72 * HOURS)).toContain('Jul')
@@ -686,5 +704,96 @@ describe('a name two places share', () => {
     expect(comparedLineLabel(1, rainier.name, 'NOAA GFS', collidingType(rainier, shared))).toBe(
       '1. Mount Rainier (NOAA GFS)',
     )
+  })
+})
+
+// The chart's slots (#499): one rule moves them, whether the ranking or a
+// picker asks, and a metric never stands in two.
+describe('the chart metric slots', () => {
+  const PT: ChartMetrics = ['precip', 'temp']
+
+  it('opens on the ranking, with one panel', () => {
+    expect(metricsFor('temp_max_f')).toEqual(['temp'])
+  })
+
+  it('follows a new ranking in the first slot, swapping with the slot that held it', () => {
+    expect(pickMetric(PT, 0, 'temp')).toEqual(['temp', 'precip'])
+    expect(pickMetric(['precip', 'temp', 'wind'], 0, 'wind')).toEqual(['wind', 'temp', 'precip'])
+    expect(pickMetric(PT, 0, 'aqi')).toEqual(['aqi', 'temp'])
+  })
+
+  it('swaps when any picker takes a metric another slot holds', () => {
+    expect(pickMetric(['precip', 'temp', 'wind', 'aqi'], 3, 'temp')).toEqual(['precip', 'aqi', 'wind', 'temp'])
+    expect(pickMetric(PT, 1, 'wind')).toEqual(['precip', 'wind'])
+  })
+
+  it('answers the same list when nothing moves', () => {
+    expect(pickMetric(PT, 0, 'precip')).toBe(PT)
+    expect(pickMetric(PT, 5, 'wind')).toBe(PT)
+    expect(removeMetric(PT, 0)).toBe(PT)
+  })
+
+  it('adds the first metric not drawn, up to the ceiling', () => {
+    const first = CHART_METRICS[0].key
+    expect(addMetric([CHART_METRICS[1].key])).toEqual([CHART_METRICS[1].key, first])
+    expect(addMetric([first])).toEqual([first, CHART_METRICS[1].key])
+    const full = CHART_METRICS.slice(0, MAX_CHART_PANELS).map((m) => m.key)
+    expect(addMetric(full)).toBe(full)
+  })
+
+  it('moves a panel among the slots after the first, the rest closing up', () => {
+    const four: ChartMetrics = ['precip', 'temp', 'wind', 'freeze']
+    expect(moveMetric(four, 2, 1)).toEqual(['precip', 'wind', 'temp', 'freeze'])
+    expect(moveMetric(four, 1, 3)).toEqual(['precip', 'wind', 'freeze', 'temp'])
+    // The first slot is the ranking's: nothing moves into it or out of it.
+    expect(moveMetric(four, 1, 0)).toBe(four)
+    expect(moveMetric(four, 0, 2)).toBe(four)
+    expect(moveMetric(four, 2, 2)).toBe(four)
+    expect(moveMetric(four, 2, 4)).toBe(four)
+  })
+
+  it('removes any slot but the first', () => {
+    expect(removeMetric(['precip', 'temp', 'wind'], 1)).toEqual(['precip', 'wind'])
+    expect(removeMetric(['precip', 'temp', 'wind'], 0)).toEqual(['precip', 'temp', 'wind'])
+  })
+
+  it('holds four panels at most', () => {
+    expect(MAX_CHART_PANELS).toBe(4)
+  })
+
+  it('knows its own names', () => {
+    expect(RANKED_FAMILIES.every(isChartMetric)).toBe(true)
+    expect(isChartMetric('snow_depth')).toBe(false)
+  })
+})
+
+describe('cardCells', () => {
+  const line = {
+    key: 'k',
+    label: 'Sahale Mountain',
+    color: '#000000',
+    ranked: true,
+    series: seriesOf({ precip_in: [0.05, null], temp_f: [38.9, 40], aqi: [42, 43] }),
+  }
+
+  it("prints each metric's value bare, through its own format, first panel first", () => {
+    expect(cardCells(line, ['precip', 'temp', 'aqi'], 0)).toEqual([
+      formatTooltipValue(0.05, 'precip'),
+      formatTooltipValue(38.9, 'temp'),
+      '42',
+    ])
+  })
+
+  it('leaves an empty cell where a metric has no value', () => {
+    expect(cardCells(line, ['precip', 'temp'], 1)).toEqual(['', formatTooltipValue(40, 'temp')])
+  })
+})
+
+describe('tracksCursor over two panels', () => {
+  // A hover redraws every line in both panels, so two metrics spend the
+  // budget twice (#499): 384 hours x 40 lines fits one panel, not two.
+  it('is spent by every path drawn', () => {
+    expect(tracksCursor(384, 40)).toBe(true)
+    expect(tracksCursor(384, 40 * 2)).toBe(false)
   })
 })

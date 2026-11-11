@@ -32,6 +32,10 @@ describe('gridLegendLine', () => {
 
   it('names each state in the value, and the wait carries its countdown', () => {
     expect(gridLegendLine(true, 3, null).value).toBe('3 km')
+    // The style it is drawn in, beside the pitch once it has painted.
+    expect(gridLegendLine(true, 3, null, false, true, 'smooth')).toMatchObject({ value: '3 km', styleName: 'Smooth' })
+    expect(gridLegendLine(true, 3, null, false, true, 'blocks').styleName).toBe('Blocks')
+    expect(gridLegendLine(false, 3, null, false, true, 'smooth').styleName).toBeUndefined()
     expect(gridLegendLine(false, 3, null).value).toBe('Loading')
     // The countdown is what makes the word explain itself and visibly not be
     // frozen (TJ, 2026-08-21); App's one-second tick moves it.

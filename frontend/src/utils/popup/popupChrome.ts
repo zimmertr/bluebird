@@ -1,6 +1,6 @@
 // The shared chrome of every map popup: the card (`popupCard`), its header
-// band with the title, link-out glyph and facts line, and the notices, body
-// and action sections below it.
+// band with the title, link-out glyph, the card's one button and the facts
+// line, and the sections below it.
 //
 // Every popup that describes a thing wears it: a ranked result, a clicked
 // basemap feature, a fire, a closure and a smoke plume (#738). They had
@@ -23,11 +23,12 @@
 // the panel's `BUTTON_ACCENT` itself (`popupButton`). It lives in utils, like
 // the popup bodies that compose it, because a string module is unit-testable
 // without pulling maplibre-gl into a node test.
-import { externalLinkMarkup } from '../../iconPaths'
-import { BUTTON_ACCENT } from '../../styles'
+import { chevronMarkup, externalLinkMarkup, gripMarkup } from '../../iconPaths'
+import { BUTTON_ACCENT, CARD_ACTION, CARD_BODY_END, CARD_FOLD, CARD_RESIZE, CARD_TITLE_ROW } from '../../styles'
 import { AGGREGATE, SEP } from '../../metrics'
 import type { PopupGrid, PopupGridCell } from './popupRows'
 import { clamp, isFiniteNumber } from '../numbers'
+import { WARNING_MARK } from '../fireProximity'
 import { coordinateLabel } from '../points'
 import { utcDayKey } from '../calendar/calendarDates'
 
@@ -54,8 +55,9 @@ const POPUP_FINE_SIZE = 'font-size:11px'
 
 /**
  * The card's one bold, the app's: 600, the weight its headings and the
- * table's heads take (record 0222). The title, the grid's heads, a section's
- * name and the ranked value wear it; a `<strong>` alone would draw 700.
+ * table's heads take (record 0222). The title, the grid's heads and row
+ * heads, a section's layer word, a row's key and the ranked value wear it; a
+ * `<strong>` alone would draw 700.
  */
 const BOLD = 'font-weight:600'
 
@@ -65,17 +67,15 @@ const BOLD = 'font-weight:600'
  * the same numbers look the same in both places, and a column of them lines up
  * on the decimal.
  *
- * It is not the whole of the label/value split. The face alone was too quiet
- * to read as a split (TJ, 2026-09-14), so the two halves separate on two axes:
- * the value keeps this face, and the LABEL steps back in colour. `LABEL_COLOR`
- * below is where that second axis is measured, and why it is colour rather
- * than a second weight.
+ * It is not the whole of the key/value split. The face alone was too quiet
+ * to read as a split (TJ, 2026-09-14), so a section's row parts its halves
+ * on colour and weight as well (`row`), and the grid parts its heads from
+ * its values the same way (`metricGrid`).
  *
- * Weight is not the free axis it looks like. The popup carries exactly one
- * <strong>, on the title, and that is the whole of its emphasis: a bold inside
- * a row marks a favourite row rather than a kind of text, which is what two
- * VALUES wearing one by no rule at all — precipitation's total and the AQI
- * average, singled out since the original implementation — read as.
+ * No value is bold but the ranked one: a bold value marks a favourite row
+ * rather than a kind of text, which is what two VALUES wearing one by no rule
+ * at all — precipitation's total and the AQI average, singled out since the
+ * original implementation — read as.
  *
  * The stack is spelled out rather than left to a bare `monospace` keyword
  * because this markup is handed to MapLibre's setHTML.
@@ -83,7 +83,14 @@ const BOLD = 'font-weight:600'
 const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'
 
 /**
- * One "label: value" line.
+ * One "key: value" line in a section: the key semibold in the ink, the value
+ * regular in the label's grey and the values' face (TJ, 2026-11-03, the
+ * design lab's mockup 1). The key names what the line is about and the value
+ * is what a reader reads off it, so the key leads; a grey key over a dark
+ * value read as inverted. Weight joins colour and face here, where the old
+ * split was colour alone (`LABEL_COLOR` says why): a key that differs from its
+ * value on three axes still reads apart in a face whose weights come in
+ * pairs.
  *
  * Every stat gets its own. Wind and temperature used to share a line separated
  * by a "·" — the only line carrying two metrics, and the only one long enough
@@ -92,16 +99,22 @@ const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monos
  *
  * `href` links the VALUE rather than the whole line, which is where the table
  * puts its link too: the label names the metric and the number is the thing
- * that has somewhere to go (TJ, 2026-09-14).
+ * that has somewhere to go (TJ, 2026-09-14). The link takes the value's grey,
+ * as every card link takes the colour of its text.
  */
 export function row(label: string, value: string, href?: string | null): string {
-  const shown = `<span style="${VALUE_FACE}">${value}</span>`
-  return `<div>${rowLabel(label)}: ${href ? popupLink(href, shown) : shown}</div>`
+  const shown = `<span style="${VALUE_FACE};${LABEL_COLOR}">${value}</span>`
+  return `<div>${rowKey(label)}: ${href ? popupLink(href, shown) : shown}</div>`
 }
 
+/** The card's ink: its title, a section's heading, a row's key and the grid's heads. */
+export const INK_COLOR = 'color:var(--popup-ink)'
+
 /**
- * The colour a row's label takes, so it reads as a label rather than as the
- * first half of the value (TJ, 2026-09-14).
+ * The colour the facts under a title take, so they read as labels rather
+ * than as the first half of the value (TJ, 2026-09-14), and the colour of a
+ * value whose key is the ink: a section row's (`row`) and a grid cell's
+ * (`metricGrid`).
  *
  * **Colour rather than weight, and that is a measurement rather than a taste.**
  * The obvious answer was a lighter weight than the title's 600. It does not
@@ -117,20 +130,21 @@ export function row(label: string, value: string, href?: string | null): string 
  * the light one (pinned in `styles.test.ts`), so it recedes without becoming
  * hard to read.
  *
- * A row's label and value therefore never go bold. The bold in a card is the
- * title's, and a section's name where a card holds two (`sectionHeading`).
+ * A key and its value step on all three axes, weight and face as well as
+ * colour (`row`, `metricGrid`), so the split holds in a face whose weights
+ * come in pairs.
  */
 export const LABEL_COLOR = 'color:var(--popup-label)'
 
 /**
- * A row's label.
+ * A row's key.
  *
  * The colon stays outside it: it is punctuation joining the two halves rather
- * than part of the name, and it reads better light between a weighted label
+ * than part of the name, and it reads better light between a weighted key
  * and a mono value than swept into either.
  */
-function rowLabel(label: string): string {
-  return `<span style="${LABEL_COLOR}">${label}</span>`
+function rowKey(label: string): string {
+  return `<span style="${INK_COLOR};${BOLD}">${label}</span>`
 }
 
 /**
@@ -165,38 +179,40 @@ function popupLink(href: string, inner: string, extra = ''): string {
 export const RULE_COLOR = 'var(--popup-rule)'
 
 /**
- * The amber a safety warning wears in a popup: the fire line and the closure
- * line, which are flags rather than measurements. The `STATUS` amber the
+ * The amber a safety warning wears in a popup: a closure order's type under
+ * its section's name (#832; the fire and closure lines of the ranked card
+ * before it), a flag rather than a measurement. The `STATUS` amber the
  * table's Wildfire column wears, the same token, so the two cannot part
  * (#786, record 0215); it clears AA on the card in both themes.
  */
 export const WARNING_COLOR = 'var(--popup-warn)'
 
 /**
- * One safety warning, the whole sentence a link where it has one. It carries
- * no glyph of its own: the section's one ⚠️ stands for every line in it
- * (`popupCard`). It keeps one line and ends in an ellipsis where it
- * outruns the card, as a title does (TJ, 2026-10-08): a closure order's name
- * wrapped most cards onto a second line, which on a phone is a row of the
- * grid scrolled out of view. The card still widens to its cap first, so the
- * cut takes only what no card could show. The text is escaped by the caller,
- * since it carries third-party names, and stays whole in the markup for a
- * screen reader.
+ * One safety warning, the whole sentence a link where it has one, and no
+ * glyph. It keeps one line and ends in an ellipsis where it outruns the
+ * card, as a title does (TJ, 2026-10-08): a closure order's name wrapped most
+ * cards onto a second line, which on a phone is a row of the grid scrolled
+ * out of view. The card still widens to its cap first, so the cut takes only
+ * what no card could show. The text is escaped by the caller, since it
+ * carries third-party names, and stays whole in the markup for a screen
+ * reader.
  */
 export function warningLine(text: string, href: string | null): string {
   const style = `color:${WARNING_COLOR};font-weight:600;display:block;${ONE_LINE}`
   return href ? popupLink(href, text, style) : `<span style="${style}">${text}</span>`
 }
 
-/** One line, cut with an ellipsis: a popup's title and its warnings. */
+/** One line, cut with an ellipsis: a popup's title, a section's name and a warning. */
 const ONE_LINE = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
 
 /**
  * The colour of the one line that qualifies a card rather than adding to it:
- * an overlay popup's "last updated" date, set small and italic in the
- * panel's faint ink, a step back from its label. It measures 3.07:1 on the
- * dark card, under AA for text, and 4.32:1 on the light one; raising the dark
- * one is a colour decision for the maintainer rather than a move.
+ * a section's source and date, set small and italic in the label's ink,
+ * stepped back from the values by its size and slant alone. It was the
+ * panel's faint ink, 3.07:1 on the dark card, while the only card that wore
+ * it was an overlay's; since every card ends on one (#832) it is read on the
+ * ranked card too, where the browser suite's axe holds it to AA at 4.5:1,
+ * and the label ink clears that on both cards in both themes.
  */
 export const FINE_COLOR = 'var(--popup-fine)'
 
@@ -213,13 +229,14 @@ export function fineprint(inner: string): string {
 
 /**
  * The fine print that ends a card whose source says when it measured: a
- * fire's survey, the snow analysis, the radar frame. One label for all of them
- * (`Updated:`; TJ, 2026-10-16), so the source's date reads the same on every
- * card. `when` is markup the caller escaped, which lets a card still waiting
- * on its source stand a `pendingValue` there.
+ * fire's survey, the snow analysis, the radar frame. Named by its source
+ * where the card knows it, `NEXRAD radar: 10 min ago`, and `Updated:`
+ * otherwise (TJ, 2026-11-03), so a section on a card that carries two says
+ * whose time it is. `when` is markup the caller escaped, which lets a card
+ * still waiting on its source stand a `pendingValue` there; `source` is too.
  */
-export function updatedLine(when: string): string {
-  return fineprint(`Updated: ${when}`)
+export function updatedLine(when: string, source?: string): string {
+  return fineprint(`${source ?? 'Updated'}: ${when}`)
 }
 
 /**
@@ -251,17 +268,54 @@ export function updatedAt(ms: number | null | undefined): string | null {
 }
 
 /**
- * A popup's one action, the add, the remove or a ring's remove-point: the
- * panel's own `BUTTON_ACCENT`, worn as its class list (#786, record 0215), so
- * its fill, label, corners, size and hover are the app's button's in both
- * themes rather than a copy of them, which would be free to drift. One look
- * for all three, because a card has one action and the app marks every
- * command in the accent. `attr` is the
- * attribute the map handler finds the button by, written whole (`data-rm`, or
- * `data-poi-action="add"`).
+ * A date and a time with no year, as a card says when something was seen:
+ * `Oct 29, 10:12 AM` in the reader's own zone and locale. A plume's window
+ * and a fire detection both read it (#799), since each is hours old at most
+ * and a year beside it would be noise.
+ */
+export function monthDayTime(d: Date): string {
+  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+const MINUTE_MS = 60 * 1000
+
+/**
+ * How long ago something was seen, in the words the radar card's frame
+ * already wore (`now`, `40 min ago`) and in hours from the first one
+ * (`1 hour ago`, `3 hours ago`), each count rounded down, so a reading is
+ * never called newer than it is. A stamp ahead of the reader's clock, which
+ * a slow clock can give, reads `now`.
+ */
+export function ageAgo(ageMs: number): string {
+  const minutes = Math.floor(ageMs / MINUTE_MS)
+  if (minutes < 1) return 'now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`
+}
+
+/**
+ * A bare popup's one action, a ring's remove-point: the panel's own
+ * `BUTTON_ACCENT`, worn as its class list (#786, record 0215), so its fill,
+ * label, corners, size and hover are the app's button's in both themes rather
+ * than a copy of them, which would be free to drift. `attr` is the attribute
+ * the map handler finds the button by, written whole (`data-rm`).
  */
 export function popupButton(attr: string, label: string): string {
   return `<button ${attr} class="${BUTTON_ACCENT}">${label}</button>`
+}
+
+/**
+ * A card's one action, for `popupCard`'s title row (TJ, 2026-11-04): the
+ * short word on the button, `Add` or `Remove`, and the whole phrase as its
+ * name, `Add to analysis`, since a screen reader hears the button apart from
+ * the title the word leans on. `CARD_ACTION` is `BUTTON_ACCENT`'s look at the
+ * ×'s height and one width for both words. `attr` is the attribute the map
+ * finds it by, written whole (`data-card-action="add"`); the word and the
+ * name are the app's own strings.
+ */
+export function cardButton(attr: string, word: string, label: string): string {
+  return `<button type="button" ${attr} aria-label="${label}" class="${CARD_ACTION}">${word}</button>`
 }
 
 /**
@@ -284,30 +338,36 @@ export function metaBand(lines: string[]): string {
 }
 
 /**
- * A destination's facts on one line under its name: the type, the elevation
- * and the coordinates, parted by a light dot (TJ, 2026-10-08), the app's
- * one separator (`SEP`; record 0222). A ranked
- * result and a clicked basemap feature both draw it, so the same mountain
- * reads the same before and after an analysis (TJ, 2026-10-14, #712); a
- * fact the card does not have is left off rather than filled in.
+ * A destination's facts under its name, on two lines (TJ, 2026-10-31, #832):
+ * the coordinates alone, then the type, the elevation and the slope, parted
+ * by a light dot (TJ, 2026-10-08), the app's one separator (`SEP`; record
+ * 0222). A ranked result, a clicked basemap feature and a pending dot all
+ * draw it, so the same mountain reads the same before and after an analysis
+ * (TJ, 2026-10-14, #712); a fact the card does not have is left off rather
+ * than filled in, and a line with no fact on it is left off whole.
+ *
+ * Two lines rather than the one the three facts shared before the slope
+ * joined them: on one, a peak's line measured 372px with its slope, past the
+ * 340px card, and the line never wraps.
  *
  * The dot is drawn in `FINE_COLOR`, which shows on the header band where
  * `RULE_COLOR` all but vanishes, and is hidden from a screen reader, which
- * hears the three facts as a list; it is a divider, not a character to read.
+ * hears the facts as a list; it is a divider, not a character to read.
  *
- * The line never wraps. A latitude and a longitude are one value in two
- * halves, and breaking between them leaves a bare negative number on its own
- * line looking like a third figure; it stays at the popup's own size, since a
- * line that shrank to fit would read as an afterthought, so the room comes
- * from the card's width instead. A trailhead's is the longest, 274.7px
- * measured on macOS with the bars' 5px, which the 340px card holds beside a
- * touch screen's close-button lane.
+ * Neither line wraps. A latitude and a longitude are one value in two halves,
+ * and breaking between them leaves a bare negative number on its own line
+ * looking like a third figure; each stays at the popup's own size, since a
+ * line that shrank to fit would read as an afterthought. A line wider than
+ * the card ends in an ellipsis, as the title does: a card keeps the width it
+ * opened at (`map/destinationCards.ts`), so a slope that lands after it
+ * opened is cut rather than running past its edge.
  *
  * `href` is where the pair links to: CalTopo, centred on the point (#712, TJ
  * 2026-10-14). The coordinates are the one fact on a card that names a place,
  * and the place is what a reader takes elsewhere to see the ground around it.
  * The elevation stays plain: it is a measurement rather than a place, and
- * nothing on the card is its forecast.
+ * nothing on the card is its forecast. `ground` is the slope's markup
+ * (`groundFact.ts`), empty where the card reads none.
  */
 export function factsRow(
   type: string | null,
@@ -315,15 +375,36 @@ export function factsRow(
   latitude: number,
   longitude: number,
   href: string | null,
+  ground = '',
 ): string {
   const pair = `<span style="${VALUE_FACE}">${coordinateLabel(latitude, longitude)}</span>`
   const coords = href ? popupLink(href, pair) : pair
-  const parts = [
+  const facts = [
     type ? escapeHtml(type) : '',
     elevation ? `<span style="${VALUE_FACE}">${escapeHtml(elevation)}</span>` : '',
-    coords,
+    ground,
   ].filter(Boolean)
-  return `<div style="white-space:nowrap">${parts.join(FACTS_DOT)}</div>`
+  const line = (inner: string) => `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${inner}</div>`
+  return `${line(coords)}${facts.length ? line(facts.join(FACTS_DOT)) : ''}`
+}
+
+/** A number in a facts line, in the face every value on a card wears. */
+export function factValue(inner: string): string {
+  return `<span style="${VALUE_FACE}">${inner}</span>`
+}
+
+/**
+ * A square of a layer's colour before the number it keys, as a legend's
+ * swatch keys a band (#832): the slope's band beside its angle. A swatch
+ * rather than the number in the colour, because the yellow band would read
+ * about 1.1:1 as text on a light card. Its edge is the legend swatches' own
+ * outline (`SWATCH_EDGE`), which holds a pale fill apart from the band
+ * behind it. `color` is the layer's, from its owning module; it is the one
+ * value on a card that is somebody else's colour rather than the app's.
+ * Hidden from a screen reader, which hears the number.
+ */
+export function colorSwatch(color: string): string {
+  return `<span aria-hidden="true" style="display:inline-block;width:0.8em;height:0.8em;vertical-align:-0.05em;border-radius:2px;margin-right:4px;background:${color};box-shadow:inset 0 0 0 1px var(--popup-swatch-edge)"></span>`
 }
 
 /** The light dot between two facts, which a screen reader skips. */
@@ -365,22 +446,143 @@ export function bodyLines(lines: readonly (string | null | undefined)[]): string
  * still, since a shimmer would move under a reader who has asked for less
  * motion. Hidden from a screen reader, which hears the label alone until the
  * number lands.
+ *
+ * `widthCh` is the widest value the bar stands for, in characters: a `ch` of
+ * the face the bar stands in, which in a row is the values' mono face, where
+ * a ch is exactly one character. A bar as wide as the widest answer keeps the
+ * card from widening when the answer lands (TJ, 2026-11-04), as `widestName`
+ * keeps it for a name. With none it is 3.5em, for a bar whose room something
+ * else keeps, a name in `widestName`'s cell.
  */
-export function pendingValue(): string {
-  return `<span aria-hidden="true" style="display:inline-block;width:3.5em;height:0.8em;vertical-align:-0.05em;border-radius:2px;background:${RULE_COLOR}"></span>`
+/**
+ * The attribute every pending bar wears, so a reader of the card, a browser
+ * test waiting for the values to land, finds a bar whatever its width.
+ */
+export const PENDING_ATTR = 'data-pending'
+
+export function pendingValue(widthCh?: number): string {
+  const width = widthCh === undefined ? '3.5em' : `${widthCh}ch`
+  return `<span ${PENDING_ATTR} aria-hidden="true" style="display:inline-block;width:${width};height:0.8em;vertical-align:-0.05em;border-radius:2px;background:${RULE_COLOR}"></span>`
 }
 
 /**
- * The name a section opens on, where one card describes two things at one
- * point: the rain radar and the snow depth under one click (#737). The band
- * names the pair and lists both sources, and each section says which of the
- * two it is and how much, `Moderate precipitation` over its rows (TJ,
- * 2026-10-16). Bold, because it names the section rather than being one more
- * row in it; the band's title still outranks it on size. The text is markup
- * the caller escaped.
+ * The attribute the map finds a section's fold button by, with the section's
+ * key in its value, so the handler reads which section was pressed off the
+ * element (#832).
  */
-export function sectionHeading(inner: string): string {
-  return `<div style="${BOLD}">${inner}</div>`
+export const CARD_FOLD_ATTR = 'data-card-fold'
+
+/** What a section of a card is made of; the layer alone is required. */
+export interface CardSection {
+  /** The key its fold is kept under: a layer's target, or `forecast`. */
+  key: string
+  /**
+   * The layer's word its heading opens on, `Active wildfire`, which also
+   * names the fold for a screen reader. Markup the caller escaped.
+   */
+  layer: string
+  /** What is there, after the layer and a colon: `Bolt Creek`. Markup the caller escaped; none for a heading that is the layer alone. */
+  name?: string
+  /** Whether it is a warning (`PointSection.warning`): the amber band and the warning mark. */
+  warning?: boolean
+  /** Where the name links out, and what a screen reader hears for the glyph. */
+  link?: { href: string; label: string } | null
+  /** Whether its body shows. */
+  open: boolean
+  /** The body under the name: the rows, the fine print, a grid. Drawn only while open. */
+  body: string
+}
+
+/**
+ * A section's heading text: the layer's word and its colon semibold, the
+ * name after it regular, both in the ink (TJ, 2026-11-03), so the eye finds
+ * which layer spoke before what it said. Exported for the tests that find a
+ * heading in a card's markup. Both parts are markup the caller escaped.
+ */
+export function sectionHeading(layer: string, name?: string): string {
+  return name ? `<span style="${BOLD}">${layer}:</span> ${name}` : `<span style="${BOLD}">${layer}</span>`
+}
+
+/**
+ * One section of a card, where a card describes several things at one point
+ * (#737, #832): the rain radar and the snow depth, a wildfire within reach, a
+ * closure, and a ranked row's forecast.
+ *
+ * Its heading is a row on the band fill, the header band's own, run from the
+ * card's edge to its edge with the rows' 10px inset inside it (TJ,
+ * 2026-11-03, the design lab's mockup 1): the fills part one section from the
+ * next, where a hairline ruled them off before and read as one more line of
+ * the grid. The heading keeps one line and cuts the name with an ellipsis, as
+ * the band's title does, with the link out beside it where the thing has a
+ * page and the fold's chevron at the right edge: down while the body shows,
+ * up while it is folded, as the results bar's reads. The band is at least
+ * 24px tall, the fold's box at a desk, and grows to the 32px box under a
+ * finger, so the fold never overhangs its band.
+ *
+ * A warning section (`warning`) lays the amber over the band
+ * (`WARNING_BAND_COLOR`) and stands the warning mark the results table's
+ * Wildfire and Closure columns open on before the layer's word, in a slot of
+ * its own width, so a name cut short never moves it. The mark is text, as
+ * the table's is, which a screen reader names itself.
+ *
+ * The button is named for the layer and says whether it is open through
+ * `aria-expanded`, so a screen reader hears "Active wildfire, expanded"
+ * rather than a word of the app's own; it wears the glyph ink the band's
+ * link-out does and lights the same way under a pointer (`map.css`,
+ * `data-popup-glyph`), and `CARD_FOLD` in `styles.ts` gives it its box and
+ * its focus ring. A folded section is its heading and nothing under it.
+ */
+export function cardSection({ key, layer, name, warning = false, link = null, open, body }: CardSection): string {
+  const fill = warning ? WARNING_BAND_COLOR : SECTION_BAND_COLOR
+  const mark = warning ? `<span style="${WARNING_SLOT}">${WARNING_MARK}</span>` : ''
+  const text = `<div style="flex:1;min-width:0;${INK_COLOR};${ONE_LINE}">${sectionHeading(layer, name)}</div>`
+  const fold =
+    `<button type="button" ${CARD_FOLD_ATTR}="${key}" data-popup-glyph class="${CARD_FOLD}" ` +
+    `aria-expanded="${open}" aria-label="${layer}" style="color:${HEADER_ICON_COLOR}">${chevronMarkup(!open)}</button>`
+  const heading =
+    `<div style="display:flex;align-items:center;gap:6px;min-height:24px;margin:0 -${BODY_SIDE};padding:0 ${BODY_SIDE};background:${fill}">` +
+    `${mark}${text}${link ? linkIcon(link) : ''}${fold}</div>`
+  return `${heading}${open ? `<div style="padding-top:${SECTION_BODY_GAP}">${body}</div>` : ''}`
+}
+
+/**
+ * The fill under a section's heading: the header band's, so a heading reads
+ * as the card's own furniture. It is the only band below the header; the
+ * grid's columns are the same fill as narrow strips.
+ */
+export const SECTION_BAND_COLOR = 'var(--popup-band)'
+
+/**
+ * A warning section's heading fill: the table's warning amber laid over the
+ * band, 15% in dark and 30% in light (`--popup-warn-band` in `map.css`).
+ * Every ink on it is pinned in `styles.test.ts`.
+ */
+export const WARNING_BAND_COLOR = 'var(--popup-warn-band)'
+
+/**
+ * The warning mark's slot: one and a half of its ems wide and centred, the
+ * design lab's measure, so the layer's word stands at one place on every
+ * warning heading whatever the name after it does.
+ */
+const WARNING_SLOT = 'flex:none;width:1.5em;text-align:center;line-height:1'
+
+/** The body's sides, which a heading runs through to reach the card's edges. */
+const BODY_SIDE = '10px'
+
+/** Between a section's heading and the body under it. */
+const SECTION_BODY_GAP = '4px'
+
+/** Between one section and the next: the card's surface, which the two bands stand apart on. */
+export const SECTION_GAP = '8px'
+
+/**
+ * A card's sections, one under the next with `SECTION_GAP` of the card's
+ * surface between them, which with each heading's band is what parts them.
+ * Inside the body rather than a part of `popupCard` after it, so a capped
+ * card scrolls them together. Each is markup from `cardSection`.
+ */
+export function cardSections(sections: readonly string[]): string {
+  return sections.map((inner, i) => (i === 0 ? inner : `<div style="margin-top:${SECTION_GAP}">${inner}</div>`)).join('')
 }
 
 /**
@@ -400,17 +602,6 @@ export function widestName(shown: string, every: readonly string[]): string {
     .filter((name) => name !== shown)
     .map((name) => `<span aria-hidden="true" style="${cell};visibility:hidden">${name}</span>`)
   return `<span style="display:inline-grid"><span style="${cell}">${shown}</span>${others.join('')}</span>`
-}
-
-/**
- * A second part of a card's body, ruled off from the part above it by the
- * edge the card's own sections wear, run from edge to edge through the body's
- * 10px sides. Inside the body rather than a section of `popupCard` after it,
- * so a capped card scrolls the two together. The text is markup the caller
- * escaped.
- */
-export function bodySection(inner: string): string {
-  return `<div style="margin:${SECTION_PAD_Y} -10px 0;padding:${SECTION_PAD_Y} 10px 0;border-top:${SECTION_EDGE}">${inner}</div>`
 }
 
 /**
@@ -440,25 +631,37 @@ export function bodySection(inner: string): string {
  * marker under it do. The ranked number itself is bold, which is how the
  * card says why its destination stands where it does (TJ, 2026-10-08): the
  * table says it with the arrow on its column's head, and the card has none.
- * A ranked number with no colour falls back to `GRID_RANKED_COLOR`. `compact` narrows every band's inset and the
+ * A ranked number with no colour falls back to `GRID_RANKED_COLOR`, in the
+ * ink, since the label grey reads 3.94:1 on that cell in dark.
+ *
+ * Key and value part as a section's row does (TJ, 2026-11-04): every head,
+ * the families down the side and the aggregates across the top, is the ink
+ * at 600, and every value the label grey at 400 in the mono face, where a
+ * grey head over a value in the ink read as inverted. `compact` narrows every band's inset and the
  * label's gap to fit a map too narrow for the widest grid at full inset
  * (`compactGrid`).
  */
-export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boolean } = {}): string {
+export function metricGrid(
+  grid: PopupGrid,
+  { compact = false, widths = {} }: { compact?: boolean; widths?: Readonly<Record<string, number>> } = {},
+): string {
   const band = gridBand(compact ? GRID_COMPACT_INSET_PX : GRID_INSET_PX)
   const labelLoose = gridLabel(compact ? GRID_COMPACT_LABEL_GAP_PX : GRID_LABEL_GAP_PX)
   const label = `${labelLoose};white-space:nowrap`
-  const headStyle = `text-align:center;${BOLD};vertical-align:bottom;white-space:nowrap;${band};${GRID_HEAD_RULE};${LABEL_COLOR}`
-  const valueStyle = `text-align:right;white-space:nowrap;vertical-align:bottom;${band}`
+  const headStyle = `text-align:right;${BOLD};vertical-align:bottom;white-space:nowrap;${band};${GRID_HEAD_RULE};${INK_COLOR}`
+  // On the cell rather than the number, so a link and its underline, which
+  // inherit, take the grey too.
+  const valueStyle = `text-align:right;white-space:nowrap;vertical-align:bottom;${band};${LABEL_COLOR}`
   const value = (c: PopupGridCell, line: string, span = '') =>
     `<td${span}${c.tint ? ` ${POPUP_TINT_ATTR}` : ''} style="${valueStyle}${shade(c)}${line}">${cell(c)}</td>`
   // The ranked family's colour where its scale gives one, the table's own;
-  // the slate step marks the ranked number only where it has none.
+  // the slate step marks the ranked number only where it has none. Each
+  // follows the grey in the cell's style, so its colour wins.
   const shade = (c: PopupGridCell) =>
     c.tint
       ? `;background:${c.tint.fill};--tint-dark:${c.tint.ink.dark};--tint-light:${c.tint.ink.light};color:var(--popup-tint)`
       : c.ranked
-        ? `;background:${GRID_RANKED_COLOR}`
+        ? `;background:${GRID_RANKED_COLOR};${INK_COLOR}`
         : ''
   const cell = (c: PopupGridCell) => {
     const shown = `<span style="${VALUE_FACE}${c.ranked ? `;${BOLD}` : ''}">${c.text}</span>`
@@ -469,7 +672,7 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
   const hasTotal = grid.columns[grid.columns.length - 1] === AGGREGATE.total
   const lead = Math.max(1, grid.columns.length - (hasTotal ? 1 : 0))
   const head = grid.columns.length
-    ? `<tr><td style="${GRID_HEAD_RULE}"></td>${grid.columns.map((c) => `<th scope="col" style="${headStyle}">${c}</th>`).join('')}</tr>`
+    ? `<tr><td style="${GRID_HEAD_RULE}"></td>${grid.columns.map((c) => gridHead(c, headStyle, widths[c])).join('')}</tr>`
     : ''
   // A hairline under every line but the last, which the card's edge closes.
   const rows = grid.rows.map((r, i) => {
@@ -486,11 +689,17 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
 }
 
 /**
- * The shade behind each column, halfway from the panel to its raised step:
- * the label and the ink its numbers take both stay well above AA's 4.5 on it.
- * It stands 1.18:1 off the dark card and 1.06:1 off the light one, which is
- * enough to read as a band and no more: the heads and the alignment carry the
- * columns, and the shade only groups them. Pinned in `styles.test.ts`.
+ * No column is painted with it since the card took the results table's rows
+ * (TJ 2026-10-30); it stays the ground the measurements below are taken on.
+ *
+ * The shade behind each column, the card's band: halfway from the panel to
+ * its raised step in dark, and from the raised step to its hover in light,
+ * where the dark theme's half step read 1.06:1 and all but vanished (TJ,
+ * 2026-11-03). The label and the ink its numbers take both stay well above
+ * AA's 4.5 on it. It stands 1.18:1 off the card in both themes, which is
+ * enough to read as a band and no more: the heads and the alignment carry
+ * the columns, and the shade only groups them. The grey a value takes reads
+ * 4.71:1 on it in dark. Pinned in `styles.test.ts`.
  */
 export const GRID_BAND_COLOR = 'var(--popup-band)'
 /** The gutter between bands is the card's own surface, which `map.css` paints. */
@@ -505,11 +714,13 @@ export const GRID_GUTTER_COLOR = 'var(--popup-surface)'
 export const GRID_LINE_COLOR = 'var(--popup-line)'
 
 /**
- * The ranked number's cell, the panel's raised step: one half step past the
- * column's band, with no hue, so the card's only colour is its links (TJ,
- * 2026-10-08, option H, over a sky-100 cell). It stands 1.2:1 off the column
- * on the dark card and 1.06:1 on the light one, so the number's bold carries
- * most of the mark. Pinned in `styles.test.ts`.
+ * The ranked number's cell, one half step past the column's band: the
+ * raised step in dark and its hover in light, with no hue, so the card's
+ * only colour is its links (TJ, 2026-10-08, option H, over a sky-100 cell).
+ * It stands 1.2:1 off the column on the dark card and 1.06:1 on the light
+ * one, so the number's bold carries most of the mark. Its number keeps the
+ * ink rather than the values' grey, which reads 3.94:1 here in dark, under
+ * AA's 4.5. Pinned in `styles.test.ts`.
  */
 export const GRID_RANKED_COLOR = 'var(--popup-ranked)'
 
@@ -517,12 +728,14 @@ export const GRID_RANKED_COLOR = 'var(--popup-ranked)'
  * Each band's inset a side: 5px, so a number as wide as `0.000` has visible
  * room inside its band, behind a 2px gutter (TJ, 2026-10-08; it was 3px,
  * which left the widest numbers touching the edges). A map too narrow for the
- * widest grid at 5px takes 2px instead (`compactGrid`): 3px until the card
+ * widest grid at 5px takes 1px instead (`compactGrid`): 3px until the card
  * took the app's face, whose wider labels a 360px phone could hold only by
- * giving back the 8px four bands' insets made (TJ, 2026-10-22).
+ * giving back the 8px four bands' insets made (TJ, 2026-10-22), and 2px
+ * until the row heads went to 600 (2026-11-04), whose 6.49px it could hold
+ * only by giving back 8px more.
  */
 export const GRID_INSET_PX = 5
-export const GRID_COMPACT_INSET_PX = 2
+export const GRID_COMPACT_INSET_PX = 1
 /**
  * The gap between a family's label and the first band: 8px (TJ, 2026-10-08),
  * or 6px on a compact grid, which is the 2px that lets a two-digit window
@@ -535,25 +748,26 @@ export const GRID_COMPACT_LABEL_GAP_PX = 6
  * The widest grid, in Chrome on macOS: `Precipitation (in/hr)` beside Min,
  * Max, Avg and Total at their widest numbers (`10,600` heights, `≥30,000`
  * under Max, and a three-digit total, `123.456`, which a stormy window's
- * snowfall can reach). 352.9px at full inset. A two-digit total, which a
- * winter window's rain often reaches, is 345.7px; the first measurement used
+ * snowfall can reach). 359.4px at full inset. A two-digit total, which a
+ * winter window's rain often reaches, is 352.2px; the first measurement used
  * `0.000` and undersized the card. The grid was measured at 344.6px on
- * 2026-10-08 in the card's own Helvetica, and the app's face sets the label
- * 8.32px wider (109.03px against 100.71px at 12px, 2026-10-22).
+ * 2026-10-08 in the card's own Helvetica, the app's face sets the label
+ * 8.32px wider (109.03px against 100.71px at 12px, 2026-10-22), and the
+ * row heads' 600 another 6.49px (115.52px, 2026-11-04).
  *
- * Compact, the same grid is 326.9px, and 319.7px with a two-digit total, which
+ * Compact, the same grid is 325.4px, and 318.2px with a two-digit total, which
  * is what a 360px phone's 320px of body holds. A change to the grid's
  * columns, insets or type re-measures these. `e2e/popupFit.spec.ts` holds the
  * built card to them with the Mac's wider fonts emulated.
  */
-export const WIDEST_GRID_PX = 353
+export const WIDEST_GRID_PX = 360
 /** The result card's body padding a side, `popupCard`'s 10px. */
 export const RESULT_CARD_PAD_PX = 10
 
 /**
  * Whether a result card on a map this wide takes the compact insets: when its
  * body is narrower than the widest grid at full inset. That is every map under
- * 393px, a 360px phone among them, where a wide grid would otherwise scroll
+ * 400px, a 360px phone among them, where a wide grid would otherwise scroll
  * sideways (TJ, 2026-10-08). The card's own width does not change.
  */
 export function compactGrid(canvasWidthPx: number): boolean {
@@ -564,15 +778,35 @@ export function compactGrid(canvasWidthPx: number): boolean {
 // 2026-10-08), while the
 // numbers stay right-aligned so a column lines up on its last digit, the way a
 // table of figures does.
-// A label keeps 8px clear of the first band. On a phone the card is wider
+// A label keeps 8px clear of the first band, in the ink at 600 as every
+// head is (`metricGrid`). On a phone the card is wider
 // than its grid and the table spreads the spare room into this column; on a
 // desktop the card shrinks to the grid, and without it the longest label sat
 // against the band (TJ, 2026-10-08).
 const gridLabel = (gapPx: number) =>
-  `text-align:left;font-weight:normal;padding:1px ${gapPx}px 1px 0;vertical-align:bottom;${LABEL_COLOR}`
-const gridBand = (insetPx: number) =>
-  `background:${GRID_BAND_COLOR};border-left:2px solid ${GRID_GUTTER_COLOR};padding:1px ${insetPx}px`
+  `text-align:left;${BOLD};padding:1px ${gapPx}px 1px 0;vertical-align:bottom;${INK_COLOR}`
+// No band behind a column (TJ 2026-10-30): the card's rows are the results
+// table's, a hairline between each and a tint under the pointer (`map.css`),
+// and its heads the table's, right over the digits they name.
+const gridBand = (insetPx: number) => `padding:1px ${insetPx}px`
 const GRID_HEAD_RULE = `border-bottom:1px solid ${RULE_COLOR}`
+
+/**
+ * The attributes a grid head carries for `map/resultsLayer.ts`: its aggregate,
+ * which a carried head moves the table's columns by, and its right edge, which
+ * sizes the column (TJ 2026-10-30), as a results column's head does. The
+ * window total is not carried: it is the last column, filled for two families.
+ */
+export const GRID_AGG_ATTR = 'data-agg'
+export const GRID_EDGE_ATTR = 'data-agg-edge'
+const gridHead = (c: string, style: string, width: number | undefined) => {
+  const carried = c !== AGGREGATE.total ? ';cursor:grab' : ''
+  const sized = width ? `;width:${width}px;min-width:${width}px` : ''
+  // The divider is drawn, a 1px line in the card's rule that takes the accent
+  // under the pointer (`map.css`), so a reader can see the column sizes.
+  const edge = `<span ${GRID_EDGE_ATTR} aria-hidden="true" style="position:absolute;top:2px;bottom:2px;right:-4px;width:8px;cursor:col-resize;touch-action:none;display:flex;justify-content:center"><span style="width:1px;background:currentColor"></span></span>`
+  return `<th scope="col" ${GRID_AGG_ATTR}="${c}" style="${style};position:relative;user-select:none${carried}${sized}">${c}${edge}</th>`
+}
 const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`
 
 /**
@@ -606,6 +840,44 @@ export function capPopupBody(body: HTMLElement, maxHeightPx: number): void {
 }
 
 /**
+ * Stand a popup's body at the height a reader dragged it to (TJ,
+ * 2026-11-04): as tall as that whatever it holds, scrolling what is taller
+ * and leaving the card's surface under its last section where it holds
+ * less, so a drag can make a short card taller as well as a long one
+ * shorter. A cap alone (`capPopupBody`) can only take height away.
+ */
+export function fixPopupBody(body: HTMLElement, heightPx: number): void {
+  capPopupBody(body, heightPx)
+  body.style.minHeight = `${Math.floor(heightPx)}px`
+}
+
+/** Take a body's cap or its fixed height off, so it measures at its own height again for a fresh fit (`refit` in `map/mapPopups.ts`). */
+export function uncapPopupBody(body: HTMLElement): void {
+  body.classList.remove(POPUP_SCROLL_CLASS)
+  body.style.maxHeight = ''
+  body.style.minHeight = ''
+}
+
+/**
+ * The height a body's sections take of their own, read under whatever cap or
+ * fixed height it stands at and put back before anything paints: a drag's
+ * least is that height where it is under the floor (`dragBodyRange` in
+ * `popupFit.ts`), and a body standing at a reader's height measures that
+ * height rather than what it holds.
+ */
+export function bodyContentHeight(body: HTMLElement): number {
+  const { maxHeight, minHeight } = body.style
+  // Optional: a test's stub body has a bare class list and a style of no keys.
+  const scrolls = body.classList.contains?.(POPUP_SCROLL_CLASS) ?? false
+  uncapPopupBody(body)
+  const height = body.offsetHeight
+  if (scrolls) body.classList.add(POPUP_SCROLL_CLASS)
+  body.style.maxHeight = maxHeight ?? ''
+  body.style.minHeight = minHeight ?? ''
+  return height
+}
+
+/**
  * How wide a popup may get.
  *
  * Width is still set by the coordinate row — the longest line either popup can
@@ -629,9 +901,12 @@ export function capPopupBody(body: HTMLElement, maxHeightPx: number): void {
 export const POPUP_MAX_WIDTH_PX = 280
 
 /**
- * How wide a ranked destination's popup may get: 374px, or the map less 10px
+ * How wide a ranked destination's popup may get: 381px, or the map less 10px
  * a side where the map is narrower (TJ, 2026-10-08; 366px until the card took
- * the app's wider face, 2026-10-22).
+ * the app's wider face, 2026-10-22, and 374px until its grid's row heads went
+ * to 600). The last 7px are the bold heads' cost: `Precipitation (in/hr)`
+ * measured 115.52px at 600 against 109.03px at 400 (Chrome on macOS,
+ * 2026-11-04).
  *
  * Its grid is wider than any other popup's, `WIDEST_GRID_PX`, and the body
  * has the card less 10px a side. On a 360px phone the card is 340px, 94% of
@@ -641,11 +916,42 @@ export const POPUP_MAX_WIDTH_PX = 280
  * a three-digit one, or a map narrower still, scrolls sideways, which TJ
  * accepted for narrow phones. A desktop card shrinks to its grid, so the cap
  * is reached only by a card with the widest numbers.
+ *
+ * It is every card's ceiling, not its width (TJ, 2026-11-04): a spot, label
+ * or pending card shrinks to its widest line, its title row, facts or a
+ * section's heading, and only a heading longer than the cap is cut with its
+ * ellipsis (`popupCard`).
  */
-export const RESULT_POPUP_MAX_WIDTH_PX = 374
+export const RESULT_POPUP_MAX_WIDTH_PX = 381
+
+/**
+ * The narrowest any card on the map is, whatever the map's width (#832, TJ
+ * 2026-11-03): the facts line's coordinates still stand on one line at it,
+ * and the title row keeps its button and the start of the name. A reader's
+ * drag stops at the card's own opening width instead (`cardWidthRange`),
+ * which is this only for a card whose lines ask for less.
+ */
+export const POPUP_MIN_WIDTH_PX = 180
+
+/** What a ranked card leaves of a narrow map's width: 10px a side, so its edges never meet the map's. */
+const MAP_SIDES_PX = 20
 
 export function resultPopupWidth(canvasWidthPx: number): string {
-  return clamp(canvasWidthPx - 20, 180, RESULT_POPUP_MAX_WIDTH_PX) + 'px'
+  return clamp(canvasWidthPx - MAP_SIDES_PX, POPUP_MIN_WIDTH_PX, RESULT_POPUP_MAX_WIDTH_PX) + 'px'
+}
+
+/**
+ * How wide a reader may drag a card (TJ, 2026-11-03): from `openedPx`, the
+ * width the card opened at, to the map less the 10px a side a ranked card
+ * leaves on a narrow map, which is wider than any card's own rule, since the
+ * reader asked for the room. The opening width is what the card's own lines
+ * ask for, its title, its coordinates and its sections' headings, so a drag
+ * under it only cut them (TJ, 2026-11-04). `POPUP_MIN_WIDTH_PX` is the least
+ * for a card measured at nothing, which the card's root already keeps.
+ */
+export function cardWidthRange(canvasWidthPx: number, openedPx: number): { min: number; max: number } {
+  const min = Math.max(POPUP_MIN_WIDTH_PX, Math.round(openedPx))
+  return { min, max: Math.max(min, canvasWidthPx - MAP_SIDES_PX) }
 }
 
 /**
@@ -658,7 +964,7 @@ export function resultPopupWidth(canvasWidthPx: number): string {
  */
 export function popupWidth(canvasWidthPx: number): string {
   const share = Math.round(canvasWidthPx * 0.8)
-  return clamp(share, 180, POPUP_MAX_WIDTH_PX) + 'px'
+  return clamp(share, POPUP_MIN_WIDTH_PX, POPUP_MAX_WIDTH_PX) + 'px'
 }
 
 /**
@@ -700,29 +1006,30 @@ export interface PopupCard {
   link?: PopupCardLink | null
   /** The lines under the title on the band, usually `metaBand([...])`. */
   meta?: string
-  /** Safety lines, each a `warningLine`, in a section of their own. */
-  warnings?: readonly string[]
-  /** The details: a destination's grid, or an overlay's `bodyLines`. */
+  /** The details: the card's sections (`cardSections` of `cardSection`), each on its own band. */
   body?: string
-  /** One button, in a section of its own under the body. */
+  /** One button (`cardButton`), at the end of the title row, left of the ×. */
   action?: string
 }
 
 /**
- * A card: the name and its facts on a slate band, shadowed onto the sections
+ * A card: the name and its facts on a slate band, shadowed onto the parts
  * below it, so what a thing IS reads apart from what is said about it (TJ,
- * 2026-10-08). Four sections, each but the band optional (#738):
+ * 2026-10-08). Two parts, the body optional (#738):
  *
- * 1. The header band: the title and its link-out glyph, and the facts line.
- * 2. The notices: what is wrong there, in amber under one ⚠️.
- * 3. The body: a destination's grid, an overlay's lines.
- * 4. The action: one centred button.
+ * 1. The header band: the title, its link-out glyph and the card's one
+ *    button in one row, and the facts line.
+ * 2. The body: the card's sections, a layer's reading or a destination's grid
+ *    each (`cardSection`, #832).
  *
  * Every popup that describes a thing wears it. A ranked result and a clicked
  * basemap feature did first (#712: one mountain, one card, before and after an
  * analysis); a fire, a closure and a smoke plume followed (#738), because a
  * thing on the map that says what it is should read as one kind of card
- * whatever it is. A section the caller leaves empty is left out, rather than
+ * whatever it is, and since #832 those three are sections of the place's
+ * card rather than cards of their own. The notices that stood between the
+ * band and the body went with them: a closure's type is the amber line in
+ * its section. A part the caller leaves empty is left out, rather than
  * drawn as an empty strip.
  *
  * The name stays at the reading size and everything under it steps down one.
@@ -736,53 +1043,93 @@ export interface PopupCard {
  * The card draws its own padding (`map.css` zeroes MapLibre's for
  * `.popup-card`), so the band can run edge to edge and the grid can stand 10px
  * from both sides. The band keeps a lane on its right for the close button,
- * `--popup-close-lane` in `map.css`: 2rem, or 3.375rem on a touch screen,
- * where the button is 44px and reaches past the name's line into the facts
- * line below it. The body is `border-box` because the scroll cap sets its
- * height from its measured outer height (`capPopupBody`), and it scrolls
- * sideways on a map narrower than its grid.
+ * `--popup-close-lane` in `map.css`: 2rem, or 3.375rem on a touch screen. The
+ * body is `border-box` because the scroll cap sets its height from its
+ * measured outer height (`capPopupBody`), and it scrolls sideways on a map
+ * narrower than its grid.
+ *
+ * The action stands at the end of the title row, left of the × (TJ,
+ * 2026-11-04, the card button lab's treatment 6), where it had a foot of its
+ * own under the body: the foot cost every card a strip of map, and beside the
+ * × is where a reader already reaches to act on the card. The row is the ×'s
+ * height (`CARD_TITLE_ROW`) and starts at the ×'s inset, so the title, the
+ * button and the × share a centre line, and the title gives its end to its
+ * ellipsis before the button gives anything. `ACTION_CLEAR` keeps the button
+ * 8px off the ×, at a desk and under a finger, so `Remove` and × read as two
+ * controls.
+ *
+ * A card is as wide as its widest line (TJ, 2026-11-04): MapLibre's popup is
+ * shrink-to-fit under the `maxWidth` its opener gives it (the ranked cap,
+ * `resultPopupWidth`, for every card), so a label card with three short lines
+ * stands narrow and a ranked card stands at its grid. `POPUP_MIN_WIDTH_PX` is
+ * the floor, on the card's root, so a short spot never shrinks under it.
+ *
+ * Every card ends on its resize handle (`resizeHandle`), last in the markup
+ * so it stands in the card's bottom-right corner: at a desk under the body's
+ * end, which keeps the grip's 16px clear (`CARD_BODY_END`) so it never
+ * stands over a folded heading's chevron or a grid's last number, and under
+ * a finger with its 32px box over the body's last corner, the last heading's
+ * chevron giving up its box's bottom-right corner to it (TJ, 2026-11-04); or
+ * on the band's end on a card with no body, where the close lane keeps the
+ * facts clear of it.
  */
-export function popupCard({ title, link = null, meta = '', warnings = [], body = '', action = '' }: PopupCard): string {
-  // The warnings, between the header and the grid and closed off from the grid
-  // by the header's own edge (TJ, 2026-10-08), so the card reads as three
-  // parts: what the place is, what is wrong there, what the forecast says.
-  // Without the edge they ran into the first row of numbers. No shadow, so
-  // the header stays the one raised band. Outside the body, so a capped card
-  // that scrolls its numbers keeps its warnings in view with its name.
-  const notice = warnings.length
-    ? `<div style="${POPUP_BODY_SIZE};display:flex;align-items:flex-start;padding:${SECTION_PAD_Y} 0 ${SECTION_PAD_Y} 10px;border-bottom:${SECTION_EDGE}"><div style="flex:1;min-width:0">${warningList(warnings)}</div>${WARNING_GLYPH}</div>`
-    : ''
+export function popupCard({ title, link = null, meta = '', body = '', action = '' }: PopupCard): string {
   const content = body
-    ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
+    ? `<div ${POPUP_BODY_ATTR} class="${CARD_BODY_END}" style="${POPUP_BODY_SIZE};padding-top:8px;padding-left:${BODY_SIDE};padding-right:${BODY_SIDE};box-sizing:border-box;overflow-x:auto">${body}</div>`
     : ''
-  return `<div style="${POPUP_LEADING}">
-    <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
-      <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}</div>
+  const button = action ? `<span style="display:flex;flex:none;margin-left:auto;margin-right:${ACTION_CLEAR}">${action}</span>` : ''
+  // A band with a body under it ends on a rule and a shadow, its bottom
+  // corners square against the body. A card with no body is its band alone,
+  // rounded at every corner as the card is, with nothing under it to rule
+  // off: square corners and an edge there read as a foot hanging off the
+  // card (TJ, 2026-11-04).
+  const end = body
+    ? `border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:8px 8px 0 0`
+    : 'border-radius:8px'
+  return `<div style="${POPUP_LEADING};position:relative;min-width:${POPUP_MIN_WIDTH_PX}px">
+    <div style="background:${HEADER_BAND_COLOR};${end};padding:${CLOSE_INSET} var(--popup-close-lane, 2rem) 8px 10px">
+      <div class="${CARD_TITLE_ROW}" style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}${button}</div>
       ${meta}
-    </div>${notice}${content}${
-      // Under the body rather than in it, so a card whose numbers the scroll
-      // cap shortened keeps its action in view the way it keeps its name. A
-      // section of its own, ruled off from the grid by the edge and padding
-      // the warnings section wears (#696, TJ 2026-10-14): without the rule
-      // the button read as one more row of the grid.
-      action
-        ? `<div style="padding:${SECTION_PAD_Y} 10px;border-top:${SECTION_EDGE}">${popupAction(action)}</div>`
-        : ''
-    }
+    </div>${content}${resizeHandle()}
   </div>`
 }
 
 /**
- * A card's one action, centred on its own line (TJ, 2026-10-14): a lone button
- * left against the edge of a card the facts line made wider than it read as a
- * row that lost its label. One spelling for the clicked feature's add or
- * remove and the ranked result's remove, so the two cards place it alike.
- * Centred by flex rather than by `text-align`, which centres only an inline
- * box: the button wears the panel's class, whose tap target is a flex box
- * (`TAP.action`), and a flex box is a block.
+ * Where the band's title row starts: the ×'s own inset from the card's top
+ * (`map.css`, `.maplibregl-popup-close-button`), so a row the ×'s height
+ * (`CARD_TITLE_ROW`) is centred on it.
  */
-export function popupAction(button: string): string {
-  return `<div style="display:flex;justify-content:center">${button}</div>`
+const CLOSE_INSET = '0.375rem'
+
+/**
+ * Between the card's button and the close lane: `map.css`'s
+ * `--popup-action-clear`, 4px at a desk and -8px under a finger, so the
+ * button stands 8px off the × at both pointer sizes (TJ, 2026-11-04), where
+ * the touch lane's wider air alone would leave 20px. The fallback is the
+ * desk's, for a card read outside a popup.
+ */
+const ACTION_CLEAR = 'var(--popup-action-clear, 4px)'
+
+/**
+ * The attribute the map finds a card's resize handle by (`map/destinationCards.ts`),
+ * which drags the card's width and its body's height (TJ, 2026-11-03).
+ */
+export const CARD_RESIZE_ATTR = 'data-card-resize'
+
+/**
+ * The handle in a card's bottom-right corner that a pointer or a finger
+ * drags to size the card (TJ, 2026-11-03): the diagonal grip from
+ * `iconPaths.ts` in the glyph grey the band's link-out and the folds rest in,
+ * taking the accent under a pointer through `data-popup-glyph` as they do,
+ * and its box `CARD_RESIZE` from `styles.ts`.
+ *
+ * It is pointer-only, so it is `aria-hidden` and carries no name: a name
+ * would be a new string for a control a keyboard cannot work, and a keyboard
+ * reader has the body's scroll for what a short card hides. It is a span
+ * rather than a button for the same reason, so Tab never lands on it.
+ */
+function resizeHandle(): string {
+  return `<span ${CARD_RESIZE_ATTR} data-popup-glyph aria-hidden="true" class="${CARD_RESIZE}" style="color:${HEADER_ICON_COLOR}">${gripMarkup()}</span>`
 }
 
 /**
@@ -807,40 +1154,6 @@ const TITLE_TEXT = `min-width:0;${BOLD};${ONE_LINE}`
 export const HEADER_BAND_COLOR = 'var(--popup-band)'
 export const HEADER_EDGE_COLOR = 'var(--popup-line)'
 const HEADER_SHADOW_COLOR = 'var(--popup-shadow)'
-
-/**
- * The edge and the padding a result card's sections wear below the header:
- * the warnings above the grid and the action below it (#696). One spelling,
- * so the card's two ruled-off parts cannot drift apart. The edge is the
- * header's own, which is what lets a section read as part of the card rather
- * than as a second card.
- */
-export const SECTION_EDGE = `1px solid ${HEADER_EDGE_COLOR}`
-export const SECTION_PAD_Y = '8px'
-
-/**
- * The warning section's one ⚠️, which stands for every line in it (TJ,
- * 2026-10-08). A glyph per line spent 20px of every line and wrapped a
- * closure name that fits without it. It stands in a column of its own down
- * the section's right side, the header's close-button lane carried on below
- * it, so it reads as the section's rather than the first line's: floated, the
- * lines below ran under it and it looked like the first warning's alone. The
- * column is the lane plus 2px, so the glyph centred in it sits under the
- * button's centre, which is half the lane plus 1px in from the card's edge
- * (`map.css`: a 0.375rem inset, and the lane is the button, that inset and
- * 0.25rem of air). 17px from the edge on a mouse, 28px on a touch screen.
- */
-const WARNING_GLYPH = `<span aria-hidden="true" style="flex:none;width:calc(var(--popup-close-lane, 2rem) + 2px);text-align:center">⚠️</span>`
-
-/**
- * The warnings themselves: a lone one as its sentence, two or more as a
- * bulleted list (TJ, 2026-10-08), the bullets in the warning amber. A rule
- * between them was tried and read as a section per warning.
- */
-function warningList(warnings: readonly string[]): string {
-  if (warnings.length === 1) return warnings[0]
-  return `<ul style="margin:0;padding-left:16px;list-style:disc;color:${WARNING_COLOR}">${warnings.map((w) => `<li>${w}</li>`).join('')}</ul>`
-}
 
 /**
  * The link-out glyph on the band, in the label grey at rest, as the results

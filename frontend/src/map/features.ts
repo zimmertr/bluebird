@@ -1,18 +1,15 @@
 /**
- * Every feature on the map, mounted in the order its layers stack, lowest
- * first, when the map loads.
+ * Every feature on the map, mounted when the map loads.
  *
- * The basemap patch goes under the style's own labels, and the trailhead and
- * crag markers over it, still under those labels. Above the style: the
- * forecast grid, which is the ground everything else is read against, then
- * smoke, then the fire perimeters, then the closures over the fires that
- * caused them (the closed ground under the closed trails, so a trail reads on
- * top of the area it crosses), then the drawn ring, so a marker is never
- * under the outline of the area it was found in, then the markers and the
- * pending dots. The radar loop and the snow field are created when they are
- * switched on, beneath the first smoke fill, so the chain comes out grid, snow,
- * radar, smoke, fire, closures, draw, results. The basemap POI popups add no
- * layers and go last.
+ * Where each layer stands is not the mount order's: every module adds its
+ * layers through `layerOrder.ts`, which puts each in its slot whenever it goes
+ * on, so the radar and the snow, created when they are switched on, still land
+ * under the smoke, and the stack comes out the same whatever mounts first
+ * (record 0268). The satellite imagery and the ground (`terrain.ts`, #799) add
+ * nothing until switched on, but for the one empty layer that carries
+ * Mapterhorn's credit (#832). The trailhead and crag markers mount after the
+ * basemap patch, which registers the icons they name. The basemap POI popups
+ * add no layers and go last.
  *
  * The map's popups mount first of all (`map/mapPopups.ts`): every feature that
  * opens a popup registers itself there as it mounts, and the one click that
@@ -28,11 +25,16 @@ import { enhanceBasemap } from './basemap'
 import { mountCamera } from './camera'
 import type { MapController } from './controller'
 import { mountDrawRing, type DrawRing } from './drawRing'
+import { mountDestinationCards } from './destinationCards'
+import { createGridHeads } from './gridHeads'
+import { createGroundReadings } from './groundReadings'
 import { serveHeldTiles } from './heldTileProtocol'
 import { mountLandmarks, type LandmarkLayer } from './landmarks'
 import { mountMapPopups } from './mapPopups'
 import { mountClosures, type ClosureOverlay } from './overlays/closures'
+import { mountFireActivity, type FireActivityOverlay } from './overlays/fireActivity'
 import { mountForecastGrid, type ForecastGridOverlay } from './overlays/forecastGrid'
+import { mountImagery, type ImageryOverlay } from './overlays/imagery'
 import { mountRadar, type RadarOverlay } from './overlays/radar'
 import { mountSmoke, type SmokeOverlay } from './overlays/smoke'
 import { mountSnow, type SnowOverlay } from './overlays/snow'
@@ -40,20 +42,27 @@ import { mountWildfires, type WildfireOverlay } from './overlays/wildfires'
 import { mountPoiPopups, type PoiPopups } from './poiPopup'
 import type { PopupBoard } from './popups'
 import { mountResultsLayer, type ResultsLayer } from './resultsLayer'
+import { mountTerrain, type TerrainLayers } from './terrain'
 
 export interface MapFeatures {
+  imagery: ImageryOverlay
   grid: ForecastGridOverlay
   landmarks: LandmarkLayer
   smoke: SmokeOverlay
   wildfires: WildfireOverlay
   areaClosures: ClosureOverlay
   trailClosures: ClosureOverlay
+  fireActivity: FireActivityOverlay
   snow: SnowOverlay
   radar: RadarOverlay
   drawRing: DrawRing
   results: ResultsLayer
   pois: PoiPopups
+  terrain: TerrainLayers
 }
+
+/** The imagery's level from which the contours wear their ink for the photos: half. */
+const IMAGERY_INK_LEVEL = 0.5
 
 export function mountFeatures(
   map: maplibregl.Map,
@@ -85,14 +94,19 @@ export function mountFeatures(
   // tiles go through the app's own schemes, which keep a copy to read what
   // they painted (#737).
   serveHeldTiles(addProtocol)
+  const imagery = mountImagery(map)
   enhanceBasemap(map)
   // After the basemap patch, which registers the icons its layers name.
   const landmarks = mountLandmarks(map, {})
+  // Adds nothing until a switch asks: no elevation tile and no contour code
+  // on the cold load.
+  const terrain = mountTerrain(map)
   const grid = mountForecastGrid(map)
   const smoke = mountSmoke(map, { popups: mapPopups })
   const wildfires = mountWildfires(map, { popups: mapPopups })
   const areaClosures = mountClosures(map, 'area', { popups: mapPopups })
   const trailClosures = mountClosures(map, 'trail', { popups: mapPopups })
+  const fireActivity = mountFireActivity(map, { popups: mapPopups })
   const snow = mountSnow(map, { popups: mapPopups })
   const radar = mountRadar(map, { popups: mapPopups })
   const drawRing = mountDrawRing(map, {
@@ -103,10 +117,48 @@ export function mountFeatures(
     onPolygonChange: deps.onPolygonChange,
     onDrawUpdate: deps.onDrawUpdate,
   })
-  const results = mountResultsLayer(map, { controller, popups: mapPopups })
-  const pois = mountPoiPopups(map, { controller, popups: mapPopups, landmarks })
+  // Every card that describes a place, with one reading of the ground per
+  // point off the terrain rows' one elevation source (#832). A click on a
+  // marker, a dot or a label opens one through the layer that draws it, and a
+  // click on bare map through the map's own.
+  const cards = mountDestinationCards(map, {
+    controller,
+    popups: mapPopups,
+    gridHeads: createGridHeads(controller),
+    ground: createGroundReadings(terrain),
+  })
+  mapPopups.registerSpot((at) => {
+    cards.open({ kind: 'spot', lat: at.lat, lon: at.lng }, at)
+  })
+  const results = mountResultsLayer(map, { controller, popups: mapPopups, cards })
+  const pois = mountPoiPopups(map, { popups: mapPopups, cards, landmarks })
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })
-  return { grid, landmarks, smoke, wildfires, areaClosures, trailClosures, snow, radar, drawRing, results, pois }
+  return {
+    // The Satellite row drives the contours' ink as well as the photos: over
+    // the imagery the lines turn light on a dark edge (`terrain.ts`), and
+    // back when it goes off. The ink follows the ground that shows most, so
+    // under half the photos give way to Liberty's and the lines go back to
+    // its brown (record 0250).
+    imagery: {
+      update(next) {
+        imagery.update(next)
+        terrain.overImagery(next.show && next.opacity >= IMAGERY_INK_LEVEL)
+      },
+    },
+    grid,
+    landmarks,
+    smoke,
+    wildfires,
+    areaClosures,
+    trailClosures,
+    fireActivity,
+    snow,
+    radar,
+    drawRing,
+    results,
+    pois,
+    terrain,
+  }
 }

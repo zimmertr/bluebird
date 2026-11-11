@@ -147,6 +147,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/fire-activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Satellite fire detections from the last 48 hours in a bounding box
+         * @description Active fire detections from NASA FIRMS inside `bbox`: every hot pixel the VIIRS instruments on NOAA-20 and NOAA-21 and the MODIS instruments on Terra and Aqua flagged in the 48 hours before the last fetch, worldwide.
+         *
+         *     A detection is one pixel, 375 m across for VIIRS and 1 km for MODIS, that was hot when the satellite passed. It is not a fire's outline: `GET /api/wildfires` has the surveyed perimeters, for the United States. FIRMS publishes a detection about 3 hours after the pass, so the newest are that old when they arrive.
+         *
+         *     This exists because FIRMS's files carry no CORS header, so a browser cannot read them. Bluebird Forecast fetches the global files every 60 minutes, FIRMS's own cadence, and serves a box's slice to everyone.
+         *
+         *     Detections are served past their refresh deadline when FIRMS is unreachable. Read `fetched_at` to see how current the answer is. It answers 503 when no fetch has completed yet, or when every refresh has failed for more than 24 hours since the last good one.
+         */
+        get: operations["fire_activity_in_box_api_fire_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/geocode": {
         parameters: {
             query?: never;
@@ -1050,6 +1076,95 @@ export interface components {
             error: components["schemas"]["ApiErrorInfo"];
         };
         /**
+         * FireActivityCollection
+         * @description A GeoJSON FeatureCollection of detections, plus when Bluebird Forecast last heard from FIRMS.
+         *
+         *     Declared for the schema only: the handler writes the text itself, because
+         *     a view can hold tens of thousands of points and every one has the same
+         *     shape.
+         */
+        FireActivityCollection: {
+            /**
+             * Features
+             * @description Every detection inside the requested bounding box, edges included.
+             */
+            features: components["schemas"]["FireDetection"][];
+            /**
+             * Fetched At
+             * @description When Bluebird Forecast last fetched the detections from FIRMS, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Detections are served past their refresh deadline when FIRMS is unreachable, so this is the only honest statement of how current the set is. Every detection was acquired within 48 hours of this moment.
+             */
+            fetched_at: number;
+            /**
+             * Type
+             * @description Always `FeatureCollection`, so the body drops straight into a map library.
+             * @constant
+             */
+            type: "FeatureCollection";
+        };
+        /**
+         * FireDetection
+         * @description One active fire detection, as a GeoJSON Feature.
+         */
+        FireDetection: {
+            geometry: components["schemas"]["FirePoint"];
+            properties: components["schemas"]["FireDetectionProperties"];
+            /**
+             * Type
+             * @description Always `Feature`.
+             * @constant
+             */
+            type: "Feature";
+        };
+        /**
+         * FireDetectionProperties
+         * @description What FIRMS says about one detection.
+         */
+        FireDetectionProperties: {
+            /**
+             * Acquired
+             * @description When the satellite saw the pixel, as ISO 8601 UTC to the minute (`2026-10-27T19:36:00Z`). An instant rather than an age, because the age moves while a map is open.
+             */
+            acquired: string;
+            /**
+             * Confidence
+             * @description FIRMS's confidence as it spells it: `low`, `nominal` or `high` for VIIRS, and a number from `0` to `100`, as text, for MODIS. Nothing is dropped for its confidence.
+             */
+            confidence: string;
+            /**
+             * Frp
+             * @description Fire radiative power in megawatts, or null when FIRMS gave none.
+             */
+            frp: number | null;
+            /**
+             * Instrument
+             * @description `VIIRS` for a 375 m pixel, `MODIS` for a 1 km pixel. A detection is the pixel that was hot, not the fire's outline.
+             * @enum {string}
+             */
+            instrument: "VIIRS" | "MODIS";
+            /**
+             * Satellite
+             * @description The satellite as FIRMS spells it: `N20` (NOAA-20) or `N21` (NOAA-21) for VIIRS, `T` (Terra) or `A` (Aqua) for MODIS.
+             */
+            satellite: string;
+        };
+        /**
+         * FirePoint
+         * @description A GeoJSON Point.
+         */
+        FirePoint: {
+            /**
+             * Coordinates
+             * @description `[longitude, latitude]`, the centre of the pixel, in decimal degrees.
+             */
+            coordinates: number[];
+            /**
+             * Type
+             * @description Always `Point`.
+             * @constant
+             */
+            type: "Point";
+        };
+        /**
          * ForecastMode
          * @enum {string}
          */
@@ -1367,6 +1482,16 @@ export interface components {
              * @description Sustained `POST /api/destinations` requests per client address per minute. Its own bucket: discovery is one map query with no forecasts, so it does not spend the analyze budget. 0 means the limit is disabled.
              */
             destinations_per_minute: number;
+            /**
+             * Fire Activity Burst
+             * @description How many fire activity requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan, which refetches on a 400 ms debounce.
+             */
+            fire_activity_burst: number;
+            /**
+             * Fire Activity Per Minute
+             * @description Sustained `GET /api/fire-activity` requests per client address per minute. As loose as the wildfire bucket and for the same reason: it answers from a snapshot this instance already holds and reaches no upstream. 0 means the limit is disabled.
+             */
+            fire_activity_per_minute: number;
             /**
              * Geocode Burst
              * @description How many geocode requests an idle client can send back-to-back before the per-minute pace applies.
@@ -1826,6 +1951,56 @@ export interface operations {
                 };
             };
             /** @description This instance's Overpass budget stayed saturated too long. Transient; `Retry-After` says when a retry is worthwhile. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    fire_activity_in_box_api_fire_activity_get: {
+        parameters: {
+            query: {
+                /** @description Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A west greater than its east is a box across the antimeridian. */
+                bbox: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Detections inside the box, with the fetch timestamp. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FireActivityCollection"];
+                };
+            };
+            /** @description `bbox` was missing, malformed, or outside valid coordinate ranges. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No fetch from FIRMS has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve. Transient; `Retry-After` says when to retry. */
             503: {
                 headers: {
                     [name: string]: unknown;

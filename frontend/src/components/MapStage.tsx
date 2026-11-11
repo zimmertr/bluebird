@@ -12,8 +12,6 @@ import PhoneFoot from './PhoneFoot'
 import type { Analysis } from '../hooks/useAnalyze'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
 import type { DrawMode } from '../hooks/useDrawMode'
-import type { FireProximity } from '../hooks/useFireProximity'
-import type { ClosureProximity } from '../hooks/useClosureProximity'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import type { PresentedReport } from '../hooks/usePresentedReport'
@@ -88,18 +86,17 @@ export interface MapStageProps {
   /** The displayed rows and the named destinations not yet forecast. */
   report: Pick<PresentedReport, 'results' | 'pending'>
   /** The columns a marker's popup lists, and the model label it falls back to. */
-  tableView: Pick<TableView, 'tableColumns' | 'analysisModelLabel'>
-  /** Which destinations stand near an active wildfire. */
-  fire: Pick<FireProximity, 'warnings'>
-  /** Which destinations stand inside an active Forest Service area closure. */
-  closure: Pick<ClosureProximity, 'warnings'>
+  tableView: Pick<TableView, 'tableColumns' | 'analysisModelLabel' | 'handleAggregateMove'>
   /**
    * How far the phone sheet lifts the map's bottom chrome, the camera's bottom
    * padding, and the padding for the sheet a search is about to open.
    */
-  layout: Pick<ResultsLayout, 'mapCornerLift' | 'sheetLiftPx' | 'cameraPadBottomPx' | 'sheetPadBottomPx' | 'mapPx'>
-  /** The run in flight, which the loading card reports and can cancel. */
-  analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'paceRemainingS' | 'cancel'>
+  layout: Pick<
+    ResultsLayout,
+    'mapCornerLift' | 'sheetLiftPx' | 'overMapRows' | 'stageRef' | 'cameraPadBottomPx' | 'sheetPadBottomPx' | 'mapPx'
+  >
+  /** The run in flight, which the loading card reports and can cancel, and when the report was analyzed, which a result card says. */
+  analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'paceRemainingS' | 'cancel' | 'analyzedAtMs'>
   /** The metric the markers are coloured on. */
   sortBy: SortBy
   /** Whether the window is one hour, which a popup's colours read as the table's do. */
@@ -140,6 +137,11 @@ export interface MapStageProps {
   onBasemapFailed: (failed: boolean) => void
   /** The most positions a drawn ring may carry, from /api/capabilities. */
   maxPolygonPoints: number
+  /**
+   * Lowers a phone's results sheet, then does what it is handed (`useRowFocus`):
+   * how a tap on the map that opens a card gives it room, as a row's press does.
+   */
+  lowerSheetFirst: (then: () => void) => void
 }
 
 /**
@@ -160,8 +162,6 @@ export default function MapStage({
   timeline,
   report,
   tableView,
-  fire,
-  closure,
   layout,
   analysis,
   sortBy,
@@ -184,6 +184,7 @@ export default function MapStage({
   restoredView,
   onBasemapFailed,
   maxPolygonPoints,
+  lowerSheetFirst,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
@@ -193,6 +194,7 @@ export default function MapStage({
   const [locateSlot, setLocateSlot] = useState<HTMLDivElement | null>(null)
   // The compass's, under it at a phone's chip row's end (record 0147).
   const [compassSlot, setCompassSlot] = useState<HTMLDivElement | null>(null)
+  const [terrainSlot, setTerrainSlot] = useState<HTMLDivElement | null>(null)
   // A desk's corner (`MapCorner`, record 0174), which stands the compass, the
   // locate button, the zoom pair, the credit line and the scale.
   const [cornerSlots, setCornerSlots] = useState<CornerSlots | null>(null)
@@ -258,7 +260,8 @@ export default function MapStage({
   // A phone's Analyze button rides the results sheet (record 0135), and the
   // player stands on the button rather than on the sheet, stepping off while
   // a sheet dragged high leaves it no room. The Controls sheet moves none of
-  // them: it opens over them, modal (record 0207).
+  // them: it opens over them, modal (record 0207). A full-screen sheet
+  // stands over all of them (#837).
   const footLift = layout.sheetLiftPx
   const fabBottom = fabBottomPx(footLift, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
@@ -309,6 +312,8 @@ export default function MapStage({
     // map area keeps the whole column, so the canvas runs on behind the
     // sheet and its ResizeObserver sees no change on a drag.
     <div
+      // The column a drag on a phone's sheet moves the foot of (#837).
+      ref={layout.stageRef}
       // On a phone the library's stack, the compass alone there, starts under
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${
@@ -349,14 +354,21 @@ export default function MapStage({
           popupColumns={tableView.tableColumns}
           pointSample={pointSample}
           modelFallbackLabel={tableView.analysisModelLabel}
-          fireWarnings={fire.warnings}
-          closureWarnings={closure.warnings}
+          analyzedAtMs={analysis.analyzedAtMs}
           showWildfires={overlays.showWildfires}
           showAreaClosures={overlays.showAreaClosures}
           showTrailClosures={overlays.showTrailClosures}
           showRadar={overlays.showRadar}
           showSmoke={overlays.showSmoke}
           showSnow={overlays.showSnow}
+          showContours={overlays.showContours}
+          showRelief={overlays.showRelief}
+          showSlope={overlays.showSlope}
+          showSatellite={overlays.showSatellite}
+          baseOpacity={overlays.baseOpacity}
+          showTerrain={overlays.showTerrain}
+          onTerrainChange={overlays.setShowTerrain}
+          showFireActivity={overlays.showFireActivity}
           radarIndex={timeline.radarIndex}
           gridSpec={grid.grid.spec}
           gridCells={grid.grid.cells}
@@ -367,13 +379,16 @@ export default function MapStage({
           onAddPoi={handleAddPoi}
           onRemovePoi={handleRemovePoi}
           onRemoveResult={removeResult}
+          onMoveAggregate={tableView.handleAggregateMove}
           cameraPadBottomPx={layout.cameraPadBottomPx}
           restoredView={restoredView}
           onCameraMove={urlSync.reportView}
           onBasemapFailed={onBasemapFailed}
           maxPolygonPoints={maxPolygonPoints}
+          lowerSheetFirst={lowerSheetFirst}
           locateSlot={locateSlot}
           compassSlot={compassSlot}
+          terrainSlot={terrainSlot}
           cornerSlots={cornerSlots}
         />
       </div>
@@ -383,6 +398,7 @@ export default function MapStage({
         searchPointed={searchPointed}
         onLocateSlot={setLocateSlot}
         onCompassSlot={setCompassSlot}
+        onTerrainSlot={setTerrainSlot}
         desk={isDesktop}
         sidebarOpen={sidebarOpen}
         onOpenControls={onOpenControls}
@@ -390,6 +406,7 @@ export default function MapStage({
         controlsSummary={controlsSummary}
         layers={layers}
         legend={legendChip}
+        covered={layout.overMapRows}
       />
       {/* A desk's map buttons, credit line and scale, in the map's
           bottom-right corner (record 0174). */}
@@ -404,6 +421,7 @@ export default function MapStage({
           word={actionWord}
           onAnalyze={onAnalyze}
           messages={messages}
+          covered={layout.overMapRows}
         />
       )}
       {/* The timeline, present exactly while something spans time: radar

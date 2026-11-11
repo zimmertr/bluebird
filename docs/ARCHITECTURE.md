@@ -16,7 +16,7 @@ The whole thing builds as a single multi-stage Docker image:
 - Stage 1 runs `node:26-alpine` to `npm run build` the SPA, and vendors Swagger UI's assets so `/docs` renders without reaching out to a CDN. The build also writes the npm half of `third-party-licenses.txt`: a Vite plugin (`frontend/plugins/thirdPartyLicenses.ts`) reads the bundle's module graph, the MapLibre worker's, the packages the stylesheets import and the vendored Swagger UI, and copies each package's own license files into it. A package with no license text fails the build.
 - Stage 2 runs `python:3.15-alpine` with uvicorn, serving the API and the built SPA together. After `pip install` it appends the Python half of the same file from the metadata of every installed distribution (`backend/scripts/write_third_party_licenses.py`, run from a bind mount so it does not stay in the image), and copies the repository's `LICENSE` to `/app/LICENSE` and Swagger UI's `LICENSE`, `NOTICE` and `swagger-ui-bundle.js.LICENSE.txt` beside its files.
 
-The finished file is served at `/third-party-licenses.txt`. It is a static file like any other under the mount, so the production gateway forwards it with no chart change: the chart's allowlist governs `/api` paths only. The terms page links it from its License section, and nothing on the first screen references it, so the cold load does not fetch it. `NOTICES.md` at the repository root stays the human summary; the served file is the complete one, with every license text. See [decision 0086](decisions/0086-license-notices-built-into-the-image.md).
+The finished file is served at `/third-party-licenses.txt`. It is a static file like any other under the mount, so the production gateway forwards it with no chart change: the chart's allowlist governs `/api` paths only. The terms page links it from its License section, and nothing on the first screen references it, so the cold load does not fetch it. `NOTICES.md` at the repository root stays the human summary; the served file is the complete one, with every license text. See [decision 0086](architectural-decision-records/0086-license-notices-built-into-the-image.md).
 
 What the first screen costs is gated rather than assumed (issue #337). The
 entry document warms the three hosts a cold load and a first analysis cannot
@@ -39,7 +39,7 @@ that cache survives a reload: what fits in a 2 MB budget is mirrored into
 (`frontend/src/utils/forecastStore.ts`). Only the build that wrote it reads it
 back: the stored values are aggregates, so a reload into a new release discards
 them rather than showing what the old build worked out. Record:
-[0095](decisions/0095-forecast-snapshot-carries-its-build.md) Quota is the scarcest thing the app
+[0095](architectural-decision-records/0095-forecast-snapshot-carries-its-build.md) Quota is the scarcest thing the app
 spends, and before this a refresh re-bought coordinates the browser had already
 paid for. Every stamp on the wire is whole seconds rather than ISO text
 (`timeformat=unixtime`), which is 11 bytes instead of 18 and a multiply instead
@@ -51,7 +51,7 @@ None of the external APIs need a key. The three on the analysis path:
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request, and the archive that answers a window older than the forecast endpoint's reach.
 - **OpenFreeMap** serves the vector map tiles.
 
-Nominatim (place search), NIFC (wildfire perimeters), the US Forest Service (closure orders from Regions 3, 4 and 6), NOAA HMS (smoke), NOAA NOHRSC (snow depth), the Iowa Environmental Mesonet (radar) and OpenStreetMap's own servers (the planet file and its daily change files, which keep the places table) are keyless too; [DATA.md](DATA.md) covers every provider.
+Nominatim (place search), NIFC (wildfire perimeters), NASA FIRMS (fire detections), the US Forest Service (closure orders from Regions 3, 4 and 6), NOAA HMS (smoke), NOAA NOHRSC (snow depth), the Iowa Environmental Mesonet (radar), Mapterhorn (elevation), USGS and EOX (imagery) and OpenStreetMap's own servers (the planet file and its daily change files, which keep the places table) are keyless too; [DATA.md](DATA.md) covers every provider.
 
 The snapshot overlays decode on a worker thread rather than on the event loop
 (`asyncio.to_thread` in `app/services/arcgis.py`, which pages both ArcGIS
@@ -91,11 +91,11 @@ in [TRAFFIC.md](TRAFFIC.md#security-response-headers).
 
 Since #760 every pod reads one PostgreSQL 18 database with PostGIS 3.6
 (`backend/app/db/`), which holds what the app would otherwise ask an upstream
-for again and again. Record: [0175](decisions/0175-shared-cache-in-postgresql.md)
+for again and again. Record: [0175](architectural-decision-records/0175-shared-cache-in-postgresql.md)
 A new major is a new cluster rather than an upgrade in place: the operator
 upgrades only between images on one OS, and everything in the database is a
 cache the fill and the refreshes rebuild. Record:
-[0198](decisions/0198-a-new-postgres-major-is-a-new-cluster.md)
+[0198](architectural-decision-records/0198-a-new-postgres-major-is-a-new-cluster.md)
 
 - **Places.** Every place discovery can find, worldwide, one row per
   OpenStreetMap element, each at one point: a node's position, or the centre
@@ -106,22 +106,25 @@ cache the fill and the refreshes rebuild. Record:
   Places of one kind and one name within 300 m are one place,
   merged when a reader reads rather than when the table is written, so the
   daily update can replace any row by its id. Record:
-  [0176](decisions/0176-places-from-the-planet-and-daily-changes.md),
-  [0177](decisions/0177-one-place-per-kind-and-name-within-300-m.md)
-- **Snapshots.** The wildfire, closure and smoke overlays, one row each. One
+  [0176](architectural-decision-records/0176-places-from-the-planet-and-daily-changes.md),
+  [0177](architectural-decision-records/0177-one-place-per-kind-and-name-within-300-m.md)
+- **Snapshots.** The wildfire, fire detection, closure and smoke overlays, one row each. One
   pod at a time fetches each upstream on that overlay's interval and writes the
   row, and every pod serves from it, so no reader calls an upstream while the
   database answers. A row's age is measured on the database's clock, and
-  [record 0077](decisions/0077-snapshot-max-stale-24h.md)'s 24 hours still end
+  [record 0077](architectural-decision-records/0077-snapshot-max-stale-24h.md)'s 24 hours still end
   it. On a first deploy each overlay answers `503` until its first refresh
-  lands. Record: [0182](decisions/0182-shared-snapshots.md)
+  lands, but for the fire detections, whose pods fetch FIRMS for themselves
+  while no row exists, so a PR preview shows them before production has
+  written one. Record: [0182](architectural-decision-records/0182-shared-snapshots.md),
+  [0246](architectural-decision-records/0246-fire-activity-from-firms-files.md)
 - **Counters.** The per-address buckets, the Nominatim gate, the Open-Meteo
   weighted budgets and the place-search cache, each exact across pods. They sit
   in unlogged tables, which skip the write-ahead log: cheap to write on every
   request, and lost in a crash, which costs a minute of looser limits. A sweep
   every nine minutes deletes a bucket idle for 45 minutes and every booking or
   search past its time. The discovery slot and the in-flight caps stay per pod.
-  Record: [0181](decisions/0181-shared-limits-and-nominatim-intervals.md)
+  Record: [0181](architectural-decision-records/0181-shared-limits-and-nominatim-intervals.md)
 
 Every pod runs one refresh loop per source (`app/db/refresh.py`): the three
 snapshots, the daily OpenStreetMap update and the counters' sweep. A PostgreSQL
@@ -147,7 +150,7 @@ The database is optional, and a pod runs in one of three modes:
   way, with a login that can only read. The maintainer accepted that on one
   condition (2026-10-18): only while the database holds nothing but public
   data the fill can rebuild. Record:
-  [0183](decisions/0183-previews-read-production-read-only.md)
+  [0183](architectural-decision-records/0183-previews-read-production-read-only.md)
 
 A database that drops or stops answering mid-request sends that request down
 the pod's own path, so a database fault never becomes a `500`. For the counters a call is
@@ -170,7 +173,7 @@ and a run Overpass does not answer leaves them waiting for the next. That day
 left 1,510 shapes the file could not place, 1,147 of them moved, so a day fits
 one query. A shape is not re-placed when only its nodes move, so a lake
 redrawn by moving its shore keeps its old centre until someone edits the lake
-itself. Record: [0185](decisions/0185-redrawn-shapes-from-overpass-by-id.md)
+itself. Record: [0185](architectural-decision-records/0185-redrawn-shapes-from-overpass-by-id.md)
 
 ## The planet fill
 
@@ -181,7 +184,7 @@ fills on its first run, when `RULES_VERSION` in
 `backend/app/services/osm/rules.py` changes (the daily update applies a rule
 only to the features edited after it ships, so a new rule needs a new table),
 and when `FORCE_FILL` is set. Record:
-[0184](decisions/0184-planet-fill-cronjob-and-image.md)
+[0184](architectural-decision-records/0184-planet-fill-cronjob-and-image.md)
 
 A fill downloads the planet file (95.4 GB on 2026-10-15, republished weekly)
 to an ephemeral 120 GiB scratch volume, resuming a dropped connection, and
@@ -201,7 +204,7 @@ fill, the daily update and the Overpass fallback read one definition of each
 kind. A relation stands at the centre of its own nodes and ways; only one with
 neither, a climbing area made only of other areas, is placed from the
 relations it holds, following the nesting and cutting a cycle where it closes.
-Record: [0179](decisions/0179-relations-stand-at-their-own-points.md)
+Record: [0179](architectural-decision-records/0179-relations-stand-at-their-own-points.md)
 
 On Washington's extract (364.8 MB) the fill took 8 s and peaked at 3.8 GB, all
 but 0.2 GB of it in `osmium getid -r`, whose memory follows OpenStreetMap's
@@ -226,7 +229,7 @@ Manifests live in a separate repo, `zimmertr/Kubernetes-Manifests`, under `publi
 
 The database comes from CloudNativePG rather than a hand-written manifest. Its operator (the `cloudnative-pg` chart, 0.29.1) is an Argo CD app of its own, `misc/cloudnative-pg` in the `postgres-system` namespace, because its CRDs and webhooks serve the whole cluster. The app's chart runs PostgreSQL through CloudNativePG's `cluster` chart (0.9.0), a subchart aliased `database` and on by default (`database.enabled`), as three instances spread one to a worker where they fit. Every search reads the database, so a drain or a failed instance hands over to a standby in seconds. Each instance has its own 10 GiB `proxmox-flashpool` volume, provisioned dynamically, and the operator runs two replicas, since failover is its job. Within Bluebird Forecast's app, Argo CD syncs the database first and the app after it, since the app's pods read the Secret the operator writes. The operator runs outside the Istio mesh, so the API server reaches its webhooks directly. The database's pods take the namespace's sidecar like the rest; the cluster has no `PeerAuthentication`, so mutual TLS is permissive and the operator reaches their status port, and a STRICT policy in `bluebird-system` would need an exception for it. The fill's scratch volume uses `proxmox-datapool-scratch`, a StorageClass whose volumes are deleted with their claim, because each worker's 51 GB of ephemeral storage is smaller than the planet.
 
-For the complete CI/CD picture — how a merge flows through GitHub Actions, Docker Hub, the `bluebird-helm` chart, Artifact Hub, and on to Argo CD, plus how per-PR preview environments spin up — see [`CICD.md`](CICD.md), which has Mermaid diagrams of each path.
+For the complete CI/CD picture (how a merge flows through GitHub Actions, Docker Hub, the `bluebird-helm` chart, and on to Argo CD, plus how per-PR preview environments spin up), see [`CICD.md`](CICD.md), which has Mermaid diagrams of each path.
 
 The release pipeline updates the image tag on merge to `main`, and it is the only supported way to deploy: there is no hand-built image path and no rollback. A bad release is fixed by the next one; [CICD.md](CICD.md#when-a-release-is-bad) has the procedure.
 

@@ -23,6 +23,9 @@ import {
   TRANSPORT_HEIGHT_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
+  fullScreenMapFloorPx,
+  sheetTopRelease,
+  fabShiftPx,
   controlsFullPx,
   controlsSheetPx,
   fabBottomPx,
@@ -32,6 +35,10 @@ import {
   legendBottomPx,
   legendMaxCss,
   CHIP_MENU_GAP_PX,
+  LEGEND_BESIDE_TRANSPORT_PX,
+  LEGEND_CARD_W_PX,
+  MAP_EDGE_INSET_PX,
+  TRANSPORT_W_PX,
   mapCornerLiftPx,
   resolveSheetLift,
   restingLiftPx,
@@ -40,6 +47,7 @@ import {
   sheetHeightPx,
   transportBottomPx,
 } from './resultsSheet'
+import { SHEET_SNAP_PX } from '../sheetDrag'
 // `?raw` reads the sources as text, so the offsets the anchors here mirror can be
 // asserted without a DOM. The classes quoted below are already in the bundle
 // because styles.ts spells them; quoting one that is NOT would emit its CSS,
@@ -47,6 +55,7 @@ import {
 // useResultsLayout.ts and TimelineTransport.tsx spell is held by the `app-` checks in
 // tools/eslint/checks/app.js.
 import stylesSource from '../../styles.ts?raw'
+import transportSource from '../../components/TimelineTransport.tsx?raw'
 
 describe('sheetHeightPx', () => {
   it('is the header alone while the results are collapsed', () => {
@@ -89,12 +98,12 @@ describe('the map chrome anchors', () => {
   })
 
   // The rows are four numbers in the role (`MAP_ROWS`): the 12px inset, the
-  // 40px pill row, 8px between and the 32px chip row. Their sum is what every
+  // 32px pill row, 12px between and the 32px chip row. Their sum is what every
   // anchor under them reads, a desk's legend card included (#714).
   it('ends the rows where the role\'s four numbers do, at both widths', () => {
-    expect(stylesSource).toContain("row: `relative h-10 ${YIELD_EMPTY}`")
+    expect(stylesSource).toContain("row: `relative h-8 ${YIELD_EMPTY}`")
     expect(stylesSource).toContain("chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`")
-    expect(MAP_ROWS_PX).toBe(12 + 40 + 8 + 32)
+    expect(MAP_ROWS_PX).toBe(12 + 32 + 12 + 32)
     // The phone's resting reserve keeps the column it was measured with.
     expect(RESTING_TOP_PX).toBe(156)
     expect(RESTING_TOP_PX).toBeGreaterThan(MAP_ROWS_PX)
@@ -106,8 +115,40 @@ describe('the map chrome anchors', () => {
   it('caps a desk\'s legend card at the map under the rows, less the floor', () => {
     expect(CHIP_MENU_GAP_PX).toBe(4)
     expect(legendMaxCss(0, false)).toBe(`calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + LEGEND_GAP_PX}px)`)
-    expect(legendMaxCss(0, true)).toBe(`calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + TRANSPORT_BAND_PX}px)`)
     expect(stylesSource).toContain('[container-type:size]')
+  })
+
+  // With the player on, the card clears its band only on a map narrow enough
+  // for the centred bar to reach under it; wider, it keeps the plain gap.
+  it('clears the player only where the bar reaches under the card', () => {
+    const base = MAP_ROWS_PX + CHIP_MENU_GAP_PX + LEGEND_GAP_PX
+    const extra = TRANSPORT_BAND_PX - LEGEND_GAP_PX
+    expect(legendMaxCss(0, true)).toBe(
+      `calc(100cqh - ${base}px - clamp(0px, (${LEGEND_BESIDE_TRANSPORT_PX}px - 100cqw) * 1000, ${extra}px))`,
+    )
+    expect(legendMaxCss(120, true)).toBe(
+      `calc(100cqh - ${base + 120}px - clamp(0px, (${LEGEND_BESIDE_TRANSPORT_PX}px - 100cqw) * 1000, ${extra}px))`,
+    )
+    // The clamp is a step: evaluate it at a few map widths the way CSS would.
+    const reserve = (mapW: number) => LEGEND_GAP_PX + Math.min(extra, Math.max(0, (LEGEND_BESIDE_TRANSPORT_PX - mapW) * 1000))
+    expect(reserve(LEGEND_BESIDE_TRANSPORT_PX)).toBe(LEGEND_GAP_PX)
+    expect(reserve(1648)).toBe(LEGEND_GAP_PX)
+    expect(reserve(LEGEND_BESIDE_TRANSPORT_PX - 1)).toBe(TRANSPORT_BAND_PX)
+    expect(reserve(737)).toBe(TRANSPORT_BAND_PX)
+  })
+
+  // The line is where the bar's left edge stands one inset clear of the
+  // card's right edge, read off the widths the two components spell.
+  it('puts the line where the centred bar clears the card by one inset', () => {
+    expect(MAP_EDGE_INSET_PX).toBe(12)
+    expect(stylesSource).toContain(`[--map-edge-inset:${MAP_EDGE_INSET_PX / 16}rem]`)
+    expect(LEGEND_CARD_W_PX).toBe(224)
+    expect(stylesSource).toContain("key: 'w-56'")
+    expect(TRANSPORT_W_PX).toBe(368)
+    expect(transportSource).toContain(`w-[min(${TRANSPORT_W_PX / 16}rem,calc(100%-4rem))]`)
+    const w = LEGEND_BESIDE_TRANSPORT_PX
+    expect(w / 2 - TRANSPORT_W_PX / 2).toBe(MAP_EDGE_INSET_PX + LEGEND_CARD_W_PX + MAP_EDGE_INSET_PX)
+    expect(w).toBe(864)
   })
 
   // The band above the results holds the taller of MapLibre's two bottom
@@ -237,11 +278,11 @@ describe('the resting height', () => {
 // strip under the chip row (#696). The resting reserve above holds only until
 // the reader takes hold of a grip; this one holds however far they pull.
 describe('the drag cap', () => {
-  it('leaves the rows and the button\'s strip: 92 and 16 + 56 + 16', () => {
-    expect(MAP_ROWS_PX).toBe(92)
+  it('leaves the rows and the button\'s strip: 88 and 16 + 56 + 16', () => {
+    expect(MAP_ROWS_PX).toBe(88)
     expect(FAB_STRIP_PX).toBe(FAB_INSET_PX + FAB_PX + FAB_INSET_PX)
     expect([FAB_INSET_PX, FAB_PX, FAB_STRIP_PX]).toEqual([16, 56, 88])
-    expect(DRAGGED_MAP_PX).toBe(180)
+    expect(DRAGGED_MAP_PX).toBe(176)
   })
 
   // With the player on, a full sheet also leaves the bar its room over the
@@ -279,6 +320,46 @@ describe('the drag cap', () => {
     const fab = fabBottomPx(capped, VIEWPORT)
     expect(fab).toBe(capped + FAB_INSET_PX)
     expect(VIEWPORT - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
+  })
+})
+
+// Full screen (#837): past the cap a drag runs on to the map's top, and the
+// release decides whether the sheet stays there.
+describe('full screen', () => {
+  // The sheet's chrome is the whole floor, so the sheet is the map's height.
+  it.each([1, 2])('leaves no map under a sheet with %i grips', (gripCount) => {
+    const availPx = 757
+    const panelsPx = availPx - fullScreenMapFloorPx(gripCount)
+    expect(sheetHeightPx({ collapsed: false, gripCount, panelsPx })).toBe(availPx)
+  })
+
+  it('goes full within the snap of the top, falls back to the cap above it, and holds below it', () => {
+    const cap = 400
+    const full = 576
+    expect(sheetTopRelease(full, cap, full)).toBe('full')
+    expect(sheetTopRelease(full - SHEET_SNAP_PX, cap, full)).toBe('full')
+    expect(sheetTopRelease(full - SHEET_SNAP_PX - 1, cap, full)).toBe('cap')
+    expect(sheetTopRelease(cap + 1, cap, full)).toBe('cap')
+    expect(sheetTopRelease(cap, cap, full)).toBe('hold')
+    expect(sheetTopRelease(120, cap, full)).toBe('hold')
+  })
+
+  // A drag moves the map's foot by what the button would move, as a
+  // transform: with the sheet, and no higher than one inset under the rows.
+  it('moves the foot with the sheet, up to the button\'s highest place', () => {
+    const mapPx = 740
+    expect(fabShiftPx(200, 0, mapPx)).toBe(0)
+    expect(fabShiftPx(200, 100, mapPx)).toBe(-100)
+    expect(fabShiftPx(200, -50, mapPx)).toBe(50)
+    const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
+    expect(fabShiftPx(200, 2000, mapPx)).toBe(fabBottomPx(200, mapPx) - highest)
+  })
+
+  // The band between the cap and the top is the rows and the button's strip,
+  // wider than the snap, so a release short of the top lands on the cap.
+  it('is farther above the cap than the snap reaches', () => {
+    expect(draggedMapFloorPx(1) - fullScreenMapFloorPx(1)).toBe(DRAGGED_MAP_PX)
+    expect(DRAGGED_MAP_PX).toBeGreaterThan(SHEET_SNAP_PX)
   })
 })
 

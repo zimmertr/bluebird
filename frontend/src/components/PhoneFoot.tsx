@@ -23,6 +23,8 @@ interface PhoneFootProps {
   onAnalyze: () => void
   /** The panel's messages (`usePanelMessages`): the badge's count and colour, and the sheet's rows. */
   messages: PanelMessages
+  /** A full-screen results sheet stands over the button (#837), which is out of reach until it comes down. */
+  covered?: boolean
 }
 
 /**
@@ -38,7 +40,15 @@ interface PhoneFootProps {
  * the button by its height went with the badge: on touch it showed one
  * message and no sign of the rest.
  */
-export default function PhoneFoot({ fabBottomPx, onFabPx, analyzeEnabled, word, onAnalyze, messages }: PhoneFootProps) {
+export default function PhoneFoot({
+  fabBottomPx,
+  onFabPx,
+  analyzeEnabled,
+  word,
+  onAnalyze,
+  messages,
+  covered = false,
+}: PhoneFootProps) {
   // The button's width is the widest word's whichever it reads, so it moves
   // only with the face, the size or the zoom; observed for those. It is
   // mounted for as long as the foot is, so a ref is enough.
@@ -62,7 +72,11 @@ export default function PhoneFoot({ fabBottomPx, onFabPx, analyzeEnabled, word, 
   // on the button while a blocker greys it (the maintainer, 2026-10-21). It
   // goes with the last message, since there is nothing left to list. The
   // tutorial's Messages card holds it open (`messages.held`), and a run that
-  // fails opens it, as the panel's list opens at a desk (#803).
+  // fails opens it, as the panel's list opens at a desk (#803). So does a
+  // check or the basemap failing (#834), and the sheet takes the keyboard
+  // then as it always does: it is modal, and a modal that left the keyboard
+  // behind it would leave it on a page a screen reader cannot reach (the
+  // maintainer, 2026-10-30).
   const { count, blocked, held } = messages
   const [pressedOpen, setOpen] = useState(false)
   const open = pressedOpen || held
@@ -71,11 +85,24 @@ export default function PhoneFoot({ fabBottomPx, onFabPx, analyzeEnabled, word, 
   }, [count])
   const openSheet = useCallback(() => setOpen(true), [])
   useOpenOnFailure(messages.failureSeq, openSheet)
+  useOpenOnFailure(messages.openingSeq, openSheet)
   const toggle = () => setOpen((o) => !o)
 
   return (
     <>
-      <div className={MAP_FAB_SLOT} style={{ bottom: fabBottomPx }}>
+      <div
+        // A card keeps clear of the button and its badge, as it does of the
+        // rows and the player (`map/mapPopups.ts` finds every
+        // `data-map-overlay`), so a card a tap opens never hangs its foot
+        // behind the one Analyze a phone has.
+        data-map-overlay=""
+        className={MAP_FAB_SLOT}
+        // A drag on the results sheet moves the button with it, as a
+        // transform (`--sheet-shift`, #837); a full-screen sheet covers it,
+        // and nothing under the sheet takes a press or the keyboard.
+        style={{ bottom: fabBottomPx, transform: 'translateY(var(--sheet-shift, 0px))' }}
+        inert={covered}
+      >
         <button
           ref={buttonRef}
           onClick={blocked ? toggle : onAnalyze}
@@ -96,7 +123,13 @@ export default function PhoneFoot({ fabBottomPx, onFabPx, analyzeEnabled, word, 
             ))}
           </span>
         </button>
-        <MessageBadge count={count} worst={messages.worst} open={open} onPress={toggle} />
+        <MessageBadge
+          count={count}
+          worst={messages.worst}
+          open={open}
+          onPress={toggle}
+          arrivalSeq={messages.arrivalSeq}
+        />
         <MessageRegion messages={messages.messages} />
       </div>
       {open && (

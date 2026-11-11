@@ -1,49 +1,29 @@
 name: PR Title
 
 # The PR title becomes the squash commit's title, and that line alone decides
-# the release bump (GitVersion.yml). This refuses a title the pipeline cannot
-# read, before the merge rather than after the release.
+# the release bump (yggdrasil's default GitVersion.yml). This refuses a title
+# the pipeline cannot read, before the merge rather than after the release.
+# yggdrasil's pr-title module, which allows the same types as the release
+# module's GitVersion rules. Decision records 0276 and 0278.
 #
 # A workflow of its own rather than a job in pr.yml, because it has to run when
 # only the title changes (`edited`), and an edit must not restart pr.yml's whole
-# suite, whose concurrency group would also cancel the run in flight.
-# `synchronize` stays in the list because a check reports against the head
-# commit, so a push with no run of its own would carry no result. There is no
-# `if:` to skip body-only edits on purpose: a skipped job reports success, which
-# would turn a failed title green the moment someone edited the description.
+# suite. `synchronize` stays in the list because a check reports against the
+# head commit, so a push with no run of its own would carry no result.
+#
+# Branch protection requires `PR Title / PR Title` (this job's name, then the
+# module's); renaming either strands PRs on a check that never reports.
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
     branches:
       - main
 
-concurrency:
-  group: pr-title-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
-# `pull_request`, not `pull_request_target`: a fork's run gets a read-only token
-# and no secrets, and this job needs neither. Dependabot's runs are the same.
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   title:
     name: PR Title
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      # The merge ref, so a PR that edits GitVersion.yml is judged by the
-      # patterns it will merge with.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          sparse-checkout: |
-            GitVersion.yml
-            .github/scripts/check_pr_title.py
-          sparse-checkout-cone-mode: false
-      # The title reaches the script through the environment and is never
-      # pasted into the shell line, where a title holding `$(...)` would run.
-      - name: Check the title is one the release pipeline reads
-        run: python3 .github/scripts/check_pr_title.py
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
+    uses: zimmertr/yggdrasil/.github/workflows/pr-title.yml@d8443185af7a5e3b4b197b8ee167533d79c816c5 # v0.14.0
+    permissions:
+      pull-requests: read # the module reads the PR's current title

@@ -5,6 +5,7 @@ import type { ForecastModelOption } from './useCapabilities'
 import type { ClosureProximity } from './useClosureProximity'
 import type { FireProximity } from './useFireProximity'
 import type { ComparedModel } from './useModelCompare'
+import { familyOf, windowAggregate } from '../metrics'
 import { chartKey } from '../utils/chart/chartData'
 import { NAME_DEFAULT_PX } from '../utils/columnResize'
 import type { PendingDestination } from '../utils/customList'
@@ -387,6 +388,36 @@ export function useTableView({
     [allColumns],
   )
 
+  // A result card's aggregate head carried onto another (TJ 2026-10-30): the
+  // card is the table's row turned on its side, so every family's column of
+  // that aggregate moves onto the same family's column of the other, and the
+  // card, which lays its columns out in the table's order, follows.
+  const handleAggregateMove = useCallback(
+    (from: string, to: string) => {
+      const base = allColumns.map((c) => c.key as string)
+      // A key's family and aggregate, or null for a column that has none
+      // (the name, the type, the elevation, a flag).
+      const parts = (key: string): [string, string] | null => {
+        try {
+          return [familyOf(key), windowAggregate(key as SortBy)]
+        } catch {
+          return null
+        }
+      }
+      setColumnOrder((prev) => {
+        let order = prev ?? base
+        const families = new Set(order.map((k) => parts(k)?.[0]).filter((f) => f !== undefined))
+        for (const f of families) {
+          const a = order.find((k) => parts(k)?.join() === `${f},${from}`)
+          const b = order.find((k) => parts(k)?.join() === `${f},${to}`)
+          if (a && b) order = moveColumn(order, a, b)
+        }
+        return order
+      })
+    },
+    [allColumns],
+  )
+
   // The picker hands back one set for every column. The Model column's answer
   // is pulled out of it and kept separately; the rest is the ordinary set.
   const handleVisibilityChange = useCallback(
@@ -453,6 +484,7 @@ export function useTableView({
     partialNote,
     legend,
     handleColumnMove,
+    handleAggregateMove,
     handleVisibilityChange,
     handleDownloadCsv,
   }

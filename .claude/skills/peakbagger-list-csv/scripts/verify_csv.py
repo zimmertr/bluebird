@@ -2,6 +2,8 @@
 
 Usage: python3 verify_csv.py <lid> <csvfile> [--bbox LAT_MIN LAT_MAX LON_MIN LON_MAX]
 
+The file is rows only: its name is the menu's string, so a comment line is a problem.
+
 Cross-checks every row against peaks<lid>.json rather than only checking the file's shape,
 so a coordinate attached to the wrong peak or a dropped row is caught. Elevation is not in
 the CSV (Bluebird Forecast resolves it from OSM), so ordering is checked against the list page.
@@ -22,8 +24,8 @@ head = [l for l in lines if l.startswith('#')]
 data = [l for l in lines if l and not l.startswith('#')]
 problems = []
 
-if len(head) != 1:
-    problems.append(f'expected 1 comment line (the headline), found {len(head)}')
+if head:
+    problems.append(f'expected no comment line (the name is the file name), found {len(head)}')
 if len(data) != len(peaks):
     problems.append(f'expected {len(peaks)} data rows, found {len(data)}')
 

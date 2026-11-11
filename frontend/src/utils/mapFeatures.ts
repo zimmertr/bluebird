@@ -56,7 +56,10 @@ export function pendingFC(pending: PendingDestination[]): FeatureCollection {
     features: pending.map((d) => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [d.longitude, d.latitude] },
-      properties: { name: d.name },
+      // The exact point beside the drawn one, as a ranked marker carries it:
+      // a clicked feature's geometry is snapped to the tile grid, and its card
+      // finds its destination by the point (#832).
+      properties: { name: d.name, lat: d.latitude, lon: d.longitude },
     })),
   }
 }

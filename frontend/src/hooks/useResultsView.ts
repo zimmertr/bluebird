@@ -5,6 +5,7 @@ import { useChartCompare, type ChartCompareInputs } from './useChartCompare'
 import { useResultsLayout } from './useResultsLayout'
 import { useRowFocus } from './useRowFocus'
 import { useTableView, type TableViewInputs } from './useTableView'
+import { type PendingDestination, pendingAsResult } from '../utils/customList'
 import type { SinglePanel } from '../utils/layout'
 
 export interface ResultsViewInputs {
@@ -18,10 +19,14 @@ export interface ResultsViewInputs {
   restView?: SinglePanel | null
   /** Hold a phone's sheet at its full stop (`useResultsLayout`'s `fullOverride`). */
   fullOverride?: boolean
+  /** Hold a desk's results at one taller room (`useResultsLayout`'s `tallResults`). */
+  tallResults?: boolean
   /** Whether a report is on screen. */
   showResults: boolean
   /** The committed response, null before the first analysis. */
   response: AnalyzeResponse | null
+  /** The reader's own, where `response` is the tutorial's demonstration (`useResultsLayout`'s `ownResponse`). */
+  ownResponse?: AnalyzeResponse | null
   /** The displayed rows. */
   results: DestinationResult[]
   /** The named destinations no analysis has covered yet. */
@@ -48,6 +53,8 @@ export interface ResultsViewInputs {
   analyzed: TableViewInputs['analyzed']
   /** The published forecast models. */
   models: TableViewInputs['models']
+  /** The chart's metric slots (`useChartMetrics`, #499). */
+  chartMetrics: ChartCompareInputs['chartMetrics']
   /** The panel's model. */
   forecastModel: string
   /** The models ticked for the chart's comparison. */
@@ -62,8 +69,8 @@ export interface ResultsViewInputs {
   closure: TableViewInputs['closure']
   /** The map, which the table's focus callbacks fly to a row. */
   mapRef: RefObject<MapViewHandle | null>
-  /** Removes a searched place or pasted row by its coordinate. */
-  removePlace: (latitude: number, longitude: number) => void
+  /** A ranked row's ×, which a pending row's makes too (#832). */
+  removeResult: (row: DestinationResult) => void
 }
 
 /**
@@ -77,8 +84,10 @@ export function useResultsView({
   collapsedOverride = null,
   restView = null,
   fullOverride = false,
+  tallResults = false,
   showResults,
   response,
+  ownResponse = response,
   results,
   pending,
   detailSort,
@@ -94,6 +103,7 @@ export function useResultsView({
   pointSample,
   analyzed,
   models,
+  chartMetrics,
   forecastModel,
   comparedModels,
   times,
@@ -101,7 +111,7 @@ export function useResultsView({
   fire,
   closure,
   mapRef,
-  removePlace,
+  removeResult,
 }: ResultsViewInputs) {
   // A report stays on screen even when the knobs admit none of it. Collapsing
   // the panels would answer "why is nothing listed?" by removing the place the
@@ -117,17 +127,19 @@ export function useResultsView({
     safeBottomPx,
     showTable,
     response,
+    ownResponse,
     analysisSeq,
     collapsedOverride,
     restView,
     fullOverride,
+    tallResults,
   })
 
   // ── The comparison chart (#232) ───────────────────────────────────────────
   const charts = useChartCompare({
     results,
     pending,
-    sortBy,
+    chartMetrics,
     analyzed,
     analysisSeq,
     arriving,
@@ -165,22 +177,24 @@ export function useResultsView({
 
   // Stable identities for the table's callbacks, for the reason `NO_TIMES`
   // exists: an inline arrow is a new prop on every render.
+  // A pending row of any source leaves as a ranked row does, as a removal the
+  // Removed list can restore (TJ, 2026-11-03): a searched place is
+  // unregistered with it, and a pasted or found one is filtered out while its
+  // line or its ring stands.
   const onRemovePending = useCallback(
-    (d: { latitude: number; longitude: number }) => removePlace(d.latitude, d.longitude),
-    [removePlace],
+    (d: PendingDestination) => removeResult(pendingAsResult(d)),
+    [removeResult],
   )
-  // A row's name, or a press on its ground, opens its marker's popup, and on
-  // a phone lowers the sheet first (`useRowFocus`, record 0143).
-  const onFocusResult = useRowFocus({
+  // A row's name, or a press on its ground, opens its marker's or its dot's
+  // card, and on a phone lowers the sheet first (`useRowFocus`, record
+  // 0143); a tap on the map that opens a card lowers it the same way
+  // (`lowerSheetFirst`, record 0266).
+  const { onFocusResult, onFocusPending, lowerSheetFirst } = useRowFocus({
     isDesktop,
     resultsCollapsed: layout.resultsCollapsed,
     collapse: layout.collapse,
     mapRef,
   })
-  const onFocusPending = useCallback(
-    (at: { latitude: number; longitude: number }) => mapRef.current?.focusPoint(at),
-    [mapRef],
-  )
 
-  return { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending }
+  return { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending, lowerSheetFirst }
 }

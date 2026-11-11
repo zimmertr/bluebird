@@ -1,2 +1,2 @@
-// Must trip: the panel column on the chart, a wrapping row, and no menu.
-export const Row = () => <div className={`flex flex-wrap ${CONTROL_W}`} />
+// Must trip: the panel column on the chart, and no menu.
+export const Row = () => <div className={`flex ${CONTROL_W}`} />

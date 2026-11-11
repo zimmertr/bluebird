@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   SNOW_FAILED,
   SNOW_HELD_LAYER,
+  SNOW_INCHES_CH,
   SNOW_SOURCE,
+  SNOW_TITLES,
+  SNOW_WHEN_CH,
+  SNOW_WIDEST_IN,
   failedSnowSection,
   fetchSnowAt,
   formatInches,
@@ -24,8 +28,9 @@ import { heldTiles } from './heldTiles'
 import { storeHolding } from '../testSupport/heldTiles'
 import { fakeResponse, snowIdentify } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'
-import { updatedAt, updatedLine } from './popup/popupChrome'
+import { updatedAt } from './popup/popupChrome'
 import type { GlacierCheck } from './glacierCell'
+import type { PointReading } from './pointReadout'
 
 // The ArcGIS error the service sometimes answers with a 200 (2026-10-16).
 const SERVICE_ERROR = {
@@ -175,25 +180,25 @@ describe('the snow sections', () => {
     const section = pendingSnowSection('Very deep snow', false)
     expect(section.title).toBe('Very deep snow')
     expect(section.source).toBe(SNOW_SOURCE)
-    expect(section.rows.map(markupText)).toEqual(['Depth: ', 'Snow water equivalent: ', 'Updated: '])
+    expect(section.rows.map(markupText)).toEqual(['Depth: ', 'Snow water equivalent: '])
     expect(section.rows.every((r) => r.includes('aria-hidden'))).toBe(true)
+    expect(section.when).toContain('aria-hidden')
+    // Snow is weather rather than a reason to stay away: the plain band, and
+    // folded on a ranked card (#832).
+    expect(section.warning).toBeUndefined()
   })
 
   it('fills the values NOAA answered, the time with its date', () => {
     const section = snowSection('Very deep snow', READING)
-    expect(section.rows.map(markupText)).toEqual([
-      'Depth: 151 in',
-      'Snow water equivalent: 83 in',
-      `Updated: ${updatedAt(VALID_MS)}`,
-    ])
-    // The date is fine print, as on every overlay card that says one (TJ, 2026-10-16).
-    expect(section.rows[2]).toBe(updatedLine(String(updatedAt(VALID_MS))))
+    expect(section.rows.map(markupText)).toEqual(['Depth: 151 in', 'Snow water equivalent: 83 in'])
+    expect(section.when).toBe(String(updatedAt(VALID_MS)))
   })
 
   // Every snow section has the same lines (#748).
   it('marks a value NOAA did not give rather than leaving its row off', () => {
     const section = snowSection('Light snow', { depthIn: 2, sweIn: null, validMs: null })
-    expect(section.rows.map(markupText)).toEqual(['Depth: 2.0 in', 'Snow water equivalent: N/A', 'Updated: N/A'])
+    expect(section.rows.map(markupText)).toEqual(['Depth: 2.0 in', 'Snow water equivalent: N/A'])
+    expect(markupText(section.when!)).toBe('N/A')
   })
 
   // On a glacier the name says where the numbers stand, and the numbers
@@ -204,7 +209,38 @@ describe('the snow sections', () => {
     expect(pendingSnowSection('Very deep snow', undefined).title).toContain('aria-hidden')
     const section = snowSection('Very deep snow', READING, true)
     expect(section.title).toBe(GLACIER_TITLE)
-    expect(section.rows.map(markupText)).toEqual(['Depth: 151 in', 'Snow water equivalent: 83 in', `Updated: ${updatedAt(VALID_MS)}`])
+    expect(section.rows.map(markupText)).toEqual(['Depth: 151 in', 'Snow water equivalent: 83 in'])
+  })
+
+  // A card keeps the width it opened at (TJ, 2026-11-04): every name the
+  // section can take stands in one cell, the radar's way (record 0168), and
+  // each bar is as wide as the widest value its row can print.
+  it('stands at the widest of its names whatever it shows, on every shape of the section', () => {
+    const words = [0, 9.8, 39, 98, 197].map(snowWord)
+    expect(SNOW_TITLES).toEqual([...new Set(words)].reverse().concat(GLACIER_TITLE))
+    for (const section of [
+      pendingSnowSection('Deep snow', undefined),
+      pendingSnowSection('Deep snow', false),
+      snowSection('Deep snow', READING),
+      failedSnowSection('Deep snow'),
+    ]) {
+      expect(section.titles).toBe(SNOW_TITLES)
+    }
+  })
+
+  it('stands each bar as wide as the widest value it waits for', () => {
+    // Rainier's summit, the deepest cell measured (2026-10-16), fits with room.
+    for (const inches of [2.8, 13, 834, 2936, SNOW_WIDEST_IN]) {
+      expect(formatInches(inches).length).toBeLessThanOrEqual(SNOW_INCHES_CH)
+    }
+    expect(SNOW_INCHES_CH).toBe('9,999 in'.length)
+    // The longest date the fine print writes, two-digit day and hour.
+    for (const ms of [new Date(2026, 10, 30, 0, 0).getTime(), new Date(2026, 8, 30, 11, 59).getTime()]) {
+      expect(updatedAt(ms)!.length).toBeLessThanOrEqual(SNOW_WHEN_CH)
+    }
+    const pending = pendingSnowSection('Deep snow', false)
+    expect(pending.rows.every((r) => r.includes(`width:${SNOW_INCHES_CH}ch`))).toBe(true)
+    expect(pending.when).toContain(`width:${SNOW_WHEN_CH}ch`)
   })
 
   it('says NOAA failed in place of the values, keeping its name', () => {
@@ -327,6 +363,17 @@ describe('readSnowAt', () => {
     )
     expect(await reading?.later).toEqual(failedSnowSection(GLACIER_TITLE))
     warn.mockRestore()
+  })
+
+  // The tile under a pointer is decoded on its way to the click, so the
+  // card's first paint carries the snow's band (#832).
+  it('names the snow at once once the tile is decoded', async () => {
+    const tiles = held(bandColor(98))
+    expect(readSnowAt(tiles, AT, signal(), async () => READING, OFF_GLACIER)).toBeInstanceOf(Promise)
+    await tiles.pixel(SNOW_HELD_LAYER, AT.lng, AT.lat, snowTileZoom(AT.zoom))
+    const now = readSnowAt(tiles, AT, signal(), async () => READING, OFF_GLACIER)
+    expect(now).not.toBeInstanceOf(Promise)
+    expect((now as PointReading | null)?.section).toEqual(pendingSnowSection('Very deep snow', false))
   })
 
   it('reads nothing where the field painted nothing, and asks NOAA nothing', async () => {

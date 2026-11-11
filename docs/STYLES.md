@@ -14,7 +14,7 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `TEXT.section` | Panel section headings: 14px bold uppercase in slate-300 (9.83:1 on the panel), brighter than any caption so a heading no longer reads dimmer than the slate-200 subheading under it (#687) |
 | `TEXT.subheading` | Named sub-blocks and field labels |
 | `TEXT.cta` | Single call-to-action text, step up from body |
-| `TEXT.control` | Anything you read or type in a control, and every field label beside one: Model, When, Metric, Hours, at one weight (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
+| `TEXT.control` | Anything you read or type in a control, and every field label beside one: Model, When, Metric, Hours, at one weight (record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)) |
 | `TEXT.caption` | Secondary text: descriptions, notes |
 | `TEXT.helper` | Italic prose explaining a control |
 | `TEXT.overline` | Tiny all-caps labels: the model list's group heads and columns, the player's axis |
@@ -58,9 +58,9 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `BUTTON_ACCENT` | Leading action in a pair: Done button in draw mode |
 | `DRAW_ROW` | The Polygon row: three equal buttons in a grid, `BUTTON_SECONDARY` and `BUTTON_ACCENT` at a 4px inset, because a third of the panel is narrower than `Draw polygon` at their 12px (#687, record 0137) |
 | `ACTION_GROUP` / `ACTION_ITEM` | The results bar's Columns, Models, Removed and Download CSV as one group in the mode switch's look: the same bordered well, the same half and height, the same idle fill, a divider between each two, and a 6px inset so a glyph alone is 28px wide and passes target spacing on a fine pointer. They were underlined links, then ghost buttons that wrapped to three rows on a phone. Under a finger each is 44 wide and 32 tall, and presses 44 (`BAR_PRESS`) |
-| `BAR_GROUP` / `BAR_PRESS` | The results bar's two groups on a finger: `SEGMENT_FLUID`'s well without its clip, and a pseudo-element 6px over and under each button so a 32px button presses 44, as a chip does. The end buttons round their own outer corners at 3px, the group's 4px less its edge (record [0223](decisions/0223-finger-controls-draw-32.md)) |
+| `BAR_GROUP` / `BAR_PRESS` | The results bar's two groups on a finger: `SEGMENT_FLUID`'s well without its clip, and a pseudo-element 6px over and under each button so a 32px button presses 44, as a chip does. The end buttons round their own outer corners at 3px, the group's 4px less its edge (record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)) |
 | `BAR_LABEL` | Every word on the results bar, the switch's three and the buttons' four: shown only where the bar's content is 584px or wider, the measured line of both groups labelled with Removed showing; under it each control is its glyph, named by its word |
-| `DIALOG_FOOT` | The welcome dialog's actions, in a foot that sticks to the card's bottom edge while the body scrolls. `secondary` is the tutorial button: the primary's 14px semibold label, padding and 8px corners in the secondary fill (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
+| `DIALOG_FOOT` | The welcome dialog's actions, in a foot that sticks to the card's bottom edge while the body scrolls. `secondary` is the tutorial button: the primary's 14px semibold label, padding and 8px corners in the secondary fill (record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)) |
 | `BUTTON_FLOATING` | Pressable floating box: the skip link's look since the map's buttons became chips (#714) |
 | `SKIP_LINK` | The page's first Tab stop, the floating button shown only while it has the keyboard. Transparent and unpressable while idle rather than `sr-only`, because `sr-only` sets a position of its own (#576) |
 | `BANNER_PREVIEW` | The preview-deployment banner, the one surface that is deliberately loud: white on red-600, 4.76:1 |
@@ -71,34 +71,34 @@ The app has two themes since #706, dark by default and light behind the switch i
 |---|---|
 | `FIELD` | Text input, recessed fill with border |
 | `FIELD_NUMERIC` | Number input with browser spinners suppressed |
-| `SELECT` | A field you choose from: recessed fill with suppressed platform chrome, worn by a phone's native selects and by the field shape of a desk's menu triggers |
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
 | `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.26:1 on the panel, 5.98:1 on an idle metric select and 5.41:1 on an unplotted chart chip, where 50% was 4.14, 4.61 and 4.23. The fade is the `--ui-muted` token, 65% in light, where 60% leaves the dark ink at 4.31, 4.50 and 4.38 and 65% measures 5.07, 5.34 and 5.10 (#706) |
 | `SR_ONLY` | Text for assistive technology only: the twin of an approved tooltip, the one sentence a row's metric links are described by, and a live region that must exist before it speaks |
-| `CHOICE_ROW` | Radio or checkbox and its label as one strip; a row marked `data-greyed` fades its box alone as far as a disabled row fades, its label at full ink, while its box stays live, for a Layers row still ticked where its layer cannot draw (#803) |
+| `CHOICE_ROW` | Radio or checkbox and its label as one strip; a row marked `data-greyed` fades its box alone as far as a disabled row fades, its label at full ink, while its box stays live, for a Layers row still ticked where its layer cannot draw (#803); under the pointer an enabled row's label takes the accent ink (record [0251](architectural-decision-records/0251-controls-light-their-label-on-hover.md)) |
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
 | `SEGMENT_FLUID` | Segmented control outside the panel column, sized by content |
-| `SEGMENT_IDLE` | Unchosen half of segmented control |
+| `SEGMENT_IDLE` | Unchosen half of segmented control; under the pointer its label takes the accent ink, as every trigger's does (record [0251](architectural-decision-records/0251-controls-light-their-label-on-hover.md)) |
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
 | `SEGMENT_DIVIDER` | The rule between two segment halves |
 | `CONTROL_SIZE` | The one type size every control reads at (`text-xs`); `SLIDER.value` and `SLIDER.wordmark` compose it |
 | `CAPTION_LIFTED` | `TEXT.caption` re-derived for the slate-700 fills: the window caption on the results sheet's header bar, and a search result's description, which stood on slate-700 until the search list took the menu card. slate-300 (6.97:1) because slate-400 falls to 3.93:1 on that fill |
-| `SEARCH_KIND` | A search result's kind beside its name: `CAPTION_LIFTED` at the heading weight, 600, so places with similar names read apart by what each one is (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
+| `SEARCH_KIND` | A search result's kind beside its name: `CAPTION_LIFTED` at the heading weight, 600, so places with similar names read apart by what each one is (record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)) |
 | `SLIDER` | The parts of the two range inputs that are not the input itself, one object since #687: `overlay`, `value`, `wordmark` and `idle` are the coverage slider in the Layers popover (the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint), `well` is the recessed well that slider's layers stack in, and `track` is the rail the map timeline's scrubber slides on |
 | `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint (the rule under the header, the one over the footer, and since #697 the panel's right edge against the map and the results), and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `PANEL_BODY` | The panel's scrolling body: `px-4 py-4`, the shared bar with its width kept (`scrollbar-gutter: stable`, so the column never jumps when a section opens), and both scroll shadows reaching across the padding |
-| `PANEL_HEADER` | The panel's header, 56px plus its rule: a 40px logo with 8px around it, and the title block at `py-2`. It was 81px (#687). `actions` is the top-right spot its round buttons share, the theme switch on the close button's left (#706). `actions` stands 12px down so the buttons centre at 28px with the logo (record [0226](decisions/0226-header-lockup-centred-tagline-italic.md)), and `title` starts the name and the tagline together at the left: the maintainer tried them centred, with the tagline in italics, and had both put back (record [0229](decisions/0229-header-left-upright-no-the.md)) |
-| `HEADER_BUTTON` | A round button in a panel's header: the desk panel's close button and the theme switch, and the switch again beside Done in a phone's Controls sheet title row (`BOTTOM_SHEET.actions`). A 32px circle on either pointer, a finger's height and no wider, where `TAP.action`'s 44px width would draw a capsule (record [0223](decisions/0223-finger-controls-draw-32.md)). The close button's recipe, named once it had a twin (#706) |
+| `PANEL_HEADER` | The panel's header, 56px plus its rule: a 40px logo with 8px around it, and the title block at `py-2`. It was 81px (#687). `actions` is the top-right spot its round buttons share, the theme switch on the close button's left (#706). `actions` stands 12px down so the buttons centre at 28px with the logo (record [0226](architectural-decision-records/0226-header-lockup-centred-tagline-italic.md)), and `title` starts the name and the tagline together at the left: the maintainer tried them centred, with the tagline in italics, and had both put back (record [0229](architectural-decision-records/0229-header-left-upright-no-the.md)) |
+| `HEADER_BUTTON` | A round button in a panel's header: the desk panel's close button and the theme switch, and the switch again beside Done in a phone's Controls sheet title row (`BOTTOM_SHEET.actions`). A 32px circle on either pointer, a finger's height and no wider, where `TAP.action`'s 44px width would draw a capsule (record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)). The close button's recipe, named once it had a twin (#706) |
 | `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the `edge` and `panel` tokens (slate-500 on slate-800 in dark); the root's `color-scheme` turns every bar it does not reach to the theme too (#697, record 0128) |
 | `SCROLL_SHADOW` | A slate-950 shade at 70% (in light, the ink at 12%) over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
-| `MOTION` | Movement that answers an action and stops under a reduced-motion setting, at two speeds (#714): `menu` at 150ms for a menu or a card, a fade and a 4px slide from its trigger's side and back, with a closed card kept for its exit by `useExit`, and at 300ms `slide` for the phone's Controls sheet, `push` for the desk panel and `pane` for a results pane on a press or the collapse chevron, each naming the one property it moves. `progress` is the analysis card's bar (#687). `PANEL_MS` is the slower speed in numbers, for script that waits out a move. The tutorial wears no transition: at a desk its light and card glide in script (`glide` in `tour/place.ts`), and on a phone it cuts from card to card and stands every transition in the app down while it runs (`data-touring="cut"`, record [0214](decisions/0214-phone-tour-cuts-desk-tour-glides.md)) |
+| `MOTION` | Movement that answers an action and stops under a reduced-motion setting, at two speeds (#714): `menu` at 150ms for a menu or a card, a fade and a 4px slide from its trigger's side and back, with a closed card kept for its exit by `useExit`, and at 300ms `slide` for the phone's Controls sheet, `push` for the desk panel and `pane` for a results pane on a press or the collapse chevron, each naming the one property it moves. `progress` is the analysis card's bar (#687). `PANEL_MS` is the slower speed in numbers, for script that waits out a move. The tutorial wears no transition: at a desk its light and card glide in script (`glide` in `tour/place.ts`), and on a phone it cuts from card to card and stands every transition in the app down while it runs (`data-touring="cut"`, record [0214](architectural-decision-records/0214-phone-tour-cuts-desk-tour-glides.md)) |
 | `DESK_PANEL` | The controls panel at a desk: a 360px column in the row beside the map, which stays in the row while shut and gives its width back through its left margin (`shut`), so the map's edge moves with the panel's (#714) |
 | `RESULTS_PANE` | A results pane at a desk, the chart or the table with its grip: a one-row grid frame, `1fr` open and `0fr` shut, around a body mounted at the press at the height it will stand at and kept, inert, while the pane is shut (#786), held to the results bar (`top`, the chart) or to the column's foot (`foot`, the table) (#714) |
-| `CHART_LEGEND` | The chart-only legend: one chip per charted line, two rows of chips at most, then it scrolls. At a desk it is a results pane of its own between the chart's and the table's, held to the foot, so Chart to Both shuts it as the table opens; on a phone it stands in the chart's box. Its tallest strip fits inside the table's floor, which a desk's Chart keeps free under the chart (#795) |
+| `CHART_LEGEND` | The chart-only legend: one chip per charted line, two rows of chips at most, then it scrolls. At a desk it is a results pane of its own between the chart's and the table's, held to the foot, so Chart to Both shuts it as the table opens; on a phone it stands in the chart's box. Its tallest strip fits inside the table's floor, which a desk's Chart keeps free under the chart (#795). Since #850 it stands inside the room a press hands the chart, measured |
 | `LAYOUT_HOLD` | What keeps one size while a desk's layout moves (#714): the map's box at the window's width or height, centred on its column, which clips it (`clip`); the table's box at the window's width and the chart at the width it had while the panel moves. `rest` is the map's box the rest of the time. `layer` puts what moves with the panel on a layer of its own while it moves: the panel, the map's column, the results and each pane's body (#786) |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself. 16px square around a 10px letter, the one size under the type floor (`GLYPH_SIZE`, private to `styles.ts`), which the strip's numerals in `SWATCH_RAMP_TICK` share |
+| `SWATCH_STAR` | The box of a legend swatch that is an icon: the fire activity section's three age icons, the hours `12`, `24` and `48` drawn on them, on one line like the smoke chips (#799). 16px, `SWATCH_CHIP`'s box, and no type, because the digits are paths in `IconFireAge`: the band's fill on the layer's ink at 5.66, 7.73 and 13.27:1, the icon's edge its rim on the dark card (4.73, 6.46 and 11.09:1) and its ink body on the light card (16.64:1). Its colours come from `utils/fireActivity.ts` |
 | `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: every metric's scale and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
 
 **Accent and intent**
@@ -110,8 +110,9 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `ACCENT.mark` | Bare graphic with nothing on it: progress bar fill |
 | `ACCENT.input` | Native checkbox/radio tint and sizing |
 | `ACCENT.text` | Resting accent text: table detail-sort arrow |
-| `ACCENT.hoverText` | Text reaching for accent on hover |
-| `ACCENT.edgeHover` | Border reaching for accent on hover |
+| `ACCENT.hoverText` | The one hover: a control's label or glyph takes the accent ink under the pointer, unless it is disabled or open. Nothing spells another (`style-hover-accent-only`, record [0252](architectural-decision-records/0252-every-trigger-is-one-component.md)) |
+| `COLUMN_GRIP` | A results header's resize grip: a 2px line drawn by its `before`, the edge ink at rest and the accent under the pointer (record [0251](architectural-decision-records/0251-controls-light-their-label-on-hover.md)) |
+| `RESIZE_GRIP` | The bar between two results panels, which a drag resizes and a double press resets: its pill lights in the accent under the pointer, as a column's grip does, where the bar filled grey until record [0252](architectural-decision-records/0252-every-trigger-is-one-component.md) |
 | `ACCENT.edgeFocus` | Border on focus-within |
 | `FOCUS_RING` | Visible keyboard-focus outline |
 | `FOCUS_RING_INSET` | The same outline drawn inside the edge: the results table's sticky headers, where an outer ring is clipped by the scroll box and lands on the first row (sky-400 is 4.75:1 on the slate-700 bar) |
@@ -143,18 +144,25 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `RADIUS.control` | Form controls, small buttons, inline chips |
 | `RADIUS.surface` | Floating cards, dropdowns |
 | `RADIUS.pill` | Pills, dots, spinners, progress bars |
-| `TAP.action` | Button-shaped tap target: 32px tall and 44 wide on coarse pointers (record [0223](decisions/0223-finger-controls-draw-32.md)) |
+| `TAP.action` | Button-shaped tap target: 32px tall and 44 wide on coarse pointers (record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)) |
 | `TAP.row` | Left-aligned tap target: 32px height on coarse pointers |
 | `TAP.height` | Height-only tap target for already-laid-out content |
 | `TAP.grip` | Full-width drag handle: 24px height (AA floor, not a finger's 32) |
 | `CONTROL_W` | Single stacked panel control width: 118px, which is 2 x `METRIC_BOX_W` plus the Metrics grid gap, so the whole panel stands on the bound boxes' edges |
-| `CHART_METRIC_W` | The chart's metric menu, 152px (w-38). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: its labels carry an hour's unit, and `Precipitation (in/hr)` is 109.03px (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
-| `MAP_MENU_W` | Width of both chip menus, Layers and the desk's legend card: 184px (w-46). The legend's wait line needs 176.8px and the longest Layers row, `Forecast player`, 130.0px |
-| `MAP_CHIP_MENU` | Where a chip's menu stands at a desk: a whole card from the chip's left edge, 4px under it, at `MAP_MENU_W`. That is closer than the 8px between the pill and the chip row, so the card reads as its chip's menu and not as another row. Not joined: the chip keeps its pill and is lit while the card is out. The caller picks the surface: `SURFACE_CHIP_CARD.menu` for the Layers menu, `.key` for the legend card. Every other desk menu copies this card |
-| `MENU_TRIGGER` | The three trigger shapes, on purpose: `chip` for a pill on the map, `field` for a field in the panel or over the chart, `bar` for a button in the results bar's group. Each takes the accent on its edge and label under the pointer (the bar button on its label alone, since it has no edge of its own), and while its menu is out the chip and the bar button light in the accent fill and the field keeps its accent edge. `MenuButton` in `components/Menu.tsx` is the only wearer |
-| `MENU_CHEVRON` | Where each shape's chevron stands: `IconChevron` after the label, down while the menu is shut and up while it is open. The chip's is pulled 4px into its padding and the bar button's 2px, so each sits as far from the right edge as the label does from the left; the field's stands in `ICON_ADORNMENT`'s place and takes the accent with the edge. A phone's chips and bar buttons have none, because their sheets rise from below |
-| `MENU` | The parts of the one menu: `card` (the chip card's `menu` surface on `LAYER.popover`), `foot` (a foot ruled off by `SURFACE_DIVIDER`; a menu has no header, its trigger names it, record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)), `list` (the scrolling rows on `SCROLL_BARS`), `row` and `option` (the Layers menu's 10px inset, `option` adding the control size and the touch row for a list you pick from), `cardRow` (a Layers row's inset, pulled out so its fill starts where a list row's does, 20px apart like every menu's rows), `active` (the raised fill under the pointer or the keyboard), `hover` (the same fill on every enabled checkbox row) `current` (the value a field shows, in semibold, with no check mark), `unavailable` (a row drawn and not picked, `DISABLED`'s look on a row no `disabled:` variant reaches) and `placeholder` (what an empty field reads, in a box's placeholder ink, for the Metrics section's `Add a bound`) |
-| `MODEL_ROW` | A row of the model list: the box first, a hairline (`SURFACE_DIVIDER`) between rows with 8px over and under each, every name semibold (`name`). The fill follows a mouse (`MENU.hover`) and the keyboard while the list shows its ring (`keys`, through `list`'s `group/list`), never a finger (record [0225](decisions/0225-model-rows-box-first-ruled.md)) |
+| `CHART_METRIC_W` | The chart's metric menu, 152px (w-38). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: its labels carry an hour's unit, and `Precipitation (in/hr)` is 109.03px (record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)) |
+| `CHIP_CARD_W` | Widths of the two chip cards at a desk, keyed like `SURFACE_CHIP_CARD`. `key`, the legend card: 224px (w-56) since #799. The fire activity key's one line needs 189.4px with the card's padding, the legend's wait line 176.8px. `menu`, the Layers menu: as wide as its widest row and never narrower than its chip (`w-max min-w-full`), as every other menu is; 246.7px since its base-map rows carry a slider (record [0250](architectural-decision-records/0250-layers-palette-and-base-map-opacity.md)), 128.7px before. The two shared one width until 2026-10-29 (the maintainer, on #799) |
+| `MAP_CHIP_MENU` | Where a chip's menu stands at a desk: a whole card from the chip's left edge, 4px under it, at its own `CHIP_CARD_W` width. That is closer than the 8px between the pill and the chip row, so the card reads as its chip's menu and not as another row. Not joined: the chip keeps its pill and is lit while the card is out. The caller picks the surface: `SURFACE_CHIP_CARD.menu` for the Layers menu, `.key` for the legend card. Every other desk menu copies this card |
+| `TRIGGER_STATE` | Every state a trigger has, in one string every shape ends in: `ACCENT.hoverText`, the accent fill, ink and edge while open, `DISABLED` and `FOCUS_RING`. No focus edge and no pressed fill (record [0252](architectural-decision-records/0252-every-trigger-is-one-component.md)) |
+| `MENU_TRIGGER` | The three trigger shapes, on purpose: `chip` for a pill on the map, `field` for a field in the panel or over the chart, `bar` for a button in the results bar's group. Each is a surface, a size and a resting ink ending in `TRIGGER_STATE`, so they differ in nothing a pointer, a keyboard or an open menu can see (record [0252](architectural-decision-records/0252-every-trigger-is-one-component.md)). `MenuButton` in `components/Menu.tsx` is the only wearer, the summary chip included |
+| `MENU_CHEVRON` | Where each shape's chevron stands: `IconChevron` after the label, down while the menu is shut and up while it is open. The chip's is pulled 4px into its padding and the bar button's 2px, so each sits as far from the right edge as the label does from the left; the field's stands at the right of the room the field reserves. Each takes its trigger's ink. A phone's chips and bar buttons have none, because their sheets rise from below |
+| `MENU` | The parts of the one menu: `card` (the chip card's `menu` surface on `LAYER.popover`), `foot` (a foot ruled off by `SURFACE_DIVIDER`; a menu has no header, its trigger names it, record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)), `list` (the scrolling rows on `SCROLL_BARS`), `row` and `option` (the Layers menu's 10px inset, `option` adding the control size and the touch row for a list you pick from), `cardRow` (a Layers row's inset, pulled out so its fill starts where a list row's does, 20px apart like every menu's rows), `active` (the raised fill under the pointer or the keyboard), `hover` (the same fill on every enabled checkbox row), `current` (the value a field shows, in semibold, with no check mark), `unavailable` (a row drawn and not picked, `DISABLED`'s look on a row no `disabled:` variant reaches) and `heading` (a word over a group of rows, read and never pressed: the caption step in semibold, sentence case, 5.56:1 dark and 8.91:1 light on the card; the Layers menu's Base map, Hazards and Forecast, record [0249](architectural-decision-records/0249-layers-in-three-groups.md)) |
+| `MENU_GROUP` | A group of the Layers menu's rows under its `MENU.heading` (record [0249](architectural-decision-records/0249-layers-in-three-groups.md)). At a desk `card` sets each group 6px under the one over it, the first none, and `cardHeading` keeps 2px under the heading, the gap a row keeps, with no rule. On a phone's sheet `sheet` draws the sheet's own rule between the heading and each row, `sheetHeading` stands 6px under the rule over it and 2px over the next, 25px tall to a row's 33, and `sheetRow` is a row's 32px |
+| `LAYER_ROW` | A row of the Layers menu (record [0250](architectural-decision-records/0250-layers-palette-and-base-map-opacity.md)): the menu's checkbox (`CHOICE_ROW`, `CHOICE_INPUT`), the name, and on the four Base map rows an opacity slider at the right. The record first drew the box as an eye, which the maintainer took back the same day. `slider` is the well at a desk, 120 by 20, and `sliderSheet` on a phone, half the row and 32 tall, the phone's control height: at the lab's 96 the thumb at 50% stood on the wordmark. An off layer's slider looks the same as an on one's, because a drag on it checks the box. `cardRows` rules a group's rows at a desk the sheet's way, and `cardRow` makes each 28px |
+| `LEGEND_GRID_STYLE` | The grid's style in its legend line, the button that switches it: the word and a swap mark in the accent's ink on a faint accent wash, no edge, so the line keeps its height |
+| `LEGEND_GRID_STYLE_WORDS` | That button's word, held at the wider name's width: `Smooth` and `Blocks` stand in one grid cell, the one not shown invisible, so the button keeps one size as it switches |
+| `LAYER_GRID` | The forecast grid's coverage slider on its own Layers row, at the opacity sliders' sizes and on their column, its value alone, faded while disabled |
+| `SHEET_ASIDE` | A phone sheet stepping aside while a finger drags one of its sliders: `dim` lifts the scrim, `card` hides the card and every row in it, and `keep` brings back the one row being dragged on the sheet's fill with its edge and shadow (record [0250](architectural-decision-records/0250-layers-palette-and-base-map-opacity.md)). Only the Layers sheet does it |
+| `MODEL_ROW` | A row of the model list: the box first, a hairline (`SURFACE_DIVIDER`) between rows with 8px over and under each, every name semibold (`name`). The fill follows a mouse (`MENU.hover`) and the keyboard while the list shows its ring (`keys`, through `list`'s `group/list`), never a finger (record [0225](architectural-decision-records/0225-model-rows-box-first-ruled.md)) |
 | `DRAW_BAR` | The draw bar on a phone: the polygon readout, Done and Cancel on the map while a ring is drawn, a floating box at the map's inset off both sides, standing where the player stands. A desk keeps them in the docked panel |
 | `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the map's rows and MapLibre's own control stack; `left` and `right` are the inset as utilities. The same publisher carries `--map-credit-size` at the ramp's smallest step, so `map.css` can size the library's credit line from the ramp |
 | `MICRO_SIZE` | The ramp's smallest step as a utility, 11px since #687. `MAP_EDGE.publish` spells the same 11px a second time as a custom property, and `CHART_TICK_PX` a third as the number Recharts takes, because Tailwind compiles no interpolated class and the library's credit line has no call site; `styles.test.ts` holds the two to one number |
@@ -181,7 +189,7 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `SCRUBBER` | The timeline's `<input type="range">`: suppresses the platform slider on every engine that draws one, and draws the thumb |
 | `SLIDER.track` | The rail behind it, on the same recessed surface as every other well. It was `SCRUBBER_TRACK` until #687 grouped the slider parts |
 | `TRANSPORT_AXIS_ITEM` | The axis switch's halves: `SEGMENT_ITEM` with one step more inset, because the right half carries a ranked metric's noun rather than a word the app chose. That half also holds one line and takes the width its own noun needs, where a panel half splits a fixed box with its neighbour |
-| `TRANSPORT_PLAY` | The player's play button: 28px square on a fine pointer and a finger's 32 on touch, square on both, where `TAP.action` would stretch it to 44 wide (record [0223](decisions/0223-finger-controls-draw-32.md)) |
+| `TRANSPORT_PLAY` | The player's play button: 28px square on a fine pointer and a finger's 32 on touch, square on both, where `TAP.action` would stretch it to 44 wide (record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)) |
 | `TRANSPORT_AXIS_W` | Private to `styles.ts` since #687, composed into `TRANSPORT_AXIS_ITEM`. The floor under both halves: the width `Radar` takes, so a one-word metric beside it is a matching half rather than a runt. Spelled again under `touch:`, because the tap target's own min-width is a later rule and would otherwise lower it |
 
 **Layers**
@@ -201,7 +209,7 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 
 | Role | Purpose |
 |---|---|
-| `DAY.cell` | Calendar day cell box: 28px on a fine pointer, 32px under touch (#687, record [0223](decisions/0223-finger-controls-draw-32.md)) |
+| `DAY.cell` | Calendar day cell box: 28px on a fine pointer, 32px under touch (#687, record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)) |
 | `DAY.head` | The weekday initials over the grid, kept at the 36px the day rows had, on either pointer |
 | `DAY.full` | Full data available (weather and AQI) |
 | `DAY.partial` | Weather only (past air-quality horizon) |
@@ -215,25 +223,33 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | Role | Purpose |
 |---|---|
 | `ICON` | How big a drawn glyph is, in four steps: `control` 16 (in or beside a control, the search magnifier included), `inline` 14 (a mark inside a line of text), `chip` 12 (a chip's remove cross, either chip), `micro` 10 (inside a drawn disc or button smaller than a control). Read by `components/icons.tsx`, which draws every icon in the app; every step carries the measurement that chose it |
-| `ICON_BUTTON` | Bare icon button in header, and the bare × inside a card or a field: the popup's, the tutorial's, the search's (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
+| `ICON_BUTTON` | Bare icon button in header, and the bare × inside a card or a field: the popup's, the tutorial's, the search's (record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)) |
 | `ICON_CLOSE_BUTTON` | `ICON_BUTTON` for a × with free room around it, the tutorial card's and the search's clear: a 44px press under a finger through a pseudo-element, without growing the glyph |
+| `CARD_FOLD` | The chevron that folds each section of a card on the map (#832): a 24px box at the section's right edge, 32px under a finger, with the control radius for its focus ring. It names no colour: its ink is the popup's glyph grey, set in the card's markup, and it takes the accent under the pointer through `data-popup-glyph` in `map.css`, as the band's link-out glyph does (record [0266](architectural-decision-records/0266-every-card-is-a-stack-of-foldable-layer-sections.md)) |
+| `CARD_RESIZE` | The handle in a card's bottom-right corner that a pointer or a finger drags to size the card (#832): a 16px box with the grip 2px in from both edges, 32px under a finger, a phone control's size. No focus ring, since it is pointer-only and never focused. Like `CARD_FOLD` it names no colour: its grip wears the popup's glyph grey and takes the accent under the pointer through `data-popup-glyph`, 5.56:1 and 6.71:1 on the dark card, 8.34:1 and 5.74:1 on the light (record [0270](architectural-decision-records/0270-a-card-body-between-a-quarter-and-three-quarters-and-a-resize-handle.md)) |
+| `CARD_ACTION` | A card's one button, **Add** or **Remove**, in its title row left of the × (2026-11-04): `BUTTON_ACCENT`'s fill, label, type, corners, hover and ring at the ×'s 22px, 32px under a finger. One width, 64px, for both words: `Remove` measures 44.95px at 12px on a Mac, plus 8px a side and the edge, so a press that turns **Add** into **Remove** moves nothing. It stands 8px off the × at a desk and under a finger, the results bar's gap between its groups: `map.css`'s `--popup-action-clear` takes 8px back out of the touch lane's wider air. The accent fill reads 2.72:1 off the dark header band and 3.43:1 off the light one, so it wears a 1px edge in the accent ink, 5.69:1 and 4.85:1 (record [0266](architectural-decision-records/0266-every-card-is-a-stack-of-foldable-layer-sections.md)) |
+| `CARD_TITLE_ROW` | A card's title row, at least the ×'s height, 22px at a desk and 32px under a finger, so the title, the button and the × share a centre line |
+| `CARD_BODY_END` | The bottom padding of a card's body: the grip's 16px at a desk and under a finger. At a desk the handle stands under the last section and never over a folded heading's chevron; under a finger `CARD_RESIZE`'s 32px box rises 16px over the body's last corner, the grip staying in the card's corner, where a 32px end read as an empty section under a folded heading. The last heading's chevron gives up the bottom 16px of its box across its right 22px to the handle there (2026-11-04, record [0270](architectural-decision-records/0270-a-card-body-between-a-quarter-and-three-quarters-and-a-resize-handle.md)) |
 | `ICON_ACTION` | Icon that acts on hover |
-| `ICON_ADORNMENT` | Glyph drawn inside a field |
 | `SPINNER` | Indeterminate spinner |
 | `TABLE.cell` | Results table cell inset |
 | `TABLE.row` | One data row: the rule above it and what it does under a pointer. Both the pending destinations and the ranked results wear it |
 | `TABLE.head` | Results table header cell |
-| `TABLE.number` / `TABLE.headNumber` | A number column's cell and header, right-aligned so the digits and the label end on one edge: elevation, the wildfire distance and every metric. Type is a word and stays in the sans (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
+| `TABLE.number` / `TABLE.headNumber` | A number column's cell and header, right-aligned so the digits and the label end on one edge: elevation, the wildfire distance and every metric. Type is a word and stays in the sans (record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)) |
 | `TABLE.rankStack` | Rank cell: number and remove × in one grid cell, so the column never changes width on hover |
 | `TABLE.rankFace` | One face of that stack, pinned to the shared cell |
 | `TABLE.rankIdleFace` / `TABLE.removeFace` | Which face shows: the number gives way on row hover and while the × has keyboard focus. The × idles at no opacity rather than `invisible`, because a hidden element cannot take focus (#576) |
+
+### Shapes and tables
+
+A button's shape says where it stands. A circle floats on the map with nothing behind it; every control inside the panel, a sheet, a card or a popup is a rounded rectangle, and an icon-only one is `SQUARE_BUTTON`, a raised square with a frame. The results table, the marker popup and the chart's card share one table look: the table's heads, a hairline between rows with the table's tint under the pointer, digits grouped in thousands, and the ranked family in `cellStyle`'s colours. Record: [0257](architectural-decision-records/0257-one-table-look-and-button-shape-by-place.md)
 
 ## Two themes
 
 Dark is the default and stays the default whatever the operating system says;
 light applies only once a reader presses the switch (#706). The two are one set
 of names with two sets of values, so no role is spelled twice.
-Record: [0158](decisions/0158-light-theme-behind-semantic-tokens.md)
+Record: [0158](architectural-decision-records/0158-light-theme-behind-semantic-tokens.md)
 
 **How it is built.** `frontend/src/index.css` registers each token in an
 `@theme inline` block as `--color-<token>: var(--ui-<token>)`, which gives it a
@@ -257,11 +273,11 @@ utilities and ride the same block as plain variables: the accent ring's glow
 | `floating` | slate-800 | `#f8f9ff` | `SURFACE_FLOATING` at 95%, and `SURFACE_CHIP_CARD` opaque |
 | `recessed` | slate-900 | `#ffffff` | `RECESSED_FILL` and every well that composes it |
 | `rule` | slate-700 | `#c2c8d1` | `SURFACE_DIVIDER`, `PANEL_RULE`, `TABLE.row` at 50% |
-| `frame` | slate-600 | `#9aa0a8` | a phone sheet's top rule, the results sheet's strip, a popup's inner rules (`--popup-rule`). No floating card wears it: 1.93:1 dark and 2.51:1 light on a card's own fill, under the 3:1 a boundary owes (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)) |
+| `frame` | slate-600 | `#9aa0a8` | a phone sheet's top rule, the results sheet's strip, a popup's inner rules (`--popup-rule`). No floating card wears it: 1.93:1 dark and 2.51:1 light on a card's own fill, under the 3:1 a boundary owes (record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)) |
 | `edge` / `edge-lifted` | slate-500 / slate-400 | `#72787f` / `#72787f` | `PANEL_EDGE`, `RECESSED_EDGE`, `SEGMENT_DIVIDER`, `SURFACE_CHIP_CARD`, `SURFACE_FLOATING`, `SURFACE_CARD`, the chips, the map's buttons, `POPUP_FACE`, the scroll thumb; the marker popup's scroll thumb |
 | `ink-strong` / `ink` | white / slate-200 | `#181c21` / `#181c21` | headings and the primary text |
 | `ink-mid` | slate-300 | `#2d3238` | `LINK`, `TEXT.micro`, `CAPTION_LIFTED`, `TEXT.section` |
-| `ink-soft` | slate-400 | `#42474e` | captions, `SEGMENT_IDLE`, `ICON_ADORNMENT`, placeholders |
+| `ink-soft` | slate-400 | `#42474e` | captions, `SEGMENT_IDLE`, placeholders |
 | `ink-faint` / `ink-ghost` | slate-500 / slate-600 | `#6c727a` / `#a0a6ae` | `ICON_ACTION` at rest; `DAY.unservable` |
 | `accent` / `accent-hover` | sky-650 / sky-600 | sky-650 / `#00639b` | `ACCENT.fill`, `BUTTON_PRIMARY`, `BADGE_STEP` |
 | `accent-ink` / `accent-ink-hover` | sky-400 / sky-300 | `#00639b` / `#004a75` | `LINK_ACTION`, `ACCENT.text`, `FOCUS_RING` |
@@ -291,7 +307,7 @@ the head of every HTML entry before the stylesheet; `theme.test.ts` holds its ke
 to `THEME_KEY` and its place in the four files. A switch lands in one frame:
 `useTheme` holds every CSS transition off while the new tokens resolve
 (`.theme-switching` in `index.css`), so no hover fade starts on every row at
-once (record [0211](decisions/0211-theme-switch-renders-nothing.md)).
+once (record [0211](architectural-decision-records/0211-theme-switch-renders-nothing.md)).
 
 **Ranked cells.** In dark a ranked cell is the band's colour as its text over
 the same colour at 20%, exactly as before. In light that text fails, so the
@@ -299,7 +315,7 @@ tint stays and the text is the same hue's Tailwind 800 step, interpolated
 between bands the way the tint is (`ink` on each `ColorScale` in `colors.ts`,
 read by `cellInks`). `cellStyle` hands a cell both inks at once as
 `light-dark()`, so the root's colour scheme picks one and a switch re-renders
-no row (record [0211](decisions/0211-theme-switch-renders-nothing.md)). The 700 steps measured 3.8 to 5.0:1,
+no row (record [0211](architectural-decision-records/0211-theme-switch-renders-nothing.md)). The 700 steps measured 3.8 to 5.0:1,
 which is why it is the 800s. `colors.test.ts` pins every band's ink on the light
 panel over its tint: the verdict ramp 5.42 to 6.27:1, temperature 5.44 to
 7.26:1, the freezing level 5.83 to 8.06:1, and the cloud deck and snowfall as
@@ -315,43 +331,74 @@ readout's swatches, the legend's dots or a ticked chart box. The twenty repeat
 past the twentieth line, and `LINE_DRAW` holds every line at full strength at
 any count, 1.5px up to `CROWDED_PAST`'s thirty and 1px past it, so a crowd
 reads as a weave rather than a wall (record
-[0228](decisions/0228-chart-lines-set1-twenty.md)). The allocator stores an
+[0228](architectural-decision-records/0228-chart-lines-set1-twenty.md)). The allocator stores an
 index rather than a colour, so a switch recolours every line, swatch and table
 checkbox without reallocating which destination has which slot. Every colour
 reaches the chart as `light-dark()` (`lineColor` and `CHROME`), so a switch
 repaints it without re-rendering it (record
-[0211](decisions/0211-theme-switch-renders-nothing.md)). The chrome
+[0211](architectural-decision-records/0211-theme-switch-renders-nothing.md)). The chrome
 follows the tokens: axis `ink-soft`, grid `rule`, surface `panel` and playhead
 `accent-ink`.
 
-**What does not change.** The map is terrain and light in both themes: the
-basemap, the markers, the ring, the labels and their halo, and every overlay's
-fill and edge keep their values in `mapStyles.ts` and the overlay modules. The
+**What does not change.** The map's ground does not follow the theme: it is
+Liberty's light terrain unless the Satellite row puts imagery under it, which is
+dark. The basemap, the markers, the ring, the labels and their halo, and every
+overlay's fill and edge keep their values in `mapStyles.ts` and the overlay
+modules, and the markers, their labels and the scale bar are built to read on
+either ground: a marker wears a dark ring outside its white stroke, and the
+scale's ends are a dark line and a light one (#799). Record:
+[0243](architectural-decision-records/0243-map-reads-on-a-dark-ground.md) The
 map's control buttons and its credit box are the app's chrome and
 follow the theme like any floating box, which is why in light their glyphs keep
 MapLibre's own dark drawing where `map.css` inverts them in dark, and the credit
-line reads in `ink-mid`.
+line reads in `ink-mid`. Under the pointer a glyph fades to the accent over
+150ms, as 3D's word and every label do, the same drawing at the same size in a
+new colour: `map.css` lays the library's paths over the drawing as a mask in the
+accent ink and fades it in, and the compass's north triangle alone turns from
+red through violet to the accent, by its colour rather than a fade, because the
+compass turns with the map and a turned layer shimmers as it fades (records
+[0251](architectural-decision-records/0251-controls-light-their-label-on-hover.md) and
+[0252](architectural-decision-records/0252-every-trigger-is-one-component.md)).
 
 **The popups follow the theme** (#740), **and are the panel's own surface** (#786). Every colour a card wears is a
 `--popup-*` value that `map.css` declares once, each the app's `--ui-*` token
 for the part it is, and `popupChrome.ts` names them in its markup as
 `var(--popup-label)` and the rest. The card is the panel: its surface `panel`,
-its header band and grid columns halfway between `panel` and `raised`, its
-ranked cell `raised`, its inks the panel's, its warning the table's `warn`,
-its link-out glyph the label grey, taking `accent-ink` on hover. The light
-theme redefines the tokens, so the light card is the light panel and its
-`map.css` block says only the colour scheme. A link in a
+its header band, section headings and grid columns halfway between `panel`
+and `raised`, its ranked cell `raised`, its inks the panel's, its warning
+the table's `warn`, its link-out glyph and each section's fold chevron the
+label grey, taking `accent-ink` on hover. The light
+theme redefines the tokens, so the light card is the light panel, and its
+`map.css` block says the colour scheme and three values more. The light band
+halfway to `raised` read 1.06:1 on the light panel and all but vanished, so
+the light card's band sits halfway between `raised` and `raised-hover`,
+which reads the dark band's 1.18:1, and its ranked cell is `raised-hover`, a
+step past it as in dark. The third is the warning band, below. A section's
+heading stands on the band, edge to edge: the layer's word and its colon
+semibold, the name regular, both in the ink, `Active wildfire: Bolt Creek`.
+Its rows set the key semibold in the ink and the value regular in the label
+grey's mono, and a gap of the card's surface parts one section from the next
+(record [0266](architectural-decision-records/0266-every-card-is-a-stack-of-foldable-layer-sections.md)). The forecast
+grid splits the same way: its heads semibold in the ink, its values regular
+in the label grey's mono, but for the ranked family, which wears its scale's
+inks, and a ranked number with no scale colour, which keeps the ink on its
+cell, where the grey reads 3.94:1 in dark. A link in a
 card is in the colour of the text around it, the way the results table's are:
-a grid number in the ink, the coordinates in the facts line's grey. It
+a grid number in its cell's colour, the coordinates in the facts line's grey. It
 underlines on hover and keyboard focus at a desk, and on a touch screen it
 wears a thin underline at rest in the label grey (`[data-popup-link]` in
-`map.css`), as the table's links do (`LINK_QUIET`, record [0212](decisions/0212-links-underline-on-hover-and-touch.md)).
-A card's one action, Add to analysis, Remove from analysis or ✕ Remove point,
-is `BUTTON_ACCENT` itself, worn as its class list: a popup is in the same
-document as the panel, and Tailwind emits a class for any name in the source.
+`map.css`), as the table's links do (`LINK_QUIET`, record [0212](architectural-decision-records/0212-links-underline-on-hover-and-touch.md)).
+A bare popup's one action, ✕ Remove point, is `BUTTON_ACCENT` itself, worn as
+its class list: a popup is in the same document as the panel, and Tailwind
+emits a class for any name in the source. A card's one action, **Add** or
+**Remove**, stands in its title row left of the × and wears `CARD_ACTION`,
+the same fill, label, type, corners, hover and ring at the ×'s height, one
+width for both words, with a 1px edge in the accent ink so it reads off the
+dark header band. Its name for a screen reader is the whole phrase, Add to
+analysis or Remove from analysis (record [0266](architectural-decision-records/0266-every-card-is-a-stack-of-foldable-layer-sections.md)).
 `styles.test.ts` fails a `--popup-*` value that is not a token and measures
 every pair in both themes; `popupParity.spec.ts` reads the rendered card and
-button against the panel's in a browser. Record: [0163](decisions/0163-popups-follow-the-theme.md) Record: [0215](decisions/0215-popup-is-the-panel.md)
+button against the panel's in a browser. Record: [0163](architectural-decision-records/0163-popups-follow-the-theme.md) Record: [0215](architectural-decision-records/0215-popup-is-the-panel.md)
 
 ## What is enforced
 
@@ -373,19 +420,21 @@ button against the panel's in a browser. Record: [0163](decisions/0163-popups-fo
 | Every radio/checkbox uses the shared recipe | `styles.test.ts`, `checks/styles.js` | The test checks `CHOICE_INPUT` composition and counts one per `CHOICE_ROW` in each panel file; `style-call-site-classes` bans a size after `ACCENT.input` |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
+| One trigger: every control that opens a menu has the same states | `styles.test.ts`, `Menu.test.tsx`, `checks/styles.js` | Every `MENU_TRIGGER` shape's state variants are exactly `TRIGGER_STATE`'s and none has a `focus:` state; every chevron takes its trigger's ink; a button with `aria-expanded` outside `MenuButton` fails (`style-menu-trigger`), and so does a colour, a state or a state role handed to a `MenuButton` or `MenuSelect` or set inside one (`style-trigger-no-look`); a native `<select>` fails anywhere (`style-one-menu`); the message badge alone keeps its severity colour while open (records [0251](architectural-decision-records/0251-controls-light-their-label-on-hover.md), [0252](architectural-decision-records/0252-every-trigger-is-one-component.md)) |
+| One hover: a control's label or glyph takes the accent, and no edge lights | `checks/styles.js`, `styles.test.ts` | `style-hover-no-edge` bans a `hover:` border, outline or ring in any class string, and `style-hover-accent-only` a `hover:text-` in any colour but the accent ink; the test holds `map.css` to it (only a colour or a glyph's mask changes under the pointer, 3D's solid fill aside), every map glyph under the pointer to its own drawing in the accent, and the compass's to its drawing at rest with the north triangle alone refilled in each theme's accent ink (record [0251](architectural-decision-records/0251-controls-light-their-label-on-hover.md)) |
 | Metric names are centralized | `eslint.config.js` | Ban the six abbreviations in strings and templates across twelve consumer files |
 | Precipitation precision is centralized | `metrics.test.ts` | Ban a `toFixed` on a precipitation value in the same twelve files, read as text; `formatPrecipTotal` / `formatPrecipRate` decide |
 | Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
 | No unsafe error message patterns | `checks/data.js` | `open-meteo-copy` bans `failed: ${...}` and the retired phrases; `open-meteo-throw-tail` holds every thrown Open-Meteo message to the standing tail |
 | Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
-| Every message is in the one list the Analyze button opens | `checks/styles.js` | A notice is a `NOTICE` role, only `MessageList`'s `MessageBox` wears one and the list stands on the one menu (`style-message-list`, `style-notice-once`); the one live region is `MessageRegion` beside the badge (`style-live-region`, `style-panel-no-status`); both Analyze buttons wear the badge, the region and the list, and a blocker greys the button with `aria-disabled` rather than `disabled` (`style-analyze-badge`); the polygon block is the one bare `STATUS` use outside the list, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
+| Every message is in the one list the Analyze button opens | `checks/styles.js` | A notice is a `NOTICE` role, only `MessageList`'s `MessageBox` wears one and the list stands on the one menu (`style-message-list`, `style-notice-once`); the one live region is `MessageRegion` beside the badge (`style-live-region`, `style-panel-no-status`); both Analyze buttons wear the badge, the region and the list, and a blocker greys the button with `aria-disabled` rather than `disabled` (`style-analyze-badge`); the polygon block is the one bare `STATUS` use outside the list, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render; the coordinates box's gutter flags a dropped line through `COORD_BOX.flagged`, once, with no bare `STATUS`, box or live region in `CoordinateBox.tsx` (`style-coord-gutter`) |
 | A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`, `MapLegend.tsx` and `ColumnsPicker.tsx` matches a `SR_ONLY` element |
 | A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
-| The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
-| The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_CHIP_CARD.key` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
+| The Layers rows stand in three groups | `styles.test.ts` | The headings read Base map, Hazards and Forecast, the thirteen row labels stand in the order the maintainer chose, one Shift order runs across the groups, and `MENU.heading` is the caption step in semibold at its measured ratios |
+| The legend is one box, in the Layers menu's order | `styles.test.ts` | One `SURFACE_CHIP_CARD.key` in the block, every section built by `legendSection`, and the sections written in the menu's order with the metric key first and no sort |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
-| The chip menus are one width and hang one way | `styles.test.ts`, `checks/styles.js` | `MAP_MENU_W` inside `MAP_CHIP_MENU`, worn once by each menu; `style-map-chrome` fails a width, offset or chip height spelled beside the roles |
+| The chip cards hang one way, the legend at its width and the Layers menu at its content's | `styles.test.ts`, `checks/styles.js` | `MAP_CHIP_MENU` and `CHIP_CARD_W.key` worn once by the legend card, `MAP_CHIP_MENU` and `CHIP_CARD_W.menu` once by the Layers menu; `style-map-chrome` fails a width, offset or chip height spelled beside the roles |
 | The map's rows, a phone's sheets and its Analyze button are built from one sum, and every target is 32 on a finger, 44 around the chips | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 32px rows, the chips at the control size, the message badge's 20px disc and its 44px to a finger, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend card |
@@ -405,9 +454,9 @@ button against the panel's in a browser. Record: [0163](decisions/0163-popups-fo
 | Nothing pressed reads at the micro step | `checks/styles.js` | `style-micro-not-pressed` bans `TEXT.micro` in the class of any `button` or `a` in the app's sources; `styles.test.ts` holds `MICRO_SIZE` at 11px and `GLYPH_SIZE` to the two swatch roles |
 | Every shadow is a step of one scale | `styles.test.ts` | Every surface role's shadow is an `ELEVATION` value, the sheet and the banner wear `none`, and no component spells a `shadow-` utility |
 | Every exported role is rendered by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some non-test file's import list under `src/`, or in a `TEST_ONLY` list that carries its reason and is itself checked for a real importer |
-| No call site names a colour value | `checks/styles.js` | `value-hex` bans a hex triplet, sextet or colour function (`rgb()`, `hsl()`, `oklch()` and the rest) in any string or template under `src/`, tests aside, outside the modules that own a colour (`styles.ts`, `colors.ts`, `chartColors.ts`, `resultFeatures.ts`, `map/mapStyles.ts`, `map/basemap.ts`, the four overlay modules, `radar.ts`, `iconPaths.ts`, `logo.ts`). This is the hue ban's reach into the four channels a Tailwind class never touches: MapLibre paint, canvas drawing, popup HTML and Recharts props (#365) |
+| No call site names a colour value | `checks/styles.js` | `value-hex` bans a hex triplet, sextet or colour function (`rgb()`, `hsl()`, `oklch()` and the rest) in any string or template under `src/`, tests aside, outside the modules that own a colour (`styles.ts`, `colors.ts`, `chartColors.ts`, `resultFeatures.ts`, `map/mapStyles.ts`, `map/basemap.ts`, `map/terrain.ts`, the four overlay modules, `slopeAngle.ts`, `radar.ts`, `iconPaths.ts`, `logo.ts`). This is the hue ban's reach into the four channels a Tailwind class never touches: MapLibre paint, canvas drawing, popup HTML and Recharts props (#365) |
 | No popup spells its own type size, padding, radius or background | `checks/styles.js` | `value-inline-style` bans `font-size:`, `padding:`, `border-radius:` and `background:` in any string or template under `src/`, tests aside, outside `popupChrome.ts`, which owns the popup's three sizes, its button and its rule |
-| The app's own layers read their paint from one module | `checks/styles.js` | `map-paint-named` bans a numeric literal under a `circle-`, `line-`, `fill-`, `text-` or `icon-` key in `map/*.ts` outside `mapStyles.ts` and `basemap.ts`; the result and pending markers and the ring's handles spread one recipe each |
+| The app's own layers read their paint from one module | `checks/styles.js` | `map-paint-named` bans a numeric literal under a `circle-`, `line-`, `fill-`, `text-` or `icon-` key in `map/*.ts` outside `mapStyles.ts`, `basemap.ts` and `terrain.ts`; the result and pending markers and the ring's handles spread one recipe each |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts, and the numbers inside an overlay's own paint (a fire outline's width, a smoke fill's opacity), which each overlay's pure module owns beside its popup and its legend swatch. These are decided per feature.
 
@@ -420,19 +469,26 @@ values (#365):
 
 | Channel | Owner | What it holds |
 |---|---|---|
-| MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
-| Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow) | The same |
-| Popup HTML handed to `setHTML` | `utils/popup/popupChrome.ts` | The three type sizes, the face, the names of the card's colours (each a `--popup-*` value, an app token in `map.css`, record 0215), the one button (`BUTTON_ACCENT` as its class list), the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
+| MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; `map/terrain.ts` for the shaded relief's shadow and light and the contours' ink and labels (#799), one value for both themes because the map stays light in both; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch; `utils/slopeAngle.ts` for the slope angle's six bands and the half strength they paint at by default, read by the raster and the legend alike (#799); the row's opacity level moves the raster's opacity from there (record 0250) | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
+| Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow); `utils/chart/chartColors.ts` for the chart's series lines, which `utils/chart/chartCanvas.ts` draws in the theme's half of each line's pair (record 0256) | The same |
+| Popup HTML handed to `setHTML` | `utils/popup/popupChrome.ts` | The three type sizes, the face, the names of the card's colours (each a `--popup-*` value, an app token in `map.css`, record 0215), the one button (`BUTTON_ACCENT` as its class list), the card every popup wears (`popupCard`: its header band, its sections and its action), each section's heading on the band, or a warning's on the amber band behind the table's warning mark (`cardSection`), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
 | Recharts props | `utils/chart/chartColors.ts` | The axis, grid and playhead colours beside the line palette |
 
 A colour in one of those channels is measured against the surface it actually
 lands on, which for a popup is the card's own surface in each theme rather
 than the panel; `popupChrome.ts` records each light measurement beside its
-value, including the ones that sit under AA as shipped (`FINE_COLOR`,
-`WARNING_COLOR`), which #365 named without recolouring. On the dark card the
-warning clears AA and the fine print still does not, by the same step back.
-A third, the overlays' sky-400 link, left with the overlays' own shell in
-#738.
+value, including the ones that sat under AA as shipped (`FINE_COLOR`,
+`WARNING_COLOR`), which #365 named without recolouring. The warning became
+the table's amber in #786 and the fine print the label's ink in #832, when
+every card came to end on one and the browser suite's axe read it on the
+ranked card at 3.07:1. A third, the overlays' sky-400 link, left with the
+overlays' own shell in #738. A warning section, a fire, a hotspot or a
+closure at the card's point, lays that amber over the band for its heading
+(`WARNING_BAND_COLOR`, `--popup-warn-band`): 15% in dark, where the grey
+glyphs on it read 3.3:1 and 20% would take them to 2.94:1, and 30% in light.
+The heading's ink reads 7.05:1 and 8.2:1 on it, the grey glyphs 3.3:1 and
+4.48:1 and the accent under the pointer 3.99:1 and 3.09:1, dark and light,
+measured 2026-11-03.
 
 ### Two enforcers, split by what they know
 
@@ -549,7 +605,7 @@ The rest of the theme, role by role, each pinned as a literal:
 **Re-measure condition:** every one of these numbers is a literal in
 `styles.test.ts`, `colors.test.ts` or `chartColors.test.ts`, so changing a
 light token fails the suite until the number is taken again.
-Record: [0158](decisions/0158-light-theme-behind-semantic-tokens.md)
+Record: [0158](architectural-decision-records/0158-light-theme-behind-semantic-tokens.md)
 
 ### The type floor
 
@@ -570,14 +626,14 @@ grew to 16px squares to take them. Neither is prose, and each is measured
 against its box. The map's scale bar is at the floor: its label sits in a
 bar whose width the distance decides, so the bar draws up to 110px rather
 than the library's 100, and `1000 km` at 11px fits its narrowest bar (record
-[0222](decisions/0222-one-card-one-close-one-type-ramp.md)).
+[0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)).
 
 Re-measured at 11px, 2026-10-13 against the built image: the calendar's weekday
 row, the player's marks, the model picker's reach column (no option overflows),
 and the chart's ticks, which take the step as `CHART_TICK_PX` and still fit the
 44px `Y_AXIS_WIDTH`. `PROSE.title` moved to `TEXT.appTitle`'s 18px at the same
 time, so a dialog heading and the panel's name are one size.
-Record: [0131](decisions/0131-type-scale-floor-and-elevation-scale.md)
+Record: [0131](architectural-decision-records/0131-type-scale-floor-and-elevation-scale.md)
 
 ### The elevation scale
 
@@ -594,7 +650,7 @@ shadow sizes on eight surfaces with nothing deciding which got which.
 single 0.25-alpha blur is the one of the two that still reads over the dark
 results sheet. The glows are not on the scale, `ACCENT_RING` and the tutorial's
 spotlight, because they point at something rather than lift it.
-Record: [0131](decisions/0131-type-scale-floor-and-elevation-scale.md)
+Record: [0131](architectural-decision-records/0131-type-scale-floor-and-elevation-scale.md)
 
 ### The three weights of rule
 
@@ -669,7 +725,7 @@ and a truncated reason is worse than a second line.
 
 The results bar is one line when its container is 896px or wider, and two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Models, Removed, Download CSV). The actions row is two groups (#687, the maintainer on #709): the mode switch, and the buttons right-justified against the bar's right edge, at least 16px apart on the folded line (`gap-x-4`, which the 19px a 360px phone leaves between the two glyph groups can hold) and 24px on one line (`gap-x-6`). The bar's words show only where both groups fit on one line labelled, `BAR_LABEL`'s 584px of content, measured 2026-10-13: the labelled switch is 176.7px, the labelled group with `Removed (1)` 377.8px, the gap 16px, and two more digits of a Removed count 13.4px. Beside the docked panel at 1024 wide the bar has 640px and keeps its words, chevrons included: at a desk the three menu buttons carry them, the labelled group is 437.8px (measured 2026-10-20), and a two-digit Removed count still fits the line, where a three-digit one wraps the group onto a line of its own; every phone from 360 to 430 wide shows the switch and the glyphs on one line, Removed or not, and the sheet's header is 84px in every one of those states, which is `SHEET_HEADER_PX` in `frontend/src/utils/results/resultsSheet.ts`. Re-measure both together. At 1024x768 beside the docked panel the bar is 59px, two lines, and at 1440x900 35px, one line, the same as before the buttons.
 
-The four actions are one `ACTION_GROUP` of `ACTION_ITEM` buttons, the mode switch's sibling in look and height, each a glyph and a word (#687). They were underlined links, so the one bar carried four control styles; the linter's `style-results-bar` check now requires the four items, the one group and `BAR_LABEL` on all seven words, and fails a link anywhere in the bar. The Open-Meteo credit that stood at the end of the row is on the map's attribution line at the bottom right, beside MapLibre's and the basemap's credits, where a credit reads as one rather than as a fifth action, and where it stands in every results mode. Record: [0133](decisions/0133-results-bar-buttons-and-footnote-credit.md)
+The four actions are one `ACTION_GROUP` of `ACTION_ITEM` buttons, the mode switch's sibling in look and height, each a glyph and a word (#687). They were underlined links, so the one bar carried four control styles; the linter's `style-results-bar` check now requires the four items, the one group and `BAR_LABEL` on all seven words, and fails a link anywhere in the bar. The Open-Meteo credit that stood at the end of the row is on the map's attribution line at the bottom right, beside MapLibre's and the basemap's credits, where a credit reads as one rather than as a fifth action, and where it stands in every results mode. Record: [0133](architectural-decision-records/0133-results-bar-buttons-and-footnote-credit.md)
 
 The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 
@@ -678,12 +734,12 @@ The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role b
 The map carries two rows across its top at both widths, and a phone's map one
 button at its foot as well
 (`MAP_ROWS`, `MAP_PILL`, `MAP_ROUND_BUTTON`, `MAP_CHIP`, `MAP_FAB` in `styles.ts`).
-The rows are four numbers, the map's 12px inset, the 40px first row, 8px
-between and the 32px chip row, so they end 92px down; the draw bar, the
+The rows are four numbers, the map's 12px inset, the 32px first row, 12px
+between and the 32px chip row, so they end 88px down; the draw bar, the
 compass, the bottom sheet's card and the results sheet's highest stop are all
 built from that sum, and
 `styles.test.ts` holds each to it. The chips are 12px type with 12px a side,
-the search pill's size (record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)),
+the search pill's size (record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)),
 content-sized, and only the summary may shrink, by an ellipsis on its words.
 
 At a desk the pill stands alone on the first row, 320px wide, and the rows
@@ -691,13 +747,16 @@ are as wide as the wider of it and the chip row, so the rest of the map's top
 is the map's. The map's buttons stand in its bottom-right corner instead, as
 Google Maps stands its own (`MAP_CORNER`): the credit line flush in the corner
 with the scale at its end, and over it the compass, the locate button and the
-zoom pair, 24px in, 6px apart and 10px above the line. The line sets the
+zoom pair, 24px in, 6px apart and 10px above the line. The column yields the
+gaps between its buttons to the map; the credit box does not, since a reader
+sees one banner and expects a press anywhere on it to select its text rather
+than drag the map (record [0268](architectural-decision-records/0268-the-corner-credits-the-basemap-in-each-providers-words.md)). The line sets the
 library's 20px line (`leading-5`), which its controls lose outside the map's
 container, so the scale keeps its 22px box and the line is 27px tall
 (measured 2026-10-21, `e2e/deskCorner.spec.ts`). The zoom pair is one
-capsule (`MAP_ZOOM_PAIR`), whose halves take the raised fill under the pointer
-rather than the sky edge, since the rule between them is the lower half's edge
-alone. The chip row holds Legend and then Layers at both
+capsule (`MAP_ZOOM_PAIR`), whose halves light their glyph in the accent under
+the pointer, as every map button does (record
+[0251](architectural-decision-records/0251-controls-light-their-label-on-hover.md)). The chip row holds Legend and then Layers at both
 widths, so the legend card, open by default, hangs over the map's left edge,
 with the summary chip at the row's front only while the panel is shut. Their menus open as whole cards 4px under
 the chip (`MAP_CHIP_MENU`), each chip carrying a chevron that points down while
@@ -706,9 +765,14 @@ carry none, because a sheet rises from below. The two cards wear one surface,
 the chips' colour made opaque, with the structural edge (`SURFACE_CHIP_CARD`), so the Layers
 menu reads as the legend card's twin and its outline and deeper shadow part it
 from the legend where it opens across it. The legend card scrolls inside the map's height under
-the rows, read off the wrapper as `100cqh` (`legendMaxCss`). Analyze stays in
-the panel. A phone draws no zoom pair, since a pinch zooms there.
-Record: [0174](decisions/0174-desk-map-rows.md)
+the rows, read off the wrapper as `100cqh` (`legendMaxCss`), and clears the
+forecast player's band only on a map narrower than `LEGEND_BESIDE_TRANSPORT_PX`,
+read as `100cqw`, where the centred bar reaches under it (record
+[0261](architectural-decision-records/0261-legend-clears-the-player-only-where-they-meet.md)). Analyze stays in
+the panel. A phone draws no zoom pair, since a pinch zooms there, and nor
+does any touch screen at desk width, whose capsule halves could not both take
+a 44px press (record [0254](architectural-decision-records/0254-map-buttons-are-the-chips-height.md)).
+Record: [0174](architectural-decision-records/0174-desk-map-rows.md)
 
 Seen and pressed are two sizes. On a coarse pointer a chip is 32px seen and
 44 pressed, by a pseudo-element 7px above and below it measured from inside
@@ -730,45 +794,77 @@ face is narrower. Re-measure when a chip or a model label grows. A press
 shows by `MAP_FAB_PRESSED`, Material's pressed state: a state layer of the
 label's white at 12% and the shadow a step lower while held, on either
 pointer, and never a grey after a run.
-Record: [0135](decisions/0135-phone-opens-on-the-map.md)
+Record: [0135](architectural-decision-records/0135-phone-opens-on-the-map.md)
 
-A phone chart's metric picker is the plot's title (`CHART_TITLE`): the
-metric's label with its unit in the app's own select, sized to its words and
-28px tall. It wears `FIELD_LOOK`, the fill, edge, radius and type `FIELD` is
-built from, with `SELECT`'s `pr-6` and the chevron in `ICON_ADORNMENT`'s
-place, so it is the desktop picker shrunk rather than a look of its own. The
-native select is laid over it, transparent, 44px tall under a finger. The
-plot's top margin grows by the title's 28px (`TITLED_PLOT_MARGIN`), so its
-dashed lines, their labels and the top tick start under it. Measured
-2026-10-14: the field row it replaced was 52px, and the plotting band grew
-24px at 360 and 390.
-Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
+The chart's pickers stand in one row above the panels at a desk, 8px apart;
+on a phone each stands over its own panel's top left (`CHART_PICKER.bar`)
+and the plot is inset under it (#499). `CHART_PANEL_BUTTON` draws the + after the last: the + is a square in the field's
+fill, edge and radius, as tall as the picker beside it. The × is the right
+segment of its picker's field (`CHART_PICKER`): one outline, an `edge`
+divider, and a quiet glyph with its focus ring inside. Its twin on the left end is the grip that moves the panel, behind an `edge` divider too, and a drag shows where it lands with a 2px accent bar in the row's 8px gap. `CHART_LAYOUT` draws the Panel layout button's miniature of the arrangement inside the + square's chrome, and its menu of 34 by 26 squares, the current one in the accent ink and edge. `CHART_GUTTER` draws the gaps of a desk's grid of
+three or four panels: a 1px `edge` line, 3:1 or better on the panel, that turns accent on hover and while
+dragged, with a small three-dot grip at its middle on the panel's fill, and a 16px crossing that shows a dot, both rimmed in `edge` and one level quieter than the sheet's raised grip.
+`CHART_PANEL_TITLE` names each desk panel while two or more are drawn: the
+picker's option label in a 15px chip at the plot band's top left, the strong
+`ink` on the `band` token at the micro step (10.05:1 dark, 14.42:1
+light). Every title but the first takes a grab cursor and lights its words
+in the accent ink under the pointer, as every control does
+(`ACCENT.hoverText`), at 5.69:1 dark and 5.43:1 light on the band; a drag carries a
+half-size ghost of the panel on the hover card's surface and stands the
+picker row's 2px accent bar where it lands. In a titled panel the Now,
+model-end and extreme labels move down under the chip
+(record [0264](architectural-decision-records/0264-chart-panels-titled-and-dragged-by-title.md)).
+The hover card is `CHART_CARD`, the marker popup's anatomy on the panel:
+the hour as a 13px title on the `band` token, the rows in a body,
+and `+N more` in a footer. The band is an app token now (`--ui-band`), and
+map.css reads it for the dark popup, so in dark the two cards share one
+band; the light popup's stands a step further (record
+[0266](architectural-decision-records/0266-every-card-is-a-stack-of-foldable-layer-sections.md)). A pinned
+card is the same card at the same size: its ✕ is pulled into the title's
+line by its margins, it carries the hover card's heads, `Name` among them on
+every card, its sort arrow stands outside its head, its rows carry no rule, and its body clips to the rows its height holds, the rest counted
+in the same footer (record [0258](architectural-decision-records/0258-a-pinned-chart-card-is-the-hover-card.md)).
+Every picker is the desk's `MenuSelect`, opening the one menu's sheet on a phone (record [0252](architectural-decision-records/0252-every-trigger-is-one-component.md)).
+Record: [0255](architectural-decision-records/0255-chart-metrics-as-panels.md)
 
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
-the compass and the locate button, 40px round in the pill's chrome, handed to
+the compass and the locate button, 32px round in the pill's chrome, as tall as
+the chips and the pill (record [0254](architectural-decision-records/0254-map-buttons-are-the-chips-height.md)), handed to
 each by `map/controls.ts` because the library makes the markup, and a desk's
 zoom pair the same chrome joined (`MAP_ZOOM_PAIR`). A desk stands them in its
 corner (`MAP_CORNER`). A phone stands the locate button and the compass in
 slots at the rows' right ends (`MAP_SLOT`) and leaves its zoom pair hidden in
 the library's corner. While the map is north-up and flat the compass is
 disabled: greyed by `DISABLED` at a desk, so the column keeps one shape, and
-hidden in a phone's chip row. The credit line's (i) is the same dark
+hidden in a phone's chip row. The 3D button (#799) is the one map button the
+app draws itself, as a library control so it stands with the rest: the same
+round chrome with the word `3D` at the control size in bold
+(`MAP_TERRAIN_BUTTON`), under the compass at a desk and left of the locate
+button in a phone's search row, which gives up one more button and its gap
+for it. While it is on,
+`map.css` fills it with the accent and its label with `--ui-on-fill`, keyed on
+`aria-pressed`, which is the accent fill `ACCENT.fill` paints (white 4.56:1 in
+both themes). The credit line's (i) is the same dark
 round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
 is the floating card (`MAP_CREDIT.card`), which a desk's credit line in the
 corner is itself, so the line sheds the card it would otherwise wear; its links dressed in `map.css` as
 `LINK` dresses the app's. The compass needle is redrawn rather than inverted,
-red-500 north and slate-50 south edged in slate-600, and the (i)'s glyph is
-centred on its button's whole box. The scale bar is a ruler on the map, not a
+red-500 north and slate-50 south edged in slate-600, its north in the accent
+under the pointer, and the (i)'s glyph is centred on its button's whole box. The scale bar is a ruler on the map, not a
 control, so it wears none of that chrome.
-Record: [0147](decisions/0147-map-buttons-wear-the-app-chrome.md) It stands on
+Record: [0147](architectural-decision-records/0147-map-buttons-wear-the-app-chrome.md) It stands on
 the legend ramp's scrim in the ramp's ink instead, so it follows the theme
-(5.35:1 over a white map in the dark theme, its worst), with its ends dark in
-both themes because the basemap is light in both. In a desk's credit line it
-stands on the line instead, so there it takes no scrim and draws its ends in
-its ink (record 0174). Its label is 11px, the floor, on a bar that draws up
+(5.35:1 over a white map in the dark theme, its worst). Its ends are two
+lines, dark outside and light inside in both themes, because the map under it
+is Liberty's light ground or the satellite imagery's forest and snow: the dark
+line clears 14.41:1 or better on snow and on Liberty, the light one 7.72:1 or
+better on a forest, and the two stand 14.46:1 apart (record
+[0243](architectural-decision-records/0243-map-reads-on-a-dark-ground.md)). In a desk's credit line
+it stands on the line instead, so there it takes no scrim and draws its ends
+in one line of its ink (record 0174). Its label is 11px, the floor, on a bar that draws up
 to 110px so `1000 km` stays inside its narrowest bar (`e2e/scaleBar.spec.ts`,
-record [0222](decisions/0222-one-card-one-close-one-type-ramp.md)).
-Record: [0162](decisions/0162-scale-bar-on-the-theme-ground.md)
+record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)).
+Record: [0162](architectural-decision-records/0162-scale-bar-on-the-theme-ground.md)
 
 The Analyze button counts the panel's messages in a badge at its corner
 (`MESSAGE_BADGE`): a 20px disc in the worst message's ink with the digit in
@@ -783,7 +879,16 @@ with its bottom on the button's bottom edge, the opened credit line growing
 up from that edge. The band that held the whole block on the sheet's edge
 (record 0140) is gone, since on a finger it showed one message and no sign of
 the rest.
-Record: [0208](decisions/0208-analyze-button-counts-the-messages.md)
+Record: [0208](architectural-decision-records/0208-analyze-button-counts-the-messages.md)
+
+A new message moves the badge once (`MESSAGE_BADGE.arrivalOdd`/`arrivalEven`): the disc swells
+and settles over 320ms while a ring in its own colour spreads from it and
+fades over 700ms. The ring is the badge's `after:` box, filled with whatever
+the disc is, so it follows the severity with no colour of its own. Two names
+of the one animation take turns, because a new name is what restarts a CSS
+animation, and the badge never remounts under a keyboard. Under a
+reduced-motion setting it does not move.
+Record: [0260](architectural-decision-records/0260-messages-draw-the-eye-and-failures-open-the-list.md)
 
 The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`),
 the bottom sheet the menus below are, kept mounted: modal over the same dim,
@@ -797,7 +902,7 @@ sheet's top at 256, and the button at 390 to 446 and 444 to 500, where it
 stood with the sheet shut. The chip is lit while the sheet is up, its words
 white on the accent fill. The sheet carries no messages, no count and no fixed
 foot: the document links are the last thing in its scrolling body.
-Record: [0207](decisions/0207-phone-controls-sheet-is-modal.md)
+Record: [0207](architectural-decision-records/0207-phone-controls-sheet-is-modal.md)
 
 A phone's home indicator band (`SAFE_AREA`) is padded under the results sheet,
 and the chrome placed in pixels stands on its top edge before there is a
@@ -807,7 +912,13 @@ content runs to the screen's edge and its last row clears the band once
 scrolled to. Where no band is reported the space under the last line is the
 space above the rule before it: 16px in Controls, the row's own in a menu
 sheet. 0 on a desk.
-Record: [0145](decisions/0145-safe-area-bottom.md), [0152](decisions/0152-sheets-end-above-the-home-indicator.md)
+Record: [0145](architectural-decision-records/0145-safe-area-bottom.md), [0152](architectural-decision-records/0152-sheets-end-above-the-home-indicator.md)
+
+A phone's map rows and its Analyze button stand above a resting results
+sheet (`LAYER.mapControls`). For a whole drag and at full screen the sheet
+takes `LAYER.sheetRaised`, one step over them and under the analysis overlay,
+so it slides over them; at full screen they are `inert` under it.
+Record: [0259](architectural-decision-records/0259-phone-results-sheet-drags-to-full-screen.md)
 
 The results table's Name column sticks at the left edge on an opaque fill
 (`TABLE.stickyNameCell`, `TABLE.stickyNameHead`), with the row's hover tint
@@ -816,9 +927,9 @@ sheet (`TABLE.nameCap`), and a longer name truncates. A name, a number that
 links to Windy and a footnote mark are links in their text's own colour
 (`LINK_QUIET`): no underline at rest at a desk, one on hover and keyboard
 focus, and a thin one at rest in the secondary ink on a touch screen, which
-has no hover to show a link by (record [0212](decisions/0212-links-underline-on-hover-and-touch.md)). The chart's plot leaves the browser only the
+has no hover to show a link by (record [0212](architectural-decision-records/0212-links-underline-on-hover-and-touch.md)). The chart's plot leaves the browser only the
 vertical pan (`CHART_PLOT_TOUCH`), so a sideways drag reads it.
-Record: [0142](decisions/0142-sticky-name-column.md) Record: [0144](decisions/0144-chart-reads-a-finger.md)
+Record: [0142](architectural-decision-records/0142-sticky-name-column.md) Record: [0144](architectural-decision-records/0144-chart-reads-a-finger.md)
 
 ### Motion
 
@@ -828,7 +939,9 @@ in 150ms (`MOTION.menu`). A panel, a sheet or a results pane moves in 300ms
 whole screen is laid out against. Each recipe names the one property it
 moves, so nothing a grip drags is ever animated, and each stops under a
 reduced-motion setting. `PANEL_MS` is the slower speed in numbers, and
-`styles.test.ts` holds each class to its speed.
+`styles.test.ts` holds each class to its speed. The one movement nobody's
+press started is the message badge's, once per arrival, in `MESSAGE_BADGE`
+rather than here.
 
 The desk panel pushes the map's edge rather than sliding over the map
 (`DESK_PANEL`). It stays in the row while it is shut and its left margin takes
@@ -857,7 +970,7 @@ the chart or the table in every frame the pane stands part open. The chevron
 moves in 14 frames shut and 15 open. At 946 the mount takes 383 to 707ms, and
 some presses then show only one or two frames of motion (medians,
 2026-10-21).
-Record: [0202](decisions/0202-panel-and-panes-move-at-one-speed.md)
+Record: [0202](architectural-decision-records/0202-panel-and-panes-move-at-one-speed.md)
 
 While the panel moves, the panel, the map's column, the results and each
 pane's body stand on layers of their own (`LAYOUT_HOLD.layer`), so a frame
@@ -865,14 +978,21 @@ shifts layers rather than painting them again: at 200 rows a close painted for
 195ms in all and now paints for 34. Since #786 a pane press opens a body
 already drawn rather than mounting one, so Table to Both starts moving 54ms
 after the press rather than 120 (2026-10-22).
-Record: [0216](decisions/0216-desk-moves-paint-less.md)
+Record: [0216](architectural-decision-records/0216-desk-moves-paint-less.md)
 
 The chart stands at one size in every mode at a desk. Its legend is a pane
 of its own between the chart's and the table's (`CHART_LEGEND`), so Chart to
 Both shuts it as the table opens, and Chart sizes the chart the way Both does,
 keeping the table's floor free under it for the legend. No press between them
 draws the chart again (#795).
-Record: [0218](decisions/0218-chart-legend-is-a-pane.md)
+Record: [0218](architectural-decision-records/0218-chart-legend-is-a-pane.md)
+
+Since #850 a press keeps the results' height instead, and the chart is drawn
+again at its new size: the mode pressed takes the room the panes stood in,
+Chart's measured legend inside it, and Both splits it back the way it last
+split it. While the panes move, the results hold that height and the panes
+move inside it, so the map stands still.
+Record: [0271](architectural-decision-records/0271-desk-press-keeps-the-results-height.md)
 
 ### Control width
 
@@ -884,7 +1004,7 @@ Every stacked panel control composes `CONTROL_W = 'w-[118px]'` = 118px.
 
 118px is not a taste. It is 2 x `METRIC_BOX_W` + the Metrics grid's `gap-x-1.5`, so the Forecast section's model picker and its two segments stand on exactly the edges the bound boxes below them do. The panel is one column at 225 and 343, measured. It was 144px, set by the widest segment label, until the Metrics row's label budget forced the narrower boxes and left the two sections 26px apart. `styles.test.ts` derives the sum from the roles.
 
-The Metrics table still sizes nothing by that token. Since #498 its grid is three columns, label, Min box and Max box (`METRIC_BOX_W`, 56px each), and every other control in it spans the two box columns: the Metric, Aggregate and Bound menus, the Order segment, the results cap and Clear filters. The box tracks are `auto`, so at rest, with no bound row drawn, nothing in them has a width of its own, and the menus measured 106px until the first bound row pushed them to 118px. The Order segment is therefore the one control here that wears `CONTROL_W`, through `SEGMENT`: it is always drawn, it holds the two tracks at two boxes and their gap, and everything else spanning them fills them. Record: [0251](decisions/0251-metrics-section-ranks-from-a-menu.md)
+The Metrics table still sizes nothing by that token. Since #498 its grid is three columns, label, Min box and Max box (`METRIC_BOX_W`, 56px each), and every other control in it spans the two box columns: the Metric, Aggregate and Bound menus, the Order segment, the results cap and Clear filters. The box tracks are `auto`, so at rest, with no bound row drawn, nothing in them has a width of its own, and the menus measured 106px until the first bound row pushed them to 118px. The Order segment is therefore the one control here that wears `CONTROL_W`, through `SEGMENT`: it is always drawn, it holds the two tracks at two boxes and their gap, and everything else spanning them fills them. Record: [0281](architectural-decision-records/0281-metrics-section-ranks-from-a-menu.md)
 
 Clear filters is drawn only when something is set, a bound or a changed **Max results**. It used to be always drawn and disabled, so the section's last row never moved; in the five-row section the bound rows above it come and go anyway, and a disabled button under none of them was one more row to read past (#498).
 
@@ -892,7 +1012,7 @@ Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whol
 
 **Segment arithmetic:** 118px less the 2px border and the 1px divider is 57.5px a half. The longest words are `Highest` at 43.69px and `Current` at 42.89px, both at text-xs, so `SEGMENT_ITEM` carries a 4px inset leaving 49.5px. An 8px inset leaves 41.5px and clips them both, which is why there is one inset for every segment in the panel rather than two. Checked in `styles.test.ts`.
 
-**The chevron:** `SELECT` reserves `pr-6` = 24px, which is the chevron's own box and nothing more — `ICON_ADORNMENT` puts a 16px glyph 8px from the edge. It reserved 32px until the column came down to 118px, where those 8px were the difference between `UK Met Office` (79.69px) fitting the model picker's 84px of label and truncating. `Meteo-France ARPEGE` at 130.03px fits no trigger the panel can offer and truncated at 144px too.
+**The chevron:** the field trigger reserves `pr-6` = 24px, which is the chevron's own box and nothing more — `ICON_ADORNMENT` puts a 16px glyph 8px from the edge. It reserved 32px until the column came down to 118px, where those 8px were the difference between `UK Met Office` (79.69px) fitting the model picker's 84px of label and truncating. `Meteo-France ARPEGE` at 130.03px fits no trigger the panel can offer and truncated at 144px too.
 
 **Arithmetic:** the longest noun now stands inside the Metric menu, so the sum that binds is the field's: `118 − 8 (left padding) − 24 (chevron) − 2 (border) = 84px`, against `Freezing level` at 78.03px. `Add a bound` has to fit the same 84px in the Bound menu; it is estimated at about 62px and not yet measured. A bound row's own label has `327 − 10 (bar) − 2 × 6 (gaps) − 118 = 187px`. Both sums are pinned in `styles.test.ts`; re-measure before moving a width, the gap, or the nouns.
 
@@ -1009,7 +1129,12 @@ analysis; the linter's `style-draw-counter` check pins it by count. Since #687
 the point count is `DrawReadout`, which the panel and the phone's draw bar both
 render, so `style-draw-readout` pins its four states there and the panel keeps
 two.
-Record: [0208](decisions/0208-analyze-button-counts-the-messages.md)
+Record: [0208](architectural-decision-records/0208-analyze-button-counts-the-messages.md)
+The coordinates box's gutter is the second bare `STATUS`, for the same reason:
+it numbers a line the parse drops in the error ink, through `COORD_BOX.flagged`,
+and the caption under the box says how many in words. `style-coord-gutter` pins
+it to one use in `CoordinateBox.tsx`.
+Record: [0265](architectural-decision-records/0265-coordinate-box-numbers-and-flags-its-lines.md)
 
 ### No raw exceptions or status
 
@@ -1058,7 +1183,7 @@ the verdict ramp's maroon and the no-value grey. A 1.5px slate-900 halo would li
 17.85:1 and was built for #576; the maintainer declined it on sight as too heavy
 (2026-10-01). The ratios are dated evidence in the record, so the next session
 does not re-propose the same fix blind.
-Record: [0091](decisions/0091-rank-digit-stays-plain-white.md)
+Record: [0091](architectural-decision-records/0091-rank-digit-stays-plain-white.md)
 
 ### Model coverage message
 
@@ -1070,7 +1195,7 @@ A range input is worth taking over a hand-rolled track for what it arrives
 knowing: arrow keys, Home and End, an announced value, and a drag a finger can
 do. What it does not arrive with is a look — it paints from the *system*
 palette, so a light-mode OS renders a pale track inside a dark map card, the
-same trap `SELECT` documents.
+same trap `TRIGGER_FIELD` documents.
 
 Suppressing that takes three declarations, not one, and missing any of them
 ships a control that looks native on half the machines it runs on:
@@ -1111,14 +1236,17 @@ new role: add it to `ICON` with its rationale and pin its pixels in
 states the number that chose it (#436), so a fifth arrives with a measurement
 or not at all — the key set is pinned as well as the values.
 
-**The one glyph drawn twice.** A map popup is an HTML string handed to
+**The two glyphs drawn twice.** A map popup is an HTML string handed to
 MapLibre's `setHTML`, so Tailwind never sees its class names and the icon
 module cannot draw it. The link-out arrow in a popup's title row is therefore
 the same shape as the results table's, read from `frontend/src/iconPaths.ts`
-by both `icons.tsx` and `utils/popup/popupChrome.ts` (#435). That module carries the
+by both `icons.tsx` and `utils/popup/popupChrome.ts` (#435), and so is the
+chevron that folds a card's section, the same shape `IconChevron` draws on the
+results bar and every menu trigger (`CHEVRON`, #832). That module carries the
 geometry, the stroke, and the one size a string has to spell; the linter's
 `style-popup-glyph` check bans a literal SVG tag in `popupChrome.ts`, and
-`styles.test.ts` pins that size to the `inline` step. It sits at `src/` rather than in `components/`, beside `styles.ts` and
+`styles.test.ts` pins the arrow's size to the `inline` step and the chevron's
+to `control`. It sits at `src/` rather than in `components/`, beside `styles.ts` and
 `metrics.ts`, because `popupChrome.ts` is a util and no util in the app imports
 a component.
 
@@ -1150,35 +1278,36 @@ list takes the Model row's, lined up with the field's right edge, and the
 calendar takes its field's. Columns, Models and Removed each open under their
 own button. The search results keep their place under the pill and take the
 card's surface.
-Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
+Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md)
 
 Triggers come in three shapes, on purpose (`MENU_TRIGGER`): a pill on the map,
 a field in the panel or over the chart, and a button in the results bar. Each
 carries the chips' chevron after its label, down while shut and up while open.
-Download CSV opens nothing and has none. Under the pointer the edge and the
-label take the accent; a bar button has no edge, so only its label does. While
-its menu is open, a pill or a bar button fills with the accent and a field
-keeps its accent edge.
-Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
+Download CSV opens nothing and has none. Under the pointer the label takes
+the accent and no edge lights; while its menu is open every shape fills with
+the accent, and nothing stays lit once it closes (`TRIGGER_STATE`, record
+[0252](architectural-decision-records/0252-every-trigger-is-one-component.md)).
+Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md)
 
 At a desk the chart's metric and the Metrics section's Metric, Aggregate and
 Bound fields are menus. A
 native select opens the platform's own list, which no stylesheet reaches. The
 arrow keys, Enter, Space and Escape work as on a select, and the keyboard
-returns to the field when the list closes. A phone keeps the native select,
-whose picker rises from below like every phone menu.
-Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
+returns to the field when the list closes. On a phone the same menu opens as a
+bottom sheet headed by the field's name, as the model list does; the app has
+no native select.
+Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md) Record: [0252](architectural-decision-records/0252-every-trigger-is-one-component.md)
 
 The Layers chip's card is where the one menu came from. Squaring a 32px pill's
 bottom corners left a dome, so the chip stays a whole pill, lit while its card
 is out as a phone's is, and the card stands 4px under it from its left edge
 (`MAP_CHIP_MENU`). An 8px gap, the same as the one between the pill and the
 chip row, made the card read as a row of its own.
-Record: [0174](decisions/0174-desk-map-rows.md)
+Record: [0174](architectural-decision-records/0174-desk-map-rows.md)
 
 On a phone every menu is a sheet instead (`BottomSheet`, `BOTTOM_SHEET`): a
 card from the bottom edge over a dimmed map, with a grip, its heading and
-Done, and rows a finger's 32px tall with a rule between them (record [0223](decisions/0223-finger-controls-draw-32.md)). Layers and
+Done, and rows a finger's 32px tall with a rule between them (record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)). Layers and
 Legend from the chip row, the model list and the calendar from the Controls
 sheet, and Columns, Models and Removed from the results bar open in it. The
 model list and the calendar are `Menu`'s rows in a sheet (`sheet`), so they
@@ -1188,7 +1317,7 @@ included, as a modal sheet's scrim does in Material. The grip and the title
 row drag the sheet, to just under the chips, shut, or anywhere between, and a
 double tap on the grip puts it back at its own height, through the gesture
 the results sheet's grips use.
-Record: [0136](decisions/0136-phone-menus-are-bottom-sheets.md) Record: [0146](decisions/0146-sheet-grips-drag.md) Record: [0201](decisions/0201-one-menu-for-every-trigger.md)
+Record: [0136](architectural-decision-records/0136-phone-menus-are-bottom-sheets.md) Record: [0146](architectural-decision-records/0146-sheet-grips-drag.md) Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md)
 
 ### Adding a new role
 

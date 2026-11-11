@@ -4,8 +4,8 @@ import type { Page } from '@playwright/test'
 // A desk's map corner (record 0174), laid out as Google Maps lays out its own
 // (TJ, 2026-10-20): the credit line flush in the map's bottom-right corner on
 // the results' edge, with the scale at its end, and over it the compass, the
-// locate button and the zoom pair, 24px in from the map's right edge, 6px
-// apart and 10px above the line. Measured on the live controls, since jsdom
+// 3D button (#799), the locate button and the zoom pair, 24px in from the
+// map's right edge, 6px apart and 10px above the line. Measured on the live controls, since jsdom
 // lays nothing out.
 
 async function corner(page: Page) {
@@ -21,6 +21,7 @@ async function corner(page: Page) {
     return {
       map: box(q('.maplibregl-map')),
       compass: box(compass),
+      terrain: box(q('button[aria-label="3D terrain"]')),
       locate: box(q('.maplibregl-ctrl-geolocate')),
       zoomIn: box(q('.maplibregl-ctrl-zoom-in')),
       zoomOut: box(q('.maplibregl-ctrl-zoom-out')),
@@ -73,13 +74,14 @@ for (const [width, height, panel] of [
     // line is 27px tall with its 2px padding and its 1px top edge.
     near(at.scale.height, 22)
     near(at.line.height, 27)
-    // The column: 40px buttons 24px in, 6px apart, the zoom pair joined, and
+    // The column: 32px buttons 24px in, 6px apart, the zoom pair joined, and
     // 10px above the line.
-    for (const button of [at.compass, at.locate, at.zoomIn, at.zoomOut]) {
-      near(button.width, 40)
+    for (const button of [at.compass, at.terrain, at.locate, at.zoomIn, at.zoomOut]) {
+      near(button.width, 32)
       near(button.right, at.map.right - 24)
     }
-    near(at.locate.top - at.compass.bottom, 6)
+    near(at.terrain.top - at.compass.bottom, 6)
+    near(at.locate.top - at.terrain.bottom, 6)
     near(at.zoomIn.top - at.locate.bottom, 6)
     near(at.zoomOut.top, at.zoomIn.bottom)
     near(at.line.top - at.zoomOut.bottom, 10)
@@ -98,6 +100,19 @@ for (const [width, height, panel] of [
     near((await corner(page)).credits.left, at.credits.left)
   })
 }
+
+// A touch screen as wide as a desk keeps the corner and drops the zoom pair
+// (record 0254): a pinch zooms, and the capsule's halves could not both take
+// a 44px press.
+test.describe('a touch screen at desk width', () => {
+  test.use({ hasTouch: true, viewport: { width: 1180, height: 820 } })
+  test('stands the corner without the zoom pair', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.locator('.map-corner .maplibregl-ctrl-geolocate')).toBeVisible()
+    await expect(page.locator('.maplibregl-ctrl-zoom-in')).toBeHidden()
+    await expect(page.locator('.maplibregl-ctrl-zoom-out')).toBeHidden()
+  })
+})
 
 // A phone has no corner and no zoom pair (#696): a pinch zooms there.
 test('a phone stands no zoom pair and no corner', async ({ page }) => {

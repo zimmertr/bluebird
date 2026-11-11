@@ -8,6 +8,7 @@ import type { ResultsLayout } from '../hooks/useResultsLayout'
 import type { TableView } from '../hooks/useTableView'
 import type { PendingDestination } from '../utils/customList'
 import type { TimelineAxis } from '../utils/timeline'
+import type { ChartTour } from '../tour/useTour'
 import ModelCompare from './ModelCompare'
 import ResizeGrip from './ResizeGrip'
 import ResultsTable from './ResultsTable'
@@ -54,6 +55,10 @@ const TimeSeriesChart = lazy(() => {
   return { then: (done: (m: ChartModule) => void) => done(loaded) } as unknown as Promise<ChartModule>
 })
 
+// What the chart is handed outside the tutorial's demonstration: the reader's
+// own metrics, layout and pins (#850). Hoisted, so the default is one value.
+const NO_CHART_TOUR: ChartTour = { metrics: null, layoutOpen: false, pins: null }
+
 // What the chart draws for its rows while a model comparison is up: nothing,
 // because the comparison composes every line itself. A module constant so the
 // chart's line memo is not rebuilt by a fresh empty array on every render.
@@ -74,11 +79,21 @@ const Held = memo(
 
 export interface ResultsPanelsProps {
   /** The panels shown, their heights, and their grips (`useResultsLayout`). */
-  layout: Pick<ResultsLayout, 'resultsMode' | 'chartGrip' | 'chartPanelPx' | 'tableGrip' | 'tablePanelPx'>
+  layout: Pick<
+    ResultsLayout,
+    'resultsMode' | 'chartGrip' | 'chartPanelPx' | 'chartPaneRef' | 'legendRef' | 'tableGrip' | 'tablePanelPx'
+  >
   /** The charted set and the comparison (`useChartCompare`). */
-  charts: Pick<ChartCompare, 'chart' | 'compare' | 'rowChartColor' | 'shared'>
+  charts: Pick<ChartCompare, 'chart' | 'chartMetrics' | 'compare' | 'rowChartColor' | 'shared'>
   /** An hour the chart's tooltip stands on without a mouse (the tutorial, #536). */
   chartTooltipIndex?: number | null
+  /**
+   * What the tutorial's chart cards draw in place of the reader's own chart
+   * (#850): four panels in the count's own layout, a held Panel layout menu
+   * and two pinned hours. The reader's metrics, layout and pins wait
+   * underneath, and the address bar keeps reading theirs.
+   */
+  chartTour?: ChartTour
   /** The table's rows, columns and widths (`useTableView`). */
   tableView: Pick<
     TableView,
@@ -101,8 +116,8 @@ export interface ResultsPanelsProps {
   sortBy: SortBy
   /** The ranking's direction, which the chart's extreme line follows. */
   sortDesc: boolean
-  /** A phone, where the chart's metric picker is its title (#696; record 0149). */
-  chartTitled: boolean
+  /** A phone, where three or four chart panels stack in one column (#499). */
+  chartPhone: boolean
   /**
    * A desk, where a press on Table, Chart or Both and the collapse chevron
    * open and close the panes at the panel's speed (record 0202). A phone's
@@ -136,7 +151,7 @@ export interface ResultsPanelsProps {
   /** The model the report was analyzed under. */
   modelId: string
   /** A pending row's remove button, and a row's press that centres the map on it. */
-  onRemovePending: (d: { latitude: number; longitude: number }) => void
+  onRemovePending: (d: PendingDestination) => void
   onFocusResult: (row: DestinationResult) => void
   onFocusPending: (at: { latitude: number; longitude: number }) => void
 }
@@ -154,13 +169,14 @@ export default function ResultsPanels({
   layout,
   charts,
   chartTooltipIndex = null,
+  chartTour = NO_CHART_TOUR,
   tableView,
   report,
   pending,
   removeResult,
   sortBy,
   sortDesc,
-  chartTitled,
+  chartPhone,
   panesMove = false,
   collapsed = false,
   layoutMotion = null,
@@ -177,7 +193,7 @@ export default function ResultsPanels({
   onFocusResult,
   onFocusPending,
 }: ResultsPanelsProps) {
-  const { resultsMode, chartGrip, chartPanelPx, tableGrip, tablePanelPx } = layout
+  const { resultsMode, chartGrip, chartPanelPx, chartPaneRef, legendRef, tableGrip, tablePanelPx } = layout
   const tableScrollRef = useRef<HTMLDivElement>(null)
   // Each pane's frame and body: shown by the mode and the chevron, mounted at
   // the press at the height the mode pressed gives it, and at a desk kept
@@ -202,7 +218,11 @@ export default function ResultsPanels({
   // rather than 131 at a quarter of the CPU (2026-10-22).
   const layer = pushing ? LAYOUT_HOLD.layer : ''
   useScrollShadows(tableScrollRef, tablePane.mounted)
-  const { chart, compare, rowChartColor, shared } = charts
+  const { chart, chartMetrics, compare, rowChartColor, shared } = charts
+  // Over the tutorial's demonstration the chart draws the tour's own panels
+  // (#850): temperature, and on the Panels card and the two after it the
+  // three beside it, each list one identity from `useTour`.
+  const tourMetrics = chartTour.metrics
   const {
     tableRows,
     tableColumns,
@@ -227,13 +247,15 @@ export default function ResultsPanels({
   //
   // At a desk it is a pane of its own under the chart, held to the foot the
   // way the table is (#795): Chart to Both shuts it while the table opens, at
-  // the panes' speed, so the chart stands at one size in every mode and no
-  // press draws it again. In the chart's box it would take its height from
-  // the plot, and every press that brought it or took it away would redraw
-  // the chart once the move had ended.
+  // the panes' speed, and it stands inside the room a press hands the chart
+  // (#850). In the chart's box it would take its height from the plot, and
+  // every press that brought it or took it away would redraw the chart once
+  // the move had ended.
   const legendStrip =
     legend.length > 0 ? (
-      <div className={CHART_LEGEND.strip}>
+      // Measured at a desk (`legendRef`), whose Chart takes it out of the
+      // room a press hands the chart (#850).
+      <div ref={legendRef} className={CHART_LEGEND.strip}>
         <div className={CHART_LEGEND.chips}>
           {legend.map(({ key, row, suffix }) => {
             const plotted = chart.isSelected(row)
@@ -300,6 +322,9 @@ export default function ResultsPanels({
                 onDragEnd={chartGrip.onDragEnd}
               />
               <div
+                // A phone's drag on the grip above sizes this box per move,
+                // straight on the element (#837), and the chart follows it.
+                ref={chartPaneRef}
                 className={`flex min-h-0 flex-shrink-0 flex-col ${layer}`}
                 style={{ height: `${chartPane.px}px` }}
               >
@@ -316,8 +341,15 @@ export default function ResultsPanels({
                         // draw. With nothing compared it is the row list it
                         // has always been.
                         rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
-                        metric={chart.metric}
-                        onMetricChange={chart.setMetric}
+                        metrics={tourMetrics ?? chartMetrics.metrics}
+                        onPick={chartMetrics.pick}
+                        onAdd={chartMetrics.add}
+                        onRemove={chartMetrics.remove}
+                        onMove={chartMetrics.move}
+                        layout={tourMetrics ? null : chartMetrics.layout}
+                        layoutMenuOpen={chartTour.layoutOpen}
+                        tourPins={chartTour.pins}
+                        onLayout={chartMetrics.setLayout}
                         sortBy={sortBy}
                         sortDesc={sortDesc}
                         colorFor={chart.colorFor}
@@ -329,7 +361,7 @@ export default function ResultsPanels({
                         extraLines={compare.lines}
                         modelEnds={compare.endLines}
                         controls={compareControls}
-                        titled={chartTitled}
+                        phone={chartPhone}
                       />
                     </Suspense>
                   </div>
@@ -349,7 +381,14 @@ export default function ResultsPanels({
           </div>
         </div>
       )}
-      <div className={`${RESULTS_PANE.frame} ${tablePane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
+      {/* At a desk the table's frame stands at the results' foot, so while a
+          press holds their height and the chart's pane opens over it, the
+          room between them closes from above (#850). */}
+      <div
+        className={`${RESULTS_PANE.frame} ${tablePane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion} ${
+          panesMove ? 'mt-auto' : ''
+        }`}
+      >
         <div inert={!tableShown} className={`${RESULTS_PANE.foot} ${tableHold}`}>
           {tablePane.mounted && (
             <>

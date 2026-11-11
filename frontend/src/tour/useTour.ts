@@ -1,7 +1,8 @@
-import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MapCamera, MapViewHandle } from '../components/MapView'
 import { anchorSelector, stepLayout, TOUR_STEPS, TUTORIAL_PATH, type TourStep } from '../utils/tourSteps'
 import type { DemoReport } from './demoReport'
+import type { ChartMetrics } from '../utils/chart/chartData'
 import { loadTimeSeriesChart } from '../components/ResultsPanels'
 import { cardMode, sheetKeepOut, SPOTLIGHT_PAD } from './place'
 
@@ -17,6 +18,35 @@ interface Args {
    */
   tourLayer: { shown: boolean; show: (on: boolean) => void }
 }
+
+/**
+ * What the tour hands the chart while the demonstration stands in (#850):
+ * the metrics it draws in place of the reader's, whether a desk's Panel
+ * layout menu is held open, and the hour indexes it stands pinned cards on.
+ * `metrics` and `pins` are null outside the demonstration, when the chart's
+ * slots and pins are the reader's own, and set through it, so the reader's
+ * own stand aside until they are null again rather than being dropped.
+ */
+export interface ChartTour {
+  metrics: ChartMetrics | null
+  layoutOpen: boolean
+  pins: readonly number[] | null
+}
+
+const NO_CHART_TOUR: ChartTour = { metrics: null, layoutOpen: false, pins: null }
+/**
+ * The demonstration's own panels, one list each so the memoized chart is
+ * handed one identity across the cards that draw it (#850; the maintainer,
+ * 2026-11-04: "Can we use temperature instead of AQI for this tutorial? And
+ * then when multiple other charts are shown, they could shown freezing level,
+ * snow depth, and precipitation."; snow depth is snowfall since #678). The
+ * Results, Chart and Markers cards draw the temperature the demonstration is
+ * ranked by, and the Panels card and the two after it add the three that move
+ * with it, whatever the reader's chart holds.
+ */
+export const TOUR_ONE_PANEL: ChartMetrics = ['temp']
+export const TOUR_FOUR_PANELS: ChartMetrics = ['temp', 'freeze', 'snowfall', 'precip']
+const NO_PINS: readonly number[] = []
 
 /** The nearest ancestor that scrolls: the panel's column, for the sections inside it. */
 export function scrollParent(el: HTMLElement | null): HTMLElement | null {
@@ -64,8 +94,13 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
   const returnFocus = useRef<HTMLElement | null>(null)
 
   const start = useCallback(() => {
+    // A desk's step is left out on a phone, where its target is never drawn
+    // (#850): the tour brings a `reveal` step's target on screen, and one
+    // that cannot appear would show a card lighting nothing.
     const present = TOUR_STEPS.filter(
-      (s) => s.reveal !== undefined || document.querySelector(anchorSelector(s.anchor)) !== null,
+      (s) =>
+        (isDesktop || !s.deskOnly) &&
+        (s.reveal !== undefined || document.querySelector(anchorSelector(s.anchor)) !== null),
     )
     if (present.length === 0) return
     const scroller = scrollParent(document.querySelector<HTMLElement>(anchorSelector(TOUR_STEPS[0].anchor)))
@@ -92,7 +127,7 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
       window.history.pushState(null, '', TUTORIAL_PATH + window.location.search)
       pushed.current = true
     }
-  }, [mapRef, sidebarOpen])
+  }, [mapRef, sidebarOpen, isDesktop])
   const end = useCallback(() => {
     setIndex(null)
     const saved = before.current
@@ -160,7 +195,11 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
   // markers; dropped when either is left. The builder is a chunk of its own,
   // fetched here rather than imported, so the fixtures it is made from stay
   // out of the main bundle with the overlay (`App.tsx`).
-  const showingResults = step?.reveal === 'results' || step?.reveal === 'chart' || step?.reveal === 'marker'
+  // The three chart cards after the Chart card (#850), which keep its
+  // demonstration and its view.
+  const showingPanels = step?.reveal === 'panels' || step?.reveal === 'layout' || step?.reveal === 'pins'
+  const showingResults =
+    step?.reveal === 'results' || step?.reveal === 'chart' || showingPanels || step?.reveal === 'marker'
   const [demo, setDemo] = useState<DemoReport | null>(null)
   useEffect(() => {
     if (!showingResults) {
@@ -196,6 +235,31 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
   const showingChart = step?.reveal === 'chart'
   const hours = demo?.response.times?.length ?? 0
   const middleHour = Math.floor((hours - 1) / 2)
+  // The Panel layout and Pinned hours cards stand nothing on the middle hour:
+  // the hover card there stood under the open menu and between the two
+  // pinned cards, a third card about the same hours (#850).
+  const readsMiddle = showingResults && step?.reveal !== 'layout' && step?.reveal !== 'pins'
+
+  // Two hours a quarter of the window in from either end, so the two cards
+  // stand beside lines far apart; the chart stands one at the plot's head
+  // and one at its foot, so neither covers the other (`TimeSeriesChart`).
+  const demoPins = useMemo<readonly number[]>(
+    () => (hours > 1 ? [Math.round((hours - 1) / 4), Math.round((3 * (hours - 1)) / 4)] : NO_PINS),
+    [hours],
+  )
+  const layoutOpen = step?.reveal === 'layout'
+  const pinsUp = step?.reveal === 'pins'
+  const chartTour = useMemo<ChartTour>(
+    () =>
+      demo === null
+        ? NO_CHART_TOUR
+        : {
+            metrics: showingPanels ? TOUR_FOUR_PANELS : TOUR_ONE_PANEL,
+            layoutOpen,
+            pins: pinsUp ? demoPins : NO_PINS,
+          },
+    [demo, showingPanels, layoutOpen, pinsUp, demoPins],
+  )
 
   // The marker step cuts to the first demonstration row and opens its popup,
   // the same framing a click on its rank in the table makes but with no
@@ -251,14 +315,29 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
      * their spotlight is drawn (#696): the reader may have left it at its bar,
      * a row tap's collapse on a phone, and each step points at what it shows.
      */
-    sheetView: step?.reveal === 'results' ? ('table' as const) : showingChart ? ('chart' as const) : null,
+    sheetView:
+      step?.reveal === 'results' ? ('table' as const) : showingChart || showingPanels ? ('chart' as const) : null,
     /**
      * The Chart step holds a phone's sheet at its full stop and gives it back
      * after (#696): at rest the plot is about 68px tall at 390x844 and the
      * five-line readout 129px, so the readout stood over every line it read.
+     * The Panels card after it holds the stop too, for its four stacked
+     * panels (#850).
      */
-    sheetFull: showingChart,
+    sheetFull: showingChart || step?.reveal === 'panels',
+    /**
+     * The Results card through Pinned hours hold a desk's results at one
+     * taller room (#850): a reader who never analyzed would reach the Panels
+     * card with a 149px chart, where four panels fall under their own floors
+     * and are not drawn, and one room from the Results card on keeps the
+     * results' top edge still (the maintainer, 2026-11-04: "I want tutorial
+     * steps 7 and 8 to have the same results area vertical size as 9, 10,
+     * and 11.").
+     */
+    resultsTall: step?.reveal === 'results' || showingChart || showingPanels,
     /** The chart's readout stands on this hour while the demonstration is up, or follows the reader. */
-    chartTooltipIndex: showingResults && hours > 0 ? middleHour : null,
+    chartTooltipIndex: readsMiddle && hours > 0 ? middleHour : null,
+    /** What the chart draws in place of the reader's own while the demonstration is up (#850). */
+    chartTour,
   }
 }

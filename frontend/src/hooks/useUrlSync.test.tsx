@@ -5,12 +5,15 @@ import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { DEFAULT_SELECTION } from '../utils/calendar/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_LIMIT, DEFAULT_SORT } from '../utils/urlState'
+import { metricsFor } from '../utils/chart/chartData'
+import { DEFAULT_BASE_OPACITY } from '../utils/baseMapOpacity'
 
 const NO_TYPES: UrlSyncInputs['destinationTypes'] = []
 const NO_MODELS: UrlSyncInputs['comparedModels'] = []
 const NO_PLACES: UrlSyncInputs['places'] = []
 const NO_KEYS: UrlSyncInputs['removedKeys'] = new Set()
 const DEBOUNCE_MS = 400
+const DEFAULT_CHART = metricsFor(DEFAULT_SORT)
 
 // Every input at its default, so the link is the bare path.
 function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
@@ -34,6 +37,13 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     showSmoke: false,
     showSnow: false,
     showGrid: false,
+    showContours: false,
+    showRelief: false,
+    showSlope: false,
+    showSatellite: false,
+    baseOpacity: DEFAULT_BASE_OPACITY,
+    showFireActivity: false,
+    showTerrain: false,
     showPlayer: null,
     gridStyle: 'smooth',
     gridReachFrac: 0.5,
@@ -41,6 +51,8 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     defaultForecastModel: 'gfs_seamless',
     removedKeys: NO_KEYS,
     tableSort: null,
+    chart: DEFAULT_CHART,
+    chartLayout: null,
     restoredView: null,
     cameraHeld: false,
     ...over,

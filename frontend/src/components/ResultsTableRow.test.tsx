@@ -394,19 +394,20 @@ describe('a pending row', () => {
     expect(box.onToggle).toHaveBeenCalledWith(pendingChartRow(PENDING))
   })
 
-  it('offers no remove button on a CSV row, whose truth is the textarea', () => {
-    inTable(<PendingRow {...pendingProps({ destination: pendingDestination({ source: 'csv' }), onRemovePending: vi.fn() })} />)
-    expect(screen.queryByRole('button', { name: 'Remove Probe Peak' })).toBeNull()
-  })
-
-  // #782: a row a ring's search found, whose forecast has not landed.
-  it('offers no remove button on a found row, whose truth is the ring, and centres the map on it', async () => {
-    const onFocusPending = vi.fn()
-    const found = pendingDestination({ source: 'polygon', kind: 'peak', osmId: 'node/9' })
-    const { user } = inTable(<PendingRow {...pendingProps({ destination: found, onRemovePending: vi.fn(), onFocusPending })} />)
-    expect(screen.queryByRole('button', { name: 'Remove Probe Peak' })).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Center map on Probe Peak' }))
-    expect(onFocusPending).toHaveBeenCalledWith({ latitude: 47.1, longitude: -121.2 })
+  // Every pending row carries the ×, whatever named it (#832, TJ 2026-11-03):
+  // a pasted line or a found place leaves as a removal the Removed list can
+  // restore, as a ranked row does.
+  it('offers the remove on a pasted row and a found one too', async () => {
+    for (const d of [
+      pendingDestination({ source: 'csv' }),
+      pendingDestination({ source: 'polygon', kind: 'peak', osmId: 'node/9' }),
+    ]) {
+      const onRemovePending = vi.fn()
+      const { user, unmount } = inTable(<PendingRow {...pendingProps({ destination: d, onRemovePending })} />)
+      await user.click(screen.getByRole('button', { name: 'Remove Probe Peak' }))
+      expect(onRemovePending).toHaveBeenCalledWith(d)
+      unmount()
+    }
   })
 
   it('fills its ticked box as a ranked row does', () => {

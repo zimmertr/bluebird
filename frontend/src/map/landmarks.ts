@@ -23,7 +23,8 @@ import {
 import { isAbort } from '../utils/abort'
 import { LANDMARK_LAYERS, LANDMARK_MINZOOM, fetchLandmarks, landmarkKindOf } from '../utils/landmarks'
 import { loadUsStates } from '../utils/usStatesLoad'
-import type { BBox } from '../utils/wildfires'
+import { viewBoxOf } from '../utils/viewBox'
+import { addLayerAt } from './layerOrder'
 import { FIRE_REFETCH_DEBOUNCE_MS } from './overlays/wildfires'
 import { overlayRecovery, retryAfterOf } from './overlays/recovery'
 
@@ -51,11 +52,6 @@ export function mountLandmarks(
   // `online` is where the browser's `online` is heard; the window when absent.
   deps: { online?: EventTarget | null },
 ): LandmarkLayer {
-  // Under the style's own labels and over the basemap's clickable ones. The
-  // loaded style lists the layers `enhanceBasemap` added, which are symbols
-  // too, so its first symbol would be the peaks' glow and these would stack
-  // beneath every peak and lake.
-  const beforeId = map.getStyle().layers?.find((l) => l.type === 'symbol' && !l.id.startsWith('ofm-'))?.id
   const iconOr = (id: string) => (map.hasImage(id) ? id : FALLBACK_ICON)
 
   map.addSource(LANDMARK_SOURCE, { type: 'geojson', data: emptyFC as FeatureCollection })
@@ -79,8 +75,11 @@ export function mountLandmarks(
       },
       paint: POI_LABEL_PAINT,
     }
-    map.addLayer(glowTwin(layer), beforeId)
-    map.addLayer(layer, beforeId)
+    // Over every label of the basemap's, the style's own and the peaks and
+    // lakes alike, so a marker wins a collision with any of them
+    // (`layerOrder.ts`).
+    addLayerAt(map, glowTwin(layer))
+    addLayerAt(map, layer)
   }
 
   // The exact point of every marker the last answer carried, by OSM id, for
@@ -105,8 +104,9 @@ export function mountLandmarks(
     abort?.abort()
     const ac = new AbortController()
     abort = ac
-    const b = map.getBounds()
-    const bbox: BBox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
+    // The view as it would lie flat, as the fire overlay asks for it: a
+    // pitched camera's bounds run to the horizon (`utils/viewBox.ts`, #799).
+    const bbox = viewBoxOf(map)
     try {
       const fc = await fetchLandmarks(bbox, ac.signal)
       if (ac.signal.aborted) return

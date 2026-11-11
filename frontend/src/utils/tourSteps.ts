@@ -4,7 +4,8 @@
  * every anchor is a real control without a page: `tourSteps.test.ts` reads
  * the component sources as text and fails an anchor that appears nowhere, or
  * twice. The copy is TJ's, verbatim (2026-09-29; the Chart card 2026-10-14;
- * the Messages card 2026-10-21).
+ * the Messages card 2026-10-21; the Panels, Panel layout and Pinned hours
+ * cards 2026-11-03).
  *
  * One card per panel section rather than one per control. A card per control
  * was built and cut the same day: numbered cards read as steps to take in
@@ -39,8 +40,12 @@ type TourPlace = 'panel' | 'map'
  * `marker` flies to one of that report's markers and opens its popup.
  * `messages` greys Analyze under a demonstration's count and holds the list
  * open over it.
+ * `panels` draws that chart as four panels, the ranked metric and the three
+ * the + would add, so the card is read beside what the + gives (#850).
+ * `layout` holds a desk's Panel layout menu open over those four panels.
+ * `pins` stands two of the window's hours pinned as cards in a desk's plot.
  */
-type TourReveal = 'layers' | 'messages' | 'results' | 'chart' | 'marker'
+type TourReveal = 'layers' | 'messages' | 'results' | 'chart' | 'panels' | 'layout' | 'pins' | 'marker'
 
 /**
  * How the spotlight fits its target. `section` runs from the rule above the
@@ -75,6 +80,19 @@ export interface TourStep {
    * marker's popup under the results sheet on a short screen.
    */
   under?: string
+  /**
+   * An anchor the card stands clear of, as if the light framed it too: the
+   * light frames the control and the card keeps off what the control
+   * changes. The Panels card lights the picker row and keeps off the four
+   * panels under it, which a card below the row stood over (#850).
+   */
+  keepClear?: string
+  /**
+   * The step's target is drawn at a desk alone, so a phone's tour leaves the
+   * step out (#850): a phone stacks the panels in one column and has no
+   * Panel layout button, and its finger pins nothing.
+   */
+  deskOnly?: boolean
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
@@ -82,7 +100,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     anchor: 'destinations',
     spot: 'section',
     title: 'Destinations',
-    text: 'Provide a list of destinations to compare by searching by name, selecting a point on the map, pasting exact coordinate pairs, or drawing a polygon to include every destination inside it.',
+    text: 'Provide a list of destinations to compare by searching by name, selecting a point on the map, pasting exact coordinate pairs or picking a preset list, or drawing a polygon to include every destination inside it.',
     place: 'panel',
   },
   {
@@ -140,6 +158,38 @@ export const TOUR_STEPS: readonly TourStep[] = [
     text: "Switch to the chart to compare every destination's forecast hour by hour. Select an hour to read every value at that moment.",
     place: 'map',
     reveal: 'chart',
+  },
+  {
+    anchor: 'chart-panels',
+    spot: 'control',
+    keepClear: 'chart',
+    title: 'Panels',
+    text: 'Add a panel to chart another metric, up to four. Each one reads the same hours, so the metrics line up for comparison.',
+    place: 'map',
+    reveal: 'panels',
+  },
+  {
+    anchor: 'chart-layout',
+    spot: 'control',
+    keepClear: 'chart',
+    title: 'Panel layout',
+    text: 'Pick a layout to arrange the panels. Drag the gap between two panels to resize them, or double-press it to even them out.',
+    place: 'map',
+    reveal: 'layout',
+    // The menu is portalled to the body, so the button's box does not hold it.
+    frames: ['chart-layout-menu'],
+    deskOnly: true,
+  },
+  {
+    anchor: 'chart-pins',
+    title: 'Pinned hours',
+    text: 'Select an hour to pin its reading as a card you can move, size and sort. Pin more hours to compare them side by side.',
+    place: 'map',
+    reveal: 'pins',
+    // The anchor is the layer the two cards stand on, which is the chart's
+    // own size, so the light stands where the Chart card's did, and appears
+    // with the cards.
+    deskOnly: true,
   },
   {
     anchor: 'marker',

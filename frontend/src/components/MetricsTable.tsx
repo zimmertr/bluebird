@@ -5,7 +5,6 @@ import {
   BUTTON_SECONDARY,
   DISABLED,
   FIELD_NUMERIC,
-  ICON_ADORNMENT,
   METRICS_GRID,
   METRIC_HEAD_GAP,
   METRIC_BOX_W,
@@ -13,10 +12,8 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
-  SELECT,
   TEXT,
 } from '../styles'
-import { IconChevron } from './icons'
 import { MenuSelect } from './Menu'
 import {
   AGGREGATE,
@@ -34,7 +31,7 @@ import { ALL_ANSWERED, type UnansweredMetrics } from '../utils/metricReach'
 import { DEFAULT_LIMIT, clampLimit } from '../utils/urlState'
 
 // The app's core question: "top N destinations by <metric's aggregate>, lowest
-// or highest". Five rows ask it (#498; record 0251): which metric, which of its
+// or highest". Five rows ask it (#498; record 0281): which metric, which of its
 // aggregates, which way round, how many, and which bounds to add. A bound row
 // stands only while its bound is set or the reader has just added it, so a
 // new metric adds an option to two menus rather than a row to the panel.
@@ -185,10 +182,9 @@ interface ChoiceOption<V extends string> {
 
 /**
  * One of the section's three menus, over the two box columns. A desk opens
- * the one menu (record 0201); a phone keeps the native select, whose picker
- * rises from the bottom like every phone menu (record 0149). Drawn in one
- * place so the three cannot differ in shape, and so the section opens its
- * menus from one field.
+ * the one menu's card (record 0201) and a phone its bottom sheet (record
+ * 0252). Drawn in one place so the three cannot differ in shape, and so the
+ * section opens its menus from one field.
  */
 function Choice<V extends string>({
   phone,
@@ -212,43 +208,17 @@ function Choice<V extends string>({
   // which the Order segment holds at CONTROL_W.
   const shape = `w-full ${DISABLED} px-2 py-0.5`
   return (
-    // flex, not block: an inline-level select in a block wrapper reserves
-    // baseline descender space below itself, which read as the field
-    // sitting ~1px lower than the boxes it must align with.
     <div className="relative col-span-2 flex">
-      {phone ? (
-        <>
-          <select
-            aria-label={label}
-            value={value ?? ''}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value as V)}
-            className={`${SELECT} ${shape}`}
-          >
-            {placeholder !== undefined && (
-              <option value="" disabled>
-                {placeholder}
-              </option>
-            )}
-            {options.map((option) => (
-              <option key={option.value} value={option.value} disabled={option.disabled}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <IconChevron up={false} className={ICON_ADORNMENT} />
-        </>
-      ) : (
-        <MenuSelect
-          label={label}
-          value={value}
-          options={options}
-          onChange={onChange}
-          placeholder={placeholder}
-          disabled={disabled}
-          className={shape}
-        />
-      )}
+      <MenuSelect
+        label={label}
+        value={value}
+        options={options}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+        sheet={phone}
+        className={shape}
+      />
     </div>
   )
 }
@@ -278,8 +248,8 @@ interface Props {
   // Live ceiling for the results knob, from /api/capabilities (falls back to
   // the compiled analysis cap).
   maxLimit: number
-  // A phone (#696), where the menus stay native selects and open the phone's
-  // own picker; a desk's open the one menu (record 0201).
+  // A phone (#696), where each menu opens as a bottom sheet; a desk's opens
+  // the one menu's card (records 0201 and 0252).
   phone?: boolean
   // The metrics the selected window and models cannot answer (#803,
   // `unansweredMetrics`): each one is a disabled option in the Metric and

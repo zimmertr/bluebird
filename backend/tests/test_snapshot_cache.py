@@ -25,6 +25,7 @@ import gzip
 import json
 import logging
 import random
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -32,7 +33,7 @@ from prometheus_client import REGISTRY
 
 from app.db import refresh
 from app.error_codes import ApiError
-from app.services import hms, nifc, snapshot, usfs_closures, usfs_coverage
+from app.services import fire_activity, hms, nifc, snapshot, usfs_closures, usfs_coverage
 from app.services.errors import UpstreamError, UpstreamRateLimited
 from app.services.snapshot import MAX_STALE_S, SnapshotCache, snapshot_or_503
 
@@ -412,6 +413,23 @@ def _stored(rng: random.Random, cls):
 
 def _random_snapshot(rng: random.Random, module):
     fetched_at_ms = rng.randint(0, 2**53)
+    if module is fire_activity:
+        # Detections inside the 48 hours a snapshot keeps, so none is cut.
+        fetched_at_ms = rng.randint(fire_activity.MAX_AGE_S * 1000, 4_000_000_000_000)
+        newest = fetched_at_ms // 1000
+        detections = [
+            fire_activity.Detection(
+                lon=rng.uniform(-180, 180),
+                lat=rng.uniform(-90, 90),
+                acquired=datetime.fromtimestamp(rng.randint(newest - fire_activity.MAX_AGE_S, newest), UTC),
+                instrument=rng.choice(["VIIRS", "MODIS"]),
+                satellite=_name(rng),
+                confidence=_name(rng),
+                frp=rng.choice([None, 0.0, rng.random() * 1e4]),
+            )
+            for _ in range(rng.randint(0, 12))
+        ]
+        return fire_activity.build_snapshot(detections, fetched_at_ms)
     if module is nifc:
         return nifc.Snapshot(
             fetched_at_ms=fetched_at_ms,
@@ -436,7 +454,7 @@ def _random_snapshot(rng: random.Random, module):
     )
 
 
-@pytest.mark.parametrize("module", [nifc, usfs_closures, hms], ids=lambda m: m.SHARED.source)
+@pytest.mark.parametrize("module", [nifc, usfs_closures, hms, fire_activity], ids=lambda m: m.SHARED.source)
 def test_every_snapshot_reads_back_from_the_shared_cache_unchanged(module):
     # Property-style: two hundred generated snapshots per overlay, each one
     # equal after a trip through the row's body, and the same bytes when
@@ -449,8 +467,13 @@ def test_every_snapshot_reads_back_from_the_shared_cache_unchanged(module):
         assert module.SHARED.pack(original) == body
 
 
-def test_the_three_overlays_name_three_rows():
-    assert [m.SHARED.source for m in (nifc, usfs_closures, hms)] == ["wildfires", "closures", "smoke"]
+def test_the_four_overlays_name_four_rows():
+    assert [m.SHARED.source for m in (nifc, usfs_closures, hms, fire_activity)] == [
+        "wildfires",
+        "closures",
+        "smoke",
+        "fire_activity",
+    ]
 
 
 def _envelope(payload: object) -> bytes:
@@ -479,7 +502,7 @@ def test_every_overlay_registers_its_refresh_at_its_own_ttl():
     # The interval is the TTL knob each pod refreshed on alone, so the pods
     # together ask the upstream as often as one did. The source's own deadline
     # sits past `publish`'s, which is the one that words the failure.
-    for module in (nifc, usfs_closures, hms):
+    for module in (nifc, usfs_closures, hms, fire_activity):
         source = refresh._sources[module.SHARED.source]
         assert source.interval_s == module.TTL_S
         assert source.deadline_s > snapshot.SHARED_REFRESH_DEADLINE_S

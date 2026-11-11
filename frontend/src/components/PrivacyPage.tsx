@@ -100,9 +100,9 @@ export default function PrivacyPage() {
         <p className={`${PROSE.body} mb-3`}>
           Bluebird Forecast produces none of this data. It queries these providers, ranks what comes
           back, and shows you the result. Each has its own privacy policy and license. Your
-          browser contacts Open-Meteo, OpenFreeMap, the Iowa Environmental Mesonet and NOAA
-          NOHRSC itself, so they can see your IP address the way any web request lets a server
-          see it. The others are reached through the Bluebird Forecast server or through
+          browser contacts Open-Meteo, OpenFreeMap, Mapterhorn, USGS The National Map, EOX IT
+          Services, the Iowa Environmental Mesonet and NOAA NOHRSC itself, so they can see your
+          IP address the way any web request lets a server see it. The others are reached through the Bluebird Forecast server or through
           Open-Meteo, and see that address instead of yours.
         </p>
         <DataSourceList />
@@ -112,7 +112,7 @@ export default function PrivacyPage() {
         <ContactBody />
       </Section>
 
-      <p className={`${PROSE.note} mt-6`}>Last updated 18 October 2026.</p>
+      <p className={`${PROSE.note} mt-6`}>Last updated 27 October 2026.</p>
     </PageShell>
   )
 }

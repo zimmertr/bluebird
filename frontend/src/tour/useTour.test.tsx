@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import type { MapCamera, MapViewHandle } from '../components/MapView'
-import { useTour } from './useTour'
+import { TOUR_FOUR_PANELS, TOUR_ONE_PANEL, useTour } from './useTour'
 import { sheetKeepOut, SPOTLIGHT_PAD } from './place'
 import { placeAt } from '../testSupport/render'
 import { TOUR_ATTR, TOUR_STEPS, TUTORIAL_PATH } from '../utils/tourSteps'
@@ -100,13 +100,16 @@ describe('the tour opens the results for their steps', () => {
       const i = result.current.index
       if (i === null) break
       seen.push([result.current.steps[i].anchor, result.current.sheetView, result.current.sheetCollapsed])
-      // Only the Chart step holds the sheet at its full stop.
-      expect(result.current.sheetFull).toBe(result.current.steps[i].anchor === 'chart')
+      // Only the Chart and Panels steps hold the sheet at its full stop.
+      expect(result.current.sheetFull).toBe(['chart', 'chart-panels'].includes(result.current.steps[i].anchor))
       act(() => result.current.next())
     }
     expect(seen.filter(([, view]) => view !== null).map(([a, view]) => [a, view])).toEqual([
       ['results', 'table'],
       ['chart', 'chart'],
+      ['chart-panels', 'chart'],
+      ['chart-layout', 'chart'],
+      ['chart-pins', 'chart'],
     ])
     expect(seen.find(([a]) => a === 'marker')?.[2]).toBe(true)
   })
@@ -137,8 +140,100 @@ describe('the chart readout under the tour', () => {
     act(() => result.current.next())
     expect(anchor()).toBe('chart')
     expect(result.current.chartTooltipIndex).toBe(middle)
+    act(() => result.current.next())
+    expect(anchor()).toBe('chart-panels')
+    expect(result.current.chartTooltipIndex).toBe(middle)
+    // The held menu and the two pinned cards stand alone (#850).
+    act(() => result.current.next())
+    expect(anchor()).toBe('chart-layout')
+    expect(result.current.chartTooltipIndex).toBeNull()
+    act(() => result.current.next())
+    expect(anchor()).toBe('chart-pins')
+    expect(result.current.chartTooltipIndex).toBeNull()
     act(() => result.current.end())
     expect(result.current.chartTooltipIndex).toBeNull()
+  })
+})
+
+// The three chart cards after Chart (#850) draw four panels over the
+// demonstration, hold a desk's layout menu open and stand two hours pinned,
+// each for its own card, and hand the chart the reader's own back at the end.
+describe('the chart cards under the tour', () => {
+  async function walk() {
+    const { result } = setup()
+    act(() => result.current.start())
+    const anchor = () => result.current.steps[result.current.index!].anchor
+    while (anchor() !== 'results') act(() => result.current.next())
+    // The demonstration is a chunk of its own: let its import land inside act.
+    await act(async () => {
+      await import('./demoReport')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    const seen = new Map<string, ReturnType<typeof useTour>>()
+    while (result.current.index !== null && anchor() !== 'marker') {
+      seen.set(anchor(), result.current)
+      act(() => result.current.next())
+    }
+    seen.set('marker', result.current)
+    return { result, seen }
+  }
+
+  // The demonstration's own panels whatever the reader's chart holds (the
+  // maintainer, 2026-11-04): temperature, then the three beside it, one list
+  // each across the cards that draw it, so the memoized chart keeps one.
+  it('draws temperature, then temperature, freezing level, snowfall and precipitation on the three cards', async () => {
+    const { seen } = await walk()
+    for (const a of ['results', 'chart', 'marker']) expect(seen.get(a)!.chartTour.metrics, a).toBe(TOUR_ONE_PANEL)
+    for (const a of ['chart-panels', 'chart-layout', 'chart-pins']) expect(seen.get(a)!.chartTour.metrics, a).toBe(TOUR_FOUR_PANELS)
+    expect(TOUR_ONE_PANEL).toEqual(['temp'])
+    expect(TOUR_FOUR_PANELS).toEqual(['temp', 'freeze', 'snowfall', 'precip'])
+  })
+
+  // One room from the Results card through Pinned hours (#850), and none on
+  // the marker card, which folds the results, or before Results.
+  it('holds the results tall from the Results card through Pinned hours', async () => {
+    const { seen } = await walk()
+    const tall = [...seen].filter(([, s]) => s.resultsTall).map(([a]) => a)
+    expect(tall).toEqual(['results', 'chart', 'chart-panels', 'chart-layout', 'chart-pins'])
+  })
+
+  it('holds the layout menu open for its card alone', async () => {
+    const { seen } = await walk()
+    expect([...seen].filter(([, s]) => s.chartTour.layoutOpen).map(([a]) => a)).toEqual(['chart-layout'])
+  })
+
+  it('pins two hours far apart for its card, sets the reader\'s pins aside through the demonstration, and lets go at the end', async () => {
+    const { result, seen } = await walk()
+    const hours = result.current.demo!.response.times!.length
+    const pins = seen.get('chart-pins')!.chartTour.pins!
+    expect(pins).toHaveLength(2)
+    expect(pins[0]).toBeGreaterThan(0)
+    expect(pins[1]).toBeLessThan(hours - 1)
+    // Half the window apart, to the hour: 24 and 71 of the demonstration's 96.
+    expect(pins[1] - pins[0]).toBeGreaterThanOrEqual(Math.floor((hours - 1) / 2))
+    for (const a of ['results', 'chart', 'chart-panels', 'chart-layout', 'marker']) expect(seen.get(a)!.chartTour.pins, a).toEqual([])
+    act(() => result.current.end())
+    expect(result.current.chartTour).toEqual({ metrics: null, layoutOpen: false, pins: null })
+  })
+})
+
+// A phone stacks its panels, has no Panel layout button and pins nothing, so
+// its tour leaves those two cards out (#850) and keeps Panels.
+describe('the desk-only cards', () => {
+  // No panel control is on this page, so each tour holds the steps that
+  // bring their own target on screen, a desk's all of them.
+  it('stand in a desk\'s tour and not in a phone\'s', () => {
+    const revealed = TOUR_STEPS.filter((s) => s.reveal !== undefined).map((s) => s.anchor)
+    const desk = setup()
+    act(() => desk.result.current.start())
+    expect(desk.result.current.steps.map((s) => s.anchor)).toEqual(revealed)
+    act(() => desk.result.current.end())
+
+    const phone = setup({ isDesktop: false, sidebarOpen: false })
+    act(() => phone.result.current.start())
+    const phoneAnchors = phone.result.current.steps.map((s) => s.anchor)
+    expect(phoneAnchors).toEqual(revealed.filter((a) => a !== 'chart-layout' && a !== 'chart-pins'))
+    expect(phoneAnchors.slice(phoneAnchors.indexOf('chart'))).toEqual(['chart', 'chart-panels', 'marker'])
   })
 })
 

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createMapController } from './controller'
-import { closureWarning, fireWarning, mapInputs, resultRow } from '../testSupport/fixtures'
-import { geoKey } from '../utils/points'
+import { mapInputs, resultRow } from '../testSupport/fixtures'
 
 describe('createMapController', () => {
   it('starts with the first render and follows every update', () => {
@@ -58,25 +57,5 @@ describe('resultAt', () => {
     controller.update(mapInputs({ results: [adams] }))
     expect(controller.resultAt(rainier.latitude, rainier.longitude)).toBeNull()
     expect(controller.resultAt(adams.latitude, adams.longitude)).toBe(adams)
-  })
-})
-
-describe('fireWarningAt', () => {
-  it('looks a warning up by the same key the warnings are stored under', () => {
-    const warning = fireWarning()
-    const controller = createMapController(mapInputs())
-    expect(controller.fireWarningAt(46.85, -121.76)).toBeNull()
-    controller.update(mapInputs({ fireWarnings: new Map([[geoKey(46.85, -121.76), warning]]) }))
-    expect(controller.fireWarningAt(46.85, -121.76)).toBe(warning)
-  })
-})
-
-describe('closureWarningAt', () => {
-  it('looks a closure up by the same key the warnings are stored under', () => {
-    const warning = closureWarning()
-    const controller = createMapController(mapInputs())
-    expect(controller.closureWarningAt(46.85, -121.76)).toBeNull()
-    controller.update(mapInputs({ closureWarnings: new Map([[geoKey(46.85, -121.76), warning]]) }))
-    expect(controller.closureWarningAt(46.85, -121.76)).toBe(warning)
   })
 })

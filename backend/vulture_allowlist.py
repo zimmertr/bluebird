@@ -28,6 +28,7 @@ config  # unused function (app/routes/config.py:44)
 geocode  # unused function (app/routes/geocode.py:88)
 api_not_found  # unused function (app/routes/notfound.py:46)
 landmarks_in_box  # unused function (app/routes/landmarks.py:70)
+fire_activity_in_box  # unused function (app/routes/fire_activity.py:110)
 smoke  # unused function (app/routes/smoke.py:57)
 wildfires  # unused function (app/routes/wildfires.py:63)
 
@@ -162,6 +163,8 @@ built_at  # unused variable (app/routes/version.py:20)
 fetched_at  # unused variable (app/routes/wildfires.py:30)
 landmarks_per_minute  # unused variable (app/routes/capabilities.py:134)
 landmarks_burst  # unused variable (app/routes/capabilities.py:142)
+fire_activity_per_minute  # unused variable (app/routes/capabilities.py:149)
+fire_activity_burst  # unused variable (app/routes/capabilities.py:157)
 fetched_at  # unused variable (app/routes/landmarks.py:35)
 
 # Pydantic calls these through @field_validator and @model_validator.

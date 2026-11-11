@@ -135,7 +135,8 @@ export const APP = [
       },
     ],
     require: [
-      { selector: EFFECT, count: 2, message: 'useChartSelection.ts runs its two effects through useEffect.' },
+      // One since #499, when the metric and its ranking effect moved to useChartPair.
+      { selector: EFFECT, count: 1, message: 'useChartSelection.ts runs its one effect through useEffect.' },
       {
         selector:
           'VariableDeclarator[id.name="candidatesKey"] > CallExpression[callee.name="useMemo"]' +
@@ -377,16 +378,18 @@ export const APP = [
         message: 'Hand useTableView pointSample, which reads the analyzed report.',
       },
       {
-        // The row focus is `useRowFocus`'s (record 0143), which wraps it in
-        // useCallback where it holds the effect useResultsView may not.
-        selector: 'VariableDeclarator[id.name=/^on(RemovePending|FocusPending)$/] > CallExpression[callee.name="useCallback"]',
-        count: 2,
-        message: 'Wrap the two table callbacks in useCallback.',
+        selector: 'VariableDeclarator[id.name="onRemovePending"] > CallExpression[callee.name="useCallback"]',
+        count: 1,
+        message: 'Wrap onRemovePending in useCallback.',
       },
       {
-        selector: 'VariableDeclarator[id.name="onFocusResult"] > CallExpression[callee.name="useRowFocus"]',
-        count: 1,
-        message: 'Take onFocusResult from useRowFocus.',
+        // The row focus is `useRowFocus`'s (record 0143), which wraps both
+        // in useCallback where it holds the effect useResultsView may not:
+        // on a phone each lowers the sheet before it opens a card.
+        selector:
+          'VariableDeclarator[init.callee.name="useRowFocus"] > ObjectPattern > Property[key.name=/^on(FocusResult|FocusPending)$/]',
+        count: 2,
+        message: 'Take onFocusResult and onFocusPending from useRowFocus.',
       },
     ],
   },
@@ -655,9 +658,23 @@ export const APP = [
         message: 'Floor a drag at draggedMapFloorPx(gripCount).',
       },
       {
+        // A desk's two grips that resize against the map, and the cap a
+        // phone's release short of full screen falls back to (#837).
         selector: 'CallExpression[callee.name="clampPanelHeight"]:has(> Identifier[name="dragFloorPx"])',
-        count: 2,
-        message: 'Pass dragFloorPx to both clamps that resize against the map.',
+        count: 3,
+        message: 'Pass dragFloorPx to both clamps that resize against the map, and to the release\'s cap.',
+      },
+      {
+        // A phone's drag runs to full screen's floor, the ceiling the sheet is
+        // drawn at while it lasts (#837).
+        selector: 'CallExpression[callee.name="clampPanelHeight"]:has(> Identifier[name="fullFloorPx"])',
+        count: 1,
+        message: 'Draw a phone drag at the full-screen ceiling, fullFloorPx.',
+      },
+      {
+        selector: 'CallExpression[callee.name="sheetTopRelease"]',
+        count: 1,
+        message: 'Decide where a release lands with sheetTopRelease, once.',
       },
       { selector: 'Property[key.name="chartPx"][value.name="DEFAULT_CHART_HEIGHT"]', message: 'Clear the camera for DEFAULT_CHART_HEIGHT.' },
       { selector: 'Property[key.name="tablePx"][value.name="DEFAULT_TABLE_HEIGHT"]', message: 'Clear the camera for DEFAULT_TABLE_HEIGHT.' },
@@ -868,7 +885,7 @@ export const APP = [
   {
     // The sync effect and the unmount flush are the two effects this hook took
     // from App.tsx. The sync effect keys on every input its encodeState call
-    // reads, 27 entries with the sync callback last, and it never flushes: a
+    // reads, 34 entries with the sync callback last, and it never flushes: a
     // flush per run writes on every keystroke and the debounce collapses
     // nothing. The flush runs only on unmount, keyed on the writer alone. The
     // camera is not an entry: it reaches the writer through reportView, so a
@@ -884,8 +901,8 @@ export const APP = [
     require: [
       { selector: EFFECT, count: 2, message: 'useUrlSync.ts runs its two effects through useEffect.' },
       {
-        selector: `${EFFECT} > ArrayExpression[elements.length=27][elements.26.name="sync"]`,
-        message: 'Key the sync effect on all 27 inputs it reads, sync last.',
+        selector: `${EFFECT} > ArrayExpression[elements.length=36][elements.35.name="sync"]`,
+        message: 'Key the sync effect on all 36 inputs it reads, sync last.',
       },
       { selector: keyedOnlyOn('writeUrl'), message: 'Flush on unmount in an effect keyed on writeUrl alone.' },
       { selector: 'ReturnStatement Property[key.name="writeUrl"]', message: 'Return the writer.' },

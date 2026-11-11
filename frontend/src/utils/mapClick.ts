@@ -20,9 +20,12 @@
  *
  * Small, deliberate targets first, because a reader who aims at one means it,
  * and a large shape under it can be clicked anywhere else. The ring's own
- * handles lead, then a ranked marker, then a clickable basemap label (a
- * destination the reader may add), then a closed trail, road or site, then a
- * fire perimeter, then the closed ground around it, then a smoke plume. A fire
+ * handles lead, then a ranked marker, then a pending dot (#832), then a
+ * satellite fire detection (#799),
+ * a star drawn over every label and shape beneath it, then a clickable
+ * basemap label (a destination the reader may add), then a closed trail, road
+ * or site, then a fire perimeter, then the closed ground around it, then a
+ * smoke plume. A fire
  * outranks the closure drawn around it because the perimeter is the smaller
  * shape and the hazard itself, and smoke is the last of the shapes because a
  * plume routinely covers states.
@@ -34,19 +37,40 @@
  * click where both painted opens one card with the radar first, since rain is
  * what is happening over the snow.
  */
-export const MAP_TARGETS = ['vertex', 'result', 'poi', 'closure-trail', 'fire', 'closure-area', 'smoke', 'radar', 'snow'] as const
+export const MAP_TARGETS = [
+  'vertex',
+  'result',
+  'pending',
+  'fire-activity',
+  'poi',
+  'closure-trail',
+  'fire',
+  'closure-area',
+  'smoke',
+  'radar',
+  'snow',
+] as const
 export type MapTarget = (typeof MAP_TARGETS)[number]
 
 /**
- * The targets a click reads at a point rather than finds under the cursor,
- * which `map/mapPopups.ts` asks after every shape has passed. Never while
- * the ring is drawn, where a click on scenery places a corner.
+ * The targets a card reads at its point rather than finds under the cursor
+ * (#832): the five hazard layers from the features they hold, and the two
+ * pictures from their tiles, which `map/mapPopups.ts` also asks for the
+ * cursor over bare map. In rank order, which is the order their sections
+ * stand on a card.
  */
-export const POINT_TARGETS: readonly MapTarget[] = ['radar', 'snow']
+export const POINT_TARGETS: readonly MapTarget[] = [
+  'fire-activity',
+  'closure-trail',
+  'fire',
+  'closure-area',
+  'smoke',
+  'radar',
+  'snow',
+]
 
-/** The point targets to ask, in rank order: none while drawing. */
-export function pointTargetsToAsk(drawing: boolean, live: readonly MapTarget[]): MapTarget[] {
-  if (drawing) return []
+/** The point targets to ask of those that are on, in rank order. */
+export function pointTargetsToAsk(live: readonly MapTarget[]): MapTarget[] {
   return MAP_TARGETS.filter((t) => POINT_TARGETS.includes(t) && live.includes(t))
 }
 

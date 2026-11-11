@@ -51,6 +51,7 @@ import { useClosePopupsOnCommit } from './hooks/useClosePopupsOnCommit'
 import { useRunOnOpen } from './hooks/useRunOnOpen'
 import { useLinkDrops } from './hooks/useLinkDrops'
 import { useUrlSync } from './hooks/useUrlSync'
+import { useChartMetrics } from './hooks/useChartMetrics'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useClosureProximity } from './hooks/useClosureProximity'
 import { useGridLayer } from './hooks/useGridLayer'
@@ -186,6 +187,8 @@ export default function App() {
   // The basemap style is failing to load: the map reports it and the panel's
   // messages say so (#580).
   const [basemapFailed, setBasemapFailed] = useState(false)
+  // The preset list last picked beside Coordinate search did not arrive (#838).
+  const [presetListFailed, setPresetListFailed] = useState(false)
   const overlays = useMapOverlays(restored, isDesktop)
   const {
     showWildfires,
@@ -195,6 +198,13 @@ export default function App() {
     showSmoke,
     showSnow,
     showGrid,
+    showContours,
+    showRelief,
+    showSlope,
+    showSatellite,
+    baseOpacity,
+    showFireActivity,
+    showTerrain,
     showPlayer,
     playerShown,
   } = overlays
@@ -361,8 +371,23 @@ export default function App() {
   }, [destinationNamed])
 
   // What the displayed report is rendered under, and whether it is one hour.
-  const { view, pointSample } = reportView(shownAnalyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
+  // Over the demonstration its own ranking (#850): its rows are ranked by
+  // temperature, so the results bar, the table's ranked column, the markers'
+  // legend and the chart read that rather than the panel's. The panel, the
+  // chart's own slots and the address bar keep the reader's.
+  const { view, pointSample } = reportView(
+    shownAnalyzed,
+    demo?.analyzed.sortBy ?? sortBy,
+    demo?.analyzed.sortDesc ?? sortDesc,
+    selection.kind,
+    panelWindowMs,
+  )
+  const readerRanking = useMemo(() => ({ sortBy, sortDesc }), [sortBy, sortDesc])
   const preview = usePreview()
+  // The chart's metric slots (#499), here rather than in the results view
+  // because the address bar's sync below carries them. The reader's ranking,
+  // never the demonstration's, so the tour moves none of the reader's slots.
+  const chartMetrics = useChartMetrics(restored?.chart, sortBy, restored?.chartLayout ?? undefined)
 
   const report = usePresentedReport({
     universe: shownUniverse,
@@ -372,7 +397,10 @@ export default function App() {
     analysisSeq,
     arriving,
     liveKnobs,
-    view,
+    // The panel's ranking for the header sort, and the demonstration's own
+    // knobs for its rows while it stands in (#850).
+    view: readerRanking,
+    demoKnobs: demo?.analyzed ?? null,
     pointSample,
     removedKeys,
     activeRemovedKeys,
@@ -411,6 +439,13 @@ export default function App() {
     showSmoke,
     showSnow,
     showGrid,
+    showContours,
+    showRelief,
+    showSlope,
+    showSatellite,
+    baseOpacity,
+    showFireActivity,
+    showTerrain,
     showPlayer,
     gridStyle,
     gridReachFrac,
@@ -418,6 +453,8 @@ export default function App() {
     defaultForecastModel: caps.defaultForecastModel,
     removedKeys,
     tableSort,
+    chart: chartMetrics.metrics,
+    chartLayout: chartMetrics.layout,
     restoredView,
     cameraHeld: tour.index !== null,
   })
@@ -565,6 +602,7 @@ export default function App() {
     wildfireCheckFailed: checkNoticeDue(fire.status, showWildfires, results.length),
     closureCheckFailed: checkNoticeDue(closure.status, showAreaClosures, results.length),
     basemapFailed,
+    presetListFailed,
     archiveDays: caps.archiveDays,
     aqiForecastDays: caps.aqiForecastDays,
     windowLimits: caps.windowLimits,
@@ -595,6 +633,9 @@ export default function App() {
   // up (#803): the list that says what went wrong is the panel's, and a shut
   // panel is inert, its badge and its live region with it.
   useOpenOnFailure(failureSeq, openDrawer, isDesktop)
+  // A check or the basemap failing does the same (#834): its line opens the
+  // list, and the list is the panel's.
+  useOpenOnFailure(messages.openingSeq, openDrawer, isDesktop)
 
   // On mobile the controls are an off-canvas drawer, and it closes when an
   // analysis SUCCEEDS rather than when the button is pressed. Closing on press
@@ -639,7 +680,10 @@ export default function App() {
     collapsedOverride: tour.sheetCollapsed,
     restView: tour.sheetView,
     fullOverride: tour.sheetFull,
+    tallResults: tour.resultsTall,
     response: shownResponse,
+    // The Both widening reads the reader's own report, never the tour's (#850).
+    ownResponse: response,
     results,
     pending,
     detailSort,
@@ -655,6 +699,7 @@ export default function App() {
     pointSample,
     analyzed: shownAnalyzed,
     models: caps.forecastModels,
+    chartMetrics,
     forecastModel,
     comparedModels,
     times: forecastTimes,
@@ -662,7 +707,7 @@ export default function App() {
     fire,
     closure,
     mapRef,
-    removePlace,
+    removeResult: removals.removeResult,
   })
   const { layout, tableView } = resultsView
   // Which edge of a desk's layout is moving, so the map and the results
@@ -733,6 +778,7 @@ export default function App() {
         mapRef={mapRef}
         onPointAtSearch={setSearchPointed}
         onPointAtMapPois={setPoisPointed}
+        onPresetListFailed={setPresetListFailed}
         messages={shownMessages}
         onAnalyze={handleAnalyze}
         autoAnalyze={autoAnalyze}
@@ -768,8 +814,6 @@ export default function App() {
           timeline={timeline}
           report={report}
           tableView={tableView}
-          fire={fire}
-          closure={closure}
           layout={layout}
           analysis={analysis}
           sortBy={view.sortBy}
@@ -792,12 +836,14 @@ export default function App() {
           restoredView={restoredView}
           onBasemapFailed={setBasemapFailed}
           maxPolygonPoints={caps.maxPolygonPoints}
+          lowerSheetFirst={resultsView.lowerSheetFirst}
         />
 
         <ResultsSheet
           resultsView={resultsView}
           showResults={showResults || demo !== null}
           chartTooltipIndex={tour.chartTooltipIndex}
+          chartTour={tour.chartTour}
           isDesktop={isDesktop}
           report={report}
           removals={removals}
