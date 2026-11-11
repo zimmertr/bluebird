@@ -92,13 +92,14 @@ async function expectSpotlightOn(page: Page, anchor: string) {
 }
 
 // A section the panel has room for stands whole inside the panel's scroll box,
-// rather than under its footer.
+// rather than under its footer. The box is found by its overflow alone: since
+// #498 the Metrics section is short enough that the panel may not scroll.
 async function expectSectionInPanel(page: Page, anchor: string) {
   await expect(async () => {
     const fit = await page.evaluate((a) => {
       const el = document.querySelector(`[data-tour="${a}"]`)
       let box = el?.parentElement ?? null
-      while (box && !(['auto', 'scroll'].includes(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight)) {
+      while (box && !['auto', 'scroll'].includes(getComputedStyle(box).overflowY)) {
         box = box.parentElement
       }
       if (!el || !box) return null

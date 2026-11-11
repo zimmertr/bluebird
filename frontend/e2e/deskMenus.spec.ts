@@ -270,7 +270,7 @@ test('every trigger lights the one way while open and rests as it was after', as
     ['Models', page.getByRole('button', { name: 'Models', exact: true }), null],
     ['model picker', page.getByRole('button', { name: /^Forecast model:/ }), null],
     ['calendar', page.getByRole('button', { name: /^When\b/ }), null],
-    ['aggregate', page.getByRole('button', { name: /^Temperature aggregate / }), pick('Temperature aggregate')],
+    ['aggregate', page.getByRole('button', { name: /^Aggregate / }), pick('Aggregate')],
     ['chart metric', page.getByRole('button', { name: /^Chart metric / }), pick('Chart metric')],
   ]
   const lit = new Set<string>()
@@ -337,10 +337,10 @@ test.describe('on a phone', () => {
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await expect(page.locator('select')).toHaveCount(0)
     await page.getByRole('button', { name: 'Open controls' }).tap()
-    const field = page.getByRole('button', { name: /^Temperature aggregate / })
+    const field = page.getByRole('button', { name: /^Aggregate / })
     await field.tap()
-    const sheet = page.getByRole('dialog', { name: 'Temperature aggregate' })
-    await expect(sheet.getByRole('listbox', { name: 'Temperature aggregate' })).toBeVisible()
+    const sheet = page.getByRole('dialog', { name: 'Aggregate' })
+    await expect(sheet.getByRole('listbox', { name: 'Aggregate' })).toBeVisible()
     await expect(card(page)).toHaveCount(0)
     await sheet.getByRole('option').last().tap()
     await expect(sheet).toHaveCount(0)
