@@ -957,6 +957,36 @@
       },
       "credit": "Elevation and prominence, as Peakbagger.com ranks them",
       "crawled": "2026-11-11"
+    },
+    {
+      "id": "us-national-park-high-points",
+      "name": "US National Park High Points",
+      "description": "The highest point of each US national park.",
+      "region": "Nationwide",
+      "file": "us-national-park-high-points.csv",
+      "peaks": 63,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "1821",
+        "url": "https://www.peakbagger.com/list.aspx?lid=1821"
+      },
+      "credit": "The highest point of each national park",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "or-top-100",
+      "name": "Oregon Top 100",
+      "description": "Oregon's hundred highest summits with 500 ft of prominence.",
+      "region": "Oregon and the Cascades",
+      "file": "or-top-100.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21316",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21316"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
     }
   ]
 }
