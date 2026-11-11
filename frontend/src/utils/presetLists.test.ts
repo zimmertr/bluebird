@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PRESET_LISTS, presetListIn, fetchPresetList, forgetPresetLists } from './presetLists'
+import Ajv2020 from 'ajv/dist/2020'
+import { PRESET_LISTS, PRESET_REGIONS, presetListIn, fetchPresetList, forgetPresetLists } from './presetLists'
 import { parseCustomCsv } from './customDestinations'
+import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { fakeResponse } from '../testSupport/fixtures'
+import manifest from '../coordinate-lists/lists.json'
+import schema from '../coordinate-lists/lists.schema.json'
 
 // Every list the directory holds, read as the reader's box would hold it. A
-// glob rather than one import per file, so a fifth list dropped in is checked
+// glob rather than one import per file, so a list the crawl adds is checked
 // by the same rules without an edit here.
 const csvs = import.meta.glob('../coordinate-lists/*.csv', {
   query: '?raw',
@@ -12,14 +16,15 @@ const csvs = import.meta.glob('../coordinate-lists/*.csv', {
   import: 'default',
 }) as Record<string, string>
 // Every file the directory holds, whatever its ending, globbed apart from the
-// module's own glob so the menu is checked against the directory rather than
-// against itself.
+// module's own glob so the manifest is checked against the directory rather
+// than against itself.
 const everyFile = import.meta.glob('../coordinate-lists/*', {
   query: '?raw',
   eager: true,
   import: 'default',
 }) as Record<string, string>
 const baseName = (path: string): string => path.slice(path.lastIndexOf('/') + 1)
+const rowsOf = (csv: string): string[] => csv.split('\n').filter((line: string) => line.trim() !== '')
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -27,21 +32,90 @@ afterEach(() => {
   forgetPresetLists()
 })
 
-describe('PRESET_LISTS', () => {
-  // The directory is the list (record 0263): the menu offers every file in
-  // it, by its name, alphabetically.
-  it('offers every file in the directory by its name, alphabetically', () => {
-    const files = Object.keys(everyFile).map(baseName)
-    expect(files.length).toBeGreaterThan(0)
-    for (const file of files) expect(file.endsWith('.csv'), file).toBe(true)
-    const names = files
-      .map((file: string) => file.slice(0, -'.csv'.length))
-      .sort((a: string, b: string) => a.localeCompare(b))
-    expect(PRESET_LISTS.map((l) => l.name)).toEqual(names)
-    expect(Object.keys(csvs)).toHaveLength(files.length)
+describe('the manifest', () => {
+  // The schema is what the crawl skill and an editor read, so the manifest
+  // the app ships has to be one it accepts.
+  it('holds to its schema', () => {
+    const validate = new Ajv2020({ allErrors: true }).compile(schema)
+    validate(manifest)
+    expect(validate.errors ?? []).toEqual([])
   })
 
-  // The name lives in the file name, so a file carries rows and nothing else.
+  // A share link names a list by its id (#864), so two lists cannot share one.
+  it('gives every list an id of its own, and a name of its own', () => {
+    const ids = manifest.lists.map((list) => list.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    const names = manifest.lists.map((list) => list.name)
+    expect(new Set(names).size).toBe(names.length)
+  })
+
+  // The directory holds the manifest, its schema and one CSV per entry, named
+  // by the entry's id, and nothing else: a CSV with no entry would ship and
+  // never be offered, and an entry with no CSV would be offered and never load.
+  it('names exactly the CSVs the directory holds, each by its id', () => {
+    const files = Object.keys(everyFile).map(baseName).sort()
+    const expected = ['lists.json', 'lists.schema.json', ...manifest.lists.map((list) => `${list.id}.csv`)].sort()
+    expect(files).toEqual(expected)
+    for (const list of manifest.lists) expect(list.file, list.id).toBe(`${list.id}.csv`)
+  })
+
+  // The crawl writes each count and the menu shows it, so it is recomputed
+  // here: a row added or dropped by hand fails until the count follows.
+  it("states each list's row count", () => {
+    for (const list of manifest.lists) {
+      const csv = csvs[`../coordinate-lists/${list.file}`]
+      expect(rowsOf(csv), list.id).toHaveLength(list.peaks)
+    }
+  })
+
+  // No list carries more rows than one analysis takes, or a pick would fill
+  // the box with a list Analyze refuses.
+  it('holds no list longer than one analysis takes', () => {
+    for (const list of manifest.lists) expect(list.peaks, list.id).toBeLessThanOrEqual(MAX_ANALYZE_DESTINATIONS)
+  })
+
+  it('files every list under a region it names, each heading once', () => {
+    const regions = manifest.regions.map((region) => region.name)
+    expect(new Set(regions).size).toBe(regions.length)
+    for (const list of manifest.lists) expect(regions, list.id).toContain(list.region)
+  })
+
+  // The headings are user-facing strings, approved as a set on 2026-11-05
+  // (#848). A new one is the maintainer's to approve, and then joins this list.
+  it('carries the approved region headings, in the approved order', () => {
+    expect(manifest.regions.map((region) => region.name)).toEqual([
+      'Nationwide',
+      'Washington',
+      'Oregon and the Cascades',
+      'Northern Rockies',
+      'Alaska',
+      'California',
+      'Colorado',
+      'Southwest',
+      'Northeast',
+      'Southeast',
+    ])
+  })
+})
+
+describe('PRESET_LISTS', () => {
+  it('offers every list the manifest names, in its order, each with the URL of its file', () => {
+    expect(PRESET_LISTS.map((list) => list.id)).toEqual(manifest.lists.map((list) => list.id))
+    for (const list of PRESET_LISTS) expect(list.url, list.id).toEqual(expect.any(String))
+    expect(new Set(PRESET_LISTS.map((list) => list.url)).size).toBe(PRESET_LISTS.length)
+  })
+
+  it('offers every region the manifest names, with the places a search also matches', () => {
+    expect(PRESET_REGIONS.map((region) => region.name)).toEqual(manifest.regions.map((region) => region.name))
+    expect(PRESET_REGIONS.find((region) => region.name === 'Northern Rockies')?.places).toEqual([
+      'Idaho',
+      'Montana',
+      'Wyoming',
+    ])
+    expect(PRESET_REGIONS.find((region) => region.name === 'Washington')?.places).toEqual([])
+  })
+
+  // The name lives in the manifest, so a file carries rows and nothing else.
   it('carries no comment line in any list', () => {
     for (const [path, csv] of Object.entries(csvs)) {
       expect(csv.split('\n').filter((line: string) => line.startsWith('#')), path).toEqual([])
@@ -52,7 +126,7 @@ describe('PRESET_LISTS', () => {
   // skipped would be a peak the list promises and the analysis never sees.
   it('parses every row of every list to a place', () => {
     for (const [path, csv] of Object.entries(csvs)) {
-      const rows = csv.split('\n').filter((line: string) => line.trim() !== '')
+      const rows = rowsOf(csv)
       expect(rows.length, path).toBeGreaterThan(0)
       expect(parseCustomCsv(csv), path).toHaveLength(rows.length)
     }

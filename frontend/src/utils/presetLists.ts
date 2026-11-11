@@ -1,19 +1,28 @@
 import { apiFetch } from './apiFetch'
+import manifest from '../coordinate-lists/lists.json'
 
 // The ready-made lists the Coordinate list field under Coordinate search puts in
-// the box (#838, record 0263). The directory is the list: every file in
-// `src/coordinate-lists/` is one entry, so adding or removing a file changes
-// the next build and nothing else. The file's name is the menu's string, so a
-// new file's name is a user-facing string the maintainer approves before it
-// lands, and the menu reads alphabetically because that is the only order a
-// directory can state.
+// the box (#838, #848). `src/coordinate-lists/lists.json` is the list of them:
+// one entry per list with the name and description the menu reads, the region
+// it stands under, its peak count and where its rows came from, and the
+// regions themselves in the menu's order. Every name, description and heading
+// there is a user-facing string the maintainer approves before it lands.
 //
-// Each is a hashed asset fetched on the pick that asks for it. A fetch rather
-// than a lazy `import()` for `usStatesLoad.ts`'s reason: a stale tab's failed
-// import reloads the page (`staleChunk.ts`), and a list is not worth a
+// The manifest replaced a directory read by file name, where a file's name
+// was the menu's string. A file name cannot carry a region, a count or a
+// source, and it cannot go in a share link, which a list's `id` can: an id is
+// a slug that never changes once shipped. Each CSV is named by that id and
+// holds rows only. `presetLists.test.ts` holds the manifest to its schema and
+// to the directory: every CSV has one entry, every entry one CSV, and each
+// `peaks` is its file's row count.
+//
+// Each list is a hashed asset fetched on the pick that asks for it. A fetch
+// rather than a lazy `import()` for `usStatesLoad.ts`'s reason: a stale tab's
+// failed import reloads the page (`staleChunk.ts`), and a list is not worth a
 // reader's drawn ring. `?url&no-inline` because each list sits just under
 // Vite's 4 kB inline limit, which would put every one of them in the cold
-// load's script as a data URL.
+// load's script as a data URL. The glob is only how a file's hashed URL is
+// found: the manifest, not the directory, says what the menu holds.
 const files = import.meta.glob('../coordinate-lists/*.csv', {
   query: '?url&no-inline',
   eager: true,
@@ -28,13 +37,37 @@ const files = import.meta.glob('../coordinate-lists/*.csv', {
 export const PRESET_LIST_FAILED_NOTE = 'The list could not load. Try again later.'
 
 export interface PresetList {
+  /** The manifest's slug: stable for good, so a share link can name the list by it. */
+  id: string
   name: string
+  description: string
+  /** The name of the region the menu shows it under. */
+  region: string
+  peaks: number
   url: string
 }
 
-export const PRESET_LISTS: readonly PresetList[] = Object.entries(files)
-  .map(([path, url]) => ({ name: path.slice(path.lastIndexOf('/') + 1, -'.csv'.length), url }))
-  .sort((a, b) => a.name.localeCompare(b.name))
+export interface PresetRegion {
+  name: string
+  /** The states the region covers when its heading names none, which a search also matches. */
+  places: readonly string[]
+}
+
+/** The menu's headings, in its order. One with no list is not shown. */
+export const PRESET_REGIONS: readonly PresetRegion[] = manifest.regions.map((region) => ({
+  name: region.name,
+  places: region.places ?? [],
+}))
+
+/** Every list, in the manifest's order, which is the order its region shows them in. */
+export const PRESET_LISTS: readonly PresetList[] = manifest.lists.map((list) => ({
+  id: list.id,
+  name: list.name,
+  description: list.description,
+  region: list.region,
+  peaks: list.peaks,
+  url: files[`../coordinate-lists/${list.file}`],
+}))
 
 // Every list that has arrived this session, by URL, so the field can tell a
 // box that holds one from a box that holds the reader's own rows.
