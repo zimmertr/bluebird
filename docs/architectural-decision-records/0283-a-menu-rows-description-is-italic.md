@@ -3,7 +3,7 @@
 - Status: Accepted. Supersedes [0281](0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md) in part (the description under the field after a pick, and a description set at the micro step in the mid ink)
 - Date: 2026-11-11
 - Decider: the maintainer (TJ), on issue #848
-- Issues and PRs: #848
+- Issues and PRs: #848, #895
 - Cited in code as: record 0283
 - Guide: [`docs/STYLES.md`](../STYLES.md), the `MENU` and `MENU_BROWSE` rows and the enforcement table; [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `DestinationsSection.tsx` bullet
 
