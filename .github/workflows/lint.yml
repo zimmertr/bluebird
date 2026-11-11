@@ -1,7 +1,7 @@
 name: Lint
 
 # yggdrasil's lint module: actionlint and zizmor's pedantic audits over the
-# workflows, actions and dependabot.yml, and Semgrep's rule that every
+# workflows and actions, and Semgrep's rule that every
 # Dockerfile FROM carries a digest. It replaces this repo's own tests of those
 # rules. Decision record 0279.
 #
