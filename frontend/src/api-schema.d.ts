@@ -256,7 +256,7 @@ export interface paths {
         };
         /**
          * Report the running build
-         * @description Answers what release is actually live, without cross-referencing the GitHub release, the Docker Hub tag, and the manifests repo. Preview builds report `pr-<number>`. Local and Docker Compose builds report `dev` for every field, because nothing baked a real identity in.
+         * @description Answers what release is actually live, without cross-referencing the GitHub release, the image tag, and the manifests repo. Preview builds report `pr-<number>`. Local and Docker Compose builds report `dev` for every field, because nothing baked a real identity in.
          */
         get: operations["version_api_version_get"];
         put?: never;

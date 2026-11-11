@@ -30,7 +30,7 @@ class VersionResponse(BaseModel):
     summary="Report the running build",
     description=(
         "Answers what release is actually live, without cross-referencing the "
-        "GitHub release, the Docker Hub tag, and the manifests repo. Preview "
+        "GitHub release, the image tag, and the manifests repo. Preview "
         "builds report `pr-<number>`. Local and Docker Compose builds report "
         "`dev` for every field, because nothing baked a real identity in."
     ),

@@ -1,6 +1,6 @@
 # 0278. The release runs on yggdrasil's release module, scanning by immutable tag
 
-- Status: Accepted; supersedes 0105 in part
+- Status: Accepted; supersedes 0105 in part; superseded in part by 0280
 - Date: 2026-11-06
 - Decider: the maintainer (TJ), 2026-11-06, in zimmertr/yggdrasil#6: "Sounds good to me, lets begin", then "Yes! Delete Delete Delete!" on step 4.2, and turning on immutable tags for `zimmertr/bluebird-fill` the same day
 - Issues and PRs: zimmertr/yggdrasil#6 (step 4.3), this PR

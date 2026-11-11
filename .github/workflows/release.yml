@@ -5,12 +5,13 @@ name: Release
 # linux/amd64 and linux/arm64, pushed under that version and scanned on each
 # platform; the commit is tagged and released only when every scan passes;
 # then two self-merging PRs point Kubernetes-Manifests and bluebird-helm at
-# the release. Decision record 0278.
+# the release. Decision records 0278 and 0280.
 #
 # A release that fails part way is finished with "Re-run failed jobs", never
-# "Re-run all jobs": the pushed images are immutable, so pushing them again
-# fails. Don't re-run an old release after a newer one shipped: its bump PRs
-# would point production back at the older version. Release again instead.
+# "Re-run all jobs": GHCR lets a tag be pushed again, so a full re-run would
+# replace the images already scanned with a new build. Don't re-run an old
+# release after a newer one shipped: its bump PRs would point production back
+# at the older version. Release again instead.
 on:
   push:
     branches: [main]
@@ -27,9 +28,10 @@ permissions: {}
 jobs:
   release:
     name: Release
-    uses: zimmertr/yggdrasil/.github/workflows/release.yml@d8443185af7a5e3b4b197b8ee167533d79c816c5 # v0.14.0
+    uses: zimmertr/yggdrasil/.github/workflows/release.yml@667ac9372b2be9ed09b67c2da14f6fbd93e2b1b3 # v1.0.0
     permissions:
       contents: write # the tag and release
+      packages: write # the two images, pushed to ghcr.io/zimmertr
     with:
       # amd64 for the cluster, arm64 for Apple Silicon and Graviton pulls. The
       # planet fill (#760) is released beside the app at the same version,
@@ -47,10 +49,15 @@ jobs:
       # chart bump's `chore(release):` title is what makes bluebird-helm
       # release a patch, and it runs after the GitHub release because
       # bluebird-helm's own release reads appVersion from this repo's Latest.
+      # The Kustomization's images entry is named for the image the chart
+      # renders, and pins the digest beside the tag, so production runs the
+      # bytes the scan read (record 0280).
       deploys: >-
         [{"repo": "zimmertr/Kubernetes-Manifests",
           "file": "public/bluebird/kustomization.yml",
-          "set": "(.images[] | select(.name == \"zimmertr/bluebird\")).newTag",
+          "set": "(.images[] | select(.name == \"ghcr.io/zimmertr/bluebird\")).newTag",
+          "image": "ghcr.io/zimmertr/bluebird",
+          "digest-set": "(.images[] | select(.name == \"ghcr.io/zimmertr/bluebird\")).digest",
           "branch": "chore/bluebird-image",
           "title": "chore: bump bluebird image"},
          {"repo": "zimmertr/bluebird-helm",
@@ -59,8 +66,6 @@ jobs:
           "branch": "chore/bump-appversion",
           "title": "chore(release): bump chart appVersion"}]
     secrets:
-      dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-      dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
       # Contents and pull-requests write on Kubernetes-Manifests and
       # bluebird-helm. A PAT, not GITHUB_TOKEN, because a merge made with
       # GITHUB_TOKEN would not start bluebird-helm's release.

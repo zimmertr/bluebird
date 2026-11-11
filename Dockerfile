@@ -80,7 +80,7 @@ COPY --from=frontend-builder \
   /app/frontend/node_modules/swagger-ui-dist/NOTICE \
   ./static/swagger-ui/
 # The license this image is offered under, beside the code it covers. The
-# image is published on Docker Hub, so a copy of it is a copy of the software.
+# image is published on GHCR, so a copy of it is a copy of the software.
 COPY LICENSE ./LICENSE
 # The Python half of the notice file the frontend build began: one block per
 # installed distribution, read from what pip actually installed. It follows
