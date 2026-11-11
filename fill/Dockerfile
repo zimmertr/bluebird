@@ -9,7 +9,7 @@
 # Debian packages osmium-tool and pyosmium, so nothing here is compiled. The
 # base is pinned by digest as well as tag for the reason the app's Dockerfile
 # gives: the tag says which release this is, the digest which build of it.
-FROM debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS runtime
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS runtime
 
 LABEL org.opencontainers.image.title="Bluebird Forecast planet fill" \
       org.opencontainers.image.description="Builds Bluebird Forecast's places table from the OpenStreetMap planet file" \
@@ -21,7 +21,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 # Unpinned (DL3008) for the reason the app floats pip: a pin sits outside
-# Dependabot's view and goes stale, and trixie moves these packages only for
+# Renovate's view and goes stale, and trixie moves these packages only for
 # security and serious bugs. The upgrade takes the security archive's fixes to
 # packages the base image already holds. CI builds this image with no layer
 # cache, so every release installs what Debian publishes that day.

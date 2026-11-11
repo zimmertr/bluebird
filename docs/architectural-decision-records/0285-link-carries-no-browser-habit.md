@@ -1,4 +1,4 @@
-# 0284. A share link carries no browser habit, names a ready-made list, and keeps the camera's angle
+# 0285. A share link carries no browser habit, names a ready-made list, and keeps the camera's angle
 
 - Status: Accepted. Amends [0016](0016-overlays-not-knobs.md) (the forecast player's switch is kept in the browser, not the link), [0250](0250-layers-palette-and-base-map-opacity.md) (so are the four opacity levels), [0255](0255-chart-metrics-as-panels.md) (so is the panels' layout), [0065](0065-link-carries-camera-removals-order.md) (the camera carries its bearing and pitch) and [0263](0263-coordinate-search-loads-preset-lists.md) (a link names a picked list)
 - Date: 2026-11-04

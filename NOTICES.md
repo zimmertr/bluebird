@@ -136,7 +136,7 @@ the build writes it from what it actually bundled and installed, and fails when
 a package has no license text to copy. Swagger UI's own `LICENSE`, `NOTICE`
 and `swagger-ui-bundle.js.LICENSE.txt` ship beside it under `/swagger-ui/`.
 
-Versions are deliberately absent here: Dependabot moves them weekly, and
+Versions are deliberately absent here: Renovate moves them most weeks, and
 licenses change close to never. The exact versions inside any release are in
 that file, and in the SBOM attestation on its image:
 

@@ -1,6 +1,6 @@
 # 0016. A map overlay is never a knob
 
-- Status: Accepted, amended by 0237 (the grid row greys before any report and over a ranking with nothing to paint) and by [0284](0284-link-carries-no-browser-habit.md) (the forecast player's switch is kept in the browser, not the link).
+- Status: Accepted, amended by 0237 (the grid row greys before any report and over a ranking with nothing to paint) and by [0285](0285-link-carries-no-browser-habit.md) (the forecast player's switch is kept in the browser, not the link).
 - Date: 2026-08-04 (git: the merge of #245)
 - Decider: TJ (git: author and merger of #245)
 - Issues and PRs: #121, #123, #245, #246, #248, #249, #295, #334
