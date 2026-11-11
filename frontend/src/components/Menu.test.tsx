@@ -648,8 +648,7 @@ describe('MenuBrowse', () => {
     expect(onChange).toHaveBeenCalledOnce()
   })
 
-  // The four Washington lists, before the rest arrive: a lone heading over
-  // rows a reader would have to open every time.
+  // A lone heading over rows a reader would have to open every time.
   it('opens the only group there is', async () => {
     const { user } = render(
       <MenuBrowse

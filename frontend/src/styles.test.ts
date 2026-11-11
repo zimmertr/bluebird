@@ -5355,13 +5355,31 @@ describe('the browsing menu', () => {
   })
 
   // A count stands inside a row that is pressed, so it keeps the 12px floor
-  // (record 0131); a description is read and never pressed, and takes 11.
+  // (record 0131).
   it('sets nothing a press lands on under the control size', () => {
     for (const recipe of [MENU_BROWSE.region, MENU_BROWSE.pick, MENU_BROWSE.count, MENU_BROWSE.other]) {
       expect(sizes(recipe), recipe).toEqual(sizes(TEXT.control))
     }
-    expect(sizes(MENU_BROWSE.description)).toEqual(sizes(TEXT.micro))
     expect(MENU_BROWSE.count).toMatch(/\btabular-nums\b/)
+  })
+
+  // The sentence under a row's name is one role in every menu (record 0283):
+  // italic at the 11px step in the caption's soft ink, so a model's summary
+  // and a list's description read alike and neither reads as a second name.
+  // Each menu's row role starts from it, and neither sets the sentence in a
+  // weight of its own. 11px is the floor for a line that is read and never
+  // pressed (record 0131), and the soft ink is measured on the card it
+  // stands on in both themes.
+  it('sets a row\'s sentence in the one italic every menu shares', () => {
+    expect(MENU.description.split(' ').sort()).toEqual([MICRO_SIZE, 'italic', 'text-ink-soft'].sort())
+    expect(MODEL_ROW.description).toBe(MENU.description)
+    expect(MENU_BROWSE.description.startsWith(`${MENU.description} `)).toBe(true)
+    for (const recipe of [MODEL_ROW.description, MENU_BROWSE.description]) {
+      expect(recipe, recipe).not.toMatch(/(^|\s)font-(medium|semibold|bold)(\s|$)/)
+      expect(sizes(recipe), recipe).toEqual([MICRO_SIZE])
+    }
+    expect(ratio(dark(token(MENU.description, 'text')), dark('floating'))).toBe(5.56)
+    expect(ratio(light(token(MENU.description, 'text')), light('floating'))).toBe(8.91)
   })
 
   // The search box is the panel's field at the Coordinate list field's own

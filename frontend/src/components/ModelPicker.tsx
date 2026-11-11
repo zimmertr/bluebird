@@ -589,7 +589,7 @@ export default function ModelPicker({
                   </span>
                 </div>
                 {model.summary !== '' && (
-                  <p className={TEXT.helper}>{model.summary}</p>
+                  <p className={MODEL_ROW.description}>{model.summary}</p>
                 )}
                 </div>
               </div>

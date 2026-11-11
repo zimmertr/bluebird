@@ -1,66 +1,48 @@
-"""Check a generated CSV against the parsed list it came from. Exits non-zero on any problem.
+"""Check a written list against the roster it came from and against its manifest entry.
 
-Usage: python3 verify_csv.py <lid> <csvfile> [--bbox LAT_MIN LAT_MAX LON_MIN LON_MAX]
-
-The file is rows only: its name is the menu's string, so a comment line is a problem.
-
-Cross-checks every row against peaks<lid>.json rather than only checking the file's shape,
-so a coordinate attached to the wrong peak or a dropped row is caught. Elevation is not in
-the CSV (Bluebird Forecast resolves it from OSM), so ordering is checked against the list page.
+`presetLists.test.ts` holds the manifest to the CSVs in CI. This check runs before that, with
+the one thing CI never sees: the roster. So it catches a coordinate bound to the wrong peak
+and a dropped row, which a count alone lets through.
 """
-import json, re, sys
+import re
 
 ROW = re.compile(r'^(-?\d+\.\d{6}), (-?\d+\.\d{6}), (.+)$')
+SLUG = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
 
-lid, csvfile = sys.argv[1], sys.argv[2]
-bbox = None
-if '--bbox' in sys.argv:
-    i = sys.argv.index('--bbox')
-    bbox = [float(x) for x in sys.argv[i + 1:i + 5]]
 
-peaks = json.load(open(f'peaks{lid}.json'))['peaks']
-lines = open(csvfile, encoding='utf-8').read().splitlines()
-head = [l for l in lines if l.startswith('#')]
-data = [l for l in lines if l and not l.startswith('#')]
-problems = []
+def verify(entry, csv_path, roster, regions, bbox=None):
+    """Return every problem found, as sentences. An empty list passes."""
+    problems = []
+    lines = open(csv_path, encoding='utf-8').read().split('\n')
+    if lines[-1:] != ['']:
+        problems.append('the file does not end in a newline')
+    data = lines[:-1] if lines[-1:] == [''] else lines
+    peaks = roster['peaks']
 
-if head:
-    problems.append(f'expected no comment line (the name is the file name), found {len(head)}')
-if len(data) != len(peaks):
-    problems.append(f'expected {len(peaks)} data rows, found {len(data)}')
+    if not SLUG.match(entry['id']):
+        problems.append(f'id {entry["id"]!r} is not a slug')
+    if entry['file'] != f'{entry["id"]}.csv':
+        problems.append(f'file {entry["file"]!r} is not the id and .csv')
+    if entry['region'] not in regions:
+        problems.append(f'region {entry["region"]!r} is not one of the manifest\'s regions')
+    if entry['peaks'] != len(data):
+        problems.append(f'the entry says {entry["peaks"]} peaks and the file holds {len(data)} rows')
+    if len(data) != len(peaks):
+        problems.append(f'the roster holds {len(peaks)} peaks and the file holds {len(data)} rows')
 
-seen_coords = {}
-for n, line in enumerate(data, 1):
-    m = ROW.match(line)
-    if not m:
-        problems.append(f'row {n}: malformed -> {line!r}')
-        continue
-    lat, lon, name = m.group(1), m.group(2), m.group(3)
-
-    if n <= len(peaks):
-        want = peaks[n - 1]
-        if name != want['name']:
-            problems.append(f'row {n}: name {name!r} != list {want["name"]!r}')
-    if bbox and not (bbox[0] <= float(lat) <= bbox[1] and bbox[2] <= float(lon) <= bbox[3]):
-        problems.append(f'row {n} ({name}): {lat},{lon} outside expected bbox')
-    # Two peaks sharing an exact 6-decimal fix means a page was misparsed or misattributed.
-    key = (lat, lon)
-    if key in seen_coords:
-        problems.append(f'row {n} ({name}): duplicate coordinate of row {seen_coords[key]}')
-    seen_coords[key] = n
-
-# Rows are positional mirrors of the list, and every name is checked against its
-# position above, so the list's own elevations answer for the CSV's ordering.
-ev = [int(p['elev'].replace(',', '')) for p in peaks]
-if ev and not all(ev[i] >= ev[i + 1] for i in range(len(ev) - 1)):
-    problems.append('rows are not ordered highest -> lowest by elevation')
-
-if problems:
-    print(f'FAIL {csvfile} — {len(problems)} problem(s):')
-    for p in problems:
-        print('  ' + p)
-    sys.exit(1)
-
-print(f'OK {csvfile}: {len(data)} rows, all names match list {lid}, '
-      f'coords unique, elevation-descending'
-      + (f', all within bbox {bbox}' if bbox else ''))
+    seen = {}
+    for number, line in enumerate(data, 1):
+        row = ROW.match(line)
+        if not row:
+            problems.append(f'row {number}: malformed: {line!r}')
+            continue
+        lat, lon, name = row.groups()
+        if number <= len(peaks) and name != peaks[number - 1]['name']:
+            problems.append(f'row {number}: name {name!r} is not the roster\'s {peaks[number - 1]["name"]!r}')
+        if bbox and not (bbox[0] <= float(lat) <= bbox[1] and bbox[2] <= float(lon) <= bbox[3]):
+            problems.append(f'row {number} ({name}): {lat}, {lon} is outside the list\'s box')
+        # Two peaks on one exact fix means a page was misread or bound to the wrong peak.
+        if (lat, lon) in seen:
+            problems.append(f'row {number} ({name}): the same coordinate as row {seen[(lat, lon)]}')
+        seen[(lat, lon)] = number
+    return problems

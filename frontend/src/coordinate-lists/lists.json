@@ -14,6 +14,81 @@
   ],
   "lists": [
     {
+      "id": "us-state-high-points",
+      "name": "US State High Points",
+      "description": "The highest point of each of the fifty states.",
+      "region": "Nationwide",
+      "file": "us-state-high-points.csv",
+      "peaks": 50,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12003",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12003"
+      },
+      "credit": "The highest point of each state",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "lower-48-ultras",
+      "name": "Lower 48 Ultras",
+      "description": "The 57 peaks in the lower 48 states with at least 1,500 m of prominence.",
+      "region": "Nationwide",
+      "file": "lower-48-ultras.csv",
+      "peaks": 57,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "4904",
+        "url": "https://www.peakbagger.com/list.aspx?lid=4904"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "lower-48-top-100-prominence",
+      "name": "Lower 48 Top 100 by Prominence",
+      "description": "The hundred most prominent peaks in the lower 48 states.",
+      "region": "Nationwide",
+      "file": "lower-48-top-100-prominence.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "41204",
+        "url": "https://www.peakbagger.com/list.aspx?lid=41204"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "us-national-park-high-points",
+      "name": "US National Park High Points",
+      "description": "The highest point of each US national park.",
+      "region": "Nationwide",
+      "file": "us-national-park-high-points.csv",
+      "peaks": 63,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "1821",
+        "url": "https://www.peakbagger.com/list.aspx?lid=1821"
+      },
+      "credit": "The highest point of each national park",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "us-14ers",
+      "name": "US 14ers",
+      "description": "Every US summit of 14,000 ft or more with 300 ft of prominence.",
+      "region": "Nationwide",
+      "file": "us-14ers.csv",
+      "peaks": 92,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21200",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21200"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
       "id": "wa-bulger-list",
       "name": "The Bulger List",
       "description": "Washington's hundred highest peaks as the Bulger climbing group chose them in the 1970s.",
@@ -72,6 +147,981 @@
       },
       "credit": "Jeff Howbert",
       "crawled": "2026-07-24"
+    },
+    {
+      "id": "wa-snoqualmie-peak-pin",
+      "name": "Snoqualmie Peak Pin",
+      "description": "The Mountaineers' twenty peaks around Snoqualmie Pass, a pin since the 1910s.",
+      "region": "Washington",
+      "file": "wa-snoqualmie-peak-pin.csv",
+      "peaks": 20,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5035",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5035"
+      },
+      "credit": "The Mountaineers",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-teanaway-twenty",
+      "name": "Teanaway Twenty",
+      "description": "The Mountaineers' twenty peaks of the Teanaway, east of Snoqualmie Pass.",
+      "region": "Washington",
+      "file": "wa-teanaway-twenty.csv",
+      "peaks": 20,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5046",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5046"
+      },
+      "credit": "The Mountaineers",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-county-high-points",
+      "name": "Washington County High Points",
+      "description": "The highest point of each of Washington's 39 counties: 38 summits, since one tops two counties.",
+      "region": "Washington",
+      "file": "wa-county-high-points.csv",
+      "peaks": 38,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "13202",
+        "url": "https://www.peakbagger.com/list.aspx?lid=13202"
+      },
+      "credit": "The highest point of each county",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-fire-lookouts",
+      "name": "Washington Fire Lookouts",
+      "description": "Washington summits with a standing fire lookout, researched by Craig Willis and Eric Noel.",
+      "region": "Washington",
+      "file": "wa-fire-lookouts.csv",
+      "peaks": 93,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5004",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5004"
+      },
+      "credit": "Craig Willis and Eric Noel",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-p2k",
+      "name": "Washington P2K",
+      "description": "Every Washington summit with 2,000 ft or more of prominence.",
+      "region": "Washington",
+      "file": "wa-p2k.csv",
+      "peaks": 146,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "41307",
+        "url": "https://www.peakbagger.com/list.aspx?lid=41307"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-top-100",
+      "name": "Washington Top 100",
+      "description": "Washington's hundred highest summits with 400 ft of prominence.",
+      "region": "Washington",
+      "file": "wa-top-100.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21303",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21303"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-back-court-100",
+      "name": "Wenatchee Back Court",
+      "description": "Jeff Howbert's hundred highest peaks with 400 ft of prominence east of the Home Court, between I-90 and US 2.",
+      "region": "Washington",
+      "file": "wa-back-court-100.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21308",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21308"
+      },
+      "credit": "Jeff Howbert",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-olympic-6500ers",
+      "name": "Olympic 6500ers",
+      "description": "Olympic Mountains summits of 6,500 ft or more with 400 ft of prominence.",
+      "region": "Washington",
+      "file": "wa-olympic-6500ers.csv",
+      "peaks": 52,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21305",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21305"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-top-200",
+      "name": "Washington Top 200",
+      "description": "Washington's two hundred highest summits with 400 ft of prominence.",
+      "region": "Washington",
+      "file": "wa-top-200.csv",
+      "peaks": 200,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "213031",
+        "url": "https://www.peakbagger.com/list.aspx?lid=213031"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-bakers-dozen",
+      "name": "Baker's Dozen",
+      "description": "The Mountaineers' eighteen mostly technical climbs.",
+      "region": "Washington",
+      "file": "wa-bakers-dozen.csv",
+      "peaks": 18,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5036",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5036"
+      },
+      "credit": "The Mountaineers",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-mid-state-milers",
+      "name": "Mid-State Milers",
+      "description": "Mile-high summits with 400 ft of prominence in King and Kittitas counties and Chelan County south of US 2.",
+      "region": "Washington",
+      "file": "wa-mid-state-milers.csv",
+      "peaks": 215,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21309",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21309"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wa-difficult-ten",
+      "name": "Washington Difficult Ten",
+      "description": "Ten hard technical climbs in Washington.",
+      "region": "Washington",
+      "file": "wa-difficult-ten.csv",
+      "peaks": 10,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "50031",
+        "url": "https://www.peakbagger.com/list.aspx?lid=50031"
+      },
+      "credit": "Peakbagger.com",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "cascade-volcanoes-peak-pin",
+      "name": "Cascade Volcanoes Peak Pin",
+      "description": "The Mountaineers Tacoma Branch's twenty Cascade volcanoes, from British Columbia to California.",
+      "region": "Oregon and the Cascades",
+      "file": "cascade-volcanoes-peak-pin.csv",
+      "peaks": 20,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5044",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5044"
+      },
+      "credit": "The Mountaineers, Tacoma Branch",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "mazamas-16-northwest-peaks",
+      "name": "Mazamas 16 Northwest Peaks",
+      "description": "The Mazamas' sixteen major peaks from Mount Shasta to Mount Baker, an award since 1935.",
+      "region": "Oregon and the Cascades",
+      "file": "mazamas-16-northwest-peaks.csv",
+      "peaks": 16,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5063",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5063"
+      },
+      "credit": "The Mazamas",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "or-county-high-points",
+      "name": "Oregon County High Points",
+      "description": "The highest point of each of Oregon's 36 counties: 32 summits, since some top two counties.",
+      "region": "Oregon and the Cascades",
+      "file": "or-county-high-points.csv",
+      "peaks": 32,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "13203",
+        "url": "https://www.peakbagger.com/list.aspx?lid=13203"
+      },
+      "credit": "The highest point of each county",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "or-top-100",
+      "name": "Oregon Top 100",
+      "description": "Oregon's hundred highest summits with 500 ft of prominence.",
+      "region": "Oregon and the Cascades",
+      "file": "or-top-100.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21316",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21316"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "or-9000ers",
+      "name": "Oregon 9000ers",
+      "description": "Oregon summits of 9,000 ft or more with 500 ft of prominence.",
+      "region": "Oregon and the Cascades",
+      "file": "or-9000ers.csv",
+      "peaks": 35,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21315",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21315"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wy-13ers",
+      "name": "Wyoming 13ers",
+      "description": "Wyoming summits of 13,000 ft or more with 300 ft of prominence.",
+      "region": "Northern Rockies",
+      "file": "wy-13ers.csv",
+      "peaks": 35,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21344",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21344"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "mt-glacier-9000ers",
+      "name": "Glacier National Park 9000ers",
+      "description": "Glacier National Park summits of 9,000 ft or more with 400 ft of prominence.",
+      "region": "Northern Rockies",
+      "file": "mt-glacier-9000ers.csv",
+      "peaks": 59,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21342",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21342"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "id-11ers",
+      "name": "Idaho 11ers",
+      "description": "Idaho summits of 11,000 ft or more.",
+      "region": "Northern Rockies",
+      "file": "id-11ers.csv",
+      "peaks": 124,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21330",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21330"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "mt-peakbagging-montana-53",
+      "name": "Peakbagging Montana 53",
+      "description": "The 53 peaks of Cedron Jones's guidebook Peakbagging Montana.",
+      "region": "Northern Rockies",
+      "file": "mt-peakbagging-montana-53.csv",
+      "peaks": 53,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5011",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5011"
+      },
+      "credit": "Cedron Jones, Peakbagging Montana",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "wy-teton-11ers",
+      "name": "Teton 11ers",
+      "description": "Teton Range summits of 11,000 ft or more with 400 ft of prominence.",
+      "region": "Northern Rockies",
+      "file": "wy-teton-11ers.csv",
+      "peaks": 28,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21345",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21345"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ak-chugach-state-park",
+      "name": "Chugach State Park Peaks",
+      "description": "120 peaks of Chugach State Park above Anchorage, listed by Steve Gruhn and kept by the Mountaineering Club of Alaska.",
+      "region": "Alaska",
+      "file": "ak-chugach-state-park.csv",
+      "peaks": 120,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5021",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5021"
+      },
+      "credit": "Steve Gruhn and the Mountaineering Club of Alaska",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ak-ultras",
+      "name": "Alaska Ultras",
+      "description": "Alaska's 65 peaks with 1,500 m of prominence.",
+      "region": "Alaska",
+      "file": "ak-ultras.csv",
+      "peaks": 65,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "4901",
+        "url": "https://www.peakbagger.com/list.aspx?lid=4901"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-sierra-peaks-section",
+      "name": "Sierra Peaks Section",
+      "description": "The Sierra Club's list of 247 Sierra Nevada peaks.",
+      "region": "California",
+      "file": "ca-sierra-peaks-section.csv",
+      "peaks": 247,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5051",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5051"
+      },
+      "credit": "The Sierra Club's Sierra Peaks Section",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-14ers-ranked",
+      "name": "California 14ers",
+      "description": "Every California summit of 14,000 ft or more with 300 ft of prominence.",
+      "region": "California",
+      "file": "ca-14ers-ranked.csv",
+      "peaks": 12,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21319",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21319"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-14ers-porcella-burns",
+      "name": "California 14ers - Porcella & Burns",
+      "description": "The California 14ers as Porcella and Burns count them: the ranked twelve plus Starlight, Polemonium and Thunderbolt.",
+      "region": "California",
+      "file": "ca-14ers-porcella-burns.csv",
+      "peaks": 15,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "50081",
+        "url": "https://www.peakbagger.com/list.aspx?lid=50081"
+      },
+      "credit": "Stephen Porcella and Cameron Burns, Climbing California's Fourteeners",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-hundred-peaks-section",
+      "name": "Hundred Peaks Section",
+      "description": "The Sierra Club's 280 Southern California peaks over 5,000 ft.",
+      "region": "California",
+      "file": "ca-hundred-peaks-section.csv",
+      "peaks": 280,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5052",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5052"
+      },
+      "credit": "The Sierra Club's Hundred Peaks Section",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-sps-emblem-peaks",
+      "name": "SPS Emblem Peaks",
+      "description": "The fifteen emblem peaks of the Sierra Peaks Section.",
+      "region": "California",
+      "file": "ca-sps-emblem-peaks.csv",
+      "peaks": 15,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "50511",
+        "url": "https://www.peakbagger.com/list.aspx?lid=50511"
+      },
+      "credit": "The Sierra Club's Sierra Peaks Section",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-nifty-ninety",
+      "name": "Bay Area Nifty Ninety",
+      "description": "The Sierra Club San Francisco Bay Chapter's ninety Bay Area peaks.",
+      "region": "California",
+      "file": "ca-nifty-ninety.csv",
+      "peaks": 90,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5059",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5059"
+      },
+      "credit": "The Sierra Club's San Francisco Bay Chapter",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-county-high-points",
+      "name": "California County High Points",
+      "description": "The highest point of each of California's 58 counties: 56 summits, since some top two counties.",
+      "region": "California",
+      "file": "ca-county-high-points.csv",
+      "peaks": 56,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "13204",
+        "url": "https://www.peakbagger.com/list.aspx?lid=13204"
+      },
+      "credit": "The highest point of each county",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-desert-peaks-section",
+      "name": "Desert Peaks Section",
+      "description": "The Sierra Club's 95 desert peaks in California, Nevada, Arizona and Mexico.",
+      "region": "California",
+      "file": "ca-desert-peaks-section.csv",
+      "peaks": 95,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5053",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5053"
+      },
+      "credit": "The Sierra Club's Desert Peaks Section",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-san-diego-100",
+      "name": "San Diego 100 Peaks",
+      "description": "The Sierra Club San Diego Chapter's hundred peaks of San Diego County.",
+      "region": "California",
+      "file": "ca-san-diego-100.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5058",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5058"
+      },
+      "credit": "The Sierra Club's San Diego Chapter",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-tahoe-ogul",
+      "name": "Tahoe Ogul",
+      "description": "63 peaks around Lake Tahoe, first listed by the Sierra Club's Mother Lode Chapter.",
+      "region": "California",
+      "file": "ca-tahoe-ogul.csv",
+      "peaks": 63,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5055",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5055"
+      },
+      "credit": "The Sierra Club's Mother Lode Chapter",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ca-13ers",
+      "name": "California 13ers",
+      "description": "California summits of 13,000 ft or more.",
+      "region": "California",
+      "file": "ca-13ers.csv",
+      "peaks": 154,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21321",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21321"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "co-14ers-ranked",
+      "name": "Colorado 14ers",
+      "description": "Every Colorado summit of 14,000 ft or more with 300 ft of prominence.",
+      "region": "Colorado",
+      "file": "co-14ers-ranked.csv",
+      "peaks": 53,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21360",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21360"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "co-14ers-14erscom",
+      "name": "Colorado 14ers - 14ers.com",
+      "description": "The Colorado 14ers as 14ers.com counts them: the ranked 53 plus five named summits that lack the prominence.",
+      "region": "Colorado",
+      "file": "co-14ers-14erscom.csv",
+      "peaks": 58,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "50080",
+        "url": "https://www.peakbagger.com/list.aspx?lid=50080"
+      },
+      "credit": "14ers.com",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "co-13ers",
+      "name": "Colorado 13ers",
+      "description": "Every Colorado summit of 13,000 ft or more with 300 ft of prominence.",
+      "region": "Colorado",
+      "file": "co-13ers.csv",
+      "peaks": 629,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21364",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21364"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "co-centennials",
+      "name": "Colorado Centennials",
+      "description": "Colorado's hundred highest ranked summits, with the ties at the cutoff.",
+      "region": "Colorado",
+      "file": "co-centennials.csv",
+      "peaks": 106,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21363",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21363"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "co-county-high-points",
+      "name": "Colorado County High Points",
+      "description": "The highest point of each of Colorado's 64 counties: 60 summits, since some top two counties.",
+      "region": "Colorado",
+      "file": "co-county-high-points.csv",
+      "peaks": 60,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "13210",
+        "url": "https://www.peakbagger.com/list.aspx?lid=13210"
+      },
+      "credit": "The highest point of each county",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "az-20-20",
+      "name": "Arizona 20-20",
+      "description": "Arizona's twenty highest peaks that can legally be climbed.",
+      "region": "Southwest",
+      "file": "az-20-20.csv",
+      "peaks": 20,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5015",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5015"
+      },
+      "credit": "The Arizona Office of Tourism",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "az-county-high-points",
+      "name": "Arizona County High Points",
+      "description": "The highest point of each of Arizona's 15 counties.",
+      "region": "Southwest",
+      "file": "az-county-high-points.csv",
+      "peaks": 15,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "13211",
+        "url": "https://www.peakbagger.com/list.aspx?lid=13211"
+      },
+      "credit": "The highest point of each county",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "nv-lvmc-classic-50",
+      "name": "Las Vegas Mountaineers Classic 50",
+      "description": "The Las Vegas Mountaineers Club's fifty classic peaks in Nevada, California, Utah and Arizona.",
+      "region": "Southwest",
+      "file": "nv-lvmc-classic-50.csv",
+      "peaks": 50,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "50061",
+        "url": "https://www.peakbagger.com/list.aspx?lid=50061"
+      },
+      "credit": "The Las Vegas Mountaineers Club",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "nv-county-high-points",
+      "name": "Nevada County High Points",
+      "description": "The highest point of each of Nevada's 17 counties.",
+      "region": "Southwest",
+      "file": "nv-county-high-points.csv",
+      "peaks": 17,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "13205",
+        "url": "https://www.peakbagger.com/list.aspx?lid=13205"
+      },
+      "credit": "The highest point of each county",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "nm-12ers",
+      "name": "New Mexico 12ers",
+      "description": "New Mexico summits of 12,000 ft or more with 300 ft of prominence.",
+      "region": "Southwest",
+      "file": "nm-12ers.csv",
+      "peaks": 35,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21378",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21378"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ut-13ers",
+      "name": "Utah 13ers",
+      "description": "Utah summits of 13,000 ft or more.",
+      "region": "Southwest",
+      "file": "ut-13ers.csv",
+      "peaks": 19,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21349",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21349"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ut-county-high-points",
+      "name": "Utah County High Points",
+      "description": "The highest point of each of Utah's 29 counties: 26 summits, since some top two counties.",
+      "region": "Southwest",
+      "file": "ut-county-high-points.csv",
+      "peaks": 26,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "13209",
+        "url": "https://www.peakbagger.com/list.aspx?lid=13209"
+      },
+      "credit": "The highest point of each county",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "az-p2k",
+      "name": "Arizona P2K",
+      "description": "Every Arizona summit with 2,000 ft or more of prominence.",
+      "region": "Southwest",
+      "file": "az-p2k.csv",
+      "peaks": 73,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "41325",
+        "url": "https://www.peakbagger.com/list.aspx?lid=41325"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "nv-11ers",
+      "name": "Nevada 11ers",
+      "description": "Nevada summits of 11,000 ft or more.",
+      "region": "Southwest",
+      "file": "nv-11ers.csv",
+      "peaks": 61,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21324",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21324"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "nv-p2k",
+      "name": "Nevada P2K",
+      "description": "Every Nevada summit with 2,000 ft or more of prominence.",
+      "region": "Southwest",
+      "file": "nv-p2k.csv",
+      "peaks": 171,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "41313",
+        "url": "https://www.peakbagger.com/list.aspx?lid=41313"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "nm-county-high-points",
+      "name": "New Mexico County High Points",
+      "description": "The highest point of each of New Mexico's 33 counties: 31 summits, since some top two counties.",
+      "region": "Southwest",
+      "file": "nm-county-high-points.csv",
+      "peaks": 31,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "13212",
+        "url": "https://www.peakbagger.com/list.aspx?lid=13212"
+      },
+      "credit": "The highest point of each county",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "tx-7000ers",
+      "name": "Texas 7000ers",
+      "description": "Texas summits of 7,000 ft or more.",
+      "region": "Southwest",
+      "file": "tx-7000ers.csv",
+      "peaks": 38,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21385",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21385"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ny-adirondack-46",
+      "name": "Adirondack 46",
+      "description": "The Adirondack Forty-Sixers' 46 High Peaks, a set since the 1920s.",
+      "region": "Northeast",
+      "file": "ny-adirondack-46.csv",
+      "peaks": 46,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5120",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5120"
+      },
+      "credit": "The Adirondack Forty-Sixers",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "nh-4000-footers",
+      "name": "New Hampshire 4000-Footers",
+      "description": "The Appalachian Mountain Club's 48 New Hampshire summits of 4,000 ft with 200 ft of rise.",
+      "region": "Northeast",
+      "file": "nh-4000-footers.csv",
+      "peaks": 48,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5167",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5167"
+      },
+      "credit": "The Appalachian Mountain Club",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ny-catskill-3500",
+      "name": "Catskill 3500",
+      "description": "The Catskill 3500 Club's 33 summits of 3,500 ft or more.",
+      "region": "Northeast",
+      "file": "ny-catskill-3500.csv",
+      "peaks": 33,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5130",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5130"
+      },
+      "credit": "The Catskill 3500 Club",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ne-4000-footers",
+      "name": "New England 4000-Footers",
+      "description": "The Appalachian Mountain Club's 67 summits of 4,000 ft in New Hampshire, Maine and Vermont.",
+      "region": "Northeast",
+      "file": "ne-4000-footers.csv",
+      "peaks": 67,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5163",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5163"
+      },
+      "credit": "The Appalachian Mountain Club",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ne-hundred-highest",
+      "name": "New England Hundred Highest",
+      "description": "The Appalachian Mountain Club's hundred highest New England summits.",
+      "region": "Northeast",
+      "file": "ne-hundred-highest.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5165",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5165"
+      },
+      "credit": "The Appalachian Mountain Club",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "nh-52-with-a-view",
+      "name": "New Hampshire 52 With a View",
+      "description": "52 New Hampshire peaks under 4,000 ft chosen for their views by the Over the Hill Hikers.",
+      "region": "Northeast",
+      "file": "nh-52-with-a-view.csv",
+      "peaks": 52,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5170",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5170"
+      },
+      "credit": "The Over the Hill Hikers",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ne-115",
+      "name": "Northeast 115",
+      "description": "The Northeast's 4,000-ft summits.",
+      "region": "Northeast",
+      "file": "ne-115.csv",
+      "peaks": 115,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "511",
+        "url": "https://www.peakbagger.com/list.aspx?lid=511"
+      },
+      "credit": "The Appalachian Mountain Club",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ny-fire-tower-challenge",
+      "name": "Fire Tower Challenge",
+      "description": "Adirondack and Catskill summits with a fire tower, from the Adirondack Mountain Club's challenge.",
+      "region": "Northeast",
+      "file": "ny-fire-tower-challenge.csv",
+      "peaks": 31,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5122",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5122"
+      },
+      "credit": "The Adirondack Mountain Club",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ne-fifty-finest",
+      "name": "New England Fifty Finest",
+      "description": "New England's fifty most prominent peaks.",
+      "region": "Northeast",
+      "file": "ne-fifty-finest.csv",
+      "peaks": 50,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "414071",
+        "url": "https://www.peakbagger.com/list.aspx?lid=414071"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "nc-south-beyond-6000",
+      "name": "South Beyond 6000",
+      "description": "Forty peaks of 6,000 ft in North Carolina and Tennessee, kept by the Carolina Mountain Club.",
+      "region": "Southeast",
+      "file": "nc-south-beyond-6000.csv",
+      "peaks": 40,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5180",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5180"
+      },
+      "credit": "The Carolina Mountain Club",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "nc-lookout-tower-challenge",
+      "name": "Carolina Lookout Tower Challenge",
+      "description": "The Carolina Mountain Club's 22 fire lookout towers in North Carolina.",
+      "region": "Southeast",
+      "file": "nc-lookout-tower-challenge.csv",
+      "peaks": 22,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5183",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5183"
+      },
+      "credit": "The Carolina Mountain Club",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "ga-4000",
+      "name": "Georgia 4000",
+      "description": "The Georgia Appalachian Trail Club's 32 Georgia summits of 4,000 ft.",
+      "region": "Southeast",
+      "file": "ga-4000.csv",
+      "peaks": 32,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5188",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5188"
+      },
+      "credit": "The Georgia Appalachian Trail Club",
+      "crawled": "2026-11-11"
+    },
+    {
+      "id": "tn-4500",
+      "name": "Tennessee 4500",
+      "description": "Tennessee summits of 4,500 ft or more.",
+      "region": "Southeast",
+      "file": "tn-4500.csv",
+      "peaks": 55,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21457",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21457"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-11"
     }
   ]
 }

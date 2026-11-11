@@ -108,13 +108,23 @@ these providers.
   `frontend/tools/us-states/build.sh` and served by the pod. A work of the US
   government, and so in the public domain under 17 U.S.C. §105.
 
-- [Peakbagger.com](https://www.peakbagger.com/): the four peak lists Coordinate
+- [Peakbagger.com](https://www.peakbagger.com/): the peak lists Coordinate
   search loads, in `frontend/src/coordinate-lists/`. Each list's membership, order
-  and coordinates come from its peakbagger.com list and peak pages; the lists
-  themselves are the Bulger group's, The Mountaineers', Jeff Smoot's
-  (*Climbing Washington's Mountains*) and the Alpine Lakes "Home Court" list's.
-  `lists.json` in that directory names each list's page there, who chose its
-  peaks and the day its rows were read.
+  and coordinates come from its peakbagger.com list and peak pages. Many of the
+  lists are a club's or an author's own: the Bulger group's, The Mountaineers',
+  Jeff Smoot's (*Climbing Washington's Mountains*), Jeff Howbert's, Craig Willis
+  and Eric Noel's, the Mazamas', Cedron Jones's (*Peakbagging Montana*), Steve
+  Gruhn's and the Mountaineering Club of Alaska's, the Sierra Club's (its Sierra
+  Peaks, Hundred Peaks and Desert Peaks sections and its San Francisco Bay, San
+  Diego and Mother Lode chapters), Stephen Porcella and Cameron Burns's
+  (*Climbing California's Fourteeners*), 14ers.com's, the Arizona Office of
+  Tourism's, the Las Vegas Mountaineers Club's, the Adirondack Forty-Sixers',
+  the Appalachian Mountain Club's, the Catskill 3500 Club's, the Over the Hill
+  Hikers', the Adirondack Mountain Club's, the Carolina Mountain Club's and the
+  Georgia Appalachian Trail Club's. The rest are peakbagger.com's own rankings
+  by elevation or prominence, or the highest point of each state, county or
+  national park. `lists.json` in that directory names each list's page there,
+  who chose its peaks and the day its rows were read.
 
 ## Software
 

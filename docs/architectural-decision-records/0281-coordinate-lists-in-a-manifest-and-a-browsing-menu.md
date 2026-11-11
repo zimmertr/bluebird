@@ -1,6 +1,6 @@
 # 0281. The coordinate lists are described by a manifest, and their menu is searched and browsed
 
-- Status: Accepted. Supersedes [0263](0263-coordinate-search-loads-preset-lists.md) in part (the directory as the list, file names as menu strings, and the flat alphabetical menu)
+- Status: Accepted. Supersedes [0263](0263-coordinate-search-loads-preset-lists.md) in part (the directory as the list, file names as menu strings, and the flat alphabetical menu). Superseded in part by [0283](0283-a-menu-rows-description-is-italic.md) (the description under the field, and the description's type)
 - Date: 2026-11-05
 - Decider: the maintainer (TJ), on issue #848, 2026-11-04 to 2026-11-05
 - Issues and PRs: #848, #893, #838, #864
