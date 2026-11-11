@@ -1,0 +1,77 @@
+{
+  "$schema": "./lists.schema.json",
+  "regions": [
+    { "name": "Nationwide" },
+    { "name": "Washington" },
+    { "name": "Oregon and the Cascades" },
+    { "name": "Northern Rockies", "places": ["Idaho", "Montana", "Wyoming"] },
+    { "name": "Alaska" },
+    { "name": "California" },
+    { "name": "Colorado" },
+    { "name": "Southwest", "places": ["Arizona", "Nevada", "New Mexico", "Texas", "Utah"] },
+    { "name": "Northeast", "places": ["Maine", "New Hampshire", "New York", "Vermont"] },
+    { "name": "Southeast", "places": ["Georgia", "North Carolina", "Tennessee"] }
+  ],
+  "lists": [
+    {
+      "id": "wa-bulger-list",
+      "name": "The Bulger List",
+      "description": "Washington's hundred highest peaks as the Bulger climbing group chose them in the 1970s.",
+      "region": "Washington",
+      "file": "wa-bulger-list.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5003",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5003"
+      },
+      "credit": "The Bulger climbing group",
+      "crawled": "2026-07-23"
+    },
+    {
+      "id": "wa-mountaineers-rainier-100",
+      "name": "Mountaineers 100 Peaks at Mount Rainier",
+      "description": "The Mountaineers' hundred peaks in and around Mount Rainier National Park.",
+      "region": "Washington",
+      "file": "wa-mountaineers-rainier-100.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5045",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5045"
+      },
+      "credit": "The Mountaineers",
+      "crawled": "2026-07-24"
+    },
+    {
+      "id": "wa-smoots-100",
+      "name": "Smoot's 100 Peaks",
+      "description": "The hundred peaks of Jeff Smoot's guidebook - Climbing Washington's Mountains.",
+      "region": "Washington",
+      "file": "wa-smoots-100.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5005",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5005"
+      },
+      "credit": "Jeff Smoot, Climbing Washington's Mountains",
+      "crawled": "2026-07-24"
+    },
+    {
+      "id": "wa-home-court-100",
+      "name": "Alpine Lakes Home Court Top 100",
+      "description": "Jeff Howbert's hundred highest peaks with 500 ft of prominence in the Alpine Lakes, between I-90 and US 2.",
+      "region": "Washington",
+      "file": "wa-home-court-100.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21307",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21307"
+      },
+      "credit": "Jeff Howbert",
+      "crawled": "2026-07-24"
+    }
+  ]
+}

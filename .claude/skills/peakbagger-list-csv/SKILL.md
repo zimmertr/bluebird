@@ -5,15 +5,21 @@ description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast 
 
 # Peakbagger list → Bluebird Forecast CSV
 
+> **Stale since #848's first PR, and not yet reworked.** The lists are now described by
+> `frontend/src/coordinate-lists/lists.json` (record 0281): each CSV is named by its list's id, a
+> slug such as `wa-bulger-list.csv`, and the menu reads names from the manifest. This skill still
+> writes a file named as the menu reads it and no manifest entry, which fails
+> `presetLists.test.ts`. Do not crawl with it until #848's second PR reworks it.
+
 Turns a peakbagger.com list (`list.aspx?lid=<N>`) into `frontend/src/coordinate-lists/<Menu name>.csv`,
-matching `frontend/src/coordinate-lists/The Bulger List.csv`. One CSV row per peak in the list: no
+matching `frontend/src/coordinate-lists/wa-bulger-list.csv`. One CSV row per peak in the list: no
 sampling, no truncation.
 
 **The file name is the menu's string.** The Coordinate list field offers every file in that directory,
 named by its file name without `.csv`, alphabetically, so the name you give the file is a user-facing
 string. Agree it with the maintainer before building; the files already there show the style.
 
-**Row format** (mirrors `frontend/src/coordinate-lists/The Bulger List.csv` exactly):
+**Row format** (mirrors `frontend/src/coordinate-lists/wa-bulger-list.csv` exactly):
 
 ```
 46.851731, -121.760395, Mount Rainier

@@ -92,6 +92,70 @@ export function IconChevron({ up, className }: IconProps & { up: boolean }): Rea
   )
 }
 
+/**
+ * The fold on a group of rows inside a menu (#848): it points at the heading
+ * while the group is shut and down at its rows while it is open. The chevron's
+ * own stroke at the chip step, pointing right rather than up, because a
+ * trigger's chevron says "this opens a card" and this says "these rows are
+ * folded", and the two stand in one card.
+ */
+export function IconFold({ open, className }: IconProps & { open: boolean }): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={join(ICON.chip, className)}
+      aria-hidden="true"
+    >
+      <polyline points={open ? CHEVRON.down : '9 6 15 12 9 18'} />
+    </svg>
+  )
+}
+
+/**
+ * The star on a row of the Coordinate list menu (#848): an outline until the
+ * list is starred, then filled. The fill is the state, so the two read apart
+ * without their colour.
+ */
+export function IconStar({ filled, className }: IconProps & { filled: boolean }): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+      className={join(ICON.inline, className)}
+      aria-hidden="true"
+    >
+      <polygon points="12 3 14.7 8.8 21 9.6 16.4 14 17.6 20.3 12 17.2 6.4 20.3 7.6 14 3 9.6 9.3 8.8" />
+    </svg>
+  )
+}
+
+/** The mark on a button that says what its row is (#848): an i in a ring. */
+export function IconInfo({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      className={join(ICON.inline, className)}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="11" x2="12" y2="16.5" />
+      <line x1="12" y1="7.5" x2="12" y2="7.5" />
+    </svg>
+  )
+}
+
 /** The map's Controls button: three bars, the standing picture for a panel. */
 export function IconMenu({ className }: IconProps): ReactNode {
   return (

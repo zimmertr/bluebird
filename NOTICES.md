@@ -113,6 +113,8 @@ these providers.
   and coordinates come from its peakbagger.com list and peak pages; the lists
   themselves are the Bulger group's, The Mountaineers', Jeff Smoot's
   (*Climbing Washington's Mountains*) and the Alpine Lakes "Home Court" list's.
+  `lists.json` in that directory names each list's page there, who chose its
+  peaks and the day its rows were read.
 
 ## Software
 
