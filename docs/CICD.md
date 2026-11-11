@@ -14,7 +14,7 @@ three repositories and the supporting services that automate the path.
 | System | Role |
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image, plus a second image for the planet fill that builds the shared cache's places table (`fill/`, #760). |
-| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact to GHCR only (not listed on Artifact Hub, bluebird-helm record 0003). Its `pr.yml` runs `Lint & render`; a PR publishes no chart. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Lint & render` that walk does block a PR, because it reads the chart alone. Like this repo, it runs yggdrasil's `pr-title`, `lint`, `auto-merge` and `release` modules (zimmertr/yggdrasil#7). |
+| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact to GHCR only (not listed on Artifact Hub, bluebird-helm record 0003). Its `pr.yml` runs `Chart / Chart`, yggdrasil's chart module with this chart's own renders in it; a PR publishes no chart. Its `edge-404.yml` runs `Edge 404 matches the app / Chart` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Chart / Chart` that walk does block a PR, because it reads the chart alone. Like this repo, it runs yggdrasil's `pr-title`, `lint`, `auto-merge` and `release` modules (zimmertr/yggdrasil#7), and its `chart` module (zimmertr/yggdrasil#74). |
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
 | **GHCR** | `ghcr.io/zimmertr/bluebird` (release images), `ghcr.io/zimmertr/bluebird-fill` (the planet fill, released beside each app image at the same version), `ghcr.io/zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://ghcr.io/zimmertr/bluebird-helm`. Every push uses the job's own `GITHUB_TOKEN`. Docker Hub keeps what was pushed there before 2026-11-11, because older chart versions name it (record 0280). |
 | **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`; since #760 the CloudNativePG operator (an app of its own, in `postgres-system`), the PostgreSQL it runs for the app in `bluebird-system`, and the planet fill's CronJob. |
@@ -78,9 +78,8 @@ flowchart TD
     bbScan -->|passed: open/update PR: image newTag| kmImagePR
     bbScan -->|passed: open/update PR| helmPR
 
-    helmPR -->|auto-merge once lint passes| helmMain
+    helmPR -->|auto-merge once the chart check passes| helmMain
     helmMain --> helmRel
-    ghRelease -.->|appVersion from releases/latest| helmRel
     helmRel -->|helm push| dhChart
     helmRel -->|open/update PR: chart version| kmStablePR
     helmRel -->|open/update PR: targetRevision| kmPreviewPR
@@ -167,7 +166,7 @@ the newest release (#632). Record:
 4. **Tag and Release**: one `gh release create --target <commit>
    --generate-notes` makes the `v<semver>` tag at the merge commit and the
    GitHub release, with notes from the merged PR titles. It becomes
-   **Latest**, which the chart's `appVersion` resolver reads.
+   **Latest**, which the scheduled image scan reads.
 5. **Deploy Bump (zimmertr/Kubernetes-Manifests)**: after step 4, a
    **self-merging PR** on the fixed `chore/bluebird-image` branch sets the
    `ghcr.io/zimmertr/bluebird` image's `newTag: <semver>` and its `digest` in
@@ -179,10 +178,10 @@ the newest release (#632). Record:
 6. **Deploy Bump (zimmertr/bluebird-helm)**: beside step 5, the same kind of
    PR on the fixed `chore/bump-appversion` branch sets `appVersion: "<semver>"`
    in `charts/bluebird/Chart.yaml`, titled `chore(release): bump chart
-   appVersion to <semver>`, and lands itself once `Lint & render` passes. It
-   runs after step 4 because `bluebird-helm/release.yml` resolves `appVersion`
-   at package time from this repo's `releases/latest`, so opening this PR
-   before the release exists races the resolver onto the previous version.
+   appVersion to <semver>`, and lands itself once `Chart / Chart` passes. Its
+   merge is what gives the chart its new default image: the chart ships with
+   the `appVersion` in `Chart.yaml` (bluebird-helm record 0005). It runs
+   after step 4, as every bump of the module does.
 
    Both bumps are made by `peter-evans/create-pull-request`, which pushes the
    branch fresh off the default branch and opens the PR or updates the open
@@ -194,24 +193,23 @@ the newest release (#632). Record:
 
 **Path 2: Chart release** (`bluebird-helm/release.yml`, on merge to `main`
 touching `charts/**` or the workflow itself, or a manual dispatch, which the
-same ref check confines to `main`). It calls yggdrasil's **release** module
-like Path 1, then pushes the chart and opens the bumps itself: the module's own
-deploy bumps run straight after its release, before a chart could be pushed
-(bluebird-helm record 0001).
+module confines to `main`). Like Path 1, every step is a job of yggdrasil's
+**release** module, which since v1.1.0 pushes a chart between its release and
+its deploy bumps (bluebird-helm record 0005, yggdrasil record 0054).
 
 1. **Release** (the module): GitVersion computes the **chart** SemVer from the
    same title patterns, and the module makes the git tag and the GitHub
    release. A merge whose version is already tagged releases nothing.
-2. **Publish OCI chart**, for the tag on this commit: resolves `appVersion`
-   **at package time** from `bluebird`'s `releases/latest` (the value committed
-   to `Chart.yaml` is only a local-render fallback; the resolver is the source
-   of truth), then `helm package --version <chartver> --app-version <appver>`
-   and `helm push` to the OCI repo. A chart already there (checked with
-   `helm show chart oci://…`) is not pushed again, so a re-run finishes a
-   failed release.
-3. **bump-manifests** moves `Kubernetes-Manifests` onto the new chart via two
-   PRs, one per consumer, made the way the module makes its deploy bumps (`yq`
-   sets the value, `peter-evans/create-pull-request` opens or advances the PR):
+2. **Push Chart (charts/bluebird)**, after the tag: `helm package
+   --dependency-update --version <chartver>`, which fetches the database
+   subchart and keeps the `appVersion` committed to `Chart.yaml` (the one Path
+   1's step 6 set), then `helm push` to the OCI repo. A version already there
+   (checked with `helm show chart oci://…`) is not pushed again, so "Re-run
+   failed jobs" finishes a failed release.
+3. **Deploy Bump (zimmertr/Kubernetes-Manifests)**, twice, moves
+   `Kubernetes-Manifests` onto the new chart via two PRs, one per consumer,
+   the same job that makes Path 1's bumps (`yq` sets the value,
+   `peter-evans/create-pull-request` opens or advances the PR):
    - preview: `chore/bluebird-preview-chart` sets `targetRevision: <chartver>`
      in `public/bluebird-pr/applicationset.yml` (the ephemeral per-PR envs).
      Always **self-merging**; nothing it touches reaches prod.
@@ -314,11 +312,13 @@ before production moves (#634):
 `Tag and Release` and both `Deploy Bump` jobs need the scan. A scan that
 fails therefore leaves production and the chart's default image on the
 previous release and makes no tag or GitHub release, while the images stay
-published, as with any failure after the push. The release is held as well as the two bumps because
-`bluebird-helm`'s own release resolves the chart's `appVersion` from
-`releases/latest` at package time: a failed version marked Latest would
+published, as with any failure after the push. The release was first held as well as the two bumps because
+`bluebird-helm`'s own release read the chart's `appVersion` from
+`releases/latest` as it packaged: a failed version marked Latest would have
 become the chart's default image at the next chart release, whatever the
-bump job did (maintainer, 2026-10-06). A finding in the fill image holds the
+bump job did (maintainer, 2026-10-06). Since bluebird-helm's record 0005 the
+chart ships with the `appVersion` in `Chart.yaml`, which only the bump sets.
+The hold stays: the module tags only after its scans. A finding in the fill image holds the
 release the same way, since the chart runs the fill at the version it
 releases. The fix is
 the next release, the same remedy as the [scheduled image
@@ -417,9 +417,8 @@ that a three-way merge of the two branches never conflicts.
 
 **What `GH_PAT` is today.** One personal access token of the owner's, stored
 as a repository-level Actions secret in both `bluebird` and `bluebird-helm`
-and in no environment. Three jobs hold it: the two `Deploy Bump` legs of the
-release module here, as its `deploy-token`, and `bump-manifests` in
-`bluebird-helm`. Each pushes a fixed branch in the target repository with it,
+and in no environment. The release module's `Deploy Bump` legs hold it, as
+its `deploy-token`: two here and two in `bluebird-helm`. Each pushes a fixed branch in the target repository with it,
 opens or edits the PR, and arms auto-merge. It has to be a token other than
 `GITHUB_TOKEN` for two reasons: `GITHUB_TOKEN` cannot write to another
 repository, and a merge made with it does not fire the target's `on: push`
@@ -468,10 +467,9 @@ credentials, which no pull request can make:
    token limited to those two repositories with the same two permissions and
    an expiry, stored as a `release` environment secret.
 3. Delete the repository-level `GH_PAT`.
-4. Give the jobs that use them `environment: release`: here, through the
-   release module, whose `environment` input today covers only `Tag and
-   Release` (zimmertr/yggdrasil#12); `chart` and
-   `bump-manifests` in `bluebird-helm`, beside its own call of the module. A job
+4. Give the jobs that use them `environment: release`: here and in
+   `bluebird-helm`, through the release module, whose `environment` input
+   today covers only `Tag and Release` (zimmertr/yggdrasil#12). A job
    that names an environment it cannot deploy to fails rather than running
    without it, which is the point of the branch policy.
 5. Turn on "Require actions to be pinned to a full-length commit SHA" in each
@@ -1092,10 +1090,10 @@ resulting image: identical, 21 files.
 Since record 0278 the image bump waits on `Tag and Release`, as the chart
 bump always did, which puts that job's time (13 s median for its predecessor
 above) back in front of every production deploy (#368 had removed it). The
-module runs every bump after the release, because the chart bump must:
-`bluebird-helm/release.yml` resolves `appVersion` at package time from
-`repos/zimmertr/bluebird/releases/latest`, so opening that PR early races the
-resolver onto the previous version.
+module runs every bump after the release. The chart bump once had to: until
+bluebird-helm's record 0005, `bluebird-helm/release.yml` read `appVersion`
+from `repos/zimmertr/bluebird/releases/latest` as it packaged, so a PR opened
+early raced that read onto the previous version.
 
 ### Merge to live
 
@@ -1561,7 +1559,7 @@ sequenceDiagram
     KM->>ARGO: auto-sync
     ARGO->>ARGO: canary rollout (new image)
     Note over Dev,ARGO: New code is now live via the image tag.
-    HELM->>HELM: auto-merge appVersion PR (after lint)
+    HELM->>HELM: auto-merge appVersion PR (after the chart check)
     HELM->>DH: helm push chart (new version)
     HELM->>KM: open/update preview + stable chart PRs
     KM->>KM: auto-merge preview PR (after required checks)
@@ -1610,8 +1608,8 @@ costs](#what-a-stable-chart-bump-costs).
      ...`. It must change a file under `charts/**`,
      because the chart release workflow fires only on those paths, and it
      should not touch the `appVersion` line the automatic PR edits. Merging it
-     releases chart **1.0.0**, and the package-time resolver gives it the app's
-     1.0.0 as its `appVersion`.
+     releases chart **1.0.0**, with the app's 1.0.0 as its `appVersion`,
+     which the automatic PR already wrote to `Chart.yaml`.
 
   Not the other way round: a chart `!` PR merged before the app's 1.0.0
   exists releases chart 1.0.0 with the newest pre-1.0 app as its default image,
