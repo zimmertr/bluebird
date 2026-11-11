@@ -21,7 +21,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 # Unpinned (DL3008) for the reason the app floats pip: a pin sits outside
-# Dependabot's view and goes stale, and trixie moves these packages only for
+# Renovate's view and goes stale, and trixie moves these packages only for
 # security and serious bugs. The upgrade takes the security archive's fixes to
 # packages the base image already holds. CI builds this image with no layer
 # cache, so every release installs what Debian publishes that day.

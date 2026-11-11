@@ -1,6 +1,6 @@
 # 0277. The Dependabot auto-merge and the weekly image scan run on yggdrasil's modules
 
-- Status: Accepted
+- Status: Superseded in part by 0284
 - Date: 2026-11-06
 - Decider: the maintainer (TJ), 2026-11-06, in zimmertr/yggdrasil#6: "Sounds good to me, lets begin"
 - Issues and PRs: zimmertr/yggdrasil#6 (step 4.2), this PR

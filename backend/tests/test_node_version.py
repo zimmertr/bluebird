@@ -1,9 +1,8 @@
 """The Node major is named once, in ``.node-version``.
 
 CI reads that file through setup-node and the Makefile reads it for every
-container, but the Dockerfile cannot: a ``FROM`` line takes no file, and a
-build argument would hide the tag from Dependabot's base-image bumps. So the
-Dockerfile keeps a literal tag and this test holds it to the file. A Dependabot
+container, but the Dockerfile cannot: a ``FROM`` line takes no file. So the
+Dockerfile keeps a literal tag and this test holds it to the file. A Renovate
 bump of the base image fails here until ``.node-version`` moves with it, which
 is the point: CI would otherwise test a runtime the image no longer ships.
 """

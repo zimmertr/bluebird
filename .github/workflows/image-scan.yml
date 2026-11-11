@@ -29,11 +29,11 @@ jobs:
           {
             "image": "ghcr.io/zimmertr/bluebird",
             "category": "trivy-released-image",
-            "remedy": "Merge the open Dependabot base-image PR and release. If there is none, the base tag is current and the packages under it are not: the next merge to main rebuilds the apk upgrade layer against Alpine's current index and releases it. See docs/CICD.md."
+            "remedy": "Merge the open Renovate base-image PR and release. If there is none, the base tag is current and the packages under it are not: the next merge to main rebuilds the apk upgrade layer against Alpine's current index and releases it. See docs/CICD.md."
           },
           {
             "image": "ghcr.io/zimmertr/bluebird-fill",
             "category": "trivy-released-fill-image",
-            "remedy": "Merge the open Dependabot base-image PR for fill/Dockerfile and release. If there is none, the next merge to main rebuilds the fill image without a layer cache, taking Debian's current security fixes, and releases it. See docs/CICD.md."
+            "remedy": "Merge the open Renovate base-image PR for fill/Dockerfile and release. If there is none, the next merge to main rebuilds the fill image without a layer cache, taking Debian's current security fixes, and releases it. See docs/CICD.md."
           }
         ]

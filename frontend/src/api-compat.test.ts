@@ -20,7 +20,7 @@ const toolManifest = Object.values(
 
 describe('the generated API schema', () => {
   // The generator is a package rather than a version inside a script, because
-  // Dependabot reads manifests and a string in a script is invisible to it. It
+  // Renovate reads manifests and a string in a script is invisible to it. It
   // is a package of its OWN because openapi-typescript loads the TypeScript
   // compiler API at run time and peers on ^5.x, while the app runs TypeScript 7
   // and npm resolves one version of a peer. This holds the two halves together:
