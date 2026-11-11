@@ -548,6 +548,8 @@ export function MenuBrowse({
               placeholder={SEARCH_PLACEHOLDER}
               aria-label={SEARCH_PLACEHOLDER}
               autoComplete="off"
+              // A state's or a club's name is no misspelling to underline.
+              spellCheck={false}
               className={MENU_BROWSE.input}
             />
           </div>
