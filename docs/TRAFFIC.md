@@ -39,9 +39,10 @@ flowchart LR
   unchanged. The tunnel is remotely managed: cloudflared runs from
   `public/cloudflared/` in `Kubernetes-Manifests` with the tunnel's token and
   reads its ingress rules from Cloudflare, and the tunnel, those rules and the
-  proxied CNAMEs are Terraform in `terraform/cloudflare/` in the same repo
-  (Kubernetes-Manifests#1465). A public hostname exists because it is listed
-  in `cloudflare.tfvars` there.
+  proxied CNAMEs are Terraform in `terraform/cloudflare/` in
+  `zimmertr/yggdrasil` (Kubernetes-Manifests#1465, moved by
+  zimmertr/yggdrasil#10). A public hostname exists because it is listed in
+  `terraform.tfvars` there.
 - **Istio** routes `bluebirdforecast.com` through the `bluebird`
   VirtualService to the stable/canary services managed by Argo Rollouts
   (autoscaled between 3 and 10 replicas; the canary adds one pod through its
