@@ -111,8 +111,11 @@ What it saves on the way:
 - **`the roster holds N peaks and the spec expects M`**: the list changed, or the archive's copy is
   old. Read the list page (a stale roster, below) before touching `expect`.
 - **`no coordinates in the archive for <peak>`**: the archive holds no good capture of that peak's
-  page. Report it. **Never guess, approximate or recall a coordinate**: every value comes from that
-  peak's own page.
+  page. Report it to the maintainer. **Never guess, approximate or recall a coordinate**: every
+  value comes from that peak's own page. With the maintainer's yes, read the page live in their
+  Chrome, as for a stale roster: take the `(Dec Deg)` pair from its WGS84 cell, check the page's
+  most frequent `pid=` is the peak's, add `"<pid>": [lat, lon]` to `coords.json` and run the same
+  command again. 42 of 3,966 peaks needed this on 2026-11-11, most of them recent additions.
 - **Many peaks missing at once** is a parser bug, not a thin archive. Stop and read one page by
   hand before running again: check that it answers 200 and contains `WGS84`.
 

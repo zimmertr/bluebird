@@ -364,8 +364,8 @@ const BROWSE_ITEMS = '[data-browse-item]'
  * star or an info press.
  *
  * It opens on the picked row's group, or on the only group when there is one
- * (the four Washington lists, before the rest arrive), else with every group
- * shut. A phone gets the same rows in a sheet, where the keyboard stays down
+ * (a lone heading over rows the reader would otherwise open every time),
+ * else with every group shut. A phone gets the same rows in a sheet, where the keyboard stays down
  * until the reader taps the search box, so the list is not covered as it
  * opens.
  */
