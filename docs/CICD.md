@@ -74,7 +74,7 @@ flowchart TD
     bbRel --> bbScan
     bbScan -->|passed| ghRelease
     dhImage -.->|pushed digest, both platforms| bbScan
-    dhFill -.->|pushed digest, both platforms| bbScan
+    dhFill -.->|pushed digest, amd64| bbScan
     bbScan -->|passed: open/update PR: image newTag| kmImagePR
     bbScan -->|passed: open/update PR| helmPR
 
@@ -148,17 +148,19 @@ the newest release (#632). Record:
    the build cache.
 
    The fill (#760) is built beside the app rather than after it, as
-   `Build & Push (zimmertr/bluebird-fill)`: the same multi-arch build with
-   SBOM and provenance, from `fill/Dockerfile`, pushed as
-   `ghcr.io/zimmertr/bluebird-fill:<semver>`. It keeps no layer cache: the image is
+   `Build & Push (zimmertr/bluebird-fill)`: the same build with SBOM and
+   provenance, from `fill/Dockerfile`, for `linux/amd64` alone, pushed as
+   `ghcr.io/zimmertr/bluebird-fill:<semver>`. Only the cluster runs it, and
+   its emulated arm64 half was the slowest step of every release (#918). Record:
+   [0289](architectural-decision-records/0289-planet-fill-image-is-amd64-only.md) It keeps no layer cache: the image is
    one `apt-get install`, and the repository's Actions cache is already over
    its limit, so every release installs Debian's packages as they stand that
    day. The chart runs the fill at its `appVersion`, so every release needs
    one. Record:
    [0184](architectural-decision-records/0184-planet-fill-cronjob-and-image.md)
 3. **Scan Pushed Image** — Trivy, once per image and platform
-   (`ghcr.io/zimmertr/bluebird` and `ghcr.io/zimmertr/bluebird-fill`, each on `linux/amd64`
-   and `linux/arm64`), against each image's version tag, with the same scan
+   (`ghcr.io/zimmertr/bluebird` on `linux/amd64` and `linux/arm64`, and
+   `ghcr.io/zimmertr/bluebird-fill` on `linux/amd64`), against each image's version tag, with the same scan
    settings as the PR gate and the weekly scan. It fails on a fixable
    Critical/High finding. Steps 4, 5 and 6 all need it, so production, the
    chart's default image and the GitHub release move only onto a scanned
@@ -297,9 +299,9 @@ before production moves (#634):
   the scan, and the cluster runs those bytes even if the tag is later moved
   (record 0280, yggdrasil's record 0052). The fill runs at the chart's
   `appVersion` tag, unpinned.
-- **Once per image and platform.** A matrix over the two images and
-  `linux/amd64` and `linux/arm64`, with `fail-fast: false` so all four legs
-  report; each reports as `Scan Pushed Image (<image>, <platform>)`. The tag
+- **Once per image and platform.** A matrix over the app image on
+  `linux/amd64` and `linux/arm64` and the fill image on `linux/amd64`, with
+  `fail-fast: false` so all three legs report; each reports as `Scan Pushed Image (<image>, <platform>)`. The tag
   names the multi-platform index; `TRIVY_PLATFORM` picks the half each leg
   reads, and without it both platforms would read amd64.
 - **One definition of a failure.** The same `trivy-action` pin,
@@ -1075,7 +1077,10 @@ it runs between `Build & Push` and every later job, so its time adds to the
 whole run and to the first segment of [Merge to live](#merge-to-live).
 The fill's build (#760) is newer still. It runs beside the app's, and
 the scan waits for both, so it lengthens a release only when it is the slower
-of the two.
+of the two. Until #918 it always was: in release run `43309167706` (v0.137.0)
+it took 3m 40s against the app's 1m 07s, 170.6 s of that in its arm64
+`apt-get` under QEMU against 14.8 s for the same step on amd64. It is built
+for amd64 alone since, which only the cluster runs.
 
 `Build & Push` is the multi-arch build, and within it one step dominates.
 In release run `34916818009` the **arm64 `npm run build` took 35.6 s against
