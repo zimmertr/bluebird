@@ -3,7 +3,7 @@
 - Status: Accepted. Amends [0263](0263-coordinate-search-loads-preset-lists.md) (what the field reads while the box is shut)
 - Date: 2026-11-12
 - Decider: the maintainer (TJ), 2026-11-12
-- Issues and PRs: the PR that ships this record
+- Issues and PRs: #917
 - Cited in code as: record 0288
 - Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `DestinationsSection.tsx` and `Menu.tsx` bullets; [`docs/USAGE.md`](../USAGE.md), List search
 
