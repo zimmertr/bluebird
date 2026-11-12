@@ -49,7 +49,7 @@ const RING = { drawPointCount: 3, pointsNeeded: 0 } as const
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
 const noBox = () => screen.queryByRole('textbox', { name: /^Custom destination coordinates/ }) === null
-// The Coordinate list field, named once at rest, where it reads its own name, and
+// The Coordinate list field, named by its name alone at rest, where it reads Select a list, and
 // by its name and what it reads otherwise.
 const field = (reads?: string) =>
   screen.getByRole('button', { name: reads === undefined ? 'Coordinate list' : `Coordinate list ${reads}` })
@@ -454,8 +454,9 @@ describe('DestinationsSection', () => {
       await user.click(listRow(PRESET_LISTS[0]))
     }
 
-    it('reads its own name over a shut box and offers every list under its region, then Custom coordinates apart', async () => {
+    it('reads Select a list over a shut box and offers every list under its region, then Custom coordinates apart', async () => {
       const { user } = render(<DestinationsSection {...props()} />)
+      expect(field().textContent).toContain('Select a list')
       expect(field().getAttribute('aria-haspopup')).toBe('dialog')
       expect(noBox()).toBe(true)
       expect(screen.queryByText(/parsed/)).toBeNull()
@@ -628,7 +629,7 @@ describe('DestinationsSection', () => {
     })
 
     // A preset pick shuts what Custom coordinates opened: emptied again, the
-    // box goes and the field reads its own name.
+    // box goes and the field reads Select a list.
     it('shuts the box a preset was picked over once the box is empty again', async () => {
       arrives()
       const setCustomCsv = vi.fn()

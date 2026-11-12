@@ -556,7 +556,7 @@ describe('MenuBrowse', () => {
       <div ref={rowRef}>
         <MenuBrowse
           label="Coordinate list"
-          placeholder="Coordinate list"
+          placeholder="Select a list"
           value={value}
           items={ITEMS}
           groups={GROUPS}
@@ -585,10 +585,12 @@ describe('MenuBrowse', () => {
   const star = (name: string) => screen.getByRole('button', { name: `Star ${name}` })
   const about = (name: string) => screen.getByRole('button', { name: `About ${name}` })
 
-  // The field says its name once at rest, where its placeholder is its label,
-  // and its name and what it holds after a pick.
+  // The field reads its placeholder at rest and is named by its label alone,
+  // the placeholder being a prompt rather than a value (record 0288), and by
+  // its name and what it holds after a pick.
   it('is a field named once at rest, and by its name and its pick after one', async () => {
     const { user } = render(<Browse />)
+    expect(field().textContent).toContain('Select a list')
     expect(field().getAttribute('aria-haspopup')).toBe('dialog')
     expect(field().className).toBe(`${MENU_TRIGGER.field} w-40 text-center`)
     expect(field().getAttribute('aria-labelledby')!.split(' ')).toHaveLength(1)
@@ -653,7 +655,7 @@ describe('MenuBrowse', () => {
     const { user } = render(
       <MenuBrowse
         label="Coordinate list"
-        placeholder="Coordinate list"
+        placeholder="Select a list"
         value=""
         items={ITEMS.filter((item) => item.group === 'Washington')}
         groups={GROUPS}
@@ -860,7 +862,7 @@ describe('MenuBrowse', () => {
       return (
         <MenuBrowse
           label="Coordinate list"
-          placeholder="Coordinate list"
+          placeholder="Select a list"
           value={value}
           items={ROWS}
           groups={TREE}

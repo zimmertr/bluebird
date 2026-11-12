@@ -316,7 +316,7 @@ export default function DestinationsSection({
         <div ref={csvRowRef} className={`${DRAW_ROW.row}${boxShown ? ' mb-1.5' : ''}`}>
           <MenuBrowse
             label="Coordinate list"
-            placeholder="Coordinate list"
+            placeholder="Select a list"
             value={fieldValue}
             items={LIST_ITEMS}
             groups={LIST_GROUPS}
@@ -328,7 +328,7 @@ export default function DestinationsSection({
             sheet={phone}
             className={DRAW_ROW.field}
           />
-          {/* Empties the box and shuts it, so the field reads its own name
+          {/* Empties the box and shuts it, so the field reads Select a list
               again; greyed while the box is shut. */}
           <button
             id={csvClearId}
