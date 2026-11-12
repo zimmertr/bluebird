@@ -309,6 +309,8 @@ export interface BrowseGroup {
   name: string
   /** Words a search also finds the group's rows by, which the heading does not say. */
   words: readonly string[]
+  /** The group whose heading this one opens under (#892). A group with none stands at the top. */
+  parent?: string
 }
 
 interface MenuBrowseProps {
@@ -348,7 +350,12 @@ const BROWSE_ITEMS = '[data-browse-item]'
  * Coordinate list field's. `MenuSelect` is a short list a reader scans; this
  * is one they search and browse. A search box on top, the starred rows under
  * `Starred` once there are any, then each group as a heading that opens in
- * place, one at a time, and `other` last under a rule.
+ * place, one at a time, and `other` last under a rule. A group can stand
+ * inside another (#892): a continent opens to its countries and a country to
+ * its regions, each level set in by `MENU_BROWSE.nest`, with its own rows
+ * after the groups it holds. One path is open at a time, so opening a group
+ * shuts its siblings, and shutting one leaves its parent open. A heading's
+ * count is every row under it, and a group with no row under it is not shown.
  *
  * Every row ends in its count. A row's star keeps it under Starred, and its
  * info button opens its description under it, one at a time. While something
@@ -363,9 +370,9 @@ const BROWSE_ITEMS = '[data-browse-item]'
  * The picked row is `aria-current`. The card closes on a pick and never on a
  * star or an info press.
  *
- * It opens on the picked row's group, or on the only group when there is one
- * (a lone heading over rows the reader would otherwise open every time),
- * else with every group shut. A phone gets the same rows in a sheet, where the keyboard stays down
+ * It opens on the picked row's group and the groups above it, or on the only
+ * top group when there is one (a lone heading over rows the reader would
+ * otherwise open every time), else with every group shut. A phone gets the same rows in a sheet, where the keyboard stays down
  * until the reader taps the search box, so the list is not covered as it
  * opens.
  */
@@ -403,16 +410,28 @@ export function MenuBrowse({
   const valueId = useId()
 
   const picked = items.find((item) => item.id === value)
-  const shown = groups
-    .map((group) => ({ group, rows: items.filter((item) => item.group === group.name) }))
-    .filter(({ rows }) => rows.length > 0)
+  const rowsOf = (name: string) => items.filter((item) => item.group === name)
+  // Every row under a heading, its own and those of the groups inside it.
+  const rowsUnder = (name: string): number =>
+    rowsOf(name).length +
+    groups.filter((group) => group.parent === name).reduce((sum, group) => sum + rowsUnder(group.name), 0)
+  const kidsOf = (name: string | undefined) =>
+    groups.filter((group) => group.parent === name && rowsUnder(group.name) > 0)
+  // A group and the groups above it, outermost first.
+  const lineage = (name: string): BrowseGroup[] => {
+    const group = groups.find((each) => each.name === name)
+    if (!group) return []
+    return group.parent === undefined ? [group] : [...lineage(group.parent), group]
+  }
+  const openPath = expanded === null ? [] : lineage(expanded).map((group) => group.name)
   const fieldText = picked ? picked.name : value === other.value ? other.label : placeholder
   const showsPlaceholder = !picked && value !== other.value
 
   function openMenu() {
     setQuery('')
     setDescribed(null)
-    setExpanded(picked ? picked.group : shown.length === 1 ? shown[0].group.name : null)
+    const top = kidsOf(undefined)
+    setExpanded(picked ? picked.group : top.length === 1 ? top[0].name : null)
     setOpen(true)
   }
 
@@ -494,15 +513,50 @@ export function MenuBrowse({
   }
 
   const searching = query.trim() !== ''
+  // A search reads a row's name, its group's and every group's above it, so
+  // `Europe` finds the Munros (#892).
   const found = searching
-    ? shown
-        .map(({ group, rows }) => ({
-          group,
-          rows: rows.filter((item) => matchesSearch(`${item.name} ${group.name} ${group.words.join(' ')}`, query)),
-        }))
+    ? groups
+        .map((group) => {
+          const above = lineage(group.name)
+            .map((each) => `${each.name} ${each.words.join(' ')}`)
+            .join(' ')
+          return { group, rows: rowsOf(group.name).filter((item) => matchesSearch(`${item.name} ${above}`, query)) }
+        })
         .filter(({ rows }) => rows.length > 0)
     : []
   const starredRows = starred.flatMap((id) => items.find((item) => item.id === id) ?? [])
+
+  // One heading and, while it is open, the groups it holds and then its own rows.
+  function branch(group: BrowseGroup): React.ReactNode {
+    const isOpen = openPath.includes(group.name)
+    const rowsId = `${baseId}-group-${group.name}`
+    const total = rowsUnder(group.name)
+    return (
+      <Fragment key={group.name}>
+        <button
+          type="button"
+          data-browse-item=""
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? rowsId : undefined}
+          onClick={() => setExpanded(isOpen ? (group.parent ?? null) : group.name)}
+          className={MENU_BROWSE.region}
+        >
+          <IconFold open={isOpen} className={MENU_BROWSE.fold} />
+          <span className="min-w-0 flex-1 truncate">{group.name}</span>{' '}
+          <span className={MENU_BROWSE.count}>
+            {total} <span className={SR_ONLY}>{total === 1 ? 'list' : 'lists'}</span>
+          </span>
+        </button>
+        {isOpen && (
+          <div id={rowsId} role="group" aria-label={group.name} className={MENU_BROWSE.nest}>
+            {kidsOf(group.name).map(branch)}
+            {rowsOf(group.name).map((item) => row(item, false))}
+          </div>
+        )}
+      </Fragment>
+    )
+  }
 
   return (
     <>
@@ -582,34 +636,7 @@ export function MenuBrowse({
                     <div aria-hidden="true" className={MENU.divider} />
                   </>
                 )}
-                {shown.map(({ group, rows }) => {
-                  const isOpen = expanded === group.name
-                  const rowsId = `${baseId}-group-${group.name}`
-                  return (
-                    <Fragment key={group.name}>
-                      <button
-                        type="button"
-                        data-browse-item=""
-                        aria-expanded={isOpen}
-                        aria-controls={isOpen ? rowsId : undefined}
-                        onClick={() => setExpanded(isOpen ? null : group.name)}
-                        className={MENU_BROWSE.region}
-                      >
-                        <IconFold open={isOpen} className={MENU_BROWSE.fold} />
-                        <span className="min-w-0 flex-1 truncate">{group.name}</span>{' '}
-                        <span className={MENU_BROWSE.count}>
-                          {rows.length}{' '}
-                          <span className={SR_ONLY}>{rows.length === 1 ? 'list' : 'lists'}</span>
-                        </span>
-                      </button>
-                      {isOpen && (
-                        <div id={rowsId} role="group" aria-label={group.name} className={MENU_BROWSE.nest}>
-                          {rows.map((item) => row(item, false))}
-                        </div>
-                      )}
-                    </Fragment>
-                  )
-                })}
+                {kidsOf(undefined).map(branch)}
                 <div aria-hidden="true" className={MENU.divider} />
                 <button
                   type="button"

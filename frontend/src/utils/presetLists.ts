@@ -49,14 +49,23 @@ export interface PresetList {
 
 export interface PresetRegion {
   name: string
-  /** The states the region covers when its heading names none, which a search also matches. */
+  /** The places the region covers when its heading names none, which a search also matches. */
   places: readonly string[]
+  /** The heading this one opens under (#892): a country's continent, a region's country. Null at the top. */
+  parent: string | null
 }
 
-/** The menu's headings, in its order. One with no list is not shown. */
+/**
+ * The menu's headings, in its order. A heading stands at the top or under
+ * the one its `parent` names, so the manifest's flat array is a tree: a
+ * continent, the countries in it, a country's regions. A list's `region` is
+ * whichever heading it sits under, at any depth. One with no list anywhere
+ * under it is not shown.
+ */
 export const PRESET_REGIONS: readonly PresetRegion[] = manifest.regions.map((region) => ({
   name: region.name,
   places: region.places ?? [],
+  parent: region.parent ?? null,
 }))
 
 /** Every list, in the manifest's order, which is the order its region shows them in. */

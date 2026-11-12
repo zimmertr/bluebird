@@ -8,7 +8,7 @@
   "properties": {
     "$schema": { "type": "string" },
     "regions": {
-      "description": "The menu's headings, in the order the menu shows them. A region with no list is not shown.",
+      "description": "The menu's headings, in the order the menu shows them. A heading stands at the top or under the one its parent names, and a parent comes before the headings under it. A region with no list anywhere under it is not shown.",
       "type": "array",
       "minItems": 1,
       "items": {
@@ -21,8 +21,13 @@
             "type": "string",
             "minLength": 1
           },
+          "parent": {
+            "description": "The name of the heading this one opens under: a country's continent, a region's country. A heading with none stands at the top of the menu.",
+            "type": "string",
+            "minLength": 1
+          },
           "places": {
-            "description": "The states a region covers when its heading names none of them, so a search for one finds the region's lists. Never shown.",
+            "description": "The places a region covers when its heading names none of them, so a search for one finds the region's lists. Never shown.",
             "type": "array",
             "minItems": 1,
             "uniqueItems": true,

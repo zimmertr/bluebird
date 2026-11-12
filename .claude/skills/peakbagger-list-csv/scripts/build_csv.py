@@ -66,7 +66,13 @@ def write_manifest(directory, manifest):
 
     def region(value):
         places = value.get('places')
-        return '{ "name": ' + text(value['name']) + (', "places": ' + text(places) if places else '') + ' }'
+        parent = value.get('parent')
+        return (
+            '{ "name": ' + text(value['name'])
+            + (', "parent": ' + text(parent) if parent else '')
+            + (', "places": ' + text(places) if places else '')
+            + ' }'
+        )
 
     lists = json.dumps(manifest['lists'], indent=2, ensure_ascii=False).replace('\n', '\n  ')
     body = (

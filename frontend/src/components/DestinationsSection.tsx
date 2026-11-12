@@ -54,6 +54,7 @@ const LIST_ITEMS: readonly BrowseItem[] = PRESET_LISTS.map((list) => ({
 const LIST_GROUPS: readonly BrowseGroup[] = PRESET_REGIONS.map((region) => ({
   name: region.name,
   words: region.places,
+  ...(region.parent === null ? {} : { parent: region.parent }),
 }))
 const LIST_IDS: readonly string[] = PRESET_LISTS.map((list) => list.id)
 
