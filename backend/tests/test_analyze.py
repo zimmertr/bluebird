@@ -1414,7 +1414,7 @@ def test_the_hours_are_most_of_a_maximal_response(monkeypatch):
     )
     assert len(with_hours.json()["results"]) == MAX_ANALYZE_PEAKS
     assert len(with_hours.content) > 10_000_000  # measured 12.92 MB
-    assert len(without.content) < 1_000_000  # measured 0.61 MB
+    assert len(without.content) < 1_500_000  # measured 1.00 MB with snow depth (#849)
     assert len(with_hours.content) > 15 * len(without.content)
 
 

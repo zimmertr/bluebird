@@ -71,6 +71,8 @@ const full: ShareableState = {
     minFreezeFt: 4000,
     maxFreezeFt: 12000,
     minSnowfallTotalIn: 2,
+    minSnowDepthIn: 12,
+    maxSnowDepthIn: 120,
     maxSnowfallTotalIn: 80,
     minAqi: 0,
     maxAqi: 50,

@@ -295,7 +295,6 @@ describe('a polygon with nothing checked', () => {
     compareAqi: false,
     compareFreeze: false,
     compareSnow: false,
-  compareSnow: false,
     drawPointCount: 4,
   }
 

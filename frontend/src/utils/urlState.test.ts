@@ -530,6 +530,8 @@ describe('encodeState', () => {
       maxFreezeFt: 12000,
       minSnowfallTotalIn: 2,
       maxSnowfallTotalIn: 60,
+      minSnowDepthIn: 12,
+      maxSnowDepthIn: 120,
       minAqi: 10,
       maxAqi: 100,
       minCloudDeckFt: 5000,
@@ -542,6 +544,7 @@ describe('encodeState', () => {
     expect(new URLSearchParams(qs).get('minfreeze')).toBe('6000')
     expect(new URLSearchParams(qs).get('maxprecip')).toBe('0.1')
     expect(new URLSearchParams(qs).get('minsnowfall')).toBe('2')
+    expect(new URLSearchParams(qs).get('minsnow')).toBe('12')
     expect(new URLSearchParams(qs).get('minclouddeck')).toBe('5000')
     expect(new URLSearchParams(qs).get('maxclouddeck')).toBe('14000')
     expect(decodeState(`?${qs}`)?.constraints).toEqual(constraints)

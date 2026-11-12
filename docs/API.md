@@ -755,7 +755,8 @@ Four things worth knowing about resolution:
 - **Not every point resolves.** A coordinate with no OSM peak beside it keeps
   a null elevation. That is a real answer about OSM's coverage, not an error.
 - **You can ask for no lookup at all.** `"elevation_lookup": false` skips the
-  lookup: every row comes back exactly as sent, in milliseconds, and a request that also discovers nothing takes no
+  lookup: every row comes back exactly as sent, with today's snow depth, in
+  milliseconds, and a request that also discovers nothing takes no
   discovery slot, so it never waits behind a discovery of yours in flight.
   The bundled web app sends it from every analysis, because it has looked its
   rows up already, through this endpoint, as they were pasted. The default is
@@ -813,6 +814,7 @@ number or omitted, and they combine as an AND:
 | `min_wind_mph` / `max_wind_mph` | its `wind_min_mph` is at or above the floor **and** its `wind_max_mph` at or below the ceiling |
 | `min_freeze_ft` / `max_freeze_ft` | its `freeze_min_ft` is at or above the floor **and** its `freeze_max_ft` at or below the ceiling |
 | `min_snowfall_total_in` / `max_snowfall_total_in` | its `snowfall_total_in` is inside the range |
+| `min_snow_depth_in` / `max_snow_depth_in` | its `snow_depth_in` is inside the range |
 | `min_aqi` / `max_aqi` | its `aqi_max` is inside the range |
 | `min_cloud_deck_ft` / `max_cloud_deck_ft` | its `cloud_deck_min_ft` is at or above the floor **and** its `cloud_deck_max_ft` at or below the ceiling |
 
@@ -949,6 +951,7 @@ EOF
     "snowfall_avg_in_hr": 0.0323,
     "snowfall_min_in_hr": 0,
     "snowfall_max_in_hr": 0.11,
+    "snow_depth_in": 1290.04,
     "cloud_deck_min_ft": 6200,
     "cloud_deck_avg_ft": 11850,
     "cloud_deck_max_ft": 30066,
@@ -1217,8 +1220,8 @@ row nothing else. A null passes either bound and ranks last in either
 direction, exactly as a null AQI does. Both bounds read `snowfall_total_in`,
 and all four fields are accepted by `sort_by`. They replaced the snow depth
 field, its date and its bounds in
-[#678](https://github.com/zimmertr/bluebird/issues/678), and a request naming
-one of those is a `422`.
+[#678](https://github.com/zimmertr/bluebird/issues/678), and those came back
+beside them in [#849](https://github.com/zimmertr/bluebird/issues/849).
 
 ```bash
 # $START and $END as set under "Choosing a forecast window".
@@ -1244,6 +1247,60 @@ EOF
 
 That ranks the destinations expecting the most new snow, among those expecting
 at least two inches over the window.
+
+Snow depth is the one field on a row that is not a forecast at all.
+`snow_depth_in` is how much snow is on the ground **today**, in inches, read
+from the NOHRSC SNODAS 1 km grid this server holds. It is the same number
+whatever window you asked for, it has no minimum, mean or maximum, and
+`series` carries no hourly counterpart. `snow_analysis_date` on the response
+says which day's analysis answered, as `YYYY-MM-DD`; NSIDC publishes each day's
+grid around 13:15 UTC, and before that the previous day's is the current one.
+`POST /api/destinations` carries both fields too, because the number comes from
+discovery rather than from the forecast fetch. `sort_by` accepts
+`snow_depth_in`, and `min_snow_depth_in` and `max_snow_depth_in` both read it.
+
+It is `null` in two cases that mean the same thing: the destination is outside
+the grid, which covers the contiguous United States, southern Canada and
+northern Mexico, or this instance holds no grid yet. Neither is a statement
+about the ground, so a null passes either bound and ranks last in either
+direction, exactly as a null AQI does. A grid this instance has never fetched
+answers `null` on every row and `null` for `snow_analysis_date`; a missing grid
+never fails an analysis.
+
+**Over permanent ice, read the number as ice, and `1290.04` as a ceiling.**
+SNODAS does not melt permanent snow and ice out, so the depth there accumulates
+year over year. The source file carries depth as 16-bit integer millimetres, so
+`1290.04` (32,767 mm) is the largest value it can hold and the model's own
+answer over deep ice is higher: a row at that number holds at least that much
+and is permanent ice rather than a season's snow. It is the worked example
+above. The API answers that plain number; the web app prints `≥1,290` in
+its place and names a glaciated cell `Glacier`, which are display decisions
+rather than a contract. [DATA.md's snow depth section](DATA.md#snow-depth) has
+the rest.
+
+```bash
+curl -s https://bluebirdforecast.com/api/destinations \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "destination_types": [],
+    "custom_destinations": [
+      { "name": "Mt Rainier", "latitude": 46.8523, "longitude": -121.7603 },
+      { "name": "Paradise",   "latitude": 46.7860, "longitude": -121.7350 },
+      { "name": "Denali",     "latitude": 63.0700, "longitude": -151.0000 }
+    ]
+  }' | jq '{snow_analysis_date, rows: [.destinations[] | {name, snow_depth_in}]}'
+```
+
+```json
+{
+  "snow_analysis_date": "2026-09-22",
+  "rows": [
+    { "name": "Mt Rainier", "snow_depth_in": 1290.04 },
+    { "name": "Paradise", "snow_depth_in": 0 },
+    { "name": "Denali", "snow_depth_in": null }
+  ]
+}
+```
 
 `POST /api/destinations` also answers `elevation_lookup_complete`. A
 `custom_destinations` row sent without an `elevation_ft` is matched to the
