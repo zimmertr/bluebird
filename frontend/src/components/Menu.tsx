@@ -316,7 +316,7 @@ export interface BrowseGroup {
 interface MenuBrowseProps {
   /** What the choice is called: the field's accessible name and a phone sheet's heading. */
   label: string
-  /** What the field reads while `value` names nothing: a prompt, which a screen reader hears no part of, since the field is named by `label` (record 0288). */
+  /** What the field reads while `value` names nothing. Unless it is the label, it joins the field's accessible name after the label, as a pick does, because a name must hold the words a control shows (WCAG 2.5.3; record 0288). */
   placeholder: string
   /** The picked row's id, `other`'s value, or anything else for neither. */
   value: string
@@ -565,7 +565,7 @@ export function MenuBrowse({
         shape="field"
         open={open}
         aria-haspopup="dialog"
-        aria-labelledby={showsPlaceholder ? nameId : `${nameId} ${valueId}`}
+        aria-labelledby={showsPlaceholder && placeholder === label ? nameId : `${nameId} ${valueId}`}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={(e) => {
           if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {

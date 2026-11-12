@@ -577,7 +577,7 @@ describe('MenuBrowse', () => {
   }
 
   const field = (reads?: string) =>
-    screen.getByRole('button', { name: reads === undefined ? 'Coordinate list' : `Coordinate list ${reads}` })
+    screen.getByRole('button', { name: `Coordinate list ${reads ?? 'Select a list'}` })
   const search = () => screen.getByRole('textbox', { name: 'Search lists' })
   const region = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name} \\d+ lists?$`) })
   const pick = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name} \\d+ peaks?$`) })
@@ -585,15 +585,15 @@ describe('MenuBrowse', () => {
   const star = (name: string) => screen.getByRole('button', { name: `Star ${name}` })
   const about = (name: string) => screen.getByRole('button', { name: `About ${name}` })
 
-  // The field reads its placeholder at rest and is named by its label alone,
-  // the placeholder being a prompt rather than a value (record 0288), and by
-  // its name and what it holds after a pick.
-  it('is a field named once at rest, and by its name and its pick after one', async () => {
+  // The field reads its placeholder at rest and is named by its label and the
+  // placeholder, since a name must hold the words a control shows (WCAG 2.5.3,
+  // record 0288), and by its label and its pick after one.
+  it('is a field named by its label and what it reads, at rest and after a pick', async () => {
     const { user } = render(<Browse />)
     expect(field().textContent).toContain('Select a list')
     expect(field().getAttribute('aria-haspopup')).toBe('dialog')
     expect(field().className).toBe(`${MENU_TRIGGER.field} w-40 text-center`)
-    expect(field().getAttribute('aria-labelledby')!.split(' ')).toHaveLength(1)
+    expect(field().getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
     await user.click(field())
     await user.click(region('Washington'))
     await user.click(pick('The Bulger List'))

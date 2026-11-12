@@ -16,9 +16,9 @@ The common pattern for a dropdown with nothing picked is a short prompt in the f
 ## Decision
 
 - **The field reads `Select a list` while nothing is picked.** The list's name and `Custom coordinates` are unchanged.
-- **A screen reader hears the field by its name alone at rest.** `MenuBrowse` names the field by its `label` (`Coordinate list`) while it shows its placeholder, and by the label and its value after a pick, so the prompt is never read as if it were a pick.
+- **A screen reader hears the field's name and the prompt: `Coordinate list, Select a list`.** `MenuBrowse` names the field by its `label` and then the words it shows, at rest as after a pick, because WCAG 2.5.3 (Label in Name) wants a control's name to hold its visible text. Naming it by the label alone was tried first, and axe's `label-content-name-mismatch` failed it in the browser suite.
 - The maintainer chose `Select a list` over `Choose a peak list`, `Pick a peak list` and keeping `Coordinate list`.
 
 ## Consequences
 
-- The phone sheet's heading and the field's accessible name stay `Coordinate list`.
+- The phone sheet's heading stays `Coordinate list`.

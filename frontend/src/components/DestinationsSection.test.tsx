@@ -49,10 +49,10 @@ const RING = { drawPointCount: 3, pointsNeeded: 0 } as const
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
 const noBox = () => screen.queryByRole('textbox', { name: /^Custom destination coordinates/ }) === null
-// The Coordinate list field, named by its name alone at rest, where it reads Select a list, and
-// by its name and what it reads otherwise.
+// The Coordinate list field, named by its name and what it reads: Select a
+// list at rest, a list's name or Custom coordinates otherwise.
 const field = (reads?: string) =>
-  screen.getByRole('button', { name: reads === undefined ? 'Coordinate list' : `Coordinate list ${reads}` })
+  screen.getByRole('button', { name: `Coordinate list ${reads ?? 'Select a list'}` })
 // The box stands once Custom coordinates is picked (record 0263).
 async function openBox(user: ReturnType<typeof render>['user']) {
   await user.click(field())
