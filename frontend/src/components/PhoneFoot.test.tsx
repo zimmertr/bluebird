@@ -231,7 +231,7 @@ describe('PhoneFoot', () => {
       function Page() {
         const [open, setOpen] = useState(false)
         const close = () => setOpen(false)
-        const kept = { open, tourRuns: false, heightPx: 540, restPx: 540, onHeightPx: () => {} }
+        const kept = { open, tourRuns: false, held: null, restPx: 540, onHeld: () => {} }
         return (
           <>
             {foot()}

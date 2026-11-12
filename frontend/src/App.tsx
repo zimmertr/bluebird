@@ -178,7 +178,7 @@ export default function App() {
   const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer(isDesktop)
   // A phone's Controls sheet under a drag on its grip (record 0146): the height
   // the drag left it at, or null for its own share of the map.
-  const [controlsHeldPx, setControlsHeldPx] = useHeldSheetPx(sidebarOpen)
+  const [controlsHeld, setControlsHeld] = useHeldSheetPx(sidebarOpen)
   // A phone's home indicator band, which the chrome on the map's foot stands
   // above (record 0145); 0 on a desk.
   const safeBottomPx = useSafeAreaBottom()
@@ -784,9 +784,9 @@ export default function App() {
         open={sidebarOpen}
         isDesktop={isDesktop}
         moving={layoutMotion === 'opening' || layoutMotion === 'closing'}
-        sheetPx={controlsHeldPx ?? controlsSheetPx(layout.mapPx)}
+        sheetHeld={controlsHeld}
         sheetRestPx={controlsSheetPx(layout.mapPx)}
-        onSheetPx={setControlsHeldPx}
+        onSheetHeld={setControlsHeld}
         onClose={closeDrawer}
         tourRuns={tour.index !== null}
         theme={theme}

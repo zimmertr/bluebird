@@ -24,13 +24,30 @@ export const SHEET_FLICK_PX_PER_MS = 0.6
 export const FLICK_WINDOW_MS = 100
 
 /**
- * Where a sheet is held: a height in px, or `full`, the ceiling every sheet
- * shares (record 0290). Full is a state rather than a height so a rotation
- * keeps a full sheet full: the card's own CSS sizes it to the box it stands
- * in, where a held number would leave its grip past the screen's top once
- * the screen turns short.
+ * Where a drag leaves a sheet: a height in px, or `full`, the ceiling every
+ * sheet shares (record 0290). What a sheet then holds is a `SheetHeight`.
  */
-export type SheetHeight = number | 'full'
+export type DragHeight = number | 'full'
+
+/**
+ * Where a sheet is held, in terms a rotation keeps (record 0290): `full`, the
+ * ceiling, which the card's own CSS sizes to the box it stands in, or a
+ * `share` of the sheet's own height, so a sheet dragged to 120% of its own
+ * height stands at 120% of its own height on the screen it is turned to, and
+ * at 120% again when it is turned back. Held as px, a turned phone clamped
+ * every held sheet to the shorter screen's ceiling, and so to full.
+ */
+export type SheetHeight = { share: number } | 'full'
+
+/** What a drag's px is held as, against the sheet's own height then. */
+export function heldShare(px: number, restPx: number): SheetHeight {
+  return { share: px / Math.max(restPx, 1) }
+}
+
+/** The px a held share stands at, against the sheet's own height now. */
+export function sharePx(held: { share: number }, restPx: number): number {
+  return Math.round(held.share * Math.max(restPx, 1))
+}
 
 /** The three heights a sheet can be let go to, besides wherever the finger stops. */
 export interface SheetStops {

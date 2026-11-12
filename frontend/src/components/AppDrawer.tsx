@@ -24,12 +24,12 @@ interface AppDrawerProps {
   isDesktop: boolean
   /** A desk's panel is opening or closing (`useLayoutMotion`), on a layer of its own meanwhile. */
   moving?: boolean
-  /** The Controls sheet's height on a phone: its own share (`controlsSheetPx`), or where a drag left it. */
-  sheetPx: SheetHeight
+  /** Where a drag left the Controls sheet on a phone, or null for its own share (`sheetRestPx`). */
+  sheetHeld: SheetHeight | null
   /** Its own share, which a release near it or a double press on the grip gives back (record 0146). */
   sheetRestPx: number
   /** Holds it at a dragged height, or null for its own share. */
-  onSheetPx: (px: SheetHeight | null) => void
+  onSheetHeld: (held: SheetHeight | null) => void
   /** Closes it: its close button at a desk, and on a phone Done, Escape or a press on the dim. */
   onClose: () => void
   /**
@@ -118,9 +118,9 @@ export default function AppDrawer({
   open,
   isDesktop,
   moving = false,
-  sheetPx,
+  sheetHeld,
   sheetRestPx,
-  onSheetPx,
+  onSheetHeld,
   onClose,
   tourRuns = false,
   drawMode,
@@ -250,9 +250,9 @@ export default function AppDrawer({
         kept={{
           open,
           tourRuns,
-          heightPx: sheetPx,
+          held: sheetHeld,
           restPx: sheetRestPx,
-          onHeightPx: onSheetPx,
+          onHeld: onSheetHeld,
           actions: <ThemeButton theme={theme} onToggle={onToggleTheme} />,
         }}
       >

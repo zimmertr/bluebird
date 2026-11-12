@@ -5413,3 +5413,16 @@ describe('the browsing menu', () => {
     expect(MENU_BROWSE.region).toMatch(/\bfont-semibold\b/)
   })
 })
+
+// A drag on a phone sheet's handle is the sheet's and never the browser's
+// (record 0290): both handles take no touch gesture of their own, and the
+// page turns off the overscroll Android reads as a pull to refresh.
+describe('sheet handles and pull to refresh', () => {
+  it('keeps the grip and the title row out of the browser\'s gestures', () => {
+    for (const handle of [BOTTOM_SHEET.grip, BOTTOM_SHEET.head]) expect(handle.split(/\s+/)).toContain('touch-none')
+  })
+
+  it('turns off overscroll on the page', () => {
+    expect(indexCss).toMatch(/html,\s*body\s*\{\s*overscroll-behavior-y:\s*none;\s*\}/)
+  })
+})

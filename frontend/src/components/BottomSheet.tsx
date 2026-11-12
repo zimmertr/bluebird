@@ -1,9 +1,9 @@
-import { useId, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialog } from '../hooks/useDialog'
 import { useSheetDrag } from '../hooks/useSheetDrag'
 import { BOTTOM_SHEET, CONTROLS_SHEET, SHEET_ASIDE } from '../styles'
-import type { SheetHeight } from '../utils/sheetDrag'
+import { type DragHeight, type SheetHeight, heldShare, sharePx } from '../utils/sheetDrag'
 
 /**
  * The Controls sheet's terms (`AppDrawer`, record 0207): a sheet that is
@@ -17,12 +17,12 @@ export interface KeptSheet {
    * it nor traps it while a step holds it open (#536).
    */
   tourRuns: boolean
-  /** Its height: its own share of the map, where a drag left it, or `full`. */
-  heightPx: SheetHeight
+  /** Where a drag left it, or null for its own share of the map. */
+  held: SheetHeight | null
   /** Its own share, which a release near it or a double press gives back (record 0146). */
   restPx: number
-  /** Holds it at a dragged height, or null for its own share. */
-  onHeightPx: (px: SheetHeight | null) => void
+  /** Holds it where a drag left it, or null for its own share. */
+  onHeld: (held: SheetHeight | null) => void
   /** A control beside Done in its title row: the theme switch (#706). */
   actions?: ReactNode
 }
@@ -94,30 +94,54 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
   // the Controls sheet) less that band, which only CSS can read. A menu
   // sheet's own height is its rows' under the cap it opens at; the Controls
   // sheet's is its caller's.
-  const [heldPx, setHeldPx] = useState<SheetHeight | null>(null)
+  const [menuHeld, setMenuHeld] = useState<SheetHeight | null>(null)
+  // A menu sheet's own height while one is held, which a held share is a
+  // share of: read when a drag begins and again when the screen turns.
+  const [menuOwnPx, setMenuOwnPx] = useState(0)
+  const held = kept ? kept.held : menuHeld
+  const ownPx = kept ? kept.restPx : menuOwnPx
+  const setHeld = kept ? kept.onHeld : setMenuHeld
   const topBandRef = useRef<HTMLSpanElement>(null)
+  // Its rows' own height under the cap it opens at: the card as it stands
+  // with nothing held, for one read.
+  const measureOwn = () => {
+    const card = panelRef.current!
+    const shape = card.className
+    const height = card.style.height
+    card.className = menuCard(null, aside)
+    card.style.height = ''
+    const px = card.offsetHeight
+    card.className = shape
+    card.style.height = height
+    return px
+  }
+  const dragRest = useRef(0)
   const onGripDown = useSheetDrag({
     measure: () => {
       const card = panelRef.current!
       const box = card.offsetParent as HTMLElement | null
       const fullPx = Math.max(0, (box ? box.clientHeight : window.innerHeight) - (topBandRef.current?.offsetHeight ?? 0))
-      const held = kept ? kept.heightPx : heldPx
-      if (kept) return { startPx: held === 'full' ? fullPx : Math.min(kept.heightPx as number, fullPx), restPx: kept.restPx, fullPx }
-      const startPx = held === 'full' ? fullPx : card.offsetHeight
-      // Its rows' own height under the cap it opens at: the card as it
-      // stands before any drag, for one read.
-      const shape = card.className
-      const height = card.style.height
-      card.className = menuCard(null, aside)
-      card.style.height = ''
-      const restPx = card.offsetHeight
-      card.className = shape
-      card.style.height = height
-      return { startPx, restPx, fullPx }
+      const restPx = kept ? kept.restPx : measureOwn()
+      if (!kept) setMenuOwnPx(restPx)
+      dragRest.current = restPx
+      const startPx = held === null ? restPx : held === 'full' ? fullPx : sharePx(held, restPx)
+      return { startPx: Math.min(startPx, fullPx), restPx, fullPx }
     },
-    onHeight: kept ? kept.onHeightPx : setHeldPx,
+    onHeight: (px: DragHeight | null) => setHeld(typeof px === 'number' ? heldShare(px, dragRest.current) : px),
     onClose,
   })
+  // A turned screen gives a menu sheet's rows a new cap, so the share it
+  // holds is read against its own height again (record 0290).
+  const shareHeld = !kept && typeof menuHeld === 'object' && menuHeld !== null
+  useLayoutEffect(() => {
+    if (!shareHeld) return
+    const remeasure = () => setMenuOwnPx(measureOwn())
+    window.addEventListener('resize', remeasure)
+    return () => window.removeEventListener('resize', remeasure)
+    // measureOwn reads the card and `aside` alone, and a sheet that steps
+    // aside is not resized meanwhile.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareHeld])
   const sheet = (
     <>
       {/* The whole screen catches a press outside the card and is dimmed,
@@ -138,10 +162,10 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
         inert={!open}
         className={
           kept
-            ? `${CONTROLS_SHEET.card} ${BOTTOM_SHEET.ceiling}${kept.heightPx === 'full' ? ` ${BOTTOM_SHEET.full}` : ''} ${open ? '' : CONTROLS_SHEET.shut}`
-            : menuCard(heldPx, aside)
+            ? `${CONTROLS_SHEET.card} ${BOTTOM_SHEET.ceiling}${held === 'full' ? ` ${BOTTOM_SHEET.full}` : ''} ${open ? '' : CONTROLS_SHEET.shut}`
+            : menuCard(held, aside)
         }
-        style={pxStyle(kept ? kept.heightPx : heldPx)}
+        style={heightStyle(held, ownPx, !!kept)}
         data-tour={tourAnchor}
       >
         <SheetTop
@@ -172,9 +196,15 @@ function menuCard(held: SheetHeight | null, aside: boolean): string {
   return `${BOTTOM_SHEET.card} ${fit}${aside ? ` ${SHEET_ASIDE.card}` : ''}`
 }
 
-/** A held height in px on the card; full and its own height are its CSS's. */
-function pxStyle(held: SheetHeight | null) {
-  return typeof held === 'number' ? { height: held } : undefined
+/**
+ * The card's height in px: a held share of its own height, or the Controls
+ * sheet's own share of the map, which its caller works out. Full and a menu
+ * sheet's own height are its CSS's.
+ */
+function heightStyle(held: SheetHeight | null, ownPx: number, kept: boolean) {
+  if (held === 'full') return undefined
+  if (held !== null) return { height: sharePx(held, ownPx) }
+  return kept ? { height: ownPx } : undefined
 }
 
 interface SheetTopProps {
