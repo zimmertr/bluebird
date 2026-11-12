@@ -9,7 +9,7 @@
 # minor, and a digest pinned before that minor reached the image carries an
 # older server the new library cannot load into (PostGIS 3.7.0+dfsg-1.pgdg13+2
 # against 18.6 failed on `heap_datum_check`, 2026-11-12).
-FROM postgres:18-trixie@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
+FROM postgres:18-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --allow-change-held-packages \
         postgresql-18 postgresql-18-postgis-3 \
