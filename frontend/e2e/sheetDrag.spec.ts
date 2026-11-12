@@ -90,6 +90,16 @@ test.describe('on a phone', () => {
         name,
       )
       expect(covered).toEqual([true, true])
+
+      // Turned on its side, a full sheet stays full on the shorter screen,
+      // its grip on it, and drags down again from there.
+      await page.setViewportSize({ width: 844, height: 390 })
+      await expect.poll(async () => Math.round((await sheet.boundingBox())!.y)).toBe(0)
+      expect(Math.round((await sheet.boundingBox())!.height)).toBe(390)
+      const turned = (await sheet.locator(':scope > div').first().boundingBox())!
+      expect(turned.y).toBeGreaterThanOrEqual(0)
+      await drag(page, { x: turned.x + turned.width / 2, y: turned.y + turned.height / 2 }, 120)
+      expect(Math.round((await sheet.boundingBox())!.y)).toBe(120)
     })
   }
 })

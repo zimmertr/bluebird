@@ -69,7 +69,6 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
       isDesktop={true}
       sheetPx={600}
       sheetRestPx={600}
-      sheetFullPx={700}
       onSheetPx={NOOP}
       onClose={onClose}
       theme="dark"
@@ -263,8 +262,12 @@ describe('AppDrawer', () => {
       // rather than by how fast the steps between them ran.
       vi.useFakeTimers({ toFake: ['Date', 'performance'] })
       onTestFinished(() => void vi.useRealTimers())
+      // The ceiling is the screen's (record 0290), which jsdom leaves at 768.
+      const screenPx = window.innerHeight
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 })
+      onTestFinished(() => void Object.defineProperty(window, 'innerHeight', { configurable: true, value: screenPx }))
       const onSheetPx = vi.fn()
-      render(drawer(true, NOOP, { isDesktop: false, sheetPx: 540, sheetRestPx: 540, sheetFullPx: 700, onSheetPx }))
+      render(drawer(true, NOOP, { isDesktop: false, sheetPx: 540, sheetRestPx: 540, onSheetPx }))
       const title = screen.getByRole('heading', { name: 'Controls' })
       fireEvent.pointerDown(title, { clientY: 500, pointerId: 1 })
       fireEvent.pointerMove(document, { clientY: 400, pointerId: 1 })

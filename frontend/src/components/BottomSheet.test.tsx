@@ -4,6 +4,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import BottomSheet, { type KeptSheet } from './BottomSheet'
 import { DOUBLE_PRESS_MS } from '../utils/doublePress'
 import { SHEET_SNAP_PX } from '../utils/sheetDrag'
+import { BOTTOM_SHEET } from '../styles'
 import { render } from '../testSupport/render'
 
 // A phone's one menu shape (#696; record 0136): a modal card from the bottom
@@ -97,8 +98,8 @@ describe('BottomSheet', () => {
 
   // The grip and the title row drag the sheet (#696; record 0146). jsdom lays
   // nothing out, so the card reports the height it is held at, 300px of rows
-  // with none, and its cap is spelled inline; the clock is the test's, so a
-  // drag's speed is what the test says it is.
+  // with none, and the screen is `SCREEN_PX` tall; the clock is the test's,
+  // so a drag's speed is what the test says it is.
   describe('dragged', () => {
     afterEach(() => vi.useRealTimers())
     stubScreen()
@@ -110,7 +111,6 @@ describe('BottomSheet', () => {
         configurable: true,
         get: () => (card.style.height ? parseFloat(card.style.height) : 300),
       })
-      card.style.maxHeight = '740px'
       const title = screen.getByRole('heading', { name: 'Layers' })
       // A press, a move every 100ms, and the release where the last move was.
       const drag = (el: HTMLElement, ys: number[], stepMs = 100) => {
@@ -146,9 +146,30 @@ describe('BottomSheet', () => {
     // ceiling every sheet shares, and no higher.
     it('rises past the cap it opens at to the top of the screen, and no higher', () => {
       const { card, drag } = setup()
-      drag(grip(), [300, -200])
+      fireEvent.pointerDown(grip(), { clientY: 500, pointerId: 1 })
+      vi.advanceTimersByTime(100)
+      fireEvent.pointerMove(document, { clientY: -200, pointerId: 1 })
       expect(card.style.height).toBe(`${SCREEN_PX}px`)
-      expect(card.style.maxHeight).toBe('none')
+      fireEvent.pointerCancel(document, { pointerId: 1 })
+      vi.advanceTimersByTime(DOUBLE_PRESS_MS)
+      drag(grip(), [300, -200])
+      expect(card.className).toContain(BOTTOM_SHEET.ceiling)
+      expect(card.className).not.toContain(BOTTOM_SHEET.opening)
+    })
+
+    // Let go at the top it is full, a state its CSS sizes rather than a
+    // number, so a phone turned on its side keeps the grip on the screen
+    // (record 0290). A height between is held under the ceiling, which the
+    // turned screen clamps.
+    it('stays full by its CSS when let go at the top, and holds a height under the ceiling', () => {
+      const { card, drag } = setup()
+      drag(grip(), [300, -200])
+      expect(card.style.height).toBe('')
+      expect(card.className).toContain(BOTTOM_SHEET.full)
+      drag(grip(), [600, 800])
+      expect(card.style.height).toBe(`${SCREEN_PX - 300}px`)
+      expect(card.className).toContain(BOTTOM_SHEET.ceiling)
+      expect(card.className).not.toContain(BOTTOM_SHEET.full)
     })
 
     it('gives the sheet back its own height on a release near it, and on a double press', () => {
@@ -225,6 +246,7 @@ describe('BottomSheet', () => {
         </BottomSheet>,
       )
       const card = screen.getByRole('dialog', { name: 'Controls' })
+      expect(card.className).toContain(BOTTOM_SHEET.ceiling)
       Object.defineProperty(card, 'offsetHeight', { configurable: true, value: KEPT.heightPx })
       const band = card.lastElementChild as HTMLElement
       Object.defineProperty(band, 'offsetHeight', { configurable: true, value: 47 })
@@ -236,8 +258,19 @@ describe('BottomSheet', () => {
       fireEvent.pointerMove(document, { clientY: -500, pointerId: 1 })
       vi.advanceTimersByTime(200)
       fireEvent.pointerUp(document, { clientY: -500, pointerId: 1 })
-      expect(onHeightPx).toHaveBeenLastCalledWith(SCREEN_PX - 47)
+      expect(onHeightPx).toHaveBeenLastCalledWith('full')
       vi.useRealTimers()
+    })
+
+    it('stands full by its CSS when its caller holds it full', () => {
+      render(
+        <BottomSheet heading="Controls" onClose={vi.fn()} kept={{ ...KEPT, heightPx: 'full' }}>
+          <input aria-label="Field" />
+        </BottomSheet>,
+      )
+      const card = screen.getByRole('dialog', { name: 'Controls' })
+      expect(card.style.height).toBe('')
+      expect(card.className).toContain(BOTTOM_SHEET.full)
     })
 
     // A sheet opened from inside it, the model list or the calendar, stands

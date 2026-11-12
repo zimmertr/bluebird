@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useGripDrag } from './useGripDrag'
-import { type SheetStops, sheetDragPx, sheetRelease } from '../utils/sheetDrag'
+import { type SheetHeight, type SheetStops, sheetDragPx, sheetRelease } from '../utils/sheetDrag'
 
 export interface SheetDragOptions {
   /**
@@ -9,8 +9,8 @@ export interface SheetDragOptions {
    * whatever its rows measure to on screen.
    */
   measure: () => SheetStops & { startPx: number }
-  /** The height to hold the sheet at, or null to give it back its own. */
-  onHeight: (px: number | null) => void
+  /** The height to hold the sheet at, `full` for the ceiling, or null to give it back its own. */
+  onHeight: (px: SheetHeight | null) => void
   /** Let go closed, or flicked down: what Done does. */
   onClose: () => void
 }
@@ -41,7 +41,7 @@ export function useSheetDrag({ measure, onHeight, onClose }: SheetDragOptions) {
       if (release.kind === 'close') {
         onHeight(null)
         onClose()
-      } else onHeight(release.kind === 'rest' ? null : release.px)
+      } else onHeight(release.kind === 'rest' ? null : release.kind === 'full' ? 'full' : release.px)
     },
   })
 }

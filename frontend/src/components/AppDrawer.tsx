@@ -1,5 +1,6 @@
 import { useRef, type RefObject } from 'react'
 import BottomSheet from './BottomSheet'
+import type { SheetHeight } from '../utils/sheetDrag'
 import ControlPanel from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
@@ -24,11 +25,11 @@ interface AppDrawerProps {
   /** A desk's panel is opening or closing (`useLayoutMotion`), on a layer of its own meanwhile. */
   moving?: boolean
   /** The Controls sheet's height on a phone: its own share (`controlsSheetPx`), or where a drag left it. */
-  sheetPx: number
+  sheetPx: SheetHeight
   /** Its own share, which a release near it or a double press on the grip gives back (record 0146). */
   sheetRestPx: number
   /** Holds it at a dragged height, or null for its own share. */
-  onSheetPx: (px: number | null) => void
+  onSheetPx: (px: SheetHeight | null) => void
   /** Closes it: its close button at a desk, and on a phone Done, Escape or a press on the dim. */
   onClose: () => void
   /**

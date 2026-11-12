@@ -23,6 +23,15 @@ export const SHEET_FLICK_PX_PER_MS = 0.6
 /** The window a release's speed is read over: the last tenth of a second. */
 export const FLICK_WINDOW_MS = 100
 
+/**
+ * Where a sheet is held: a height in px, or `full`, the ceiling every sheet
+ * shares (record 0290). Full is a state rather than a height so a rotation
+ * keeps a full sheet full: the card's own CSS sizes it to the box it stands
+ * in, where a held number would leave its grip past the screen's top once
+ * the screen turns short.
+ */
+export type SheetHeight = number | 'full'
+
 /** The three heights a sheet can be let go to, besides wherever the finger stops. */
 export interface SheetStops {
   /** The height it opens at: its rows, or a Controls sheet's own share. */
@@ -37,7 +46,7 @@ export function sheetDragPx(startPx: number, upPx: number, fullPx: number): numb
 }
 
 /** Where a release leaves a sheet: closed, back at its own height, or held. */
-export type SheetRelease = { kind: 'close' } | { kind: 'rest' } | { kind: 'hold'; px: number }
+export type SheetRelease = { kind: 'close' } | { kind: 'rest' } | { kind: 'full' } | { kind: 'hold'; px: number }
 
 /**
  * Where a sheet let go at `px`, moving at `velocityUp` (px per ms, up
@@ -48,12 +57,12 @@ export type SheetRelease = { kind: 'close' } | { kind: 'rest' } | { kind: 'hold'
  */
 export function sheetRelease(px: number, velocityUp: number, { restPx, fullPx }: SheetStops): SheetRelease {
   if (velocityUp <= -SHEET_FLICK_PX_PER_MS) return { kind: 'close' }
-  if (velocityUp >= SHEET_FLICK_PX_PER_MS) return { kind: 'hold', px: fullPx }
+  if (velocityUp >= SHEET_FLICK_PX_PER_MS) return restPx >= fullPx ? { kind: 'rest' } : { kind: 'full' }
   const rest = Math.min(restPx, fullPx)
   const stops: [number, SheetRelease][] = [
     [0, { kind: 'close' }],
     [rest, { kind: 'rest' }],
-    [fullPx, rest === fullPx ? { kind: 'rest' } : { kind: 'hold', px: fullPx }],
+    [fullPx, rest === fullPx ? { kind: 'rest' } : { kind: 'full' }],
   ]
   let best: SheetRelease | null = null
   let bestGap = SHEET_SNAP_PX + 1

@@ -33,14 +33,14 @@ describe('sheetRelease', () => {
   it('takes a release near a stop to that stop', () => {
     expect(sheetRelease(300 + SHEET_SNAP_PX, 0, STOPS)).toEqual({ kind: 'rest' })
     expect(sheetRelease(300 - 20, 0, STOPS)).toEqual({ kind: 'rest' })
-    expect(sheetRelease(740 - 30, 0, STOPS)).toEqual({ kind: 'hold', px: 740 })
+    expect(sheetRelease(740 - 30, 0, STOPS)).toEqual({ kind: 'full' })
     expect(sheetRelease(SHEET_SNAP_PX, 0, STOPS)).toEqual({ kind: 'close' })
     expect(sheetRelease(SHEET_SNAP_PX + 1, 0, STOPS)).toEqual({ kind: 'hold', px: SHEET_SNAP_PX + 1 })
   })
 
   it('closes on a flick down and raises the sheet whole on a flick up, wherever it was let go', () => {
     expect(sheetRelease(700, -SHEET_FLICK_PX_PER_MS, STOPS)).toEqual({ kind: 'close' })
-    expect(sheetRelease(60, SHEET_FLICK_PX_PER_MS, STOPS)).toEqual({ kind: 'hold', px: 740 })
+    expect(sheetRelease(60, SHEET_FLICK_PX_PER_MS, STOPS)).toEqual({ kind: 'full' })
     expect(sheetRelease(500, SHEET_FLICK_PX_PER_MS / 2, STOPS)).toEqual({ kind: 'hold', px: 500 })
   })
 
