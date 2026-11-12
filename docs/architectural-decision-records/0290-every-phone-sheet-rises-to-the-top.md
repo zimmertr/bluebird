@@ -15,14 +15,15 @@ Every phone sheet already ran one component (`BottomSheet`), one drag (`useSheet
 
 - **One ceiling for every sheet, measured in one place.** When a drag begins, `BottomSheet` reads the box the card stands in (the screen for a menu sheet, the app's frame for the Controls sheet) less the status bar's band, and that is full height. A caller hands only its own height: the Controls sheet its `controlsSheetPx`, a menu sheet its rows. `KeptSheet.fullPx` and `controlsFullPx` are gone.
 - **The status bar's band is read off a probe**, `BOTTOM_SHEET.topBand`, an invisible box `env(safe-area-inset-top)` tall inside the card, because only CSS can read the inset. A sheet at full height keeps its grip clear of an iPhone's clock; where the browser reports 0 it reaches the screen's top.
-- **A menu sheet's `max-h` is only the cap it opens at.** A held height sets `max-height: none` inline, so a drag runs past it.
+- **A menu sheet's `max-h` is only the cap it opens at** (`BOTTOM_SHEET.opening`). Once a drag holds it, `BOTTOM_SHEET.ceiling` takes its place, so a drag runs past it.
+- **Full is a state, not a height** (`SheetHeight`'s `full`, the record 0259 rule for the results sheet). A sheet let go at the top is sized by `BOTTOM_SHEET.full`, a percentage of the box it stands in less the band, and every held height stands under `BOTTOM_SHEET.ceiling`, the same sum as a `max-h`. A phone turned on its side therefore keeps a full sheet full and clamps a held one to the shorter screen. Held as a number, a full sheet's grip stood above a turned phone's screen, where nothing could reach it (the maintainer, 2026-11-12, on this PR).
 - **The opening heights stay**, and so do the stops and the flick: a release within `SHEET_SNAP_PX` of the top, or a flick up, takes a sheet to full screen. Full screen is never where a sheet opens, record 0259's rule for the results sheet.
 - **Every sheet already stands over the map's rows and its Analyze button** (`LAYER.drawer` and `LAYER.popover`, both over `LAYER.mapControls`), so a full one covers the search box, the chips, the legend and the button. Nothing new is layered.
 - **The results sheet keeps its own drag** (record 0259), which runs on the compositor for a 120 Hz phone and docks with grips a modal sheet does not have. It already reads `SHEET_SNAP_PX` from `sheetDrag.ts`, so the two snap to the top the same way.
 
 ## Evidence
 
-`sheetDrag.spec.ts` drags the Controls and the Layers sheets to the top at 390x844 in the browser suite: each card's top lands at 0 and its bottom at 844, and what stands at the search box's and the Analyze button's places is the card. `BottomSheet.test.tsx` holds a menu sheet past the cap it opened at to the screen's height, and the Controls sheet to the screen less a 47px band.
+`sheetDrag.spec.ts` drags the Controls and the Layers sheets to the top at 390x844 in the browser suite: each card's top lands at 0 and its bottom at 844, and what stands at the search box's and the Analyze button's places is the card. Then the phone turns to 844x390: the sheet stays full at 390, its grip on the screen, and a drag down from it moves it 120px. `BottomSheet.test.tsx` holds a menu sheet past the cap it opened at to the screen's height and full by its CSS once let go there, a held height under the ceiling, and the Controls sheet to the screen less a 47px band and full when its caller holds it so.
 
 ## Alternatives rejected
 
@@ -32,4 +33,4 @@ Every phone sheet already ran one component (`BottomSheet`), one drag (`useSheet
 
 ## Consequences
 
-A sheet's full height is read at the start of each drag, so a rotation while a sheet stands full leaves it at the old height until the next drag. The Controls sheet's full height is the app's frame, which on a PR preview starts under the preview banner rather than at the screen's top.
+The Controls sheet's full height is the app's frame, which on a PR preview starts under the preview banner rather than at the screen's top.
