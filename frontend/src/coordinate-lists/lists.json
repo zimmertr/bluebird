@@ -1996,6 +1996,246 @@
       },
       "credit": "Peakbagger.com",
       "crawled": "2026-11-12"
+    },
+    {
+      "id": "canada-rockies-kane-scrambles",
+      "name": "Kane's Scrambles",
+      "description": "The peaks of Alan Kane’s Scrambles in the Canadian Rockies.",
+      "region": "Canada",
+      "file": "canada-rockies-kane-scrambles.csv",
+      "peaks": 182,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "52121",
+        "url": "https://www.peakbagger.com/list.aspx?lid=52121"
+      },
+      "credit": "Alan Kane",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "canada-bc-gunn-scrambles",
+      "name": "Gunn Scrambles",
+      "description": "The peaks of Matt Gunn’s Scrambles in Southwest British Columbia.",
+      "region": "Canada",
+      "file": "canada-bc-gunn-scrambles.csv",
+      "peaks": 121,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5217",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5217"
+      },
+      "credit": "Matt Gunn",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "canada-north-shore-bagger-challenge",
+      "name": "North Shore Bagger Challenge",
+      "description": "The North Shore peaks of Vancouver’s yearly Bagger Challenge.",
+      "region": "Canada",
+      "file": "canada-north-shore-bagger-challenge.csv",
+      "peaks": 74,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5216",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5216"
+      },
+      "credit": "The Bagger Challenge",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "canada-quebec-1000m-peaks",
+      "name": "Quebec 1000 m Peaks",
+      "description": "Quebec summits of 1,000 m or more.",
+      "region": "Canada",
+      "file": "canada-quebec-1000m-peaks.csv",
+      "peaks": 288,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21155",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21155"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "england-hewitts",
+      "name": "Hewitts of England",
+      "description": "England’s hills over 2,000 ft with a 30 m drop on every side.",
+      "region": "England",
+      "file": "england-hewitts.csv",
+      "peaks": 181,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5531",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5531"
+      },
+      "credit": "Alan Dawson",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "england-nuttalls",
+      "name": "Nuttalls of England",
+      "description": "England’s summits over 2,000 ft with a 15 m drop, from John and Anne Nuttall’s guide.",
+      "region": "England",
+      "file": "england-nuttalls.csv",
+      "peaks": 256,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5532",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5532"
+      },
+      "credit": "John and Anne Nuttall",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "england-peak-district-ethels",
+      "name": "Ethels of the Peak District",
+      "description": "Ninety-five Peak District hills, named for the campaigner Ethel Haythornthwaite.",
+      "region": "England",
+      "file": "england-peak-district-ethels.csv",
+      "peaks": 95,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5535",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5535"
+      },
+      "credit": "CPRE Peak District and South Yorkshire",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "britain-ireland-hewitts",
+      "name": "Hewitts",
+      "description": "The hills of England, Wales and Ireland over 2,000 ft with a 30 m drop on every side.",
+      "region": "Across Britain and Ireland",
+      "file": "britain-ireland-hewitts.csv",
+      "peaks": 525,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5502",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5502"
+      },
+      "credit": "Alan Dawson",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "england-wales-nuttalls",
+      "name": "Nuttalls",
+      "description": "The summits of England and Wales over 2,000 ft with a 15 m drop, from John and Anne Nuttall’s guide.",
+      "region": "Across Britain and Ireland",
+      "file": "england-wales-nuttalls.csv",
+      "peaks": 442,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5511",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5511"
+      },
+      "credit": "John and Anne Nuttall",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "uk-county-and-council-high-points",
+      "name": "UK County and Council High Points",
+      "description": "The highest point of each county and council area in the United Kingdom.",
+      "region": "Across Britain and Ireland",
+      "file": "uk-county-and-council-high-points.csv",
+      "peaks": 184,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "13620",
+        "url": "https://www.peakbagger.com/list.aspx?lid=13620"
+      },
+      "credit": "The highest point of each county and council area",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "norway-county-high-points",
+      "name": "Norway County High Points",
+      "description": "The highest point of each Norwegian county.",
+      "region": "Across Europe",
+      "file": "norway-county-high-points.csv",
+      "peaks": 15,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12205",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12205"
+      },
+      "credit": "The highest point of each county",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "indonesia-ribus",
+      "name": "The Ribus",
+      "description": "Indonesian peaks with at least 1,000 m of prominence, as Gunung Bagging lists them.",
+      "region": "Asia",
+      "file": "indonesia-ribus.csv",
+      "peaks": 239,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "448",
+        "url": "https://www.peakbagger.com/list.aspx?lid=448"
+      },
+      "credit": "Gunung Bagging",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "tasmania-abels",
+      "name": "The Abels",
+      "description": "Tasmania’s mountains over 1,100 m with a 150 m drop on every side.",
+      "region": "Australia and New Zealand",
+      "file": "tasmania-abels.csv",
+      "peaks": 158,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5805",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5805"
+      },
+      "credit": "Bill Wilkinson",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "tasmania-hobart-walking-club-peaks",
+      "name": "Hobart Walking Club Peak Baggers List",
+      "description": "The Hobart Walking Club’s peaks across Tasmania, each worth points.",
+      "region": "Australia and New Zealand",
+      "file": "tasmania-hobart-walking-club-peaks.csv",
+      "peaks": 481,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5804",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5804"
+      },
+      "credit": "The Hobart Walking Club",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "new-zealand-100-peaks-challenge",
+      "name": "New Zealand 100 Peaks Challenge",
+      "description": "A hundred peaks the New Zealand Alpine Club chose for its centenary in 1991.",
+      "region": "Australia and New Zealand",
+      "file": "new-zealand-100-peaks-challenge.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5811",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5811"
+      },
+      "credit": "The New Zealand Alpine Club",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "new-zealand-christchurch-panorama",
+      "name": "Christchurch Panorama",
+      "description": "The Southern Alps peaks seen from Christchurch, as drawn on a 1967 newspaper panorama.",
+      "region": "Australia and New Zealand",
+      "file": "new-zealand-christchurch-panorama.csv",
+      "peaks": 133,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5815",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5815"
+      },
+      "credit": "Ivan Pugh",
+      "crawled": "2026-11-12"
     }
   ]
 }
