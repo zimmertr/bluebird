@@ -293,6 +293,14 @@ export const COLUMNS: ColDef[] = [
   { key: 'precip_avg_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.average, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
   { key: 'precip_min_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.minimum, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
   { key: 'precip_max_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.maximum, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
+  // Today's depth, and the one column that is not a reading of the analyzed
+  // window (#449, #849). Whole inches, grouped like the elevation column
+  // beside which it is read: the grid resolves 1 km, and a tenth of an inch
+  // on a summit would be a precision nothing measured. Null is the row outside
+  // the grid or the pod with no grid, and both surfaces draw it as N/A, never
+  // the dash a missing hour gets. Windy's own name for the layer is
+  // `snowcover`.
+  { key: 'snow_depth_in', unit: UNIT.snow, label: metricLabel('snow'), format: (v) => grouped(Number(v)), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'snowcover' },
   // New snow over the window (#678), shaped like precipitation's group: a
   // total in inches, three rates in inches per hour, at precipitation's
   // digits. A null is an hour the forecast left blank (HRRR past its hour 45),
@@ -363,6 +371,10 @@ const POINT_LABELS: Record<string, string> = {
   wind_avg_mph: metricLabel('wind'),
   freeze_avg_ft: metricLabel('freeze'),
   snowfall_avg_in_hr: metricLabel('snowfall', undefined, SNOWFALL_RATE),
+  // A snapshot has nothing to collapse: it was one column and one label in
+  // window mode too. It is listed because this map is also what decides which
+  // columns a point sample KEEPS, and a metric absent from it disappears.
+  snow_depth_in: metricLabel('snow'),
   aqi_avg: metricLabel('aqi'),
   cloud_deck_avg_ft: metricLabel('cloud_deck'),
 }

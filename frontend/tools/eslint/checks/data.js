@@ -240,6 +240,17 @@ export const DATA = [
     ],
   },
   {
+    // The capped snow depth is marked by one module, so the three surfaces that
+    // draw it cannot spell the mark or the ceiling a second way.
+    name: 'snow-mark-shared',
+    files: ['src/utils/results/resultsCells.ts', 'src/utils/popup/popupRows.ts', 'src/utils/results/resultsCsv.ts'],
+    ban: [
+      { selector: text('≥'), message: 'Take the snow ceiling mark from snowCellText.' },
+      { selector: spelled('1,?290'), message: 'Take the snow ceiling from snowCeiling.ts.' },
+    ],
+    require: [{ selector: named('snowCellText'), message: 'Draw a snow depth through snowCellText.' }],
+  },
+  {
     // The browser path puts a thrown message in the notice box unchanged, so
     // it is copy the reader meets, and copy ends on the standing tail. A cancel
     // is the one throw nothing shows. A throw of a shared constant carries no
@@ -342,6 +353,12 @@ export const DATA = [
           ':has(> CallExpression[callee.name="listPhrase"][arguments.0.name="freezeGaps"])' +
           ':has(> TemplateElement[value.raw="."])',
         message: 'Keep the approved freezing-level comparison blocker.',
+      },
+      {
+        selector:
+          'TemplateLiteral[quasis.0.value.raw=""][quasis.length=2]:has(> MemberExpression[object.name="NOUN"][property.name="snow"])' +
+          ':has(> TemplateElement[value.raw=" is retrieved independently of the model and cannot be compared."])',
+        message: 'Keep the approved snow depth comparison blocker.',
       },
     ],
   },

@@ -9,6 +9,7 @@ import type { PendingDestination } from '../utils/customList'
 import { geoKey } from '../utils/points'
 import { pendingChartRow, rankText, rowKeys } from '../utils/results/resultsCells'
 import { useChartBox } from '../hooks/useChartBox'
+import { useGlacierCells } from '../hooks/useGlacierCells'
 import { TEXT } from '../styles'
 import ResultsTableHeader from './ResultsTableHeader'
 import ResultsTableRow, { FireClock, NoteTargetsContext, type NoteTargets, PendingRow } from './ResultsTableRow'
@@ -160,6 +161,12 @@ function ResultsTable({
     () => columns ?? displayedColumns(pointSample, sortBy),
     [columns, pointSample, sortBy],
   )
+  // Which shown rows' snow cells are a glacier's (#849), asked only while the
+  // column is on screen. It marks the cell and moves nothing.
+  const glacierCells = useGlacierCells(
+    results,
+    orderedColumns.some((c) => c.key === 'snow_depth_in'),
+  )
 
   // One clock for both flag columns and the height-read cells, running while
   // ANY of them waits; each cell decides from its own state whether to show
@@ -278,6 +285,7 @@ function ResultsTable({
                   closureStatus={closureStatus}
                   closureWarning={closureWarnings.get(at)}
                   closureUncovered={closureUncovered.has(at)}
+                  onGlacier={glacierCells.has(at)}
                   heightPending={pendingHeights.has(at)}
                   chartBox={showChartCol ? chartBox : undefined}
                   charted={charted}

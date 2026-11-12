@@ -28,6 +28,7 @@ import {
   RANKED_FAMILIES,
   UNIT,
   familyOf,
+  isSnapshotFamily,
   windowAggregate,
 } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
@@ -118,6 +119,13 @@ const BOUNDS: Record<
     step: 0.1,
     hint: ['The total over the window must be at least this.', 'The total over the window must be at most this.'],
   },
+  snow: {
+    id: 'snow-depth',
+    step: 1,
+    // No aggregate to name at either end: the row bounds today's one number,
+    // which is why it is also the row with no dropdown beside it.
+    hint: ["Today's depth must be at least this.", "Today's depth must be at most this."],
+  },
   // The cloud row reuses the freezing level's sentences word for word,
   // because it bounds the same thing: a floor on the window's lowest hour and
   // a ceiling on its highest (#117, #670).
@@ -169,7 +177,12 @@ const BOX_PLACEHOLDER: Record<MetricFamily, string> = {
 const AGGREGATE_OPTIONS = Object.fromEntries(
   RANKED_FAMILIES.map((family) => [
     family,
-    FAMILY_KEYS[family].map((key) => ({ value: key, label: windowAggregate(key) })),
+    // A snapshot family has one key and no aggregate, so it has no menu to
+    // fill; its empty list is never drawn.
+    FAMILY_KEYS[family].flatMap((key) => {
+      const label = windowAggregate(key)
+      return label === null ? [] : [{ value: key, label }]
+    }),
   ]),
 ) as Record<MetricFamily, { value: SortBy; label: string }[]>
 
@@ -383,7 +396,15 @@ export default function MetricsTable({
                 />
                 <span className="truncate">{NOUN[family]}</span>
               </label>
-              {!pointSample && (
+              {!pointSample && isSnapshotFamily(family) && (
+                // A snapshot has one column, so there is nothing to choose
+                // between and no dropdown to choose it with. The cell stays,
+                // empty: the grid's tracks are what line the bound boxes up
+                // with the section above, and a row that spanned two of them
+                // would pull its boxes out of column.
+                <div aria-hidden="true" />
+              )}
+              {!pointSample && !isSnapshotFamily(family) && (
                 // flex, not block: an inline-level select in a block
                 // wrapper reserves baseline descender space below itself,
                 // which read as the dropdown sitting ~1px lower than the

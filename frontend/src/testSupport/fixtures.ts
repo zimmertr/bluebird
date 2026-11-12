@@ -110,6 +110,7 @@ export function resultRow(over: Partial<DestinationResult> = {}): DestinationRes
     snowfall_avg_in_hr: null,
     snowfall_min_in_hr: null,
     snowfall_max_in_hr: null,
+    snow_depth_in: null,
     cloud_deck_min_ft: null,
     cloud_deck_avg_ft: null,
     cloud_deck_max_ft: null,
@@ -455,6 +456,7 @@ export function analyzedSnapshot(over: Partial<AnalyzedView> = {}): AnalyzedView
     polygonKey: '',
     typesKey: '',
     compareModels: [],
+    snowAnalysisDate: null,
     asOfMs: Date.UTC(2026, 6, 20, 6),
     ...over,
   }

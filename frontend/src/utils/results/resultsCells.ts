@@ -20,6 +20,7 @@ import {
 } from '../closureProximity'
 import { FREEZE_UNAVAILABLE_NOTE, isFreezeKey } from '../freezingLevel'
 import { NO_VALUE_MARK, UNAVAILABLE, isUnavailableKey, unavailableCellText } from '../unavailableCell'
+import { isSnowDepthKey, snowCellText } from '../snowCeiling'
 import { extremeHourMs, windyUrl } from '../windy'
 import { isPeakKind } from '../geocode'
 import type { PendingDestination } from '../customList'
@@ -83,10 +84,12 @@ export function modelCellText(row: DestinationResult, fallback: string | null | 
 
 /**
  * A metric that declined to answer for a reason that is not the weather: the
- * model publishes no freezing level. Null when the cell has a number to print.
+ * model publishes no freezing level, or the destination is outside the snow
+ * grid. Null when the cell has a number to print.
  *
- * The hover text names the cause because it is one a reader can act on: the
- * model is a control in the panel (TJ, 2026-09-22).
+ * Only the freezing level carries hover text, because only its cause is one a
+ * reader can act on: the model is a control in the panel, where a
+ * destination's place on the map is not (TJ, 2026-09-22).
  */
 export function unavailableCell(key: string, raw: unknown): { text: string; cause?: string } | null {
   const text = isUnavailableKey(key) ? unavailableCellText(raw) : null
@@ -98,10 +101,13 @@ export function unavailableCell(key: string, raw: unknown): { text: string; caus
  * The printed value: the column's own format, or the dash a missing hour gets.
  * A null never reaches a formatter, `popupRows.ts`'s rule and for its reason:
  * snowfall's is precipitation's, which would print a null as zeros, a number
- * the forecast never gave (#678).
+ * the forecast never gave (#678). A snow depth the source file could not hold
+ * prints as "at least" rather than as the ceiling it was clipped to.
  */
 export function cellText(col: ColDef, raw: unknown): string {
   if (raw == null) return NO_VALUE_MARK
+  const clipped = isSnowDepthKey(col.key as string) ? snowCellText(raw) : null
+  if (clipped !== null) return clipped
   return col.format ? col.format(raw) : String(raw)
 }
 

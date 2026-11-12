@@ -6,6 +6,7 @@ import { ModelRow } from '../model/modelCompare'
 import { extremeHourMs, windyUrl } from '../windy'
 import { NO_VALUE_MARK, isUnavailableKey, unavailableCellText } from '../unavailableCell'
 import { isCloudDeckMark } from '../cloudDeckMark'
+import { isSnowDepthKey, snowCellText } from '../snowCeiling'
 
 /**
  * A marker popup's body, derived from the columns the results table is showing
@@ -92,10 +93,11 @@ export type PopupIdentity = {
  * The value a column reads on a row, formatted exactly as the table's cell
  * formats it.
  *
- * One metric can be empty for a reason that is not the weather — the model
- * publishes no freezing level. It keeps the table's N/A mark rather than the
- * dash a genuinely missing hour gets, and carries no link: a mark saying a
- * number was never available has nothing for Windy to show.
+ * Two metrics can be empty for a reason that is not the weather: the model
+ * publishes no freezing level, or the destination is outside the snow grid.
+ * Both keep the table's N/A mark rather than the dash a genuinely missing
+ * hour gets, and neither carries a link: a mark saying a number was never
+ * available has nothing for Windy to show.
  */
 function cellText(col: ColDef, row: DestinationResult): { text: string; linkable: boolean } {
   const raw = row[col.key as keyof DestinationResult]
@@ -109,6 +111,10 @@ function cellText(col: ColDef, row: DestinationResult): { text: string; linkable
   // table's own cell draws. The link stays, matching the table, which links a
   // cell by its column rather than by whether the hour had a value.
   if (raw == null) return { text: NO_VALUE_MARK, linkable: true }
+  // The table's "at least" mark, for the same reason and with the same link:
+  // the row is still a real destination with a real depth under it.
+  const clipped = isSnowDepthKey(col.key as string) ? snowCellText(raw) : null
+  if (clipped !== null) return { text: clipped, linkable: true }
   return { text: col.format ? col.format(raw) : String(raw), linkable: true }
 }
 

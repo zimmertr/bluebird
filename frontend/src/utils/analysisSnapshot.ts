@@ -17,6 +17,8 @@ export interface RecordedFacts {
   // carries no polygon and the caller passes the panel's keys instead.
   discovery: DiscoveryKeys
   compareModels: readonly string[]
+  // The grid date the pod reported, or null when it reported none.
+  snowAnalysisDate: string | null
 }
 
 /**
@@ -46,6 +48,7 @@ export function analyzedView(
     polygonKey: facts.discovery.polygonKey,
     typesKey: facts.discovery.typesKey,
     compareModels: facts.compareModels,
+    snowAnalysisDate: facts.snowAnalysisDate,
     asOfMs: nowMs,
   }
 }

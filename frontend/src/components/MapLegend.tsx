@@ -32,6 +32,7 @@ import { writeViewPrefs } from '../utils/viewPrefs'
 import { CLOSURE_ROW_LABELS, USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
 import { FIRE_ACTIVITY_ROW_LABEL, FIRMS_HREF, fireActivityLegendChips } from '../utils/fireActivity'
 import { GRID_STYLE_NAMES } from '../utils/forecastGrid/forecastGridLegend'
+import { gridPaints } from '../utils/forecastGrid/forecastGridRaster'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF, RADAR_ROW_LABEL, radarSwatchCss } from '../utils/radar'
@@ -204,7 +205,13 @@ export function legendSections(
     showFireActivity,
     showSlope,
   } = overlays
-  const { gridPainted, gridCued, gridFailed, gridLegend, gridStyle, setGridStyle } = grid
+  // The grid's states mean nothing under a ranking it cannot paint, so the
+  // grid neither keys the metric nor gets a row of its own then.
+  const gridShows = gridPaints(sortBy)
+  const gridPainted = gridShows && grid.gridPainted
+  const gridCued = gridShows && grid.gridCued
+  const gridFailed = gridShows && grid.gridFailed
+  const { gridLegend, gridStyle, setGridStyle } = grid
   // ONE box, gaining and losing sections as the report and the
   // layers change (#454). It was two — the layer rows in one, the
   // six-row metric key in another — which cost a border, a gap and

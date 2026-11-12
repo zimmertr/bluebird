@@ -1,17 +1,20 @@
 // The mark a cell wears when its number is missing for a reason that is not
 // the weather, and which columns can wear it.
 //
-// One metric can be empty without anything being wrong with the forecast: the
+// Two metrics can be empty without anything being wrong with the forecast. The
 // freezing level is absent because five of the eight models publish no such
-// variable (#295). That is not a gap in a series, so it does not draw the dash
-// a missing hour gets: a dash says "nothing there", and here there IS
-// something to say, which is that the number was never available to begin
-// with. Snow depth wore the same mark until it left the table (#449, #678).
+// variable (#295); snow depth is absent because the destination is outside the
+// SNODAS grid, or because the pod holds no grid yet (#449, #849). Neither is a
+// gap in a series, so neither draws the dash a missing hour gets: a dash says
+// "nothing there", and here there IS something to say, which is that the
+// number was never available to begin with.
 //
 // One spelling, because three surfaces draw it — the table, the marker popup
 // and the downloaded file — and a file read in a spreadsheet has nothing beside
-// it saying what a blank was supposed to mean. The hover text is the CAUSE
-// rather than the mark, and lives with the freezing level's own note.
+// it saying what a blank was supposed to mean. What differs between the two
+// metrics is the hover text, which is the CAUSE rather than the mark: the
+// freezing level's names the models a reader can switch to, and snow depth has
+// no such remedy, so it carries none (TJ, 2026-09-22).
 //
 // Pure, and here rather than in the table, for the reason every derivation in
 // this repository is: Vitest runs node-env, so logic left inside a component is
@@ -23,7 +26,10 @@ import { FAMILY_KEYS } from '../metrics'
  * The columns this module speaks for, read off the families' own key lists so
  * a new aggregate could never be added in one place and missed here.
  */
-const UNAVAILABLE_KEYS: ReadonlySet<string> = new Set<string>(FAMILY_KEYS.freeze)
+const UNAVAILABLE_KEYS: ReadonlySet<string> = new Set<string>([
+  ...FAMILY_KEYS.freeze,
+  ...FAMILY_KEYS.snow,
+])
 
 export function isUnavailableKey(key: string): boolean {
   return UNAVAILABLE_KEYS.has(key)

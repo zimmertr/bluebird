@@ -1,17 +1,30 @@
 import { DestinationResult, HourlySeries, SortBy } from '../../types'
 import { cloudDeckMark } from '../cloudDeckMark'
-import { HOURLY_UNIT, MetricFamily, RANKED_FAMILIES, familyOf, formatPrecipRate, metricLabel } from '../../metrics'
+import {
+  HOURLY_UNIT,
+  MetricFamily,
+  RANKED_FAMILIES,
+  SnapshotFamily,
+  familyOf,
+  formatPrecipRate,
+  isSnapshotFamily,
+  metricLabel,
+} from '../../metrics'
 import { setKey } from '../points'
 import { TYPE_COL } from '../tableColumns'
 import { clamp, grouped as groupDigits } from '../numbers'
 import { HOUR_MS } from '../forecastWindow'
 
 /**
- * The families this chart can plot, which is every one: each is an hourly
- * series. Snow depth was the one exception, as one number for today, until
- * snowfall replaced it (#678).
+ * The families this chart can plot: every one that is an hourly series.
+ *
+ * A snapshot family is excluded by construction rather than by a check at each
+ * call site (#449, #849). Snow depth is one number for today, so there is
+ * nothing to draw across an axis of hours, and `SERIES_FIELD` below would have
+ * no field to name for it, which is what makes this a type error rather than
+ * an empty line on screen.
  */
-export type ChartMetric = MetricFamily
+export type ChartMetric = Exclude<MetricFamily, SnapshotFamily>
 
 const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
@@ -27,7 +40,9 @@ const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
 // (record 0222). No aggregate: these plot the raw hourly series, so a point is
 // that hour's own value rather than anything reduced over the window, and its
 // unit is an hour's (`in/hr` for precipitation, where the window's is `in`).
-export const CHART_METRICS: { key: ChartMetric; label: string }[] = RANKED_FAMILIES.map((key) => ({
+export const CHART_METRICS: { key: ChartMetric; label: string }[] = RANKED_FAMILIES.filter(
+  (family): family is ChartMetric => !isSnapshotFamily(family),
+).map((key) => ({
   key,
   label: metricLabel(key, null, HOURLY_UNIT[key]),
 }))
@@ -37,8 +52,11 @@ export const CHART_METRICS: { key: ChartMetric; label: string }[] = RANKED_FAMIL
 // Read off the ranking key's own family rather than matched against a list of
 // keys: since #291 a family has three or four rankable keys, and a list
 // naming one of them each opened the precipitation chart for the other two.
-export function metricForSort(sortBy: SortBy): ChartMetric {
-  return familyOf(sortBy)
+// A snapshot ranking names no chart metric (#449, #849): it has no hourly
+// series, so the chart stays on what it shows rather than following it.
+export function metricForSort(sortBy: SortBy): ChartMetric | null {
+  const family = familyOf(sortBy)
+  return isSnapshotFamily(family) ? null : family
 }
 
 /**
@@ -55,9 +73,12 @@ export type ChartMetrics = readonly ChartMetric[]
  */
 export const MAX_CHART_PANELS = 4
 
-/** The slots a session opens on: the ranking's family alone. */
+/**
+ * The slots a session opens on: the ranking's family alone, or the first
+ * chart metric under a ranking the chart cannot draw.
+ */
 export function metricsFor(sortBy: SortBy): ChartMetrics {
-  return [metricForSort(sortBy)]
+  return [metricForSort(sortBy) ?? CHART_METRICS[0].key]
 }
 
 /**

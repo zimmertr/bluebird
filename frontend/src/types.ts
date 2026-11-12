@@ -37,6 +37,9 @@ export type SortBy =
   | 'snowfall_avg_in_hr'
   | 'snowfall_min_in_hr'
   | 'snowfall_max_in_hr'
+  // The one key that is not a window aggregate: snow depth is today's single
+  // number, so its family has one member rather than three (#449, #849).
+  | 'snow_depth_in'
   | 'aqi_avg'
   | 'aqi_min'
   | 'aqi_max'
@@ -106,6 +109,8 @@ export interface AnalyzeRequest {
   max_freeze_ft?: number | null
   min_snowfall_total_in?: number | null
   max_snowfall_total_in?: number | null
+  min_snow_depth_in?: number | null
+  max_snow_depth_in?: number | null
   min_aqi?: number | null
   max_aqi?: number | null
   min_cloud_deck_ft?: number | null
@@ -204,6 +209,14 @@ export interface DestinationResult {
   snowfall_avg_in_hr: number | null
   snowfall_min_in_hr: number | null
   snowfall_max_in_hr: number | null
+  // Snow on the ground TODAY, in inches, from the NOHRSC SNODAS grid the pod
+  // holds: not a forecast, and not a reading of the analyzed window at all
+  // (#449, #849). Null outside the grid, which covers the contiguous US and
+  // southern Canada, and null while the pod holds no grid; both read N/A
+  // rather than as a gap in the weather. Over permanent ice the model
+  // accumulates year over year, so a glaciated summit reads over a thousand
+  // inches.
+  snow_depth_in: number | null
   // The cloud deck in feet above sea level, reduced over the window (#670).
   // Null unless the analysis fetched the cloud column, and for archive hours,
   // which carry no pressure levels. A dry column reads CLOUD_DECK_CEILING_FT.
@@ -242,6 +255,10 @@ export interface AnalyzeResponse {
   // True only when the request opted into top_by_elevation and the found set
   // exceeded the analysis cap.
   truncated?: boolean
+  // Which day's SNODAS analysis every snow_depth_in above came from, as
+  // YYYY-MM-DD. Null when the pod holds no grid, which is also when every
+  // snow_depth_in is null.
+  snow_analysis_date?: string | null
 }
 
 // Structured fields riding on an over-limit 400 (or the stream's error
@@ -263,6 +280,10 @@ export interface DiscoveredDestination {
   longitude: number
   elevation_ft: number | null
   osm_id: string | null
+  // Today's snow depth, filled from the grid the pod holds. It arrives with
+  // discovery rather than with the forecasts because it is not a forecast:
+  // the browser path fetches its own weather and would otherwise never see it.
+  snow_depth_in?: number | null
 }
 
 export interface DestinationsResponse {
@@ -270,6 +291,7 @@ export interface DestinationsResponse {
   total: number
   total_found?: number | null
   truncated?: boolean
+  snow_analysis_date?: string | null
   // Whether the pod's elevation lookup finished (#673); absent reads as true.
   elevation_lookup_complete?: boolean
 }

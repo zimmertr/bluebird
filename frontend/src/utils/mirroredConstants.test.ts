@@ -25,6 +25,7 @@ import {
 import { COVERAGE_MESSAGE_TAIL, COVERAGE_PHRASE } from './openMeteoErrors'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { MAX_POLYGON_POINTS } from './drawGeometry'
+import { SNOW_DEPTH_CEILING_IN } from './snowCeiling'
 import { COARSE_TOLERANCE_DEG } from './wildfires'
 import {
   ARCHIVE_STRADDLE_DAYS,
@@ -55,6 +56,13 @@ describe('the constants the backend publishes for this side to match', () => {
     // visitor spending the quota everyone behind that address shares.
     expect(BATCH_SIZE).toBe(constants.BATCH_SIZE)
     expect(MAX_CONCURRENT_BATCHES).toBe(constants.MAX_CONCURRENT_BATCHES)
+  })
+
+  it('stops the snow depth column where the source file stops', () => {
+    // The browser prints a depth at this number as "at least" rather than as
+    // a measurement, so the mark is only honest while both sides agree on
+    // where SNODAS's int16 millimetres run out.
+    expect(SNOW_DEPTH_CEILING_IN).toBe(constants.SNOW_DEPTH_CEILING_IN)
   })
 
   it('caps a browser analysis where the server caps one', () => {

@@ -58,6 +58,10 @@ export interface AnalyzeGate {
   // draws most of its lines as columns of nulls. `freezingLevel.ts` owns which
   // ones, and why that has to be a list rather than read off the data.
   compareFreeze: boolean
+  // Snow depth comes off the snow analysis the pod holds, not out of any
+  // forecast model, so a comparison there would draw one answer once per chip:
+  // the air-quality case exactly (#449, #849).
+  compareSnow: boolean
   // The last run was refused, and the panel still describes the request that
   // was (`refusalStands`, #803). A refusal is deterministic: the same request
   // is refused the same way, so the button holds until the panel changes.
@@ -102,7 +106,7 @@ export function ringUsable(drawPointCount: number, areaTooLarge: boolean): boole
 export function canAnalyze(g: AnalyzeGate): boolean {
   if (g.hasWindowWarning || g.datesPending || g.loading || g.areaTooLarge) return false
   if (g.refused || g.overCap !== null || g.spend !== null) return false
-  if (g.compareAqi || g.compareFreeze) return false
+  if (g.compareAqi || g.compareFreeze || g.compareSnow) return false
   if (g.archiveCloud || g.archiveFreeze || g.aqiHorizon || g.boundOrder || g.modelDomain !== null) return false
   return g.polygonReady || g.hasCustom || g.hasPins
 }
@@ -225,6 +229,9 @@ export function analyzeGateFor(i: AnalyzeGateInputs): {
       // the picker shows several chips.
       compareAqi: rankFamily === 'aqi' && selected.length > 1,
       compareFreeze: freezeGaps.length > 0,
+      // The snow analysis is one national grid the pod holds, so it is the
+      // second metric no model answers.
+      compareSnow: rankFamily === 'snow' && selected.length > 1,
       refused: refusalStands(i.refusal, i.failedView, i.panel),
       // Every row of the list is a destination the run would forecast, ring
       // or none, so a list over the cap is refused whatever the ring finds
@@ -285,6 +292,7 @@ export type AnalyzeBlocker =
   | 'dates'
   | 'compare-aqi'
   | 'compare-freeze'
+  | 'compare-snow'
   | 'archive-cloud'
   | 'archive-freeze'
   | 'aqi-horizon'
@@ -318,6 +326,7 @@ export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): An
   // and the cheapest to change.
   if (g.compareAqi) blockers.push('compare-aqi')
   if (g.compareFreeze) blockers.push('compare-freeze')
+  if (g.compareSnow) blockers.push('compare-snow')
   if (g.archiveCloud) blockers.push('archive-cloud')
   if (g.archiveFreeze) blockers.push('archive-freeze')
   if (g.aqiHorizon) blockers.push('aqi-horizon')

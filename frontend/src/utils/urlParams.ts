@@ -14,6 +14,7 @@ import {
   RANKING_KEYS,
   aggregateToken,
   familyOf,
+  isSnapshotFamily,
 } from '../metrics'
 import { type Constraints, NO_CONSTRAINTS } from './constraints'
 import { GRID_REACH_DEFAULT_FRAC, isGridStyle } from './forecastGrid/forecastGrid'
@@ -25,7 +26,7 @@ import { isSortKey } from './tableColumns'
 import { parseCustomCsv } from './customDestinations'
 import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
-import { MAX_CHART_PANELS, isChartMetric, metricForSort } from './chart/chartData'
+import { MAX_CHART_PANELS, isChartMetric, metricsFor } from './chart/chartData'
 import { presetListById } from './presetLists'
 
 /**
@@ -148,7 +149,7 @@ const round = (n: number): number => roundTo(n, POLY_PRECISION)
  * family.
  */
 export function chartDiffers(state: ShareableState): boolean {
-  return state.chart.length > 1 || state.chart[0] !== metricForSort(state.sortBy)
+  return state.chart.length > 1 || state.chart[0] !== metricsFor(state.sortBy)[0]
 }
 
 /** Whether the state holds a ring worth writing: three corners at least. */
@@ -459,9 +460,9 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     },
   },
   flag('desc', 'sortDesc'),
-  // Snow depth's key left the ranking keys in #678, so an old link ranked on
-  // it fails the check above and opens on the default ranking.
-  ...RANKED_FAMILIES.map(aggregateRow),
+  // A snapshot family has one key and no dropdown, so there is no choice to
+  // carry and no param to write (#449, #849).
+  ...RANKED_FAMILIES.filter((family) => !isSnapshotFamily(family)).map(aggregateRow),
   // Shape only, no ceiling: a link asking for more rows than this deployment
   // allows gets clamped down by the caller, never discarded. Dropping it here
   // is what made a shared `limit=500` open silently at the default instead of
@@ -567,7 +568,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     encode: ({ selection }) => (selection.kind === 'days' && selection.hours ? selection.hours.end : null),
   },
   // The forecast bounds, spelled out rather than abbreviated the way
-  // `minel`/`maxel` were: fourteen terse keys would be fourteen guesses in the
+  // `minel`/`maxel` were: sixteen terse keys would be sixteen guesses in the
   // address bar, and readability is what the URL convention buys (#210).
   // `minel` and `maxel` have no row, so they are deliberately not read. They
   // carried the elevation band the panel dropped in #341, so an old link still
@@ -576,9 +577,9 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   // and `maxcloudcover` are retired the same way, with the `cloud_base` and
   // `cloud_cover` aggregate params: the cloud deck replaced both families
   // (#670), and a bound on a number the app no longer computes is no bound.
-  // `minsnow` and `maxsnow` bounded the snow depth snowfall replaced (#678),
-  // and are retired on the same terms rather than read as a snowfall bound,
-  // which is a different quantity in the same unit.
+  // `minsnow` and `maxsnow` bound snow depth, retired when snowfall replaced
+  // it (#678) and read again since it came back beside snowfall (#849), so a
+  // link from before the retirement opens on its bound once more.
   bound('minprecip', 'minPrecipTotalIn'),
   bound('maxprecip', 'maxPrecipTotalIn'),
   bound('mintemp', 'minTempF'),
@@ -589,6 +590,8 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   bound('maxfreeze', 'maxFreezeFt'),
   bound('minsnowfall', 'minSnowfallTotalIn'),
   bound('maxsnowfall', 'maxSnowfallTotalIn'),
+  bound('minsnow', 'minSnowDepthIn'),
+  bound('maxsnow', 'maxSnowDepthIn'),
   bound('minaqi', 'minAqi'),
   bound('maxaqi', 'maxAqi'),
   bound('minclouddeck', 'minCloudDeckFt'),
@@ -778,11 +781,11 @@ export const FIELD_PARAMS = {
   compareModels: ['compare'],
   sortBy: ['sort'],
   sortDesc: ['desc'],
-  rowKeys: ['sort', ...RANKED_FAMILIES.map(aggregateParam)],
+  rowKeys: ['sort', ...RANKED_FAMILIES.filter((family) => !isSnapshotFamily(family)).map(aggregateParam)],
   constraints: [
     'minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind',
-    'minfreeze', 'maxfreeze', 'minsnowfall', 'maxsnowfall', 'minaqi', 'maxaqi',
-    'minclouddeck', 'maxclouddeck',
+    'minfreeze', 'maxfreeze', 'minsnowfall', 'maxsnowfall', 'minsnow', 'maxsnow',
+    'minaqi', 'maxaqi', 'minclouddeck', 'maxclouddeck',
   ],
   limit: ['limit'],
   customCsv: ['customz'],

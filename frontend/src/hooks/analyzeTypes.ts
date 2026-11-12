@@ -91,6 +91,13 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // therefore cues a commit and unticking applies at once: the held field can
   // always answer a smaller question and never a larger one.
   compareModels: readonly string[]
+  // Which day's snow analysis the field's `snow_depth_in` values came from,
+  // and null while the pod holds no grid (#449, #849). Recorded here rather
+  // than read back off a row, because it is a fact about the whole report:
+  // the results header states it in place of the window caption while snow
+  // depth ranks, and a report of rows that all fall outside the grid still
+  // has a date.
+  snowAnalysisDate: string | null
   // When the report committed, epoch ms: what a Current report's caption
   // says it is "as of". Every commit stamps its own moment, a run that reused
   // every forecast it held included, so the caption names the last run rather

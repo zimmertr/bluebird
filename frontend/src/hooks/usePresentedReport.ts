@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AnalyzeResponse, CustomDestination, DestinationResult, DiscoveredDestination, SortBy } from '../types'
 import type { AnalyzedView } from './analyzeTypes'
-import { windowCaption } from '../utils/calendar/calendar'
+import { NOUN, familyOf, isSnapshotFamily } from '../metrics'
+import { snapshotCaption, windowCaption } from '../utils/calendar/calendar'
 import { type PendingDestination, foundAsPending, pendingDestinations } from '../utils/customList'
 import type { IdentityMap } from '../utils/elevationLookup'
 import { type Place, placeType } from '../utils/geocode'
@@ -151,7 +152,15 @@ export function usePresentedReport({
   // worse than no date range at all.
   const windowTitle =
     results.length > 0 && analyzed !== null
-      ? windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample, undefined, analyzed.asOfMs)
+      ? isSnapshotFamily(familyOf(view.sortBy))
+        ? // A snapshot ranking is not a reading of the window at all (#449,
+          // #849), so the caption names the day its grid is from instead.
+          // Null where the report carries no date, which is the same report
+          // whose rows all read N/A: there is nothing to be "as of".
+          analyzed.snowAnalysisDate === null
+          ? null
+          : snapshotCaption(NOUN[familyOf(view.sortBy)], analyzed.snowAnalysisDate)
+        : windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample, undefined, analyzed.asOfMs)
       : null
 
   // The detail-column sort, held here rather than inside ResultsTable (#125).
