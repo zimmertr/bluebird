@@ -140,7 +140,7 @@ describe('a polygon run', () => {
     expect(posted[0]).toMatchObject({ destination_types: ['peak', 'lake', 'trailhead', 'crag'] })
     expect(posted[0]).not.toHaveProperty('custom_destinations')
     expect(posted[0]).not.toHaveProperty('elevation_lookup')
-    expect(seen[0]).toEqual({ candidates: [CANDIDATE, lake], totalFound: null, truncated: false })
+    expect(seen[0]).toEqual({ candidates: [CANDIDATE, lake], totalFound: null, truncated: false, snowAnalysisDate: null })
     expect(ranked.mock.calls[0][1]).toEqual([CANDIDATE, lake])
   })
 
@@ -230,11 +230,17 @@ describe('a polygon run', () => {
 
 describe('discoverCandidates', () => {
   it('sends the discovery knobs with their defaults, and custom rows only when there are some', async () => {
-    stubDestinations({ destinations: [CANDIDATE], total: 1, total_found: 9, truncated: true })
+    stubDestinations({
+      destinations: [CANDIDATE],
+      total: 1,
+      total_found: 9,
+      truncated: true,
+      snow_analysis_date: '2026-11-12',
+    })
     const found = await discoverCandidates(REQUEST, signal)
     expect(posted[0]).toMatchObject({ include_unnamed_peaks: false, top_by_elevation: false })
     expect(posted[0]).not.toHaveProperty('custom_destinations')
-    expect(found).toEqual({ candidates: [CANDIDATE], totalFound: 9, truncated: true })
+    expect(found).toEqual({ candidates: [CANDIDATE], totalFound: 9, truncated: true, snowAnalysisDate: '2026-11-12' })
 
     const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
     await discoverCandidates({ ...REQUEST, custom_destinations: custom }, signal)
@@ -336,7 +342,7 @@ describe('runAnalysisPipeline', () => {
     const out = await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options())
     expect([...out.pending]).toEqual([geoKey(47, -121)])
     expect(out.held.columns?.size).toBe(1)
-    expect(await out.late).toEqual({ rows: [patched], columns: new Map() })
+    expect(await out.late).toEqual({ rows: [patched], columns: new Map(), snowAnalysisDate: null })
   })
 
   // #673: the list goes to the pod at once, with the elevations the browser's

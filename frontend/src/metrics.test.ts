@@ -88,7 +88,7 @@ describe('the rankable keys', () => {
 
   it('derives RANKING_KEYS from the family lists', () => {
     expect(RANKING_KEYS).toEqual(RANKED_FAMILIES.flatMap((f) => FAMILY_KEYS[f]))
-    expect(RANKING_KEYS).toHaveLength(23)
+    expect(RANKING_KEYS).toHaveLength(24)
   })
 
   // The pre-#291 rankable four: what each row holds until the user says
@@ -103,6 +103,8 @@ describe('the rankable keys', () => {
       freeze: 'freeze_min_ft',
       // The window's total, as precipitation's is: how much fell (#678).
       snowfall: 'snowfall_total_in',
+      // Today's depth, the one key its family has (#849).
+      snow: 'snow_depth_in',
       aqi: 'aqi_avg',
       // #670, TJ's default: the lowest deck, the hour the cloud came closest
       // to the ground.
@@ -153,10 +155,10 @@ describe('aggregateToken', () => {
     expect(() => aggregateToken('elevation_ft' as SortBy)).toThrow(/elevation_ft/)
   })
 
-  // Snow depth's key left the app with its column (#678), so it names no
-  // family and has no aggregate to read.
-  it('throws on the retired snow depth key', () => {
-    expect(() => aggregateToken('snow_depth_in' as SortBy)).toThrow(/snow_depth_in/)
+  // Snow depth is one number for today (#849): there is no window to reduce,
+  // so its key has no aggregate segment and the token is null, not a throw.
+  it('answers null for the snow depth key', () => {
+    expect(aggregateToken('snow_depth_in')).toBeNull()
   })
 })
 
@@ -167,10 +169,12 @@ describe('the vocabulary', () => {
       'cloud_deck',
       'freeze',
       'precip',
+      'snow',
       'snowfall',
       'temp',
       'wind',
     ])
+    expect(NOUN.snow).toBe('Snow depth')
     expect(NOUN.precip).toBe('Precipitation')
     expect(NOUN.temp).toBe('Temperature')
     expect(NOUN.wind).toBe('Wind')
@@ -233,7 +237,6 @@ describe('familyOf', () => {
   it('throws on a key that names no metric', () => {
     expect(() => familyOf('elevation_ft')).toThrow(/elevation_ft/)
     expect(() => familyOf('name')).toThrow()
-    expect(() => familyOf('snow_depth_in')).toThrow(/snow_depth_in/)
   })
 })
 
@@ -246,9 +249,11 @@ describe('windowAggregate', () => {
     expect(windowAggregate('aqi_max')).toBe('Max')
   })
 
-  it('answers with an AGGREGATE word for every rankable key', () => {
+  // A snapshot family reads no aggregate: its one key is today's value.
+  it('answers with an AGGREGATE word for every rankable key outside a snapshot family', () => {
     for (const key of RANKING_KEYS) {
-      expect(Object.values(AGGREGATE)).toContain(windowAggregate(key))
+      if (isSnapshotFamily(familyOf(key))) expect(windowAggregate(key)).toBeNull()
+      else expect(Object.values(AGGREGATE)).toContain(windowAggregate(key))
     }
   })
 })

@@ -511,9 +511,9 @@ describe('encodeState', () => {
 
   it('omits every forecast bound when unset', () => {
     // Read off the codec table, so a bound added there is covered on arrival:
-    // two ends on each of the seven families.
+    // two ends on each of the eight families.
     const bounds = URL_PARAMS.map((r) => r.key).filter((k) => /^(min|max)/.test(k))
-    expect(bounds).toHaveLength(14)
+    expect(bounds).toHaveLength(16)
     const params = new URLSearchParams(encodeState(base, DEFAULT_MODEL))
     for (const k of bounds) expect(params.has(k), k).toBe(false)
   })
@@ -1065,6 +1065,7 @@ describe('decodeState tolerance', () => {
         temp: 'temp_min_f',
         freeze: 'freeze_min_ft',
         snowfall: 'snowfall_total_in',
+        snow: 'snow_depth_in',
         aqi: 'aqi_avg',
         cloud_deck: 'cloud_deck_max_ft',
       })

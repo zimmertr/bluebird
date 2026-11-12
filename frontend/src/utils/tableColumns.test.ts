@@ -72,25 +72,25 @@ describe('COLUMNS', () => {
   // Type keeps OSM's own word, lower-case, because a caller re-importing the
   // file wants the value the API uses rather than the one the table
   // title-cases for reading. Elevation, the three freezing-level columns and
-  // the three cloud-deck columns are grouped numbers, and a grouped number
+  // the three cloud-deck columns and the snow depth are grouped numbers, and a grouped number
   // puts a comma inside a comma-separated cell. Adding another means a file
   // cell changed shape.
   it('overrides the display formatter for exactly the columns that need it', () => {
-    expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual(['type', 'elevation_ft', ...CLOUD_KEYS, ...FREEZE_KEYS])
+    expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual(['type', 'elevation_ft', ...CLOUD_KEYS, ...FREEZE_KEYS, 'snow_depth_in'])
   })
 
   // A blank cell is how a spreadsheet spells "no value", which is the truth
-  // for every metric but this one: a freezing level is absent because the
-  // model carries no such variable, and the file is read detached from the
-  // app that could say so. So the three declare the mark the screen uses and
-  // nothing else does.
+  // for every metric but two: a freezing level is absent because the model
+  // carries no such variable, and a snow depth because the destination is
+  // outside the snow grid, and the file is read detached from the app that
+  // could say so. So the four declare the mark the screen uses and nothing
+  // else does.
   it('declares a file mark for exactly the columns that can be unavailable', () => {
-    // The one metric whose cells can be empty for a reason that is not the
-    // weather: the model publishes no freezing level.
     expect(COLUMNS.filter((c) => c.csvNull).map((c) => c.key)).toEqual([
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
+      'snow_depth_in',
     ])
     for (const col of COLUMNS.filter((c) => c.csvNull)) {
       expect(col.csvNull).toBe(UNAVAILABLE)
@@ -108,6 +108,7 @@ describe('COLUMNS', () => {
     // Windy's new-snow accumulation, read off a live Windy tab on 2026-10-07
     // (#678): the token whose name Windy shows as "New snow".
     for (const key of SNOWFALL_KEYS) expect(layers.get(key)).toBe('snowAccu')
+    expect(layers.get('snow_depth_in')).toBe('snowcover')
     for (const col of COLUMNS) {
       if (LEAD.has(col.key as string)) continue
       expect(col.windyLayer, `${col.key} links to no layer`).toBeTruthy()
@@ -138,6 +139,7 @@ describe('orderColumns', () => {
       ...CLOUD_KEYS,
       ...FREEZE_KEYS,
       ...PRECIP_KEYS,
+      'snow_depth_in',
       ...SNOWFALL_KEYS,
       ...TEMP_KEYS,
       ...WIND_KEYS,
@@ -153,6 +155,7 @@ describe('orderColumns', () => {
       ...AQI_KEYS,
       ...CLOUD_KEYS,
       ...FREEZE_KEYS,
+      'snow_depth_in',
       ...SNOWFALL_KEYS,
       ...TEMP_KEYS,
       ...WIND_KEYS,
@@ -169,6 +172,7 @@ describe('orderColumns', () => {
       ...CLOUD_KEYS,
       ...FREEZE_KEYS,
       ...PRECIP_KEYS,
+      'snow_depth_in',
       ...SNOWFALL_KEYS,
       ...WIND_KEYS,
     ])
@@ -210,6 +214,7 @@ describe('orderColumns, ranked first', () => {
       ...AQI_KEYS,
       ...CLOUD_KEYS,
       ...FREEZE_KEYS,
+      'snow_depth_in',
       ...SNOWFALL_KEYS,
       ...TEMP_KEYS,
       ...WIND_KEYS,
@@ -231,6 +236,7 @@ describe('orderColumns, ranked first', () => {
       'cloud_deck_avg_ft',
       'freeze_avg_ft',
       'precip_avg_in_hr',
+      'snow_depth_in',
       'snowfall_avg_in_hr',
       'temp_avg_f',
     ])
@@ -267,6 +273,7 @@ describe('pointModeColumns', () => {
       'freeze_avg_ft',
       'precip_avg_in_hr',
       // Collapsed onto its rate, as precipitation is (#678).
+      'snow_depth_in',
       'snowfall_avg_in_hr',
       'temp_avg_f',
       'wind_avg_mph',
@@ -298,6 +305,7 @@ describe('pointModeColumns', () => {
       'cloud_deck_avg_ft',
       'freeze_avg_ft',
       'precip_avg_in_hr',
+      'snow_depth_in',
       'snowfall_avg_in_hr',
       'temp_avg_f',
     ])
@@ -317,7 +325,7 @@ describe('displayedColumns', () => {
   // Measured rather than named: the collapse is keyed on the window covering one
   // hourly stamp, not on a mode, so "a day narrowed to one hour" collapses too.
   it('collapses a point sample and nothing else', () => {
-    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(10)
+    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(11)
     expect(displayedColumns(false, 'precip_total_in')).toHaveLength(KEYS.length)
   })
 

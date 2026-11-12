@@ -162,7 +162,7 @@ describe('the codec table against the links it wrote before', () => {
         '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025&chart=temp,precip' +
         '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06:00&h2=18:30' +
         '&minprecip=0&maxprecip=0.25&mintemp=-10&maxtemp=85.5&minwind=1&maxwind=30' +
-        '&minfreeze=4000&maxfreeze=12000&minsnowfall=2&maxsnowfall=80&minaqi=0&maxaqi=50' +
+        '&minfreeze=4000&maxfreeze=12000&minsnowfall=2&maxsnowfall=80&minsnow=12&maxsnow=120&minaqi=0&maxaqi=50' +
         '&minclouddeck=3000&maxclouddeck=15000' +
         '&poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223' +
         '&customz=HIQwtgpgNAMiAusD2A7AUAQQAQAcIgGsoAWANgDoAOAVigFoBGAJgfIHZS0g' +
@@ -193,15 +193,13 @@ describe('the codec table against the links it wrote before', () => {
     expect(decodeState(q)).toEqual(dec)
   })
 
-  // Snow depth left the ranking in #678. A link sent before then ranked on it
-  // or bounded it, and must still open: on the default ranking, with the old
-  // bounds read as nothing and the rest of the link kept.
-  it('opens a link ranked on snow depth with the default ranking', () => {
+  // Snow depth left the ranking in #678 and came back in #849 under the same
+  // spellings, so a link sent before #678 opens ranked and bounded as it was
+  // written.
+  it('opens a link ranked on snow depth on that ranking again', () => {
     const out = decodeState('sort=snow_depth_in&desc=1&minsnow=2&maxsnow=80&limit=50&snowdepth=1')
-    expect(out).not.toBeNull()
-    expect(out?.sortBy).toBeUndefined()
-    expect(out?.rowKeys).toBeUndefined()
-    expect(out?.constraints).toBeUndefined()
+    expect(out?.sortBy).toBe('snow_depth_in')
+    expect(out?.constraints).toMatchObject({ minSnowDepthIn: 2, maxSnowDepthIn: 80 })
     expect(out).toMatchObject({ sortDesc: true, limit: 50, showSnow: true })
   })
 
@@ -283,6 +281,8 @@ describe('the codec table', () => {
       'maxfreeze',
       'minsnowfall',
       'maxsnowfall',
+      'minsnow',
+      'maxsnow',
       'minaqi',
       'maxaqi',
       'minclouddeck',

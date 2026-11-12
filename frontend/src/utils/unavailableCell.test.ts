@@ -4,14 +4,14 @@ import { COLUMNS } from './tableColumns'
 import { FAMILY_KEYS } from '../metrics'
 
 describe('isUnavailableKey', () => {
-  // One metric can be empty for a reason that is not the weather: the model
-  // publishes no freezing level. Snow depth was the second until #678, and
-  // snowfall is a forecast like any other, whose gap is a dash.
+  // Two metrics can be empty for a reason that is not the weather: the model
+  // publishes no freezing level, or the destination is outside the snow grid
+  // (#849). Snowfall is a forecast like any other, whose gap is a dash.
   it('answers for those columns and nothing else', () => {
-    for (const key of [...FAMILY_KEYS.freeze]) {
+    for (const key of [...FAMILY_KEYS.freeze, ...FAMILY_KEYS.snow]) {
       expect(isUnavailableKey(key)).toBe(true)
     }
-    const marked = new Set<string>([...FAMILY_KEYS.freeze])
+    const marked = new Set<string>([...FAMILY_KEYS.freeze, ...FAMILY_KEYS.snow])
     for (const col of COLUMNS) {
       if (marked.has(col.key as string)) continue
       expect(isUnavailableKey(col.key as string), `${String(col.key)} reads as unavailable`).toBe(

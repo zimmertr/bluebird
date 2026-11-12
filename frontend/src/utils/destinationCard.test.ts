@@ -218,7 +218,7 @@ describe('a ranked card: mirrors the table', () => {
     expect(html).toContain(`${NOUN.temp} (°F)`)
     // One line per family, each a label and its value, and no aggregate
     // columns to head, because every family is one number.
-    expect(html.match(/<th scope="row"/g) ?? []).toHaveLength(7)
+    expect(html.match(/<th scope="row"/g) ?? []).toHaveLength(8)
     expect(html).not.toContain('scope="col"')
   })
 
@@ -245,9 +245,9 @@ describe('a ranked card: mirrors the table', () => {
     // The temperature's three numbers stand under those three heads, in order.
     const temp = html.match(new RegExp(`<tr><th scope="row"[^>]*>${NOUN.temp} \\(°F\\)</th>(.*?)</tr>`))![1]
     expect([...temp.matchAll(/>([\d.,]+)</g)].map((m) => m[1])).toEqual(['30.1', '21.4', '38.9'])
-    // One line for each of the seven families, precipitation and snowfall
-    // included.
-    expect(html.match(/<th scope="row"/g) ?? []).toHaveLength(7)
+    // One line for each of the eight families, precipitation, snow depth and
+    // snowfall included.
+    expect(html.match(/<th scope="row"/g) ?? []).toHaveLength(8)
   })
 
   // The grid keeps one order for every family, the first family's, so every
@@ -343,8 +343,8 @@ describe('a ranked card: type', () => {
   it('sets values in a monospace face in the grey and labels in the ink', () => {
     const html = rankedHtml({ ...base })
     const values = html.match(/<span style="font-family:ui-monospace[^"]*">[^<]*<\/span>/g) ?? []
-    // Twenty-three metric values, the elevation and the coordinates.
-    expect(values).toHaveLength(25)
+    // Twenty-four metric values, the elevation and the coordinates.
+    expect(values).toHaveLength(26)
     // A label that wandered inside a value span would read as part of the
     // number and defeat the whole split.
     for (const value of values) {

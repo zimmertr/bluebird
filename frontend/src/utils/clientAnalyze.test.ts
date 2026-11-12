@@ -134,7 +134,7 @@ describe('resolveCustomOnly', () => {
 
   it('makes no call at all for an empty list', async () => {
     const spy = stubFetch(() => fakeResponse({ destinations: [] }))
-    expect(await resolveCustomOnly([])).toEqual({ destinations: [], lookupComplete: true })
+    expect(await resolveCustomOnly([])).toEqual({ destinations: [], lookupComplete: true, snowAnalysisDate: null })
     expect(spy).not.toHaveBeenCalled()
   })
 

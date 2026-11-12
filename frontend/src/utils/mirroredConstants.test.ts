@@ -152,6 +152,7 @@ describe('the manifest', () => {
     'N_VARIABLES',
     'PAST_DATA_DAYS',
     'PAST_LIMIT_SLACK_DAYS',
+    'SNOW_DEPTH_CEILING_IN',
   ]
   const CHECKED_STRINGS = ['model_coverage_message']
 

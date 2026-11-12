@@ -13,7 +13,8 @@
       "freeze": "freeze_min_ft",
       "snowfall": "snowfall_max_in_hr",
       "aqi": "aqi_max",
-      "cloud_deck": "cloud_deck_max_ft"
+      "cloud_deck": "cloud_deck_max_ft",
+      "snow": "snow_depth_in"
     },
     "limit": 50,
     "selection": {
@@ -44,7 +45,9 @@
       "minAqi": 0,
       "maxAqi": 50,
       "minCloudDeckFt": 3000,
-      "maxCloudDeckFt": 15000
+      "maxCloudDeckFt": 15000,
+      "minSnowDepthIn": 12,
+      "maxSnowDepthIn": 120
     },
     "polygon": {
       "type": "Polygon",
@@ -143,7 +146,9 @@
       "minAqi": null,
       "maxAqi": null,
       "minCloudDeckFt": null,
-      "maxCloudDeckFt": 9000
+      "maxCloudDeckFt": 9000,
+      "minSnowDepthIn": null,
+      "maxSnowDepthIn": null
     }
   },
   "dateless": {
@@ -155,7 +160,8 @@
       "freeze": "freeze_min_ft",
       "snowfall": "snowfall_total_in",
       "aqi": "aqi_avg",
-      "cloud_deck": "cloud_deck_min_ft"
+      "cloud_deck": "cloud_deck_min_ft",
+      "snow": "snow_depth_in"
     },
     "selection": {
       "kind": "days",
@@ -182,7 +188,8 @@
           "freeze": "freeze_min_ft",
           "snowfall": "snowfall_total_in",
           "aqi": "aqi_avg",
-          "cloud_deck": "cloud_deck_min_ft"
+          "cloud_deck": "cloud_deck_min_ft",
+          "snow": "snow_depth_in"
         },
         "showGrid": true,
         "gridStyle": "blocks",
@@ -218,7 +225,9 @@
           "minAqi": null,
           "maxAqi": 12,
           "minCloudDeckFt": null,
-          "maxCloudDeckFt": null
+          "maxCloudDeckFt": null,
+          "minSnowDepthIn": null,
+          "maxSnowDepthIn": null
         }
       }
     },
@@ -237,7 +246,8 @@
           "freeze": "freeze_max_ft",
           "snowfall": "snowfall_total_in",
           "aqi": "aqi_avg",
-          "cloud_deck": "cloud_deck_min_ft"
+          "cloud_deck": "cloud_deck_min_ft",
+          "snow": "snow_depth_in"
         },
         "selection": {
           "kind": "days",
@@ -288,7 +298,8 @@
           "freeze": "freeze_min_ft",
           "snowfall": "snowfall_total_in",
           "aqi": "aqi_avg",
-          "cloud_deck": "cloud_deck_min_ft"
+          "cloud_deck": "cloud_deck_min_ft",
+          "snow": "snow_depth_in"
         }
       }
     },
@@ -302,7 +313,8 @@
           "freeze": "freeze_min_ft",
           "snowfall": "snowfall_total_in",
           "aqi": "aqi_avg",
-          "cloud_deck": "cloud_deck_min_ft"
+          "cloud_deck": "cloud_deck_min_ft",
+          "snow": "snow_depth_in"
         }
       }
     },
@@ -317,7 +329,8 @@
           "freeze": "freeze_min_ft",
           "snowfall": "snowfall_total_in",
           "aqi": "aqi_avg",
-          "cloud_deck": "cloud_deck_min_ft"
+          "cloud_deck": "cloud_deck_min_ft",
+          "snow": "snow_depth_in"
         }
       }
     },
@@ -419,7 +432,9 @@
           "minAqi": null,
           "maxAqi": null,
           "minCloudDeckFt": null,
-          "maxCloudDeckFt": null
+          "maxCloudDeckFt": null,
+          "minSnowDepthIn": null,
+          "maxSnowDepthIn": null
         }
       }
     },

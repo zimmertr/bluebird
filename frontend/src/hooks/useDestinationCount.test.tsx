@@ -79,7 +79,7 @@ describe('useDestinationCount', () => {
     })
     expect(result.current.ringCount).toBe(5)
     expect(result.current.counted()).toEqual({
-      found: { candidates: FIVE, totalFound: null, truncated: false },
+      found: { candidates: FIVE, totalFound: null, truncated: false, snowAnalysisDate: null },
       key: fieldKey(RING, PEAKS, false),
     })
   })
