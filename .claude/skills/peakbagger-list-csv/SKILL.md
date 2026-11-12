@@ -151,8 +151,12 @@ still come from the archive's peak pages.
 
 - **A row counts when its first cell is a rank.** An elevation list also prints the summits that
   miss its prominence rule, with an empty first cell, and they are not on the list (Colorado 13ers:
-  629 ranked of 879 rows). A state or county list carries one plain cell, the state or the county,
-  between the rank and the peak, and only the first peak link in a row is the row's peak.
+  629 ranked of 879 rows). A list of high points carries cells between the rank and the peak that
+  say what the peak tops: one for a state or a county, two for a county and its country (the UK's,
+  list 13620), or a link to a continent's range page (the Seven Summits, list 1000). Up to three
+  such cells are passed over, and only the first peak link in a row is the row's peak. A page that
+  answers 200 and parses to no peaks at all is this rule meeting a new layout, not a thin archive:
+  24 of 415 lists outside the US read as empty until the rule took more than one cell (2026-11-11).
   `fetch_list.parse_list` holds all three rules.
 - **A summit on a list twice is one row.** One summit tops two counties on most county lists, and
   the roster keeps its first row (Washington: 39 counties, 38 summits).
