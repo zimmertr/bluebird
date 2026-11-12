@@ -59,13 +59,23 @@ async function openBox(user: ReturnType<typeof render>['user']) {
   await user.click(screen.getByRole('button', { name: 'Custom coordinates' }))
 }
 // A list's row in the menu, named by its name and its peak count, and its
-// region's heading, which opens the rows (#848).
+// region's heading, which opens the rows (#848). A heading stands under the
+// headings above it, so opening one opens each of those first (#892).
 const peaks = (count: number) => `${count} ${count === 1 ? 'peak' : 'peaks'}`
 const listRow = (list: (typeof PRESET_LISTS)[number]) =>
   screen.getByRole('button', { name: `${list.name} ${peaks(list.peaks)}` })
+const pathTo = (region: string): string[] => {
+  const parent = PRESET_REGIONS.find((each) => each.name === region)?.parent ?? null
+  return parent === null ? [region] : [...pathTo(parent), region]
+}
+const holdsLists = (region: string): boolean =>
+  PRESET_LISTS.some((list) => list.region === region) ||
+  PRESET_REGIONS.some((each) => each.parent === region && holdsLists(each.name))
 async function openRegion(user: ReturnType<typeof render>['user'], region: string) {
-  const heading = screen.getByRole('button', { name: new RegExp(`^${region} \\d+ lists?$`) })
-  if (heading.getAttribute('aria-expanded') !== 'true') await user.click(heading)
+  for (const name of pathTo(region)) {
+    const heading = screen.getByRole('button', { name: new RegExp(`^${name} \\d+ lists?$`) })
+    if (heading.getAttribute('aria-expanded') !== 'true') await user.click(heading)
+  }
 }
 // The Polygon block's buttons, in order, apart from the box above it.
 const polygonBlock = () => screen.getByRole('heading', { name: 'Polygon search' }).parentElement!
@@ -450,13 +460,19 @@ describe('DestinationsSection', () => {
       expect(noBox()).toBe(true)
       expect(screen.queryByText(/parsed/)).toBeNull()
       await user.click(field())
-      // Every region that holds a list, in the manifest's order, and under
-      // each its lists in theirs.
+      // The menu opens on the headings no heading stands over, in the
+      // manifest's order, and a heading with no list under it is not drawn.
+      // One such heading alone opens itself, so the ones under it show too.
+      const under = (parent: string | null) =>
+        PRESET_REGIONS.filter((region) => region.parent === parent && holdsLists(region.name)).map((region) => region.name)
+      const top = under(null)
+      expect(screen.getAllByRole('button', { name: /\d+ lists?$/ }).map((b) => b.textContent!.replace(/ \d+ lists?$/, ''))).toEqual(
+        top.length === 1 ? [top[0], ...under(top[0])] : top,
+      )
+      // Every region that holds a list of its own, and under each its lists
+      // in the manifest's order.
       const regions = PRESET_REGIONS.map((region) => region.name).filter((name) =>
         PRESET_LISTS.some((list) => list.region === name),
-      )
-      expect(screen.getAllByRole('button', { name: /\d+ lists?$/ }).map((b) => b.textContent!.replace(/ \d+ lists?$/, ''))).toEqual(
-        regions,
       )
       for (const region of regions) {
         await openRegion(user, region)
