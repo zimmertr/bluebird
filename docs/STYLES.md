@@ -1320,10 +1320,11 @@ model list and the calendar are `Menu`'s rows in a sheet (`sheet`), so they
 are written once for both widths. The Controls sheet is the same sheet, kept
 mounted (above). The dim covers the whole screen, the search row and the chips
 included, as a modal sheet's scrim does in Material. The grip and the title
-row drag the sheet, to just under the chips, shut, or anywhere between, and a
+row drag the sheet, to the top of the screen, shut, or anywhere between, and a
 double tap on the grip puts it back at its own height, through the gesture
-the results sheet's grips use.
-Record: [0136](architectural-decision-records/0136-phone-menus-are-bottom-sheets.md) Record: [0146](architectural-decision-records/0146-sheet-grips-drag.md) Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md)
+the results sheet's grips use. Every sheet, the Controls sheet too, shares that
+ceiling: the screen less the status bar's band (`BOTTOM_SHEET.topBand`).
+Record: [0290](architectural-decision-records/0290-every-phone-sheet-rises-to-the-top.md) Record: [0136](architectural-decision-records/0136-phone-menus-are-bottom-sheets.md) Record: [0146](architectural-decision-records/0146-sheet-grips-drag.md) Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md)
 
 ### Adding a new role
 

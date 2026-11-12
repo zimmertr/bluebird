@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import BottomSheet, { type KeptSheet } from './BottomSheet'
 import { DOUBLE_PRESS_MS } from '../utils/doublePress'
@@ -24,6 +24,17 @@ function sheet(onClose = vi.fn()) {
   return onClose
 }
 const grip = () => screen.getByRole('dialog').firstElementChild as HTMLElement
+
+// The screen a drag measures its ceiling off, which jsdom leaves at 768.
+const SCREEN_PX = 844
+function stubScreen() {
+  let before: number
+  beforeEach(() => {
+    before = window.innerHeight
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: SCREEN_PX })
+  })
+  afterEach(() => Object.defineProperty(window, 'innerHeight', { configurable: true, value: before }))
+}
 
 describe('BottomSheet', () => {
   it('is a modal dialog named by its heading, at the end of the body', () => {
@@ -90,6 +101,7 @@ describe('BottomSheet', () => {
   // drag's speed is what the test says it is.
   describe('dragged', () => {
     afterEach(() => vi.useRealTimers())
+    stubScreen()
     function setup() {
       vi.useFakeTimers({ toFake: ['Date', 'performance'] })
       const onClose = sheet()
@@ -130,10 +142,13 @@ describe('BottomSheet', () => {
       expect(card.style.height).toBe('500px')
     })
 
-    it('rises no higher than its cap, and takes a release near it there', () => {
+    // Past the cap it opens at, to the screen's top (record 0290): the
+    // ceiling every sheet shares, and no higher.
+    it('rises past the cap it opens at to the top of the screen, and no higher', () => {
       const { card, drag } = setup()
-      drag(grip(), [300, 0])
-      expect(card.style.height).toBe('740px')
+      drag(grip(), [300, -200])
+      expect(card.style.height).toBe(`${SCREEN_PX}px`)
+      expect(card.style.maxHeight).toBe('none')
     })
 
     it('gives the sheet back its own height on a release near it, and on a double press', () => {
@@ -174,7 +189,8 @@ describe('BottomSheet', () => {
   // The Controls sheet (record 0207): the same shape, kept mounted, and modal
   // only while open.
   describe('kept', () => {
-    const KEPT: KeptSheet = { open: true, tourRuns: false, heightPx: 540, restPx: 540, fullPx: 660, onHeightPx: () => {} }
+    stubScreen()
+    const KEPT: KeptSheet = { open: true, tourRuns: false, heightPx: 540, restPx: 540, onHeightPx: () => {} }
     function kept(open: boolean, onClose = vi.fn()) {
       return (
         <div data-testid="home">
@@ -195,6 +211,33 @@ describe('BottomSheet', () => {
       expect(dialog.previousElementSibling).toBeNull()
       expect(dialog.hasAttribute('inert')).toBe(true)
       expect(screen.getByRole('textbox', { hidden: true })).toBeTruthy()
+    })
+
+    // The same ceiling as a menu sheet's (record 0290): the screen less the
+    // status bar's band, where it used to stop under the chips and the
+    // Analyze button's strip.
+    it('rises under its grip to the top of the screen, under the status bar\'s band', () => {
+      vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+      const onHeightPx = vi.fn()
+      render(
+        <BottomSheet heading="Controls" onClose={vi.fn()} kept={{ ...KEPT, onHeightPx }}>
+          <input aria-label="Field" />
+        </BottomSheet>,
+      )
+      const card = screen.getByRole('dialog', { name: 'Controls' })
+      Object.defineProperty(card, 'offsetHeight', { configurable: true, value: KEPT.heightPx })
+      const band = card.lastElementChild as HTMLElement
+      Object.defineProperty(band, 'offsetHeight', { configurable: true, value: 47 })
+      fireEvent.pointerDown(grip(), { clientY: 500, pointerId: 1 })
+      vi.advanceTimersByTime(100)
+      fireEvent.pointerMove(document, { clientY: -500, pointerId: 1 })
+      expect(onHeightPx).toHaveBeenLastCalledWith(SCREEN_PX - 47)
+      vi.advanceTimersByTime(200)
+      fireEvent.pointerMove(document, { clientY: -500, pointerId: 1 })
+      vi.advanceTimersByTime(200)
+      fireEvent.pointerUp(document, { clientY: -500, pointerId: 1 })
+      expect(onHeightPx).toHaveBeenLastCalledWith(SCREEN_PX - 47)
+      vi.useRealTimers()
     })
 
     // A sheet opened from inside it, the model list or the calendar, stands

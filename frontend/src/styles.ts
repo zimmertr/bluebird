@@ -2779,6 +2779,12 @@ const SHEET_RULES = 'divide-y divide-rule'
 export const BOTTOM_SHEET = {
   scrim: `fixed inset-0 ${LAYER.popover}`,
   dim: 'absolute inset-0 bg-scrim/40',
+  /**
+   * The `max-h` is the most a menu sheet OPENS at, one inset under the chip
+   * row, so a long list leaves the top of the map in view. It is not the most
+   * it rises: a drag lifts the cap and runs on to the screen's top, the
+   * ceiling every sheet shares (record 0290).
+   */
   card:
     `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-100px)] flex-col ` +
     `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
@@ -2801,6 +2807,14 @@ export const BOTTOM_SHEET = {
   body:
     `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 ${SAFE_AREA.pad} ` +
     `${SHEET_RULES} [&>*]:min-h-8`,
+  /**
+   * An invisible box as tall as the status bar's band at the screen's top,
+   * `env(safe-area-inset-top)`, which every sheet reads when a drag begins
+   * (record 0290): a sheet rises to the screen's top less that band, so its
+   * grip never stands under an iPhone's clock. 0 where the browser reports
+   * none. The probe `SAFE_AREA` keeps for the foot, turned over.
+   */
+  topBand: 'pointer-events-none invisible absolute top-0 left-0 w-0 h-[env(safe-area-inset-top)]',
 } as const
 
 /**

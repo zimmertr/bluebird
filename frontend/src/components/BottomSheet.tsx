@@ -1,4 +1,4 @@
-import { useId, useState, type PointerEvent, type ReactNode } from 'react'
+import { useId, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialog } from '../hooks/useDialog'
 import { useSheetDrag } from '../hooks/useSheetDrag'
@@ -20,8 +20,6 @@ export interface KeptSheet {
   heightPx: number
   /** Its own share, which a release near it or a double press gives back (record 0146). */
   restPx: number
-  /** The most a drag raises it. */
-  fullPx: number
   /** Holds it at a dragged height, or null for its own share. */
   onHeightPx: (px: number | null) => void
   /** A control beside Done in its title row: the theme switch (#706). */
@@ -89,20 +87,29 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
   const open = kept ? kept.open : true
   const panelRef = useDialog(onClose, open && (kept ? !kept.tourRuns : tourAnchor === undefined))
   // The height a drag left a menu sheet at, or null for its rows' own (#696;
-  // record 0146). Its own height and its full one are read off the card when
-  // a drag begins: the rows' height with no height set, and the cap its role
-  // sets, one inset under the chip row. The Controls sheet's are its caller's.
+  // record 0146). Every sheet rises as high as the screen, under the status
+  // bar's band (record 0290): the ceiling is read when a drag begins, off the
+  // box the card stands in (the screen for a menu sheet, the app's frame for
+  // the Controls sheet) less that band, which only CSS can read. A menu
+  // sheet's own height is its rows' under the cap it opens at; the Controls
+  // sheet's is its caller's.
   const [heldPx, setHeldPx] = useState<number | null>(null)
+  const topBandRef = useRef<HTMLSpanElement>(null)
   const onGripDown = useSheetDrag({
     measure: () => {
-      if (kept) return { startPx: kept.heightPx, restPx: kept.restPx, fullPx: kept.fullPx }
       const card = panelRef.current!
       const startPx = card.offsetHeight
+      const box = card.offsetParent as HTMLElement | null
+      const fullPx = Math.max(0, (box ? box.clientHeight : window.innerHeight) - (topBandRef.current?.offsetHeight ?? 0))
+      if (kept) return { startPx, restPx: kept.restPx, fullPx }
       const held = card.style.height
+      const lift = card.style.maxHeight
       card.style.height = ''
+      card.style.maxHeight = ''
       const restPx = card.offsetHeight
       card.style.height = held
-      return { startPx, restPx, fullPx: parseFloat(getComputedStyle(card).maxHeight) || restPx }
+      card.style.maxHeight = lift
+      return { startPx, restPx, fullPx }
     },
     onHeight: kept ? kept.onHeightPx : setHeldPx,
     onClose,
@@ -130,7 +137,9 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
             ? `${CONTROLS_SHEET.card} ${open ? '' : CONTROLS_SHEET.shut}`
             : `${BOTTOM_SHEET.card}${aside ? ` ${SHEET_ASIDE.card}` : ''}`
         }
-        style={kept ? { height: kept.heightPx } : heldPx === null ? undefined : { height: heldPx }}
+        // A held menu sheet sheds the cap it opens at, so a drag can take it
+        // to the ceiling the drag measured.
+        style={kept ? { height: kept.heightPx } : heldPx === null ? undefined : { height: heldPx, maxHeight: 'none' }}
         data-tour={tourAnchor}
       >
         <SheetTop
@@ -142,6 +151,7 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
         />
         <div className={kept ? CONTROLS_SHEET.panel : BOTTOM_SHEET.body}>{children}</div>
         {outside}
+        <span ref={topBandRef} aria-hidden="true" className={BOTTOM_SHEET.topBand} />
       </div>
     </>
   )

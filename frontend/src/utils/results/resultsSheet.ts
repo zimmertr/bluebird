@@ -526,14 +526,6 @@ export function controlsSheetPx(mapPx: number): number {
 }
 
 /**
- * The most a Controls sheet rises under a drag on its grip (#696; record
- * 0146): where a dragged results sheet stops, the strip under the chip row.
- */
-export function controlsFullPx(mapPx: number): number {
-  return Math.max(0, mapPx - DRAGGED_MAP_PX)
-}
-
-/**
  * The player on a phone stands on the Analyze button rather than on the sheet
  * (#696): its bottom edge 8px above the button's top. Answered as the edge
  * `transportBottomPx` measures from, so the bar keeps one way of placing

@@ -27,7 +27,7 @@ export const FLICK_WINDOW_MS = 100
 export interface SheetStops {
   /** The height it opens at: its rows, or a Controls sheet's own share. */
   restPx: number
-  /** The most it rises: one inset under the chip row, or for the Controls sheet the button's strip. */
+  /** The most it rises: the screen under the status bar's band, for every sheet (record 0290). */
   fullPx: number
 }
 

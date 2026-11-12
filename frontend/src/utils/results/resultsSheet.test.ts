@@ -26,7 +26,6 @@ import {
   fullScreenMapFloorPx,
   sheetTopRelease,
   fabShiftPx,
-  controlsFullPx,
   controlsSheetPx,
   fabBottomPx,
   phoneCornerLiftPx,
@@ -530,12 +529,6 @@ describe('the Controls sheet', () => {
     expect(CONTROLS_MAP_PX).toBeGreaterThan(DRAGGED_MAP_PX)
     expect(controlsSheetPx(844)).toBe(844 - CONTROLS_MAP_PX)
     expect(controlsSheetPx(100)).toBe(0)
-  })
-
-  // Dragged up whole, it stops where a dragged results sheet does (#696;
-  // record 0146).
-  it('rises under a drag to the button\'s strip and no higher', () => {
-    expect(controlsFullPx(844)).toBe(844 - DRAGGED_MAP_PX)
   })
 })
 

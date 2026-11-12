@@ -27,8 +27,6 @@ interface AppDrawerProps {
   sheetPx: number
   /** Its own share, which a release near it or a double press on the grip gives back (record 0146). */
   sheetRestPx: number
-  /** The most a drag raises it (`controlsFullPx`). */
-  sheetFullPx: number
   /** Holds it at a dragged height, or null for its own share. */
   onSheetPx: (px: number | null) => void
   /** Closes it: its close button at a desk, and on a phone Done, Escape or a press on the dim. */
@@ -121,7 +119,6 @@ export default function AppDrawer({
   moving = false,
   sheetPx,
   sheetRestPx,
-  sheetFullPx,
   onSheetPx,
   onClose,
   tourRuns = false,
@@ -254,7 +251,6 @@ export default function AppDrawer({
           tourRuns,
           heightPx: sheetPx,
           restPx: sheetRestPx,
-          fullPx: sheetFullPx,
           onHeightPx: onSheetPx,
           actions: <ThemeButton theme={theme} onToggle={onToggleTheme} />,
         }}
