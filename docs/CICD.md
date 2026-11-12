@@ -1467,7 +1467,7 @@ package ignores them for the same reason, one major later: typescript-eslint
 throws on TypeScript 7 rather than degrading, so that package stays on 6. Renovate arms **squash
 auto-merge on everything below a major** (minor, patch, digest and pin), and
 GitHub completes the merge once `main`'s required checks pass; **major bumps
-wait for manual review**. Each PR's body says auto-merge is on, and Renovate's
+wait for manual review**, and so does a Python minor. Each PR's body says auto-merge is on, and Renovate's
 Dependency Dashboard issue lists every update that is open, waiting out its
 seven days, or held.
 
@@ -1501,20 +1501,23 @@ Three things narrow what an auto-merged update can bring with it (#633):
   bumps the pin in the `.in` file and recompiles both locks with the command
   in each lock's header, on the pip-tools version `make lock-backend` pins
   (`requirements-dev.txt` is
-  the same lock plus the test tools), and the dependency graph reads
+  the same lock plus the test tools). The manager's `lockFileMaintenance` is
+  off: it would open a "Refresh pip-compile outputs" PR that moves every
+  indirect pin to its newest release at once, with no seven-day wait. The
+  dependency graph reads
   `requirements.txt`, which is what puts Starlette and the rest of the indirect
   set in front of the alerts. Regenerating the lock by hand is `make
   lock-backend` ([DEVELOPMENT.md](DEVELOPMENT.md#the-backends-dependency-lock)).
 
-In practice what auto-merges is everything below a major: `pip` and `npm` patches and minors, action bumps, and base-image digests and minors. Every GitHub Action is pinned
+In practice what auto-merges is everything below a major: `pip` and `npm` patches and minors, action bumps, and base-image digests. Every GitHub Action is pinned
 to a commit SHA with its exact version in a comment (#632), and Renovate moves
 the SHA and the comment together. The Dockerfile's base
 images are pinned as `tag@digest`, with the tags floating at the minor
 (`python:3.15-alpine`, `node:26-alpine`): a new major is a runtime bump that
-waits for review, a new minor (`python:3.16-alpine`) comes as a
-`minor` and merges itself once the checks pass (not yet seen on a base image
-here), and a rebuild of the image under the same tag arrives as a digest PR,
-which merges itself too. The fill's `debian:trixie-slim` and the test
+waits for review, a new Python minor (`python:3.16-alpine`) waits for review too, because
+Python's minors are its breaking releases (a rule of the preset), and a
+rebuild of the image under the same tag arrives as a digest PR, which merges
+itself. The fill's `debian:trixie-slim` and the test
 database's `postgres:18-trixie` are pinned the same way (#760). The test database's PostGIS package names its major (`postgresql-18-postgis-3`), so a major bump of that tag moves the package in the same PR. A Node major bump also fails `Backend Tests` until the
 same PR moves `.node-version` to match, which is what keeps CI on the image's
 runtime. Base-OS *patch* fixes no longer arrive unannounced at the next build:
