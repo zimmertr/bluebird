@@ -1,6 +1,6 @@
 # 0263. The Coordinate search row is the Polygon row's grid, and a picked preset list replaces the box at once
 
-- Status: Accepted. Amends [0156](0156-destination-subheadings-say-search.md) and [0260](0260-messages-draw-the-eye-and-failures-open-the-list.md). Amended by [0265](0265-coordinate-box-numbers-and-flags-its-lines.md) (the box numbers its lines and flags the ones it cannot read). Superseded in part by [0281](0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md) (a manifest describes the lists, and the menu is searched and browsed). Amended by [0285](0285-link-carries-no-browser-habit.md) (a share link names a picked list)
+- Status: Accepted. Amends [0156](0156-destination-subheadings-say-search.md) and [0260](0260-messages-draw-the-eye-and-failures-open-the-list.md). Amended by [0265](0265-coordinate-box-numbers-and-flags-its-lines.md) (the box numbers its lines and flags the ones it cannot read). Superseded in part by [0281](0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md) (a manifest describes the lists, and the menu is searched and browsed). Amended by [0285](0285-link-carries-no-browser-habit.md) (a share link names a picked list) and [0286](0286-list-search-subheading.md) (the tour card leads with the list)
 - Date: 2026-11-03
 - Decider: the maintainer (TJ), on issue #838, 2026-10-30 to 2026-11-03
 - Issues and PRs: #838, #839, #848, #710
