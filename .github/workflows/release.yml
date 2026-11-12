@@ -37,14 +37,18 @@ jobs:
       # planet fill (#760) is released beside the app at the same version,
       # because the chart runs it at its appVersion. It keeps no layer cache:
       # one apt install, and the Actions cache is already over its limit, so
-      # every release takes Debian's packages as they stand that day.
+      # every release takes Debian's packages as they stand that day. It is
+      # amd64 alone, because only the cluster runs it and nothing pulls it
+      # elsewhere (`make test-fill` builds its own), and its arm64 half was
+      # the slowest step of every release: 170.6s of emulated apt-get against
+      # 14.8s natively (v0.137.0, #918, record 0289).
       images: >-
         [{"image": "zimmertr/bluebird",
           "platforms": "linux/amd64,linux/arm64",
           "cache": true},
          {"image": "zimmertr/bluebird-fill",
           "file": "fill/Dockerfile",
-          "platforms": "linux/amd64,linux/arm64"}]
+          "platforms": "linux/amd64"}]
       # The fixed branches keep one open bump PR each across releases. The
       # chart bump's `chore(release):` title is what makes bluebird-helm
       # release a patch, and that release ships the appVersion this bump wrote
