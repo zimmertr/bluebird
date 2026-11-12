@@ -17,7 +17,11 @@
     "description": "The backend's two hashed locks. Renovate reads the pip-compile command from each lock's header, bumps the pin in the .in file, and recompiles every lock that depends on it. pipTools is the version `make lock-backend` runs, because pr.yml recompiles the locks and fails on any difference.",
     "managerFilePatterns": [
       "/^backend/requirements(-dev)?\\.txt$/"
-    ]
+    ],
+    "lockFileMaintenance": {
+      "description": "Off. It is on by default for this manager, and it recompiles both locks to move every indirect pin to its newest release, with no seven-day wait.",
+      "enabled": false
+    }
   },
   "pip_requirements": {
     "description": "Off, because pip-compile already updates the .in files, and this manager would bump a lock's pin without recompiling its hashes.",

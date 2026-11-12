@@ -15,6 +15,7 @@ Dependabot opened the update PRs from a 118-line `.github/dependabot.yml`, and `
 
 - `.github/renovate.json` extends `github>zimmertr/yggdrasil//defaults/renovate`. The preset holds the seven-day wait, the rule that everything below a major merges itself, and the rule that yggdrasil's own modules don't wait.
 - Renovate's `pip-compile` manager reads `backend/requirements.txt` and `backend/requirements-dev.txt` and recompiles them. `pip_requirements` is off, so nothing bumps a lock's pin without its hashes.
+- The manager's `lockFileMaintenance` is off (the maintainer, 2026-11-11). It would open a PR that moves every indirect pin to its newest release at once, with no seven-day wait.
 - `constraints.pipTools` and the `Makefile`'s `PIP_TOOLS_VERSION` are both 7.6.2, and both locks are recompiled with it, because `Python Lint` recompiles the locks and fails on any difference.
 - TypeScript majors stay off in `frontend/tools/api-types` and `frontend/tools/eslint`, as they were (record 0030).
 - `ignorePaths` drops Renovate's default test folders, so `backend/tests/db/Dockerfile` keeps its updates.
