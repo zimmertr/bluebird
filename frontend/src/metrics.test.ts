@@ -13,6 +13,7 @@ import {
   familyOf,
   formatPrecipRate,
   formatPrecipTotal,
+  isSnapshotFamily,
   metricLabel,
   rankedNoun,
   resultsHeading,
@@ -133,9 +134,12 @@ describe('aggregateToken', () => {
       [AGGREGATE.maximum]: 'max',
     }
 
-    expect(RANKING_KEYS).toHaveLength(23)
+    expect(RANKING_KEYS).toHaveLength(24)
     for (const key of RANKING_KEYS) {
-      expect(aggregateToken(key)).toBe(TOKENS[windowAggregate(key)])
+      const word = windowAggregate(key)
+      // A snapshot family has no reduction to read, and says so with null.
+      if (isSnapshotFamily(familyOf(key))) expect([aggregateToken(key), word]).toEqual([null, null])
+      else expect(aggregateToken(key)).toBe(TOKENS[word!])
     }
     // Precipitation and snowfall are the two families with a fourth, and the
     // only Totals: both are amounts that add up over the window.

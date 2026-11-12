@@ -44,6 +44,7 @@ const READY_POLYGON: AnalyzeGate = {
   hasPins: false,
   compareAqi: false,
   compareFreeze: false,
+  compareSnow: false,
 }
 
 // The rule the type checkboxes grey on, which is the ring half of the polygon
@@ -185,6 +186,7 @@ describe('analyzeBlockers', () => {
           datesPending: on(5),
           compareAqi: on(6),
           compareFreeze: on(7),
+          compareSnow: false,
           refused: on(8),
           overCap: on(9) ? { found: 1501, noun: 'destination', limit: 1500 } : null,
           spend: on(10) ? { needed: 8357, limit: 5000 } : null,
@@ -292,6 +294,8 @@ describe('a polygon with nothing checked', () => {
     datesPending: false,
     compareAqi: false,
     compareFreeze: false,
+    compareSnow: false,
+  compareSnow: false,
     drawPointCount: 4,
   }
 

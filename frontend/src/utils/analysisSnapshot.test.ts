@@ -18,6 +18,7 @@ const REQUEST: AnalyzeRequest = {
 const FACTS: RecordedFacts = {
   discovery: discoveryKeys(REQUEST.polygon, REQUEST.destination_types, false),
   compareModels: ['icon_seamless'],
+  snowAnalysisDate: null,
 }
 const NOW = Date.parse('2026-07-20T12:00:00Z')
 

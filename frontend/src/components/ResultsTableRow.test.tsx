@@ -58,6 +58,7 @@ function props(over: Partial<Props> = {}): Props {
     fireUncovered: false,
     closureStatus: 'ready',
     closureUncovered: false,
+    onGlacier: false,
     heightPending: false,
     charted: false,
     ...over,

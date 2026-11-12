@@ -17,6 +17,7 @@
 | [US Forest Service](https://www.fs.usda.gov/) | Closure orders: closed areas in Regions 3, 4 and 6 (Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington), and closed trails, roads and sites in Region 6 alone | Free (public domain; quota shared across all consumers) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
 | [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) | Snow depth from the National Snow Analysis, coterminous United States | Free | None |
+| [NOAA NOHRSC SNODAS at NSIDC](https://nsidc.org/data/g02158) | The same analysis as a daily grid, read for the snow depth on each destination | Free | None |
 
 Every one of these is free and paid for by somebody else, and Bluebird Forecast
 sends a key to none of them on its own behalf. The one exception is an API
@@ -28,8 +29,10 @@ Bluebird Forecast calls it the way it does. The licenses and credits each provid
 requires are collected in [NOTICES.md](../NOTICES.md). A downloaded CSV
 carries its own copy of the Open-Meteo and OpenStreetMap credits below the
 data — CC BY 4.0 and ODbL both ask the credit to travel with every copy, and
-a file is read detached from the screen that shows them — plus the NIFC credit
-whenever it carries the wildfire column, and a US Forest Service credit, with a link to the Forest
+a file is read detached from the screen that shows them — plus a NOAA NOHRSC
+credit, with a link to its snow analysis in place of a license, whenever the
+file carries the snow depth column, the NIFC credit whenever it carries the
+wildfire column, and a US Forest Service credit, with a link to the Forest
 Service in place of a license, whenever it carries the Closure column.
 
 ## A forecast is not a measurement
@@ -420,9 +423,12 @@ table reports it the way it reports precipitation: a total over the window in
 inches, and the average, least and most in any one hour in inches per hour. It
 is the depth of fresh snow rather than of the water in it, and it says nothing
 about the snowpack already there; the snow layer on the map is the statement
-of that. It replaced snow depth as a ranking metric in issue #678, because
-today's depth is one number whatever window you ask about, where snowfall
-belongs to the window. Open-Meteo quotes it in whatever unit
+of that, and so is the Snow depth column ([The snow depth on a
+row](#the-snow-depth-on-a-row)). It replaced snow depth as a ranking metric in
+issue #678, because today's depth is one number whatever window you ask about,
+where snowfall belongs to the window, and snow depth came back beside it in
+issue #849, because how much snow is on the ground is the first thing a winter
+trip asks. Open-Meteo quotes it in whatever unit
 `precipitation_unit` selects, as it does the freezing level, so every request
 here gets inches and the aggregation reads the declared unit rather than
 assuming one (without the parameter the answer is in centimetres). It is
@@ -1379,8 +1385,10 @@ much snow is on the ground that exists for the United States.
 Like the radar, it is an **observation rather than a forecast**: it says where
 snow lies now, not where it will lie. That is what puts the layer on the map
 beside radar, smoke and fire, and it is why switching it on never asks you to
-press Analyze again. It is not a column of the results table: what the table
-ranks is the snowfall each forecast expects over your window, described under
+press Analyze again. The results table carries the same analysis as a column of
+its own, read from a different source and described in
+[The snow depth on a row](#the-snow-depth-on-a-row) below. The snowfall each
+forecast expects over your window is a different number, described under
 [Open-Meteo](#open-meteo).
 
 **It updates four times a day**, at 20 minutes past 01, 05, 11 and 17 UTC. A
@@ -1475,6 +1483,82 @@ click is one request of about 0.8 s. The service sometimes answers an error
 inside a 200, so that one shape of failure is asked once more; if NOAA still
 cannot answer, the card keeps its name and says
 `NOAA snow analysis failed. Try again later.` in place of the numbers.
+
+### The snow depth on a row
+
+The same analysis is also a **ranking metric**, one number per destination
+(issues #449 and #849). It comes from a different door: the layer above is
+NOAA's rendered image, and the metric reads the numbers themselves out of the
+daily SNODAS grid the server holds.
+
+**One grid a day, held by the server, not fetched per visitor.** NSIDC
+publishes each day's SNODAS products as one tar, and Bluebird Forecast pulls
+the **unmasked** snow depth grid out of it: 8,192 by 4,096 samples of big-endian
+integer millimetres, 64 MiB once unpacked, which is small enough to hold in
+memory and read as an array. A destination's depth is then one array lookup
+rather than a request, so a 1,500-destination analysis costs no upstream call
+at all. The server fills it in when it finds the destinations, so it arrives
+with the list rather than with the forecasts.
+
+**The numbers are the 06 UTC analysis of the day the report names.** The day's
+tar lands at NSIDC around 13:15 UTC, and before that the server serves the
+previous day's grid and says so. The results header states the date beside the
+ranking (`Snow depth as of Nov 12`) rather than the forecast window, because
+the number is not a reading of that window: it is today's depth whatever days
+you asked for, so it has no minimum, mean or maximum, no chart line, and
+nothing for the map timeline to scrub, and the forecast grid paints nothing
+while it ranks. Ranking on it with several forecast models selected is refused
+for the same reason air quality is: one source answers, whatever model ranks
+the field.
+
+**The grid and the map layer cover the same ground.** Both run 24.1N to 58.23N
+and 130.5W to 62.25W, which covers the contiguous United States, southern
+Canada and northern Mexico, so a marker and the snow layer under it agree on
+where the analysis exists. Outside that box, and over open water inside it, the
+row reads `N/A` rather than zero: the destination was never analyzed, which is
+a different statement from bare ground. A server that has not yet fetched a
+grid reads `N/A` on every row and names no date. The 24-hour limit on the fire,
+smoke and closure copies does not apply here: when NSIDC cannot be reached the
+server keeps the last grid it has, and the date in the header says how old it
+is.
+
+**The colours change where the layer's do.** The markers and the cells are
+banded at five of NOAA's own edges, 3.9, 9.8, 39, 98 and 197 in, so a marker
+and the layer drawn under it turn at the same depth.
+
+**A file the server refuses means no snow depth that day.** The day's archive
+is checked before it is used: the download, the archive and each member inside
+it have a size they may not pass, and every number in the header must be a real
+number. A file that fails any of those checks is not read, and for that analysis
+day every row reads `N/A` and the header names no date, the same as a server
+that has no grid yet. The previous day's grid is not served in its place,
+because its date would then sit beside a column you would take for today's. The
+next day's file replaces the refusal as soon as NSIDC publishes it.
+
+**The glacier caveat above applies to the column too, and it is the number a
+reader is most likely to misread.** Over permanent ice SNODAS accumulates year
+over year, so a glaciated summit reads hundreds of inches in every season. That
+is old snow and firn rather than snow that fell this winter. So a cell whose
+1 km square touches a glacier OpenStreetMap has mapped reads `Glacier` after
+its number, from the same check the snow card names it with. The word arrives
+a moment after the table, from the basemap tiles the browser reads for it, and
+it changes nothing else: the number, its colour and its place in the ranking
+stay, so a glaciated summit can still top a ranking on the deepest snow. Only
+the rows on screen are asked about.
+
+**1,290 in is the file's ceiling, not a measurement.** The depth member is
+16-bit integer millimetres, so the largest depth it can carry is 32,767 mm,
+which is 1,290.04 in; the header says as much (`Maximum data value: 32767`).
+The model holds more than that over deep ice, and the file clips it: NOAA's own
+map service reported 68.62 m at Mount Rainier's summit on 2026-09-16, where the
+tar reads 32.77 m. On 2026-09-22 the grid held 13,128 cells with any snow, 202
+cells at 400 in or more, and 86 cells sitting on the ceiling: Rainier, Baker
+and Adams summits all read it, where St Helens, Hood and Eldorado read 0,
+Shasta 2.9 in and Shuksan 10.3 in. So the app does not print the ceiling as a
+measurement. A row there reads `≥1,290` on screen, in the marker popup and
+in the downloaded file, which is the honest statement: at least this much, and
+permanent ice. The API answers the plain number, `1290.04`; the mark is the
+app's.
 
 ## The forecast grid
 

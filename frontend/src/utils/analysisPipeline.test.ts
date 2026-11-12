@@ -170,7 +170,7 @@ describe('a polygon run', () => {
   it('forecasts a held field without asking the pod, and still announces it', async () => {
     stubDestinations({ destinations: [discovered({ name: 'Fresh' })], total: 1 })
     const { seen, onDiscovered } = found()
-    const held = { candidates: [CANDIDATE], totalFound: 3000, truncated: true }
+    const held = { candidates: [CANDIDATE], totalFound: 3000, truncated: true, snowAnalysisDate: null }
     const out = await runAnalysisPipeline(REQUEST, options({ onDiscovered, found: held }))
     expect(posted).toHaveLength(0)
     expect(seen).toEqual([held])
@@ -197,7 +197,7 @@ describe('a polygon run', () => {
       { ...REQUEST, custom_destinations: [MINE] },
       options({
         onDiscovered,
-        found: { candidates: [CANDIDATE, mine], totalFound: null, truncated: false },
+        found: { candidates: [CANDIDATE, mine], totalFound: null, truncated: false, snowAnalysisDate: null },
         identity: { latest: () => identity },
         knownTypes: { [geoKey(47, -121)]: 'peak' },
       }),
@@ -212,7 +212,7 @@ describe('a polygon run', () => {
     const { seen, onDiscovered } = found()
     await runAnalysisPipeline(
       { ...REQUEST, polygon: undefined, custom_destinations: [MINE] },
-      options({ onDiscovered, found: { candidates: [CANDIDATE], totalFound: null, truncated: false } }),
+      options({ onDiscovered, found: { candidates: [CANDIDATE], totalFound: null, truncated: false, snowAnalysisDate: null } }),
     )
     expect(seen[0].candidates).toEqual([expect.objectContaining({ name: 'Mine' })])
   })
