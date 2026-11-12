@@ -42,7 +42,7 @@ const CUSTOM_COORDINATES = ':custom'
 
 // The lists as the Coordinate list menu reads them (#848): each under its
 // region, with its peak count and the description its info button opens, and
-// the regions in the manifest's order with the states a search also finds
+// the regions A to Z under each parent with the states a search also finds
 // them by. Built once, since the manifest is the build's.
 const LIST_ITEMS: readonly BrowseItem[] = PRESET_LISTS.map((list) => ({
   id: list.id,

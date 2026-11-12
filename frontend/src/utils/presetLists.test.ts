@@ -136,8 +136,16 @@ describe('PRESET_LISTS', () => {
     expect(new Set(PRESET_LISTS.map((list) => list.url)).size).toBe(PRESET_LISTS.length)
   })
 
-  it('offers every region the manifest names, with the places a search also matches', () => {
-    expect(PRESET_REGIONS.map((region) => region.name)).toEqual(manifest.regions.map((region) => region.name))
+  it('offers every region the manifest names, A to Z under each parent, with the places a search also matches', () => {
+    expect(PRESET_REGIONS.map((region) => region.name).sort()).toEqual(manifest.regions.map((region) => region.name).sort())
+    const top = PRESET_REGIONS.filter((region) => region.parent === null).map((region) => region.name)
+    expect(top).toEqual(['Africa', 'Asia', 'Australia and New Zealand', 'Europe', 'North America', 'South America', 'Worldwide'])
+    const states = PRESET_REGIONS.filter((region) => region.parent === 'United States').map((region) => region.name)
+    expect(states.slice(0, 3)).toEqual(['Alaska', 'California', 'Colorado'])
+    // A parent comes before every heading under it.
+    for (const [i, region] of PRESET_REGIONS.entries()) {
+      if (region.parent !== null) expect(PRESET_REGIONS.findIndex((each) => each.name === region.parent), region.name).toBeLessThan(i)
+    }
     expect(PRESET_REGIONS.find((region) => region.name === 'Northern Rockies')?.places).toEqual([
       'Idaho',
       'Montana',

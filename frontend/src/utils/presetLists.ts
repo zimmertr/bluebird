@@ -5,7 +5,7 @@ import manifest from '../coordinate-lists/lists.json'
 // the box (#838, #848). `src/coordinate-lists/lists.json` is the list of them:
 // one entry per list with the name and description the menu reads, the region
 // it stands under, its peak count and where its rows came from, and the
-// regions themselves in the menu's order. Every name, description and heading
+// regions themselves, which the menu sorts A to Z under each parent. Every name, description and heading
 // there is a user-facing string the maintainer approves before it lands.
 //
 // The manifest replaced a directory read by file name, where a file's name
@@ -55,18 +55,33 @@ export interface PresetRegion {
   parent: string | null
 }
 
-/**
- * The menu's headings, in its order. A heading stands at the top or under
- * the one its `parent` names, so the manifest's flat array is a tree: a
- * continent, the countries in it, a country's regions. A list's `region` is
- * whichever heading it sits under, at any depth. One with no list anywhere
- * under it is not shown.
- */
-export const PRESET_REGIONS: readonly PresetRegion[] = manifest.regions.map((region) => ({
+const regions: readonly PresetRegion[] = manifest.regions.map((region) => ({
   name: region.name,
   places: region.places ?? [],
   parent: region.parent ?? null,
 }))
+
+// Each heading's own, A to Z, with every heading followed by the ones under
+// it, so a parent still comes before its children. Sorted here rather than
+// in the manifest so a heading added later lands in its place unasked (the
+// maintainer, 2026-11-12, on #892). The lists under a heading keep the
+// manifest's order, which leads with the list a reader looks for first
+// (Munros before Munro Tops).
+function alphabetical(parent: string | null): PresetRegion[] {
+  return regions
+    .filter((region) => region.parent === parent)
+    .sort((a, b) => a.name.localeCompare(b.name, 'en'))
+    .flatMap((region) => [region, ...alphabetical(region.name)])
+}
+
+/**
+ * The menu's headings, in its order: A to Z under each parent. A heading
+ * stands at the top or under the one its `parent` names, so the manifest's
+ * flat array is a tree: a continent, the countries in it, a country's
+ * regions. A list's `region` is whichever heading it sits under, at any
+ * depth. One with no list anywhere under it is not shown.
+ */
+export const PRESET_REGIONS: readonly PresetRegion[] = alphabetical(null)
 
 /** Every list, in the manifest's order, which is the order its region shows them in. */
 export const PRESET_LISTS: readonly PresetList[] = manifest.lists.map((list) => ({

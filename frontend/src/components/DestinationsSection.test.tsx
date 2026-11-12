@@ -461,7 +461,7 @@ describe('DestinationsSection', () => {
       expect(screen.queryByText(/parsed/)).toBeNull()
       await user.click(field())
       // The menu opens on the headings no heading stands over, in the
-      // manifest's order, and a heading with no list under it is not drawn.
+      // order PRESET_REGIONS sorts them in (A to Z), and a heading with no list under it is not drawn.
       // One such heading alone opens itself, so the ones under it show too.
       const under = (parent: string | null) =>
         PRESET_REGIONS.filter((region) => region.parent === parent && holdsLists(region.name)).map((region) => region.name)
