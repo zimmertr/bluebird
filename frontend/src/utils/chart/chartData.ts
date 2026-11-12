@@ -104,6 +104,24 @@ export function moveMetric(metrics: ChartMetrics, from: number, to: number): Cha
   return next
 }
 
+/**
+ * Draw every family in `keys`, or take each away (`on` false), from the
+ * Metrics table's chart toggles (record 0290). One press is one key; a Shift
+ * press is the range it reaches (record 0209). Drawing appends in the order
+ * given and stops at `MAX_CHART_PANELS`, so a range past the cap draws what
+ * fits; taking away never reaches the first slot, which is the ranking's. A
+ * press that changes nothing hands the same list back.
+ */
+export function chartFamilies(metrics: ChartMetrics, keys: readonly ChartMetric[], on: boolean): ChartMetrics {
+  let next = metrics
+  for (const key of keys) {
+    const at = next.indexOf(key)
+    if (on && at < 0 && next.length < MAX_CHART_PANELS) next = [...next, key]
+    else if (!on && at > 0) next = next.filter((_, i) => i !== at)
+  }
+  return next
+}
+
 /** Whether a link's word names a chart metric. */
 export function isChartMetric(raw: string): raw is ChartMetric {
   return CHART_METRICS.some((m) => m.key === raw)

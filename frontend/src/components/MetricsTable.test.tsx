@@ -29,6 +29,8 @@ function props(over: Partial<Props> = {}): Props {
     limit: DEFAULT_LIMIT,
     setLimit: noop,
     maxLimit: 1500,
+    charted: ['precip'],
+    onChart: noop,
     ...over,
   }
 }
@@ -237,4 +239,65 @@ describe('MetricsTable', () => {
     })
   })
   // --- end #803 W6 and W7
+
+  // Each row draws its metric as a panel of the results chart (record 0290).
+  describe('the chart toggles', () => {
+    const toggle = (family: keyof typeof NOUN) =>
+      screen.getByRole('button', { name: `Show ${NOUN[family]} on the chart` }) as HTMLButtonElement
+
+    it('gives every row one, pressed while its metric is drawn', () => {
+      render(<MetricsTable {...props({ charted: ['precip', 'wind'] })} />)
+      for (const family of RANKED_FAMILIES) {
+        expect(toggle(family).getAttribute('aria-pressed')).toBe(String(family === 'precip' || family === 'wind'))
+      }
+    })
+
+    // The chart keeps its first panel for the ranking, so that row's toggle
+    // stays lit and a press changes nothing.
+    it("holds the first panel's toggle lit and takes no press on it", async () => {
+      const onChart = vi.fn()
+      const { user } = render(<MetricsTable {...props({ onChart })} />)
+      expect(toggle('precip').getAttribute('aria-disabled')).toBe('true')
+      await user.click(toggle('precip'))
+      expect(onChart).not.toHaveBeenCalled()
+    })
+
+    it('draws an undrawn metric and takes a drawn one away', async () => {
+      const onChart = vi.fn()
+      const { user } = render(<MetricsTable {...props({ charted: ['precip', 'wind'], onChart })} />)
+      await user.click(toggle('temp'))
+      expect(onChart).toHaveBeenLastCalledWith(['temp'], true)
+      await user.click(toggle('wind'))
+      expect(onChart).toHaveBeenLastCalledWith(['wind'], false)
+    })
+
+    it('greys the undrawn toggles once the chart holds four panels', () => {
+      render(<MetricsTable {...props({ charted: ['precip', 'wind', 'temp', 'aqi'] })} />)
+      expect(toggle('snowfall').disabled).toBe(true)
+      expect(toggle('wind').disabled).toBe(false)
+    })
+
+    it('greys the toggle of a metric the window cannot answer', () => {
+      render(<MetricsTable {...props({ unanswered: new Map([['cloud_deck', 'archive']]) })} />)
+      expect(toggle('cloud_deck').disabled).toBe(true)
+    })
+
+    // Every group of toggles takes a Shift range (record 0209). The range is
+    // the rows between the two presses, both included, less the first
+    // panel's and a greyed one, all set to the state the second press takes.
+    it('sets every row a Shift press reaches, past the first panel and a greyed row', () => {
+      const onChart = vi.fn()
+      render(
+        <MetricsTable
+          {...props({ sortBy: DEFAULT_FAMILY_KEY.freeze, charted: ['freeze'], onChart, unanswered: new Map([['cloud_deck', 'archive']]) })}
+        />,
+      )
+      fireEvent.click(toggle('aqi'))
+      fireEvent.click(toggle('snowfall'), { shiftKey: true })
+      const from = RANKED_FAMILIES.indexOf('aqi')
+      const to = RANKED_FAMILIES.indexOf('snowfall')
+      const reached = RANKED_FAMILIES.slice(from, to + 1).filter((f) => f !== 'freeze' && f !== 'cloud_deck')
+      expect(onChart).toHaveBeenLastCalledWith(reached, true)
+    })
+  })
 })

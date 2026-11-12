@@ -79,6 +79,7 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
       destinationInputs={INPUTS}
       forecastSelection={SELECTION}
       rankingKnobs={KNOBS}
+      chartMetrics={{ metrics: ['precip'], chart: NOOP }}
       caps={CAPS}
       mapRef={MAP}
       onPointAtSearch={NOOP}
