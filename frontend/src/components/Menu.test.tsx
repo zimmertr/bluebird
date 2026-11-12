@@ -833,4 +833,123 @@ describe('MenuBrowse', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(field('The Bulger List')).toBeTruthy()
   })
+
+  // Groups inside groups (#892): a continent opens to its countries and a
+  // country to its regions, and a row can sit under a heading at any depth.
+  describe('with groups inside groups', () => {
+    const TREE: readonly BrowseGroup[] = [
+      { name: 'North America', words: [] },
+      { name: 'United States', words: [], parent: 'North America' },
+      { name: 'Washington', words: [], parent: 'United States' },
+      { name: 'Canada', words: ['Alberta'], parent: 'North America' },
+      { name: 'Europe', words: [] },
+      { name: 'Scotland', words: [], parent: 'Europe' },
+      // No row under it at any depth, so neither heading is shown.
+      { name: 'Asia', words: [] },
+      { name: 'Japan', words: [], parent: 'Asia' },
+    ]
+    const ROWS: readonly BrowseItem[] = [
+      { id: 'wa-bulger-list', name: 'The Bulger List', description: 'The Bulger hundred.', group: 'Washington', count: 100 },
+      { id: 'canada-rockies', name: 'Canadian Rockies', description: 'The Rockies.', group: 'Canada', count: 54 },
+      { id: 'north-america-high-points', name: 'Country High Points', description: 'One a country.', group: 'North America', count: 44 },
+      { id: 'scotland-munros', name: 'Munros', description: 'Scotland.', group: 'Scotland', count: 282 },
+    ]
+
+    function Tree({ initial = '' }: { initial?: string }) {
+      const [value, setValue] = useState(initial)
+      return (
+        <MenuBrowse
+          label="Coordinate list"
+          placeholder="Coordinate list"
+          value={value}
+          items={ROWS}
+          groups={TREE}
+          other={OTHER}
+          onChange={setValue}
+          starred={[]}
+          onToggleStar={() => {}}
+          widthRef={{ current: null }}
+          className="w-40"
+        />
+      )
+    }
+    const shut = (name: string) => screen.queryByRole('button', { name: new RegExp(`^${name} \\d+ lists?$`) }) === null
+    const isOpen = (name: string) => region(name).getAttribute('aria-expanded')
+
+    it('counts every row under a heading, and shows no heading with none', async () => {
+      const { user } = render(<Tree />)
+      await user.click(field())
+      expect(region('North America').textContent).toBe('North America 3 lists')
+      expect(region('Europe').textContent).toBe('Europe 1 list')
+      expect(shut('Asia')).toBe(true)
+      // A group inside another waits for its parent to open.
+      expect(shut('United States')).toBe(true)
+      expect(noPick('Country High Points')).toBe(true)
+    })
+
+    it("opens one path at a time, a heading's groups before its own rows", async () => {
+      const { user } = render(<Tree />)
+      await user.click(field())
+      await user.click(region('North America'))
+      const inside = screen.getByRole('group', { name: 'North America' })
+      expect(inside.className).toBe(MENU_BROWSE.nest)
+      expect([...inside.querySelectorAll('[data-browse-item]')].map((each) => each.textContent)).toEqual([
+        'United States 1 list',
+        'Canada 1 list',
+        'Country High Points 44 peaks',
+      ])
+      await user.click(region('United States'))
+      await user.click(region('Washington'))
+      expect(pick('The Bulger List')).toBeTruthy()
+      expect(isOpen('North America')).toBe('true')
+      expect(isOpen('United States')).toBe('true')
+      // Each level is set in from the one above it.
+      expect(screen.getByRole('group', { name: 'Washington' }).parentElement).toBe(
+        screen.getByRole('group', { name: 'United States' }),
+      )
+      // A sibling shuts the path beside it and leaves the parent open.
+      await user.click(region('Canada'))
+      expect(isOpen('United States')).toBe('false')
+      expect(shut('Washington')).toBe(true)
+      expect(isOpen('North America')).toBe('true')
+      expect(pick('Canadian Rockies')).toBeTruthy()
+      // Shutting a group goes back to its parent.
+      await user.click(region('Canada'))
+      expect(isOpen('Canada')).toBe('false')
+      expect(isOpen('North America')).toBe('true')
+      await user.click(region('Europe'))
+      expect(isOpen('North America')).toBe('false')
+      expect(shut('Canada')).toBe(true)
+    })
+
+    it("opens on the picked row's group and every group above it", async () => {
+      const { user } = render(<Tree initial="wa-bulger-list" />)
+      await user.click(field('The Bulger List'))
+      expect(isOpen('North America')).toBe('true')
+      expect(isOpen('United States')).toBe('true')
+      expect(isOpen('Washington')).toBe('true')
+      expect(pick('The Bulger List').getAttribute('aria-current')).toBe('true')
+    })
+
+    it('finds a row by the name and the other words of any group above it', async () => {
+      const { user } = render(<Tree />)
+      await user.click(field())
+      await user.type(search(), 'europe')
+      expect(within(screen.getByRole('group', { name: 'Scotland' })).getByText('Scotland').className).toBe(
+        MENU_BROWSE.heading,
+      )
+      expect(pick('Munros')).toBeTruthy()
+      expect(noPick('The Bulger List')).toBe(true)
+      await user.clear(search())
+      await user.type(search(), 'north america')
+      expect(pick('The Bulger List')).toBeTruthy()
+      expect(pick('Canadian Rockies')).toBeTruthy()
+      expect(pick('Country High Points')).toBeTruthy()
+      expect(noPick('Munros')).toBe(true)
+      await user.clear(search())
+      await user.type(search(), 'alberta')
+      expect(pick('Canadian Rockies')).toBeTruthy()
+      expect(noPick('Country High Points')).toBe(true)
+    })
+  })
 })

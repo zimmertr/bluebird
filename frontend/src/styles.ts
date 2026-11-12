@@ -3495,9 +3495,10 @@ export const MENU_GROUP = {
  * A menu a reader searches and browses, where `MenuSelect`'s short list is
  * one they scan (#848, record
  * [0281](../../docs/architectural-decision-records/0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md)):
- * the Coordinate list field's, which holds dozens of lists under ten regions.
- * A search box on top, then the starred lists, then each region as a heading
- * that opens in place, on the one card at a desk and in a sheet on a phone.
+ * the Coordinate list field's, which holds well over a hundred lists under
+ * headings that stand inside one another (#892). A search box on top, then
+ * the starred lists, then each heading, which opens in place to the headings
+ * or the lists under it, on the one card at a desk and in a sheet on a phone.
  *
  * - `top`: the strip the search box stands in, over a hairline, so the box
  *   stays put while the rows scroll under it.
@@ -3513,7 +3514,9 @@ export const MENU_GROUP = {
  * - `count`: a region's list count and a list's peak count, in the caption's
  *   ink and tabular figures so a column of them lines up. 12px, never the
  *   micro step: each stands inside a row that is pressed (record 0131).
- * - `nest`: a region's rows, 8px in from its heading.
+ * - `nest`: what stands under a heading, 8px in from it: the headings under
+ *   it, then its rows. Each level steps in once more, so a list three
+ *   headings down stands 24px in.
  * - `row`: one list: its star, its name and count, and its info button. The
  *   raised fill follows the pointer over the whole row, since a press on the
  *   name or the count picks it.

@@ -80,21 +80,52 @@ describe('the manifest', () => {
     for (const list of manifest.lists) expect(regions, list.id).toContain(list.region)
   })
 
-  // The headings are user-facing strings, approved as a set on 2026-11-05
-  // (#848). A new one is the maintainer's to approve, and then joins this list.
-  it('carries the approved region headings, in the approved order', () => {
-    expect(manifest.regions.map((region) => region.name)).toEqual([
-      'Nationwide',
-      'Washington',
-      'Oregon and the Cascades',
-      'Northern Rockies',
-      'Alaska',
-      'California',
-      'Colorado',
-      'Southwest',
-      'Northeast',
-      'Southeast',
+  // The headings are user-facing strings. The ten under United States were
+  // approved as a set on 2026-11-05 (#848), and the rest with the level above
+  // them on 2026-11-11 (#892). A new one is the maintainer's to approve, and
+  // then joins this list. Each stands under the heading its arrow names.
+  it('carries the approved region headings, in the approved order, each under its parent', () => {
+    expect(manifest.regions.map((region) => (region.parent ? `${region.parent} > ${region.name}` : region.name))).toEqual([
+      'North America',
+      'North America > United States',
+      'United States > Nationwide',
+      'United States > Washington',
+      'United States > Oregon and the Cascades',
+      'United States > Northern Rockies',
+      'United States > Alaska',
+      'United States > California',
+      'United States > Colorado',
+      'United States > Southwest',
+      'United States > Northeast',
+      'United States > Southeast',
+      'North America > Canada',
+      'Europe',
+      'Europe > Britain and Ireland',
+      'Britain and Ireland > Scotland',
+      'Britain and Ireland > England',
+      'Britain and Ireland > Wales',
+      'Britain and Ireland > Ireland',
+      'Britain and Ireland > Across Britain and Ireland',
+      'Europe > Alps',
+      'Europe > Central Europe',
+      'Europe > Southern Europe',
+      'Europe > Across Europe',
+      'Asia',
+      'Australia and New Zealand',
+      'South America',
+      'Africa',
+      'Worldwide',
     ])
+  })
+
+  // A heading opens under one named before it, so the array reads top down
+  // and no heading can stand under itself.
+  it('names every parent before the heading under it', () => {
+    const seen: string[] = []
+    for (const region of manifest.regions) {
+      if (region.parent) expect(seen, region.name).toContain(region.parent)
+      seen.push(region.name)
+    }
   })
 })
 
@@ -105,14 +136,24 @@ describe('PRESET_LISTS', () => {
     expect(new Set(PRESET_LISTS.map((list) => list.url)).size).toBe(PRESET_LISTS.length)
   })
 
-  it('offers every region the manifest names, with the places a search also matches', () => {
-    expect(PRESET_REGIONS.map((region) => region.name)).toEqual(manifest.regions.map((region) => region.name))
+  it('offers every region the manifest names, A to Z under each parent, with the places a search also matches', () => {
+    expect(PRESET_REGIONS.map((region) => region.name).sort()).toEqual(manifest.regions.map((region) => region.name).sort())
+    const top = PRESET_REGIONS.filter((region) => region.parent === null).map((region) => region.name)
+    expect(top).toEqual(['Africa', 'Asia', 'Australia and New Zealand', 'Europe', 'North America', 'South America', 'Worldwide'])
+    const states = PRESET_REGIONS.filter((region) => region.parent === 'United States').map((region) => region.name)
+    expect(states.slice(0, 3)).toEqual(['Alaska', 'California', 'Colorado'])
+    // A parent comes before every heading under it.
+    for (const [i, region] of PRESET_REGIONS.entries()) {
+      if (region.parent !== null) expect(PRESET_REGIONS.findIndex((each) => each.name === region.parent), region.name).toBeLessThan(i)
+    }
     expect(PRESET_REGIONS.find((region) => region.name === 'Northern Rockies')?.places).toEqual([
       'Idaho',
       'Montana',
       'Wyoming',
     ])
     expect(PRESET_REGIONS.find((region) => region.name === 'Washington')?.places).toEqual([])
+    expect(PRESET_REGIONS.find((region) => region.name === 'Washington')?.parent).toBe('United States')
+    expect(PRESET_REGIONS.find((region) => region.name === 'North America')?.parent).toBeNull()
   })
 
   // The name lives in the manifest, so a file carries rows and nothing else.

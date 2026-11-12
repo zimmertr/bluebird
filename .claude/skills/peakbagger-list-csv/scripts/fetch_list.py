@@ -13,12 +13,15 @@ import re
 TR = re.compile(r'<tr[^>]*>(.*?)(?=<tr[^>]*>|</table>)', re.S | re.I)
 # A row counts when its first cell is a rank. An elevation list also prints the summits
 # that miss its prominence rule, with an empty first cell, and those are not on the list
-# (Colorado 13ers: 629 ranked of 879 rows). A state or county list carries one plain cell,
-# the state or the county, between the rank and the peak. Only the FIRST peak link is the
-# row's peak: a county row links its other contenders after it.
+# (Colorado 13ers: 629 ranked of 879 rows). A list of high points carries cells between the
+# rank and the peak that say what the peak is the top of: one for a state or a county, two
+# for a county and its country (the UK's), and a continent's is a link to its range page
+# (the Seven Summits). Up to three such cells are passed over, none of them holding a peak
+# link. Only the FIRST peak link is the row's peak: a county row links its other contenders
+# after it.
 RANKED = re.compile(
     r'\s*<td[^>]*>\s*[\d.]+\s*</td>\s*'
-    r'(?:<td[^>]*>[^<]*</td>\s*)?'
+    r'(?:<td[^>]*>(?:(?!</td>|peak\.aspx\?pid=).)*</td>\s*){0,3}'
     r'<td[^>]*>\s*<a href=["\']?peak\.aspx\?pid=(-?\d+)["\']?>(.*?)</a>',
     re.S | re.I,
 )
