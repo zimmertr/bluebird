@@ -1,4 +1,4 @@
-fastapi==0.162.0
+fastapi==0.162.5
 # Named rather than asked for as uvicorn[standard]: the extra also installs
 # pyyaml, python-dotenv, watchfiles and websockets, which the app never imports,
 # and pyyaml ships no Python 3.15 wheel, so the image would build it from source
