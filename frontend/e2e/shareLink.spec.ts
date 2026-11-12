@@ -230,7 +230,7 @@ test('a 3D link opens at the pitch its camera names, flat included', async ({ pa
 // rather than writing the rows out.
 test('a link that names a ready-made list opens with the list in the box', async ({ page }) => {
   await page.goto('/?list=wa-bulger-list')
-  await expect(page.getByRole('button', { name: 'Coordinate list The Bulger List' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'List search The Bulger List' })).toBeVisible()
   await expect(page.getByRole('textbox', { name: /^Custom destination coordinates/ })).toHaveValue(/Mount Rainier/)
   const search = () => new URL(page.url()).searchParams
   await holdsPastDebounce(page, () => search().get('list'), 'wa-bulger-list')

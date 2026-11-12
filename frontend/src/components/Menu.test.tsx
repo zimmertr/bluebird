@@ -556,7 +556,7 @@ describe('MenuBrowse', () => {
       <div ref={rowRef}>
         <MenuBrowse
           label="Coordinate list"
-          placeholder="Coordinate list"
+          placeholder="Select a list"
           value={value}
           items={ITEMS}
           groups={GROUPS}
@@ -577,7 +577,7 @@ describe('MenuBrowse', () => {
   }
 
   const field = (reads?: string) =>
-    screen.getByRole('button', { name: reads === undefined ? 'Coordinate list' : `Coordinate list ${reads}` })
+    screen.getByRole('button', { name: `Coordinate list ${reads ?? 'Select a list'}` })
   const search = () => screen.getByRole('textbox', { name: 'Search lists' })
   const region = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name} \\d+ lists?$`) })
   const pick = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name} \\d+ peaks?$`) })
@@ -585,17 +585,44 @@ describe('MenuBrowse', () => {
   const star = (name: string) => screen.getByRole('button', { name: `Star ${name}` })
   const about = (name: string) => screen.getByRole('button', { name: `About ${name}` })
 
-  // The field says its name once at rest, where its placeholder is its label,
-  // and its name and what it holds after a pick.
-  it('is a field named once at rest, and by its name and its pick after one', async () => {
+  // The field reads its placeholder at rest and is named by its label and the
+  // placeholder, since a name must hold the words a control shows (WCAG 2.5.3,
+  // record 0288), and by its label and its pick after one.
+  it('is a field named by its label and what it reads, at rest and after a pick', async () => {
     const { user } = render(<Browse />)
+    expect(field().textContent).toContain('Select a list')
     expect(field().getAttribute('aria-haspopup')).toBe('dialog')
     expect(field().className).toBe(`${MENU_TRIGGER.field} w-40 text-center`)
-    expect(field().getAttribute('aria-labelledby')!.split(' ')).toHaveLength(1)
+    expect(field().getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
     await user.click(field())
     await user.click(region('Washington'))
     await user.click(pick('The Bulger List'))
     expect(field('The Bulger List').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
+  })
+
+  // A visible heading can name the field instead (record 0288): the reader
+  // then hears the heading and what the field shows.
+  it('takes its name from a visible heading when given one', () => {
+    render(
+      <>
+        <h3 id="list-heading">List search</h3>
+        <MenuBrowse
+          label="Coordinate list"
+          placeholder="Select a list"
+          labelledBy="list-heading"
+          value=""
+          items={ITEMS}
+          groups={GROUPS}
+          other={OTHER}
+          onChange={() => {}}
+          starred={[]}
+          onToggleStar={() => {}}
+          widthRef={{ current: null }}
+          className="w-40"
+        />
+      </>,
+    )
+    expect(screen.getByRole('button', { name: 'List search Select a list' }).textContent).toContain('Select a list')
   })
 
   it('opens on the search box with every group that holds a row, each shut and counted', async () => {
@@ -653,7 +680,7 @@ describe('MenuBrowse', () => {
     const { user } = render(
       <MenuBrowse
         label="Coordinate list"
-        placeholder="Coordinate list"
+        placeholder="Select a list"
         value=""
         items={ITEMS.filter((item) => item.group === 'Washington')}
         groups={GROUPS}
@@ -860,7 +887,7 @@ describe('MenuBrowse', () => {
       return (
         <MenuBrowse
           label="Coordinate list"
-          placeholder="Coordinate list"
+          placeholder="Select a list"
           value={value}
           items={ROWS}
           groups={TREE}
