@@ -75,6 +75,8 @@ const LINK_LOST: Record<LinkDrop, string> = {
   model: "The link's forecast model is not available here.",
 }
 const LINK_LOST_ORDER: readonly LinkDrop[] = ['ring', 'list', 'model']
+// Approved by the maintainer on #864 (2026-11-04).
+const LIST_TOO_LONG_NOTE = 'This list is too long to share in a link.'
 // --- end #803 ---
 
 // What each Analyze blocker reads as. A function rather than a record because
@@ -186,8 +188,10 @@ export interface PanelMessageInputs {
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
-  /** The preset list last picked beside Coordinate search did not arrive (#838). */
+  /** The preset list last picked beside List search did not arrive (#838). */
   presetListFailed: boolean
+  /** The pasted list is too long for a link to carry (`customCsvTooLong`, #864). Absent reads as not. */
+  listTooLong?: boolean
   // What the link carried and could not restore (`useLinkDrops`, #803). Absent
   // reads as nothing lost.
   linkLost?: readonly LinkDrop[]
@@ -337,6 +341,11 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
       text: LINK_LOST[what],
       severity: 'info' as const,
     })),
+    // A pasted list the link leaves out (#864): the address bar is still a
+    // link, and it opens without these rows, so the reader who copies it is
+    // told before they send it. Info, like the lines above: nothing is wrong
+    // with the panel or the analysis. Gone when the list is short enough.
+    ...(p.listTooLong ? [{ key: 'link:list-too-long', text: LIST_TOO_LONG_NOTE, severity: 'info' as const }] : []),
     ...windowMessages,
     ...p.blockers.map((blocker) => ({
       key: blockerKey(blocker),
@@ -385,7 +394,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     ...(p.basemapFailed
       ? [{ key: 'map:style', text: BASEMAP_FAILED_NOTE, severity: 'error' as const }]
       : []),
-    // A list picked beside Coordinate search that did not arrive (#838; record
+    // A list picked beside List search that did not arrive (#838; record
     // 0263): the reader asked for rows and the box stayed as it was, so the
     // line opens the list the way the map's does. Gone when the next pick
     // lands.

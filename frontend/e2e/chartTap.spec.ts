@@ -12,8 +12,10 @@ test.use({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true
 // band inside it, so the grip above it is dragged up first, the way a reader
 // who wants to read the chart would.
 async function openChart(page: Page) {
-  // `player=1` because the Forecast player is off by default on a phone.
-  await page.goto(`/?player=1&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
+  // The Forecast player is off by default on a phone, and the switch is this
+  // browser's habit rather than a link's (#864), so storage turns it on.
+  await page.addInitScript(() => localStorage.setItem('bluebird_forecast_view', JSON.stringify({ showPlayer: true })))
+  await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   // The map's own Analyze: a phone opens on the map, with the panel's
   // drawer closed and inert (#696).

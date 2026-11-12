@@ -30,6 +30,8 @@ const NO_ROWS: DestinationResult[] = []
 // memoized table sees no change between renders where nothing waits.
 const NO_WAITING: ReadonlySet<string> = new Set()
 import { useTour } from './tour/useTour'
+import { presetListIn } from './utils/presetLists'
+import { customCsvTooLong } from './utils/urlParams'
 import { TUTORIAL_PATH } from './utils/tourSteps'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
@@ -50,6 +52,7 @@ import { useLayoutMotion } from './hooks/useLayoutMotion'
 import { useClosePopupsOnCommit } from './hooks/useClosePopupsOnCommit'
 import { useRunOnOpen } from './hooks/useRunOnOpen'
 import { useLinkDrops } from './hooks/useLinkDrops'
+import { useLinkedList } from './hooks/useLinkedList'
 import { useUrlSync } from './hooks/useUrlSync'
 import { useChartMetrics } from './hooks/useChartMetrics'
 import { useFireProximity } from './hooks/useFireProximity'
@@ -158,8 +161,9 @@ export default function App() {
   const [showResults, setShowResults] = useState(false)
   // Every stored view preference comes out of one read, held for the mount:
   // several initializers each parsing the same stored string is what
-  // `viewPrefs.ts` exists to stop. The results layout takes the mode; the
-  // table takes the rest.
+  // `viewPrefs.ts` exists to stop. The results layout takes the mode, the
+  // map's overlays the player and the opacity levels, the chart its panel
+  // layout, and the table the rest.
   const storedView = useMemo(readViewPrefs, [])
   // A page opened at /tutorial starts the tour once the panel is up, in
   // place of the welcome dialog (#536): the path is a link that opens the
@@ -187,9 +191,28 @@ export default function App() {
   // The basemap style is failing to load: the map reports it and the panel's
   // messages say so (#580).
   const [basemapFailed, setBasemapFailed] = useState(false)
-  // The preset list last picked beside Coordinate search did not arrive (#838).
+  // The preset list last picked beside List search did not arrive (#838).
   const [presetListFailed, setPresetListFailed] = useState(false)
-  const overlays = useMapOverlays(restored, isDesktop)
+  // A ready-made list the link named (`list=`, #864), fetched now and put in
+  // the box. The map frames it the way it frames a picked one, unless the
+  // link names its own camera, which wins over every fit the app makes on
+  // open (`initialCamera`).
+  const linkedList = useLinkedList({
+    id: restored?.presetList ?? null,
+    customCsv,
+    setCustomCsv: destinationInputs.setCustomCsv,
+    onArrived: (points) => {
+      if (!restoredView) mapRef.current?.fitToPoints(points)
+    },
+    onFailed: setPresetListFailed,
+  })
+  // The list a link carries by name: one still on its way, or the one the box
+  // holds exactly. Read each render rather than kept, because whether the box
+  // holds a list is the lists module's to say and no state here changes when
+  // a list arrives.
+  const presetList = linkedList.awaited ?? presetListIn(customCsv)?.id ?? null
+  const listTooLong = customCsvTooLong({ customCsv, presetList })
+  const overlays = useMapOverlays(restored, isDesktop, storedView)
   const {
     showWildfires,
     showAreaClosures,
@@ -202,10 +225,8 @@ export default function App() {
     showRelief,
     showSlope,
     showSatellite,
-    baseOpacity,
     showFireActivity,
     showTerrain,
-    showPlayer,
     playerShown,
   } = overlays
   const drawMode = useDrawMode({
@@ -387,7 +408,7 @@ export default function App() {
   // The chart's metric slots (#499), here rather than in the results view
   // because the address bar's sync below carries them. The reader's ranking,
   // never the demonstration's, so the tour moves none of the reader's slots.
-  const chartMetrics = useChartMetrics(restored?.chart, sortBy, restored?.chartLayout ?? undefined)
+  const chartMetrics = useChartMetrics(restored?.chart, sortBy, storedView.chartLayout)
 
   const report = usePresentedReport({
     universe: shownUniverse,
@@ -432,6 +453,7 @@ export default function App() {
     constraints,
     limit,
     customCsv,
+    presetList,
     showWildfires,
     showAreaClosures,
     showTrailClosures,
@@ -443,10 +465,8 @@ export default function App() {
     showRelief,
     showSlope,
     showSatellite,
-    baseOpacity,
     showFireActivity,
     showTerrain,
-    showPlayer,
     gridStyle,
     gridReachFrac,
     places,
@@ -454,7 +474,6 @@ export default function App() {
     removedKeys,
     tableSort,
     chart: chartMetrics.metrics,
-    chartLayout: chartMetrics.layout,
     restoredView,
     cameraHeld: tour.index !== null,
   })
@@ -603,6 +622,7 @@ export default function App() {
     closureCheckFailed: checkNoticeDue(closure.status, showAreaClosures, results.length),
     basemapFailed,
     presetListFailed,
+    listTooLong,
     archiveDays: caps.archiveDays,
     aqiForecastDays: caps.aqiForecastDays,
     windowLimits: caps.windowLimits,
@@ -623,8 +643,10 @@ export default function App() {
   })
 
   // A link that asks to run its analysis on open (`analyze=1`, #511).
+  // It waits for a list the link named as well as for the limits: the gate
+  // is shut over a box the list has not reached yet (#864).
   const { autoAnalyze, capsApplied, runAutoAnalyze } = useRunOnOpen({
-    settled: caps.settled,
+    settled: caps.settled && !linkedList.arriving,
     flushUrl: writeUrl.flush,
     analyze: handleAnalyze,
   })

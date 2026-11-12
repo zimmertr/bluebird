@@ -1,7 +1,7 @@
 import { apiFetch } from './apiFetch'
 import manifest from '../coordinate-lists/lists.json'
 
-// The ready-made lists the Coordinate list field under Coordinate search puts in
+// The ready-made lists the Coordinate list field under List search puts in
 // the box (#838, #848). `src/coordinate-lists/lists.json` is the list of them:
 // one entry per list with the name and description the menu reads, the region
 // it stands under, its peak count and where its rows came from, and the
@@ -69,6 +69,11 @@ export const PRESET_LISTS: readonly PresetList[] = manifest.lists.map((list) => 
   url: files[`../coordinate-lists/${list.file}`],
 }))
 
+/** The list a share link names by its id (`list=`, #864), or undefined for an id this build does not ship. */
+export function presetListById(id: string): PresetList | undefined {
+  return PRESET_LISTS.find((list) => list.id === id)
+}
+
 // Every list that has arrived this session, by URL, so the field can tell a
 // box that holds one from a box that holds the reader's own rows.
 const held = new Map<string, string>()
@@ -93,9 +98,10 @@ export async function fetchPresetList(list: PresetList): Promise<string | null> 
 
 /**
  * The list the box holds, when it holds exactly one that arrived this session
- * (a trailing newline aside), else null. What the Coordinate list field reads.
- * A share link restores the rows and not this, so a reloaded page's field
- * reads Custom coordinates over such a box until a list is picked again.
+ * (a trailing newline aside), else null. What the Coordinate list field reads,
+ * and what a share link names in place of the rows (`list=`, #864). A list a
+ * link named arrives through `fetchPresetList` like a picked one, so a
+ * reloaded page's field reads its name again.
  */
 export function presetListIn(box: string): PresetList | null {
   const text = box.trimEnd()

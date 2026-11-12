@@ -69,7 +69,7 @@ async function drag(page: Page, slider: Locator, from: number, to: number, hold?
 test.describe('at a desk', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('a drag on the Satellite slider sets both rasters\' opacity, and the link carries it', async ({ page }) => {
+  test('a drag on the Satellite slider sets both rasters\' opacity, and this browser keeps it', async ({ page }) => {
     await captureMap(page)
     await page.goto('/?view=-121.76,46.853,13&satellite=1')
     await expect.poll(() => paint(page, 'imagery-eox', 'raster-opacity')).toBe(0.5)
@@ -82,7 +82,12 @@ test.describe('at a desk', () => {
     expect(level).toBeGreaterThan(70)
     await expect.poll(() => paint(page, 'imagery-eox', 'raster-opacity')).toBe(level / 100)
     expect(await paint(page, 'imagery-usgs', 'raster-opacity')).toBe(level / 100)
-    await expect(page).toHaveURL(new RegExp(`[?&]satellite=1&satelliteopacity=${level}(&|$)`))
+    // The level is this browser's habit, never a link's (#864): the address
+    // bar carries the row's switch alone, and a reload opens at the level.
+    await expect(page).toHaveURL(/[?&]satellite=1(&|$)/)
+    expect(page.url()).not.toContain('opacity')
+    await page.reload()
+    await expect.poll(() => paint(page, 'imagery-eox', 'raster-opacity')).toBe(level / 100)
   })
 
   test('a drag on an off layer\'s slider switches it on at the level it sets', async ({ page }) => {

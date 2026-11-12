@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { compressToEncodedURIComponent } from 'lz-string'
 import { decodeLink, decodeState as decodeWithLimits, encodeState, type ShareableState } from './urlState'
-import { FIELD_PARAMS, MAX_CUSTOMZ_CHARS, URL_PARAMS } from './urlParams'
+import { FIELD_PARAMS, MAX_CUSTOMZ_CHARS, URL_PARAMS, customCsvTooLong } from './urlParams'
+import { PRESET_LISTS } from './presetLists'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { NO_CONSTRAINTS } from './constraints'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
@@ -14,11 +15,14 @@ const decodeState = (search: string) =>
 // the codec was a table. A share link is text someone already sent, so this
 // pins the codec to those answers. Only a settled decision moves one: the
 // retired keys read as nothing, and a default ranking or results cap is not
-// written (#292).
+// written (#292). #864 moved it once, by the maintainer's word that no old
+// link need open: three habits left the link for the browser's storage,
+// three keys took their neighbours' spelling, and the camera took its angle.
 import golden from './urlParams.golden.json'
 import { MAX_POLYGON_POINTS } from './drawGeometry'
 
 const DEFAULT_MODEL = 'ecmwf_ifs025'
+const LIMITS = { maxDestinations: MAX_ANALYZE_DESTINATIONS, maxPolygonPoints: MAX_POLYGON_POINTS }
 
 // Every parameter written at once, off its default, with the values the
 // encoding has to protect: a comma, a semicolon, an ampersand, a percent sign
@@ -75,6 +79,7 @@ const full: ShareableState = {
   },
   limit: 50,
   customCsv: 'Name,Lat,Lon\nA peak,46.85,-121.76\n',
+  presetList: null,
   showWildfires: true,
   showAreaClosures: true,
   showTrailClosures: true,
@@ -86,11 +91,9 @@ const full: ShareableState = {
   showRelief: true,
   showSlope: true,
   showSatellite: true,
-  baseOpacity: { satellite: 80, topo: 30, relief: 100, slope: 0 },
   showTerrain: true,
   showFireActivity: true,
   gridStyle: 'smooth',
-  showPlayer: false,
   gridReachFrac: 0.4,
   pins: [
     place({ label: 'Tricky, name; & co %', elevationFt: 14505, osmId: 'node/123' }),
@@ -99,11 +102,10 @@ const full: ShareableState = {
   removed: ['46.85289,-121.76041', '48.10000,-121.11391'],
   tableSort: { key: 'elevation_ft', desc: true },
   chart: ['temp', 'precip'],
-  chartLayout: 'row',
-  view: { lng: -121.612345, lat: 47.1, zoom: 9.456 },
+  view: { lng: -121.612345, lat: 47.1, zoom: 9.456, bearing: -32.4, pitch: 45.2 },
 }
 
-// The Current arm with only the model, one bound and the player decided.
+// The Current arm with only the model and one bound.
 const nowOnly: ShareableState = {
   ...full,
   polygon: null,
@@ -131,12 +133,10 @@ const nowOnly: ShareableState = {
   showSatellite: false,
   showTerrain: false,
   showFireActivity: false,
-  showPlayer: true,
   pins: [],
   removed: [],
   tableSort: null,
   chart: ['aqi'],
-  chartLayout: null,
   view: null,
 }
 
@@ -150,29 +150,28 @@ const dateless: ShareableState = {
   showGrid: true,
   gridStyle: 'blocks',
   gridReachFrac: 0.5,
-  showPlayer: null,
   constraints: NO_CONSTRAINTS,
 }
 
 describe('the codec table against the links it wrote before', () => {
   it('writes every parameter in the same order and spelling', () => {
     expect(encodeState(full, DEFAULT_MODEL)).toBe(
-      'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&cloud_deck=max&precip=avg&snowfall=max&temp=max' +
-        '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025&chart=temp,precip&layout=row' +
+      'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&clouddeck=max&precip=avg&snowfall=max&temp=max' +
+        '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025&chart=temp,precip' +
         '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06:00&h2=18:30' +
         '&minprecip=0&maxprecip=0.25&mintemp=-10&maxtemp=85.5&minwind=1&maxwind=30' +
         '&minfreeze=4000&maxfreeze=12000&minsnowfall=2&maxsnowfall=80&minaqi=0&maxaqi=50' +
         '&minclouddeck=3000&maxclouddeck=15000' +
         '&poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223' +
         '&customz=HIQwtgpgNAMiAusD2A7AUAQQAQAcIgGsoAWANgDoAOAVigFoBGAJgfIHZS0g' +
-        '&fires=1&closedareas=1&closedtrails=1&radar=1&smoke=1&snow=1' +
-        '&topo=1&topoopacity=30&relief=1&reliefopacity=100&slope=1&slopeopacity=0&satellite=1&satelliteopacity=80' +
-        '&terrain=1&fireactivity=1&grid=smooth&reach=40&player=0&unnamed=1' +
+        '&wildfires=1&closedareas=1&closedtrails=1&radar=1&smoke=1&snowdepth=1' +
+        '&topo=1&relief=1&slope=1&satellite=1' +
+        '&terrain=1&fireactivity=1&grid=smooth&reach=40&unnamed=1' +
         '&pins=-121.8144,48.7768,peak,14505,node/123,Tricky%2C+name%3B+%26+co+%25' +
         ';-118.2,36.12346,coordinates,,,' +
-        '&removed=-121.76041,46.85289;-121.11391,48.1&tsort=elevation_ft&tdesc=1&view=-121.6123,47.1,9.46',
+        '&removed=-121.76041,46.85289;-121.11391,48.1&tsort=elevation_ft&tdesc=1&view=-121.6123,47.1,9.46,-32,45',
     )
-    expect(encodeState(nowOnly, DEFAULT_MODEL)).toBe('model=icon_seamless&mode=now&maxclouddeck=9000&player=1')
+    expect(encodeState(nowOnly, DEFAULT_MODEL)).toBe('model=icon_seamless&mode=now&maxclouddeck=9000')
     expect(encodeState(dateless, DEFAULT_MODEL)).toBe(
       'sort=temp_min_f&model=ecmwf_ifs025&mode=days&h1=00:00&h2=23:59&grid=blocks',
     )
@@ -196,12 +195,23 @@ describe('the codec table against the links it wrote before', () => {
   // or bounded it, and must still open: on the default ranking, with the old
   // bounds read as nothing and the rest of the link kept.
   it('opens a link ranked on snow depth with the default ranking', () => {
-    const out = decodeState('sort=snow_depth_in&desc=1&minsnow=2&maxsnow=80&limit=50&snow=1')
+    const out = decodeState('sort=snow_depth_in&desc=1&minsnow=2&maxsnow=80&limit=50&snowdepth=1')
     expect(out).not.toBeNull()
     expect(out?.sortBy).toBeUndefined()
     expect(out?.rowKeys).toBeUndefined()
     expect(out?.constraints).toBeUndefined()
     expect(out).toMatchObject({ sortDesc: true, limit: 50, showSnow: true })
+  })
+
+  // #864, by the maintainer's word (2026-11-04): no old key is read and no
+  // old name is an alias. The three habits are the browser's now, and the
+  // three renamed keys answer only to their new spelling.
+  it('reads nothing from the keys #864 retired or renamed', () => {
+    expect(
+      decodeState(
+        'layout=row&player=1&topo=1&topoopacity=30&satelliteopacity=80&fires=1&snow=1&cloud_deck=max',
+      ),
+    ).toEqual({ showContours: true })
   })
 })
 
@@ -223,7 +233,7 @@ describe('the chart param', () => {
   })
 
   it('makes a link by itself', () => {
-    expect(encodeState({ ...nowOnly, forecastModel: DEFAULT_MODEL, constraints: NO_CONSTRAINTS, showPlayer: null, chart: ['aqi', 'temp'] }, DEFAULT_MODEL)).toContain(
+    expect(encodeState({ ...nowOnly, forecastModel: DEFAULT_MODEL, constraints: NO_CONSTRAINTS, chart: ['aqi', 'temp'] }, DEFAULT_MODEL)).toContain(
       'chart=aqi,temp',
     )
   })
@@ -246,7 +256,7 @@ describe('the codec table', () => {
       'sort',
       'desc',
       'aqi',
-      'cloud_deck',
+      'clouddeck',
       'freeze',
       'precip',
       'snowfall',
@@ -256,7 +266,6 @@ describe('the codec table', () => {
       'model',
       'compare',
       'chart',
-      'layout',
       'mode',
       'd1',
       'd2',
@@ -278,25 +287,21 @@ describe('the codec table', () => {
       'maxclouddeck',
       'poly',
       'customz',
-      'fires',
+      'list',
+      'wildfires',
       'closedareas',
       'closedtrails',
       'radar',
       'smoke',
-      'snow',
+      'snowdepth',
       'topo',
-      'topoopacity',
       'relief',
-      'reliefopacity',
       'slope',
-      'slopeopacity',
       'satellite',
-      'satelliteopacity',
       'terrain',
       'fireactivity',
       'grid',
       'reach',
-      'player',
       'unnamed',
       'pins',
       'removed',
@@ -312,6 +317,12 @@ describe('the codec table', () => {
     const rows = URL_PARAMS.map((row) => row.key).sort()
     const claimed = [...new Set(Object.values(FIELD_PARAMS).flat())].sort()
     expect(claimed).toEqual(rows)
+  })
+
+  // A key is one lower-case word a reader can type (#864): `cloud_deck` was
+  // the one with an underscore, beside its own `minclouddeck`.
+  it('spells every key in lower-case letters and digits', () => {
+    for (const { key } of URL_PARAMS) expect(key).toMatch(/^[a-z0-9]+$/)
   })
 })
 
@@ -383,18 +394,92 @@ describe('decodeLink', () => {
   })
 })
 
-// The panels' arrangement (#499): written only off the count's own, read
-// tolerantly.
-describe('the chart layout param', () => {
-  it('writes a layout the count does not open in, and nothing for its own', () => {
-    const four = { ...nowOnly, chart: ['aqi', 'temp', 'wind', 'precip'] as ShareableState['chart'] }
-    expect(encodeState({ ...four, chartLayout: '2x2' }, DEFAULT_MODEL)).toContain('layout=2x2')
-    expect(encodeState({ ...four, chartLayout: '1-3' }, DEFAULT_MODEL)).not.toContain('layout=')
-    // A layout the count does not offer draws the count's own, so says nothing.
-    expect(encodeState({ ...nowOnly, chartLayout: '2x2' }, DEFAULT_MODEL)).not.toContain('layout=')
+// A ready-made list by name (#864): the link names the list the box holds
+// rather than carrying its rows, and carries the reader's own rows as before.
+describe('the list param', () => {
+  const list = PRESET_LISTS[0]
+  const picked: ShareableState = { ...nowOnly, customCsv: '46.85,-121.76,Mount Rainier', presetList: list.id }
+
+  it('names a ready-made list in place of its rows', () => {
+    const query = encodeState(picked, DEFAULT_MODEL)
+    expect(query).toContain(`list=${list.id}`)
+    expect(query).not.toContain('customz=')
   })
-  it('reads a known layout and drops an unknown one', () => {
-    expect(decodeState('?chart=temp&layout=1-2-1')?.chartLayout).toBe('1-2-1')
-    expect(decodeState('?chart=temp&layout=3x3')?.chartLayout).toBeUndefined()
+
+  it('carries rows of the reader\'s own as rows', () => {
+    const query = encodeState({ ...picked, presetList: null }, DEFAULT_MODEL)
+    expect(query).toContain('customz=')
+    expect(query).not.toContain('list=')
+  })
+
+  // A list a link named whose rows have not arrived: the box is still empty,
+  // and the address bar keeps naming the list.
+  it('makes a link by itself, before its rows are in the box', () => {
+    expect(
+      encodeState({ ...nowOnly, forecastModel: DEFAULT_MODEL, constraints: NO_CONSTRAINTS, presetList: list.id }, DEFAULT_MODEL),
+    ).toContain(`list=${list.id}`)
+  })
+
+  it('reads the id of a list this build ships, and no rows', () => {
+    const out = decodeLink(`list=${list.id}`, LIMITS)
+    expect(out).toEqual({ state: { presetList: list.id }, dropped: [] })
+  })
+
+  it('reports an id this build does not ship as a lost list', () => {
+    expect(decodeLink('type=peak&list=no-such-list', LIMITS)).toEqual({
+      state: { destinationTypes: ['peak'] },
+      dropped: ['list'],
+    })
+  })
+
+  it('reports nothing for an empty value', () => {
+    expect(decodeLink('type=peak&list=', LIMITS).dropped).toEqual([])
+  })
+
+  // Only a hand-edited link carries both. The rows are what it spelled out.
+  it('keeps the rows of a link that carries both', () => {
+    const rows = '47.1,-121.1,Mine'
+    const out = decodeLink(`customz=${compressToEncodedURIComponent(rows)}&list=${list.id}`, LIMITS)
+    expect(out.state).toEqual({ customCsv: rows })
+    expect(out.dropped).toEqual([])
+  })
+
+  it('gives every shipped list an id a link can carry as it is', () => {
+    for (const { id } of PRESET_LISTS) expect(id).toMatch(/^[a-z0-9-]+$/)
+  })
+})
+
+// The writer checks the cap the reader holds a pasted list to (#864): a list
+// whose compressed text is over it is left out of the link, so no link the
+// app writes drops its own list on a reload.
+describe('a pasted list too long for a link', () => {
+  // Rows that do not compress into each other: each name is its own digits.
+  const rows = (n: number) =>
+    Array.from({ length: n }, (_, i) => `${(40 + ((i * 7919) % 9973) / 1000).toFixed(5)},${(-120 - ((i * 104729) % 9949) / 1000).toFixed(5)},Peak ${(i * 2654435761) % 1000003}`).join('\n')
+  const state = (customCsv: string, presetList: string | null = null): ShareableState => ({ ...nowOnly, customCsv, presetList })
+
+  it('writes a list whose compressed text is inside the cap', () => {
+    const short = rows(100)
+    expect(compressToEncodedURIComponent(short).length).toBeLessThanOrEqual(MAX_CUSTOMZ_CHARS)
+    expect(customCsvTooLong(state(short))).toBe(false)
+    const query = encodeState(state(short), DEFAULT_MODEL)
+    expect(decodeState(query)?.customCsv).toBe(short)
+  })
+
+  it('leaves out a list whose compressed text is over the cap, and keeps the rest of the link', () => {
+    const long = rows(1_400)
+    expect(compressToEncodedURIComponent(long).length).toBeGreaterThan(MAX_CUSTOMZ_CHARS)
+    expect(customCsvTooLong(state(long))).toBe(true)
+    const query = encodeState(state(long), DEFAULT_MODEL)
+    expect(query).not.toContain('customz=')
+    expect(query).toContain('maxclouddeck=9000')
+    // The link it does write reads back with nothing lost.
+    expect(decodeLink(query, LIMITS).dropped).toEqual([])
+  })
+
+  it('is never true of a ready-made list or an empty box', () => {
+    expect(customCsvTooLong(state(rows(1_400), PRESET_LISTS[0].id))).toBe(false)
+    expect(customCsvTooLong(state(''))).toBe(false)
+    expect(customCsvTooLong(state('  \n'))).toBe(false)
   })
 })

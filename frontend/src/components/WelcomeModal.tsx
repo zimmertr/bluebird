@@ -29,7 +29,7 @@ interface Props {
 // Every step is named for the panel section it describes, so a renamed section
 // renames its step.
 const STEPS: [string, string][] = [
-  ['Destinations', 'Search by name, draw a polygon, click the map, or paste coordinates. Each method finds what you want in its own way; they all work together.'],
+  ['Destinations', 'Search by name, click the map, pick a list, or draw a polygon. Each method finds what you want in its own way; they all work together.'],
   ['Forecast', 'Pick a weather model, then choose a day and time window. The calendar updates as the model changes, since different models reach different distances ahead.'],
   ['Metrics', 'Rank the results based on various weather metrics like precipitation, air quality, and temperature. Bound those same metrics, and cap how many results to list.'],
   ['Analyze', 'Generate ranked results, see them on the map as color-coded markers, and inspect forecasts across your destinations.'],

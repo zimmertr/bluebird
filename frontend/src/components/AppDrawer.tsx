@@ -86,7 +86,7 @@ interface AppDrawerProps {
   /** The panel's Map group is hovered: the search box and the map's features wear a cue. */
   onPointAtSearch: (on: boolean) => void
   onPointAtMapPois: (on: boolean) => void
-  /** Whether the preset list last picked beside Coordinate search arrived (#838). */
+  /** Whether the preset list last picked beside List search arrived (#838). */
   onPresetListFailed: (failed: boolean) => void
   /** Every message the panel has to say, with the Analyze gate and the blockers by field (`usePanelMessages`). */
   messages: PanelMessages

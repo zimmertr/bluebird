@@ -1,8 +1,8 @@
 /**
  * The map camera, reported to the share link each time it settles (#292).
  *
- * One `moveend` listener, which hands the settled centre and zoom to
- * `onCameraMove` with whether the reader moved it (`isReaderMove`). The callback
+ * One `moveend` listener, which hands the settled centre, zoom, bearing and
+ * pitch to `onCameraMove` with whether the reader moved it (`isReaderMove`). The callback
  * writes the link directly rather than through React state, so a pan renders
  * nothing: a camera in App state would render every memoized child on every
  * `moveend`. It reads the callback off the controller at event time, like
@@ -21,7 +21,7 @@ import { type CameraView, isReaderMove } from '../utils/mapView'
 
 function settled(map: maplibregl.Map): CameraView {
   const { lng, lat } = map.getCenter()
-  return { lng, lat, zoom: map.getZoom() }
+  return { lng, lat, zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }
 }
 
 export function mountCamera(map: maplibregl.Map, deps: { controller: MapController }): void {

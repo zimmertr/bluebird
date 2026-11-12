@@ -16,7 +16,7 @@ import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { ColDef } from '../utils/tableColumns'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { anyPointInView, framePadding, pointsWithinView } from '../utils/mapFraming'
-import { type CameraView, initialCamera } from '../utils/mapView'
+import { type CameraView, MAX_PITCH, initialCamera } from '../utils/mapView'
 import type { ViewBounds } from '../utils/layerCoverage'
 import type { PendingDestination } from '../utils/customList'
 // The plain-data half of this component, which is where anything testable
@@ -693,15 +693,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
         container: containerRef.current,
         center: [opening.lng, opening.lat],
         zoom: opening.zoom,
+        // A link's own angle (#864), north-up and flat when it names none.
+        bearing: opening.bearing,
+        pitch: opening.pitch,
         // The library adds its own attribution unless told not to, and the
         // only way to decide `compact` is to construct the control. The effect
         // below does, at the app's own breakpoint rather than the library's
         // 640px one.
         attributionControl: false,
-        // MapLibre's own default, said here because the 3D button tilts the
-        // map to `TERRAIN_PITCH` and past 60 the library calls it
-        // experimental.
-        maxPitch: 60,
+        // MapLibre's own default (`MAX_PITCH`), which a link's pitch is held
+        // to as well.
+        maxPitch: MAX_PITCH,
       })
       mapRef.current = map
       // The 3D button's press reads the latest handler at the moment it is
@@ -737,6 +739,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           ring: ptsRef,
           onPolygonChange,
           onDrawUpdate,
+          linkCamera: restoredView !== null,
         })
 
         if (pendingSearchRef.current) {

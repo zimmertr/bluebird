@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Ajv2020 from 'ajv/dist/2020'
-import { PRESET_LISTS, PRESET_REGIONS, presetListIn, fetchPresetList, forgetPresetLists } from './presetLists'
+import { PRESET_LISTS, PRESET_REGIONS, presetListById, presetListIn, fetchPresetList, forgetPresetLists } from './presetLists'
 import { parseCustomCsv } from './customDestinations'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { fakeResponse } from '../testSupport/fixtures'
@@ -133,9 +133,18 @@ describe('PRESET_LISTS', () => {
   })
 })
 
+// A share link names a list by its id (`list=`, #864).
+describe('presetListById', () => {
+  it('finds each list by its id, and nothing for an id the build does not ship', () => {
+    for (const list of PRESET_LISTS) expect(presetListById(list.id)).toBe(list)
+    expect(presetListById('no-such-list')).toBeUndefined()
+    expect(presetListById('')).toBeUndefined()
+  })
+})
+
 describe('presetListIn', () => {
   // The field reads the list's name only once that list has arrived and the
-  // box is that list; a share link's restored rows are not one until then.
+  // box is that list; rows a share link spelled out are not one until then.
   it('names the list the box holds once it has arrived, a trailing newline aside', async () => {
     const list = PRESET_LISTS[0]
     expect(presetListIn('46.85,-121.76,Mount Rainier')).toBeNull()

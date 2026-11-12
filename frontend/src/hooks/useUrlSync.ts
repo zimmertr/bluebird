@@ -27,6 +27,8 @@ export interface UrlSyncInputs {
   limit: number
   /** The coordinates box, as typed. */
   customCsv: string
+  /** The ready-made list the box holds or a link named, by id, or null (`list=`, #864). */
+  presetList: string | null
   /** The map's layer switches. */
   showWildfires: boolean
   showAreaClosures: boolean
@@ -39,13 +41,9 @@ export interface UrlSyncInputs {
   showRelief: boolean
   showSlope: boolean
   showSatellite: boolean
-  /** The four Base map rows' opacity levels (record 0250). */
-  baseOpacity: ShareableState['baseOpacity']
   showFireActivity: boolean
   /** The map's 3D switch. */
   showTerrain: boolean
-  /** The player switch: the reader's answer, or null for the device default. */
-  showPlayer: ShareableState['showPlayer']
   /** The forecast grid's style and coverage. */
   gridStyle: ShareableState['gridStyle']
   gridReachFrac: number
@@ -59,8 +57,6 @@ export interface UrlSyncInputs {
   tableSort: ShareableState['tableSort']
   /** The chart's metric slots (#499). */
   chart: ShareableState['chart']
-  /** How a desk arranges the chart's panels (#499). */
-  chartLayout: ShareableState['chartLayout']
   /** The camera the link opened on, held until the map reports its own. */
   restoredView: CameraView | null
   /**
@@ -103,6 +99,7 @@ export function useUrlSync({
   constraints,
   limit,
   customCsv,
+  presetList,
   showWildfires,
   showAreaClosures,
   showTrailClosures,
@@ -114,10 +111,8 @@ export function useUrlSync({
   showRelief,
   showSlope,
   showSatellite,
-  baseOpacity,
   showFireActivity,
   showTerrain,
-  showPlayer,
   gridStyle,
   gridReachFrac,
   places,
@@ -125,7 +120,6 @@ export function useUrlSync({
   removedKeys,
   tableSort,
   chart,
-  chartLayout,
   restoredView,
   cameraHeld,
 }: UrlSyncInputs): UrlSync {
@@ -206,6 +200,7 @@ export function useUrlSync({
         constraints,
         limit,
         customCsv,
+        presetList,
         showWildfires,
         showAreaClosures,
         showTrailClosures,
@@ -217,17 +212,14 @@ export function useUrlSync({
         showRelief,
         showSlope,
         showSatellite,
-        baseOpacity,
         showFireActivity,
         showTerrain,
-        showPlayer,
         gridStyle,
         gridReachFrac,
         pins: places,
         removed: [...removedKeys],
         tableSort,
         chart,
-        chartLayout,
       },
       defaultModel: defaultForecastModel,
     }
@@ -248,6 +240,7 @@ export function useUrlSync({
     constraints,
     limit,
     customCsv,
+    presetList,
     showWildfires,
     showAreaClosures,
     showTrailClosures,
@@ -259,10 +252,8 @@ export function useUrlSync({
     showRelief,
     showSlope,
     showSatellite,
-    baseOpacity,
     showFireActivity,
     showTerrain,
-    showPlayer,
     gridStyle,
     gridReachFrac,
     places,
@@ -270,7 +261,6 @@ export function useUrlSync({
     removedKeys,
     tableSort,
     chart,
-    chartLayout,
     sync,
   ])
 

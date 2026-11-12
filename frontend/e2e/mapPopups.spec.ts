@@ -94,7 +94,7 @@ test('a fire opens the spot’s card on a click and never on a hover, and a mark
   )
   const tabs: string[] = []
   context.on('page', (p) => tabs.push(p.url()))
-  await page.goto(`/?type=peak&poly=${RING}&fires=1`)
+  await page.goto(`/?type=peak&poly=${RING}&wildfires=1`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
   // A pending row's centring opens no card, so not before the row is ranked.

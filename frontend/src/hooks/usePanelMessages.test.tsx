@@ -54,6 +54,7 @@ function state(over: Partial<PanelMessageState> = {}): PanelMessageState {
     closureCheckFailed: false,
     basemapFailed: false,
     presetListFailed: false,
+    listTooLong: false,
     archiveDays: 365,
     aqiForecastDays: 5,
     windowLimits: FALLBACK_WINDOW_LIMITS,

@@ -6,14 +6,12 @@
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { DEFAULT_FAMILY_KEY, MetricFamily, RANKED_FAMILIES } from '../metrics'
 import { Constraints, hasConstraints } from './constraints'
-import { type BaseOpacity } from './baseMapOpacity'
 import { type GridStyle } from './forecastGrid/forecastGrid'
 import { ForecastSelection } from './calendar/calendar'
 import { Place } from './geocode'
 import { type CameraView } from './mapView'
 import { type SortKey } from './tableColumns'
 import type { ChartMetrics } from './chart/chartData'
-import type { ChartLayout } from './chart/chartLayout'
 import {
   DEFAULT_LIMIT,
   DEFAULT_SORT,
@@ -71,6 +69,11 @@ export interface ShareableState {
   constraints: Constraints
   limit: number
   customCsv: string
+  // The ready-made list the box holds, by its `id` in the coordinate lists'
+  // manifest (#864), or null while the rows are the reader's own. A link names
+  // such a list (`list=`) rather than carrying its rows, and it is also the id
+  // of a list a link named whose rows have not arrived yet (`useLinkedList`).
+  presetList: string | null
   // The twelve live map overlays. Persisted so a shared link reproduces the
   // picture, and deliberately not part of the analysis request: an overlay is
   // drawn beside the ranking, never fed into it. That holds for the forecast
@@ -90,11 +93,6 @@ export interface ShareableState {
   // The slope angle shading (#799), from the same elevation as the relief.
   showSlope: boolean
   showSatellite: boolean
-  // The four Base map rows' opacity levels (record 0250), whole percents.
-  // Each rides its own param named for the layer's flag and the word
-  // (`satelliteopacity=80`), written only while its row is on and off the
-  // default, so a link opened before the sliders existed draws as it did.
-  baseOpacity: BaseOpacity
   // The satellite fire detections (#799).
   showFireActivity: boolean
   // Whether the map stands the ground up in 3D (#799). Not an overlay, since
@@ -106,13 +104,6 @@ export interface ShareableState {
   // control's state, and two params for it would let a link say the layer is
   // off while still carrying a style for it.
   gridStyle: GridStyle
-  // Whether the forecast player is on the map, which is NOT the same shape as
-  // the overlays above: `null` means "whatever this device defaults to"
-  // (on at a desktop width, off on a phone, where the bar costs a third of a
-  // short map), and a boolean means the reader has decided. Only a decision is
-  // written to the URL, and it is written either way round, so a link can carry
-  // the player onto a phone or off a desktop.
-  showPlayer: boolean | null
   // The grid's coverage slider position, in [0, 1] of the bar — the
   // kilometres derive from the model's pitch, so the POSITION is what a link
   // must carry to mean the same thing under any model. Its own param
@@ -135,9 +126,6 @@ export interface ShareableState {
   // Written only when there is more than one or the first is not the
   // ranking's family, because a chart that follows the ranking is a fresh one.
   chart: ChartMetrics
-  // How a desk arranges the chart's panels (#499), or null for the panel
-  // count's own. Written only when it is not that count's default.
-  chartLayout: ChartLayout | null
   // The map camera, or null before the map has reported one. It is written
   // only in a link that exists: an app move never makes a link by itself, and
   // a reader's own move does through `EncodeOptions.cameraMoved`.
@@ -216,7 +204,6 @@ export function encodeState(
     state.showSatellite ||
     state.showFireActivity ||
     state.showTerrain ||
-    state.showPlayer !== null ||
     state.selection.kind !== 'now' ||
     state.forecastModel !== defaultForecastModel ||
     // Ticking a model onto the chart is a real edit, like choosing the model

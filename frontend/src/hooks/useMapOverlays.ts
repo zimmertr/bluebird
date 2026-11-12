@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react'
-import { type BaseLayer, DEFAULT_BASE_OPACITY, clampOpacity } from '../utils/baseMapOpacity'
+import { useCallback, useEffect, useState } from 'react'
+import { BASE_LAYERS, type BaseLayer, DEFAULT_BASE_OPACITY, clampOpacity } from '../utils/baseMapOpacity'
 import type { ShareableState } from '../utils/urlState'
+import { type ViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
 
 /**
  * The map's overlay switches (#121, #246, #446, #550, #799), the forecast
@@ -8,15 +9,24 @@ import type { ShareableState } from '../utils/urlState'
  *
  * None of them is a knob: each changes what is drawn over the map and nothing
  * about what was asked for, so no ranking moves and `commitNeeded` does not
- * know they exist. Every one rides the URL, so a shared link reproduces the
- * picture. Their own hook because the map, the Layers popover, the legend and
- * the timeline all read them and none of them owns them.
+ * know they exist. Every switch but the player's rides the URL, so a shared
+ * link reproduces the picture. The player's switch and the four opacity
+ * levels are this browser's habits and live in its storage, never in a link
+ * (#864): the player's default is the device's, and how faded a layer draws
+ * is taste, like the theme. Their own hook because the map, the Layers
+ * popover, the legend and the timeline all read them and none of them owns
+ * them.
  *
  * @param restored The state a shared link restored, or null.
  * @param isDesktop Whether the viewport is at the desktop width, which decides
  *   the player's default.
+ * @param stored What this browser kept of the player's switch and the levels.
  */
-export function useMapOverlays(restored: Partial<ShareableState> | null, isDesktop: boolean) {
+export function useMapOverlays(
+  restored: Partial<ShareableState> | null,
+  isDesktop: boolean,
+  stored: Pick<ViewPrefs, 'showPlayer' | 'baseOpacity'>,
+) {
   // Live, not part of the analyze request. Toggling queries NIFC for the
   // current viewport.
   const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
@@ -53,8 +63,8 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
   // The four Base map rows' opacity sliders (record 0250), 0 to 100, each
   // kept while its row is off so switching it back on brings the level back.
   // Presentation like the switches: no fetch follows a level, and the
-  // ranking never reads one.
-  const [baseOpacity, setBaseOpacityAll] = useState(() => ({ ...DEFAULT_BASE_OPACITY, ...restored?.baseOpacity }))
+  // ranking never reads one. Opened on what this browser kept (#864).
+  const [baseOpacity, setBaseOpacityAll] = useState(() => stored.baseOpacity ?? DEFAULT_BASE_OPACITY)
   // One stable setter for the four, so the menu's rows can share it.
   const setBaseOpacity = useCallback(
     (layer: BaseLayer, level: number) =>
@@ -75,12 +85,20 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
   // Whether the forecast player is on the map. `null` means "this device's
   // default": on at a desktop width, off on a phone, where the bar is a band
   // across a map that can be a third of the screen. A boolean means the reader
-  // has decided, and only a decision reaches the URL, in either direction, so
-  // a link can carry the player onto a phone or off a desktop.
-  const [showPlayer, setShowPlayer] = useState<boolean | null>(() => restored?.showPlayer ?? null)
+  // has decided, and the decision is this browser's: a link that carried it
+  // put a desk reader's player on someone else's phone (#864).
+  const [showPlayer, setShowPlayer] = useState<boolean | null>(() => stored.showPlayer)
   // Whether the player is on the map: the reader's decision where they have
   // made one, this device's default otherwise.
   const playerShown = showPlayer ?? isDesktop
+
+  // Kept whenever either changes, as the table keeps its columns. A null is
+  // dropped from storage rather than stored, and levels all at their start
+  // are no answer either, so a browser that never touched a slider keeps none.
+  useEffect(() => {
+    const moved = BASE_LAYERS.some((layer) => baseOpacity[layer] !== DEFAULT_BASE_OPACITY[layer])
+    writeViewPrefs({ showPlayer, baseOpacity: moved ? baseOpacity : null })
+  }, [showPlayer, baseOpacity])
 
   return {
     showWildfires,
