@@ -108,8 +108,8 @@ these providers.
   `frontend/tools/us-states/build.sh` and served by the pod. A work of the US
   government, and so in the public domain under 17 U.S.C. §105.
 
-- [Peakbagger.com](https://www.peakbagger.com/): the peak lists Coordinate
-  search loads, in `frontend/src/coordinate-lists/`. Each list's membership, order
+- [Peakbagger.com](https://www.peakbagger.com/): the peak lists the Coordinate
+  list field loads, in `frontend/src/coordinate-lists/`. Each list's membership, order
   and coordinates come from its peakbagger.com list and peak pages. Many of the
   lists are a club's or an author's own: the Bulger group's, The Mountaineers',
   Jeff Smoot's (*Climbing Washington's Mountains*), Jeff Howbert's, Craig Willis
